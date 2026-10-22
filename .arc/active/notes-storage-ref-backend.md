@@ -2277,10 +2277,122 @@ only leftovers the rerun clears, so a first run stands for it.
   {layout.designation}, {layout.delete}, and {switched, finish} add.
 - **Follow, read, backing to backing:** {recorded, follow.switch} and {switched, finish} add.
 - **A remote move overtaken by a move back:** forwarded, switched, and delete keep their rows; copy, whose rerun
-  continues and moves the state again, and copied add; inside the switch, at switch and at layout.designation, 18.R2.h.
+  continues and moves the state again, and copied add; inside the switch (A30), {switch, layout build, record, and
+  rename}, the pointer changed and the layout not, → layout.rename, {layout.designation, layout.delete} →
+  layout.designation, and {layout.deleted}, the source's refs gone, which the layout move back reads, → layout.deleted,
+  all 18.R2.h; the undo's layout move back interrupted at {build, record}, before the code repository's refs land, reads
+  as the state the undo started from, the rebuild clearing those leftovers unread, whose row stands; at {designation,
+  rename}, the refs landed and the store directory still present, and at {delete, deleted} or past the move back with
+  carried heads remaining, one 18.R2.h row each; an undo with nothing of the switch left reads as an end before the
+  switch, whose rows stand; and 18.R2.h derives with its code the states between the undo's other writes, whose order
+  the fix sets.
+- **A follow overtaken by a move back** (A30): {follow.switch, layout build} ends as the stale follow does, its switch
+  not begun; {layout record and rename}, begun by the build and gathering refs they leave, → layout.rename,
+  {layout.designation, layout.delete} → layout.designation, and {layout.deleted} → layout.deleted, all 18.R2.h; its
+  undo's states as the remote move's, with their rows; and a follow answering `push` between two backing repositories
+  from one it read, overtaken after `configureBacking` repoints `backing` and sets its role, its source `read` again,
+  one 18.R2.h row on a hook 18.R2.h adds there, since a code remote it read loses its role only to the `off` that
+  completes the switch.
+- **A recorded follow overtaken otherwise** (A30): its old remote's forwarding record replaced, and its new remote
+  carrying another move's forwarding record, one 18.R2.h row each, at follow.recorded.
 - **A trial over a recorded move:** forwarded, switched, and overtaken keep their rows; a pre-forward record, at
-  copied, and a switched move then overtaken add.
+  copied, and a switched move then overtaken add; and a move overtaken inside its switch, whose trial reports the undo,
+  18.R2.h (A30).
 - **A move back interrupted** (`store-ref-remote-ended:33`): copy, copied, and forwarded keep their rows.
 
 Measurement scripts and raw results, the per-file baseline, the layout dependency map, and the three value reviews among
 them, sit in the checkout's `.internal/storage-ref-backend-tools/verification/selection/`.
+
+## A30 — A move overtaken inside its switch
+
+18.R2.h's probe (`.internal/storage-ref-backend-tools/verification/apply/run-h-midswitch-probe.log`) interrupted a
+remote move from the code remote to a backing repository inside its switch, moved the state back from another clone,
+and reran the move:
+
+- **At `remote.switch`,** past the pointer's change in `switchRemoteMove` (`migrate-remote-switch.ts`), the rerun
+  ended `ok`, reported the move overtaken "before its switch", and removed its record, leaving `arc-config.yml` naming
+  the abandoned destination — an uncommitted change the person would later commit.
+- **At `layout.designation`,** inside the layout move the switch runs (`moveRefLayoutAsSwitch`), the rerun ended the
+  same way and left the store directory, origin and `backing` both carrying `push`, the code repository's store refs,
+  and the layout gathering refs. `pull` then reported `move-incomplete` and `move-unfinished` with no record to finish
+  from, and a second no-target run took the recordless path (`cleanUnrecordedLayout`, `migrate-layout.ts`), deleting
+  the code repository's store refs: it completed a switch nothing licensed, leaving the clone in the separate layout,
+  pointed at a destination that forwards elsewhere, with two push remotes.
+
+`remoteSwitchComplete` reads false at both points, so the rerun goes back through the copy round, whose read ends the
+move through `endRemoteMove` and `finishEndedRemoteMove` (`migrate-remote-end.ts`): the record goes and the remote
+gathering refs clear, and nothing undoes the partial switch. Every overtaking cause the copy round's read finds —
+source forwarded, destination forwarded, moved back — passes through that one end.
+
+**Why the design arm.** § 10.3 keeps a record across the switch because a half-switched state reads the same either
+way, licenses the switch in its own round, and says what an end before the switch leaves; it says nothing of an end
+inside one, which for a remote move is a hole. § 14.7's restart clause, though, settled the follow's case the other way,
+and A30 supersedes it there:
+
+> A layout move each way, a follow, and leaving the source, interrupted between the directory's rename and the
+> designation's change finish on a no-target rerun in the direction their records name, never reversed, …
+
+A follow another move overtook meanwhile now undoes its switch instead. Task 13.1's Goal states the same "never
+reversed" and takes an `_Amended in:_` line, as do 16.5, 17.2, and the 17.6 verifier, whose recorded overtaken and
+§ 14.7 behavior A30 changes.
+
+**Decision: undo the switch, then drop the record.** A remote move's pointer goes back through the writer the switch
+used (`writeBackingRepository`), the designation back to the source's in the order a move the other way sets it, and the
+layout back through `moveRefLayoutAsSwitch` with the layouts reversed, borrowing the move's record and a configuration
+that applies the source's designation, so writes made after the interruption carry back as any layout move's do. What
+the switch carried or left goes too: the heads it carried into the new remote's tracking namespaces, where that name
+differs from the source's (`installCopiedHeads`), and the layout move's gathering refs and build or aside directory,
+which a switch overtaken before its rename leaves with the layout unchanged (`buildAndSwitchLayout` builds before
+`switchLayout` renames). The record goes last, so an undo interrupted anywhere leaves the record, and the rerun ends the
+move again and undoes what remains — the layout may already be the source's, so the leftover clearing runs whether or
+not a layout move back does. The report reads as an end before the switch, with a notice that the move was overtaken
+during its switch and undone; a rerun that finds nothing of the switch left reports a plain end before the switch
+(§ 10.3). Rejected:
+
+- finishing the switch, then following back: the switch is no longer licensed, and a follow never writes the pointer,
+  so the clone would keep a pointer change that clashes with the move back's committed one;
+- keeping the record and refusing: a dead end, with no move left to finish.
+- marking the undo in the record before its first write: it keeps the notice exact for an undo interrupted with
+  nothing left, the one state that reads as an end before the switch, at the cost of a record field that changes
+  nothing else.
+
+What the undo writes is what the record can say. A remote move's pointer returns to what the record's source gives; a
+follow writes no pointer, so its undo leaves the checkout's as it found it, the move back's change arriving with the
+code. The designation returns as a move the other way sets it: the source carries again the role it had — `push` for a
+remote move, whose source is the one push remote (`resolveMoveRemotes`, `migrate-remote.ts`), and for a follow the role
+its record keeps, since a follow from a read source can answer `push` (`followResult`, `follow-candidates.ts`) and its
+switch sets a code source `off` or removes a backing one (`applyFollowDesignation`) — then a code remote destination
+takes `off`, while `backing`, where the destination was the backing repository, is removed, going with the store
+directory where the layout moves back and removed by name where it does not, or, between two backing repositories,
+repointed to the source's URL with its role through `configureBacking`, the writer that switch used
+(`migrate-remote-switch.ts`). The follow's record gains that role (`FollowRecordSchema`, `migrate-record.ts`), written
+from the due follow's remote (`readRefFollowDue`) just before its switch. The record holds no
+prior pointer text or destination role, so a code remote destination that carried `read`
+before the move ends `off`, as a move the other way would leave it.
+
+**Sweep.** A follow's rerun ends through `endStaleRecordedFollow` (`follow.ts`) when `followSwitchComplete` reads false
+and its listing (`copyFollowState`) no longer finds the followed record, which a move back's copy deletes; it drops the
+record the same way, so a follow interrupted inside its switch has the same hole. A follow never writes the pointer
+(`switchRefFollow`, `follow-switch.ts`), so its undo is the designation, the layout, and the leftovers. The other ways
+a recorded follow is overtaken — its old remote's forwarding record replaced, or a forwarding record on its new remote —
+throw `followMoved` (`copyFollowState`, `checkFollowDestination`, `follow-copy.ts`), which `resumeRefFollow` returns as
+a refusal with the record kept, so every later run refuses again, before its switch as well as inside it; § 10.3
+already ends such a follow, its record going, and § 10.6's "the next run judges afresh" holds only before the record.
+Folded into the same batch: § 10.6 ends a recorded follow on any of those reads, after the undo where its switch had
+begun and not completed; criterion 40 names the follow's runs and the two other
+overtaken follows; and 18.R2.h writes their rows (the restart sets above). A
+follow answering `read` or `off` lists nothing (§ 10.6) and so never ends this way; leaving the
+source is the person's own end and is not overtaken.
+
+**For the fix.** Whether a switch has begun reads from what a switch changes: the heads carried, the pointer against
+the record's source, the designation against the source's, the layout, and the layout gathering refs and build or
+aside directories a forward layout move leaves, read directly: `remoteLayoutCleanupComplete` first reads whether the
+code repository still holds store refs, which it does before any switch into the separate layout, so as a begun signal
+it would read every state before such a switch as begun. A same-layout switch writes the
+designation in more than one step (`applyRemoteDesignation`, `applyFollowDesignation`, and between two backing
+repositories `configureBacking`'s repoint, then role), so a half-written designation counts as begun too. A trial over a
+recorded move reads the same predicate, so it reports the undo a rerun would make, where `remoteMoveTrial`
+(`migrate-remote.ts`) today passes `remoteSwitchComplete`. Rows cover the code-to-backing direction the probe ran; the
+other directions take the same undo with their own designation writes. The restart sets above follow the design's reads;
+18.R2.h derives them again against its fix's code, as 18.R2.c derived the others against source, and gives any state
+they miss its row.

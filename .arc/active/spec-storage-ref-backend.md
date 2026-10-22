@@ -2422,7 +2422,8 @@ the in-repo implementation; everything at the destination is the verb's.
   either way — and a remote move's switch repoints or removes `backing`, leaving the old URL only in an uncommitted
   pointer change. A remote move writes its kind, source, and destination just before its copy (§ 10.2); a follow,
   leaving the source (§ 10.6), and a layout move run on its own write theirs just before their switches. Each record
-  holds each remote's name and URLs, a follow's answer, the registry commit a remote move's step 2 lands or a follow's
+  holds each remote's name and URLs, a follow's answer and the role its old remote carried
+  before it (A30), the registry commit a remote move's step 2 lands or a follow's
   followed record names, or a layout move's two layouts, and goes to `refs/arc/tmp/migrate/move`, a root commit holding
   only `move.json`, machine-local in the code repository beside the halves' temporary refs, written expecting its
   absence, a rerun replacing its own leased on its value, so no run replaces a record another left. A remote's URLs
@@ -2474,7 +2475,20 @@ the in-repo implementation; everything at the destination is the verb's.
   whose copy deleted the record there, a later move off the new one, or another move off the old remote at once whose
   record landed first — so the round writes nothing and the move ends, its record going: its report names in `notices`
   each ref it leaves on the old remote and, ended before its switch, the copy it leaves at the new remote, which stays
-  as a refused move's does (below); a no-target run then goes on to the follow where one is due (§ 10.1). After a move
+  as a refused move's does (below); a no-target run then goes on to the follow where one is due (§ 10.1). A move ended
+  so once any step of its switch is taken (§ 10.2 step 3, § 10.6) and before the switch completes first undoes what of
+  that switch it made, since its record alone tells the half-switched state's direction (above): a remote move's pointer
+  returns to what the record's source gives it, none for a remote of the code repository and the source's URL for a
+  backing repository; the designation returns to the source's as a move the other way sets it, the source carrying again
+  the role it had — `push` for a remote move, the role its record keeps for a follow — before a code remote destination
+  takes `off`, and `backing`, where the destination was the backing repository, repointed to the source or removed;
+  where the layout changed, a layout move back to the source's layout runs as the switch under the same record, carrying
+  the writes made since the interruption with the rest; and what the switch carried or left goes — the heads it carried
+  into the new remote's tracking namespaces where that remote's name is not the source's, and its layout move's
+  temporary refs and any build or aside directory. Its report names what it leaves as one ended before its switch does,
+  saying the move was overtaken during its switch and undone. Its record goes last, so a run interrupted inside the undo
+  leaves the record, and the rerun ends the move again and undoes what remains, or, finding nothing of
+  the switch left, ends it as one ended before its switch (A30). After a move
   back, nothing it leaves is lost, the old remote being the state's home again; after a later move off the new remote,
   late pushes the copy lacks stay on the old remote until each writer's own follow clears them, as it clears a late push
   (§ 10.6), a residual where a writer never follows, published there if that remote goes public (§ 10.7). A remote move
@@ -2681,11 +2695,15 @@ written in a file reaches no objects, so no state history stays reachable from t
   deletes. While that record stands, `pull` and `push` sync with the new remote, which already holds what the carried
   heads name, and report `move-unfinished`, as a remote move's past its switch do (§ 10.3).
 - **The follow clears what raced the move,** in the move's own shape. On a `push` answer it lists the old remote's store
-  refs and its forwarding record, as the move's last step does (§ 10.2). A listing that finds no forwarding record
-  changes nothing, since the follow was not due: the record's tracking ref was stale, and the follow drops it, an
-  answering command that ran it then running as a setting made outside a follow (§ 9.4). A listing that finds a record
-  other than the one the follow judged its candidates by refuses, changing nothing, since a later move has replaced it,
-  and the next run judges afresh. So a follow deletes only on a remote its own listing found carrying the record it
+  refs and its forwarding record, as the move's last step does (§ 10.2). Before the follow's record, a listing changes
+  nothing where it finds no forwarding record, since the follow was not due: the record's tracking ref was stale, and
+  the follow drops it, an answering command that ran it then running as a setting made outside a follow (§ 9.4); and
+  where it finds a record other than the one the follow judged its candidates by, it refuses, changing nothing, since a
+  later move has replaced it, and the next run judges afresh. A rerun holding the follow's record whose listing or
+  destination read shows another move has taken the state since — no forwarding record on the old remote, another one
+  there, or one on the new remote — ends the follow instead, as § 10.3 ends a move, its record going
+  once it undoes its switch where the switch had begun and not completed (A30).
+  So a follow deletes only on a remote its own listing found carrying the record it
   judged by. Otherwise it copies any store refs it finds onto the new remote before its switch, licensed as § 10.3 says,
   merging where it holds them (§ 10.4) — a listing or copy that fails refuses the follow, changing nothing, as its other
   reads do — then after its switch deletes them in rounds, as step 4 does (§ 10.2), each delete leased on the tip it
@@ -3741,11 +3759,12 @@ remote.
   second refuses `lock-held` before it fetches, and the first finishes, carrying the heads its own step 1 kept; a move
   started after a run was killed takes the lock its dead holder left. A layout move each way, a follow, and leaving the
   source, interrupted between the directory's rename and the designation's change finish on a no-target rerun in the
-  direction their records name, never reversed, while leaving the source interrupted before its record completes when
-  its command runs again, merging onto the copy it landed; a no-target rerun holding a move's record while a follow is
-  due finishes the move first; and a layout move out interrupted before its source's delete, leaving the clone with no
-  state remote, has `pull` and `push` report `move-unfinished` beside `no-remote` until a rerun deletes the leftover,
-  and a setting moving the layout back in meanwhile first finishes the move out, then moves in; a setting made while a
+  direction their records name, never reversed, save a follow another move overtook meanwhile (below, A30), while
+  leaving the source interrupted before its record completes when its command runs again, merging onto the copy it
+  landed; a no-target rerun holding a move's record while a follow is due finishes the move first; and a layout move out
+  interrupted before its source's delete, leaving the clone with no state remote, has `pull` and `push` report
+  `move-unfinished` beside `no-remote` until a rerun deletes the leftover, and a setting moving the layout back in
+  meanwhile first finishes the move out, then moves in; a setting made while a
   layout move in stands interrupted after renaming its directory aside likewise finishes that move first, so no
   directory stays aside. A layout move out interrupted after its build and before its record leaves a temporary
   directory, which the next build replaces, a ref deleted meanwhile staying deleted, and a no-target run removes. Each
@@ -3793,7 +3812,16 @@ remote.
   state's home and the follow coming due; one rerun before its switch, the move back's forwarding record on its new
   remote, ends at step 1, copying nothing, and a clone still on the new remote follows that record; a rerun before its
   switch that finds another move's forwarding record on its old remote ends, its record going, where a first run
-  refuses; a move back interrupted between its record and its switch finishes on a rerun, every clone ending on the old
+  refuses; a rerun of a remote move from the code remote to a backing repository interrupted after its pointer's change,
+  inside its layout move before the rename, or after it, and of a follow answering
+  `push` from that remote carrying `push` interrupted inside its layout move
+  before or after the rename, after another clone moved the state back, undoes the switch and ends, with the source
+  carrying `push`, the source's layout, nothing of the switch left, and a remote move's pointer the one the record's
+  source gives, as a rerun interrupted inside that undo also ends; a follow answering `push` from a remote it read, so
+  overtaken, ends with that remote carrying `read` again; a rerun of a recorded follow whose
+  old remote's forwarding record another move replaced, or whose new remote
+  carries another move's forwarding record, ends rather than refusing (A30);
+  a move back interrupted between its record and its switch finishes on a rerun, every clone ending on the old
   remote, and one whose new remote went meanwhile is ended by `--leave-source`, which withdraws its forwarding record,
   every clone then syncing with the old remote; a move whose new remote is deleted after its copy deletes nothing on the
   old remote, the delete round's read of the new remote failing, and a clone that followed onto it leaves the source
@@ -4463,6 +4491,18 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
 39. **Identity resolves once per operation.** Each public ref-store operation, its nested pulls included, resolves the
     identity at most once, and the next operation resolves it again (§ 1.2) (A29).
 
+40. **A move overtaken inside its switch undoes it, and an overtaken follow ends.** A remote move from the code remote
+    to a backing repository and a follow answering `push` from the code remote carrying `push` to a backing repository,
+    each interrupted at each recovery state inside its switch or inside the undo of one and overtaken by a move back
+    before its rerun, end with the source carrying `push` and no `backing` remote, the source's layout, no
+    `refs/arc/tmp/migrate/` ref or migration directory left, `pull` reporting neither `move-incomplete` nor
+    `move-unfinished`, and a write made after the interruption readable and published to the source by the next push;
+    the remote move's pointer is the one the record's source gives, the follow's as the run found it, and each run that
+    finds its switch begun reports the move overtaken during its switch and undone; a follow answering `push` from a
+    remote it read, interrupted inside its switch and so overtaken, ends with that remote carrying `read` again; and a
+    recorded follow whose old remote's forwarding record another move replaced, or whose new remote carries another
+    move's forwarding record, ends on its rerun, its record going, rather than refusing (§ 10.3, § 10.6) (A30).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4589,5 +4629,8 @@ open:
 
 - **A29** — 2026-10-21 — design: halve the store suites' per-change cost and run them only where a change reaches.
   _Supersedes:_ §§ 14.1, 14.5, 14.7, SC 5, SC 7. _Trigger:_ 19.1 terminal. _Work:_ 18.R2. _Revalidated:_ pending → 19.1.
+
+- **A30** — 2026-10-22 — design: a move overtaken inside its switch undoes it, and an overtaken follow ends.
+  _Supersedes:_ § 14.7 "never reversed". _Trigger:_ 18.R2.h must-stop. _Work:_ 18.R2.h. _Revalidated:_ pending → 19.1.
 
 ---

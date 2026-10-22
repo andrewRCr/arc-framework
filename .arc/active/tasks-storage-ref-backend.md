@@ -1274,6 +1274,8 @@ layouts.
   or nothing, so an interruption at any step is finished by a rerun in the direction the record names, never reversed;
   tests reach every move through the two entries the `arc store` handlers call.
 
+    - _Amended in:_ 18.R2.h (A30)
+
 - _Outcome:_ Public migrate and remote-setting entries share a clone-wide move lock and leased root record. Isolated
   copies reuse pull lifecycle reconciliation under held layout serialization, then land through one ref transaction or
   directory rename. No-target recovery finishes the recorded direction before aligning designation and cleaning up.
@@ -1697,6 +1699,8 @@ _Mode:_ `slice` through Phase 17 — closes on state moved between remotes, ever
 - _Goal:_ Of moves that cross on one remote, the registry's leases let exactly one land; a move another has overtaken ends
   without stranding a clone; and a move that changes the layout runs it as its switch.
 
+    - _Amended in:_ 18.R2.h (A30)
+
 - **Additional Context:** `notes-storage-ref-backend.md` § The move model check
 
     - `[x]` **16.5.a Crossing moves**
@@ -1742,6 +1746,8 @@ _Exit criterion:_ Every case of § 14.6 and § 14.7 passes.
   remote after, deleting only where its own listing found the record it judged by, so every clone of each move ends on
   one remote holding every write.
 
+    - _Amended in:_ 18.R2.h (A30)
+
     - `[x]` **17.2.a The follow's steps**
         - Recorded explicit roles, fresh licensed copies, restartable layout switches, and leased clearing through
           `follow*.ts`; wired the terminal question through the migration handler. Native callers cover late writes,
@@ -1786,6 +1792,8 @@ _Exit criterion:_ Every case of § 14.6 and § 14.7 passes.
 ### `[x]` **17.6 Moving state between remotes** — validate exit criterion at segment scope
 
 - _Goal:_ Every case of § 14.6 and § 14.7 passes, every clone of each scenario ending on one remote holding every write.
+
+    - _Amended in:_ 18.R2.h (A30)
 
 - _Outcome:_ The effective scenario combines 13.6's designation/layout coverage, 15.10's import coverage, 4.R2.d's
   unchanged native lifecycle-move coverage, and fresh move, forwarding, follow, leave-source, backing-repoint, and
@@ -2173,23 +2181,30 @@ in `notes-storage-ref-backend.md` (A25).
           F8, a push's listing read racing a move in (`.internal/storage-ref-backend-tools/verification/apply/`).
           13.2, 14.3, 14.4, 14.5, 15.R4, and 15.10 cite removed cases.
 
-    - `[ ]` **18.R2.h Defects the derivations found — § 10.3, § 10.5, § 10.11**
+    - `[ ]` **18.R2.h Defects the derivations found — § 10.3, § 10.5, § 10.6, § 10.11 (A30)**
         - Each defect gets its exposing case first, then its fix. An interrupted local-only import that re-homed
           transient refs reruns to `ok` without the notices naming origin's copies: `store-ref-import-landing`'s
           [separate, publish] restart seeds one. A remote move overtaken by a move back inside its switch, at
           `remote.switch` and `layout.designation`, ends with no record beside its pointer, designation, and layout
-          changes; where the specification leaves the outcome open, the failure enters `amend-design`. A step hook
-          after the layout source's delete reaches the states no hook interrupted, and its rows for leaving the source
-          both ways expose layout gathering refs outliving a switch its predicate completes. A separate-layout import
-          trial stops creating the store directory, and the advanced-origin errands case [separate] stops relying on
-          it. Kept import tips a rerun no longer re-homes are pruned. A push whose listing reads the separate store
-          while a move into the default layout deletes it returns a result rather than throwing: `layout-move:476`
-          [default], its old state remote a third repository with origin taking `push`, exposes it, and since the
-          specification leaves the mechanism open, the fix enters `amend-design`. A move ended between removing its
-          record and clearing `refs/arc/tmp/migrate/remote/` and `copied/` leaves them, and a new move's first record
-          clears no `copied/` ref, whose kept forwarding record and copy version a later move reads: a step hook after
-          a record's removal exposes it on a rerun, and a new move's first record and a no-target run with no record
-          clear both, never `import/`.
+          changes. The move undoes its switch before its record goes, clearing what the switch carried or left, and an
+          undo interrupted at any point finishes on the rerun; a follow answering `push` overtaken inside its switch
+          does the same, its record keeping the old remote's role for the undo to restore, a recorded follow whose old
+          remote's forwarding record another move replaced, or whose new remote carries another's, ends rather than
+          refusing, and a trial over a move overtaken inside its switch reports the undo, each with the rows the restart
+          sets in `notes-storage-ref-backend.md` name, derived again against the fix's code, any state they miss gaining
+          its row (A30). A step hook after the layout source's delete reaches the states no hook interrupted, and its
+          rows for leaving the source both ways expose layout gathering refs outliving a switch its predicate completes.
+          A separate-layout import trial stops creating the store directory, and the advanced-origin errands case
+          [separate] stops relying on it. Kept import tips a rerun no longer re-homes are pruned. A push whose listing
+          reads the separate store while a move into the default layout deletes it returns a result rather than
+          throwing: `layout-move:476` [default], its old state remote a third repository with origin taking `push`,
+          exposes it, and since the specification leaves the mechanism open, the fix enters `amend-design`. A move ended
+          between removing its record and clearing `refs/arc/tmp/migrate/remote/` and `copied/` leaves them, and a new
+          move's first record clears no `copied/` ref, whose kept forwarding record and copy version a later move reads:
+          a step hook after a record's removal exposes it on a rerun, and a new move's first record and a no-target run
+          with no record clear both, never `import/`. A no-target run that finishes or ends a recorded remote move or
+          follow returns there, where § 10.1 has it go on to the follow and the layout: a probe settles which is right,
+          and the code changes, or the specification does through `amend-design`.
 
     - `[ ]` **18.R2.e Prepared multi-clone states — § 14.14**
         - `copyPreparedRepository` gains multi-clone shapes whose copies resolve every path inside themselves: remote
@@ -2419,3 +2434,14 @@ in `notes-storage-ref-backend.md` (A25).
 
 - `[ ]` Each public ref-store operation, its nested pulls included, resolves the identity at most once, and the next
   operation resolves it again (§ 1.2) (A29)
+
+- `[ ]` A remote move from the code remote to a backing repository and a follow answering `push` from the code remote
+  carrying `push` to a backing repository, each interrupted at each recovery state inside its switch or inside the undo
+  of one and overtaken by a move back before its rerun, end with the source carrying `push` and no `backing` remote, the
+  source's layout, no `refs/arc/tmp/migrate/` ref or migration directory left, `pull` reporting neither
+  `move-incomplete` nor `move-unfinished`, and a write made after the interruption readable and published to the source
+  by the next push; the remote move's pointer is the one the record's source gives, the follow's as the run found it,
+  and each run that finds its switch begun reports the move overtaken during its switch and undone; a follow answering
+  `push` from a remote it read, interrupted inside its switch and so overtaken, ends with that remote carrying `read`
+  again; and a recorded follow whose old remote's forwarding record another move replaced, or whose new remote carries
+  another move's forwarding record, ends on its rerun, its record going, rather than refusing (§ 10.3, § 10.6) (A30)
