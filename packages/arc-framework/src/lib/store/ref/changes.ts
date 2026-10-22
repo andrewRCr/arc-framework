@@ -1,7 +1,7 @@
 /** Landed record mutations between exact saved manifests, grouped across physical refs. */
 import { StoreCreationReceiptReader } from "../commit-creation-receipt.js";
 import type { ChangesInput, HistoryEntry } from "../contract.js";
-import { readRefRepository } from "./repository.js";
+import { restartOnVanishedStore } from "./repository.js";
 import type { StoreResult } from "../refusal.js";
 import { readRefManifest } from "./manifest-read.js";
 import type { RefBackendContext } from "./context.js";
@@ -27,7 +27,11 @@ export async function changesRefRecords(context: RefBackendContext, input: Chang
   const personal = input.references?.find(({ owner }) => owner.type === "person");
   if (identity === null && personal) return { status: "refused", refusal: { code: "not-found", class: "recoverable", reference: personal,
     condition: "No arc.identity is configured for identity history.", remedy: { text: "Configure arc.identity, then retry the comparison." } } };
-  context = await readRefRepository(context);
+  return restartOnVanishedStore(context, (bound) => compareBoundWindows(bound, input, identity));
+}
+
+/** Compare an admitted interval's windows in the repository its operation bound. */
+async function compareBoundWindows(context: RefBackendContext, input: ChangesInput, identity: string | null): Promise<StoreResult<HistoryEntry[]>> {
   const [before, after] = await Promise.all([readRefManifest(context, input.from), readRefManifest(context, input.to)]);
   if (!before || !after) return { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable",
     stateVersion: !before ? input.from : input.to, historyRefs: [], condition: "A compared manifest is not available in this clone.",

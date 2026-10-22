@@ -1,7 +1,7 @@
 /** Metadata-based lookup of names, code links, and claims over captured state trees. */
 
 import type { LookupInput, LookupResult } from "../lookup.js";
-import { readRefRepository } from "./repository.js";
+import { restartOnVanishedStore } from "./repository.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { RecordReferenceSchema, type RecordReference } from "../identity.js";
 import type { RefBackendContext } from "./context.js";
@@ -22,9 +22,10 @@ export async function lookupRefRecord(context: RefBackendContext, input: LookupI
   const identity = await context.identity();
   const missingIdentity = claimIdentityRefusal(input, identity);
   if (missingIdentity) return { status: "refused", refusal: missingIdentity };
-  context = await readRefRepository(context);
-  const trees = await readLookupTrees(context, identity);
-  return trees.status === "refused" ? trees : lookupCapturedRefTrees(context, input, trees.result.trees, trees.result.unreadable);
+  return restartOnVanishedStore(context, async (bound) => {
+    const trees = await readLookupTrees(bound, identity);
+    return trees.status === "refused" ? trees : lookupCapturedRefTrees(bound, input, trees.result.trees, trees.result.unreadable);
+  });
 }
 
 /** Match the same lookup rules against a caller's captured or prepared tree set. */

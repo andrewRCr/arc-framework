@@ -1,6 +1,6 @@
 /** Git-compatible manifest trees naming the current tips of registered state refs. */
 
-import { readRefRepository } from "./repository.js";
+import { restartOnVanishedStore } from "./repository.js";
 import { hashObjectTree, writeObjectTrees } from "./object-trees.js";
 import { join } from "node:path";
 import { updateRefTransaction } from "../../git/ref-transaction.js";
@@ -86,6 +86,5 @@ export async function saveCapturedManifest(context: RefBackendContext, tips: Rea
 
 /** Compute and retain the current manifest from one local ref-tip snapshot. */
 export async function refStateVersion(context: RefBackendContext): Promise<StateVersion> {
-  context = await readRefRepository(context);
-  return saveCapturedManifest(context, await readRefTips(context));
+  return restartOnVanishedStore(context, async (bound) => saveCapturedManifest(bound, await readRefTips(bound)));
 }

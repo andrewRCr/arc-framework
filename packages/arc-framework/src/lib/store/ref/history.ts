@@ -2,7 +2,7 @@
 
 import { StoreCreationReceiptReader } from "../commit-creation-receipt.js";
 import { checkRefTip } from "./namespace-health.js";
-import { readRefRepository } from "./repository.js";
+import { restartOnVanishedStore } from "./repository.js";
 import type { HistoryEntry } from "../contract.js";
 import type { RecordReference } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
@@ -26,9 +26,7 @@ export interface RefHistoryDetail { entry: HistoryEntry; revision: string }
 export async function historyRefRecord(context: RefBackendContext, input: { reference: RecordReference }): Promise<StoreResult<HistoryEntry[]>> {
   const key = checkRefKey(input.reference, context.registry, false);
   if (key) return { status: "refused", refusal: key };
-  context = await readRefRepository(context);
-  const tips = await readRefTips(context, { includeHistory: true });
-  return readCapturedRefHistory(context, input.reference, tips);
+  return restartOnVanishedStore(context, async (bound) => readCapturedRefHistory(bound, input.reference, await readRefTips(bound, { includeHistory: true })));
 }
 
 /** Resolve record history solely against the caller's immutable namespace capture. */

@@ -27,12 +27,13 @@ export async function storeDirectoryVanished(bound: RefBackendContext, error?: u
 }
 
 /** Run an operation bound to the current layout, starting it again when the store directory it bound goes beneath it,
- * whether a Git command failed on the absence or the operation returned what the departing copy held.
+ * whether a Git command failed on the absence or the operation returned what the departing copy held; a caller that
+ * bound its own repository keeps it.
  */
 export async function restartOnVanishedStore<T>(context: RefBackendContext, operation: (bound: RefBackendContext) => Promise<T>): Promise<T> {
-  const source = context.repository?.source ?? context;
+  if (context.repository) return operation(context);
   for (;;) {
-    const bound = await readRefRepository(source);
+    const bound = await readRefRepository(context);
     let result: T;
     try { result = await operation(bound); }
     catch (error) { if (await storeDirectoryVanished(bound, error)) continue; throw error; }

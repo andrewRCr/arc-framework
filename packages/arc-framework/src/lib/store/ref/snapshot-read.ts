@@ -1,5 +1,5 @@
 /** Read records and families from immutable manifest tips, confined to this identity. */
-import { readRefRepository } from "./repository.js";
+import { restartOnVanishedStore } from "./repository.js";
 import { checkRefKey } from "./path-admission.js";
 import type { StateVersion } from "../identity.js";
 import type { ReadInput, ListInput, StoreRecord, ListingOutcome } from "../read.js";
@@ -18,9 +18,11 @@ export async function readSnapshotRecord(context: RefBackendContext, input: Read
   if (!input.asOf) throw new Error("A snapshot read requires a state version");
   const invalid = checkRefKey(input.reference, context.registry, false);
   if (invalid) return { status: "refused", refusal: invalid };
-  context = await readRefRepository(context);
-  const loaded = await snapshotView(context, input.asOf, { family: context.registry[input.reference.kind].family, owner: input.reference.owner });
-  return loaded.status === "refused" ? loaded : loaded.result.read(input);
+  const asOf = input.asOf;
+  return restartOnVanishedStore(context, async (bound) => {
+    const loaded = await snapshotView(bound, asOf, { family: bound.registry[input.reference.kind].family, owner: input.reference.owner });
+    return loaded.status === "refused" ? loaded : loaded.result.read(input);
+  });
 }
 
 /** Retain the requested manifest as the listing's token without writing a new one. */
@@ -28,12 +30,14 @@ export async function listSnapshotRecords(context: RefBackendContext, input: Lis
   if (!input.asOf) throw new Error("A snapshot listing requires a state version");
   const unsupported = refListingRefusal(input);
   if (unsupported) return { status: "refused", refusal: unsupported };
-  context = await readRefRepository(context);
-  const loaded = await snapshotView(context, input.asOf, input);
-  if (loaded.status === "refused") return loaded;
-  const listing = await loaded.result.list(input);
-  return listing.status === "refused" || listing.result.status === "unreadable" ? listing
-    : { status: "ok", result: { ...listing.result, asOf: input.asOf } };
+  const asOf = input.asOf;
+  return restartOnVanishedStore(context, async (bound) => {
+    const loaded = await snapshotView(bound, asOf, input);
+    if (loaded.status === "refused") return loaded;
+    const listing = await loaded.result.list(input);
+    return listing.status === "refused" || listing.result.status === "unreadable" ? listing
+      : { status: "ok", result: { ...listing.result, asOf } };
+  });
 }
 
 async function snapshotView(context: RefBackendContext, version: StateVersion, input: ListInput): Promise<StoreResult<StoreView>> {

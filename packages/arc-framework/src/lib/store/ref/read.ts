@@ -1,7 +1,7 @@
 /** Batched live record reads and family listings over captured local state refs. */
 
 import { corruptRef } from "./namespace-health.js";
-import { readRefRepository } from "./repository.js";
+import { restartOnVanishedStore } from "./repository.js";
 import type { ReadPlacement } from "../placement.js";
 import { archivedFolders, archiveOwnerTrees, isArchiveRef, latestArchivedFolders } from "./archive-read.js";
 import type { ListInput, ListingOutcome, ListingDiagnostic, ReadInput, StoreRecord } from "../read.js";
@@ -27,16 +27,20 @@ import { readUidRefRecord } from "./read-uid.js";
 
 /** Read a record, resolving name-only owners through one captured namespace. */
 export async function readRefRecord(context: RefBackendContext, input: ReadInput): Promise<StoreResult<StoreRecord>> {
-  let reference = input.reference;
-  const invalidKey = checkRefKey(reference, context.registry, false);
+  const invalidKey = checkRefKey(input.reference, context.registry, false);
   if (invalidKey) return { status: "refused", refusal: invalidKey };
-  const personal = reference.owner.type === "person" ? await resolveReadReference(context, reference) : null;
+  const personal = input.reference.owner.type === "person" ? await resolveReadReference(context, input.reference) : null;
   if (personal?.status === "refused") return personal;
-  context = await readRefRepository(context);
+  return restartOnVanishedStore(context, (bound) => readBoundRecord(bound, input.reference, personal?.result));
+}
+
+/** Read an admitted reference from the repository its operation bound. */
+async function readBoundRecord(context: RefBackendContext, requested: RecordReference, personal?: RecordReference): Promise<StoreResult<StoreRecord>> {
+  let reference = requested;
   const byUid = await readUidRefRecord(context, reference);
   if (byUid) return byUid;
   const tips = await readRefTips(context);
-  const resolved = await resolveRefReadName(context, personal?.result ?? reference, tips);
+  const resolved = await resolveRefReadName(context, personal ?? reference, tips);
   if (resolved.status === "refused") return resolved;
   reference = resolved.result.reference;
   const home = expandStoredPath(reference, { registry: context.registry });
@@ -105,7 +109,11 @@ export function resolveCapturedOwner(context: RefBackendContext, reference: Reco
 export async function listRefRecords(context: RefBackendContext, input: ListInput): Promise<StoreResult<ListingOutcome>> {
   const unsupported = refListingRefusal(input);
   if (unsupported) return { status: "refused", refusal: unsupported };
-  context = await readRefRepository(context);
+  return restartOnVanishedStore(context, (bound) => listBoundRecords(bound, input));
+}
+
+/** List an admitted family from the repository its operation bound. */
+async function listBoundRecords(context: RefBackendContext, input: ListInput): Promise<StoreResult<ListingOutcome>> {
   const identityMissing = FAMILY_REGISTRY[input.family].scope === "identity" && await context.identity() === null;
   const captured = await readRefTips(context);
   const resolved = await resolveRefListInput(context, input, captured);
