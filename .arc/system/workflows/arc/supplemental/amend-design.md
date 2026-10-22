@@ -108,7 +108,8 @@ inside the current increment is agent-doable under discovered-work routing, repo
   appending it needs no authorization of its own.
 - **Spec-depth and design arms** — Owner-authorized at a stop that already exists. The report at that stop carries
   the triage read, the cited statement or criterion, the depth read, and a lean; the Owner's direction is the
-  authorization. No new prompt shape, and the procedure is never agent-invoked into design.
+  authorization. A measured bound — a cost, time, or size limit — is cited with its measured value and what exceeding
+  it costs the work after this one. No new prompt shape, and the procedure is never agent-invoked into design.
 - **Escalation** — the Owner's, always.
 
 User direction overrides any arm at any time. When the read is torn between steps 2 and 3, ask in one line at the
