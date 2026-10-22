@@ -2185,7 +2185,11 @@ in `notes-storage-ref-backend.md` (A25).
           it. Kept import tips a rerun no longer re-homes are pruned. A push whose listing reads the separate store
           while a move into the default layout deletes it returns a result rather than throwing: `layout-move:476`
           [default], its old state remote a third repository with origin taking `push`, exposes it, and since the
-          specification leaves the mechanism open, the fix enters `amend-design`.
+          specification leaves the mechanism open, the fix enters `amend-design`. A move ended between removing its
+          record and clearing `refs/arc/tmp/migrate/remote/` and `copied/` leaves them, and a new move's first record
+          clears no `copied/` ref, whose kept forwarding record and copy version a later move reads: a step hook after
+          a record's removal exposes it on a rerun, and a new move's first record and a no-target run with no record
+          clear both, never `import/`.
 
     - `[ ]` **18.R2.e Prepared multi-clone states — § 14.14**
         - `copyPreparedRepository` gains multi-clone shapes whose copies resolve every path inside themselves: remote
