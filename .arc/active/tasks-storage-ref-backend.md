@@ -2182,7 +2182,10 @@ in `notes-storage-ref-backend.md` (A25).
           after the layout source's delete reaches the states no hook interrupted, and its rows for leaving the source
           both ways expose layout gathering refs outliving a switch its predicate completes. A separate-layout import
           trial stops creating the store directory, and the advanced-origin errands case [separate] stops relying on
-          it. Kept import tips a rerun no longer re-homes are pruned.
+          it. Kept import tips a rerun no longer re-homes are pruned. A push whose listing reads the separate store
+          while a move into the default layout deletes it returns a result rather than throwing: `layout-move:476`
+          [default], its old state remote a third repository with origin taking `push`, exposes it, and since the
+          specification leaves the mechanism open, the fix enters `amend-design`.
 
     - `[ ]` **18.R2.e Prepared multi-clone states — § 14.14**
         - `copyPreparedRepository` gains multi-clone shapes whose copies resolve every path inside themselves: remote
