@@ -520,8 +520,24 @@ it.each(["default", "separate", "local-only"] as const)("lands a second worktree
   else expect((await h.a.ports.fs.lstat(h.storeDirectory)).isDirectory()).toBe(true);
 }, 30_000);
 
-it.each(["separate", "local-only"] as const)("does not publish a sync that pulled before the switch to %s", async (destination) => {
+it.each(["separate", "local-only", "default"] as const)("does not publish a sync that pulled before the switch to %s", async (destination) => {
   const h = await layoutFixture();
+  const state = join(h.a.root, "state.git");
+  if (destination === "default") {
+    success(await h.a.store.push());
+    await h.a.exec("git", ["init", "--bare", state]);
+    const published = (await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim().split("\n");
+    await h.remote("git", ["push", "--atomic", state, ...published.map((ref) => `${ref}:${ref}`)]);
+    for (const clone of [h.a, h.b]) {
+      await clone.exec("git", ["remote", "add", "state", state]);
+      await clone.exec("git", ["config", "remote.state.arc-state", "push"]);
+      await clone.exec("git", ["config", "remote.origin.arc-state", "off"]);
+      expect((await runStoreMigrate(clone.ports)).status).toBe("ok");
+    }
+  }
+  const old = async () => destination === "default"
+    ? (await h.a.exec("git", [`--git-dir=${state}`, "for-each-ref", "--format=%(refname) %(objectname)"])).stdout
+    : (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout;
   success(await h.a.store.push());
   success(await h.b.store.pull());
   const remoteReference = RecordReferenceSchema.parse({ kind: "work-item/companion", owner: h.primary.reference.owner, key: "remote-change" });
@@ -529,7 +545,7 @@ it.each(["separate", "local-only"] as const)("does not publish a sync that pulle
   success(await h.b.store.push());
   const localReference = RecordReferenceSchema.parse({ ...remoteReference, key: "unpublished" });
   success(await h.a.store.write({ action: "put", reference: localReference, expected: null, content: "Local intent.\n", provenance }));
-  const before = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout;
+  const before = await old();
   let fetched = false, merged = false, stopped = false, held = false, announce: () => void = () => {}, resume: () => void = () => {};
   const paused = new Promise<void>((resolve) => { announce = resolve; });
   const continued = new Promise<void>((resolve) => { resume = resolve; });
@@ -564,10 +580,15 @@ it.each(["separate", "local-only"] as const)("does not publish a sync that pulle
       await h.a.exec("git", ["config", "remote.fork.arc-state", "push"]);
       await h.a.exec("git", ["config", "remote.origin.arc-state", "off"]);
       expect((await runStoreMigrate(h.a.ports)).status).toBe("ok");
+    } else if (destination === "default") {
+      await h.a.exec("git", ["config", "remote.origin.arc-state", "push"]);
+      await h.a.exec("git", ["config", "remote.state.arc-state", "off"]);
+      expect((await runStoreMigrate(h.a.ports)).status).toBe("ok");
+      await expect(h.a.ports.fs.lstat(h.storeDirectory)).rejects.toMatchObject({ code: "ENOENT" });
     } else expect((await runStoreRemote(h.a.ports, { remote: "origin", role: "off" })).status).toBe("ok");
   } finally { resume(); }
   PushResultSchema.parse(success(await pushing));
-  expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout).toBe(before);
+  expect(await old()).toBe(before);
   expect(success(await h.a.store.read({ reference: localReference })).content).toBe("Local intent.\n");
 }, 30_000);
 

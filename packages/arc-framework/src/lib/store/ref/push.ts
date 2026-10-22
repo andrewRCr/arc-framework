@@ -10,7 +10,7 @@ import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefDesignation, type RefDesignation, type RefRemoteDesignation } from "./designation.js";
 import { resolveRefDesignation, type RefDesignationResolution } from "./designation-first.js";
-import { readRefRepository, writeRefRepository } from "./repository.js";
+import { readRefRepository, storeDirectoryVanished, writeRefRepository } from "./repository.js";
 import { refSyncTransportRemedy } from "./sync-remedy.js";
 import { waitForPushRetry } from "./push-backoff.js";
 import { withRefSyncDeadline, refSyncDeadlineExpired } from "./sync-deadline.js";
@@ -48,13 +48,16 @@ interface PushLoop {
 
 async function publishRefStore(context: RefBackendContext, carry?: RefCarryPublication): Promise<StoreResult<PushResult>> {
   const loop: PushLoop = { carry, pulls: [], reconciled: new Set(), pushed: new Set(), retryCount: 0, waitedMs: 0, lastPushMs: 0, states: [], refusals: [] };
+  const source = context.repository?.source ?? context;
   for (;;) {
     if (refSyncDeadlineExpired(context)) return exhaustedStatePublication(context, loop);
+    const bound = await readRefRepository(source);
     let result: StoreResult<PushResult> | "retry";
-    try { result = await publishRefAttempt(context.repository?.source ?? context, loop); }
+    try { result = await publishRefAttempt(source, loop); }
     catch (error) {
-      if (!context.syncDeadline?.signal.aborted || !isGitProcessError(error) || error.kind !== "canceled") throw error;
-      return timedOutStatePublication(context, loop);
+      if (await storeDirectoryVanished(bound, error)) result = "retry";
+      else if (!context.syncDeadline?.signal.aborted || !isGitProcessError(error) || error.kind !== "canceled") throw error;
+      else return timedOutStatePublication(context, loop);
     }
     if (result !== "retry") return result;
     loop.retryCount++;

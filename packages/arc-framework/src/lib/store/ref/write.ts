@@ -1,6 +1,6 @@
 /** Validated local mutations resolved onto state refs before object construction. */
 
-import { writeRefRepository } from "./repository.js";
+import { storeDirectoryVanished, writeRefRepository } from "./repository.js";
 import { BatchInputSchema, WriteInputSchema, type Mutation, type BatchInput, type BatchResult, type WriteInput, type WriteResult, type RecordObservation } from "../write.js";
 import { RecordReferenceSchema, type RecordReference } from "../identity.js";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
@@ -116,19 +116,26 @@ async function executeRefBatch(context: RefBackendContext, input: BatchInput, ba
   const source = context.repository?.source ?? context;
   for (;;) {
     let captured: ReadonlyMap<string, string> | undefined;
-    context = await writeRefRepository(source, tips => { captured = tips; });
-    context = { ...context, writeEvidence: { objects: new Map(), trees: new Map() } };
-    const resolved = await resolveRefWrites(context, input.writes, captured);
-    if (resolved.status === "refused") return resolved;
-    const admission = checkMutationReferences(context, resolved.result.writes.map((write) => write.mutation), input.provenance.verb);
-    if (admission) return { status: "refused", refusal: admission };
-    const collision = checkRefBatchPaths(resolved.result.writes.filter((write) => write.mutation.action === "put")
-      .map((write) => write.mutation.reference), context.registry);
-    if (collision) return { status: "refused", refusal: collision };
-    const result = await withRefLocks(context, [...refWriteTargets(context, resolved.result).map(({ home }) => home.ref), ...(resolved.result.retained?.length ? ["refs/arc/project/registry", ...resolved.result.retained.map(({ home }) => home.ref.replace("refs/arc/history/", "refs/arc/"))] : []), ...archiveLockRefs(resolved.result), ...archivedLockRefs(resolved.result), ...retirementLockRefs(refWriteTargets(context, resolved.result))], () =>
-      commitLockedRefBatch(context, resolved.result, input.provenance, batchId, input.observations ?? []));
+    const bound = await writeRefRepository(source, tips => { captured = tips; });
+    let result: StoreResult<BatchResult> | "layout-changed" | null;
+    try { result = await attemptRefBatch({ ...bound, writeEvidence: { objects: new Map(), trees: new Map() } }, input, batchId, captured); }
+    catch (error) { if (await storeDirectoryVanished(bound, error)) continue; throw error; }
     if (result !== null && result !== "layout-changed") return result;
   }
+}
+
+/** Resolve and commit one batch against the layout its attempt bound; null or a changed layout starts it again. */
+async function attemptRefBatch(context: RefBackendContext, input: BatchInput, batchId: string,
+  captured: ReadonlyMap<string, string> | undefined): Promise<StoreResult<BatchResult> | "layout-changed" | null> {
+  const resolved = await resolveRefWrites(context, input.writes, captured);
+  if (resolved.status === "refused") return resolved;
+  const admission = checkMutationReferences(context, resolved.result.writes.map((write) => write.mutation), input.provenance.verb);
+  if (admission) return { status: "refused", refusal: admission };
+  const collision = checkRefBatchPaths(resolved.result.writes.filter((write) => write.mutation.action === "put")
+    .map((write) => write.mutation.reference), context.registry);
+  if (collision) return { status: "refused", refusal: collision };
+  return withRefLocks(context, [...refWriteTargets(context, resolved.result).map(({ home }) => home.ref), ...(resolved.result.retained?.length ? ["refs/arc/project/registry", ...resolved.result.retained.map(({ home }) => home.ref.replace("refs/arc/history/", "refs/arc/"))] : []), ...archiveLockRefs(resolved.result), ...archivedLockRefs(resolved.result), ...retirementLockRefs(refWriteTargets(context, resolved.result))], () =>
+    commitLockedRefBatch(context, resolved.result, input.provenance, batchId, input.observations ?? []));
 }
 
 async function commitLockedRefBatch(context: RefBackendContext, resolved: ResolvedBatch,

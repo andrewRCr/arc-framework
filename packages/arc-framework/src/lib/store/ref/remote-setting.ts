@@ -4,7 +4,7 @@ import type { Store } from "../contract.js";
 import type { StoreRemoteResult, StoreRemoteView } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefDesignation, type RefDesignation } from "./designation.js";
-import { readRefRepository } from "./repository.js";
+import { readRefRepository, restartOnVanishedStore } from "./repository.js";
 import { designatedStoreLayout } from "./layout-state.js";
 import { moveRefLayout } from "./migrate-layout.js";
 import type { LayoutSetting } from "./migrate-record.js";
@@ -13,10 +13,11 @@ import { setRefBacking } from "./remote-backing.js";
 
 /** Read the physical layout and clone-local roles without creating or moving state. */
 export async function remoteView(context: RefBackendContext): Promise<StoreRemoteView> {
-  const repository = await readRefRepository(context);
-  const designation = await readRefDesignation(context);
-  return { layout: repository.repository?.gitDir ? "separate" : "default",
-    remotes: [...designation.codeRemotes, ...designation.backing ? [designation.backing] : []] };
+  return restartOnVanishedStore(context, async (repository) => {
+    const designation = await readRefDesignation(context);
+    return { layout: repository.repository?.gitDir ? "separate" : "default",
+      remotes: [...designation.codeRemotes, ...designation.backing ? [designation.backing] : []] };
+  });
 }
 
 /** Apply one validated setting after the caller finishes any recorded move. */

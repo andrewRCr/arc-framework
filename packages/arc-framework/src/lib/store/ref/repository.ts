@@ -2,6 +2,7 @@
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { readGitDirectories } from "../../git/directories.js";
+import { isGitProcessError } from "../../git/process-error.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefTips } from "./batch-read.js";
 import { isManifestRef, readObjectFormat } from "./manifest.js";
@@ -14,6 +15,29 @@ export async function readRefRepository(context: RefBackendContext): Promise<Ref
   const { commonDir } = await readGitDirectories(context.checkoutRoot, context.fs);
   const directory = join(commonDir, "arc", "store");
   return bindRefRepository(context, commonDir, await directoryExists(context, directory) ? directory : null);
+}
+
+/** The separate store an operation bound is gone, as a move into the code repository's refs leaves it; given an error,
+ * only a Git failure counts, so any other stays the caller's.
+ */
+export async function storeDirectoryVanished(bound: RefBackendContext, error?: unknown): Promise<boolean> {
+  const gitDir = bound.repository?.gitDir;
+  if (!gitDir || error !== undefined && !isGitProcessError(error)) return false;
+  return !await directoryExists(bound, gitDir);
+}
+
+/** Run an operation bound to the current layout, starting it again when the store directory it bound goes beneath it,
+ * whether a Git command failed on the absence or the operation returned what the departing copy held.
+ */
+export async function restartOnVanishedStore<T>(context: RefBackendContext, operation: (bound: RefBackendContext) => Promise<T>): Promise<T> {
+  const source = context.repository?.source ?? context;
+  for (;;) {
+    const bound = await readRefRepository(source);
+    let result: T;
+    try { result = await operation(bound); }
+    catch (error) { if (await storeDirectoryVanished(bound, error)) continue; throw error; }
+    if (!await storeDirectoryVanished(bound)) return result;
+  }
 }
 
 /** A first mutation places an empty store by designation, preserving either existing location.

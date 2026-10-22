@@ -11,7 +11,7 @@ import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { type RefDesignation, type RefRemoteDesignation } from "./designation.js";
 import { resolveRefDesignation, type RefDesignationResolution } from "./designation-first.js";
-import { writeRefRepository } from "./repository.js";
+import { storeDirectoryVanished, writeRefRepository } from "./repository.js";
 import { refSyncTransportRemedy } from "./sync-remedy.js";
 import { withRefSyncDeadline } from "./sync-deadline.js";
 import { adoptSourceProjectIdentity } from "./adopt-source-project.js";
@@ -115,6 +115,7 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
       status: observed.changed || merged?.changed ? "pulled" : "noop" };
   } catch (error) {
     if (error instanceof RefFetchIncompleteError) return { ...common, notices: uniqueNotices([...notices, ...error.notices]), status: "failed", failure: error.failure };
+    if (await storeDirectoryVanished(context, error)) return "restart";
     if (!context.syncDeadline?.signal.aborted || !isGitProcessError(error) || error.kind !== "canceled") throw error;
     return failedRemotePull(context, common, "timeout", "The pull deadline expired while applying fetched state; earlier merges remain applied.", followDue);
   }

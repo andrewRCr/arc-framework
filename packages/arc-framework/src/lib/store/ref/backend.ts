@@ -18,6 +18,7 @@ import { runRefMigrate, runRefRemote } from "./commands.js";
 import { runRefConflict } from "./conflict-command.js";
 import { createRefReadCoordinator } from "./read-operation.js";
 import { maintainRefStore } from "./maintain.js";
+import { restartOnVanishedStore } from "./repository.js";
 import { withOperationIdentity as scoped } from "./operation-identity.js";
 
 /** Construct the backend with no commands, file reads, or resolved policy ports. */
@@ -40,13 +41,15 @@ export function createRefReadSourceBackend(ports: RefStorePorts, remote: string)
 }
 
 function refReadOperations(context: RefBackendContext, operations = createRefReadCoordinator(context)): ReadOnlyStore {
+  const bound = <T>(reader: RefBackendContext, operation: (bound: RefBackendContext) => Promise<T>) => restartOnVanishedStore(scoped(reader), operation);
   return {
     capabilities: { stateOffBranch: true },
-    read: (input) => operations.read((reader) => input.asOf ? readSnapshotRecord(scoped(reader), input) : readRefRecord(scoped(reader), input)),
-    list: (input) => operations.read((reader) => input.asOf ? listSnapshotRecords(scoped(reader), input) : listRefRecords(scoped(reader), input)),
-    version: async () => ({ status: "ok", result: await refStateVersion(scoped(context)) }),
-    history: (input) => historyRefRecord(scoped(context), input), changes: (input) => changesRefRecords(scoped(context), input),
-    lookup: (input) => operations.read((reader) => lookupRefRecord(scoped(reader), input)),
+    read: (input) => operations.read((reader) => bound(reader, (physical) => input.asOf ? readSnapshotRecord(physical, input) : readRefRecord(physical, input))),
+    list: (input) => operations.read((reader) => bound(reader, (physical) => input.asOf ? listSnapshotRecords(physical, input) : listRefRecords(physical, input))),
+    version: async () => ({ status: "ok", result: await bound(context, refStateVersion) }),
+    history: (input) => bound(context, (physical) => historyRefRecord(physical, input)),
+    changes: (input) => bound(context, (physical) => changesRefRecords(physical, input)),
+    lookup: (input) => operations.read((reader) => bound(reader, (physical) => lookupRefRecord(physical, input))),
   };
 }
 

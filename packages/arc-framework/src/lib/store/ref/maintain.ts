@@ -2,12 +2,15 @@
 import type { RefBackendContext } from "./context.js";
 import type { StoreResult } from "../refusal.js";
 import type { MaintainResult } from "../sync.js";
-import { readRefRepository } from "./repository.js";
+import { restartOnVanishedStore } from "./repository.js";
 import { readRefTips } from "./batch-read.js";
 
 /** Measure captured permanent tips, omitting absent refs and other people's state. */
 export async function maintainRefStore(context: RefBackendContext): Promise<StoreResult<MaintainResult>> {
-  context = await readRefRepository(context);
+  return restartOnVanishedStore(context, maintainBoundStore);
+}
+
+async function maintainBoundStore(context: RefBackendContext): Promise<StoreResult<MaintainResult>> {
   const tips = await readRefTips(context);
   await context.exec("git", ["maintenance", "run", "--auto"], { cwd: context.checkoutRoot, objectAccess: "local-only" });
   const identity = await context.identity();
