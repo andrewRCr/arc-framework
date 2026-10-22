@@ -9,9 +9,10 @@ import { success } from "../helpers/store/suite-tools.js";
 
 describe.each([
   { direction: "code-to-backing", source: "code", destination: "backing",
-    steps: ["leave.copied", "leave.recorded", "layout.designation", "layout.delete", "follow.switched"] },
+    steps: ["leave.copied", "leave.recorded", "layout.designation", "layout.delete", "layout.deleted", "follow.switched"] },
   { direction: "backing-to-code", source: "backing", destination: "code",
-    steps: ["leave.copied", "leave.recorded", "layout.designation", "layout.rename", "layout.delete", "follow.switched"] },
+    steps: ["leave.copied", "leave.recorded", "layout.designation", "layout.rename", "layout.delete", "layout.deleted",
+      "follow.switched"] },
   { direction: "backing-to-backing", source: "backing", destination: "backing", steps: ["leave.copied", "leave.recorded", "leave.switched"] },
 ] as const)("a source departure from $source to $destination", ({ direction, source, destination, steps }) => {
   it.each(steps)("restarts after %s using only its retained source view", async boundary => {

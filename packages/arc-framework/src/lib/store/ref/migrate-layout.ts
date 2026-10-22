@@ -102,6 +102,7 @@ async function deleteLayoutSource(state: LayoutMoveState, recorded: RecordedLayo
   if (record.source === "default") await requireLayoutTransaction(code, [...(await layoutRefs(code))].map(([ref, expected]) => ({ ref, delete: true, expected })));
   else await context.fs.removeDirectory(paths.aside);
   await context.fs.removeDirectory(paths.build);
+  await context.migrateStep?.("layout.deleted");
   await clearLayoutGathering(code, state.configuration !== undefined);
   if (!state.configuration) await removeMoveRecord(code, recorded);
 }

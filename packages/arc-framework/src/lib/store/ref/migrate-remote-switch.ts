@@ -91,10 +91,11 @@ async function applyRemoteDesignation(context: RefBackendContext, code: RefBacke
   }
 }
 
-/** Require the source layout and interrupted build directories to be fully cleaned. */
+/** Require the source layout, interrupted build directories, and layout gathering refs to be fully cleaned. */
 export async function remoteLayoutCleanupComplete(code: RefBackendContext, source: StoreLayout, destination: StoreLayout): Promise<boolean> {
   if (source === destination) return true;
   if (destination === "separate" && (await layoutRefs(code)).size) return false;
+  if ((await readSyncRefs(code, "refs/arc/tmp/migrate/layout/")).size) return false;
   const common = code.repository?.commonDir;
   if (!common) throw new Error("No common code repository selected");
   for (const name of ["store-migrate-old", "store-migrate-build"]) if (await directoryExists(code, join(common, "arc", name))) return false;
