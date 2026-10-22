@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "verification-hosted-ci",
+  "claimId": "fb92b4d82dffa56e505bcd9c73af4844",
+  "createdAt": "2026-10-22T13:04:32.423Z",
+  "updatedAt": "2026-10-22T13:04:32.423Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Interim project rule: dispatch hosted CI at the verified head before work-unit verification attests",
+  "branch": "chore/verification-hosted-ci",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
