@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "handoff-direction-subject",
+  "claimId": "b9f8435cfcb704cb917c390e9e378ca2",
+  "createdAt": "2026-10-22T15:12:49.400Z",
+  "updatedAt": "2026-10-22T15:12:49.400Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Record an Owner direction at handoff with the subject it was given for",
+  "branch": "chore/handoff-direction-subject",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
