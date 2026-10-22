@@ -3,7 +3,6 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { switchFixture, directions, projectId, personal, provenance } from "../helpers/store/remote-move.js";
-import { readOnlyGitEndpoint } from "../helpers/store/read-only-git-remote.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
@@ -176,19 +175,6 @@ it("restarts a second worktree's already-pulled push against the switched remote
   }
   expect((await invokeStoreMigrate([], h.ports)).status).toBe("ok");
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim()).toBe("refs/arc/project/moved");
-}, 45_000);
-
-it("uses the native push URL when the fetch endpoint refuses publication", async () => {
-  const h = await switchFixture(), readOnly = await readOnlyGitEndpoint(h.origin);
-  await h.a.exec("git", ["remote", "set-url", "origin", readOnly]);
-  await h.a.exec("git", ["remote", "set-url", "--push", "origin", h.origin]);
-  await expect(invokeStoreMigrate(["--to", h.to], { ...h.ports, migrateStep: async step => {
-    if (step === "remote.switched") throw new Error("Paused after remote switch");
-  } })).rejects.toThrow("Paused after remote switch");
-  const recorded = JSON.parse((await h.a.exec("git", ["show", "refs/arc/tmp/migrate/move:move.json"])).stdout);
-  expect(recorded.source).toMatchObject({ fetchUrl: readOnly, pushUrl: h.origin });
-  expect(JSON.parse((await h.remote("git", ["show", "refs/arc/project/moved:moved.json"])).stdout)).toEqual({ projectId, registryCommit: recorded.registryCommit });
-  expect((await h.a.git(["config", "remote.backing.url"])).stdout.trim()).toBe(h.destinationDirectory);
 }, 45_000);
 
 it("restarts a lost forwarding lease from a fresh source snapshot", async () => {

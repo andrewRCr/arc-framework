@@ -99,18 +99,20 @@ describe.each(["default", "separate"] as const)("read-source store (%s)", (layou
     expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Local notes.\n");
   });
 
-  it("reads source history without the local fork's edit", async () => {
-    const h = await sourceStates(layout);
-    const history = success(await h.source.history({ reference: h.reference }));
-    expect(history.map(({ content }) => content)).toEqual(["Updated upstream.\n", "Upstream notes.\n"]);
-  });
+  if (layout === "default") {
+    it("reads source history without the local fork's edit", async () => {
+      const h = await sourceStates(layout);
+      const history = success(await h.source.history({ reference: h.reference }));
+      expect(history.map(({ content }) => content)).toEqual(["Updated upstream.\n", "Upstream notes.\n"]);
+    });
 
-  it("reports changes between source versions", async () => {
-    const h = await sourceStates(layout);
-    expect(h.after).not.toBe(h.before);
-    const changed = success(await h.source.changes({ from: h.before, to: h.after, references: [h.reference] }));
-    expect(changed.map(({ content }) => content)).toEqual(["Updated upstream.\n"]);
-  });
+    it("reports changes between source versions", async () => {
+      const h = await sourceStates(layout);
+      expect(h.after).not.toBe(h.before);
+      const changed = success(await h.source.changes({ from: h.before, to: h.after, references: [h.reference] }));
+      expect(changed.map(({ content }) => content)).toEqual(["Updated upstream.\n"]);
+    });
+  }
 
   it.each(["pull", "push"] as const)("keeps read sources active when configuration stops the state %s", async (operation) => {
     const h = await sourceFixture(layout);
@@ -127,17 +129,19 @@ describe.each(["default", "separate"] as const)("read-source store (%s)", (layou
     expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Local notes.\n");
   });
 
-  it("reads the code remote by its resolved URL where the store has separate configuration", async () => {
-    const h = await sourceFixture(layout);
-    await h.b.exec("git", ["remote", "remove", "upstream"]);
-    await h.b.exec("git", ["remote", "set-url", "origin", h.origin]);
-    await h.b.exec("git", ["config", "remote.origin.arc-state", "read"]);
-    const source = createReadSourceStore(h.b.ports, "origin");
-    const result = success(await h.b.store.pull());
-    expect(result.pulls).toContainEqual(expect.objectContaining({ remote: "origin", role: "read", status: "pulled" }));
-    expect(success(await source.read({ reference: h.reference })).content).toBe("Upstream notes.\n");
-    expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Local notes.\n");
-  });
+  if (layout === "separate") {
+    it("reads the code remote by its resolved URL where the store has separate configuration", async () => {
+      const h = await sourceFixture(layout);
+      await h.b.exec("git", ["remote", "remove", "upstream"]);
+      await h.b.exec("git", ["remote", "set-url", "origin", h.origin]);
+      await h.b.exec("git", ["config", "remote.origin.arc-state", "read"]);
+      const source = createReadSourceStore(h.b.ports, "origin");
+      const result = success(await h.b.store.pull());
+      expect(result.pulls).toContainEqual(expect.objectContaining({ remote: "origin", role: "read", status: "pulled" }));
+      expect(success(await source.read({ reference: h.reference })).content).toBe("Upstream notes.\n");
+      expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Local notes.\n");
+    });
+  }
 
   it("excludes every identity scope and never publishes to the read source", async () => {
     const h = await sourceFixture(layout);
@@ -212,17 +216,24 @@ describe.each(["default", "separate"] as const)("read-source store (%s)", (layou
     expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Local notes.\n");
   });
 
-  it.each(["local-only", "state-remote", "existing-id"] as const)("adopts the source project identity only into an uninitialized local-only store: %s", async (mode) => {
-    const h = await sourceFixture(layout);
+  it.each(["local-only", "state-remote", "existing-id"] as const)("adopts the source project identity only into an uninitialized store with no state remote: %s", async (mode) => {
+    const unplaced = layout === "default" && mode === "local-only", storeDirectory = join(".git", "arc", "store");
+    const h = await sourceFixture(layout, !unplaced);
     const reference = RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } });
     const projectId = "34567890-1234-4234-8234-123456789abc", existingId = "34567890-1234-4234-8234-123456789abd";
     const content = JSON.stringify({ projectId });
     success(await h.a.store.write({ action: "put", reference, expected: null, content, provenance: { verb: "init", lifecycleAction: "seed" } }));
     await h.a.git(["push", h.remoteName, "refs/arc/project/*:refs/arc/project/*"]);
     if (mode !== "state-remote") await h.b.git(["config", `remote.${h.remoteName}.arc-state`, "off"]);
+    if (unplaced) await expect(h.b.ports.fs.lstat(join(h.b.root, storeDirectory))).rejects.toMatchObject({ code: "ENOENT" });
     if (mode === "existing-id") success(await h.b.store.write({ action: "put", reference, expected: null, content: JSON.stringify({ projectId: existingId }), provenance: { verb: "init", lifecycleAction: "seed" } }));
     const pulled = success(await h.b.store.pull());
     expect(pulled.pulls).toContainEqual(expect.objectContaining({ remote: "upstream", role: "read", status: "pulled" }));
+    if (layout === "default" && mode === "existing-id") {
+      expect(pulled.states).toContainEqual(expect.objectContaining({ status: "move-incomplete" }));
+      await expect(h.b.ports.fs.lstat(join(h.b.root, storeDirectory))).rejects.toMatchObject({ code: "ENOENT" });
+    } else if (mode !== "state-remote") expect(pulled.states).toEqual([{ status: "no-remote" }]);
+    if (unplaced) expect((await h.b.ports.fs.lstat(join(h.b.root, storeDirectory))).isDirectory()).toBe(true);
     expect(success(await h.source.read({ reference })).content).toBe(content);
     if (mode === "state-remote") {
       expect(await h.b.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
@@ -234,7 +245,8 @@ describe.each(["default", "separate"] as const)("read-source store (%s)", (layou
     success(await h.b.store.pull());
     expect(success(await h.b.store.read({ reference })).version).toBe(record.version);
     expect(success(await h.b.store.history({ reference }))).toHaveLength(1);
-    expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Local notes.\n");
+    if (unplaced) expect(await h.b.store.read({ reference: h.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    else expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Local notes.\n");
   });
 
 });

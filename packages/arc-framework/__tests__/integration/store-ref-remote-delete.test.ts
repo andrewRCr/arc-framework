@@ -163,8 +163,12 @@ it("deletes through the recorded push URL after switching away from an upload-on
   const fetchUrl = await readOnlyGitEndpoint(h.origin);
   await h.a.exec("git", ["remote", "set-url", "origin", fetchUrl]);
   await h.a.exec("git", ["remote", "set-url", "--push", "origin", h.origin]);
-  const moved = await invokeStoreMigrate(["--to", h.to], h.ports);
+  let recorded: unknown;
+  const moved = await invokeStoreMigrate(["--to", h.to], { ...h.ports, migrateStep: async step => {
+    if (step === "remote.switched") recorded = JSON.parse((await h.a.exec("git", ["show", "refs/arc/tmp/migrate/move:move.json"])).stdout);
+  } });
   expect(moved.status, JSON.stringify(moved)).toBe("ok");
+  expect(recorded).toMatchObject({ source: { fetchUrl, pushUrl: h.origin } });
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim()).toBe("refs/arc/project/moved");
   expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout).toBe("");
   expect(success(await h.store.pull()).states).toEqual([]);

@@ -276,11 +276,17 @@ it("completes its copy while a writer holds the destination item's ref lock", as
 });
 
 
-it.each(["pull", "push"] as const)("stops state %s between the rename and its designation, then recovers", async (operation) => {
+it.each([
+  { destination: "separate", operation: "pull" }, { destination: "separate", operation: "push" },
+  { destination: "default", operation: "pull" }, { destination: "default", operation: "push" },
+] as const)("stops state $operation between the rename and the designation of a move into $destination, then recovers", async ({ destination, operation }) => {
   const h = await layoutFixture();
+  if (destination === "default") expect((await runStoreRemote(h.a.ports, { remote: "origin", role: "off" })).status).toBe("ok");
   const remoteBefore = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout;
-  await expect(runStoreRemote({ ...h.a.ports, migrateStep: (step) => step === "layout.designation"
-    ? Promise.reject(new Error("Stop after rename")) : Promise.resolve() }, { remote: "origin", role: "off" })).rejects.toThrow("Stop after rename");
+  const between = destination === "default" ? "layout.rename" : "layout.designation";
+  await expect(runStoreRemote({ ...h.a.ports, migrateStep: (step) => step === between
+    ? Promise.reject(new Error("Stop between rename and designation")) : Promise.resolve() },
+  { remote: "origin", role: destination === "default" ? "push" : "off" })).rejects.toThrow("Stop between rename and designation");
   const result = success(await h.a.store[operation]());
   expect(result.states).toContainEqual(expect.objectContaining({ status: "move-incomplete", condition: expect.stringMatching(/store|layout/iu), remedy: expect.objectContaining({ argv: ["arc", "store", "migrate"] }) }));
   expect(result.pulls).toEqual([]);
@@ -311,10 +317,9 @@ it.each(["default", "separate"] as const)("reports unfinished cleanup while cont
   expect(success(await h.a.store.pull()).states.some(({ status }) => status === "move-unfinished")).toBe(false);
 });
 
-describe.each(["rename", "add", "push-default"] as const)("external remote edit: %s", (edit) => {
+describe.each(["rename", "push-default"] as const)("external remote edit: %s", (edit) => {
   it.each(["pull", "push"] as const)("keeps held state in place and reports the layout mismatch before %s", async (operation) => {
     const h = await layoutFixture();
-    if (edit === "add") await h.a.exec("git", ["remote", "rename", "origin", "state"]);
     await h.a.exec("git", ["remote", "add", "other", h.origin]);
     await h.a.exec("git", ["config", "remote.other.arc-state", "off"]);
     if (edit === "rename") await h.a.exec("git", ["remote", "rename", "origin", "state"]);
@@ -330,6 +335,32 @@ describe.each(["rename", "add", "push-default"] as const)("external remote edit:
     expect((await h.a.ports.fs.lstat(h.storeDirectory)).isDirectory()).toBe(true);
     expect(success(await h.a.store.pull()).states.some(({ status }) => status === "move-incomplete")).toBe(false);
   });
+});
+
+it("keeps a held store in place when a remote is added beside a lone remote not named origin, then recovers", async () => {
+  const h = await layoutFixture();
+  await h.a.exec("git", ["remote", "rename", "origin", "state"]);
+  const pushed = PushResultSchema.parse(success(await h.a.store.push()));
+  expect(pushed.states).toEqual([]);
+  expect(pushed.publishes).toContainEqual(expect.objectContaining({ status: "pushed" }));
+  const live = `refs/arc/work/${"uid" in h.primary.reference.owner ? h.primary.reference.owner.uid : ""}`;
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", live])).stdout).toBe(live);
+  await expect(h.a.ports.fs.lstat(h.storeDirectory)).rejects.toMatchObject({ code: "ENOENT" });
+  await h.a.exec("git", ["remote", "add", "other", h.origin]);
+  await h.a.exec("git", ["config", "remote.other.arc-state", "off"]);
+  const remoteBefore = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout;
+  const result = success(await h.a.store.pull());
+  expect(result.states).toContainEqual(expect.objectContaining({ status: "move-incomplete", remedy: expect.objectContaining({ argv: ["arc", "store", "migrate"] }) }));
+  expect(result.pulls).toEqual([]);
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout).toBe(remoteBefore);
+  await expect(h.a.ports.fs.lstat(h.storeDirectory)).rejects.toMatchObject({ code: "ENOENT" });
+  expect(success(await h.a.store.read({ reference: h.primary.reference })).content).toBe(makeMetaFixture("alpha"));
+  const resumed = await runStoreMigrate(h.a.ports);
+  expect(resumed.status, JSON.stringify(resumed)).toBe("ok");
+  expect((await h.a.ports.fs.lstat(h.storeDirectory)).isDirectory()).toBe(true);
+  const next = success(await h.a.store.pull());
+  expect(next.states.some(({ status }) => status === "move-incomplete")).toBe(false);
+  expect(next.pulls).toContainEqual(expect.objectContaining({ remote: "state", role: "state" }));
 });
 
 
@@ -417,10 +448,9 @@ function startLayoutWorker(root: string, role: "push" | "off", stopBefore: strin
   return { ready, stop: async () => { child.kill("SIGKILL"); await closed; } };
 }
 
-it.each(["default", "separate"] as const)("resumes a killed move process into the %s layout", async (destination) => {
+it("resumes a killed move process into the separate layout", async () => {
   const h = await layoutFixture();
-  if (destination === "default") expect((await runStoreRemote(h.a.ports, { remote: "origin", role: "off" })).status).toBe("ok");
-  const worker = startLayoutWorker(h.a.root, destination === "default" ? "push" : "off", destination === "default" ? "layout.rename" : "layout.designation");
+  const worker = startLayoutWorker(h.a.root, "off", "layout.designation");
   await worker.ready;
   await worker.stop();
   expect(success(await h.a.store.pull()).states).toContainEqual(expect.objectContaining({ status: "move-incomplete" }));
@@ -550,14 +580,20 @@ it.each(["separate", "default"] as const)("detects a rewritten remote after movi
   expect(success(await h.a.store.pull()).pulls.flatMap(({ notices }) => notices).some(({ kind }) => kind === "history-diverged")).toBe(false);
 }, 30_000);
 
-it.each([
-  [["--trial"], "request-invalid", "--trial"],
-  [["--trial", "--leave-source", "--to", "next"], "request-invalid", "--trial"],
-  [["--leave-source"], "request-invalid", "--to"],
-] as const)("refuses an invalid or unavailable migration input %j with its exact reason", async (argv, code, flag) => {
-  const h = await layoutFixture();
-  const result = await invokeStoreMigrate([...argv], h.a.ports);
-  expect(result).toMatchObject({ status: "refused", refusal: { code, class: "terminal", condition: expect.stringContaining(flag) } });
+async function localState(h: Awaited<ReturnType<typeof layoutFixture>>) {
+  return {
+    refs: (await h.a.exec("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/", "refs/arc-remotes/"])).stdout,
+    config: (await h.a.exec("git", ["config", "--null", "--list", "--local"])).stdout,
+  };
+}
+
+it("refuses leaving the source with no target, naming --to, and changes nothing", async () => {
+  const h = await layoutFixture(), before = await localState(h);
+  expect(await invokeStoreMigrate(["--leave-source"], h.a.ports))
+    .toMatchObject({ status: "refused", refusal: { code: "request-invalid", class: "terminal", condition: expect.stringContaining("--to") } });
+  expect(await localState(h)).toEqual(before);
+  await expect(h.a.ports.fs.lstat(h.storeDirectory)).rejects.toMatchObject({ code: "ENOENT" });
+  expect(success(await h.a.store.read({ reference: h.primary.reference })).content).toBe(makeMetaFixture("alpha"));
 });
 
 it("gives a clone with no state remote an actionable designation remedy for --to", async () => {
@@ -569,16 +605,13 @@ it("gives a clone with no state remote an actionable designation remedy for --to
   expect(await invokeStoreMigrate(["--to", "next"], h.a.ports)).toMatchObject({ status: "refused", refusal: { code: "store", refusal: { code: "unreachable", class: "recoverable" } } });
 });
 
-it.each([false, true])("leaves refs, roles, and the physical store unchanged for an invalid trial request, leave source: %s", async (leaveSource) => {
+it("leaves refs, roles, and the physical store unchanged for a trial request with no target", async () => {
   const h = await layoutFixture();
   await h.a.exec("git", ["config", "remote.origin.arc-state", "off"]);
-  const refs = async () => (await h.a.exec("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/", "refs/arc-remotes/"])).stdout;
-  const config = async () => (await h.a.exec("git", ["config", "--null", "--list", "--local"])).stdout;
-  const beforeRefs = await refs(), beforeConfig = await config();
-  const refused = await runStoreMigrate(h.a.ports, { trial: true, ...leaveSource ? { leaveSource: true } : {} });
+  const before = await localState(h);
+  const refused = await runStoreMigrate(h.a.ports, { trial: true });
   expect(refused).toMatchObject({ status: "refused", refusal: { code: "request-invalid", class: "terminal", condition: expect.stringContaining("--trial") } });
-  expect(await refs()).toBe(beforeRefs);
-  expect(await config()).toBe(beforeConfig);
+  expect(await localState(h)).toEqual(before);
   await expect(h.a.ports.fs.lstat(h.storeDirectory)).rejects.toMatchObject({ code: "ENOENT" });
   expect(success(await h.a.store.read({ reference: h.primary.reference })).content).toBe(makeMetaFixture("alpha"));
   expect((await runStoreMigrate(h.a.ports)).status).toBe("ok");

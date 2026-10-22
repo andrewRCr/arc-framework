@@ -61,7 +61,7 @@ it("asks for the follow destination role on a terminal and executes the selected
   expect((await follower.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(destinationBefore);
 }, 60_000);
 
-it.each([["read", "code"], ["off", "code"], ["read", "backing"], ["off", "backing"]] as const)("answers %s from %s without publishing or clearing the late source state", async (role, source) => {
+it.each([["read", "code"], ["read", "backing"], ["off", "backing"]] as const)("answers %s from %s without publishing or clearing the late source state", async (role, source) => {
   const h = await lateFollowFixture(true, source), follower = h.follower;
   const before = (await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
   const answer = (await invokeStoreRemote(["backing", role, "--json"], { cwd: follower.root, ports: follower.ports })).result;

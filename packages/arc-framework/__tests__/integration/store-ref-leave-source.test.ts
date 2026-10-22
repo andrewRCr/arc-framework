@@ -75,7 +75,9 @@ it("refuses trial, the same URL, and a missing explicit destination without chan
   const target = (await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
   const roles = (await invokeStoreRemote(["--json"], { cwd: h.a.root, ports: h.ports })).result;
   for (const argv of [["--leave-source", "--trial", "--to", h.to], ["--leave-source", "--to", h.origin], ["--leave-source"]]) {
-    expect(await invokeStoreMigrate(argv, h.ports)).toMatchObject({ status: "refused", refusal: { code: "request-invalid" } });
+    const refused = await invokeStoreMigrate(argv, h.ports);
+    expect(refused).toMatchObject({ status: "refused", refusal: { code: "request-invalid" } });
+    if (argv.includes("--trial")) expect(refused).toMatchObject({ refusal: { condition: expect.stringContaining("--trial") } });
     expect(success(await h.store.version())).toBe(before);
     expect((await invokeStoreRemote(["--json"], { cwd: h.a.root, ports: h.ports })).result).toEqual(roles);
     expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(source);
