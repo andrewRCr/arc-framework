@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "adversarial-review-prompt-defaults",
+  "claimId": "79ba04c034c4c09a373b475bad723dbe",
+  "createdAt": "2026-10-22T14:08:23.236Z",
+  "updatedAt": "2026-10-22T14:08:23.236Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Keep adversarial-review prompt defaults from asserting a pass shape, and bound fresh reviewers away from personal files",
+  "branch": "chore/adversarial-review-prompt-defaults",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
