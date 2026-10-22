@@ -7,7 +7,7 @@ import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { convergeFollowers } from "../helpers/store/follow.js";
 import { success } from "../helpers/store/suite-tools.js";
 
-it.each(["remote.forwarded", "remote.switched", "remote.delete"])("ends without remote writes when a move back overtakes a move paused at %s", async boundary => {
+it.each(["remote.copied", "remote.forwarded", "remote.switched", "remote.delete"])("ends without remote writes when a move back overtakes a move paused at %s", async boundary => {
   const h = await oppositeMoveFixture();
   await expect(invokeStoreMigrate(["--to", h.to], { ...h.ports, migrateStep: async step => {
     if (step === boundary) throw new Error("Paused original move");
@@ -27,6 +27,21 @@ it.each(["remote.forwarded", "remote.switched", "remote.delete"])("ends without 
     expect.objectContaining({ condition: expect.stringContaining("refs/arc/user/andrew/personal") }),
   ]));
   const stores = await convergeFollowers(h.origin, [{ root: h.a.root, ports: h.ports }, { root: h.b.root, ports: h.peerPorts }]);
+  for (const store of stores) expect(success(await store.read({ reference: h.pending })).content).toBe("Pending local state.\n");
+}, 60_000);
+
+it("moves the state again when a move back overtakes a move paused before its copy landed", async () => {
+  const h = await oppositeMoveFixture();
+  await expect(invokeStoreMigrate(["--to", h.to], { ...h.ports, migrateStep: async step => {
+    if (step === "remote.copy") throw new Error("Paused original move");
+  } })).rejects.toThrow("Paused original move");
+  expect((await invokeStoreMigrate(["--to", h.origin], h.peerPorts)).status).toBe("ok");
+  const resumed = await invokeStoreMigrate([], h.ports);
+  expect(resumed.status, JSON.stringify(resumed)).toBe("ok");
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim()).toBe("refs/arc/project/moved");
+  expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname)", "refs/arc/project/moved"])).stdout).toBe("");
+  expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout).toBe("");
+  const stores = await convergeFollowers(h.destinationDirectory, [{ root: h.a.root, ports: h.ports }, { root: h.b.root, ports: h.peerPorts }]);
   for (const store of stores) expect(success(await store.read({ reference: h.pending })).content).toBe("Pending local state.\n");
 }, 60_000);
 

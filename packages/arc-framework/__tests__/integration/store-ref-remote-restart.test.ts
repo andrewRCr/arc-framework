@@ -46,12 +46,13 @@ it.each(layoutCases)("restarts $source to $destination at $boundary with its cop
   }
 }, 60_000);
 
-it.each(["forwarded", "switched", "overtaken"] as const)("keeps a %s recorded move and its copied heads intact during trial", async state => {
+it.each(["copied", "forwarded", "switched", "overtaken", "switched then overtaken"] as const)("keeps a %s recorded move and its copied heads intact during trial", async state => {
   const h = await oppositeMoveFixture();
+  const paused = state === "copied" ? "remote.copied" : state.startsWith("switched") ? "remote.switched" : "remote.forwarded";
   await expect(invokeStoreMigrate(["--to", h.to], { ...h.ports, migrateStep: async step => {
-    if (step === (state === "switched" ? "remote.switched" : "remote.forwarded")) throw new Error("Paused recorded move");
+    if (step === paused) throw new Error("Paused recorded move");
   } })).rejects.toThrow("Paused recorded move");
-  if (state === "overtaken") expect((await invokeStoreMigrate(["--to", h.origin], h.peerPorts)).status).toBe("ok");
+  if (state.endsWith("overtaken")) expect((await invokeStoreMigrate(["--to", h.origin], h.peerPorts)).status).toBe("ok");
   const retained = (await h.a.exec("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/tmp/migrate/move", "refs/arc/tmp/migrate/copied/"])).stdout;
   const source = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
   const destination = (await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
@@ -62,7 +63,11 @@ it.each(["forwarded", "switched", "overtaken"] as const)("keeps a %s recorded mo
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(source);
   expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(destination);
   expect(await readFile(h.config, "utf8")).toBe(config);
-  if (state === "overtaken" && trial.status === "ok") expect(trial.result.refs.some(row => row.action === "delete")).toBe(false);
+  if (state.endsWith("overtaken") && trial.status === "ok") expect(trial.result.refs.some(row => row.action === "delete")).toBe(false);
+  if (state === "switched then overtaken" && trial.status === "ok") {
+    expect(trial.result.notices).toContainEqual(expect.objectContaining({ condition: expect.stringContaining("after its switch") }));
+    expect(trial.result.notices.some(({ condition }) => condition.includes(`published at ${h.destinationDirectory}`))).toBe(false);
+  }
   expect((await invokeStoreMigrate([], h.ports)).status).toBe("ok");
   expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout).toBe("");
 }, 60_000);

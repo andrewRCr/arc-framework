@@ -1,5 +1,5 @@
 /** Licensed delete rounds leave the departed receiver with its forwarding record alone. */
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
@@ -174,25 +174,28 @@ it("deletes through the recorded push URL after switching away from an upload-on
   expect(success(await h.store.pull()).states).toEqual([]);
 }, 45_000);
 
-it.each([
-  "remote.fetch-source", "remote.fetch-destination", "remote.build", "remote.record", "remote.copy", "remote.copied",
-  "remote.forward", "remote.forwarded", "remote.pointer", "remote.switch", "layout.build", "layout.record", "layout.rename",
-  "layout.designation", "layout.delete", "remote.switched", "remote.read-destination", "remote.list-source", "remote.recopy",
-  "remote.recopied", "remote.delete", "remote.deleted", "remote.finish",
-])("restarts a complete move interrupted at %s", async boundary => {
-  const h = await switchFixture();
-  await expect(invokeStoreMigrate(["--to", h.to], { ...h.ports, migrateStep: async step => {
-    if (step === boundary) throw new Error(`Interrupted ${boundary}`);
-  } })).rejects.toThrow(`Interrupted ${boundary}`);
-  const landed = (await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(objectname)", "refs/arc/project/registry"])).stdout.trim();
-  const moved = await invokeStoreMigrate(["--to", h.to], h.ports);
-  expect(moved.status, JSON.stringify(moved)).toBe("ok");
-  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim()).toBe("refs/arc/project/moved");
-  expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout).toBe("");
-  if (landed) await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "merge-base", "--is-ancestor", landed, "refs/arc/project/registry"]);
-  expect(success(await h.store.pull()).states).toEqual([]);
-  expect(success(await h.store.push()).states).toEqual([]);
-}, 45_000);
+describe.each([
+  { source: "code", destination: "backing", boundaries: ["remote.copy", "remote.copied", "remote.forwarded", "layout.rename",
+    "layout.designation", "remote.switched", "remote.recopied", "remote.deleted"] },
+  { source: "backing", destination: "code", boundaries: ["remote.copy", "remote.copied", "layout.record", "layout.designation",
+    "remote.recopied", "remote.deleted"] },
+  { source: "backing", destination: "backing", boundaries: ["remote.copy", "remote.copied", "remote.switch", "remote.recopied", "remote.deleted"] },
+] as const)("a move from $source to $destination", ({ source, destination, boundaries }) => {
+  it.each(boundaries)("restarts a complete move interrupted at %s", async boundary => {
+    const h = await switchFixture(source, destination);
+    await expect(invokeStoreMigrate(["--to", h.to], { ...h.ports, migrateStep: async step => {
+      if (step === boundary) throw new Error(`Interrupted ${boundary}`);
+    } })).rejects.toThrow(`Interrupted ${boundary}`);
+    const landed = (await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(objectname)", "refs/arc/project/registry"])).stdout.trim();
+    const moved = await invokeStoreMigrate(["--to", h.to], h.ports);
+    expect(moved.status, JSON.stringify(moved)).toBe("ok");
+    expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim()).toBe("refs/arc/project/moved");
+    expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout).toBe("");
+    if (landed) await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "merge-base", "--is-ancestor", landed, "refs/arc/project/registry"]);
+    expect(success(await h.store.pull()).states).toEqual([]);
+    expect(success(await h.store.push()).states).toEqual([]);
+  }, 45_000);
+});
 
 it("finishes a recorded remote move before applying a setting and retains the completed move report", async () => {
   const h = await switchFixture();
