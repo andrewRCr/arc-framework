@@ -1,7 +1,7 @@
 /** Atomic landing, resumable migration steps, and publication of the imported state. */
 import { describe, expect, it } from "vitest";
 import { join } from "node:path";
-import { mkdir, rename, writeFile } from "node:fs/promises";
+import { access, mkdir, rename, writeFile } from "node:fs/promises";
 import { importFixture } from "../helpers/store/import-fixture.js";
 import { ordinaryErrand, seedTransients, transientSourceRef } from "../helpers/store/import-transients.js";
 
@@ -70,6 +70,16 @@ describe("import publication", () => {
     const local = (await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/work/", "refs/arc/cohort/", "refs/arc/project/"])).stdout;
     expect(local).toBe(before);
   });
+});
+
+it("drops a separate-layout trial's build without placing the store directory", async () => {
+  const h = await importFixture("separate");
+  const trial = await h.migrate(true);
+  expect(trial.status, JSON.stringify(trial)).toBe("ok");
+  if (trial.status !== "ok") throw new Error("Trial refused");
+  expect(trial.result.refs.length).toBeGreaterThan(0);
+  await expect(access(join(h.root, ".git/arc/store"))).rejects.toMatchObject({ code: "ENOENT" });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
 });
 
 describe.each(["default", "separate"] as const)("interrupted import in %s", (layout) => {

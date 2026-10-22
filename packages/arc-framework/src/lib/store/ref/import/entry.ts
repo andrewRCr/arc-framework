@@ -5,9 +5,9 @@ import type { StoreMigrateInput, StoreMigrateResult, MigrateReport } from "../..
 import { RepositoryGitCommonStatePublisher } from "../../../git-common-state.js";
 import { readRepositoryIdentity, resolveRepositoryIdentity } from "../../../../scripts/review-gate/hosts/local/git-common-state.js";
 import { RecordReferenceSchema } from "../../identity.js";
-import { readImportSource } from "./source.js";
+import { readImportSource, type ImportRecord } from "./source.js";
 import { prepareImportRecords, buildImportCommits } from "./build.js";
-import { writeRefRepository } from "../repository.js";
+import { readRefRepository, writeRefRepository } from "../repository.js";
 import type { Store } from "../../contract.js";
 import { inspectImportDestination } from "./occupied.js";
 import { publishImport } from "./finish.js";
@@ -44,11 +44,18 @@ export async function importTrackedState(context: RefBackendContext, store: Stor
   if (!identity.length) return importRefused(report);
   records.push(...identity);
   report.refs.push({ ref: "refs/arc/project/registry", scope: "project", action: "create" });
-  if (!input.trial) await keepImportTransients(context, transients.tips);
-  const physical = await writeRefRepository(context);
+  return landImport(context, store, report, records, { codeHead, projectId, tips: transients.tips, trial: input.trial === true });
+}
+
+/** A trial drops its build, so it selects the repository by reading and never places a store directory. */
+async function landImport(context: RefBackendContext, store: Store, report: MigrateReport, records: readonly ImportRecord[],
+  landing: { codeHead: string; projectId: string; tips: ReadonlyMap<string, string>; trial: boolean }): Promise<StoreMigrateResult> {
+  const { codeHead, projectId, tips, trial } = landing;
+  if (!trial) await keepImportTransients(context, tips);
+  const physical = trial ? await readRefRepository(context) : await writeRefRepository(context);
   const refs = await buildImportCommits(physical, records, codeHead, randomUUID());
-  if (!await landImportRefs(physical, refs, input.trial === true, transients.tips)) return landingRace(context, store, report, projectId, input.trial === true);
-  return input.trial ? { status: "ok", result: report } : publishImport(context, store, report);
+  if (!await landImportRefs(physical, refs, trial, tips)) return landingRace(context, store, report, projectId, trial);
+  return trial ? { status: "ok", result: report } : publishImport(context, store, report);
 }
 
 function reviewIdentityChanged(context: RefBackendContext, report: MigrateReport, proposed: string, actual: string): boolean {

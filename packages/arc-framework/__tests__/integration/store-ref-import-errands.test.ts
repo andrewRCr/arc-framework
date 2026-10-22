@@ -14,10 +14,11 @@ import { rejoinEntryList, splitEntryList } from "../../src/lib/store/concurrency
 import { ENTRY_CONFIGS } from "../../src/lib/store/kinds/entry-configs.js";
 import { parseEntryList } from "../../src/lib/store/kinds/entry-list.js";
 
-/** Designate a backing repository at origin's URL as the separate layout's state remote. */
+/** Prepare the empty separate store with a backing repository at origin's URL as its state remote. */
 async function designateBacking(h: Awaited<ReturnType<typeof importFixture>>): Promise<void> {
-  await h.migrate(true);
-  const scope = [`--git-dir=${join(h.root, ".git/arc/store")}`];
+  const directory = join(h.root, ".git/arc/store");
+  await h.git("git", ["init", "--bare", "--ref-format=reftable", "--object-format=sha1", directory]);
+  const scope = [`--git-dir=${directory}`];
   await h.git("git", [...scope, "config", "remote.backing.url", h.origin]);
   await h.git("git", [...scope, "config", "remote.backing.arc-state", "push"]);
 }
