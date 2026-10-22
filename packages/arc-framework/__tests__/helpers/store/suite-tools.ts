@@ -8,13 +8,41 @@ import {
 import type { ConformanceFixture, ConformanceRegistration, SuiteItem } from "./fixture-contract.js";
 
 /** One numbered item's backend registration context. */
-export interface SuiteContext { item: SuiteItem; registration: ConformanceRegistration; coverage?: AssertionCoverage }
-/** Assertion names registered and exclusion declarations actually reported by one suite. */
-export interface AssertionCoverage { registered: Map<SuiteItem, Map<FamilyId, Set<string>>>; used: Set<string> }
+export interface SuiteContext { item: SuiteItem; registration: ConformanceRegistration; coverage?: AssertionCoverage; selects?: CaseSelection }
+/** Whether this file runs one case; every case registers whether or not it runs. */
+export type CaseSelection = (item: SuiteItem, id: string) => boolean;
+/** Assertion names registered, exclusion declarations actually reported, and every case ID, for one whole registration. */
+export interface AssertionCoverage { registered: Map<SuiteItem, Map<FamilyId, Set<string>>>; used: Set<string>; cases: Map<SuiteItem, Set<string>> }
 /** Create an isolated assertion inventory.
- * @returns Empty registration and exclusion inventories.
+ * @returns Empty registration, exclusion, and case inventories.
  */
-export function createAssertionCoverage(): AssertionCoverage { return { registered: new Map(), used: new Set() }; }
+export function createAssertionCoverage(): AssertionCoverage { return { registered: new Map(), used: new Set(), cases: new Map() }; }
+/** Register one case: record its ID and run it when this file selects it.
+ * @param context - Item, registration, inventory, and this file's selection.
+ * @param id - The case's ID within its item, which a declared subset names.
+ * @param name - The test name.
+ * @param test - The case body.
+ */
+export function caseTest(context: SuiteContext, id: string, name: string, test: () => Promise<void>): void {
+  if (registerCase(context, id)) it(name, test);
+}
+/** Register one excluded case: record its ID and report it as skipped when this file selects it.
+ * @param context - Item, registration, inventory, and this file's selection.
+ * @param id - The case's ID within its item.
+ * @param name - The skipped test's name, carrying its reason.
+ */
+export function caseSkip(context: SuiteContext, id: string, name: string): void {
+  if (registerCase(context, id)) it.skip(name, () => {});
+}
+function registerCase(context: SuiteContext, id: string): boolean {
+  const coverage = context.coverage;
+  if (coverage) {
+    let ids = coverage.cases.get(context.item);
+    if (!ids) { ids = new Set(); coverage.cases.set(context.item, ids); }
+    ids.add(id);
+  }
+  return context.selects?.(context.item, id) ?? true;
+}
 /** Record a registered family assertion without opening a backend.
  * @param context - Item and optional inventory.
  * @param family - Served family.
@@ -86,8 +114,9 @@ export function assertion(context: SuiteContext, family: FamilyId, name: string,
   recordAssertion(context, family, name);
   const exclusions = context.registration.declarations.familyExclusions[family];
   const reason = exclusions?.items?.[context.item] ?? exclusions?.assertions?.[name] ?? inapplicableReason;
-  if (reason) it.skip(`${family}: ${name} — ${reason}`, () => {});
-  else it(`${family}: ${name}`, async () => { await test(await context.registration.create()); });
+  const id = `${family}: ${name}`;
+  if (reason) caseSkip(context, id, `${id} — ${reason}`);
+  else caseTest(context, id, id, async () => { await test(await context.registration.create()); });
 }
 
 /** Register one named behavior for each served role selected by its declared mechanism.

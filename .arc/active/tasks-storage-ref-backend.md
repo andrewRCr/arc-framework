@@ -2133,16 +2133,17 @@ in `notes-storage-ref-backend.md` (A25).
           a changed identity; the cases are integration cases because unit tests run no Git and import no private store
           module. The shared default ports are unchanged.
 
-    - `[ ]` **18.R2.b The separate layout's declared subset and the split default run — § 14.1**
-        - The separate registration declares one case for each operation path through the layout's selection and
-          binding, seeded from the 50-case subset in the layout dependency map (`layout-dependency-map.md` in
-          `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/selection/`) and chosen by declaration
-          rather than name, in its own file; the whole separate suite keeps its file, which 18.R2.f marks to run only in
-          full runs and the portability tier's scheduled and dispatched runs, and runs in the pre-landing hosted
-          dispatch. Until 18.R2.f lands, both files run in the integration tier. The default conformance run splits into
-          files by item range with an unchanged case population. `validateUsedAssertionExclusions`
-          (`__tests__/helpers/store/suite-tools.ts`) checks every declared exclusion against the whole registration's
-          cases, for the in-repo and reference fixtures too, rather than the cases one file runs.
+    - `[x]` **18.R2.b The separate layout's declared subset and the split default run — § 14.1**
+        - `registerStoreConformanceSuite` takes a run: one item range or the per-change subset its registration declares
+          (`ConformanceRuns`, `fixture-contract.ts`). Every file registers the whole registration and runs only the
+          cases its run selects, through `caseTest` and `caseSkip` (`suite-tools.ts`), so each file's declaration
+          inventory checks exclusions and the subset against every case of the registration
+          (`validateConformanceInventory`), in-repo and reference fixtures included; declared ranges must cover every
+          item once. The separate registration declares the layout map's 50 cases by item and case ID
+          (`separate-subset.ts`), run by `store-ref-separate-conformance-subset.test.ts`;
+          `store-ref-separate-conformance.test.ts` keeps the whole suite. The default run splits into
+          `store-ref-conformance-{records,reads,sync}.test.ts` (items 1–6, 7–15, 16–17, about 60, 69, and 69 s of the
+          197 s file), whose cases together equal the whole registration's 1,068.
 
     - `[ ]` **18.R2.c The verified cut set — § 14.14**
         - Verify every candidate from the three value reviews and the layout map (`value-review-A-sync.md`,

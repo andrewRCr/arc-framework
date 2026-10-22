@@ -23,6 +23,7 @@ import { refFamilyExclusions } from "./ref-exclusions.js";
 import { createTempRepoCore, removeGitBackedDir } from "../temp-repo.js";
 import { makeGitExec } from "../integration.js";
 import { copyPreparedRepository, prepareRepositoryTemplate, PREPARED_REMOTE_PATH, type PreparedRepositoryTemplate } from "../prepared-repository.js";
+import { separatePerChangeSubset } from "./separate-subset.js";
 
 const families = FAMILY_IDS.filter((family) => family !== "project-machinery" && family !== "constitution");
 export const refDeclarations: FixtureDeclarations = {
@@ -131,6 +132,8 @@ export async function createRefFixture(registryOverrides: Partial<Record<KindId,
   return fixture;
 }
 
-export const refRegistration: ConformanceRegistration = { declarations: refDeclarations, create: createRefFixture };
+export const refRegistration: ConformanceRegistration = { declarations: refDeclarations, create: createRefFixture,
+  runs: { ranges: { records: [1, 6], reads: [7, 15], sync: [16, 17] } } };
 
-export const separateRefRegistration: ConformanceRegistration = { declarations: refDeclarations, create: (overrides) => createRefFixture(overrides, "separate") };
+export const separateRefRegistration: ConformanceRegistration = { declarations: refDeclarations, create: (overrides) => createRefFixture(overrides, "separate"),
+  runs: { subset: separatePerChangeSubset } };

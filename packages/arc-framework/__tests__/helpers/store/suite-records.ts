@@ -1,11 +1,11 @@
 /** record identity, mutation, durability and capability assertions. */
 
-import { expect, it } from "vitest";
+import { expect } from "vitest";
 import {
   KIND_REGISTRY, RecordReferenceSchema, OwnerIdentitySchema, ReadPlacementSchema, StoreRecordSchema, type StoreRecord,
 } from "../../../src/lib/store/index.js";
 import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
-import { assertion, everyKind, seed, success, testProvenance, update, mutationOf, type SuiteContext } from "./suite-tools.js";
+import { assertion, caseSkip, everyKind, seed, success, testProvenance, update, mutationOf, type SuiteContext } from "./suite-tools.js";
 import { registerPrimaryRoleAssertions } from "./suite-primary-role.js";
 import { parseCohortDocument } from "../../../src/lib/store/kinds/cohort/parser.js";
 
@@ -50,7 +50,7 @@ export function registerRecordAssertions(context: SuiteContext): void {
     const typedKind = definition.id;
     const reason = context.registration.declarations.rejectingContentUnavailable[typedKind];
     const name = `${kind}: rejecting-content-and-repaired-creation`;
-    if (reason) { it.skip(`${name} — ${reason}`, () => {}); continue; }
+    if (reason) { caseSkip(context, `${definition.family}: ${name}`, `${name} — ${reason}`); continue; }
     assertion(context, definition.family, name, async (fixture) => {
       const reference = fixture.reference(typedKind);
       const writer = definition.writerVerbs?.[0] ?? "edit";
