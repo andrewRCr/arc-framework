@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "concurrent-backup-naming",
+  "claimId": "1c9a804a7fcb03391aca00332bec23f7",
+  "createdAt": "2026-10-22T15:55:38.209Z",
+  "updatedAt": "2026-10-22T15:55:38.209Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Find and remove the cause of one backup surviving two concurrent loads",
+  "branch": "chore/concurrent-backup-naming",
+  "origin": "inbox",
+  "originEntry": "Find why concurrent loads can keep one backup instead of two under a loaded machine",
+  "originEntrySourceDigest": "sha256:be23f4139e3853032e0bbb1a047479755ac48d11c76ade6b93fe21d1df0a2edd",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
