@@ -97,6 +97,7 @@ export async function installCopiedHeads(code: RefBackendContext, target: RefBac
 export async function configureBacking(target: RefBackendContext, destination: MoveRemote, role: "push" | "read" | "off" = "push"): Promise<void> {
   const names = (await target.exec("git", ["remote"], { cwd: target.checkoutRoot })).stdout.split(/\r?\n/u);
   await target.exec("git", ["remote", names.includes("backing") ? "set-url" : "add", "backing", destination.fetchUrl], { cwd: target.checkoutRoot });
+  await target.migrateStep?.("backing.repointed");
   await target.exec("git", ["config", "remote.backing.arc-state", role], { cwd: target.checkoutRoot });
 }
 

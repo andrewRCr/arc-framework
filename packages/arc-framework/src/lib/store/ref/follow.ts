@@ -13,6 +13,7 @@ import { readRefRepository } from "./repository.js";
 import { followSwitchComplete, switchRefFollow } from "./follow-switch.js";
 import { clearRemoteGathering, remoteCopyReport, readRemoteCopyReport } from "./migrate-remote-copy.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
+import { undoSwitch, type SwitchUndo } from "./migrate-switch-undo.js";
 import { copyFollowState } from "./follow-copy.js";
 import { deleteFollowSource } from "./follow-delete.js";
 
@@ -28,8 +29,10 @@ export async function answerRefFollow(context: RefBackendContext, store: Store, 
     const sourceLayout = physical.repository?.gitDir ? "separate" : "default";
     const ownCodePush = due.designation.pushes.some(row => row.repository === "code" && row.name === due.designation.codeRemote && row.name !== due.remote.name);
     const destinationLayout = ownCodePush || answer === "push" && candidate.remote.repository === "code" && candidate.remote.name === due.designation.codeRemote ? "default" : "separate";
+    const sourceRole = due.remote.role;
+    if (sourceRole !== "push" && sourceRole !== "read") throw new Error("A due follow's old remote carries neither push nor read");
     const record: FollowMoveRecord = { kind: "follow", source: judged.source, destination: candidate.remote,
-      answer, forwarding: judged.record, forwardingTip: judged.forwardingTip, sourceLayout, destinationLayout };
+      answer, sourceRole, forwarding: judged.record, forwardingTip: judged.forwardingTip, sourceLayout, destinationLayout };
     if (answer === "push" && await copyFollowState(code, record) === null) {
       await dropStaleFollow(context, due); await clearRemoteGathering(code); return { status: "stale" };
     }
@@ -50,7 +53,7 @@ export async function resumeRefFollow(context: RefBackendContext, store: Store, 
   try {
     const code = await migrationCodeContext(context);
     if (!copied && recorded.record.answer === "push" && !await followSwitchComplete(context, recorded) &&
-        await copyFollowState(code, recorded.record) === null) return await endStaleRecordedFollow(context, code, recorded);
+        await copyFollowState(code, recorded.record) === null) return await endStaleRecordedFollow(context, store, code, recorded);
     const report = recorded.record.answer === "push" ? await readRemoteCopyReport(code) : remoteCopyReport(new Map(), new Map(), []);
     await switchRefFollow(context, store, recorded);
     if (recorded.record.answer === "push") await deleteFollowSource(code, recorded, report);
@@ -61,12 +64,21 @@ export async function resumeRefFollow(context: RefBackendContext, store: Store, 
   } catch (error) { if (error instanceof MigrationRefusal) return { status: "refused", refusal: error.refusal }; throw error; }
 }
 
-async function endStaleRecordedFollow(context: RefBackendContext, code: RefBackendContext, recorded: RecordedFollow): Promise<StoreCommandResult<MigrateReport>> {
+async function endStaleRecordedFollow(context: RefBackendContext, store: Store, code: RefBackendContext, recorded: RecordedFollow): Promise<StoreCommandResult<MigrateReport>> {
+  const undone = await undoSwitch(context, store, followSwitchUndo(recorded));
   const physical = await readRefRepository(context), trackingRef = `refs/arc-remotes/${recorded.record.source.name}/project/moved`;
   const tip = (await readSyncRefs(physical, trackingRef)).get(trackingRef);
   if (tip) await dropStaleFollow(context, { trackingRef, tip });
   await removeMoveRecord(code, recorded); await clearRemoteGathering(code);
-  return { status: "ok", result: remoteCopyReport(new Map(), new Map(), [{ condition: "The old remote no longer carries the followed record; the stale follow ended without a switch or deletes." }]) };
+  return { status: "ok", result: remoteCopyReport(new Map(), new Map(), [{ condition: undone
+    ? "The old remote no longer carries the followed record: another move overtook this follow during its switch, which was undone, and the follow ended without deletes."
+    : "The old remote no longer carries the followed record; the stale follow ended without a switch or deletes." }]) };
+}
+
+/** A follow's switch is undone to its old remote's recorded role and layout; the checkout's pointer stays as found. */
+function followSwitchUndo(recorded: RecordedFollow): SwitchUndo {
+  const { source, destination, sourceRole, answer, sourceLayout, destinationLayout } = recorded.record;
+  return { recorded, source, destination, sourceRole, destinationRole: answer, sourceLayout, destinationLayout };
 }
 
 async function requireFollowPublication(physical: RefBackendContext, projectId: string): Promise<void> {

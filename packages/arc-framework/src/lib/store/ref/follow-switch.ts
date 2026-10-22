@@ -5,7 +5,7 @@ import { readRefDesignation } from "./designation.js";
 import { migrationCodeContext, type RecordedFollow, type RecordedLeaveSource } from "./migrate-record.js";
 import { moveRefLayoutAsSwitch } from "./migrate-layout.js";
 import { requireLayoutTransaction } from "./migrate-layout-build.js";
-import { configureBacking, installCopiedHeads, remoteLayoutCleanupComplete } from "./migrate-remote-switch.js";
+import { configureBacking, installCopiedHeads, remoteLayoutCleanupComplete, removeBacking } from "./migrate-remote-switch.js";
 import { readRefRepository } from "./repository.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { captureMoveRemote } from "./migrate-remote-target.js";
@@ -66,8 +66,6 @@ async function applyFollowDesignation(context: RefBackendContext, recorded: Reco
   if (source.repository === "code") await code.exec("git", ["config", `remote.${source.name}.arc-state`, "off"], { cwd: context.checkoutRoot });
   if (destination.repository === "code") {
     await code.exec("git", ["config", `remote.${destination.name}.arc-state`, answer], { cwd: context.checkoutRoot });
-    const physical = await readRefRepository(context);
-    const names = (await physical.exec("git", ["remote"], { cwd: context.checkoutRoot })).stdout.trim().split(/\r?\n/u);
-    if (names.includes("backing")) await physical.exec("git", ["remote", "remove", "backing"], { cwd: context.checkoutRoot });
+    await removeBacking(await readRefRepository(context));
   }
 }
