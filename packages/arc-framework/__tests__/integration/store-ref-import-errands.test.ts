@@ -23,6 +23,14 @@ const ordinary: TransientIdentityRecord = { ...common, kind: "errand", purpose: 
 const sourceRef = "refs/arc/user/andrew/errands";
 const keptPrefix = "refs/arc/tmp/migrate/import/kept/";
 
+/** Designate a backing repository at origin's URL as the separate layout's state remote. */
+async function designateBacking(h: Awaited<ReturnType<typeof importFixture>>): Promise<void> {
+  await h.migrate(true);
+  const scope = [`--git-dir=${join(h.root, ".git/arc/store")}`];
+  await h.git("git", [...scope, "config", "remote.backing.url", h.origin]);
+  await h.git("git", [...scope, "config", "remote.backing.arc-state", "push"]);
+}
+
 async function seed(h: Awaited<ReturnType<typeof importFixture>>, records: TransientIdentityRecord[]): Promise<string> {
   const io = { exec: h.ports.exec, execInput: h.ports.execInput, identity: "andrew" };
   const entries = new Map<string, string>();
@@ -45,6 +53,80 @@ it("retains origin and the cleanup lease if publication is disabled after landin
   await h.git("git", ["config", "remote.origin.arc-state", "push"]);
   expect(await h.migrate()).toMatchObject({ status: "ok" });
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", sourceRef])).stdout).toBe("");
+});
+
+it("resumes a publication interrupted after its state push and retires origin's copy", async () => {
+  const h = await importFixture();
+  const tip = await seed(h, [ordinary]);
+  await h.git("git", ["push", "origin", `${sourceRef}:${sourceRef}`]);
+  const original = h.ports.exec;
+  let interrupted = false;
+  h.ports.exec = async (...args) => {
+    const result = await original(...args);
+    if (!interrupted && args[1].includes("push")) { interrupted = true; throw new Error("interrupt-after-publish"); }
+    return result;
+  };
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "store", refusal: { code: "unreachable" } } });
+  const state = async (exec: typeof h.git) => (await exec("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout
+    .split("\n").filter((line) => line && !line.startsWith("refs/arc/tmp/")).sort();
+  const published = await state(h.remote);
+  expect(published).toContain(`${sourceRef} ${tip}`);
+  expect((await h.git("git", ["for-each-ref", "--format=%(objectname)", keptPrefix])).stdout.trim()).toBe(tip);
+  h.ports.exec = original;
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  expect(await state(h.remote)).toEqual(published.filter((line) => line !== `${sourceRef} ${tip}`));
+  expect(await state(h.git)).toEqual(await state(h.remote));
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", keptPrefix])).stdout).toBe("");
+});
+
+describe("Errand import interrupted in the separate layout", () => {
+  const refs = async (exec: (file: string, args: string[]) => Promise<{ stdout: string }>, prefix: string, scope: string[] = []) =>
+    (await exec("git", [...scope, "for-each-ref", "--format=%(refname) %(objectname)", prefix])).stdout;
+  it.each(["import.transient.local-delete", "import.publish"])("resumes a backing-published import interrupted at %s and retires origin's copy", async (boundary) => {
+    const h = await importFixture("separate");
+    await designateBacking(h);
+    const tip = await seed(h, [ordinary]);
+    await h.git("git", ["push", "origin", `${sourceRef}:${sourceRef}`]);
+    h.ports.migrateStep = async (step) => { if (step === boundary) throw new Error("interrupt-import"); };
+    await expect(h.migrate()).rejects.toThrow("interrupt-import");
+    const store = [`--git-dir=${join(h.root, ".git/arc/store")}`];
+    expect(await refs(h.git, sourceRef)).toBe(boundary === "import.transient.local-delete" ? `${sourceRef} ${tip}` : "");
+    expect(await refs(h.git, keptPrefix)).toContain(tip);
+    expect(await refs(h.remote, sourceRef)).toBe(`${sourceRef} ${tip}`);
+    expect(await refs(h.remote, "refs/arc/work/")).toBe("");
+    const landed = await refs(h.git, "refs/arc/work/", store);
+    expect(landed).not.toBe("");
+    h.ports.migrateStep = async () => {};
+    expect(await h.migrate()).toMatchObject({ status: "ok" });
+    expect(await refs(h.git, sourceRef)).toBe("");
+    expect(await refs(h.git, keptPrefix)).toBe("");
+    expect(await refs(h.remote, sourceRef)).toBe("");
+    expect(await refs(h.git, "refs/arc/work/", store)).toBe(landed);
+    expect(await refs(h.remote, "refs/arc/work/")).toBe(landed);
+  });
+
+  it("resumes a local-only import interrupted at its landing and names origin's retained copy", async () => {
+    const h = await importFixture("separate");
+    const tip = await seed(h, [ordinary]);
+    await h.git("git", ["push", "origin", `${sourceRef}:${sourceRef}`]);
+    h.ports.migrateStep = async (step) => { if (step === "import.land") throw new Error("interrupt-import"); };
+    await expect(h.migrate()).rejects.toThrow("interrupt-import");
+    const store = [`--git-dir=${join(h.root, ".git/arc/store")}`];
+    expect(await refs(h.git, sourceRef)).toBe(`${sourceRef} ${tip}`);
+    expect(await refs(h.git, keptPrefix)).toContain(tip);
+    expect(await refs(h.git, "refs/arc/work/", store)).toBe("");
+    h.ports.migrateStep = async () => {};
+    const result = await h.migrate();
+    if (result.status !== "ok") throw new Error(JSON.stringify(result));
+    const conditions = result.result.notices.map(({ condition }) => condition);
+    expect(conditions).toContain(`origin still holds ${sourceRef}; no state remote is designated.`);
+    expect(conditions).not.toContain("The landing would mint the repository identity ID.");
+    expect(await refs(h.git, sourceRef)).toBe("");
+    expect(await refs(h.git, "refs/arc/tmp/migrate/import/")).toBe("");
+    expect(await refs(h.git, "refs/arc/tmp/migrate/import/", store)).toBe("");
+    expect(await refs(h.git, "refs/arc/work/", store)).not.toBe("");
+    expect(await refs(h.remote, sourceRef)).toBe(`${sourceRef} ${tip}`);
+  });
 });
 
 describe.each(["default", "separate"] as const)("Errand import in %s", (layout) => {
@@ -94,12 +176,7 @@ describe.each(["default", "separate"] as const)("Errand import in %s", (layout) 
   }
   it("keeps advanced origin authority and completes cleanup after repair", async () => {
     const h = await importFixture(layout);
-    if (layout === "separate") {
-      await h.migrate(true);
-      const scope = [`--git-dir=${join(h.root, ".git/arc/store")}`];
-      await h.git("git", [...scope, "config", "remote.backing.url", h.origin]);
-      await h.git("git", [...scope, "config", "remote.backing.arc-state", "push"]);
-    }
+    if (layout === "separate") await designateBacking(h);
     const tip = await seed(h, [ordinary]);
     await h.git("git", ["push", "origin", `${sourceRef}:${sourceRef}`]);
     const head = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();

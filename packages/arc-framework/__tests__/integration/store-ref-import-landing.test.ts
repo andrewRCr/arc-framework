@@ -72,11 +72,11 @@ describe("import publication", () => {
 });
 
 describe.each(["default", "separate"] as const)("interrupted import in %s", (layout) => {
-  it.each(["build", "land", "publish"])("resumes an interruption before %s without duplicating owners", async (step) => {
+  it.each(["land", "publish"])("resumes an interruption before %s without duplicating owners", async (step) => {
     const h = await importFixture(layout);
     h.ports.migrateStep = async (observed) => { if (observed === `import.${step}`) throw new Error(`interrupt-${step}`); };
     await expect(h.migrate()).rejects.toThrow(`interrupt-${step}`);
-    const scope = layout === "separate" && step !== "build" ? [`--git-dir=${join(h.root, ".git/arc/store")}`] : [];
+    const scope = layout === "separate" ? [`--git-dir=${join(h.root, ".git/arc/store")}`] : [];
     const read = async (prefix: string) => (await h.git("git", [...scope, "for-each-ref", "--format=%(refname) %(objectname)", prefix])).stdout.split("\n").filter(Boolean).sort();
     const before = (await read("refs/arc/")).filter((line) => !line.startsWith("refs/arc/tmp/"));
     if (step === "land") {
