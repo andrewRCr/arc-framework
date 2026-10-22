@@ -3,14 +3,20 @@
   "slug": "verification-hosted-ci",
   "claimId": "fb92b4d82dffa56e505bcd9c73af4844",
   "createdAt": "2026-10-22T13:04:32.423Z",
-  "updatedAt": "2026-10-22T13:04:32.423Z",
+  "updatedAt": "2026-10-22T14:07:23.223Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Interim project rule: dispatch hosted CI at the verified head before work-unit verification attests",
   "branch": "chore/verification-hosted-ci",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/verification-hosted-ci",
+    "headSha": "2c2666e09082750f42b88c6e3c0d2a2caf9923d9"
+  }
 }
