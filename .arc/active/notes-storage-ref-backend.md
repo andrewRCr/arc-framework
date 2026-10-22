@@ -2188,5 +2188,99 @@ and runs them only on changes that reach them (spec § 14.14).
   selection to the rest of the suite, and re-measuring the store's import coupling after the cutover's deletions, both
   captured for `test-suite-contention-hardening`.
 
+### The verified cut set
+
+18.R2.c verified every candidate the value reviews and the layout map named, and every case the reviews kept in both
+layouts, against source at `949ef8638`, § 14.14's layout rule, § 14.7's restart rule, and the criteria each case
+evidences, and the set was approved whole. It removes about 255 s of summed file time from the 2,633 s baseline: 68 sync
+runs, 10 move and read-source runs, 32 import runs, and 45 runs among the cases the reviews kept in both layouts, while
+the restart rows grow by 26. With 18.R2.b's subset that leaves about 1,975 s before 18.R2.a's and 18.R2.e's savings, so
+prepared states carry the remaining 650 s or so.
+
+- **A recovery state is what the rerun reads.** A boundary's state is what the rerun reads that decides its path or the
+  data it carries: the record and its fields, the published refs, and each leftover read before the rerun clears or
+  overwrites it. A leftover cleared or overwritten unread distinguishes nothing, and a predicate that exits at another
+  conjunct because it read another value meets another state. Each configuration a move runs in — its direction, a
+  setting or a no-target start, transient refs or a state remote present — has its own sets. Not taken: collapsing
+  configurations whose rerun takes their first run's path, about 67 s cheaper but treating a record's direction as no
+  part of its state; and splitting on leftovers the rerun wipes unread, about 90 s dearer.
+- **What observes the layout.** A test's own `--git-dir` reads bind the store rather than observe the layout; syncing
+  through `backing` passes through designation; keeper refs are not keeper locks; static remedy text and `Arc-Actor`
+  labels observe nothing. § 14.5's "in both layouts" on the tracking-ref push covers its listing and reopen clauses, not
+  the two-worktree item after them. The import's store directory is `writeRefRepository`'s, which the separate subset
+  reaches on every change.
+- **Import cases kept in the separate layout.** `store-ref-import-notes`' environment-file case stays as criterion 31's
+  last separate import of personal documents, so `store-ref-import-personal-layout`'s goes; `store-ref-import-links`'
+  footer-task capture stays as criterion 26's only separate keyless exclusion. `store-ref-import-parked`'s diverged case
+  stays as the only end-to-end diverged-parked refusal, and comparison tests 1 and 3 fold into test 2.
+- **Defects the derivations found** are exposed and fixed in their own increment, 18.R2.h, rather than inside the cut
+  set: an interrupted local-only import losing the notices § 10.11 owes for origin's transient refs; a remote move
+  overtaken inside its switch ending with no record beside its pointer, designation, and layout changes; layout
+  gathering refs outliving a switch its predicate completes after the source delete; a separate-layout import trial
+  creating the store directory § 10.5 says it drops; and kept import tips a rerun no longer re-homes never being pruned.
+  A step hook after the layout source's delete reaches the states no hook interrupted; the two it reaches while leaving
+  the source get rows, which expose the gathering-ref defect, and the rest only return an empty report.
+
+#### Restart sets
+
+Each set lists its boundaries, then the row standing for it. "Add" marks a row 18.R2.d writes, "18.R2.h" one that
+exposes a defect. "No row" marks a state 18.R2.h's hook after the source delete reaches whose rerun differs only by
+returning an empty report, and "unhooked" one no hook reaches. A pristine set holds no record, nothing published, and
+only leftovers the rerun clears, so a first run stands for it.
+
+- **Layout move out, from a setting:** {build, record} → `store-ref-layout-move`'s unrecorded-build cases (`:345`,
+  `:355`), re-pointed at the move out; {rename, the rename fault} → [separate, rename]; {designation, delete} →
+  [separate, designation], with the killed run's lock takeover (`:420` [separate]); {after the source delete} no row.
+- **Layout move out, no target:** {build, record} pristine; {rename} add; {delete} add; {after the source delete} →
+  `store-ref-move-record`'s [remove].
+- **Layout move in, from a setting:** {build, record} → [default, record]; {the landing fault} → `:201` [default];
+  {designation, rename} → [default, designation], and `:279`'s `move-incomplete` from pull and push gains move-in rows
+  in place of `:420` [default]; {delete} → [default, delete]; {after the aside delete} no row.
+- **Layout move in, no target:** {build, record} pristine; {the landing fault} add; {rename} add; {delete} → `:383`;
+  {after the aside delete} no row.
+- **Leaving the source, code to backing:** {copy} pristine; {copied, record} → [c2b, leave.copied]; {recorded,
+  leave.switch, follow.switch, layout build, record, and rename} → [c2b, leave.recorded]; {layout.designation} → [c2b,
+  layout.designation]; {layout.delete} add; {after the source delete} 18.R2.h; {follow.switched, leave.switched} add;
+  and one row add from a follower holding the old remote's moved-record tracking ref.
+- **Leaving the source, backing to code:** {copied, record} add; {recorded … layout.record} add; {layout.designation}
+  → [b2c, layout.designation]; {layout.rename} add; {layout.delete} add; {after the aside delete, before the build's}
+  unhooked; {after the build's delete} 18.R2.h; {follow.switched, leave.switched} add.
+- **Leaving the source, backing to backing:** {copied, record} add; {recorded, leave.switch, follow.switch} add;
+  {follow.switched, leave.switched} → [b2b, leave.switched].
+- **Import, default layout:** {build} pristine; {land} → `store-ref-import-landing`'s [default, land]; {land with
+  transient refs} → `store-ref-import-errands`' changed-lease case [default]; {publish} → [default, publish]; {publish
+  with kept tips} → the errands' retained-lease case [default]; {a push fault after the state push} →
+  `store-ref-import-landing:47`, and with kept tips add; {remote-delete}, {drop-kept} → the errands' advanced-origin
+  case [default].
+- **Import, separate layout:** {build} pristine; {land} → [separate, land]; {land with transient refs} add;
+  {local-delete} → the errands' retained-lease case [separate], and with `backing` add; {publish with `backing`} add;
+  {publish with no state remote} → [separate, publish], seeded with an origin transient ref (18.R2.h); {remote-delete},
+  {drop-kept} → the errands' advanced-origin case [separate].
+- **Remote move, code to backing:** {fetch-source … record} pristine; {copy} → copy; {copied, forward} → copied;
+  {forwarded, pointer} → forwarded; {switch, layout build, record, and rename} → layout.rename; {layout.designation,
+  layout.delete} → layout.designation; {switched, read-destination, list-source, recopy} → switched; {recopied,
+  delete} → recopied; {deleted, finish} → deleted.
+- **Remote move, backing to code:** {copy}, {copied, forward}, {forwarded … layout.record} standing at layout.record,
+  and {layout.designation} add; {layout.rename} and {layout.delete} → `store-ref-remote-restart:14`'s backing-to-code
+  rows; {switched … recopy} → `:94` [code]; {recopied, delete} and {deleted, finish} add.
+- **Remote move, backing to backing:** {copy}, {copied, forward}, and {forwarded, pointer, switch} standing at switch
+  add; {switched … recopy} → `:94` [backing]; {recopied, delete} and {deleted, finish} add.
+- **Follow, push, code to backing:** {copied, record} → copied, and add the same with nothing left to push; {recorded,
+  follow.switch, layout build, record, and rename} → recorded; {layout.designation} → layout.designation;
+  {layout.delete} → layout.delete; {switched … follow.delete} → switched; {deleted … finish} → deleted. One recorded row
+  reruns with the answering command rather than `migrate`.
+- **Follow, push, backing to backing:** {copied, record}, {recorded, follow.switch}, and {deleted … finish} add;
+  {switched … follow.delete} → `store-ref-follow-races:97`.
+- **Follow, push, backing to code:** {copied, record}, {recorded … layout.record}, {layout.designation},
+  {layout.rename}, {layout.delete}, {switched … follow.delete}, and {deleted … finish} add.
+- **Follow, read, code to backing** (`off` takes the same path with another role): {recorded … layout.rename},
+  {layout.designation}, {layout.delete}, and {switched, finish} add.
+- **Follow, read, backing to backing:** {recorded, follow.switch} and {switched, finish} add.
+- **A remote move overtaken by a move back:** forwarded, switched, and delete keep their rows; copy, whose rerun
+  continues and moves the state again, and copied add; inside the switch, at switch and at layout.designation, 18.R2.h.
+- **A trial over a recorded move:** forwarded, switched, and overtaken keep their rows; a pre-forward record, at
+  copied, and a switched move then overtaken add.
+- **A move back interrupted** (`store-ref-remote-ended:33`): copy, copied, and forwarded keep their rows.
+
 Measurement scripts and raw results, the per-file baseline, the layout dependency map, and the three value reviews among
 them, sit in the checkout's `.internal/storage-ref-backend-tools/verification/selection/`.

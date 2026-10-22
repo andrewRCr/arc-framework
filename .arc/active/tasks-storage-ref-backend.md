@@ -2145,22 +2145,28 @@ in `notes-storage-ref-backend.md` (A25).
           `store-ref-conformance-{records,reads,sync}.test.ts` (items 1–6, 7–15, 16–17, about 60, 69, and 69 s of the
           197 s file), whose cases together equal the whole registration's 1,068.
 
-    - `[ ]` **18.R2.c The verified cut set — § 14.14**
-        - Verify every candidate from the three value reviews and the layout map (`value-review-A-sync.md`,
-          `value-review-B-moves.md`, `value-review-C-import.md`, and `layout-dependency-map.md` in
-          `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/selection/`) against source, § 14.14's
-          layout rule, and the criteria each case evidences: duplicates, cases that need only the default layout, bare
-          refusals to strengthen, the restart matrices reduced to one boundary per distinct recovery state, and the
-          coverage gaps the reviews found — layout-move's add and rename edits ending in one configuration,
-          read-source's default local-only cases running in a move-incomplete clone, the archive import's push-and-pull
-          tail pulling its own push, and the landing's unasserted no-identity notice. Each move's and each follow's
-          recovery states count what the interrupted run leaves on the machine (§ 14.7), and their sets, with the
-          boundary standing for each, are recorded in `notes-storage-ref-backend.md` § A29. Present the complete set
-          with each case's evidence for approval before any change.
+    - `[x]` **18.R2.c The verified cut set — § 14.14**
+        - The value reviews' candidates, the layout map's, and every case the reviews kept in both layouts were checked
+          against source, the layout rule, and the criteria each evidences, and approved as one set: about 255 s of the
+          2,633 s baseline, the restart rows growing by 26 under a recovery state counting what the rerun reads in each
+          configuration a move runs in. `notes-storage-ref-backend.md` § A29 records the decisions and each move's sets
+          with their standing rows; the derivations and the verified set sit beside the value reviews in the checkout's
+          `.internal/storage-ref-backend-tools/verification/selection/`.
 
     - `[ ]` **18.R2.d Apply the approved set — § 14.14**
         - Remove, move to one layout, and strengthen exactly the approved cases, and close the gaps; a completed task
           whose recorded outcome cites a removed case takes `_Amended in:_ 18.R2 (A29)`.
+
+    - `[ ]` **18.R2.h Defects the derivations found — § 10.3, § 10.5, § 10.11**
+        - Each defect gets its exposing case first, then its fix. An interrupted local-only import that re-homed
+          transient refs reruns to `ok` without the notices naming origin's copies: `store-ref-import-landing`'s
+          [separate, publish] restart seeds one. A remote move overtaken by a move back inside its switch, at
+          `remote.switch` and `layout.designation`, ends with no record beside its pointer, designation, and layout
+          changes; where the specification leaves the outcome open, the failure enters `amend-design`. A step hook
+          after the layout source's delete reaches the states no hook interrupted, and its rows for leaving the source
+          both ways expose layout gathering refs outliving a switch its predicate completes. A separate-layout import
+          trial stops creating the store directory, and the advanced-origin errands case [separate] stops relying on
+          it. Kept import tips a rerun no longer re-homes are pruned.
 
     - `[ ]` **18.R2.e Prepared multi-clone states — § 14.14**
         - `copyPreparedRepository` gains multi-clone shapes whose copies resolve every path inside themselves: remote
