@@ -3,7 +3,6 @@ import type { RefBackendContext } from "../context.js";
 import type { MigrateReport, StoreMigrateResult } from "../../commands.js";
 import { updateRefTransaction, type RefChange } from "../../../git/ref-transaction.js";
 import { readSyncRefs } from "../sync-graph.js";
-import { readRefRepository } from "../repository.js";
 import { readRefDesignation, refDesignationStop } from "../designation.js";
 
 /** Kept tips live in the code repository until all licensed cleanup finishes. */
@@ -25,12 +24,10 @@ export function importTransientDeletes(tips: ReadonlyMap<string, string>): RefCh
   return [...tips].map(([ref, expected]) => ({ ref, expected, delete: true }));
 }
 
-/** Finish the separate layout's local transaction before any publication. */
+/** Delete what local transient refs remain before any publication: a separate landing leaves them, and a move into the default layout keeps them. */
 export async function retireImportLocals(context: RefBackendContext): Promise<StoreMigrateResult | undefined> {
   const kept = await readSyncRefs(context, IMPORT_KEPT_PREFIX);
   if (!kept.size) return;
-  const physical = await readRefRepository(context);
-  if (!physical.repository?.gitDir) return;
   await context.migrateStep?.("import.transient.local-delete");
   const local = await readSyncRefs(context, "refs/arc/user/");
   const changes: RefChange[] = [];

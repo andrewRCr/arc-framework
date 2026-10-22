@@ -10,6 +10,7 @@ import { readObjectFormat } from "./manifest.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
 import { MOVE_REF, type LayoutMoveRecord } from "./migrate-record.js";
+import { IMPORT_KEPT_PREFIX } from "./import/transient-cleanup.js";
 
 /** One isolated plan and its source/destination bases, all protected by the held layout lock. */
 export interface LayoutBuild {
@@ -61,10 +62,11 @@ export async function requireLayoutTransaction(context: RefBackendContext, chang
   if (result.status !== "committed") throw new Error("The held layout changed during its ref transaction");
 }
 
-/** Gathering refs never travel into the installed store, and never erase the move's own record. */
+/** Gathering refs never travel into the installed store, and never erase the move's own record or the import's kept tips, which outlive a move until the import's cleanup ends. */
 export async function clearLayoutGathering(context: RefBackendContext, layoutOnly = false): Promise<void> {
   const held = await readSyncRefs(context, layoutOnly ? "refs/arc/tmp/migrate/layout/" : "refs/arc/tmp/migrate/");
-  await requireLayoutTransaction(context, [...held].filter(([ref]) => ref !== MOVE_REF).map(([ref, expected]) => ({ ref, delete: true, expected })));
+  await requireLayoutTransaction(context, [...held].filter(([ref]) => ref !== MOVE_REF && !ref.startsWith(IMPORT_KEPT_PREFIX))
+    .map(([ref, expected]) => ({ ref, delete: true, expected })));
 }
 
 function gatheringRef(side: string, ref: string): string { return `refs/arc/tmp/migrate/layout/${side}/${ref.slice("refs/".length)}`; }

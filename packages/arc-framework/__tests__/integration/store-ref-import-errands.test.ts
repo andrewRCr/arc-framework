@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { createRefStore, RecordReferenceSchema, runStoreRemote } from "../../src/lib/store/index.js";
 import { inboxEntrySourceDigest } from "../../src/lib/user-sync/inbox-writer.js";
 import { importFixture, saveImportPersonal } from "../helpers/store/import-fixture.js";
 import { keptPrefix, ordinaryErrand as ordinary, seedTransients as seed, transientCommon as common, transientSourceRef as sourceRef,
@@ -77,9 +77,10 @@ it("prunes a kept tip its rerun no longer re-homes and leaves origin's copy in p
     .toHaveLength((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/work/"])).stdout.split("\n").filter(Boolean).length);
 });
 
+const refs = async (exec: (file: string, args: string[]) => Promise<{ stdout: string }>, prefix: string, scope: string[] = []) =>
+  (await exec("git", [...scope, "for-each-ref", "--format=%(refname) %(objectname)", prefix])).stdout;
+
 describe("Errand import interrupted in the separate layout", () => {
-  const refs = async (exec: (file: string, args: string[]) => Promise<{ stdout: string }>, prefix: string, scope: string[] = []) =>
-    (await exec("git", [...scope, "for-each-ref", "--format=%(refname) %(objectname)", prefix])).stdout;
   it.each(["import.transient.local-delete", "import.publish"])("resumes a backing-published import interrupted at %s and retires origin's copy", async (boundary) => {
     const h = await importFixture("separate");
     await designateBacking(h);
@@ -125,6 +126,31 @@ describe("Errand import interrupted in the separate layout", () => {
     expect(await refs(h.git, "refs/arc/work/", store)).not.toBe("");
     expect(await refs(h.remote, sourceRef)).toBe(`${sourceRef} ${tip}`);
   });
+});
+
+describe("Errand import moved to the other layout before its rerun", () => {
+  it.each([["default", "import.publish", "off"], ["separate", "import.publish", "push"], ["separate", "import.transient.local-delete", "push"]] as const)(
+    "finishes the cleanup of an import in %s interrupted at %s once origin's role is %s", async (layout, boundary, role) => {
+      const h = await importFixture(layout);
+      const tip = await seed(h, [ordinary]);
+      await h.git("git", ["push", "origin", `${sourceRef}:${sourceRef}`]);
+      h.ports.migrateStep = async (step) => { if (step === boundary) throw new Error("interrupt-import"); };
+      await expect(h.migrate()).rejects.toThrow("interrupt-import");
+      h.ports.migrateStep = async () => {};
+      expect(await refs(h.git, keptPrefix)).toContain(tip);
+      expect(await runStoreRemote(h.ports, { remote: "origin", role })).toMatchObject({ status: "ok",
+        result: { layout: layout === "default" ? "separate" : "default" } });
+      const result = await h.migrate();
+      expect(result.status, JSON.stringify(result)).toBe("ok");
+      expect(await refs(h.git, sourceRef)).toBe("");
+      expect(await refs(h.git, keptPrefix)).toBe("");
+      if (role === "push") expect(await refs(h.remote, sourceRef)).toBe("");
+      else {
+        expect(result).toMatchObject({ result: { notices: expect.arrayContaining([
+          expect.objectContaining({ condition: `origin still holds ${sourceRef}; no state remote is designated.` })]) } });
+        expect(await refs(h.remote, sourceRef)).toBe(`${sourceRef} ${tip}`);
+      }
+    });
 });
 
 describe.each(["default", "separate"] as const)("Errand import in %s", (layout) => {
