@@ -2125,11 +2125,13 @@ in `notes-storage-ref-backend.md` (A25).
 - _Goal:_ The store suites cost at most half their 2,633 s summed merge-gate time at `212f6432e` and run only on changes
   that reach them, every required case keeping its coverage on every change that reaches it (A29).
 
-    - `[ ]` **18.R2.a Identity once per operation — § 1.2**
-        - Each public ref-store operation, its nested pulls included, resolves the identity at most once, and the next
-          operation resolves it again; unit cases count resolutions across a write, a push, and a pull, and observe a
-          changed identity in a later operation. The shared default ports, which the in-repo implementation's live
-          callers also use, stay as they are.
+    - `[x]` **18.R2.a Identity once per operation — § 1.2**
+        - `createRefBackend` gives each public operation a context from `withOperationIdentity`
+          (`lib/store/ref/operation-identity.ts`), whose identity resolves on first use and serves the rest of the
+          operation, its retries, bound repositories, and nested pulls. `store-ref-identity-once.test.ts` counts one
+          resolution in a write, a push with its nested pulls, and a pull that brings in work, and a later write taking
+          a changed identity; the cases are integration cases because unit tests run no Git and import no private store
+          module. The shared default ports are unchanged.
 
     - `[ ]` **18.R2.b The separate layout's declared subset and the split default run — § 14.1**
         - The separate registration declares one case for each operation path through the layout's selection and
