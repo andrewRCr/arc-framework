@@ -323,13 +323,10 @@ default layout.
   attempts in all, in the tip read, sync's ref sets, fetch negotiation, and the ref-transaction helper's re-read, while
   every other failure keeps Git's error (A28).
 
-    - `[ ]` **3.R.a The bounded listing retry**
-        - `retryTornRefListing` in `lib/git/` matches only a completed Git call's `fatal: Duplicated ref, and SHA1s
-          don't match` refusal and runs the listing again without waiting.
-        - Build `test-first` (one behavior at a time):
-            - A first refusal runs the listing again and returns the second attempt's result
-            - A third consecutive refusal rethrows that refusal unchanged
-            - Any other Git failure, and any error that is not Git's, rethrows on the first attempt
+    - `[x]` **3.R.a The bounded listing retry**
+        - `retryTornRefListing` (`lib/git/ref-listing.ts`) runs a listing again at once while a completed Git call
+          fails with the duplicate-ref refusal, three attempts in all; every other failure and the last refusal
+          propagate unchanged.
 
     - `[ ]` **3.R.b The four listings take it**
         - `readRefTips`, `readSyncRefs`, `refFetchNegotiation`, and `updateRefTransaction`'s re-read run through the
