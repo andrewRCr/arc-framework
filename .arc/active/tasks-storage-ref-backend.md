@@ -2229,7 +2229,13 @@ in `notes-storage-ref-backend.md` (A25).
           layout move returns its report too rather than going on to a follow due beside it, exposed by a setting
           turning origin from `push` to `read` interrupted at `layout.rename` while another clone moves the state off
           origin and a pull brings in its forwarding record, the rerun returning the layout move's report and the next
-          run asking the follow (A32).
+          run asking the follow (A32). A layout move between an import interrupted past its landing and its rerun
+          deletes the kept tips under `refs/arc/tmp/migrate/import/kept/` with every other migration temp ref, so the
+          rerun neither retires nor names origin's transient-identity refs, and the rerun deletes local ones only in the
+          separate layout, so a separate landing's local refs that a move into the default layout carries stay. An
+          import interrupted before its publication in each layout, and one interrupted before its separate local
+          delete, each rerun after `arc store remote` moves the store to the other layout, expose both: a layout move
+          keeps the kept tips, and the rerun deletes what local refs remain in either layout (§ 10.11).
 
     - `[ ]` **18.R2.e Prepared multi-clone states — § 14.14**
         - `copyPreparedRepository` gains multi-clone shapes whose copies resolve every path inside themselves: remote
