@@ -1,10 +1,10 @@
 /** Captured archive folders refreshed alongside a merge of their retained history ref. */
 
 import type { RefBackendContext } from "./context.js";
-import { archivedFolders, isArchiveRef, type ArchivedFolder } from "./archive-read.js";
+import { archivedFolders, isArchiveRef, unreadableOwnedFolder, type ArchivedFolder } from "./archive-read.js";
 import { readBatchObjects, readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import { parseStoreCommitProvenance } from "../commit-provenance.js";
-import { RecordReferenceSchema } from "../identity.js";
+import { OwnerIdentitySchema, RecordReferenceSchema } from "../identity.js";
 import type { SyncMergedTree } from "./sync-tree.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { refreshArchivedFolder } from "./archive-refresh.js";
@@ -45,28 +45,33 @@ export interface SyncHistoryQuarter { ref: string; tip: string; entries: Map<str
 
 /** Select only folders this captured history can refresh without discarding an unseen batch. */
 export async function readSyncHistoryQuarters(context: RefBackendContext, ref: string,
-  tips: ReadonlyMap<string, string>, additionalTips: readonly string[] = []): Promise<SyncHistoryQuarter[]> {
+  tips: ReadonlyMap<string, string>, additionalTips: readonly string[] = []): Promise<StoreResult<SyncHistoryQuarter[]>> {
   const tip = tips.get(ref);
-  if (!ref.startsWith("refs/arc/history/") || !tip && !additionalTips.length) return [];
+  if (!ref.startsWith("refs/arc/history/") || !tip && !additionalTips.length) return { status: "ok", result: [] };
   const quarters = new Map([...tips].filter(([name]) => isArchiveRef(name)));
-  if (!quarters.size) return [];
+  if (!quarters.size) return { status: "ok", result: [] };
   const trees = await readRefTrees(context, quarters);
+  // A quarter whose tree or one of this item's folders cannot be read may hold a folder the merge must rebuild.
+  const unreadable = [...quarters.keys()].find((quarter) => !trees.has(quarter));
+  if (unreadable) return { status: "refused", refusal: corruptRef(unreadable, true) };
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
   const family = ref.includes("/cohort/") ? "cohort" : "work-item", live = ref.replace("refs/arc/history/", "refs/arc/");
+  const broken = unreadableOwnedFolder(trees, [OwnerIdentitySchema.parse({ type: family, name: "unresolved", uid: live.split("/").at(-1) })], objects);
+  if (broken) return { status: "refused", refusal: corruptRef(broken) };
   const own = [...trees].map(([quarter, entries]) => ({ ref: quarter, entries,
     folders: archivedFolders(family, quarter, entries, objects).folders.filter((folder) => folder.liveRef === live) })).filter(({ folders }) => folders.length);
   const first = own[0]?.folders[0];
-  if (!first) return [];
+  if (!first) return { status: "ok", result: [] };
   const reference = RecordReferenceSchema.parse({ owner: first.owner, kind: first.metadata.primary?.role ?? "cohort/document" });
   const { stdout } = await context.exec("git", ["log", "--format=%B%x00", ...new Set([...(tip ? [tip] : []), ...additionalTips])], { cwd: context.checkoutRoot, objectAccess: "local-only" });
   const batches = new Set(stdout.split("\0").map((message) => parseStoreCommitProvenance(message.trimStart(), reference))
     .flatMap((entry) => "batchId" in entry ? [entry.batchId] : []));
-  return own.flatMap(({ ref: quarter, entries, folders }) => {
+  return { status: "ok", result: own.flatMap(({ ref: quarter, entries, folders }) => {
     const tip = quarters.get(quarter);
     if (tip === undefined) throw new Error("An archive snapshot has no captured tip");
     const included = folders.filter(({ metadata }) => metadata.batch && batches.has(metadata.batch));
     return included.length ? [{ ref: quarter, tip, entries: new Map(entries.map((entry) => [entry.path, entry])), folders: included }] : [];
-  });
+  }) };
 }
 
 /** Compose each selected owner's new tree into its captured complete quarter entries. */

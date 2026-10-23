@@ -1,3 +1,5 @@
+import { readFile, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
@@ -172,5 +174,30 @@ describe("completed-item reconciliation in the default layout", () => {
     expect(conflict.content).toContain("Published completed write.");
     success(await h.a.store.pull());
     expect(success(await h.a.store.read({ reference: h.reference })).conflicts).toHaveLength(1);
+  });
+  it("holds a history merge while a local quarter's tree cannot be read and rebuilds the folder once it is restored", async () => {
+    const h = await completedFixture(layout);
+    const a = success(await h.a.store.read({ reference: h.reference })), b = success(await h.b.store.read({ reference: h.reference }));
+    const publishedContent = `${b.content}\nPublished completed write.\n`;
+    success(await h.a.store.write({ action: "put", reference: a.reference, expected: a.version,
+      content: `${a.content}\nFirst clone's completed write.\n`, placement: { kind: "completed", quarter }, provenance }));
+    success(await h.b.store.write({ action: "put", reference: b.reference, expected: b.version,
+      content: publishedContent, placement: { kind: "completed", quarter }, provenance }));
+    success(await h.b.store.push());
+    const tree = (await h.a.git(["rev-parse", `${h.archive}^{tree}`])).stdout.trim();
+    const path = join(h.a.root, ".git", "objects", tree.slice(0, 2), tree.slice(2));
+    const bytes = await readFile(path);
+    await rm(path);
+    const history = (await h.a.git(["rev-parse", h.history])).stdout;
+    const held = success(await h.a.store.pull({ history: [h.history] }));
+    expect(held.pulls.flatMap(({ notices }) => notices)).toContainEqual(expect.objectContaining({ kind: "namespace-corrupt", ref: h.history }));
+    expect((await h.a.git(["rev-parse", h.history])).stdout).toBe(history);
+    await writeFile(path, bytes);
+    success(await h.a.store.pull());
+    const merged = success(await h.a.store.read({ reference: h.reference }));
+    expect(merged.content).toBe(publishedContent);
+    expect(merged.conflicts).toHaveLength(1);
+    expect((await h.a.git(["show", `${h.archive}:${h.folder}${h.metadataPath}`])).stdout)
+      .toBe((await h.a.git(["show", `${h.history}:${h.metadataPath}`])).stdout);
   });
 });

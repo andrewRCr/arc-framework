@@ -45,7 +45,12 @@ export async function mergeRefSets(context: RefBackendContext, local: ReadonlyMa
     const target = options.targetRef?.(ref) ?? ref;
     const source = route?.source ?? ref;
     const sourceTarget = options.targetRef?.(source) ?? source;
-    const quarters = await readSyncHistoryQuarters(context, ref, local, [next]);
+    const captured = await readSyncHistoryQuarters(context, ref, local, [next]);
+    if (captured.status === "refused") {
+      notices.push({ kind: "namespace-corrupt", ref, condition: captured.refusal.condition, remedy: captured.refusal.remedy });
+      continue;
+    }
+    const quarters = captured.result;
     const result = await withRefLocks({ ...context, lock: options.lock }, [target, sourceTarget, ...quarters.map(({ ref }) => options.targetRef?.(ref) ?? ref)], async (): Promise<RefMergeResult> => {
       const current = (await readSyncRefs(context, sourceTarget)).get(sourceTarget) ?? null;
       if (current !== (local.get(source) ?? null)) return { status: "restart" };
