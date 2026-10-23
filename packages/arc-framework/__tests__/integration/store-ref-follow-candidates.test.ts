@@ -98,7 +98,9 @@ it.each([false, true])("judges a read follower by the departed project while own
   await own.a.exec("git", ["remote", "add", "upstream", h.origin]);
   await own.a.exec("git", ["config", "remote.upstream.arc-state", "read"]);
   expect((await invokeStoreMigrate(["--to", h.to], h.ports)).status).toBe("ok");
-  expect(success(await store.pull()).pulls).toContainEqual(expect.objectContaining({ remote: "upstream", status: "failed", failure: expect.objectContaining({ code: "refused" }) }));
+  expect(success(await store.pull()).pulls).toContainEqual(expect.objectContaining({ remote: "upstream", status: "failed", failure: expect.objectContaining({
+    code: "refused", class: "terminal", remedy: expect.objectContaining({ text: expect.stringContaining("arc store migrate") }),
+  }) }));
   await writeFile(config, `storage.backing_repository: ${JSON.stringify(h.destinationDirectory)}\n`);
   const judgment = await invokeStoreMigrate([], ports);
   if (!ownPush) {
@@ -187,17 +189,23 @@ it("names every accepted code remote regardless of role and asks once only one r
 
 it("takes the invoking checkout's pointer as the candidate and asks without moving unpublished data", async () => {
   const h = await followFixture(), follower = h.follower;
+  const local = (await follower.git(["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/project/", "refs/arc/user/", "refs/arc-remotes/"])).stdout;
+  const destination = (await follower.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
+  const roles = (await follower.git(["config", "--null", "--list", "--local"])).stdout;
+  const unchanged = async () => {
+    expect((await follower.git(["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/project/", "refs/arc/user/", "refs/arc-remotes/"])).stdout).toBe(local);
+    expect((await follower.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(destination);
+    expect((await follower.git(["config", "--null", "--list", "--local"])).stdout).toBe(roles);
+  };
   await writeFile(follower.config, "# Checkout predating the move.\n");
   const behind = await invokeStoreMigrate([], follower.ports);
   expect(behind).toMatchObject({ status: "refused", refusal: { code: "follow-refused", remedy: { text: expect.stringMatching(/pointer|code/iu) } } });
+  await unchanged();
   await writeFile(follower.config, follower.pointer);
-  const local = (await follower.git(["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/project/", "refs/arc/user/"])).stdout;
-  const destination = (await follower.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
   const question = await invokeStoreMigrate([], follower.ports);
   expect(question).toMatchObject({ status: "designation-needed", remote: "backing", choices: ["push", "read", "off"],
     remedy: { argv: ["arc", "store", "remote", "backing", "push"] } });
-  expect((await follower.git(["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/project/", "refs/arc/user/"])).stdout).toBe(local);
-  expect((await follower.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(destination);
+  await unchanged();
   expect(await readFile(follower.config, "utf8")).toBe(follower.pointer);
   expect(success(await follower.store.read({ reference: follower.unpublished })).content).toBe("Unpublished follower data.\n");
   expect((await follower.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move", "refs/arc/tmp/follow/"])).stdout).toBe("");
