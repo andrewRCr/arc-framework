@@ -65,3 +65,15 @@ it("returns a backing source it read when a follow answering push is overtaken b
   expect((await follower.git(["config", "remote.backing.arc-state"])).stdout.trim()).toBe("read");
   expect(success(await follower.store.read({ reference: during })).content).toBe(written);
 }, 60_000);
+
+it("ends a follow paused before its switch as a stale follow, changing no designation, when a move back overtakes it", async () => {
+  const { follower, during } = await overtakenInsideSwitch("follow.switch");
+  const designation = (await invokeStoreRemote(["--json"], { cwd: follower.root, ports: follower.ports })).result;
+  const result = await invokeStoreMigrate([], follower.ports);
+  expect(result.status, JSON.stringify(result)).toBe("ok");
+  if (result.status === "ok") expect(result.result.notices).toContainEqual(expect.objectContaining({
+    condition: "The old remote no longer carries the followed record; the stale follow ended without a switch or deletes." }));
+  expect((await follower.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc-remotes/origin/project/moved", "refs/arc/tmp/migrate/"])).stdout).toBe("");
+  expect((await invokeStoreRemote(["--json"], { cwd: follower.root, ports: follower.ports })).result).toEqual(designation);
+  expect(success(await follower.store.read({ reference: during })).content).toBe(written);
+}, 60_000);
