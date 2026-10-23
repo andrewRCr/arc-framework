@@ -107,6 +107,10 @@ with that member's planning. Already settled by the contract and not reopened: U
 (A3), the store's operations and versions, `StoreLifecycleStorage`, the layout resolver, identity resolution, and the
 Errand record's schema.
 
+Once an owner ships, its spec records what that member built and is not amended. A later member whose design changes a
+shared decision describes what it builds in its own spec, and the change is recorded in this section beside the item it
+changes: dated, naming the member, and stating the decision as it now stands.
+
 Amended 2026-10-14 — `seam-lifecycle` amends A3 forward in `spec-seam-lifecycle.md` § 5.1 and § 18.2: branch entries
 of `LinksSchema` gain required `linkedAs` (`created` or `adopted`) and `excluded` fields: whether ARC created or
 adopted the branch, and which commits are no task's work.
