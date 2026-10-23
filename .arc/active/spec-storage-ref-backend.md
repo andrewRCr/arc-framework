@@ -121,7 +121,9 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
   this backend's operations.
 - **No record kind's parser, field schema, or write rule.** The kind registry supplies them; this backend runs them. The
   one exception is the project identity record's content, which the registry leaves undefined and every identity rule
-  here reads, so the backend defines and checks it (§ 3.2).
+  here reads, so the backend defines and checks it (§ 3.2). Amended 2026-10-23 — the lineage kind admits removing a
+  lineage that holds retired branches once its owner's archived primary carries exactly those branch links, so the
+  ended-twice remedy stays reachable (§ 6.6, A37) — code review.
 - **No `arc sync` rewiring, no deletion of notes sync or of the in-repo implementation, no workflow rewrite, and no run
   of the import against this repository's live state.** The cutover does those, using what this change builds.
 - **Nothing the contract defers:** no rotation beyond its reserved continuation field, no query cache or persisted
@@ -1650,8 +1652,9 @@ one and an abandon on the other, or two archives, each perhaps after a reopen of
 - **Two ends both published** — once a mirror push erased the first (§ 6.3), or where lineage written beside the live
   primary, which ends nothing (§ 7.4), stands beside the item's archive or close — cannot be ordered, so the pull
   reports an `ended-twice` notice naming the item and both ends, with the remedy that clears every end record: remove
-  its lineage record where it holds one — a removal, which a create-only record allows (§ 5.2) — then reopen it, which
-  removes every folder it holds, in every quarter's ref (§ 7.2), and end it once.
+  its lineage record where it holds one — a removal, which a create-only record allows (§ 5.2), and which the lineage
+  kind admits for a lineage holding retired branches once the item's archived primary carries exactly those branch
+  links (A37) — then reopen it, which removes every folder it holds, in every quarter's ref (§ 7.2), and end it once.
 
 #### 6.7 The push loop
 
@@ -4696,5 +4699,8 @@ open:
 
 - **A36** — 2026-10-22 — spec-depth: the separate layout's whole run spans files by the default run's item ranges.
   _Supersedes:_ none. _Trigger:_ 18.R3.b must-stop. _Work:_ 18.R3.R. _Revalidated:_ 18.R3.b.
+
+- **A37** — 2026-10-23 — design: a lineage holding retired branches is removable once its archived primary holds them.
+  _Supersedes:_ § Non-Goals ¶4. _Trigger:_ standard-pass-1/AGG-29 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---
