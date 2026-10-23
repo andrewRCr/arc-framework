@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "cohort-shared-decision-changes",
+  "claimId": "8929f6b89f590ffa0562d4b4e320c8fe",
+  "createdAt": "2026-10-23T19:03:50.505Z",
+  "updatedAt": "2026-10-23T19:03:50.505Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Say in both state-storage cohort documents that a shipped member's spec is not amended and a change to a shared decision is recorded in the cohort document",
+  "branch": "chore/cohort-shared-decision-changes",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
