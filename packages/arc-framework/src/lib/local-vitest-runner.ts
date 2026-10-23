@@ -41,7 +41,7 @@ export const ARC_CONTRACT_SUITES = [
 export const REACH_DECLARATIONS = ["__tests__/reach/store-suites.json"] as const;
 
 /** Names the form of a portability run; a pull request's leaves its store suites to their own check. */
-export const PORTABILITY_FORM_VARIABLE = "ARC_PORTABILITY_FORM";
+const PORTABILITY_FORM_VARIABLE = "ARC_PORTABILITY_FORM";
 
 /**
  * Exit status of a related-tests run that no configured unit test reaches, so a caller can tell missing evidence
