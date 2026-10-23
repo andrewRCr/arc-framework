@@ -110,7 +110,7 @@ describe.each(hookPaths)("installed-project validators through %s", (hookPath) =
     expect(refused.stdout).toContain("the ARC CLI could not be resolved");
   });
 
-  it("skips the lifecycle checks the storage cutover retires, naming each", async () => {
+  it("skips the lifecycle checks an installed project has no source for, naming each", async () => {
     const { root, runHook, stage } = await fixture();
     await writeRepoFile(root, ".arc/backlog/planned/example/meta-example.md", "# Metadata: example\n");
     await writeRepoFile(root, ".arc/backlog/ROADMAP.md", "# Roadmap\n");
@@ -118,7 +118,9 @@ describe.each(hookPaths)("installed-project validators through %s", (hookPath) =
 
     const result = await runHook();
     expect(result.exitCode, result.stdout).toBe(0);
-    expect(result.stdout).toContain("Notice: Meta-file validation skipped");
+    expect(result.stdout).toContain(
+      "Notice: Meta-file validation skipped; it needs ARC's package source, which this installation does not include.",
+    );
     expect(result.stdout).toContain("Notice: Cohort-consistency validation skipped");
     expect(result.stdout).toContain("Notice: ROADMAP regeneration assert skipped");
     expect(result.stdout).not.toContain("ERR_MODULE_NOT_FOUND");
