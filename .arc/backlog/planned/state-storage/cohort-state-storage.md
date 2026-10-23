@@ -84,6 +84,12 @@ the storage contract's decisions describes what it builds in its own spec, and t
 dated, naming the member, and stating the decision as it now stands. `storage-seam` records changes to its own shared
 decisions the same way, in `cohort-storage-seam.md` § Shared contracts.
 
+Changed 2026-10-23 by `cohort-identity-verbs`: from the flip, D14's clash between machines leaves both records, and the
+projection refuses to place the second on the taken path. Status lists a clash between work units; a clash between a
+work unit and a cohort refuses only where a name resolves across both families, through the slug lookup, and one between
+two cohorts also in every cohort read by name. Each refusal names, per holder, the repair that ends it:
+`arc rename <uid> <new-slug>` for a work unit or cohort, and `arc errand close <uid>` for an Errand.
+
 ### Soft coordination
 
 - **Landing.** Every program work unit lands single-branch with chunked review until the program completes. A work

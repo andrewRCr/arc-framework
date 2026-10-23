@@ -118,12 +118,23 @@ adopted the branch, and which commits are no task's work.
 1. **Which verb writes which field** — `seam-record-kinds`, whose field writers serve every member that writes a meta or
    task list — `seam-lifecycle`, `seam-decomposition`, `seam-locus`, and `seam-delivery-review` — while
    `seam-status-roadmap` reads the fields.
+
+   Changed 2026-10-23 by `cohort-identity-verbs`: from the flip, `Cohort` is written by creation, by decomposition's cut
+   for new members, and by the cohort rename, which rewrites in its one batch every member's `Cohort` naming the renamed
+   cohort, open or completed, started members included.
 2. **The work-item base** — `seam-record-kinds`; `seam-lifecycle` reads lifecycle location and makes promotion's role
    put, `seam-locus` reads the owner and warns of an identity collision, and `seam-status-roadmap` reads the owner.
 3. **The meta's cross-member fields** — `seam-record-kinds`; `seam-lifecycle` renames, discharges edges, and settles how
    `arc start --from` takes a seed, `seam-decomposition` redistributes edges and sets new members' `Cohort`,
    `seam-locus` derives what is in flight and loads the cohort document, `seam-status-roadmap` renders edges and groups
    by `Cohort`, and `seam-delivery-review` reads `Design` and the Completion Notes.
+
+   Changed 2026-10-23 by `cohort-identity-verbs`: from the flip, a rename rewrites another record's reference to its old
+   slug — a stub's `Depends On` edge or `waits-on`, a member's `Cohort`, a subcohort's `Parent`, a backticked filename,
+   or a cohort document's member heading — only where that slug, resolved within the family the reference can name,
+   names the subject alone. Where another holder of that family shares the slug, it rewrites none of them and reports
+   each with the edit that re-points it; where the slug names a live holder that reused it, those references are that
+   holder's and stay unreported. An in-flight or parked dependent's meta still keeps the former slug.
 4. **Session context** — `seam-record-kinds`, the schema; `seam-locus`'s handoff writes it and session-init reads it,
    `seam-lifecycle`'s archive clears it, and lifecycle, decomposition, delivery's `arc attest`, and locus write
    `Next Action`.
@@ -136,6 +147,14 @@ adopted the branch, and which commits are no task's work.
 7. **The cohort document** — `seam-record-kinds`, the kind, its parser, and its write check; `seam-decomposition`
    creates documents and checks `Parent`, `seam-lifecycle`'s rename sweep and archive write it, and `seam-locus`'s
    frame, `seam-status-roadmap`, and `seam-delivery-review`'s readiness read it.
+
+   Changed 2026-10-23 by `cohort-identity-verbs`: from the flip, the cohort rename writes the document under its new
+   name with its `# Cohort:` heading, and every subcohort's `Parent`, open or closed, through a heading writer and a
+   `Parent` writer beside `rewriteCohortMemberHeading`; `arc cohort close` places a document completed; and
+   `arc cohort remove` removes one no member or subcohort holds. Archive closes a cohort when its last open member or
+   subcohort archives. Archive, `arc cohort close`, and `arc cohort remove` count a cohort's members by resolving each
+   path segment among cohorts, so a record left on a former slug keeps the cohort open. Abandon closes no cohort; its
+   result names the close or the removal.
 8. **Parsed prose fields** — `seam-record-kinds`; `seam-status-roadmap`'s purpose read and `design` selector read
    Purpose, `seam-decomposition`'s scaffold copies drafts and specs, and `seam-lifecycle`'s rename sweep rewrites them.
 9. **Entry managed fields** — `seam-locus`, with the entry-field module and the inbound list and Errand description
@@ -145,6 +164,13 @@ adopted the branch, and which commits are no task's work.
     listing reads it, and `seam-locus` and `seam-lifecycle` move the shipped-work readers onto placement and `lookup`.
 11. **The write check** — `seam-record-kinds`, the registry's slot and its kinds' checks; every member whose verbs write
     a checked kind runs through it, and `storage-ref-backend` and `storage-projection` call it from the flip.
+
+    Changed 2026-10-23 by `cohort-identity-verbs`: from the flip, `meta.cohort` and `cohort.parent` admit a path segment
+    only where it is the named cohort's current slug, refusing a former slug and naming the current one, and
+    `meta.cohort`'s open-cohort requirement applies to an open meta: a completed meta's `Cohort` names an existing
+    cohort, open or completed, by its current slug. `cohort.open-members` and archive's closeout rule
+    (`checkCohortArchiveCloseout`) count a cohort's holders by resolving each path segment among cohorts rather than by
+    text, an ambiguous segment counting where the cohort is among its candidates.
 12. **Prepared writes** — `seam-lifecycle`, the protocol; `seam-decomposition` and `seam-locus` follow it for their
     reconciling writers.
 13. **The completed-item refusal** — `storage-ref-backend`, settled at its draft close (Owner, 2026-10-10). On a clone
