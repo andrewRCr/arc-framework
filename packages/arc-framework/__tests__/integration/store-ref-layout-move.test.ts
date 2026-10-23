@@ -702,8 +702,10 @@ it("refuses leaving the source with no target, naming --to, and changes nothing"
 it("gives a clone with no state remote an actionable designation remedy for --to", async () => {
   const h = await layoutFixture();
   expect((await runStoreRemote(h.a.ports, { remote: "origin", role: "off" })).status).toBe("ok");
-  expect(await invokeStoreMigrate(["--to", "next"], h.a.ports)).toMatchObject({ status: "refused", refusal: { code: "no-state-remote", class: "recoverable",
-    remedy: { text: expect.stringContaining("arc store remote") } } });
+  for (const to of ["next", "https://example.invalid/state.git"]) {
+    expect(await invokeStoreMigrate(["--to", to], h.a.ports)).toMatchObject({ status: "refused", refusal: { code: "no-state-remote", class: "recoverable",
+      remedy: { text: expect.stringMatching(/arc store remote <remote> push.*arc store remote backing push/u) } } });
+  }
   expect((await runStoreRemote(h.a.ports, { remote: "origin", role: "push" })).status).toBe("ok");
   expect(await invokeStoreMigrate(["--to", "next"], h.a.ports)).toMatchObject({ status: "refused", refusal: { code: "store", refusal: { code: "unreachable", class: "recoverable" } } });
 });

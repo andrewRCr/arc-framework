@@ -227,6 +227,20 @@ it.each([false, true])("refuses backing push without a pointer and names the res
   expect((await runStoreRemote({ ...h.a.ports, backingRepository: async () => h.origin }, { remote: "backing", role: "push" })).status).toBe("ok");
 });
 
+it("refuses adding backing without a pointer, naming the pointer, then adds it once the pointer is set", async () => {
+  const h = await refSyncFixture("separate");
+  await h.a.git(["remote", "remove", "backing"]);
+  const config = (await h.a.git(["config", "--null", "--list", "--local"])).stdout;
+  const refused = await runStoreRemote(h.a.ports, { remote: "backing", role: "push" });
+  expect(refused).toMatchObject({ status: "refused", refusal: { code: "role-conflict", class: "recoverable",
+    remedy: { text: expect.stringContaining("Set the backing repository pointer") } } });
+  if (refused.status === "refused") expect(refused.refusal).not.toHaveProperty("remedy.argv");
+  expect((await h.a.git(["config", "--null", "--list", "--local"])).stdout).toBe(config);
+  expect((await runStoreRemote({ ...h.a.ports, backingRepository: async () => h.origin }, { remote: "backing", role: "push" })).status).toBe("ok");
+  expect((await h.a.git(["remote", "get-url", "backing"])).stdout).toBe(h.origin);
+  expect(success(await h.a.store.pull()).states).toEqual([]);
+});
+
 it("checks a first backing's project before installing its directory or remote", async () => {
   const h = await refSyncFixture(), foreign = await refSyncFixture();
   for (const [checkout, id] of [[h.a, localId], [foreign.a, foreignId]] as const) {
@@ -268,6 +282,11 @@ it.each(["off", "read", "undesignated", "absent"] as const)("asks before publish
   expect((await h.a.exec("git", ["config", "remote.origin.arc-state"])).stdout).toBe("push");
   await expect(h.a.ports.fs.lstat(`${h.a.root}/.git/arc/store`)).rejects.toMatchObject({ code: "ENOENT" });
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
+  const synced = createRefStore(ports);
+  expect(success(await synced.pull()).states).toEqual([]);
+  const pushed = success(await synced.push());
+  expect(pushed.states).toEqual([]);
+  expect(pushed.publishes.every(({ status }) => status !== "failed")).toBe(true);
 });
 
 it("keeps concurrent project checks independent while a completed fetch is awaiting its decision", async () => {
