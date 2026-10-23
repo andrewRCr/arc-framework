@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { load } from "js-yaml";
 import { describe, expect, it } from "vitest";
 import { CheckDeclarationSchema } from "../../../src/lib/checks/declaration.js";
+import { resolveCheckForecast } from "../../../src/lib/checks/forecast.js";
 import { checkContentKey } from "../../../src/lib/checks/key.js";
 import { reachSuiteExclusions } from "../../../src/lib/local-vitest-runner.js";
 import { describeReachSelection } from "../../../src/lib/reach-check.js";
@@ -192,6 +193,17 @@ describe("the store check's declaration", () => {
       resolve(repositoryRoot, "packages/arc-framework/__tests__/reach/store-suites.json"), "utf8")));
     const checks = CheckDeclarationSchema.parse(load(await readFile(resolve(repositoryRoot, reach.check.declaration), "utf8")));
     expect(checks.checks[reach.check.id]).toMatchObject({ gate: "merge", mode: "files", widen: false, pass_paths: false });
+  });
+
+  it("forecasts four CI shards, each handing its shard to the runner, while a local run stays one", async () => {
+    const reach = ReachDeclarationSchema.parse(JSON.parse(await readFile(
+      resolve(repositoryRoot, "packages/arc-framework/__tests__/reach/store-suites.json"), "utf8")));
+    const checks = CheckDeclarationSchema.parse(load(await readFile(resolve(repositoryRoot, reach.check.declaration), "utf8")));
+    const forecast = resolveCheckForecast(checks.checks[reach.check.id]!, repositoryRoot, [], "linux");
+    const [run] = forecast.batches;
+    expect(forecast.batches).toHaveLength(1);
+    expect(run?.some(argument => argument.startsWith("--shard"))).toBe(false);
+    expect(forecast.shards).toEqual([1, 2, 3, 4].map(index => ({ index, batches: [[...run!, `--shard=${index}/4`]] })));
   });
 });
 

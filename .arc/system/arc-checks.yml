@@ -411,7 +411,8 @@ checks:
       count: 4
       argument: --shard={index}/{count}
   # The store suites run by reach: the runner selects the suites a change reaches from the base and tree it is given,
-  # as its data file declares them, and runs in full when asked, given no base, or changed itself.
+  # as its data file declares them, and runs in full when asked, given no base, or changed itself. CI divides the
+  # selection among shards balanced by the integration durations; a local run stays one.
   test:store:
     command:
       - bash
@@ -433,6 +434,9 @@ checks:
       - '!.arc/system/.internal/candidates/**'
     runtime_inputs:
       - [node, -e, 'process.stdout.write(process.env.ARC_STORE_CHECK ?? "")']
+    shards:
+      count: 4
+      argument: --shard={index}/{count}
   # Integration tests read ARC Markdown from disk, which no import graph shows, so test:changed never reaches them.
   test:integration:content:
     command:

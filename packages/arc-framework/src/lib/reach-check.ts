@@ -3,11 +3,12 @@ import { appendFile, readFile } from "node:fs/promises";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import { load } from "js-yaml";
-import { parseCLI } from "vitest/node";
+import { parseCLI, type TestSpecification } from "vitest/node";
 
 import type { GitExec } from "./git/exec.js";
 import { localVitestTierArguments } from "./local-vitest-runner.js";
-import { discoverVitestSelection } from "./vitest-discovery.js";
+import { closeVitestController } from "./vitest-closing.js";
+import { discoverVitestSelection, type VitestSelection } from "./vitest-discovery.js";
 import { executeVitestSelection } from "./vitest-execution.js";
 import {
   ReachDeclarationSchema, resolveReachForm, selectionPathsChanged, selectReachSuites,
@@ -40,19 +41,67 @@ export async function runReachCheck(input: ReachCheckInput): Promise<void> {
   const selection = await selectForCheck(declaration, input);
   await report(declaration, selection, input.env);
   if (selection.suites.length === 0) return;
+  await runReachSuites(input, selection.suites);
+}
+
+/**
+ * Run selected suites, or the share of them a forwarded shard holds; a shard holding none passes with its report.
+ * @param input - Repository coordinates, declaration, forwarded arguments, and environment
+ * @param suites - Repository-relative selected suites
+ * @returns Completion after Vitest has closed its controller resources
+ */
+export async function runReachSuites(input: Pick<ReachCheckInput, "checkoutRoot" | "packageRoot" | "declaration"
+  | "arguments" | "env">, suites: readonly string[]): Promise<void> {
+  const discovered = await discoverReachSuites(input, suites);
+  const { shard } = discovered.controller.config;
+  if (shard !== undefined) {
+    const held = await shardReachSuites(discovered);
+    const { name } = input.declaration;
+    const total = discovered.specifications.length;
+    process.stdout.write(held.length === 0
+      ? `${name}: shard ${shard.index} of ${shard.count} holds none of the ${total} selected suites\n`
+      : `${name}: shard ${shard.index} of ${shard.count} runs ${held.length} of the ${total} selected suites\n`);
+    if (held.length === 0) {
+      await closeVitestController(discovered.controller);
+      return;
+    }
+  }
+  await executeVitestSelection(discovered, { cwd: input.packageRoot, env: input.env, tier: "store",
+    packageRoot: input.packageRoot });
+}
+
+/**
+ * Discover selected suites in the store tier's projects, configured by the forwarded arguments.
+ * @param input - Repository root, declaration, and forwarded arguments
+ * @param suites - Repository-relative selected suites
+ * @returns The controller and its selection, every selected suite in it
+ */
+export async function discoverReachSuites(input: Pick<ReachCheckInput, "checkoutRoot" | "declaration" | "arguments">,
+  suites: readonly string[]): Promise<VitestSelection> {
   const { filter, options } = parseCLI(["vitest", "run", ...localVitestTierArguments("store"), ...input.arguments]);
-  const wanted = new Set(selection.suites.map(suite => resolve(input.checkoutRoot, suite)));
-  const discovered = await discoverVitestSelection(filter, options, (specifications) => {
-    const configured = new Set(specifications.map(specification => resolve(specification.moduleId)));
-    const missing = [...wanted].filter(path => !configured.has(path));
+  // Vitest refuses more shards than files; a small selection leaves some shards nothing, and those pass on their report.
+  const configured = options.shard === undefined ? options : { ...options, passWithNoTests: true };
+  const wanted = new Set(suites.map(suite => resolve(input.checkoutRoot, suite)));
+  return await discoverVitestSelection(filter, configured, (specifications) => {
+    const found = new Set(specifications.map(specification => resolve(specification.moduleId)));
+    const missing = [...wanted].filter(path => !found.has(path));
     if (missing.length > 0) {
-      throw new Error(`Selected ${declaration.name} suites are in no configured project: ${missing
+      throw new Error(`Selected ${input.declaration.name} suites are in no configured project: ${missing
         .map(path => relative(input.checkoutRoot, path)).join(", ")}`);
     }
     return specifications.filter(specification => wanted.has(resolve(specification.moduleId)));
   });
-  await executeVitestSelection(discovered, { cwd: input.packageRoot, env: input.env, tier: "store",
-    packageRoot: input.packageRoot });
+}
+
+/**
+ * The selected suites a sharded run holds, as its configured sequencer assigns them; all of them when unsharded.
+ * @param selection - A discovered selection
+ * @returns The specifications this run executes
+ */
+export async function shardReachSuites(selection: VitestSelection): Promise<TestSpecification[]> {
+  const { shard, sequence } = selection.controller.config;
+  if (shard === undefined) return selection.specifications;
+  return await new sequence.sequencer(selection.controller).shard([...selection.specifications]);
 }
 
 /**

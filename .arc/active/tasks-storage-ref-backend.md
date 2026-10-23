@@ -2262,13 +2262,14 @@ in `notes-storage-ref-backend.md` (A25).
   job across four balanced shards beside the integration shards, and the per-change cost is recorded with rows that
   carry its bound forward (A33).
 
-    - `[ ]` **18.R3.a Shard the store job — § 14.14**
-        - `test:store`'s entry in `.arc/system/arc-checks.yml` declares four shards whose `--shard={index}/{count}` the
-          reach runner forwards to Vitest, the heavy-first sequencer balancing the selected suites by the integration
-          duration data; `ci.yml`'s store job becomes a four-shard matrix whose shards upload their durations and report
-          the CI-job rows `store-1` to `store-4`, and a dispatch input asks for every suite in its per-change form in
-          place of the full run. The merge gate's local run stays one run. Cases prove each selected suite runs in
-          exactly one shard and a change reaching none runs none in any, and the CI forecast carries the store shards.
+    - `[x]` **18.R3.a Shard the store job — § 14.14**
+        - `test:store` declares four shards whose `--shard={index}/{count}` the reach runner forwards to Vitest;
+          `runReachSuites` (`lib/reach-check.ts`) reports the share the configured heavy-first sequencer gives its shard
+          and passes a shard holding none of a small selection, lifting Vitest's shard-count refusal. `ci.yml`'s store
+          job is a four-shard matrix uploading `duration-results-integration-store-N` and reporting `store-1` to
+          `store-4`; its `store_per_change` dispatch input asks for the per-change form, a run that saves no durations.
+          `reach-check-shards.test.ts` proves the partition, the empty shard, and no suite in any shard for a change
+          reaching none; `vitest-reach.test.ts` proves the forecast's shards and the local run's one invocation.
 
     - `[ ]` **18.R3.b Measure and record under A33 — § 14.12, § 14.14**
         - Run the store check over a change that reaches no store suite; dispatch one run asking for the per-change form

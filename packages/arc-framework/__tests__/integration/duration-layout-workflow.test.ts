@@ -17,8 +17,10 @@ async function workflow() {
 
 it("uses only the adopted literal matrices and admits scheduled writer runs", async () => {
   const value = await workflow();
-  expect(Object.keys(value.on.workflow_dispatch.inputs)).toEqual(["run_portability_pair", "portability_timing_only"]);
-  for (const [tier, indices] of [["unit", [1,2]], ["integration", [1,2,3,4]], ["e2e", [1,2,3,4]]] as const) {
+  expect(Object.keys(value.on.workflow_dispatch.inputs))
+    .toEqual(["run_portability_pair", "portability_timing_only", "store_per_change"]);
+  for (const [tier, indices] of [["unit", [1,2]], ["integration", [1,2,3,4]], ["store", [1,2,3,4]],
+    ["e2e", [1,2,3,4]]] as const) {
     const adopted = value.jobs[tier];
     expect(adopted?.strategy?.matrix.shard).toEqual(indices);
     expect(adopted?.if).toContain("outputs.weight");
@@ -53,7 +55,7 @@ it("hands the same setup artifact to every adopted job and clears native results
   }
 });
 
-it("runs the store suites on the integration tier's handed durations and writes theirs beside its shards", async () => {
+it("runs the store shards on the integration tier's handed durations and writes theirs beside its shards", async () => {
   const steps = (await workflow()).jobs.store?.steps ?? [];
   const download = steps.findIndex((entry) => entry.name === "Download duration input");
   const clear = steps.findIndex((entry) => entry.name === "Clear native test results");
@@ -61,9 +63,21 @@ it("runs the store suites on the integration tier's handed durations and writes 
   expect(download).toBeGreaterThanOrEqual(0);
   expect(clear).toBeGreaterThan(download);
   expect(run).toBeGreaterThan(clear);
+  expect(steps[run]?.run).toBe("node --import tsx scripts/run-ci-checks.mjs run store test --shard ${{ matrix.shard }}");
   expect(steps[run]?.env).toMatchObject({
     ARC_TEST_DURATION_FILE: "${{ github.workspace }}/packages/arc-framework/.test-cost-runs/duration-input/integration.json" });
-  expect(steps.find((entry) => entry.name === "Upload native durations")?.with?.name).toBe("duration-results-integration-store");
+  expect(steps.find((entry) => entry.name === "Upload native durations")?.with?.name)
+    .toBe("duration-results-integration-store-${{ matrix.shard }}");
+  expect(steps.find((entry) => entry.name === "Report test budget")?.run).toContain('--ci-job "store-${{ matrix.shard }}"');
+});
+
+it("runs every store suite in full off pull requests, or in its per-change form when a dispatch asks", async () => {
+  const value = await workflow();
+  expect(value.on.workflow_dispatch.inputs.store_per_change).toMatchObject({ type: "boolean", default: false });
+  const run = value.jobs.store?.steps.find((entry) => entry.name === "Run store suites");
+  expect(run?.env?.ARC_STORE_CHECK)
+    .toBe("${{ github.event_name != 'pull_request' && (inputs.store_per_change && 'every' || 'full') || '' }}");
+  expect(value.jobs["merge-test-durations"]?.if).toContain("!inputs.store_per_change");
 });
 
 it("merges and saves only after all writer shards succeeded and gives unit reports distinct names", async () => {

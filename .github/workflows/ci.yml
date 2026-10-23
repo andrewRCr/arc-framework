@@ -24,6 +24,10 @@ on:
         description: 'Diagnostic only: run Windows/macOS operation timing, skipping other test jobs'
         type: boolean
         default: false
+      store_per_change:
+        description: 'Run every store suite in its per-change form instead of the full run'
+        type: boolean
+        default: false
   # Weekly full-tier duration refresh and cross-platform portability. The pair fires only here or
   # on an explicit dispatch opt-in — never from PR synchronizes — so the weekly
   # cadence is a post-merge backstop against OS-specific concurrency-guard
@@ -601,16 +605,21 @@ jobs:
         --tier integration --project-set integration --workers "${VITEST_MAX_WORKERS:-native}"
         --ci-job "integration-${{ matrix.shard }}" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
 
-  # The store suites run by reach. A pull request runs the suites its change reaches; every push to main, the weekly
-  # run, and a dispatched run ask for a full run, the separate layout's whole conformance suite among them. A push
-  # whose run a later push cancels leaves its tree to that later full run.
+  # The store suites run by reach, across four shards balanced by the integration durations. A pull request runs the
+  # suites its change reaches; every push to main, the weekly run, and a dispatched run ask for a full run, the
+  # separate layout's whole conformance suite among them, unless a dispatch asks for every suite's per-change form. A
+  # push whose run a later push cancels leaves its tree to that later full run.
   store:
-    name: Store Suites
+    name: Store Suites (${{ matrix.shard }})
     permissions:
       contents: read
       actions: write # download runtime and upload writer durations
     needs: [classify, setup, build]
     if: ${{ !cancelled() && needs.setup.result == 'success' && needs.build.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && (needs.classify.outputs.weight != 'light' || needs.classify.outputs.integration_target == 'true')) || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     runs-on: ubuntu-latest
     steps:
     - name: Start test budget clock
@@ -656,16 +665,16 @@ jobs:
       run: rm -rf packages/arc-framework/node_modules/.vite/vitest/
     - name: Run store suites
       id: test
-      run: node --import tsx scripts/run-ci-checks.mjs run store test
+      run: node --import tsx scripts/run-ci-checks.mjs run store test --shard ${{ matrix.shard }}
       env:
         ARC_TEST_DURATION_FILE: ${{ github.workspace }}/packages/arc-framework/.test-cost-runs/duration-input/integration.json
         ARC_E2E_SKIP_BUILD: '1'
-        ARC_STORE_CHECK: ${{ github.event_name != 'pull_request' && 'full' || '' }}
+        ARC_STORE_CHECK: ${{ github.event_name != 'pull_request' && (inputs.store_per_change && 'every' || 'full') || '' }}
     - name: Upload native durations
       if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       with:
-        name: duration-results-integration-store
+        name: duration-results-integration-store-${{ matrix.shard }}
         path: packages/arc-framework/node_modules/.vite/vitest/**/results.json
         include-hidden-files: true
         if-no-files-found: error
@@ -673,7 +682,7 @@ jobs:
       run: >-
         npm run -s benchmark:test-cost:ci-budget -w packages/arc-framework --
         --tier store --project-set integration --workers "${VITEST_MAX_WORKERS:-native}"
-        --ci-job "store" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
+        --ci-job "store-${{ matrix.shard }}" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
 
   e2e:
     name: E2E Tests (${{ matrix.shard }})
@@ -757,7 +766,8 @@ jobs:
       contents: read
       actions: read
     needs: [unit, integration, store, e2e]
-    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.unit.result == 'success' && needs.integration.result == 'success' && needs.store.result == 'success' && needs.e2e.result == 'success' }}
+    # A per-change store run leaves out suites a full run times, so its durations would drop theirs from the cache.
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && !inputs.store_per_change && needs.unit.result == 'success' && needs.integration.result == 'success' && needs.store.result == 'success' && needs.e2e.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
