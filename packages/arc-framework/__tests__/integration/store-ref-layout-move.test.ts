@@ -430,6 +430,66 @@ it("cleans an unrecorded source leftover without replacing the separate store's 
 });
 
 
+/** Refs other owners keep under `refs/arc/` in the code repository: an Errand identity's, notes sync's, delivery's. */
+const FOREIGN_REFS = ["refs/arc/user/andrew/errands", "refs/arc/user/andrew/sync-state", "refs/arc/bootstrap/seed",
+  "refs/arc/delivery-candidates/seed", "refs/arc/recovery/seed"];
+
+async function foreignRefs(exec: Awaited<ReturnType<typeof layoutFixture>>["a"]["exec"], scope: string[] = []): Promise<string[]> {
+  return (await exec("git", [...scope, "for-each-ref", "--format=%(refname) %(objectname)", ...FOREIGN_REFS])).stdout
+    .split("\n").filter(Boolean).sort();
+}
+
+async function seedForeignRefs(h: Awaited<ReturnType<typeof layoutFixture>>): Promise<string[]> {
+  const head = (await h.a.exec("git", ["rev-parse", "HEAD"])).stdout.trim();
+  for (const ref of FOREIGN_REFS) await h.a.exec("git", ["update-ref", ref, head]);
+  const seeded = await foreignRefs(h.a.exec);
+  expect(seeded).toHaveLength(FOREIGN_REFS.length);
+  return seeded;
+}
+
+describe("refs outside the store", () => {
+  it.each(["migrate", "remote"] as const)("stay in the code repository through a move out and back by %s", async (entry) => {
+    const h = await layoutFixture();
+    const seeded = await seedForeignRefs(h);
+    const move = async (role: "push" | "off"): Promise<MigrateReport> => {
+      if (entry === "migrate") {
+        await h.a.exec("git", ["config", "remote.origin.arc-state", role]);
+        const moved = await runStoreMigrate(h.a.ports);
+        if (moved.status === "designation-needed") throw new Error("Unexpected designation question");
+        return report(moved);
+      }
+      const moved = await runStoreRemote(h.a.ports, { remote: "origin", role });
+      expect(moved.status, JSON.stringify(moved)).toBe("ok");
+      if (moved.status !== "ok" || !moved.result.report) throw new Error("No setting's move report");
+      return MigrateReportSchema.parse(moved.result.report);
+    };
+    const out = await move("off");
+    expect(out.refs.map(({ ref }) => ref).filter((ref) => FOREIGN_REFS.includes(ref))).toEqual([]);
+    expect(await foreignRefs(h.a.exec)).toEqual(seeded);
+    expect(await foreignRefs(h.a.exec, [`--git-dir=${h.storeDirectory}`])).toEqual([]);
+    const back = await move("push");
+    expect(back.refs.map(({ ref }) => ref).filter((ref) => FOREIGN_REFS.includes(ref))).toEqual([]);
+    await expect(h.a.ports.fs.lstat(h.storeDirectory)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await foreignRefs(h.a.exec)).toEqual(seeded);
+    expect(success(await h.a.store.version())).toBe(h.version);
+  });
+
+  it.each(["no target", "setting"] as const)("stay through the separate layout's %s cleanup, which still deletes a store leftover", async (entry) => {
+    const h = await layoutFixture();
+    const leftover = `refs/arc/work/${"uid" in h.primary.reference.owner ? h.primary.reference.owner.uid : ""}`;
+    const old = (await h.a.git(["rev-parse", leftover])).stdout.trim();
+    expect((await runStoreRemote(h.a.ports, { remote: "origin", role: "off" })).status).toBe("ok");
+    const seeded = await seedForeignRefs(h);
+    await h.a.exec("git", ["update-ref", leftover, old]);
+    const cleaned = entry === "no target" ? await runStoreMigrate(h.a.ports) : await runStoreRemote(h.a.ports, { remote: "origin", role: "off" });
+    expect(cleaned.status, JSON.stringify(cleaned)).toBe("ok");
+    expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", leftover])).stdout).toBe("");
+    expect(await foreignRefs(h.a.exec)).toEqual(seeded);
+    expect(success(await h.a.store.read({ reference: h.primary.reference })).content).toBe(makeMetaFixture("alpha"));
+  });
+});
+
+
 it("finishes the recorded direction and leaves a subsequent designation change to the next run", async () => {
   const h = await layoutFixture();
   expect((await runStoreRemote(h.a.ports, { remote: "origin", role: "off" })).status).toBe("ok");

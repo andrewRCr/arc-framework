@@ -95,6 +95,25 @@ export async function oppositeMoveFixture() {
   return { ...h, ...productionStore(h.a), peerPorts: productionStore(h.b).ports };
 }
 
+/** Start independent clones on two receivers the other way round: the first moves its backing repository's state into its
+ * code remote, while the peer holds the same project in a backing repository at that destination, from which it can move
+ * back to origin as its code remote.
+ */
+export async function oppositeMoveIntoCodeFixture() {
+  const h = await preparedRefSync("opposite move into code", "separate", async (fixture) => {
+    const state = await switchState(fixture, "backing", "code");
+    const refs = (await fixture.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim().split("\n");
+    await fixture.remote("git", ["push", "--atomic", state.destinationDirectory, ...refs.map(ref => `${ref}:${ref}`)]);
+    await fixture.b.git(["remote", "set-url", "backing", state.destinationDirectory]);
+    await mkdir(join(fixture.b.root, ".arc", "system"), { recursive: true });
+    await writeFile(join(fixture.b.root, ".arc", "system", "arc-config.yml"),
+      `# Opposite mover.\nstorage.backing_repository: ${JSON.stringify(state.destinationDirectory)}\n`);
+    success(await productionStore(fixture.b).store.pull());
+    return state;
+  });
+  return { ...h, ...productionStore(h.a), peerPorts: productionStore(h.b).ports };
+}
+
 /** Add a further independently locked clone with production pointer binding at a chosen receiver. */
 export async function createRemoteMover(h: Awaited<ReturnType<typeof switchFixture>>, remote: string, label: string) {
   const root = join(h.a.root, label);

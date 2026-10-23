@@ -6,7 +6,7 @@ import { prepareRefCopy } from "./migrate-copy.js";
 import type { Store } from "../contract.js";
 import type { RefBackendContext } from "./context.js";
 import { bindRefRepository } from "./repository-context.js";
-import { readObjectFormat } from "./manifest.js";
+import { isManifestRef, readObjectFormat } from "./manifest.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
 import { MOVE_REF, type LayoutMoveRecord } from "./migrate-record.js";
@@ -18,10 +18,19 @@ export interface LayoutBuild {
   notices: MigrateReport["notices"];
 }
 
-/** Select state, acquired remote views, and every machine-local history/version keeper. */
+/** Machine-local refs a layout carries: the last heads a fetch checks against, and the newest tokens' keepers. */
+const LAYOUT_KEEPERS = ["refs/arc/tmp/seen/", "refs/arc/tmp/read/"];
+
+/** Select state and its history, acquired remote views, and the machine-local keepers; every other ref under
+ * `refs/arc/` belongs to its own writer and stays where it is.
+ */
 export async function layoutRefs(context: RefBackendContext): Promise<Map<string, string>> {
-  return new Map([...(await readSyncRefs(context, ["refs/arc/", "refs/arc-remotes/"]))]
-    .filter(([ref]) => !ref.startsWith("refs/arc/tmp/migrate/")));
+  return new Map([...(await readSyncRefs(context, ["refs/arc/", "refs/arc-remotes/"]))].filter(([ref]) => carriedByLayout(ref)));
+}
+
+function carriedByLayout(ref: string): boolean {
+  return ref.startsWith("refs/arc-remotes/") || ref === "refs/arc/tmp/version" || LAYOUT_KEEPERS.some((prefix) => ref.startsWith(prefix))
+    || isManifestRef(ref.replace("refs/arc/history/", "refs/arc/"));
 }
 
 /** Replace an interrupted build from fresh source refs, keeping the destination untouched. */

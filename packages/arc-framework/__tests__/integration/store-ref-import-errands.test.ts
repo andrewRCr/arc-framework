@@ -153,6 +153,17 @@ describe("Errand import moved to the other layout before its rerun", () => {
     });
 });
 
+it("re-homes the Errands a layout move out of the code repository's refs left in place", async () => {
+  const h = await importFixture();
+  const tip = await seed(h, [ordinary]);
+  expect(await runStoreRemote(h.ports, { remote: "origin", role: "off" })).toMatchObject({ status: "ok", result: { layout: "separate" } });
+  expect(await refs(h.git, sourceRef)).toBe(`${sourceRef} ${tip}`);
+  const result = await h.migrate();
+  expect(result.status, JSON.stringify(result)).toBe("ok");
+  expect(await refs(h.git, "refs/arc/work/", [`--git-dir=${join(h.root, ".git/arc/store")}`])).not.toBe("");
+  expect(await refs(h.git, sourceRef)).toBe("");
+});
+
 describe.each(["default", "separate"] as const)("Errand import in %s", (layout) => {
   if (layout === "default") {
     it("compares re-homed identity records against an independent source", async () => {
