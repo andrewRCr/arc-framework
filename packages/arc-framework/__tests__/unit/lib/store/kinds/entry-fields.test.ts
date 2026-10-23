@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readEntryField, writeEntryFields, readRemovalTrigger, writeRemovalTrigger, entryVersion, writeRoutedFrom } from "../../../../../src/lib/store/kinds/entry-fields.js";
+import { readEntryField, writeEntryFields, readRemovalTrigger, writeRemovalTrigger, entryVersion, writeRoutedFrom, targetNamedByLine } from "../../../../../src/lib/store/kinds/entry-fields.js";
 import { maskComments } from "../../../../../src/lib/store/concurrency/entries.js";
 import { parseEntryList } from "../../../../../src/lib/store/kinds/entry-list.js";
 
@@ -10,6 +10,13 @@ describe("shared entry fields", () => {
     expect(readEntryField(raw, "Shapes")).toBe("Section 2");
     expect(writeEntryFields(raw, { Created: "2026-01-01", WU_Target: "unit", Shapes: "Section 2" }))
       .toBe('### **Title**\n- _WU_Target:_ `unit`\n- _Shapes:_ `Section 2`\n- _Created:_ `2026-01-01`\n\n- _Why:_ prose');
+  });
+  it("reads the managed target field whether or not its value is backticked", () => {
+    expect(readEntryField("### **Title**\n\n- _WU_Target:_ unit (planned)\n", "WU_Target")).toBe("unit (planned)");
+    expect(targetNamedByLine("- _WU_Target:_ unit")).toBe("unit");
+    expect(targetNamedByLine("- _WU_Target:_ `unit (provisional)`")).toBe("unit");
+    expect(targetNamedByLine("- _WU_Target:_ TBD")).toBeUndefined();
+    expect(targetNamedByLine("- _WU_Target:_ ")).toBeUndefined();
   });
   it("reads wrapped triggers in either delimiter and writes the canonical trigger", () => {
     for (const delimiter of ["_", "*"]) expect(readRemovalTrigger(`${delimiter}Remove when: the first\nand last line.${delimiter}\nbody`)).toBe("the first\nand last line.");
