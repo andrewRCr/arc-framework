@@ -20,6 +20,7 @@ export async function readStoredMergeLabel(context: RefBackendContext, revision:
   if (commit?.type !== "commit") throw new Error("A captured change commit became unavailable");
   const raw = new TextDecoder().decode(commit.bytes);
   const committer = /^committer .* <([^>]*)> (\d+) [+-]\d{4}$/mu.exec(raw);
-  const actor = /^Arc-Actor: (.+)$/mu.exec(raw.slice(raw.indexOf("\n\n") + 2))?.[1];
+  // Git lines end only at a newline, so another line separator inside a trailer value cannot start an actor line.
+  const actor = raw.slice(raw.indexOf("\n\n") + 2).split("\n").map((line) => /^Arc-Actor: (.+)$/su.exec(line)?.[1]).find(Boolean);
   return { actor: actor || committer?.[1] || "unknown", time: new Date(Number(committer?.[2] ?? 0) * 1000).toISOString() };
 }

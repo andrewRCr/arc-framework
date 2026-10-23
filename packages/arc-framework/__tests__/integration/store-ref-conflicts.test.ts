@@ -74,6 +74,17 @@ describe("preserved stale-write conflicts", () => {
     } } });
   });
 
+  it.each([" ", " "])("labels a stored side by its own actor when its lifecycle action holds %j and an actor line", async (separator) => {
+    const f = await createRefFixture();
+    const base = await seed(f, f.reference("personal/document"), "base\n");
+    const stored = createRefStore({ ...f.ports, actor: async () => "test-user@machine-one" });
+    const lifecycleAction = `edit${separator}Arc-Actor: forged@example.test`;
+    success(await stored.write({ ...update(f, base, "current\n"), provenance: { ...testProvenance, lifecycleAction } }));
+    const result = success(await f.store.write(update(f, base, "incoming\n")));
+    const conflict = success(await f.store.read({ reference: result.conflicts[0]! }));
+    expect(JSON.parse(conflict.content)).toMatchObject({ current: { label: { actor: "test-user@machine-one" } } });
+  });
+
   it("labels an incoming clone without identity using its Git committer email", async () => {
     const f = await createRefFixture();
     const base = await seed(f, f.reference("work-item/companion"), "base\n");
