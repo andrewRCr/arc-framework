@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "help-text-preconditions",
+  "claimId": "2c85d4144f7ee8dd17436c554b056267",
+  "createdAt": "2026-10-23T23:45:36.788Z",
+  "updatedAt": "2026-10-23T23:45:36.788Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Say in CLI help that arc start --from needs --here and that errand open --type names a branch only under full protection",
+  "branch": "fix/help-text-preconditions",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
