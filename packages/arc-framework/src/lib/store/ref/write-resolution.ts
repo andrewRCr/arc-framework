@@ -82,7 +82,7 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
   if (canonical.status === "refused") return canonical;
   const unknownClaim = unreadableNewClaim(resolved, observed.result);
   if (unknownClaim) return { status: "refused", refusal: unknownClaim };
-  const clash = checkLiveNamespace(resolved, owners);
+  const clash = checkLiveNamespace(resolved, owners, endedOwners);
   if (clash) return { status: "refused", refusal: clash };
   return { status: "ok", result: { writes: resolved, freshOwners: [...fresh.values()], tips, archived: archived.result, retained: retained.result } };
 }

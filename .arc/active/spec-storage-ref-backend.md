@@ -4690,4 +4690,7 @@ open:
 - **A34** — 2026-10-22 — task: the cost benchmark measures each tier without the suites that run by reach.
   _Supersedes:_ none. _Trigger:_ 18.R2.g must-stop. _Work:_ 18.R2.R. _Revalidated:_ 18.R2.g.
 
+- **A35** — 2026-10-22 — task: a write that leaves its primary ended holds no live slug claim. _Supersedes:_ none.
+  _Trigger:_ 18.R3.b must-stop. _Work:_ 5.R3. _Revalidated:_ pending → 19.1.
+
 ---

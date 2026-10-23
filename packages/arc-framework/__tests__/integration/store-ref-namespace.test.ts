@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createRefFixture } from "../helpers/store/ref-fixture.js";
-import { seed, success, testProvenance } from "../helpers/store/suite-tools.js";
+import { mutationOf, seed, success, testProvenance, update } from "../helpers/store/suite-tools.js";
 import { RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { plantRef, removeLooseObject } from "../helpers/store/ref-plant.js";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
@@ -87,6 +88,67 @@ describe("shared live slug namespace", () => {
       placement: { kind: "backlog", commitment: "planned" }, provenance: testProvenance }))
       .toMatchObject({ status: "refused", refusal: { code: "ambiguous-match" } });
     expect(success(await f.store.read({ reference: primary.reference })).version).toBe(changed.version);
+  });
+});
+
+describe("writes that leave no primary live", () => {
+  const quarter = ArchiveQuarterSchema.parse("2026-q4");
+
+  it.each(["work-item/meta", "cohort/document"] as const)("edits a completed %s in place after a live owner reuses its slug", async (kind) => {
+    const f = await createRefFixture();
+    const first = await seed(f, f.reference(kind));
+    success(await f.store.write({ ...update(f, first, first.content), placement: { kind: "completed", quarter } }));
+    const archived = success(await f.store.read({ reference: first.reference }));
+    const reused = await seed(f, f.reference(kind));
+    expect(reused.reference.owner).not.toEqual(archived.reference.owner);
+    const content = f.content(archived.reference, "changed-again");
+    success(await f.store.write(update(f, archived, content)));
+    expect(success(await f.store.read({ reference: archived.reference }))).toMatchObject({ content, placement: archived.placement });
+    expect(success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse(reused.reference.owner.name) })).reference)
+      .toEqual(reused.reference);
+  });
+
+  it("creates a live owner in the batch that edits the completed owner holding its slug", async () => {
+    const f = await createRefFixture();
+    const first = await seed(f, f.reference("work-item/meta"));
+    success(await f.store.write({ ...update(f, first, first.content), placement: { kind: "completed", quarter } }));
+    const archived = success(await f.store.read({ reference: first.reference }));
+    const fresh = f.reference("work-item/meta");
+    success(await f.store.batch({ writes: [mutationOf(update(f, archived, f.content(archived.reference, "changed-again"))),
+      { action: "put", reference: fresh, content: f.content(fresh), expected: null, placement: { kind: "active" } }],
+    provenance: testProvenance }));
+    expect(success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse(fresh.owner.name) })).reference.owner)
+      .not.toEqual(archived.reference.owner);
+  });
+
+  it("renames a completed work item onto a slug a live owner holds", async () => {
+    const f = await createRefFixture();
+    const first = await seed(f, f.reference("work-item/meta"));
+    success(await f.store.write({ ...update(f, first, first.content), placement: { kind: "completed", quarter } }));
+    const archived = success(await f.store.read({ reference: first.reference }));
+    const live = await seed(f, f.reference("work-item/meta", "other"));
+    const reference = RecordReferenceSchema.parse({ ...archived.reference, owner: { ...archived.reference.owner, name: live.reference.owner.name } });
+    success(await f.store.write({ ...update(f, archived, archived.content), reference }));
+    expect(success(await f.store.read({ reference: archived.reference }))).toMatchObject({ reference, placement: archived.placement });
+    expect(success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse(live.reference.owner.name) })).reference)
+      .toEqual(live.reference);
+  });
+
+  it("ends one of two live owners a clash between machines left holding one slug", async () => {
+    const f = await createRefFixture();
+    const first = await seed(f, f.reference("work-item/meta"));
+    const other = await seed(f, f.reference("work-item/meta", "other"));
+    const uid = "uid" in other.reference.owner ? other.reference.owner.uid : undefined;
+    const ref = `refs/arc/work/${uid}`, git = makeGitExec(f.root);
+    const tip = (await git("git", ["rev-parse", ref])).stdout;
+    const metadataPath = `metadata-${uid}.json`;
+    const metadata = JSON.parse((await git("git", ["show", `${ref}:${metadataPath}`])).stdout);
+    await plantRef(f.root, ref, [{ path: metadataPath, content: canonicalize({ ...metadata, slug: first.reference.owner.name }) },
+      { path: `meta-${first.reference.owner.name}.md`, content: other.content }], { parents: [tip] });
+    const clashing = success(await f.store.read({ reference: other.reference }));
+    success(await f.store.write({ ...update(f, clashing, clashing.content), placement: { kind: "completed", quarter } }));
+    expect(success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse(first.reference.owner.name) })).reference)
+      .toEqual(first.reference);
   });
 });
 

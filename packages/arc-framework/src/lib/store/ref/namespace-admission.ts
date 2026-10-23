@@ -17,14 +17,23 @@ function isWorkPrimary(reference: RecordReference): boolean {
   return reference.kind === "work-item/meta" || reference.kind === "work-item/record";
 }
 
-/** Refuse only a primary write that introduces or changes a shared namespace claim. */
-export function checkLiveNamespace(writes: readonly ResolvedMutation[], owners: readonly LiveRefOwner[]): StoreRefusal | undefined {
+/**
+ * Refuse only a primary write that introduces or changes a shared namespace claim. A put that leaves its primary
+ * ended — its placement completed, or, with none given, its owner already archived — holds no live claim.
+ * @param writes - The complete resolved batch
+ * @param owners - Live owners and the primaries they hold
+ * @param ended - Archived owners the batch writes
+ * @returns The first clash, or nothing
+ */
+export function checkLiveNamespace(writes: readonly ResolvedMutation[], owners: readonly LiveRefOwner[],
+  ended: readonly OwnerIdentity[]): StoreRefusal | undefined {
   const primaries = writes.filter(({ mutation }) => isWorkPrimary(mutation.reference) || mutation.reference.kind === "cohort/document");
   const retained = owners.flatMap(({ primary }) => primary && !primaries.some(({ mutation }) => sameOwner(mutation.reference.owner, primary.reference.owner))
     ? [primary.reference] : []);
-  const holders = [...retained, ...primaries.flatMap(({ mutation }) => mutation.action === "put" ? [mutation.reference] : [])];
-  for (const { mutation } of primaries) {
-    if (mutation.action !== "put") continue;
+  const live = primaries.flatMap(({ mutation }) => mutation.action === "put" && (mutation.placement
+    ? mutation.placement.kind !== "completed" : !ended.some((owner) => sameOwner(owner, mutation.reference.owner))) ? [mutation] : []);
+  const holders = [...retained, ...live.map(({ reference }) => reference)];
+  for (const mutation of live) {
     const { reference } = mutation;
     const prior = owners.find(({ owner }) => sameOwner(owner, reference.owner))?.primary;
     if (prior && prior.reference.owner.name === reference.owner.name

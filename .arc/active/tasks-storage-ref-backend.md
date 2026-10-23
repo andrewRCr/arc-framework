@@ -558,6 +558,8 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
   leaves two live owners holding it, while a clash between machines stays writable until a rename resolves it, and every
   lineage record's owner stays named.
 
+    - _Amended in:_ 5.R3 (A35)
+
 - _Outcome:_ Captured primary claims enforce the shared namespace while unchanged UID-addressed writes survive
   existing clashes. Transition puts/removals maintain independent registry origin names; reads resolve live owners
   before that map, conflict owners come from content, and origin UID mismatches retain exact-path diagnostics.
@@ -571,6 +573,18 @@ _Mode:_ `layer` through Phase 8 — closes on the local engine complete in both 
 - _Outcome:_ `refFormatKey` adds the resolved origin UID only to lineage transition coordinates. Decoding, stale
   admission, puts, removals, and fixture fault planting agree, preserving independent initial and newer formats and
   other origins' versions. Unsupported formats remain per-origin diagnostics with a supporting-registry retry.
+
+### `[x]` **5.R3 Writes that leave their primary ended — § 5.1 (A35)**
+
+- _Goal:_ A write leaving its primary ended — an in-place edit or a rename of a completed work item or closed cohort, or
+  the end of one owner in a clash between machines — lands whatever live owner holds its slug, while a write leaving
+  its primary live keeps the shared namespace (A35).
+
+    - `[x]` **5.R3.a Admission over the primaries a batch leaves live**
+        - `checkLiveNamespace` (`lib/store/ref/namespace-admission.ts`) compares, and counts as holders, only puts whose
+          placement, or with none their owner's, is not completed, the archived owners coming from the batch's archive
+          resolution. `store-ref-namespace.test.ts` lands each such write beside a live holder of its slug, and a batch
+          creating a live owner beside an edit of the completed one; a reopen onto a taken slug still refuses.
 
 ### `[x]` **5.4 `history` follows a record — § 3.1, § 3.6**
 
