@@ -17,6 +17,9 @@ export interface AssertionCoverage { registered: Map<SuiteItem, Map<FamilyId, Se
  * @returns Empty registration, exclusion, and case inventories.
  */
 export function createAssertionCoverage(): AssertionCoverage { return { registered: new Map(), used: new Set(), cases: new Map() }; }
+// A hang guard only: range files sharing a small runner slow the heaviest sync case past the 30 s default, and the
+// timing suite's budgets, not this limit, hold the store's speed.
+const CASE_TIMEOUT_MS = 90_000;
 /** Register one case: record its ID and run it when this file selects it.
  * @param context - Item, registration, inventory, and this file's selection.
  * @param id - The case's ID within its item, which a declared subset names.
@@ -24,7 +27,7 @@ export function createAssertionCoverage(): AssertionCoverage { return { register
  * @param test - The case body.
  */
 export function caseTest(context: SuiteContext, id: string, name: string, test: () => Promise<void>): void {
-  if (registerCase(context, id)) it(name, test);
+  if (registerCase(context, id)) it(name, test, CASE_TIMEOUT_MS);
 }
 /** Register one excluded case: record its ID and report it as skipped when this file selects it.
  * @param context - Item, registration, inventory, and this file's selection.
