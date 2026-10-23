@@ -107,7 +107,7 @@ describe("writes to completed ref records", () => {
     }
   });
 
-  it.each(["one end", "two ends"] as const)("refuses an ended item's read, history, write, and check view while a folder of it holds unreadable metadata (%s), and serves the repaired folder", async (ends) => {
+  it.each([["unparseable", "one end"], ["unparseable", "two ends"], ["removed", "one end"], ["removed", "two ends"]] as const)("refuses an ended item's read, history, write, and check view while a folder of it has its metadata %s (%s), and serves the repaired folder", async (damage, ends) => {
     const f = await createRefFixture();
     const twice = ends === "two ends" ? await endTwice(f, "another quarter") : undefined;
     const primary = twice?.primary ?? await seed(f, f.reference("work-item/meta"));
@@ -120,8 +120,9 @@ describe("writes to completed ref records", () => {
     const git = makeGitExec(f.root);
     const intact = await entriesAt(f.root, ref);
     const tip = (await git("git", ["rev-parse", ref])).stdout.trim();
-    const broken = await plantRef(f.root, ref, intact.map((entry): PlantTreeEntry => entry.path === `${root}metadata-${uid}.json`
-      ? { path: entry.path, content: "not metadata\n" } : entry), { parents: [tip] });
+    const metadata = `${root}metadata-${uid}.json`;
+    const broken = await plantRef(f.root, ref, damage === "removed" ? intact.filter(({ path }) => path !== metadata)
+      : intact.map((entry): PlantTreeEntry => entry.path === metadata ? { path: entry.path, content: "not metadata\n" } : entry), { parents: [tip] });
     const unavailable = { status: "refused", refusal: { code: "namespace-corrupt", namespace: ref } };
     const write = update(f, archived, f.content(primary.reference, "valid"));
     const observed = { writes: [mutationOf(update(f, target, "accepted\n"))], provenance: testProvenance,

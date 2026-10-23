@@ -15,26 +15,37 @@ export interface ArchivedFolder {
   entries: RefTreeEntry[]; liveRef: string;
 }
 
+const FOLDER_METADATA = /^metadata-[0-9a-f-]{36}\.json$/u;
+
 /** Identify quarter refs without admitting other namespaces under the prefix. */
 export function isArchiveRef(ref: string): boolean { return /^refs\/arc\/archive\/\d{4}-q[1-4]$/u.test(ref); }
 
-/** Select complete folders by their metadata UID without acquiring unrelated record blobs. */
+/**
+ * Select the folders these owners' metadata files name, and any folder no metadata file names, since it could be
+ * theirs, without acquiring unrelated record blobs.
+ */
 export function archiveOwnerTrees(trees: ReadonlyMap<string, readonly RefTreeEntry[]>,
   owners: readonly OwnerIdentity[]): Map<string, RefTreeEntry[]> {
   const names = new Set(owners.flatMap(owner => owner.type !== "person" && owner.uid ? [`metadata-${owner.uid}.json`] : []));
   const selected = new Map<string, RefTreeEntry[]>();
   for (const [ref, entries] of trees) {
-    const roots = new Set(entries.flatMap(({ path }) => {
+    const roots = new Set<string>(), attributed = new Set<string>(), owned = new Set<string>();
+    for (const { path } of entries) {
       const slash = path.indexOf("/");
-      return slash >= 0 && names.has(path.slice(slash + 1)) ? [path.slice(0, slash + 1)] : [];
-    }));
-    const own = entries.filter(({ path }) => roots.has(path.slice(0, path.indexOf("/") + 1)));
+      if (slash < 0) continue;
+      const root = path.slice(0, slash + 1), name = path.slice(slash + 1);
+      roots.add(root);
+      if (FOLDER_METADATA.test(name)) attributed.add(root);
+      if (names.has(name)) owned.add(root);
+    }
+    const kept = new Set([...roots].filter((root) => owned.has(root) || !attributed.has(root)));
+    const own = entries.filter(({ path }) => kept.has(path.slice(0, path.indexOf("/") + 1)));
     if (own.length) selected.set(ref, own);
   }
   return selected;
 }
 
-/** The first quarter holding a folder these owners' metadata files name whose metadata does not read. */
+/** The first quarter holding a folder these owners' metadata files name, or that no metadata file names, whose metadata does not read. */
 export function unreadableOwnedFolder(trees: ReadonlyMap<string, readonly RefTreeEntry[]>, owners: readonly OwnerIdentity[],
   objects: ReadonlyMap<string, BatchObject | null>): string | undefined {
   return [...archiveOwnerTrees(trees, owners)].find(([ref, entries]) => (["work-item", "cohort"] as const)
@@ -52,7 +63,7 @@ export function archivedFolders(family: FamilyId, ref: string, entries: readonly
     const cohort = /^\d+[ab]_cohort-/u.test(root);
     if (cohort !== (familyRoot === "cohort")) continue;
     const members = entries.filter(({ path }) => path.startsWith(root));
-    const entry = members.find(({ path }) => /^metadata-[0-9a-f-]{36}\.json$/u.test(path.slice(root.length)));
+    const entry = members.find(({ path }) => FOLDER_METADATA.test(path.slice(root.length)));
     const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : undefined);
     const placement = folderPlacement(root, metadata, quarter, cohort);
     if (!metadata?.slug || !entry || !placement) {

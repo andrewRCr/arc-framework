@@ -177,7 +177,7 @@ describe("completed-item reconciliation in the default layout", () => {
     success(await h.a.store.pull());
     expect(success(await h.a.store.read({ reference: h.reference })).conflicts).toHaveLength(1);
   });
-  it.each(["its tree removed", "its folder's metadata unparseable"] as const)(
+  it.each(["its tree removed", "its folder's metadata unparseable", "its folder's metadata file removed"] as const)(
     "holds a history merge while a local quarter has %s and rebuilds the folder once it is repaired", async (damage) => {
     const h = await completedFixture(layout);
     const a = success(await h.a.store.read({ reference: h.reference })), b = success(await h.b.store.read({ reference: h.reference }));
@@ -204,7 +204,7 @@ describe("completed-item reconciliation in the default layout", () => {
 
 /** Damage clone A's quarter, returning its repair: the tree object restored, or a later commit of the intact tree. */
 async function damageQuarter(h: Awaited<ReturnType<typeof completedFixture>>,
-  damage: "its tree removed" | "its folder's metadata unparseable"): Promise<() => Promise<unknown>> {
+  damage: "its tree removed" | "its folder's metadata unparseable" | "its folder's metadata file removed"): Promise<() => Promise<unknown>> {
   if (damage === "its tree removed") {
     const tree = (await h.a.git(["rev-parse", `${h.archive}^{tree}`])).stdout.trim();
     const path = join(h.a.root, ".git", "objects", tree.slice(0, 2), tree.slice(2));
@@ -213,8 +213,9 @@ async function damageQuarter(h: Awaited<ReturnType<typeof completedFixture>>,
     return () => writeFile(path, bytes);
   }
   const intact = await entriesAt(h.a.root, h.archive), metadata = `${h.folder}${h.metadataPath}`;
-  const broken = await plantRef(h.a.root, h.archive,
-    intact.map((entry): PlantTreeEntry => entry.path === metadata ? { path: entry.path, content: "not metadata\n" } : entry),
+  const broken = await plantRef(h.a.root, h.archive, damage === "its folder's metadata file removed"
+    ? intact.filter(({ path }) => path !== metadata)
+    : intact.map((entry): PlantTreeEntry => entry.path === metadata ? { path: entry.path, content: "not metadata\n" } : entry),
     { parents: [(await h.a.git(["rev-parse", h.archive])).stdout.trim()] });
   return () => plantRef(h.a.root, h.archive, intact, { parents: [broken.tip] });
 }
