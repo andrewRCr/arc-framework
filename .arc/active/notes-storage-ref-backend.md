@@ -2,16 +2,122 @@
 
 ## Contents
 
-- [Prior art](#prior-art)
-- [Probes behind the design](#probes-behind-the-design)
-- [The first model check](#the-first-model-check)
-- [The second model check](#the-second-model-check)
-- [The move model check](#the-move-model-check)
-- [CI cost history](#ci-cost-history)
-- [A designation per scope](#a-designation-per-scope)
-- [Host properties](#host-properties)
-- [Real-host backend trials](#real-host-backend-trials)
-- [A3 — Backslashes in stored paths](#a3--backslashes-in-stored-paths)
+- **Outcome**
+    - [Outcome summary](#outcome-summary)
+    - [Unreadable archive quarters](#unreadable-archive-quarters)
+- **Design background**
+    - [Prior art](#prior-art)
+    - [Probes behind the design](#probes-behind-the-design)
+    - [The first model check](#the-first-model-check)
+    - [The second model check](#the-second-model-check)
+    - [The move model check](#the-move-model-check)
+    - [A designation per scope](#a-designation-per-scope)
+    - [Host properties](#host-properties)
+- **Amendment records**
+    - [A2 — Review mapping identity and source accounting](#a2--review-mapping-identity-and-source-accounting)
+    - [A3 — Backslashes in stored paths](#a3--backslashes-in-stored-paths)
+    - [A4 — Retirement's logical check view](#a4--retirements-logical-check-view)
+    - [A5 — Companion path length admission](#a5--companion-path-length-admission)
+    - [A6 — Independent lineage format coordinates](#a6--independent-lineage-format-coordinates)
+    - [A7 — Identity removal and expired project handles](#a7--identity-removal-and-expired-project-handles)
+    - [A8 — Primary replacement and logical batch uniqueness](#a8--primary-replacement-and-logical-batch-uniqueness)
+    - [A9 — Merge history uses the ordered record state](#a9--merge-history-uses-the-ordered-record-state)
+    - [A10 — Companion aliases require the resolved slug](#a10--companion-aliases-require-the-resolved-slug)
+    - [A11 — Forward repair cannot rewrite historical metadata](#a11--forward-repair-cannot-rewrite-historical-metadata)
+    - [A12 — Commit-mode tests follow their public callers](#a12--commit-mode-tests-follow-their-public-callers)
+    - [A13 — Empty fetches need a no-tip negotiation form that completes](#a13--empty-fetches-need-a-no-tip-negotiation-form-that-completes)
+    - [A15 — A reftable fetch can report updates before its transaction aborts](#a15--a-reftable-fetch-can-report-updates-before-its-transaction-aborts)
+    - [A16 — Retained conflicts need an actionable recovery path](#a16--retained-conflicts-need-an-actionable-recovery-path)
+    - [A17 — Failed completeness does not certify a tracking tip](#a17--failed-completeness-does-not-certify-a-tracking-tip)
+    - [A18 — Import verification against the shipped entry contracts](#a18--import-verification-against-the-shipped-entry-contracts)
+    - [A20 — Current Candidates are separate mapping inputs](#a20--current-candidates-are-separate-mapping-inputs)
+    - [A21 — Durable terminal former names belong to lookup alone](#a21--durable-terminal-former-names-belong-to-lookup-alone)
+    - [A22 — Atomic native observation admission](#a22--atomic-native-observation-admission)
+    - [A23 — Native creation facts after shared-contract landing](#a23--native-creation-facts-after-shared-contract-landing)
+    - [A22 and A23 native closure](#a22-and-a23-native-closure)
+    - [A24 — Identity-suffixed personal content paths](#a24--identity-suffixed-personal-content-paths)
+    - [A25 — Retire the interim legacy ratio](#a25--retire-the-interim-legacy-ratio)
+    - [A26 — bounded readers during writes](#a26--bounded-readers-during-writes)
+    - [A27 — calibrated hosted Windows limits](#a27--calibrated-hosted-windows-limits)
+    - [A28 — refused torn listings](#a28--refused-torn-listings)
+    - [A29 — Per-change cost and selection of the store suites](#a29--per-change-cost-and-selection-of-the-store-suites)
+    - [A30 — A move overtaken inside its switch](#a30--a-move-overtaken-inside-its-switch)
+    - [A31 — A store directory taken away under a bound operation](#a31--a-store-directory-taken-away-under-a-bound-operation)
+    - [A32 — A no-target run returns the report of the move it finishes](#a32--a-no-target-run-returns-the-report-of-the-move-it-finishes)
+    - [A33 — The store suites by wall time and shard](#a33--the-store-suites-by-wall-time-and-shard)
+    - [A36 — The separate layout's whole run by item range](#a36--the-separate-layouts-whole-run-by-item-range)
+- **Segment and fixture closures**
+    - [Moving-remote segment closure](#moving-remote-segment-closure)
+    - [Native inbox contention](#native-inbox-contention)
+    - [CI measurement preflight](#ci-measurement-preflight)
+    - [Errand import E2E source](#errand-import-e2e-source)
+    - [Personal raw-tree fixture closure](#personal-raw-tree-fixture-closure)
+    - [Join synchronization fixture](#join-synchronization-fixture)
+    - [Prepared fixture path encoding](#prepared-fixture-path-encoding)
+    - [Full-run harness corrections](#full-run-harness-corrections)
+- **Operation performance**
+    - [Native operation timing](#native-operation-timing)
+    - [Windows object batching](#windows-object-batching)
+    - [Windows operation reader](#windows-operation-reader)
+    - [Windows burst diagnostics](#windows-burst-diagnostics)
+    - [Archived acquisition cost](#archived-acquisition-cost)
+    - [Timing isolation](#timing-isolation)
+    - [Shared native tree acquisition](#shared-native-tree-acquisition)
+    - [Bounded hosted timing diagnostics](#bounded-hosted-timing-diagnostics)
+    - [Attempt-local immutable write acquisition](#attempt-local-immutable-write-acquisition)
+    - [Bounded publication continuation](#bounded-publication-continuation)
+    - [Named archived acquisition](#named-archived-acquisition)
+    - [Remaining writer acquisition reuse](#remaining-writer-acquisition-reuse)
+    - [Platform coverage after acquisition corrections](#platform-coverage-after-acquisition-corrections)
+    - [Hosted diagnostic and evidence identity](#hosted-diagnostic-and-evidence-identity)
+    - [Final metadata batching](#final-metadata-batching)
+    - [Scoped check-view acquisition](#scoped-check-view-acquisition)
+    - [Budget calibration](#budget-calibration)
+- **CI cost and platform results**
+    - [CI cost history](#ci-cost-history)
+    - [Conformance workload comparison](#conformance-workload-comparison)
+    - [Second dispatched platform results](#second-dispatched-platform-results)
+    - [Third dispatched platform results](#third-dispatched-platform-results)
+    - [Post-correction tier and hosted measurements](#post-correction-tier-and-hosted-measurements)
+    - [Dispatched platform results after acquisition corrections](#dispatched-platform-results-after-acquisition-corrections)
+    - [Complete calibrated portability acceptance](#complete-calibrated-portability-acceptance)
+    - [Corrected Linux CI and advisory cost](#corrected-linux-ci-and-advisory-cost)
+    - [Final-head portability pair](#final-head-portability-pair)
+    - [E2E cost investigation and follow-up disposition](#e2e-cost-investigation-and-follow-up-disposition)
+- **Hosts, packing, and the cutover**
+    - [Real-host owner probes](#real-host-owner-probes)
+    - [Real-host backend trials](#real-host-backend-trials)
+    - [Personal-path pack cost](#personal-path-pack-cost)
+    - [Cutover suite inventory](#cutover-suite-inventory)
+    - [Platform, host, and cost closure](#platform-host-and-cost-closure)
+
+## Outcome summary
+
+Final evidence for this work unit's verification-relevant obligations; each line names the section that holds it.
+
+- **Conformance:** both native layouts complete 1,069 cases, 1,068 registered plus the declaration-inventory case,
+  with 59 registered skips; the in-repo fixture completes 310 counted the same way. A25 replaced the interim
+  1.5-times ratio with complete hosted cost and workload reporting (Final complete-file hosted conformance evidence;
+  Complete conformance and Linux portability work).
+- **Platforms:** dispatch `40003927279` at the delivered head passes the complete Windows/macOS pair — all twelve
+  twenty-writer platform/case combinations and both layouts' eleven-sample Windows medians within A27's calibrated
+  limits — beside every Linux job; dispatch `39664555792` first met those limits, and Linux dispatch `39674185052`
+  passed every functional job after two harness corrections (Final-head portability pair; Complete calibrated
+  portability acceptance; Corrected Linux CI and advisory cost).
+- **Costs:** the store suites run by reach in their own merge-gate check, a change reaching none paying a 1.6 s reach
+  computation; per change their summed time fell 30% to 1,840 s, and the integration tier's local row fell 60%, nearly
+  all of it the store suites leaving. On CI they run across four shards that finish beside the integration shards, a
+  full run's slowest at 420 s, and the updated tier and job rows include the store shards'; one earlier advisory E2E
+  overrun stays recorded, not converted into a pass (A29, Measured after the work; A33, Measured; A36; E2E cost
+  investigation and follow-up disposition).
+- **Hosts:** seven of eight real hosts pass every native observation, meeting the GitHub/GitLab floor; Azure DevOps
+  lacks protocol v2 prefix narrowing and atomic receive, a documented limitation with no non-atomic fallback
+  (Real-host backend trials).
+- **Packing and the cutover:** the pack trial grounds A24's identity-suffixed personal paths, and the cutover suite
+  inventory classifies every suite as preserved, retired, or split (Personal-path pack cost; Cutover suite inventory).
+- **Unreadable archive quarters:** an ended item refuses, and a pull holds its history merge, while a quarter or its
+  folder cannot be read; the pull's lifecycle decisions over such a quarter remain a known limit (Unreadable archive
+  quarters).
 
 ## Prior art
 
@@ -240,8 +346,9 @@ added. The earlier ratio misses remain failed historical results.
 
 Native logs, integration duration artifacts, population evidence, and derived complete-file figures are retained
 under `task-18.3-hosted/third-run/` in the machine-local storage-ref-backend tools directory. This evidence closes the
-complete-file reporting obligation; Windows operation acceptance, final tier/job measurements, and host checks remain
-separate obligations.
+complete-file reporting obligation. Windows operation acceptance, final tier/job measurements, and host checks closed
+separately: see Complete calibrated portability acceptance, Post-correction tier and hosted measurements, and Real-host
+backend trials.
 
 ### Final tier and job measurements (A25)
 
@@ -310,10 +417,10 @@ preparation. The in-repo fixture completes fewer cases because of its declared i
 | default  | 202.01        | 1,028           | 58          | 4.64             |
 | separate | 217.62        | 1,028           | 58          | 4.99             |
 
-Both ref layouts pass their applicable assertions with only § 14.1's permanent exclusions and the suite's own
-mechanism applicability skips. Both local timing comparisons exceed 1.5 times. Task 18.3 must resolve the cost and
-establish § 14.12's bound on the same GitHub-hosted runner before its criterion closes. These local results do not
-establish that CI bound. Raw logs, elapsed command times, and derived file-time ratios are retained under
+Both ref layouts pass their applicable assertions with only § 14.1's permanent exclusions and the suite's own mechanism
+applicability skips. Both local timing comparisons exceed 1.5 times. These local results did not establish § 14.12's CI
+bound; the hosted comparison missed it too, and A25 replaced that ratio with complete cost reporting. Raw logs, elapsed
+command times, and derived file-time ratios are retained under
 `.arc/user/andrew/.internal/storage-ref-backend-tools/task-9.6/`.
 
 ## A designation per scope
@@ -437,8 +544,6 @@ fixture supplies that handle without a UID, so the read asks whether identity ex
 expired ID remains current. `canonicalReference` resolves that original handle in the reference fixture as well.
 The removal's no-version result and successful recreation checks remain. A dedicated real-Git regression checks both
 handles, and Task 8.6 repeats it over both layouts. No additional conformance exclusion is introduced.
-
----
 
 ## A8 — Primary replacement and logical batch uniqueness
 
@@ -700,7 +805,7 @@ and remedy; no guessed generation, new history reader, or compatibility migratio
 The propagation footprint is metadata parsing, rename and auxiliary commit publication, lookup selection, merge and
 withdrawal, and import grouping. Existing generic direct readers and writers, record content/version rules, physical
 layouts, and remote copy/follow transport remain unchanged; native local and synced tests verify that separation.
-The added criterion is checked by the revision's native lookup/withdrawal/import suite and remains open for terminal
+The added criterion is checked by the revision's native lookup/withdrawal/import suite and marked at terminal
 work-unit verification. Completed Tasks 5.7, 15.2, and 15.10 point forward instead of rewriting their earlier outcomes.
 
 ## A22 — Atomic native observation admission
@@ -710,8 +815,8 @@ The compare-and-swap guards only the refs the batch writes, so a race or a merge
 would refuse.” It also broadens § 11.4's “only around its commit” boundary. The approved shared contract requires
 all observations and registered checks to hold through local publication, including newly created relevant refs.
 This is a bounded composition of existing locking, captured views, and history, retaining Class Heavy. The Owner
-approved native absorption after the shared amendment review; that review returned no findings. Its runtime
-implementation is still a prerequisite, not shipped behavior in this checkout.
+approved native absorption after the shared amendment review; that review returned no findings. The shared runtime
+implementation landed afterward; see A22 and A23 native closure.
 
 `commitRefWrites` currently builds captured proposed groups, calls `checkRefWrites`, sweeps retirements, and only
 then calls `commitRefStep`. `commitLockedRefBatch` already retries from freshly captured tips, with separate owner
@@ -774,7 +879,7 @@ closes. The amended write/check/history, lifecycle, sync, and import tasks retai
 with additive pointers. Existing move/follow semantics remain; receipt retention joins their regression coverage.
 Phase 18 retains its platform, host, and cost obligations. The physical query bounds prevent an unplanned global cost.
 
-## A22 and A23 native closure — Task 4.R2.d
+## A22 and A23 native closure
 
 The landed shared contract is now implemented and verified in both native layouts. Proposed births come from fresh
 native allocations intersected with actual proposed primary creations. Every physical accepted operation retains the
@@ -793,9 +898,9 @@ completed 2,515 cases across 36 files, with 118 declared skips. The broad run pa
 sync-writer assertions lacking the landed merge action; their focused corrected retries passed. Its total elapsed time
 was 980.71 seconds. The decomposition unit regression passed all 710 cases in 90 files. Evidence and exact selections
 remain under `.arc/user/andrew/.internal/storage-ref-backend-tools/task-4.R2.d/`, with the corresponding logs in `/tmp/`.
-This closes the pending A22/A23 revalidation; Phase 18 still owns hosted timing, process-cost, and platform obligations.
+This closes the A22/A23 revalidation; hosted timing, process-cost, and platform obligations belong to Phase 18.
 
-## Moving-remote segment closure — Task 17.6
+## Moving-remote segment closure
 
 The exit scenario composes the preserved 13.6 designation/layout and shared-sync result, 15.10's complete import,
 notes-snapshot, post-import, Candidate, and review-mapping result, and the remaining move/follow cases. Task 4.R2.d
@@ -811,14 +916,14 @@ selection and output are `/tmp/arc-storage-17.6-scenario-files` and `/tmp/arc-st
 proof directory is `.arc/user/andrew/.internal/storage-ref-backend-tools/task-17.6/`.
 
 This closes §§ 14.6–14.7's effective scenario without modifying production code. Hosted platform, host-capability,
-and cost evidence remain Phase 18's obligations; terminal verification and independent reviews have not run here.
+and cost evidence belong to Phase 18.
 
 The first segment quality run found one stale command-boundary caller list: `runStoreRemote` now also belongs to
 `commands/store-migrate.ts`, whose answered follow prompt delegates the explicit role choice through that public entry.
 The exact two-command allowlist now names both adapters; the scan still rejects every other caller. The initial full
 unit run passed 18,946 cases and failed only this assertion, with 584 declared skips; no runtime correction was needed.
 
-## Native inbox contention — Task 18.1.a
+## Native inbox contention
 
 The gated burst suite runs twenty independent Node processes in linked worktrees and twenty independently publishing
 clones, in both native layouts. Every worker derives one distinct removal and insertion from the same captured inbox
@@ -839,9 +944,9 @@ fail on missing additions and resurrected removals; exact source bytes were rest
 selection also failed on the missing suite before registration and passed all 22 cases afterward. Proof is retained
 under `.arc/user/andrew/.internal/storage-ref-backend-tools/task-18.1.a/` and `/tmp/arc-storage-18.1-*`.
 
-Task 18.1.b retains the required dispatched Linux, Windows, and macOS evidence. Those hosted results remain open.
+Task 18.1.b carries the dispatched Linux, Windows, and macOS evidence; see Complete calibrated portability acceptance.
 
-## Native operation timing — Task 18.2.a.1
+## Native operation timing
 
 The fixture captures registry and completed-primary bytes through two native production writes. It expands that
 prototype into one bulk stream, preserving every opaque metadata field and remapping owner, slug, quarter, and batch
@@ -876,7 +981,7 @@ and `/tmp/arc-storage-18.2-*`.
 These are Linux figures. Task 18.2.a.2 retains dispatched platform evidence, and 18.2.b retains the conditional budget
 response; neither is closed by local timing. No production performance change has been made at this boundary.
 
-## Personal-path pack cost — Task 18.5
+## Personal-path pack cost
 
 A local Git 2.55.0 trial compared sixteen personal refs, each retaining forty snapshots of three documents:
 `WORKING-MEMORY.md`, `USER-INBOX.md`, and `config.user.yml`. Each document held one hundred deterministic paragraphs;
@@ -903,7 +1008,7 @@ The reproducible script and complete raw results are retained under
 `.arc/user/andrew/.internal/storage-ref-backend-tools/task-18.5/`; the script's SHA-256 is
 `316d9a4ff654671ed375bf382e0c09968998fd93bb210c011fbf347ba323dd39`.
 
-## CI measurement preflight — Task 18.3.a
+## CI measurement preflight
 
 The full integration warmup exposed a branch regression before any retained cost sample existed. Static runtime
 imports in `createSpawnRawGitExec` made Node's direct source entrypoint resolve unavailable `.js` dependencies;
@@ -950,19 +1055,19 @@ passed. Raw tree fixtures now use the new spelling, and the registered-path roun
 receipt writers instead of generic prose. Proof is retained under
 `.arc/user/andrew/.internal/storage-ref-backend-tools/task-18.R/` and `/tmp/arc-storage-a24-*`.
 
-## Cutover suite inventory — Task 18.6
+## Cutover suite inventory
 
 Paths below are relative to `packages/arc-framework/__tests__/`. This inventory classifies assertions, not spelling: a
-consumer that happens to borrow the in-repo fixture keeps its contract behavior and changes its fixture. Native import
-tests intentionally retain legacy source data. No test or helper is deleted by this inventory.
+consumer that happens to borrow the in-repo fixture keeps its contract behavior and changes its fixture. No test or
+helper is deleted by this inventory.
 
 ### Preserve shared, native, and consumer coverage
 
 Keep `helpers/store/conformance-suite.ts`, `suite-*.ts`, `fixture-contract.ts`, the reference backend/fixture, and their
 registration/exclusion-policy unit tests. Keep both native conformance registrations and every `integration/store-ref-*`
-suite, including import, timing, bursts, and native admission. The in-repo conformance registration currently runs the
-same assertions; preserve those assertions when the obsolete adapter registration and its helper go away. Do not carry a
-deleted backend merely to retain a three-line registration wrapper.
+suite but the import's, including timing, bursts, and native admission. The in-repo conformance registration currently
+runs the same assertions; preserve those assertions when the obsolete adapter registration and its helper go away. Do
+not carry a deleted backend merely to retain a three-line registration wrapper.
 
 Keep `unit/lib/store/{reference-*,ref-*,conformance-*,kinds/**,concurrency/**}` and shared identity, envelope, registry,
 serialization, conflict, provenance, receipt, observation, link, and lifecycle-contract tests. Keep the independent
@@ -984,6 +1089,12 @@ capabilities activate, keeping the independent locus-inspection scenario. Likewi
 switches; retain the bound sync/history/refusal behavior. A pre-flip dormancy expectation is not a native contract.
 
 ### Retire assertions about the deleted implementation
+
+Retire the import's suites with its transform, which the cutover's deletion pass removes with the in-repo
+implementation: the eighteen integration `store-ref-import-*` suites, `e2e/store-import-errands.e2e.test.ts`, and the
+`helpers/store/import-*.ts` fixtures only they use. Each reads its comparison source through the in-repo implementation,
+seeds notes or Errand identity refs, and drives `arc store migrate --import`, so none has a source to compare once the
+flip has run.
 
 Retire integration `store-in-repo-{fixture,fixture-sync,cohort-placement,errand-branches}`; `store-notes-*`;
 `store-transient{,-batches,-boundary,-history-order,-local-causes,-retry-acceptance,-version-retention}`;
@@ -1047,7 +1158,7 @@ backend imports survive; replace predicates naming the retiring implementation r
 boundary assertions. Preserve all suites outside the explicit retirement set unless their actual assertions target
 another deleted implementation.
 
-## Real-host owner probes — Task 18.4.a.1
+## Real-host owner probes
 
 The manual `ref-host-properties.ts` kit now uses production `createDefaultRefStorePorts` and `createRefStore` through
 `ref-host-backend.ts`, outside every test tier and CI job. The designated scratch repositories remain
@@ -1074,12 +1185,11 @@ English wording. A paired local bare Git receiver with `receive.advertiseAtomic=
 succeeds. This diagnostic comes from that local receiver, not from either HTTPS host, both of which advertise atomic.
 
 The current logins do not establish ordinary-member or read-only permissions, and no separate role profiles are
-configured. Policy/fork fixtures and Azure DevOps, Bitbucket, Gitea, and Forgejo runs remain open. Task 18.4 and the
-segment verifier remain incomplete. Raw evidence is retained under
-`.arc/user/andrew/.internal/storage-ref-backend-tools/task-18.4/`, including per-command stdout/stderr and
-`backend-results.json`; results never imply that unavailable setups passed.
+configured. Policy/fork fixtures and the Azure DevOps, Bitbucket, Gitea, and Forgejo runs follow in Real-host backend
+trials. Raw evidence is retained under `.arc/user/andrew/.internal/storage-ref-backend-tools/task-18.4/`, including
+per-command stdout/stderr and `backend-results.json`; results never imply that unavailable setups passed.
 
-## Errand import E2E source — Task 18.3.b
+## Errand import E2E source
 
 Dispatched run `39530714223` at `cdf5fa119` refused both `store-import-errands.e2e.test.ts` cases with
 `branch-missing`: their open legacy Errand declared `chore/example` without creating it. The independent integration
@@ -1088,7 +1198,7 @@ and repeat-import assertions. This corrects source setup and retains import's re
 missing branch. The failing hosted log is `/tmp/arc-storage-18-ci-e2e3.log`; the corrected focused run passed two cases
 in 12.29 seconds, retained in `/tmp/arc-storage-18.3-errand-e2e.log`.
 
-## Personal raw-tree fixture closure — Task 18.3.c
+## Personal raw-tree fixture closure
 
 The first dispatch exposed remaining fixtures that planted unsuffixed content or inspected an unsuffixed Git object
 path after A24. The raw fixtures in conflict labels, batch races, JSON prose diagnostics, pull history, historical
@@ -1103,7 +1213,7 @@ produce one aggregate result. Logs are `/tmp/arc-storage-18.3-personal-fixtures-
 `/tmp/arc-storage-18.3-personal-fixtures-closure.log`, and `/tmp/arc-storage-18.3-personal-pull-checks.log`; the first
 dispatch's shard logs remain `/tmp/arc-storage-18-ci-integration{1,3,4}.log`.
 
-## Join synchronization fixture — Task 18.3.d
+## Join synchronization fixture
 
 The dispatched join and identity-setup integration cases mocked `createStoreSyncPort`, but the current
 `bindStoreSyncPort` calls its own module-local implementation, so those mocks supplied neither designation nor the
@@ -1114,7 +1224,7 @@ Production binding and rendering execute normally. The registered-CLI, identity-
 passed eight cases in 33.81 seconds; `/tmp/arc-storage-18.3-join-final.log` retains the run, and
 `/tmp/arc-storage-18-ci-integration{2,3}.log` retain the prior failures.
 
-## Prepared fixture path encoding — Task 18.2.c
+## Prepared fixture path encoding
 
 The first dispatched Windows run stopped 1,067 separate-conformance cases during fixture copy because Git serializes
 backslashes doubled in `.git/config`. The copier searched only the literal template root or its forward-slash form.
@@ -1122,11 +1232,11 @@ A real `git config` probe reproduced that encoding, and a prepared remote with a
 reproduced the copy refusal locally. The copier now also recognizes Git's escaped spelling. Filesystem path assertions
 resolve the host's separator spelling rather than requiring one textual form.
 
-The regression failed before the helper change, then the complete prepared-repository suite passed eleven cases in
-6.67 seconds. Its independent-copy push reaches the copied bare remote and leaves the original repository's head
-separate. Windows itself remains unverified until a new dispatched run; these local results do not close its platform
-task. Logs are `/tmp/arc-storage-18.2-prepared-red.log`, `/tmp/arc-storage-18.2-prepared-green.log`, and the first
-Windows job's `/tmp/arc-storage-18-ci-windows.log`.
+The regression failed before the helper change, then the complete prepared-repository suite passed eleven cases in 6.67
+seconds. Its independent-copy push reaches the copied bare remote and leaves the original repository's head separate.
+These local results do not close the Windows platform task; later dispatches verify Windows. Logs are
+`/tmp/arc-storage-18.2-prepared-red.log`, `/tmp/arc-storage-18.2-prepared-green.log`, and the first Windows job's
+`/tmp/arc-storage-18-ci-windows.log`.
 
 ## Windows object batching
 
@@ -1148,8 +1258,8 @@ file writes, interrupted native writes, and mismatched returned identities: no r
 are removed, and a fresh retry succeeds. Their reconstruction against the original stage failed all three on the
 unexpected successful publication. The complete five-suite object-construction run passed 44 cases in 15.00 s,
 including manifests, archive retention, and separate bare repositories. Local proof logs remain under
-`/tmp/arc-storage-18.2-{write-batch-red,write-cleanup-red,object-suites}.log`. Windows timing still requires a new
-exact-head dispatch; no budget pass is claimed from this local evidence.
+`/tmp/arc-storage-18.2-{write-batch-red,write-cleanup-red,object-suites}.log`. No budget pass is claimed from this
+local evidence.
 
 ## Windows operation reader
 
@@ -1180,7 +1290,7 @@ then gained a native exit-status/diagnostic and successful-continuation case. Th
 including nine framing cases and dependency-free store construction. Proof logs use the
 `/tmp/arc-storage-18.2-reader-*` prefix. The process-cost fixture counts actual native process starts rather than
 raw-executor requests; its reduced UID-read expectations reflect that observed reduction. No Windows budget pass
-or hosted conformance-cost pass follows from these local checks; both remain open for a fresh dispatch.
+or hosted conformance-cost pass follows from these local checks.
 
 Related-unit feedback initially refused the new spawn site's absent command-input classification. Its declaration
 now records ARC-fed explicit stdin and an operation-scoped local object-acquisition boundary beside the existing
@@ -1285,7 +1395,7 @@ use `ArchiveQuarterSchema` after test typechecking identified their missing bran
 Raw request records, CPU profiles, the temporary diagnostic source, before/after source evidence, fail-first logs,
 and verification logs are retained machine-locally under
 `.arc/user/andrew/.internal/storage-ref-backend-tools/task-18.2-archive-acquisition/`. Temporary instrumentation was
-removed and the timing helper restored before final gate checks. A fresh dispatched Windows result is still required.
+removed and the timing helper restored before final gate checks.
 
 ## A25 — Retire the interim legacy ratio
 
@@ -1367,7 +1477,7 @@ The native configuration now places the burst file in `integration-bursts`, sepa
 burst overlap with ordinary workers, then proved both special workloads run once with disjoint intervals while
 ordinary workers still overlap. Supported integration/lane and cost selectors retain both projects, and portability
 retains all its files. No production deadline, sample count, numeric budget, acceptance assertion, or test timeout was
-changed. The final hosted rerun must establish the platform results; isolation is not a claim about their root cause.
+changed. Isolation is not a claim about their root cause.
 
 The full Windows log and measurement artifact are retained under `task-18.3-hosted/second-run-windows/` in the local
 storage-ref-backend proof directory. macOS's previously recorded conformance timeout remains a failed result too.
@@ -1397,8 +1507,9 @@ exercises the existing retry remedy without repeating that write, changing produ
 inbox/tip assertions. Raw logs, final job state, timings, and duration artifacts remain under
 `task-18.3-hosted/third-run/` in the machine-local storage-ref-backend tools directory.
 
-The earlier cost closure remains bound to its measured source. Task 18.2.g records fresh costs after the remaining
-platform corrections; the host policy, fork, and separate-role gaps remain blocking for the next session.
+The earlier cost closure remains bound to its measured source. Fresh costs after the remaining platform corrections
+are in Post-correction tier and hosted measurements; the host policy, fork, and separate-role gaps close in Real-host
+backend trials.
 
 ## Shared native tree acquisition
 
@@ -1414,7 +1525,7 @@ records, diagnostics, overflow splitting, conflicts, snapshots, archived acquisi
 This local resource reduction does not establish a Windows budget pass. Fail-first/native logs and the source diff
 are retained under `task-18.2-shared-tree-reader/` in the machine-local tools directory.
 
-### Bounded hosted timing diagnostics
+## Bounded hosted timing diagnostics
 
 `ci.yml` adds the opt-in `portability_timing_only` dispatch input, default false and subordinate to the existing
 `run_portability_pair` opt-in. The named diagnostic runs the exact operation-timing file with one worker; it does not
@@ -1425,7 +1536,7 @@ argv, exit codes, Git elapsed time, and the public write’s wall time, then ver
 The initial fixture used the read placement’s extra sequence field and was correctly refused; the probe now submits the
 ordinary completed-quarter mutation shape. The timing and existing CI contract cases passed together (42 cases).
 
-### Attempt-local immutable write acquisition
+## Attempt-local immutable write acquisition
 
 `write.ts::executeRefBatch` allocates positive object and complete-tree evidence after repository selection, replacing it
 when layout or owner resolution restarts. `batch-read.ts::readBatchObjects` reuses only successful immutable queries and
@@ -1441,7 +1552,7 @@ retention reconstruction incorrectly accepted that write in both layouts. The re
 focused native and CLI cases, including observations, new incoming refs, completed edits, reopen, locks, retirement,
 creation facts, write checks, anchors, bulk writes, and conflict remedies. Windows medians remain unverified for this head.
 
-### Bounded publication continuation
+## Bounded publication continuation
 
 `ref-publication.ts::publishAcceptedWrite` permits at most five public push calls after an already accepted write, keeping
 every result. Only recoverable `retries-exhausted` or `unreachable` with cause `timeout` qualify, and only with no notices,
@@ -1453,9 +1564,9 @@ Decision tests first exposed missing timeout/exhaustion continuation and its fin
 continued terminal/configuration/credential stops failed their preservation checks. Native witnesses advance the injected
 clock at the executor boundary to cancel the first publication, then publish that original write and verify the peer’s
 content, version, and tip after retry. One-call reconstruction failed both layouts. The restored helper, native witnesses,
-and all four full twenty-writer bursts passed together (12 cases); hosted Windows/macOS acceptance remains open.
+and all four full twenty-writer bursts passed together (12 cases).
 
-### Named archived acquisition
+## Named archived acquisition
 
 `reference-resolution.ts::resolveRefReadName` retains the selected archive folder after ordinary owner ranking. A matching
 lookup signature is an acquisition plan: `lookup-acquisition.ts::revalidateLookupAcquisition` fetches every captured root,
@@ -1470,9 +1581,9 @@ a hot named archived read in each layout. Removing an unrelated cached sibling s
 incorrectly returned success in both layouts. Existing cold-lookup process assertions were stale after shared root
 acquisition and are tightened from four to three (unchanged hot lookups remain one). The final 146-case native/CLI run
 passed across lookup tiers, current/former names, claims, linked refs, rename, read sources, project identity, namespace
-diagnostics, reader cleanup, conflict remedies, and the six-hundred-item timing workload. Windows acceptance is open.
+diagnostics, reader cleanup, conflict remedies, and the six-hundred-item timing workload.
 
-### Remaining writer acquisition reuse
+## Remaining writer acquisition reuse
 
 `repository.ts::writeRefRepository` optionally reports the initial capture only when `codeHoldsState` proves the selected
 code repository already stores state; `write.ts::executeRefBatch` carries that one selection view into
@@ -1492,7 +1603,7 @@ This is a process-count reduction, not evidence that the Windows numeric budgets
 The completed `deac253ae` diagnostic run also exposed stale cold-lookup and saved-listing-token process expectations.
 Those retain their complete record/token assertions and tighten to the reduced counts; no acceptance threshold is raised.
 
-### Platform coverage after acquisition corrections
+## Platform coverage after acquisition corrections
 
 `local-vitest-runner.ts::localVitestTierArguments` explicitly retains the new named-acquisition and public-publication
 boundaries in portability. Their native cases remain in the ordinary integration tier; the matching publication
@@ -1500,7 +1611,7 @@ decision tests run in the unit tier and also match portability’s filename sele
 first failed on the missing entries, then passed with the complete selection. Cutover preservation already covers every
 `integration/store-ref-*` suite and every test outside the explicitly retired implementation groups.
 
-### Hosted diagnostic and evidence identity
+## Hosted diagnostic and evidence identity
 
 Run `39554966301` tested `deac253ae`, before the later write and named-read reductions. Its Windows timing file completed
 in 93.57 seconds (99.23 seconds including native test startup), rather than the full conformance workload. Windows
@@ -1669,8 +1780,8 @@ revisit that premise and require settling its maintenance ordering. Aggregate ob
 under the existing batching requirement; these profiles do not establish that 600 ms is impossible. Raising the numeric
 target requires explicit amendment. No new target, reader design, or amendment is selected by this evidence record.
 
-Task 18.2.a.2 remains open for the Windows write limit, alongside the existing host policy, fork, and separate-role
-gaps. Task 18.7 has not run; this record closes only the independently passing burst evidence.
+This record closes only the independently passing burst evidence. The Windows write limit closes under A27, and the
+host policy, fork, and separate-role gaps under Real-host backend trials.
 
 ## Real-host backend trials
 
@@ -1755,12 +1866,10 @@ The unchanged 600-item, twelve-quarter fixture passed eleven local samples per o
 7.260/39.713/136.276/16.661/158.458 ms for version/read/list/lookup/write; separate medians were
 6.241/45.268/134.530/14.966/172.291 ms. These local clocks are diagnostic and do not establish Windows acceptance or
 exclude other local sessions' contention. Verified post-measurement native profiles used 19/default and 21/separate
-commands, down from 22/24: two metadata writes and the duplicate actor resolution no longer launch Git. The fixed
-Windows limits remain required and Task 18.2.a.2 stays open.
+commands, down from 22/24: two metadata writes and the duplicate actor resolution no longer launch Git.
 
 Fail-first output, final regression output, timings, and raw native profiles are retained in `task-18.2-final-metadata/`
-in the machine-local storage-ref-backend tools directory. The next hosted run must bind to the committed source and
-retain its diagnostic identity; it cannot stand in for a complete final portability run or the segment verifier.
+in the machine-local storage-ref-backend tools directory.
 
 Hosted timing diagnostic `39658301162` binds to `3d177714ff206582d9256cd6b198656f8ca8d3b4`, with
 `run_portability_pair: true` and `portability_timing_only: true`. Both platform timing artifacts retain eleven samples
@@ -1781,13 +1890,13 @@ macOS medians were 14.989/48.631/133.651/25.168/211.329 ms in the default layout
 `task-18.2-final-metadata/hosted/`; the wider Linux jobs from this dispatch are separate feedback, not evidence that
 the Windows write budget passed.
 
-### A26 — bounded readers during writes
+## A26 — bounded readers during writes
 
-The superseded § 11.7 premise stated: "A `write` over its budget batches its object writes instead, since its time
-goes to creating objects and updating refs, which no reader shortens". Hosted trace `39658301162` instead records
-five independent `cat-file --batch` launches in each write after final metadata batching. The fixed 600 ms write
-budget remains required. Reusing the existing reader addresses this measured acquisition cost; further batching may
-still be needed, and no local result substitutes for dispatched Windows acceptance.
+The superseded § 11.7 premise stated: "A `write` over its budget batches its object writes instead, since its time goes
+to creating objects and updating refs, which no reader shortens". Hosted trace `39658301162` instead records five
+independent `cat-file --batch` launches in each write after final metadata batching. The fixed 600 ms write budget
+remains required. Reusing the existing reader addresses this measured acquisition cost; no local result substitutes for
+dispatched Windows acceptance.
 
 `createRefReadCoordinator` already owns per-call readers and a maintenance barrier; `GitBatchReadScope.run` binds
 each process to its exact repository, environment, arguments, and output bound, serializes exchanges, and evicts a
@@ -1812,7 +1921,7 @@ The unchanged local timing fixture records 6.762/38.459/122.200/15.243/133.390 m
 in the default layout and 5.978/39.177/121.265/10.322/137.403 ms in the separate layout. Verified profiles use
 15/default and 17/separate processes, including one native object reader per write, down from the previous 19/21.
 These Linux diagnostics do not establish Windows acceptance. Evidence is retained under `task-18.2-write-reader/`
-in the machine-local storage-ref-backend tools directory; the dispatched timing check remains required.
+in the machine-local storage-ref-backend tools directory.
 
 An explicit `portability_timing_only` dispatch now selects classification, shared setup, and the two platform timing
 jobs alone. Previously that diagnostic also started every Linux tier and the Linux contention workload. The three
@@ -1839,7 +1948,7 @@ commands' clocks double-counts concurrent lifetimes. macOS timing medians were
 25.286/123.729/314.637/65.572/341.878 ms and 13.435/66.080/235.289/30.151/279.498 ms. Its diagnostic job passed;
 Windows's failed. Raw artifacts remain under `task-18.2-write-reader/hosted/` in the local tools directory.
 
-### Scoped check-view acquisition
+## Scoped check-view acquisition
 
 `checkMetaStage`, `checkMetaInboundHeld`, `checkFormerSlug`, and `checkSlugEdges` observe individual records through
 `createRefWriteViews` even when a completed edit does not change placement, slug, or dependencies. Previously those
@@ -1861,10 +1970,10 @@ completed writes, historical views, cohort closeout, and reader lifetime regress
 
 Local medians over the unchanged timing fixture were 6.974/39.602/126.872/16.043/116.041 ms in the default layout
 and 5.724/38.742/128.859/18.258/140.130 ms in the separate layout. The trace uses 14/default and 16/separate native
-processes. These remain Linux diagnostics; Windows acceptance is still open. Evidence lives in `task-18.2-check-point/`
+processes. These remain Linux diagnostics, not Windows acceptance. Evidence lives in `task-18.2-check-point/`
 in the machine-local tools directory.
 
-### Budget calibration
+## Budget calibration
 
 The original process-cost premise comes from `analysis-storage-concurrency-spike.md` § Windows-native checkout:
 Windows 11 build 26200, Node 22.17, Git for Windows 2.49, NTFS, and Defender enabled. Its `spawncost.mjs` uses
@@ -1880,8 +1989,8 @@ overlap-aware union; the remaining wall interval includes JavaScript, filesystem
 CPU. The persistent reader's native lifetime remains separate and must not be summed with overlapping commands.
 
 All new profiling and baseline calls run after the unchanged acceptance medians. They do not alter the workload,
-sample count, numeric limits, or failure assertions. One hosted run will ground the next budget judgment before
-another enumeration mechanism is implemented; no new numeric target is approved here.
+sample count, numeric limits, or failure assertions. One hosted run grounded the next budget judgment before any
+further enumeration mechanism; no numeric target changed at this step.
 
 Dispatch `39663125872` binds to `26eb84244c2933ae2fdf1eb02cf4faa58cb4abc1`. The bounded job graph ran classification,
 setup, and the platform pair; unrelated Linux jobs skipped. Windows failed its default-read assertion after retaining
@@ -1934,18 +2043,17 @@ material baseline variation. GitHub's [hosted runner reference](https://docs.git
 specifies machine resources, not a Git-operation latency guarantee; external research cannot settle this backend's
 numeric budget in place of native measurement.
 
-Recommendation, pending approval: retain the 100 ms version and 300 ms lookup limits; forward-amend read to 300 ms,
+Recommendation, approved as A27: retain the 100 ms version and 300 ms lookup limits; forward-amend read to 300 ms,
 list to 600 ms, and write to 1,500 ms. These round upward from the latest worst-layout medians with at least the 35%
 headroom already used for advisory test costs, while remaining explicit regression limits rather than a user-facing
 latency promise. That headroom is a proposed policy, not a statistically established stability guarantee from one
 calibration run. Retain the complete workload, correctness/resource regressions, and full dispatched portability
-acceptance. Do not implement another enumeration mechanism solely to pursue the uncalibrated limit. Until an
-approved forward amendment changes them, every original numeric limit remains required and 18.2.a.2 stays open.
+acceptance. Do not implement another enumeration mechanism solely to pursue the uncalibrated limit.
 
 Run metadata, complete raw samples and traces, the Windows failure log, and the derived interval summary are retained
 under `task-18.2-budget-calibration/` in the machine-local storage-ref-backend tools directory.
 
-### A27 — calibrated hosted Windows limits
+## A27 — calibrated hosted Windows limits
 
 The superseded § 11.6 premise read: "start costs about 30 ms on Windows against 1.3 ms on Linux." The superseded
 § 11.7 table required version ≤ 100 ms, read ≤ 150 ms, list/lookup ≤ 300 ms, and write ≤ 600 ms. The original local
@@ -1966,7 +2074,7 @@ unchanged-budget claims; the new criterion supersedes only those numeric obligat
 § 14.10's full-run requirement, A25's CI-cost obligations, and Task 18.7 continue to require the current budget without
 changing their outcomes. No Success Criteria checkbox changes before terminal verification.
 
-### Full-run harness corrections
+## Full-run harness corrections
 
 Full dispatch `39664555792`, source `ec617a92e5c58f02f105e9dfd78681288afc9228`, reports four failing cases in Linux
 integration shard 3: three authored CI-condition cases and one files-format snapshot control. Other Linux integration
@@ -1978,19 +2086,20 @@ diagnostic exclusion references. It now supplies an empty object for ordinary ev
 properties. The native classifier and authored job conditions still decide the expected light-content selections.
 The same three cases fail locally before this correction and pass afterward. No workflow selection changes here.
 
-`store-ref-snapshot.test.ts` previously passed separate `refs/arc/work/` and `refs/arc/cohort/` patterns to its files
-control's concurrent listing. In the hosted Git 2.55.0 run, enumeration reported duplicate refs with differing object
-IDs and exited 128 before the test could observe a torn listing. The control and final stable readback now list the
-single `refs/arc/` prefix, excluding `refs/arc/tmp/` so the reftable arm's saved manifest stays outside the records.
-This matches the single-iteration boundary used by the real version path. The native control must still return a
-partial or mixed listing, the stopped-writer readback must still contain all 4,096 refs at one tip, and the reftable
-arm must still produce 128 complete, uniform snapshots while writes advance. No exception is converted into success.
+`store-ref-snapshot.test.ts` lists the single `refs/arc/` prefix in its files control and final stable readback,
+excluding `refs/arc/tmp/` so the reftable arm's saved manifest stays outside the records; this matches the
+single-iteration boundary the real version path uses. The hosted Git 2.55.0 failure in this run, exit 128 with duplicate
+refs at differing object IDs, was first attributed to the control's two patterns. It was not their doing: Git refused
+the listing with `fatal: Duplicated ref, and SHA1s don't match`, and the same refusal recurred with one prefix on Git
+2.53.0 during verification (A28). The control counts that refusal as a tear beside partial and mixed listings; every
+other error, the stopped-writer readback of all 4,096 refs at one tip, and the reftable arm's 128 complete, uniform
+snapshots stay strict.
 
 Both corrected files pass all six cases locally on Git 2.55.0. The original hosted failure and before/after focused
 logs are retained in `task-18.2-a27-full/` and `task-18.2-ci-harness/` in the machine-local tools directory. These
 test-only corrections do not change the backend, workload, numeric budgets, or hosted acceptance requirements.
 
-### Complete calibrated portability acceptance
+## Complete calibrated portability acceptance
 
 Dispatch `39664555792` binds to `ec617a92e5c58f02f105e9dfd78681288afc9228`, with `run_portability_pair: true` and
 `portability_timing_only: false`. Both complete platform jobs pass. Windows completes 44 passing files and one
@@ -2018,13 +2127,13 @@ above. This is not a claim that every CI job passed. Follow-up dispatch `3967418
 the two harnesses and execution notes/task state: no backend source, timing limit, fixture population, measurement
 loop, or workflow changes. The reftable consistency assertions remain identical, and the files control now uses one
 iteration. This is the applicability basis for retaining the passing complete platform evidence without repeating
-the billed pair; the new Linux run is still required to confirm the harness fixes before segment closure.
+the billed pair; the Linux run below confirms the harness fixes.
 
 Run/job metadata, native logs, timing artifacts, traces, and duration inventories are retained under
 `task-18.2-a27-full/` in the machine-local storage-ref-backend tools directory. The thirty-second watcher detected the
 Windows completion before the follow-up dispatch; earlier failures remain preserved as failures.
 
-### Corrected Linux CI and advisory cost
+## Corrected Linux CI and advisory cost
 
 Dispatch `39674185052` passes at `a59b321c1e18f6fbf61ba89d69928499e45dd6a1`: build, both unit shards, lint/types, all
 four integration and E2E shards, Linux portability, and duration merging. Integration shard 3 contains both corrected
@@ -2048,7 +2157,7 @@ operation limits are independently satisfied by the complete platform run above.
 The complete follow-up run metadata, job-log archive, corrected shard log, and paired E2E duration inventories are
 retained in `task-18.2-a27-full/`. The watcher polled through completion rather than waiting for a status request.
 
-### Phase 18 exit scenario
+## Platform, host, and cost closure
 
 - Complete platform dispatch `39664555792` proves all twelve twenty-writer platform/case combinations, both layouts'
   calibrated Windows medians, full native platform selections, and the additional macOS suite. The bounded source
@@ -2065,10 +2174,10 @@ retained in `task-18.2-a27-full/`. The watcher polled through completion rather 
 - The cutover inventory names retained contract/native/consumer coverage, implementation-specific retirements,
   mixed-suite splits, dormancy cases, and fixture sequencing. These two corrections change no suite classification.
 
-This closes the phase's stated scenario and the A25/A26/A27 revalidation boundary. Success Criteria markers remain
-unchanged for terminal verification; Phase 19 has not begun.
+This closes the phase's stated scenario and the A25/A26/A27 revalidation boundary. Success Criteria are marked at
+terminal verification.
 
-### E2E cost investigation and follow-up disposition
+## E2E cost investigation and follow-up disposition
 
 The paired hosted E2E shard-1 artifacts above contain the same 33 files and 319 cases. The test step rises from
 4m48s to 7m53s without E2E, production, or workflow source changes between the tested heads. Its summed concurrent
@@ -2094,7 +2203,21 @@ its evidence, not an execution queue. The evaluation can separate setup cost fro
 fixture copies, and consider splitting persistent oversized files after observing refreshed scheduling. Coordinate
 with the cutover suite inventory above: preserve public consumer assertions and avoid investing in obsolete direct
 Errand-ref fixtures. No fixture, shard, test population, or budget changed during this investigation; the advisory
-overrun remains recorded and terminal verification remains a separate task.
+overrun remains recorded.
+
+## A28 — refused torn listings
+
+Under the files format, Git refuses a `for-each-ref` outright with `fatal: Duplicated ref, and SHA1s don't match` when
+one loose-ref directory read meets a ref twice at two values while a concurrent transaction rewrites it. The snapshot
+control met it on hosted Git 2.55.0 (dispatch `39664555792`) and on the check VM's Git 2.53.0 in the verification merge
+gate; four focused VM repeats after the control's correction passed, one of them through the counted refusal. Every
+observation comes from 4,096-ref transactions in a tight loop; the rate at the backend's ordinary writes of one to three
+refs is unmeasured.
+
+The backend's four state-ref listings retry that refusal alone, three attempts in all with no wait, and rethrow Git's
+error past them (spec § 4.3). The cap keeps the retry safe without relying on the refusal being transient. Git's own
+iteration inside `fetch` and `maintenance run` stays outside, where a refusal fails that call like any other Git
+failure.
 
 ## A29 — Per-change cost and selection of the store suites
 
@@ -2224,19 +2347,19 @@ prepared states carry the remaining 650 s or so.
 #### Restart sets
 
 Each set lists its boundaries, then the row standing for it. "Add" marks a row 18.R2.d writes, "18.R2.h" one that
-exposes a defect. "No row" marks a state 18.R2.h's hook after the source delete reaches whose rerun differs only by
-returning an empty report, and "unhooked" one no hook reaches. A pristine set holds no record, nothing published, and
-only leftovers the rerun clears, so a first run stands for it.
+exposes a defect, and "19.1" one the verification's review adds. "No row" marks a state 18.R2.h's hook after the source
+delete reaches whose rerun differs only by returning an empty report, and "unhooked" one no hook reaches. A pristine set
+holds no record, nothing published, and only leftovers the rerun clears, so a first run stands for it.
 
-- **Layout move out, from a setting:** {build, record} → `store-ref-layout-move`'s unrecorded-build cases (`:345`,
-  `:355`), re-pointed at the move out; {rename, the rename fault} → [separate, rename]; {designation, delete} →
-  [separate, designation], with the killed run's lock takeover (`:420` [separate]); {after the source delete} no row.
+- **Layout move out, from a setting:** {build, record} → `store-ref-layout-move`'s unrecorded-build cases (`:388`,
+  `:400`), re-pointed at the move out; {rename, the rename fault} → [separate, rename]; {designation, delete} →
+  [separate, designation], with the killed run's lock takeover (`:533`); {after the source delete} no row.
 - **Layout move out, no target:** {build, record} pristine; {rename} add; {delete} add; {after the source delete} →
   `store-ref-move-record`'s [remove].
-- **Layout move in, from a setting:** {build, record} → [default, record]; {the landing fault} → `:201` [default];
-  {designation, rename} → [default, designation], and `:279`'s `move-incomplete` from pull and push gains move-in rows
-  in place of `:420` [default]; {delete} → [default, delete]; {after the aside delete} no row.
-- **Layout move in, no target:** {build, record} pristine; {the landing fault} add; {rename} add; {delete} → `:383`;
+- **Layout move in, from a setting:** {build, record} → [default, record]; {the landing fault} → `:210` [default,
+  setting]; {designation, rename} → [default, designation], and `:292`'s `move-incomplete` from pull and push gains
+  move-in rows in place of the killed run's default case; {delete} → [default, delete]; {after the aside delete} no row.
+- **Layout move in, no target:** {build, record} pristine; {the landing fault} add; {rename} add; {delete} → `:493`;
   {after the aside delete} no row.
 - **Leaving the source, code to backing:** {copy} pristine; {copied, record} → [c2b, leave.copied]; {recorded,
   leave.switch, follow.switch, layout build, record, and rename} → [c2b, leave.recorded]; {layout.designation} → [c2b,
@@ -2250,7 +2373,7 @@ only leftovers the rerun clears, so a first run stands for it.
 - **Import, default layout:** {build} pristine; {land} → `store-ref-import-landing`'s [default, land]; {land with
   transient refs} → `store-ref-import-errands`' changed-lease case [default]; {publish} → [default, publish]; {publish
   with kept tips} → the errands' retained-lease case [default]; {a push fault after the state push} →
-  `store-ref-import-landing:47`, and with kept tips add; {remote-delete}, {drop-kept} → the errands' advanced-origin
+  `store-ref-import-landing:54`, and with kept tips add; {remote-delete}, {drop-kept} → the errands' advanced-origin
   case [default]; and {publish with kept tips} moved into the separate layout before its rerun → the errands'
   moved-layout case [default] (18.R2.h).
 - **Import, separate layout:** {build} pristine; {land} → [separate, land]; {land with transient refs} add;
@@ -2264,20 +2387,38 @@ only leftovers the rerun clears, so a first run stands for it.
   delete} → recopied; {deleted, finish} → deleted.
 - **Remote move, backing to code:** {copy}, {copied, forward}, {forwarded … layout.record} standing at layout.record,
   and {layout.designation} add; {layout.rename} and {layout.delete} → `store-ref-remote-restart:14`'s backing-to-code
-  rows; {switched … recopy} → `:94` [code]; {recopied, delete} and {deleted, finish} add.
+  rows; {switched … recopy} → `:104` [code]; {recopied, delete} and {deleted, finish} add.
 - **Remote move, backing to backing:** {copy}, {copied, forward}, and {forwarded, pointer, switch} standing at switch
-  add; {switched … recopy} → `:94` [backing]; {recopied, delete} and {deleted, finish} add.
+  add; {switched … recopy} → `:104` [backing]; {recopied, delete} and {deleted, finish} add.
 - **Follow, push, code to backing:** {copied, record} → copied, and add the same with nothing left to push; {recorded,
   follow.switch, layout build, record, and rename} → recorded; {layout.designation} → layout.designation;
-  {layout.delete} → layout.delete; {switched … follow.delete} → switched; {deleted … finish} → deleted. One recorded row
-  reruns with the answering command rather than `migrate`.
+  {layout.delete} → layout.delete; {switched … follow.recopy} → switched; {follow.recopied, follow.delete} →
+  follow.recopied (19.1); {deleted … finish} → deleted. The switched row reruns with the answering command rather than
+  `migrate`; the command finishes a recorded follow through the same resume, so that row stands for it at every
+  recorded boundary.
 - **Follow, push, backing to backing:** {copied, record}, {recorded, follow.switch}, and {deleted … finish} add;
-  {switched … follow.delete} → `store-ref-follow-races:97`.
+  {switched … follow.recopy} → `store-ref-follow-races:125`; {follow.recopied, follow.delete} → follow.recopied (19.1).
 - **Follow, push, backing to code:** {copied, record}, {recorded … layout.record}, {layout.designation},
-  {layout.rename}, {layout.delete}, {switched … follow.delete}, and {deleted … finish} add.
+  {layout.rename}, {layout.delete}, {switched … follow.recopy}, and {deleted … finish} add, the last at follow.finish.
+  Once the move back ends, the old backing repository holds nothing to clear unless a publication lands there late, so
+  {follow.recopied, follow.delete} stands at the other two push follows' follow.recopied rows, whose cleanup runs the
+  same code in either layout.
 - **Follow, read, code to backing** (`off` takes the same path with another role): {recorded … layout.rename},
   {layout.designation}, {layout.delete}, and {switched, finish} add.
 - **Follow, read, backing to backing:** {recorded, follow.switch} and {switched, finish} add.
+- **After a switch's layout source delete:** a remote move's or a follow's layout.deleted, code to backing and backing
+  to code, leaves the source's refs gone and the layout's gathering refs in place, which the switch's completion check
+  reads, so the rerun runs the switch again and finishes it with nothing left to delete. No row of these configurations
+  stands for it: `store-ref-leave-source-restart`'s layout.deleted rows run the same check and finish through the
+  follow's switch, and `store-ref-remote-undo`'s reach the remote move's check before its undo.
+- **After a record's removal** (`record.removed`): a remote move, a follow, leaving the source, and a recorded move's
+  ending each remove their record before clearing their gathering refs, which any later migrate clears before reading
+  anything → `store-ref-remote-restart:134`'s rows, a no-target run and a new move; a layout move removes its record
+  after clearing its gathering, so its state is the finished move's.
+- **Ending a recorded move by leaving the source:** {leave.withdraw}, the registry commit made but no ref holding it,
+  reads as the ending's start → `store-ref-leave-recorded`'s deleted-destination row, whose concurrent registry
+  publication there loses the withdrawal its lease and runs the round again, and its failed-withdrawal row's read-only
+  refusal; {leave.withdrawn} → the failed-withdrawal row, which pauses there and reruns.
 - **A remote move overtaken by a move back:** forwarded, switched, and delete keep their rows; copy, whose rerun
   continues and moves the state again, and copied add; inside the switch (A30), {switch, layout build, record, and
   rename}, the pointer changed and the layout not, → layout.rename, {layout.designation, layout.delete} →
@@ -2289,18 +2430,19 @@ only leftovers the rerun clears, so a first run stands for it.
   switch left reads as an end before the switch, whose rows stand; and the states between the undo's writes after the
   move back read as past it, since the pointer goes last.
 - **A follow overtaken by a move back** (A30): {follow.switch, layout build} ends as the stale follow does, its switch
-  not begun; {layout record and rename}, begun by the build and gathering refs they leave, → layout.rename,
-  {layout.designation, layout.delete} → layout.designation, and {layout.deleted} → layout.deleted, all 18.R2.h; its
-  undo's states as the remote move's, with their rows; and a follow answering `push` between two backing repositories
-  from one it read, overtaken after `configureBacking` repoints `backing` and before it sets that remote's role, the
-  undo returning `backing` to the source's URL and `read`, one 18.R2.h row on the `backing.repointed` hook 18.R2.h adds
-  between the two, since a code remote it read loses its role only to the `off` that completes the switch.
+  not begun, → `store-ref-follow-undo`'s paused-before-switch row (19.1); {layout record and rename}, begun by the build
+  and gathering refs they leave, → layout.rename, {layout.designation, layout.delete} → layout.designation, and
+  {layout.deleted} → layout.deleted, all 18.R2.h; its undo's states as the remote move's, with their rows; and a follow
+  answering `push` between two backing repositories from one it read, overtaken after `configureBacking` repoints
+  `backing` and before it sets that remote's role, the undo returning `backing` to the source's URL and `read`, one
+  18.R2.h row on the `backing.repointed` hook 18.R2.h adds between the two, since a code remote it read loses its role
+  only to the `off` that completes the switch.
 - **A recorded follow overtaken otherwise** (A30): its old remote's forwarding record replaced, and its new remote
   carrying another move's forwarding record, one 18.R2.h row each, at follow.recorded.
 - **A trial over a recorded move:** forwarded, switched, and overtaken keep their rows; a pre-forward record, at
   copied, and a switched move then overtaken add; and a move overtaken inside its switch, whose trial reports the undo,
   18.R2.h (A30).
-- **A move back interrupted** (`store-ref-remote-ended:33`): copy, copied, and forwarded keep their rows.
+- **A move back interrupted** (`store-ref-remote-ended:48`): copy, copied, and forwarded keep their rows.
 
 Measurement scripts and raw results, the per-file baseline, the layout dependency map, and the three value reviews among
 them, sit in the checkout's `.internal/storage-ref-backend-tools/verification/selection/`.
@@ -2614,9 +2756,9 @@ the other under the check machine's memory, selection precision for located cont
 and pull's Git processes per operation, and fixture sharing across the conformance files.
 
 **Sweep.** Criterion 35's "once per gate" holds, CI dividing the one run among shards. Criterion 36's whole separate
-suite still passes in a full dispatch, in one shard, and § 14.1's split default files keep any one file from bounding a
-shard. 18.R2's Goal, 18.R2.e, and the 18.7 verifier take `_Amended in:_ 18.R3 (A33)`; 18.R2.g's measurements stand, its
-rows leaving out the store shards, which 18.R3.b adds.
+suite still passes in a full dispatch, and § 14.1's split files keep any one file from bounding a shard, the separate
+layout's among them since A36. 18.R2's Goal, 18.R2.e, and the 18.7 verifier take `_Amended in:_ 18.R3 (A33)`; 18.R2.g's
+measurements stand, its rows leaving out the store shards, whose rows § Measured below records.
 
 ### Measured
 
@@ -2674,5 +2816,57 @@ a shard, while the separate registration declared only its per-change subset.
 Its whole run now takes the same ranges, records 1–6, reads 7–15, and sync 16–17, whose default files took 173, 249, and
 214 s in that run. Pull requests and the merge gate run the separate subset per change and are unaffected; the gain is
 the full run's, on every push to `main`, the weekly run, and a dispatch. Unrecorded files take the integration project's
-duration estimate until a full run saves theirs, so the first full run after the split may not balance as the next one
-will.
+duration estimate until a full run saves theirs, so the first full run after the split did not balance, and the next one
+did (§ A33, Measured).
+
+## Unreadable archive quarters
+
+While a quarter's tree cannot be read locally, or a quarter holds a folder whose metadata does not read — one whose
+metadata file names an ended item, or one with no metadata file, which could be any item's — the store treats that
+item's folders as unknown rather than absent. Its read, its history, a check view's read of it, and a write or batch
+touching it refuse `namespace-corrupt` naming the quarter. A pull holds a merge that would move its history with that
+notice, leaving the ref as it was until the quarter is repaired; a history the merge would leave in place, such as one
+a push's basis pull names because it is ahead of its remote, passes and pushes. Live items are unaffected, and a
+listing still reports the quarter as one `unreadable` diagnostic with its records missed (§ 3.1). The rule covers the
+state two published ends leave (§ 3.3): with one folder unreadable, serving or refreshing the other would hide a write
+once the quarter returns.
+
+A known limit remains. The pull's lifecycle decisions — pending ends, end withdrawal, the `ended-twice` notice, and
+pending archive histories — read local folders through `readLifecycleFolders`, which skips a quarter it cannot read.
+Two guards cover part of that: a pull holds the item refs of an unpublished local end a corrupt quarter hides
+(`readCorruptArchiveBatchRefs`), and the corrupt quarter's own merge refuses. A history the pull would find through such
+a quarter is not merged in that pull, so only the quarter's notice reports it. Whether every lifecycle decision is safe
+while a local quarter is corrupt has not been traced, and no § 14 case covers it.
+
+## Final-head portability pair
+
+Dispatch `40003927279` binds to `b516519caf0fd665f157dd3669907092165c4195`, the head after the verification review's
+fixes, with `run_portability_pair: true` and `portability_timing_only: false`, and every job passes. Windows completes
+44 passing files and one platform-skipped file, with 1,401 passing cases and 84 skips; macOS completes all 45 native
+files with 1,424 passing cases and 61 skips, then its additional 22-file suite with 185 passing cases. Linux
+portability completes the same 45 files with 1,424 passing cases and 61 skips. Each platform passes all four
+twenty-writer burst cases, twelve platform/case combinations in total. The native selection holds 1,485 cases, three
+fewer than at `ec617a92e`; dispatch `39897887406` at `3684ae2a3` holds the same 1,485, so the difference lies in the
+A29 work before the review, not in its fixes.
+
+| Platform/layout  | Version (ms) | Read (ms) | List (ms) | Lookup (ms) | Write (ms) |
+| ---------------- | ------------ | --------- | --------- | ----------- | ---------- |
+| Windows/default  | 66.030       | 146.309   | 298.289   | 114.950     | 814.483    |
+| Windows/separate | 43.916       | 124.174   | 279.661   | 91.293      | 822.006    |
+| macOS/default    | 28.718       | 75.376    | 235.441   | 32.245      | 284.360    |
+| macOS/separate   | 9.932        | 51.432    | 179.346   | 27.623      | 224.727    |
+
+All eleven-sample Windows medians satisfy A27's 100/300/600/300/1,500 ms limits over the 600-item, twelve-quarter
+population. Windows's job takes 43 minutes 27 seconds and macOS's 21 minutes 24 seconds.
+
+The same run makes the store suites' full run: all four shards pass, 43 files each. Both layouts' conformance files
+hold 435, 556, and 139 tests with 26, 33, and no skips, as in `39892668498`, and the separate subset holds 51. Build,
+both unit shards, lint and types, all four integration and E2E shards, and duration merging pass. Two jobs exceed their
+advisory CI-job rows, E2E shard 3 by 7.28 s and integration shard 2 by 49.15 s; neither changes a job result, and both
+rows are among those keyed to a shard index (A33).
+
+The earlier pair at `3684ae2a3`, dispatch `39897887406`, failed one Windows case: the separate layout's heaviest sync
+case took 30.1 s against the 30 s default timeout under the contention A36's three range files add on the four-vCPU
+runner. Its macOS and Linux jobs passed. That failure stays recorded as a failure; `0331ed4f5` then gave each
+conformance case a 90 s hang guard, and this run is the passing pair at the delivered head. Run metadata and job logs
+are retained under `verification/task-19.1/` in the machine-local storage-ref-backend tools directory.

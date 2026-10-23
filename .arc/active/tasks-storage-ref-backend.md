@@ -2320,153 +2320,177 @@ in `notes-storage-ref-backend.md` (A25).
 
 ## **Phase 19:** Verification
 
-### `[ ]` **19.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **19.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ the merge gate (`arc check gate merge --force`) at `b516519ca` passes 20 checks, with 3 CI-only
+  checks not selected; hosted dispatch `40003927279` at that head passes every job, the Windows/macOS pair and the
+  store suites' full run included. The criteria review's fixes landed with their exposing cases first and closed over
+  five fix-check rounds, the last with no findings (`notes-storage-ref-backend.md` § Final-head portability pair).
+- _Success criteria:_ 47 criteria: 43 met, three of them with Deviation notes (6, 9, 41), and 4 superseded (5 and 7
+  by A29, 11 by A25, 37 by A33).
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `Store` has `pull`, `push`, and `maintain` and no `sync`; the result types, the `state-unresolvable` refusal,
+- `[x]` `Store` has `pull`, `push`, and `maintain` and no `sync`; the result types, the `state-unresolvable` refusal,
   the cohort's archive placement, a companion's path key, `ReadOnlyStore`, and `RefHome` match the spec's contract
   changes; the hunk conflict record carries `baseVersion`, `currentLines`, and `incomingLines`, and `MergeTextInput` the
   base's version; and the contract specification's Amendments log carries one entry per amendment
 
-- `[ ]` The shared conformance suite passes over the ref backend in both layouts with no exclusion beyond the spec's
+- `[x]` The shared conformance suite passes over the ref backend in both layouts with no exclusion beyond the spec's
   named set, and over the in-repo and reference fixtures with the suite's changes
 
-- `[ ]` `checkSerializationRules` is exported from `lib/store/`, and each rule refuses at `write`, at `batch`, and in
+- `[x]` `checkSerializationRules` is exported from `lib/store/`, and each rule refuses at `write`, at `batch`, and in
   the import's build, with every case of § 14.4
 
-- `[ ]` A no-change `version` spawns one Git process; the manifest's in-process id equals Git's own write in both object
+- `[x]` A no-change `version` spawns one Git process; the manifest's in-process id equals Git's own write in both object
   formats; an anchor's manifest resolves on a fresh clone; and every case of § 14.3 passes
 
-- `[ ]` Every integration case of § 14.5 passes on every change, and the bursts pass with no lost write in one
+- `[~]` Every integration case of § 14.5 passes on every change, and the bursts pass with no lost write in one
   dispatched run of the Windows and macOS pair and one of the Linux portability job before this change lands
+    - **Superseded:** A29 replaced the every-change clause with criterion 40: every § 14.5 case runs on each change that
+      reaches it, and the bursts pass in one dispatched run of the Windows and macOS pair and one of the Linux
+      portability job.
 
-- `[ ]` Designation and read sources follow § 9.2 and § 9.6 in every case of § 14.6
+- `[x]` Designation and read sources follow § 9.2 and § 9.6 in every case of § 14.6
+    - **Deviation:** Three § 14.6 scenarios stand at rows that reach the same branches in another order: the
+      backing-setting refusal after `git remote rename`, beside a lone remote not named `origin`, and with
+      `remote.pushDefault` (`store-ref-remote-settings`, `store-ref-layout-move`); the TTY yes
+      (`store-remote-command.test.ts` into the `--own-state` setting's row); and a clone whose old backing is gone
+      (`store-ref-backing-repoint`, `e2e/store-backing-repoint.e2e.test.ts`).
 
-- `[ ]` Every case of § 14.7 passes: each move, interrupted after each step, completes on a rerun; the trial report of
+- `[~]` Every case of § 14.7 passes: each move, interrupted after each step, completes on a rerun; the trial report of
   each move that takes `--trial` matches it; and the import's comparison differs only by the transforms of § 10.9, its
   three entry kinds compared under § 14.1's test grammars, refusing for the review gate's facts while no mapping is in
   the port and landing a test mapping's records in place of what it was given; and a parked work unit lands paused and
   in flight, every branch link carrying `linkedAs` and `excluded` and every task capture its copy key
+    - **Superseded:** A29 replaced the after-each-step clause with criterion 41: each move and each follow is
+      interrupted at each distinct recovery state § 10.3 gives it.
 
-- `[ ]` The Git floor reads 2.47 at every listed site, a store failure an older Git explains names the version found
+- `[x]` The Git floor reads 2.47 at every listed site, a store failure an older Git explains names the version found
   and the floor, and the stdin and byte executor variants end a call on an aborted signal
 
-- `[ ]` A dispatched portability run passes and times every budgeted operation within its Windows budget
+- `[x]` A dispatched portability run passes and times every budgeted operation within its Windows budget
+    - **Deviation:** A27 replaced the numeric Windows budgets with calibrated limits; the delivered head's pair passes
+      within them (criterion 35).
 
-- `[ ]` The backend stays dark: `createStore` composes the in-repo implementation, nothing outside `lib/store/` imports
+- `[x]` The backend stays dark: `createStore` composes the in-repo implementation, nothing outside `lib/store/` imports
   `lib/store/ref/`, no production code calls `createRefStore` or `createReadSourceStore`, only the `arc store` handlers
   call `runStoreRemote` and `runStoreMigrate`, and `arc store` is absent from `arc --help`
 
-- `[ ]` Each layout's conformance run stays within 1.5 times the in-repo conformance's time on the same runner, and the
+- `[~]` Each layout's conformance run stays within 1.5 times the in-repo conformance's time on the same runner, and the
   test-cost rows the new files touch were baselined before they landed
+    - **Superseded:** A25 retired the 1.5-times ratio for complete hosted cost and workload reporting (criterion 33),
+      which carries the baseline-before-landing clause.
 
-- `[ ]` The host kit has run with GitHub and GitLab holding every check, and the other hosts' results, the pack-cost
+- `[x]` The host kit has run with GitHub and GitLab holding every check, and the other hosts' results, the pack-cost
   measurement, and the surviving suites are recorded in `notes-storage-ref-backend.md`
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
 
-- `[ ]` Review import rows preserve each Errand's original claim ID, and canonical file/folder source units account
+- `[x]` Review import rows preserve each Errand's original claim ID, and canonical file/folder source units account
   for every supplied source exactly once, with reused-slug joins and omission, repetition, and overlap repaired as
   § 14.7 requires (A2)
 
-- `[ ]` Valid Unicode and quote-bearing managed path keys list as records; a backslash-bearing entry lists as
+- `[x]` Valid Unicode and quote-bearing managed path keys list as records; a backslash-bearing entry lists as
   `malformed` under its exact original path beside every valid record (§ 11.6) (A3)
 
-- `[ ]` Ref-backend retirement checks observe prepared batch mutations before the automatic sweep: terminal lineage
+- `[x]` Ref-backend retirement checks observe prepared batch mutations before the automatic sweep: terminal lineage
   over held inbound entries refuses without changing state, and settling or explicitly removing those entries in that
   batch admits retirement with an empty final history tree (A4)
 
-- `[ ]` Verbatim companion paths over 2,040 total UTF-8 bytes store with segments up to 4,096 bytes; combined
+- `[x]` Verbatim companion paths over 2,040 total UTF-8 bytes store with segments up to 4,096 bytes; combined
   companion names retain the 2,040-byte bound at the pure guard and ref write/batch boundaries (A5)
 
-- `[ ]` Each lineage transition's format key includes its origin UID; reads, puts, and removals preserve other origins'
+- `[x]` Each lineage transition's format key includes its origin UID; reads, puts, and removals preserve other origins'
   formats and record versions in the same registry ref, including initial and newer-format cases (§ 3.3) (A6)
 
-- `[ ]` Removing project identity expires its UID-bearing handle with `identity-mismatch`; the UID-less handle
+- `[x]` Removing project identity expires its UID-bearing handle with `identity-mismatch`; the UID-less handle
   reports `not-found`, recreation succeeds, and shared removal conformance adds no fixture exclusion (§ 14.2) (A7)
 
-- `[ ]` Fixed role and reserved-storage paths refuse before I/O; generic companion aliases use the resolved owner,
+- `[x]` Fixed role and reserved-storage paths refuse before I/O; generic companion aliases use the resolved owner,
   preserving valid literal keys through older UID and former-name hints while true aliases refuse atomically and a
   corrected key succeeds through write and batch (§ 3.2, § 5.1) (A10)
 
-- `[ ]` Forward metadata repair restores current operations without inferring historical metadata; malformed ancestors
+- `[x]` Forward metadata repair restores current operations without inferring historical metadata; malformed ancestors
   still refuse explicitly, readable post-repair changes succeed, and restoring missing objects recovers exact historical
   queries (§ 3.3) (A11)
 
-- `[ ]` Empty state fetches complete without code negotiation, absent history patterns leave other refs
+- `[x]` Empty state fetches complete without code negotiation, absent history patterns leave other refs
   fetchable, and nested tracking refs remain usable negotiation tips (§ 6.2) (A13)
 
-- `[ ]` Failed fetches verify actual tracking updates: files and reftable lock failures report failed creates,
+- `[x]` Failed fetches verify actual tracking updates: files and reftable lock failures report failed creates,
   advances, and deletes as `tracking-update-failed`, including reftable success rows before transaction abort; other
   acquired refs apply, shared tracking advances cause no false rewrite, and release permits a clean pull (§ 6.3) (A15)
 
-- `[ ]` An ended-conflict notice's remedy inspects its exact retained conflict and explicitly discards it with
+- `[x]` An ended-conflict notice's remedy inspects its exact retained conflict and explicitly discards it with
   expected-version protection through the hidden store command; both layouts preserve retirement, unrelated retained
   records, lineage, and children, and missing-history retry and stale-basis refusal remain actionable (§ 14.13) (A16)
 
-- `[ ]` Partial-clone completeness checks do not cut off at tracking tips advanced by a failed check: after the
+- `[x]` Partial-clone completeness checks do not cut off at tracking tips advanced by a failed check: after the
   remote advances again, retry repairs the missing ancestor objects and passive historical reads succeed without
   fetching (§ 6.2, § 14.5) (A17)
 
-- `[ ]` Production-registry imports in both layouts serve `listInbox` for descriptions and inbound lists and
+- `[x]` Production-registry imports in both layouts serve `listInbox` for descriptions and inbound lists and
   `listErrandQueue` for queues; queue IDs match their personal inbox captures, valid ranks preserve file order, and
   keyless branch exclusions retain their repository and SHA (§ 10.9, § 14.7) (A18)
 
-- `[ ]` Review mapping receives each live selected Candidate's current content separately from committed versions,
+- `[x]` Review mapping receives each live selected Candidate's current content separately from committed versions,
   including newer uncommitted bytes, or null when absent; its plain tracked path is covered exactly once independently
   of `path@commit`, omitted and repeated coverage refuse through repair, and mapped current bytes survive (A20)
 
-- `[ ]` Exact UUID lineage lookup never falls back to names; current terminal names precede authenticated former
+- `[x]` Exact UUID lineage lookup never falls back to names; current terminal names precede authenticated former
   names and distinct generations refuse ambiguity. Private identity evidence survives retirement, sync, withdrawal,
   and known rename-chain import without terminal-history enumeration or changed UID-less direct operation authority
   (§ 3.3, § 8, § 10.9, § 14.7) (A21)
 
-- `[ ]` In both layouts, exact observation versions/conflict sets and every registered check hold through native
+- `[x]` In both layouts, exact observation versions/conflict sets and every registered check hold through native
   publication, including changed read-only evidence, new relevant refs, and sync publishers. Captured history,
   refusal rollback, repaired retry, and unrelated-write admission are proved through public Store behavior;
   observation-only records gain no published effect (§ 14.3.1) (A22)
 
-- `[ ]` Native proposed births and complete accepted-batch receipts meet § 5.7 and § 14.3.2 in both layouts:
+- `[x]` Native proposed births and complete accepted-batch receipts meet § 5.7 and § 14.3.2 in both layouts:
   backend allocation evidence binds exact primary creations; bounded history/changes preserve whole envelopes and
   reject visible corruption before grouping/omission, with repaired continuation and the stated lifecycle/sync/import
   policy; production admission closes A22 and A23 before the moving-remote segment verifier
 
-- `[ ]` All five personal content kinds retain logical keys, projection addresses, and public operation/import behavior
+- `[x]` All five personal content kinds retain logical keys, projection addresses, and public operation/import behavior
   under identity-suffixed stored basenames; aliases and logical file/folder collisions refuse atomically, and corrected
   keys succeed in both layouts without old-name compatibility (A24)
 
-- `[ ]` Complete conformance costs, completed-case populations, shards, and workload differences are recorded from one
+- `[x]` Complete conformance costs, completed-case populations, shards, and workload differences are recorded from one
   hosted dispatch; all required native cases remain, affected tier/job rows retain before baselines and receive final
   measurements and deltas, and Linux portability marginal cost is recorded. Raw execution excludes admission waits,
   job clocks are labeled, and Windows budgets remain required (§ 14.12; supersedes the legacy-ratio criterion) (A25)
 
-- `[ ]` Native `write` and `batch` in both layouts reuse only operation-owned, exactly bound object readers; all
+- `[x]` Native `write` and `batch` in both layouts reuse only operation-owned, exactly bound object readers; all
   success/refusal/error exits release them before return or maintenance, subsequent calls detect physical corruption
   and succeed after repair, and fresh namespace/observation admission remains atomic with unchanged Windows budgets
   (§ 11.7) (A26)
 
-- `[ ]` A complete dispatched portability pair passes with eleven-sample Windows medians over 600 work items across
+- `[x]` A complete dispatched portability pair passes with eleven-sample Windows medians over 600 work items across
   twelve quarters at or below 100/300/600/300/1,500 ms for version/read/list/lookup/write in both layouts, retaining
   all correctness and native resource coverage. Timing-only diagnostics do not close acceptance; these limits
   supersede the earlier numeric budget obligations, including the unchanged-budget clause in A26 (§ 11.7) (A27)
 
-- `[ ]` The tip read, sync's ref sets, fetch negotiation, and the ref-transaction helper's re-read each run a listing
+- `[x]` The tip read, sync's ref sets, fetch negotiation, and the ref-transaction helper's re-read each run a listing
   again when Git refuses it with `Duplicated ref, and SHA1s don't match`, at most three attempts in all, and rethrow
   Git's error unchanged past them or on any other failure (§ 4.3, § 11.1) (A28)
 
-- `[ ]` The store suites' summed per-file durations, hooks included, on the remote check machine at five workers in a
+- `[~]` The store suites' summed per-file durations, hooks included, on the remote check machine at five workers in a
   merge-gate run whose store check is asked to select every store suite in its per-change form, are at most half the
   2,633 s the integration tier's pool measured at `212f6432e`; prepared states, layout assignment, and removals follow
   § 14.14, no case that was a criterion's last evidence is gone, and the tier and CI-job rows are re-measured after that
   work and updated to the measured figures, the notes separating relocation from reduction and keeping the A25 figures
   as history (§ 14.12, § 14.14) (A29)
+    - **Superseded:** A33 replaced the halved-cost clause with criterion 46: per change the store suites' summed time
+      fell 30%, to 1,840 s against 2,633 s, and the tier and CI-job rows were re-measured; the removals and layout
+      assignment follow § 14.14, each removed case's cover gaining its assertion first.
 
-- `[ ]` The merge gate and pull-request CI run the store check once per gate, and it runs each store suite a change
+- `[x]` The merge gate and pull-request CI run the store check once per gate, and it runs each store suite a change
   reaches through its import closure, a file its code locates from its own path, a declared locating module's finds, or
   a widening input, deletions included, and reports the suites selected; a change reaching none passes with that report,
   a failed or empty reach computation or a location-relative path the runner cannot place fails, and every push to
@@ -2475,27 +2499,34 @@ in `notes-storage-ref-backend.md` (A25).
   the portability tier's pull-request run leaves them to the store check and its scheduled and dispatched runs keep them
   whole (§ 14.14) (A29)
 
-- `[ ]` The separate registration declares a subset holding one case for each operation path through the layout's
+- `[x]` The separate registration declares a subset holding one case for each operation path through the layout's
   selection and binding, run on every change that reaches it; the whole separate suite passes in one hosted dispatch
   before this change lands with no exclusion beyond § 14.1's; and the default run spans files split by item range, every
   declared exclusion checked against the whole registration (§ 14.1) (A29)
 
-- `[ ]` Every integration case of § 14.5 passes on every change that reaches it (§ 14.14), and the bursts pass with no
+- `[x]` Every integration case of § 14.5 passes on every change that reaches it (§ 14.14), and the bursts pass with no
   lost write in one dispatched run of the Windows and macOS pair and one of the Linux portability job before this change
   lands; supersedes the every-change criterion (§ 14.5) (A29)
 
-- `[ ]` Every case of § 14.7 passes: each move and each follow, interrupted at each distinct recovery state § 10.3 gives
+- `[x]` Every case of § 14.7 passes: each move and each follow, interrupted at each distinct recovery state § 10.3 gives
   it, what the interrupted run left on the machine counted and each one's sets recorded in
   `notes-storage-ref-backend.md`, completes on a rerun; the trial report of each move that takes `--trial` matches it;
   and the import's comparison differs only by the transforms of § 10.9, its three entry kinds compared under § 14.1's
   test grammars, refusing for the review gate's facts while no mapping is in the port and landing a test mapping's
   records in place of what it was given; and a parked work unit lands paused and in flight, every branch link carrying
   `linkedAs` and `excluded` and every task capture its copy key; supersedes the after-each-step criterion (§ 14.7) (A29)
+    - **Deviation:** § 14.7 scenarios whose branches existing rows already reach in another order stand at those rows:
+      consecutive moves (`store-ref-follow-candidates`, `store-ref-follow`), a layout move beside a second worktree's
+      sync (`store-ref-follow-worktree`, `store-ref-layout-move`), a follower carrying `push` on a fork's upstream
+      (`store-ref-remote-settings`, `store-ref-follow-races`, `store-ref-follow-candidates`, `store-ref-leave-source`),
+      the no-pointer refusal for the read and fork-upstream followers (`store-ref-follow-candidates`), a setting while a
+      move in stands aside (`store-ref-layout-move`, `store-ref-remote-settings`), and three restart sets recorded in
+      `notes-storage-ref-backend.md`.
 
-- `[ ]` Each public ref-store operation, its nested pulls included, resolves the identity at most once, and the next
+- `[x]` Each public ref-store operation, its nested pulls included, resolves the identity at most once, and the next
   operation resolves it again (§ 1.2) (A29)
 
-- `[ ]` A remote move from the code remote to a backing repository and a follow answering `push` from the code remote
+- `[x]` A remote move from the code remote to a backing repository and a follow answering `push` from the code remote
   carrying `push` to a backing repository, each interrupted at each recovery state inside its switch or inside the undo
   of one and overtaken by a move back before its rerun, end with the source carrying `push` and no `backing` remote, the
   source's layout, no `refs/arc/tmp/migrate/` ref or migration directory left, `pull` reporting neither
@@ -2506,18 +2537,18 @@ in `notes-storage-ref-backend.md` (A25).
   again; and a recorded follow whose old remote's forwarding record another move replaced, or whose new remote carries
   another move's forwarding record, ends on its rerun, its record going, rather than refusing (§ 10.3, § 10.6) (A30)
 
-- `[ ]` While a move into the code repository's refs renames the store directory aside and removes it, a push holding
+- `[x]` While a move into the code repository's refs renames the store directory aside and removes it, a push holding
   its listing's ref locks, a pull holding its merge's, a write holding its batch's, and a read, `maintain`, and
   `arc store remote`'s view already bound to the directory each complete against the default layout without throwing:
   the push publishes nothing to the old state remote, the pull's merge lands in the code repository's refs, the write
   lands there, readable after the move, the read returns the record's content, `maintain` its measurements, and the view
   the default layout with the roles the move set (§ 11.4) (A31)
 
-- `[ ]` A layout move interrupted inside its switch, rerun with no target once a follow has become due, returns the
+- `[x]` A layout move interrupted inside its switch, rerun with no target once a follow has become due, returns the
   layout move's report rather than the follow's question, and the next no-target run asks the follow; a remote move
   another move overtook returns its report naming each ref it leaves and the next run to follow (§ 10.1, § 10.3) (A32)
 
-- `[ ]` A change reaching no store suite runs none at the merge gate or on a pull request, its store check passing on the
+- `[x]` A change reaching no store suite runs none at the merge gate or on a pull request, its store check passing on the
   reach computation alone; on a pull request the store job runs across four shards, the integration job's count,
   balanced by the same duration data, and one dispatched run asking for the per-change form records each shard's job
   clock and summed file time beside the integration shards'; the per-change summed file time is recorded as § 14.14
@@ -2526,6 +2557,6 @@ in `notes-storage-ref-backend.md` (A25).
   figures as history; and the starting states § 14.14 names build once per file, a case run against a copy proving what
   it proved against a fresh build; supersedes the halved-cost criterion (§ 14.12, § 14.14) (A33)
 
-- `[ ]` In every full run the separate layout's whole suite spans files split by the default run's item ranges, together
+- `[x]` In every full run the separate layout's whole suite spans files split by the default run's item ranges, together
   running every case of its registration once with each declared exclusion checked against the whole registration, and
   the store shards' CI-job rows come from a dispatched full run made after that split (§ 14.1, § 14.12) (A36)

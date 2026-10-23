@@ -11,13 +11,14 @@
 - **Design:** `spec-storage-ref-backend.md`
 - **Task List:** `tasks-storage-ref-backend.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:5facc56cca5a86554f34768ee992cafc6b6dfab260ce840dd85494d97cd5213d`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 18.7 — Hosts, platforms, and cost (phases 15–18 complete)
-- **Next Task:** Task 19.1 — Complete verification (line ~2103)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 19.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Fresh session: load `verify-work-unit.md` for the authorized Task 19.1 verification.
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]
