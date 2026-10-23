@@ -79,6 +79,11 @@ including `work-item-relations`, retain their scopes and order.
   read through by `storage-seam`'s rerouted readers.
 - **The import:** built by `storage-ref-backend`; run by `storage-cutover`.
 
+A shipped member's spec records what that member built and is not amended. A later member whose design changes one of
+the storage contract's decisions describes what it builds in its own spec, and the change is recorded in this section:
+dated, naming the member, and stating the decision as it now stands. `storage-seam` records changes to its own shared
+decisions the same way, in `cohort-storage-seam.md` § Shared contracts.
+
 ### Soft coordination
 
 - **Landing.** Every program work unit lands single-branch with chunked review until the program completes. A work
