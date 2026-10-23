@@ -40,10 +40,15 @@ export function createRefBackendContext(ports: RefStorePorts): RefBackendContext
   return {
     ...ports, registry,
     exec: withGitVersionFloor(ports.exec, async (command, _args, options?: GitExecOptions) =>
-      (await ports.exec(command, ["--version"], options)).stdout),
+      (await ports.exec(command, ["--version"], probeControls(options))).stdout),
     execInput: withGitVersionFloor(ports.execInput,
-      async (_args, _input, options?: Parameters<GitExecInput>[2]) => ports.execInput(["--version"], "", options)),
+      async (_args, _input, options?: Parameters<GitExecInput>[2]) => ports.execInput(["--version"], "", probeControls(options))),
     rawExec: withGitVersionFloor(ports.rawExec, async (_args, options?: Parameters<RawGitExec>[1]) =>
-      new TextDecoder().decode((await ports.rawExec(["--version"], { ...options, input: undefined })).stdout)),
+      new TextDecoder().decode((await ports.rawExec(["--version"], probeControls(options))).stdout)),
   };
+}
+
+/** The failing call's directory and cancellation alone: its object-access guard is an option an older Git rejects. */
+function probeControls(options?: { cwd?: string; signal?: AbortSignal }): { cwd?: string; signal?: AbortSignal } {
+  return { cwd: options?.cwd, signal: options?.signal };
 }
