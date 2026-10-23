@@ -1,5 +1,5 @@
 /** Suites run by reach: what a change reaches, which form a run takes, and what each tier leaves to the reach check. */
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { load } from "js-yaml";
 import { describe, expect, it } from "vitest";
@@ -193,6 +193,15 @@ describe("the store check's declaration", () => {
       resolve(repositoryRoot, "packages/arc-framework/__tests__/reach/store-suites.json"), "utf8")));
     const checks = CheckDeclarationSchema.parse(load(await readFile(resolve(repositoryRoot, reach.check.declaration), "utf8")));
     expect(checks.checks[reach.check.id]).toMatchObject({ gate: "merge", mode: "files", widen: false, pass_paths: false });
+  });
+
+  it("leaves every file of the separate layout's whole run, and only those, to a full run", async () => {
+    const reach = ReachDeclarationSchema.parse(JSON.parse(await readFile(
+      resolve(repositoryRoot, "packages/arc-framework/__tests__/reach/store-suites.json"), "utf8")));
+    const directory = "packages/arc-framework/__tests__/integration";
+    const files = (await readdir(resolve(repositoryRoot, directory))).map(name => `${directory}/${name}`);
+    expect(files.filter(file => reach.fullOnly.some(glob => globPattern(glob).test(file))).sort()).toEqual(
+      ["reads", "records", "sync"].map(range => `${directory}/store-ref-separate-conformance-${range}.test.ts`));
   });
 
   it("forecasts four CI shards, each handing its shard to the runner, while a local run stays one", async () => {

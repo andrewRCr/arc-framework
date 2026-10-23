@@ -243,7 +243,9 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "store-ref-named-acquisition.test.ts",
         "store-ref-publication.test.ts",
         "git-batch-reader.test.ts",
-        "store-ref-separate-conformance.test.ts",
+        "store-ref-separate-conformance-records.test.ts",
+        "store-ref-separate-conformance-reads.test.ts",
+        "store-ref-separate-conformance-sync.test.ts",
         "store-ref-timing.test.ts",
         "store-ref-timing-isolation.test.ts",
       ];

@@ -132,8 +132,11 @@ export async function createRefFixture(registryOverrides: Partial<Record<KindId,
   return fixture;
 }
 
+/** The item range each file of a layout's whole run takes. */
+const wholeRunRanges = { records: [1, 6], reads: [7, 15], sync: [16, 17] } as const;
+
 export const refRegistration: ConformanceRegistration = { declarations: refDeclarations, create: createRefFixture,
-  runs: { ranges: { records: [1, 6], reads: [7, 15], sync: [16, 17] } } };
+  runs: { ranges: wholeRunRanges } };
 
 export const separateRefRegistration: ConformanceRegistration = { declarations: refDeclarations, create: (overrides) => createRefFixture(overrides, "separate"),
-  runs: { subset: separatePerChangeSubset } };
+  runs: { subset: separatePerChangeSubset, ranges: wholeRunRanges } };

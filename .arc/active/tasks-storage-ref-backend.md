@@ -2286,10 +2286,11 @@ in `notes-storage-ref-backend.md` (A25).
           `reach-check-shards.test.ts` proves the partition, the empty shard, and no suite in any shard for a change
           reaching none; `vitest-reach.test.ts` proves the forecast's shards and the local run's one invocation.
 
-    - `[ ]` **18.R3.R The separate layout's whole run by item range — § 14.1 (A36)**
-        - The separate registration declares the default registration's item ranges beside its per-change subset, and
-          `store-ref-separate-conformance-{records,reads,sync}.test.ts` replace the one whole-suite file, each running
-          one range; the reach declaration's full-only suites and the portability tier's file list name the three.
+    - `[x]` **18.R3.R The separate layout's whole run by item range — § 14.1 (A36)**
+        - Both ref registrations take one set of item ranges (`ref-fixture.ts`), the separate one beside its per-change
+          subset, and `store-ref-separate-conformance-{records,reads,sync}.test.ts` replace the one whole-suite file
+          with 435, 556, and 139 cases, the default files' counts. `store-suites.json`'s full-only suites and the
+          portability tier's list name the three; `vitest-reach.test.ts` checks the full-only suites against the files.
 
     - `[ ]` **18.R3.b Measure and record under A33 — § 14.12, § 14.14**
         - Run the store check over a change that reaches no store suite; dispatch one run asking for the per-change form
