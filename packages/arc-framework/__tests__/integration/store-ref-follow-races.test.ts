@@ -7,7 +7,8 @@ import { createRemoteMover, personal, provenance } from "../helpers/store/remote
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 import { success } from "../helpers/store/suite-tools.js";
-import { createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { createKindRegistry, createRefStore, RecordReferenceSchema, type WriteCheck } from "../../src/lib/store/index.js";
+import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
 import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 
@@ -93,20 +94,28 @@ it.each(["before", "during"] as const)("ends recorded follow cleanup after a mov
   expect(success(await follower.store.pull()).states).toEqual([]);
 }, 60_000);
 
-it("merges a late source ref with a follower's independent publication on the new remote", async () => {
+it("merges a late source ref with a follower's independent publication on the new remote, reporting a broken rule", async () => {
   const h = await lateFollowFixture(false), follower = h.follower;
+  const own = RecordReferenceSchema.parse({ ...personal, owner: { type: "person", name: "beth" }, key: "new-remote.md" });
+  const registry = createKindRegistry(PRODUCTION_REGISTRATIONS);
+  const check: WriteCheck = async ({ reference, next, before }) =>
+    reference.key === h.late.key && next?.content === "Prepared late publication.\n" && (await before.read({ reference: own })).status === "ok"
+      ? [{ rule: "clear.merged", condition: "The merged copy needs correction.", remedy: { text: "Review the merged copy." } }] : [];
   const result = (await invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: { ...follower.ports,
+    registry: { ...registry, "personal/document": { ...registry["personal/document"], check } },
     migrateStep: async step => {
       if (step !== "follow.switched") return;
       await h.landLate();
       const peer = await createRemoteMover(h, h.destinationDirectory, "destination-writer");
       const beth = createRefStore({ ...peer.ports, identity: async () => SlugSchema.parse("beth") });
-      const own = RecordReferenceSchema.parse({ ...personal, owner: { type: "person", name: "beth" }, key: "new-remote.md" });
       success(await beth.write({ action: "put", reference: own, expected: null, content: "New remote publication.\n", provenance }));
       success(await beth.push());
     },
   } })).result;
   expect(result.status, JSON.stringify(result)).toBe("ok");
+  expect(result).toMatchObject({ result: { report: { notices: expect.arrayContaining([
+    { condition: expect.stringContaining("clear.merged"), remedy: { text: "Review the merged copy." } },
+  ]) } } });
   for (const text of ["Prepared late publication.", "New remote publication."]) {
     expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "grep", "-F", text, "refs/arc/user/beth/personal"])).stdout).toContain(text);
   }

@@ -55,6 +55,9 @@ it.each(["write", "archive", "abandon"] as const)("follows over the mover's aban
   const follower = await bindFollower(h);
   const followed = (await invokeStoreRemote(["backing", "push", "--json"], { cwd: h.b.root, ports: follower.ports })).result;
   expect(followed.status, JSON.stringify(followed)).toBe("ok");
+  if (mode !== "write") expect(followed).toMatchObject({ result: { report: { notices: expect.arrayContaining([
+    expect.objectContaining({ condition: expect.stringMatching(/withdraw/iu) }),
+  ]) } } });
   expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname)", live, history])).stdout.trim()).toBe(history);
   success(await follower.store.pull({ history: [history] }));
   const lineage = RecordReferenceSchema.parse({ kind: "lineage/transition", owner });
