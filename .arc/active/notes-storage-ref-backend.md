@@ -2617,3 +2617,17 @@ and pull's Git processes per operation, and fixture sharing across the conforman
 suite still passes in a full dispatch, in one shard, and § 14.1's split default files keep any one file from bounding a
 shard. 18.R2's Goal, 18.R2.e, and the 18.7 verifier take `_Amended in:_ 18.R3 (A33)`; 18.R2.g's measurements stand, its
 rows leaving out the store shards, which 18.R3.b adds.
+
+## A36 — The separate layout's whole run by item range
+
+In dispatch `39888971367` at `7b5b5fac6`, A33's full run, each store shard summed 1,068–1,216 s of file time, but
+`store-ref-separate-conformance.test.ts`, the separate layout's whole suite in one file, took 698 s of its shard's 703 s
+of Vitest wall time, so store-1's job clock read 725 s against 411–456 s for the other store shards and 242–403 s for
+the integration shards. A file runs on one worker. § 14.1 split the default run by item range so that no one file bounds
+a shard, while the separate registration declared only its per-change subset.
+
+Its whole run now takes the same ranges, records 1–6, reads 7–15, and sync 16–17, whose default files took 173, 249, and
+214 s in that run. Pull requests and the merge gate run the separate subset per change and are unaffected; the gain is
+the full run's, on every push to `main`, the weekly run, and a dispatch. Unrecorded files take the integration project's
+duration estimate until a full run saves theirs, so the first full run after the split may not balance as the next one
+will.

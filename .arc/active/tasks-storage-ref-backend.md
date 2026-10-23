@@ -2200,6 +2200,7 @@ in `notes-storage-ref-backend.md` (A25).
           `store-ref-separate-conformance.test.ts` keeps the whole suite. The default run splits into
           `store-ref-conformance-{records,reads,sync}.test.ts` (items 1–6, 7–15, 16–17, about 60, 69, and 69 s of the
           197 s file), whose cases together equal the whole registration's 1,068.
+        - _Amended in:_ 18.R3.R (A36)
 
     - `[x]` **18.R2.c The verified cut set — § 14.14**
         - The value reviews' candidates, the layout map's, and every case the reviews kept in both layouts were checked
@@ -2284,6 +2285,11 @@ in `notes-storage-ref-backend.md` (A25).
           `store-4`; its `store_per_change` dispatch input asks for the per-change form, a run that saves no durations.
           `reach-check-shards.test.ts` proves the partition, the empty shard, and no suite in any shard for a change
           reaching none; `vitest-reach.test.ts` proves the forecast's shards and the local run's one invocation.
+
+    - `[ ]` **18.R3.R The separate layout's whole run by item range — § 14.1 (A36)**
+        - The separate registration declares the default registration's item ranges beside its per-change subset, and
+          `store-ref-separate-conformance-{records,reads,sync}.test.ts` replace the one whole-suite file, each running
+          one range; the reach declaration's full-only suites and the portability tier's file list name the three.
 
     - `[ ]` **18.R3.b Measure and record under A33 — § 14.12, § 14.14**
         - Run the store check over a change that reaches no store suite; dispatch one run asking for the per-change form
@@ -2513,3 +2519,7 @@ in `notes-storage-ref-backend.md` (A25).
   re-measured and updated to the measured figures, the notes separating relocation from reduction and keeping the A25
   figures as history; and the starting states § 14.14 names build once per file, a case run against a copy proving what
   it proved against a fresh build; supersedes the halved-cost criterion (§ 14.12, § 14.14) (A33)
+
+- `[ ]` In every full run the separate layout's whole suite spans files split by the default run's item ranges, together
+  running every case of its registration once with each declared exclusion checked against the whole registration, and
+  the store shards' CI-job rows come from a dispatched full run made after that split (§ 14.1, § 14.12) (A36)

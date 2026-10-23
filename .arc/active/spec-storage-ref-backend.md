@@ -3342,10 +3342,11 @@ selection and binding: `readRefRepository` and `writeRefRepository` (`lib/store/
 repository for each operation attempt, and `bindRefRepository` (`lib/store/ref/repository-context.ts`) prefixes the
 calls made against it, while designation, transport targets, carry, and the code repository's identity read the code
 repository by design; none of that code keys on a kind, content, or ref name, so no case needs a particular one to reach
-layout code. The registration declares the subset and each default file's item range, and checks every declared
-exclusion against the whole registration's cases rather than the cases one file runs (`validateUsedAssertionExclusions`,
-`__tests__/helpers/store/suite-tools.ts`), so no case is chosen by a name filter, and the default run splits across
-files by item range, so no one file bounds a shard (A29).
+layout code. The registrations declare the subset and the item ranges a whole run splits across files by, and check
+every declared exclusion against the whole registration's cases rather than the cases one file runs
+(`validateUsedAssertionExclusions`, `__tests__/helpers/store/suite-tools.ts`), so no case is chosen by a name filter;
+the default layout's whole run on every change that reaches it and the separate layout's in every full run each span
+files by those ranges, so no one file bounds a shard (A29) (A36).
 
 - **Families:** every family but `project-machinery` and `constitution`, which stay tracked in the standard profile
   (`profiles`, `FAMILY_REGISTRY`). The three reserved families have no kinds yet and list absent.
@@ -4692,5 +4693,8 @@ open:
 
 - **A35** — 2026-10-22 — task: a write that leaves its primary ended holds no live slug claim. _Supersedes:_ none.
   _Trigger:_ 18.R3.b must-stop. _Work:_ 5.R3. _Revalidated:_ pending → 19.1.
+
+- **A36** — 2026-10-22 — spec-depth: the separate layout's whole run spans files by the default run's item ranges.
+  _Supersedes:_ none. _Trigger:_ 18.R3.b must-stop. _Work:_ 18.R3.R. _Revalidated:_ pending → 18.R3.b.
 
 ---
