@@ -28,6 +28,8 @@ export function hasUnsafeStoredPath(reference: RecordReference): boolean {
     || reference.kind === "work-item/companion" && typeof key === "string" && !isSlugSafe(key);
   if (Buffer.byteLength(reference.owner.name) > 2_040
     || (!verbatim && key !== undefined && Buffer.byteLength(key) > 2_040)) return true;
+  // A personal document's stored file name carries its person's suffix; the working copy writes it under its own key.
+  if (reference.kind === "personal/document" && key?.split("/").some(gitSpecialSegment)) return true;
   if (!KIND_REGISTRY[reference.kind].ref) return false;
   const owner = reference.owner;
   const resolved = owner.type !== "person" && owner.uid === undefined

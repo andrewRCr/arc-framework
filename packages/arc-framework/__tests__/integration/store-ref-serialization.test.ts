@@ -15,6 +15,7 @@ const cases = [
   { rule: "store.private-key", reference: document("key.md"), content: "-----BEGIN PRIVATE KEY-----\nsecret\n-----END PRIVATE KEY-----",
     repaired: document("key.md"), fixed: "-----BEGIN PRIVATE KEY-----\nunmatched header" },
   { rule: "store.git-path", reference: document("scratch/.git/config"), content: "text", repaired: document("scratch/.github/config"), fixed: "text" },
+  { rule: "store.git-path", reference: document("scratch/.GitAttributes"), content: "text", repaired: document("scratch/.gitattributes.md"), fixed: "text" },
   { rule: "store.json", reference: counter("json"), content: "not JSON", repaired: counter("json"), fixed: ' { "value": "e\\u0301" }\n' },
 ];
 

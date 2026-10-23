@@ -13,6 +13,7 @@ const cases = [
   { rule: "store.size-cap", path: ".arc/active/extra-alpha.md", content: "x".repeat(1048577) },
   { rule: "store.private-key", path: ".arc/active/extra-alpha.md", content: "-----BEGIN PRIVATE KEY-----\nexample\n-----END PRIVATE KEY-----\n" },
   { rule: "store.git-path", path: ".arc/user/andrew/git~1/example.md", content: "example\n", repairPath: ".arc/user/andrew/notes/example.md" },
+  { rule: "store.git-path", path: ".arc/user/andrew/notes/.gitmodules", content: "example\n", repairPath: ".arc/user/andrew/notes/gitmodules.md" },
   { rule: "store.json", path: candidate, content: "not JSON", remove: true },
 ];
 

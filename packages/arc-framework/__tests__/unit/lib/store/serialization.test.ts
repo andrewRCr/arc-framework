@@ -53,7 +53,7 @@ describe("record serialization admission", () => {
       ".gitmo\u202adules", ".gitattributes", ".GitAttributes", "GITATT~1", "gitatt~4", ".gitattributes. :x",
       ".gitattribu\u200ftes", "gi7eba~1", "GI7D29~9", "gi7eb~12", "g~123456", "~1234567"];
     for (const segment of reserved) {
-      for (const key of [`${segment}/file.md`, `scratch/${segment}/file.md`]) {
+      for (const key of [`${segment}/file.md`, `scratch/${segment}/file.md`, segment, `scratch/${segment}`]) {
         expect(checkSerializationRules(document(key), "text"), key).toMatchObject({ rule: "store.git-path" });
       }
     }
@@ -61,7 +61,7 @@ describe("record serialization admission", () => {
       "gi7eba~12", "gi7d2x~1", ".g\u200cit.", ".git\u200b", ".gitmodules.md"]) {
       expect(checkSerializationRules(document(`scratch/${segment}/notes.md`), "text"), segment).toBeUndefined();
     }
-    for (const key of [".git", "scratch/.gitmodules", "scratch/.gitattributes"]) {
+    for (const key of ["notes.git", "scratch/.gitmodules.md", ".github"]) {
       expect(checkSerializationRules(document(key), "text"), key).toBeUndefined();
     }
   });
