@@ -29,6 +29,14 @@ describe("refused torn ref listings", () => {
     expect(calls()).toBe(2);
   });
 
+  it("runs a refusal again when Git translated its diagnostic prefix", async () => {
+    const translated = makeGitProcessError({ command: "git", args, exitCode: 128,
+      stderr: "Schwerwiegend: Duplicated ref, and SHA1s don't match: refs/arc/work/a\n" });
+    const { list, calls } = scriptedListing([translated, "refs"]);
+    await expect(retryTornRefListing(list)).resolves.toBe("refs");
+    expect(calls()).toBe(2);
+  });
+
   it("rethrows the third consecutive refusal unchanged", async () => {
     const third = tornListing();
     const { list, calls } = scriptedListing([tornListing(), tornListing(), third, "refs"]);

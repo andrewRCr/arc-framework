@@ -1,6 +1,7 @@
 /** Cancellation of Git processes and their descendants without changing spawn policy. */
 
 import { execFile, type ChildProcess } from "node:child_process";
+import { readdir, readFile } from "node:fs/promises";
 
 import { GitProcessError, normalizeGitRejection, type GitInvocation } from "./process-error.js";
 
@@ -15,13 +16,31 @@ function kill(pid: number): void {
   try { process.kill(pid, "SIGKILL"); } catch { /* A process may have exited since the snapshot. */ }
 }
 
-function runCancellationUtility(command: string, args: string[], timeout: number): Promise<string> {
+function runCancellationUtility(command: string, args: string[], timeout: number): Promise<string | null> {
   return new Promise((resolve) => {
     const child = execFile(command, args, { timeout }, (error, stdout) => {
-      resolve(error ? "" : stdout);
+      resolve(error ? null : stdout);
     });
     child.stdin?.end();
   });
+}
+
+/** Linux's own process table, read when `ps` is absent or fails so a snapshot never silently comes back empty. */
+async function readProcessTable(): Promise<number[][]> {
+  const entries = await readdir("/proc").catch(() => []);
+  const rows = await Promise.all(entries.filter((entry) => /^\d+$/u.test(entry)).map(async (entry) => {
+    const stat = await readFile(`/proc/${entry}/stat`, "utf8").catch(() => null);
+    // The command name may hold spaces and parentheses; the state and parent follow its last closing parenthesis.
+    const parent = stat?.slice(stat.lastIndexOf(")") + 2).split(" ")[1];
+    return parent === undefined ? [] : [[Number(entry), Number(parent)]];
+  }));
+  return rows.flat();
+}
+
+async function snapshotProcesses(): Promise<number[][]> {
+  const snapshot = await runCancellationUtility("ps", ["-A", "-o", "pid=,ppid="], 250);
+  if (snapshot === null) return process.platform === "linux" ? readProcessTable() : [];
+  return snapshot.trim().split("\n").map((line) => line.trim().split(/\s+/u).map(Number));
 }
 
 async function endDescendants(pid: number, active: () => boolean): Promise<void> {
@@ -29,9 +48,8 @@ async function endDescendants(pid: number, active: () => boolean): Promise<void>
     await runCancellationUtility("taskkill", ["/PID", String(pid), "/T", "/F"], 500);
     return;
   }
-  const snapshot = await runCancellationUtility("ps", ["-A", "-o", "pid=,ppid="], 250);
+  const rows = await snapshotProcesses();
   if (!active()) return;
-  const rows = snapshot.trim().split("\n").map((line) => line.trim().split(/\s+/u).map(Number));
   const descendants = [pid];
   for (let index = 0; index < descendants.length; index += 1) {
     for (const [child, parent] of rows) {

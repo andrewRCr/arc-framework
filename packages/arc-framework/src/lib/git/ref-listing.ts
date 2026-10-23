@@ -4,7 +4,8 @@ import { isCompletedGitFailure, isGitProcessError } from "./process-error.js";
 
 const TORN_LISTING_ATTEMPTS = 3;
 // A loose-ref directory read that met one ref at two values; the files format refuses rather than list both.
-const TORN_LISTING = /^fatal: Duplicated ref, and SHA1s don't match: /mu;
+// Git translates the `fatal:` prefix but not this message, so only the message is matched.
+const TORN_LISTING = /Duplicated ref, and SHA1s don't match: /u;
 
 /** Whether Git refused a listing because one directory read met a ref at two values. */
 function isTornListing(error: unknown): boolean {

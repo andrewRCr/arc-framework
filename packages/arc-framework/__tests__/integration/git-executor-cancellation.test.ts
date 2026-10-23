@@ -4,7 +4,7 @@ import { access, chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/prom
 import { createServer } from "node:http";
 import type { Socket } from "node:net";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, delimiter, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { promisify } from "node:util";
 
@@ -30,17 +30,37 @@ function kill(pid: number): void {
   try { process.kill(pid, "SIGKILL"); } catch { /* Already exited. */ }
 }
 
+let processLister: Promise<string> | undefined;
+
+// Resolved once, so a test that hides `ps` from the code under test can still observe the process table.
+function listProcessesCommand(): Promise<string> {
+  processLister ??= process.platform === "win32"
+    ? Promise.resolve("powershell.exe")
+    : execFileAsync("sh", ["-c", "command -v ps"]).then(({ stdout }) => stdout.trim());
+  return processLister;
+}
+
 async function processes(): Promise<{ pid: number; parent: number; command: string }[]> {
-  const { stdout } = await execFileAsync("ps", ["-A", "-o", "pid=,ppid=,args="]);
-  return stdout.trim().split("\n").flatMap((line) => {
+  const lister = await listProcessesCommand();
+  const { stdout } = process.platform === "win32"
+    ? await execFileAsync(lister, ["-NoProfile", "-NonInteractive", "-Command",
+      "Get-CimInstance Win32_Process | ForEach-Object { \"$($_.ProcessId) $($_.ParentProcessId) $($_.CommandLine)\" }"])
+    : await execFileAsync(lister, ["-A", "-o", "pid=,ppid=,args="]);
+  return stdout.trim().split(/\r?\n/u).flatMap((line) => {
     const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/u.exec(line);
     return match ? [{ pid: Number(match[1]), parent: Number(match[2]), command: match[3] ?? "" }] : [];
   });
 }
 
+/** Whether a process's command line runs Git itself, quoted or not, with or without Windows' extension. */
+function runsGit(command: string): boolean {
+  const executable = command.startsWith("\"") ? command.slice(1, command.indexOf("\"", 1)) : command.split(/\s/u)[0] ?? "";
+  return /^git(?:\.exe)?$/iu.test(executable.split(/[\\/]/u).at(-1) ?? "");
+}
+
 async function waitForProcess(token: string): Promise<number> {
   for (let attempt = 0; attempt < 300; attempt += 1) {
-    const child = (await processes()).find((row) => row.command.includes(token) && /^(?:\S*\/)?git(?:\s|$)/u.test(row.command));
+    const child = (await processes()).find((row) => row.command.includes(token) && runsGit(row.command));
     if (child) {
       children.add(child.pid);
       return child.pid;
@@ -69,7 +89,7 @@ async function canceledWithin(pending: Promise<unknown>, controller: AbortContro
   expect(performance.now() - started).toBeLessThan(1_000);
 }
 
-describe.skipIf(process.platform === "win32")("Git process cancellation", () => {
+describe("Git process cancellation", () => {
   it.each(["stdin", "raw", "native raw"])("ends a %s ref update waiting on another writer's lock", async (variant) => {
     const root = await repository();
     const ref = `refs/heads/${basename(root)}`;
@@ -122,7 +142,7 @@ async function expectEnded(pids: number[]): Promise<void> {
   expect((await processes()).filter((row) => pids.includes(row.pid) && !row.command.includes("<defunct>"))).toEqual([]);
 }
 
-describe.skipIf(process.platform === "win32")("Git descendant cancellation", () => {
+describe("Git descendant cancellation", () => {
   it.each(["plain", "stdin", "raw", "native raw"])("ends the %s HTTP transport with its hung fetch", async (variant) => {
     const root = await repository();
     const sockets = new Set<Socket>();
@@ -154,7 +174,45 @@ describe.skipIf(process.platform === "win32")("Git descendant cancellation", () 
     }
   });
 
-  it.each(["plain", "stdin", "raw", "native raw"])("ends the %s push hook and its sleeping child", async (variant) => {
+  it.skipIf(process.platform !== "linux")("ends a hook's sleeping child when the process table utility fails", async () => {
+    const root = await repository();
+    const remote = await mkdtemp(join(tmpdir(), "arc-git-cancel-remote-"));
+    roots.push(remote);
+    await exec("git", ["init", "--bare", remote]);
+    const failingTools = join(root, "failing-tools");
+    await mkdir(failingTools);
+    await writeFile(join(failingTools, "ps"), "#!/bin/sh\nexit 1\n");
+    await chmod(join(failingTools, "ps"), 0o755);
+    await listProcessesCommand();
+    vi.stubEnv("PATH", `${failingTools}${delimiter}${process.env.PATH ?? ""}`);
+    const ready = join(root, "hook-ready");
+    const hook = join(root, ".git", "hooks", "pre-push");
+    await writeFile(hook, `#!/bin/sh\nsleep 30 &\nhelper=$!\nprintf '%s\\n' "$$" "$helper" > '${ready}'\nwait "$helper"\n`);
+    await chmod(hook, 0o755);
+    const controller = new AbortController();
+    const pending = invoke("plain", [
+      `--git-dir=${join(root, ".git")}`, "push", remote, "HEAD:refs/heads/test",
+    ], { cwd: root, signal: controller.signal });
+    void pending.catch(() => undefined);
+    try {
+      let hookPids: number[] = [];
+      for (let attempt = 0; attempt < 300; attempt += 1) {
+        hookPids = await readFile(ready, "utf8").then((text) => text.trim().split("\n").map(Number), () => []);
+        if (hookPids.length === 2) break;
+        await delay(10);
+      }
+      expect(hookPids).toHaveLength(2);
+      for (const pid of hookPids) children.add(pid);
+      await canceledWithin(pending, controller);
+      await expectEnded(hookPids);
+    } finally {
+      controller.abort();
+      for (const pid of children) kill(pid);
+      await pending.catch(() => undefined);
+    }
+  });
+
+  it.skipIf(process.platform === "win32").each(["plain", "stdin", "raw", "native raw"])("ends the %s push hook and its sleeping child", async (variant) => {
     const root = await repository();
     const remote = await mkdtemp(join(tmpdir(), "arc-git-cancel-remote-"));
     roots.push(remote);
@@ -189,7 +247,7 @@ describe.skipIf(process.platform === "win32")("Git descendant cancellation", () 
   });
 });
 
-describe.skipIf(process.platform === "win32")("Git cancellation admission and spawn policy", () => {
+describe("Git cancellation admission and spawn policy", () => {
   it.each(["plain", "stdin", "raw", "native raw"])("refuses a pre-aborted %s invocation before its side effect", async (variant) => {
     const root = await repository();
     const sentinel = join(root, "should-not-exist");
@@ -201,7 +259,7 @@ describe.skipIf(process.platform === "win32")("Git cancellation admission and sp
     await expect(access(sentinel)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it.each(["plain", "stdin", "raw", "native raw"].flatMap((variant) => [
+  it.skipIf(process.platform === "win32").each(["plain", "stdin", "raw", "native raw"].flatMap((variant) => [
     { variant, withSignal: false }, { variant, withSignal: true },
   ]))("keeps the caller's process group for $variant with signal=$withSignal", async ({ variant, withSignal }) => {
     const root = await repository();

@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, lstat, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, lstat, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -23,6 +23,15 @@ describe("filesystem Git directory discovery", () => {
     const gitDir = join(path, ".git");
     await mkdir(gitDir);
     expect(await readGitDirectories(path, files)).toEqual({ gitDir, commonDir: gitDir });
+  });
+
+  it("follows a .git symlinked to a directory, as Git does", async () => {
+    const path = await root();
+    const target = join(path, "elsewhere.git");
+    await mkdir(target);
+    const marker = join(path, ".git");
+    await symlink(target, marker, "junction");
+    expect(await readGitDirectories(path, files)).toEqual({ gitDir: marker, commonDir: marker });
   });
 
   it("uses a .git file's directory for both scopes when it has no commondir", async () => {

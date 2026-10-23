@@ -51,9 +51,7 @@ export async function updateRefTransaction(
     return { status: "committed" };
   } catch (error) {
     if (!isCompletedGitFailure(error)) throw error;
-    const { stdout } = await retryTornRefListing(() => ports.exec("git", [
-      "for-each-ref", "--format=%(refname) %(objectname)", "--", ...changes.map((change) => change.ref),
-    ], execution));
+    const stdout = await readTransactionTips(ports, changes, execution, error);
     const tips = new Map<string, string>();
     for (const line of stdout.split("\n")) {
       const [ref, oid] = line.split(" ");
@@ -67,4 +65,19 @@ export async function updateRefTransaction(
     await checkGitVersionFloor(async () => (await ports.exec("git", ["--version"], execution)).stdout, error);
     throw error;
   }
+}
+
+/** Read the transaction's refs back with their names on stdin, so a whole-store transaction never outgrows argv. */
+async function readTransactionTips(
+  ports: RefTransactionPorts,
+  changes: readonly RefChange[],
+  execution: Pick<GitExecOptions, "cwd" | "signal">,
+  refusal: unknown,
+): Promise<string> {
+  const [read] = await Promise.allSettled([retryTornRefListing(() => ports.execInput([
+    "for-each-ref", "--format=%(refname) %(objectname)", "--stdin",
+  ], changes.map((change) => `${change.ref}\n`).join(""), execution))]);
+  if (read.status === "fulfilled") return read.value;
+  const reason = read.reason instanceof Error ? read.reason.message : String(read.reason);
+  throw new Error(`Git refused a ref transaction, and reading its refs back failed: ${reason}`, { cause: refusal });
 }

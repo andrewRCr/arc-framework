@@ -1,4 +1,5 @@
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
+import { spawn } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -186,4 +187,3 @@ describe.each(["files", "reftable"])("Git ref transactions (%s)", (format) => {
   });
 
 });
-import { spawn } from "node:child_process";

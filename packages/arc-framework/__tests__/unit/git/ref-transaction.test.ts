@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { GitExecInput } from "../../../src/lib/git/exec.js";
 import { updateRefTransaction } from "../../../src/lib/git/ref-transaction.js";
-import { makeGitProcessError, scriptGitExec } from "../../helpers/git-exec-fake.js";
+import { makeGitProcessError, scriptGitExec, scriptGitExecInput } from "../../helpers/git-exec-fake.js";
 
 const ref = "refs/arc/held";
 const old = "a".repeat(40);
@@ -11,9 +11,11 @@ const next = "b".repeat(40);
 function matchingFailure(version: string) {
   const original = makeGitProcessError({ command: "git", args: ["update-ref", "--stdin"], exitCode: 128,
     stderr: "fatal: prepare: cannot lock references\n" });
-  const execInput: GitExecInput = async () => { throw original; };
+  const execInput: GitExecInput = async (args) => {
+    if (args[0] === "for-each-ref") return `${ref} ${old}\n`;
+    throw original;
+  };
   const { exec } = scriptGitExec([
-    { match: { prefix: ["for-each-ref"] }, responses: [{ stdout: `${ref} ${old}\n` }] },
     { match: ["--version"], responses: [{ stdout: `git version ${version}\n` }] },
   ]);
   return { original, run: () => updateRefTransaction({ exec, execInput }, [{ ref, next, expected: old }]) };
@@ -33,16 +35,46 @@ describe("unclassified ref transaction failures", () => {
 
 describe("lost races behind a refused torn re-read", () => {
   it("reports the lost race once the re-read runs again", async () => {
-    const execInput: GitExecInput = async () => {
-      throw makeGitProcessError({ command: "git", args: ["update-ref", "--stdin"], exitCode: 128,
-        stderr: `fatal: cannot lock ref '${ref}': is at ${next} but expected ${old}\n` });
-    };
-    const { exec, calls } = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [
-      { failure: { exitCode: 128, stderr: `fatal: Duplicated ref, and SHA1s don't match: ${ref}\n` } },
-      { stdout: `${ref} ${next}\n` },
-    ] }]);
+    const { exec: execInput, calls } = scriptGitExecInput([
+      { match: { prefix: ["-c"] }, responses: [{ failure: { exitCode: 128,
+        stderr: `fatal: cannot lock ref '${ref}': is at ${next} but expected ${old}\n` } }] },
+      { match: { prefix: ["for-each-ref"] }, responses: [
+        { failure: { exitCode: 128, stderr: `fatal: Duplicated ref, and SHA1s don't match: ${ref}\n` } },
+        `${ref} ${next}\n`,
+      ] },
+    ]);
+    const { exec } = scriptGitExec([]);
     await expect(updateRefTransaction({ exec, execInput }, [{ ref, next: "c".repeat(40), expected: old }]))
       .resolves.toEqual({ status: "lost-race", refs: [{ ref, expected: old, actual: next }] });
     expect(calls.filter((call) => call.args[0] === "for-each-ref")).toHaveLength(2);
+  });
+});
+
+describe("reading a failed transaction's refs back", () => {
+  const refusal = { exitCode: 128, stderr: "fatal: prepare: cannot lock references\n" };
+
+  it("names the refs on stdin, so a whole-store transaction never grows the command line", async () => {
+    const refs = Array.from({ length: 600 }, (_unused, index) => `refs/arc/work/${String(index).padStart(36, "0")}`);
+    const { exec: execInput, calls } = scriptGitExecInput([
+      { match: { prefix: ["-c"] }, responses: [{ failure: refusal }] },
+      { match: { prefix: ["for-each-ref"] }, responses: [refs.map((name) => `${name} ${next}`).join("\n")] },
+    ]);
+    const { exec } = scriptGitExec([]);
+    const outcome = await updateRefTransaction({ exec, execInput }, refs.map((name) => ({ ref: name, next: "c".repeat(40), expected: old })));
+    expect(outcome).toMatchObject({ status: "lost-race" });
+    const reread = calls.find((call) => call.args[0] === "for-each-ref");
+    expect(reread?.args).toEqual(["for-each-ref", "--format=%(refname) %(objectname)", "--stdin"]);
+    expect(reread?.input.split("\n").filter(Boolean)).toEqual(refs);
+  });
+
+  it("keeps Git's refusal of the transaction as the cause when the read-back fails", async () => {
+    const { exec: execInput } = scriptGitExecInput([
+      { match: { prefix: ["-c"] }, responses: [{ failure: refusal }] },
+      { match: { prefix: ["for-each-ref"] }, responses: [{ failure: { exitCode: 128, stderr: "fatal: unable to read refs\n" } }] },
+    ]);
+    const { exec } = scriptGitExec([]);
+    const failure = await updateRefTransaction({ exec, execInput }, [{ ref, next, expected: old }]).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).cause).toMatchObject({ stderr: refusal.stderr });
   });
 });
