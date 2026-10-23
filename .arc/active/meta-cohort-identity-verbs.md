@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** [none]
+- **Last Completed:** draft-design — draft captured, formalization-ready
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Begin create-spec once `storage-ref-backend` lands or nears landing (Owner, 2026-10-23)
 
 - **PR URL:** [none]
 - **Completed:** [none]
