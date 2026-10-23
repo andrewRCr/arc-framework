@@ -69,3 +69,11 @@ it("retains the backend's identity remedy in session orientation", () => {
   expect(result.summary).toContain("Configure the selected identity.");
   expect(result.actions).toEqual([{ text: "Configure the selected identity.", argv: ["git", "config", "arc.identity", "alice"] }]);
 });
+
+it("orients a synchronized pull beside an unfinished move and offers the move's repair", () => {
+  const remedy = { text: "Finish the move.", argv: ["arc", "store", "migrate"] };
+  const result = describeStorePull({ status: "pulled", advisories: [{ condition: "A remote move remains unfinished.", remedy }] });
+  expect(result.summary).toBe("Store state pulled. A remote move remains unfinished.");
+  expect(result.actions).toEqual([remedy]);
+  expect(SessionInitUserValueSchema.parse(result)).toEqual(result);
+});

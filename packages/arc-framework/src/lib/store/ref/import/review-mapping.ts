@@ -1,5 +1,4 @@
-/** Pure review mapping contract and acquisition of its opaque legacy source inputs. */
-import type { RecordReference } from "../../identity.js";
+/** Acquisition of the review mapping's opaque legacy source inputs, and landing of what it returns. */
 import type { RefBackendContext } from "../context.js";
 import type { ImportRecord } from "./source.js";
 import type { MigrateReport } from "../../commands.js";
@@ -9,22 +8,6 @@ import { SlugSchema } from "../../../kernel/schema/slug.js";
 import { readImportReviewGate, inspectUnmappedReviewGate } from "./review-gate.js";
 import { inspectReviewCoverage } from "./review-coverage.js";
 import { importReviewWorkItems } from "./review-work-items.js";
-
-/** Sources retain byte identity, code-history coordinates, and freshly minted store identities. */
-export interface ReviewMappingInput {
-  projectId: string;
-  gate: { path: string; bytes: Uint8Array }[];
-  candidates: { workItem: string; versions: { commit: string; content: string }[]; current: string | null; boundary: string | null }[];
-  workItems: (
-    | { slug: string; kind: "work-unit"; uid: string; live: boolean }
-    | { slug: string; kind: "errand"; uid: string; live: boolean; claimId: string }
-  )[];
-}
-/** Each mapping lists every input source and returns only the records it intends to retain. */
-export interface ReviewMappingResult {
-  records: { reference: RecordReference; contents: string[] }[];
-  listing: MigrateReport["reviewMapping"];
-}
 
 /** Replace live review bytes only after the mapping has accounted for the supplied sources. */
 export async function mapImportReview(context: RefBackendContext, records: ImportRecord[], report: MigrateReport, projectId: string): Promise<ImportRecord[]> {

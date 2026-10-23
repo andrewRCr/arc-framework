@@ -14,7 +14,8 @@ export type StoreSessionInitUserValue = PullResult & { summary: string; actions?
 /** Produce the shared orientation and typed action for a pull outcome. */
 export function describeStorePull(result: PullResult): StoreSessionInitUserValue {
   const actions = pullActions(result);
-  return { ...result, summary: pullSummary(result), ...(actions.length ? { actions } : {}) };
+  const summary = [pullSummary(result), ...(result.advisories ?? []).map(advisory => advisory.condition)].join(" ");
+  return { ...result, summary, ...(actions.length ? { actions } : {}) };
 }
 
 function pullSummary(result: PullResult): string {
@@ -36,6 +37,7 @@ function pullActions(result: PullResult): z.infer<typeof SessionActionsSchema> {
     ...(partial?.states.flatMap(state => "remedy" in state ? [state.remedy] : []) ?? []),
     ...(partial?.pulls.flatMap(pull => pull.status === "failed" ? [pull.failure.remedy] : []) ?? []),
     ...pullResultNotices(result).map(notice => notice.remedy),
+    ...(result.advisories ?? []).map(advisory => advisory.remedy),
   ];
   return [...new Map(remedies.map(remedy => [JSON.stringify(remedy), remedy])).values()];
 }

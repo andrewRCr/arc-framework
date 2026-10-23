@@ -5,7 +5,9 @@ import { PullNoticeSchema, type PullNotice, PullResultSchema as StorePullResultS
 import { pullSelectedStore, maintainSelectedStore } from "./operational-sync-bindings.js";
 import type { Store } from "./contract.js";
 
-const notices = { notices: z.array(PullNoticeSchema).optional() };
+// A condition reported beside a synchronized pull that stops nothing, such as a move left unfinished.
+const PullAdvisorySchema = z.strictObject({ condition: z.string().min(1), remedy: RemedySchema });
+const notices = { notices: z.array(PullNoticeSchema).optional(), advisories: z.array(PullAdvisorySchema).optional() };
 const partial = { partial: StorePullResultSchema.optional() };
 
 /** Pull records operational reachability independently of publication. */

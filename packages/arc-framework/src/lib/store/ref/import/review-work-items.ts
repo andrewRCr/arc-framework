@@ -2,7 +2,7 @@
 import type { RefBackendContext } from "../context.js";
 import type { ImportRecord } from "./source.js";
 import type { MigrateReport } from "../../commands.js";
-import type { ReviewMappingInput } from "./review-mapping.js";
+import type { ReviewMappingInput } from "../../ports.js";
 import { TransientIdentityRecordSchema } from "../../../errand/identity-record.js";
 import { parseMetaRecord } from "../../../active/meta-reader.js";
 import { readImportCodeTip } from "./branch-tip.js";

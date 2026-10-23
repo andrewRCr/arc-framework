@@ -52,3 +52,10 @@ it.each(["pulled", "incomplete"] as const)("renders every notice from a %s outco
   expect(ended).toContain(JSON.stringify(conflict));
   expect(ended).toMatch(/conflict view.*(?:omit|not list)/u);
 });
+
+it("renders an unfinished move beside a synchronized pull as a notice with its repair route", async () => {
+  const pull: PullResult = { status: "pulled", advisories: [{ condition: "A remote move remains unfinished.",
+    remedy: { text: "Finish the move.", argv: ["arc", "store", "migrate"] } }] };
+  expect(await pullStoreStatus({ sync: createStoreSyncPort({ pull: async () => pull }) }))
+    .toEqual([{ code: "pull-notice", rendered: "A remote move remains unfinished. Finish the move. arc store migrate" }]);
+});

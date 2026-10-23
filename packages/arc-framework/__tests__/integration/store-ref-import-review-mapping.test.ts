@@ -11,7 +11,7 @@ import { createStore, createDefaultStorePorts, createRefStore, RecordReferenceSc
 import { inRepoContent } from "../helpers/store/in-repo-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { resolveCandidateRecordRelativePath } from "../../src/lib/work-unit/candidate-record-store.js";
-import type { ReviewMappingInput, ReviewMappingResult } from "../../src/lib/store/ref/import/review-mapping.js";
+import type { ReviewMappingInput, ReviewMappingResult } from "../../src/lib/store/ports.js";
 import { expandStoredPath } from "../../src/lib/store/stored-path.js";
 import { createKindRegistry } from "../../src/lib/store/registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";

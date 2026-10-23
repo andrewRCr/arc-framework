@@ -6,6 +6,7 @@ import type { Remedy } from "./refusal.js";
 import { HistoryRefSchema } from "./refusal.js";
 
 interface Issue { condition: string; remedy: Remedy }
+type ReportedState = Exclude<SyncState, { status: "no-remote" }>;
 
 /** Pull through the exact selected store, forwarding only the history names the caller supplied. */
 export async function pullSelectedStore(store: Store, refs?: readonly string[]): Promise<PullResult> {
@@ -22,22 +23,27 @@ export async function maintainSelectedStore(store: Store): Promise<MaintainResul
   return result.result;
 }
 
+// An unfinished move stops nothing: it travels beside whatever the pull reports, never as an issue of its own.
 function projectPull(result: StorePullResult): PullResult {
   const notices = result.pulls.flatMap(pull => pull.notices);
-  const extra = notices.length ? { notices } : {};
-  const states = result.states.filter(state => state.status !== "no-remote");
+  const advisories = result.states.flatMap(state => state.status === "move-unfinished"
+    ? [{ condition: state.condition, remedy: state.remedy }] : []);
+  const advised = advisories.length ? { advisories } : {};
+  const extra = { ...(notices.length ? { notices } : {}), ...advised };
+  const states = result.states.filter((state): state is ReportedState => state.status !== "no-remote" && state.status !== "move-unfinished");
+  const failures = result.pulls.filter(pull => pull.status === "failed");
   const [state] = states;
-  if (result.pulls.length === 0 && states.length === 1 && state !== undefined) {
+  // A read source still pulls while the state remote waits on its identity or designation question.
+  if (failures.length === 0 && states.length === 1 && state !== undefined) {
     if (state.status === "no-identity") return { status: state.status, remedy: state.remedy, ...extra };
     if (state.status === "designation-needed") return { ...state, ...extra };
   }
-  const failures = result.pulls.filter(pull => pull.status === "failed");
   const issues = [...states.map(stateIssue), ...failures.map(pull => ({ condition: pull.failure.condition, remedy: pull.failure.remedy }))];
   if (issues.length) {
     const issue = combineIssues(issues);
     const transportOnly = states.length === 0 && result.pulls.length === failures.length
       && failures.every(pull => pull.failure.code === "unreachable") && notices.length === 0;
-    return { status: transportOnly ? "unreachable" : "incomplete", ...issue, partial: result };
+    return { status: transportOnly ? "unreachable" : "incomplete", ...issue, partial: result, ...advised };
   }
   return { status: result.pulls.some(pull => pull.status === "pulled") ? "pulled" : result.pulls.length ? "noop" : "no-remote", ...extra };
 }
@@ -49,7 +55,7 @@ function combineIssues(issues: readonly Issue[]): Issue {
     remedy: { text: [...new Set(issues.map(issue => issue.remedy.text))].join(" ") } };
 }
 
-function stateIssue(state: Exclude<SyncState, { status: "no-remote" }>): Issue {
+function stateIssue(state: ReportedState): Issue {
   switch (state.status) {
     case "no-identity": return { condition: "No store identity is configured.", remedy: state.remedy };
     case "designation-needed": return { condition: `Remote ${state.remote} needs a store designation.`, remedy: state.remedy };

@@ -38,10 +38,40 @@ it.each([
   { value: { states: [], pulls: [pulled, { ...pulled, remote: "backup", status: "failed", failure: unreachable, notices: [notice] }] },
     status: "incomplete", condition: "Remote offline." },
   { value: { states: [{ status: "move-incomplete", condition: "Move not complete.", remedy }], pulls: [] }, status: "incomplete", condition: "Move not complete." },
-  { value: { states: [{ status: "move-unfinished", condition: "Move unfinished.", remedy }], pulls: [] }, status: "incomplete", condition: "Move unfinished." },
 ])("preserves a partial result as $status with its condition and remedy", async ({ value, status, condition }) => {
   const { port, result } = binding(value);
   expect(await port.pull()).toEqual({ status, condition, remedy, partial: result });
+});
+
+const unfinished = { status: "move-unfinished", condition: "Move unfinished.", remedy };
+const advisory = { condition: "Move unfinished.", remedy };
+const readPulled = { ...pulled, remote: "upstream", role: "read" };
+
+it.each([
+  { value: { states: [unfinished], pulls: [pulled] }, expected: { status: "pulled", advisories: [advisory] } },
+  { value: { states: [unfinished], pulls: [{ ...pulled, status: "noop" }] }, expected: { status: "noop", advisories: [advisory] } },
+  { value: { states: [unfinished], pulls: [] }, expected: { status: "no-remote", advisories: [advisory] } },
+  { value: { states: [unfinished], pulls: [{ ...pulled, notices: [notice] }] },
+    expected: { status: "pulled", notices: [notice], advisories: [advisory] } },
+])("reports an unfinished move beside a synchronized $expected.status pull as advisory, never incomplete", async ({ value, expected }) => {
+  expect(await binding(value).port.pull()).toEqual(expected);
+});
+
+it.each([
+  { value: { states: [{ status: "designation-needed", remote: "origin", choices: ["push", "read", "off"], remedy }], pulls: [readPulled] },
+    expected: { status: "designation-needed", remote: "origin", choices: ["push", "read", "off"], remedy } },
+  { value: { states: [{ status: "no-identity", families: ["personal"], remedy }], pulls: [readPulled] },
+    expected: { status: "no-identity", remedy } },
+  { value: { states: [{ status: "designation-needed", remote: "origin", choices: ["push", "read", "off"], remedy }, unfinished],
+    pulls: [{ ...readPulled, notices: [notice] }] },
+  expected: { status: "designation-needed", remote: "origin", choices: ["push", "read", "off"], remedy, notices: [notice], advisories: [advisory] } },
+])("keeps the $expected.status question beside a read source's pull", async ({ value, expected }) => {
+  expect(await binding(value).port.pull()).toEqual(expected);
+});
+
+it("keeps an unfinished move advisory beside a failed remote's incomplete pull", async () => {
+  const { port, result } = binding({ states: [unfinished], pulls: [pulled, { ...pulled, remote: "backup", status: "failed", failure: refused }] });
+  expect(await port.pull()).toEqual({ status: "incomplete", condition: "Policy refusal.", remedy, partial: result, advisories: [advisory] });
 });
 
 it("retains every independent configuration and remote failure in an incomplete pull", async () => {

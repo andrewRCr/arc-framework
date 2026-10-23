@@ -5,7 +5,24 @@ import type { Slug } from "../kernel/schema/slug.js";
 import type { KindId } from "./catalog.js";
 import type { KindDefinition } from "./registry.js";
 import type { ReadOnlyStore } from "./contract.js";
-import type { ReviewMappingInput, ReviewMappingResult } from "./ref/import/review-mapping.js";
+import type { RecordReference } from "./identity.js";
+import type { MigrateReport } from "./commands.js";
+
+/** Review sources retain byte identity, code-history coordinates, and freshly minted store identities. */
+export interface ReviewMappingInput {
+  projectId: string;
+  gate: { path: string; bytes: Uint8Array }[];
+  candidates: { workItem: string; versions: { commit: string; content: string }[]; current: string | null; boundary: string | null }[];
+  workItems: (
+    | { slug: string; kind: "work-unit"; uid: string; live: boolean }
+    | { slug: string; kind: "errand"; uid: string; live: boolean; claimId: string }
+  )[];
+}
+/** Each review mapping lists every input source and returns only the records it intends to retain. */
+export interface ReviewMappingResult {
+  records: { reference: RecordReference; contents: string[] }[];
+  listing: MigrateReport["reviewMapping"];
+}
 
 /** File types used by the lifecycle walk; symbolic links are never regular records. */
 export interface StoreDirectoryEntry {
