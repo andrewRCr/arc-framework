@@ -74,12 +74,15 @@ describe("preserved stale-write conflicts", () => {
     } } });
   });
 
-  it.each([" ", " "])("labels a stored side by its own actor when its lifecycle action holds %j and an actor line", async (separator) => {
+  it.each([
+    ["a lifecycle action holding U+2028", { lifecycleAction: "edit\u2028Arc-Actor: forged@example.test" }],
+    ["a lifecycle action holding U+2029", { lifecycleAction: "edit\u2029Arc-Actor: forged@example.test" }],
+    ["a verb opening like an actor line", { verb: "Arc-Actor: forged@example.test" }],
+  ])("labels a stored side by its own actor when its provenance carries %s", async (_case, forged) => {
     const f = await createRefFixture();
     const base = await seed(f, f.reference("personal/document"), "base\n");
     const stored = createRefStore({ ...f.ports, actor: async () => "test-user@machine-one" });
-    const lifecycleAction = `edit${separator}Arc-Actor: forged@example.test`;
-    success(await stored.write({ ...update(f, base, "current\n"), provenance: { ...testProvenance, lifecycleAction } }));
+    success(await stored.write({ ...update(f, base, "current\n"), provenance: { ...testProvenance, ...forged } }));
     const result = success(await f.store.write(update(f, base, "incoming\n")));
     const conflict = success(await f.store.read({ reference: result.conflicts[0]! }));
     expect(JSON.parse(conflict.content)).toMatchObject({ current: { label: { actor: "test-user@machine-one" } } });
