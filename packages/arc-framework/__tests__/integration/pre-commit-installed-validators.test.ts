@@ -76,6 +76,29 @@ describe.each(hookPaths)("installed-project validators through %s", (hookPath) =
     expect(corrected.stdout).toContain("Pre-commit checks PASSED");
   });
 
+  it("refuses invalid staged frontmatter when the working copy has since been corrected", async () => {
+    const { root, runHook, stage } = await fixture();
+    await writeRepoFile(root, methodPath, "---\ndescription: missing name\noverride-active: false\n---\n");
+    await stage(methodPath);
+    await writeRepoFile(root, methodPath, validMethod);
+
+    const refused = await runHook();
+    expect(refused.exitCode, refused.stdout).toBe(1);
+    expect(refused.stdout).toContain("Error: Frontmatter schema validation failed:");
+    expect(refused.stdout).toContain(`${methodPath}:`);
+  });
+
+  it("passes valid staged frontmatter when the working copy has since been broken", async () => {
+    const { root, runHook, stage } = await fixture();
+    await writeRepoFile(root, methodPath, validMethod);
+    await stage(methodPath);
+    await writeRepoFile(root, methodPath, "---\ndescription: missing name\noverride-active: false\n---\n");
+
+    const result = await runHook();
+    expect(result.exitCode, result.stdout).toBe(0);
+    expect(result.stdout).toContain("Pre-commit checks PASSED");
+  });
+
   it("refuses staged frontmatter it cannot validate when no CLI is installed, naming why", async () => {
     const { root, runHook, stage } = await fixture("none");
     await writeRepoFile(root, methodPath, validMethod);

@@ -103,7 +103,10 @@ import { userSyncCommandInputPolicyDeclarations } from "./handlers/user-sync.js"
 import type { CommandInputDeclaration } from "./lib/command-input/declaration.js";
 import { viewCommandInputPolicyDeclarations, viewCommandInputRegistration } from "./handlers/view.js";
 import { remedyRoadmapConflictInputPolicyDeclarations } from "./scripts/remedy-roadmap-conflict.js";
-import { validateFrontmatterInputRegistration } from "./scripts/validate-frontmatter-input.js";
+import {
+  validateFrontmatterInputPolicyDeclarations,
+  validateFrontmatterInputRegistration,
+} from "./scripts/validate-frontmatter-input.js";
 import type { CommandInputRegistration } from "./lib/command-input/registry.js";
 
 /** Every command-owned schema registration contributed by migrated families. */
@@ -189,5 +192,6 @@ export const commandInputPolicyDeclarations = [
   ...userSyncCommandInputPolicyDeclarations,
   ...viewCommandInputPolicyDeclarations,
   ...remedyRoadmapConflictInputPolicyDeclarations,
+  ...validateFrontmatterInputPolicyDeclarations,
   ...infrastructureCommandInputPolicyDeclarations,
 ] as const satisfies readonly CommandInputDeclaration[];
