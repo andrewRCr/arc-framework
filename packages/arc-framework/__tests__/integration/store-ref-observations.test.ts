@@ -1,7 +1,7 @@
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { RecordReferenceSchema, type HistoryEntry, type WriteCheck } from "../../src/lib/store/index.js";
+import { RecordReferenceSchema, type BatchInput, type HistoryEntry, type WriteCheck } from "../../src/lib/store/index.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { createRefFixture } from "../helpers/store/ref-fixture.js";
 import { mutationOf, seed, success, testProvenance, update } from "../helpers/store/suite-tools.js";
@@ -131,6 +131,71 @@ describe.each(["default", "separate"] as const)("native record observations in %
     armed = true;
     success(await f.store.write(update(f, target, "retained history admitted\n")));
     expect(success(await f.store.read({ reference: target.reference })).content).toBe("retained history admitted\n");
+  });
+
+  it("treats omitted and empty observations alike, handing registered checks none", async () => {
+    const seen: unknown[] = [];
+    const check: WriteCheck = input => { seen.push(input.observations); return Promise.resolve([]); };
+    const f = await createRefFixture({ "personal/document": { check } }, layout);
+    const target = await seed(f, f.reference("personal/document"), "original\n");
+    seen.length = 0;
+    const omitted = success(await f.store.batch({ writes: [mutationOf(update(f, target, "omitted\n"))], provenance: testProvenance }));
+    const current = success(await f.store.read({ reference: target.reference }));
+    const empty = success(await f.store.batch({ writes: [mutationOf(update(f, current, "empty\n"))], provenance: testProvenance,
+      observations: [] }));
+    expect(seen).toEqual([[], []]);
+    expect([omitted.writes.length, empty.writes.length]).toEqual([1, 1]);
+    expect(success(await f.store.read({ reference: target.reference })).content).toBe("empty\n");
+  });
+
+  it("checks an observed record the batch also writes against its before-state, even when the write would merge", async () => {
+    const f = await createRefFixture({}, layout);
+    const base = await seed(f, f.reference("personal/document"), "one\ntwo\nthree\nfour\nfive\n");
+    const current = success(await f.store.write(update(f, base, "ONE\ntwo\nthree\nfour\nfive\n")));
+    const history = success(await f.store.history({ reference: base.reference }));
+    const stale = { writes: [mutationOf(update(f, base, "one\ntwo\nthree\nfour\nFIVE\n"))], provenance: testProvenance,
+      observations: [{ reference: base.reference, expected: { version: base.version, conflicts: [] } }] };
+    expect(await f.store.batch(stale)).toMatchObject({ status: "refused", refusal: {
+      code: "version-conflict", records: [base.reference],
+    } });
+    expect(success(await f.store.history({ reference: base.reference }))).toEqual(history);
+    success(await f.store.batch({ ...stale, observations: [{ reference: current.reference,
+      expected: { version: current.version!, conflicts: [] } }] }));
+    expect(success(await f.store.read({ reference: base.reference })).content).toBe("ONE\ntwo\nthree\nfour\nFIVE\n");
+  });
+
+  it("admits an observation of a write-once record by a verb that may not write it, leaving the record unchanged", async () => {
+    const f = await createRefFixture({}, layout);
+    const subject = await seed(f, f.reference("personal/document"), "base\n");
+    success(await f.store.write(update(f, subject, "current\n")));
+    success(await f.store.write(update(f, subject, "incoming\n")));
+    const [conflictReference] = success(await f.store.read({ reference: subject.reference })).conflicts;
+    if (!conflictReference) throw new Error("Expected a stored conflict");
+    const conflict = success(await f.store.read({ reference: conflictReference }));
+    const history = success(await f.store.history({ reference: conflictReference }));
+    const target = await seed(f, f.reference("project-registry/counter"));
+    success(await f.store.batch({ writes: [mutationOf(update(f, target))], provenance: { verb: "decompose", lifecycleAction: "additive" },
+      observations: [{ reference: conflictReference, expected: { version: conflict.version, conflicts: [] } }] }));
+    expect(success(await f.store.read({ reference: target.reference })).content).toBe(f.content(target.reference, "changed"));
+    expect(success(await f.store.read({ reference: conflictReference }))).toEqual(conflict);
+    expect(success(await f.store.history({ reference: conflictReference }))).toEqual(history);
+  });
+
+  it.each(["unresolved", "duplicate"] as const)("refuses a batch whose observations are %s before publishing anything", async defect => {
+    const f = await createRefFixture({}, layout);
+    const evidence = await seed(f, f.reference("work-item/meta"));
+    const target = await seed(f, f.reference("personal/document"), "original\n");
+    const observation = { reference: evidence.reference, expected: { version: evidence.version, conflicts: [] } };
+    const owner = evidence.reference.owner;
+    const observations = defect === "unresolved"
+      ? [{ ...observation, reference: { ...evidence.reference, owner: { type: owner.type, name: owner.name } } }]
+      : [observation, { ...observation, reference: { ...evidence.reference, owner: { ...owner, name: "former-name" } } }];
+    const request = { writes: [mutationOf(update(f, target, "accepted\n"))], provenance: testProvenance };
+    expect(await f.store.batch({ ...request, observations } as unknown as BatchInput))
+      .toMatchObject({ status: "refused", refusal: { code: "record-malformed" } });
+    expect(success(await f.store.read({ reference: target.reference }))).toEqual(target);
+    success(await f.store.batch({ ...request, observations: [observation] }));
+    expect(success(await f.store.read({ reference: target.reference })).content).toBe("accepted\n");
   });
 
   it("refuses absence under an archived owner while its quarter tree is unavailable, and admits it after repair", async () => {
