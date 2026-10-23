@@ -3,14 +3,20 @@
   "slug": "hook-skip-notice-wording",
   "claimId": "03ba1885413f87bca9c2d0b6e330ae61",
   "createdAt": "2026-10-23T19:35:43.889Z",
-  "updatedAt": "2026-10-23T19:35:43.889Z",
+  "updatedAt": "2026-10-23T20:22:13.718Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Reword the pre-commit hook's skip notice and comment so an installed project's output names no internal ARC work",
   "branch": "fix/hook-skip-notice-wording",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "fix/hook-skip-notice-wording",
+    "headSha": "6bd183bf349b0e5bb08f0c9b0178e8f68c8adb64"
+  }
 }
