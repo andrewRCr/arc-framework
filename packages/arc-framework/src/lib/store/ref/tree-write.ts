@@ -61,6 +61,8 @@ export async function writeRefTree(context: RefBackendContext, entries: Iterable
   const node = (): TreeNode => ({ files: new Map(), children: new Map() });
   const root = node();
   for (const entry of entries) {
+    if (entry.invalidName) throw new Error(`The stored path ${JSON.stringify(entry.path)} is not valid UTF-8, so its tree `
+      + "cannot be rebuilt without renaming it; rename or remove that entry with Git, then retry.");
     const parts = entry.path.split("/");
     const name = parts.pop();
     if (!name) throw new Error("A state tree entry has no filename");

@@ -189,6 +189,7 @@ export function decodeCapturedRef(context: RefBackendContext, input: ListInput, 
 
 function decodeCapturedEntry(context: RefBackendContext, family: FamilyId, owner: OwnerIdentity, entry: RefTreeEntry,
   object: BatchObject | null | undefined, metadata: RefMetadata, placement?: ReadPlacement): StoreRecord | ListingDiagnostic | null {
+  if (entry.invalidName) return recordDiagnostic(entry.path, { kind: "malformed", condition: "The stored path is not valid UTF-8" });
   const reference = decodeReference(context, owner, family, entry.path, metadata, object);
   if (!reference) return recordDiagnostic(entry.path, object?.type === "blob"
     ? { kind: "malformed", condition: "The stored path does not name an admitted record" }

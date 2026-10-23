@@ -8,8 +8,13 @@ import { retryTornRefListing } from "../../git/ref-listing.js";
 /** A present Git object returned by a batch request. */
 export interface BatchObject { oid: string; type: string; bytes: Uint8Array }
 /** A recursive tree entry, retaining its exact path and mode. */
-export interface RefTreeEntry { path: string; oid: string; mode: string }
+export interface RefTreeEntry {
+  path: string; oid: string; mode: string;
+  /** Git's name for it is not UTF-8: `path` decodes it with replacement, so it lists as malformed and no tree is rebuilt from it. */
+  invalidName?: true;
+}
 const decoder = new TextDecoder("utf-8", { fatal: true });
+const lossy = new TextDecoder("utf-8");
 const encoder = new TextEncoder();
 
 /** Capture local ref tips without dereferencing their potentially missing objects. */
@@ -148,11 +153,11 @@ function emptyTree(length: number): string {
 }
 
 function parseTreeDiff(bytes: Uint8Array): Map<string, RefTreeEntry[]> {
-  const tokens = decoder.decode(bytes).split("\0");
+  const tokens = splitNul(bytes);
   const trees = new Map<string, RefTreeEntry[]>();
   let current: RefTreeEntry[] | undefined;
   for (let index = 0; index < tokens.length; index += 1) {
-    let token = tokens[index] ?? "";
+    let token = lossy.decode(tokens[index]);
     let pair = /^[0-9a-f]{40,64} ([0-9a-f]{40,64})\n/u.exec(token);
     while (pair?.[1]) {
       current = [];
@@ -166,7 +171,24 @@ function parseTreeDiff(bytes: Uint8Array): Map<string, RefTreeEntry[]> {
     if (!current || !entry?.[1] || !entry[2] || path === undefined) throw new Error("Malformed recursive tree diff");
     // Recursive enumeration omits empty trees unless tree rows are requested.
     // Keep only empty tree rows; nonempty parents are rebuilt from their leaves.
-    if (entry[1] !== "040000" || entry[2] === emptyTree(entry[2].length)) current.push({ mode: entry[1], oid: entry[2], path });
+    if (entry[1] !== "040000" || entry[2] === emptyTree(entry[2].length)) current.push({ mode: entry[1], oid: entry[2], ...entryName(path) });
   }
   return trees;
+}
+
+function splitNul(bytes: Uint8Array): Uint8Array[] {
+  const tokens: Uint8Array[] = [];
+  let start = 0;
+  for (let end = bytes.indexOf(0); end !== -1; end = bytes.indexOf(0, start)) {
+    tokens.push(bytes.subarray(start, end));
+    start = end + 1;
+  }
+  tokens.push(bytes.subarray(start));
+  return tokens;
+}
+
+/** Decode one entry's name, so a name Git admits but UTF-8 cannot decode faults only its own entry. */
+function entryName(bytes: Uint8Array): Pick<RefTreeEntry, "path" | "invalidName"> {
+  try { return { path: decoder.decode(bytes) }; }
+  catch { return { path: lossy.decode(bytes), invalidName: true }; }
 }

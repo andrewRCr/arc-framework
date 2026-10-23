@@ -3,6 +3,7 @@ import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { createRefReadFixture } from "../helpers/store/ref-read.js";
 import { plantRef } from "../helpers/store/ref-plant.js";
+import { createExecaRawGitExec } from "../../src/lib/git/process-executor.js";
 
 const uid = "12345678-1234-4234-8234-123456789abc";
 const otherUid = "abcdef12-1234-4234-8234-123456789abc";
@@ -62,5 +63,24 @@ describe.each(["files", "reftable"] as const)("ref namespace diagnostics (%s)", 
       diagnostics: [expect.objectContaining({ kind: "unreadable", key: ref })] } } },
     { status: "fulfilled", value: { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: ref } } }]);
   });
-
+  it("lists an entry whose name is not UTF-8 as one malformed diagnostic and refuses to rewrite its tree", async () => {
+    const f = await createRefReadFixture(format);
+    const planted = await plantRef(f.root, ref, [{ path: `metadata-${uid}.json`, content: canonicalize(metadata) },
+      { path: "extra-alpha.md", content: "kept" }]);
+    await plantRef(f.root, otherRef, [{ path: `metadata-${otherUid}.json`, content: canonicalize({ ...metadata, slug: "beta" }) },
+      { path: "extra-beta.md", content: "also kept" }]);
+    const raw = createExecaRawGitExec(f.root), text = (bytes: Uint8Array): string => new TextDecoder().decode(bytes).trim();
+    const name = Buffer.from([0x62, 0x61, 0x64, 0xff, 0x2e, 0x6d, 0x64]);
+    const foreign = Buffer.concat([Buffer.from(`100644 blob ${planted.blobs.get("extra-alpha.md")}\t`), name, Buffer.from([0])]);
+    const tree = text((await raw(["mktree", "-z"], { input: Buffer.concat([(await raw(["ls-tree", "-z", planted.tree])).stdout, foreign]) })).stdout);
+    const tip = text((await raw(["commit-tree", tree, "-p", planted.tip, "-m", "Foreign entry"])).stdout);
+    await raw(["update-ref", ref, tip]);
+    expect(await f.store.list({ family: "work-item" })).toMatchObject({ status: "ok", result: { status: "complete", missed: true,
+      records: expect.arrayContaining([expect.objectContaining({ content: "kept" }), expect.objectContaining({ content: "also kept" })]),
+      diagnostics: [{ kind: "malformed", key: "bad\uFFFD.md", condition: expect.stringContaining("UTF-8") }] } });
+    const reference = RecordReferenceSchema.parse({ owner: { type: "work-item", name: "alpha", uid }, kind: "work-item/companion", key: "added" });
+    await expect(f.store.write({ action: "put", reference, expected: null, content: "added\n",
+      provenance: { verb: "edit", lifecycleAction: "save" } })).rejects.toThrow(/not valid UTF-8/u);
+    expect(text((await raw(["rev-parse", ref])).stdout)).toBe(tip);
+  });
 });
