@@ -8,7 +8,7 @@ import { success } from "../helpers/store/suite-tools.js";
 import { personal, provenance } from "../helpers/store/remote-move.js";
 import { RecordReferenceSchema } from "../../src/lib/store/index.js";
 
-it.each(["follow.copied", "follow.recorded", "layout.designation", "layout.delete", "follow.switched", "follow.deleted"] as const)(
+it.each(["follow.copied", "follow.recorded", "layout.designation", "layout.delete", "follow.switched", "follow.recopied", "follow.deleted"] as const)(
   "resumes a push follow interrupted at %s without losing writes", async step => {
     const h = await lateFollowFixture(), follower = h.follower;
     await expect(invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: { ...follower.ports,
@@ -86,7 +86,7 @@ async function followBackFixture() {
 }
 
 describe.each([
-  { answer: "push", direction: "backing to backing", remote: "backing", steps: ["follow.copied", "follow.recorded", "follow.deleted"] },
+  { answer: "push", direction: "backing to backing", remote: "backing", steps: ["follow.copied", "follow.recorded", "follow.recopied", "follow.deleted"] },
   { answer: "push", direction: "backing to code", remote: "origin", steps: ["follow.copied", "follow.recorded", "layout.designation",
     "layout.rename", "layout.delete", "follow.switched", "follow.finish"] },
   { answer: "read", direction: "code to backing", remote: "backing", steps: ["follow.recorded", "layout.designation", "layout.delete", "follow.switched"] },
