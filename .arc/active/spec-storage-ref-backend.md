@@ -4688,6 +4688,6 @@ open:
   _Revalidated:_ pending → 19.1.
 
 - **A34** — 2026-10-22 — task: the cost benchmark measures each tier without the suites that run by reach.
-  _Supersedes:_ none. _Trigger:_ 18.R2.g must-stop. _Work:_ 18.R2.R. _Revalidated:_ pending → 18.R2.g.
+  _Supersedes:_ none. _Trigger:_ 18.R2.g must-stop. _Work:_ 18.R2.R. _Revalidated:_ 18.R2.g.
 
 ---

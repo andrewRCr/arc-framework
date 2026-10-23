@@ -10,8 +10,8 @@
         "workerSizing": "12"
       },
       "metric": "wall-clock-ms",
-      "baselineMs": 28725,
-      "budgetMs": 38779
+      "baselineMs": 28569,
+      "budgetMs": 38569
     },
     {
       "tier": "integration",
@@ -21,8 +21,8 @@
         "workerSizing": "12"
       },
       "metric": "wall-clock-ms",
-      "baselineMs": 697900,
-      "budgetMs": 942165
+      "baselineMs": 278490,
+      "budgetMs": 375962
     },
     {
       "tier": "lane",
@@ -32,8 +32,8 @@
         "workerSizing": "12"
       },
       "metric": "wall-clock-ms",
-      "baselineMs": 723230,
-      "budgetMs": 976361
+      "baselineMs": 297254,
+      "budgetMs": 401293
     },
     {
       "tier": "e2e",
@@ -43,8 +43,8 @@
         "workerSizing": "12"
       },
       "metric": "wall-clock-ms",
-      "baselineMs": 320410,
-      "budgetMs": 432554
+      "baselineMs": 232579,
+      "budgetMs": 313982
     },
     {
       "tier": "unit",
@@ -54,8 +54,8 @@
         "workerSizing": "native"
       },
       "metric": "job-elapsed-ms",
-      "baselineMs": 101459,
-      "budgetMs": 136970,
+      "baselineMs": 91126,
+      "budgetMs": 123021,
       "ciJob": "unit-1"
     },
     {
@@ -66,8 +66,8 @@
         "workerSizing": "native"
       },
       "metric": "job-elapsed-ms",
-      "baselineMs": 83797,
-      "budgetMs": 113126,
+      "baselineMs": 104139,
+      "budgetMs": 140588,
       "ciJob": "unit-2"
     },
     {
@@ -78,8 +78,8 @@
         "workerSizing": "native"
       },
       "metric": "job-elapsed-ms",
-      "baselineMs": 809075,
-      "budgetMs": 1092252,
+      "baselineMs": 278532,
+      "budgetMs": 376019,
       "ciJob": "integration-1"
     },
     {
@@ -90,8 +90,8 @@
         "workerSizing": "native"
       },
       "metric": "job-elapsed-ms",
-      "baselineMs": 770523,
-      "budgetMs": 1040207,
+      "baselineMs": 241639,
+      "budgetMs": 326213,
       "ciJob": "integration-2"
     },
     {
@@ -102,8 +102,8 @@
         "workerSizing": "native"
       },
       "metric": "job-elapsed-ms",
-      "baselineMs": 832653,
-      "budgetMs": 1124082,
+      "baselineMs": 380750,
+      "budgetMs": 514013,
       "ciJob": "integration-3"
     },
     {
@@ -114,8 +114,8 @@
         "workerSizing": "native"
       },
       "metric": "job-elapsed-ms",
-      "baselineMs": 681069,
-      "budgetMs": 919444,
+      "baselineMs": 374010,
+      "budgetMs": 504914,
       "ciJob": "integration-4"
     },
     {
@@ -126,8 +126,8 @@
         "workerSizing": "native"
       },
       "metric": "job-elapsed-ms",
-      "baselineMs": 298747,
-      "budgetMs": 403309,
+      "baselineMs": 272199,
+      "budgetMs": 367469,
       "ciJob": "e2e-1"
     },
     {
@@ -138,8 +138,8 @@
         "workerSizing": "native"
       },
       "metric": "job-elapsed-ms",
-      "baselineMs": 385245,
-      "budgetMs": 520081,
+      "baselineMs": 299740,
+      "budgetMs": 404649,
       "ciJob": "e2e-2"
     },
     {
@@ -150,8 +150,8 @@
         "workerSizing": "native"
       },
       "metric": "job-elapsed-ms",
-      "baselineMs": 422079,
-      "budgetMs": 569807,
+      "baselineMs": 254199,
+      "budgetMs": 343169,
       "ciJob": "e2e-3"
     },
     {
@@ -162,8 +162,8 @@
         "workerSizing": "native"
       },
       "metric": "job-elapsed-ms",
-      "baselineMs": 477436,
-      "budgetMs": 644539,
+      "baselineMs": 306006,
+      "budgetMs": 413109,
       "ciJob": "e2e-4"
     }
   ]

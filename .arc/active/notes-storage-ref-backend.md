@@ -2305,6 +2305,70 @@ only leftovers the rerun clears, so a first run stands for it.
 Measurement scripts and raw results, the per-file baseline, the layout dependency map, and the three value reviews among
 them, sit in the checkout's `.internal/storage-ref-backend-tools/verification/selection/`.
 
+### Measured after the work
+
+**The per-change figure.** The merge gate at `0b92e5e85` (`merge-gate-every-2.log` in the checkout's
+`.internal/storage-ref-backend-tools/verification/measure/`), asked for every store suite in its per-change form, ran 168
+of the 171 files, the whole separate suite and the two `ARC_STORE_BURSTS` files left out. Their per-file durations sum to
+1,840.3 s against the 2,633 s baseline, −793 s (−30%), with 2,671 cases passed and 59 skipped; the run before it, at
+`bfdc9cc05`, summed 1,868.8 s, its integration tier failing on a native-build fixture that did not copy the reach
+declaration, fixed in `0b92e5e85`. § A33 records why the halving target gave way to wall-time terms and the replay of
+the last 80 merges through the store check's own selection.
+
+**Admission.** The store check ran on the check machine in its own pool at five workers, the count the baseline's
+integration pool used, under the heavy-test slot (a 1 s wait) and the host runner's integration class, which held it
+460 s for memory while the integration tier ran; its Vitest wall time was 395.7 s and its check 860 s with the wait. The
+integration tier, without the store suites, summed 2,061 s over 422 files in 460 s of wall time, against 1,709 s for
+the same population inside the 984 s mixed run at `212f6432e`; the two runs' conditions differ, so that difference is
+not attributed. The whole gate took 14 min 30 s.
+
+**The store check's own cost,** which no row's project set describes: the reach computation alone, 2.7 s, for a change
+reaching no suite (`no-reach-check.log`); the per-change form's 395.7 s of wall time for one reaching them all; and on
+CI the unsharded store job's full run, 965 s and 1,573 s of job clock in dispatches `39869323324` and `39871608329`.
+
+**The rows.** The local captures ran at `d53e51816`, retained in the checkout's
+`.internal/storage-ref-backend-tools/task-18.R2.g-tiers/`, by the procedure § Post-correction tier and hosted
+measurements describes, on the same host, Node 26.3.0, and Git 2.55.0: sequential, twelve workers, tier-isolated, one
+discarded warm-up and one retained pass a tier, CPU admission waits subtracted. Measuring each tier without the suites
+that run by reach took A34's fix to the benchmark first. The E2E row comes from a second capture: the first one's
+measured pass failed one fixer case that passes alone, captured as an Errand.
+
+| Local tier  | Wall clock (ms) | Registered files | Completed cases | Delta from 1.1   | Delta from c39e   | Updated budget (ms) |
+| ----------- | --------------- | ---------------- | --------------- | ---------------- | ----------------- | ------------------- |
+| unit        | 28,569          | 1,309            | 19,016          | +8,509 (+42.4%)  | -156 (-0.5%)      | 38,569              |
+| integration | 278,490         | 423              | 4,305           | +71,178 (+34.3%) | -419,410 (-60.1%) | 375,962             |
+| lane        | 297,254         | 1,732            | 23,321          | +69,125 (+30.3%) | -425,976 (-58.9%) | 401,293             |
+| e2e         | 232,579         | 127              | 1,228           | unavailable      | -87,831 (-27.4%)  | 313,982             |
+
+Hosted values are the emitted `actualMs` of each job's budget clock in dispatch `39871608329` at `0b92e5e85`, where every
+functional job passed; the store job takes rows of its own when it shards (A33).
+
+| CI job        | Job clock (ms) | Delta from 1.1    | Delta from c39e   | Updated budget (ms) |
+| ------------- | -------------- | ----------------- | ----------------- | ------------------- |
+| unit-1        | 91,126         | +46,597 (+104.6%) | -10,333 (-10.2%)  | 123,021             |
+| unit-2        | 104,139        | +48,113 (+85.9%)  | +20,342 (+24.3%)  | 140,588             |
+| integration-1 | 278,532        | -63,995 (-18.7%)  | -530,543 (-65.6%) | 376,019             |
+| integration-2 | 241,639        | +220 (+0.1%)      | -528,884 (-68.6%) | 326,213             |
+| integration-3 | 380,750        | +125,578 (+49.2%) | -451,903 (-54.3%) | 514,013             |
+| integration-4 | 374,010        | +92,795 (+33.0%)  | -307,059 (-45.1%) | 504,914             |
+| e2e-1         | 272,199        | -27,586 (-9.2%)   | -26,548 (-8.9%)   | 367,469             |
+| e2e-2         | 299,740        | -44,958 (-13.0%)  | -85,505 (-22.2%)  | 404,649             |
+| e2e-3         | 254,199        | -78,622 (-23.6%)  | -167,880 (-39.8%) | 343,169             |
+| e2e-4         | 306,006        | +78,565 (+34.5%)  | -171,430 (-35.9%) | 413,109             |
+
+Every measured value was within its prior row's allowance. Each updated baseline is its measurement with the 35%
+allowance, rounded upward. The A25 rows in § Post-correction tier and hosted measurements stand as the peak these
+replace.
+
+**Relocation and reduction.** The integration row lost 419,410 ms, nearly all of it because the store suites left its
+population. The same procedure at `c7886d47a`, with the store suites still in the tier after A29's work and its whole
+separate suite beside the subset, took 690,872 ms over 594 files: the store files' summed time there fell 9% from the
+A25 capture's (4,555 s to 4,165 s of 7,490 s), and the row 7,028 ms (−1.0%). The other 412,382 ms went with their
+leaving. The lane, which holds the integration tier, fell 425,976 ms; no lane run with the store suites in it was kept
+after the work, so its split was not measured. The CI integration shards fell 307–531 s each as the store suites moved
+to the store job. The reduction itself is the per-change figure above, 1,840 s against 2,633 s on the check machine; the
+unit and E2E rows' movement is not this work's, and is not attributed.
+
 ## A30 — A move overtaken inside its switch
 
 18.R2.h's probe (`.internal/storage-ref-backend-tools/verification/apply/run-h-midswitch-probe.log`) interrupted a

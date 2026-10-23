@@ -2160,7 +2160,7 @@ in `notes-storage-ref-backend.md` (A25).
           aliases and both collision classes refuse atomically, then corrected keys succeed. Full native conformance
           and personal import comparisons retain the original logical keys without an old-name reader.
 
-### `[ ]` **18.R2 Per-change cost and selection of the store suites — § 14.14, § 14.1, § 14.12 (A29)**
+### `[x]` **18.R2 Per-change cost and selection of the store suites — § 14.14, § 14.1, § 14.12 (A29)**
 
 - _Goal:_ The store suites cost at most half their 2,633 s summed merge-gate time at `212f6432e` and run only on changes
   that reach them, every required case keeping its coverage on every change that reaches it (A29).
@@ -2244,17 +2244,17 @@ in `notes-storage-ref-backend.md` (A25).
           those tiers without the store suites. `test-cost-run.test.ts` proves those two sets leave the suites out and
           the unit, E2E, and full sets keep every suite they hold.
 
-    - `[ ]` **18.R2.g Measure and record — § 14.12**
-        - Rerun the merge gate on the remote check machine with the store check's own pool at five workers asked to
-          select every suite in its per-change form, under the admission the baseline's integration run had — the
-          heavy-test slot and the host runner's integration class (18.R2.f) — and one hosted dispatch that includes the
-          whole separate suite. Sum the store suites' per-file durations against the 2,633 s baseline measured from the
-          integration tier's pool at `212f6432e` (`integration-file-times-212f.txt` in
-          `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/selection/`), and record them, the
-          selection replayed over recent merges to `main`, the run's admission, and the worker measurement in
-          `notes-storage-ref-backend.md` § A29. Re-measure the tier and CI-job rows and update them to the measured
-          figures, the notes separating relocation from reduction, recording the store check's own cost, and keeping the
-          A25 figures as history.
+    - `[x]` **18.R2.g Measure and record — § 14.12**
+        - The merge gate at `0b92e5e85`, asked for every suite's per-change form, summed 1,840.3 s over 168 store files
+          at five workers under the heavy-test slot and the integration class, −30% against 2,633 s; dispatch
+          `39871608329` ran the full store job beside the other functional jobs. The four local tier rows (captured at
+          `d53e51816`) and ten CI-job rows take the measured figures; `notes-storage-ref-backend.md` § A29 records them
+          with the admission, the store check's own cost, and relocation against reduction, and § A33 the replay.
+
+- _Outcome:_ The store suites run only on changes that reach them: a change reaching none pays a 2.7 s reach
+  computation, and the integration tier, lane, and pull-request portability run leave them out. Their per-change cost
+  fell 30%, not the half the Goal set; A33 retired that target for wall-time terms, which 18.R3 carries. The integration
+  tier's local row fell 60%, nearly all of it relocation (`notes-storage-ref-backend.md` § A29, § A33).
 
 ### `[ ]` **18.R3 The store suites by wall time and shard — § 14.14, § 14.12 (A33)**
 
