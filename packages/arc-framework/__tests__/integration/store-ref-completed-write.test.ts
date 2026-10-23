@@ -90,7 +90,7 @@ describe("writes to completed ref records", () => {
     const bytes = await readFile(path);
     await rm(path);
     const unavailable = { status: "refused", refusal: { code: "namespace-corrupt", namespace: ref } };
-    const write = update(f, archived);
+    const write = update(f, archived, f.content(primary.reference, "valid"));
     const observed = { writes: [mutationOf(update(f, target, "accepted\n"))], provenance: testProvenance,
       observations: [{ reference: primary.reference, expected: { version: archived.version, conflicts: [] } }] };
     expect(await f.store.read({ reference: primary.reference })).toMatchObject(unavailable);
@@ -103,7 +103,7 @@ describe("writes to completed ref records", () => {
     const written = success(await f.store.write(write));
     expect(success(await f.store.read({ reference: primary.reference })).version).toBe(written.version);
     for (const [quarterRef, root] of [[firstRef, firstRoot], [ref, nextRoot]]) {
-      expect((await git("git", ["show", `${quarterRef}:${root}meta-${primary.reference.owner.name}.md`])).stdout).toBe(f.content(primary.reference, "changed"));
+      expect((await git("git", ["show", `${quarterRef}:${root}meta-${primary.reference.owner.name}.md`])).stdout).toBe(f.content(primary.reference, "valid"));
     }
   });
 
