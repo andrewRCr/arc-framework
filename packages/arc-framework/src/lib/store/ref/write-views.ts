@@ -135,10 +135,7 @@ async function readView(context: RefBackendContext, state: RefViewState, input: 
   reference = resolved.result;
   let home = expandStoredPath(reference, { registry: context.registry });
   const group = state.refs.get(home.ref);
-  if (!group) {
-    const record = archivedViewRecord(context, state, reference);
-    return record ? { status: "ok", result: record } : missing(reference);
-  }
+  if (!group) return archivedViewRead(context, state, reference);
   const family = context.registry[reference.kind].family;
   const metadata = viewRefMetadata(context, state, home.ref, family);
   if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: home.ref, ...metadataFailure(home.ref) } };
@@ -201,6 +198,14 @@ function resolveViewOwner(context: RefBackendContext, state: RefViewState, refer
 function canonicalViewReference(context: RefBackendContext, reference: RecordReference, ref: string, metadata: RefMetadata): RecordReference {
   const kind = ["work-item/meta", "work-item/record"].includes(reference.kind) ? metadata.primary?.role ?? reference.kind : reference.kind;
   return RecordReferenceSchema.parse({ ...reference, kind, owner: refOwner(ref, context.registry[reference.kind].family, metadata) });
+}
+
+/** A reference with no live ref reads from the quarters; one whose tree is unavailable may hold it, so it is not absent. */
+function archivedViewRead(context: RefBackendContext, state: RefViewState, reference: RecordReference): StoreResult<StoreRecord> {
+  const record = archivedViewRecord(context, state, reference);
+  if (record) return { status: "ok", result: record };
+  const unreadable = [...state.refs].find(([ref, captured]) => isArchiveRef(ref) && !captured.entries)?.[0];
+  return unreadable ? { status: "refused", refusal: corruptRef(unreadable, true) } : missing(reference);
 }
 
 function archivedViewRecord(context: RefBackendContext, state: RefViewState, reference: RecordReference): StoreRecord | undefined {

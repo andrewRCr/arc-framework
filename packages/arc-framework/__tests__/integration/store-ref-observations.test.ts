@@ -1,3 +1,5 @@
+import { readFile, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { RecordReferenceSchema, type HistoryEntry, type WriteCheck } from "../../src/lib/store/index.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
@@ -129,5 +131,28 @@ describe.each(["default", "separate"] as const)("native record observations in %
     armed = true;
     success(await f.store.write(update(f, target, "retained history admitted\n")));
     expect(success(await f.store.read({ reference: target.reference })).content).toBe("retained history admitted\n");
+  });
+
+  it("refuses absence under an archived owner while its quarter tree is unavailable, and admits it after repair", async () => {
+    const f = await createRefFixture({}, layout);
+    const quarter = ArchiveQuarterSchema.parse("2026-q1");
+    const archived = await seed(f, f.reference("work-item/meta", "archived"), undefined, { kind: "completed", quarter });
+    const absent = RecordReferenceSchema.parse({ owner: archived.reference.owner, kind: "work-item/companion", key: "absent.md" });
+    const target = await seed(f, f.reference("personal/document"), "original\n");
+    const scope = f.gitDir ? [`--git-dir=${f.gitDir}`] : [];
+    const tree = (await f.ports.exec("git", [...scope, "rev-parse", `refs/arc/archive/${quarter}^{tree}`], { cwd: f.root })).stdout.trim();
+    const path = join(f.gitDir ?? join(f.root, ".git"), "objects", tree.slice(0, 2), tree.slice(2));
+    const bytes = await readFile(path);
+    await rm(path);
+    const request = { writes: [mutationOf(update(f, target, "accepted\n"))], provenance: testProvenance,
+      observations: [{ reference: absent, expected: null }] };
+    const unavailable = { status: "refused", refusal: { code: "namespace-corrupt", namespace: `refs/arc/archive/${quarter}` } };
+    expect(await f.store.batch(request)).toMatchObject(unavailable);
+    expect(await f.store.read({ reference: absent })).toMatchObject(unavailable);
+    expect(success(await f.store.read({ reference: target.reference }))).toEqual(target);
+    await writeFile(path, bytes);
+    expect(await f.store.read({ reference: absent })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    success(await f.store.batch(request));
+    expect(success(await f.store.read({ reference: target.reference })).content).toBe("accepted\n");
   });
 });
