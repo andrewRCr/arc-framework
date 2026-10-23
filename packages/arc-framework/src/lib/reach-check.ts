@@ -38,7 +38,7 @@ export interface ReachCheckInput {
  */
 export async function runReachCheck(input: ReachCheckInput): Promise<void> {
   const { declaration } = input;
-  const selection = await selectForCheck(declaration, input);
+  const selection = await selectReachCheck(declaration, input);
   await report(declaration, selection, input.env);
   if (selection.suites.length === 0) return;
   await runReachSuites(input, selection.suites);
@@ -113,8 +113,14 @@ export async function readReachDeclaration(path: string | URL): Promise<ReachDec
   return ReachDeclarationSchema.parse(JSON.parse(await readFile(path, "utf8")));
 }
 
-/** Settle the run's form from its ask, base, and change, and select its suites. */
-async function selectForCheck(declaration: ReachDeclaration, input: ReachCheckInput): Promise<ReachSelection> {
+/**
+ * Settle a check's form from its ask, base, and change, and select its suites without running them.
+ * @param declaration - The reach declaration
+ * @param input - Repository root, the declaration's path, the check's environment, and the Git boundary
+ * @returns The selection the check runs
+ */
+export async function selectReachCheck(declaration: ReachDeclaration,
+  input: Pick<ReachCheckInput, "checkoutRoot" | "declarationPath" | "env" | "git">): Promise<ReachSelection> {
   const base = input.env.ARC_CHECK_BASE || undefined;
   const tree = input.env.ARC_CHECK_TREE || undefined;
   const changed = base === undefined ? [] : await readChangedPaths(input.git, input.checkoutRoot, base, tree);
