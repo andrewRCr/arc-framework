@@ -64,7 +64,7 @@ async function overtakenIntoCode(boundary: string) {
   return { h, during, foreign: FOREIGN_REFS.map(ref => `${ref} ${head}`).sort() };
 }
 
-it.each(["remote.switch", "layout.designation"])("undoes a move into the code repository a move back overtook at %s", async boundary => {
+it.each(["remote.switch", "layout.designation", "layout.delete"])("undoes a move into the code repository a move back overtook at %s", async boundary => {
   const { h, during, foreign } = await overtakenIntoCode(boundary);
   const result = await invokeStoreMigrate([], h.ports);
   expect(result.status, JSON.stringify(result)).toBe("ok");

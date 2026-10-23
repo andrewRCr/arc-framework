@@ -100,7 +100,8 @@ async function deleteLayoutSource(state: LayoutMoveState, recorded: RecordedLayo
   const { context, code, record, paths } = state;
   await context.migrateStep?.("layout.delete");
   if (record.source === "default") await requireLayoutTransaction(code, [...(await layoutRefs(code))].map(([ref, expected]) => ({ ref, delete: true, expected })));
-  else await context.fs.removeDirectory(paths.aside);
+  // An undo out of the code repository's refs can find the directory an interrupted move into them set aside.
+  await context.fs.removeDirectory(paths.aside);
   await context.fs.removeDirectory(paths.build);
   await context.migrateStep?.("layout.deleted");
   await clearLayoutGathering(code, state.configuration !== undefined);
