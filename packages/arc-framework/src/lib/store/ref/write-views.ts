@@ -22,6 +22,7 @@ import { FAMILY_REGISTRY } from "../registry.js";
 import { projectOwnerFromEntries, admitProjectReference, projectListInput, projectListingBinding } from "./project-identity.js";
 import { archivedViewRecords } from "./archive-view.js";
 import { checkRefKey } from "./path-admission.js";
+import { rootFamily } from "./path-decode.js";
 import { readCapturedRefHistory } from "./history.js";
 
 /** Build lazy views which never recapture a live ref during a check. */
@@ -202,10 +203,17 @@ function canonicalViewReference(context: RefBackendContext, reference: RecordRef
 
 /** A reference with no live ref reads from the quarters; one whose tree is unavailable may hold it, so it is not absent. */
 function archivedViewRead(context: RefBackendContext, state: RefViewState, reference: RecordReference): StoreResult<StoreRecord> {
+  if (!archivable(context, reference)) return missing(reference);
   const record = archivedViewRecord(context, state, reference);
   if (record) return { status: "ok", result: record };
   const unreadable = [...state.refs].find(([ref, captured]) => isArchiveRef(ref) && !captured.entries)?.[0];
   return unreadable ? { status: "refused", refusal: corruptRef(unreadable, true) } : missing(reference);
+}
+
+/** Only a work item or cohort with a UID can have ended into a quarter. */
+function archivable(context: RefBackendContext, reference: RecordReference): boolean {
+  return reference.owner.type !== "person" && Boolean(reference.owner.uid)
+    && ["work-item", "cohort"].includes(rootFamily(context.registry[reference.kind].family));
 }
 
 function archivedViewRecord(context: RefBackendContext, state: RefViewState, reference: RecordReference): StoreRecord | undefined {

@@ -198,7 +198,7 @@ describe.each(["default", "separate"] as const)("native record observations in %
     expect(success(await f.store.read({ reference: target.reference })).content).toBe("accepted\n");
   });
 
-  it("refuses absence under an archived owner while its quarter tree is unavailable, and admits it after repair", async () => {
+  it("refuses absence under an archived owner while its quarter tree is unavailable, keeps a record no quarter holds absent, and admits it after repair", async () => {
     const f = await createRefFixture({}, layout);
     const quarter = ArchiveQuarterSchema.parse("2026-q1");
     const archived = await seed(f, f.reference("work-item/meta", "archived"), undefined, { kind: "completed", quarter });
@@ -215,9 +215,16 @@ describe.each(["default", "separate"] as const)("native record observations in %
     expect(await f.store.batch(request)).toMatchObject(unavailable);
     expect(await f.store.read({ reference: absent })).toMatchObject(unavailable);
     expect(success(await f.store.read({ reference: target.reference }))).toEqual(target);
+    // Claims have no live ref yet, and no quarter holds them.
+    const unwritten = f.reference("claims/groom");
+    expect(await f.store.read({ reference: unwritten })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    success(await f.store.batch({ writes: [mutationOf(update(f, target, "admitted beside the quarter\n"))], provenance: testProvenance,
+      observations: [{ reference: unwritten, expected: null }] }));
+    const admitted = success(await f.store.read({ reference: target.reference }));
+    expect(admitted.content).toBe("admitted beside the quarter\n");
     await writeFile(path, bytes);
     expect(await f.store.read({ reference: absent })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
-    success(await f.store.batch(request));
+    success(await f.store.batch({ ...request, writes: [mutationOf(update(f, admitted, "accepted\n"))] }));
     expect(success(await f.store.read({ reference: target.reference })).content).toBe("accepted\n");
   });
 });
