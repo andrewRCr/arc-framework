@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "install-authority-inputs",
+  "claimId": "bb56d2324378c131386160ab05bc2a43",
+  "createdAt": "2026-10-23T20:38:25.379Z",
+  "updatedAt": "2026-10-23T20:38:25.379Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route the shipped-file inventory backstop and Owner design inputs into adopter-install-authority",
+  "branch": "chore/install-authority-inputs",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
