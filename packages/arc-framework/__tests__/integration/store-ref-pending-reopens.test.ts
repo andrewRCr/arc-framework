@@ -64,3 +64,49 @@ describe.each(["default", "separate"] as const)("pending reopens in the %s layou
     expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", history])).stdout).toBe("");
   });
 });
+
+it("applies another machine's reopen at a later pull than the one whose merge brought its folder's removal", async () => {
+  const h = await refSyncFixture("default");
+  const made = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("later-reopen"),
+    reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "later-reopen" } }),
+    placement: { kind: "active" }, provenance }));
+  success(await h.a.store.push()); success(await h.b.store.pull());
+  const active = success(await h.a.store.read({ reference: made.reference }));
+  success(await h.a.store.write({ action: "put", reference: active.reference, expected: active.version,
+    content: active.content, placement: { kind: "completed", quarter }, provenance }));
+  success(await h.a.store.push()); success(await h.b.store.pull());
+  if (!("uid" in made.reference.owner)) throw new Error("The item needs a UID");
+  const live = `refs/arc/work/${made.reference.owner.uid}`, history = live.replace("refs/arc/", "refs/arc/history/");
+  expect((await h.b.git(["for-each-ref", "--format=%(refname)", history])).stdout.trim()).toBe(history);
+  const tips = async () => new Map((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout
+    .trim().split("\n").filter(Boolean).map(row => row.split(" ") as [string, string]));
+  const closed = success(await h.a.store.read({ reference: made.reference }));
+  success(await h.a.store.write({ action: "put", reference: closed.reference, expected: closed.version,
+    content: closed.content, placement: { kind: "active" }, provenance: { verb: "reopen", lifecycleAction: "reopen" } }));
+  const before = await tips();
+  success(await h.a.store.push());
+  const after = await tips();
+  // The reopen arrives in two parts: the quarter's folder removal first, every other ref it changed at the next pull.
+  const withheld = [...new Set([...before.keys(), ...after.keys()])]
+    .filter(ref => before.get(ref) !== after.get(ref) && !/^refs\/arc\/archive\/\d{4}-q[1-4]$/u.test(ref));
+  expect(withheld).toContain(live);
+  expect(withheld.length).toBeLessThan(new Set([...before.keys(), ...after.keys()].filter(ref => before.get(ref) !== after.get(ref))).size);
+  const place = async (tipsOf: Map<string, string>) => {
+    for (const ref of withheld) {
+      const tip = tipsOf.get(ref);
+      await h.remote("git", tip ? ["update-ref", ref, tip] : ["update-ref", "-d", ref]);
+    }
+  };
+  await place(before);
+  const removal = success(await h.b.store.pull());
+  expect(removal.pulls.every(({ status }) => status !== "failed")).toBe(true);
+  expect(removal.pulls.flatMap(({ notices }) => notices).filter(({ kind }) => kind === "end-pending")).toEqual([]);
+  expect((await h.b.git(["for-each-ref", "--format=%(refname)", history])).stdout.trim()).toBe(history);
+  await place(after);
+  success(await h.b.store.pull());
+  expect(success(await h.b.store.read({ reference: made.reference })).placement).toEqual({ kind: "active" });
+  expect((await h.b.git(["for-each-ref", "--format=%(refname)", history])).stdout).toBe("");
+  success(await h.b.store.push());
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", live])).stdout.trim()).toBe(live);
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", history])).stdout).toBe("");
+});
