@@ -124,4 +124,25 @@ describe("own unpublished lifecycle in the default layout", () => {
       expect((await h.b.git(["rev-parse", h.history])).stdout).toBe(before);
     }
   });
+
+  it("applies another machine's reopen and abandon though a sibling fetched the history ref by name before both", async () => {
+    const h = await archivedFixture(layout, false);
+    await h.a.git(["fetch", "--no-tags", h.remoteName,
+      `${h.history}:refs/arc-remotes/${h.remoteName}/${h.history.slice("refs/arc/".length)}`]);
+    await h.reopen(h.b);
+    const current = success(await h.b.store.read({ reference: h.reference }));
+    success(await h.b.store.batch({ writes: [
+      { action: "put", reference: h.transition, expected: null, content: h.lineageContent },
+      { action: "remove", reference: current.reference, expected: current.version },
+    ], provenance: { verb: "abandon", lifecycleAction: "abandon" } }));
+    success(await h.b.store.push());
+    const outcome = success(await h.a.store.push());
+    expect(outcome.publishes.every(({ status }) => status !== "failed")).toBe(true);
+    expect(await h.a.store.read({ reference: h.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    expect(JSON.parse(success(await h.a.store.read({ reference: h.transition })).content)).toEqual(JSON.parse(h.lineageContent));
+    expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", h.live])).stdout).toBe("");
+    expect((await h.a.git(["for-each-ref", "--format=%(refname)", h.live])).stdout).toBe("");
+    const pulled = success(await h.a.store.pull());
+    expect(pulled.pulls.flatMap(({ notices }) => notices).some(({ kind }) => kind === "end-pending")).toBe(false);
+  });
 });

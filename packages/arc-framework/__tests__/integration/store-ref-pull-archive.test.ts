@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
-import { RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { RecordReferenceSchema, type RecordReference } from "../../src/lib/store/index.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 
 const quarter = ArchiveQuarterSchema.parse("2026-q4"), archive = `refs/arc/archive/${quarter}`;
@@ -95,6 +95,44 @@ describe.each(["default", "separate"] as const)("archive pull merging in the %s 
     expect(merged).toHaveLength(2);
     expect(merged.map(({ reference }) => reference.key).sort()).toEqual(["first.md", "second.md"]);
     for (const entry of merged) expect(entry.provenance).toMatchObject({ batchId });
+  });
+
+  it("renumbers the second clone's end in its push loop's merge, leaving no end pending and the merge under one batch", async () => {
+    const h = await refSyncFixture(layout);
+    const open = async (client: Client, name: string) => success(await client.store.write({ action: "put", expected: null,
+      content: makeMetaFixture(name), reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name } }),
+      placement: { kind: "active" }, provenance }));
+    const end = async (client: Client, reference: RecordReference) => {
+      const live = success(await client.store.read({ reference }));
+      return success(await client.store.write({ action: "put", reference, expected: live.version, content: live.content,
+        placement: { kind: "completed", quarter }, provenance }));
+    };
+    const theirs = await open(h.a, "remote"), ours = await open(h.b, "local");
+    success(await h.a.store.push()); success(await h.b.store.push()); success(await h.a.store.pull());
+    await end(h.a, theirs.reference);
+    success(await h.a.store.push());
+    await end(h.b, ours.reference);
+    const from = success(await h.b.store.version());
+    success(await h.b.store.push());
+    const to = success(await h.b.store.version());
+    for (const client of [h.a, h.b]) {
+      for (let pull = 0; pull < 2; pull++) {
+        const notices = success(await client.store.pull()).pulls.flatMap(({ notices }) => notices);
+        expect(notices.filter(({ kind }) => kind === "end-pending")).toEqual([]);
+      }
+      expect(success(await client.store.read({ reference: theirs.reference })).placement).toEqual({ kind: "completed", quarter, sequence: "01" });
+      expect(success(await client.store.read({ reference: ours.reference })).placement).toEqual({ kind: "completed", quarter, sequence: "02" });
+      expect((await client.git(["for-each-ref", "--format=%(refname)", "refs/arc/work/"])).stdout).toBe("");
+    }
+    const [parents = "", ...message] = (await h.b.git(["show", "-s", "--format=%P%n%B", archive])).stdout.split("\n");
+    expect(parents.split(" ")).toHaveLength(2);
+    const mergeBatch = /^Arc-Batch: (.+)$/mu.exec(message.join("\n"))?.[1];
+    expect(mergeBatch).toMatch(/^[0-9a-f-]{36}$/u);
+    // The merge only renumbers the local folder, which adds no entry; the incoming end keeps its own batch.
+    const entries = success(await h.b.store.changes({ from, to, references: [theirs.reference, ours.reference] }));
+    expect(entries.map(({ reference, provenance: p }) => [reference.owner.name, "verb" in p ? p.verb : null]))
+      .toEqual([["remote", "archive"]]);
+    expect(entries.some(({ provenance: p }) => "batchId" in p && p.batchId === mergeBatch)).toBe(false);
   });
 
 });
