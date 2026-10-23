@@ -279,16 +279,23 @@ describe.each(["default", "separate"] as const)("Errand import in %s", (layout) 
       expect((await h.git("git", ["rev-parse", sourceRef])).stdout.trim()).toBe(tip);
       expect((await h.git("git", ["for-each-ref", "--format=%(refname)", keptPrefix])).stdout).toBe("");
     });
-    it("leaves other people's transient authority in place and reports it", async () => {
+    it("re-homes every held identity's transient authority under the identity whose ref held it", async () => {
       const h = await importFixture(layout);
-      const tip = await seed(h, [ordinary]);
+      const head = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
+      await seed(h, [ordinary]);
       const other = "refs/arc/user/alex/errands";
-      await h.git("git", ["update-ref", other, tip]);
+      await seed(h, [{ ...common, kind: "errand", purpose: "errand", slug: "alex-example", branch: "chore/alex-example", intent: "Keep this intent",
+        origin: "description", originEntry: null, state: "open", savedHead: null, changeRequest: null }, { ...common, kind: "groom", slug: "groom-beta",
+        anchorStub: "beta", members: ["beta"], openedBaseHead: head, protection: "partial", branch: null, state: "open", changeRequest: null }], "alex");
       const result = await h.migrate();
-      expect(result).toMatchObject({ status: "ok", result: { notices: expect.arrayContaining([
-        expect.objectContaining({ condition: expect.stringContaining(other) }),
-      ]) } });
-      expect((await h.git("git", ["rev-parse", other])).stdout.trim()).toBe(tip);
+      expect(result.status, JSON.stringify(result)).toBe("ok");
+      if (result.status === "ok") expect(result.result.notices.filter(({ condition }) => condition.includes(other))).toEqual([]);
+      expect((await h.git("git", ["for-each-ref", "--format=%(refname)", sourceRef, other])).stdout).toBe("");
+      const work = success(await createRefStore(h.ports).list({ family: "work-item", kind: "work-item/record" }));
+      if (work.status !== "complete") throw new Error("Missing imported Errands");
+      expect(work.records.map(({ reference, content }) => [reference.owner.name, JSON.parse(content).owner]).sort())
+        .toEqual([["alex-example", "alex"], ["example", "andrew"]]);
+      expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/user/alex/claims"])).stdout.trim()).toBe("refs/arc/user/alex/claims");
     });
     it.each([false, true])("moves the origin before stamping, reports source changes (%s), and falls back to intent", async (changed) => {
       const h = await importFixture(layout);

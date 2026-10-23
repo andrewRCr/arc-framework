@@ -22,9 +22,10 @@ export const transientSourceRef = "refs/arc/user/andrew/errands";
 /** Where the import keeps the source tips it re-homed until cleanup ends. */
 export const keptPrefix = "refs/arc/tmp/migrate/import/kept/";
 
-/** Write the records as the transient identity ref's tree, creating each ordinary Errand's branch. */
-export async function seedTransients(h: Awaited<ReturnType<typeof importFixture>>, records: TransientIdentityRecord[]): Promise<string> {
-  const io = { exec: h.ports.exec, execInput: h.ports.execInput, identity: "andrew" };
+/** Write the records as a person's transient identity ref's tree, creating each ordinary Errand's branch. */
+export async function seedTransients(h: Awaited<ReturnType<typeof importFixture>>, records: TransientIdentityRecord[],
+  identity = "andrew"): Promise<string> {
+  const io = { exec: h.ports.exec, execInput: h.ports.execInput, identity };
   const entries = new Map<string, string>();
   for (const record of records) {
     entries.set(record.slug, await hashBlob(io.execInput, serializeTransientIdentityRecord(TransientIdentityRecordSchema.parse(record))));

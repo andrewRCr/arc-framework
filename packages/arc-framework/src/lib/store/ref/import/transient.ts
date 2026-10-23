@@ -1,4 +1,4 @@
-/** Acquire the configured identity's pinned transient records for re-homing. */
+/** Acquire every held identity's pinned transient records for re-homing. */
 import { randomUUID } from "node:crypto";
 import type { RefBackendContext } from "../context.js";
 import type { ImportRecord } from "./source.js";
@@ -7,25 +7,49 @@ import { readTransientIdentitySnapshot } from "../../../errand/identity-snapshot
 import { serializeTransientIdentityRecord, type TransientIdentityRecord } from "../../../errand/identity-record.js";
 import { transientIO, transientKind, transientReference } from "../../in-repo/transient-common.js";
 import { RecordReferenceSchema, type RecordReference } from "../../identity.js";
-import { errandsRef } from "../../../errand/ref-tree.js";
+import { errandsRef, type ErrandRecordIO } from "../../../errand/ref-tree.js";
 import { rejoinEntryList, splitEntryList } from "../../concurrency/entries.js";
 import { matchInboxEntryTitle } from "../../kinds/entry-fields.js";
 import { inboxEntrySourceDigest } from "../../../user-sync/inbox-writer.js";
 import { SlugSchema } from "../../../kernel/schema/slug.js";
-import { readSyncRefs } from "../sync-graph.js";
 
 /** Source retirement leases and informational observations that do not block admission. */
 export interface ImportTransientState { tips: Map<string, string>; notices: MigrateReport["notices"] }
 
-/** Read one immutable source tree and retain its exact retirement lease. */
+/** Read each held identity ref's immutable tree and retain its exact retirement lease; each record keeps the identity
+ * whose ref held it.
+ */
 export async function appendImportTransients(context: RefBackendContext, report: MigrateReport, records: ImportRecord[], state: ImportTransientState): Promise<void> {
-  if (!context.importSource) throw new Error("No import source bound");
-  const io = await transientIO({ ports: context.importSource.ports, registry: context.registry });
-  await reportOtherIdentities(context, io?.identity, state);
-  if (!io) return;
+  const source = context.importSource;
+  if (!source) throw new Error("No import source bound");
+  const configured = await source.ports.identity();
+  for (const identity of await heldIdentities(context, configured)) {
+    const person = SlugSchema.safeParse(identity);
+    if (!person.success) {
+      report.notices.push({ condition: `${errandsRef(identity)} names no valid identity, so its records cannot be re-homed.`,
+        remedy: { text: `Rename or remove ${errandsRef(identity)}, then retry arc store migrate --import.` } });
+      continue;
+    }
+    const io = await transientIO({ ports: { ...source.ports, identity: () => Promise.resolve(person.data) }, registry: context.registry });
+    if (io) await appendIdentityTransients(context, report, records, state, io);
+  }
+}
+
+/** The identities whose transient ref the code repository holds, the configured one first. */
+async function heldIdentities(context: RefBackendContext, configured: string | null): Promise<string[]> {
+  const source = context.importSource;
+  if (!source) return [];
+  const { stdout } = await source.ports.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/user/"],
+    { cwd: source.ports.checkoutRoot, objectAccess: "local-only" });
+  const held = stdout.split("\n").flatMap((ref) => /^refs\/arc\/user\/([^/]+)\/errands$/u.exec(ref.trim())?.[1] ?? []);
+  return [...new Set(held)].sort((left, right) => Number(right === configured) - Number(left === configured) || left.localeCompare(right));
+}
+
+async function appendIdentityTransients(context: RefBackendContext, report: MigrateReport, records: ImportRecord[],
+  state: ImportTransientState, io: ErrandRecordIO): Promise<void> {
   const snapshot = await readTransientIdentitySnapshot(io);
   if (snapshot.kind === "absent") return;
-  const remedy = { text: "Repair the configured identity's transient ref, then retry arc store migrate --import." };
+  const remedy = { text: `Repair ${errandsRef(io.identity)}, then retry arc store migrate --import.` };
   if (snapshot.kind === "error") { report.notices.push({ condition: snapshot.message, remedy }); return; }
   if (snapshot.diagnostics.length) {
     report.notices.push(...snapshot.diagnostics.map((item) => ({ condition: `${item.key}: ${item.kind}`, remedy })));
@@ -33,13 +57,6 @@ export async function appendImportTransients(context: RefBackendContext, report:
   }
   state.tips.set(errandsRef(io.identity), snapshot.tip);
   for (const [key, record] of snapshot.records) appendTransientRecord(context, report, records, state, io.identity, key, record);
-}
-
-async function reportOtherIdentities(context: RefBackendContext, identity: string | undefined, state: ImportTransientState): Promise<void> {
-  const otherRefs = [...await readSyncRefs(context, "refs/arc/user/")].map(([ref]) => ref)
-    .filter((ref) => /^refs\/arc\/user\/[^/]+\/errands$/u.test(ref) && ref !== (identity ? errandsRef(identity) : undefined));
-  state.notices.push(...otherRefs.map((ref) => ({ condition: `${ref} belongs to another identity and was left in place.`,
-    remedy: { text: "Import that identity's transient records from its configured checkout before retiring the legacy ref." } })));
 }
 
 function appendTransientRecord(context: RefBackendContext, report: MigrateReport, records: ImportRecord[], state: ImportTransientState,
