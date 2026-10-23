@@ -73,6 +73,7 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "errand open", args: ["errand", "open", "matrix", "--inbox-title-file", "-"], stdin: "Matrix title\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "Missing USER-INBOX entry 'Matrix title'" } },
   { commandPath: "finalize", args: ["finalize", "invalid"], expected: { exitCode: 1 } },
   { commandPath: "hook-remedy-roadmap-conflict", args: ["hook-remedy-roadmap-conflict"], fixture: "bare", expected: { exitCode: 0 } },
+  { commandPath: "hook-validate-frontmatter", args: ["hook-validate-frontmatter"], fixture: "bare", expected: { exitCode: 0 } },
   { commandPath: "init", promptSite: "prompt.init.tools", args: ["init", "--name", "matrix", "--identity", "matrix"], fixture: "bare", expected: { exitCode: 0, outputIncludes: "Installation complete" } },
   { commandPath: "integrate checkpoint", args: ["integrate", "checkpoint", "matrix"], expected: { exitCode: 0, outputIncludes: "\"reason\":\"drift-unavailable\"" } },
   { commandPath: "integrate merge", args: ["integrate", "merge", "matrix", "--checkpoint", "invalid"], expected: { exitCode: 64, outputIncludes: "\"reason\":\"invalid-input\"" } },

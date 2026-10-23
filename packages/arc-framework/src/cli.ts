@@ -261,6 +261,13 @@ program
     await (await import("./scripts/remedy-roadmap-conflict.js")).runRoadmapConflictAutoRemedyCommand();
   });
 
+program
+  .command("hook-validate-frontmatter", { hidden: true })
+  .argument("[paths...]", "Staged paths to validate")
+  .action(async (paths: string[]) => {
+    (await import("./scripts/validate-frontmatter.js")).runValidateFrontmatterCommand(paths);
+  });
+
 function isDashPrefixedCheckSourceEscaped(
   rawArgs: readonly string[],
   input: readonly string[],
