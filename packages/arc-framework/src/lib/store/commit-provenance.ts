@@ -18,9 +18,12 @@ export function renderStoreCommitMessage(provenance: CallerProvenance, reference
 
 /** Recover structured provenance for a changed record, retaining unstructured messages verbatim. */
 export function parseStoreCommitProvenance(message: string, reference: RecordReference): StoredProvenance {
-  const [subject = ""] = message.split("\n");
-  const trailers = new Map([...message.matchAll(/^Arc-([A-Za-z-]+): (.*)$/gmu)]
-    .map((match) => [match[1], match[2]]));
+  const lines = message.split("\n"), [subject = ""] = lines;
+  // Git lines end only at a newline, so a value keeps any other line separator it holds.
+  const trailers = new Map(lines.flatMap((line) => {
+    const match = /^Arc-([A-Za-z-]+): (.*)$/su.exec(line);
+    return match ? [[match[1], match[2]] as const] : [];
+  }));
   try {
     const owner = reference.owner;
     const parsed = StoredProvenanceSchema.safeParse({

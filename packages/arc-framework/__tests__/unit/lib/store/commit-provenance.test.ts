@@ -25,4 +25,9 @@ describe("stored commit provenance", () => {
     expect(message).toContain(`Arc-Lifecycle-Action: ${JSON.stringify(lifecycleAction)}\n`);
     expect(parseStoreCommitProvenance(message, reference)).toEqual({ verb: "capture", lifecycleAction, reference, ownerUid: uid, batchId: "real-batch" });
   });
+  it.each(["\u2028", "\u2029"])("reads a lifecycle action holding %j as one trailer value without a forged code head", (separator) => {
+    const lifecycleAction = `update${separator}Arc-Code-Head: ${"b".repeat(40)}`;
+    const message = renderStoreCommitMessage({ verb: "capture", lifecycleAction }, reference, "real-batch");
+    expect(parseStoreCommitProvenance(message, reference)).toEqual({ verb: "capture", lifecycleAction, reference, ownerUid: uid, batchId: "real-batch" });
+  });
 });
