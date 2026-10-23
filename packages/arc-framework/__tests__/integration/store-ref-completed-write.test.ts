@@ -1,5 +1,7 @@
+import { readFile, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createRefFixture } from "../helpers/store/ref-fixture.js";
+import { createRefFixture, type RefConformanceFixture } from "../helpers/store/ref-fixture.js";
 import { seed, success, update, mutationOf, testProvenance } from "../helpers/store/suite-tools.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { createRefStore } from "../../src/lib/store/create.js";
@@ -54,31 +56,8 @@ describe("writes to completed ref records", () => {
   });
   it.each(["same quarter", "another quarter"] as const)("reads and lists only the latest of two ends in %s, and refreshes both", async (location) => {
     const f = await createRefFixture();
-    const primary = await seed(f, f.reference("work-item/meta"));
-    success(await f.store.write({ ...update(f, primary), placement: { kind: "completed", quarter } }));
-    const other = await seed(f, f.reference("work-item/meta", "other"));
-    success(await f.store.write({ ...update(f, other), placement: { kind: "completed", quarter } }));
-    const uid = "uid" in primary.reference.owner ? primary.reference.owner.uid : undefined;
-    const history = `refs/arc/history/work/${uid}`, firstRef = `refs/arc/archive/${quarter}`;
-    const metadataPath = `metadata-${uid}.json`, firstRoot = `01_${primary.reference.owner.name}/`;
+    const { primary, other, history, firstRef, firstRoot, firstEnd, metadataPath, nextQuarter, ref, nextRoot, batch } = await endTwice(f, location);
     const git = makeGitExec(f.root);
-    const previous = (await git("git", ["rev-parse", history])).stdout.trim();
-    const nextQuarter = location === "same quarter" ? quarter : ArchiveQuarterSchema.parse("2027-q1");
-    const ref = `refs/arc/archive/${nextQuarter}`, nextRoot = `06_${primary.reference.owner.name}/`;
-    const metadata = JSON.parse((await git("git", ["show", `${history}:${metadataPath}`])).stdout) as Record<string, unknown>;
-    const firstEnd = metadata.endBatch;
-    const priorPrimary = metadata.primary;
-    if (!priorPrimary || typeof priorPrimary !== "object" || Array.isArray(priorPrimary)) throw new Error("No archived primary metadata");
-    metadata.primary = { ...priorPrimary, placement: { kind: "completed", quarter: nextQuarter } };
-    const batch = randomUUID(); metadata.endBatch = batch; metadata.batch = batch;
-    const records = (await entriesAt(f.root, history)).map((entry): PlantTreeEntry => entry.path === metadataPath
-      ? { path: entry.path, content: canonicalize(metadata) }
-      : entry.path === `meta-${primary.reference.owner.name}.md` ? { path: entry.path, content: f.content(primary.reference, "changed-again") } : entry);
-    const message = renderStoreCommitMessage({ ...testProvenance, verb: "archive" }, primary.reference, batch);
-    await plantRef(f.root, history, records, { parents: [previous], message });
-    const priorQuarter = location === "same quarter" ? (await git("git", ["rev-parse", ref])).stdout.trim() : undefined;
-    await plantRef(f.root, ref, [...(location === "same quarter" ? await entriesAt(f.root, ref) : []),
-      ...records.map((entry) => ({ ...entry, path: nextRoot + entry.path }))], { parents: priorQuarter ? [priorQuarter] : [], message });
     const archived = success(await f.store.read({ reference: primary.reference }));
     expect(archived.content).toBe(f.content(primary.reference, "changed-again"));
     expect(archived.placement).toEqual({ kind: "completed", quarter: nextQuarter, sequence: "06" });
@@ -97,6 +76,35 @@ describe("writes to completed ref records", () => {
     }
     expect(success(await f.store.list({ family: "work-item", owner: primary.reference.owner }))).toMatchObject({ status: "complete", missed: false, records: [current] });
     expect(success(await f.store.read({ reference: other.reference })).placement).toEqual({ kind: "completed", quarter, sequence: "02" });
+  });
+
+  it("refuses a twice-ended item's read, history, write, and check view while its later quarter's tree is unavailable, and refreshes both folders after repair", async () => {
+    const f = await createRefFixture();
+    const { primary, firstRef, firstRoot, ref, nextRoot } = await endTwice(f, "another quarter");
+    const archived = success(await f.store.read({ reference: primary.reference }));
+    const versions = success(await f.store.history({ reference: primary.reference }));
+    const target = await seed(f, f.reference("personal/document"), "original\n");
+    const git = makeGitExec(f.root);
+    const tree = (await git("git", ["rev-parse", `${ref}^{tree}`])).stdout.trim();
+    const path = join(f.root, ".git", "objects", tree.slice(0, 2), tree.slice(2));
+    const bytes = await readFile(path);
+    await rm(path);
+    const unavailable = { status: "refused", refusal: { code: "namespace-corrupt", namespace: ref } };
+    const write = update(f, archived);
+    const observed = { writes: [mutationOf(update(f, target, "accepted\n"))], provenance: testProvenance,
+      observations: [{ reference: primary.reference, expected: { version: archived.version, conflicts: [] } }] };
+    expect(await f.store.read({ reference: primary.reference })).toMatchObject(unavailable);
+    expect(await f.store.history({ reference: primary.reference })).toMatchObject(unavailable);
+    expect(await f.store.write(write)).toMatchObject(unavailable);
+    expect(await f.store.batch(observed)).toMatchObject(unavailable);
+    await writeFile(path, bytes);
+    expect(success(await f.store.history({ reference: primary.reference }))).toEqual(versions);
+    success(await f.store.batch(observed));
+    const written = success(await f.store.write(write));
+    expect(success(await f.store.read({ reference: primary.reference })).version).toBe(written.version);
+    for (const [quarterRef, root] of [[firstRef, firstRoot], [ref, nextRoot]]) {
+      expect((await git("git", ["show", `${quarterRef}:${root}meta-${primary.reference.owner.name}.md`])).stdout).toBe(f.content(primary.reference, "changed"));
+    }
   });
 
   it("gives checks independent completed before and after reads and listings", async () => {
@@ -240,6 +248,36 @@ describe("writes to completed ref records", () => {
   });
 
 });
+
+/** End one item a second time, as another clone's published end leaves it: a later folder in the same or the next quarter. */
+async function endTwice(f: RefConformanceFixture, location: "same quarter" | "another quarter") {
+  const primary = await seed(f, f.reference("work-item/meta"));
+  success(await f.store.write({ ...update(f, primary), placement: { kind: "completed", quarter } }));
+  const other = await seed(f, f.reference("work-item/meta", "other"));
+  success(await f.store.write({ ...update(f, other), placement: { kind: "completed", quarter } }));
+  const uid = "uid" in primary.reference.owner ? primary.reference.owner.uid : undefined;
+  const history = `refs/arc/history/work/${uid}`, firstRef = `refs/arc/archive/${quarter}`;
+  const metadataPath = `metadata-${uid}.json`, firstRoot = `01_${primary.reference.owner.name}/`;
+  const git = makeGitExec(f.root);
+  const previous = (await git("git", ["rev-parse", history])).stdout.trim();
+  const nextQuarter = location === "same quarter" ? quarter : ArchiveQuarterSchema.parse("2027-q1");
+  const ref = `refs/arc/archive/${nextQuarter}`, nextRoot = `06_${primary.reference.owner.name}/`;
+  const metadata = JSON.parse((await git("git", ["show", `${history}:${metadataPath}`])).stdout) as Record<string, unknown>;
+  const firstEnd = metadata.endBatch;
+  const priorPrimary = metadata.primary;
+  if (!priorPrimary || typeof priorPrimary !== "object" || Array.isArray(priorPrimary)) throw new Error("No archived primary metadata");
+  metadata.primary = { ...priorPrimary, placement: { kind: "completed", quarter: nextQuarter } };
+  const batch = randomUUID(); metadata.endBatch = batch; metadata.batch = batch;
+  const records = (await entriesAt(f.root, history)).map((entry): PlantTreeEntry => entry.path === metadataPath
+    ? { path: entry.path, content: canonicalize(metadata) }
+    : entry.path === `meta-${primary.reference.owner.name}.md` ? { path: entry.path, content: f.content(primary.reference, "changed-again") } : entry);
+  const message = renderStoreCommitMessage({ ...testProvenance, verb: "archive" }, primary.reference, batch);
+  await plantRef(f.root, history, records, { parents: [previous], message });
+  const priorQuarter = location === "same quarter" ? (await git("git", ["rev-parse", ref])).stdout.trim() : undefined;
+  await plantRef(f.root, ref, [...(location === "same quarter" ? await entriesAt(f.root, ref) : []),
+    ...records.map((entry) => ({ ...entry, path: nextRoot + entry.path }))], { parents: priorQuarter ? [priorQuarter] : [], message });
+  return { primary, other, history, firstRef, firstRoot, firstEnd, metadataPath, nextQuarter, ref, nextRoot, batch };
+}
 
 async function entriesAt(root: string, ref: string): Promise<PlantTreeEntry[]> {
   const { stdout } = await makeGitExec(root)("git", ["ls-tree", "-r", "-z", ref]);

@@ -270,16 +270,15 @@ async function readArchivedRecord(context: RefBackendContext, reference: RecordR
   if (!selected.size) return missing(reference);
   const located = [...lookup?.trees.values() ?? []].find(tree => tree.liveRef === expandStoredPath(reference, { registry: context.registry }).ref)?.archived;
   const quarters = located ? undefined : await readRefTrees(context, selected);
+  // A quarter whose tree cannot be read may hold the owner's folder, or a later one, so no folder found settles the read.
+  const unreadable = quarters && [...selected.keys()].find((ref) => !quarters.has(ref));
+  if (unreadable) return { status: "refused", refusal: corruptRef(unreadable, true) };
   const trees = located ? new Map([[located.ref, located.entries.map(entry => ({ ...entry, path: located.root + entry.path }))]])
     : archiveOwnerTrees(quarters ?? new Map(), [reference.owner]);
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
   const folders = [...trees].flatMap(([ref, entries]) => archivedFolders(family, ref, entries, objects).folders);
   const folder = latestArchivedFolders(folders.filter(({ owner }) => sameOwner(owner, reference.owner)))[0];
-  if (!folder) {
-    // A quarter whose tree cannot be read may hold the owner, so absence is not established.
-    const unreadable = quarters && [...selected.keys()].find((ref) => !quarters.has(ref));
-    return unreadable ? { status: "refused", refusal: corruptRef(unreadable, true) } : missing(reference);
-  }
+  if (!folder) return missing(reference);
   const kind = ["work-item/meta", "work-item/record"].includes(reference.kind) ? folder.metadata.primary?.role ?? reference.kind : reference.kind;
   const decoded = decodeCapturedRef(context, { family, kind, owner: reference.owner }, folder.liveRef,
     folder.entries, objects, folder.metadata, undefined, folder.placement);

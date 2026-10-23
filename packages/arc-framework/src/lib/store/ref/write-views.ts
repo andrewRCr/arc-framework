@@ -201,13 +201,13 @@ function canonicalViewReference(context: RefBackendContext, reference: RecordRef
   return RecordReferenceSchema.parse({ ...reference, kind, owner: refOwner(ref, context.registry[reference.kind].family, metadata) });
 }
 
-/** A reference with no live ref reads from the quarters; one whose tree is unavailable may hold it, so it is not absent. */
+/** A reference with no live ref reads from the quarters; one whose tree is unavailable may hold its folder, or a later one. */
 function archivedViewRead(context: RefBackendContext, state: RefViewState, reference: RecordReference): StoreResult<StoreRecord> {
   if (!archivable(context, reference)) return missing(reference);
-  const record = archivedViewRecord(context, state, reference);
-  if (record) return { status: "ok", result: record };
   const unreadable = [...state.refs].find(([ref, captured]) => isArchiveRef(ref) && !captured.entries)?.[0];
-  return unreadable ? { status: "refused", refusal: corruptRef(unreadable, true) } : missing(reference);
+  if (unreadable) return { status: "refused", refusal: corruptRef(unreadable, true) };
+  const record = archivedViewRecord(context, state, reference);
+  return record ? { status: "ok", result: record } : missing(reference);
 }
 
 /** Only a work item or cohort with a UID can have ended into a quarter. */

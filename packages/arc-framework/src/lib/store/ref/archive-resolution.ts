@@ -23,11 +23,9 @@ export async function resolveArchivedReferences(context: RefBackendContext, refe
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
   const folders = [...trees].flatMap(([ref, entries]) => (["work-item", "cohort"] as const).flatMap((family) => archivedFolders(family, ref, entries, objects).folders))
     .filter(({ owner }) => requested.some((reference) => sameOwner(owner, reference.owner)));
-  // A quarter whose tree cannot be read may hold an owner no folder was found for, so absence is not established.
+  // A quarter whose tree cannot be read may hold a requested owner's folder, or a later one, so no folder set is established.
   const unreadable = [...selected.keys()].find((ref) => !quarters.has(ref));
-  if (unreadable && requested.some((reference) => !folders.some(({ owner }) => sameOwner(owner, reference.owner)))) {
-    return { status: "refused", refusal: corruptRef(unreadable, true) };
-  }
+  if (unreadable) return { status: "refused", refusal: corruptRef(unreadable, true) };
   for (const reference of requested) {
     const own = folders.filter(({ owner }) => sameOwner(owner, reference.owner));
     if (!own.length) continue;
