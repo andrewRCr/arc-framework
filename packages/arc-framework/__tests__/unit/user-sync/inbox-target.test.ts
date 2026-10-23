@@ -46,6 +46,12 @@ describe("listInboxEntriesNamingTarget", () => {
     });
   });
 
+  it("does not report a non-list target line inside a comment left unclosed", () => {
+    const content = inbox([], [entry("Readable", "- WU_Target: seam-locus"), "<!--", "WU_Target: seam-lifecycle", ""]);
+
+    expect(listInboxEntriesNamingTarget(content, "seam-lifecycle")).toEqual({ entries: [], diagnostics: [] });
+  });
+
   it("reads a planned or provisional commitment suffix as the same target", () => {
     const content = inbox([], [
       entry("Planned hint", "- `WU_Target: seam-lifecycle (planned)`"),
