@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "adopter-safe-hooks",
+  "claimId": "bf187c309dba4651ae37a8bc3b3fb004",
+  "createdAt": "2026-10-23T00:24:59.510Z",
+  "updatedAt": "2026-10-23T00:24:59.510Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make the shipped pre-commit hook's validators run in an installed repo: route the frontmatter checks through a hidden CLI command and skip the cutover-retiring lifecycle checks when ARC's source is absent",
+  "branch": "chore/adopter-safe-hooks",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
