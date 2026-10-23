@@ -5,7 +5,7 @@ import type { RecordReference } from "../identity.js";
 import { sameOwner } from "../identity.js";
 import { HistoryRefSchema, type StoreResult, type StoreRefusal } from "../refusal.js";
 import { parseStoreCommitProvenance } from "../commit-provenance.js";
-import { archivedFolders, archiveOwnerTrees, isArchiveRef, type ArchivedFolder } from "./archive-read.js";
+import { archivedFolders, archiveOwnerTrees, isArchiveRef, unreadableOwnedFolder, type ArchivedFolder } from "./archive-read.js";
 import { readBatchObjects, readRefTrees } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
 import { corruptRef } from "./namespace-health.js";
@@ -26,6 +26,8 @@ export async function resolveArchivedReferences(context: RefBackendContext, refe
   // A quarter whose tree cannot be read may hold a requested owner's folder, or a later one, so no folder set is established.
   const unreadable = [...selected.keys()].find((ref) => !quarters.has(ref));
   if (unreadable) return { status: "refused", refusal: corruptRef(unreadable, true) };
+  const broken = unreadableOwnedFolder(trees, requested.map(reference => reference.owner), objects);
+  if (broken) return { status: "refused", refusal: corruptRef(broken) };
   for (const reference of requested) {
     const own = folders.filter(({ owner }) => sameOwner(owner, reference.owner));
     if (!own.length) continue;

@@ -107,6 +107,36 @@ describe("writes to completed ref records", () => {
     }
   });
 
+  it.each(["one end", "two ends"] as const)("refuses an ended item's read, history, write, and check view while a folder of it holds unreadable metadata (%s), and serves the repaired folder", async (ends) => {
+    const f = await createRefFixture();
+    const twice = ends === "two ends" ? await endTwice(f, "another quarter") : undefined;
+    const primary = twice?.primary ?? await seed(f, f.reference("work-item/meta"));
+    if (!twice) success(await f.store.write({ ...update(f, primary), placement: { kind: "completed", quarter } }));
+    const ref = twice?.ref ?? `refs/arc/archive/${quarter}`, root = twice?.nextRoot ?? `01_${primary.reference.owner.name}/`;
+    const uid = "uid" in primary.reference.owner ? primary.reference.owner.uid : undefined;
+    const archived = success(await f.store.read({ reference: primary.reference }));
+    const versions = success(await f.store.history({ reference: primary.reference }));
+    const target = await seed(f, f.reference("personal/document"), "original\n");
+    const git = makeGitExec(f.root);
+    const intact = await entriesAt(f.root, ref);
+    const tip = (await git("git", ["rev-parse", ref])).stdout.trim();
+    const broken = await plantRef(f.root, ref, intact.map((entry): PlantTreeEntry => entry.path === `${root}metadata-${uid}.json`
+      ? { path: entry.path, content: "not metadata\n" } : entry), { parents: [tip] });
+    const unavailable = { status: "refused", refusal: { code: "namespace-corrupt", namespace: ref } };
+    const write = update(f, archived, f.content(primary.reference, "valid"));
+    const observed = { writes: [mutationOf(update(f, target, "accepted\n"))], provenance: testProvenance,
+      observations: [{ reference: primary.reference, expected: { version: archived.version, conflicts: [] } }] };
+    expect(await f.store.read({ reference: primary.reference })).toMatchObject(unavailable);
+    expect(await f.store.history({ reference: primary.reference })).toMatchObject(unavailable);
+    expect(await f.store.write(write)).toMatchObject(unavailable);
+    expect(await f.store.batch(observed)).toMatchObject(unavailable);
+    await plantRef(f.root, ref, intact, { parents: [broken.tip] });
+    expect(success(await f.store.history({ reference: primary.reference }))).toEqual(versions);
+    success(await f.store.batch(observed));
+    const written = success(await f.store.write(write));
+    expect(success(await f.store.read({ reference: primary.reference }))).toMatchObject({ content: write.content, version: written.version });
+  });
+
   it("gives checks independent completed before and after reads and listings", async () => {
     const f = await createRefFixture({ "work-item/meta": { check: async ({ writer, reference, before, after }) => {
       if (writer.kind !== "verb" || writer.verb !== "completed-edit") return [];

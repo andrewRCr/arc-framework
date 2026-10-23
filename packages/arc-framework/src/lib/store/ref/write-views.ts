@@ -14,7 +14,8 @@ import { matchesFamilyRef, refOwner, decodeRecord } from "./codec.js";
 import { resolveCapturedReference, resolveCapturedListInput, listOwnerReference } from "./reference-resolution.js";
 import { claimIdentityRefusal } from "./lookup-claims.js";
 import { appendArchivedLookupTrees, type RefLookupCapture } from "./lookup-trees.js";
-import { archiveOwnerTrees, isArchiveRef } from "./archive-read.js";
+import { archiveOwnerTrees, isArchiveRef, unreadableOwnedFolder } from "./archive-read.js";
+import type { RefTreeEntry } from "./batch-read.js";
 import { lookupCapturedRefTrees, type RefLookupTree } from "./lookup.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
 import { metadataFailure, type RefMetadata } from "./metadata.js";
@@ -206,8 +207,14 @@ function archivedViewRead(context: RefBackendContext, state: RefViewState, refer
   if (!archivable(context, reference)) return missing(reference);
   const unreadable = [...state.refs].find(([ref, captured]) => isArchiveRef(ref) && !captured.entries)?.[0];
   if (unreadable) return { status: "refused", refusal: corruptRef(unreadable, true) };
+  const broken = unreadableOwnedFolder(archivedViewTrees(state), [reference.owner], state.objects);
+  if (broken) return { status: "refused", refusal: corruptRef(broken) };
   const record = archivedViewRecord(context, state, reference);
   return record ? { status: "ok", result: record } : missing(reference);
+}
+
+function archivedViewTrees(state: RefViewState): Map<string, readonly RefTreeEntry[]> {
+  return new Map([...state.refs].flatMap(([ref, group]) => isArchiveRef(ref) && group.entries ? [[ref, group.entries] as const] : []));
 }
 
 /** Only a work item or cohort with a UID can have ended into a quarter. */
@@ -219,8 +226,7 @@ function archivable(context: RefBackendContext, reference: RecordReference): boo
 function archivedViewRecord(context: RefBackendContext, state: RefViewState, reference: RecordReference): StoreRecord | undefined {
   const input: ListInput = { family: context.registry[reference.kind].family, owner: reference.owner,
     ...(["work-item/meta", "work-item/record"].includes(reference.kind) ? {} : { kind: reference.kind }) };
-  const trees = new Map([...state.refs].flatMap(([ref, group]) => isArchiveRef(ref) && group.entries ? [[ref, group.entries] as const] : []));
-  const selected = archiveOwnerTrees(trees, [reference.owner]);
+  const selected = archiveOwnerTrees(archivedViewTrees(state), [reference.owner]);
   const refs = new Map(state.refs);
   for (const [ref, group] of state.refs) {
     if (!isArchiveRef(ref)) continue;

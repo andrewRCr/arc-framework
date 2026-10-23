@@ -34,6 +34,13 @@ export function archiveOwnerTrees(trees: ReadonlyMap<string, readonly RefTreeEnt
   return selected;
 }
 
+/** The first quarter holding a folder these owners' metadata files name whose metadata does not read. */
+export function unreadableOwnedFolder(trees: ReadonlyMap<string, readonly RefTreeEntry[]>, owners: readonly OwnerIdentity[],
+  objects: ReadonlyMap<string, BatchObject | null>): string | undefined {
+  return [...archiveOwnerTrees(trees, owners)].find(([ref, entries]) => (["work-item", "cohort"] as const)
+    .some((family) => archivedFolders(family, ref, entries, objects).diagnostics.some(({ kind }) => kind === "unreadable")))?.[0];
+}
+
 /** Decode folder metadata independently, retaining one diagnostic for each unreadable owner. */
 export function archivedFolders(family: FamilyId, ref: string, entries: readonly RefTreeEntry[],
   objects: ReadonlyMap<string, BatchObject | null>): { folders: ArchivedFolder[]; diagnostics: ListingDiagnostic[] } {
