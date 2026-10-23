@@ -30,4 +30,9 @@ describe("stored commit provenance", () => {
     const message = renderStoreCommitMessage({ verb: "capture", lifecycleAction }, reference, "real-batch");
     expect(parseStoreCommitProvenance(message, reference)).toEqual({ verb: "capture", lifecycleAction, reference, ownerUid: uid, batchId: "real-batch" });
   });
+  it("reads a verb that opens like a trailer as the subject alone", () => {
+    const verb = `Arc-Code-Head: ${"b".repeat(40)}`;
+    const message = renderStoreCommitMessage({ verb, lifecycleAction: "update" }, reference, "real-batch");
+    expect(parseStoreCommitProvenance(message, reference)).toEqual({ verb, lifecycleAction: "update", reference, ownerUid: uid, batchId: "real-batch" });
+  });
 });
