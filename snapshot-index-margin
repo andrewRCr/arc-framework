@@ -3,7 +3,7 @@
   "slug": "snapshot-index-margin",
   "claimId": "db4ff1aa1b3918be718073b5c73d401a",
   "createdAt": "2026-10-23T02:20:14.175Z",
-  "updatedAt": "2026-10-23T02:20:14.175Z",
+  "updatedAt": "2026-10-23T02:47:37.481Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Age ARC's private check indexes by a margin so a wall-clock step cannot hide a same-second worktree rewrite from the snapshot",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Find why a staged gate under load sometimes reports no worktree divergence",
   "originEntrySourceDigest": "sha256:9d6ae390595472392d43bb18e945cef5f75dbf27f0c68020c6bcc0b6e5d7cf94",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/snapshot-index-margin",
+    "headSha": "ed2952d1f3f76bd8a5b25ead1ffe75bed621207a"
+  }
 }
