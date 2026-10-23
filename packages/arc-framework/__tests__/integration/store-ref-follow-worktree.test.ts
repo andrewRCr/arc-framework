@@ -49,13 +49,20 @@ it("restarts a second worktree's already-pulled publisher after the follow and s
     expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim()).toBe("refs/arc/project/moved");
     expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "grep", "-F", "Unpublished follower data.", "refs/arc/user/andrew/personal"])).stdout).toContain("Unpublished follower data.");
     const peerPorts = createStoreCommandPorts(sibling), peer = createRefStore(peerPorts);
-    for (const ports of [h.follower.ports, peerPorts]) {
+    // A checkout of a branch older than the move carries no pointer; the clone's designation still governs it.
+    const older = join(h.follower.root, "older-checkout");
+    await h.follower.exec("git", ["worktree", "add", "--detach", older, "HEAD"]);
+    const olderPorts = createStoreCommandPorts(older);
+    expect(await olderPorts.backingRepository()).toBeNull();
+    for (const ports of [h.follower.ports, peerPorts, olderPorts]) {
+      expect(success(await createRefStore(ports).pull()).states).toEqual([]);
       expect(success(await createRefStore(ports).push()).states).toEqual([]);
       const aligned = await invokeStoreMigrate([], ports);
       expect(aligned).toMatchObject({ status: "ok", result: { refs: [] } });
     }
     const first = (await invokeStoreRemote(["--json"], { cwd: h.follower.root, ports: h.follower.ports })).result;
     expect((await invokeStoreRemote(["--json"], { cwd: sibling, ports: peerPorts })).result).toEqual(first);
+    expect((await invokeStoreRemote(["--json"], { cwd: older, ports: olderPorts })).result).toEqual(first);
     expect(success(await peer.read({ reference: h.follower.unpublished })).content).toBe("Unpublished follower data.\n");
   } finally { resume(); await syncing?.catch(() => {}); }
 }, 60_000);

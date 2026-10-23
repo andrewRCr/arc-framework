@@ -1,9 +1,11 @@
-/** Ending a move back retains any forwarding root its earlier copy removed. */
+/** Ending a move back retains any forwarding root its earlier copy removed, and withdraws a record it landed. */
 import { chmod, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
+import { followFixture } from "../helpers/store/follow.js";
 import { switchFixture } from "../helpers/store/remote-move.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
+import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 import { success } from "../helpers/store/suite-tools.js";
 
 it.each(["deleted", "refuses-copy"])("ends a move back before switching when its destination %s", async failure => {
@@ -41,4 +43,26 @@ it.each(["deleted", "refuses-copy"])("ends a move back before switching when its
     expect(later.status).toBe("ok");
     if (later.status === "ok") expect(later.result.notices.some(({ condition }) => condition.includes(forwarding))).toBe(false);
   }
+}, 60_000);
+
+it("withdraws a move back's landed forwarding record once its destination went, every clone syncing with its source", async () => {
+  const h = await followFixture();
+  expect((await invokeStoreRemote(["backing", "push", "--json"], { cwd: h.follower.root, ports: h.follower.ports })).result.status).toBe("ok");
+  const source = (args: string[]) => h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, ...args]);
+  await expect(invokeStoreMigrate(["--to", "origin"], { ...h.ports, migrateStep: async step => {
+    if (step === "remote.forwarded") throw new Error("Pause move back");
+  } })).rejects.toThrow("Pause move back");
+  expect((await source(["for-each-ref", "--format=%(refname)", "refs/arc/project/moved"])).stdout.trim()).toBe("refs/arc/project/moved");
+  expect(success(await h.follower.store.pull()).states).toContainEqual(expect.objectContaining({ status: "moved" }));
+  const pointer = await readFile(h.config, "utf8");
+  await rm(h.origin, { recursive: true, force: true });
+  expect(await invokeStoreMigrate(["--leave-source"], h.ports)).toMatchObject({ status: "ok" });
+  expect((await source(["for-each-ref", "--format=%(refname)", "refs/arc/project/moved"])).stdout).toBe("");
+  expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout).toBe("");
+  expect(await readFile(h.config, "utf8")).toBe(pointer);
+  for (const store of [h.store, h.follower.store]) {
+    expect(success(await store.pull()).states).toEqual([]);
+    expect(success(await store.push()).states).toEqual([]);
+  }
+  expect((await source(["grep", "-F", "Unpublished follower data.", "refs/arc/user/andrew/personal"])).stdout).toContain("Unpublished follower data.");
 }, 60_000);
