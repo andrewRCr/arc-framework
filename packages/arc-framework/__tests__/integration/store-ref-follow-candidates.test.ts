@@ -106,10 +106,13 @@ it.each([false, true])("judges a read follower by the departed project while own
     expect((await invokeStoreRemote(["backing", "push", "--json"], { cwd: own.a.root, ports })).result).toMatchObject({ status: "refused", refusal: { code: "store", refusal: { code: "identity-mismatch" } } });
     expect((await own.a.exec("git", ["config", "remote.upstream.arc-state"])).stdout.trim()).toBe("read");
     expect((await invokeStoreRemote(["backing", "read", "--json"], { cwd: own.a.root, ports })).result.status).toBe("ok");
+    expect((await own.a.exec("git", ["config", "remote.upstream.arc-state"])).stdout.trim()).toBe("off");
     expect(success(await store.pull()).pulls).toContainEqual(expect.objectContaining({ remote: "backing", role: "read", status: "pulled" }));
   } else {
     expect(judgment).toMatchObject({ status: "refused", refusal: { code: "follow-refused", remedy: { text: expect.stringMatching(/another.*remote|read source/iu) } } });
     expect((await invokeStoreRemote(["upstream", "off", "--json"], { cwd: own.a.root, ports })).result.status).toBe("ok");
+    expect(await invokeStoreMigrate([], ports)).toMatchObject({ status: "ok", result: { refs: [] } });
+    expect(success(await store.pull()).pulls.filter(({ remote }) => remote === "upstream")).toEqual([]);
     await own.a.exec("git", ["remote", "add", "moved-source", h.destinationDirectory]);
     expect((await invokeStoreRemote(["moved-source", "read", "--json"], { cwd: own.a.root, ports })).result.status).toBe("ok");
     expect(success(await store.pull()).pulls).toContainEqual(expect.objectContaining({ remote: "moved-source", role: "read", status: "pulled" }));

@@ -87,6 +87,7 @@ describe("recorded designations", () => {
     expect(result.states).toEqual([]);
     expect(result.pulls).toMatchObject([{ remote: h.remoteName, role: "state", status: "pulled" }]);
     expect(success(await store.read({ reference: projectIdentity })).content).toBe(projectContent);
+    expect(PushResultSchema.parse(success(await store.push())).states).toEqual([]);
     expect((await h.b.git(["remote", "get-url", h.remoteName])).stdout).toBe(h.origin);
     expect((await h.b.exec("git", ["remote"])).stdout).toBe("origin");
   });
