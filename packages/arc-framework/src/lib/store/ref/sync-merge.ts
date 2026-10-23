@@ -4,7 +4,7 @@ import { appendStoreCreationReceipt } from "../commit-creation-receipt.js";
 import { randomUUID } from "node:crypto";
 import { renderStoreCommitMessage } from "../commit-provenance.js";
 import { readObjectFormat } from "./manifest.js";
-import { mergeSyncTree, type SyncMergedTree } from "./sync-tree.js";
+import { mergeSyncTree, type SyncMergedTree, type SyncTreeMergeScope } from "./sync-tree.js";
 import { writeRefTree } from "./tree-write.js";
 import type { RefStorePorts } from "../ports.js";
 import type { PullNotice } from "../sync.js";
@@ -12,7 +12,9 @@ import type { RefBackendContext } from "./context.js";
 import { commitRefStep, type RefCommitMode } from "./commit-step.js";
 import { withRefLocks } from "./write-locks.js";
 import { readSyncRefs, syncRefIsAncestor } from "./sync-graph.js";
-import { readSyncHistoryQuarters, prepareSyncHistoryFastForward, prepareSyncHistoryQuarters, unchangedSyncHistoryQuarters } from "./sync-history.js";
+import { readSyncHistoryQuarters, prepareSyncHistoryFastForward, prepareSyncHistoryQuarters, unchangedSyncHistoryQuarters,
+  type SyncHistoryQuarter } from "./sync-history.js";
+import type { StoreRefusal, StoreResult } from "../refusal.js";
 import { observeSyncEndedConflicts } from "./sync-ended-conflicts.js";
 import { commitRefTree } from "./write-commits.js";
 import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
@@ -46,34 +48,20 @@ export async function mergeRefSets(context: RefBackendContext, local: ReadonlyMa
     const source = route?.source ?? ref;
     const sourceTarget = options.targetRef?.(source) ?? source;
     const captured = await readSyncHistoryQuarters(context, ref, local, [next]);
-    if (captured.status === "refused") {
-      notices.push({ kind: "namespace-corrupt", ref, condition: captured.refusal.condition, remedy: captured.refusal.remedy });
-      continue;
-    }
-    const quarters = captured.result;
+    const quarters = captured.status === "ok" ? captured.result : [];
     const result = await withRefLocks({ ...context, lock: options.lock }, [target, sourceTarget, ...quarters.map(({ ref }) => options.targetRef?.(ref) ?? ref)], async (): Promise<RefMergeResult> => {
       const current = (await readSyncRefs(context, sourceTarget)).get(sourceTarget) ?? null;
       if (current !== (local.get(source) ?? null)) return { status: "restart" };
       if (source === ref && (current === next || current && await syncRefIsAncestor(context, next, current))) return { status: "complete", changed: false, notices: [] };
+      // Only a merge that moves the history must rebuild its folders, so only that waits for an unreadable quarter.
+      if (captured.status === "refused") return heldMerge(ref, captured.refusal);
       if (!await unchangedSyncHistoryQuarters(context, quarters, options.targetRef)) return { status: "restart" };
       const batchId = randomUUID();
       const staged = { ...context, blobStage: { format: await readObjectFormat(context), blobs: new Map<string, Uint8Array>() } };
-      let tree: SyncMergedTree | undefined;
-      let parents = [next];
-      if (current && !await syncRefIsAncestor(context, current, next)) {
-        const merged = await mergeSyncTree(staged, ref, current, next, local, { currentSide: route?.currentSide, incoming: options.incomingState ?? incoming, priorState: options.priorState, batchId, reopening: route?.reopening });
-        if (merged.status === "refused") return { status: "complete", changed: false, notices: [{
-          kind: "namespace-corrupt", ref, condition: merged.refusal.condition, remedy: merged.refusal.remedy,
-        }] };
-        tree = merged.result; parents = [current, next];
-      } else {
-        const prepared = await prepareSyncHistoryFastForward(staged, ref, next, quarters, batchId);
-        if (prepared.status === "refused") return { status: "complete", changed: false, notices: [{
-          kind: "namespace-corrupt", ref, condition: prepared.refusal.condition, remedy: prepared.refusal.remedy,
-        }] };
-        tree = prepared.result;
-      }
-      const prepared = tree;
+      const built = await prepareSyncMerge(staged, ref, current, next, local, quarters,
+        { currentSide: route?.currentSide, incoming: options.incomingState ?? incoming, priorState: options.priorState, batchId, reopening: route?.reopening });
+      if (built.status === "refused") return heldMerge(ref, built.refusal);
+      const { tree: prepared, parents } = built.result;
       if (prepared?.metadata) await prepareSyncHistoryQuarters(staged, quarters, prepared);
       const applied = [...prepared?.notices ?? [], ...await observeSyncEndedConflicts(staged, ref, next, local, prepared)];
       let publishedTip = next;
@@ -101,6 +89,22 @@ export async function mergeRefSets(context: RefBackendContext, local: ReadonlyMa
     notices.push(...result.notices);
   }
   return { status: "complete", changed, notices };
+}
+
+/** Merge diverged tips, or stamp a fast-forward whose retained folders need a paired refresh. */
+async function prepareSyncMerge(context: RefBackendContext, ref: string, current: string | null, next: string,
+  local: ReadonlyMap<string, string>, quarters: readonly SyncHistoryQuarter[], scope: SyncTreeMergeScope & { batchId: string }):
+  Promise<StoreResult<{ tree: SyncMergedTree | undefined; parents: string[] }>> {
+  if (current && !await syncRefIsAncestor(context, current, next)) {
+    const merged = await mergeSyncTree(context, ref, current, next, local, scope);
+    return merged.status === "refused" ? merged : { status: "ok", result: { tree: merged.result, parents: [current, next] } };
+  }
+  const prepared = await prepareSyncHistoryFastForward(context, ref, next, quarters, scope.batchId);
+  return prepared.status === "refused" ? prepared : { status: "ok", result: { tree: prepared.result, parents: [next] } };
+}
+
+function heldMerge(ref: string, refusal: StoreRefusal): RefMergeResult {
+  return { status: "complete", changed: false, notices: [{ kind: "namespace-corrupt", ref, condition: refusal.condition, remedy: refusal.remedy }] };
 }
 
 async function commitSyncMerge(context: RefBackendContext, prepared: SyncMergedTree, parents: readonly string[], batchId: string): Promise<string> {

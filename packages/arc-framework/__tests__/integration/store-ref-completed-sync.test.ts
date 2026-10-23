@@ -200,6 +200,26 @@ describe("completed-item reconciliation in the default layout", () => {
     expect((await h.a.git(["show", `${h.archive}:${h.folder}${h.metadataPath}`])).stdout)
       .toBe((await h.a.git(["show", `${h.history}:${h.metadataPath}`])).stdout);
   });
+  it("pushes a completed write while an unrelated published quarter's tree cannot be read", async () => {
+    const h = await completedFixture(layout), earlier = ArchiveQuarterSchema.parse("2026-q3");
+    const other = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("earlier-completed"),
+      reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "earlier-completed" } }),
+      placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "activate" } }));
+    const active = success(await h.a.store.read({ reference: other.reference }));
+    success(await h.a.store.write({ action: "put", reference: active.reference, expected: active.version, content: active.content,
+      placement: { kind: "completed", quarter: earlier }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
+    success(await h.a.store.push());
+    const a = success(await h.a.store.read({ reference: h.reference }));
+    success(await h.a.store.write({ action: "put", reference: a.reference, expected: a.version,
+      content: `${a.content}\nA completed write to publish.\n`, placement: { kind: "completed", quarter }, provenance }));
+    const tree = (await h.a.git(["rev-parse", `refs/arc/archive/${earlier}^{tree}`])).stdout.trim();
+    await rm(join(h.a.root, ".git", "objects", tree.slice(0, 2), tree.slice(2)));
+    const pushed = success(await h.a.store.push());
+    expect(pushed.pulls.flatMap(({ notices }) => notices)).not.toContainEqual(expect.objectContaining({ ref: h.history }));
+    for (const ref of [h.history, h.archive]) {
+      expect((await h.remote("git", ["rev-parse", ref])).stdout).toBe((await h.a.git(["rev-parse", ref])).stdout);
+    }
+  });
 });
 
 /** Damage clone A's quarter, returning its repair: the tree object restored, or a later commit of the intact tree. */
