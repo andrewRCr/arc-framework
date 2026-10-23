@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "inbox-target-spellings",
+  "claimId": "1c1a88ae23dfa29d490b48e72185c101",
+  "createdAt": "2026-10-23T21:23:56.702Z",
+  "updatedAt": "2026-10-23T21:23:56.702Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Read every list spelling of an inbox capture's WU_Target, report a target line it cannot read, and teach the canonical spelling",
+  "branch": "fix/inbox-target-spellings",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
