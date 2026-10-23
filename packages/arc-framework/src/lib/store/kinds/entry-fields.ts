@@ -8,7 +8,7 @@ export const ENTRY_FIELDS = ["Id", "Created", "Remind", "Hold", "WU_Target", "Sh
 /** Personal captures retain these fields when moved into an Errand description. */
 export const PERSONAL_FIELDS = ["Created", "Remind", "Hold", "WU_Target", "Shapes"] as const;
 /** The capture gates' exact top-level target spellings; the managed field reads with or without a backticked value. */
-export const TARGET_LINE = /^- (?:`WU_Target:\s*([^`]+)`|_WU_Target:_\s*(?:`([^`]+)`|([^`\s][^`]*))|WU_Target:\s*(.+))/u;
+export const TARGET_LINE = /^- (?:`WU_Target:\s*([^`]+)`|_WU_Target:_\s*(?:`([^`]+)`|([^`\s].*))|WU_Target:\s*(.+))/u;
 const TARGET_VALUE = /^([a-z0-9]+(?:-[a-z0-9]+)*)(?:\s+\((?:planned|provisional)\))?\s*$/u;
 
 /** Read the legacy managed spelling anywhere in an entry, preserving probe semantics.

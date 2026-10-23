@@ -17,6 +17,8 @@ describe("shared entry fields", () => {
     expect(targetNamedByLine("- _WU_Target:_ `unit (provisional)`")).toBe("unit");
     expect(targetNamedByLine("- _WU_Target:_ TBD")).toBeUndefined();
     expect(targetNamedByLine("- _WU_Target:_ ")).toBeUndefined();
+    expect(targetNamedByLine("- _WU_Target:_ unit `note`")).toBeUndefined();
+    expect(readEntryField("### **Title**\n\n- _WU_Target:_ ``\n", "WU_Target")).toBe("");
   });
   it("reads wrapped triggers in either delimiter and writes the canonical trigger", () => {
     for (const delimiter of ["_", "*"]) expect(readRemovalTrigger(`${delimiter}Remove when: the first\nand last line.${delimiter}\nbody`)).toBe("the first\nand last line.");
