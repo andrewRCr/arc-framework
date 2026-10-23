@@ -2210,15 +2210,15 @@ in `notes-storage-ref-backend.md` (A25).
           and a no-target run returning the report of the move it finishes or ends (A32).
           `notes-storage-ref-backend.md`'s restart sets were derived again against the fixes' code.
 
-    - `[ ]` **18.R2.e Prepared multi-clone states — § 14.14**
-        - `copyPreparedRepository` gains multi-clone shapes whose copies resolve every path inside themselves: remote
-          URLs, worktree links, alternates, and the backing pointer are rewritten, reflog messages naming the template
-          are left, and a state holding a resolved path inside a Git object, such as a recorded move's record, is built
-          per test. An integration case proves a copy's remotes, worktree links, alternates, store directory, and
-          backing pointer resolve inside the copy, and finds no template path in the objects the copy's refs reach. Each
-          file whose tests share a starting state builds it once per file, in a hook or in the first test that needs it
-          and never at module scope, and copies it per test, heaviest first, and a case run against a copy proves what
-          it proved against a fresh build.
+    - `[x]` **18.R2.e Prepared multi-clone states — § 14.14**
+        - `copyPreparedRepository`'s multi-clone shape rewrites each file naming a template's root in every form Git and
+          JSON write it, leaves reflogs, and refuses a template whose reachable objects name its root.
+          `prepared-repository.test.ts` resolves a copy's remotes, worktree links, alternates, store, and pointer inside
+          the copy from a plain root and one Git escapes, and finds no template path in the copy's objects.
+          `preparedRefSync` builds the switch, follow, opposite-move, ancestry, and layout-move states in the first test
+          that needs them and copies them per test, each copy continuing its clones' actors and clock positions; every
+          store suite passes unchanged, and their per-change form sums 1,816 s against 1,911 s before. The bare topology
+          and the remaining per-file states build per test (A33).
         - _Amended in:_ 18.R3 (A33)
 
     - `[x]` **18.R2.f Selection by reach — § 14.14**
