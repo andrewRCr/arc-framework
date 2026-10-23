@@ -4687,4 +4687,7 @@ open:
   _Supersedes:_ § 14.14 Target, Prepared states ¶1; SC 34. _Trigger:_ 18.R2.g must-stop. _Work:_ 18.R3.
   _Revalidated:_ pending → 19.1.
 
+- **A34** — 2026-10-22 — task: the cost benchmark measures each tier without the suites that run by reach.
+  _Supersedes:_ none. _Trigger:_ 18.R2.g must-stop. _Work:_ 18.R2.R. _Revalidated:_ pending → 18.R2.g.
+
 ---

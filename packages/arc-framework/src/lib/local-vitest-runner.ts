@@ -64,12 +64,25 @@ export async function runLocalVitestTier(
   const { filter, options } = parseCLI([
     "vitest",
     tier === "changed" ? "related" : "run",
-    ...localVitestTierArguments(tier),
-    ...reachSuiteExclusions(tier, process.env, await readReachSuites(packageRoot, tier, process.env)),
+    ...await localVitestTierRunArguments(packageRoot, tier, process.env),
     ...forwardedArguments,
   ]);
   const selection = await discoverVitestSelection(filter, options);
   await executeVitestSelection(selection, { cwd: process.cwd(), env: process.env, tier, packageRoot });
+}
+
+/**
+ * Compose a tier's native selectors as the tier runs: its project membership and portability boundaries, less the
+ * suites that run by reach in their own check.
+ * @param packageRoot - Package root holding the reach declarations
+ * @param tier - Logical test tier
+ * @param env - Environment naming the portability run's form
+ * @returns Native Vitest selectors and run-mode flags
+ */
+export async function localVitestTierRunArguments(packageRoot: string, tier: LocalHeavyTestTier,
+  env: Readonly<Record<string, string | undefined>>): Promise<string[]> {
+  return [...localVitestTierArguments(tier),
+    ...reachSuiteExclusions(tier, env, await readReachSuites(packageRoot, tier, env))];
 }
 
 /**

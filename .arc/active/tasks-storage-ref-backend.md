@@ -2238,6 +2238,12 @@ in `notes-storage-ref-backend.md` (A25).
           holder's inline code moved to `__tests__/fixtures/store/`, and `store-ref-timing-isolation.test.ts` proves
           the order under the store tier.
 
+    - `[x]` **18.R2.R The benchmark measures each tier as it runs — § 14.12 (A34)**
+        - `runTestCostMeasurement` composes each project set through `localVitestTierRunArguments`
+          (`lib/local-vitest-runner.ts`), the tier runner's own composition, so the integration and lane rows measure
+          those tiers without the store suites. `test-cost-run.test.ts` proves those two sets leave the suites out and
+          the unit, E2E, and full sets keep every suite they hold.
+
     - `[ ]` **18.R2.g Measure and record — § 14.12**
         - Rerun the merge gate on the remote check machine with the store check's own pool at five workers asked to
           select every suite in its per-change form, under the admission the baseline's integration run had — the
