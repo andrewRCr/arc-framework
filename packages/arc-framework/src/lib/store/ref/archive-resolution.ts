@@ -8,6 +8,7 @@ import { parseStoreCommitProvenance } from "../commit-provenance.js";
 import { archivedFolders, archiveOwnerTrees, isArchiveRef, type ArchivedFolder } from "./archive-read.js";
 import { readBatchObjects, readRefTrees } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
+import { corruptRef } from "./namespace-health.js";
 import type { ResolvedBatch } from "./write-resolution.js";
 
 /** Find every folder belonging to a requested ended UID, validating its history basis. */
@@ -17,10 +18,16 @@ export async function resolveArchivedReferences(context: RefBackendContext, refe
   if (!requested.length) return { status: "ok", result: [] };
   const selected = new Map([...tips].filter(([ref]) => isArchiveRef(ref)));
   if (!selected.size) return { status: "ok", result: [] };
-  const trees = archiveOwnerTrees(await readRefTrees(context, selected), requested.map(reference => reference.owner));
+  const quarters = await readRefTrees(context, selected);
+  const trees = archiveOwnerTrees(quarters, requested.map(reference => reference.owner));
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
   const folders = [...trees].flatMap(([ref, entries]) => (["work-item", "cohort"] as const).flatMap((family) => archivedFolders(family, ref, entries, objects).folders))
     .filter(({ owner }) => requested.some((reference) => sameOwner(owner, reference.owner)));
+  // A quarter whose tree cannot be read may hold an owner no folder was found for, so absence is not established.
+  const unreadable = [...selected.keys()].find((ref) => !quarters.has(ref));
+  if (unreadable && requested.some((reference) => !folders.some(({ owner }) => sameOwner(owner, reference.owner)))) {
+    return { status: "refused", refusal: corruptRef(unreadable, true) };
+  }
   for (const reference of requested) {
     const own = folders.filter(({ owner }) => sameOwner(owner, reference.owner));
     if (!own.length) continue;

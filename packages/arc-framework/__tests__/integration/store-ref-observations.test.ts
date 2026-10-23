@@ -198,7 +198,7 @@ describe.each(["default", "separate"] as const)("native record observations in %
     expect(success(await f.store.read({ reference: target.reference })).content).toBe("accepted\n");
   });
 
-  it("refuses absence under an archived owner while its quarter tree is unavailable, keeps a record no quarter holds absent, and admits it after repair", async () => {
+  it("refuses absence, history, and writes under an archived owner while its quarter tree is unavailable, keeps a record no quarter holds absent, and admits each after repair", async () => {
     const f = await createRefFixture({}, layout);
     const quarter = ArchiveQuarterSchema.parse("2026-q1");
     const archived = await seed(f, f.reference("work-item/meta", "archived"), undefined, { kind: "completed", quarter });
@@ -208,12 +208,17 @@ describe.each(["default", "separate"] as const)("native record observations in %
     const tree = (await f.ports.exec("git", [...scope, "rev-parse", `refs/arc/archive/${quarter}^{tree}`], { cwd: f.root })).stdout.trim();
     const path = join(f.gitDir ?? join(f.root, ".git"), "objects", tree.slice(0, 2), tree.slice(2));
     const bytes = await readFile(path);
+    const versions = success(await f.store.history({ reference: archived.reference }));
+    expect(versions.length).toBeGreaterThan(0);
     await rm(path);
     const request = { writes: [mutationOf(update(f, target, "accepted\n"))], provenance: testProvenance,
       observations: [{ reference: absent, expected: null }] };
     const unavailable = { status: "refused", refusal: { code: "namespace-corrupt", namespace: `refs/arc/archive/${quarter}` } };
     expect(await f.store.batch(request)).toMatchObject(unavailable);
     expect(await f.store.read({ reference: absent })).toMatchObject(unavailable);
+    expect(await f.store.history({ reference: archived.reference })).toMatchObject(unavailable);
+    const companion = { action: "put" as const, reference: absent, content: "companion\n", expected: null, provenance: testProvenance };
+    expect(await f.store.write(companion)).toMatchObject(unavailable);
     expect(success(await f.store.read({ reference: target.reference }))).toEqual(target);
     // Claims have no live ref yet, and no quarter holds them.
     const unwritten = f.reference("claims/groom");
@@ -224,7 +229,10 @@ describe.each(["default", "separate"] as const)("native record observations in %
     expect(admitted.content).toBe("admitted beside the quarter\n");
     await writeFile(path, bytes);
     expect(await f.store.read({ reference: absent })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    expect(success(await f.store.history({ reference: archived.reference }))).toEqual(versions);
     success(await f.store.batch({ ...request, writes: [mutationOf(update(f, admitted, "accepted\n"))] }));
     expect(success(await f.store.read({ reference: target.reference })).content).toBe("accepted\n");
+    success(await f.store.write(companion));
+    expect(success(await f.store.read({ reference: absent })).content).toBe("companion\n");
   });
 });
