@@ -2271,7 +2271,7 @@ in `notes-storage-ref-backend.md` (A25).
   fell 30%, not the half the Goal set; A33 retired that target for wall-time terms, which 18.R3 carries. The integration
   tier's local row fell 60%, nearly all of it relocation (`notes-storage-ref-backend.md` § A29, § A33).
 
-### `[ ]` **18.R3 The store suites by wall time and shard — § 14.14, § 14.12 (A33)**
+### `[x]` **18.R3 The store suites by wall time and shard — § 14.14, § 14.12 (A33)**
 
 - _Goal:_ A change reaching no store suite pays only the reach computation, a pull request reaching them runs the store
   job across four balanced shards beside the integration shards, and the per-change cost is recorded with rows that
@@ -2292,11 +2292,16 @@ in `notes-storage-ref-backend.md` (A25).
           with 435, 556, and 139 cases, the default files' counts. `store-suites.json`'s full-only suites and the
           portability tier's list name the three; `vitest-reach.test.ts` checks the full-only suites against the files.
 
-    - `[ ]` **18.R3.b Measure and record under A33 — § 14.12, § 14.14**
-        - Run the store check over a change that reaches no store suite; dispatch one run asking for the per-change form
-          and one full run, recording each store shard's job clock and summed file time beside the integration shards',
-          with 18.R2.g's per-change merge-gate figure; set the store shards' rows in `test-cost-budgets.json` to the full
-          run's figures; and record the measurements and A33's terms in `notes-storage-ref-backend.md` § A33.
+    - `[x]` **18.R3.b Measure and record under A33 — § 14.12, § 14.14**
+        - The store check took 1.6 s over a change reaching no suite. Per-change dispatch `39887854064` ran the store
+          shards in 278–374 s of job clock beside the integration shards' 243–399 s, summing 3,479 s against the merge
+          gate's 1,840 s. Full dispatch `39888971367` found one file bounding store-1 at 725 s (A36); after the split,
+          `39892668498`'s rebalanced shards took 312–420 s and set the `store-1` to `store-4` rows.
+
+- _Outcome:_ A change reaching no store suite pays a 1.6 s reach computation, a pull request reaching them all runs four
+  store shards that finish beside the integration shards, and a full run's slowest store shard fell from the unsharded
+  job's 965–1,573 s to 420 s once the separate layout's whole run spanned three files. `notes-storage-ref-backend.md`
+  § A33 records the runs, the rows, and that rows keyed to a shard index compare a different set of files on each run.
 
 ### `[x]` **18.7 Hosts, platforms, and cost** — validate exit criterion at segment scope
 

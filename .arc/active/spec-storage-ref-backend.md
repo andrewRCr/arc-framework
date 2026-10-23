@@ -4695,6 +4695,6 @@ open:
   _Trigger:_ 18.R3.b must-stop. _Work:_ 5.R3. _Revalidated:_ pending → 19.1.
 
 - **A36** — 2026-10-22 — spec-depth: the separate layout's whole run spans files by the default run's item ranges.
-  _Supersedes:_ none. _Trigger:_ 18.R3.b must-stop. _Work:_ 18.R3.R. _Revalidated:_ pending → 18.R3.b.
+  _Supersedes:_ none. _Trigger:_ 18.R3.b must-stop. _Work:_ 18.R3.R. _Revalidated:_ 18.R3.b.
 
 ---

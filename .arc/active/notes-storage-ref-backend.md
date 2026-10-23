@@ -2618,6 +2618,51 @@ suite still passes in a full dispatch, in one shard, and § 14.1's split default
 shard. 18.R2's Goal, 18.R2.e, and the 18.7 verifier take `_Amended in:_ 18.R3 (A33)`; 18.R2.g's measurements stand, its
 rows leaving out the store shards, which 18.R3.b adds.
 
+### Measured
+
+**No reach.** At `7b5b5fac6` the store check over a change reaching no store suite reported that it reached none of 171
+and ran nothing, in 1.6 s unsharded and 1.6 s as shard 2 of 4 (`no-reach-check-7b5b5fac6.log` in the checkout's
+`.internal/storage-ref-backend-tools/verification/measure/`).
+
+**Per change on four shards.** Dispatch `39887854064` at `7b5b5fac6` asked for the per-change form, and every functional
+job passed. Each store shard ran 42 of the 168 selected suites, and the store job finished alongside the integration
+job: 278–374 s of job clock against 243–399 s. Their summed file time, 3,479 s, ran above the 2,157 s the decision above
+projected for a normal runner, and above the merge gate's 1,840 s at five workers on the check machine (§ A29, Measured
+after the work). Job clocks are each budget step's emitted `actualMs`; summed times are Vitest's per-file durations.
+
+| Shard | Store job clock (ms) | Store summed (s) | Integration job clock (ms) | Integration summed (s) |
+| ----- | -------------------- | ---------------- | -------------------------- | ---------------------- |
+| 1     | 373,762              | 974.2            | 384,312                    | 934.1                  |
+| 2     | 277,769              | 699.6            | 242,545                    | 585.1                  |
+| 3     | 342,027              | 880.9            | 399,205                    | 968.3                  |
+| 4     | 361,796              | 924.3            | 285,646                    | 665.8                  |
+
+**Full runs.** Dispatch `39888971367` at `7b5b5fac6` ran 169 of the 171 suites, the two burst-gated files left out, its
+store shards' summed file time within 1,068–1,216 s; the separate layout's whole suite, then one file of 698 s, set
+store-1's job clock (§ A36). After the split, dispatch `39891553294` at `916ee8d11` placed the three new files by the
+integration project's estimate, recording no duration for them yet, and dispatch `39892668498` at the same head placed
+them by the durations the first one saved. Every functional job passed in all three. Their integration shards took
+242–403, 258–375, and 286–378 s of job clock, and their E2E shards 278–383, 276–386, and 354–363 s. The unsharded store
+job's full runs had taken 965 s and 1,573 s.
+
+| Store shard | Before the split (ms) | First after (ms) | Balanced (ms) | Balanced summed (s) |
+| ----------- | --------------------- | ---------------- | ------------- | ------------------- |
+| 1           | 725,421               | 293,551          | 413,226       | 1,089.3             |
+| 2           | 456,062               | 563,079          | 311,997       | 809.5               |
+| 3           | 411,466               | 291,742          | 420,425       | 1,088.5             |
+| 4           | 419,394               | 448,570          | 363,802       | 939.4               |
+
+**The rows.** The store shards' CI-job rows take dispatch `39892668498`'s job clocks, each budget the clock with the 35%
+allowance rounded upward: store-1 413,226 ms (557,856), store-2 311,997 ms (421,196), store-3 420,425 ms (567,574), and
+store-4 363,802 ms (491,133).
+
+**Rows keyed to a shard.** The three full runs reported integration-2 over its budget by 9, 48, and 52 s, and e2e-3 by
+22, 42, and 11 s. Each full run saves its durations, and the next run's heavy-first assignment rebalances from them:
+integration-2 held 150 different files across the two runs at `916ee8d11`. At `7b5b5fac6` it ran the same 106 files in
+242.5 s in dispatch `39887854064` and in 335.5 s in dispatch `39888971367`. Both rows' baselines were the lightest shard
+of their run (§ A29, Measured after the work), so a row keyed to a shard index compares a different set of files on each
+run, and the store rows, store-2's among them, inherit that.
+
 ## A36 — The separate layout's whole run by item range
 
 In dispatch `39888971367` at `7b5b5fac6`, A33's full run, each store shard summed 1,068–1,216 s of file time, but
