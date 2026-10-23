@@ -100,6 +100,10 @@ Validate the authored declaration and inspect its selected checks before continu
 arc check gate merge --dry-run
 ```
 
+A dry run executes nothing, and a commit that changes the declaration runs every commit-gate check over all its inputs,
+not only the files that commit touches; a check with `widen: false` keeps to its changed inputs. Install every tool
+those checks call before committing the declaration, or the pre-commit hook cannot run them.
+
 ### Step 5: Define DEV-RULES.PROJECT
 
 Your project's quality standards and development protocols — loaded every session. The rules
@@ -156,7 +160,8 @@ say. When they drift from reality, the agent works from wrong assumptions.
 **Check declaration — keep executable checks current:**
 
 Update `.arc/system/arc-checks.yml` when check commands, inputs, or deadlines change, and validate it with
-`arc check gate merge --dry-run`.
+`arc check gate merge --dry-run`. Committing it runs the commit gate over all inputs, as in Step 4, so install a new
+check's tool first.
 
 **Reference documents — keep honest:**
 
