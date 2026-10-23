@@ -237,25 +237,6 @@ reads.
 finding: fix it in place, carry it forward durably, or drop it. The primary assigns disposition only after source
 verification and obtains approval for the complete set before any finding-driven response.
 
-**Presenting the set.** Render each pass and fix-check round through [disposition-report][disposition-report],
-following its conditions for the table, Trend, and Decisions block. A fix in place is `FIX`, durable carry-forward
-`DEFER`, a drop `REJECT`, and a refuted finding `Not supported`. Assign canonical labels before displaying new-design
-folds first within their grade.
-
-Bold a `Pass N of M` position for a complete pass, or `Fix check, round R since pass N` for a round, followed by the
-finding counts by verified grade; add a stop reason when the look has one. Keep unsupported findings ungraded. Each
-finding's status line ends with the supplied rubric item it fails, in the rubric's own terms, or `none` with the
-source-verified reason; the primary verifies it with the finding. Write each Finding as what is wrong and why it
-matters, and each Detail as how the primary verified it.
-
-Once the loop has two or more looks, render the material trend, origins, and new-design counts after the finding
-sections, led by one [trend reading][review-model-trend] and its rationale; planning counts come from the pass record,
-including each fix-check round.
-
-Put each decision in the Decisions block — the decision a fix creates about the next round or pass, and open questions,
-each with its recommendation — then end with the one question asking for complete-set approval, as `Approve: 2 fixes,
-1 defer?`. It names what approval releases and never the next pass, which approval does not authorize.
-
 Disposition is orthogonal to severity: any severity can be fixed, carried forward, or dropped. Disposing a finding
 settles the approved response backlog; it does not rewrite what the pass surfaced. Carry-forward is therefore not a
 fourth severity, and no disposition flattens a confirmed `critical` or `major` into `minor`.
@@ -287,6 +268,25 @@ triage-confirmed finding above `minor`.
 The primary-facing report distinguishes clean convergence, convergence with settled findings — confirmed `minor`
 findings, or material ones deferred or rejected — and non-convergence. The approved disposition set decides which one
 the completed pass established; performing the response never changes it.
+
+**Presenting the set.** Render each pass and fix-check round through [disposition-report][disposition-report],
+following its conditions for the table, Trend, and Decisions block. A fix in place is `FIX`, durable carry-forward
+`DEFER`, a drop `REJECT`, and a refuted finding `Not supported`. Assign canonical labels before displaying new-design
+folds first within their grade.
+
+Bold a `Pass N of M` position for a complete pass, or `Fix check, round R since pass N` for a round, followed by the
+finding counts by verified grade; add a stop reason when the look has one. Keep unsupported findings ungraded. Each
+finding's status line ends with the supplied rubric item it fails, in the rubric's own terms, or `none` with the
+source-verified reason; the primary verifies it with the finding. Write each Finding as what is wrong and why it
+matters, and each Detail as how the primary verified it.
+
+Once the loop has two or more looks, render the material trend, origins, and new-design counts after the finding
+sections, led by one [trend reading][review-model-trend] and its rationale; planning counts come from the pass record,
+including each fix-check round.
+
+Put each decision in the Decisions block — the decision a fix creates about the next round or pass, and open questions,
+each with its recommendation — then end with the one question asking for complete-set approval, as `Approve: 2 fixes,
+1 defer?`. It names what approval releases and never the next pass, which approval does not authorize.
 
 **`Class`-scaled pass cap.** Use `Light` 1, `Heavy` 2, and `Novel` 3 as the default pass caps. Present every
 completed result as `Pass N of M`. Every ended loop names one stop reason: converged, `cap-exhausted`, suspended,
