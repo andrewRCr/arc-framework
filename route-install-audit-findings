@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "route-install-audit-findings",
+  "claimId": "ac637ca01d63c60c4effc8abf4ac5ed8",
+  "createdAt": "2026-10-23T21:30:46.238Z",
+  "updatedAt": "2026-10-23T21:30:46.238Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route adopter-install-authority's update-audit findings: raise config-migration-registry to P1 with its fired trigger, and hold the merge-baseline redesign in framework-core-from-package",
+  "branch": "chore/route-install-audit-findings",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
