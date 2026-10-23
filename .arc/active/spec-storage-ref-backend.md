@@ -4049,7 +4049,8 @@ establish hosted cost or explain a hosted failure (A25).
 Once § 14.14's work lands, the same rows are re-measured by the same procedure and updated to the measured figures.
 `notes-storage-ref-backend.md` separates what a row lost because the store suites left its population from what their
 cost fell, records the store check's own cost, which no row's project set describes, and keeps the A25 figures as the
-peak they replace (A29).
+peak they replace (A29). The store job's shards take CI-job rows of their own, set to a dispatched full run's figures,
+so the budget report flags their growth (A33).
 
 #### 14.13 Retained conflict recovery (A16)
 
@@ -4069,20 +4070,28 @@ remains hidden and only its handler calls `runStoreConflict`; the normal backend
 The store suites — every `store-ref-*` integration file and the ref conformance files — must not set the pace of work
 that cannot reach them, and cost no more than their evidence needs where it can.
 
-- **Target.** Their summed file time falls to at most half the 2,633 s measured at `212f6432e`. Both figures sum the
-  per-file durations Vitest reports for the store suites, setup and teardown hooks included, on the remote check machine
-  at five workers in a merge-gate run: the baseline's store files ran in the integration tier's pool, and the new
-  figure's run is the store check's own pool asked to select every store suite in its per-change form, the separate
-  layout's declared subset in place of its whole suite (§ 14.1). Every required case keeps its coverage on every change
-  that reaches it.
-- **Prepared states.** A file whose tests share a starting state — clones, remotes, records, and syncs built before the
-  behavior under test — builds it once per file and copies it per test, extending `copyPreparedRepository`
-  (`__tests__/helpers/prepared-repository.ts`) to multi-clone shapes; it builds the state in a hook or in the first test
-  that needs it, never at module scope, where collection would hide its cost from the target's measure. Every path Git
-  or ARC resolves from a copy — remote URLs, worktree links, alternates, and `storage.backing_repository` in
-  `.arc/system/arc-config.yml` — lies inside the copy, reflog messages naming the template changing nothing; a state
-  holding such a path inside a Git object, as a recorded move's record does (§ 10.3), is built per test, so a copy holds
-  the state a fresh build produces.
+- **Target.** A change that reaches no store suite runs none, at the merge gate and on a pull request, its store check
+  passing on the reach computation alone, so the suites set no part of its pace. A change that reaches them runs their
+  per-change form: in one run at the merge gate, and on a pull request across four shards, the integration job's count,
+  balanced by the same duration data, so the store job finishes alongside the integration shards. Their per-change
+  summed file time is recorded, measured as the 2,633 s baseline at `212f6432e` was: the per-file durations Vitest
+  reports, setup and teardown hooks included, on the remote check machine at five workers in a merge-gate run, the
+  baseline's store files in the integration tier's pool and the new run's in the store check's own, asked to select
+  every store suite in its per-change form, the separate layout's declared subset in place of its whole suite (§ 14.1).
+  The store shards' CI-job rows carry the bound forward (§ 14.12). Every required case keeps its coverage on every
+  change that reaches it (A33).
+- **Prepared states.** The starting states the heaviest files share — clones, remotes, records, and syncs built before
+  the behavior under test — build once per file and copy per test through `preparedRefSync`
+  (`__tests__/helpers/store/ref-sync.ts`), over the multi-clone shape `copyPreparedRepository`
+  (`__tests__/helpers/prepared-repository.ts`) gains: a move's switch (`switchFixture`), the follow from it
+  (`followFixture`), the opposite move (`oppositeMoveFixture`), the rewritten ancestry (`rewrittenFixture`), and the
+  layout move's state (`layoutFixture`). Each builds in the first test that needs it, never at module scope, where
+  collection would hide its cost from the measure. The bare two-clone topology (`refSyncFixture`), which costs what its
+  copy does, and the other per-file states, together worth about 15 s of the merge gate's wall time, build per test
+  (A33). Every path Git or ARC resolves from a copy — remote URLs, worktree links, alternates, and
+  `storage.backing_repository` in `.arc/system/arc-config.yml` — lies inside the copy, reflog messages naming the
+  template changing nothing; a state holding such a path inside a Git object, as a recorded move's record does (§ 10.3),
+  is built per test, so a copy holds the state a fresh build produces.
 - **A second layout only where layout code runs.** An integration case runs both layouts when what it asserts depends on
   a branch on the selected store repository or the ref format beyond the selection and binding every operation runs and
   the commit step every committing operation runs (`repository.ts`, `repository-context.ts`, `commit-step.ts`), which
@@ -4097,33 +4106,34 @@ that cannot reach them, and cost no more than their evidence needs where it can.
   goes, and a case asserting only that a call refused also asserts the refusal's code and the state it protects. A case
   that is a criterion's last evidence stays.
 - **Selection by reach.** The store suites form their own merge-gate check, a `files` check that does not widen and
-  withholds its paths, so it runs once per gate whatever the change's size; its declared inputs cover every path a
-  suite's reach can hold and the selection's own declaration and code — the check's entry, a data file of this
-  repository's that the runner reads, and the runner — so the framework invokes it whenever one changes. Its runner
-  reads the change itself, deletions included, from the base and tree the check is given (`ARC_CHECK_BASE`,
-  `ARC_CHECK_TREE`, `lib/checks/process.ts`), and runs each suite whose reach holds a changed path. A suite's reach is
-  its static import closure; each repository file a module in that closure locates from its own path — a script under
-  `__tests__/fixtures/store/`, where every script a suite spawns lives, with its import closure, and any other file by
-  itself, such as `src/cli.ts`, which the store command helpers read; what each declared locating module finds, as its
-  declaration states, among them `lib/paths.ts`'s `arc/`, `templates/`, and `init-recipe.json` and the import closures a
-  suite copies from the package root to run (`copyLiveDependencies`); and the widening inputs that reach every suite:
-  the package manifest and lockfile, the Vitest and TypeScript configuration with the modules they import, and the test
-  runners. A path built from a module's own location that the runner can neither resolve to a file nor find declared
-  fails the check, so a new runtime read joins the reach or stops the gate. The runner reports the suites it selected; a
-  change reaching none passes with that report, and a reach computation that fails or finds no suite to choose from
-  fails the check. On a selected change the separate layout runs its declared subset (§ 14.1). A full run — every store
-  suite, the separate layout's whole suite among them — is one the runner is asked for, and the runner can also be asked
-  to select every suite in its per-change form, which measures the target; an ask sets the run's form, and only a run
-  with none given no base or changing the selection's own declaration or code runs in full. The ask enters the check's
-  cache key through a runtime input, so an asked run never reuses a pass made in another form. Pull-request CI selects
-  the same way, and CI asks for a full run on every push to `main`, in a job of its own, on the weekly scheduled run,
-  and on a dispatched run; a push whose run a later push cancels leaves its tree, and anything it missed, to the later
-  full run. The check runs each selected suite in the Vitest project it runs in today, so the timing and burst suites
-  keep their single-worker projects and order, and the runner takes the heavy-test admission the integration tier's runs
-  take (`withLocalHeavyTestAdmission`, `lib/local-test-admission.ts`). The rest of the integration tier keeps its
-  whole-tier run without the store suites. The runner's data file names the suites, locating modules, and widening
-  inputs, since the check declaration's schema is the framework's and admits no such fields, so another suite can take
-  the rule unchanged.
+  withholds its paths, so it runs once per gate whatever the change's size, CI dividing that one run among its shards
+  (A33); its declared inputs cover every path a suite's reach can hold and the selection's own declaration and code —
+  the check's entry, a data file of this repository's that the runner reads, and the runner — so the framework invokes
+  it whenever one changes. Its runner reads the change itself, deletions included, from the base and tree the check is
+  given (`ARC_CHECK_BASE`, `ARC_CHECK_TREE`, `lib/checks/process.ts`), and runs each suite whose reach holds a changed
+  path. A suite's reach is its static import closure; each repository file a module in that closure locates from its own
+  path — a script under `__tests__/fixtures/store/`, where every script a suite spawns lives, with its import closure,
+  and any other file by itself, such as `src/cli.ts`, which the store command helpers read; what each declared locating
+  module finds, as its declaration states, among them `lib/paths.ts`'s `arc/`, `templates/`, and `init-recipe.json` and
+  the import closures a suite copies from the package root to run (`copyLiveDependencies`); and the widening inputs that
+  reach every suite: the package manifest and lockfile, the Vitest and TypeScript configuration with the modules they
+  import, and the test runners. A path built from a module's own location that the runner can neither resolve to a file
+  nor find declared fails the check, so a new runtime read joins the reach or stops the gate. The runner reports the
+  suites it selected; a change reaching none passes with that report, and a reach computation that fails or finds no
+  suite to choose from fails the check. On a selected change the separate layout runs its declared subset (§ 14.1). A
+  full run — every store suite, the separate layout's whole suite among them — is one the runner is asked for, and the
+  runner can also be asked to select every suite in its per-change form, which measures the per-change cost the target
+  records (A33); an ask sets the run's form, and only a run with none given no base or changing the selection's own
+  declaration or code runs in full. The ask enters the check's cache key through a runtime input, so an asked run never
+  reuses a pass made in another form. Pull-request CI selects the same way, and CI asks for a full run on every push to
+  `main`, in a job of its own, on the weekly scheduled run, and on a dispatched run, which may ask instead for every
+  suite in its per-change form to measure what a pull request reaching them all costs (A33); a push whose run a later
+  push cancels leaves its tree, and anything it missed, to the later full run. The check runs each selected suite in the
+  Vitest project it runs in today, so the timing and burst suites keep their single-worker projects and order, and the
+  runner takes the heavy-test admission the integration tier's runs take (`withLocalHeavyTestAdmission`,
+  `lib/local-test-admission.ts`). The rest of the integration tier keeps its whole-tier run without the store suites.
+  The runner's data file names the suites, locating modules, and widening inputs, since the check declaration's schema
+  is the framework's and admits no such fields, so another suite can take the rule unchanged.
 - **The portability tier.** On a pull request the Linux portability job runs its tier without the store suites, which
   the store check runs on Linux by reach. The tier's scheduled and dispatched runs — the Windows and macOS pair's, on
   which § 14.10 rests, and the dispatched Linux job's — keep them whole, the separate layout's whole suite among them.
@@ -4527,6 +4537,16 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     the follow's question, and the next no-target run asks the follow; a remote move another move overtook returns its
     report naming each ref it leaves and the next run to follow (§ 10.1, § 10.3) (A32).
 
+43. **The store suites cost no change they cannot reach, and shard where they run.** A change reaching no store suite
+    runs none at the merge gate or on a pull request, its store check passing on the reach computation alone; on a pull
+    request the store job runs across four shards, the integration job's count, balanced by the same duration data, and
+    one dispatched run asking for the per-change form records each shard's job clock and summed file time beside the
+    integration shards'. The per-change summed file time is recorded as § 14.14 measures it; the store shards' CI-job
+    rows are set to a dispatched full run's figures; the tier and CI-job rows are re-measured and updated to the
+    measured figures, the notes separating relocation from reduction and keeping the A25 figures as history; and the
+    starting states § 14.14 names build once per file, a case run against a copy proving what it proved against a fresh
+    build (§ 14.12, § 14.14). Supersedes criterion 34 (A33).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4662,5 +4682,9 @@ open:
 
 - **A32** — 2026-10-22 — design: a no-target run that finishes or ends a recorded move returns that move's report.
   _Supersedes:_ § 10.1 ¶3, § 10.3 ¶4. _Trigger:_ 18.R2.h must-stop. _Work:_ 18.R2.h. _Revalidated:_ pending → 19.1.
+
+- **A33** — 2026-10-22 — design: the store suites cost no change they cannot reach, and shard in CI where they run.
+  _Supersedes:_ § 14.14 Target, Prepared states ¶1; SC 34. _Trigger:_ 18.R2.g must-stop. _Work:_ 18.R3.
+  _Revalidated:_ pending → 19.1.
 
 ---

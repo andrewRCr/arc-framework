@@ -2498,3 +2498,58 @@ existing rows (`store-ref-remote-ended`).
 `layout.rename`, which fires before that move's rename and designation, so a pull meanwhile still fetches origin
 after another clone moved the state off it; the rerun's report is then the layout move's, and the next run asks the
 follow.
+
+## A33 — The store suites by wall time and shard
+
+18.R2.g's measurements, in the checkout's `.internal/storage-ref-backend-tools/verification/measure/`, showed A29's
+halved summed time out of reach by its planned levers and beside the cost that sets the pace of work:
+
+- Summed per-change store time in a passing merge-gate run at `0b92e5e85` (`merge-gate-every-2.log`) was 1,840 s, 30%
+  below the 2,633 s baseline; 1,869 s in the run before it and 1,816 s run alone (`run-e-final-every.log` in `apply/`).
+  Prepared states saved about 95 s. Copying the bare two-clone topology costs what building it does on the check
+  machine, 33–46 ms against 35–47 ms, while a starting state saves about 300 ms a test; the remaining per-file states
+  would save about 50–80 s more. A29's estimate that prepared states carried about 650 s rested on a local probe and the
+  starting states' share of Git processes; on the check machine the behavior each test exercises dominates.
+- The merge gate with every store suite selected took 14 min 3 s and 14 min 30 s, against 18.7 minutes at `212f6432e`
+  and about 7–8 before this change. The store check (396–402 s of Vitest wall time) and the integration tier without the
+  store suites (387–460 s) ran one after the other, the second waiting 444–460 s for memory on the check machine, so
+  halving the store suites' summed time would take about 2 minutes off a reaching change's gate. A change reaching no
+  store suite pays its store check's reach computation alone, 2.7 s (`no-reach-check.log`), so its gate is about the
+  integration tier's.
+- Hosted dispatches `39869323324` and `39871608329` ran the integration shards in 242–381 s of job clock, against 343 s
+  for the slowest before this change and 974 s at the A25 peak. The unsharded store job's full run took 965 s and 1,573
+  s, the second runner slower by 1.67× in every file. A pull request reaching every store suite runs about 83% of a full
+  run in that one job, the slowest of its run.
+- Replayed through the store check's own selection (`replay-80.txt`), the last 80 merges to `main` split 41 reaching no
+  store suite, 38 nearly all, and 1 some. Ten reached them through packaged ARC content alone, which `lib/paths.ts`
+  locates for every suite; that precision is captured for `test-suite-contention-hardening`.
+
+**Superseded text.** § 14.14 Target: "Their summed file time falls to at most half the 2,633 s measured at `212f6432e`."
+§ 14.14 Prepared states: "A file whose tests share a starting state — clones, remotes, records, and syncs built before
+the behavior under test — builds it once per file and copies it per test". Criterion 34: "The store suites cost half as
+much per change. Their summed file time is at most half the 2,633 s measured at `212f6432e`".
+
+**Decisions** (Owner, 2026-10-22):
+
+- The store suites are judged by not running where a change cannot reach them and by wall time where they run. The
+  per-change summed figure is recorded, measured as A29 measured it, and the store shards' CI-job rows, set to a
+  dispatched full run's figures, carry the bound forward through CI's budget report. Rejected: bounding a store shard's
+  job clock by the slowest integration shard's in the same run, which hosted runner variance alone, 1.67× between two
+  identical runs, would fail.
+- The store job shards four ways, the integration job's count, balanced by the same duration data. Per change its suites
+  sum about 2,157 s on a normal runner, about 540 s a shard, against integration shards' 562–941 s. Three shards fit a
+  normal runner with less margin. The merge gate's local run stays one run, since sharding there would only divide one
+  machine.
+- A dispatch can ask for the per-change form, since nothing else measures before landing what a pull request reaching
+  every suite costs; the full run stays the default for a dispatch and for every push to `main`.
+- Prepared states are the five that carried the savings; the bare topology and the remaining per-file states build per
+  test.
+
+**Not taken here,** for `test-suite-contention-hardening`: the merge gate's running of its two heavy checks one after
+the other under the check machine's memory, selection precision for located content, the store's import coupling, push
+and pull's Git processes per operation, and fixture sharing across the conformance files.
+
+**Sweep.** Criterion 35's "once per gate" holds, CI dividing the one run among shards. Criterion 36's whole separate
+suite still passes in a full dispatch, in one shard, and § 14.1's split default files keep any one file from bounding a
+shard. 18.R2's Goal, 18.R2.e, and the 18.7 verifier take `_Amended in:_ 18.R3 (A33)`; 18.R2.g's measurements stand, its
+rows leaving out the store shards, which 18.R3.b adds.

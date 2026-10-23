@@ -2165,6 +2165,8 @@ in `notes-storage-ref-backend.md` (A25).
 - _Goal:_ The store suites cost at most half their 2,633 s summed merge-gate time at `212f6432e` and run only on changes
   that reach them, every required case keeping its coverage on every change that reaches it (A29).
 
+    - _Amended in:_ 18.R3 (A33)
+
     - `[x]` **18.R2.a Identity once per operation — § 1.2**
         - `createRefBackend` gives each public operation a context from `withOperationIdentity`
           (`lib/store/ref/operation-identity.ts`), whose identity resolves on first use and serves the rest of the
@@ -2217,6 +2219,7 @@ in `notes-storage-ref-backend.md` (A25).
           file whose tests share a starting state builds it once per file, in a hook or in the first test that needs it
           and never at module scope, and copies it per test, heaviest first, and a case run against a copy proves what
           it proved against a fresh build.
+        - _Amended in:_ 18.R3 (A33)
 
     - `[x]` **18.R2.f Selection by reach — § 14.14**
         - `test:store` (`.arc/system/arc-checks.yml`) is a non-widening `files` merge-gate check that withholds its
@@ -2247,6 +2250,26 @@ in `notes-storage-ref-backend.md` (A25).
           figures, the notes separating relocation from reduction, recording the store check's own cost, and keeping the
           A25 figures as history.
 
+### `[ ]` **18.R3 The store suites by wall time and shard — § 14.14, § 14.12 (A33)**
+
+- _Goal:_ A change reaching no store suite pays only the reach computation, a pull request reaching them runs the store
+  job across four balanced shards beside the integration shards, and the per-change cost is recorded with rows that
+  carry its bound forward (A33).
+
+    - `[ ]` **18.R3.a Shard the store job — § 14.14**
+        - `test:store`'s entry in `.arc/system/arc-checks.yml` declares four shards whose `--shard={index}/{count}` the
+          reach runner forwards to Vitest, the heavy-first sequencer balancing the selected suites by the integration
+          duration data; `ci.yml`'s store job becomes a four-shard matrix whose shards upload their durations and report
+          the CI-job rows `store-1` to `store-4`, and a dispatch input asks for every suite in its per-change form in
+          place of the full run. The merge gate's local run stays one run. Cases prove each selected suite runs in
+          exactly one shard and a change reaching none runs none in any, and the CI forecast carries the store shards.
+
+    - `[ ]` **18.R3.b Measure and record under A33 — § 14.12, § 14.14**
+        - Run the store check over a change that reaches no store suite; dispatch one run asking for the per-change form
+          and one full run, recording each store shard's job clock and summed file time beside the integration shards',
+          with 18.R2.g's per-change merge-gate figure; set the store shards' rows in `test-cost-budgets.json` to the full
+          run's figures; and record the measurements and A33's terms in `notes-storage-ref-backend.md` § A33.
+
 ### `[x]` **18.7 Hosts, platforms, and cost** — validate exit criterion at segment scope
 
 - _Goal:_ The bursts and the Windows budget pass on their dispatched runs, CI cost holds, and the host kit, pack cost,
@@ -2255,6 +2278,8 @@ in `notes-storage-ref-backend.md` (A25).
     - _Amended in:_ 18.3.R (A25)
 
     - _Amended in:_ 18.R2 (A29)
+
+    - _Amended in:_ 18.R3 (A33)
 
 - _Outcome:_ The complete platform pair and all twelve platform/burst combinations pass; both layouts meet the
   calibrated Windows limits. Corrected Linux CI `39674185052` passes. The cost measurements, real-host results and
@@ -2458,3 +2483,12 @@ in `notes-storage-ref-backend.md` (A25).
 - `[ ]` A layout move interrupted inside its switch, rerun with no target once a follow has become due, returns the
   layout move's report rather than the follow's question, and the next no-target run asks the follow; a remote move
   another move overtook returns its report naming each ref it leaves and the next run to follow (§ 10.1, § 10.3) (A32)
+
+- `[ ]` A change reaching no store suite runs none at the merge gate or on a pull request, its store check passing on the
+  reach computation alone; on a pull request the store job runs across four shards, the integration job's count,
+  balanced by the same duration data, and one dispatched run asking for the per-change form records each shard's job
+  clock and summed file time beside the integration shards'; the per-change summed file time is recorded as § 14.14
+  measures it, the store shards' CI-job rows are set to a dispatched full run's figures, and the tier and CI-job rows are
+  re-measured and updated to the measured figures, the notes separating relocation from reduction and keeping the A25
+  figures as history; and the starting states § 14.14 names build once per file, a case run against a copy proving what
+  it proved against a fresh build; supersedes the halved-cost criterion (§ 14.12, § 14.14) (A33)
