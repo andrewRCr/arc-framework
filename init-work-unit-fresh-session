@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "init-work-unit-fresh-session",
+  "claimId": "0c78b23941e475d2a606062403255e32",
+  "createdAt": "2026-10-23T20:59:36.066Z",
+  "updatedAt": "2026-10-23T20:59:36.066Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Lead init-work-unit's Claude Code worktree entry with a fresh session, as the CLI's Next session recipe does",
+  "branch": "fix/init-work-unit-fresh-session",
+  "origin": "inbox",
+  "originEntry": "Make `init-work-unit`'s Claude Code entry match the CLI's fresh-session recipe",
+  "originEntrySourceDigest": "sha256:7c1da1a752a38e1166620533867f6e28cb8f66fd666663e7d44895bba53080bd",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
