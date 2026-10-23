@@ -53,6 +53,7 @@ const expectedImplementationModules = [
   "./commands/check.js",
   "./commands/release.js",
   "./scripts/remedy-roadmap-conflict.js",
+  "./scripts/validate-frontmatter.js",
 ] as const;
 const deferredActiveProjectionModules = [
   "../../lib/config/status-reader.js",
