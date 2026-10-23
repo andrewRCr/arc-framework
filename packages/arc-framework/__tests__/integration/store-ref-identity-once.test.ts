@@ -37,6 +37,33 @@ it("resolves the identity once in each of a write, a push with its nested pulls,
     .toEqual({ pulled: true, resolutions: 1 });
 });
 
+it("resolves the identity at most once in every other public operation", async () => {
+  const h = await refSyncFixture();
+  const a = countedStore(h.a.ports);
+  const from = success(await a.store.version());
+  success(await a.store.write({ action: "put", reference: personal, expected: null, content: "a\n", provenance: testProvenance }));
+  const to = success(await a.store.version());
+  const operations: Record<string, () => Promise<{ status: string }>> = {
+    batch: () => a.store.batch({ writes: [{ action: "put", reference: document("batched.md"), expected: null, content: "batched\n" }],
+      provenance: testProvenance }),
+    read: () => a.store.read({ reference: personal }),
+    "saved read": () => a.store.read({ reference: personal, asOf: to }),
+    list: () => a.store.list({ family: "personal" }),
+    lookup: () => a.store.lookup({ kind: "slug", slug: "alpha" as Slug }),
+    history: () => a.store.history({ reference: personal }),
+    changes: () => a.store.changes({ from, to }),
+    version: () => a.store.version(),
+    maintain: () => a.store.maintain(),
+  };
+  const resolutions: Record<string, number> = {};
+  for (const [operation, run] of Object.entries(operations)) {
+    const start = a.counter.calls;
+    expect((await run()).status).toMatch(/^(?:ok|refused)$/u);
+    resolutions[operation] = a.since(start);
+  }
+  expect(Object.entries(resolutions).filter(([, count]) => count > 1)).toEqual([]);
+});
+
 it("takes an identity changed between operations in the next one", async () => {
   const h = await refSyncFixture();
   const a = countedStore(h.a.ports);

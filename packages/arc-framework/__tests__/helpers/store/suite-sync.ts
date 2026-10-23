@@ -1,8 +1,19 @@
 /** publish outcomes, independent configuration states and whole-record reconciliation. */
 
 import { expect } from "vitest";
-import { ConflictRecordSchema, TextConflictRecordSchema, KIND_REGISTRY, ListingOutcomeSchema, PullResultSchema, MaintainResultSchema, PushResultSchema, type PushResult, type FamilyId } from "../../../src/lib/store/index.js";
+import { ConflictRecordSchema, TextConflictRecordSchema, KIND_REGISTRY, ListingOutcomeSchema, PullResultSchema, MaintainResultSchema, PushResultSchema, sameReference, type PushResult, type FamilyId, type RecordReference, type StoreRecord } from "../../../src/lib/store/index.js";
+import type { ConformanceFixture } from "./fixture-contract.js";
 import { assertion, everyKind, seed, success, update, type SuiteContext } from "./suite-tools.js";
+
+const HELD_ENTRY = "### [ ] **Held locally**\n\n- _Id:_ `22222222`\n\nheld locally\n";
+
+/** Add an entry beside the record's only entry, for a family that holds no second record to leave unpublished. */
+async function holdEntry(fixture: ConformanceFixture, reference: RecordReference): Promise<StoreRecord> {
+  if (KIND_REGISTRY[reference.kind].merge !== "entry") throw new Error(`${reference.kind} holds no second record and merges no entries`);
+  const current = success(await fixture.store.read({ reference }));
+  success(await fixture.store.write(update(fixture, current, `${current.content}\n${HELD_ENTRY}`)));
+  return success(await fixture.store.read({ reference }));
+}
 
 /** Register real publish/noop/reconciliation and transport/refusal outcomes through the remote hook.
  * @param context - item 16 context.
@@ -29,15 +40,26 @@ export function registerSyncAssertions(context: SuiteContext): void {
       }
       const expected = success(await remote.read({ reference }));
       const before = success(await remote.version());
-      const pending = family === "personal"
-        ? await seed(fixture, fixture.reference("personal/document", "unpublished")) : undefined;
-      if (pending) expect(await remote.read({ reference: pending.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+      // State of the family under test that only this clone holds, so publication by the pull would show.
+      const separate = kinds.filter((kind) => kind.writerRule !== "write-once")
+        .map((kind) => fixture.reference(kind.id, "unpublished")).find((candidate) => !sameReference(candidate, reference));
+      const pending = separate === undefined ? await holdEntry(fixture, reference) : await seed(fixture, separate);
+      if (separate !== undefined) {
+        expect(await remote.read({ reference: separate })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+      }
       const result = PullResultSchema.parse(success(await fixture.store.pull()));
       expect(result.pulls).toContainEqual(expect.objectContaining({ status: "pulled", families: expect.arrayContaining([family]) }));
-      expect(success(await fixture.store.read({ reference })).content).toBe(expected.content);
       expect(success(await remote.read({ reference }))).toEqual(expected);
       expect(success(await remote.version())).toBe(before);
-      if (pending) expect(await remote.read({ reference: pending.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+      if (separate === undefined) {
+        const merged = success(await fixture.store.read({ reference })).content;
+        expect(merged).toContain(HELD_ENTRY);
+        expect(merged).toContain("changed");
+      } else {
+        expect(success(await fixture.store.read({ reference })).content).toBe(expected.content);
+        expect(await remote.read({ reference: separate })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+        expect(success(await fixture.store.read({ reference: separate })).content).toBe(pending.content);
+      }
     });
   }
   const maintenanceFamily = context.registration.declarations.families[0];
