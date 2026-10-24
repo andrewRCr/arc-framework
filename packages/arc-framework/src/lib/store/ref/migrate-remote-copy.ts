@@ -3,8 +3,6 @@ import { MigrateReportSchema, type MigrateReport } from "../commands.js";
 import { RecordReferenceSchema } from "../identity.js";
 import { pushRefs, type PushOutcome, type PushRefChange } from "../../git/push.js";
 import { classifyPushOutcome } from "../../git/push-classification.js";
-import { gitFailureText, isGitProcessError } from "../../git/process-error.js";
-import { classifyRemoteFailure } from "../../git/remote-ref-reader.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefRepository } from "./repository.js";
 import { commitMigrationRegistry, requireMoveProject } from "./migrate-registry.js";
@@ -17,6 +15,7 @@ import { readBatchObjects } from "./batch-read.js";
 import { writeRefBlob } from "./tree-write.js";
 import { projectIdentityQueries, projectOwnerFromObjects } from "./project-identity.js";
 import { readSyncRefs, syncRefIsAncestor } from "./sync-graph.js";
+import { listRemoteRefs } from "./remote-listing.js";
 import { saveMoveRecord, removeMoveRecord, type MoveRemote, type MoveTransports, type RecordedRemote, type RemoteMoveRecord } from "./migrate-record.js";
 
 const registryRef = "refs/arc/project/registry";
@@ -174,16 +173,11 @@ export async function migrationPushLanded(code: RefBackendContext, url: string, 
 }
 
 async function leasesMoved(code: RefBackendContext, url: string, changes: readonly PushRefChange[]): Promise<boolean> {
-  let listed: string;
-  try { listed = (await code.exec("git", ["ls-remote", url, "refs/arc/*"], { cwd: code.checkoutRoot })).stdout; }
-  catch (error) {
-    if (!isGitProcessError(error)) throw error;
-    throw new MigrationRefusal({ code: "store", refusal: { code: "unreachable", class: "recoverable", cause: classifyRemoteFailure(error),
-      condition: `Could not read ${url} after it refused the move's push: ${gitFailureText(error)}`,
-      remedy: { text: "Restore access and run arc store migrate; the refused push changed nothing there." } } });
-  }
-  const tips = new Map(listed.split("\n").filter(Boolean).map(row => { const [tip = "", ref = ""] = row.split("\t"); return [ref, tip]; }));
-  return changes.some(({ ref, expected }) => (tips.get(ref) ?? null) !== (expected ?? null));
+  const listed = await listRemoteRefs(code, url, ["refs/arc/*"]);
+  if (listed.status === "unreachable") throw new MigrationRefusal({ code: "store", refusal: { code: "unreachable", class: "recoverable", cause: listed.cause,
+    condition: `Could not read ${url} after it refused the move's push: ${listed.condition}`,
+    remedy: { text: "Restore access and run arc store migrate; the refused push changed nothing there." } } });
+  return changes.some(({ ref, expected }) => (listed.tips.get(ref) ?? null) !== (expected ?? null));
 }
 
 /** Preserve transport and definitive receiver refusals for a recorded migration. */

@@ -101,7 +101,8 @@ function takeOrigin(context: RefBackendContext, report: MigrateReport, records: 
   let current: string | undefined;
   try { current = digest === null ? undefined : inboxEntrySourceDigest(inbox.content, title); }
   catch (error) {
-    report.notices.push({ condition: `Errand origin entry '${title}' cannot be read as one entry of ${person}'s inbox: ${error instanceof Error ? error.message : String(error)}`, remedy });
+    report.notices.push({ condition: `Errand origin entry '${title}' cannot be read as one entry of ${person}'s inbox: ${error instanceof Error ? error.message : String(error)}`,
+      remedy: { text: `Repair the entry heading the condition names in ${person}'s inbox, writing each entry heading as ### **Title** under a title no other entry shares, then retry arc store migrate --import.` } });
     return;
   }
   if (current !== undefined && current !== digest) state.notices.push({

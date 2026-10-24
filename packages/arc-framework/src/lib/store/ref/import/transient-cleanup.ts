@@ -4,9 +4,9 @@ import type { MigrateReport, StoreMigrateResult } from "../../commands.js";
 import { updateRefTransaction, type RefChange } from "../../../git/ref-transaction.js";
 import { pushRefs } from "../../../git/push.js";
 import { classifyPushOutcome } from "../../../git/push-classification.js";
-import { PASSIVE_REMOTE_INTERACTION } from "../../../git/remote-ref-reader.js";
 import { readSyncRefs } from "../sync-graph.js";
 import { readRefDesignation, refDesignationStop } from "../designation.js";
+import { listRemoteRefs } from "../remote-listing.js";
 
 /** Kept tips live in the code repository until all licensed cleanup finishes. */
 export const IMPORT_KEPT_PREFIX = "refs/arc/tmp/migrate/import/kept/";
@@ -94,13 +94,9 @@ async function retainedRemoteNotices(context: RefBackendContext, kept: ReadonlyM
 async function originTips(context: RefBackendContext, refs: string[]): Promise<Map<string, string>> {
   const designation = await readRefDesignation(context);
   if (!designation.codeRemotes.some(({ name }) => name === "origin")) return new Map();
-  const { stdout } = await context.exec("git", ["ls-remote", "--refs", "origin", ...refs],
-    { cwd: context.checkoutRoot, diagnosticLocale: "stable", interaction: PASSIVE_REMOTE_INTERACTION });
-  return new Map(stdout.split(/\r?\n/u).filter(Boolean).map((row) => {
-    const [tip, ref] = row.split("\t");
-    if (!ref || !tip) throw new Error("Invalid remote transient ref listing");
-    return [ref, tip];
-  }));
+  const listed = await listRemoteRefs(context, "origin", refs);
+  if (listed.status === "unreachable") throw new Error(listed.condition);
+  return listed.tips;
 }
 
 function keptRef(ref: string): string { return `${IMPORT_KEPT_PREFIX}${ref.slice("refs/arc/".length)}`; }

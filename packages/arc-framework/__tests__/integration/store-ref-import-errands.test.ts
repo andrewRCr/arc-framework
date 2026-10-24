@@ -1,6 +1,6 @@
 /** Transient identity authority moves into ordinary work and claim refs. */
 import { describe, expect, it } from "vitest";
-import { mkdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createRefStore, RecordReferenceSchema, runStoreRemote } from "../../src/lib/store/index.js";
 import { inboxEntrySourceDigest } from "../../src/lib/user-sync/inbox-writer.js";
@@ -392,4 +392,59 @@ it("retires origin's transient copy with passive interaction and stable diagnost
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", sourceRef])).stdout).toBe("");
   expect(calls.map(({ args }) => args[0]).sort()).toEqual(["ls-remote", "push"]);
   for (const { options } of calls) expect(options).toMatchObject({ diagnosticLocale: "stable", interaction: PASSIVE_REMOTE_INTERACTION });
+});
+
+it("reports an origin entry a stray inbox heading keeps from reading under a trial, and imports once the heading is repaired", async () => {
+  const h = await importFixture();
+  const entry = "### **Captured**\n\n- _Description:_ Original source prose.\n";
+  const clean = `# Inbox\n\n## Errand\n\n${entry}`;
+  const inbox = `${clean}\n### Stray heading\n\n- _Description:_ Loose prose.\n`;
+  await mkdir(join(h.root, ".arc/user/andrew"), { recursive: true });
+  await writeFile(join(h.root, ".arc/user/andrew/USER-INBOX.md"), inbox);
+  await saveImportPersonal(h.root);
+  await seed(h, [{ ...common, kind: "errand", purpose: "errand", slug: "captured", branch: "chore/captured", intent: "Fallback captured", origin: "inbox",
+    originEntry: "Captured", originEntrySourceDigest: inboxEntrySourceDigest(clean, "Captured"), state: "open", savedHead: null, changeRequest: null }]);
+  const trial = await h.migrate(true);
+  expect(trial).toMatchObject({ status: "ok", result: { notices: expect.arrayContaining([expect.objectContaining({
+    condition: expect.stringContaining("### Stray heading"), remedy: { text: expect.stringContaining("entry heading") } })]) } });
+  if (trial.status !== "ok") throw new Error("Trial refused");
+  expect(trial.result.notices.map(({ remedy }) => remedy?.text ?? "").join("\n")).not.toMatch(/one distinct title/u);
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
+  await writeFile(join(h.root, ".arc/user/andrew/USER-INBOX.md"), inbox.replace("### Stray heading", "### **Stray heading**"));
+  await saveImportPersonal(h.root);
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+});
+
+it("keeps the cleanup lease when origin declines a leased transient delete, and retires the copy once it accepts", async () => {
+  const h = await importFixture();
+  const tip = await seed(h, [ordinary]);
+  await h.git("git", ["push", "origin", `${sourceRef}:${sourceRef}`]);
+  const hook = join(h.origin, "hooks", "update");
+  await writeFile(hook, `#!/bin/sh\n[ "$1" = ${sourceRef} ] && [ "$3" = ${"0".repeat(40)} ] && exit 1\nexit 0\n`);
+  await chmod(hook, 0o755);
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
+    condition: expect.stringContaining(`Could not retire origin's ${sourceRef}`), remedy: { argv: ["arc", "store", "migrate", "--import"] } } });
+  expect((await h.remote("git", ["rev-parse", sourceRef])).stdout.trim()).toBe(tip);
+  expect((await h.git("git", ["for-each-ref", "--format=%(objectname)", keptPrefix])).stdout.trim()).toBe(tip);
+  await writeFile(hook, "#!/bin/sh\nexit 0\n");
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", sourceRef])).stdout).toBe("");
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", keptPrefix])).stdout).toBe("");
+});
+
+it("keeps the cleanup lease when origin cannot be read with no state remote, and names its copy once it can", async () => {
+  const h = await importFixture("separate");
+  const tip = await seed(h, [ordinary]);
+  await h.git("git", ["push", "origin", `${sourceRef}:${sourceRef}`]);
+  h.ports.migrateStep = async (step) => { if (step === "import.transient.local-delete") await rename(h.origin, `${h.origin}.offline`); };
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
+    condition: expect.stringContaining("Could not read origin's transient refs"), remedy: { argv: ["arc", "store", "migrate", "--import"] } } });
+  expect((await h.git("git", ["for-each-ref", "--format=%(objectname)", keptPrefix])).stdout.trim()).toBe(tip);
+  h.ports.migrateStep = async () => {};
+  await rename(`${h.origin}.offline`, h.origin);
+  const result = await h.migrate();
+  expect(result).toMatchObject({ status: "ok", result: { notices: expect.arrayContaining([
+    expect.objectContaining({ condition: `origin still holds ${sourceRef}; no state remote is designated.` })]) } });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", keptPrefix])).stdout).toBe("");
+  expect((await h.remote("git", ["rev-parse", sourceRef])).stdout.trim()).toBe(tip);
 });

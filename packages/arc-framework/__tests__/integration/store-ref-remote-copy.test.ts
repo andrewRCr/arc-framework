@@ -12,6 +12,8 @@ import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js"
 import { createRefStore, createKindRegistry, RecordReferenceSchema, type WriteCheck } from "../../src/lib/store/index.js";
 
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
+import { PASSIVE_REMOTE_INTERACTION } from "../../src/lib/git/remote-ref-reader.js";
+import type { GitExecOptions } from "../../src/lib/git/exec.js";
 
 const provenance = { verb: "edit", lifecycleAction: "save" };
 const identity = RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } });
@@ -201,6 +203,24 @@ it("restarts a destination lease the receiver reports lost and lands over the ra
   await h.a.exec("git", [`--git-dir=${h.destination}`, "merge-base", "--is-ancestor", race, landed]);
 }, 45_000);
 
+
+it("reads a refusing receiver's leases passively within the network bound, refusing recoverably when that read fails", async () => {
+  const h = await copyFixture(), hook = join(h.destination, "hooks", "update");
+  await writeFile(hook, "#!/bin/sh\nexit 1\n");
+  await chmod(hook, 0o755);
+  const probes: { args: string[]; options?: GitExecOptions }[] = [];
+  const ports = { ...h.pause, exec: async (command: string, args: string[], options?: GitExecOptions) => {
+    if (args[0] !== "ls-remote" || !args.includes(h.destination)) return h.a.ports.exec(command, args, options);
+    probes.push({ args, options });
+    return h.a.ports.exec(command, args.map(arg => arg === h.destination ? `${h.destination}.missing` : arg), options);
+  } };
+  expect(await invokeStoreMigrate(h.argv, ports)).toMatchObject({ status: "refused", refusal: { code: "store", refusal: { code: "unreachable",
+    class: "recoverable", condition: expect.stringContaining("after it refused the move's push") } } });
+  expect(probes).toHaveLength(1);
+  expect(probes[0]?.args.slice(0, 4)).toEqual(["ls-remote", "--refs", "--", h.destination]);
+  expect(probes[0]?.options).toMatchObject({ diagnosticLocale: "stable", interaction: PASSIVE_REMOTE_INTERACTION, signal: expect.any(AbortSignal) });
+  expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout.trim()).toBe("refs/arc/tmp/migrate/move");
+}, 45_000);
 
 it("merges onto this project's destination, reports broken rules, and makes the trial match the copy", async () => {
   const h = await copyFixture();
