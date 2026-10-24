@@ -175,6 +175,17 @@ describe("whole-record conflict values", () => {
 });
 
 describe("refusals and outcomes", () => {
+  it("accepts typed lookup tiers and refuses malformed tie facts", () => {
+    const refusal = { code: "ambiguous-match", class: "recoverable", condition: "Several holders", remedy,
+      candidates: [reference, reference] };
+    for (const tie of [{ liveness: "live", name: "current" }, { liveness: "completed", name: "former" }, { liveness: "live" }]) {
+      expect(StoreRefusalSchema.safeParse({ ...refusal, tie }).success).toBe(true);
+    }
+    expect(StoreRefusalSchema.safeParse(refusal).success).toBe(true);
+    for (const tie of [{}, { liveness: "active" }, { liveness: "live", name: "alias" }, { liveness: "live", extra: true }]) {
+      expect(StoreRefusalSchema.safeParse({ ...refusal, tie }).success).toBe(false);
+    }
+  });
   it("retains typed placement-only diagnostic evidence and rejects incompatible claims", () => {
     const value = { kind: "malformed", key: "meta", condition: "Invalid placement", remedy, rule: "placement" };
     expect(ListingDiagnosticSchema.parse(value)).toEqual(value);

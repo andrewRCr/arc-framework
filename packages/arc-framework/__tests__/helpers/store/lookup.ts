@@ -80,11 +80,14 @@ export function lookupReference(context: ReferenceContext, input: LookupInput): 
   }
   const records = [...context.state.records.values()];
   let candidates: LookupResult[];
+  let ranked: MemoryRecord[] | undefined;
   if (input.kind === "commit") {
     const sha = records.flatMap((record) => commitMatch(record, input, "sha") ?? []);
     candidates = sha.length > 0 ? sha : records.flatMap((record) => commitMatch(record, input, "copyKey") ?? []);
-  } else if (input.kind === "slug") candidates = preferredSlugRecords(records, input.slug).map((record) => ({ reference: record.reference }));
-  else if (input.kind === "ref") candidates = preferredRefRecords(records, input).map(record => ({ reference: record.reference }));
+  } else if (input.kind === "slug" || input.kind === "ref") {
+    ranked = input.kind === "slug" ? preferredSlugRecords(records, input.slug) : preferredRefRecords(records, input);
+    candidates = ranked.map(record => ({ reference: record.reference }));
+  }
   else if (input.kind === "lineage") candidates = lineageRecords(records, input.origin).map(record => ({ reference: record.reference }));
   else candidates = records.filter((record) => {
     switch (input.kind) {
@@ -105,6 +108,8 @@ export function lookupReference(context: ReferenceContext, input: LookupInput): 
   }
   if (candidates.length > 1) return refused({
     code: "ambiguous-match", class: "recoverable", candidates: candidates.map((candidate) => candidate.reference),
+    ...(ranked === undefined ? {} : { tie: { liveness: ranked[0]!.placement?.kind === "completed" ? "completed" : "live",
+      ...(input.kind === "slug" ? { name: ranked[0]!.reference.owner.name === input.slug ? "current" : "former" } : {}) } }),
     condition: "The lookup matches more than one record generation.",
     remedy: { text: "Disambiguate the stored names or links, then repeat the lookup." },
   });

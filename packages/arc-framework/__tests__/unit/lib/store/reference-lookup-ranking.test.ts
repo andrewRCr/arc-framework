@@ -7,6 +7,7 @@ import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store
 import { recordPut, batchLifecycleWrites } from "../../../../src/lib/store/lifecycle-write.js";
 import { recordKey } from "../../../helpers/store/model.js";
 import type { StoreRecord } from "../../../../src/lib/store/read.js";
+import { seed, success, testProvenance } from "../../../helpers/store/suite-tools.js";
 
 async function archive(h: ReturnType<typeof createLifecycleHarness>, record: StoreRecord, quarter = "2026-q4") {
   lifecycleSuccess(await h.store.write({ ...recordPut(record, { placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse(quarter) } }),
@@ -73,7 +74,7 @@ it("refuses a live cohort and work unit under one name with both references", as
   const reference = await cohort(h, "shared");
   const meta = await h.seedMeta("shared");
   expect(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("shared") })).toMatchObject({ status: "refused",
-    refusal: { code: "ambiguous-match", candidates: expect.arrayContaining([reference, meta.reference]) } });
+    refusal: { code: "ambiguous-match", tie: { liveness: "live", name: "current" }, candidates: expect.arrayContaining([reference, meta.reference]) } });
 });
 
 it.each(["quarter", "sequence"] as const)("selects the latest completed work unit by %s", async order => {
@@ -113,7 +114,7 @@ it("keeps completed cohort and Errand-only ties ambiguous", async () => {
   const first = await errand(h, "errands"), second = await errand(h, "errands");
   for (const [slug, candidates] of [["shared", [meta.reference, document]], ["errands", [first.reference, second.reference]]] as const) {
     expect(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse(slug) })).toMatchObject({ status: "refused",
-      refusal: { code: "ambiguous-match", candidates: expect.arrayContaining([...candidates]) } });
+      refusal: { code: "ambiguous-match", tie: { liveness: "completed", name: "current" }, candidates: expect.arrayContaining([...candidates]) } });
   }
 });
 
@@ -127,7 +128,7 @@ it("resolves a reused branch to its live holder and retains live ambiguity", asy
   expect(lifecycleSuccess(await h.store.lookup(branchLookup)).reference).toEqual(current.reference);
   const other = await h.seedMeta("other", {}, { kind: "active" }, branchLinks);
   expect(await h.store.lookup(branchLookup)).toMatchObject({ status: "refused", refusal: {
-    code: "ambiguous-match", candidates: expect.arrayContaining([current.reference, other.reference]),
+    code: "ambiguous-match", tie: { liveness: "live" }, candidates: expect.arrayContaining([current.reference, other.reference]),
   } });
 });
 
@@ -144,6 +145,45 @@ it("selects the latest completed branch holder but leaves Errand-only ties ambig
     references.push(record.reference);
   }
   expect(await errands.store.lookup(branchLookup)).toMatchObject({ status: "refused", refusal: {
-    code: "ambiguous-match", candidates: expect.arrayContaining(references),
+    code: "ambiguous-match", tie: { liveness: "completed" }, candidates: expect.arrayContaining(references),
   } });
+});
+
+it.each([false, true])("names the former-name tier on a tie (completed: %s)", async completed => {
+  const h = createLifecycleHarness();
+  for (const name of ["first", "second"]) {
+    const record = completed ? await errand(h, name) : await h.seedMeta(name);
+    h.store.state.records.get(recordKey(record.reference))!.formerSlugs.push("former");
+  }
+  expect(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("former") })).toMatchObject({ status: "refused",
+    refusal: { code: "ambiguous-match", tie: { liveness: completed ? "completed" : "live", name: "former" } } });
+});
+
+it("leaves claim, commit, and lineage ambiguity without ranked tier facts", async () => {
+  const h = createLifecycleHarness();
+  const links = { landingCommit: { repository: "project", sha: "a".repeat(40) } };
+  await archive(h, await h.seedMeta("shared", {}, { kind: "active" }, links));
+  await h.seedMeta("shared", {}, { kind: "active" }, links);
+  const errands = createLifecycleHarness();
+  await errand(errands, "shared"); await errand(errands, "shared");
+  for (const result of await Promise.all([
+    h.store.lookup({ kind: "commit", repository: "project", sha: "a".repeat(40) }),
+    errands.store.lookup({ kind: "claim", claim: { kind: "errand", slug: SlugSchema.parse("shared"), claimId: "a".repeat(32) } }),
+  ])) {
+    expect(result).toMatchObject({ status: "refused", refusal: { code: "ambiguous-match" } });
+    if (result.status === "refused") expect(result.refusal).not.toHaveProperty("tie");
+  }
+  const f = createReferenceFixture();
+  for (const name of ["first", "second"]) {
+    const record = await seed(f, f.reference("work-item/meta"));
+    const reference = { ...record.reference, owner: { ...record.reference.owner, name: SlugSchema.parse(name) } };
+    success(await f.store.write({ action: "put", reference, expected: record.version, content: record.content,
+      placement: { kind: "active" }, provenance: testProvenance }));
+    await seed(f, recordReferences["lineage/transition"](reference.owner));
+    success(await f.store.write({ action: "remove", reference, expected: success(await f.store.read({ reference })).version,
+      provenance: testProvenance }));
+  }
+  const result = await f.store.lookup({ kind: "lineage", origin: "work-item-one" });
+  expect(result).toMatchObject({ status: "refused", refusal: { code: "ambiguous-match" } });
+  if (result.status === "refused") expect(result.refusal).not.toHaveProperty("tie");
 });

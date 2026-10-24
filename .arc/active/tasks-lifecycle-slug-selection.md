@@ -66,40 +66,21 @@ existing assertion, the work-unit claim's, to send the UID (4.3.d).
         - Missing-worktree and orphan tests pin reused branches to their live holder, with no teardown offer and the
           orphan advisory's existing merged-branch requirement intact.
 
-### `[ ]` **1.4 Name a tie's tier on `ambiguous-match` — § 1.5**
+### `[x]` **1.4 Name a tie's tier on `ambiguous-match` — § 1.5**
 
 - _Goal:_ An `ambiguous-match` refusal from the slug or `ref` arm states whether its candidates are live or completed
   and, from the slug arm, whether the slug is their current or a former name, so a reader tells a completed tie from a
   live clash without the operand.
 
-- _Note:_ `feat/storage-ref-backend` reorders `LocalRefusalSchema`'s members in `lib/store/refusal.ts` and edits
-  `envelopes.test.ts`'s refusal cases; re-check that branch before editing them.
+    - `[x]` **1.4.a The refusal field**
 
-    - `[ ]` **1.4.a The refusal field**
+        - Ambiguous-match refusals accept optional strict tie facts: live/completed liveness and optional
+          current/former name kind. Envelope tests retain unranked refusals and reject malformed tie facts.
 
-        - `LocalRefusalSchema`'s `ambiguous-match` member (`lib/store/refusal.ts`) gains an optional
-          `tie: { liveness: "live" | "completed"; name?: "current" | "former" }`, `name` set by the slug arm alone; it
-          changes in place under the pre-public compatibility posture.
-        - Build `test-first` (one behavior at a time):
-            - the schema accepts an `ambiguous-match` with and without `tie`, and rejects a malformed one
-              (`__tests__/unit/lib/store/envelopes.test.ts`)
+    - `[x]` **1.4.b Setting it**
 
-    - `[ ]` **1.4.b Setting it**
-
-        - The reference backend's slug and `ref` arms set `tie` from the rank they computed in 1.1–1.3; the claim,
-          commit, and lineage arms and the in-repo implementation leave it out, and no arm's condition or remedy text
-          changes.
-        - The reference backend refuses a live clash between holders of one owner type at a write (`indexIdentities`,
-          `__tests__/helpers/store/identities.ts`, keyed by owner type and name) and admits a live work unit and a live
-          cohort on one slug, so a live current-name tie is that pair. A live former-name tie is built over
-          `createReferenceFixture` (`reference-fixture.ts`), which runs no production write checks, by renaming two live
-          work items off one slug in turn, or by planting `formerSlugs`.
-        - Build `test-first` (one behavior at a time):
-            - a live current-name tie, a live former-name tie, and a completed tie each carry their liveness and name
-              kind from the slug arm
-            - a live tie and a completed tie from the `ref` arm carry their liveness
-            - the claim, commit, and lineage arms' `ambiguous-match` carries no `tie`, and the in-repo lookup tests pass
-              unchanged
+        - Reference slug and branch lookup retain their computed rank for ambiguity facts. Tests pin all slug tiers,
+          live/completed branch ties, and unranked claim, commit, and lineage ambiguity without changing refusal text.
 
 ## **Phase 2:** One standing selection, and verbs on the lookup's record
 
