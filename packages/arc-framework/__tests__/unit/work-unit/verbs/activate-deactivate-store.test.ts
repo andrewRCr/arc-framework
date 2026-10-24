@@ -5,6 +5,8 @@ import { makeGitProcessError } from "../../../helpers/git-exec-fake.js";
 import type { GitExec, RawGitExec } from "../../../../src/lib/git/exec.js";
 import { runActivate, runDeactivate, type ActivateContext } from "../../../../src/lib/work-unit/verbs/activate-deactivate.js";
 import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
+import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
+import { writeMetaDependsOn } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import type { BranchLink } from "../../../../src/lib/store/links.js";
 import type { PreparedCurrentWuReconcile } from "../../../../src/lib/work-unit/side-effects/discharge-dep-edges.js";
@@ -219,4 +221,15 @@ it("refuses activation on a branch linked by its completed namesake", async () =
   expect(h.state()).toMatchObject({ current: "person", reconciled: false });
   expect(await h.read()).toEqual(h.meta);
   expect(lifecycleSuccess(await h.store.read({ reference: h.archived!.reference }))).toEqual(h.archived);
+});
+
+it("activation reconciles the live namesake's records through the real store ceremony", async () => {
+  const h = await harness({ branch: "main", archived: true });
+  await h.seedMeta("done", { state: "Integrating", currentWorkflow: "integrate-work-unit" });
+  lifecycleSuccess(await h.store.write({ ...recordPut(h.meta, { content: writeMetaDependsOn(h.meta.content, ["done"]) }), provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  h.ctx.currentWuReconcile = buildStoreCurrentWuReconcile(h.store);
+  expect(await runActivate(h.ctx, params)).toMatchObject({ status: "activated" });
+  expect((await h.read()).fields).toMatchObject({ state: "Active", dependsOn: [] });
+  if (h.archived === undefined) throw Error("Expected archived namesake");
+  expect(lifecycleSuccess(await h.store.read({ reference: h.archived.reference }))).toEqual(h.archived);
 });

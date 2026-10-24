@@ -12,7 +12,7 @@ import { prepareCurrentWuReconcile, type CurrentWuReconcileCeremony, type Curren
 export function buildStoreCurrentWuReconcile(store: Store): CurrentWuReconcileCeremony {
   return {
     prepare: async (op) => {
-      const acquired = await createStoreReconcilePrepareContext(store, op.slug);
+      const acquired = await createStoreReconcilePrepareContext(store, op.slug, op.reference);
       if (acquired.status === "refused") throw new Error(`${acquired.refusal.condition} ${acquired.refusal.remedy.text}`);
       const { primary } = acquired.result;
       const result = await prepareCurrentWuReconcile(acquired.result.context, {

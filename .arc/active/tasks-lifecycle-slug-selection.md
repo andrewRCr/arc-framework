@@ -228,19 +228,12 @@ its test is a regression pin that passes before the change; each re-read's faili
           pass selected references. Tests cover unrelated and mid-verb clashes, missing-primary recovery, and exact
           live-group isolation under reuse, including a failing first-listed acquisition reconstruction.
 
-    - `[ ]` **2.7.b The reconcile context's subject**
+    - `[x]` **2.7.b The reconcile context's subject**
 
-        - `CurrentWuReconcileOp` (`lib/work-unit/side-effects/discharge-dep-edges.ts`) gains an optional `reference`
-          that `runStoreActivate`, `runStorePublish`, and `handleStoreReconcile` set from the record they hold;
-          `buildStoreCurrentWuReconcile` passes it on, and `createStoreReconcilePrepareContext`
-          (`lib/work-unit/store-reconcile-context.ts`) takes it as an optional third parameter and acquires by it,
-          resolving the slug through `readWorkUnit` where it is absent, as its existing tests call it
-          (`store-reconcile-context.test.ts`, `lifecycle-record-path.test.ts`). The in-repo arm leaves it out.
-        - Build `test-first` (one behavior at a time):
-            - over the clash double's mid-verb mode, the reconcile context given its subject's reference acquires that
-              subject's group
-            - regression pin: activating and publishing a reused slug's live holder reconcile that holder's records
-            - the in-repo arm's reconcile tests pass unchanged
+        - Reconcile operations carry an optional selected reference through the store ceremony into group acquisition;
+          activation, publication, and the reconcile handler supply their primary's reference. Context and ceremony
+          tests retain a selected group through a mid-verb clash; activation and publication reconcile only the live
+          namesake's records, with first-listed selection reconstructions proving both regressions.
 
     - `[ ]` **2.7.c Decomposition's acquisitions**
 

@@ -4,7 +4,7 @@ import { SlugSchema, type Slug } from "../kernel/index.js";
 import type { Store } from "../store/contract.js";
 import type { StoreRecord } from "../store/read.js";
 import type { StoreResult } from "../store/refusal.js";
-import { sameOwner, type OwnerIdentity } from "../store/identity.js";
+import { sameOwner, type OwnerIdentity, type RecordReference } from "../store/identity.js";
 import type { WorkItemRef } from "../store/kinds/lineage/schema.js";
 import { readLifecycleView } from "../store/lifecycle-view.js";
 import { requireCompleteInventory } from "../store/lifecycle-storage.js";
@@ -19,11 +19,11 @@ import type { ReachableReferenceTransition } from "./reference-reconcile.js";
 /** Every reported artifact path resolves only through its already-acquired record. */
 export interface StoreReconcilePreparation { primary: StoreRecord; context: CurrentWuReconcilePrepareContext; records: readonly StoreRecord[]; byPath: ReadonlyMap<string, StoreRecord> }
 /** Acquire complete lifecycle, lineage, and artifact evidence before planning edits. */
-export async function createStoreReconcilePrepareContext(store: Store, slug: string): Promise<StoreResult<StoreReconcilePreparation>> {
+export async function createStoreReconcilePrepareContext(store: Store, slug: string, reference?: RecordReference): Promise<StoreResult<StoreReconcilePreparation>> {
   const view = await readLifecycleView(store);
   if (view.status === "refused") return view;
   requireCompleteInventory(store, view.result.listing);
-  const selected = await readWorkUnit(store, slug);
+  const selected = reference === undefined ? await readWorkUnit(store, slug) : { status: "ok" as const, result: { reference } };
   if (selected.status === "refused") return selected;
   const acquired = await acquireLifecycleRecords(store, selected.result.reference);
   if (acquired.status === "refused") return acquired;

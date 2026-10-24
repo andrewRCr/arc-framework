@@ -172,7 +172,7 @@ export async function handleStoreReconcile(store: Store, cwd: string, input: z.i
   if (operandConflict !== undefined) { emitConflict(input, input.slug ?? slug, operandConflict); return; }
   const ceremony = buildStoreCurrentWuReconcile(store);
   try {
-    const prepared = await ceremony.prepare({ slug, metaPath: workUnitMetaPath(meta.result) });
+    const prepared = await ceremony.prepare({ slug, metaPath: workUnitMetaPath(meta.result), reference: meta.result.reference });
     const result = input.apply === true && prepared.status !== "conflict" ? await ceremony.apply(prepared.prepared) : prepared;
     const envelope = toEnvelope(result);
     if (input.json === true) process.stdout.write(`${JSON.stringify(envelope)}\n`);

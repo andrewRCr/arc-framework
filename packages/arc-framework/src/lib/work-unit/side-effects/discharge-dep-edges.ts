@@ -9,6 +9,7 @@
  * @module
  */
 
+import type { RecordReference } from "../../store/identity.js";
 import type { PreparedLifecycleWrite } from "../prepared-lifecycle-write.js";
 import type { StoreRefusal, Remedy } from "../../store/refusal.js";
 import {
@@ -180,6 +181,7 @@ export type CurrentWuReconcileResult =
 /** Current work-unit target and explicit apply mode. */
 export interface CurrentWuReconcileOp {
   slug: string;
+  reference?: RecordReference;
   metaPath: string;
   apply: boolean;
 }

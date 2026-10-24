@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { writeMetaPause, writeMetaCandidate } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { ParsedMetaRecordSchema } from "../../../../src/lib/active/meta-schema.js";
-import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { CandidateReviewResumeBoundarySchema } from "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { runPublish, type PublishParams } from "../../../../src/lib/work-unit/verbs/publish.js";
 import { buildStoreCurrentWuReconcile } from "../../../../src/lib/work-unit/store-current-wu-reconcile.js";
@@ -235,4 +235,15 @@ it.each(["Active", "Integrating"] as const)("uses the logical work branch for %s
   expect(persisted.fields).toMatchObject({ state: "Integrating", currentWorkflow: "integrate-work-unit" });
   expect(persisted.links).toEqual(primary.links);
   if (state === "Integrating") expect(persisted).toEqual(primary);
+});
+
+it("publication reconciles only its live namesake's records", async () => {
+  const h = createLifecycleHarness();
+  await h.seedMeta("done", { state: "Integrating", currentWorkflow: "integrate-work-unit" });
+  const archived = await h.seedMeta("example", { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const primary = await h.seedMeta("example", { candidateId, dependsOn: ["done"] }, { kind: "active" },
+    { branches: [{ repository: "project", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+  expect(await runPublish(context(h.store), parameters(async () => {}))).toMatchObject({ status: "published" });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).fields).toMatchObject({ state: "Integrating", dependsOn: [] });
+  expect(lifecycleSuccess(await h.store.read({ reference: archived.reference }))).toEqual(archived);
 });

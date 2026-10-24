@@ -23,7 +23,7 @@ export async function runStorePublish(ctx: ExecuteTransitionContext & CurrentWuR
   const { metaPath } = facts;
   const authorized = authorizeActivePublication({ ...params, standardLaneOwnerVersion: await params.readStandardLaneOwnerVersion() });
   if (authorized.status === "refused") return reject(authorized.reason);
-  const prepared = await ctx.currentWuReconcile.prepare({ slug: params.name, metaPath });
+  const prepared = await ctx.currentWuReconcile.prepare({ slug: params.name, metaPath, reference: facts.primary.reference });
   if (prepared.status === "conflict") return reject(`Current-work-unit reconcile refused: ${prepared.reason}`);
   const applied = await ctx.currentWuReconcile.apply(prepared.prepared);
   if (applied.status === "conflict") {

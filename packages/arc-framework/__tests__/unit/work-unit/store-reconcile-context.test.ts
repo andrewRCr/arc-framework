@@ -1,4 +1,6 @@
 /** Current-WU reconciliation reads dependency truth and companions through the store. */
+import { createClashDouble } from "../../helpers/store/clash-double.js";
+import { readWorkUnit } from "../../../src/lib/store/lifecycle-write.js";
 import { describe, expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { recordReferences, OwnerIdentitySchema } from "../../../src/lib/store/identity.js";
@@ -222,4 +224,17 @@ it("refuses ambiguous paired-suffix ownership before rewriting an active owner's
   expect(prepared.status).toBe("conflict");
   expect(prepared.prepared.edits).toEqual([]);
   expect(lifecycleSuccess(await h.store.read({ reference: notes.reference }))).toEqual(notes);
+});
+
+it.each([false, true])("acquires the selected reconcile group after a mid-verb clash, ceremony=%s", async ceremony => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("subject"), other = await h.seedMeta("other");
+  const notes = await h.seed(recordReferences["work-item/notes"](primary.reference.owner), "# Notes\n\nNarrative.\n");
+  const store = createClashDouble(h.store, { slug: "subject", holders: [primary.reference, other.reference], mode: "mid-verb" });
+  const selected = lifecycleSuccess(await readWorkUnit(store, "subject"));
+  if (ceremony) {
+    expect(await buildStoreCurrentWuReconcile(store).prepare({ slug: "subject", metaPath: workUnitMetaPath(selected), reference: selected.reference }))
+      .toMatchObject({ status: "clean", prepared: { storePlan: { records: [primary, notes] } } });
+  } else expect(await createStoreReconcilePrepareContext(store, "subject", selected.reference))
+    .toMatchObject({ status: "ok", result: { primary, records: [primary, notes] } });
 });

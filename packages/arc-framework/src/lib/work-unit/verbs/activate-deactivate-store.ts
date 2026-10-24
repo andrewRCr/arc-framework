@@ -33,7 +33,7 @@ export async function runStoreActivate(ctx: ActivateContext, params: ActivatePar
     toBranch: params.toBranch, baseBranch: params.baseBranch, repository: repository.id, primary, otherPrimaries: peers.records });
   if (plan.status === "refused") return { status: "rejected", reason: plan.reason };
   const metaPath = lifecycleArtifactPath(entry, "meta");
-  const prepared = await ctx.currentWuReconcile.prepare({ slug: params.name, metaPath });
+  const prepared = await ctx.currentWuReconcile.prepare({ slug: params.name, metaPath, reference: primary.reference });
   if (prepared.status === "conflict") return { status: "rejected", reason: `Cannot activate ${params.name}: current-WU reconcile refused (${prepared.reason}).` };
   const reconcile = await ctx.currentWuReconcile.apply(prepared.prepared);
   if (reconcile.status === "conflict") return { status: "reconcile-failed", reason: `Activation reconcile became stale; retry arc activate ${params.name}.`, metaPath, reconcile };
