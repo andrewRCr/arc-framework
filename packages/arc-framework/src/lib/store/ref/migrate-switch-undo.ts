@@ -1,12 +1,11 @@
 /** Undo a switch another move overtook, from what the overtaken move's record can say. */
 import type { Store } from "../contract.js";
 import type { RefBackendContext } from "./context.js";
-import { readRefDesignation, type RefRemoteDesignation } from "./designation.js";
 import { readRefRepository } from "./repository.js";
-import { migrationCodeContext, type MoveRemote, type RecordedMove, type StoreLayout } from "./migrate-record.js";
+import { migrationCodeContext, switchMarked, type MoveRemote, type RecordedMove, type StoreLayout } from "./migrate-record.js";
 import { moveRefLayoutAsSwitch } from "./migrate-layout.js";
 import { requireLayoutTransaction } from "./migrate-layout-build.js";
-import { configureBacking, layoutMoveLeftovers, removeBacking, writeMovePointer } from "./migrate-remote-switch.js";
+import { configureBacking, removeBacking, writeMovePointer } from "./migrate-remote-switch.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 
@@ -14,21 +13,19 @@ import { MigrationRefusal } from "./migrate-refusal.js";
 export interface SwitchUndo {
   recorded: RecordedMove;
   source: MoveRemote; destination: MoveRemote;
-  sourceRole: "push" | "read"; destinationRole: "push" | "read" | "off";
+  sourceRole: "push" | "read";
   sourceLayout: StoreLayout; destinationLayout: StoreLayout;
-  pointer?: { source: string | null; destination: string | null };
+  pointer?: { source: string | null };
 }
 
-/** Any write a switch makes, or a layout move's leftovers, means it began; the undo writes the pointer last. */
-export async function switchBegun(context: RefBackendContext, undo: SwitchUndo): Promise<boolean> {
-  if (undo.pointer && undo.pointer.destination !== undo.pointer.source && await context.backingRepository() === undo.pointer.destination) return true;
-  if (undo.sourceLayout !== undo.destinationLayout && await layoutChanged(context, undo.sourceLayout)) return true;
-  return !await holdsSourceDesignation(context, undo);
+/** A switch began once it marked its record, which it does before its first write; the mark stays until the record goes. */
+export async function switchBegun(context: RefBackendContext, recorded: RecordedMove): Promise<boolean> {
+  return switchMarked(await migrationCodeContext(context), recorded);
 }
 
 /** Return the source's layout, designation, and pointer, carrying writes made since back with the layout. */
 export async function undoSwitch(context: RefBackendContext, store: Store, undo: SwitchUndo): Promise<boolean> {
-  if (!await switchBegun(context, undo)) return false;
+  if (!await switchBegun(context, undo.recorded)) return false;
   if (undo.sourceLayout !== undo.destinationLayout) {
     const moved = await moveRefLayoutAsSwitch(context, store, undo.destinationLayout, undo.sourceLayout, undo.recorded, {
       prepareTarget: async (target: RefBackendContext): Promise<void> => {
@@ -44,20 +41,6 @@ export async function undoSwitch(context: RefBackendContext, store: Store, undo:
   finally { await release(); }
   if (undo.pointer) await writeMovePointer(context, undo.pointer.source);
   return true;
-}
-
-async function layoutChanged(context: RefBackendContext, layout: StoreLayout): Promise<boolean> {
-  const physical = await readRefRepository(context);
-  if ((physical.repository?.gitDir ? "separate" : "default") !== layout) return true;
-  return layoutMoveLeftovers(await migrationCodeContext(context));
-}
-
-async function holdsSourceDesignation(context: RefBackendContext, undo: SwitchUndo): Promise<boolean> {
-  const designation = await readRefDesignation(context);
-  const configured = (remote: MoveRemote): RefRemoteDesignation | undefined => remote.repository === "code"
-    ? designation.codeRemotes.find(row => row.name === remote.name)
-    : designation.backing?.url === remote.url ? designation.backing : undefined;
-  return configured(undo.source)?.role === undo.sourceRole && configured(undo.destination)?.role !== undo.destinationRole;
 }
 
 /** The source carries its role again before a code remote destination takes `off`, as a move the other way sets them. */

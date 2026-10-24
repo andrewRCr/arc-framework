@@ -79,7 +79,7 @@ async function remoteMoveTrial(context: RefBackendContext, code: RefBackendConte
 
 async function trialEnd(context: RefBackendContext, recorded: RecordedRemote): Promise<EndedSwitch> {
   if (await remoteSwitchComplete(context, recorded)) return "after";
-  return await switchBegun(context, remoteSwitchUndo(recorded)) ? "during" : "before";
+  return await switchBegun(context, recorded) ? "during" : "before";
 }
 
 async function resolveMoveRemotes(context: RefBackendContext, code: RefBackendContext, to?: string): Promise<MoveTransports> {

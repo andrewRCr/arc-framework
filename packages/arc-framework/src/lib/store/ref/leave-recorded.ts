@@ -3,8 +3,8 @@ import type { Store } from "../contract.js";
 import type { MigrateReport, StoreCommandResult } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import { removeMoveRecord, type RecordedMove } from "./migrate-record.js";
-import { remoteSwitchUndo, switchRemoteMove } from "./migrate-remote-switch.js";
-import { followSwitchUndo, switchRefFollow } from "./follow-switch.js";
+import { switchRemoteMove } from "./migrate-remote-switch.js";
+import { switchRefFollow } from "./follow-switch.js";
 import { switchBegun } from "./migrate-switch-undo.js";
 import { fetchMigrationRemote } from "./migrate-remote-fetch.js";
 import { clearRemoteGathering, readRemoteCopyReport, readCopiedRemoteRefs } from "./migrate-remote-copy.js";
@@ -37,8 +37,11 @@ export async function endRecordedSource(context: RefBackendContext, store: Store
 /** An unread destination re-homes nothing; a remote move withdraws its own forwarding, and only a switch's pointer needs reverting. */
 async function reportUnreadDestination(code: RefBackendContext, recorded: RecordedMove, switched: boolean, report: MigrateReport): Promise<void> {
   if (recorded.record.kind !== "remote" && recorded.record.kind !== "follow") throw new Error("Expected a remote move or follow");
-  report.notices.push({ condition: `The recorded destination ${recorded.record.destination.fetchUrl} could not be read; ending this record does not repair or re-home this clone.`,
+  const { source, destination } = recorded.record;
+  if (switched) report.notices.push({ condition: `The recorded destination ${destination.fetchUrl} could not be read; ending this record does not repair or re-home this clone.`,
     remedy: { text: "Restore the state's intended home, have the mover withdraw its forwarding record where needed, then leave the unavailable source to that restored home." } });
+  else report.notices.push({ condition: `The recorded destination ${destination.fetchUrl} could not be read; this clone never switched to it and stays on its source ${source.fetchUrl}.`,
+    ...recorded.record.kind === "follow" ? { remedy: { text: `Have the mover run arc store migrate --leave-source to withdraw its forwarding record at ${source.fetchUrl}, which keeps this follow due until then.` } } : {} });
   if (recorded.record.kind !== "remote") return;
   const restored = await withdrawRecordedSource(code, { record: recorded.record, tip: recorded.tip });
   if (restored && switched) report.notices.push({ condition: `The old remote ${recorded.record.source.fetchUrl} is the state's home again. Revert the tracked pointer change in this checkout and as code for followers.`,
@@ -49,16 +52,10 @@ async function reportUnreadDestination(code: RefBackendContext, recorded: Record
 
 /** True once this clone is switched: a switch the record shows begun finishes from it, and one never begun leaves the clone as it was. */
 async function finishBegunSwitch(context: RefBackendContext, store: Store, recorded: RecordedMove): Promise<boolean> {
-  if (recorded.record.kind === "remote") {
-    const remote = { record: recorded.record, tip: recorded.tip };
-    if (!await switchBegun(context, remoteSwitchUndo(remote))) return false;
-    await switchRemoteMove(context, store, remote);
-    return true;
-  }
-  if (recorded.record.kind !== "follow") throw new Error("Expected a remote move or follow");
-  const follow = { record: recorded.record, tip: recorded.tip };
-  if (!await switchBegun(context, followSwitchUndo(follow))) return false;
-  await switchRefFollow(context, store, follow);
+  if (!await switchBegun(context, recorded)) return false;
+  if (recorded.record.kind === "remote") await switchRemoteMove(context, store, { record: recorded.record, tip: recorded.tip });
+  else if (recorded.record.kind === "follow") await switchRefFollow(context, store, { record: recorded.record, tip: recorded.tip });
+  else throw new Error("Expected a remote move or follow");
   return true;
 }
 

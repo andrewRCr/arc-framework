@@ -4,7 +4,7 @@ import type { Store } from "../contract.js";
 import type { RefBackendContext } from "./context.js";
 import { directoryExists, readRefDesignation } from "./designation.js";
 import { readRefRepository } from "./repository.js";
-import { migrationCodeContext, type MoveRemote, type RecordedRemote, type StoreLayout } from "./migrate-record.js";
+import { markSwitchBegun, migrationCodeContext, type MoveRemote, type RecordedRemote, type StoreLayout } from "./migrate-record.js";
 import { readCopiedRemoteRefs } from "./migrate-remote-copy.js";
 import { moveRefLayoutAsSwitch } from "./migrate-layout.js";
 import { fetchLayoutObjects, requireLayoutTransaction, layoutRefs } from "./migrate-layout-build.js";
@@ -32,6 +32,7 @@ export async function switchRemoteMove(context: RefBackendContext, store: Store,
   const code = await migrationCodeContext(context);
   const { destination, sourceLayout: from, destinationLayout: to } = recorded.record;
   await context.migrateStep?.("remote.pointer");
+  await markSwitchBegun(code, recorded);
   await writeMovePointer(context, movePointer(destination));
   const configuration = {
     prepareTarget: async (target: RefBackendContext): Promise<void> => {
@@ -55,8 +56,7 @@ export async function switchRemoteMove(context: RefBackendContext, store: Store,
 /** A remote move's switch is undone from its record: the source's pointer, roles, and layout. */
 export function remoteSwitchUndo(recorded: RecordedRemote): SwitchUndo {
   const { source, destination, sourceLayout, destinationLayout } = recorded.record;
-  return { recorded, source, destination, sourceRole: "push", destinationRole: "push", sourceLayout, destinationLayout,
-    pointer: { source: movePointer(source), destination: movePointer(destination) } };
+  return { recorded, source, destination, sourceRole: "push", sourceLayout, destinationLayout, pointer: { source: movePointer(source) } };
 }
 
 /** Write the tracked pointer a move's switch or its undo sets, refusing recoverably where it cannot. */

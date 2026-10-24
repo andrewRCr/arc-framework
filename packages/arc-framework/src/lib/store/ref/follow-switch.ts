@@ -2,7 +2,7 @@
 import type { Store } from "../contract.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefDesignation } from "./designation.js";
-import { migrationCodeContext, type RecordedFollow, type RecordedLeaveSource } from "./migrate-record.js";
+import { markSwitchBegun, migrationCodeContext, type RecordedFollow, type RecordedLeaveSource } from "./migrate-record.js";
 import { moveRefLayoutAsSwitch } from "./migrate-layout.js";
 import { requireLayoutTransaction } from "./migrate-layout-build.js";
 import { configureBacking, installCopiedHeads, remoteLayoutCleanupComplete, removeBacking } from "./migrate-remote-switch.js";
@@ -39,6 +39,7 @@ export async function switchRefFollow(context: RefBackendContext, store: Store, 
     applyDesignation: async (): Promise<void> => applyFollowDesignation(context, recorded),
   };
   await context.migrateStep?.("follow.switch");
+  await markSwitchBegun(code, recorded);
   if (sourceLayout !== destinationLayout) {
     const result = await moveRefLayoutAsSwitch(context, store, sourceLayout, destinationLayout, recorded, configuration);
     if (result.status === "refused") throw new MigrationRefusal(result.refusal);
@@ -63,8 +64,8 @@ async function prepareFollowTarget(code: RefBackendContext, target: RefBackendCo
 
 /** A follow's switch is undone to its old remote's recorded role and layout; the checkout's pointer stays as found. */
 export function followSwitchUndo(recorded: RecordedFollow): SwitchUndo {
-  const { source, destination, sourceRole, answer, sourceLayout, destinationLayout } = recorded.record;
-  return { recorded, source, destination, sourceRole, destinationRole: answer, sourceLayout, destinationLayout };
+  const { source, destination, sourceRole, sourceLayout, destinationLayout } = recorded.record;
+  return { recorded, source, destination, sourceRole, sourceLayout, destinationLayout };
 }
 
 async function applyFollowDesignation(context: RefBackendContext, recorded: RecordedSourceSwitch): Promise<void> {

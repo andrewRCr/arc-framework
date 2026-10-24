@@ -14,6 +14,7 @@ import { createRefSyncCheckout, preparedRefSync } from "../helpers/store/ref-syn
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { invokeStoreRemote } from "../helpers/store/remote-command.js";
+import { productionStore } from "../helpers/store/remote-move.js";
 import type { PromptRenderer } from "../../src/lib/command-input/prompter.js";
 import { success } from "../helpers/store/suite-tools.js";
 
@@ -751,6 +752,26 @@ describe("remote moves beside an unsettled layout", () => {
     expect((await h.a.ports.fs.lstat(join(h.a.root, ".git", "arc", "store-migrate-old"))).isDirectory()).toBe(true);
     expect((await h.a.exec("git", ["--git-dir", to, "for-each-ref"])).stdout).toBe("");
     expect((await runStoreMigrate(h.a.ports)).status).toBe("ok");
+  });
+
+  it.each([true, false])("refuses a remote move while an unrecorded build's leftovers stand, then moves once no-target reconciliation clears them (trial: %s)", async (trial) => {
+    const h = await unrecordedBuildFixture();
+    success(await h.a.store.push());
+    await mkdir(join(h.a.root, ".arc", "system"), { recursive: true });
+    await writeFile(join(h.a.root, ".arc", "system", "arc-config.yml"), "# The checkout's pointer.\n");
+    const { ports } = productionStore(h.a), to = await destination(h);
+    const request = { to, ...trial ? { trial } : {} };
+    const config = (await h.a.exec("git", ["config", "--list", "--local"])).stdout;
+    expect(await runStoreMigrate(ports, request)).toMatchObject({ status: "refused",
+      refusal: { code: "move-unfinished", class: "recoverable", remedy: { argv: ["arc", "store", "migrate"] } } });
+    expect(await recordTip(h)).toBe("");
+    expect((await h.a.exec("git", ["config", "--list", "--local"])).stdout).toBe(config);
+    expect((await h.a.exec("git", ["--git-dir", to, "for-each-ref"])).stdout).toBe("");
+    expect((await runStoreMigrate(ports)).status).toBe("ok");
+    await expect(h.a.ports.fs.lstat(h.buildDirectory)).rejects.toMatchObject({ code: "ENOENT" });
+    const moved = await runStoreMigrate(ports, request);
+    expect(moved.status, JSON.stringify(moved)).toBe("ok");
+    if (!trial) expect((await h.a.exec("git", ["--git-dir", to, "for-each-ref", "--format=%(refname)", "refs/arc/project/registry"])).stdout).toBe("refs/arc/project/registry");
   });
 
   it("refuses leaving the source while a layout record stands, recoverably naming arc store migrate", async () => {

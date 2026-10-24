@@ -8,6 +8,7 @@ import { designatedStoreLayout, observeRefLayout } from "./layout-state.js";
 import { readRefDesignation, refDesignationStop, type RefDesignation } from "./designation.js";
 import { migrationCodeContext, readMoveRecord, type RecordedMove, type RecordedFollow } from "./migrate-record.js";
 import { moveRefRemote } from "./migrate-remote.js";
+import { layoutMoveLeftovers } from "./migrate-remote-switch.js";
 import { clearRemoteGathering } from "./migrate-remote-copy.js";
 import { moveRefLayout } from "./migrate-layout.js";
 import { AdvisoryLockTimeoutError } from "../../advisory-lock.js";
@@ -55,6 +56,9 @@ async function unsettledLayout(context: RefBackendContext, layoutRecorded: boole
   const designation = await readRefDesignation(context);
   const ambiguous = ambiguousDesignation(designation);
   if (ambiguous) return ambiguous;
+  if (await layoutMoveLeftovers(await migrationCodeContext(context))) return { status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
+    condition: "An interrupted layout build left its build directory or temporary refs; clear them before requesting a remote migration or trial.",
+    remedy: { text: "Run arc store migrate with no target to clear the interrupted build, then retry the requested migration.", argv: ["arc", "store", "migrate"] } } };
   const { incomplete } = await observeRefLayout(context, designation);
   return incomplete ? { status: "refused", refusal: { code: "move-incomplete", class: "recoverable", condition: incomplete.condition, remedy: incomplete.remedy } } : undefined;
 }

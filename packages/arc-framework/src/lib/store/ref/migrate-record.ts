@@ -5,7 +5,7 @@ import { CommitShaSchema } from "../links.js";
 import { z } from "zod";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import { readGitDirectories } from "../../git/directories.js";
-import { updateRefTransaction } from "../../git/ref-transaction.js";
+import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
 import { MigrateReportSchema, type MigrateReport, type StoreCommandResult } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects } from "./batch-read.js";
@@ -16,6 +16,8 @@ import { MigrationRefusal } from "./migrate-refusal.js";
 
 /** Only the code repository owns a move record, regardless of the active store layout. */
 export const MOVE_REF = "refs/arc/tmp/migrate/move";
+/** The tip of the record whose switch has begun, written before the switch's first write and dropped with its record. */
+const SWITCH_REF = "refs/arc/tmp/migrate/switch";
 const LayoutSchema = z.enum(["default", "separate"]);
 const SettingSchema = z.strictObject({ remote: z.string().min(1), role: z.enum(["push", "read", "off"]) });
 const LayoutRecordSchema = z.strictObject({ kind: z.literal("layout"), source: LayoutSchema,
@@ -101,14 +103,33 @@ export async function saveMoveRecord<T extends MoveRecord>(code: RefBackendConte
   const kept = report ? [{ path: "report.json", mode: "100644" as const, oid: await writeRefBlob(code, canonicalize(MigrateReportSchema.parse(report))) }] : [];
   const tree = await writeRefTree(code, [{ path: "move.json", mode: "100644", oid }, ...kept]);
   const tip = (await code.exec("git", ["commit-tree", tree, "-m", "Record local store move"], { cwd: code.checkoutRoot })).stdout.trim();
-  const result = await updateRefTransaction(code, [{ ref: MOVE_REF, next: tip, expected }], { cwd: code.checkoutRoot });
+  const result = await updateRefTransaction(code, [{ ref: MOVE_REF, next: tip, expected }, ...await dropSwitchMark(code)], { cwd: code.checkoutRoot });
   if (result.status !== "committed") throw new Error("The recorded migration changed before its replacement");
   return { record, tip };
 }
 
 /** Remove only the exact record whose source cleanup has completed. */
 export async function removeMoveRecord(code: RefBackendContext, recorded: RecordedMove): Promise<void> {
-  const result = await updateRefTransaction(code, [{ ref: MOVE_REF, delete: true, expected: recorded.tip }], { cwd: code.checkoutRoot });
+  const result = await updateRefTransaction(code, [{ ref: MOVE_REF, delete: true, expected: recorded.tip }, ...await dropSwitchMark(code)], { cwd: code.checkoutRoot });
   if (result.status !== "committed") throw new Error("The recorded migration changed before its removal");
   await code.migrateStep?.("record.removed");
+}
+
+/** Mark the recorded move's switch begun, before the switch writes anything else. */
+export async function markSwitchBegun(code: RefBackendContext, recorded: { tip: string }): Promise<void> {
+  const held = (await readSyncRefs(code, SWITCH_REF)).get(SWITCH_REF) ?? null;
+  if (held === recorded.tip) return;
+  const result = await updateRefTransaction(code, [{ ref: SWITCH_REF, next: recorded.tip, expected: held }], { cwd: code.checkoutRoot });
+  if (result.status !== "committed") throw new Error("The recorded switch's mark changed before its write");
+}
+
+/** Only the mark this record's own switch wrote shows it began; a pointer or leftovers found in the checkout never do. */
+export async function switchMarked(code: RefBackendContext, recorded: { tip: string }): Promise<boolean> {
+  return (await readSyncRefs(code, SWITCH_REF)).get(SWITCH_REF) === recorded.tip;
+}
+
+/** A replaced or removed record takes its switch's mark with it. */
+async function dropSwitchMark(code: RefBackendContext): Promise<RefChange[]> {
+  const held = (await readSyncRefs(code, SWITCH_REF)).get(SWITCH_REF);
+  return held ? [{ ref: SWITCH_REF, delete: true, expected: held }] : [];
 }

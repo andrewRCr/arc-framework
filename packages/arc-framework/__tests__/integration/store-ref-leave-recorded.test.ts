@@ -78,10 +78,31 @@ it("ends a pre-switch move at a deleted destination with no pointer to revert an
   expect(ended.status, JSON.stringify(ended)).toBe("ok");
   if (ended.status !== "ok") throw new Error("Leaving refused");
   expect(ended.result.notices.map(({ condition }) => condition).join("\n")).not.toMatch(/tracked pointer/u);
+  expect(ended.result.notices).toContainEqual({ condition: expect.stringContaining(`stays on its source ${h.origin}`) });
+  expect(ended.result.notices.map(({ remedy }) => remedy?.text ?? "").join("\n")).not.toMatch(/leave the unavailable source/u);
   expect(await readFile(h.config, "utf8")).toBe(pointer);
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/project/moved"])).stdout).toBe("");
   expect(success(await h.store.push()).states).toEqual([]);
   expect((await h.a.exec("git", ["config", "remote.origin.arc-state"])).stdout.trim()).toBe("push");
+}, 60_000);
+
+it("ends a pre-switch move at a deleted destination unswitched though the checkout's pointer already names that destination", async () => {
+  const h = await switchFixture();
+  await expect(invokeStoreMigrate(["--to", h.to], { ...h.ports, migrateStep: async step => {
+    if (step === "remote.forwarded") throw new Error("Pause before switch");
+  } })).rejects.toThrow("Pause before switch");
+  await writeFile(h.config, `${await readFile(h.config, "utf8")}storage.backing_repository: ${JSON.stringify(h.to)}\n`);
+  const pointer = await readFile(h.config, "utf8");
+  await rm(h.destinationDirectory, { recursive: true, force: true });
+  const ended = await invokeStoreMigrate(["--leave-source"], h.ports);
+  expect(ended.status, JSON.stringify(ended)).toBe("ok");
+  if (ended.status !== "ok") throw new Error("Leaving refused");
+  expect(ended.result.notices.map(({ condition }) => condition).join("\n")).not.toMatch(/tracked pointer/u);
+  expect(await readFile(h.config, "utf8")).toBe(pointer);
+  expect((await h.a.exec("git", ["config", "remote.origin.arc-state"])).stdout.trim()).toBe("push");
+  await expect(h.ports.fs.lstat(join(h.a.root, ".git", "arc", "store"))).rejects.toMatchObject({ code: "ENOENT" });
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/project/moved"])).stdout).toBe("");
+  expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout).toBe("");
 }, 60_000);
 
 it("finishes a begun switch from its record before ending it at a departed source", async () => {
