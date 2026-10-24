@@ -52,11 +52,14 @@ async function resolveEdge(input: StoreInput, edge: string, target: string | Wor
   const next = new Set(visited).add(key), resolution = await input.resolveDependency(target);
   if (resolution.kind === "dependent") return conflict(edge, name, "self-dependency");
   if (resolution.kind === "refused") return conflict(edge, name, "namespace-corrupt");
-  if (resolution.kind === "work-unit") return resolveWorkUnit(input, edge, name, resolution);
+  if (resolution.kind === "tie" && resolution.candidates.some(candidate => candidate.kind === "work-item/meta")) {
+    return { ...empty(), held: heldResolution(edge, name, "tie", resolution) };
+  }
+  if (resolution.kind === "work-unit") return resolveWorkUnit(input, edge, name, resolution,
+    typeof target !== "string" && target.uid !== undefined);
   const disposition = await input.queryDisposition({ origin: name, dependentSlug: input.dependentSlug,
     ...(resolution.kind === "not-found" && resolution.reference !== undefined ? { reference: resolution.reference } : {}) });
-  if (disposition.status === "absent" && (resolution.kind === "holder"
-    || (resolution.kind === "tie" && !resolution.candidates.some(candidate => candidate.kind === "work-item/meta")))) {
+  if (disposition.status === "absent" && resolution.kind !== "not-found") {
     return { ...empty(), held: heldResolution(edge, name, "not-a-work-unit", resolution) };
   }
   if (disposition.status !== "unique") return dispositionConflict(edge, name, disposition.status);
@@ -64,14 +67,15 @@ async function resolveEdge(input: StoreInput, edge: string, target: string | Wor
 }
 
 async function resolveWorkUnit(input: StoreInput, edge: string, name: string,
-  resolution: Extract<DependencyResolution, { kind: "work-unit" }>): Promise<EdgeResult> {
+  resolution: Extract<DependencyResolution, { kind: "work-unit" }>, byUid: boolean): Promise<EdgeResult> {
   if (resolution.state === "integrating" || resolution.state === "shipped") return { ...empty(), discharged: [name] };
   const current = resolution.reference.owner.name;
-  if (current === name) return { ...empty(), targets: [current] };
+  const renamed = current !== name;
+  if (!renamed && !byUid) return { ...empty(), targets: [current] };
   const follow = await input.resolveDependency(current);
   if (follow.kind === "refused") return conflict(edge, current, "namespace-corrupt");
   if (follow.kind === "work-unit" && sameReference(resolution.reference, follow.reference)) {
-    return { ...empty(), targets: [current], rewritten: true, evidence: [{ subject: name }] };
+    return { ...empty(), targets: [current], rewritten: renamed, evidence: renamed ? [{ subject: name }] : [] };
   }
   return { ...empty(), held: heldResolution(edge, current, "unresolved-follow", follow) };
 }

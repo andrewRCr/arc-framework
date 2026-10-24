@@ -3,19 +3,20 @@ import { expect, it } from "vitest";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { lifecycleReuseFixture } from "../fixtures/lifecycle-reuse.js";
+import { createClashDouble } from "../helpers/store/clash-double.js";
 import { repairCli } from "../helpers/repair-cli.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
 import { recordReferences } from "../../src/lib/store/identity.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
-import { writeMetaCandidate } from "../../src/lib/store/kinds/meta/writers.js";
+import { writeMetaCandidate, writeMetaDependsOn } from "../../src/lib/store/kinds/meta/writers.js";
 import { createCandidateAttestation } from "../../src/lib/work-unit/candidate-attestation.js";
 import { writeCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
 import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
 import { CandidatePublishReadyBoundarySchema } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
-it.each([false, true])("publishes the live generation with real Candidate evidence, former=%s", async former => {
-  const f = await lifecycleReuseFixture(former);
+async function attestPublication(f: Awaited<ReturnType<typeof lifecycleReuseFixture>>): Promise<void> {
+  const live = lifecycleSuccess(await f.store.read({ reference: f.live.reference }));
   const branch = `feat/${f.name}`;
   await f.exec("git", ["switch", "-c", branch]);
   await writeFile(join(f.cwd, "implementation.ts"), "export const value = true;\n");
@@ -29,9 +30,14 @@ it.each([false, true])("publishes the live generation with real Candidate eviden
     workUnit: f.name, candidateId: attestation.candidateId, candidateSubjectDigest: target.subject.subjectDigest,
     locus: "candidate-publish-ready", standardLaneOwnerVersion: 0, policy: null, reservation: null, terminus: null,
     deliveryReviewTermini: [], nextAction: { kind: "publish-candidate", command: `arc publish ${f.name} --json`, interactionText: "Publish" } }), null);
-  lifecycleSuccess(await f.store.write({ ...recordPut(f.live, { content: writeMetaCandidate(f.live.content, attestation.candidateId),
+  lifecycleSuccess(await f.store.write({ ...recordPut(live, { content: writeMetaCandidate(live.content, attestation.candidateId),
     links: { branches: [{ repository: f.repository, ref: branch, linkedAs: "created", excluded: [] }] } }),
     provenance: { verb: "fixture", lifecycleAction: "attest" } }));
+}
+
+it.each([false, true])("publishes the live generation with real Candidate evidence, former=%s", async former => {
+  const f = await lifecycleReuseFixture(former);
+  await attestPublication(f);
   const result = await repairCli(f, ["publish", "example", "--json"], { store: f.store });
   expect(lifecycleSuccess(await f.store.read({ reference: f.archived.reference }))).toEqual(f.archived);
   expect(lifecycleSuccess(await f.store.read({ reference: f.oldNotes.reference }))).toEqual(f.oldNotes);
@@ -63,4 +69,20 @@ it.each([false, true])("reopens the live generation and withdraws its logical re
   expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
   expect(lifecycleSuccess(await f.store.read({ reference: f.live.reference })).fields).toMatchObject({ state: "Active" });
   expect(JSON.parse(await readFile(state, "utf8"))).toMatchObject({ state: "CLOSED" });
+}, 60_000);
+
+it("publishes an attested Candidate while its clashed dependency remains held", async () => {
+  const f = await lifecycleReuseFixture(false);
+  const target = await f.seedMeta("target", { state: "Integrating", currentWorkflow: "integrate-work-unit" });
+  const other = await f.seedMeta("other");
+  lifecycleSuccess(await f.store.write({ ...recordPut(f.live, { content: writeMetaDependsOn(f.live.content, ["target"]) }),
+    provenance: { verb: "fixture", lifecycleAction: "edit" } }));
+  await attestPublication(f);
+  const store = createClashDouble(f.store, { slug: "target", holders: [target.reference, other.reference] });
+  const result = await repairCli(f, ["publish", "example", "--json"], { store });
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  expect(result.result).toMatchObject({ status: "published" });
+  expect(lifecycleSuccess(await f.store.read({ reference: f.live.reference })).fields).toMatchObject({ state: "Integrating", dependsOn: ["target"] });
+  expect(lifecycleSuccess(await f.store.read({ reference: target.reference }))).toEqual(target);
+  expect(lifecycleSuccess(await f.store.read({ reference: other.reference }))).toEqual(other);
 }, 60_000);

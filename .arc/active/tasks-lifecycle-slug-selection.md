@@ -398,19 +398,11 @@ cohort over the reference backend directly.
 - _Note:_ A dependent's edge on the clashed name is seeded before the clash double forms the clash, since
   `checkMetaDependsOn` refuses a new edge whose lookup refuses.
 
-    - `[ ]` **3.5.a The tie row**
+    - `[x]` **3.5.a The tie row**
 
-        - A name the lookup refuses as a tie that includes a work unit, in any tier, holds the edge under its own name,
-          cause `tie`, never `namespace-corrupt`.
-        - Build `test-first` (one behavior at a time):
-            - over the clash double, an edge naming the clashed slug is held with both holders, never discharged, and
-              the dependent activates
-            - over the reference backend, a tie between an Integrating work unit and a cohort, and over
-              `createReferenceFixture` one between an Integrating work unit and an Errand, hold the edge rather than
-              discharging it
-            - an edge that a follow or a lineage disposition would move onto a clashed slug is held under its own name
-            - a former-name tie holds the edge and the dependent activates
-            - activation and publish refuse only a reconcile conflict, never a held edge
+        - Work-unit ties hold before lineage in every tier. UID-bearing replacement targets also check their current
+          name before substitution, retaining the original edge on a clash. Held edges permit activation and attested
+          publication without being discharged.
 
     - `[ ]` **3.5.b Surfacing it**
 
