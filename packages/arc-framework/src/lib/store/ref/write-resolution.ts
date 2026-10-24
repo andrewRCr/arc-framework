@@ -12,7 +12,7 @@ import { rootFamily } from "./path-decode.js";
 import { bindProjectMutations } from "./project-identity.js";
 import { readRefTips } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
-import { checkLiveNamespace } from "./namespace-admission.js";
+import { checkLiveNamespace, leavesPrimaryEnded } from "./namespace-admission.js";
 import { readLineageOwners, lineageOwnerCandidates } from "./lineage-resolution.js";
 import { retirementTargets } from "./write-retirement.js";
 import { resolveNamedRefWrites, writeOwnerNameKey } from "./write-names.js";
@@ -80,7 +80,7 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
   }
   const canonical = resolveConflictReferences(resolved, resolve);
   if (canonical.status === "refused") return canonical;
-  const unknownClaim = unreadableNewClaim(resolved, observed.result);
+  const unknownClaim = unreadableNewClaim(resolved, observed.result, endedOwners);
   if (unknownClaim) return { status: "refused", refusal: unknownClaim };
   const clash = checkLiveNamespace(resolved, owners, endedOwners);
   if (clash) return { status: "refused", refusal: clash };
@@ -162,11 +162,12 @@ function unreadableWriteTarget(context: RefBackendContext, writes: readonly Muta
   return undefined;
 }
 
-function unreadableNewClaim(writes: readonly ResolvedMutation[], captured: LiveRefOwners): StoreRefusal | undefined {
+function unreadableNewClaim(writes: readonly ResolvedMutation[], captured: LiveRefOwners, ended: readonly OwnerIdentity[]): StoreRefusal | undefined {
   const unseen = [...captured.unreadable.values()][0];
   if (!unseen) return undefined;
   const changesClaim = writes.some(({ mutation }) => {
     if (mutation.action !== "put" || !["work-item/meta", "work-item/record", "cohort/document"].includes(mutation.reference.kind)) return false;
+    if (leavesPrimaryEnded(mutation, ended)) return false;
     const prior = captured.owners.find(({ owner }) => sameOwner(owner, mutation.reference.owner))?.primary;
     return !prior || prior.reference.owner.name !== mutation.reference.owner.name;
   });

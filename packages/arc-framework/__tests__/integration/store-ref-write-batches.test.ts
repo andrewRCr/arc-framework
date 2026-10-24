@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createRefStore } from "../../src/lib/store/create.js";
 import { createRefLockFactory } from "../../src/lib/store/default-ports.js";
-import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
+import { OwnerIdentitySchema, RecordReferenceSchema, type OwnerIdentity, type RecordReference } from "../../src/lib/store/identity.js";
+import type { WritePlacement } from "../../src/lib/store/placement.js";
+import { createRefFixture, type RefConformanceFixture } from "../helpers/store/ref-fixture.js";
+import { seed, success, testProvenance } from "../helpers/store/suite-tools.js";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { createRefReadFixture } from "../helpers/store/ref-read.js";
@@ -68,3 +71,32 @@ describe.each(["files", "reftable"] as const)("atomic ref batches (%s)", (format
     for (const reference of [secondPersonal, secondWork]) expect(await f.store.read({ reference })).toMatchObject({ status: "ok", result: { content: "second" } });
   }, 15_000);
 });
+
+describe.each(["default", "separate"] as const)("one canonical record per ref batch (%s)", (layout) => {
+  const twice = { status: "refused", refusal: { code: "record-malformed", condition: expect.stringContaining("at most once") } };
+  const put = (f: RefConformanceFixture, reference: RecordReference, placement?: WritePlacement) => ({ action: "put" as const, reference,
+    expected: null, content: f.content(reference), ...(placement ? { placement } : {}) });
+
+  it("refuses one new owner's meta and record together, and writes either alone", async () => {
+    const f = await createRefFixture({}, layout);
+    const meta = f.reference("work-item/meta", "dual");
+    const record = RecordReferenceSchema.parse({ ...meta, kind: "work-item/record" });
+    const before = await f.settle();
+    expect(await f.store.batch({ provenance: testProvenance, writes: [put(f, meta, { kind: "active" }), put(f, record, { kind: "active" })] })).toMatchObject(twice);
+    expect(await f.settle()).toBe(before);
+    success(await f.store.write({ ...put(f, record, { kind: "active" }), provenance: testProvenance }));
+  });
+
+  it("refuses a name handle and a UID handle for one record together, and writes it once", async () => {
+    const f = await createRefFixture({}, layout);
+    const root = await seed(f, f.reference("work-item/meta", "mixed"));
+    const extra = (owner: OwnerIdentity) => RecordReferenceSchema.parse({ owner, kind: "work-item/companion", key: "extra" });
+    const byName = extra(OwnerIdentitySchema.parse({ type: "work-item", name: root.reference.owner.name }));
+    const before = await f.settle();
+    expect(await f.store.batch({ provenance: testProvenance, writes: [put(f, byName), put(f, extra(root.reference.owner))] })).toMatchObject(twice);
+    expect(await f.settle()).toBe(before);
+    success(await f.store.write({ ...put(f, byName), provenance: testProvenance }));
+    expect(success(await f.store.read({ reference: extra(root.reference.owner) })).content).toBe(f.content(byName));
+  });
+});
+

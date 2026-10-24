@@ -108,6 +108,19 @@ describe("writes that leave no primary live", () => {
       .toEqual(reused.reference);
   });
 
+  it.each(["work-item/meta", "cohort/document"] as const)("edits a completed %s beside an unrelated unreadable live ref", async (kind) => {
+    const f = await createRefFixture();
+    const first = await seed(f, f.reference(kind));
+    success(await f.store.write({ ...update(f, first, first.content), placement: { kind: "completed", quarter } }));
+    const archived = success(await f.store.read({ reference: first.reference }));
+    await plantRef(f.root, "refs/arc/work/abcdef12-1234-4234-8234-123456789abc", [{ path: "extra-broken.md", content: "no metadata" }]);
+    const content = f.content(archived.reference, "changed-again");
+    success(await f.store.write(update(f, archived, content)));
+    success(await f.store.write({ ...update(f, success(await f.store.read({ reference: archived.reference })), first.content),
+      placement: archived.placement?.kind === "completed" ? { kind: "completed", quarter: archived.placement.quarter } : undefined }));
+    expect(success(await f.store.read({ reference: archived.reference }))).toMatchObject({ content: first.content, placement: archived.placement });
+  });
+
   it("creates a live owner in the batch that edits the completed owner holding its slug", async () => {
     const f = await createRefFixture();
     const first = await seed(f, f.reference("work-item/meta"));

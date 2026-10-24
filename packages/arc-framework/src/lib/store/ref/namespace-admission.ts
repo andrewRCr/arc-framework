@@ -4,6 +4,7 @@ import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import { sameOwner, type OwnerIdentity, type RecordReference } from "../identity.js";
 import type { StoreRefusal } from "../refusal.js";
 import type { WritePlacement } from "../placement.js";
+import type { Mutation } from "../write.js";
 import type { ResolvedMutation } from "./write-resolution.js";
 
 /** An addressable live ref, including whether it still holds a primary. */
@@ -15,6 +16,17 @@ export interface LiveRefOwner {
 /** Identify the two record roles whose presence makes a work item live. */
 function isWorkPrimary(reference: RecordReference): boolean {
   return reference.kind === "work-item/meta" || reference.kind === "work-item/record";
+}
+
+/**
+ * A put that leaves its primary ended — its placement completed, or, with none given, its owner already archived.
+ * @param mutation - A primary mutation
+ * @param ended - Archived owners the batch writes
+ * @returns Whether the put holds no live claim
+ */
+export function leavesPrimaryEnded(mutation: Mutation, ended: readonly OwnerIdentity[]): boolean {
+  return mutation.action === "put" && (mutation.placement
+    ? mutation.placement.kind === "completed" : ended.some((owner) => sameOwner(owner, mutation.reference.owner)));
 }
 
 /**
@@ -30,8 +42,7 @@ export function checkLiveNamespace(writes: readonly ResolvedMutation[], owners: 
   const primaries = writes.filter(({ mutation }) => isWorkPrimary(mutation.reference) || mutation.reference.kind === "cohort/document");
   const retained = owners.flatMap(({ primary }) => primary && !primaries.some(({ mutation }) => sameOwner(mutation.reference.owner, primary.reference.owner))
     ? [primary.reference] : []);
-  const live = primaries.flatMap(({ mutation }) => mutation.action === "put" && (mutation.placement
-    ? mutation.placement.kind !== "completed" : !ended.some((owner) => sameOwner(owner, mutation.reference.owner))) ? [mutation] : []);
+  const live = primaries.flatMap(({ mutation }) => mutation.action === "put" && !leavesPrimaryEnded(mutation, ended) ? [mutation] : []);
   const holders = [...retained, ...live.map(({ reference }) => reference)];
   for (const mutation of live) {
     const { reference } = mutation;

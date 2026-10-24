@@ -100,6 +100,19 @@ describe("renames over state refs", () => {
       .toMatchObject({ status: "refused", refusal: { code: "version-conflict" } });
   });
 
+  // Each prefix orders the two former paths differently in the tree, so both visiting orders are covered.
+  it.each(["a", "z"])("keeps both companions when one's renamed path is the other's former path (%s)", async (prefix) => {
+    const f = await createRefFixture();
+    const first = await seed(f, f.reference("work-item/meta"));
+    const companion = (owner: typeof first.reference.owner, key: string) => RecordReferenceSchema.parse({ owner, kind: "work-item/companion", key });
+    await seed(f, companion(first.reference.owner, "design"), "design\n");
+    await seed(f, companion(first.reference.owner, `design-${prefix}`), "prefixed design\n");
+    const reference = RecordReferenceSchema.parse({ ...first.reference, owner: { ...first.reference.owner, name: `${prefix}-${first.reference.owner.name}` } });
+    success(await f.store.write({ ...update(f, first, first.content), reference }));
+    expect(success(await f.store.read({ reference: companion(reference.owner, "design") })).content).toBe("design\n");
+    expect(success(await f.store.read({ reference: companion(reference.owner, `design-${prefix}`) })).content).toBe("prefixed design\n");
+  });
+
   it.each([false, true])("refuses a root companion alias with named companion %s and admits re-keying", async (named) => {
     const f = await createRefFixture();
     const first = await seed(f, f.reference("work-item/meta"));

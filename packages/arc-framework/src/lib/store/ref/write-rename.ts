@@ -32,7 +32,7 @@ export function prepareRefRenames(context: RefBackendContext, batch: ResolvedBat
 function renamedEntries(context: RefBackendContext, group: RefWriteGroup, prior: RecordReference, next: RecordReference): StoreResult<Map<string, RefTreeEntry>> {
   const home = expandStoredPath(prior, { registry: context.registry });
   const neighbors: RefPathNeighbor[] = [];
-  const entries = new Map(group.entries);
+  const moves: Array<[RefTreeEntry, RefTreeEntry]> = [];
   for (const entry of group.entries.values()) {
     if (entry.path === home.metadataPath || entry.path.startsWith(home.manifestPath)) continue;
     const old = decodeStoredReference(context.registry, prior.owner, context.registry[prior.kind].family, entry.path, group.metadata);
@@ -46,9 +46,12 @@ function renamedEntries(context: RefBackendContext, group: RefWriteGroup, prior:
       remedy: { text: `Re-key the companion ${JSON.stringify(old.key)} before renaming its owner, then retry.` } } };
     const target = expandStoredPath(reference, { registry: context.registry });
     neighbors.push({ reference, home: { ref: home.ref, path: target.path } });
-    entries.delete(entry.path);
-    entries.set(target.path, { ...entry, path: target.path });
+    moves.push([entry, { ...entry, path: target.path }]);
   }
+  // Every target comes from the former entries, so a record whose new path is another's former path is not lost.
+  const entries = new Map(group.entries);
+  for (const [entry] of moves) entries.delete(entry.path);
+  for (const [, moved] of moves) entries.set(moved.path, moved);
   for (const neighbor of neighbors) {
     if (!neighbor.reference) continue;
     const refusal = checkRefPathCollision(neighbor.reference, neighbor.home, neighbors);

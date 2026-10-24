@@ -2,7 +2,7 @@
 
 import { storeDirectoryVanished, writeRefRepository } from "./repository.js";
 import { BatchInputSchema, WriteInputSchema, type Mutation, type BatchInput, type BatchResult, type WriteInput, type WriteResult, type RecordObservation } from "../write.js";
-import { RecordReferenceSchema, type RecordReference } from "../identity.js";
+import { RecordReferenceSchema, sameReference, type RecordReference } from "../identity.js";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { randomUUID } from "node:crypto";
@@ -129,6 +129,10 @@ async function attemptRefBatch(context: RefBackendContext, input: BatchInput, ba
   captured: ReadonlyMap<string, string> | undefined): Promise<StoreResult<BatchResult> | "layout-changed" | null> {
   const resolved = await resolveRefWrites(context, input.writes, captured);
   if (resolved.status === "refused") return resolved;
+  // Handles that differ before resolution, a name and a UID or two primary roles of one new owner, can name one record.
+  const repeated = resolved.result.writes.find(({ mutation }, index) => resolved.result.writes.slice(0, index)
+    .some((other) => sameReference(other.mutation.reference, mutation.reference)));
+  if (repeated) return { status: "refused", refusal: malformedMutation(repeated.mutation.reference, "An atomic batch must name each canonical record at most once.") };
   const admission = checkMutationReferences(context, resolved.result.writes.map((write) => write.mutation), input.provenance.verb);
   if (admission) return { status: "refused", refusal: admission };
   const collision = checkRefBatchPaths(resolved.result.writes.filter((write) => write.mutation.action === "put")
