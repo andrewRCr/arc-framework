@@ -58,8 +58,10 @@ async function readBoundRecord(context: RefBackendContext, requested: RecordRefe
   const object = objects.get(recordQuery);
   const metadata = parseRefMetadata(objects.get(metadataQuery), home.ref);
   if (!metadata) {
-    const roots = await readRefTrees(context, new Map([[home.ref, tip]]));
-    return { status: "refused", refusal: corruptRef(home.ref, !roots.has(home.ref)) };
+    const entries = (await readRefTrees(context, new Map([[home.ref, tip]]))).get(home.ref);
+    // A tree holding no record reads as holding none, as a listing reads it.
+    if (entries?.every(({ path }) => isManifestPath(home, path))) return missing(reference);
+    return { status: "refused", refusal: corruptRef(home.ref, !entries) };
   }
   if (object?.type !== "blob") return missing(reference);
   const owner = resolveCapturedOwner(context, reference, home, metadata, object);
@@ -74,10 +76,13 @@ async function readBoundRecord(context: RefBackendContext, requested: RecordRefe
 
 /** Resolve a typed reference against captured tips before choosing its stored address. */
 export async function resolveReadReference(context: RefBackendContext, reference: RecordReference, tips?: ReadonlyMap<string, string>): Promise<StoreResult<RecordReference>> {
-  if (reference.owner.type === "person" && await context.identity() === null) {
-    return { status: "refused", refusal: { code: "not-found", class: "recoverable", reference,
+  if (reference.owner.type === "person") {
+    const identity = await context.identity();
+    if (identity === null) return { status: "refused", refusal: { code: "not-found", class: "recoverable", reference,
       condition: "No arc.identity is configured for person-owned state",
       remedy: { text: "Configure arc.identity, then retry.", argv: ["git", "config", "arc.identity", reference.owner.name] } } };
+    const other = otherIdentityRefusal(reference, identity);
+    if (other) return { status: "refused", refusal: other };
   }
   if (context.registry[reference.kind].family === "lineage") return resolveLineageReadReference(context, reference, tips);
   if (reference.owner.type === "work-item" || reference.owner.type === "cohort") {
@@ -85,6 +90,24 @@ export async function resolveReadReference(context: RefBackendContext, reference
   }
 
   return { status: "ok", result: reference };
+}
+
+/** The identity an identity-scoped family lists under: undefined where none is configured, and null for any other family. */
+async function listingIdentity(context: RefBackendContext, family: FamilyId): Promise<string | null | undefined> {
+  return FAMILY_REGISTRY[family].scope === "identity" ? await context.identity() ?? undefined : null;
+}
+
+/** Another person's identity ref, which every read treats as absent, as a saved read does; a listing naming another person reads none. */
+function otherIdentityRef(ref: string, identity: string | null, owner?: ListInput["owner"]): boolean {
+  return ref.startsWith("refs/arc/user/") && (ref.split("/")[3] !== identity || owner?.type === "person" && owner.name !== identity);
+}
+
+/** Refuse a person-owned reference outside the configured identity as an absent record. */
+function otherIdentityRefusal(reference: RecordReference, identity: string): StoreRefusal | undefined {
+  if (reference.owner.type !== "person" || reference.owner.name === identity) return undefined;
+  return { code: "not-found", class: "recoverable", reference,
+    condition: `The requested personal identity ${reference.owner.name} is not the configured identity ${identity}.`,
+    remedy: { text: `Select ${identity}'s personal record or configure arc.identity as ${reference.owner.name}, then retry.` } };
 }
 
 /** Decode and validate the requested owner against captured metadata and content. */
@@ -114,14 +137,14 @@ export async function listRefRecords(context: RefBackendContext, input: ListInpu
 
 /** List an admitted family from the repository its operation bound. */
 async function listBoundRecords(context: RefBackendContext, input: ListInput): Promise<StoreResult<ListingOutcome>> {
-  const identityMissing = FAMILY_REGISTRY[input.family].scope === "identity" && await context.identity() === null;
+  const identity = await listingIdentity(context, input.family);
   const captured = await readRefTips(context);
   const resolved = await resolveRefListInput(context, input, captured);
   if (resolved.status === "refused") return resolved;
   input = resolved.result;
   const asOf = await saveCapturedManifest(context, captured);
-  if (identityMissing) return { status: "ok", result: { status: "absent", asOf } };
-  const tips = new Map([...captured].filter(([ref]) => matchesFamilyRef(ref, input.family)
+  if (identity === undefined) return { status: "ok", result: { status: "absent", asOf } };
+  const tips = new Map([...captured].filter(([ref]) => matchesFamilyRef(ref, input.family) && !otherIdentityRef(ref, identity, input.owner)
     || ["work-item", "cohort"].includes(rootFamily(input.family)) && isArchiveRef(ref)));
   if (tips.size === 0) return { status: "ok", result: { status: "absent", asOf } };
   const trees = await readRefTrees(context, tips);
@@ -134,8 +157,10 @@ async function listBoundRecords(context: RefBackendContext, input: ListInput): P
     if (admitted.status === "refused") return admitted;
     input = admitted.result;
   }
+  // A standing live ref supersedes its owner's folders, as in a saved listing, so a pending end lists once.
   const latest = new Set(latestArchivedFolders([...trees].flatMap(([ref, entries]) => isArchiveRef(ref)
-    ? archivedFolders(input.family, ref, entries, objects).folders : [])).map(({ ref, root }) => `${ref}:${root}`));
+    ? archivedFolders(input.family, ref, entries, objects).folders : [])).filter(({ liveRef }) => !captured.has(liveRef))
+    .map(({ ref, root }) => `${ref}:${root}`));
   const groups = [...tips.keys()].map((ref) => {
     const entries = trees.get(ref);
     return entries ? decodeListedRef(context, input, ref, entries, objects, latest, project?.owner) : unreadableRef(ref);
@@ -224,7 +249,7 @@ function capturedMetadata(home: StoredRecordHome, entries: readonly RefTreeEntry
 
 function unreadableRef(ref: string): DecodedRecords {
   return { records: [], unreadable: true, diagnostics: [{ kind: "unreadable", key: ref,
-    condition: `The tip or root tree of ${ref} is not available locally`,
+    condition: `The tip or a tree of ${ref} is not available locally`,
     remedy: { text: `Restore the missing objects for ${ref} in the store repository, then retry.` } }] };
 }
 
@@ -281,6 +306,9 @@ async function readArchivedRecord(context: RefBackendContext, reference: RecordR
   const folders = [...trees].flatMap(([ref, entries]) => archivedFolders(family, ref, entries, objects).folders);
   const folder = latestArchivedFolders(folders.filter(({ owner }) => sameOwner(owner, reference.owner)))[0];
   if (!folder) return missing(reference);
+  // The owner is resolved only now, so its companion aliases are checked under the folder's slug, as a live read checks them.
+  const invalidKey = checkRefKey(RecordReferenceSchema.parse({ ...reference, owner: folder.owner }), context.registry);
+  if (invalidKey) return { status: "refused", refusal: invalidKey };
   const kind = ["work-item/meta", "work-item/record"].includes(reference.kind) ? folder.metadata.primary?.role ?? reference.kind : reference.kind;
   const decoded = decodeCapturedRef(context, { family, kind, owner: reference.owner }, folder.liveRef,
     folder.entries, objects, folder.metadata, undefined, folder.placement);

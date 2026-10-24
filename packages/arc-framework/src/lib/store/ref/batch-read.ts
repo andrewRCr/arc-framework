@@ -2,7 +2,7 @@
 
 import { logicalReadRef, physicalReadRef } from "./read-source-namespace.js";
 import type { RefBackendContext } from "./context.js";
-import { isGitProcessError } from "../../git/process-error.js";
+import { isCompletedGitFailure, isGitProcessError } from "../../git/process-error.js";
 import { retryTornRefListing } from "../../git/ref-listing.js";
 
 /** A present Git object returned by a batch request. */
@@ -13,6 +13,9 @@ export interface RefTreeEntry {
   /** Git's name for it is not UTF-8: `path` decodes it with replacement, so it lists as malformed and no tree is rebuilt from it. */
   invalidName?: true;
 }
+/** One enumerated tree: its entries, and the ID of every tree the enumeration traversed, root first. */
+export interface ListedTree { entries: readonly RefTreeEntry[]; directories: readonly string[] }
+interface EnumeratedTree { entries: RefTreeEntry[]; directories: string[] }
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const lossy = new TextDecoder("utf-8");
 const encoder = new TextEncoder();
@@ -106,20 +109,26 @@ function parseBatch(bytes: Uint8Array, queries: readonly string[]): Map<string, 
   return objects;
 }
 
-/** Resolve each tip's root tree and enumerate it, optionally limited to literal paths. */
-export async function readRefTrees(context: RefBackendContext, tips: ReadonlyMap<string, string>, paths?: readonly string[]): Promise<Map<string, RefTreeEntry[]>> {
+/**
+ * Resolve each tip's root tree and enumerate it, optionally limited to literal paths.
+ * @param directories - Receives, per enumerated ref, the ID of every tree traversed, root first
+ * @returns Each readable ref's entries; a ref whose tip or any traversed tree is missing is absent
+ */
+export async function readRefTrees(context: RefBackendContext, tips: ReadonlyMap<string, string>, paths?: readonly string[],
+  directories?: Map<string, readonly string[]>): Promise<Map<string, RefTreeEntry[]>> {
   const pairs = [...tips];
   if (pairs.length === 0) return new Map();
   const retained = context.writeEvidence?.trees;
   if (retained && paths === undefined) {
     const found = new Map(pairs.flatMap(([ref, tip]) => {
-      const entries = retained.get(tip);
-      return entries ? [[ref, entries.map(entry => ({ ...entry }))] as const] : [];
+      const listed = retained.get(tip);
+      return listed ? [[ref, listed] as const] : [];
     }));
     if (found.size) {
-      const stored = await readRefTrees(context, new Map(pairs.filter(([ref]) => !found.has(ref))));
+      const stored = await readRefTrees(context, new Map(pairs.filter(([ref]) => !found.has(ref))), undefined, directories);
+      for (const [ref, listed] of found) directories?.set(ref, listed.directories);
       return new Map(pairs.flatMap(([ref]) => {
-        const entries = found.get(ref) ?? stored.get(ref);
+        const entries = found.get(ref)?.entries.map(entry => ({ ...entry })) ?? stored.get(ref);
         return entries ? [[ref, entries] as const] : [];
       }));
     }
@@ -130,21 +139,42 @@ export async function readRefTrees(context: RefBackendContext, tips: ReadonlyMap
     const object = objects.get(query);
     return object?.type === "tree" ? object.oid : null;
   });
-  const input = trees.filter((tree): tree is string => tree !== null).map((tree) => `${emptyTree(tree.length)} ${tree}\n`).join("");
-  const result = await context.rawExec(["diff-tree", "--stdin", "-r", "-t", "-z", ...(paths ? ["--", ...paths.map((path) => `:(literal)${path}`)] : [])], {
-    cwd: context.checkoutRoot, objectAccess: "local-only", input: encoder.encode(input),
-  });
-  const byTree = parseTreeDiff(result.stdout);
+  const byTree = await enumerateTrees(context, [...new Set(trees.filter((tree): tree is string => tree !== null))], paths);
   const byRef = new Map<string, RefTreeEntry[]>();
   pairs.forEach(([ref, tip], index) => {
     const tree = trees[index];
-    if (tree) {
-      const entries = byTree.get(tree) ?? [];
-      if (paths === undefined) retained?.set(tip, entries.map(entry => ({ ...entry })));
+    const listed = tree ? byTree.get(tree) : null;
+    if (tree && listed !== null) {
+      const entries = listed?.entries ?? [];
+      const traversed = [tree, ...listed?.directories ?? []];
+      if (paths === undefined) retained?.set(tip, { entries: entries.map(entry => ({ ...entry })), directories: traversed });
       byRef.set(ref, entries);
+      directories?.set(ref, traversed);
     }
   });
   return byRef;
+}
+
+/**
+ * Enumerate root trees in one process. A tree missing a nested object fails the whole run, so a failed run splits
+ * until each failure names one tree, mapped to null: its ref then reads as unreadable while the rest enumerate.
+ * A tree with no entries prints nothing and stays absent.
+ */
+async function enumerateTrees(context: RefBackendContext, trees: readonly string[], paths?: readonly string[]): Promise<Map<string, EnumeratedTree | null>> {
+  if (trees.length === 0) return new Map();
+  try {
+    const result = await context.rawExec(["diff-tree", "--stdin", "-r", "-t", "-z", ...(paths ? ["--", ...paths.map((path) => `:(literal)${path}`)] : [])], {
+      cwd: context.checkoutRoot, objectAccess: "local-only",
+      input: encoder.encode(trees.map((tree) => `${emptyTree(tree.length)} ${tree}\n`).join("")),
+    });
+    return parseTreeDiff(result.stdout);
+  } catch (error) {
+    if (!isGitProcessError(error) || !isCompletedGitFailure(error)) throw error;
+    const [tree] = trees;
+    if (trees.length === 1 && tree !== undefined) return new Map([[tree, null]]);
+    const middle = Math.ceil(trees.length / 2);
+    return new Map([...await enumerateTrees(context, trees.slice(0, middle), paths), ...await enumerateTrees(context, trees.slice(middle), paths)]);
+  }
 }
 
 function emptyTree(length: number): string {
@@ -152,15 +182,15 @@ function emptyTree(length: number): string {
     : "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 }
 
-function parseTreeDiff(bytes: Uint8Array): Map<string, RefTreeEntry[]> {
+function parseTreeDiff(bytes: Uint8Array): Map<string, EnumeratedTree> {
   const tokens = splitNul(bytes);
-  const trees = new Map<string, RefTreeEntry[]>();
-  let current: RefTreeEntry[] | undefined;
+  const trees = new Map<string, EnumeratedTree>();
+  let current: EnumeratedTree | undefined;
   for (let index = 0; index < tokens.length; index += 1) {
     let token = lossy.decode(tokens[index]);
     let pair = /^[0-9a-f]{40,64} ([0-9a-f]{40,64})\n/u.exec(token);
     while (pair?.[1]) {
-      current = [];
+      current = { entries: [], directories: [] };
       trees.set(pair[1], current);
       token = token.slice(pair[0].length);
       pair = /^[0-9a-f]{40,64} ([0-9a-f]{40,64})\n/u.exec(token);
@@ -169,9 +199,10 @@ function parseTreeDiff(bytes: Uint8Array): Map<string, RefTreeEntry[]> {
     const entry = /^:\d{6} (\d{6}) [0-9a-f]{40,64} ([0-9a-f]{40,64}) A$/u.exec(token);
     const path = tokens[++index];
     if (!current || !entry?.[1] || !entry[2] || path === undefined) throw new Error("Malformed recursive tree diff");
-    // Recursive enumeration omits empty trees unless tree rows are requested.
-    // Keep only empty tree rows; nonempty parents are rebuilt from their leaves.
-    if (entry[1] !== "040000" || entry[2] === emptyTree(entry[2].length)) current.push({ mode: entry[1], oid: entry[2], ...entryName(path) });
+    // Recursive enumeration omits empty trees unless tree rows are requested. Every tree row is a traversed
+    // directory; as an entry, keep only empty ones, since nonempty parents are rebuilt from their leaves.
+    if (entry[1] === "040000") current.directories.push(entry[2]);
+    if (entry[1] !== "040000" || entry[2] === emptyTree(entry[2].length)) current.entries.push({ mode: entry[1], oid: entry[2], ...entryName(path) });
   }
   return trees;
 }

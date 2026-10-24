@@ -4,6 +4,13 @@ import { z } from "zod";
 import { SlugSchema, validateManagedPath } from "../kernel/index.js";
 import { KIND_SHAPES, type KindId, type KeyedKindId, type SingletonKindId } from "./catalog.js";
 
+/**
+ * The UIDs an owner identity admits, in the lowercase form stored names carry, as a regular expression source for
+ * finding a UID inside a ref name or stored path, so a name matches only where its owner identity would parse.
+ */
+export const STORED_UID_SOURCE = "(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+  + "|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)";
+
 /** Owner identity without presentation paths or former names. */
 export const OwnerIdentitySchema = z.union([
   z.strictObject({ type: z.enum(["work-item", "cohort", "project"]), name: SlugSchema, uid: z.uuid().optional() }),

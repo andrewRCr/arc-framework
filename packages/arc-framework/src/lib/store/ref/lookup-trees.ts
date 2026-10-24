@@ -44,12 +44,13 @@ export async function readCapturedLookupTrees(context: RefBackendContext, all: R
 }
 
 async function captureLookupTrees(context: RefBackendContext, tips: ReadonlyMap<string, string>): Promise<StoreResult<RefLookupCapture>> {
-  const captured = tips.size > 0 ? await readRefTrees(context, tips) : new Map<string, RefTreeEntry[]>();
+  const directories = new Map<string, readonly string[]>();
+  const captured = tips.size > 0 ? await readRefTrees(context, tips, undefined, directories) : new Map<string, RefTreeEntry[]>();
   const payloads = claimPayloadPatterns(context);
   const queries = [...new Set([...captured.values()].flatMap((entries) => entries.filter(({ path }) =>
     /(?:^|\/)metadata-[^/]+\.json$/u.test(path) || payloads.some((pattern) => pattern.test(path))).map(({ oid }) => oid)))];
   const objects = await readBatchObjects(context, queries);
-  return { status: "ok", result: decodeLookupCapture(context, tips, captured, objects, { tips, entries: captured, objects: queries, values: objects }) };
+  return { status: "ok", result: decodeLookupCapture(context, tips, captured, objects, { tips, entries: captured, directories, objects: queries, values: objects }) };
 }
 
 function decodeLookupCapture(context: RefBackendContext, tips: ReadonlyMap<string, string>, captured: ReadonlyMap<string, RefTreeEntry[]>,

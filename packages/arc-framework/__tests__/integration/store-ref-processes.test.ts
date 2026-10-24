@@ -4,7 +4,8 @@ import { createRefReadFixture } from "../helpers/store/ref-read.js";
 import { startRefWriter } from "../helpers/store/ref-process.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
-import { OwnerIdentitySchema, RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { createRefStore, OwnerIdentitySchema, RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { readGitDirectories } from "../../src/lib/git/directories.js";
 
@@ -36,7 +37,9 @@ describe.each(["default", "separate"] as const)("many processes (%s)", (layout) 
     }
     for (let writer = 0; writer < 4; writer += 1) {
       const name = surfaces === 1 ? "andrew" : `writer-${writer}`;
-      const listing = success(await f.store.list({ family: "personal", owner: OwnerIdentitySchema.parse({ type: "person", name }) }));
+      // A clone reads only its configured identity's refs, so each writer's records list under that writer's identity.
+      const store = createRefStore({ ...f.ports, identity: async () => SlugSchema.parse(name) });
+      const listing = success(await store.list({ family: "personal", owner: OwnerIdentitySchema.parse({ type: "person", name }) }));
       expect(listing.status).toBe("complete");
       if (listing.status !== "complete") throw new Error("Incomplete writer records");
       expect(listing.diagnostics).toEqual([]);

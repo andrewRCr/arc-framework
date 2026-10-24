@@ -7,8 +7,10 @@ import type { Mutation } from "../write.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { parseRefTreeObject } from "./tree-content.js";
+import { corruptRef } from "./namespace-health.js";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
 
+const REGISTRY_TREE_UNAVAILABLE = "The registry's captured tree is unavailable.";
 const ProjectIdentitySchema = z.strictObject({ projectId: z.uuid().refine((id) => id === id.toLowerCase()) });
 
 /** Parse the exact backend-owned identity shape without normalizing its UUID spelling. */
@@ -37,7 +39,7 @@ export function projectOwnerFromObjects(tips: ReadonlyMap<string, string>, objec
   if (!tip) return { status: "ok", result: projectOwner() };
   const entries = parseRefTreeObject(objects.get(`${tip}^{tree}`));
   if (!entries) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: "refs/arc/project/registry",
-    condition: "The registry's captured tree is unavailable.", remedy: { text: "Restore or fetch the registry objects, then retry." } } };
+    condition: REGISTRY_TREE_UNAVAILABLE, remedy: { text: "Restore or fetch the registry objects, then retry." } } };
   return projectOwnerFromEntries(entries, objects, objects.get(`${tip}:identity.json`));
 }
 
@@ -48,8 +50,8 @@ export function projectOwnerFromEntries(entries: readonly RefTreeEntry[], object
   if (!entry) return { status: "ok", result: projectOwner() };
   const object = captured ?? objects.get(entry.oid);
   const reference = RecordReferenceSchema.parse({ owner: projectOwner(), kind: "project-registry/identity" });
-  if (object?.type !== "blob") return { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", reference, historyRefs: [],
-    condition: `The project identity blob ${entry.oid} is unavailable.`, remedy: { text: "Restore or fetch the identity objects, then retry." } } };
+  if (object?.type !== "blob") return { status: "refused", refusal: { ...corruptRef("refs/arc/project/registry", true),
+    condition: `The project identity blob ${entry.oid} is unavailable locally.` } };
   const content = new TextDecoder().decode(object.bytes);
   const identity = parseProjectIdentity(content);
   if (!identity) return { status: "refused", refusal: { ...projectIdentityFailure(reference),
@@ -128,6 +130,8 @@ export function projectListInput(input: ListInput, owner: OwnerIdentity): StoreR
 export function projectListingBinding(result: StoreResult<OwnerIdentity>): { owner: OwnerIdentity; diagnostic?: ListingDiagnostic } {
   if (result.status === "ok") return { owner: result.result };
   const refusal = result.refusal;
+  // Only an unavailable registry tree faults the namespace; any other identity fault is the identity entry's own.
+  const tree = refusal.code === "namespace-corrupt" && refusal.condition === REGISTRY_TREE_UNAVAILABLE;
   return { owner: projectOwner(), diagnostic: { kind: refusal.code === "record-malformed" ? "malformed" : "unreadable",
-    key: refusal.code === "namespace-corrupt" ? refusal.namespace : "identity.json", condition: refusal.condition, remedy: refusal.remedy } };
+    key: tree ? refusal.namespace : "identity.json", condition: refusal.condition, remedy: refusal.remedy } };
 }

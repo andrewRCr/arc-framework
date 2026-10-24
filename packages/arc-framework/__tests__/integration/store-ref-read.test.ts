@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createRefStore } from "../../src/lib/store/create.js";
-import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
+import { OwnerIdentitySchema, RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import { ConflictRecordSchema } from "../../src/lib/store/conflict.js";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { plantRef } from "../helpers/store/ref-plant.js";
+import { createExecaRawGitExec } from "../../src/lib/git/process-executor.js";
 
 import { createRefReadFixture as fixture } from "../helpers/store/ref-read.js";
 
@@ -96,6 +97,26 @@ describe.each(["files", "reftable"] as const)("ref store read pipeline (%s)", (f
     expect(await f.store.read({ reference: personal })).toMatchObject({ status: "ok", result: { content: "personal" } });
     expect(f.processes()).toBe(2);
   });
+  it("treats another identity's refs as absent in current and saved reads alike", async () => {
+    const f = await fixture(format);
+    for (const person of ["andrew", "beth"]) {
+      await plantRef(f.root, `refs/arc/user/${person}/personal`, [
+        { path: `${person}/metadata-${person}.json`, content: canonicalize({ formatVersion: 1, formats: {} }) },
+        { path: `${person}/note.txt.${person}`, content: person },
+      ]);
+    }
+    const current = await f.store.list({ family: "personal" });
+    expect(current).toMatchObject({ status: "ok", result: { status: "complete", records: [expect.objectContaining({ content: "andrew" })] } });
+    if (current.status !== "ok" || current.result.status !== "complete") throw new Error("No complete listing");
+    const asOf = current.result.asOf;
+    expect(await f.store.list({ family: "personal", asOf })).toEqual(current);
+    const beth = OwnerIdentitySchema.parse({ type: "person", name: "beth" });
+    for (const at of [{}, { asOf }]) {
+      expect(await f.store.list({ family: "personal", owner: beth, ...at })).toMatchObject({ status: "ok", result: { status: "absent" } });
+      expect(await f.store.read({ reference: RecordReferenceSchema.parse({ owner: beth, kind: "personal/document", key: "note.txt" }), ...at }))
+        .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    }
+  });
   it.each(["personal", "claims"] as const)("leaves %s absent with a state token when identity is absent", async (family) => {
     const f = await fixture(format);
     const store = createRefStore({ ...f.ports, identity: async () => null });
@@ -137,5 +158,27 @@ describe.each(["files", "reftable"] as const)("ref store read pipeline (%s)", (f
     expect(await f.store.list({ family: "work-item", kind: "work-item/companion" })).toMatchObject({ status: "ok",
       result: { status: "complete", records: [expect.objectContaining({ reference, conflicts: [conflictReference] })] } });
     expect(f.processes() - before).toBe(7);
+  });
+  it("reads a record beside conflict entries whose names are not UTF-8 or name no conflict key, as its listing reports them", async () => {
+    const f = await fixture(format);
+    const conflictReference = RecordReferenceSchema.parse({ owner, kind: "work-item/conflict-record", key: "deadbeef" });
+    const label = { actor: "andrew@clone", time: "2026-10-16T00:00:00.000Z" };
+    const conflict = canonicalize(ConflictRecordSchema.parse({ record: reference, location: { kind: "hunk", start: 0, end: 1 }, base: "base",
+      current: { content: "ours", label }, incoming: { content: "theirs", label },
+      baseVersion: null, currentLines: 1, incomingLines: 1 }));
+    const planted = await plantRef(f.root, ref, [{ path: `metadata-${uid}.json`, content: metadata },
+      { path: "extra-alpha.md", content: "ours" }, { path: "conflicts/deadbeef.json", content: conflict }]);
+    const raw = createExecaRawGitExec(f.root), text = (bytes: Uint8Array): string => new TextDecoder().decode(bytes).trim();
+    const blob = planted.blobs.get("conflicts/deadbeef.json");
+    const foreign = [Buffer.from([0x62, 0x61, 0x64, 0xff, 0x2e, 0x6a, 0x73, 0x6f, 0x6e]), Buffer.from(".json")]
+      .map((name) => Buffer.concat([Buffer.from(`100644 blob ${blob}\t`), name, Buffer.from([0])]));
+    const conflicts = text((await raw(["mktree", "-z"], { input: Buffer.concat([(await raw(["ls-tree", "-z", `${planted.tree}:conflicts`])).stdout, ...foreign]) })).stdout);
+    const rows = text((await raw(["ls-tree", "-z", planted.tree])).stdout).split("\0").filter((row) => row && !row.endsWith("\tconflicts"));
+    const tree = text((await raw(["mktree", "-z"], { input: Buffer.from([...rows, `040000 tree ${conflicts}\tconflicts`].map((row) => `${row}\0`).join("")) })).stdout);
+    await raw(["update-ref", ref, text((await raw(["commit-tree", tree, "-p", planted.tip, "-m", "Foreign conflict entries"])).stdout)]);
+    expect(await f.store.read({ reference })).toMatchObject({ status: "ok", result: { content: "ours", conflicts: [conflictReference] } });
+    expect(await f.store.list({ family: "work-item" })).toMatchObject({ status: "ok", result: { status: "complete", missed: true,
+      diagnostics: expect.arrayContaining([expect.objectContaining({ kind: "malformed", key: "conflicts/bad\uFFFD.json" }),
+        expect.objectContaining({ kind: "malformed", key: "conflicts/.json" })]) } });
   });
 });

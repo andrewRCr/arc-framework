@@ -3,6 +3,7 @@ import { RecordReferenceSchema, type RecordReference, type Mutation, type StoreR
 import { createRefFixture, type RefConformanceFixture } from "../helpers/store/ref-fixture.js";
 import { fixtureGit } from "../helpers/store/ref-fixture-git.js";
 import { seed, success, testProvenance, update } from "../helpers/store/suite-tools.js";
+import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 
 const document = (key: string) => RecordReferenceSchema.parse({ owner: { type: "person", name: "test-user" }, kind: "personal/document", key });
 const put = (reference: RecordReference, content = "text"): Mutation => ({ action: "put", reference, content, expected: null });
@@ -120,6 +121,19 @@ describe.each(["default", "separate"] as const)("ref key admission (%s)", (layou
       expect(await fixture.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "unsupported", case: "unhomed-kind", condition: expect.stringContaining("work-item/spec") } });
     }
     expect(success(await fixture.store.read({ reference: record.reference })).content).toBe("spec bytes");
+  });
+
+  it("refuses a direct read through a verbatim companion alias on an archived owner as on a live one", async () => {
+    const fixture = await createRefFixture({}, layout);
+    const root = await seed(fixture, fixture.reference("work-item/meta"));
+    const companion = (key: string) => RecordReferenceSchema.parse({ owner: root.reference.owner, kind: "work-item/companion", key });
+    await seed(fixture, companion("extra"), "extra bytes");
+    const alias = companion(`extra-${root.reference.owner.name}.md`);
+    const refused = { status: "refused", refusal: { code: "unsupported", case: "unhomed-kind", condition: expect.stringContaining("key \"extra\"") } };
+    expect(await fixture.store.read({ reference: alias })).toMatchObject(refused);
+    success(await fixture.store.write({ ...update(fixture, root, root.content), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
+    expect(await fixture.store.read({ reference: alias })).toMatchObject(refused);
+    expect(success(await fixture.store.read({ reference: companion("extra") })).content).toBe("extra bytes");
   });
 
   it("serializes racing file and folder puts against the captured tips", async () => {

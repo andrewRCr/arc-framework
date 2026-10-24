@@ -6,7 +6,12 @@ import type { StoreRecord } from "../read.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, type BatchObject } from "./batch-read.js";
 
-/** Read the conflict blobs named by the tree captured with a direct record read. */
+const strict = new TextDecoder("utf-8", { fatal: true });
+
+/**
+ * Read the conflict blobs named by the tree captured with a direct record read. An entry whose name is not UTF-8 or
+ * names no conflict key is skipped: the read has no diagnostics, and its family listing reports such an entry malformed.
+ */
 export async function readOpenConflicts(context: RefBackendContext, target: RecordReference,
   tree: BatchObject | null | undefined): Promise<RecordReference[]> {
   if (tree?.type !== "tree") return [];
@@ -16,8 +21,8 @@ export async function readOpenConflicts(context: RefBackendContext, target: Reco
   for (const entry of entries) {
     const object = objects.get(entry.oid);
     if (object?.type !== "blob" || !namesTarget(object.bytes, target)) continue;
-    conflicts.push(RecordReferenceSchema.parse({ owner: target.owner,
-      kind: `${target.kind.split("/")[0]}/conflict-record`, key: entry.key }));
+    const conflict = RecordReferenceSchema.safeParse({ owner: target.owner, kind: `${target.kind.split("/")[0]}/conflict-record`, key: entry.key });
+    if (conflict.success) conflicts.push(conflict.data);
   }
   return conflicts;
 }
@@ -51,12 +56,16 @@ function conflictTreeEntries(tree: BatchObject): { key: string; oid: string }[] 
     const space = tree.bytes.indexOf(32, cursor);
     const end = tree.bytes.indexOf(0, space + 1);
     if (space < cursor || end < 0 || end + 1 + oidBytes > tree.bytes.length) throw new Error("Malformed conflict tree");
-    const name = new TextDecoder("utf-8", { fatal: true }).decode(tree.bytes.subarray(space + 1, end));
-    if (name.endsWith(".json")) entries.push({ key: name.slice(0, -5),
+    const name = decodeName(tree.bytes.subarray(space + 1, end));
+    if (name?.endsWith(".json")) entries.push({ key: name.slice(0, -5),
       oid: Buffer.from(tree.bytes.subarray(end + 1, end + 1 + oidBytes)).toString("hex") });
     cursor = end + 1 + oidBytes;
   }
   return entries;
+}
+
+function decodeName(bytes: Uint8Array): string | null {
+  try { return strict.decode(bytes); } catch { return null; }
 }
 
 function matchesTarget(record: RecordReference, target: RecordReference): boolean {

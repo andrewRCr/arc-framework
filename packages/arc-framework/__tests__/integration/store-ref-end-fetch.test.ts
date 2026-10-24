@@ -3,7 +3,7 @@ import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
-import { createRefStore, createKindRegistry, RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { createRefStore, createKindRegistry, RecordReferenceSchema, sameOwner, type StoreRecord } from "../../src/lib/store/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
 
 const quarter = ArchiveQuarterSchema.parse("2026-q4"), provenance = { verb: "archive", lifecycleAction: "archive" };
@@ -43,6 +43,19 @@ describe.each(["default", "separate"] as const)("pending-end fetch repair in the
     success(await h.b.store.pull());
     expect((await h.b.git(["for-each-ref", "--format=%(refname)", h.live])).stdout).toBe("");
     expect(success(await h.b.store.read({ reference: h.reference })).placement?.kind).toBe("completed");
+  });
+
+  it("lists the item once while its end is pending, as a read and a saved listing report it", async () => {
+    const h = await pendingFixture(layout);
+    await h.remote("git", ["update-ref", "-d", h.history]);
+    success(await h.b.store.pull());
+    const current = success(await h.b.store.list({ family: "work-item" }));
+    if (current.status !== "complete") throw new Error(`The listing is ${current.status}`);
+    const owned = (records: readonly StoreRecord[]) => records.filter(({ reference }) => sameOwner(reference.owner, h.reference.owner));
+    const read = success(await h.b.store.read({ reference: h.reference }));
+    expect(owned(current.records).map(({ placement }) => placement?.kind)).toEqual([read.placement?.kind]);
+    const saved = success(await h.b.store.list({ family: "work-item", asOf: current.asOf }));
+    expect(saved.status === "complete" ? owned(saved.records) : saved).toEqual(owned(current.records));
   });
 
   it.each(["pull", "push"] as const)("keeps the end pending after a failed by-name fetch during %s and applies it on retry", async (operation) => {

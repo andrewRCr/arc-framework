@@ -126,7 +126,8 @@ describe.each(["default", "separate"] as const)("the ref store's one project (%s
     const oid = (await fixtureGit(f)("git", ["rev-parse", "refs/arc/project/registry:identity.json"])).stdout.trim();
     await removeLooseObject(f.root, oid, f.gitDir);
     const write = { action: "put" as const, reference, expected: null, content: f.content(reference), provenance: testProvenance };
-    expect(await f.store.write(write)).toMatchObject({ status: "refused", refusal: { code: "state-unresolvable", remedy: { text: expect.stringMatching(/restore|fetch/iu) } } });
+    expect(await f.store.write(write)).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt",
+      namespace: "refs/arc/project/registry", condition: expect.stringContaining(oid), remedy: { text: expect.stringMatching(/restore|fetch/iu) } } });
     await f.ports.execInput([...f.gitDir ? [`--git-dir=${f.gitDir}`] : [], "hash-object", "-w", "--stdin"], content, { cwd: f.root });
     const accepted = success(await f.store.write(write));
     expect(accepted.reference.owner).toMatchObject({ uid: projectId });

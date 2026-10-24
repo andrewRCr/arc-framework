@@ -2,7 +2,7 @@
 
 import type { ReadPlacement } from "../placement.js";
 import { FAMILY_REGISTRY } from "../registry.js";
-import { OwnerIdentitySchema, type OwnerIdentity, type RecordReference } from "../identity.js";
+import { OwnerIdentitySchema, STORED_UID_SOURCE, type OwnerIdentity, type RecordReference } from "../identity.js";
 import { StoreRecordSchema, type StoreRecord, type ListingDiagnostic } from "../read.js";
 import type { FamilyId } from "../catalog.js";
 import type { RefBackendContext } from "./context.js";
@@ -19,7 +19,7 @@ import { refFormatKey } from "./format-key.js";
 export function matchesFamilyRef(ref: string, family: FamilyId): boolean {
   const placement = FAMILY_REGISTRY[rootFamily(family)].ref;
   if (!placement || !("pattern" in placement)) return false;
-  const expression = escapeRegex(placement.pattern).replace("<uid>", "[0-9a-f-]{36}").replace("<id>", "[a-z0-9]+(?:-[a-z0-9]+)*");
+  const expression = escapeRegex(placement.pattern).replace("<uid>", STORED_UID_SOURCE).replace("<id>", "[a-z0-9]+(?:-[a-z0-9]+)*");
   return new RegExp(`^${expression}$`, "u").test(ref);
 }
 

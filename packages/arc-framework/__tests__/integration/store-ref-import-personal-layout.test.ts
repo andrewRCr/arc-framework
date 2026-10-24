@@ -82,6 +82,8 @@ describe("personal layout in the default layout", () => {
     expect(await h.target.migrate()).toMatchObject({ status: "ok" });
     for (const person of ["andrew", "alex"]) {
       const source = createStore({ ...createDefaultStorePorts({ checkoutRoot: h.source.root }), identity: async () => SlugSchema.parse(person) });
+      // A clone reads only its configured identity's refs, so each person's records read under that identity.
+      const personStore = createRefStore({ ...h.target.ports, identity: async () => SlugSchema.parse(person) });
       const before = success(await source.list({ family: "personal" }));
       expect(before.status).toBe("complete");
       if (before.status !== "complete") throw new Error("No personal comparison inventory");
@@ -98,12 +100,12 @@ describe("personal layout in the default layout", () => {
         const path = original === "alpha/SESSION-NOTES.md" || original === "beta/SESSION-NOTES.md" ? `scratch/work-unit/${original}` : moved.find(([path]) => path === original)?.[1];
         const target = record.reference.kind === "personal/inbox" || record.reference.kind === "personal/working-memory" ? record.reference
           : RecordReferenceSchema.parse({ kind: "personal/document", owner, key: path });
-        const after = await h.store.read({ reference: target });
+        const after = await personStore.read({ reference: target });
         expect(after.status, String(original)).toBe("ok");
         expect(success(after).content).toBe(record.content);
         expected.push(JSON.stringify(target));
       }
-      const after = success(await h.store.list({ family: "personal", owner: RecordReferenceSchema.parse({ kind: "personal/inbox", owner: { type: "person", name: person } }).owner }));
+      const after = success(await personStore.list({ family: "personal", owner: RecordReferenceSchema.parse({ kind: "personal/inbox", owner: { type: "person", name: person } }).owner }));
       expect(after.status).toBe("complete");
       if (after.status === "complete") {
         expect(after.records.map(record => JSON.stringify(record.reference)).sort()).toEqual(expected.sort());

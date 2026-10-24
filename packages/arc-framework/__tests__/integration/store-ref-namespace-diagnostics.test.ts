@@ -4,6 +4,8 @@ import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { createRefReadFixture } from "../helpers/store/ref-read.js";
 import { plantRef } from "../helpers/store/ref-plant.js";
 import { createExecaRawGitExec } from "../../src/lib/git/process-executor.js";
+import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 const uid = "12345678-1234-4234-8234-123456789abc";
 const otherUid = "abcdef12-1234-4234-8234-123456789abc";
@@ -62,6 +64,36 @@ describe.each(["files", "reftable"] as const)("ref namespace diagnostics (%s)", 
       records: [expect.objectContaining({ content: "kept" })], missed: true,
       diagnostics: [expect.objectContaining({ kind: "unreadable", key: ref })] } } },
     { status: "fulfilled", value: { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: ref } } }]);
+  });
+  it("leaves a ref whose name only resembles a UID out of every scan beside readable items", async () => {
+    const f = await createRefReadFixture(format);
+    await plantRef(f.root, ref, [{ path: `metadata-${uid}.json`, content: canonicalize(metadata) },
+      { path: "meta-alpha.md", content: makeMetaFixture("alpha") }, { path: "extra-alpha.md", content: "kept" }]);
+    const resembling = "12345678-1234-0234-8234-123456789abc";
+    await plantRef(f.root, `refs/arc/work/${resembling}`, [{ path: `metadata-${resembling}.json`, content: canonicalize({ ...metadata, slug: "beta" }) },
+      { path: "extra-beta.md", content: "outside" }]);
+    expect(await f.store.list({ family: "work-item" })).toMatchObject({ status: "ok", result: { status: "complete", missed: false,
+      records: expect.arrayContaining([expect.objectContaining({ content: "kept" })]) } });
+    expect(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("alpha") }))
+      .toMatchObject({ status: "ok", result: { reference: { owner: { type: "work-item", name: "alpha", uid } } } });
+    const created = RecordReferenceSchema.parse({ owner: { type: "work-item", name: "gamma" }, kind: "work-item/meta" });
+    expect(await f.store.write({ action: "put", reference: created, expected: null, content: makeMetaFixture("gamma"),
+      placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "start" } })).toMatchObject({ status: "ok" });
+  });
+  it("reads a name-resolved record again in one process beside directories whose names are not UTF-8 or span lines", async () => {
+    const f = await createRefReadFixture(format);
+    const planted = await plantRef(f.root, ref, [{ path: `metadata-${uid}.json`, content: canonicalize(metadata) },
+      { path: "extra-alpha.md", content: "kept" }]);
+    const raw = createExecaRawGitExec(f.root), text = (bytes: Uint8Array): string => new TextDecoder().decode(bytes).trim();
+    const nested = text((await raw(["mktree", "-z"], { input: Buffer.from(`100644 blob ${planted.blobs.get("extra-alpha.md")}\tinner.md\0`) })).stdout);
+    const rows = [Buffer.from([0x62, 0x61, 0x64, 0xff]), Buffer.from("two\nlines")]
+      .map((name) => Buffer.concat([Buffer.from(`040000 tree ${nested}\t`), name, Buffer.from([0])]));
+    const tree = text((await raw(["mktree", "-z"], { input: Buffer.concat([(await raw(["ls-tree", "-z", planted.tree])).stdout, ...rows]) })).stdout);
+    await raw(["update-ref", ref, text((await raw(["commit-tree", tree, "-p", planted.tip, "-m", "Foreign directories"])).stdout)]);
+    const reference = RecordReferenceSchema.parse({ owner: { type: "work-item", name: "alpha" }, kind: "work-item/companion", key: "extra" });
+    const first = await f.store.read({ reference });
+    expect(first).toMatchObject({ status: "ok", result: { content: "kept" } });
+    expect(await f.store.read({ reference })).toEqual(first);
   });
   it("lists an entry whose name is not UTF-8 as one malformed diagnostic and refuses to rewrite its tree", async () => {
     const f = await createRefReadFixture(format);

@@ -14,6 +14,7 @@ import { createRefStore, RecordReferenceSchema } from "../../src/lib/store/index
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import type { StoreMigrateResult, MigrateReport } from "../../src/lib/store/commands.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 
 const inbox = (entries: string) => `# Inbox\n\n## Errand\n\n${entries}`;
 const entry = (name: string) => `### **${name}**\n\n${name} prose.\n\n`;
@@ -216,8 +217,9 @@ it("compares every person's notes and stale root copies, including a notes-only 
   await put(checkout, "memo.txt", "Andrew original.\n");
   await put(checkout, "memo.txt", "Alex original.\n", "alex");
   expect(await h.migrate()).toMatchObject({ status: "ok" });
-  const store = createRefStore(h.ports);
   for (const [person, content] of [["alex", "Alex original.\n"], ["andrew", "Andrew original.\n"]]) {
+    // A clone reads only its configured identity's refs, so each person's records read under that identity.
+    const store = createRefStore({ ...h.ports, identity: async () => SlugSchema.parse(person) });
     const reference = RecordReferenceSchema.parse({ kind: "personal/document", owner: { type: "person", name: person }, key: "scratch/memo.txt" });
     expect(success(await store.read({ reference })).content).toBe(content);
   }

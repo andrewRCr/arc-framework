@@ -6,23 +6,17 @@ import { readBatchObjects, type BatchObject, type RefTreeEntry } from "./batch-r
 export interface RefLookupAcquisition {
   tips: ReadonlyMap<string, string>;
   entries: ReadonlyMap<string, RefTreeEntry[]>;
+  /** The ID of every tree each ref's enumeration traversed, so revalidation never addresses a stored name. */
+  directories: ReadonlyMap<string, readonly string[]>;
   objects: readonly string[];
   values: ReadonlyMap<string, BatchObject | null>;
 }
 
-/** Reacquire all ranking objects and every directory traversed by the original native enumeration. */
+/** Reacquire all ranking objects and, by object ID, every directory traversed by the original native enumeration. */
 export async function revalidateLookupAcquisition(context: RefBackendContext, acquisition: RefLookupAcquisition): Promise<{
   entries: Map<string, RefTreeEntry[]>; objects: Map<string, BatchObject | null>; unchanged: boolean;
 }> {
-  const directories = new Map<string, string[]>();
-  for (const [ref, tip] of acquisition.tips) {
-    const paths = new Set([`${tip}^{tree}`]);
-    for (const entry of acquisition.entries.get(ref) ?? []) {
-      let path = entry.mode === "040000" ? entry.path : parent(entry.path);
-      while (path) { paths.add(`${tip}:${path}`); path = parent(path); }
-    }
-    directories.set(ref, [...paths]);
-  }
+  const directories = new Map([...acquisition.tips].map(([ref, tip]) => [ref, [`${tip}^{tree}`, ...acquisition.directories.get(ref) ?? []]]));
   const objects = await readBatchObjects(context, [...new Set([...directories.values()].flat().concat(acquisition.objects))]);
   const entries = new Map(acquisition.entries);
   for (const [ref, queries] of directories) {
@@ -32,8 +26,6 @@ export async function revalidateLookupAcquisition(context: RefBackendContext, ac
     && acquisition.objects.every(query => sameObject(acquisition.values.get(query), objects.get(query)));
   return { entries, objects, unchanged };
 }
-
-function parent(path: string): string { const slash = path.lastIndexOf("/"); return slash < 0 ? "" : path.slice(0, slash); }
 
 function sameObject(left: BatchObject | null | undefined, right: BatchObject | null | undefined): boolean {
   if (!left) return !right;

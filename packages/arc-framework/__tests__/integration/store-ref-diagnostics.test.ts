@@ -8,6 +8,7 @@ import { inRepoContent } from "../helpers/store/in-repo-fixture.js";
 import { createRefReadFixture } from "../helpers/store/ref-read.js";
 import { plantRef, removeLooseObject } from "../helpers/store/ref-plant.js";
 import { LineageRecordSchema } from "../../src/lib/store/kinds/lineage/index.js";
+import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 
 const uid = "12345678-1234-4234-8234-123456789abc";
 const owner = { type: "work-item", name: "alpha", uid } as const;
@@ -18,6 +19,29 @@ const good = RecordReferenceSchema.parse({ owner, kind: "review/evidence", key: 
 const future = RecordReferenceSchema.parse({ owner, kind: "review/evidence", key: "future" });
 
 describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) => {
+  it("reports a ref whose nested tree is missing unreadable in a fresh process, keeping every other ref", async () => {
+    const f = await createRefReadFixture(format);
+    const damagedUid = "87654321-4321-4321-8321-cba987654321";
+    await plantRef(f.root, ref, [
+      { path: `metadata-${uid}.json`, content: canonicalize(metadata) }, { path: "meta-alpha.md", content: "# Alpha\n" },
+      { path: `review/evidence-good-${uid}.json`, content: "{}" },
+    ]);
+    const damaged = await plantRef(f.root, `refs/arc/work/${damagedUid}`, [
+      { path: `metadata-${damagedUid}.json`, content: canonicalize({ ...metadata, slug: "beta" }) },
+      { path: "meta-beta.md", content: "# Beta\n" },
+      { path: `review/evidence-good-${damagedUid}.json`, content: "{}" },
+    ]);
+    await removeLooseObject(f.root, (await f.exec("git", ["rev-parse", `${damaged.tree}:review`])).stdout.trim());
+    expect(await createRefStore(f.ports).list({ family: "review" })).toMatchObject({ status: "ok", result: { status: "complete",
+      records: [expect.objectContaining({ reference: good })], missed: true,
+      diagnostics: [expect.objectContaining({ kind: "unreadable", key: `refs/arc/work/${damagedUid}` })] } });
+    expect(await createRefStore(f.ports).lookup({ kind: "slug", slug: SlugSchema.parse("alpha") }))
+      .toMatchObject({ status: "ok", result: { reference: { kind: "work-item/meta", owner } } });
+    const beta = RecordReferenceSchema.parse({ owner: { type: "work-item", name: "beta" }, kind: "review/evidence", key: "good" });
+    expect(await createRefStore(f.ports).read({ reference: beta }))
+      .toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: `refs/arc/work/${damagedUid}` } });
+  });
+
   it("keeps readable records beside each malformed, missing, newer, and mismatched entry", async () => {
     const f = await createRefReadFixture(format);
     const lostPath = `review/terminus-lost-${uid}.json`;
@@ -111,7 +135,8 @@ describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) =
         expect.objectContaining({ kind: "unreadable", key: missingTreeRef })]) } });
     if (listing.status !== "ok" || listing.result.status !== "complete") throw new Error("No complete listing");
     expect(listing.result.diagnostics).toHaveLength(2);
-
+    const held = RecordReferenceSchema.parse({ owner: { type: "work-item", name: "empty", uid: emptyRef.split("/").at(-1) }, kind: "work-item/companion", key: "extra" });
+    expect(await f.store.read({ reference: held })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   });
 
   it("keeps parser failures and parsed owner mismatches beside valid lineage records", async () => {

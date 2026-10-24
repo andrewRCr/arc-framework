@@ -1,7 +1,7 @@
 /** Pure stored-path classification before key admission, shared by reads and validation. */
 import { FAMILY_REGISTRY, type KindDefinition } from "../registry.js";
 import type { KindId, FamilyId } from "../catalog.js";
-import { OwnerIdentitySchema, RecordReferenceSchema, type OwnerIdentity, type RecordReference } from "../identity.js";
+import { OwnerIdentitySchema, RecordReferenceSchema, STORED_UID_SOURCE, type OwnerIdentity, type RecordReference } from "../identity.js";
 import type { ListingDiagnostic } from "../read.js";
 import { isSlugSafe } from "../../kernel/schema/slug.js";
 import type { RefMetadata } from "./metadata.js";
@@ -50,7 +50,7 @@ function lineageEntryOwner(kind: KindDefinition, path: string, metadata: RefMeta
   object?: BatchObject | null): OwnerIdentity | null {
   const target = kind.id === "lineage/conflict-record" && object ? conflictTarget(object.bytes)?.owner : null;
   if (target?.type === "work-item") return target.uid && metadata.lineage?.[target.uid] ? lineageOwner(metadata, target.uid) : target;
-  const uid = /^lineage\/([0-9a-f-]{36})\.json$/u.exec(path)?.[1];
+  const uid = new RegExp(`^lineage/(${STORED_UID_SOURCE})\\.json$`, "u").exec(path)?.[1];
   return uid && metadata.lineage?.[uid] ? lineageOwner(metadata, uid) : null;
 }
 
@@ -98,7 +98,7 @@ function storedKindPattern(template: string): { expression: RegExp; coordinates:
   const coordinates: string[] = [];
   const pattern = escapeRegex(template).replace(/<(slug|uid|person|key)>/gu, (_token, coordinate: string) => {
     coordinates.push(coordinate);
-    return coordinate === "key" ? "(.+)" : coordinate === "uid" ? "([0-9a-f-]{36})" : "([a-z0-9]+(?:-[a-z0-9]+)*)";
+    return coordinate === "key" ? "(.+)" : coordinate === "uid" ? `(${STORED_UID_SOURCE})` : "([a-z0-9]+(?:-[a-z0-9]+)*)";
   });
   return { expression: new RegExp(`^${pattern}$`, "u"), coordinates };
 }

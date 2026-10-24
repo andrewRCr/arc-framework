@@ -9,7 +9,7 @@ import { parseProjectIdentity } from "./project-identity.js";
 import { validateRefAnchors } from "./anchor-registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../kinds/registrations.js";
 import type { ObjectFormat } from "./manifest.js";
-import type { BatchObject, RefTreeEntry } from "./batch-read.js";
+import type { BatchObject, ListedTree } from "./batch-read.js";
 
 /** Backend ports with a complete kind registry and failure-time executor checks. */
 export interface RefBackendContext extends RefStorePorts {
@@ -23,7 +23,7 @@ export interface RefBackendContext extends RefStorePorts {
   /** Native object readers belong to one public read or mutation call. */
   batchReader?: GitBatchReadScope;
   /** Successful immutable evidence belongs to one repository-bound write attempt. */
-  writeEvidence?: { objects: Map<string, BatchObject>; trees: Map<string, readonly RefTreeEntry[]>; format?: ObjectFormat };
+  writeEvidence?: { objects: Map<string, BatchObject>; trees: Map<string, ListedTree>; format?: ObjectFormat };
   /** A push and all its nested pulls share one cancellation bound. */
   syncDeadline?: { signal: AbortSignal; end: number; cleanup: RefBackendContext };
 }

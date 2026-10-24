@@ -7,7 +7,7 @@ import { metadataFailure, parseRefMetadata } from "./metadata.js";
 /** Keep unavailable objects distinct from a present tree with unusable metadata. */
 export function corruptRef(ref: string, missingObjects = false): StoreRefusal {
   return { code: "namespace-corrupt", class: "terminal", namespace: ref, ...(missingObjects ? {
-    condition: `The tip or root tree of ${ref} is unavailable locally.`,
+    condition: `The tip or a tree of ${ref} is unavailable locally.`,
     remedy: { text: `Restore or fetch the missing objects for ${ref} in the store repository, then retry.` },
   } : metadataFailure(ref)) };
 }
