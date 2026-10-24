@@ -455,22 +455,11 @@ unclosed task commits (§ 3.2) re-read by the UID claim here.
 - _Goal:_ A work-unit marker's subject and the derived checkout row reduced from it carry the owner's UID where one is
   bound, optional in both, and every reader of the marker's fields accepts the new key.
 
-    - `[ ]` **4.1.a The marker subject**
+    - `[x]` **4.1.a The marker subject**
 
-        - The `createdFor` work-unit subject (`WorktreeSubject`, `lib/git/worktree-marker.ts`) gains an optional `uid`
-          beside its name, which the live validator (`isWorktreeSubject`, under `isWorktreeMarker`) requires to be a
-          UUID. A husk stamp's subject, which that validator also checks today, takes a validator of its own that admits
-          no `uid`. `decodeWorktreeMarkerOwnership` returns the typed `uid`, and `OccupancySubject`
-          (`lib/locus/occupancy-marker.ts`) carries it. A work-unit marker still carries no provisioning.
-        - The paired dormant parser (`parseOccupancyMarker`, `occupancy-marker.ts`) accepts that optional UUID on a
-          work-unit subject, preserving its exact-key validation. Its existing work-unit round-trip and malformed
-          subject cases (`__tests__/unit/locus/occupancy-marker.test.ts`) cover the added key.
-        - Build `test-first` (one behavior at a time):
-            - a work-unit marker whose `uid` is not a UUID fails validation, and one without a `uid` validates as today
-            - decoding a marker returns its typed `uid`
-            - a husk stamp whose subject carries a `uid` fails validation
-            - dormant work-unit occupancy serializes and parses with or without a valid `uid`, for both spawn
-              provenance values; an invalid `uid` or another unexpected subject key still fails parsing
+        - Live and dormant work-unit subjects carry an optional validated UUID, and ownership decoding preserves its
+          typed value. Husk subjects use a separate validator forbidding UID bindings; dormant subjects retain exact
+          key validation and both spawn provenance values.
 
     - `[ ]` **4.1.b The derived row**
 

@@ -12,6 +12,7 @@
  * @module
  */
 
+import { z } from "zod";
 import { isValidOriginBinding } from "../locus/origin-binding.js";
 import { RecordReferenceSchema, RecordVersionSchema } from "../store/identity.js";
 import { randomUUID } from "node:crypto";
@@ -38,7 +39,7 @@ import { ensureGitExcludePattern, type GitExcludeFs } from "./exclude.js";
 
 /** Logical target a worktree was created for or terminally husked from. */
 export type WorktreeSubject =
-  | { kind: "work-unit"; name: string }
+  | { kind: "work-unit"; name: string; uid?: string }
   | { kind: "errand"; slug: string }
   | { kind: "branch"; ref: string };
 
@@ -338,7 +339,7 @@ function isWorktreeHuskStamp(value: unknown): value is WorktreeHuskStamp {
   if (
     typeof husk.sha !== "string"
     || typeof husk.at !== "string"
-    || !isWorktreeSubject(husk.subject)
+    || !isWorktreeHuskSubject(husk.subject)
     || typeof husk.branch !== "string"
   ) {
     return false;
@@ -437,7 +438,7 @@ function isWorktreeSubject(value: unknown): value is WorktreeSubject {
   const subject = value as Record<string, unknown>;
   switch (subject.kind) {
     case "work-unit":
-      return typeof subject.name === "string";
+      return typeof subject.name === "string" && (subject.uid === undefined || z.uuid().safeParse(subject.uid).success);
     case "errand":
       return typeof subject.slug === "string" && subject.claimId === undefined;
     case "branch":
@@ -445,6 +446,10 @@ function isWorktreeSubject(value: unknown): value is WorktreeSubject {
     default:
       return false;
   }
+}
+
+function isWorktreeHuskSubject(value: unknown): value is WorktreeSubject {
+  return isWorktreeSubject(value) && !("uid" in value);
 }
 
 function isWorktreeMarkerSubject(value: unknown): value is WorktreeMarkerSubject {
