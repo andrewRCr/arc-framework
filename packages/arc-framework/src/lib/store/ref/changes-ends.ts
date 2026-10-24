@@ -2,22 +2,17 @@
 import type { StoreResult } from "../refusal.js";
 import { RecordReferenceSchema, type OwnerIdentity } from "../identity.js";
 import { expandStoredPath } from "../stored-path.js";
-import { parseStoreCommitProvenance } from "../commit-provenance.js";
 import type { RefBackendContext } from "./context.js";
 import { archivedFolders, archiveOwnerTrees, isArchiveRef, type ArchivedFolder } from "./archive-read.js";
 import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
-import { changeCommitMessage, missingChangeState, type RefChangeInterval, type ChangeWindowReader, type CapturedChangeWindow } from "./changes-graph.js";
+import { missingChangeState, type RefChangeInterval, type ChangeWindowReader, type CapturedChangeWindow } from "./changes-graph.js";
 import { parseRefMetadata, historicalMetadataFailure } from "./metadata.js";
 import { refPrototype } from "./read.js";
 import { rootFamily } from "./codec.js";
-import type { HistoryCommit } from "./history-order.js";
 
-/**
- * Endpoint folders and every owner whose end evidence changed inside the interval. Each lineage-ended origin keeps the
- * batch of the registry commit that wrote its end, when that commit names one.
- */
+/** Endpoint folders, every owner whose end evidence changed inside the interval, and each origin whose lineage it wrote. */
 export interface ChangeEnds {
-  before: ArchivedFolder[]; after: ArchivedFolder[]; changed: Map<string, Set<string>>; origins: Map<string, string | undefined>;
+  before: ArchivedFolder[]; after: ArchivedFolder[]; changed: Map<string, Set<string>>; origins: Set<string>;
 }
 
 const FOLDER_METADATA = /^[^/]+\/metadata-[0-9a-f-]{36}\.json$/u;
@@ -27,7 +22,7 @@ export function isLifecycleRef(ref: string): boolean { return /^refs\/arc\/(?:wo
 
 /** Walk changed end refs and read endpoint folders only when a lifecycle window needs them. */
 export async function readChangeEnds(context: RefBackendContext, interval: RefChangeInterval, readWindow: ChangeWindowReader): Promise<StoreResult<ChangeEnds>> {
-  const result: ChangeEnds = { before: [], after: [], changed: new Map(), origins: new Map() };
+  const result: ChangeEnds = { before: [], after: [], changed: new Map(), origins: new Set() };
   const scanned = await scanEndRefs(context, interval, readWindow, result, restrictedOwners(context, interval));
   if (scanned.status === "refused") return scanned;
   const moved = [...new Set([...interval.before.keys(), ...interval.after.keys()])].some((ref) => isLifecycleRef(ref) && interval.before.get(ref) !== interval.after.get(ref));
@@ -87,26 +82,18 @@ function collectEndWindow(context: RefBackendContext, captured: CapturedChangeWi
     const parent = row.parents[0] ? captured.trees.get(row.parents[0]) ?? [] : [];
     const collected = isArchiveRef(captured.window.ref)
       ? collectChangedFolders(result, captured.window.ref, entries, parent, captured.objects, owners)
-      : collectChangedOrigins(context, result, entries, parent, captured.objects, endBatch(context, captured, row));
+      : collectChangedOrigins(context, result, entries, parent, captured.objects);
     if (collected.status === "refused") return collected;
   }
   return { status: "ok", result: undefined };
 }
 
-/** The batch a registry commit wrote; a merge carries its pull's batch, never the end's. */
-function endBatch(context: RefBackendContext, captured: CapturedChangeWindow, row: HistoryCommit): string | undefined {
-  if (row.parents.length > 1) return undefined;
-  const provenance = parseStoreCommitProvenance(changeCommitMessage(captured, row.revision), refPrototype(context, captured.window.ref, "project-registry"));
-  return "batchId" in provenance && provenance.batchId ? provenance.batchId : undefined;
-}
-
 function collectChangedOrigins(context: RefBackendContext, result: ChangeEnds, entries: readonly RefTreeEntry[], parent: readonly RefTreeEntry[],
-  objects: ReadonlyMap<string, BatchObject | null>, batch: string | undefined): StoreResult<undefined> {
+  objects: ReadonlyMap<string, BatchObject | null>): StoreResult<undefined> {
   const current = lineageEndOwners(context, entries, objects), prior = lineageEndOwners(context, parent, objects);
   if (current.status === "refused") return current;
   if (prior.status === "refused") return prior;
-  // Rows run oldest first, so the last commit naming a batch bounds the end; a merge adding it names none.
-  for (const owner of current.result) if (!prior.result.has(owner) && (batch !== undefined || !result.origins.has(owner))) result.origins.set(owner, batch);
+  for (const owner of current.result) if (!prior.result.has(owner)) result.origins.add(owner);
   return { status: "ok", result: undefined };
 }
 

@@ -965,14 +965,14 @@ and runs again from the subject read, once, and a pull that fails, or a second r
 provenance, oldest first within a ref, refs in name order — restricted to the named records' paths (§ 3.6) when the
 caller names any. A ref in one manifest only reads by its namespace:
 
-| Where the ref is                                                    | What `changes` reads                                                                                                                                                                                                                                                                                                                                               |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| A work item or cohort, older only                                   | Its end, from its history ref's log; refuses as § 4.4 when this clone lacks that ref                                                                                                                                                                                                                                                                               |
-| A work item or cohort, newer only                                   | New since the older: from its root. Reopened since it: from its reopen, the commits the history tip it moved back from does not reach                                                                                                                                                                                                                              |
-| A work item or cohort in neither, its folder in the older's quarter | Ended before the older and changed since — written while ended, or reopened and ended again: found by its folder among the quarters' changes, read on its history ref from the first such batch's commit through the last batch in the window that changed its folder or wrote its end's record — a quarter's, or the registry's lineage — which it needs as above |
-| A work item or cohort in neither, otherwise                         | Created and ended between them: found by its end's record among the quarter's or the registry's changes, read from its root on its history ref, which it needs as above                                                                                                                                                                                            |
-| Any other ref, newer only                                           | New since the older — a quarter, the inbox or registry, or an identity ref — from root                                                                                                                                                                                                                                                                             |
-| Any other ref, older only                                           | Nothing                                                                                                                                                                                                                                                                                                                                                            |
+| Where the ref is                                                    | What `changes` reads                                                                                                                                                                                                                                            |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A work item or cohort, older only                                   | Its end, from its history ref's log; refuses as § 4.4 when this clone lacks that ref                                                                                                                                                                            |
+| A work item or cohort, newer only                                   | New since the older: from its root. Reopened since it: from its reopen, the commits the history tip it moved back from does not reach                                                                                                                           |
+| A work item or cohort in neither, its folder in the older's quarter | Ended before the older and changed since — written while ended, or reopened and ended again: found by its folder among the quarters' changes, read on its history ref from the first such batch's commit through the newer's end (A38), which it needs as above |
+| A work item or cohort in neither, otherwise                         | Created and ended between them: found by its end's record among the quarter's or the registry's changes, read from its root on its history ref, which it needs as above                                                                                         |
+| Any other ref, newer only                                           | New since the older — a quarter, the inbox or registry, or an identity ref — from root                                                                                                                                                                          |
+| Any other ref, older only                                           | Nothing                                                                                                                                                                                                                                                         |
 
 - **A batch is one change** (D3): `changes` groups the commits it reads by their `Arc-Batch` across refs and gives each
   record one entry per batch — its version and content after the batch — only where that differs from its version before
@@ -988,6 +988,22 @@ caller names any. A ref in one manifest only reads by its namespace:
   batch (§ 7.3), and read on its history ref, where the record's version changed. A history ref whose log lacks the
   batch its folder's metadata names (`batch`, § 3.3) — another machine's write, which the default fetch does not bring
   (D10) — refuses as § 4.4 does, naming the ref, so § 4.5's pull by name and retry covers it.
+- **A window that reads an end from a history ref stops at the newer's end (A38).** An archived or closed item's window
+  stops at the commit its folder in the newer names by `batch` (§ 3.3): its end, or the latest write since. A lineage
+  end's stops at an empty-tree commit that ended it: a retirement (§ 7.4) — the sweep of whichever batch left the item
+  its lineage and no primary, whether the lineage or the primary's removal came first, before the window or inside it —
+  or, for an origin the import brought in ended, the root commit it gave its history (§ 10.11). A withdrawn end's
+  retirement never counts, whichever clone withdrew it (§ 6.6). An item can end more than once, since a live ref
+  restored beside its lineage alone reopens it (§ 6.4) and a later removal ends it again, so of several such commits
+  the window takes the one its lower bound does not reach. Where more than one lies past the lower bound, the newer
+  manifest, which names no history ref, cannot say which end it holds: against the current state version the window
+  takes the latest, and against any other `changes` refuses `state-unresolvable`, naming no history ref, with the
+  remedy to compare against the current state version. The registry's lineage names which items ended and never bounds
+  a window, since the batch that wrote it may commit nothing on the item's ref. A late write merged in after the end,
+  or a discard of the conflict record it filed, never moves the bound, since every commit a write or merge makes on the
+  item's ref, but a retirement's, holds its metadata file (§ 3.3; `serializeRefMetadata`,
+  `lib/store/ref/write-commits.ts`); where the history this clone holds lacks that commit, `changes` refuses as § 4.4
+  does, naming the history ref.
 - **An identity ref is missing from a manifest only on another person's clone,** since each clone fetches its own
   identity alone (D10), and a shared ref leaves only by loss, which the next push restores (§ 6.4). So `changes` between
   two people's manifests carries the newer one's identity history whole, and a reader that wants project scope alone
@@ -4562,6 +4578,16 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     remote's `push` while the checkout's pointer names a backing repository — returns its confirmation carrying the
     report; on a terminal it asks, and the accepted setting's result carries both moves' reports (§ 9.4, § 10.1) (A39).
 
+45. **A changes window stops at the newer's end.** `changes` stops an abandoned item's window at its retirement: where
+    its lineage came in an earlier batch than its removal, inside the window or before it, or in a later one, the result
+    lists the removal; a late write merged into its history after the newer leaves the result unchanged, and so does
+    that write's discarded conflict record where the registry commit that wrote its lineage names no batch; a window
+    over an end this clone withdrew stops at the published end; an item whose live ref came back beside its lineage and
+    which then ended again lists the writes and removal since the return, and a window from before both ends lists
+    through the later one against the current state version and refuses `state-unresolvable` against an earlier one; an
+    origin whose history is the import's empty root commit lists nothing of its own; and lineage written beside a live
+    primary later archived ends the window at the archive (§ 4.6, § 6.4, § 7.4, § 10.11) (A38).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4713,6 +4739,9 @@ open:
 
 - **A37** — 2026-10-23 — design: a lineage holding retired branches is removable once its archived primary holds them.
   _Supersedes:_ § Non-Goals ¶4. _Trigger:_ standard-pass-1/AGG-29 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A38** — 2026-10-24 — design: a window reading an end from history stops at the newer's end, a lineage's retirement.
+  _Supersedes:_ § 4.6 table row 3. _Trigger:_ fix-check-1/F2 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 - **A39** — 2026-10-24 — design: a setting that finishes a recorded move, then refuses or asks, keeps its own stop.
   _Supersedes:_ § 10.1 ¶8. _Trigger:_ fix-check-1/F17 review. _Work:_ review-fix. _Revalidated:_ review-fix.

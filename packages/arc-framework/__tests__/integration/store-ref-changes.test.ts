@@ -339,6 +339,81 @@ describe("changes between ref manifests", () => {
     expect(changes.filter(({ reference }) => sameReference(reference, record.reference)).map(({ version }) => version)).toEqual([record.version, null]);
   });
 
+  it("bounds an abandon whose lineage came in an earlier batch at its removal's retirement", async () => {
+    const f = await createRefFixture();
+    const from = await f.settle();
+    const record = await seed(f, f.reference("work-item/meta"));
+    await putLineage(f, record);
+    success(await f.store.write({ action: "remove", reference: record.reference, expected: record.version, provenance: testProvenance }));
+    const changes = success(await f.store.changes({ from, to: await f.settle() }));
+    expect(changes.filter(({ reference }) => sameReference(reference, record.reference)).map(({ version }) => version)).toEqual([record.version, null]);
+  });
+
+  it("bounds an abandon whose primary's removal came before its lineage at the lineage batch's sweep", async () => {
+    const f = await createRefFixture();
+    const from = await f.settle();
+    const record = await seed(f, f.reference("work-item/meta"));
+    success(await f.store.write({ action: "remove", reference: record.reference, expected: record.version, provenance: testProvenance }));
+    await putLineage(f, record);
+    const to = await f.settle();
+    const expected = success(await f.store.changes({ from, to }));
+    expect(expected.filter(({ reference }) => sameReference(reference, record.reference)).map(({ version }) => version)).toEqual([record.version, null]);
+    if (!("uid" in record.reference.owner) || !record.reference.owner.uid) throw new Error("Expected a resolved owner");
+    await mergeLateWrite(f, makeGitExec(f.root), `refs/arc/history/work/${record.reference.owner.uid}`, record);
+    expect(success(await f.store.changes({ from, to }))).toEqual(expected);
+  });
+
+  it("bounds an item archived beside lineage written while it was live at the archive", async () => {
+    const f = await createRefFixture();
+    const from = await f.settle();
+    const record = await seed(f, f.reference("work-item/meta"));
+    await putLineage(f, record);
+    const archived = success(await f.store.write({ ...update(f, record, record.content), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
+    const changes = success(await f.store.changes({ from, to: await f.settle() }));
+    expect(changes.filter(({ reference }) => sameReference(reference, record.reference)).map(({ version }) => version)).toEqual([record.version, archived.version]);
+  });
+
+  it("bounds an abandon whose lineage predates the window at its retirement, leaving a later retained-history commit out", async () => {
+    const f = await createRefFixture();
+    const record = await seed(f, f.reference("work-item/meta"));
+    await putLineage(f, record);
+    const from = await f.settle();
+    success(await f.store.write({ action: "remove", reference: record.reference, expected: record.version, provenance: testProvenance }));
+    const to = await f.settle();
+    const expected = success(await f.store.changes({ from, to }));
+    expect(expected.filter(({ reference }) => sameReference(reference, record.reference)).map(({ version }) => version)).toEqual([null]);
+    if (!("uid" in record.reference.owner) || !record.reference.owner.uid) throw new Error("Expected a resolved owner");
+    const history = `refs/arc/history/work/${record.reference.owner.uid}`, git = makeGitExec(f.root);
+    await mergeLateWrite(f, git, history, record);
+    expect(success(await f.store.changes({ from, to }))).toEqual(expected);
+  });
+
+  it("bounds an abandon whose registry commit names no batch at its retirement, past a later write and its discard", async () => {
+    const f = await createRefFixture();
+    const { record, from, history, git } = await abandonInWindow(f);
+    const registry = "refs/arc/project/registry", ended = (await git("git", ["rev-parse", registry])).stdout.trim();
+    const parents = (await git("git", ["log", "-n1", "--format=%P", ended])).stdout.split(" ").filter(Boolean);
+    await plantRef(f.root, registry, await treeEntries(git, ended), { parents, message: "Record the end" });
+    const to = await f.settle();
+    const late = await mergeLateWrite(f, git, history, record);
+    // The discard leaves the metadata file and no record, as removing the late write's conflict record does.
+    await plantRef(f.root, history, late.metadata, { parents: [late.tip],
+      message: renderStoreCommitMessage({ ...testProvenance, verb: "resolve" }, record.reference, randomUUID()) });
+    const changes = success(await f.store.changes({ from, to }));
+    expect(changes.filter(({ reference }) => sameReference(reference, record.reference)).map(({ version }) => version)).toEqual([record.version, null]);
+  });
+
+  it("lists nothing of its own for an origin whose history is the import's empty root commit", async () => {
+    const f = await createRefFixture();
+    const { record, from, history, git } = await abandonInWindow(f);
+    // The import gives an origin it brings in ended one parentless commit with an empty tree, in its lineage's batch.
+    const retirement = (await git("git", ["rev-parse", history])).stdout.trim();
+    await plantRef(f.root, history, [], { parents: [], message: (await git("git", ["log", "-n1", "--format=%B", retirement])).stdout });
+    const changes = success(await f.store.changes({ from, to: await f.settle() }));
+    expect(changes.filter(({ reference }) => sameReference(reference, record.reference))).toEqual([]);
+    expect(changes.some(({ reference }) => reference.kind === "lineage/transition")).toBe(true);
+  });
+
   it("names the historical remedy for an unparseable registry commit beside lineage inside the window", async () => {
     const f = await createRefFixture();
     const { from, git } = await abandonInWindow(f);
@@ -399,6 +474,22 @@ async function treeEntries(git: ReturnType<typeof makeGitExec>, revision: string
     if (!match?.[1] || !match[2]) throw new Error("Expected regular record blobs");
     return { path: match[2], mode: "100644", oid: match[1] };
   });
+}
+
+/** Write a work item's lineage beside its live primary, which ends nothing until a write removes the primary. */
+async function putLineage(f: RefConformanceFixture, record: StoreRecord): Promise<void> {
+  const lineage = RecordReferenceSchema.parse({ kind: "lineage/transition", owner: record.reference.owner });
+  success(await f.store.write({ action: "put", reference: lineage, expected: null, content: f.content(lineage), provenance: testProvenance }));
+}
+
+/** Merge a late write into an abandoned item's retained history after its retirement, as a pull of another clone's write leaves it. */
+async function mergeLateWrite(f: RefConformanceFixture, git: ReturnType<typeof makeGitExec>, history: string,
+  record: StoreRecord): Promise<{ tip: string; metadata: PlantTreeEntry[] }> {
+  const retirement = (await git("git", ["rev-parse", history])).stdout.trim();
+  const metadata = (await treeEntries(git, `${retirement}^`)).filter(({ path }) => path.startsWith("metadata-"));
+  const merged = await plantRef(f.root, history, [...metadata, { path: `meta-${record.reference.owner.name}.md`, content: f.content(record.reference, "changed-again") }],
+    { parents: [retirement], message: renderStoreCommitMessage({ ...testProvenance, verb: "merge" }, record.reference, randomUUID()) });
+  return { tip: merged.tip, metadata };
 }
 
 /** Create and abandon one work item inside a compared window, returning that window and its retained history. */

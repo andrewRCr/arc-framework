@@ -2819,6 +2819,59 @@ the full run's, on every push to `main`, the weekly run, and a dispatch. Unrecor
 duration estimate until a full run saves theirs, so the first full run after the split did not balance, and the next one
 did (§ A33, Measured).
 
+## A38 — A changes window stops at the newer's end
+
+**Superseded text.** § 4.6 table row 3: "read on its history ref from the first such batch's commit through the last
+batch in the window that changed its folder or wrote its end's record — a quarter's, or the registry's lineage — which
+it needs as above".
+
+**What decides it.** § 7.4 admits an end written in two batches, the lineage first and the primary's removal later, or
+the reverse, and the ending write's sweep commits on the item's ref (`sweepRefRetirements`, `write-retirement.ts`).
+When the lineage comes first its batch writes only the registry, since the origin keeps its primary
+(`planRefRetirements`) and an unchanged group commits nothing (`unchangedGroup`, `write-commits.ts`). That batch names
+no commit any history ref holds, so row 3's bound by "the registry's lineage" is one history cannot supply, and round
+1's `endCommit` refused every window holding such an end (fix-check-1 F2). Where the lineage predates the window,
+nothing inside it names the end, and the bound fell back to today's history tip, so late writes after the newer entered
+it (F3).
+
+**Decision.** The end's commit is read from the item's history: an archive's or a close's from its folder's `batch`,
+and a lineage end's from its retirement commit. The sweep leaves that commit an empty tree, since a retired group writes
+no metadata file (`serializeRefMetadata`, `write-commits.ts`) while every other commit, a discard's included, writes
+one. The sweep lands in whichever batch leaves the item its lineage and no primary: the removal's when the lineage came
+first or with it, the lineage's when the primary's removal came first, which is an ordinary write keeping the metadata
+file (`retirementTargets`, `planRefRetirements`). The history can hold other empty trees: the retirement of a withdrawn
+end, which stays in the merged log with the withdrawal naming it (`Arc-Withdrawn-End`, § 6.6), whichever clone
+withdrew it; the import's parentless root for an origin it brought in ended (§ 10.11, `buildImportCommits`); and a
+second retirement. § 5.1's `not-found` covers only an owner with neither a live ref nor a folder, so an item whose live
+ref comes back beside its lineage alone — a mirror push restoring it, which § 6.4 reads as a reopen keeping the end's
+removals — takes writes again, and the next removal or primary removal sweeps it a second time. The reopen merge keeps
+the first retirement in the live log (`lifecycleRoutes`, `sync-pull-lifecycle.ts`; `prepareSyncMerge`, parents
+`[current, next]`), so each later end descends from the one before. The window takes the retirement its lower bound
+does not reach. Past several, nothing the newer manifest names says which it held: a state version omits history refs
+(`refStateVersion` reads tips without them), and the second end may change no other manifest ref, which leaves the
+state between the ends and the state after the second one the same token. Against the current state version — one
+manifest hash over the tips the call already read (`buildRefManifest`) — the item stands at its latest end; against
+any other, `changes` refuses with the remedy to compare against the current one, the usual restate case.
+
+The pull's own end detection reads empty-tree ends this way (`readItemEndBatches`, `sync-lifecycle-log.ts`), skipping
+withdrawn ends, and `changes` takes the same reading. That reader carried a test requiring a parent, meant to leave the
+import's root out of the pull's ends, which never held: it split `%H %P` on spaces, so a root's trailing space read as
+one parent. The test is removed rather than repaired. An origin exists only through the one import, so no other clone
+holds a competing end for it, and no pull path was found where admitting its root differs; behavior is unchanged, and
+the import-root case in `changes` now fails if a working parent filter returns. The registry's lineage batch, which a
+one-batch end shares with its retirement and the import shares with its root, stops bounding anything, so a withdrawn
+end's lineage batch cannot stand in for the end that holds, and `changes` keeps only which origins its window's
+registry changes ended.
+
+**Rejected.** Requiring the lineage batch in the history index, round 1's bound: it refuses a spec-admitted order
+permanently, with a remedy that cannot help. Today's tip, or the newest commit holding only metadata: either admits a
+late write or a discard after the newer. A bound from the registry commit's time: history commits carry no order
+relative to the registry's. The earliest retirement, A38's first reading: an item retired again after a return lists
+nothing over a window from the return, and loses the return and second end from earlier (A38 review, pass 1, F1). The
+earliest past the lower bound always, never refusing: it silently drops mutations `changes` promises to list when a
+window spans a return and a second end. The latest always: against a state between the ends it admits writes made
+after the newer, as F3 did.
+
 ## Unreadable archive quarters
 
 While a quarter's tree cannot be read locally, or a quarter holds a folder whose metadata does not read — one whose
