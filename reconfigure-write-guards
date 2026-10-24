@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "reconfigure-write-guards",
+  "claimId": "ecd0d1254b1f81c9b52a884d20397b6b",
+  "createdAt": "2026-10-24T16:24:13.766Z",
+  "updatedAt": "2026-10-24T16:24:13.766Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Refuse arc init --reconfigure over uncommitted changes to the files it rewrites, and over files already at its new install paths",
+  "branch": "chore/reconfigure-write-guards",
+  "origin": "inbox",
+  "originEntry": "Refuse `arc init --reconfigure` over uncommitted changes to the files it rewrites",
+  "originEntrySourceDigest": "sha256:9acdad6df0b71edc82c62bb58668c4eff3aa24d0069b952c2f163a115b7342ee",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
