@@ -41,3 +41,10 @@ export {
   type RenderContext,
   type ApplyResult,
 } from "./apply.js";
+
+export {
+  resolveMissingBaselines,
+  missingBaselineError,
+  type BaselineReads,
+  type MissingBaselineResolution,
+} from "./baseline.js";

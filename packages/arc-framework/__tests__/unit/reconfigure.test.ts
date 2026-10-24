@@ -459,6 +459,42 @@ describe("runReconfigure", () => {
       expect(writtenPristine["reference/QUICK-REFERENCE.md"]).toContain("New Name");
     });
 
+    it.each([
+      ["a reconfigure", false],
+      ["a dry run", true],
+    ])("%s refuses before writing when a customized file has no merge baseline", async (_mode, dryRun) => {
+      const manifest = makeManifest({
+        files: {
+          "reference/QUICK-REFERENCE.md": {
+            classification: "Configurable", layer: "core", pristine_hash: "hash-of-the-last-install",
+          },
+        },
+      });
+      const io = mockIO(
+        manifest,
+        {},
+        { "QUICK-REFERENCE.template.md": "# {{PROJECT_NAME}} Reference\n" },
+        { "reference/QUICK-REFERENCE.md": "# Old Name Reference\n\nLocal notes.\n" },
+      );
+
+      await expect(runReconfigure({
+        cwd: "/project",
+        io,
+        templateDir: "/templates",
+        recipe: {
+          include_files: ["reference/QUICK-REFERENCE.template.md"],
+          computed_tokens: {},
+          prompts: [],
+          conditions: {},
+        },
+        newInstallConfig: { project_name: "New Name", pm_mode: "none", tools: [], team_mode: false },
+        dryRun,
+      })).rejects.toThrow(expect.objectContaining({ code: "manifest.baseline-missing" }));
+
+      expect(io.writeFile).not.toHaveBeenCalled();
+      expect(atomicWriteJson).not.toHaveBeenCalled();
+    });
+
     it("changed team.mode re-renders conditional blocks", async () => {
       const templateContent =
         "# Guide\n\n<!-- arc:if team.mode == true -->\nTeam coordination enabled.\n<!-- arc:endif -->\n\nDone.\n";

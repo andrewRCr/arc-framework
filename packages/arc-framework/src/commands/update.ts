@@ -26,6 +26,8 @@ import {
   readManifest,
   buildChangePlan,
   applyChangePlan,
+  resolveMissingBaselines,
+  missingBaselineError,
   type FileMergeFn,
 } from "../lib/manifest/index.js";
 import { gitMergeFile, type GitExec } from "../lib/git/index.js";
@@ -65,6 +67,8 @@ export interface UpdateOptions {
   io: IOContext;
   templateDir: string;
   recipe: Recipe;
+  /** Keep customized files that have no merge baseline as they are, instead of refusing the update. */
+  keepLocalWithoutBaseline?: boolean;
 }
 
 /** Cause of pristine store load failure. */
@@ -78,7 +82,7 @@ export interface UpdateResult {
   migrated: string[];
   /** Conflicted file paths requiring manual resolution (have conflict markers). */
   conflicts: string[];
-  /** Files whose pristine baseline was missing — rebuilt from framework content. */
+  /** Customized files with no merge baseline, kept local without this update's upstream changes. */
   pristineRebuilt: string[];
   /** Newly added file paths. */
   added: string[];
@@ -372,6 +376,23 @@ export async function runUpdate(
       pristineStoreError = "not-found"; // Permission or other read error
     }
   }
+  const renderCtx = { templateDir, tokens, config, configKeyOverrides };
+  const arcConfigPath = join(arcDir, ARC_CONFIG_TEMPLATE_PATH);
+
+  // Recover the baselines the manifest proves, and refuse before any write: merging a customized file with no
+  // baseline would drop its upstream changes
+  const readAsMerged = async (path: string): Promise<string> => {
+    const content = await io.readFile(path);
+    return path === arcConfigPath ? migrateUserSyncPush(content).content : content;
+  };
+  const missing = await resolveMissingBaselines(
+    buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles), manifest, arcDir,
+    { readFile: io.readFile, readAsMerged }, renderCtx,
+  );
+  if (missing.edits.length > 0 && options.keepLocalWithoutBaseline !== true) {
+    throw missingBaselineError(missing.edits, "update");
+  }
+  Object.assign(pristineStore, missing.recovered);
 
   let templateHasReviewChunkingThresholds = false;
   try {
@@ -395,7 +416,6 @@ export async function runUpdate(
 
   // Apply change plan (I/O)
   const mergeFn = createContentMergeFn(io.exec);
-  const arcConfigPath = join(arcDir, ARC_CONFIG_TEMPLATE_PATH);
   const migrated = new Set<string>();
   const migrationWarnings: string[] = [];
   const applyResult = await applyChangePlan(
@@ -418,7 +438,7 @@ export async function runUpdate(
       writeFile: io.writeFile,
       mkdir: io.mkdir,
     },
-    { templateDir, tokens, config, configKeyOverrides },
+    renderCtx,
   );
 
   // Restore executable installation modes even when file content is unchanged.
@@ -529,7 +549,7 @@ export function buildUpdateSummary(result: UpdateResult): string {
     parts.push(`${result.conflicts.length} conflicts`);
   }
   if (result.pristineRebuilt.length > 0) {
-    parts.push(`${result.pristineRebuilt.length} rebuilt`);
+    parts.push(`${result.pristineRebuilt.length} kept local`);
   }
   if (result.added.length > 0) parts.push(`${result.added.length} new`);
   if (result.removed.length > 0) parts.push(`${result.removed.length} removed`);
@@ -554,26 +574,17 @@ export function buildUpdateSummary(result: UpdateResult): string {
     );
   }
 
-  // Pristine rebuild details
+  // Customized files kept local for want of a merge baseline
   if (result.pristineRebuilt.length > 0) {
     lines.push("");
-    if (result.pristineStoreError) {
-      // Whole-store failure — single consolidated message
-      const cause = result.pristineStoreError === "invalid-json"
-        ? "pristine.json contains invalid JSON"
-        : "pristine.json not found";
-      lines.push(
-        `Pristine baseline was missing or corrupt (${cause}) — rebuilt from current framework version.`,
-      );
-    } else {
-      // Per-file misses (partial store)
-      lines.push("Pristine baseline was missing for some files — rebuilt from current framework version:");
-      for (const path of result.pristineRebuilt) {
-        lines.push(`  .arc/${path}`);
-      }
+    const cause = result.pristineStoreError === "invalid-json"
+      ? " (pristine.json contains invalid JSON)"
+      : result.pristineStoreError === "not-found" ? " (pristine.json not found)" : "";
+    lines.push(`No merge baseline for these customized files${cause}.`);
+    lines.push("They kept your version; any upstream changes to them were skipped:");
+    for (const path of result.pristineRebuilt) {
+      lines.push(`  .arc/${path}`);
     }
-    lines.push("");
-    lines.push("Your customizations are preserved.");
   }
 
   // Skill regeneration warnings

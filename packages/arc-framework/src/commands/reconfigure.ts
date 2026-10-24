@@ -23,6 +23,8 @@ import {
   readManifest,
   buildChangePlan,
   applyChangePlan,
+  resolveMissingBaselines,
+  missingBaselineError,
 } from "../lib/manifest/index.js";
 import { writeArcGitignoreBlock, ensureDir } from "../lib/template/index.js";
 import { getFrameworkVersion } from "../lib/version.js";
@@ -186,6 +188,17 @@ export async function runReconfigure(
   } catch {
     // Missing pristine store — proceed with empty
   }
+  const renderCtx = { templateDir, tokens, config, configKeyOverrides };
+  const missing = await resolveMissingBaselines(
+    buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles), manifest, arcDir,
+    { readFile: io.readFile }, renderCtx,
+  );
+  // Refuse before any preview, prompt, or write: merging a customized file with no baseline would drop its upstream
+  // changes
+  if (missing.edits.length > 0) {
+    throw missingBaselineError(missing.edits, "reconfigure");
+  }
+  Object.assign(pristineStore, missing.recovered);
 
   // Build change plan (pure computation — old manifest vs new file list)
   const plan = buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles);
@@ -226,7 +239,7 @@ export async function runReconfigure(
     manifest,
     mergeFn,
     { readFile: io.readFile, writeFile: io.writeFile, mkdir: io.mkdir },
-    { templateDir, tokens, config, configKeyOverrides },
+    renderCtx,
   );
 
   // Regenerate skills
