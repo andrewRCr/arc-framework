@@ -24,7 +24,7 @@ interface IndexedRecord { entry: RefTreeEntry; value: ConflictRecordValue }
 
 interface SyncRecordSides { base: SyncTreeSide; local: SyncTreeSide; incoming: SyncTreeSide }
 interface RecordTriple { base: IndexedRecord | undefined; local: IndexedRecord | undefined; incoming: IndexedRecord | undefined }
-interface RecordChoice { selected: IndexedRecord | undefined; conflicts: ConflictRecord[]; retainMetadata?: boolean }
+interface RecordChoice { selected: IndexedRecord | undefined; conflicts: ConflictRecord[]; retainMetadata?: boolean; followsIncoming?: boolean }
 
 /** Reconcile semantic records while retaining opaque entries outside the registered record set. */
 export async function reconcileSyncRecords(context: RefBackendContext, ref: string, base: SyncTreeSide, local: SyncTreeSide,
@@ -38,6 +38,7 @@ export async function reconcileSyncRecords(context: RefBackendContext, ref: stri
     const sides = currentSide === "local" ? { base, local, incoming } : { base, local: incoming, incoming: local };
     const values = currentSide === "local" ? records : { base: records.base, local: records.incoming, incoming: records.local };
     const choice = await chooseRecord(context, ref, sides, values, group.metadata, ownsMetadataConflict(key, records, metadataConflicts));
+    if (choice.followsIncoming) followLineageName(group.metadata, sides.incoming.metadata, (records.local ?? records.incoming ?? records.base)?.value.reference);
     conflicts.push(...choice.conflicts);
     if (choice.retainMetadata && key === "primary") retainPrimaryMetadata(group.metadata, currentSide === "local" ? local.metadata : incoming.metadata);
     choices.push({ records, choice });
@@ -50,12 +51,8 @@ export async function reconcileSyncRecords(context: RefBackendContext, ref: stri
 async function chooseRecord(context: RefBackendContext, ref: string, sides: SyncRecordSides,
   records: RecordTriple, metadata: RefMetadata, metadataConflict: boolean): Promise<RecordChoice> {
   const { base, local, incoming } = records;
-  if (!metadataConflict && same(local, base)) return { selected: incoming, conflicts: [] };
-  if (!metadataConflict && (same(incoming, base) || same(local, incoming))) return { selected: local, conflicts: [] };
-  if (!metadataConflict && local && incoming) {
-    if (sameContent(local, base)) return { selected: incoming, conflicts: [] };
-    if (sameContent(incoming, base) || sameContent(local, incoming)) return { selected: local, conflicts: [] };
-  }
+  const unchanged = unchangedSideChoice(records, metadataConflict);
+  if (unchanged) return unchanged;
   const subject = local ?? incoming ?? base;
   if (!subject || !sides.local.tip || !sides.incoming.tip) throw new Error("Competing records must have published tips");
   const [currentLabel, incomingLabel] = await Promise.all([
@@ -69,6 +66,28 @@ async function chooseRecord(context: RefBackendContext, ref: string, sides: Sync
   };
   if (!local || !incoming) throw new Error("A text merge requires both present records");
   return mergeTextRecord(context, definition, { ...records, local, incoming }, metadata, currentLabel, incomingLabel);
+}
+
+/** Keep the record of the only side that changed it, without reading labels a side with no record change lacks. */
+function unchangedSideChoice({ base, local, incoming }: RecordTriple, metadataConflict: boolean): RecordChoice | undefined {
+  // Only a lineage name sits outside its record's version, so a side whose record matches the base changed only that name.
+  if (metadataConflict) {
+    if (same(incoming, base)) return { selected: local, conflicts: [] };
+    return same(local, base) ? { selected: incoming, conflicts: [], followsIncoming: true } : undefined;
+  }
+  if (same(local, base)) return { selected: incoming, conflicts: [] };
+  if (same(incoming, base) || same(local, incoming)) return { selected: local, conflicts: [] };
+  if (!local || !incoming) return undefined;
+  if (sameContent(local, base)) return { selected: incoming, conflicts: [] };
+  return sameContent(incoming, base) || sameContent(local, incoming) ? { selected: local, conflicts: [] } : undefined;
+}
+
+/** Give the merged registry the lineage name of the side whose record it kept, or none for a removed record. */
+function followLineageName(metadata: RefMetadata, side: RefMetadata, reference: RecordReference | undefined): void {
+  if (reference?.owner.type !== "work-item" || !reference.owner.uid) return;
+  const uid = reference.owner.uid, name = side.lineage?.[uid];
+  if (name !== undefined) metadata.lineage = { ...metadata.lineage, [uid]: name };
+  else if (metadata.lineage) Reflect.deleteProperty(metadata.lineage, uid);
 }
 
 function wholeRecordRequired(definition: KindDefinition, { base, local, incoming }: RecordTriple): boolean {

@@ -13,14 +13,14 @@ import { refFormatKey } from "./format-key.js";
 import { refRecordVersion } from "./record-version.js";
 import { refOwner } from "./codec.js";
 import { readStoredMergeLabel } from "./side-labels.js";
+import { corruptRef } from "./namespace-health.js";
 
 /** An unreadable historical label refuses its ref without masking other reconciliation failures. */
 export class RefSyncLabelError extends Error {
   readonly refusal: StoreRefusal;
-  constructor(ref: string) {
-    const failure = historicalMetadataFailure(ref);
-    super(failure.condition);
-    this.refusal = { code: "namespace-corrupt", class: "terminal", namespace: ref, ...failure };
+  constructor(ref: string, refusal: StoreRefusal = { code: "namespace-corrupt", class: "terminal", namespace: ref, ...historicalMetadataFailure(ref) }) {
+    super(refusal.condition);
+    this.refusal = refusal;
   }
 }
 
@@ -45,13 +45,15 @@ export async function readSyncRecordLabel(context: RefBackendContext, reference:
     const before = row.parents.length > 1 && previous !== undefined ? previous : parent;
     if (after !== before) { latest = row.revision; previous = after; }
   }
-  if (!latest) throw new Error("A competing record side has no changed state after its merge base");
+  if (!latest) throw new RefSyncLabelError(ref, { code: "namespace-corrupt", class: "terminal", namespace: ref,
+    condition: `No saved state on ${ref} since the merge base changes ${reference.kind}, though that side's record differs from the base.`,
+    remedy: historicalMetadataFailure(ref).remedy });
   return readStoredMergeLabel(context, latest);
 }
 
 function versionAt(context: RefBackendContext, reference: RecordReference, ref: string, metadataPath: string,
   entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>): string | null {
-  if (!entries) throw new Error("A competing side's historical tree is unavailable");
+  if (!entries) throw new RefSyncLabelError(ref, corruptRef(ref, true));
   const metadataEntry = entries.find(({ path }) => path === metadataPath);
   const metadata = parseRefMetadata(metadataEntry ? objects.get(metadataEntry.oid) : null, ref);
   if (!metadata) {

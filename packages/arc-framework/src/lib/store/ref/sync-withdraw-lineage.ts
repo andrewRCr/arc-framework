@@ -3,16 +3,16 @@
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import { WholeRecordConflictSchema, type WholeRecordConflict } from "../conflict.js";
 import { RecordReferenceSchema, type RecordReference } from "../identity.js";
-import { parseLineageRecord } from "../kinds/lineage/index.js";
+import { parseLineageRecord, type LineageRecord } from "../kinds/lineage/index.js";
 import { expandStoredPath } from "../stored-path.js";
 import { refFormatKey } from "./format-key.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, type BatchObject, type RefTreeEntry } from "./batch-read.js";
-import { parseRefMetadata } from "./metadata.js";
+import { parseRefMetadata, type RefMetadata } from "./metadata.js";
 import { writeRefBlob } from "./tree-write.js";
 import type { WithdrawJournalStep } from "./sync-withdraw-journal.js";
 
-/** Reconcile auxiliary lineage metadata from the records that survived the inverse. */
+/** Reconcile auxiliary lineage metadata for the lineage records the withdrawn batch wrote. */
 export async function repairWithdrawnLineage(context: RefBackendContext, step: WithdrawJournalStep,
   entries: Map<string, RefTreeEntry>, current: ReadonlyMap<string, RefTreeEntry>,
   objects: ReadonlyMap<string, BatchObject | null>): Promise<void> {
@@ -23,18 +23,39 @@ export async function repairWithdrawnLineage(context: RefBackendContext, step: W
   const blobs = await readBatchObjects(context, [entry.oid, ...original ? [original.oid] : []]);
   const metadata = parseRefMetadata(blobs.get(entry.oid)), prior = original ? parseRefMetadata(blobs.get(original.oid)) : null;
   if (!metadata) throw new Error("An inverse registry has no usable metadata");
-  metadata.lineage = {};
-  for (const record of entries.values()) {
-    if (!/^lineage\/[^/]+\.json$/u.test(record.path)) continue;
-    const object = objects.get(record.oid), lineage = object?.type === "blob" ? parseLineageRecord(new TextDecoder().decode(object.bytes)) : null;
-    if (!lineage?.origin.uid) continue;
-    metadata.lineage[lineage.origin.uid] = lineage.origin.name;
-    const reference = RecordReferenceSchema.parse({ kind: "lineage/transition", owner: { type: "work-item", ...lineage.origin } });
-    const key = refFormatKey(reference);
-    metadata.formats[key] = prior?.formats[key] ?? 1;
+  // Other items' names stay as written: a rename changes only the name, never the record it names.
+  for (const home of new Set([...step.before.keys(), ...step.after.keys()])) {
+    if (!/^lineage\/[^/]+\.json$/u.test(home) || !writtenLineage(step, home)) continue;
+    repairLineageEntry(metadata, prior, lineageAt(entries.get(home), objects),
+      lineageAt(current.get(home) ?? step.after.get(home) ?? step.before.get(home), objects));
   }
   for (const reference of removed) Reflect.deleteProperty(metadata.formats, refFormatKey(reference));
   entries.set(path, { ...entry, oid: await writeRefBlob(context, canonicalize(metadata)) });
+}
+
+/** Name a surviving written record and keep its format, or drop both for a record the inverse removed. */
+function repairLineageEntry(metadata: RefMetadata, prior: RefMetadata | null, survivor: LineageRecord | null, held: LineageRecord | null): void {
+  const written = survivor ?? held, uid = written?.origin.uid;
+  if (!written || !uid) return;
+  const key = refFormatKey(RecordReferenceSchema.parse({ kind: "lineage/transition", owner: { type: "work-item", ...written.origin } }));
+  if (survivor) {
+    metadata.lineage = { ...metadata.lineage, [uid]: metadata.lineage?.[uid] ?? written.origin.name };
+    metadata.formats[key] = prior?.formats[key] ?? 1;
+    return;
+  }
+  if (metadata.lineage) Reflect.deleteProperty(metadata.lineage, uid);
+  Reflect.deleteProperty(metadata.formats, key);
+}
+
+function writtenLineage(step: WithdrawJournalStep, path: string): boolean {
+  if (step.lineageOnly && path !== `lineage/${step.lineageOnly}.json`) return false;
+  const before = step.before.get(path), after = step.after.get(path);
+  return before?.oid !== after?.oid || before?.mode !== after?.mode;
+}
+
+function lineageAt(entry: RefTreeEntry | undefined, objects: ReadonlyMap<string, BatchObject | null>): LineageRecord | null {
+  const object = entry ? objects.get(entry.oid) : undefined;
+  return object?.type === "blob" ? parseLineageRecord(new TextDecoder().decode(object.bytes)) : null;
 }
 
 function removeLineageConflicts(context: RefBackendContext, step: WithdrawJournalStep,
@@ -44,8 +65,9 @@ function removeLineageConflicts(context: RefBackendContext, step: WithdrawJourna
     if (!entry.path.startsWith("lineage/conflicts/") || step.before.has(entry.path)) continue;
     const clash = decodeConflict(objects.get(entry.oid));
     if (!clash || clash.record.kind !== "lineage/transition") continue;
-    const home = expandStoredPath(clash.record, { registry: context.registry }), own = step.after.get(home.path);
-    const original = own ? objects.get(own.oid) : null;
+    const home = expandStoredPath(clash.record, { registry: context.registry });
+    if (!writtenLineage(step, home.path)) continue;
+    const own = step.after.get(home.path), original = own ? objects.get(own.oid) : null;
     if (original?.type !== "blob") continue;
     const content = new TextDecoder().decode(original.bytes);
     if (![clash.current.value?.content, clash.incoming.value?.content].includes(content)) continue;

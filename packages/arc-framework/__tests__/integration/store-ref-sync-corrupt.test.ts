@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { rm } from "node:fs/promises";
+import { join } from "node:path";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
@@ -155,6 +157,45 @@ describe("damaged sync refs in the default layout", () => {
     expect((await h.b.git(["rev-parse", h.home.ref])).stdout.trim()).toBe(kept);
     expect(success(await h.b.store.read({ reference: h.made.reference })).content).toBe(`${local.content}\nLocal competing content.\n`);
     expect(success(await h.b.store.read({ reference: h.other })).content).toBe(h.otherContent);
+  });
+
+  it("contains an unavailable historical tree while constructing merge labels and applies other refs", async () => {
+    const h = await refSyncFixture(layout);
+    const made = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("alpha"),
+      reference: RecordReferenceSchema.parse({ owner: { type: "work-item", name: "alpha" }, kind: "work-item/meta" }),
+      placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "start" } }));
+    success(await h.a.store.push()); success(await h.b.store.pull());
+    const home = expandStoredPath(made.reference);
+    for (const line of ["First local edit.", "Second local edit."]) {
+      const local = success(await h.b.store.read({ reference: made.reference }));
+      success(await h.b.store.write({ action: "put", reference: local.reference, expected: local.version,
+        content: `${local.content}\n${line}\n`, placement: local.placement, provenance }));
+    }
+    const kept = (await h.b.git(["rev-parse", home.ref])).stdout.trim();
+    const earlier = (await h.b.git(["rev-parse", `${home.ref}~1`])).stdout.trim();
+    const tree = (await h.b.git(["rev-parse", `${earlier}^{tree}`])).stdout.trim();
+    const remote = success(await h.a.store.read({ reference: made.reference }));
+    success(await h.a.store.write({ action: "put", reference: remote.reference, expected: remote.version,
+      content: `${remote.content}\nRemote competing content.\n`, placement: remote.placement, provenance }));
+    const other = RecordReferenceSchema.parse({ owner: { type: "person", name: "andrew" }, kind: "personal/document", key: "independent.md" });
+    success(await h.a.store.write({ action: "put", reference: other, expected: null, content: "Independent published update.\n", provenance }));
+    success(await h.a.store.push());
+    let armed = true;
+    // The local side's label walk has listed its earlier commit; its tree is then gone before the label reads it.
+    const puller = createRefStore({ ...h.b.ports, exec: async (command, args, options) => {
+      const result = await h.b.ports.exec(command, args, options);
+      if (armed && args.includes("--full-history") && result.stdout.includes(earlier)) {
+        armed = false;
+        await rm(join(h.b.gitDir ?? join(h.b.root, ".git"), "objects", tree.slice(0, 2), tree.slice(2)));
+      }
+      return result;
+    } });
+    const result = success(await puller.pull());
+    expect(armed).toBe(false);
+    expect(result.pulls.flatMap(({ notices }) => notices)).toContainEqual(expect.objectContaining({ kind: "namespace-corrupt", ref: home.ref,
+      condition: expect.stringMatching(/unavailable locally/u), remedy: { text: expect.stringMatching(/missing objects/u) } }));
+    expect((await h.b.git(["rev-parse", home.ref])).stdout.trim()).toBe(kept);
+    expect(success(await h.b.store.read({ reference: other })).content).toBe("Independent published update.\n");
   });
 
   it("keeps metadata refusals separate when independent publication exhausts its retry budget", async () => {
