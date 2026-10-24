@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "prepublication-chunk-gate-order",
+  "claimId": "e405266761e999ce1cd53b8dda41c500",
+  "createdAt": "2026-10-24T18:12:06.907Z",
+  "updatedAt": "2026-10-24T18:12:06.907Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Run pre-publication's chunk gate over the exact target before the first call, so a large Candidate never settles whole-target scope unsized; the command-side refusal stays with review-orchestration-right-sizing",
+  "branch": "chore/prepublication-chunk-gate-order",
+  "origin": "inbox",
+  "originEntry": "Run pre-publication's chunk gate before its first call",
+  "originEntrySourceDigest": "sha256:ddabec9f55f9d21d968d2414fd2377e15c5cbce1f821e55e5fd227eec2c1a55c",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
