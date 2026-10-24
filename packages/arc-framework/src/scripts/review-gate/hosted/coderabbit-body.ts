@@ -7,8 +7,11 @@ import {
 import type { HostedFinding } from "./await.js";
 import type { HostedGitHubReview, HostedGitHubThreadComment } from "./github.js";
 
-/** One provider badge: an italic or bold span that opens with an emoji, such as `**🔵 Trivial**`. */
-const BADGE = "(?:_\\p{Extended_Pictographic}[^_\\r\\n]*_|\\*\\*\\p{Extended_Pictographic}[^*\\r\\n]*\\*\\*)";
+/** CodeRabbit's icon image, which a badge may carry in place of its leading emoji. */
+const ICON = "<picture>[^*\\r\\n]*?</picture>";
+/** One provider badge: an italic or bold span that opens with an emoji or icon, such as `**🔵 Trivial**`. */
+const BADGE = `(?:_(?:\\p{Extended_Pictographic}|${ICON})[^_\\r\\n]*_`
+  + `|\\*\\*(?:\\p{Extended_Pictographic}|${ICON})[^*\\r\\n]*\\*\\*)`;
 const BADGES = new RegExp(BADGE, "gu");
 /** A grouped finding's metadata line: its line or line range, then only pipe-separated badges. */
 const GROUPED_METADATA_LINE = new RegExp(
@@ -16,14 +19,17 @@ const GROUPED_METADATA_LINE = new RegExp(
   "gmu",
 );
 
+/** A severity badge: its color emoji or icon, then the grade, in one italic or bold span. */
+const SEVERITY = new RegExp(`(_|\\*\\*)(?:[🔴🟠🟡🔵]|${ICON})\\s*(Critical|Major|Minor|Trivial)\\1`, "iu");
+
 /**
  * Read the first severity badge, in either the italic (`_🟠 Major_`) or bold (`**🟠 Major**`) form.
  *
- * The badge's color emoji is required, so emphasized prose such as `**Major**` is never read as a grade.
+ * The grade comes from the badge's label. Its leading mark, a color emoji or icon image, is required, so emphasized
+ * prose such as `**Major**` is never read as a grade.
  */
 function severity(body: string): "critical" | "major" | "minor" | null {
-  const match = /(_|\*\*)([🔴🟠🟡🔵])\s*(Critical|Major|Minor|Trivial)\1/iu.exec(body);
-  switch (match?.[3]?.toLowerCase()) {
+  switch (SEVERITY.exec(body)?.[2]?.toLowerCase()) {
     case "critical":
       return "critical";
     case "major":
@@ -49,16 +55,18 @@ function isBadgeLine(line: string): boolean {
 /**
  * Select the prose that labels an inline thread comment.
  *
- * Collapsed `<details>` content is supporting material, and a leading badge line is metadata, so the label comes
- * from the first top-level prose after them; a comment that opens with anything else keeps its first top-level line.
+ * Collapsed `<details>` content is supporting material, and the provider's leading HTML comment markers and badge
+ * line are metadata, so the label comes from the first top-level prose after them; a comment that opens with
+ * anything else keeps its first top-level line.
  */
 function threadLabelSource(body: string): string {
   const blocks = detailsBlocks(body);
   const topLevel = blocks === null ? body : maskDetailsRanges(body, 0, body.length, blocks);
   const lines = topLevel.split(/\r?\n/u);
-  const first = lines.findIndex((line) => line.trim().length > 0);
+  const first = lines.findIndex((line) => line.trim().length > 0 && !/^[\t ]*<!--.*-->[\t ]*$/u.test(line));
   const firstLine = lines[first];
-  return firstLine !== undefined && isBadgeLine(firstLine) ? lines.slice(first + 1).join("\n") : topLevel;
+  if (firstLine === undefined) return "";
+  return lines.slice(isBadgeLine(firstLine) ? first + 1 : first).join("\n");
 }
 
 type UnorderedThreadFinding = Omit<Extract<HostedFinding, { origin: "review-thread" }>, "sourceOrdinal">;
