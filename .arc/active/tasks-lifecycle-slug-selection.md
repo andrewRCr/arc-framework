@@ -305,7 +305,7 @@ contexts keep today's index path. A clash met in a checkout without an operand i
 checkout's claim first selects one holder. Clash tests run over the clash double (2.1.a), and a tie of a work unit and a
 cohort over the reference backend directly.
 
-### `[ ]` **3.1 Carry the store refusal on the lifecycle refusal, and build its repair — § 4.1**
+### `[x]` **3.1 Carry the store refusal on the lifecycle refusal, and build its repair — § 4.1**
 
 - _Goal:_ A lifecycle verb that meets a clash refuses with each live holder as a typed `RecordReference` and the repair
   for its tie's kind, in its text refusal and in `--json` where the verb takes it.
@@ -322,21 +322,11 @@ cohort over the reference backend directly.
           `publicationRecordTarget` forward it to `refuseWithRemedy`, whose JSON envelope keeps candidate references
           and tie facts and uses the derived repair. Existing spine remedies retain their schema and behavior.
 
-    - `[ ]` **3.1.c The shared text renderer**
+    - `[x]` **3.1.c The shared text renderer**
 
-        - `refuse` (`handlers/lifecycle-shared.ts`) prints each candidate's type, current name, and UID with the repair
-          `clashRepair` builds, staying a thin renderer within the file's complexity limit; a refusal without a `tie`
-          prints its candidates with the lookup's own condition and remedy.
-        - Build `test-first` (one behavior at a time):
-            - a clash refusal prints each holder and the repair
-            - pause and handover, which already pass `refuse` the refusal (`rejected`,
-              `handlers/lifecycle-collaboration.ts`), print the holders and the repair
-            - a verb naming a slug two live work units keep only as a former name, built over `createReferenceFixture`
-              with planted `formerSlugs`, refuses with each holder's current name as the repair
-            - a clash between a work unit and a cohort, over the reference backend, and one between a work unit and an
-              Errand, over `createReferenceFixture`, refuse a verb naming the slug; once the repair is written to the
-              store directly, the cohort renamed and keeping the slug as a former name or the Errand closed, the same
-              verb succeeds, and the slug resolves to the work unit with no tie as each holder completes
+        - The shared renderer prints each holder's record kind, current name, and UID, selecting the ranked repair
+          while retaining the original remedy without ranking facts. Registered CLI cases cover collaboration and
+          former ties, then retry successfully after cohort rename or Errand close, including completed lookups.
 
 ### `[ ]` **3.2 Pass the refusal whole from every site that meets the clash first — § 4.1**
 

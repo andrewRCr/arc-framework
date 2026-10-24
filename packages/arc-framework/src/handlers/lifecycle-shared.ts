@@ -3,6 +3,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import { StoreRefusalSchema, type Remedy, type StoreRefusal } from "../lib/store/refusal.js";
 import { clashRepair } from "../lib/store/clash-repair.js";
+import type { RecordReference } from "../lib/store/identity.js";
 import { quoteShellArgument } from "../lib/release/commit-message-retry.js";
 import { createStore } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
@@ -176,11 +177,23 @@ export function reportOutcome(label: string, lines: string[], outcome: Transitio
  * @returns Nothing.
  */
 export function refuse(reason: string, refusal?: StoreRefusal, remedy?: Remedy): void {
-  const recovery = refusal?.remedy ?? remedy;
-  const details = `${refusal === undefined ? "" : `${refusal.code}: `}${reason}${recovery === undefined ? "" : `\n${recovery.text}`}`;
+  const recovery = refusal?.code === "ambiguous-match" && refusal.tie !== undefined
+    ? clashRepair(refusal.candidates, refusal.tie) : refusal?.remedy ?? remedy;
+  const holders = refusal?.code === "ambiguous-match" ? refusal.candidates.map(renderRefusalCandidate) : [];
+  const details = [`${refusal === undefined ? "" : `${refusal.code}: `}${reason}`, ...holders,
+    ...(recovery === undefined ? [] : [recovery.text])].join("\n");
   const command = recovery?.argv?.map((value) => /^[A-Za-z0-9_./:@+-]+$/u.test(value) ? value : quoteShellArgument(value)).join(" ");
   p.log.error(command === undefined ? details : `${details}\n${command}`);
   process.exitCode = 1;
+}
+
+const holderLabels: Partial<Record<RecordReference["kind"], string>> = {
+  "work-item/meta": "work unit", "work-item/record": "Errand", "cohort/document": "cohort",
+};
+function renderRefusalCandidate(reference: RecordReference): string {
+  const label = holderLabels[reference.kind] ?? reference.kind;
+  const uid = reference.owner.type === "person" ? undefined : reference.owner.uid;
+  return `${label} \`${reference.owner.name}\` (UID ${uid ?? "unavailable"})`;
 }
 
 /** Refuse with the failed invariant and the one command that advances from it. */
