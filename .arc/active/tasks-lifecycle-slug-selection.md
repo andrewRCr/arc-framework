@@ -380,31 +380,15 @@ cohort over the reference backend directly.
           UID-bearing lineage replacements. A held target retains the whole original edge; any conflict refuses the
           rewrite. The in-repo planner retains its index path.
 
-### `[ ]` **3.4 Read the lineage for a name the lookup leaves to it — § 5.3**
+### `[x]` **3.4 Read the lineage for a name the lookup leaves to it — § 5.3**
 
 - _Goal:_ A name the lookup resolves to a cohort, an Errand, a tie among them alone, or nothing, or a UID target with no
   entry, takes the lineage disposition under it, and absent one, a cohort or Errand holds the edge rather than rejecting
   the dependent's activation.
 
-    - The store arm's disposition query (`queryDisposition`, built in `createStoreReconcilePrepareContext`) becomes the
-      lineage read alone, its lookup moving into 3.3's resolution: it reads every such name's lineage as it reads a
-      not-found name today (`queryRetiredOriginDisposition`), its aliases mapping a retired origin's former names. A tie
-      that includes a work unit reads no lineage. A drop or abandonment drops the edge, a rename's successor or a
-      decomposition's replacements substitute for it under 3.3's rule, and the lineage's own `ambiguous`,
-      `unmapped-dependent`, and `namespace-corrupt` results stay conflicts. With no disposition, a cohort or an Errand
-      holds the edge, cause `not-a-work-unit`.
-    - `store-reconcile-context.test.ts`'s case "resolves a former slug through lookup to the renamed primary", which
-      calls the disposition query directly and expects a retarget, moves to the resolution.
-    - Build `test-first` (one behavior at a time):
-        - an edge on a slug a cohort holds outright, with no lineage disposition, is held naming the cohort, and its
-          dependent activates
-        - an edge on a slug a cohort renamed away from keeps as a former name is held naming the cohort
-        - an edge on a slug a work unit was renamed away from and a cohort holds takes the lineage's disposition where
-          one exists
-        - an edge on a slug no record holds takes the retired origin's disposition, and without one refuses as today's
-          `missing-evidence`
-        - an edge on a slug a live cohort and a live Errand tie, with no lineage disposition, is held naming both, and
-          its dependent activates
+- _Outcome:_ The store disposition query reads lineage alone, including retired former names and exact UID targets.
+  Absent lineage holds cohort and Errand edges without rejecting activation. The reference fixture retains cohort
+  aliases through checked rename writes, and former-primary lookup assertions now exercise the resolver.
 
 ### `[ ]` **3.5 Hold a tie's edge, surface it, and let abandon read it — § 4.2, § 4.3, § 5.2**
 

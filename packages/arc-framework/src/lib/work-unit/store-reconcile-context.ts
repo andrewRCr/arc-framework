@@ -50,18 +50,7 @@ export async function createStoreReconcilePrepareContext(store: Store, slug: str
     artifactReferenceOwners: artifactOwners.result,
     enumerateTransitionRecords: () => Promise.resolve(lineage.result.enumeration),
     queryDisposition: async (input) => {
-      if (input.reference?.uid !== undefined) {
-        const exact = await queryUidDisposition(store, primary.reference.owner, input);
-        return exact.status === "ok" ? exact.result : { status: exact.refusal.code === "ambiguous-match" ? "ambiguous" : "namespace-corrupt" };
-      }
-      const lookup = await store.lookup({ kind: "slug", slug: SlugSchema.parse(input.origin) });
-      if (lookup.status === "ok" && lookup.result.reference.owner.name !== input.origin) {
-        return { status: "unique", disposition: { kind: "retarget", targetSlug: lookup.result.reference.owner.name } };
-      }
-      if (lookup.status === "refused" && lookup.refusal.code !== "not-found") return { status: "namespace-corrupt" };
-      const disposition = lookup.status === "refused"
-        ? await queryRetiredOriginDisposition(store, primary.reference.owner, lineage.result, input)
-        : await queryStoreDisposition(store, primary.reference.owner, lineage.result.enumeration, input);
+      const disposition = await queryRetiredOriginDisposition(store, primary.reference.owner, lineage.result, input);
       return disposition.status === "ok" ? disposition.result
         : { status: disposition.refusal.code === "ambiguous-match" ? "ambiguous" : "namespace-corrupt" };
     },
@@ -193,6 +182,8 @@ export async function storeLineageEnumeration(store: Store): Promise<StoreResult
 export async function queryRetiredOriginDisposition(
   store: Store, dependent: OwnerIdentity, lineage: StoreLineageEnumeration, input: TransitionDispositionQuery,
 ): Promise<StoreResult<TransitionDispositionQueryResult>> {
+  if (lineage.enumeration.status !== "valid") return { status: "ok", result: { status: "namespace-corrupt" } };
+  if (input.reference?.uid !== undefined) return queryUidDisposition(store, dependent, input);
   const targets = lineage.aliases.get(input.origin);
   if (targets !== undefined && targets.length !== 1) return { status: "ok", result: { status: "ambiguous" } };
   return queryStoreDisposition(store, dependent, lineage.enumeration, { ...input, origin: targets?.[0] ?? input.origin });

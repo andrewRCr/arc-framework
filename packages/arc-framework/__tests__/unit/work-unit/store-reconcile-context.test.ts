@@ -119,7 +119,7 @@ describe("store reconcile context", () => {
       provenance: { verb: "rename", lifecycleAction: "rename" } }));
     await h.seedMeta("example", { dependsOn: ["old"] });
     const acquired = lifecycleSuccess(await createStoreReconcilePrepareContext(h.store, "example"));
-    expect(await acquired.context.queryDisposition?.({ origin: "old", dependentSlug: "example" })).toEqual({ status: "unique", disposition: { kind: "retarget", targetSlug: "new" } });
+    expect(await acquired.context.resolveDependency?.("old")).toMatchObject({ kind: "work-unit", reference: { ...prior.reference, owner: { ...prior.reference.owner, name: "new" } }, state: "active" });
   });
 
   it("reads abandoned and cut dependency dispositions from terminal lineage", async () => {

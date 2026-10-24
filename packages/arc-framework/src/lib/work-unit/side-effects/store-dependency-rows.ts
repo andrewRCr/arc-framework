@@ -55,6 +55,10 @@ async function resolveEdge(input: StoreInput, edge: string, target: string | Wor
   if (resolution.kind === "work-unit") return resolveWorkUnit(input, edge, name, resolution);
   const disposition = await input.queryDisposition({ origin: name, dependentSlug: input.dependentSlug,
     ...(resolution.kind === "not-found" && resolution.reference !== undefined ? { reference: resolution.reference } : {}) });
+  if (disposition.status === "absent" && (resolution.kind === "holder"
+    || (resolution.kind === "tie" && !resolution.candidates.some(candidate => candidate.kind === "work-item/meta")))) {
+    return { ...empty(), held: heldResolution(edge, name, "not-a-work-unit", resolution) };
+  }
   if (disposition.status !== "unique") return dispositionConflict(edge, name, disposition.status);
   return resolveDisposition(input, edge, name, disposition.disposition, next);
 }
@@ -69,7 +73,7 @@ async function resolveWorkUnit(input: StoreInput, edge: string, name: string,
   if (follow.kind === "work-unit" && sameReference(resolution.reference, follow.reference)) {
     return { ...empty(), targets: [current], rewritten: true, evidence: [{ subject: name }] };
   }
-  return { ...empty(), held: heldFollow(edge, current, follow) };
+  return { ...empty(), held: heldResolution(edge, current, "unresolved-follow", follow) };
 }
 
 async function resolveDisposition(input: StoreInput, edge: string, name: string,
@@ -90,9 +94,9 @@ async function resolveDisposition(input: StoreInput, edge: string, name: string,
   return result;
 }
 
-function heldFollow(edge: string, name: string, resolution: DependencyResolution): HeldDependencyEdge {
+function heldResolution(edge: string, name: string, cause: HeldDependencyEdge["cause"], resolution: DependencyResolution): HeldDependencyEdge {
   const candidates = resolution.kind === "tie" ? resolution.candidates : resolutionCandidates(resolution);
-  return { edge, name, cause: "unresolved-follow", candidates,
+  return { edge, name, cause, candidates,
     ...(resolution.kind === "tie" && resolution.tie !== undefined ? { tie: resolution.tie } : {}),
     repair: resolution.kind === "tie" && resolution.tie !== undefined && candidates.some(candidate => candidate.kind === "work-item/meta")
       ? clashRepair(candidates, resolution.tie) : { text: "Edit the edge to name the intended holder's current name, or remove it." } };
