@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "review-look-artifacts",
+  "claimId": "257aa802396200359fcfb761c3ac0be7",
+  "createdAt": "2026-10-24T19:38:40.478Z",
+  "updatedAt": "2026-10-24T19:38:40.478Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Keep adversarial-review prompts and reports with their work unit and record their content identities.",
+  "branch": "chore/review-look-artifacts",
+  "origin": "inbox",
+  "originEntry": "Keep an adversarial-review look's prompts and reports in the work unit's workspace",
+  "originEntrySourceDigest": "sha256:39ecdaf5e10a5f784fd211c3503fff1482fbe4fd1bfe7ef6fb3ea46174ca728a",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
