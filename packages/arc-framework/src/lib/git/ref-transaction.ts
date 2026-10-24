@@ -1,7 +1,7 @@
 /** Atomic compare-and-swap updates of Git refs with state-based race reporting. */
 
 import type { GitExec, GitExecInput, GitExecOptions } from "./exec.js";
-import { isCompletedGitFailure } from "./process-error.js";
+import { GitProcessError, isCompletedGitFailure, isGitProcessError } from "./process-error.js";
 import { retryTornRefListing } from "./ref-listing.js";
 import { checkGitVersionFloor } from "./version-floor.js";
 
@@ -78,6 +78,14 @@ async function readTransactionTips(
     "for-each-ref", "--format=%(refname) %(objectname)", "--stdin",
   ], changes.map((change) => `${change.ref}\n`).join(""), execution))]);
   if (read.status === "fulfilled") return read.value;
+  // Restart and deadline handling classify the read-back's own Git failure, so it stays the thrown value.
+  if (isGitProcessError(read.reason)) throw withRefusalCause(read.reason, refusal);
   const reason = read.reason instanceof Error ? read.reason.message : String(read.reason);
   throw new Error(`Git refused a ref transaction, and reading its refs back failed: ${reason}`, { cause: refusal });
+}
+
+function withRefusalCause(failure: GitProcessError, refusal: unknown): GitProcessError {
+  return new GitProcessError({ kind: failure.kind, command: failure.command, args: failure.args, exitCode: failure.exitCode,
+    signal: failure.signal, isCanceled: failure.isCanceled, timedOut: failure.timedOut, isMaxBuffer: failure.isMaxBuffer,
+    stdout: failure.stdout, stderr: failure.stderr, expectedOutcome: failure.expectedOutcome, cause: refusal });
 }

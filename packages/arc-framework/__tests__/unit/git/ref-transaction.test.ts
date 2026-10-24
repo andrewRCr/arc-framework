@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { GitExecInput } from "../../../src/lib/git/exec.js";
+import { isGitProcessError } from "../../../src/lib/git/process-error.js";
 import { updateRefTransaction } from "../../../src/lib/git/ref-transaction.js";
 import { makeGitProcessError, scriptGitExec, scriptGitExecInput } from "../../helpers/git-exec-fake.js";
 
@@ -67,14 +68,19 @@ describe("reading a failed transaction's refs back", () => {
     expect(reread?.input.split("\n").filter(Boolean)).toEqual(refs);
   });
 
-  it("keeps Git's refusal of the transaction as the cause when the read-back fails", async () => {
+  it.each([
+    { name: "a read-back the store directory's removal fails", readBack: { exitCode: 128, stderr: "fatal: not a git repository\n" },
+      expected: { kind: "nonzero-exit", exitCode: 128, stderr: "fatal: not a git repository\n" } },
+    { name: "a canceled read-back", readBack: { isCanceled: true } as const, expected: { kind: "canceled" } },
+  ])("throws $name as its own Git failure, keeping Git's refusal of the transaction as the cause", async ({ readBack, expected }) => {
     const { exec: execInput } = scriptGitExecInput([
       { match: { prefix: ["-c"] }, responses: [{ failure: refusal }] },
-      { match: { prefix: ["for-each-ref"] }, responses: [{ failure: { exitCode: 128, stderr: "fatal: unable to read refs\n" } }] },
+      { match: { prefix: ["for-each-ref"] }, responses: [{ failure: readBack }] },
     ]);
     const { exec } = scriptGitExec([]);
     const failure = await updateRefTransaction({ exec, execInput }, [{ ref, next, expected: old }]).catch((error: unknown) => error);
-    expect(failure).toBeInstanceOf(Error);
+    expect(isGitProcessError(failure)).toBe(true);
+    expect(failure).toMatchObject({ ...expected, args: expect.arrayContaining(["for-each-ref"]) });
     expect((failure as Error).cause).toMatchObject({ stderr: refusal.stderr });
   });
 });

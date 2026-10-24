@@ -13,7 +13,7 @@ import { type RefDesignation, type RefRemoteDesignation } from "./designation.js
 import { resolveRefDesignation, type RefDesignationResolution } from "./designation-first.js";
 import { storeDirectoryVanished, writeRefRepository } from "./repository.js";
 import { refSyncTransportRemedy } from "./sync-remedy.js";
-import { withRefSyncDeadline } from "./sync-deadline.js";
+import { RefSyncDeadlineError, refSyncDeadlineRemedy, withRefSyncDeadline } from "./sync-deadline.js";
 import { adoptSourceProjectIdentity } from "./adopt-source-project.js";
 import { fetchRefRemote } from "./fetch.js";
 import { releaseEndedRefKeepers } from "./fetch-seen-ended.js";
@@ -32,6 +32,8 @@ export async function pullRefStore(context: RefBackendContext, input: PullInput 
   catch (error) {
     if (error instanceof RefFetchKeeperLockError) return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lock,
       condition: error.message, remedy: { text: `Wait for the Git writer holding ${error.lock} to finish. If the lock is stale, remove it after confirming no writer is active, then retry.` } } };
+    if (error instanceof RefSyncDeadlineError) return { status: "refused", refusal: { code: "unreachable", class: "recoverable",
+      cause: "timeout", condition: `${error.message} Earlier ref merges remain applied.`, remedy: refSyncDeadlineRemedy("pull") } };
     if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire") throw error;
     return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lockPath,
       condition: `The lock remained held for ${error.waitedMs}ms.`,
@@ -115,9 +117,17 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
   } catch (error) {
     if (error instanceof RefFetchIncompleteError) return { ...common, notices: uniqueNotices([...notices, ...error.notices]), status: "failed", failure: error.failure };
     if (await storeDirectoryVanished(context, error)) return "restart";
-    if (!context.syncDeadline?.signal.aborted || !isGitProcessError(error) || error.kind !== "canceled") throw error;
-    return failedRemotePull(context, common, "timeout", "The pull deadline expired while applying fetched state; earlier merges remain applied.", followDue);
+    return timedOutRemotePull(context, common, error, followDue);
   }
+}
+
+/** A remote pull the deadline ended, whether it aborted a Git call or cut a lock wait short; any other failure propagates. */
+function timedOutRemotePull(context: RefBackendContext, common: PullScope, error: unknown, followDue: boolean): PullOutcome {
+  if (error instanceof RefSyncDeadlineError) {
+    return failedRemotePull(context, common, "timeout", `${error.message} Earlier merges remain applied.`, followDue, refSyncDeadlineRemedy("pull"));
+  }
+  if (!context.syncDeadline?.signal.aborted || !isGitProcessError(error) || error.kind !== "canceled") throw error;
+  return failedRemotePull(context, common, "timeout", "The pull deadline expired while applying fetched state; earlier merges remain applied.", followDue);
 }
 
 /** The fetched state refs a merge reads, less each one whose fetch drew a notice. */
@@ -160,8 +170,8 @@ async function readRemoteForwarding(context: RefBackendContext, common: PullScop
     ...(common.notices.length ? { partial: { ...common, status: "noop" as const } } : {}) };
 }
 
-function failedRemotePull(context: RefBackendContext, common: PullScope, cause: RemoteFailureReason, condition: string, followDue = false): PullOutcome {
-  const remedy = refSyncTransportRemedy(context, "pull");
+function failedRemotePull(context: RefBackendContext, common: PullScope, cause: RemoteFailureReason, condition: string, followDue = false,
+  remedy = refSyncTransportRemedy(context, "pull")): PullOutcome {
   return { ...common, notices: uniqueNotices(common.notices), status: "failed", failure: { code: "unreachable", class: "recoverable", cause, condition,
     remedy: followDue ? { text: `${remedy.text} A forwarding record remains recorded for ${common.remote}; bring in the tracked pointer's change and run arc store migrate.`,
       argv: ["arc", "store", "migrate"] } : remedy,

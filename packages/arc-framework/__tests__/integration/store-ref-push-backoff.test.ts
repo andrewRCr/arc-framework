@@ -92,7 +92,8 @@ describe.each(["default", "separate"] as const)("push backoff in the %s layout",
       const waiting = Symbol("waiting");
       const result = await Promise.race([pending, delay(1_500).then(() => waiting)]);
       expect(result).not.toBe(waiting);
-      expect(result).toMatchObject({ status: "refused", refusal: { code: "lock-held", condition: "The lock remained held for 1ms." } });
+      expect(result).toMatchObject({ status: "ok", result: { pulls: [{ status: "failed", failure: { code: "unreachable", cause: "timeout",
+        condition: expect.stringContaining(`deadline expired while waiting for`) } }] } });
     } finally { await release(); await pending.catch(() => undefined); }
     success(await store.pull());
     expect(success(await h.a.store.read({ reference: common })).content).toBe("incoming\n");

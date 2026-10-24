@@ -116,3 +116,31 @@ it.each(["default", "separate"] as const)("reports a timed-out tracking acknowle
     expect(success(await h.b.store.read({ reference })).content).toBe("saved\n");
   } finally { clock.advance(120_000); rescue.abort(); await pending.catch(() => undefined); }
 });
+
+describe.each(["default", "separate"] as const)("a lock wait the deadline cuts short in the %s layout", (layout) => {
+  it.each(["pull", "push"] as const)("ends the %s's state pull failed with a timeout, not a held lock, and applies on the next run", async (operation) => {
+    const h = await refSyncFixture(layout), clock = createRefClock(new Date(0), 1);
+    success(await h.a.store.write({ action: "put", reference: personal("published.md"), expected: null, content: "published\n", provenance }));
+    success(await h.a.store.push());
+    success(await h.b.store.write({ action: "put", reference: personal("local.md"), expected: null, content: "local\n", provenance }));
+    let expire = true;
+    const store = createRefStore({ ...h.b.ports, ...clock, exec: async (command, args, options) => {
+      const result = await h.b.ports.exec(command, args, options);
+      if (expire && args.includes("fetch")) {
+        // Pass the deadline by clock readings alone, so its timer never fires and no Git call is aborted.
+        expire = false;
+        clock.advance(119_000);
+        for (let reading = 0; reading < 2_000; reading += 1) clock.clock();
+      }
+      return result;
+    } });
+    const result = success(await store[operation]());
+    expect(expire).toBe(false);
+    expect(result.pulls).toEqual([expect.objectContaining({ status: "failed",
+      failure: expect.objectContaining({ code: "unreachable", cause: "timeout",
+        condition: expect.stringContaining("deadline expired while waiting for"),
+        remedy: { text: expect.stringContaining("other store operations") } }) })]);
+    success(await store[operation]());
+    expect(success(await h.b.store.read({ reference: personal("published.md") })).content).toBe("published\n");
+  });
+});

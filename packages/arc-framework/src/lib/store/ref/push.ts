@@ -13,7 +13,7 @@ import { resolveRefDesignation, type RefDesignationResolution } from "./designat
 import { readRefRepository, storeDirectoryVanished, writeRefRepository } from "./repository.js";
 import { refSyncTransportRemedy } from "./sync-remedy.js";
 import { waitForPushRetry } from "./push-backoff.js";
-import { withRefSyncDeadline, refSyncDeadlineExpired } from "./sync-deadline.js";
+import { withRefSyncDeadline, refSyncDeadlineExpired, RefSyncDeadlineError, refSyncDeadlineRemedy } from "./sync-deadline.js";
 import { pullRefStore } from "./pull.js";
 import { refPushTarget } from "./fetch-target.js";
 import { recordPushTracking } from "./push-tracking.js";
@@ -30,6 +30,8 @@ export async function pushRefStore(context: RefBackendContext, input: PushInput 
     return result;
   }); }
   catch (error) {
+    if (error instanceof RefSyncDeadlineError) return { status: "refused", refusal: { code: "unreachable", class: "recoverable",
+      cause: "timeout", condition: `${error.message} Unpublished writes remain local.`, remedy: refSyncDeadlineRemedy("push") } };
     if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire") throw error;
     return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lockPath,
       condition: `The lock remained held for ${error.waitedMs}ms.`,
@@ -56,6 +58,8 @@ async function publishRefStore(context: RefBackendContext, carry?: RefCarryPubli
     try { result = await publishRefAttempt(source, loop); }
     catch (error) {
       if (await storeDirectoryVanished(bound, error)) result = "retry";
+      else if (error instanceof RefSyncDeadlineError) return timedOutStatePublication(context, loop, { code: "unreachable", class: "recoverable",
+        cause: "timeout", condition: `${error.message} Unpublished writes remain local.`, remedy: refSyncDeadlineRemedy("push") });
       else if (!context.syncDeadline?.signal.aborted || !isGitProcessError(error) || error.kind !== "canceled") throw error;
       else return timedOutStatePublication(context, loop);
     }
@@ -196,9 +200,9 @@ async function exhaustedStatePublication(context: RefBackendContext, loop: PushL
     remedy: { text: "Retry the push; it will fetch and reconcile the saved writes first." } }, loop);
 }
 
-async function timedOutStatePublication(context: RefBackendContext, loop: PushLoop): Promise<StoreResult<PushResult>> {
+async function timedOutStatePublication(context: RefBackendContext, loop: PushLoop, failure?: StatePushFailure): Promise<StoreResult<PushResult>> {
   context = await readRefRepository(context);
   const result: PushResult = { states: statePushStates(loop.states, await context.identity()), pulls: loop.pulls, publishes: [] };
-  return failedStatePublication(context, result, pushOutcomeFailure(context, { status: "unreachable", cause: "timeout",
+  return failedStatePublication(context, result, failure ?? pushOutcomeFailure(context, { status: "unreachable", cause: "timeout",
     message: "The push deadline expired while running Git; retry to reconcile any writes the receiver accepted." }), loop);
 }
