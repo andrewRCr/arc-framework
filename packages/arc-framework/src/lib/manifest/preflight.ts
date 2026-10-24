@@ -2,17 +2,20 @@
  * The refusals a command that applies a change plan runs before its first write.
  *
  * `arc update` and `arc init --reconfigure` both apply a change plan over an installed project. Before either writes,
- * it refuses over uncommitted changes to the files it would write and over files already at the paths it would add.
+ * it refuses over a symbolic link on any path it would write, over uncommitted changes to the files it would write, and
+ * over files already at the paths it would add.
  *
  * @module
  */
 
-import { relative, sep } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 
 import { renderTemplate, type RenderContext } from "./apply.js";
 import { findOccupiedPaths, occupiedPathsError } from "./occupied.js";
+import { findSymlinkedWritePaths, symlinkedWritePathsError } from "./symlinked.js";
 import type { FileChangePlan } from "./plan.js";
 import { findUncommittedPaths, plannedWritePaths, uncommittedChangesError } from "./uncommitted.js";
+import { PRISTINE_FILENAME } from "../constants.js";
 import type { GitExec } from "../git/index.js";
 import type { ReadFileFn } from "../template/index.js";
 
@@ -35,15 +38,24 @@ export interface PlanWriteCheck {
 }
 
 /**
- * Refuse a plan whose writes would land on uncommitted changes, or whose additions would replace a file already there.
+ * Refuse a plan whose writes would follow a symbolic link or land on uncommitted changes, or whose additions would
+ * replace a file already there.
  *
  * @param check - The plan and what the refusals read
- * @throws UserFacingError with code `manifest.uncommitted-changes` when a file the plan writes, or the manifest, has
- *   uncommitted changes, or `manifest.install-paths-occupied` when an addition's path already holds other content
+ * @throws UserFacingError with code `manifest.install-path-symlinked` when a path the plan or its state files write, or
+ *   a directory above one, is a symbolic link; `manifest.uncommitted-changes` when a file the plan writes, or the
+ *   manifest, has uncommitted changes; or `manifest.install-paths-occupied` when an addition's path already holds other
+ *   content
  */
 export async function refuseUnsafePlanWrites(check: PlanWriteCheck): Promise<void> {
   const { plan, cwd, arcDir, renderCtx, readFile, command } = check;
   const writePaths = [...plannedWritePaths(plan, arcDir), check.manifestPath];
+  const linked = await findSymlinkedWritePaths(cwd, [
+    ...writePaths, join(dirname(check.manifestPath), PRISTINE_FILENAME),
+  ]);
+  if (linked.length > 0) {
+    throw symlinkedWritePathsError(linked, command);
+  }
   const uncommitted = await findUncommittedPaths(check.exec, cwd, writePaths);
   if (uncommitted.length > 0) {
     throw uncommittedChangesError(uncommitted, command);

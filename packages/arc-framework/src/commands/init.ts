@@ -12,7 +12,7 @@ import {
   ensureDir, writeArcGitignoreBlock,
   renderTokens, renderConditionals, renderConfigOverrides,
 } from "../lib/template/index.js";
-import { configureGitIntegration, runPostInitSetup } from "../lib/setup.js";
+import { CROSS_WU_INSTANCE_FILES, configureGitIntegration, runPostInitSetup } from "../lib/setup.js";
 import type { InitPromptResult } from "../prompts/init-prompts.js";
 import type { Manifest, Recipe, CoreIO } from "../lib/types.js";
 import {
@@ -38,7 +38,9 @@ import {
 } from "../lib/classification.js";
 import { UserFacingError } from "../lib/errors.js";
 import { atomicWriteJson } from "../lib/fs.js";
-import { findOccupiedPaths, occupiedPathsError } from "../lib/manifest/index.js";
+import {
+  findOccupiedPaths, findSymlinkedWritePaths, occupiedPathsError, symlinkedWritePathsError,
+} from "../lib/manifest/index.js";
 import {
   nodeEditorDocumentsFs, writeEditorDocumentsOrThrow, type EditorDocumentsWriter,
 } from "../lib/schema-command/editor-documents.js";
@@ -133,6 +135,8 @@ export interface InitResult {
  * @param options - Init options with all dependencies injected
  * @returns Init result, or null if user cancelled
  * @throws UserFacingError with code 'ALREADY_INSTALLED' if ARC is already installed
+ * @throws UserFacingError with code 'manifest.install-path-symlinked' if a path it would write, or a directory
+ *   above one inside the project, is a symbolic link
  * @throws UserFacingError with code 'manifest.install-paths-occupied' if files ARC did not install already hold
  *   other content at paths it would write
  * @throws UserFacingError with code 'INIT_IN_PROGRESS' if another init holds the lock file
@@ -208,7 +212,8 @@ export async function runInit(
       }
     }
 
-    // Render every file before writing any, so files already at these paths refuse the install first
+    // Render every file before writing any, so a symbolic link on these paths or a file already at one refuses the
+    // install first
     const filesWritten: string[] = [];
     const fileContents: Record<string, string> = {};
     const templatePathMap: Record<string, string> = {};
@@ -232,6 +237,16 @@ export async function runInit(
     }
 
     const arcRoot = relative(cwd, arcDir).split(sep).join("/");
+    const internalDir = join(arcDir, ...INTERNAL_DIR_SEGMENTS);
+    const linked = await findSymlinkedWritePaths(cwd, [
+      ...renderedFiles.map((file) => join(arcDir, file.outputRelPath)),
+      join(internalDir, MANIFEST_FILENAME), join(internalDir, PRISTINE_FILENAME),
+      ...(identityResult && preparedIdentity === null
+        ? CROSS_WU_INSTANCE_FILES.map((filename) => join(arcDir, "user", identityResult, filename)) : []),
+    ]);
+    if (linked.length > 0) {
+      throw symlinkedWritePathsError(linked, "init");
+    }
     const occupied = await findOccupiedPaths(cwd, renderedFiles.map((file) => ({
       path: `${arcRoot}/${file.outputRelPath}`, content: file.renderedContent,
     })), io.readFile);
@@ -257,7 +272,6 @@ export async function runInit(
     }
 
     // Write manifest and pristine store to .arc/system/.internal/
-    const internalDir = join(arcDir, ...INTERNAL_DIR_SEGMENTS);
     await ensureDir(internalDir, io.mkdir);
 
     const manifestFiles = buildManifestFiles(fileContents, arcInGitFiles, templatePathMap);

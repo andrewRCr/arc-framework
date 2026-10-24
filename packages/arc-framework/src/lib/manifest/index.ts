@@ -62,6 +62,11 @@ export {
 } from "./occupied.js";
 
 export {
+  findSymlinkedWritePaths,
+  symlinkedWritePathsError,
+} from "./symlinked.js";
+
+export {
   refuseUnsafePlanWrites,
   type PlanWriteCheck,
 } from "./preflight.js";
