@@ -60,3 +60,8 @@ export {
   occupiedPathsError,
   type FirstWrite,
 } from "./occupied.js";
+
+export {
+  refuseUnsafePlanWrites,
+  type PlanWriteCheck,
+} from "./preflight.js";

@@ -82,4 +82,13 @@ describe("occupiedPathsError", () => {
     expect(err.whatToDo).toContain("the existing .arc/ directory");
     expect(err.whatToDo).toContain("retry `arc init`");
   });
+
+  test("names reconfigure and its retry when reconfigure refuses", () => {
+    const err = occupiedPathsError([".arc/backlog/ROADMAP.md"], "reconfigure");
+
+    expect(err.whatHappened).toContain("reconfigure would overwrite");
+    expect(err.whatToDo).toBe(
+      "Move or rename these files, then retry `arc init --reconfigure`; it installs ARC's version at each path.",
+    );
+  });
 });

@@ -85,9 +85,13 @@ const NAMED_PATH_LIMIT = 10;
  * @param command - The refusing command
  * @returns The user-facing refusal, naming the files and the remedy
  */
-export function occupiedPathsError(paths: readonly string[], command: "init" | "update"): UserFacingError {
+export function occupiedPathsError(
+  paths: readonly string[],
+  command: "init" | "update" | "reconfigure",
+): UserFacingError {
   const named = paths.slice(0, NAMED_PATH_LIMIT).join(", ");
   const files = paths.length > NAMED_PATH_LIMIT ? `${named}, and ${paths.length - NAMED_PATH_LIMIT} more` : named;
+  const retry = command === "update" ? "arc update" : "arc init --reconfigure";
   return new UserFacingError({
     code: "manifest.install-paths-occupied",
     whatHappened: `${command} would overwrite files ARC did not install`,
@@ -96,6 +100,6 @@ export function occupiedPathsError(paths: readonly string[], command: "init" | "
     whatToDo: command === "init"
       ? "Move these files aside, or the existing .arc/ directory if they belong to an earlier installation, then retry "
         + "`arc init`."
-      : "Move or rename these files, then retry `arc update`; it installs ARC's version at each path.",
+      : `Move or rename these files, then retry \`${retry}\`; it installs ARC's version at each path.`,
   });
 }
