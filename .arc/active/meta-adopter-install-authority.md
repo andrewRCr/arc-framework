@@ -8,11 +8,11 @@
 - **Depends On:** `storage-cutover`
 
 - **Origin:** [internal]
-- **Design:** `draft-adopter-install-authority.md`
+- **Design:** `spec-adopter-install-authority.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
