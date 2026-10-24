@@ -14,7 +14,9 @@ import { tmpdir } from "node:os";
 import {
   createTempRepo,
   cleanupTempDir,
+  commitAll,
   makeIOContext,
+  makeGitExec,
   loadRecipe,
   sha256,
   ensureDir,
@@ -35,7 +37,7 @@ import {
   manifestPath,
 } from "../helpers/integration.js";
 import { runUpdate, buildUpdateSummary } from "../../src/commands/update.js";
-import type { UpdateResult } from "../../src/commands/update.js";
+import type { UpdateOptions, UpdateResult } from "../../src/commands/update.js";
 import { runInit } from "../../src/commands/init.js";
 import { UserFacingError } from "../../src/lib/errors.js";
 import type { Recipe } from "../../src/lib/types.js";
@@ -56,6 +58,12 @@ function makeRecipe(
     prompts: [],
     conditions: conditions ?? {},
   };
+}
+
+/** Update a project whose installed state and customizations are committed. */
+async function updateCommitted(options: UpdateOptions): Promise<UpdateResult> {
+  await commitAll(options.cwd);
+  return runUpdate(options);
 }
 
 // ============================================================
@@ -110,7 +118,7 @@ describe("update integration — baseline (real recipe)", () => {
     pristine[readme] = "# Legacy lifecycle actions\n";
     await writeFile(manifestPath(tempDir), JSON.stringify(manifest), "utf8");
     await writePristineStore(tempDir, pristine);
-    const result = await runUpdate({ cwd: tempDir, io: makeIOContext(tempDir), templateDir: realTemplateDir,
+    const result = await updateCommitted({ cwd: tempDir, io: makeIOContext(tempDir), templateDir: realTemplateDir,
       recipe: await loadRecipe() });
     expect(result.keptForReview.sort()).toEqual([...retained.keys()].sort());
     expect(result.removed).toContain(readme);
@@ -126,7 +134,7 @@ describe("update integration — baseline (real recipe)", () => {
       }
       return guardedRead(path);
     };
-    const next = await runUpdate({ cwd: tempDir, io, templateDir: realTemplateDir, recipe: await loadRecipe() });
+    const next = await updateCommitted({ cwd: tempDir, io, templateDir: realTemplateDir, recipe: await loadRecipe() });
     expect(next.keptForReview).toEqual([]);
     expect(next.removed).toEqual([]);
     expect(next.conflicts).toEqual([]);
@@ -136,7 +144,7 @@ describe("update integration — baseline (real recipe)", () => {
   it("immediate update with no changes → all files unchanged or skipped", async () => {
     const recipe = await loadRecipe();
 
-    const result = await runUpdate({
+    const result = await updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir: realTemplateDir,
@@ -173,7 +181,7 @@ describe("update integration — baseline (real recipe)", () => {
     await writeFile(manifestPath(tempDir), JSON.stringify(manifest), "utf8");
     await writePristineStore(tempDir, pristine);
 
-    const result = await runUpdate({ cwd: tempDir, io: makeIOContext(tempDir),
+    const result = await updateCommitted({ cwd: tempDir, io: makeIOContext(tempDir),
       templateDir: realTemplateDir, recipe: await loadRecipe() });
     expect(result.conflicts).toEqual([]);
     expect(result.removed).toContain(old);
@@ -194,7 +202,7 @@ describe("update integration — baseline (real recipe)", () => {
       .replace("override-active: false", "override-active: true")
       .replace("[No override configured]", "Keep the project disclosure and reviewer checklist.\nUse an imperative title.");
     await writeFile(installedPath, customized, "utf8");
-    const result = await runUpdate({ cwd: tempDir, io: makeIOContext(tempDir),
+    const result = await updateCommitted({ cwd: tempDir, io: makeIOContext(tempDir),
       templateDir: realTemplateDir, recipe: await loadRecipe() });
     expect(result.conflicts).toEqual([]);
     expect(await readFile(installedPath, "utf8")).toBe(customized);
@@ -215,7 +223,7 @@ describe("update integration — baseline (real recipe)", () => {
       .replace("[No override configured]", "Use the project boundary policy.");
     await writeFile(installedPath, customized, "utf-8");
 
-    const result = await runUpdate({
+    const result = await updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir: realTemplateDir,
@@ -238,7 +246,7 @@ describe("update integration — baseline (real recipe)", () => {
     await chmod(hook, 0o644);
     await chmod(hooksReadme, 0o644);
 
-    await runUpdate({
+    await updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir: realTemplateDir,
@@ -253,7 +261,7 @@ describe("update integration — baseline (real recipe)", () => {
     const recipe = await loadRecipe();
 
     // First update — no-op baseline.
-    await runUpdate({
+    await updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir: realTemplateDir,
@@ -263,7 +271,7 @@ describe("update integration — baseline (real recipe)", () => {
     const manifestBefore = await readFile(manifestPath(tempDir), "utf-8");
 
     // Second update — should produce no diff.
-    const result = await runUpdate({
+    const result = await updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir: realTemplateDir,
@@ -320,7 +328,7 @@ describe("update integration — baseline (real recipe)", () => {
     await ensureDir(dirname(legacyExtensionsPath));
     await writeFile(legacyExtensionsPath, legacyExtensionsContent, "utf-8");
 
-    const result = await runUpdate({
+    const result = await updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir: realTemplateDir,
@@ -391,7 +399,7 @@ describe("update integration — downgrade prevention", () => {
     );
 
     await expect(
-      runUpdate({
+      updateCommitted({
         cwd: tempDir,
         io: makeIOContext(tempDir),
         templateDir,
@@ -415,7 +423,7 @@ describe("update integration — downgrade prevention", () => {
 
     // Should not throw — same version is allowed
     await expect(
-      runUpdate({
+      updateCommitted({
         cwd: tempDir,
         io: makeIOContext(tempDir),
         templateDir,
@@ -438,7 +446,7 @@ describe("update integration — downgrade prevention", () => {
       [SCAFFOLDED_OUTPUT]: { content: "# Scaffolded\n", classification: "Scaffolded" },
     });
 
-    const result = await runUpdate({
+    const result = await updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir,
@@ -503,7 +511,7 @@ describe("update integration — merge scenarios", () => {
       [SCAFFOLDED_FILE]: "New scaffolded template",
     });
 
-    const result = await runUpdate({
+    const result = await updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir,
@@ -559,7 +567,7 @@ describe("update integration — merge scenarios", () => {
     });
 
     const recipe = makeRecipe([CONFIGURABLE_FILE]);
-    const result = await runUpdate({
+    const result = await updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir,
@@ -601,7 +609,7 @@ describe("update integration — merge scenarios", () => {
     });
 
     const recipe = makeRecipe([CONFIGURABLE_FILE]);
-    const result = await runUpdate({
+    const result = await updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir,
@@ -642,7 +650,7 @@ describe("update integration — merge scenarios", () => {
     });
 
     const recipe = makeRecipe([SCAFFOLDED_FILE]);
-    const result = await runUpdate({
+    const result = await updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir,
@@ -689,7 +697,7 @@ describe("update integration — arc-config migration", () => {
     await writeFile(join(tempDir, ".arc", configPath), currentConfig);
     templateDir = await createTemplateDir({ [configPath]: templateConfig });
 
-    return runUpdate({
+    return updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir,
@@ -903,7 +911,7 @@ describe("update integration — file add/remove", () => {
     });
 
     const recipe = makeRecipe([FRAMEWORK_FILE, NEW_FILE]);
-    const result = await runUpdate({
+    const result = await updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir,
@@ -950,7 +958,7 @@ describe("update integration — file add/remove", () => {
     });
 
     const recipe = makeRecipe([FRAMEWORK_FILE]);
-    const result = await runUpdate({
+    const result = await updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir,
@@ -988,7 +996,7 @@ describe("update integration — file add/remove", () => {
     });
 
     const recipe = makeRecipe([FRAMEWORK_FILE]);
-    const result = await runUpdate({
+    const result = await updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir,
@@ -1043,7 +1051,7 @@ describe("update integration — missing merge baseline", () => {
     await rm(join(tempDir, ".arc", "system", ".internal", "pristine.json"));
     templateDir = await createTemplateDir({ [CONFIGURABLE_FILE]: V2_CONTENT });
 
-    const result = await runUpdate({
+    const result = await updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir,
@@ -1065,7 +1073,7 @@ describe("update integration — missing merge baseline", () => {
     await dropBaseline(CONFIGURABLE_FILE);
     templateDir = await createTemplateDir({ [CONFIGURABLE_FILE]: CONTENT });
 
-    const result = await runUpdate({
+    const result = await updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir,
@@ -1090,7 +1098,7 @@ describe("update integration — missing merge baseline", () => {
     templateDir = await createTemplateDir({ [FRAMEWORK_FILE]: V2_CONTENT, [CONFIGURABLE_FILE]: V2_CONTENT });
 
     await expect(
-      runUpdate({
+      updateCommitted({
         cwd: tempDir,
         io: makeIOContext(tempDir),
         templateDir,
@@ -1117,9 +1125,9 @@ describe("update integration — missing merge baseline", () => {
       cwd: tempDir, io: makeIOContext(tempDir), templateDir, recipe: makeRecipe([CONFIGURABLE_FILE]),
     };
 
-    await expect(runUpdate(options)).rejects.toThrow(expect.objectContaining({ code: "manifest.baseline-missing" }));
+    await expect(updateCommitted(options)).rejects.toThrow(expect.objectContaining({ code: "manifest.baseline-missing" }));
     await writePristineStore(tempDir, savedStore);
-    const result = await runUpdate(options);
+    const result = await updateCommitted(options);
 
     expect(result.updated).toBe(1);
     expect(result.conflicts).toEqual([]);
@@ -1137,7 +1145,7 @@ describe("update integration — missing merge baseline", () => {
     await dropBaseline(CONFIGURABLE_FILE);
     templateDir = await createTemplateDir({ [CONFIGURABLE_FILE]: V2_CONTENT });
 
-    const result = await runUpdate({
+    const result = await updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir,
@@ -1175,7 +1183,7 @@ describe("update integration — missing merge baseline", () => {
     const recipe = makeRecipe([CONFIGURABLE_FILE]);
 
     // First update: the unedited file recovers its baseline from the manifest hash
-    await runUpdate({
+    await updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir,
@@ -1190,7 +1198,7 @@ describe("update integration — missing merge baseline", () => {
 
     // Second update: pristine=V2, current=V2 (no adopter changes), updated=V3
     // base===current → takes V3 cleanly
-    const result2 = await runUpdate({
+    const result2 = await updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir,
@@ -1202,6 +1210,91 @@ describe("update integration — missing merge baseline", () => {
 
     const content = await readFile(join(tempDir, ".arc", CONFIGURABLE_FILE), "utf-8");
     expect(content).toBe(V3_CONTENT);
+  });
+});
+
+describe("update integration — uncommitted changes", () => {
+  let tempDir: string;
+  let templateDir: string;
+
+  const CONTENT = "# Project\n\nOriginal content\n\n## Notes\n\nNone yet.\n";
+  const V2_CONTENT = "# Project\n\nUpdated content\n\n## Notes\n\nNone yet.\n";
+  const ADDED_FILE = "system/workflows/README.md";
+
+  beforeEach(async () => {
+    tempDir = await createTempRepo("arc-update-test-");
+    await setupInitialState(tempDir, {
+      [FRAMEWORK_FILE]: { content: CONTENT, classification: "Framework" },
+      [CONFIGURABLE_FILE]: { content: CONTENT, classification: "Configurable" },
+    });
+    await commitAll(tempDir);
+    templateDir = await createTemplateDir({
+      [FRAMEWORK_FILE]: V2_CONTENT, [CONFIGURABLE_FILE]: V2_CONTENT, [ADDED_FILE]: "# Workflows\n",
+    });
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+    await rm(templateDir, { recursive: true, force: true });
+  });
+
+  const update = () => runUpdate({
+    cwd: tempDir,
+    io: makeIOContext(tempDir),
+    templateDir,
+    recipe: makeRecipe([FRAMEWORK_FILE, CONFIGURABLE_FILE, ADDED_FILE]),
+  });
+
+  it("an uncommitted edit to a file it rewrites → refuses before writing, and applies once committed", async () => {
+    const edited = CONTENT.replace("None yet.", "Local rule.");
+    await writeFile(join(tempDir, ".arc", CONFIGURABLE_FILE), edited, "utf-8");
+    const manifestBefore = await readFile(manifestPath(tempDir), "utf-8");
+
+    const refusal = await update().catch((err: unknown) => err);
+
+    expect(refusal).toBeInstanceOf(UserFacingError);
+    expect(refusal).toMatchObject({ code: "manifest.uncommitted-changes" });
+    expect((refusal as UserFacingError).why).toContain(`.arc/${CONFIGURABLE_FILE}`);
+    expect((refusal as UserFacingError).why).not.toContain(`.arc/${FRAMEWORK_FILE}`);
+    expect(await readFile(join(tempDir, ".arc", FRAMEWORK_FILE), "utf-8")).toBe(CONTENT);
+    expect(await fileExists(join(tempDir, ".arc", ADDED_FILE))).toBe(false);
+    expect(await readFile(manifestPath(tempDir), "utf-8")).toBe(manifestBefore);
+
+    await commitAll(tempDir);
+    const result = await update();
+
+    expect(result.conflicts).toEqual([]);
+    expect(await readFile(join(tempDir, ".arc", FRAMEWORK_FILE), "utf-8")).toBe(V2_CONTENT);
+    const merged = await readFile(join(tempDir, ".arc", CONFIGURABLE_FILE), "utf-8");
+    expect(merged).toContain("Updated content");
+    expect(merged).toContain("Local rule.");
+  });
+
+  it("a staged change and an untracked file at a path it adds both count as uncommitted", async () => {
+    await writeFile(join(tempDir, ".arc", FRAMEWORK_FILE), `${CONTENT}\nStaged\n`, "utf-8");
+    await makeGitExec(tempDir)("git", ["add", join(".arc", FRAMEWORK_FILE)]);
+    await ensureDir(dirname(join(tempDir, ".arc", ADDED_FILE)));
+    await writeFile(join(tempDir, ".arc", ADDED_FILE), "# Local workflows\n", "utf-8");
+
+    const refusal = await update().catch((err: unknown) => err);
+
+    expect(refusal).toMatchObject({ code: "manifest.uncommitted-changes" });
+    expect((refusal as UserFacingError).why).toContain(`.arc/${FRAMEWORK_FILE}`);
+    expect((refusal as UserFacingError).why).toContain(`.arc/${ADDED_FILE}`);
+    expect(await readFile(join(tempDir, ".arc", ADDED_FILE), "utf-8")).toBe("# Local workflows\n");
+  });
+
+  it("uncommitted changes outside the files it writes → updates", async () => {
+    await writeFile(join(tempDir, "app.ts"), "export const app = 1;\n", "utf-8");
+    await commitAll(tempDir);
+    await writeFile(join(tempDir, "app.ts"), "export const app = 2;\n", "utf-8");
+    await ensureDir(join(tempDir, ".arc", "active"));
+    await writeFile(join(tempDir, ".arc", "active", "draft-local.md"), "# Draft\n", "utf-8");
+
+    const result = await update();
+
+    expect(result.added).toEqual([ADDED_FILE]);
+    expect(await readFile(join(tempDir, ".arc", FRAMEWORK_FILE), "utf-8")).toBe(V2_CONTENT);
   });
 });
 
@@ -1225,7 +1318,7 @@ describe("update integration — error cases", () => {
     const recipe = makeRecipe([FRAMEWORK_FILE]);
 
     await expect(
-      runUpdate({
+      updateCommitted({
         cwd: tempDir,
         io: makeIOContext(tempDir),
         templateDir,
@@ -1250,7 +1343,7 @@ describe("update integration — error cases", () => {
     const recipe = makeRecipe([FRAMEWORK_FILE]);
 
     await expect(
-      runUpdate({
+      updateCommitted({
         cwd: tempDir,
         io: makeIOContext(tempDir),
         templateDir,
@@ -1275,7 +1368,7 @@ describe("update integration — error cases", () => {
     const recipe = makeRecipe([FRAMEWORK_FILE]);
 
     await expect(
-      runUpdate({
+      updateCommitted({
         cwd: tempDir,
         io: makeIOContext(tempDir),
         templateDir,
@@ -1299,7 +1392,7 @@ describe("update integration — error cases", () => {
     await writeFile(join(boundedTemplateDir, FRAMEWORK_FILE), "# Content\n", "utf-8");
     await writeFile(join(templateDir, "outside.template.md"), "outside\n", "utf-8");
 
-    await expect(runUpdate({
+    await expect(updateCommitted({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir: boundedTemplateDir,

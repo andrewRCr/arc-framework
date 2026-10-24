@@ -159,3 +159,15 @@ export async function createTempRepoCore(options: CreateTempRepoOptions = {}): P
     throw error;
   }
 }
+
+/**
+ * Commit the whole working tree of a fixture repository, with its installed hooks off.
+ *
+ * @param dir - Repository root.
+ * @param message - Commit message.
+ */
+export async function commitAll(dir: string, message = "chore: commit fixture state"): Promise<void> {
+  await execFileAsync("git", ["add", "-A"], { cwd: dir });
+  await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-q", "--allow-empty", "-m", message],
+    { cwd: dir });
+}

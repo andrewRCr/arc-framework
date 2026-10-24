@@ -11,7 +11,7 @@ import { readFile, access } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { runArc, createTempRepo, cleanupTempDir, commitAll } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -75,7 +75,8 @@ describe("arc init --reconfigure", () => {
     const manifest = JSON.parse(manifestRaw) as { install_config: { pm_mode: string } };
     expect(manifest.install_config.pm_mode).toBe("arc-in-git");
 
-    // Update should preserve the new config
+    // Once committed, update should preserve the new config
+    await commitAll(tmpDir);
     const update = await runArc(["update"], tmpDir);
     expect(update.exitCode).toBe(0);
 

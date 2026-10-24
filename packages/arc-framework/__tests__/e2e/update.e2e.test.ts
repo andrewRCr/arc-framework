@@ -1,16 +1,16 @@
 /**
  * Update command E2E tests.
  *
- * Exercises `arc update` for clean updates (no changes), customization
- * preservation through three-way merge, and conflict detection when
- * adopter and framework changes overlap.
+ * Exercises `arc update` over committed projects for clean updates (no
+ * changes), customization preservation through three-way merge, and conflict
+ * detection when adopter and framework changes overlap.
  */
 
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { assertEditorDocumentsProvisioned, resetEditorDocumentsProvisioning } from "./editor-document-helpers.js";
-import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { runArc, createTempRepo, cleanupTempDir, commitAll } from "./helpers.js";
 
 describe("update", () => {
   let tmpDir: string;
@@ -30,6 +30,7 @@ describe("update", () => {
 
     const ignoresBefore = await readFile(join(tmpDir, ".gitignore"), "utf8");
     await resetEditorDocumentsProvisioning(tmpDir);
+    await commitAll(tmpDir);
     const update = await runArc(["update"], tmpDir);
     await assertEditorDocumentsProvisioned(tmpDir);
     expect(await readFile(join(tmpDir, ".gitignore"), "utf8")).toBe(ignoresBefore);
@@ -43,6 +44,7 @@ describe("update", () => {
     const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
     expect(init.exitCode).toBe(0);
 
+    await commitAll(tmpDir);
     const updates = await Promise.all([
       runArc(["update"], tmpDir),
       runArc(["update"], tmpDir),
@@ -73,6 +75,7 @@ describe("update", () => {
     const original = await readFile(rulesPath, "utf-8");
     const customized = original + "\n## My Custom Section\n\nProject-specific rules here.\n";
     await writeFile(rulesPath, customized, "utf-8");
+    await commitAll(tmpDir);
 
     // Update — same template version, so no framework-side changes
     const update = await runArc(["update"], tmpDir);
@@ -109,6 +112,7 @@ describe("update", () => {
     const store = JSON.parse(storeRaw) as Record<string, string>;
     store[configFile] = "# Old Rules Title\n" + lines.slice(1).join("\n");
     await writeFile(pristineStorePath, JSON.stringify(store, null, 2) + "\n", "utf-8");
+    await commitAll(tmpDir);
 
     // Now update: base (pristine) = "# Old Rules Title", current = "# My Customized Rules",
     // updated (template) = "# Development Rules (Project)" — all three differ on line 1 → conflict.
@@ -124,5 +128,37 @@ describe("update", () => {
     const afterUpdate = await readFile(filePath, "utf-8");
     expect(afterUpdate).toContain("<<<<<<<");
     expect(afterUpdate).toContain(">>>>>>>");
+  });
+
+  it("uncommitted changes to a file it rewrites refuse the update until committed", async () => {
+    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(init.exitCode).toBe(0);
+    await commitAll(tmpDir);
+    const rulesPath = join(tmpDir, ".arc", "system", "rules", "DEV-RULES.PROJECT.md");
+    const customized = `${await readFile(rulesPath, "utf-8")}\n## Local rule\n`;
+    await writeFile(rulesPath, customized, "utf-8");
+
+    const refused = await runArc(["update"], tmpDir);
+
+    expect(refused.exitCode).toBe(1);
+    expect(refused.stdout + refused.stderr).toContain("manifest.uncommitted-changes");
+    expect(refused.stdout + refused.stderr).toContain(".arc/system/rules/DEV-RULES.PROJECT.md");
+
+    await commitAll(tmpDir);
+    const update = await runArc(["update"], tmpDir);
+
+    expect(update.exitCode, update.stdout + update.stderr).toBe(0);
+    expect(await readFile(rulesPath, "utf-8")).toBe(customized);
+  });
+
+  it("outside a git repository, refuses before updating", async () => {
+    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(init.exitCode).toBe(0);
+    await rm(join(tmpDir, ".git"), { recursive: true, force: true });
+
+    const update = await runArc(["update"], tmpDir);
+
+    expect(update.exitCode).toBe(1);
+    expect(update.stdout + update.stderr).toContain("Not inside a git repository");
   });
 });

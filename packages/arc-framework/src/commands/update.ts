@@ -28,6 +28,9 @@ import {
   applyChangePlan,
   resolveMissingBaselines,
   missingBaselineError,
+  plannedWritePaths,
+  findUncommittedPaths,
+  uncommittedChangesError,
   type FileMergeFn,
 } from "../lib/manifest/index.js";
 import { gitMergeFile, type GitExec } from "../lib/git/index.js";
@@ -379,15 +382,20 @@ export async function runUpdate(
   const renderCtx = { templateDir, tokens, config, configKeyOverrides };
   const arcConfigPath = join(arcDir, ARC_CONFIG_TEMPLATE_PATH);
 
-  // Recover the baselines the manifest proves, and refuse before any write: merging a customized file with no
-  // baseline would drop its upstream changes
+  // Refuse before any write over uncommitted changes to the files the update writes, then recover the baselines the
+  // manifest proves and refuse where merging a customized file with no baseline would drop its upstream changes
   const readAsMerged = async (path: string): Promise<string> => {
     const content = await io.readFile(path);
     return path === arcConfigPath ? migrateUserSyncPush(content).content : content;
   };
+  const initialPlan = buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles);
+  const writePaths = [...plannedWritePaths(initialPlan, arcDir), manifestPath];
+  const uncommitted = await findUncommittedPaths(io.exec, cwd, writePaths);
+  if (uncommitted.length > 0) {
+    throw uncommittedChangesError(uncommitted);
+  }
   const missing = await resolveMissingBaselines(
-    buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles), manifest, arcDir,
-    { readFile: io.readFile, readAsMerged }, renderCtx,
+    initialPlan, manifest, arcDir, { readFile: io.readFile, readAsMerged }, renderCtx,
   );
   if (missing.edits.length > 0 && options.keepLocalWithoutBaseline !== true) {
     throw missingBaselineError(missing.edits, "update");
