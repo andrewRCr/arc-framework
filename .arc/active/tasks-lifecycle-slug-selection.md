@@ -421,18 +421,14 @@ cohort over the reference backend directly.
   alone, bypassing holder selection and normal lifecycle/review actions while preserving marks. Unavailable clash
   evidence keeps the slot unavailable until repaired.
 
-### `[ ]` **3.7 A clash end to end** — validate exit criterion at segment scope
+### `[x]` **3.7 A clash end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds end to end: a clash refuses with its holders and repair at whichever site
   meets it first, and the edges naming it are held while their dependents activate.
 
-    - Over the clash double, run each lifecycle verb naming the slug, in text and, for `arc publish` and
-      `arc wu reconcile`, the lifecycle verbs that take it, in `--json`; activate a dependent whose edge names the slug
-      and an unrelated work unit whose records mention it; abandon an unrelated work unit while an Integrating work
-      unit's edge names the slug; archive the last other open member of a cohort holding both. Over the reference
-      backend, reconcile edges on a reused slug, on a completed work unit's former name, and on a cohort's slug, and
-      activate each dependent.
-    - Request `arc check segment` after the scenario checks.
+- _Outcome:_ Registered CLI scenarios preserve typed clash refusals across supported readers, including decomposition's
+  native envelope. Held and incidental references permit activation and publication; unrelated abandonment succeeds,
+  reused/former names classify by generation, and archiving another member keeps clashed cohort members open.
 
 ## **Phase 4:** Checkout claims and holder matching by UID
 
