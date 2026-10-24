@@ -12,6 +12,8 @@ import { readPendingRefEnds } from "./sync-lifecycle.js";
 export interface RefPushListing {
   local: Map<string, string>; tracking: Map<string, string>; changes: PushRefChange[];
   pending: Set<string>;
+  /** The last tip seen of each ref the remote pruned, which bounds what this clone has yet to publish on it. */
+  kept: Map<string, string>;
 }
 
 /** Release and retake the whole lock set whenever the locked listing gains a ref. */
@@ -54,8 +56,9 @@ async function readPushListing(context: RefBackendContext, remote: string, ident
   const [allLocal, allTracking] = await Promise.all([readSyncRefs(context, "refs/arc/"), readSyncRefs(context, [seenPrefix, prefix])]);
   const local = new Map([...allLocal].filter(([ref]) => publishableRef(ref, identity)));
   const tracking = new Map([...allTracking].filter(([ref]) => ref.startsWith(prefix)).map(([ref, tip]) => [`refs/arc/${ref.slice(prefix.length)}`, tip]));
-  const basis = new Map([...allTracking].filter(([ref]) => ref.startsWith(seenPrefix)
-    && diverged.has(`refs/arc/${ref.slice(seenPrefix.length)}`)).map(([ref, tip]) => [`refs/arc/${ref.slice(seenPrefix.length)}`, tip]));
+  const seen = new Map([...allTracking].filter(([ref]) => ref.startsWith(seenPrefix)).map(([ref, tip]) => [`refs/arc/${ref.slice(seenPrefix.length)}`, tip]));
+  const kept = new Map([...seen].filter(([ref]) => !tracking.has(ref)));
+  const basis = new Map([...seen].filter(([ref]) => diverged.has(ref)));
   for (const [ref, tip] of tracking) basis.set(ref, tip);
   const pending = [...local].some(([ref, tip]) => /^refs\/arc\/(work|cohort)\//u.test(ref) && tracking.get(ref) !== tip)
     ? new Set((await readPendingRefEnds(context, local, local, tracking)).filter(({ ownReopen }) => !ownReopen).map(({ live }) => live)) : new Set<string>();
@@ -66,7 +69,7 @@ async function readPushListing(context: RefBackendContext, remote: string, ident
       : /^refs\/arc\/(work|cohort)\//u.test(ref) ? ref.replace("refs/arc/", "refs/arc/history/") : null;
     if (counterpart && local.has(counterpart)) changes.push({ ref, next: null });
   }
-  return { local, tracking, changes, pending };
+  return { local, tracking, changes, pending, kept };
 }
 
 function publishableRef(ref: string, identity: string | null): boolean {

@@ -63,6 +63,17 @@ describe.each(["default", "separate"] as const)("carried code in the %s layout",
     expect(success(await h.b.store.read({ reference })).content).toBe("Carried state.\n");
   });
 
+  it("publishes a short branch name once and reports it by its full name", async () => {
+    const h = await carryFixture(layout), log = join(h.origin, "short-received.log");
+    await h.a.exec("git", ["push", "origin", `${h.code.tip}^:${branch}`]);
+    await writeFile(join(h.origin, "hooks", "pre-receive"), `#!/bin/sh\ncat >> '${log}'\nprintf '%s\\n' '--push--' >> '${log}'\n`, { mode: 0o755 });
+    const result = PushResultSchema.parse(success(await h.a.store.push({ carry: { ref: branch.slice("refs/heads/".length) } })));
+    expect(result.carry).toEqual({ ref: branch, status: "pushed" });
+    expect((await h.remote("git", ["rev-parse", branch])).stdout.trim()).toBe(h.code.tip);
+    const transactions = (await readFile(log, "utf8")).split("--push--\n").filter(Boolean);
+    expect(transactions.filter((transaction) => transaction.includes(branch))).toHaveLength(1);
+  });
+
   it("publishes a rewritten branch under its explicit lease", async () => {
     const h = await carryFixture(layout);
     await h.a.exec("git", ["push", "origin", `${branch}:${branch}`]);

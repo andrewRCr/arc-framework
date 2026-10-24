@@ -3,12 +3,15 @@
 import type { RefBackendContext } from "./context.js";
 import { DEFAULT_MAX_WAIT_MS } from "../../advisory-lock.js";
 
+/** How long one sync loop, with every pull nested in it, may run. */
+export const REF_SYNC_DEADLINE_MS = 120_000;
+
 /** Bound Git calls and lock waits without restarting the timer for a nested pull. */
 export async function withRefSyncDeadline<T>(context: RefBackendContext, operation: (scoped: RefBackendContext) => Promise<T>): Promise<T> {
   if (context.syncDeadline) return operation(context);
   const timer = new AbortController(), deadline = new AbortController();
-  const end = context.clock().getTime() + 120_000;
-  const bound = context.sleep.bound(120_000, timer.signal).then(() => { if (!timer.signal.aborted) deadline.abort(); });
+  const end = context.clock().getTime() + REF_SYNC_DEADLINE_MS;
+  const bound = context.sleep.bound(REF_SYNC_DEADLINE_MS, timer.signal).then(() => { if (!timer.signal.aborted) deadline.abort(); });
   try { return await operation(bindDeadline(context, { signal: deadline.signal, end, cleanup: context })); }
   finally { timer.abort(); await bound; }
 }

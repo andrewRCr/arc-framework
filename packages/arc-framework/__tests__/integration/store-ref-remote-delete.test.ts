@@ -13,6 +13,7 @@ import { readOnlyGitEndpoint } from "../helpers/store/read-only-git-remote.js";
 import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { GitProcessError } from "../../src/lib/git/process-error.js";
 
 it.each(directions)("finishes the move from $source to $destination with only its forwarding record left behind", async ({ source, destination }) => {
   const h = await switchFixture(source, destination);
@@ -156,6 +157,36 @@ it.each(["listing", "delete"] as const)("retains a failed %s round and completes
   expect((await invokeStoreMigrate([], h.ports)).status).toBe("ok");
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim()).toBe("refs/arc/project/moved");
   expect(success(await h.store.pull()).states).toEqual([]);
+}, 45_000);
+
+it("retains a source listing whose gathering transaction fails after its rows and completes on retry", async () => {
+  const h = await switchFixture();
+  let listing = false, source = "";
+  const ports = { ...h.ports,
+    migrateStep: async (step: string) => {
+      if (step !== "remote.list-source" || source) return;
+      listing = true;
+      source = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
+    },
+    exec: async (command: string, args: string[], options?: Parameters<typeof h.ports.exec>[2]) => {
+      if (!listing || !args.includes("fetch")) return h.ports.exec(command, args, options);
+      listing = false;
+      const fetched = await h.ports.exec(command, args, options);
+      const prefix = args.find(arg => arg.startsWith("+refs/arc/work/*:"))?.split(":")[1]?.slice(0, -"work/*".length);
+      if (!prefix) throw new Error("The source listing named no gathering prefix");
+      const gathered = (await h.a.git(["for-each-ref", "--format=%(refname)", prefix])).stdout.split("\n").filter(Boolean);
+      for (const ref of gathered) await h.a.git(["update-ref", "-d", ref]);
+      throw new GitProcessError({ kind: "nonzero-exit", command, args, exitCode: 1, stdout: fetched.stdout,
+        stderr: "fatal: gathering transaction failed by fixture" });
+    } };
+  const result = await invokeStoreMigrate(["--to", h.to], ports);
+  expect(source).not.toBe("");
+  expect(result).toMatchObject({ status: "refused", refusal: { code: "move-unfinished",
+    condition: expect.stringContaining("gathering transaction failed by fixture"), remedy: { argv: ["arc", "store", "migrate"] } } });
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(source);
+  expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout.trim()).toBe("refs/arc/tmp/migrate/move");
+  expect((await invokeStoreMigrate([], h.ports)).status).toBe("ok");
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim()).toBe("refs/arc/project/moved");
 }, 45_000);
 
 it("deletes through the recorded push URL after switching away from an upload-only fetch endpoint", async () => {

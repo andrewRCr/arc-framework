@@ -1,14 +1,13 @@
 /** Explicit state-only fetches into an isolated tracking namespace. */
 
 import type { PullNotice } from "../sync.js";
-import { refFetchNegotiation, refFetchTarget } from "./fetch-target.js";
+import { refFetchArgs, refFetchNegotiation, refFetchTarget } from "./fetch-target.js";
 import { checkRefFetchUpdates } from "./fetch-check.js";
-import { readRefFetchBasis, finishRefFetchBasis } from "./fetch-seen.js";
+import { readRefFetchBasis, finishRefFetchBasis, withRefFetchKeepers } from "./fetch-seen.js";
 import type { HistoryRef } from "../refusal.js";
 import { parseFetchPorcelain, type FetchOutcome } from "../../git/fetch.js";
 import { normalizeGitRejection } from "../../git/process-error.js";
 import { PASSIVE_REMOTE_INTERACTION } from "../../git/remote-ref-reader.js";
-import { gitRefLockArgs } from "../../git/ref-transaction.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
 import { refFetchNeedsCompleteness, missingRefFetchObjects, combineRefFetchOutcomes, RefFetchIncompleteError } from "./fetch-completeness.js";
@@ -36,11 +35,15 @@ export async function fetchRefHistories(context: RefBackendContext, remote: RefR
 async function fetchRefPatterns(context: RefBackendContext, remote: RefRemoteDesignation, designation: RefDesignation,
   patterns: readonly string[], identity: string | null, signal?: AbortSignal): Promise<RefFetchOutcome> {
   const negotiation = await refFetchNegotiation(context, identity);
+  return withRefFetchKeepers(context, remote.name, () => fetchKeptRefPatterns(context, remote, designation, patterns, negotiation, signal));
+}
+
+async function fetchKeptRefPatterns(context: RefBackendContext, remote: RefRemoteDesignation, designation: RefDesignation,
+  patterns: readonly string[], negotiation: readonly string[], signal?: AbortSignal): Promise<RefFetchOutcome> {
   const basis = await readRefFetchBasis(context, remote.name, patterns);
   const target = await refFetchTarget(context, remote, designation);
-  const args = [...gitRefLockArgs(), "-c", `remote.${remote.name}.negotiationInclude=`, "fetch", "--refmap=", "--no-tags",
-    "--no-filter", "--prune", "--show-forced-updates", "--porcelain", "--verbose", ...negotiation, "--", target,
-    ...patterns.map((pattern) => `${pattern}:refs/arc-remotes/${remote.name}/${pattern.slice("refs/arc/".length)}`)];
+  const args = refFetchArgs(remote.name, negotiation, target,
+    patterns.map((pattern) => `${pattern}:refs/arc-remotes/${remote.name}/${pattern.slice("refs/arc/".length)}`));
   let fetched = await runRefFetch(context, args, signal);
   const notices = await checkRefFetchUpdates(context, remote, designation, fetched.outcome, basis, fetched.failed);
   try {

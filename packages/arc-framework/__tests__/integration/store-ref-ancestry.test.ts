@@ -1,8 +1,8 @@
 import { runStoreMigrate } from "../../src/lib/store/index.js";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { dirname, join } from "node:path";
-import { mkdir, rm, writeFile } from "node:fs/promises";
-import { preparedRefSync, refSyncFixture } from "../helpers/store/ref-sync.js";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { preparedRefSync, refSyncFixture, type RefSyncFixture } from "../helpers/store/ref-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
@@ -51,7 +51,7 @@ async function applyRemedy(h: Awaited<ReturnType<typeof rewrittenFixture>>, text
   return output;
 }
 
-async function trackingLockStore(h: Awaited<ReturnType<typeof rewrittenFixture>>, tracking: string, afterFailure?: () => Promise<void>) {
+async function trackingLockStore(h: RefSyncFixture, tracking: string, afterFailure?: () => Promise<void>) {
   const format = (await h.b.git(["rev-parse", "--show-ref-format"])).stdout.trim();
   const lock = join(h.b.gitDir ?? join(h.b.root, ".git"), format === "reftable" ? "reftable/tables.list.lock" : `${tracking}.lock`);
   let armed = true, nativeStdout = "", nativeStderr = "";
@@ -79,7 +79,7 @@ describe.each(["default", "separate"] as const)("rewrite refusal in the %s layou
     expect(notice).toMatchObject({ kind: "history-diverged", ref: h.ref, local: h.second, remote: h.first,
       condition: expect.any(String), remedy: { text: expect.stringMatching(/keep ours[\s\S]*take theirs[\s\S]*merge both/iu) } });
     if (notice?.kind !== "history-diverged") throw new Error("Missing rewrite refusal");
-    for (const option of ["--force-with-lease", "--refmap=", "--no-filter", "--negotiation-tip="]) expect(notice.remedy.text).toContain(option);
+    for (const option of ["--force-with-lease", "--refmap=", "--no-filter", "--no-write-fetch-head", "--negotiation-tip="]) expect(notice.remedy.text).toContain(option);
     if (h.b.gitDir) expect(notice.remedy.text).toContain(`--git-dir=${h.b.gitDir}`);
     expect((await h.b.git(["rev-parse", h.ref])).stdout.trim()).toBe(before);
     expect((await h.b.git(["rev-parse", h.tracking])).stdout.trim()).toBe(h.second);
@@ -139,6 +139,68 @@ describe.each(["default", "separate"] as const)("rewrite refusal in the %s layou
       success(await observer.pull());
       expect(observations).toEqual([h.second]);
       expect((await h.b.git(["for-each-ref", "--format=%(objectname)", seen])).stdout.trim()).toBe(h.second);
+    });
+
+    it("keeps a pruned tip when a sibling pull finishes while another pull is fetching", async () => {
+      const h = await rewrittenFixture(layout, true), seen = `refs/arc/tmp/seen/${h.remoteName}/user/andrew/personal`;
+      const rewritten = (await h.remote("git", ["rev-parse", h.ref])).stdout.trim();
+      await h.remote("git", ["update-ref", h.ref, h.second, rewritten]);
+      let waiting!: () => void, finished!: () => void, pruned = false;
+      const siblingWaiting = new Promise<void>((resolve) => { waiting = resolve; });
+      const firstFinished = new Promise<void>((resolve) => { finished = resolve; });
+      const sibling = createRefStore({ ...h.b.ports,
+        lock: async (ref, waitMs) => { if (ref.includes("/tmp/seen/")) waiting(); return h.b.ports.lock(ref, waitMs); },
+        exec: async (command, args, options) => {
+          if (args.includes("fetch") && !pruned) {
+            pruned = true; waiting(); await firstFinished;
+            await h.remote("git", ["update-ref", "-d", h.ref]);
+          }
+          return h.b.ports.exec(command, args, options);
+        } });
+      let siblingPull: ReturnType<typeof sibling.pull> | undefined;
+      const first = createRefStore({ ...h.b.ports, exec: async (command, args, options) => {
+        if (args.includes("fetch") && !siblingPull) { siblingPull = sibling.pull(); await siblingWaiting; }
+        return h.b.ports.exec(command, args, options);
+      } });
+      success(await first.pull()); finished();
+      if (!siblingPull) throw new Error("The sibling pull never started");
+      success(await siblingPull);
+      expect((await h.b.git(["for-each-ref", "--format=%(objectname)", seen])).stdout.trim()).toBe(h.second);
+      await h.remote("git", ["update-ref", h.ref, rewritten]);
+      const notice = success(await h.b.store.pull()).pulls.flatMap(({ notices }) => notices).find(({ kind }) => kind === "history-diverged");
+      expect(notice).toMatchObject({ kind: "history-diverged", ref: h.ref, local: h.second, remote: rewritten });
+    });
+
+    it("updates and releases a no-change pull's keepers in one transaction each", async () => {
+      const h = await refSyncFixture(layout);
+      success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("kept"), placement: { kind: "active" },
+        reference: RecordReferenceSchema.parse({ owner: { type: "work-item", name: "kept" }, kind: "work-item/meta" }),
+        provenance: { verb: "start", lifecycleAction: "start" } }));
+      success(await h.a.store.write({ action: "put", expected: null, content: "# Group\n\n**Purpose:** Keep refs.\n", provenance,
+        reference: RecordReferenceSchema.parse({ owner: { type: "cohort", name: "group" }, kind: "cohort/document" }) }));
+      success(await h.a.store.write({ action: "put", expected: null, content: "# Atomic Inbox\n\n## Inbox\n\nKept.\n", provenance,
+        reference: RecordReferenceSchema.parse({ owner: { type: "project", name: "project" }, kind: "project-inbox/inbox" }) }));
+      success(await h.a.store.push()); success(await h.b.store.pull());
+      const tracked = (await h.b.git(["for-each-ref", "--format=%(refname)", `refs/arc-remotes/${h.remoteName}/`])).stdout.trim().split("\n");
+      expect(tracked.length).toBeGreaterThan(2);
+      let transactions = 0;
+      const counted = createRefStore({ ...h.b.ports, execInput: async (args, input, options) => {
+        if (args.includes("update-ref") && input.includes("refs/arc/tmp/seen/")) transactions++;
+        return h.b.ports.execInput(args, input, options);
+      } });
+      expect(success(await counted.pull()).pulls.map(({ status }) => status)).toEqual(["noop"]);
+      expect(transactions).toBe(2);
+    });
+
+    it("leaves the code checkout's FETCH_HEAD to the person through a pull", async () => {
+      const h = await refSyncFixture(layout);
+      success(await h.a.store.write({ action: "put", expected: null, content: "Fetched.\n", provenance,
+        reference: RecordReferenceSchema.parse({ owner: { type: "person", name: "andrew" }, kind: "personal/document", key: "fetched.md" }) }));
+      success(await h.a.store.push());
+      const fetchHead = join(h.b.root, (await h.b.git(["rev-parse", "--git-path", "FETCH_HEAD"])).stdout.trim());
+      await writeFile(fetchHead, "The person's own fetch.\n");
+      expect(success(await h.b.store.pull()).pulls.map(({ status }) => status)).toEqual(["pulled"]);
+      expect(await readFile(fetchHead, "utf8")).toBe("The person's own fetch.\n");
     });
 
     it.each(["ancestor", "descendant"] as const)("accepts an ordered %s return and drops the retained tip", async (direction) => {
@@ -327,6 +389,31 @@ describe.each(["default", "separate"] as const)("rewrite refusal in the %s layou
     } finally { await rm(lock, { force: true }); }
     expect(success(await h.b.store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
     expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Third published value.\n");
+  });
+
+  it("keeps a live item whose tracking update failed beside its published lineage", async () => {
+    const h = await refSyncFixture(layout);
+    const made = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("beside"),
+      reference: RecordReferenceSchema.parse({ owner: { type: "work-item", name: "beside" }, kind: "work-item/meta" }),
+      placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "start" } }));
+    const owner = made.reference.owner;
+    if (owner.type !== "work-item" || !owner.uid) throw new Error("Expected a minted work item");
+    success(await h.a.store.write({ action: "put", reference: RecordReferenceSchema.parse({ owner, kind: "lineage/transition" }), expected: null,
+      content: writeLineageRecord({ schemaVersion: 2, origin: { name: owner.name, uid: owner.uid }, kind: "abandon", successors: [], incoming: [] }),
+      provenance: { verb: "abandon", lifecycleAction: "abandon" } }));
+    success(await h.a.store.push()); success(await h.b.store.pull());
+    const current = success(await h.a.store.read({ reference: made.reference }));
+    success(await h.a.store.write({ action: "put", reference: made.reference, expected: current.version,
+      content: `${current.content}\nLater edit.\n`, placement: current.placement, provenance }));
+    success(await h.a.store.push());
+    const live = `refs/arc/work/${owner.uid}`, before = (await h.b.git(["rev-parse", live])).stdout.trim();
+    const { store, observed } = await trackingLockStore(h, `refs/arc-remotes/${h.remoteName}/work/${owner.uid}`);
+    const result = success(await store.pull());
+    expect(observed().armed).toBe(false);
+    expect(result.pulls.flatMap(({ notices }) => notices)).toEqual([expect.objectContaining({ kind: "tracking-update-failed", ref: live })]);
+    expect((await h.b.git(["rev-parse", live])).stdout.trim()).toBe(before);
+    expect(success(await store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
+    expect(success(await h.b.store.read({ reference: made.reference })).content).toContain("Later edit.");
   });
 });
 

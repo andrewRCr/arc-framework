@@ -20,7 +20,7 @@ export type LifecyclePullResult = RefMergeResult | { status: "fetch-failed"; fet
 /** Keep by-name histories out of ordinary merging until end detection has read the pre-pull histories. */
 export async function mergePulledRefState(context: RefBackendContext, incoming: Map<string, string>,
   designation: RefDesignation, remote: RefRemoteDesignation, requested: readonly HistoryRef[],
-  options: RefMergeOptions, previous: ReadonlyMap<string, string> = new Map()): Promise<LifecyclePullResult> {
+  options: RefMergeOptions & Pick<CapturedRefMergeOptions, "withheld">, previous: ReadonlyMap<string, string> = new Map()): Promise<LifecyclePullResult> {
   return mergeCapturedRefState(context, incoming, requested, { ...options, previous,
     acquireHistories: async (histories) => {
       const fetched = await fetchRefHistories(context, remote, designation, histories, context.syncDeadline?.signal);
@@ -34,6 +34,8 @@ export async function mergePulledRefState(context: RefBackendContext, incoming: 
 /** A copy already acquired its complete source; a pull can acquire histories as lifecycle records reveal them. */
 export interface CapturedRefMergeOptions extends RefMergeOptions {
   previous?: ReadonlyMap<string, string>;
+  /** Refs a fetch could not apply, held in the source at their tips before it for end detection and never merged. */
+  withheld?: ReadonlyMap<string, string>;
   /** A copy captures its isolated destination as logical state refs. */
   capture?: () => Promise<Map<string, string>>;
   acquireHistories?: (histories: readonly HistoryRef[]) => Promise<
@@ -47,7 +49,8 @@ export async function mergeCapturedRefState(context: RefBackendContext, incoming
   const published = refEndPublished(context, incoming, previous);
   let held = await captureMergeRefs(context, options);
   const corrupt = await readCorruptArchiveBatchRefs(context, held, new Map([...previous, ...incoming]));
-  const shared = new Map([...incoming].filter(([ref]) => !isItem(ref)));
+  const merging = (ref: string): boolean => !isWithheld(ref, incoming, options.withheld);
+  const shared = new Map([...incoming].filter(([ref]) => !isItem(ref) && merging(ref)));
   const first = await mergeRefSets(context, held, shared, options);
   if (first.status === "restart") return first;
   let state = await captureMergeRefs(context, options);
@@ -66,13 +69,14 @@ export async function mergeCapturedRefState(context: RefBackendContext, incoming
   }
   pending = await resolvePendingRefEnds(context, pending, held, incoming);
   const histories = new Set<string>([...requested, ...discovered.map(({ history }) => history)]);
-  const items = new Map([...incoming].filter(([ref]) => isItem(ref)
+  const items = new Map([...incoming].filter(([ref]) => isItem(ref) && merging(ref)
     && !corrupt.refs.has(ref) && !corrupt.refs.has(ref.replace("refs/arc/", "refs/arc/history/"))
     && !pending.some(({ live, history }) => ref === live || ref === history)
     && (!ref.startsWith("refs/arc/history/") || histories.has(ref))));
   const notices: PullNotice[] = [...corrupt.notices, ...first.notices, ...withdrawn.notices];
   for (const { history, owner } of new Map([...pending, ...completed].map((item) => [item.history, item])).values()) {
     const tip = incoming.get(history);
+    if (!merging(history)) continue;
     if (tip) items.set(history, tip);
     else notices.push({ kind: "end-pending", item: owner, ref: history,
       condition: "The end record is present but the state remote has no retained history for this item.",
@@ -114,6 +118,12 @@ async function withdrawEndBatches(context: RefBackendContext, held: Map<string, 
 }
 
 function isItem(ref: string): boolean { return /^refs\/arc\/(?:history\/)?(?:work|cohort)\//u.test(ref); }
+
+/** A withheld ref stays out of merges while the source still holds it at the tip it had before the fetch. */
+export function isWithheld(ref: string, incoming: ReadonlyMap<string, string>, withheld: ReadonlyMap<string, string> = new Map()): boolean {
+  const tip = withheld.get(ref);
+  return tip !== undefined && incoming.get(ref) === tip;
+}
 
 /** Replace named history observations with only the exact tips this fetch reported. */
 export function captureFetchedHistories(incoming: Map<string, string>, histories: readonly HistoryRef[], remote: string,

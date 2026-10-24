@@ -11,7 +11,8 @@ import { RecordReferenceSchema } from "../identity.js";
 export interface UnpublishedRefCommit { revision: string; parent: string | null; batch: string }
 
 /** Index every reachable unpublished commit, including merged branches of state history. */
-export async function readUnpublishedRefBatches(context: RefBackendContext, listing: { local: ReadonlyMap<string, string>; tracking: ReadonlyMap<string, string>; changes: readonly PushRefChange[]; pending?: ReadonlySet<string> }): Promise<Map<string, UnpublishedRefCommit[]>> {
+export async function readUnpublishedRefBatches(context: RefBackendContext, listing: { local: ReadonlyMap<string, string>; tracking: ReadonlyMap<string, string>;
+  changes: readonly PushRefChange[]; pending?: ReadonlySet<string>; kept?: ReadonlyMap<string, string> }): Promise<Map<string, UnpublishedRefCommit[]>> {
   const result = new Map<string, UnpublishedRefCommit[]>();
   const changed = new Map([...listing.changes.map(({ ref, next }) => [ref, next] as const),
     ...[...listing.pending ?? []].map((ref) => [ref, listing.local.get(ref)] as const)]);
@@ -22,8 +23,8 @@ export async function readUnpublishedRefBatches(context: RefBackendContext, list
     const family = viewRefFamily(ref.replace("refs/arc/history/", "refs/arc/"));
     const reference = family ? refPrototype(context, ref, family)
       : RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } });
-    const tracking = listing.tracking.get(ref);
-    const { stdout } = await context.exec("git", ["log", "--format=%H %P%n%B%x00", tip, ...tracking ? [`^${tracking}`] : []],
+    const published = listing.tracking.get(ref) ?? listing.kept?.get(ref);
+    const { stdout } = await context.exec("git", ["log", "--format=%H %P%n%B%x00", tip, ...published ? [`^${published}`] : []],
       { cwd: context.checkoutRoot, objectAccess: "local-only" });
     const commits = stdout.split("\0").flatMap((block) => {
       const [header = "", ...message] = block.trimStart().split("\n"), [revision, parent] = header.split(" ");

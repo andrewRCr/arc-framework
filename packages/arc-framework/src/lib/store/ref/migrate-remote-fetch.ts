@@ -3,13 +3,12 @@ import { createHash } from "node:crypto";
 import { parseFetchPorcelain, type FetchOutcome } from "../../git/fetch.js";
 import { normalizeGitRejection } from "../../git/process-error.js";
 import { PASSIVE_REMOTE_INTERACTION } from "../../git/remote-ref-reader.js";
-import { gitRefLockArgs } from "../../git/ref-transaction.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import type { RefBackendContext } from "./context.js";
 import type { MoveRemote } from "./migrate-record.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { requireLayoutTransaction } from "./migrate-layout-build.js";
-import { refFetchNegotiation } from "./fetch-target.js";
+import { refFetchArgs, refFetchNegotiation } from "./fetch-target.js";
 import { refFetchNeedsCompleteness, missingRefFetchObjects, RefFetchIncompleteError } from "./fetch-completeness.js";
 import { isManifestRef } from "./manifest.js";
 import { HistoryRefSchema } from "../refusal.js";
@@ -29,9 +28,8 @@ export async function fetchMigrationRemote(context: RefBackendContext, remote: M
   await clearMigrationRefs(context, prefix);
   const patterns = complete ? ["work/*", "cohort/*", "archive/*", "project/*", "user/*", "history/work/*", "history/cohort/*"]
     : (options?.controls ?? ["registry", "moved"]).map(control => `project/${control}*`);
-  const args = [...gitRefLockArgs(), "-c", `remote.${remote.name}.negotiationInclude=`, "fetch", "--refmap=", "--no-tags", "--no-filter",
-    "--no-write-fetch-head", "--prune", "--show-forced-updates", "--porcelain", "--verbose", ...await refFetchNegotiation(context, await context.identity()),
-    "--", remote.fetchUrl, ...patterns.map(pattern => `+refs/arc/${pattern}:${prefix}${pattern}`)];
+  const args = refFetchArgs(remote.name, await refFetchNegotiation(context, await context.identity()), remote.fetchUrl,
+    patterns.map(pattern => `+refs/arc/${pattern}:${prefix}${pattern}`));
   let fetched = await runMigrationFetch(context, args, remote);
   if (await refFetchNeedsCompleteness(context) && (await missingRefFetchObjects(context, fetched)).length) {
     const at = args.indexOf("fetch");
@@ -44,13 +42,14 @@ export async function fetchMigrationRemote(context: RefBackendContext, remote: M
 }
 
 async function runMigrationFetch(context: RefBackendContext, args: string[], remote: MoveRemote): Promise<Extract<FetchOutcome, { status: "refs" }>> {
-  let fetched: FetchOutcome;
+  let fetched: FetchOutcome, failed = false;
   try { fetched = parseFetchPorcelain(await context.exec("git", args, { cwd: context.checkoutRoot,
     diagnosticLocale: "stable", interaction: PASSIVE_REMOTE_INTERACTION, preserveOutput: true })); }
-  catch (error) { fetched = parseFetchPorcelain(normalizeGitRejection(error, { command: "git", args })); }
+  catch (error) { failed = true; fetched = parseFetchPorcelain(normalizeGitRejection(error, { command: "git", args })); }
   if (fetched.status === "unreachable") throw new MigrationRefusal({ code: "store", refusal: { code: "unreachable", class: "recoverable", cause: fetched.cause,
     condition: fetched.stderr || `Could not fetch migration remote ${remote.name}.`, remedy: { text: `Repair access to ${remote.name} and retry arc store migrate.` } } });
-  if (fetched.refs.some(row => row.flag === "!")) throw new MigrationRefusal({ code: "store", refusal: { code: "refused", class: "terminal",
+  // Rows printed before a failure do not show what the gathering kept, so the read failed whatever they say.
+  if (failed || fetched.refs.some(row => row.flag === "!")) throw new MigrationRefusal({ code: "store", refusal: { code: "refused", class: "terminal",
     message: fetched.stderr || "The migration fetch refused a temporary ref update.", condition: fetched.stderr || "The migration fetch refused a temporary ref update.", remedy: { text: "Repair the temporary ref lock, then retry arc store migrate." } } });
   return fetched;
 }

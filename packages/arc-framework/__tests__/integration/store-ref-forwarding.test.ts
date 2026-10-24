@@ -82,6 +82,11 @@ it("refuses a read source that carries a forwarding record without adopting its 
   expect(result.pulls).toContainEqual(expect.objectContaining({ remote: "upstream", role: "read", status: "failed", failure: expect.objectContaining({
     code: "refused", class: "terminal", remedy: expect.objectContaining({ text: expect.stringContaining("arc store migrate") }),
   }) }));
+  const failed = result.pulls.find(pull => pull.remote === "upstream");
+  if (failed?.status !== "failed") throw new Error("Expected the read source's pull to fail");
+  for (const route of ["arc store remote upstream off", "git remote add upstream-state", "arc store remote upstream-state read"]) {
+    expect(failed.failure.remedy.text).toContain(route);
+  }
   expect(success(await h.a.store.version())).toBe(before);
   await h.remote("git", ["update-ref", "-d", forwardingRef]);
   expect(success(await h.a.store.pull()).pulls.some(pull => pull.status === "failed")).toBe(false);

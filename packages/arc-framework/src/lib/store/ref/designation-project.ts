@@ -3,14 +3,14 @@
 import { parseFetchPorcelain, type FetchOutcome } from "../../git/fetch.js";
 import { normalizeGitRejection } from "../../git/process-error.js";
 import { PASSIVE_REMOTE_INTERACTION } from "../../git/remote-ref-reader.js";
-import { gitRefLockArgs, updateRefTransaction } from "../../git/ref-transaction.js";
+import { updateRefTransaction } from "../../git/ref-transaction.js";
 import type { PullOutcome } from "../sync.js";
 import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
 import { bindRefRepository } from "./repository-context.js";
 import { readRefRepository } from "./repository.js";
-import { refFetchTarget, refFetchNegotiation } from "./fetch-target.js";
+import { refFetchArgs, refFetchTarget, refFetchNegotiation } from "./fetch-target.js";
 import { readBatchObjects } from "./batch-read.js";
 import { projectIdentityQueries, projectOwnerFromObjects } from "./project-identity.js";
 import { refFetchNeedsCompleteness, missingRefFetchObjects, RefFetchIncompleteError } from "./fetch-completeness.js";
@@ -79,9 +79,8 @@ async function clearProjectCheck(context: RefBackendContext, prefix: string): Pr
 async function fetchProjectCheck(context: RefBackendContext, remote: RefRemoteDesignation, designation: RefDesignation,
   prefix: string, observed: Map<string, string>): Promise<{ status: "ok"; registry?: string; moved?: string } | { status: "failed"; failure: ProjectFailure }> {
   const target = remote.repository === "backing" && designation.backing?.url !== remote.url ? remote.url : await refFetchTarget(context, remote, designation);
-  const args = [...gitRefLockArgs(), "-c", `remote.${remote.name}.negotiationInclude=`, "fetch", "--refmap=", "--no-tags", "--no-filter",
-    "--prune", "--show-forced-updates", "--porcelain", "--verbose", ...await refFetchNegotiation(context, await context.identity()), "--", target,
-    `+refs/arc/project/registry*:${prefix}registry*`, `+refs/arc/project/moved*:${prefix}moved*`];
+  const args = refFetchArgs(remote.name, await refFetchNegotiation(context, await context.identity()), target,
+    [`+refs/arc/project/registry*:${prefix}registry*`, `+refs/arc/project/moved*:${prefix}moved*`]);
   const completed = await completeProjectFetch(context, args, await runProjectFetch(context, args, observed), observed);
   if ("failure" in completed) return completed;
   const { fetched, rejected } = completed;

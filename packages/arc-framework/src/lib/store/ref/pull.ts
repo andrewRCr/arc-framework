@@ -21,10 +21,10 @@ import { RefFetchKeeperLockError } from "./fetch-keeper-lock.js";
 import { RefFetchIncompleteError } from "./fetch-completeness.js";
 import { readSyncRefs } from "./sync-graph.js";
 import type { RefMergeOptions } from "./sync-merge.js";
-import { mergePulledRefState, captureFetchedHistories } from "./sync-pull-lifecycle.js";
+import { mergePulledRefState, captureFetchedHistories, isWithheld } from "./sync-pull-lifecycle.js";
 import { isManifestRef } from "./manifest.js";
 import { HistoryRefSchema } from "../refusal.js";
-import { FORWARDING_REF, readForwardingRecord, forwardingFollowRemedy } from "./forwarding-record.js";
+import { FORWARDING_REF, readForwardingRecord, forwardingFollowRemedy, readSourceForwardingRemedy } from "./forwarding-record.js";
 
 /** Fetch only explicitly designated state sources into this store's tracking namespace. */
 export async function pullRefStore(context: RefBackendContext, input: PullInput = {},
@@ -94,12 +94,11 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
       message: "The read source was fetched, but its project identity could not be adopted.",
       condition: adopted.refusal.condition, remedy: adopted.refusal.remedy } };
     observed.changed ||= adopted.result;
-    const incoming = new Map([...fetchedTips].map(([ref, tip]) =>
-      [`refs/arc/${ref.slice(prefix.length)}`, tip] as const).filter(([ref]) => (isManifestRef(ref) || HistoryRefSchema.safeParse(ref).success)
-        && !fetched.notices.some((notice) => "ref" in notice && notice.ref === ref)));
+    const { incoming, refused } = fetchedSource(prefix, fetchedTips, fetched.notices);
     captureFetchedHistories(incoming, input.history ?? [], remote.name, fetched);
+    const withheld = withholdRefs(incoming, refused, previous);
     const merged = remote.role === "push" ? await mergePulledRefState(context, incoming, designation, remote, input.history ?? [], {
-      lock: context.lock, onObserved: (reported) => { notices.push(...reported); },
+      withheld, lock: context.lock, onObserved: (reported) => { notices.push(...reported); },
       onApplied: async (physical, ref, before, after, applied) => {
         observed.changed = true;
         notices.push(...applied); await onApplied?.(physical, ref, before, after, applied);
@@ -108,8 +107,9 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
     if (merged?.status === "restart") return "restart";
     if (merged?.status === "fetch-failed") return failedRemotePull(context, common, merged.fetched.cause, merged.fetched.stderr || "The history fetch failed.", followDue);
     if (merged) {
-      await releaseEndedRefKeepers(context, remote.name, incoming);
-      onMerged?.(remote.name, incoming);
+      const applied = new Map([...incoming].filter(([ref]) => !isWithheld(ref, incoming, withheld)));
+      await releaseEndedRefKeepers(context, remote.name, applied);
+      onMerged?.(remote.name, applied);
     }
     return { ...common, notices: uniqueNotices([...notices, ...merged?.notices ?? []]),
       status: observed.changed || merged?.changed ? "pulled" : "noop" };
@@ -119,6 +119,26 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
     if (!context.syncDeadline?.signal.aborted || !isGitProcessError(error) || error.kind !== "canceled") throw error;
     return failedRemotePull(context, common, "timeout", "The pull deadline expired while applying fetched state; earlier merges remain applied.", followDue);
   }
+}
+
+function stateRef(ref: string): boolean { return isManifestRef(ref) || HistoryRefSchema.safeParse(ref).success; }
+
+/** The fetched state refs a merge reads, less each one whose fetch drew a notice. */
+function fetchedSource(prefix: string, tips: ReadonlyMap<string, string>, notices: readonly PullNotice[]): { incoming: Map<string, string>; refused: Set<string> } {
+  const refused = new Set(notices.flatMap((notice) => "ref" in notice ? [notice.ref] : []));
+  const incoming = new Map([...tips].map(([ref, tip]): [string, string] => [`refs/arc/${ref.slice(prefix.length)}`, tip])
+    .filter(([ref]) => stateRef(ref) && !refused.has(ref)));
+  return { incoming, refused };
+}
+
+/** A ref whose fetch drew a notice still stands, for end detection, where it stood before the fetch; merges leave it. */
+function withholdRefs(incoming: Map<string, string>, refused: ReadonlySet<string>, previous: ReadonlyMap<string, string>): Map<string, string> {
+  const withheld = new Map([...refused].flatMap((ref) => {
+    const tip = previous.get(ref);
+    return tip && stateRef(ref) && !incoming.has(ref) ? [[ref, tip] as const] : [];
+  }));
+  for (const [ref, tip] of withheld) incoming.set(ref, tip);
+  return withheld;
 }
 
 type PullScope = Pick<Extract<PullOutcome, { status: "pulled" | "noop" }>, "remote" | "role" | "families" | "notices">;
@@ -136,7 +156,8 @@ async function readRemoteForwarding(context: RefBackendContext, common: PullScop
   const remedy = forwardingFollowRemedy(common.remote);
   if (common.role === "read") {
     const condition = `Read source ${common.remote} carries ${FORWARDING_REF}; its state moved.`;
-    return { ...common, status: "failed", failure: { code: "refused", class: "terminal", message: condition, condition, remedy } };
+    return { ...common, status: "failed", failure: { code: "refused", class: "terminal", message: condition, condition,
+      remedy: readSourceForwardingRemedy(common.remote) } };
   }
   return { state: { status: "moved", remote: common.remote, remedy },
     ...(common.notices.length ? { partial: { ...common, status: "noop" as const } } : {}) };

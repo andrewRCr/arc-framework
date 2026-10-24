@@ -3,6 +3,7 @@
 import type { RefBackendContext } from "./context.js";
 import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
 import { retryTornRefListing } from "../../git/ref-listing.js";
+import { gitRefLockArgs } from "../../git/ref-transaction.js";
 
 /** Read the target Git uses without importing transport settings from the code repository. */
 export async function refFetchTarget(context: RefBackendContext, remote: RefRemoteDesignation,
@@ -10,6 +11,15 @@ export async function refFetchTarget(context: RefBackendContext, remote: RefRemo
   if (remote.repository === "backing" || remote.name === designation.codeRemote && !context.repository?.gitDir) return remote.name;
   const source = context.repository?.source ?? context;
   return (await source.exec("git", ["remote", "get-url", remote.name], { cwd: context.checkoutRoot })).stdout.trim();
+}
+
+/**
+ * The one argument list a store fetch of named refs runs: no configured refmap, tags, filter, or FETCH_HEAD, which
+ * belongs to the person's own fetches, and per-ref porcelain over forced-update checks.
+ */
+export function refFetchArgs(remote: string, negotiation: readonly string[], target: string, refspecs: readonly string[]): string[] {
+  return [...gitRefLockArgs(), "-c", `remote.${remote}.negotiationInclude=`, "fetch", "--refmap=", "--no-tags", "--no-filter",
+    "--no-write-fetch-head", "--prune", "--show-forced-updates", "--porcelain", "--verbose", ...negotiation, "--", target, ...refspecs];
 }
 
 /** Restrict negotiation to state namespaces actually held by this store. */

@@ -3,11 +3,12 @@
 import type { RefBackendContext } from "./context.js";
 
 /** Run an operation while holding every distinct ref lock and attempt every release before returning. */
-export async function withRefLocks<T>(context: RefBackendContext, refs: Iterable<string>, operation: () => Promise<T>): Promise<T> {
+export async function withRefLocks<T>(context: RefBackendContext, refs: Iterable<string>, operation: () => Promise<T>,
+  waitMs?: number): Promise<T> {
   const releases: (() => Promise<void>)[] = [];
   let outcome: { status: "ok"; value: T } | { status: "error"; error: unknown };
   try {
-    for (const ref of [...new Set(refs)].sort()) releases.push(await context.lock(ref));
+    for (const ref of [...new Set(refs)].sort()) releases.push(await context.lock(ref, waitMs));
     outcome = { status: "ok", value: await operation() };
   } catch (error) { outcome = { status: "error", error }; }
   const settled = await Promise.allSettled(releases.map((release) => release()));

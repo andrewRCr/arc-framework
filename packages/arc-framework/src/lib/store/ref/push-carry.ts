@@ -2,6 +2,7 @@
 
 import { pushRefs, type PushRefChange, type PushOutcome } from "../../git/push.js";
 import { classifyPushOutcome } from "../../git/push-classification.js";
+import { isCompletedGitFailure } from "../../git/process-error.js";
 import type { CarryOutcome, CarryRefusal, PushInput } from "../sync.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefDesignation } from "./designation.js";
@@ -24,14 +25,28 @@ export async function captureRefCarry(context: RefBackendContext, input: PushInp
   const source = context.repository?.source ?? context;
   const designation = await readRefDesignation(source);
   const remote = designation.remotes.find(({ name, repository }) => name === designation.codeRemote && repository === "code")?.name ?? null;
-  const carry: RefCarryPublication = { source, remote, change: { ref: input.ref, next: null, expected: input.expect } };
+  const ref = await fullCarryRef(source, input.ref);
+  const carry: RefCarryPublication = { source, remote, change: { ref, next: null, expected: input.expect } };
   if (!remote) {
-    carry.outcome = { ref: input.ref, status: "refused", reason: "no-push-destination", message: "This clone has no code push destination." };
+    carry.outcome = { ref, status: "refused", reason: "no-push-destination", message: "This clone has no code push destination." };
     return carry;
   }
-  carry.change.next = (await source.exec("git", ["rev-parse", "--verify", `${input.ref}^{commit}`],
+  carry.change.next = (await source.exec("git", ["rev-parse", "--verify", `${ref}^{commit}`],
     { cwd: source.checkoutRoot, objectAccess: "local-only" })).stdout.trim();
   return carry;
+}
+
+/** Git reports a pushed ref by its full name, so a short name is resolved once; anything else stays as given. */
+async function fullCarryRef(source: RefBackendContext, ref: string): Promise<string> {
+  if (ref.startsWith("refs/")) return ref;
+  try {
+    const full = (await source.exec("git", ["rev-parse", "--verify", "--symbolic-full-name", ref],
+      { cwd: source.checkoutRoot, objectAccess: "local-only" })).stdout.trim();
+    return full.startsWith("refs/") ? full : ref;
+  } catch (error) {
+    if (!isCompletedGitFailure(error)) throw error;
+    return ref;
+  }
 }
 
 /** Join only the code repository's own state receiver; separate stores use an ordered code leg. */

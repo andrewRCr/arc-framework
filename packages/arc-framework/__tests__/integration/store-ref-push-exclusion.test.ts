@@ -105,4 +105,26 @@ describe.each(["default", "separate"] as const)("publication exclusion in the %s
     expect(success(await h.a.store.read({ reference: personal })).content).toBe("Pending personal.\n");
     expect(success(await h.b.store.read({ reference: made.reference })).placement?.kind).toBe("completed");
   });
+
+  it("publishes beside an item whose remote end has no retained history when this clone holds no write on it", async () => {
+    const h = await refSyncFixture(layout);
+    const made = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("unwritten"),
+      reference: RecordReferenceSchema.parse({ owner: { type: "work-item", name: "unwritten" }, kind: "work-item/meta" }),
+      placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "start" } }));
+    success(await h.a.store.push()); success(await h.b.store.pull());
+    const remote = success(await h.a.store.read({ reference: made.reference }));
+    success(await h.a.store.write({ action: "put", reference: remote.reference, expected: remote.version, content: remote.content,
+      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
+    success(await h.a.store.push());
+    const live = expandStoredPath(made.reference).ref, history = live.replace("refs/arc/", "refs/arc/history/");
+    await h.remote("git", ["update-ref", "-d", history]);
+    const inbox = RecordReferenceSchema.parse({ owner: { type: "project", name: "project" }, kind: "project-inbox/inbox" });
+    success(await h.b.store.write({ action: "put", reference: inbox, expected: null,
+      content: "# Atomic Inbox\n\n## Inbox\n\nPublished beside the pending end.\n", provenance }));
+    const result = PushResultSchema.parse(success(await h.b.store.push()));
+    expect(result.publishes.every(({ status }) => status !== "failed"), JSON.stringify(result.publishes)).toBe(true);
+    expect(result.publishes.find(({ families }) => families.includes("project-inbox"))?.status).toBe("pushed");
+    expect(result.pulls.flatMap(({ notices }) => notices)).toContainEqual(expect.objectContaining({ kind: "end-pending", ref: history }));
+    expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", live])).stdout).toBe("");
+  });
 });

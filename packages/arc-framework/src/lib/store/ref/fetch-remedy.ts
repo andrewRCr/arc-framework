@@ -1,11 +1,10 @@
 /** Render exact, lease-bound choices for a remote rewrite without choosing one for the caller. */
 
 import { quoteShellArgument } from "../../release/commit-message-retry.js";
-import { gitRefLockArgs } from "../../git/ref-transaction.js";
 import type { Remedy } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
-import { refFetchNegotiation, refFetchTarget, refPushTarget } from "./fetch-target.js";
+import { refFetchArgs, refFetchNegotiation, refFetchTarget, refPushTarget } from "./fetch-target.js";
 import { readSyncRefs } from "./sync-graph.js";
 
 /** Keep every command in the selected store repository and protect later local or remote changes. */
@@ -16,8 +15,7 @@ export async function refFetchRewriteRemedy(context: RefBackendContext, remote: 
   const target = await refFetchTarget(context, remote, designation);
   const tracking = `refs/arc-remotes/${remote.name}/${ref.slice("refs/arc/".length)}`;
   const negotiation = await refFetchNegotiation(context, remote.role === "read" ? null : await context.identity());
-  const fetchArgs = [...gitRefLockArgs(), "-c", `remote.${remote.name}.negotiationInclude=`, "fetch", "--refmap=", "--no-tags",
-    "--no-filter", "--prune", "--show-forced-updates", "--porcelain", "--verbose", ...negotiation, "--", target, `+${ref}:${tracking}`];
+  const fetchArgs = refFetchArgs(remote.name, negotiation, target, [`+${ref}:${tracking}`]);
   const fetch = command(fetchArgs);
   if (remote.role === "read") return { text: `Take theirs (replace the read source’s saved history):\n${fetch}`, argv: [...git, ...fetchArgs] };
   const local = (await readSyncRefs(context, ref)).get(ref);

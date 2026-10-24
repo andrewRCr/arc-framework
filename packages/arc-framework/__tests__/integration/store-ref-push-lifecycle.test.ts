@@ -240,11 +240,12 @@ describe.each(["default", "separate"] as const)("lifecycle publication in the %s
         }
         return h.a.ports.exec(command, args, options);
       } });
-      const sibling = createRefStore({ ...h.a.ports, ...defaults, lock: createRefLockFactory(defaults),
-        rawExec: createExecaRawGitExec(siblingRoot), exec: async (command, args, options) => {
-          const result = await siblingExec(command, args, options);
-          if (args.includes("fetch")) await fetched.arrive();
-          return result;
+      const siblingLock = createRefLockFactory(defaults);
+      // The sibling stops once its fetch has moved the shared tracking ref and released its keepers, before it merges.
+      const sibling = createRefStore({ ...h.a.ports, ...defaults, rawExec: createExecaRawGitExec(siblingRoot), exec: siblingExec,
+        lock: async (name, waitMs) => {
+          const release = await siblingLock(name, waitMs);
+          return async () => { await release(); if (name.includes("/tmp/seen/")) await fetched.arrive(); };
         } });
       const pushing = publisher.push();
       let pulling: ReturnType<typeof sibling.pull> | undefined;

@@ -39,6 +39,17 @@ export function forwardingFollowRemedy(remote: string): Remedy {
     argv: ["arc", "store", "migrate"] };
 }
 
+/** A read source's move also leaves the routes for a contributor who cannot follow it or read where it went. */
+export function readSourceForwardingRemedy(remote: string): Remedy {
+  const follow = forwardingFollowRemedy(remote);
+  return { ...follow, text: [
+    `${follow.text} Answer read for the remote the state moved to.`,
+    `If you cannot read that remote, run arc store remote ${remote} off instead.`,
+    "If the state moved to a backing repository, add it as a remote of the code repository under another name"
+      + ` (git remote add upstream-state <URL>), then run arc store remote ${remote} off and arc store remote upstream-state read.`,
+  ].join(" ") };
+}
+
 /** Construct a standalone control root whose only tree entry is canonical moved.json. */
 export async function writeForwardingRecord(context: RefBackendContext, record: ForwardingRecord): Promise<string> {
   const oid = await writeRefBlob(context, canonicalize(ForwardingRecordSchema.parse(record)));

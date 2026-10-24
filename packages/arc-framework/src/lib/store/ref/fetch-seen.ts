@@ -8,9 +8,20 @@ import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
 import { readSyncRefs, syncRefIsAncestor } from "./sync-graph.js";
 import { refFetchRewriteRemedy } from "./fetch-remedy.js";
 import { rethrowRefFetchKeeperLock } from "./fetch-keeper-lock.js";
+import { withRefLocks } from "./write-locks.js";
+import { REF_SYNC_DEADLINE_MS } from "./sync-deadline.js";
 
 /** Both namespaces are captured before Git can create or prune a tracking ref. */
 export interface RefFetchBasis { tracking: Map<string, string>; seen: Map<string, string> }
+
+/**
+ * Every checkout of the clone shares one remote's keepers, and a pull releases those whose tracking ref survived its
+ * fetch, so a sibling's basis, fetch, and release must not interleave with it: one pull's release would drop a keeper
+ * the other's pruning fetch still needs. A sibling holds the lock for at most its own sync deadline.
+ */
+export async function withRefFetchKeepers<T>(context: RefBackendContext, remote: string, operation: () => Promise<T>): Promise<T> {
+  return withRefLocks(context, [`refs/arc/tmp/seen/${remote}`], operation, REF_SYNC_DEADLINE_MS);
+}
 
 /** Capture tracking and retained heads in one immutable ref listing. */
 export async function readRefFetchBasis(context: RefBackendContext, remote: string, patterns: readonly string[]): Promise<RefFetchBasis> {
@@ -31,14 +42,16 @@ export async function readRefFetchBasis(context: RefBackendContext, remote: stri
   }
 }
 
-/** Drop temporary keepers only where a tracking ref still retains the observed objects. */
+/** Drop temporary keepers only where a tracking ref still retains the observed objects, in one transaction. */
 export async function finishRefFetchBasis(context: RefBackendContext, remote: string, basis: RefFetchBasis): Promise<void> {
   const prefix = `refs/arc-remotes/${remote}/`, current = await readSyncRefs(context, prefix);
-  for (const [ref, tip] of basis.tracking) {
-    if (!current.has(ref) || ref === `${prefix}project/moved`) continue;
-    const retained = `refs/arc/tmp/seen/${remote}/${ref.slice(prefix.length)}`;
-    await updateRefTransaction(context, [{ ref: retained, delete: true, expected: tip }], { cwd: context.checkoutRoot });
-  }
+  const releases = [...basis.tracking].filter(([ref]) => current.has(ref) && ref !== `${prefix}project/moved`)
+    .map(([ref, tip]) => ({ ref: `refs/arc/tmp/seen/${remote}/${ref.slice(prefix.length)}`, delete: true as const, expected: tip }));
+  if (!releases.length) return;
+  const outcome = await updateRefTransaction(context, releases, { cwd: context.checkoutRoot });
+  if (outcome.status === "committed") return;
+  // A keeper another step already moved stays; each other one is still released.
+  for (const release of releases) await updateRefTransaction(context, [release], { cwd: context.checkoutRoot });
 }
 
 /** A returned ref must agree with its kept history until an explicit forced fetch chooses a new basis. */
