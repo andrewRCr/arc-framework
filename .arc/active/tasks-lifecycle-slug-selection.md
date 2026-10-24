@@ -187,30 +187,12 @@ its test is a regression pin that passes before the change; each re-read's faili
   record's reference (`sameReference`, `lib/store/identity.ts`) and resolving its position, guards, and finalization
   under the subject's current name, so a former slug typed as the operand acts on its live holder.
 
-    - `[ ]` **2.6.a The store executor**
+    - `[x]` **2.6.a The store executor**
 
-        - `executeStoreTransition` (`lib/work-unit/lifecycle-store-executor.ts`) selects its subject (`selectPrimary`)
-          first, then resolves position, guards (`validateStoreGuards`), side effects (`prepareStoreSideEffects`), and
-          inventory agreement (`agreesWithInventory`, by reference) under the subject's current name, the operand only
-          for a creation, in a helper that keeps the function within the complexity limit. A clashed subject then meets
-          the store's own refusal rather than the missing-edge rejection the index's lack of its slug would give.
-        - `resumeStoreTransitionFinalization` reads its subject through `readWorkUnit` and finds its entry by that
-          record's reference.
-        - Given a prepared primary (`storeTransition.primary`), which activation, publish, and reopen supply,
-          `selectPrimary` re-reads it by its reference (`store.read`) rather than by name, keeping its version check, so
-          a clash formed during the verb leaves the executor on its own record; without one, it reads the subject
-          through `readWorkUnit` under its current name, as today.
-        - Build `test-first` (one behavior at a time):
-            - with a completed and a live holder of one slug, the executor agrees with the inventory on the live
-              holder's entry and resolves its position
-            - a former slug typed as the operand resolves position, guards, and inventory agreement under the live
-              holder's current name, and passes the worktree-occupancy guard in the live holder's own checkout
-            - over the clash double, a verb on the clashed slug refuses `ambiguous-match` naming both holders
-            - over the clash double's mid-verb mode, the executor given a prepared primary acts on it, where it refuses
-              `ambiguous-match` today
-            - finalization resume reads the live holder's entry under reuse: with the completed holder listed first and
-              the live holder's stored workflow tuple inconsistent, it rejects naming the tuple, where it returns
-              nothing today
+        - The executor selects its primary before transition lookup and uses its current name for position, guards,
+          and side effects. Inventory agreement and finalization match references; prepared primaries reread by
+          reference with version checks and reject unrelated operands. Reuse, aliases with occupancy, clashes,
+          mid-verb preparation, and inconsistent finalization tuples have regression coverage.
 
     - `[ ]` **2.6.b Activation**
 

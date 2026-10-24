@@ -1,12 +1,22 @@
 /** Store-backed transitions retain atomic writes and guard authority without checkout files. */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { executeTransition, type ExecuteTransitionContext } from "../../../src/lib/work-unit/lifecycle-executor.js";
-import { recordPut, batchLifecycleWrites } from "../../../src/lib/store/lifecycle-write.js";
+import { readWorkUnit, recordPut, batchLifecycleWrites } from "../../../src/lib/store/lifecycle-write.js";
 import { runResumePaused } from "../../../src/lib/work-unit/verbs/pause-handover.js";
-import { writeMetaPause } from "../../../src/lib/store/kinds/meta/writers.js";
-import { SlugSchema } from "../../../src/lib/kernel/index.js";
+import { writeMetaCurrentWorkflow, writeMetaTitle, writeMetaPause } from "../../../src/lib/store/kinds/meta/writers.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../../src/lib/kernel/index.js";
 import type { Store } from "../../../src/lib/store/contract.js";
+
+import { createClashDouble } from "../../helpers/store/clash-double.js";
+import { recordKey } from "../../helpers/store/model.js";
+import { OwnerIdentitySchema } from "../../../src/lib/store/identity.js";
+import { writeWorktreeOwnershipMarker } from "../../../src/lib/git/worktree-marker.js";
+import { makeWorktreeOccupancyGuard } from "../../../src/lib/work-unit/lifecycle-guards.js";
+import { resumeStoreTransitionFinalization } from "../../../src/lib/work-unit/lifecycle-store-executor.js";
 
 function context(store: Store): ExecuteTransitionContext {
   const forbidden = async (): Promise<never> => { throw new Error("tracked write fired on the store arm"); };
@@ -102,4 +112,69 @@ it("refuses a concurrent pause between admission reads and publication, then res
     .toMatchObject({ status: "resumed" });
   expect(await executeTransition(context(store), params)).toMatchObject({ status: "ok" });
   expect(lifecycleSuccess(await h.store.read({ reference: original.reference })).fields).toMatchObject({ state: "Integrating", pause: null });
+});
+
+it("promotes the live holder when an archived namesake was listed first", async () => {
+  const h = createLifecycleHarness();
+  const old = await h.seedMeta("shared", { state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const live = await h.seedMeta("shared", { state: "Planning", currentWorkflow: null },
+    { kind: "backlog", commitment: "provisional" });
+  expect(await executeTransition(context(h.store), { verb: "promote", slug: "shared", inputs: { class: "Light" } }))
+    .toMatchObject({ status: "ok" });
+  expect(lifecycleSuccess(await h.store.read({ reference: live.reference })).placement).toEqual({ kind: "backlog", commitment: "planned" });
+  expect(lifecycleSuccess(await h.store.read({ reference: old.reference }))).toEqual(old);
+});
+
+it("starts a former-name operand in its current holder's checkout through the occupancy guard", async () => {
+  const h = createLifecycleHarness();
+  const former = await h.seedMeta("former", { state: "Planning", currentWorkflow: null },
+    { kind: "backlog", commitment: "planned" });
+  const renamed = lifecycleSuccess(await h.store.write({ ...recordPut(former, { content: writeMetaTitle(former.content, SlugSchema.parse("current")) }),
+    reference: { ...former.reference, owner: OwnerIdentitySchema.parse({ ...former.reference.owner, name: "current" }) },
+    provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  const cwd = await mkdtemp(join(tmpdir(), "arc-executor-alias-"));
+  onTestFinished(() => rm(cwd, { recursive: true, force: true }));
+  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name: "current" }, spawningIdentity: "test-user" });
+  const ctx = { ...context(h.store), cwd, guardValidators: { "worktree-occupancy": makeWorktreeOccupancyGuard({ cwd, store: h.store,
+    readActiveMetaCandidates: async () => { throw Error("Store occupancy must use its marker"); } }) } };
+  const outcome = await executeTransition(ctx, { verb: "start", slug: "former", inputs: { class: "Light", currentWorkflowOverride: "draft-design", storeTransition: {
+    gitSteps: [{ name: "start-checkout", retryCommand: ["arc", "start", "current"], run: async () => {}, rollback: async () => {} }],
+  } } });
+  expect(outcome, JSON.stringify(outcome)).toMatchObject({ status: "ok" });
+  expect(lifecycleSuccess(await h.store.read({ reference: renamed.reference })).placement).toEqual({ kind: "active" });
+});
+
+it("retains the store's candidates when the subject name is clashed", async () => {
+  const h = createLifecycleHarness();
+  const first = await h.seedMeta("first"), second = await h.seedMeta("second");
+  const store = createClashDouble(h.store, { slug: "clashed", holders: [first.reference, second.reference] });
+  expect(await executeTransition(context(store), { verb: "promote", slug: "clashed", inputs: { class: "Light" } }))
+    .toMatchObject({ status: "rejected", stage: "store", refusal: { code: "ambiguous-match", candidates: [
+      { ...first.reference, owner: { ...first.reference.owner, name: "clashed" } },
+      { ...second.reference, owner: { ...second.reference.owner, name: "clashed" } },
+    ] } });
+});
+
+it("keeps a prepared primary after the name becomes clashed during the verb", async () => {
+  const h = createLifecycleHarness();
+  const first = await h.seedMeta("shared", { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "provisional" });
+  const second = await h.seedMeta("second");
+  const store = createClashDouble(h.store, { slug: "shared", holders: [first.reference, second.reference], mode: "mid-verb" });
+  const primary = lifecycleSuccess(await readWorkUnit(store, "shared"));
+  expect(await executeTransition(context(store), { verb: "promote", slug: "shared", inputs: { class: "Light", storeTransition: { primary } } }))
+    .toMatchObject({ status: "ok" });
+  expect(lifecycleSuccess(await h.store.read({ reference: first.reference })).placement).toEqual({ kind: "backlog", commitment: "planned" });
+  expect(lifecycleSuccess(await h.store.read({ reference: second.reference }))).toEqual(second);
+});
+
+it("resumes finalization from the live namesake's inconsistent stored tuple", async () => {
+  const h = createLifecycleHarness();
+  await h.seedMeta("shared", { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const live = await h.seedMeta("shared");
+  const saved = h.store.state.records.get(recordKey(live.reference));
+  if (saved === undefined) throw Error("Missing live holder");
+  saved.content = writeMetaCurrentWorkflow(live.content, "integrate-work-unit");
+  expect(await resumeStoreTransitionFinalization({ ...context(h.store), store: h.store }, "shared"))
+    .toMatchObject({ status: "rejected", stage: "store", message: expect.stringContaining('Current Workflow "integrate-work-unit"') });
 });

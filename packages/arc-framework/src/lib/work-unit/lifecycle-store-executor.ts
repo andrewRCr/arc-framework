@@ -7,6 +7,9 @@ import { readLifecycleView } from "../store/lifecycle-view.js";
 import { requireCompleteInventory } from "../store/lifecycle-storage.js";
 import { readWorkUnit, recordPut, batchLifecycleWrites } from "../store/lifecycle-write.js";
 import { writeMetaState, writeMetaClass, writeMetaCurrentWorkflow, writeMetaNextAction } from "../store/kinds/meta/writers.js";
+import type { LifecycleEntry } from "../store/lifecycle-index.js";
+import type { LifecycleIndex } from "./lifecycle-index.js";
+import type { LifecyclePosition } from "./lifecycle-state.js";
 import type { Store } from "../store/contract.js";
 import type { StoreRecord } from "../store/read.js";
 import type { Mutation } from "../store/write.js";
@@ -32,19 +35,14 @@ export async function executeStoreTransition(
   ctx: ExecuteTransitionContext & { store: Store },
   params: { verb: Verb; slug: string; inputs: TransitionInputs },
 ): Promise<TransitionOutcome> {
-  const { verb, slug, inputs } = params;
+  const { verb, inputs } = params;
   const view = await readLifecycleView(ctx.store);
   if (view.status === "refused") return { status: "rejected", stage: "store", message: view.refusal.condition, refusal: view.refusal };
   try { requireCompleteInventory(ctx.store, view.result.listing); }
   catch (error) { return { status: "rejected", stage: "guard", message: String(error) }; }
-  const position = resolveSlugPosition(view.result.index, slug);
-  const edge = resolveTransitionEdge(verb, position, inputs.commitment);
-  if (edge === undefined) return { status: "rejected", stage: "lookup", message: transitionLookupRejection(verb, position) };
-  const basis = await selectPrimary(ctx.store, slug, inputs.storeTransition?.create, inputs.storeTransition?.primary);
-  if (basis !== undefined && "status" in basis) return basis;
-  if (!agreesWithInventory(basis, view.result.entries, slug)) {
-    return { status: "rejected", stage: "store", message: `The work unit changed during transition preparation; retry arc ${verb} ${slug}.` };
-  }
+  const selected = await selectTransitionSubject(ctx.store, params, view.result);
+  if ("status" in selected) return selected;
+  const { basis, slug, position, edge } = selected;
   const guardFailure = await validateStoreGuards(ctx, edge, view.result.index, slug, position, inputs, basis);
   if (guardFailure !== undefined) return guardFailure;
   const inputFailure = validateStoreInputs(edge, inputs);
@@ -69,10 +67,27 @@ export async function executeStoreTransition(
     ...((sequence.continuation ?? continuation) === undefined ? {} : { continuation: sequence.continuation ?? continuation }) };
 }
 
-function agreesWithInventory(basis: StoreRecord | undefined, entries: readonly import("../store/lifecycle-index.js").LifecycleEntry[], slug: string): boolean {
+async function selectTransitionSubject(store: Store, params: { verb: Verb; slug: string; inputs: TransitionInputs },
+  view: { entries: readonly LifecycleEntry[]; index: LifecycleIndex }): Promise<Rejected | {
+    basis: StoreRecord | undefined; slug: string; position: LifecyclePosition | null; edge: TransitionRecord;
+  }> {
+  const { verb, inputs } = params;
+  const basis = await selectPrimary(store, params.slug, inputs.storeTransition?.create, inputs.storeTransition?.primary);
+  if (basis !== undefined && "status" in basis) return basis;
+  const slug = basis?.reference.owner.name ?? params.slug;
+  const position = resolveSlugPosition(view.index, slug);
+  const edge = resolveTransitionEdge(verb, position, inputs.commitment);
+  if (edge === undefined) return { status: "rejected", stage: "lookup", message: transitionLookupRejection(verb, position) };
+  if (!agreesWithInventory(basis, view.entries)) return {
+    status: "rejected", stage: "store", message: `The work unit changed during transition preparation; retry arc ${verb} ${slug}.`,
+  };
+  return { basis, slug, position, edge };
+}
+
+function agreesWithInventory(basis: StoreRecord | undefined, entries: readonly LifecycleEntry[]): boolean {
   if (basis === undefined) return true;
-  const indexed = entries.find((entry) => entry.reference.owner.name === slug);
-  return indexed !== undefined && sameReference(indexed.reference, basis.reference) && indexed.version === basis.version;
+  const indexed = entries.find((entry) => sameReference(entry.reference, basis.reference));
+  return indexed !== undefined && indexed.version === basis.version;
 }
 
 function validateStoreInputs(edge: TransitionRecord, inputs: TransitionInputs): Rejected | undefined {
@@ -187,11 +202,12 @@ async function selectPrimary(store: Store, slug: string, creation: Extract<Mutat
     if (primary !== undefined || creation.reference.kind !== "work-item/meta" || creation.reference.owner.name !== slug
       || creation.expected !== null) return { status: "rejected", stage: "inputs", message: "Creation must name the selected work unit's absent meta." };
   } else {
-    const read = await readWorkUnit(store, slug);
-    if (read.status === "refused") return { status: "rejected", stage: "store", message: read.refusal.condition, refusal: read.refusal };
-    if (primary !== undefined && !sameReference(primary.reference, read.result.reference)) {
+    if (primary !== undefined && (primary.reference.kind !== "work-item/meta"
+      || (primary.reference.owner.name !== slug && !primary.aliases?.some(alias => alias === slug)))) {
       return { status: "rejected", stage: "inputs", message: "The prepared primary does not belong to the selected work unit." };
     }
+    const read = primary === undefined ? await readWorkUnit(store, slug) : await store.read({ reference: primary.reference });
+    if (read.status === "refused") return { status: "rejected", stage: "store", message: read.refusal.condition, refusal: read.refusal };
     if (primary !== undefined && primary.version !== read.result.version) {
       return { status: "rejected", stage: "store", message: "The prepared primary changed; restart the lifecycle command to prepare it again." };
     }
@@ -206,7 +222,9 @@ export async function resumeStoreTransitionFinalization(ctx: ExecuteTransitionCo
   if (view.status === "refused") return { status: "rejected", stage: "store", message: view.refusal.condition, refusal: view.refusal };
   try { requireCompleteInventory(ctx.store, view.result.listing); }
   catch (error) { return { status: "rejected", stage: "guard", message: String(error) }; }
-  const entry = view.result.entries.find((candidate) => candidate.reference.owner.name === slug);
+  const selected = await readWorkUnit(ctx.store, slug);
+  if (selected.status === "refused") return { status: "rejected", stage: "store", message: selected.refusal.condition, refusal: selected.refusal };
+  const entry = view.result.entries.find((candidate) => sameReference(candidate.reference, selected.result.reference));
   if (entry === undefined) return null;
   const fields = ParsedMetaRecordSchema.parse(entry.fields);
   const problems = checkCurrentWorkflowConsistency(fields);
