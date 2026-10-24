@@ -18,7 +18,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import * as p from "../lib/terminal.js";
-import { refuse } from "./lifecycle-shared.js";
+import { refuse, renderRefusalCandidate } from "./lifecycle-shared.js";
 import { z } from "zod";
 
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
@@ -273,6 +273,7 @@ function emitConflict(opts: WuReconcileOptions, slug: string, reason: string, re
 }
 
 function emitHuman(envelope: ReconcileEnvelope): void {
+  emitHeldDependencies(envelope.dependency.held);
   if (envelope.status === "clean") {
     p.log.success(`Work unit \`${envelope.slug}\` has no pending reconcile.`);
     return;
@@ -291,6 +292,14 @@ function emitHuman(envelope: ReconcileEnvelope): void {
     + `${envelope.trackedReferences.edits.length} tracked reference edit(s); `
     + `${envelope.advisories.length} advisory finding(s).`,
   );
+}
+
+function emitHeldDependencies(held: ReconcileEnvelope["dependency"]["held"]): void {
+  for (const item of held ?? []) {
+    const holders = item.candidates.map(renderRefusalCandidate).join("; ");
+    p.log.warn(`Held dependency \`${item.edge}\` at \`${item.name}\`.`
+      + `${holders === "" ? "" : ` Holders: ${holders}.`} ${item.repair.text}`);
+  }
 }
 
 const nodeLifecycleFs: LifecycleIndexFs = {

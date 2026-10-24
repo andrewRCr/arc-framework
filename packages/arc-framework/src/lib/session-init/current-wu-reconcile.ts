@@ -19,6 +19,7 @@ import {
   prepareCurrentWuReconcile,
   type CurrentWuReconcileOp,
   type CurrentWuReconcilePrepareContext,
+  type HeldDependencyEdge,
 } from "../work-unit/side-effects/discharge-dep-edges.js";
 /** Current-WU reconcile probe input. */
 export type CurrentWuReconcileSessionOp = Omit<CurrentWuReconcileOp, "apply"> & { checkoutPath: string };
@@ -88,12 +89,7 @@ function projectCurrentWuResult(result: Awaited<ReturnType<typeof prepareCurrent
       recommendedCommand: hasTrackedEdits
         ? ["arc", "wu", "reconcile", op.slug, "--apply", "--json"]
         : ["arc", "wu", "reconcile", op.slug, "--json"],
-      recommendedPromptText: hasTrackedEdits
-        ? `Current work unit \`${op.slug}\` has pending tracked reconcile edits. `
-          + `Apply them in its own review increment with `
-          + `\`arc wu reconcile ${op.slug} --apply --json\`.`
-        : `Current work unit \`${op.slug}\` has advisory reference findings. `
-          + `Inspect them with \`arc wu reconcile ${op.slug} --json\`.`,
+      recommendedPromptText: pendingPromptText(op.slug, hasTrackedEdits, result.prepared.plan.dependency.held),
     };
   }
   return {
@@ -110,6 +106,15 @@ function projectCurrentWuResult(result: Awaited<ReturnType<typeof prepareCurrent
       `Current work unit \`${op.slug}\` reconcile is blocked (${result.reason}). `
       + `Inspect with \`arc wu reconcile ${op.slug} --json\` before applying tracked repairs.`,
   };
+}
+
+function pendingPromptText(slug: string, hasTrackedEdits: boolean, held: readonly HeldDependencyEdge[] = []): string {
+  const heldNames = [...new Set(held.map(item => item.edge))].map(edge => `\`${edge}\``).join(", ");
+  if (hasTrackedEdits) return `Current work unit \`${slug}\` has pending tracked reconcile edits. `
+    + `Apply them in its own review increment with \`arc wu reconcile ${slug} --apply --json\`.`
+    + (heldNames === "" ? "" : ` It also has held dependency edges: ${heldNames}.`);
+  const findings = heldNames === "" ? "advisory reference findings" : `held dependency edges: ${heldNames}`;
+  return `Current work unit \`${slug}\` has ${findings}. Inspect them with \`arc wu reconcile ${slug} --json\`.`;
 }
 
 function unavailable(slug: string, condition: string, actions: { text: string }[]): CurrentWuReconcileSessionResult {

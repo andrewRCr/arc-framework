@@ -404,15 +404,10 @@ cohort over the reference backend directly.
           name before substitution, retaining the original edge on a clash. Held edges permit activation and attested
           publication without being discharged.
 
-    - `[ ]` **3.5.b Surfacing it**
+    - `[x]` **3.5.b Surfacing it**
 
-        - Session start's projection (`projectCurrentWuResult`, `lib/session-init/current-wu-reconcile.ts`) surfaces a
-          held edge with its inspect action and a prompt naming the held edges; `arc wu reconcile` prints each with its
-          holders and repair through a helper `emitHuman` (`handlers/reconcile.ts`) calls, and carries the list whole in
-          `--json` (`toEnvelope`).
-        - Build `test-first` (one behavior at a time):
-            - session start's reconcile slot is `pending` and its prompt names the held edge
-            - `arc wu reconcile` prints the held edge with its holders and repair, and `--json` carries the list
+        - Session prompts name held edges and offer inspection. Human reconcile output prints every held edge with its
+          typed holders and repair through the shared candidate renderer; JSON retains the complete held list.
 
     - `[ ]` **3.5.c Abandon's impact plan**
 

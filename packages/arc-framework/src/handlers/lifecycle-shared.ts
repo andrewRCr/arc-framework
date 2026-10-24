@@ -190,7 +190,8 @@ export function refuse(reason: string, refusal?: StoreRefusal, remedy?: Remedy):
 const holderLabels: Partial<Record<RecordReference["kind"], string>> = {
   "work-item/meta": "work unit", "work-item/record": "Errand", "cohort/document": "cohort",
 };
-function renderRefusalCandidate(reference: RecordReference): string {
+/** Render a selected holder's lifecycle type, current name, and generation. */
+export function renderRefusalCandidate(reference: RecordReference): string {
   const label = holderLabels[reference.kind] ?? reference.kind;
   const uid = reference.owner.type === "person" ? undefined : reference.owner.uid;
   return `${label} \`${reference.owner.name}\` (UID ${uid ?? "unavailable"})`;
