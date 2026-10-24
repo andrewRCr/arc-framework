@@ -177,7 +177,7 @@ export async function resolveVerbTargetOrReport(
 
   const view = usesOffBranchState(store) && store !== undefined ? await readLifecycleView(store) : undefined;
   if (view?.status === "refused") {
-    refuseWithRemedy(view.refusal.condition, view.refusal.remedy, json);
+    refuseWithRemedy(view.refusal.condition, view.refusal.remedy, json, view.refusal);
     return null;
   }
   const index = view?.status === "ok" ? view.result.index : await buildLifecycleIndex({ cwd, fs: lifecycleFs });
@@ -205,7 +205,7 @@ async function canonicalVerbTarget(slug: string, store: Store | undefined, json:
   const read = await readWorkUnit(store, slug);
   if (read.status === "ok") return read.result.reference.owner.name;
   if (read.refusal.code === "not-found") return slug;
-  refuseWithRemedy(read.refusal.condition, read.refusal.remedy, json);
+  refuseWithRemedy(read.refusal.condition, read.refusal.remedy, json, read.refusal);
   return null;
 }
 
@@ -1422,7 +1422,7 @@ export async function resolvePublicationTarget(base: Pick<VerbBase, "cwd" | "sto
 }
 function publicationRecordTarget(read: StoreResult<StoreRecord>, json: boolean): PublicationTarget | null {
   if (read.status === "ok") return { name: read.result.reference.owner.name, record: read.result };
-  refuseWithRemedy(read.refusal.condition, read.refusal.remedy, json);
+  refuseWithRemedy(read.refusal.condition, read.refusal.remedy, json, read.refusal);
   return null;
 }
 

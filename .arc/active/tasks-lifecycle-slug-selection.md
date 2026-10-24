@@ -316,20 +316,11 @@ cohort over the reference backend directly.
           by record kind. Former ties name current names; completed ties list UIDs without a lifecycle move. Only a
           concrete Errand close supplies its action argv; the other cases use `arc status --json`.
 
-    - `[ ]` **3.1.b The shared preamble and its schema**
+    - `[x]` **3.1.b The shared preamble and its schema**
 
-        - `LifecycleCommandRefusalSchema` (`handlers/lifecycle-shared.ts`) gains an optional `refusal: StoreRefusal` in
-          place, under the pre-public compatibility posture, and `refuseWithRemedy` takes it as an optional fourth
-          parameter, its other callers unchanged. Its `--json` form carries the store refusal whole, with
-          `clashRepair`'s `Remedy` as its `remedy`; its text form renders through `refuse`.
-        - `canonicalVerbTarget` and `resolvePublicationTarget` (`handlers/lifecycle.ts`) pass the refusal, for a verb
-          resolving its subject with an operand and for a context-defaulting verb without one, whose checkout's current
-          work unit's name (`resolveCurrentWuSlug`) `canonicalVerbTarget` canonicalizes too.
-        - Build `test-first` (one behavior at a time):
-            - a verb naming a clashed slug refuses before any entry read, its `--json` carrying the store refusal with
-              both holders' references and the `tie`, and the repair as its remedy
-            - a refusal with no store refusal parses as today's, and `lifecycle-verbs.test.ts` and
-              `history-shape-ambiguity.test.ts` pass unchanged
+        - The lifecycle refusal schema carries optional complete store evidence. Shared target admission and
+          `publicationRecordTarget` forward it to `refuseWithRemedy`, whose JSON envelope keeps candidate references
+          and tie facts and uses the derived repair. Existing spine remedies retain their schema and behavior.
 
     - `[ ]` **3.1.c The shared text renderer**
 

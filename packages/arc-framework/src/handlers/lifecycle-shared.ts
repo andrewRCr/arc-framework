@@ -1,8 +1,8 @@
 /** Ambient context, executor binding, and reporting shared by lifecycle command adapters. */
 
 import { readFile, readdir } from "node:fs/promises";
-import type { Remedy } from "../lib/store/refusal.js";
-import type { StoreRefusal } from "../lib/store/refusal.js";
+import { StoreRefusalSchema, type Remedy, type StoreRefusal } from "../lib/store/refusal.js";
+import { clashRepair } from "../lib/store/clash-repair.js";
 import { quoteShellArgument } from "../lib/release/commit-message-retry.js";
 import { createStore } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
@@ -188,6 +188,7 @@ export const LifecycleCommandRefusalSchema = z.strictObject({
   status: z.literal("rejected"),
   reason: z.string().min(1),
   remedy: SpineRemedySchema,
+  refusal: StoreRefusalSchema.optional(),
 });
 
 /**
@@ -195,16 +196,23 @@ export const LifecycleCommandRefusalSchema = z.strictObject({
  * @param reason - Refusal diagnostic.
  * @param remedy - Exact recovery guidance.
  * @param json - Whether to emit the canonical refusal as JSON.
+ * @param refusal - Complete store evidence, when the refusal came from the store.
  * @returns Nothing.
  */
-export function refuseWithRemedy(reason: string, remedy: SpineRemedy | Remedy, json = false): void {
-  const recovery = "invariant" in remedy ? remedy : spineRemedy(reason, remedy.text, remedy.argv ?? ["arc", "status", "--json"]);
+export function refuseWithRemedy(reason: string, remedy: SpineRemedy | Remedy, json = false, refusal?: StoreRefusal): void {
+  const repair = refusal?.code === "ambiguous-match" && refusal.tie !== undefined
+    ? clashRepair(refusal.candidates, refusal.tie) : undefined;
+  const recovery = repair === undefined
+    ? "invariant" in remedy ? remedy : spineRemedy(reason, remedy.text, remedy.argv ?? ["arc", "status", "--json"])
+    : SpineRemedySchema.parse({ invariant: reason, ...repair });
   if (json) {
-    const refusal = LifecycleCommandRefusalSchema.parse({ status: "rejected", reason, remedy: recovery });
-    process.stdout.write(`${JSON.stringify(refusal)}\n`);
+    const envelope = LifecycleCommandRefusalSchema.parse({ status: "rejected", reason, remedy: recovery,
+      ...(refusal === undefined ? {} : { refusal }) });
+    process.stdout.write(`${JSON.stringify(envelope)}\n`);
     process.exitCode = 1;
     return;
   }
+  if (refusal !== undefined) { refuse(reason, refusal, repair ?? remedy); return; }
   if ("invariant" in remedy) refuse(`${reason}\n${remedy.text}`);
   else refuse(reason, undefined, remedy);
 }
