@@ -88,18 +88,21 @@ class NativeBatchReader {
   async read(input: GitBatchReadInvocation): Promise<RawGitResult> {
     assertGitNotCanceled(input.signal, this.invocation);
     const cancellation = { requested: false };
-    let finishCancellation!: () => void;
-    const cancellationFinished = new Promise<void>((resolve) => { finishCancellation = resolve; });
-    const canceledError = () => new GitProcessError({ ...this.invocation, kind: "canceled", isCanceled: true });
-    const dispose = bindGitProcessCancellation(this.child, input.signal, () => { cancellation.requested = true; }, () => { this.fail(canceledError()); finishCancellation(); });
+    let finishCancellation!: (descendantsUnconfirmed: boolean) => void;
+    const cancellationFinished = new Promise<boolean>((resolve) => { finishCancellation = resolve; });
+    const canceledError = (descendantsUnconfirmed: boolean) => new GitProcessError({ ...this.invocation, kind: "canceled", isCanceled: true, descendantsUnconfirmed });
+    const dispose = bindGitProcessCancellation(this.child, input.signal, () => { cancellation.requested = true; }, (unconfirmed) => {
+      this.fail(canceledError(unconfirmed));
+      finishCancellation(unconfirmed);
+    });
     this.stderr = []; this.stderrBytes = 0;
     try {
       this.child.stdin.write(input.input);
       const stdout = await Promise.race([this.output.read(input.input), this.failed.then((error) => { throw error; })]);
-      if (cancellation.requested) { await cancellationFinished; throw canceledError(); }
+      if (cancellation.requested) throw canceledError(await cancellationFinished);
       return { stdout, stderr: Buffer.concat(this.stderr) };
     } catch (error) {
-      if (cancellation.requested) { await cancellationFinished; throw canceledError(); }
+      if (cancellation.requested) throw canceledError(await cancellationFinished);
       // EOF may race the close event carrying Git's actual exit status.
       if (this.child.stdout.readableEnded) throw await this.finished ?? normalizeGitRejection(error, this.invocation);
       throw normalizeGitRejection(error, this.invocation);

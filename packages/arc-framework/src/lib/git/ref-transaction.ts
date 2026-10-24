@@ -87,5 +87,6 @@ async function readTransactionTips(
 function withRefusalCause(failure: GitProcessError, refusal: unknown): GitProcessError {
   return new GitProcessError({ kind: failure.kind, command: failure.command, args: failure.args, exitCode: failure.exitCode,
     signal: failure.signal, isCanceled: failure.isCanceled, timedOut: failure.timedOut, isMaxBuffer: failure.isMaxBuffer,
-    stdout: failure.stdout, stderr: failure.stderr, expectedOutcome: failure.expectedOutcome, cause: refusal });
+    stdout: failure.stdout, stderr: failure.stderr, expectedOutcome: failure.expectedOutcome,
+    descendantsUnconfirmed: failure.descendantsUnconfirmed, cause: refusal });
 }

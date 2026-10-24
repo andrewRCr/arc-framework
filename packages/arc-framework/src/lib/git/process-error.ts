@@ -37,6 +37,7 @@ export interface GitProcessErrorInit {
   readonly stdout?: string;
   readonly stderr?: string;
   readonly expectedOutcome?: GitExpectedOutcome;
+  readonly descendantsUnconfirmed?: boolean;
   readonly cause?: unknown;
 }
 
@@ -64,6 +65,8 @@ export class GitProcessError extends ArcError {
   readonly diagnosticStdout: string;
   readonly diagnosticStderr: string;
   readonly expectedOutcome?: GitExpectedOutcome;
+  /** A canceled process whose descendants could not be confirmed ended, because the platform's process utility failed. */
+  readonly descendantsUnconfirmed: boolean;
 
   /**
    * Create a stable Git process failure.
@@ -73,6 +76,9 @@ export class GitProcessError extends ArcError {
   constructor(init: GitProcessErrorInit) {
     if (init.expectedOutcome !== undefined && init.kind !== "nonzero-exit") {
       throw new TypeError("expectedOutcome is valid only for nonzero-exit Git process errors");
+    }
+    if (init.descendantsUnconfirmed && init.kind !== "canceled") {
+      throw new TypeError("descendantsUnconfirmed is valid only for canceled Git process errors");
     }
 
     const stdout = init.stdout ?? "";
@@ -96,6 +102,7 @@ export class GitProcessError extends ArcError {
     this.diagnosticStdout = diagnosticStdout;
     this.diagnosticStderr = diagnosticStderr;
     this.expectedOutcome = init.expectedOutcome;
+    this.descendantsUnconfirmed = init.descendantsUnconfirmed ?? false;
   }
 }
 
@@ -212,7 +219,8 @@ function buildMessage(init: GitProcessErrorInit, stderr: string, stdout: string)
   const status = init.exitCode !== undefined
     ? `exit ${init.exitCode}`
     : init.signal !== undefined ? `signal ${singleLine(init.signal)}` : undefined;
-  const identity = `${invocation || "git"}: ${init.kind}${status === undefined ? "" : ` (${status})`}`;
+  const unconfirmed = init.descendantsUnconfirmed ? ", descendant processes not confirmed ended" : "";
+  const identity = `${invocation || "git"}: ${init.kind}${status === undefined ? "" : ` (${status})`}${unconfirmed}`;
   const evidence = singleLine(stderr || stdout);
   if (evidence === "") return truncate(identity, GIT_ERROR_MESSAGE_MAX_CHARS);
   const separator = ": ";

@@ -7,6 +7,11 @@ const child = vi.hoisted(() => ({ current: undefined as unknown }));
 vi.mock("node:child_process", async (original) => ({
   ...await original<typeof import("node:child_process")>(),
   spawn: vi.fn(() => child.current),
+  // The platform's process utility always fails, so a canceled read cannot confirm its descendants ended.
+  execFile: vi.fn((_command: string, _args: string[], _options: unknown, callback: (error: Error | null, stdout: string) => void) => {
+    setImmediate(() => callback(new Error("utility failed"), ""));
+    return { stdin: { end: () => undefined } };
+  }),
 }));
 const { GitBatchReadScope } = await import("../../../src/lib/git/batch-reader.js");
 
@@ -26,7 +31,35 @@ function exitedBeforeReading(): EventEmitter {
   return process;
 }
 
+/** A Git process that waits on its input, aborting the read once the request reaches it, until it is killed. */
+function waitingForOutput(abort: () => void): EventEmitter {
+  const process = Object.assign(new EventEmitter(), {
+    pid: 2_000_000_003, stdout: new PassThrough(), stderr: new PassThrough(),
+    stdin: new Writable({ write(_chunk, _encoding, done) { done(); abort(); } }),
+    kill: () => {
+      setImmediate(() => { process.stdout.end(); process.stderr.end(); process.emit("close", null, "SIGKILL"); });
+      return true;
+    },
+  });
+  return process;
+}
+
 describe("native Git batch reader failures", () => {
+  it("reports a canceled read whose descendants the process utility could not confirm ended", async () => {
+    const platform = Object.getOwnPropertyDescriptor(process, "platform");
+    Object.defineProperty(process, "platform", { value: "darwin" });
+    const controller = new AbortController();
+    child.current = waitingForOutput(() => controller.abort());
+    const scope = new GitBatchReadScope();
+    try {
+      await expect(scope.run({ args: ["cat-file", "--batch"], cwd: "/repository", env: {}, maxBuffer: 1024, input: Buffer.from("HEAD\n"),
+        signal: controller.signal })).rejects.toMatchObject({ kind: "canceled", isCanceled: true, descendantsUnconfirmed: true });
+    } finally {
+      if (platform) Object.defineProperty(process, "platform", platform);
+      await scope.close();
+    }
+  });
+
   it("reports Git's exit status and stderr when a write meets the pipe Git closed on exit", async () => {
     child.current = exitedBeforeReading();
     const scope = new GitBatchReadScope();
