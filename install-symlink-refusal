@@ -3,7 +3,7 @@
   "slug": "install-symlink-refusal",
   "claimId": "f2f56731397ca1abbb225f9febbc2d57",
   "createdAt": "2026-10-24T19:07:55.917Z",
-  "updatedAt": "2026-10-24T19:07:55.917Z",
+  "updatedAt": "2026-10-24T20:22:47.291Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Refuse ARC install writes whose destination or an ancestor below the repository root is a symlink",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Refuse ARC install writes through a symlinked `.arc/` or parent directory",
   "originEntrySourceDigest": "sha256:33eb744e45a2de785716a3d56ad1cc2db3251bd04c5943db019c53f233c8e9bf",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/install-symlink-refusal",
+    "headSha": "639800d697a0fcd8ad3c4c7c666643095be8d3fb"
+  }
 }
