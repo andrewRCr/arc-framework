@@ -5,6 +5,7 @@ import { success } from "../helpers/store/suite-tools.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { createRefStore, RecordReferenceSchema, RoutingReceiptSchema } from "../../src/lib/store/index.js";
+import { removeLooseObject } from "../helpers/store/ref-plant.js";
 
 const ownQuarter = ArchiveQuarterSchema.parse("2027-q1"), remoteQuarter = ArchiveQuarterSchema.parse("2026-q4");
 const provenance = { verb: "archive", lifecycleAction: "archive" };
@@ -120,6 +121,44 @@ describe.each(["default", "separate"] as const)("withdrawal side effects in the 
       expect(success(await h.a.store.read({ reference: receipt("before") })).content).toBe(beforeReceipt);
       if (returnedRemotely) expect(success(await h.a.store.read({ reference: receipt("published-return") })).content).toBe(returnedReceipt);
       expect(success(await h.a.store.push()).publishes.every(({ status }) => status !== "failed")).toBe(true);
+    });
+
+    it("holds a withdrawal whose quarter tree goes missing under its locks, then withdraws once the tree is restored", async () => {
+      const h = await refSyncFixture(layout);
+      const start = async (name: string) => success(await h.a.store.write({ action: "put", expected: null,
+        reference: RecordReferenceSchema.parse({ owner: { type: "work-item", name }, kind: "work-item/meta" }),
+        content: makeMetaFixture(name), placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "activate" } }));
+      const member = await start("withdrawn-member"), other = await start("kept-neighbor");
+      success(await h.a.store.push()); success(await h.b.store.pull());
+      const close = async (side: typeof h.a, made: typeof member, quarter: typeof ownQuarter) => {
+        const current = success(await side.store.read({ reference: made.reference }));
+        success(await side.store.write({ action: "put", reference: current.reference, expected: current.version,
+          content: current.content, placement: { kind: "completed", quarter }, provenance }));
+      };
+      await close(h.a, member, ownQuarter); await close(h.a, other, ownQuarter);
+      await close(h.b, member, remoteQuarter); success(await h.b.store.push());
+      const quarterRef = `refs/arc/archive/${ownQuarter}`, before = (await h.a.git(["rev-parse", quarterRef])).stdout;
+      const neighbor = (await h.a.git(["ls-tree", quarterRef])).stdout.split("\n").find((row) => row.endsWith("kept-neighbor"));
+      const tree = neighbor?.split(/\s+/u)[2];
+      if (!tree) throw new Error("The neighbor's folder tree was not found");
+      const bytes = (await h.a.ports.rawExec(["cat-file", "tree", tree], { cwd: h.a.root, objectAccess: "local-only" })).stdout;
+      let damage = true;
+      const racing = createRefStore({ ...h.a.ports, lock: async (ref, wait) => {
+        const release = await h.a.ports.lock(ref, wait);
+        if (damage && ref === quarterRef) { damage = false; await removeLooseObject(h.a.root, tree); }
+        return release;
+      } });
+      const held = success(await racing.pull()).pulls.flatMap(({ notices }) => notices);
+      expect(damage).toBe(false);
+      expect(held).toContainEqual(expect.objectContaining({ kind: "namespace-corrupt", ref: quarterRef,
+        remedy: { text: expect.stringMatching(/restore|fetch/iu) } }));
+      expect(held).not.toContainEqual(expect.objectContaining({ kind: "end-withdrawn" }));
+      expect((await h.a.git(["rev-parse", quarterRef])).stdout).toBe(before);
+      await h.a.ports.rawExec(["hash-object", "-t", "tree", "-w", "--stdin"], { cwd: h.a.root, input: bytes, objectAccess: "local-only" });
+      const withdrawn = success(await h.a.store.pull()).pulls.flatMap(({ notices }) => notices);
+      expect(withdrawn).toContainEqual(expect.objectContaining({ kind: "end-withdrawn", item: member.reference.owner }));
+      expect((await h.a.git(["ls-tree", "--name-only", quarterRef])).stdout.split("\n")).toEqual([neighbor?.split("\t")[1]]);
+      expect(success(await h.a.store.read({ reference: other.reference })).placement).toMatchObject({ kind: "completed", quarter: ownQuarter });
     });
   }
 

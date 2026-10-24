@@ -111,7 +111,7 @@ async function withdrawEndBatches(context: RefBackendContext, held: Map<string, 
   for (;;) {
     const result = await withdrawUnpublishedRefEnds(context, held, state, incoming, options, published);
     if (result.status === "restart") return { result, state };
-    if (!result.changed) return { result: { status: "complete", changed, notices }, state };
+    if (!result.changed) return { result: { status: "complete", changed, notices: [...notices, ...result.notices] }, state };
     changed = true; notices.push(...result.notices);
     state = await captureMergeRefs(context, options); held = state;
   }

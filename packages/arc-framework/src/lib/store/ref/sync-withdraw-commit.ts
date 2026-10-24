@@ -18,6 +18,7 @@ import { readObjectFormat } from "./manifest.js";
 import { writeRefTree } from "./tree-write.js";
 import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
 import type { PullNotice } from "../sync.js";
+import { corruptRef } from "./namespace-health.js";
 
 /** One unpublished end whose record still stands beside another machine's published end. */
 export interface WithdrawEnd { owner: OwnerIdentity; live: string; history: string; batch: string }
@@ -39,6 +40,8 @@ export async function commitWithdrawEnd(context: RefBackendContext, end: Withdra
     const trees = selected.size ? await readRefTrees(context, selected) : new Map<string, RefTreeEntry[]>();
     const published = new Map([...incoming].filter(([ref]) => refs.has(ref)));
     const remoteTrees = published.size ? await readRefTrees(context, published) : new Map<string, RefTreeEntry[]>();
+    const unreadable = [...selected.keys()].find((ref) => !trees.has(ref)) ?? [...published.keys()].find((ref) => !remoteTrees.has(ref));
+    if (unreadable) return heldWithdrawal(unreadable);
     const staged = { ...context, blobStage: { format: await readObjectFormat(context), blobs: new Map<string, Uint8Array>() } };
     const prepared = new Map<string, Map<string, RefTreeEntry>>();
     for (const step of journal) {
@@ -70,4 +73,10 @@ export async function commitWithdrawEnd(context: RefBackendContext, end: Withdra
     }
     return { status: "complete", changed: true, notices };
   });
+}
+
+/** A ref whose tree no longer reads cannot be inverted: commit nothing, and withdraw once its objects are restored. */
+function heldWithdrawal(ref: string): RefMergeResult {
+  const { condition, remedy } = corruptRef(ref, true);
+  return { status: "complete", changed: false, notices: [{ kind: "namespace-corrupt", ref, condition, remedy }] };
 }

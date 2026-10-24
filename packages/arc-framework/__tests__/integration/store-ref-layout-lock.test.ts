@@ -79,6 +79,32 @@ describe("commit serialization with layout moves", () => {
     else await expect(f.ports.fs.lstat(directory)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("restarts a write whose store directory goes while it reads trees, instead of reading every ref as damaged", async () => {
+    const f = await createRefReadFixture();
+    await f.exec("git", ["config", "remote.origin.arc-state", "off"]);
+    const seeded = success(await f.store.write({ action: "put", reference: primary, expected: null,
+      content: makeMetaFixture("alpha"), placement: { kind: "active" }, provenance }));
+    if (seeded.reference.owner.type !== "work-item") throw new Error("Expected work-item owner");
+    const ref = `refs/arc/work/${seeded.reference.owner.uid}`;
+    const { commonDir } = await readGitDirectories(f.root, f.ports.fs), directory = join(commonDir, "arc", "store");
+    let move = true;
+    const store = createRefStore({ ...f.ports, rawExec: async (args, options) => {
+      if (move && args.includes("diff-tree")) {
+        move = false;
+        await f.exec("git", ["fetch", "--no-tags", directory, `${ref}:${ref}`]);
+        const aside = `${directory}-moved`;
+        await f.ports.fs.rename(directory, aside);
+        await f.ports.fs.removeDirectory(aside);
+      }
+      return f.ports.rawExec(args, options);
+    } });
+    const reference = RecordReferenceSchema.parse({ ...seeded.reference, kind: "work-item/companion", key: "extra" });
+    success(await store.write({ action: "put", reference, expected: null, content: "after move", provenance }));
+    expect(move).toBe(false);
+    expect((await f.exec("git", ["show", `${ref}:extra-alpha.md`])).stdout).toBe("after move");
+    await expect(f.ports.fs.lstat(directory)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it.each(["files", "reftable"] as const)("refuses a held layout lock and succeeds after release (%s)", async (format) => {
     const f = await createRefReadFixture(format);
     const seeded = success(await f.store.write({ action: "put", reference: primary, expected: null,

@@ -158,7 +158,8 @@ export async function readRefTrees(context: RefBackendContext, tips: ReadonlyMap
 /**
  * Enumerate root trees in one process. A tree missing a nested object fails the whole run, so a failed run splits
  * until each failure names one tree, mapped to null: its ref then reads as unreadable while the rest enumerate.
- * A tree with no entries prints nothing and stays absent.
+ * A failure the repository shows for the tree's own root object, as when the store directory is gone, is the
+ * repository's, so the original error propagates. A tree with no entries prints nothing and stays absent.
  */
 async function enumerateTrees(context: RefBackendContext, trees: readonly string[], paths?: readonly string[]): Promise<Map<string, EnumeratedTree | null>> {
   if (trees.length === 0) return new Map();
@@ -171,9 +172,22 @@ async function enumerateTrees(context: RefBackendContext, trees: readonly string
   } catch (error) {
     if (!isGitProcessError(error) || !isCompletedGitFailure(error)) throw error;
     const [tree] = trees;
-    if (trees.length === 1 && tree !== undefined) return new Map([[tree, null]]);
+    if (trees.length === 1 && tree !== undefined) {
+      if (!await rootObjectReadable(context, tree)) throw error;
+      return new Map([[tree, null]]);
+    }
     const middle = Math.ceil(trees.length / 2);
     return new Map([...await enumerateTrees(context, trees.slice(0, middle), paths), ...await enumerateTrees(context, trees.slice(middle), paths)]);
+  }
+}
+
+async function rootObjectReadable(context: RefBackendContext, tree: string): Promise<boolean> {
+  try {
+    await context.rawExec(["cat-file", "-e", tree], { cwd: context.checkoutRoot, objectAccess: "local-only" });
+    return true;
+  } catch (error) {
+    if (isGitProcessError(error) && isCompletedGitFailure(error)) return false;
+    throw error;
   }
 }
 
