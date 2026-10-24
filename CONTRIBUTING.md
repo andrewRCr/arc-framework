@@ -44,6 +44,18 @@ The check fires only when the CLI runs as the built bundle in this development c
 Invoking it from source produces no verdict at all, and published installs don't include `src/`,
 so it never fires there.
 
+### Packing and publishing the CLI
+
+The CLI's `prepack` script runs the full build before packing or publishing. Enable lifecycle scripts explicitly for
+these commands because the repository's `.npmrc` disables them:
+
+```bash
+npm pack --workspace @arc-framework/cli --ignore-scripts=false
+npm publish --workspace @arc-framework/cli --ignore-scripts=false
+```
+
+Keep scripts disabled for file-list checks with `npm pack --dry-run --ignore-scripts --workspace @arc-framework/cli`.
+
 ## Commit Convention
 
 Git hooks enforce conventional commit format with a `Context:` footer. Contributors use
