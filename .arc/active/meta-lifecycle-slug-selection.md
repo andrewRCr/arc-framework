@@ -1,8 +1,8 @@
 # Metadata: lifecycle-slug-selection
 
-| **State**  | **Owner** | **Branch**                      | **Class** | **Priority** |
-| ---------- | --------- | ------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/lifecycle-slug-selection` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                     | **Class** | **Priority** |
+| --------- | --------- | ------------------------------ | --------- | ------------ |
+| `Active`  | `andrew`  | `fix/lifecycle-slug-selection` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-lifecycle-slug-selection.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Task 1.1.a — The reference backend's slug ranking (line ~33)
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1.a — The reference backend's slug ranking
 
 - **PR URL:** [none]
 - **Completed:** [none]
