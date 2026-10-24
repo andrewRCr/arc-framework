@@ -54,7 +54,7 @@ npm pack --workspace @arc-framework/cli --ignore-scripts=false
 npm publish --workspace @arc-framework/cli --ignore-scripts=false
 ```
 
-Keep scripts disabled for file-list inspections with `npm pack --dry-run --ignore-scripts`.
+Keep scripts disabled for file-list checks with `npm pack --dry-run --ignore-scripts --workspace @arc-framework/cli`.
 
 ## Commit Convention
 
