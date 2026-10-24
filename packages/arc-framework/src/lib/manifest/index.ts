@@ -43,7 +43,8 @@ export {
 } from "./apply.js";
 
 export {
-  recoverUneditedBaselines,
-  findEditsWithoutBaseline,
+  resolveMissingBaselines,
   missingBaselineError,
+  type BaselineReads,
+  type MissingBaselineResolution,
 } from "./baseline.js";

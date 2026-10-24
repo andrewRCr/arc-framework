@@ -1,7 +1,5 @@
 import { describe, test, expect } from "vitest";
-import {
-  recoverUneditedBaselines, findEditsWithoutBaseline, missingBaselineError,
-} from "../../../src/lib/manifest/baseline.js";
+import { resolveMissingBaselines, missingBaselineError } from "../../../src/lib/manifest/baseline.js";
 import { hashContent } from "../../../src/lib/manifest/hash.js";
 import type { FileChangePlan, PlannedMerge } from "../../../src/lib/manifest/plan.js";
 import type { RenderContext } from "../../../src/lib/manifest/apply.js";
@@ -9,6 +7,9 @@ import type { Manifest, FileEntry } from "../../../src/lib/types.js";
 import { UserFacingError } from "../../../src/lib/errors.js";
 
 // --- Helpers ---
+
+const ARC = "/project/.arc";
+const PATH = "system/arc-config.yml";
 
 function makeManifest(files: Record<string, FileEntry>): Manifest {
   return {
@@ -20,6 +21,10 @@ function makeManifest(files: Record<string, FileEntry>): Manifest {
   };
 }
 
+function installed(content: string): Manifest {
+  return makeManifest({ [PATH]: { classification: "Configurable", layer: "core", pristine_hash: hashContent(content) } });
+}
+
 /** Read from a fixed file map, throwing ENOENT for anything else. */
 function reader(files: Record<string, string>): (path: string) => Promise<string> {
   return async (path: string) => {
@@ -29,6 +34,11 @@ function reader(files: Record<string, string>): (path: string) => Promise<string
     err.code = "ENOENT";
     throw err;
   };
+}
+
+/** A project file at its current content and its template at the update. */
+function onDisk(current: string, update: string, path = PATH): Record<string, string> {
+  return { [`${ARC}/${path}`]: current, [`/templates/${path}`]: update };
 }
 
 function merge(outputPath: string, overrides: Partial<PlannedMerge> = {}): PlannedMerge {
@@ -50,90 +60,78 @@ const renderCtx: RenderContext = { templateDir: "/templates", tokens: {}, config
 
 // --- Tests ---
 
-describe("recoverUneditedBaselines", () => {
-  test("restores the baseline of a file still identical to its last install", async () => {
-    const manifest = makeManifest({
-      "system/arc-config.yml": { classification: "Configurable", layer: "core", pristine_hash: hashContent("v1\n") },
-    });
-
-    const recovered = await recoverUneditedBaselines(
-      manifest, {}, "/project/.arc", reader({ "/project/.arc/system/arc-config.yml": "v1\n" }),
+describe("resolveMissingBaselines", () => {
+  test("recovers an unedited file's own content as its baseline", async () => {
+    const resolution = await resolveMissingBaselines(
+      planWith([merge(PATH)]), installed("v1\n"), ARC, { readFile: reader(onDisk("v1\n", "v2\n")) }, renderCtx,
     );
 
-    expect(recovered).toEqual({ "system/arc-config.yml": "v1\n" });
+    expect(resolution).toEqual({ recovered: { [PATH]: "v1\n" }, edits: [] });
   });
 
-  test("recovers nothing for a file edited since its last install", async () => {
-    const manifest = makeManifest({
-      "system/arc-config.yml": { classification: "Configurable", layer: "core", pristine_hash: hashContent("v1\n") },
-    });
-
-    const recovered = await recoverUneditedBaselines(
-      manifest, {}, "/project/.arc", reader({ "/project/.arc/system/arc-config.yml": "v1\nlocal edit\n" }),
+  test("recovers the update as the baseline when upstream is unchanged since install", async () => {
+    const resolution = await resolveMissingBaselines(
+      planWith([merge(PATH)]), installed("v1\n"), ARC,
+      { readFile: reader(onDisk("v1\nlocal edit\n", "v1\n")) }, renderCtx,
     );
 
-    expect(recovered).toEqual({});
+    expect(resolution).toEqual({ recovered: { [PATH]: "v1\n" }, edits: [] });
   });
 
-  test("leaves a stored baseline, an unhashed entry, and a missing file alone", async () => {
-    const manifest = makeManifest({
-      "stored.md": { classification: "Configurable", layer: "core", pristine_hash: hashContent("disk\n") },
-      "unhashed.md": { classification: "Scaffolded", layer: "core" },
-      "absent.md": { classification: "Configurable", layer: "core", pristine_hash: hashContent("gone\n") },
-    });
-
-    const recovered = await recoverUneditedBaselines(
-      manifest, { "stored.md": "stored baseline\n" }, "/project/.arc",
-      reader({ "/project/.arc/stored.md": "disk\n", "/project/.arc/unhashed.md": "anything\n" }),
+  test("names a customized file whose upstream changed since install", async () => {
+    const resolution = await resolveMissingBaselines(
+      planWith([merge(PATH)]), installed("v1\n"), ARC,
+      { readFile: reader(onDisk("v1\nlocal edit\n", "v2\n")) }, renderCtx,
     );
 
-    expect(recovered).toEqual({});
+    expect(resolution).toEqual({ recovered: {}, edits: [PATH] });
   });
-});
 
-describe("findEditsWithoutBaseline", () => {
-  test("names a Configurable file with no baseline whose content differs from the update", async () => {
-    const edits = await findEditsWithoutBaseline(
-      planWith([merge("system/arc-config.yml")]), "/project/.arc",
-      reader({
-        "/project/.arc/system/arc-config.yml": "local edit\n",
-        "/templates/system/arc-config.yml": "upstream v2\n",
-      }),
-      renderCtx,
+  test("names a customized file whose install the manifest records no hash for", async () => {
+    const resolution = await resolveMissingBaselines(
+      planWith([merge(PATH)]), makeManifest({}), ARC, { readFile: reader(onDisk("local edit\n", "v2\n")) }, renderCtx,
     );
 
-    expect(edits).toEqual(["system/arc-config.yml"]);
+    expect(resolution).toEqual({ recovered: {}, edits: [PATH] });
   });
 
-  test("passes a file with a baseline, a file that already matches the update, and a missing file", async () => {
-    const edits = await findEditsWithoutBaseline(
+  test("passes a stored baseline, a file already matching the update, a missing file, and a Framework file", async () => {
+    const resolution = await resolveMissingBaselines(
       planWith([
         merge("based.md", { pristineContent: "v1\n" }),
         merge("matching.md"),
         merge("absent.md"),
+        merge("framework.md", { classification: "Framework" }),
       ]),
-      "/project/.arc",
-      reader({
-        "/project/.arc/based.md": "local edit\n",
-        "/templates/based.md": "v2\n",
-        "/project/.arc/matching.md": "v2\n",
-        "/templates/matching.md": "v2\n",
-        "/templates/absent.md": "v2\n",
-      }),
+      installed("v1\n"), ARC,
+      {
+        readFile: reader({
+          ...onDisk("local edit\n", "v2\n", "based.md"),
+          ...onDisk("v2\n", "v2\n", "matching.md"),
+          "/templates/absent.md": "v2\n",
+          ...onDisk("local edit\n", "v2\n", "framework.md"),
+        }),
+      },
       renderCtx,
     );
 
-    expect(edits).toEqual([]);
+    expect(resolution).toEqual({ recovered: {}, edits: [] });
   });
 
-  test("passes a Framework file, which is replaced rather than merged", async () => {
-    const edits = await findEditsWithoutBaseline(
-      planWith([merge("framework.md", { classification: "Framework" })]), "/project/.arc",
-      reader({ "/project/.arc/framework.md": "local edit\n", "/templates/framework.md": "v2\n" }),
-      renderCtx,
+  test("compares the file as the merge will read it, and hashes its bytes as installed", async () => {
+    const raw = "v1 with a legacy key\n";
+    const files = onDisk(raw, "v2\n");
+    const readAsMerged = async (path: string) => (path === `${ARC}/${PATH}` ? "v2\n" : reader(files)(path));
+
+    const matchingUpdate = await resolveMissingBaselines(
+      planWith([merge(PATH)]), makeManifest({}), ARC, { readFile: reader(files), readAsMerged }, renderCtx,
+    );
+    const unedited = await resolveMissingBaselines(
+      planWith([merge(PATH)]), installed(raw), ARC, { readFile: reader(files), readAsMerged }, renderCtx,
     );
 
-    expect(edits).toEqual([]);
+    expect(matchingUpdate).toEqual({ recovered: {}, edits: [] });
+    expect(unedited).toEqual({ recovered: { [PATH]: raw }, edits: [] });
   });
 });
 

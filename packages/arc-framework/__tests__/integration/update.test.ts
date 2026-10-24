@@ -1056,6 +1056,28 @@ describe("update integration — missing merge baseline", () => {
     expect((await readPristineStore(tempDir))[CONFIGURABLE_FILE]).toBe(V2_CONTENT);
   });
 
+  it("customized file whose upstream is unchanged since install → updates without refusal and keeps the edit", async () => {
+    await setupInitialState(tempDir, {
+      [CONFIGURABLE_FILE]: { content: CONTENT, classification: "Configurable" },
+    });
+    const edited = `${CONTENT}\nLocal rule\n`;
+    await writeFile(join(tempDir, ".arc", CONFIGURABLE_FILE), edited, "utf-8");
+    await dropBaseline(CONFIGURABLE_FILE);
+    templateDir = await createTemplateDir({ [CONFIGURABLE_FILE]: CONTENT });
+
+    const result = await runUpdate({
+      cwd: tempDir,
+      io: makeIOContext(tempDir),
+      templateDir,
+      recipe: makeRecipe([CONFIGURABLE_FILE]),
+    });
+
+    expect(result.pristineRebuilt).toEqual([]);
+    expect(result.conflicts).toEqual([]);
+    expect(await readFile(join(tempDir, ".arc", CONFIGURABLE_FILE), "utf-8")).toBe(edited);
+    expect((await readPristineStore(tempDir))[CONFIGURABLE_FILE]).toBe(CONTENT);
+  });
+
   it("customized file with no baseline → refuses before writing anything", async () => {
     await setupInitialState(tempDir, {
       [FRAMEWORK_FILE]: { content: CONTENT, classification: "Framework" },

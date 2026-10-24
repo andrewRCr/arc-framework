@@ -26,8 +26,7 @@ import {
   readManifest,
   buildChangePlan,
   applyChangePlan,
-  recoverUneditedBaselines,
-  findEditsWithoutBaseline,
+  resolveMissingBaselines,
   missingBaselineError,
   type FileMergeFn,
 } from "../lib/manifest/index.js";
@@ -377,7 +376,23 @@ export async function runUpdate(
       pristineStoreError = "not-found"; // Permission or other read error
     }
   }
-  Object.assign(pristineStore, await recoverUneditedBaselines(manifest, pristineStore, arcDir, io.readFile));
+  const renderCtx = { templateDir, tokens, config, configKeyOverrides };
+  const arcConfigPath = join(arcDir, ARC_CONFIG_TEMPLATE_PATH);
+
+  // Recover the baselines the manifest proves, and refuse before any write: merging a customized file with no
+  // baseline would drop its upstream changes
+  const readAsMerged = async (path: string): Promise<string> => {
+    const content = await io.readFile(path);
+    return path === arcConfigPath ? migrateUserSyncPush(content).content : content;
+  };
+  const missing = await resolveMissingBaselines(
+    buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles), manifest, arcDir,
+    { readFile: io.readFile, readAsMerged }, renderCtx,
+  );
+  if (missing.edits.length > 0 && options.keepLocalWithoutBaseline !== true) {
+    throw missingBaselineError(missing.edits, "update");
+  }
+  Object.assign(pristineStore, missing.recovered);
 
   let templateHasReviewChunkingThresholds = false;
   try {
@@ -396,18 +411,6 @@ export async function runUpdate(
 
   // Build change plan (pure computation)
   const plan = buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles);
-  const renderCtx = { templateDir, tokens, config, configKeyOverrides };
-  const arcConfigPath = join(arcDir, ARC_CONFIG_TEMPLATE_PATH);
-
-  // Refuse before any write: merging a customized file with no baseline would drop its upstream changes
-  const readAsMerged = async (path: string): Promise<string> => {
-    const content = await io.readFile(path);
-    return path === arcConfigPath ? migrateUserSyncPush(content).content : content;
-  };
-  const editsWithoutBaseline = await findEditsWithoutBaseline(plan, arcDir, readAsMerged, renderCtx);
-  if (editsWithoutBaseline.length > 0 && options.keepLocalWithoutBaseline !== true) {
-    throw missingBaselineError(editsWithoutBaseline, "update");
-  }
 
   const checkBootstrap = await bootstrapRetiredChecks(arcDir, plan.removals, io);
 
