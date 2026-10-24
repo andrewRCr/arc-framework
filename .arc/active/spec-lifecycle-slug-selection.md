@@ -77,10 +77,11 @@ name assumes one holder:
   holder has not shipped. An edge naming a slug a live cohort and a completed work unit both hold reads shipped from
   the work unit.
 - **Creation.** `arc start --new` refuses any slug the index holds (`resolveStartDispatch`, `commands/start.ts`), after
-  `resolveStartName` (`handlers/start-store.ts`) has refused every lookup result but not-found and rewritten a former
-  slug to its holder's current name; `arc stub` reaches the executor's create edge, which requires a nonexistent
-  position (`runStub`, `lib/work-unit/verbs/stub.ts`). Neither admits the reuse the store allows. Decomposition admits a
-  work-item name only when the lookup's top-ranked holder is completed under that name (`checkNamespaceName`,
+  `resolveStartName` (`handlers/start-store.ts`) has refused a lookup refusal other than not-found and an Errand's slug,
+  and rewritten a former slug to its holder's current name; `arc stub` reaches the executor's create edge, which
+  requires a nonexistent position (`runStub`, `lib/work-unit/verbs/stub.ts`). Neither admits the reuse the store allows,
+  and the nameless cold start asks the store no slug lookup before its create batch (`runStoreColdStart`). Decomposition
+  admits a work-item name only when the lookup's top-ranked holder is completed under that name (`checkNamespaceName`,
   `lib/decompose/check-names.ts`), but lets a new cohort take a completed work unit's slug. Outside decomposition, no
   creating verb settles the edges naming a reused slug.
 - **Completed ties.** Once a reused slug's second holder completes, both backends rank its two completed holders alike,
@@ -95,9 +96,10 @@ name assumes one holder:
   maps `ambiguous-match` to `namespace-corrupt` and rejects the dependent's activation with no remedy.
 - **Cohorts.** The ref backend's ranking admits cohort trees; the reference backend's admits only work-item primaries.
   When the lookup returns a cohort document, `readWorkUnit` misreports it: "resolves to an Errand rather than a work
-  unit".
+  unit". Start's name resolution, decomposition's home check, and the inbox's work-item list report it as an Errand the
+  same way (`resolveStartName`, `resolveHome`, `resolveWorkItemList`).
 - **Checkout claims.** A work-unit checkout claim (`{ kind: "work-unit", slug }`, `CheckoutClaimSchema`,
-  `lib/store/lookup.ts`) matches every primary named by the slug (`lookupReference`'s `claim` arm,
+  `lib/store/lookup.ts`) matches every work-unit meta whose current name is the slug (`lookupReference`'s `claim` arm,
   `__tests__/helpers/store/lookup.ts`), and the ref backend's lookup includes archived owners (§ 11), so a reused slug's
   claim refuses `ambiguous-match` and every reader that resolves a checkout's work unit through it fails. Marker
   exclusivity and holder lookup match the marker's name (`createLocusPorts`, `lib/locus/lifecycle-ports.ts`), as do the
@@ -140,7 +142,7 @@ name assumes one holder:
    reference.
 3. A clash, whether live holders tie on a slug as their current name or only as a former name, refuses with each
    holder as a typed reference and its repair. No tie the lookup refuses blocks an unrelated work unit's activation,
-   reconcile, publish, or rename, a dependent's activation, or a cohort's archive.
+   reconcile, publish, rename, or abandon, a dependent's activation, or a cohort's archive.
 4. A dependency edge resolves each name it meets once, through the lookup, and is decided by the resolved record's
    reference: discharged only for a work unit that is Integrating or completed, never moved onto a name that does not
    resolve back to its work unit, and held with a diagnostic, never discharged, where it resolves to a tie or to a
@@ -174,7 +176,8 @@ This change does not:
 - **change the in-repo arm:** its lifecycle arms (`handlers/lifecycle.ts`'s `index.get(target)` paths), its slug claim,
   and its `ref` arm (`lookupRef`, `lib/store/in-repo/lookup.ts`) stay until the cutover deletes them;
 - **add a UID to husk stamps,** which no claim reads, **or admit a work-unit husk to the store teardown:** work-unit
-  husks are torn down before the flip (§ 8.1);
+  husks are torn down before the flip, and the store teardown's `--husk` replay keeps refusing every pre-flip husk
+  (§ 8.1);
 - **change `arc errand open`'s admission** (`decodeBasis`, `lib/errand/store-runtime.ts`), which refuses any slug whose
   lookup returns a work unit, completed ones included;
 - **let a new cohort take a completed cohort's name** (`checkNamespaceName`): completed members still name their cohort
@@ -197,28 +200,42 @@ boundary and order, and § 11 states the expected contracts.
 
 ### 1. The lookup
 
-Each rule below applies to the reference backend and, once it lands, the ref backend (§ 11), and an assertion in the
-lookup conformance suite (`suite-lookup.ts`, `__tests__/helpers/store/`) pins it for every store-arm backend, landing as
-§ 10.2 orders. The in-repo implementation, where a slug has one holder, is unchanged.
+Each rule below applies to the reference backend and, once it lands, the ref backend (§ 11). An assertion in the lookup
+conformance suite (`suite-lookup.ts`, `__tests__/helpers/store/`) pins each rule that public writes can build on every
+store-arm backend, landing as § 10.2 orders; a live tie from the slug arm and a cohort's ranking under a former name,
+which they cannot build on both, are pinned in each backend's own tests instead (§ Cross-cutting Considerations). The
+in-repo implementation, where a slug has one holder, is unchanged.
 
 #### 1.1 Cohorts rank beside work items
 
 The reference backend's slug ranking admits cohort primaries (`cohort/document`) beside work-item primaries in the same
-four tiers (`preferredSlugRecords` and `primary`, `__tests__/helpers/store/lookup.ts`), as the ref backend's does. An
-assertion pins that a slug a cohort holds resolves to the cohort's document; neither backend's suite pins it today.
+four tiers (`preferredSlugRecords`, `__tests__/helpers/store/lookup.ts`), as the ref backend's does; the predicate the
+commit and `ref` arms share (`primary`) keeps admitting work-item primaries alone. An assertion pins that a slug a
+cohort holds resolves to the cohort's document; neither backend's suite pins it today. The reference backend's writes
+keep a former name for work-item primaries alone (`land`, `__tests__/helpers/store/write.ts`), and no verb renames a
+cohort before the rename change (§ 11), so its tests of a cohort's former name plant one on the cohort's record.
 
 `readWorkUnit` names the holder type it refuses. Where the lookup returns a cohort document, it refuses as it does for
 an Errand (`record-malformed`, rule `lifecycle.work-unit`), with the condition "`<slug>` resolves to a cohort rather
 than a work unit" and the remedy to use the cohort's own commands or name a work unit; an Errand keeps today's text.
+Start's name resolution (`resolveStartName`, `handlers/start-store.ts`), decomposition's home check (`resolveHome`,
+`lib/decompose/check-homes.ts`), and the inbox's work-item list (`resolveWorkItemList`, `lib/inbox/lists.ts`) each
+refuse a cohort with the same condition in its own refusal form, and keep their handling of an Errand. Every other
+caller of the slug lookup takes a cohort as it already does over the ref backend, status's dependency resolution among
+them, which answers no work unit for a cohort-held name (`found`, `lib/status/store-project-dependencies.ts`).
 
 #### 1.2 A completed tie resolves to its latest archived work unit
 
 Both backends' slug ranking breaks a completed tie that includes a work unit: a work unit outranks an Errand, and of
 several completed work units the latest archived stands, by the later quarter, then the higher sequence, the order
-status's selection already uses (`compareArchive`, `lib/status/store-project-standing.ts`). The reference backend reads
-each record's completed placement (`placement` on `MemoryRecord`, `__tests__/helpers/store/model.ts`); the ref backend
-reads each archived tree's folder placement (§ 11). Holder type orders without a sequence, so an Errand's archiving with
-none (`ErrandReadPlacementSchema`, `lib/store/placement.ts`) leaves the order defined.
+status's selection already uses (`compareArchive`, `lib/status/store-project-standing.ts`). That order becomes one
+exported comparator over completed placements (`lib/store/placement.ts`), which status and both backends call. The
+reference backend reads each record's completed placement (`placement` on `MemoryRecord`,
+`__tests__/helpers/store/model.ts`); the ref backend reads each archived tree's folder placement (§ 11). Holder type
+orders without a sequence, so an Errand's archiving with none (`ErrandReadPlacementSchema`, `lib/store/placement.ts`)
+leaves the order defined. The tie-break is the slug lookup's alone: the ref backend's name-only reference binding, which
+shares its ranking (`preferredNameTrees` under `resolveCapturedReference`), still refuses a completed tie, and the
+reference backend's, which binds the last-inserted holder (`indexIdentities`), is unchanged.
 
 A tie among live holders still refuses `ambiguous-match`, and so does a completed tie that includes a cohort, since a
 closed cohort's members still name it by path and creation refuses its slug (§ 6.1), or that holds only Errands, which
@@ -257,13 +274,15 @@ slug's claims resolve the live and the archived holder each by its own UID. § 7
 
 #### 1.5 A tie's refusal names its tier
 
-The `ambiguous-match` refusal (`LocalRefusalSchema`, `lib/store/refusal.ts`) gains an optional `tie`: whether its
-candidates are live or completed and, from the slug arm, whether the slug is their current name or a former one. A
-`RecordReference` carries neither, so no reader can tell a completed tie from a live clash by its candidates. The slug
-and `ref` arms of both backends set it from the rank they already compute; within one tier the candidates share both
-facts, since the lookup ranks live above completed and a current name above a former one. Every other arm, and the
-in-repo implementation, leaves it out. The field changes in place under the pre-public compatibility posture. Assertions
-pin it for both arms.
+The `ambiguous-match` refusal (`LocalRefusalSchema`, `lib/store/refusal.ts`) gains an optional
+`tie: { liveness: "live" | "completed"; name?: "current" | "former" }`: whether its candidates are live or completed
+and, from the slug arm alone, whether the slug is their current name or a former one. A `RecordReference` carries
+neither, so no reader can tell a completed tie from a live clash by its candidates. The slug and `ref` arms of both
+backends set it from the rank they already compute; within one tier the candidates share both facts, since the lookup
+ranks live above completed and a current name above a former one. Every other arm, the claim arm included, and the
+in-repo implementation leave it out, and no arm's condition or remedy text changes. The field changes in place under the
+pre-public compatibility posture. Shared assertions pin a completed tie's facts for both arms and a live tie's for the
+`ref` arm, and each backend's own tests a live slug-arm tie's (§ 1).
 
 ### 2. One standing-holder selection
 
@@ -271,8 +290,9 @@ pin it for both arms.
 
 `selectStandingLifecycleEntries` moves from `lib/status/` into `lib/store/` as lifecycle's own selection and returns
 only what it establishes: the standing entries; each clash, as its slug, its kind, and each live holder's
-`RecordReference`; and the fail-closed names. A clash is one of two kinds, matching the two live tiers on which the
-lookup refuses a tie:
+`RecordReference`; and the fail-closed names, as `{ entries, clashes, failClosedNames }`, each clash
+`{ slug, kind: "current-name" | "former-name", holders }`. A clash is one of two kinds, matching the two live tiers on
+which the lookup refuses a tie:
 
 - **a current-name clash:** several live entries are named by the slug;
 - **a former-name tie:** no live entry is named by the slug, and several live entries hold it as a former name. It
@@ -301,33 +321,36 @@ holder's type matters, dependency classification (§ 5) and creation (§ 6) cons
 
 #### 2.2 The view
 
-`readLifecycleView` builds its slug-keyed `index` from the standing entries (`buildLifecycleViewIndex`) and returns the
-clash facts and the fail-closed names beside it, so every consumer that asks the index by slug inherits one selection.
-The view never refuses for a clash: it refuses only where the listing does, and its `listing` and `entries` keep every
-holder, each identified by its reference. A reader of the whole inventory therefore still runs under a clash it may be
-repairing, rename's subject read and group acquisition among them (`readStoreRenameSubject` and `acquireRenameGroups`,
-`lib/store/lifecycle-rename.ts`). Each caller keeps its own failure policy: status omits and warns, and a lifecycle verb
-refuses (§ 4).
+`readLifecycleView` runs the selection over its listing, returns it as `standing` beside its `listing`, `entries`, and
+`index`, and builds its slug-keyed `index` from the standing entries (`buildLifecycleViewIndex`), so every consumer that
+asks the index by slug inherits one selection. The view never refuses for a clash: it refuses only where the listing
+does, and its `listing` and `entries` keep every holder, each identified by its reference. A reader of the whole
+inventory therefore still runs under a clash it may be repairing, rename's subject read and group acquisition among them
+(`readStoreRenameSubject` and `acquireRenameGroups`, `lib/store/lifecycle-rename.ts`). Each caller keeps its own failure
+policy: status omits and warns, and a lifecycle verb refuses (§ 4).
 
 The consumers of the view's index inherit the selection without change of their own: the store executor's position and
 guards (`executeStoreTransition` and `validateStoreGuards`, `lib/work-unit/lifecycle-store-executor.ts`), the
 reconcile's word check, which skips a slug the index holds (`artifactAliasTransitions`,
 `lib/work-unit/store-reconcile-context.ts`), start's dispatch (`handleStoreStart`, `handlers/start-store.ts`), and the
 verb-target candidate list (`resolveVerbTargetOrReport`, `handlers/lifecycle.ts`). Status's two readers
-(`readStoreProjectViewInput`, `lib/status/store-project-input.ts`, and `handlers/status/lifecycle.ts`) import the
-selection from `lib/store/` and keep their output. The dependency reconcile's store arm reads the lookup rather than the
-index (§ 5.2).
+(`readStoreProjectViewInput`, `lib/status/store-project-input.ts`, and `handlers/status/lifecycle.ts`), which read the
+view today and run the selection over it, take `standing` from the view and keep their output. The dependency
+reconcile's store arm reads the lookup rather than the index (§ 5.2).
 
 #### 2.3 Membership reads every holder
 
 A cohort's membership asks about each holder, not the one standing for a slug. Archive's cohort closeout counts the
 view's entries at both its call sites, the `prospective` snapshot `runStoreArchive` builds and the settle loop's
 (`prepareStoredCloseout`), each passed through `prepareArchiveCohorts` to `isArchivalTriggeredWithDescendants`
-(`prepareObservedCohorts`, `lib/work-unit/verbs/archive-store.ts`). Over the slug-keyed index, two clashed live members
+(`prepareObservedCohorts`, `lib/work-unit/verbs/archive-store.ts`), as an index of every view entry keyed by its
+identity (`identityKey`), the archive's subject marked completed by its reference; `isArchivalTriggeredWithDescendants`
+reads only the index's values and is unchanged. Over the slug-keyed index, two clashed live members
 would drop from the count, and archiving the cohort's last other open member would propose a closeout that
 `checkCohortOpenMembers` (`lib/store/kinds/cohort/rules.ts`) refuses. The cohort consistency check's store arm builds
-its member sets from the view's entries in the same way (`resolveCohortValidationContext`,
-`scripts/validate-cohort-consistency.ts`, today through `buildCohortMembership` over the index).
+its member sets from every view entry, completed included, in the same way (`resolveCohortValidationContext`,
+`scripts/validate-cohort-consistency.ts`, today through `buildCohortMembership` over the index), so a slug is a member
+of each of its holders' cohorts.
 
 #### 2.4 Slug-keyed maps beyond the view
 
@@ -335,10 +358,14 @@ The rule reaches every slug-keyed map the store arms build over lifecycle entrie
 standing entries or reads every holder, and a read keyed by identity stays on `IdentityLifecycleIndex`. The importers of
 `listLifecycleIndex` and `readLifecycleView` hold these maps:
 
-- **Completed evidence** (`readStoreCompletedEvidence`, `lib/store/lifecycle-completed.ts`) lists completed records
-  only, and drops any slug that has a live holder, as the in-repo arm does, where an active copy outranks an archived
-  one (`compareLifecycleSources`). It feeds Candidate mutation authority (`resolveCompletedCandidateWorkUnits`,
-  `handlers/candidate-mutation-owner.ts`) and the stale-worktree sweep's shipped set (`stale-worktree-sweep.ts`). The
+- **Completed evidence** (`readStoreCompletedEvidence`, `lib/store/lifecycle-completed.ts`) lists completed records,
+  and drops any slug that has a live holder, as the in-repo arm does, where an active copy outranks an archived one
+  (`compareLifecycleSources`). It finds them in a listing of the live locations beside its completed one: a slug a live
+  entry holds as its current or a former name contributes no completed evidence, nor does a slug whose live meta that
+  listing withholds, which leaves the result's status as the completed listing sets it; a refused or unreadable live
+  listing makes the result unavailable. It feeds Candidate mutation authority (`resolveCompletedCandidateWorkUnits`,
+  `handlers/candidate-mutation-owner.ts`) and, in the store arm, only the stale-worktree sweep's husk reports
+  (`completedWorkUnit`, `stale-worktree-sweep.ts`), the store arm's sweep keeping no other shipped set. The
   derived roster reads none in the store arm (`acquireDerivedLocusEvidence`, `lib/locus/derived-evidence.ts`, passes an
   empty map).
 - **The lifecycle snapshot** (`snapshotFs`, `lib/store/lifecycle-storage.ts`) resolves a requested path to the one
@@ -373,8 +400,10 @@ under the subject's current name, so a former slug typed as the operand acts on 
 sites:
 
 - the store executor's inventory agreement and finalization resume (`agreesWithInventory` and
-  `resumeStoreTransitionFinalization`, `lifecycle-store-executor.ts`), and its position, which it resolves for the
-  subject's current name rather than the operand;
+  `resumeStoreTransitionFinalization`, `lifecycle-store-executor.ts`), and its position, guards, and side effects, which
+  it resolves after selecting its subject (`selectPrimary`), for the subject's current name rather than the operand, so
+  a clashed subject meets the store's own refusal, while a prepared primary its caller supplies is re-read by reference
+  (§ 3.2);
 - activation (`readLifecyclePrimary`, and `readOtherPrimaries`, which excludes the subject by reference so a completed
   namesake stays in the comparison, `activate-deactivate-store.ts`);
 - abandon (`runStoreAbandon`, `lib/work-unit/verbs/abandon-store.ts`, and `handleStoreAbandon`,
@@ -409,10 +438,28 @@ Other re-reads of a selected subject go by its reference too:
   handler checks (`handleReopen`, `handlers/lifecycle.ts`; `permitUnpausedPublication`,
   `handlers/lifecycle-delivery-review.ts`) from the record their target resolution selected (`resolvePublicationTarget`,
   which returns it beside the name and, with no slug, reads it by the current work unit's reference), as reopen's
-  delivery checks take it too (`permitDeliveryReopen`, `resolvePrMerged`), and the store executor's `unpaused` guard
-  (`makePauseGuard`, `lib/work-unit/lifecycle-guards.ts`) from the primary `validateStoreGuards` receives
+  delivery checks take it too (`permitDeliveryReopen`, `resolvePrMerged`), while the store executor's `unpaused` guard
+  (`makePauseGuard`, `lib/work-unit/lifecycle-guards.ts`) already takes the primary `validateStoreGuards` receives
   (`selectPrimary`);
-- activation's re-read after its reconcile (`readWorkUnit`, in `runStoreActivate`);
+- publish's and reopen's initial store reads (`inspectPublication`, `runStoreReopen`), which take an optional
+  work-unit `reference` through `PublishParams` and `ReopenParams`. With an explicit operand whose lookup succeeded,
+  `handlePublish` passes the selected reference through `publishCandidateWithReviewBoundary`, and `handleReopen`
+  passes it to `runReopen`; each initial read uses `store.read` by that reference. Without an operand, the handlers
+  still pass their checkout-selected record to their checks, but leave the verb's `reference` absent, so its first
+  `readWorkUnit` by name performs the clash check (§ 4.1). A direct caller without a selected reference takes that
+  same entry path;
+- the store executor's subject selection (`selectPrimary`, `lifecycle-store-executor.ts`), which re-reads a prepared
+  primary its caller supplies, as activation, publish, and reopen do (`storeTransition.primary`), by its reference,
+  keeping its version check, and reads the subject through `readWorkUnit` only where none is supplied;
+- reopen's PR withdrawal (`withdrawalBranch`, `lib/work-unit/executor-context.ts`), whose store-arm preparation
+  (`prepareStoreSideEffects`) passes the executor's selected primary as `inputs.storeTransition.primary`, preserving
+  the other transition inputs, even where the executor's caller supplied no primary. The withdrawal callbacks
+  (`legacyWithdrawPrHandler`, `withdrawPrHandler.prepareWithdrawal`) pass that optional primary to `withdrawalBranch`;
+  in the store arm it re-reads the primary by reference through `store.read` and selects its branch through
+  `linkedWorkBranch`, using `readWorkUnit` by name only where no primary was supplied. The in-repo arm keeps its
+  file-based branch read;
+- activation's and publish's re-reads after their reconcile (`store.read` by the primary's reference, in
+  `runStoreActivate` and in `runStorePublish`'s `inspectPublication`);
 - the reconcile handler (`handleStoreReconcile`, `handlers/reconcile.ts`), which takes the resolved current work unit's
   reference and, from the flip, resolves its marker fallback (`storeReconcileSlug`) through the marker's UID claim, so
   an ended holder's checkout reaches its own holder, never the live namesake;
@@ -433,33 +480,40 @@ lifecycle verb first meets the refusal at one of the sites below, and each passe
 
 - **The shared preamble.** A verb that resolves its subject through `resolveVerbTargetOrReport` or
   `resolvePublicationTarget` with an operand refuses there, before any § 3.1 site, in `canonicalVerbTarget`
-  (`handlers/lifecycle.ts`), as does a context-defaulting verb without one, whose checkout's current work unit's name
-  (`resolveCurrentWuSlug`) it canonicalizes there too. It refuses through `refuseWithRemedy`, whose
-  `LifecycleCommandRefusalSchema` (`handlers/lifecycle-shared.ts`) carries only a reason and a remedy today.
-  `refuseWithRemedy` takes the refusal itself for both forms, and the schema gains the refusal's optional typed
-  `candidates` and `tie` (§ 1.5) in place, under the pre-public compatibility posture.
+  (`handlers/lifecycle.ts`) or, for publish and reopen, in `resolvePublicationTarget`'s own read (§ 3.2), as does a
+  context-defaulting verb without one, whose checkout's current work unit's name (`resolveCurrentWuSlug`) it
+  canonicalizes there too. It refuses through `refuseWithRemedy`, whose `LifecycleCommandRefusalSchema`
+  (`handlers/lifecycle-shared.ts`) carries only a reason and a remedy today. `refuseWithRemedy` takes the store refusal
+  as an optional parameter for both forms, its other callers unchanged, and the schema gains it whole as an optional
+  `refusal` in place, under the pre-public compatibility posture, as publish's own read, the reconcile's envelope, and
+  `arc status <slug>` already carry it; its `remedy` is the repair's (below).
 - **A verb's own read.** Every other store-arm read of a verb's subject by name returns the refusal on the verb's
   rejected result, and its handler passes it to `refuse`. Publish and reopen without an operand meet it there, since
   their target resolution reads no name (§ 3.2), as do the verbs that resolve their checkout's current work unit
-  themselves (`resolveCurrentWorkUnit`, `lib/store/current-work-unit.ts`). A read by name that runs after it, as
-  reopen's PR withdrawal does (`withdrawalBranch`, `lib/work-unit/executor-context.ts`), meets no tie it has not
-  refused.
+  themselves (`resolveCurrentWorkUnit`, `lib/store/current-work-unit.ts`). Reopen's later PR-withdrawal preparation
+  (`withdrawalBranch`, `lib/work-unit/executor-context.ts`) reads the admitted subject by reference (§ 3.2), so a
+  clash formed after admission does not cause another name lookup there.
 - **The shared text renderer.** `refuse` (`lifecycle-shared.ts`) prints each candidate's type, current name, and UID
-  with the repair its tie's kind names below, reading the kind from the refusal's `tie` (§ 1.5) and the candidates'
-  types; pause and handover already pass it the refusal (`rejected`, `handlers/lifecycle-collaboration.ts`). A refusal
+  with the repair its tie's kind names below, reading the kind from the refusal's `tie` (§ 1.5) and each candidate's
+  type from its reference's kind, since a work unit's and an Errand's owner type are both `work-item`. One pure builder
+  in `lib/store/` (`clashRepair`) composes the repair for it, for the reconcile's held entries (§ 5.2), and for paused
+  work (§ 2.4). Pause and handover already pass it the refusal (`rejected`, `handlers/lifecycle-collaboration.ts`). A refusal
   without a `tie`, from another arm, prints its candidates with the lookup's own condition and remedy.
 - **Sites that flatten the refusal.** Each passes the refusal whole rather than its text, and renders through the shared
   `refuse` rather than a handler's own reason-only one: materialize's handler (`handleStoreMaterialize`,
   `handlers/materialize-store.ts`); start's name resolution and graduation (`resolveStartName` and the handler's
   graduation report, `handlers/start-store.ts`; `graduate`, `commands/start-store.ts`), with `GraduateResult`'s rejected
-  arm (`commands/start.ts`) carrying the refusal; teardown's retirement read (`readStoreRetirementEvidence`,
-  `lib/work-unit/store-retirement-evidence.ts`), which throws an error carrying the refusal rather than its text, so
-  `runStoreTeardown`'s catch returns it in `TeardownResult`'s rejected arm (`lib/work-unit/verbs/teardown.ts`) for
-  `handleTeardown`, while the read's other caller, the session-start retirement sweep (`store-retirement-sweep.ts`),
-  keeps reporting the error's message; and the reconcile handler's operand check (`requestedReconcileConflict`,
-  `handlers/reconcile.ts`), whose conflict report (`emitConflict`) carries it in the envelope's existing `refusal`
-  field. That check still skips the lookup for an operand equal to the checkout's holder's current name, which the
-  checkout's claim selects (§ 3.2), so that reconcile runs, as one without an operand does.
+  arm (`commands/start.ts`) carrying the refusal, and name resolution looking a former slug's current name up again, so
+  a clash on that name refuses there rather than at start's dispatch, which would report the name nonexistent and advise
+  `--new`; teardown's retirement read (`readStoreRetirementEvidence`, `lib/work-unit/store-retirement-evidence.ts`),
+  which throws an error carrying the refusal rather than its text, so `runStoreTeardown`'s catch returns it in
+  `TeardownResult`'s rejected arm (`lib/work-unit/verbs/teardown.ts`) for `handleTeardown`, while the read's other
+  caller, the session-start retirement sweep (`store-retirement-sweep.ts`), keeps reporting the error's message; and the
+  reconcile handler's operand check (`requestedReconcileConflict`, `handlers/reconcile.ts`), whose conflict report
+  (`emitConflict`), which builds its own envelope with no `refusal` field today and prints its reason alone, carries it
+  as `refusal` and renders its text through `refuse`. That check still skips the lookup for an operand equal to the
+  checkout's holder's current name, which the checkout's claim selects (§ 3.2), so that reconcile runs, as one without
+  an operand does.
 
 The repair for each kind:
 
@@ -478,6 +532,11 @@ The repair for each kind:
 - **A completed tie** that § 1.2 leaves refusing: none. No lifecycle verb acts on a completed holder, and creation
   refuses the slug (§ 6.1). The refusal prints each holder's UID; a work-unit holder's is what `arc teardown <uid>`
   takes for its checkout (§ 8.3).
+
+`clashRepair` returns the repair as one `Remedy` (`lib/store/refusal.ts`), which is the refusal's remedy: its text names
+the move for each holder, and its argv is the move's command where the move runs as printed, `arc errand close <uid>`,
+and otherwise `arc status --json`, since a rename names a slug the person chooses. `refuse` prints it beside the
+holders.
 
 A lifecycle verb takes no UID subject: a UID-addressed `activate` or `archive` would let work proceed on a slug that
 stays clashed. Teardown is the one exception, since its subject has ended and no work proceeds (§ 8.3).
@@ -501,6 +560,11 @@ Errands or cohorts, which the selection never lists, and a completed tie that §
 an unrelated work unit's activation, reconcile, or publish, each of which runs the reconcile
 (`buildStoreCurrentWuReconcile`, `lib/work-unit/store-current-wu-reconcile.ts`), or its rename, whose shared-reference
 check runs the paired-spec check.
+
+Abandon's impact plan (`integratingDependents`, `handlers/abandon-store.ts`) looks up each `Depends On` edge of every
+Integrating work unit and throws on any refusal but not-found, so a tie on one such edge, which a held edge keeps
+(§ 5.2), would refuse abandoning any work unit. It takes `ambiguous-match` as an answer: it lists the Integrating work
+unit for coordination where a candidate the refusal names is the abandoned owner, and passes over it otherwise.
 
 Readers outside lifecycle verbs keep today's refusal where a lookup refuses or returns a holder type they do not expect,
 and it is accepted: each refuses or reads unavailable without writing, loses nothing a person wrote, and no lifecycle
@@ -570,14 +634,16 @@ in archived records, which gate nothing, and those written after it, which mean 
 #### 5.2 Each name resolves once
 
 The store arm's reconcile decides an edge from one resolution of each name the edge meets, and from then on by the
-resolved record's reference, never by the name again. The names an edge meets are its own slug, the current name of a
-work unit it would follow, and each target a lineage disposition gives it (§ 5.3). A name resolves through the slug
-lookup. A lineage target that carries a UID (`WorkItemRef`, `lib/store/kinds/lineage/schema.ts`), as a decomposition
-writes for each destination whose record it holds (`destinationReferences`, `lib/decompose/lineage-plan.ts`), resolves
-instead to the view's entry with that UID (§ 2.2), and where no entry has it, to its own lineage, since its primary has
-left the store; a target without one resolves by its name. The reconcile reads a complete inventory
-(`requireCompleteInventory`, in `createStoreReconcilePrepareContext`), so every work unit a resolution returns has its
-entry, and its state is that entry's (`deriveState`).
+resolved record's reference, never by the name again. The context supplies the resolution as a resolver that memoizes
+each name as the reconcile meets it, since a lineage disposition's targets are known only once it is read. The names an
+edge meets are its own slug, the current name of a work unit it would follow, and each target a lineage disposition
+gives it (§ 5.3). A name resolves through the slug lookup. A lineage target that carries a UID (`WorkItemRef`,
+`lib/store/kinds/lineage/schema.ts`), as a decomposition writes for each destination whose record it holds
+(`destinationReferences`, `lib/decompose/lineage-plan.ts`), resolves instead to the view's entry with that UID (§ 2.2),
+and where no entry has it, to its own lineage, since its primary has left the store; a target without one resolves by
+its name. The reconcile reads a complete inventory (`requireCompleteInventory`, in
+`createStoreReconcilePrepareContext`), so every work unit a resolution returns has its entry, and its state is that
+entry's (`deriveState`).
 
 The first row that matches a resolution applies:
 
@@ -603,12 +669,15 @@ lineage names is today's `rename-cycle`.
 A held edge stays in `Depends On`, unsatisfied, and is never discharged. It blocks no ceremony: activation and publish
 refuse only a reconcile conflict, and publish's review stop reads the plan's advisories alone (`runStoreActivate`;
 `runStorePublish`, `lib/work-unit/verbs/publish-store.ts`). The dependency component (`DependencyReconcileComponent`,
-`discharge-dep-edges.ts`) carries it in an optional `held` list, each entry naming the edge, the name whose resolution
-held it, and the holder or each tied candidate as a typed reference; the session-start reconcile schema
-(`lib/session-init/current-wu-reconcile-schema.ts`) gains the field in place under the pre-public compatibility posture.
-A held edge makes an otherwise clean plan `pending`, at prepare and at apply alike (`prepareCurrentWuReconcile`;
-`applyStoreCurrentWuReconcile`, `lib/work-unit/store-current-wu-reconcile.ts`), so session start surfaces it with its
-inspect action and a prompt naming the held edges (`projectCurrentWuResult`,
+`discharge-dep-edges.ts`) carries it in an optional `held` list, each entry
+`{ edge, name, cause, candidates, tie?, repair }`: the edge, the name whose resolution held it, why (`tie`,
+`not-a-work-unit`, or `unresolved-follow`), the holder or each tied candidate as a typed reference, the tie's facts
+where a tie held it, and the repair as a `Remedy`: `clashRepair`'s for a tie that includes a work unit (§ 4.1, § 4.3),
+and otherwise text alone. A held edge stays in the component's `after` and is not listed in `live`. The session-start
+reconcile schema (`lib/session-init/current-wu-reconcile-schema.ts`) gains the field in place under the pre-public
+compatibility posture. A held edge makes an otherwise clean plan `pending`, at prepare and at apply alike
+(`prepareCurrentWuReconcile`; `applyStoreCurrentWuReconcile`, `lib/work-unit/store-current-wu-reconcile.ts`), so session
+start surfaces it with its inspect action and a prompt naming the held edges (`projectCurrentWuResult`,
 `lib/session-init/current-wu-reconcile.ts`), and `arc wu reconcile` prints each held edge with its holders and repair
 (`emitHuman`, `handlers/reconcile.ts`) and carries the list whole in `--json` (`toEnvelope`).
 
@@ -672,11 +741,11 @@ slug outright.
 #### 6.1 The admission check
 
 Creation admits a slug with no live holder, within the store's write rules, through one admission check in `lib/store/`
-that asks the lookup. It takes the slug and, from a caller that already holds a record taking the name, that writing
-owner's reference:
+that asks the lookup. It takes the slug and the writing owners, the owners of records a caller already holds that take
+the name, and answers free, held, or refused:
 
 - **Free:** the lookup finds nothing (`not-found`), or returns a completed work unit under the slug as its current name
-  (the latest of several, and above a completed Errand, § 1.2), or returns the writing owner itself.
+  (the latest of several, and above a completed Errand, § 1.2), or returns a writing owner.
 - **Held:** the lookup returns a live record under the slug as its current or a former name, or refuses
   `ambiguous-match` over live holders. A tie falls within one ranking tier, so its candidates are all live or all
   completed; the check reads which from the refusal's `tie` (§ 1.5) and treats a live tie as held.
@@ -685,79 +754,107 @@ owner's reference:
   refuses it (`checkFormerSlug`); refuses `ambiguous-match` over completed candidates, a tie that § 1.2 leaves refusing;
   or refuses for any other reason, which fails closed.
 
+A held or refused answer carries each holder's reference, whether the slug is its current or a former name, and whether
+the lookup refused a tie, which § 6.5's refusal reads. The lookup returns only a reference (`LookupResult`,
+`lib/store/lookup.ts`), so the check reads the returned record for its liveness, and it fails closed as well on a read
+refusal, on a holder with unresolved conflicts, and on a tie refused without its `tie`, as the in-repo implementation
+refuses one (§ 1.5).
+
 Reuse is so limited to completed work units, the only completed holders § 1.2 lets stand for a tie: a closed cohort's
 members still name it by path, and Errands alone carry no sequence. A completed Errand that ranks below a completed work
 unit no longer resolves through the slug, so its slug admits reuse as that work unit's does. A slug the lookup returns
-as the writing owner is free, so a rename's resume onto its current name and a rename back to its own former slug pass,
-as the write rule exempts the writing owner (`sameOwner`, `checkFormerSlug`). The lookup ranks every holder type in the
-shared namespace, so the check is the creation guard against live records as the storage design states it, and it admits
-only what the write rules admit (`checkFormerSlug`; `priorTarget` and `checkSlugEdges`).
+as a writing owner is free, as the write rule exempts the writing owner (`sameOwner`, `checkFormerSlug`): Errand
+promotion's default name is the Errand's own slug, and a decomposition revision keeps its retained members' names. The
+lookup ranks every holder type in the shared namespace, so the check is the creation guard against live records as the
+storage design states it, and it admits only what the write rules admit (`checkFormerSlug`; `priorTarget` and
+`checkSlugEdges`).
 
 The write rule judges only the holder the lookup returns, so it admits a former slug that a completed holder under its
-current name outranks; a former slug resolves to its own work item alone only where the lookup returns the former
-name. The check inherits that and does not close it (§ Non-Goals).
+current name outranks; a former slug resolves to its own work item alone only where the lookup returns the former name.
+The check inherits that and does not close it (§ Non-Goals).
 
 #### 6.2 Where it runs
 
-The check is the one admission check wherever a work item takes a name:
+The check is the one admission check at every path that creates a work item and at Errand promotion. Rename
+(`readStoreRenameSubject`, `lib/store/lifecycle-rename.ts`) and `arc errand open` keep their own admission.
 
 - **`arc stub`:** a create in `executeStoreTransition` (`inputs.storeTransition.create`) runs it and, when it passes,
-  takes position `null` rather than the completed holder's position, which the index would return.
+  takes position `null` rather than the completed holder's position, which the index would return. `arc stub` prints a
+  write rule's refusal with its remedy, where today it prints the condition alone (`runStoreStub`, `sequenceRejection`).
 - **`arc start <name> --new`, spawned or `--here`:** `handleStoreStart` runs it on the operand as typed, in place of
-  `resolveStartName` and `resolveStartDispatch`'s refusal of any slug the index holds.
-- **The nameless cold start:** its derived name runs it through the cold start's admission hook (`admitColdStart`, in
-  `handleStoreStart`).
-- **Decomposition's work-item names:** `checkNamespaceName` (`lib/decompose/check-names.ts`) runs it. Its rule today
-  agrees but for a completed Errand or cohort holder, which it admits and now refuses, and § 1.2 lifts its refusal of a
-  completed tie that includes a work unit.
-- **Errand promotion's target name:** `replace` (`lib/errand/promote-store.ts`) runs it, where today it relies on the
-  store's write checks alone.
+  `resolveStartName` and `resolveStartDispatch`'s refusal of any slug the index holds. `resolveStartDispatch` itself is
+  unchanged, since the in-repo arm shares it.
+- **The cold start:** `runStoreColdStart` (`commands/start-cold-store.ts`) runs it on the cold start's name, named or
+  derived, before it writes the checkout's marker, since a nameless start's name is derived only in `runColdStart`
+  (`commands/start.ts`), which passes it there. Its failure path no longer rewrites a nameless failure as a held name
+  (`recoverColdStartFailure`): the check refuses a held name first, and the rewrite would replace a write rule's remedy.
+- **Decomposition's work-item names:** `checkNamespaceName` (`lib/decompose/check-names.ts`) runs it, with a revision's
+  retained members' owners as its writing owners. Its rule today agrees but for a completed Errand or cohort holder,
+  which it admits and now refuses, and § 1.2 lifts its refusal of a completed tie that includes a work unit.
+- **Errand promotion's target name:** `replace` (`lib/errand/promote-store.ts`) runs it, with the Errand's owner as its
+  writing owner, where today it relies on the store's write checks alone.
 
-`resolveStartName`'s rewrite of a former slug to its holder's current name stays for graduation only: creation under
-the rewritten name would make a work unit nobody named. `nameCollisionGuard` (`lib/work-unit/lifecycle-guards.ts`)
-guards only the in-repo `start` edge, which no store path runs, and is unchanged, as are the transition table and the
-in-repo arm, where a slug has one holder.
+`resolveStartName`'s rewrite of a former slug to its holder's current name stays for graduation only: creation under the
+rewritten name would make a work unit nobody named. `nameCollisionGuard` (`lib/work-unit/lifecycle-guards.ts`) guards
+only the in-repo `start` edge, which no store path runs, and is unchanged, as are the transition table and the in-repo
+arm, where a slug has one holder.
 
 #### 6.3 A cohort taking a name
 
-A cohort takes only a slug nothing resolves through, so decomposition's new-cohort names refuse a completed work unit's
-slug, which `checkNamespaceName` admits today. Membership names its cohort by path and readers match it as text
-(`lib/decompose/removal-cohorts.ts`, `lib/store/kinds/cohort/rules.ts`), and `work-item.slug-edges` guards no cohort
-write, so a cohort on a completed work unit's slug would otherwise take that work unit's edges (§ 5.2).
+A cohort takes only a slug nothing resolves through, so decomposition's new-cohort names refuse whenever the slug's
+lookup returns a record, a completed work unit's or a completed Errand's slug included, which `checkNamespaceName`
+admits today. Membership names its cohort by path and readers match it as text (`lib/decompose/removal-cohorts.ts`,
+`lib/store/kinds/cohort/rules.ts`), and `work-item.slug-edges` guards no cohort write, so a cohort on a completed work
+unit's slug would otherwise take that work unit's edges (§ 5.2).
 
 #### 6.4 Creation settles the edges naming the slug
 
-A batch that gives a work item a slug that an edge names for another record first settles each such edge in the records
-it may write, stubs' and its own: an edge on shipped work discharges, and an edge on a retired origin takes its lineage
-disposition. An in-flight or parked dependent's edge, `Depends On` or pause `waits-on`, still refuses through
-`work-item.slug-edges` (`checkSlugEdges`) with its remedy, since only its owner settles it.
+A batch that gives a work item a slug that an edge names for a prior holder first settles each such edge in the stubs it
+may write: an edge on shipped work discharges, and an edge on a retired origin takes its lineage disposition. It settles
+only where `work-item.slug-edges` counts an edge, where the rule's prior-target resolution (`priorTarget`) finds a prior
+holder other than the writing owner; an edge naming a slug no record has held names the new record and stays. It leaves
+each writing owner's own records to its caller, which writes them in the same batch. A stub is a work-unit meta in
+backlog placement with no conflicts and no cut map, as decomposition's settlement reads one (`slug-settlement.ts`), and
+in Planning, since a parked record sits in backlog placement too. An edge the settler cannot settle, on a conflicted or
+cut-mapped stub or through lineage it cannot resolve, stays for the rule. An in-flight dependent's edge, `Depends On`
+or, when paused, `waits-on`, still refuses through `work-item.slug-edges` (`checkSlugEdges`) with its remedy, since only
+its owner settles it.
 
-One settler in `lib/store/` serves creation and Errand promotion and joins the batch that writes the record: for
-`arc start`, `--new` and the cold start alike, `scaffoldIntoWorktree`'s create batch (`lib/git/worktree-scaffold.ts`);
-for `arc stub`, the executor's; for promotion, `replace`'s. Decomposition keeps its own settler
-(`decomposeSlugSettlementWrites`, `lib/decompose/slug-settler.ts`), which settles a cut's names from the cut map's
-dispositions.
+One settler in `lib/store/` serves creation and Errand promotion and joins the batch that writes the record, after the
+create: for `arc start`, `--new` and the cold start alike, `scaffoldIntoWorktree`'s create batch
+(`lib/git/worktree-scaffold.ts`); for `arc stub`, the executor's; for promotion, `replace`'s. It binds the records it
+read as the batch's observations. The lineage resolution it shares with decomposition (`resolveDecomposeRetiredEdge`,
+`lib/decompose/retired-edge.ts`) and the slot replacement (`replaceDependencySlot`, `lib/decompose/dependency-slot.ts`)
+move to `lib/store/`, which imports nothing from `lib/decompose/`, and decomposition wraps them. Decomposition keeps its
+own settler (`decomposeSlugSettlementWrites`, `lib/decompose/slug-settler.ts`), which settles a cut's names from the cut
+map's dispositions.
 
 #### 6.5 Refusals
 
-A live holder, under its current or a former name, refuses, naming each holder; the remedy is to choose another name or,
-for a holder under its current name, to wait for it to complete. Where the lookup returns a live work unit, `arc start
---new` keeps today's pointer to omit `--new`, since that work unit's lifecycle state decides what `arc start <slug>`
-does (`resolveStartDispatch`); a tie takes no pointer, since `arc start <slug>` refuses it first (`resolveStartName`,
-`handlers/start-store.ts`). A rename is never the remedy, since a renamed holder keeps the slug as a former name. A
-completed holder's former slug, and a completed Errand's or cohort's slug, refuse with the remedy to choose another
-name. A lingering checkout of a completed holder whose marker carries its UID does not block reuse: holder matching
-follows the claim's UID (§ 7.3). One whose marker predates the flip is unbound and blocks a creation of the slug until
-it is released (§ 7.4).
+A live holder, under its current or a former name, refuses, naming each holder by type, current name, and UID; the
+remedy is to choose another name or, for a holder under its current name, to wait for it to complete. Where the lookup
+returns a live work unit, `arc start --new` keeps today's pointer: that work unit's already-started report where it is
+Planning in active placement (`startedPlanningReason`, `handlers/start-store.ts`), and otherwise the pointer to omit
+`--new`, since that work unit's lifecycle state decides what `arc start <slug>` does (`resolveStartDispatch`). A tie
+takes no pointer, since `arc start <slug>` refuses it first (`resolveStartName`). A rename is never the remedy, since a
+renamed holder keeps the slug as a former name, so creation's refusal never prints the clash repair (`clashRepair`,
+§ 4.1). The nameless cold start names `arc start <name> --new --here` as the way to choose another name. A completed
+holder's former slug, and a completed Errand's or cohort's slug, refuse with the remedy to choose another name. A
+lingering checkout of a completed holder whose marker carries its UID does not block reuse: holder matching follows the
+claim's UID (§ 7.3). One whose marker predates the flip is unbound and blocks a creation of the slug until it is
+released (§ 7.4).
 
 ### 7. Checkout claims by UID
 
 #### 7.1 The marker subject and the claim
 
 A checkout marker's work-unit subject (`createdFor`, `lib/git/worktree-marker.ts`) records the owner's UID beside its
-name. The derived checkout row's work-unit subject carries it too (`DerivedCheckoutRowSchema`,
-`lib/locus/derived-schema.ts`, reduced from the marker in `lib/locus/derived-evidence.ts`), so a reader that builds its
-claim from the session frame has it (`callerIdentity`, `lib/errand/store-overlap.ts`). The field is optional in both:
+name, which the marker's validator (`isWorktreeSubject`) requires to be a UUID; a husk stamp's subject, which the same
+validator checks today, takes one of its own that admits none. The derived checkout row's work-unit subject carries it
+too (`DerivedCheckoutRowSchema`, `lib/locus/derived-schema.ts`), reduced from the marker through `projectMarker`
+(`lib/locus/derived-evidence.ts`), `markerSubject` (`derived-lifecycle-evidence.ts`), and the role's marker candidate
+(`DerivedWorkUnitSubject`, `role-derivation.ts`), so a reader that builds its claim from the session frame has it
+(`callerIdentity`, `lib/errand/store-overlap.ts`). The field is optional in both:
 the in-repo arm writes none, an unbound marker carries none (§ 7.4), and a husk's row carries none (§ 8.1). The row is
 part of the published derived schema, which `lib/session-envelope/registry.ts` and `commands/status/schema.ts` import,
 and changes in place under the pre-public compatibility posture.
@@ -772,8 +869,8 @@ From the flip, every reader that resolves a checkout's work unit through the cla
 - the stale-worktree selection (`selectCheckout`, `lib/session-init/store-worktree-selection.ts`);
 - the worktree roster (`lib/git/worktree-roster.ts`);
 - the Errand overlap check's caller identity (`callerIdentity`, `lib/errand/store-overlap.ts`);
-- unclosed task commits (`computeUnclosedTaskCommits`, `lib/locus/unclosed-task-commits.ts`), from the entering row's
-  UID (§ 3.2).
+- unclosed task commits (`computeUnclosedTaskCommits`, `lib/locus/unclosed-task-commits.ts`), which read the entering
+  subject by its slug through `readWorkUnit` today and take the claim instead, from the entering row's UID (§ 3.2).
 
 `store-identities.ts` returns before the claim for a work-unit subject, and a husk-stamped checkout never reaches the
 claim: `readClaimedCurrentWorkUnit`, `selectCheckout`, `marker-occupancy.ts`, and `readMarkerHolder`
@@ -781,70 +878,80 @@ claim: `readClaimedCurrentWorkUnit`, `selectCheckout`, `marker-occupancy.ts`, an
 reduction and the store roster (`runStoreRoster`), each reading the husk as retired (§ 8.1). `callerIdentity` reads the
 entering row, which for a husk carries no UID, so it sends no claim. Where a reader's claim finds no primary and it then
 reads a retired origin's lineage, it reads the lineage by the marker's UID (`readTerminalWorkUnitLineage`,
-`lib/locus/store-terminal-work-unit.ts`, which already admits one; the lineage lookups in `store-work-unit-evidence.ts`
-and `store-worktree-selection.ts`). Before the flip, readers send the slug claim as today.
+`lib/locus/store-terminal-work-unit.ts`, which already admits one; the lineage lookups in `store-work-unit-evidence.ts`,
+`store-worktree-selection.ts`, and `marker-occupancy.ts`). Before the flip, readers send the slug claim as today.
 
 #### 7.2 Marker writers
 
 A writer that holds the record writes the UID with the claim: graduation, spawned or in place, and materialize
 (`claimSpawnedWorktree`, `lib/work-unit/spawned-worktree-claim.ts`, and the in-place leg of `reconcileWorkUnitWorktree`,
 `lib/work-unit/mutators/reconcile-work-unit-worktree.ts`), and promotion's two marker conversions
-(`lib/errand/promote-runtime.ts`). Rename's marker rewrite (`renamedMarker`,
+(`lib/errand/promote-runtime.ts`), from the UID on the record promotion reads, which its frame receipt
+(`PromotionFrameReceipt`, shared with the in-repo arm) carries as an optional field. Rename's marker rewrite (`renamedMarker`,
 `lib/work-unit/rename-worktree-transaction.ts`) keeps the UID, so a rename changes the marker's name for paths while its
 claim identity stays put.
 
 The two creation paths claim before the record exists, so the record write comes last and a failed creation leaves
 nothing in the store to undo: `arc start --new`'s spawn (`runCreateNew`, `commands/start.ts`) and the cold start
 (`runStoreColdStart`, `commands/start-cold-store.ts`). Each writes its marker without a UID (§ 7.4) and stamps the UID
-after its create batch, from the owner the batch returns, which both store-arm backends mint
-(`matchesMutationReference`, `lib/store/write.ts`). The stamp replaces exactly the generation the creation wrote, as
-promotion settles its marker after its commit (`settleOccupancy`, `lib/errand/promote-runtime.ts`). A stamp that fails
-once the batch has committed leaves the marker unbound, and the creation reports its exit, `arc materialize <slug>
---here`, since the record is live; the shipped rollbacks (`recoverColdStartFailure`, `commands/start-cold-store.ts`;
-`rejectCreateNewScaffold`, `commands/start.ts`) run only before the batch commits.
+after its create batch, from the owner the batch wrote, which both store-arm backends mint and the scaffold's store arm
+(`scaffoldIntoWorktree`, `lib/git/worktree-scaffold.ts`) returns. The stamp replaces exactly the generation the creation
+wrote, as promotion settles its marker after its commit (`settleOccupancy`, `lib/errand/promote-runtime.ts`). A stamp
+that fails once the batch has committed leaves the marker unbound, and the creation reports its exit,
+`arc materialize <slug> --here`, since the record is live; the shipped rollbacks (`recoverColdStartFailure`,
+`commands/start-cold-store.ts`; `rejectCreateNewScaffold`, `commands/start.ts`) run only before the batch commits, so
+the stamp sits outside them.
 
 Decomposition writes `branch` subjects only (`lib/work-unit/git-decompose-*`), and husk stamps are unchanged.
 
 #### 7.3 Holder matching follows the claim
 
 Marker exclusivity and holder lookup (`checkMarkerExclusivity` and `findHoldingCheckout` on `LocusPorts`,
-`lib/work-unit/locus-ports.ts`, bound by `createLocusPorts`) take one of two requests, and the caller sets which: the
-owner's UID, from a caller that holds a record, or a creation's slug. A UID request matches markers by UID, never by the
-marker's name, so a lingering bound checkout of the archived holder neither blocks the slug's reuse nor is taken for the
-live holder's; several markers carrying one UID still refuse as several holders do today.
+`lib/work-unit/locus-ports.ts`, bound by `createLocusPorts`) take one discriminated request, which the caller sets:
+`{ kind: "owner"; uid; names }`, the owner's UID with its current and former names, from a caller that holds a record,
+or `{ kind: "creation"; slug }`. `findHoldingCheckout` answers none, a checkout holding the subject, or an unbound
+holder with its exits, and takes the same `checkoutPath` exclusion as `checkMarkerExclusivity`, whose refusal carries
+the unbound case too. The spawn op graduation, materialize, and `arc start --new` share (`ReconcileWorkUnitWorktreeOp`,
+`reconcile-work-unit-worktree.ts`) carries it beside its placement name, and a store-arm record without a UID refuses
+rather than taking a creation request. An owner request matches markers by UID, never by the marker's name, so a
+lingering bound checkout of the archived holder neither blocks the slug's reuse nor is taken for the live holder's;
+several markers carrying one UID still refuse as several holders do today.
 
-An unbound marker (§ 7.4) matches no UID, so a UID request reports one that names the subject's current or a former slug
-as an **unbound holder** rather than passing over it. A caller that acts on the holder refuses on an unbound holder,
-naming the marker's exits, as the scan refuses a marker whose ownership it cannot read (`readMarkerHolder`):
+An unbound marker (§ 7.4) matches no UID, so an owner request reports one that names the subject's current or a former
+slug as an **unbound holder** rather than passing over it. A caller that acts on the holder refuses on an unbound
+holder, naming the marker's exits, as the scan refuses a marker whose ownership it cannot read (`readMarkerHolder`):
 exclusivity, rename, abandon, decomposition's retirement check, the sharing report, teardown, and
-`arc locus release <slug>`, which names the unnamed release to run inside the unbound holder's checkout. A caller that
-only lists or reports shows the work unit as held there, with the same exits: materialize's candidates, start's
-already-started check, paused work, the in-flight projection, and materializable work units. `arc materialize --here`
-excludes the checkout it binds (`checkoutPath`) from its own exclusivity check and candidate listing, as the cold start
-excludes its own (`runStoreColdStart`), so binding a marker never refuses on that marker.
+`arc locus release <slug>`, which names the unnamed release to run inside the unbound holder's checkout. One that finds
+a bound checkout and an unbound holder both refuses naming both. A caller that only lists or reports shows the work unit
+as held at its bound checkout or, with none, at the unbound one, with the unbound marker's exits: materialize's
+candidates, start's already-started check, paused work, the in-flight projection, and materializable work units.
+`arc materialize --here` excludes the checkout it binds (`checkoutPath`) from its own exclusivity check and candidate
+listing, as the cold start excludes its own (`runStoreColdStart`), so binding a marker never refuses on that marker.
 
-Every caller that holds a record passes its UID:
+Every caller that holds a record passes the owner request:
 
 - **through `requireMarkerExclusivity`:** graduation (`graduate`, `commands/start-store.ts`) and the spawn leg
   graduation and materialize share (`reconcileWorkUnitWorktree`);
 - **through `checkMarkerExclusivity`:** promotion, with the Errand's own UID (`promote-store-runtime.ts`);
 - **through `findWorkUnitHoldingCheckout`** (`lib/work-unit/verbs/unshared-work.ts`): rename (`rename-store.ts`),
   abandon (`abandon-store.ts`), decomposition's retirement check (`checkDecomposeRetirementCheckout`,
-  `lib/decompose/retirement-checkout.ts`), the sharing report that gates pause and handover (`readUnsharedWork`),
-  start's already-started check (`startedPlanningReason`, `handlers/start-store.ts`), and materialize's candidates
-  (`listStoreMaterializable`, `materialize-store.ts`);
+  `lib/decompose/retirement-checkout.ts`), the sharing report that gates handover and that pause reports after its write
+  (`readUnsharedWork`), start's already-started check (`startedPlanningReason`, `handlers/start-store.ts`), and
+  materialize's candidates (`listStoreMaterializable`, `materialize-store.ts`);
 - **through `findHoldingCheckout` directly:** teardown (`holdingCheckout`, `teardown-store.ts`, § 8.4), and the
   session-start and status readers over listed entries, paused work (`runPausedWork`), the in-flight projection
   (`workUnitLocation`, `in-flight-store.ts`), and materializable work units (`storeMaterializableCandidate`,
   `lib/session-init/materializable-work-units.ts`), through the functions bound for them in
-  `handlers/status/store-session.ts`, `handlers/status/store-locus.ts`, and `handlers/active.ts`.
+  `handlers/status/store-session.ts`, `handlers/status/store-locus.ts`, and `handlers/active.ts`, and status's own
+  holder lookup for `arc status <slug>` (`readStoreStatusLocus`, `handlers/status/store-locus.ts`), with the UID of the
+  record it read.
 
 The derived roster's rows carry the UID too (§ 7.1), and from the flip every reader that matches a row to a work unit it
 selected elsewhere matches by that UID, never by the row's name:
 
 - the duplicate-marker guard (`guardDuplicateMarkerClaims`, `lib/locus/derived-reader.ts`), which groups rows by UID and
-  rows without one by slug among themselves, as creation's exclusivity compares unbound markers, and passes over a
-  husk's row, which holds nothing (§ 8.1);
+  rows without one by slug among themselves, as creation's exclusivity compares unbound markers, and in the store arm
+  passes over a husk's row, the `retired` row without a UID that § 8.1 gives it, which holds nothing;
 - branch ownership (`storeLocusOwnsBranch` under `locusOwnsBranch`, `lib/session-init/locus-classification.ts`) and the
   orphan advisory's candidate filter (`orphan-store-candidates.ts`), against the record the branch resolves to;
 - the in-flight projection (`workUnitLocation`, `lib/git/in-flight-store.ts`), against each listed entry (§ 2.4);
@@ -867,15 +974,16 @@ lookup returns a live holder, release matches that holder's UID; where it refuse
 clash (`ambiguous-match`), release refuses with it and names the unnamed form (§ 7.4); otherwise, for a completed holder
 or nothing, as § 6.1 reads a free slug, it matches only the unbound markers that name the slug (§ 7.4) and releases the
 one it matches from wherever it runs, as it releases a missing record's marker today (`releaseAuthority`), refusing on
-several and naming each. An unbound holder of a live slug refuses instead, since materialize may bind it to that holder
-(§ 7.4). A completed holder's stamped checkout and a crashed reuse's unbound marker therefore never both match. That
-stamped checkout is released from inside it, by the unnamed form its exit prints, as a non-owner may today
-(`releaseAuthority`, `lib/locus/release.ts`).
+several and naming each. An unbound holder of a live slug refuses instead where materialize admits that holder for the
+person releasing (`ownedInFlight`), since binding recovers it (§ 7.4); otherwise release takes it as it takes a free
+slug's, so a backlog stub's crashed marker stays releasable by name. A completed holder's stamped checkout and a crashed
+reuse's unbound marker therefore never both match. That stamped checkout is released from inside it, by the unnamed form
+its exit prints, as a non-owner may today (`releaseAuthority`, `lib/locus/release.ts`).
 
 A creation holds no record yet, so its claim carries no UID: it passes the slug, and its exclusivity check
 (`requireMarkerExclusivity`, through the spawn leg for `arc start --new` and in `runStoreColdStart`) compares it against
-the other unbound markers only. A crashed creation's leftover therefore blocks a retry and names its exits (§ 7.4),
-and a UID-bearing marker never blocks creation: the admission check decides that (§ 6.1).
+the other unbound markers only. A crashed creation's leftover therefore blocks a retry and names its exits (§ 7.4), and
+a UID-bearing marker never blocks creation: the admission check decides that (§ 6.1).
 
 #### 7.4 A marker without a UID is unbound
 
@@ -883,19 +991,26 @@ From the flip, a work-unit marker without a UID is **unbound**: a creation's bef
 flip, which the import into the store leaves out as machine-local. A husk-stamped marker is a husk rather than unbound,
 and no claim reader reads one (§ 7.1, § 8.1). A creation writes its marker without a UID and its stamp adds one; nothing
 else stamps an unbound marker but materialize, below. The marker's readers change with the subject's UID key: the marker
-type (`worktree-marker.ts`), `decodeWorktreeMarkerOwnership`, `lib/locus/occupancy-marker.ts`'s field and exact-key
-checks, and the work-unit reduction in `derived-evidence.ts`. A work-unit marker still carries no provisioning.
+type and its validator (`worktree-marker.ts`), `decodeWorktreeMarkerOwnership`, and the work-unit reduction through
+`projectMarker`, `markerSubject`, and the role's marker candidate (§ 7.1). A work-unit marker still carries no
+provisioning.
 
 From the flip, a claim reader that acts on the checkout refuses an unbound marker, naming its exits, rather than taking
-the not-found path that advises `arc locus release` (`marker-occupancy.ts`, `selectCheckout`), and holder matching
-treats it as § 7.3 states. The refusal names every holder of the slug, live and completed, each by its UID, so a person
-binding under reuse sees which holder is which. The exits follow the marker and the lookup of its slug:
+the not-found path that advises `arc locus release` (`marker-occupancy.ts`), and holder matching treats it as § 7.3
+states. One classifier in `lib/locus/` reads the marker and the lookup of its slug for every reader. It names each work
+unit holding the slug as its current name, live and completed, and the record the lookup returns or the candidates it
+ties, each by its UID, so a person binding under reuse sees which holder is which; an incomplete listing of work units
+reads as unreadable. Its exits are actions bound to the marker's checkout. The exits follow the marker and the lookup of
+its slug:
 
 - **A live holder materialize admits,** one owned and in flight in active placement (`ownedInFlight`,
   `materialize-store.ts`): `arc materialize <slug> --here` from that checkout binds it, the person naming the holder,
-  and materialize gains this admission; `arc locus release` frees it where the checkout is not that holder's.
+  and materialize gains this admission; `arc locus release` frees it where the checkout is not that holder's. Where the
+  marker names a former slug, the bind exit names the holder's current name, and a reader that has no identity names the
+  holder's owner on the bind exit rather than deciding whether materialize admits it.
 - **An anchored marker (`spawnedByArc: false`) whose slug neither the slug lookup nor the lineage arm finds:** a cold
-  start's leftover. The cold start's rerun admits it, or `arc locus release` frees it. Today's admission
+  start's leftover from before its create batch commits; one interrupted after the batch holds a live record and takes
+  the bind exit. The cold start's rerun admits it, under any name, or `arc locus release` frees it. Today's admission
   (`missingRecord`, `runStoreColdStart`) reads the work-unit claim, which matches only a work unit under its current
   name and so misses an Errand's, a cohort's, or a former slug; the slug lookup finds each, so such a leftover takes
   release instead, as § 6.1 refuses that creation.
@@ -905,17 +1020,29 @@ binding under reuse sees which holder is which. The exits follow the marker and 
   refuses, as under a clash (`ambiguous-match`), where materialize by slug refuses too (§ 4.1). A crashed creation of a
   reused slug is released, then rerun.
 
-The current-work-unit resolver (`readClaimedCurrentWorkUnit` under `resolveCurrentWorkUnit`,
-`lib/store/current-work-unit.ts`) reports an unbound marker as its own state rather than as a warning, and only the two
-exits that bind admit it:
+The stale-worktree sweep reports an unbound marker as a release report whose actions are its exits, rather than as the
+warning its other refusals become (`selectCheckout`). The work-unit evidence behind the derived roster
+(`readStoreWorkUnitEvidence`, `lib/locus/store-work-unit-evidence.ts`) recognizes a marker without a UID before its
+claim read (`readClaimedWorkUnit`) and gives its row a distinct diagnostic carrying the exits, in place of the
+missing-record residue (`work-unit-record-missing`, `derived-reader.ts`), whose advice would release a live work unit's
+checkout or rerun a creation § 6.1 refuses. The cleanup sweep admits that row (`cleanupAuthorityRow`), and the roster's
+claim read (`runStoreRoster`, `lib/git/worktree-roster.ts`) warns naming the exits.
+
+The current-work-unit resolver (`resolveCurrentWorkUnit`, `lib/store/current-work-unit.ts`, through
+`readClaimedCurrentWorkUnit`, `current-work-unit-marker.ts`) reports an unbound marker as its own state rather than as a
+warning, and only the two exits that bind admit it:
 
 - the cold start, which checks the resolver first (`runStoreColdStart`);
-- `arc materialize --here`, whose occupancy guard (`readStoreOccupancy`, `lib/work-unit/lifecycle-guards.ts`) admits an
-  unbound marker naming the slug where the lookup returns a live holder it admits, and matches a bound marker by its
-  UID. Its in-place leg stamps the unbound marker by its generation (`writeAnchoredMarker` with `expected`, in
-  `reconcileWorkUnitWorktree`): it adds the UID and keeps the marker's other fields, `spawnedByArc` among them, as the
-  creation's own stamp does, rather than refusing an existing marker or writing the fresh one the leg writes today,
-  which sets `spawnedByArc: false`.
+- `arc materialize --here`, alone of the verbs that share the occupancy guard (`readStoreOccupancy`,
+  `lib/work-unit/lifecycle-guards.ts`). Each passes the guard its subject's primary, start and resume through the
+  guard's context from the primary their executor selects (`validateStoreGuards`), and the guard matches a bound marker,
+  and the checkout's current work unit, by that primary's UID, never by name; a creation, which holds none, owns no
+  bound marker. Only materialize's call admits an unbound marker naming the slug, and only where that record is one
+  materialize admits; start and resume refuse it. Its in-place leg, given the unbound marker's generation through a
+  materialize-only field of the spawn op, so that graduation `--here` keeps refusing, stamps the unbound marker by its
+  generation (`writeAnchoredMarker` with `expected`, in `reconcileWorkUnitWorktree`): it adds the UID and keeps the
+  marker's other fields, `spawnedByArc` among them, as the creation's own stamp does, rather than refusing an existing
+  marker or writing the fresh one the leg writes today, which sets `spawnedByArc: false`.
 
 Every other caller that acts on the checkout's one current work unit refuses an unbound marker, naming its exits: a
 lifecycle verb run without an operand (`resolveCurrentWuSlug`, `resolvePublicationTarget`, and the store-arm target of
@@ -927,21 +1054,22 @@ task commands (`handlers/task.ts`), `arc handoff write` (`lib/handoff/write.ts`)
 `handlers/view-store.ts`), and the planning base sync (`handlers/base-sync-planning.ts`). The shared work-unit
 resolution that the release wrappers, delivery, and review import, among others (`resolveActiveWu`,
 `lib/release/wu-resolution.ts`), maps an unbound marker to its `ambiguous` result with a hint naming the exits, as it
-maps a resolver warning today, so each importer keeps its policy for a checkout that resolves to no one work unit: `arc
-release commit` and `arc release push` refuse it with the hint, delivery refuses it with its generic refusal
+maps a resolver warning today, so each importer keeps its policy for a checkout that resolves to no one work unit:
+`arc release commit` and `arc release push` refuse it with the hint, delivery refuses it with its generic refusal
 (`resolveDeliveryContext`, `handlers/delivery.ts`, as `active-work-unit-unresolved`), and the notes sync's work-unit
 name (`resolveCurrentWuName`, `lib/user-sync/current-wu.ts`) falls back to the branch's slug, as for an ambiguous
 checkout today. A reader that only reports takes it as a warning naming the exits, as listing readers show its work unit
 as held there (§ 7.3): the active-meta candidate read behind `arc active status` (`readHeldCandidates`,
 `lib/active/meta-reader.ts`), and the advisory notes reconcile's current-work-unit read
-(`resolveReconcileCurrentWorkUnit`, `handlers/user.ts`), which then runs with no current work unit. The candidate read
-also feeds the local review gate's live context (`readLocalReviewLiveContext`,
-`scripts/review-gate/hosts/local/live-context.ts`), which drops its warnings, finds no work unit, and refuses
-`vehicle-unresolved` (`review-authority.ts`), as for an unresolved checkout today. Neither that refusal nor delivery's
-names the exits, which is accepted: each fails closed, and the exits print from `arc active status` and from every verb
-above that refuses. This replaces the by-name residue test, a marker naming a work unit the store holds no record of
-(`missingRecord`, `marker-occupancy.ts`), which a reused slug defeats, since the claim lookup returns its archived
-holder (`readClaimedWorkUnit`).
+(`resolveReconcileCurrentWorkUnit`, `handlers/user.ts`), which then runs with no current work unit and warns in human
+mode alone, since its `--json` envelope carries no warnings and is unchanged. The candidate read also feeds the local
+review gate's live context (`readLocalReviewLiveContext`, `scripts/review-gate/hosts/local/live-context.ts`), which
+drops its warnings, finds no work unit, and refuses `vehicle-unresolved` (`review-authority.ts`), as for an unresolved
+checkout today. Neither that refusal nor delivery's names the exits, which is accepted: each fails closed, and the exits
+print from `arc active status` and from every verb above that refuses. This replaces the by-name residue test, a marker
+naming a work unit the store holds no record of (`missingRecord`, `marker-occupancy.ts`), which a reused slug defeats,
+since the claim lookup returns its archived holder (`readClaimedWorkUnit`). A bound marker whose claim and lineage find
+nothing keeps that test, with today's release admission and no rerun.
 
 `arc locus release` admits an unbound marker, the unnamed form in the checkout it runs from and the named form where
 § 7.3 matches it, since releasing gives up a claim rather than using one, as `releaseAuthority` admits the by-name
@@ -965,17 +1093,31 @@ by that reference (`readStoreRetirementEvidence`, `lib/work-unit/store-retiremen
 lineage through the `lineage` arm, whose `origin` takes a UID (`LookupInputSchema`, `lib/store/lookup.ts`). The exits:
 
 - the stale-worktree sweep (`selectStoreWorktreeCleanup`, `lib/session-init/store-worktree-selection.ts`, rendered in
-  `stale-worktree-sweep.ts`);
+  `stale-worktree-sweep.ts`), whose store-arm report for an ended checkout, branched or detached, carries a teardown
+  naming the holder, in place of the marker's `wuName` (`inspectBranchedRemoval`);
 - locus release's ended remedy (`releaseAuthority`, `lib/locus/release.ts`);
+- marker occupancy's teardown remedies, for a retained lineage, a completed holder, and an Integrating one
+  (`readWorkUnitOccupancy` and `workUnitMarkerExit`, `marker-occupancy.ts`, which materialize's refusal reuses);
 - the work-unit husk exits, which follow the rule below: `inspectCheckoutMarker` (`marker-occupancy.ts`), the
   stale-worktree sweep's husk report (`inspectHuskRemoval` and `withHuskActions`, `stale-worktree-sweep.ts`), and the
   current-husk advisory (`resolveCurrentHuskAdvisory`, `lib/session-init/current-husk-advisory.ts`), the last two with
   session start's rendering of them (`session-init.template.md`);
-- the missing-worktree check (`missingRegistrationActions`, `lib/session-init/missing-worktree-folders.ts`);
-- the orphan advisory (`orphan-store-candidates.ts`, rendered in `orphan-branch-sweep.ts`);
+- the missing-worktree check (`readStoreMissingFolderActions`, `lib/session-init/missing-worktree-store.ts`);
+- the orphan advisory (`orphan-store-candidates.ts`, rendered in `orphan-branch-sweep.ts`), whose store-arm shipped
+  report carries its teardown the same way;
 - the retirement sweep (`hasAbandonment`, `lib/session-init/store-retirement-sweep.ts`);
-- branch-gone recovery's teardown offer (`lib/session-init/branch-gone-recovery.ts`, which names the marker's work unit
-  through `wuName`).
+- branch-gone recovery's teardown offer (`inferBranchGoneRecovery`, `lib/session-init/recommended-action.ts`, from the
+  marker's work unit, `branch-gone-recovery.ts`), which holds no store and so names the derived row's UID where the row
+  carries one, and otherwise its name, as an in-repo row carries none.
+
+Each exit names the ended holder by slug only where the slug is not UUID-shaped and its lookup returns exactly that
+holder, and by UID otherwise, a refused lookup included, through one helper. The helper uses the same UUID
+classification as the command (§ 8.3), so a UUID-shaped display name always yields the holder's own UID. The store arm's
+stale-worktree and orphan reports carry their teardown as `teardown` (`{ argv, text }`, the retirement report's shape),
+the command the CLI composes, which session start offers where present (`session-init.template.md`). The in-repo arm's
+reports carry none, so session start composes their offers from the report's fields as today (`git worktree remove
+{worktreePath}`, `arc teardown {shippedWorkUnit}`), and the in-repo arm's offers stay unchanged. Session start gains a
+rule for the store arm's ended detached report.
 
 A husk never reaches the claim, and only the in-repo teardown stamps a work-unit husk (`runTeardown`,
 `lib/work-unit/verbs/teardown.ts`; the store arm's `runStoreTeardown` stamps none), so every work-unit husk a store arm
@@ -989,7 +1131,10 @@ report a `manual-only` stamp:
 
 - **The stamp.** In the store arm, every work-unit husk's stamp reads `manual-only`, whatever it decodes to, with a
   reason for a husk stamped before the flip, which the closed reason set gains (`decodeWorktreeHuskStamp`,
-  `worktree-marker.ts`).
+  `worktree-marker.ts`). The decoder takes the arm from its caller, in-repo by default, and the exits pass the store
+  arm. The store teardown's `--husk` replay (`selectStoreRetirementHusk`) keeps the default decode: it admits only a
+  stamp whose evidence matches the selected store version, which no shipped path writes, so it refuses every pre-flip
+  husk as today.
 - **The derived row.** The work-unit reduction (`readStoreCheckout`, `lib/locus/derived-evidence.ts`) keeps the husk
   fact before `projectMarker` drops it and returns before the claim with the terminal evidence it reads for a work unit
   with only lineage (`readRemovedWorkUnit`, `store-work-unit-evidence.ts`), so the row is `retired`, with a subject that
@@ -1009,8 +1154,9 @@ The published advisory and sweep schemas carry both reason sets (`CurrentHuskAdv
 compatibility posture.
 
 A branch husk's subject is its `chore/<slug>` branch, which `arc teardown --branch` takes as an exact ref, with no slug
-lookup, in either arm (`runBranchTeardown`), so slug reuse never reaches it and this change leaves its exits as they
-are.
+lookup, in either arm (`runBranchTeardown`), so slug reuse never reaches it, and its exits stay as they are but for
+marker occupancy's (`inspectCheckoutMarker`), which prints `arc teardown --branch <ref>`, the form the command takes,
+where it prints `arc teardown <branch>` today, which the slug operand rejects.
 
 #### 8.2 Callers that hold their subject pass its reference
 
@@ -1021,33 +1167,44 @@ whose lineage the `lineage` arm finds by UID, and their retry commands name that
 #### 8.3 `arc teardown <slug|uid>`
 
 `arc teardown` takes `<slug|uid>`: a UUID-shaped operand selects that exact owner, and any other operand is a slug
-resolved through the lookup. Each offer names the holder's UID where its slug resolves to another holder. No lookup arm
+resolved through the lookup. Each offer names its holder by slug only where the slug is not UUID-shaped and its lookup
+returns exactly that holder, and by UID otherwise; the offer helper and the command use the same UUID classification.
+Branch-gone recovery's offer, which holds no store, names the row's UID where the row carries one (§ 8.1). Teardown
+carries its subject typed, a slug or an owner (`TeardownParams`), so abandon's and decomposition's owner (§ 8.2) and a
+UID operand reach the evidence read and the retries alike; the in-repo arm takes every operand as a slug. No lookup arm
 finds a primary by UID (`LookupInputSchema`), so a UUID operand scans the work-item listing for that owner's UID, as the
 inbox's UUID selector does (`primaryByUid`, `lib/inbox/lists.ts`), and, where no primary carries it, asks the `lineage`
-arm for a retired origin with that UID. § 4.1's rule against a UID subject guards against work proceeding on a clashed
-slug; teardown's subject has ended, so no work proceeds.
+arm for a retired origin with that UID. The scan lowercases the operand, returns the primary carrying the UID with its
+record kind, or none, refuses `ambiguous-match` where several carry it, as the inbox's does today, and refuses an
+incomplete listing; the inbox calls it in place of its own, and each verb that shares the operand applies its own type
+rule; teardown refuses an Errand's UID and a UID neither the scan nor the `lineage` arm finds. A UUID-shaped slug, which
+`SlugSchema` admits, so selects by UID, and its holder stays reachable by its own UID. § 4.1's rule against a UID
+subject guards against work proceeding on a clashed slug; teardown's subject has ended, so no work proceeds.
 
 #### 8.4 Teardown finds its subject's checkout by UID
 
 Teardown's holder lookup (`holdingCheckout`, `lib/work-unit/verbs/teardown-store.ts`, through `findHoldingCheckout`) and
-its selection check (`readTeardownSelection`, `lib/work-unit/executor-context.ts`, whose `subjectsEqual` in
-`lib/work-unit/teardown-selection.ts` compares work-unit subjects by name today) match the evidence owner's UID, so a
-teardown run by UID never takes the live holder's checkout for its subject's. `holdingCheckout`'s own name-matching scan
-(`resolveLegacy`) serves only where no locus ports are bound, and from the flip it matches by UID too. When teardown ran
-by UID, every retry it names carries the UID: its retry remedy (`teardownRetryRemedy`) and the lineage repair text
-(`store-retirement-evidence.ts`).
+its selection check (`readTeardownSelection`, a `TeardownContext` field whose logic, `classifyTeardownSelection` and
+`subjectsEqual` in `lib/work-unit/teardown-selection.ts`, compares work-unit subjects by name today) match the evidence
+owner's UID, so a teardown run by UID never takes the live holder's checkout for its subject's. `holdingCheckout`'s own
+name-matching scan (`resolveLegacy`) serves only where no locus ports are bound, and from the flip it matches by UID
+too. When teardown ran by UID, every retry it names carries the UID: its retry remedy (`teardownRetryRemedy`), the
+lineage repair text (`store-retirement-evidence.ts`), and the `--husk` replay's retry (`store-retirement-husk.ts`).
 
 #### 8.5 Teardown touches only a branch the retiring holder still owns
 
 Before teardown returns a checkout to base or deletes a linked branch, it looks the branch up through the `ref` arm
-(§ 1.3). This covers the retiring link and any other created link (`prepareCreatedBranch`, `reapRetiringBranch`,
-`reapAdditionalBranch`):
+(§ 1.3) by the link's repository and ref exactly. This covers the retiring link, before its checkout returns to base
+(`prepareCreatedBranch`, `reapRetirementLinks`), and any other created link, before its zero-delta reap
+(`reapZeroDeltaBranch`, in `reapAdditionalBranch`):
 
 - **Proceed:** the lookup finds no record, as for an abandoned or decomposed holder, whose links move to its lineage
   (`retiredBranches`), or returns the subject or a completed holder.
 - **Keep:** the lookup returns a live holder other than the subject, or refuses with `ambiguous-match` or another
   failure, as for two live holders' shared branch after a clash's rename. Teardown leaves the checkout, the local
-  branch, and the remote alone and reports each, naming the holder.
+  branch, and the remote alone and reports each, naming the holder by its UID. A link so kept never counts as the
+  blocked cleanup that fails a teardown (`reapRetirementLinks`), and an adopted link a live holder links drops its
+  owner-cleanup advice (`reportAdopted`), which would advise deleting that holder's branch.
 
 A local branch so kept can be the ended holder's own: after a clash's rename both links name the old branch, and when
 the renamed holder completes first its teardown keeps that branch, which the other holder's later rename on that machine
@@ -1060,7 +1217,8 @@ returned to base, all on a destructive step.
 Under `discard`, teardown deletes the remote branch only when the advertised tip is contained in this machine's local
 branch for the retiring holder (`generation.localHead`, `selectRetiringLinks`), and otherwise keeps it and reports it,
 as `landed` keeps a remote whose commits have not landed (`reapRetiringRemote`). On a machine without the local branch
-this keeps and reports a remote that teardown deletes today.
+this keeps and reports a remote that teardown deletes today. A kept remote keeps its tracking ref, and an advertised tip
+whose object this machine lacks counts as not contained (`isContainedIn`).
 
 The two halves gate differently because their evidence differs. A checkout ARC makes of the live holder on this machine
 comes from this machine's store, so the `ref` arm sees that holder wherever ARC put its branch, and a link carries no
@@ -1076,6 +1234,12 @@ The rename change (§ 11) and the cutover build on these, and each is stable onc
 
 - the view's whole listing under a clash (§ 2.2), the typed clash candidates (§ 4.1), and the former-name tie's
   treatment as a clash (§ 2.1, § 4);
+- the clash repair builder (`clashRepair`, `lib/store/`), which returns one `Remedy`, with its preference order and its
+  argv rule (§ 4.1);
+- a cohort's membership read from every holder, by archive's cohort closeout at both its call sites and by the cohort
+  consistency check (§ 2.3);
+- the word check, the paired-spec owner check, and abandon's impact plan taking any `ambiguous-match` as an answer, so
+  no tie the lookup refuses blocks an unrelated work unit's activation, reconcile, publish, rename, or abandon (§ 4.2);
 - re-reading a held record by reference, `acquireLifecycleRecords` taking the owner's reference (§ 3.2);
 - the reference backend's cohort ranking (§ 1.1), the completed tie-break beneath it (§ 1.2), and the tie's facts on its
   refusal (§ 1.5);
@@ -1102,21 +1266,28 @@ as usual. Landing the selection early serves no consumer, since the rename chang
 
 #### 10.2 Order
 
-The ref backend's lookup changes, § 1.2's slug ranking (`rankNameTrees`), § 1.3's `ref` arm (`lookupCandidates`),
+The ref backend's lookup changes, § 1.2's slug candidates (`slugCandidates`), § 1.3's `ref` arm (`lookupCandidates`),
 § 1.4's claim arm (`claimLookupCandidates`), and § 1.5's tie facts in the slug and `ref` arms, implement after the ref
 backend lands on `main`, an ordering this specification records rather than a dependency edge. § 1's conformance
 assertions land with those changes, since the shared suite runs over every registered backend and would fail the ref
-backend before them; until then, tests over the reference backend alone pin each rule. Every other change implements now
-and edits the reference backend and the shared code on `main` without imposing a change on the ref backend's branch.
-That branch touches these files this design reaches, each in a small, mechanical way: `lib/store/lifecycle-rename.ts`,
-`lib/work-unit/verbs/archive-store.ts`, `suite-lookup.ts`, `handlers/status/lifecycle.ts`,
-`lib/store/in-repo/lookup.ts`, `lib/work-unit/verbs/rename-store.ts`, `lib/errand/promote-store-runtime.ts`,
-`handlers/status/store-locus.ts`, and `lib/store/refusal.ts`, where it reorders `LocalRefusalSchema`'s members beside
-the one § 1.5 extends; and, among the tests whose work-unit marker, subject, and holder fixtures the Testing bullet
-reaches, each under `__tests__/unit/`, `git/worktree-roster-store.test.ts`, `locus/derived-store-evidence.test.ts`,
-`locus/store-work-unit-terminal.test.ts`, `locus/derived-task-conflicts.test.ts`, `release/wu-resolution-store.test.ts`,
-`session-init/stale-worktree-store.test.ts`, `session-init/store-retirement-sweep.test.ts`, and
-`session-init/paused-work-store.test.ts`.
+backend before them; until then, tests over the reference backend alone pin each rule. The one existing assertion § 1
+changes, the work-unit claim's (`checkout-work-unit-claim`), sends the owner's UID once § 1.4 lands in the reference
+backend, since the suite already runs it there; the ref backend's claim arm ignores the field until its own change.
+Every other change implements now and edits the reference backend and the shared code on `main` without imposing a
+change on the ref backend's branch. That branch touches these files this design reaches, each in a small, mechanical
+way: `lib/store/lifecycle-rename.ts`, `lib/work-unit/verbs/archive-store.ts`, `suite-lookup.ts`,
+`handlers/status/lifecycle.ts`, `lib/store/in-repo/lookup.ts`, `lib/work-unit/verbs/rename-store.ts`,
+`lib/errand/promote-store-runtime.ts`, `handlers/status/store-locus.ts`, `lib/handoff/write.ts`, `cli.ts` and
+`lib/cli-help-summaries.ts`, which teardown's operand reaches (§ 8.3), and `lib/store/refusal.ts`, where it reorders
+`LocalRefusalSchema`'s members beside the one § 1.5 extends; among the tests, under `__tests__/unit/`,
+`lib/store/envelopes.test.ts`'s refusal cases and `status/store-project-input.test.ts`'s imports; and, among the tests
+whose work-unit marker, subject, and holder fixtures the Testing bullet reaches, under `__tests__/unit/`,
+`git/worktree-roster-store.test.ts`, `locus/derived-store-evidence.test.ts`, `locus/store-work-unit-terminal.test.ts`,
+`locus/derived-task-conflicts.test.ts`, `release/wu-resolution-store.test.ts`,
+`session-init/stale-worktree-store.test.ts`, `session-init/store-retirement-sweep.test.ts`,
+`session-init/paused-work-store.test.ts`, and `lib/decompose/atomic-admission.test.ts`, and under
+`__tests__/integration/`, `handoff-write-store.test.ts`, `recovery-state-basis.test.ts`, and
+`status-store-refresh-cli.test.ts`.
 
 This change lands before the rename change, which rebases onto § 2's selection.
 
@@ -1133,7 +1304,9 @@ This design consumes behavior two other changes build. Each is an expected contr
     - its lookup trees include the latest archived folder of each completed owner (`readLookupTrees`,
       `lib/store/ref/lookup-trees.ts`);
     - its claim arm (`claimLookupCandidates`, `lib/store/ref/lookup-claims.ts`) and `ref` arm (`lookupCandidates`,
-      `lib/store/ref/lookup.ts`) match by slug and by branch link today, as the reference backend's do.
+      `lib/store/ref/lookup.ts`) match by slug and by branch link today, as the reference backend's do;
+    - it refuses a write that gives two live primaries one slug, a work item and a cohort included
+      (`checkLiveNamespace`, `lib/store/ref/namespace-admission.ts`).
 - **The rename change** (the change that adds `arc rename <slug|uid> <new-slug>` and cohort rename, landing after this
   one):
     - its operand rule, which `arc teardown` shares (§ 8.3): a UUID-shaped operand selects that exact owner, and any
@@ -1234,13 +1407,17 @@ This design consumes behavior two other changes build. Each is an expected contr
   already makes, and the settler's listing inside its create batch; teardown adds one `ref` lookup per branch it would
   touch. Holder matching keeps its one marker scan.
 - **Testing.** The lookup's rules (§ 1) are pinned by tests over the reference backend alone until the ref backend's
-  lookup changes land, then by conformance assertions every store-arm backend runs (§ 10.2). The reference backend
-  refuses a live clash at a write (`indexIdentities`, `__tests__/helpers/store/identities.ts`), so clash cases run over
-  a store double whose listing and lookup hold both live holders, as status's clash test does
-  (`store-project-standing.test.ts`); reuse and cohort cases run over the reference backend directly. Each recoverable
-  refusal is tested with its successful continuation after repair: an unbound marker, an interrupted creation's and one
-  written before the flip, with each of its exits, and a clash and the rename that repairs it, written directly to the
-  store double until the rename change lands. A store-arm fixture that writes a work-unit marker, builds a derived row's
+  lookup changes land, then by conformance assertions every store-arm backend runs (§ 10.2), but for a live slug-arm tie
+  and a cohort's ranking under a former name, which public writes cannot build on both backends and each backend's own
+  tests pin instead. The reference backend refuses a live clash between holders of one owner type at a write
+  (`indexIdentities`, `__tests__/helpers/store/identities.ts`, keyed by owner type and name) and admits a live work item
+  and a live cohort on one slug, which the ref backend refuses (§ 11). So clash cases among work items run over a store
+  double whose listing and lookup hold both live holders, as status's clash test does
+  (`store-project-standing.test.ts`); a live tie of a work item and a cohort, reuse, and cohort cases run over the
+  reference backend directly, a cohort's former name planted on its record (§ 1.1). Each recoverable refusal is tested
+  with its successful continuation after repair: an unbound marker, an interrupted creation's and one written before the
+  flip, with each of its exits, and a clash and the rename or Errand close that repairs it, written directly to the
+  store until the rename change lands. A store-arm fixture that writes a work-unit marker, builds a derived row's
   work-unit subject, or sends a work-unit claim carries the owner's UID, as § 1.4, § 7.3, and § 7.4 require, and one
   that means an unbound marker leaves it out. A fixture that stubs a holder port by slug matches by the UID the port now
   receives. Among the status handler tests (`__tests__/unit/handlers/status/`), these fixtures change:
@@ -1257,16 +1434,17 @@ This design consumes behavior two other changes build. Each is an expected contr
   which move to status's rendering of the clash facts, with today's text. The in-repo arm's tests pass unchanged.
 - **Migration and rollout.** Everything is dark until the flip. Records already carry UIDs, so no store data migrates.
   The marker's work-unit subject, the derived row's, the store refusal's `tie` (§ 1.5), the lifecycle refusal's
-  `candidates` and `tie` (§ 4.1), the reconcile component's `held` list (§ 5.2), and the husk stamp's and sweep
-  decision's reason sets (§ 8.1) change in place under the pre-public compatibility posture, with no compatibility
-  reader or migration. A marker written before the flip is unbound: the readers that act on its claim and acting holder
-  matching refuse it, naming each holder of its slug and its exits; the consumers that keep their own policy for an
-  unresolved checkout keep it, the release wrappers refusing with the exits, delivery and the local review gate with
-  their generic refusal, and the notes sync using the branch's slug; the readers that only report warn, naming the
-  exits; listing readers show its work unit as held there; and a person binds it with `arc materialize <slug> --here` or
-  releases it (§ 7.3, § 7.4). The cutover's flip step follows (§ 9): it tears down ended holders' checkouts and
-  work-unit husks before the flip, since neither takes a teardown after it, and binds or releases each remaining
-  checkout's marker after the import. The ref backend's lookup edits land after the ref backend (§ 10.2).
+  `refusal` (§ 4.1), the reconcile component's `held` list (§ 5.2), the husk stamp's and sweep decision's reason sets,
+  and the store arm's stale-worktree and orphan reports' `teardown` (§ 8.1) change in place under the pre-public
+  compatibility posture, with no compatibility reader or migration. A marker written before the flip is unbound: the
+  readers that act on its claim and acting holder matching refuse it, naming each holder of its slug and its exits; the
+  consumers that keep their own policy for an unresolved checkout keep it, the release wrappers refusing with the exits,
+  delivery and the local review gate with their generic refusal, and the notes sync using the branch's slug; the readers
+  that only report warn, naming the exits; listing readers show its work unit as held there; and a person binds it with
+  `arc materialize <slug> --here` or releases it (§ 7.3, § 7.4). The cutover's flip step follows (§ 9): it tears down
+  ended holders' checkouts and work-unit husks before the flip, since neither takes a teardown after it, and binds or
+  releases each remaining checkout's marker after the import. The ref backend's lookup edits land after the ref backend
+  (§ 10.2).
 - **User-facing impact, from the flip.** Every lifecycle verb acts on a reused slug's live holder. A clash refuses,
   naming each holder and the repair, typed under `--json` where the verb takes it. A dependency edge on a tied name, or
   on one a cohort or an Errand holds with no lineage disposition, is held rather than refused: `arc wu reconcile` lists
@@ -1302,29 +1480,29 @@ Each holds over the reference backend, and over the ref backend once it lands (�
    slug.
 4. **Settling.** Creating onto a completed holder's slug settles a stub's edge naming it in the same batch, and an
    in-flight dependent's edge refuses through `work-item.slug-edges` with its remedy.
-5. **The lookup.** § 1's rules hold, pinned as § 10.2 orders: a cohort-held slug resolves to the cohort, and
-   `readWorkUnit` reports it as one; a completed tie that includes a work unit resolves to its latest archived work
-   unit, above a completed Errand, while a live tie and a completed tie that includes a cohort or holds only Errands
-   refuse, each refusal naming its tie's tier; the `ref` arm resolves a reused slug's branch to its live holder; and a
-   work-unit claim resolves each holder by its own UID and nothing without one.
+5. **The lookup.** § 1's rules hold, pinned as § 1 states and § 10.2 orders: a cohort-held slug resolves to the cohort,
+   and each reader that requires a work unit reports it as one; a completed tie that includes a work unit resolves to
+   its latest archived work unit, above a completed Errand, while a live tie and a completed tie that includes a cohort
+   or holds only Errands refuse, each refusal naming its tie's tier; the `ref` arm resolves a reused slug's branch to
+   its live holder; and a work-unit claim resolves each holder by its own UID and nothing without one.
 6. **One selection.** Lifecycle's view, status, and every slug-keyed map in § 2.4 take the standing holder: completed
-   evidence omits a slug with a live holder, so the free primary gains no Candidate authority over that slug and the
-   stale-worktree sweep does not list the live holder's checkout as shipped; the lifecycle snapshot reads each holder's
-   artifacts at its own path; paused work offers the clash repair alone for a paused holder of a slug the selection
-   reports as a clash, whatever the other holder's state, review-due ones included; and the cohort consistency check
-   counts both members of a clash.
+   evidence omits a slug with a live holder, so the free primary gains no Candidate authority over that slug and a
+   husk stamped for it reports no completed work unit; the lifecycle snapshot reads each holder's artifacts at its own
+   path; paused work offers the clash repair alone for a paused holder of a slug the selection reports as a clash,
+   whatever the other holder's state, review-due ones included; and the cohort consistency check counts each holder of a
+   clash in its own cohort.
 7. **Session start under reuse.** With a bound checkout or a husk of the archived holder on the same machine, it
    resolves the live holder's checkout through its UID-bearing claim and its branch through the ranked `ref` arm, and
    offers no branch cleanup while a live work unit links the branch; the duplicate-marker guard leaves the live holder's
    checkout resolved, and the in-flight projection, status's slug position, and branch ownership each read the live
    holder's checkout alone.
-8. **An ended holder's cleanup.** A bound checkout of the archived holder still reads ended and tears down through its
-   UID, leaving the live holder's checkout, local branch, and remote branch in place; a work-unit husk reports a manual
-   decision at every exit, session start's primary-checkout sweep and its own checkout included, offers no command
-   naming its slug, and never reads as holding that slug; `arc teardown --branch` still removes a branch husk; an
-   abandoned holder's teardown still reaps its own branches; `arc teardown <uid>` resolves a retired origin through its
-   lineage; and under `discard` teardown keeps and reports a remote whose advertised tip its local branch does not
-   contain.
+8. **An ended holder's cleanup.** A bound checkout of the archived holder still reads ended, session start offers its
+   teardown by UID, and it tears down through its UID, leaving the live holder's checkout, local branch, and remote
+   branch in place; a work-unit husk reports a manual decision at every exit, session start's primary-checkout sweep and
+   its own checkout included, offers no command naming its slug, and never reads as holding that slug;
+   `arc teardown --branch` still removes a branch husk; an abandoned holder's teardown still reaps its own branches;
+   `arc teardown <uid>` resolves a retired origin through its lineage; and under `discard` teardown keeps and reports a
+   remote whose advertised tip its local branch does not contain.
 9. **Clash.** With two live holders, a verb naming the slug, or run without one in either holder's checkout, refuses
    `ambiguous-match` carrying both holders as typed references in its text refusal, and through `--json` where the verb
    takes it, whichever site meets the clash first (§ 4.1) and naming the preferred move for its holders' types, but for
@@ -1337,10 +1515,10 @@ Each holds over the reference backend, and over the ref backend once it lands (�
    work unit whose records mention the slug and a dependent whose edge names it both activate, the edge held with a
    diagnostic. A work unit whose records mention a tied slug, as a word or in a paired spec's filename, activates,
    reconciles, and publishes, whether the tie is a clash, a live tie among Errands or cohorts, or a completed tie that
-   § 1.2 leaves refusing; and a rename runs while another record mentions a clashed slug's paired spec. After the
-   preferred repair, the slug never ties again and no work unit keeps it as a former name, both holders completed
-   included: a work unit and a cohort clashed, once the cohort is renamed; a work unit and an Errand clashed, once the
-   Errand is closed.
+   § 1.2 leaves refusing; a rename runs while another record mentions a clashed slug's paired spec; and an unrelated
+   work unit abandons while an Integrating work unit's held edge names a tied slug. After the preferred repair, the slug
+   never ties again and no work unit keeps it as a former name, both holders completed included: a work unit and a
+   cohort clashed, once the cohort is renamed; a work unit and an Errand clashed, once the Errand is closed.
 10. **Cohort edges.** An edge on a name the lookup resolves to a cohort, under its current or a former name, or to a tie
     among cohorts and Errands alone, is held unsatisfied, never discharged, and its dependent activates, unless a
     retired origin's lineage under that name settles it first, as a drop or a replace; one the lookup ties between a
@@ -1350,13 +1528,14 @@ Each holds over the reference backend, and over the ref backend once it lands (�
     holder of its slug and the exits its marker and slug select; `arc release commit` and `arc release push` refuse with
     the exits, delivery and the local review gate refuse with their generic refusal, and the notes sync uses the
     branch's slug; `arc active status` and `arc user reconcile-references` run with a warning naming the exits, the
-    latter with no current work unit; and listing readers show its work unit as held there. `arc materialize <slug>
-    --here` binds it to a live holder materialize admits, even while another owned work unit's checkout is unbound too;
-    the cold start's rerun admits an anchored one whose slug has no record or lineage; and `arc locus release` from its
-    checkout frees any; each then succeeds. `arc locus release <slug>` frees the one unbound marker naming a slug with
-    no live holder from any checkout, and refuses, naming the unnamed form, where the slug has a live holder or its
-    lookup refuses. A creation's leftover blocks its retry until one of them runs. Each exit that locates a checkout
-    prints `arc locus release` to run in that checkout rather than a slug.
+    latter with no current work unit; and listing readers show its work unit as held there.
+    `arc materialize <slug> --here` binds it to a live holder materialize admits, even while another owned work unit's
+    checkout is unbound too; the cold start's rerun admits an anchored one whose slug has no record or lineage; and
+    `arc locus release` from its checkout frees any; each then succeeds. `arc locus release <slug>` frees the one
+    unbound marker naming a slug from any checkout unless materialize admits the slug's live holder, and refuses, naming
+    the unnamed form, where it does or where the slug's lookup refuses. A creation's leftover blocks its retry until one
+    of them runs. Each exit that locates a checkout prints `arc locus release` to run in that checkout rather than a
+    slug.
 12. **Nothing else moves.** Status's output-pinning tests and the in-repo arm's tests pass unchanged but for the
     selection's import path, the standing test's warning assertions, which move to status's rendering, and the status
     handler fixtures the Testing bullet names (§ Cross-cutting Considerations).
@@ -1364,7 +1543,7 @@ Each holds over the reference backend, and over the ref backend once it lands (�
 ## Open Questions
 
 None blocks starting. Module and field names inside `lib/store/` for the selection, the admission check, and the
-settler, and the exact request type `LocusPorts` takes for a UID or a creation's slug, are implementation detail.
+settler are implementation detail; § 7.3 fixes the request `LocusPorts` takes.
 
 ## Amendments
 

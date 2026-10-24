@@ -9,7 +9,7 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-lifecycle-slug-selection.md`
-- **Task List:** [none]
+- **Task List:** `tasks-lifecycle-slug-selection.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** generate-tasks Finalize — run the approved fix check round 1 on adversarial pass 1's folds
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
