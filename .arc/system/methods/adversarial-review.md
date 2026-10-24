@@ -506,12 +506,13 @@ loop has ended, its stop reason is recorded, and no round is offered or running.
 checkout may lose the copies; scope the fix check from the account alone and disclose that limitation in its report.
 
 **Kept prompts and reports.** Whether fold verification is on or off, save each look's exact prompts before sending
-and its returned reports on receipt, including scoped, chunk, seam, aggregate, and fix-check calls. Keep them in an
-`adversarial-review/` folder beside `ADVERSARIAL-PASSES.md` in the work unit's personal workspace until that workspace
-is swept at archive, not just until the loop ends. Name each file `{sha256}.md` from its exact content; reuse a name
-only for identical content and never replace it with different bytes. For a stub groomed before it starts, keep
-these files beside its kept reviewed versions under `.arc/user/{identity}/.internal/reviewed-versions/{slug}/`;
-they stay machine-local and are removed with those versions when the loop ends.
+and its returned reports on receipt, including scoped, chunk, seam, aggregate, and fix-check calls. Planning and
+criteria callers keep them in an `adversarial-review/` folder in the work unit's personal workspace, beside
+`ADVERSARIAL-PASSES.md` when present, until that workspace is swept at archive, not just until the loop ends. Name
+each file `{sha256}.md` from its exact content; reuse a name only for identical content and never replace it with
+different bytes. For a stub groomed before it starts, keep these files beside its kept reviewed versions under
+`.arc/user/{identity}/.internal/reviewed-versions/{slug}/`; they stay machine-local and are removed with those
+versions when the loop ends.
 
 ### Pass record
 
@@ -520,12 +521,13 @@ consumption fact in `ADVERSARIAL-PASSES.md` in the work unit's personal workspac
 the criteria report. This creates no lane-progress record, stored review-gate operation, Candidate, policy binding,
 or receipt.
 
+Both callers record each kept look file's filename, content hash, and role (`prompt` or `report`) with that record,
+identifying its pass and any fix-check round, chunk, seam, or aggregate call.
+
 A planning pass entry carries:
 
 - the artifact reviewed and, with fold verification on, the filename and content hash of each kept version for the
   pass and each fix-check round;
-- each kept look file's filename, content hash, and role (`prompt` or `report`), identifying its pass and any
-  fix-check round, chunk, seam, or aggregate call;
 - `Pass N of M` and the rubric;
 - the complete source-verified finding/account/action set, each fixing fold's tag and each finding's origin: the
   original artifact, a previous pass's fix, a fix-check repair, or another change the Owner approved between reviews.
