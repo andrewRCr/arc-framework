@@ -65,9 +65,9 @@ primarily for the sake of agent isolation rather than developer convenience.
 - **A fresh worktree comes up working.** Worktree creation includes provisioning, not just `git worktree add`: the
   gitignored files a `.worktreeinclude` file lists are copied from the primary, a configured post-create step
   (`worktree.post_create`) installs project dependencies, and registered harness integration directories (agent
-  skills, hooks, allowlists — gitignored, so git alone won't carry them) are provisioned from the primary. A spawned
-  worktree runs its quality gates and boots an agent session without hand setup — "cheap to create" includes coming
-  up working, not just existing.
+  skills, hooks, allowlists — gitignored, so git alone won't carry them) are provisioned from the primary. Once a
+  project configures what its worktrees need (the next section), a spawned worktree runs its quality gates and boots
+  an agent session without hand setup — "cheap to create" includes coming up working, not just existing.
 
 ### What each checkout needs its own of
 
