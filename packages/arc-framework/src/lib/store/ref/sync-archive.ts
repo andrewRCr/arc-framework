@@ -1,9 +1,9 @@
 /** Merge quarter folders as complete groups and reconcile unpublished sequence assignments. */
 
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
-import { RecordReferenceSchema } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
 import { archivedFolders, type ArchivedFolder } from "./archive-read.js";
+import { ownerPrimaryReference } from "./archive-refresh.js";
 import { readBatchObjects, readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
 import { corruptRef } from "./namespace-health.js";
@@ -43,8 +43,7 @@ export async function mergeArchiveTree(context: RefBackendContext, ref: string, 
   }
   const subject = [...selected.values(), ...sides.base.values(), ...sides.local.values(), ...sides.incoming.values()][0];
   if (!subject) return { status: "refused", refusal: corruptRef(ref) };
-  const reference = RecordReferenceSchema.parse({ owner: subject.owner,
-    kind: subject.owner.type === "cohort" ? "cohort/document" : subject.metadata.primary?.role ?? "work-item/meta" });
+  const reference = ownerPrimaryReference(subject.owner, subject.metadata);
   return { status: "ok", result: { entries, reference } };
 }
 

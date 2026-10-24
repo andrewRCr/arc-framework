@@ -93,6 +93,13 @@ export function latestArchivedFolders(folders: readonly ArchivedFolder[]): Archi
   return [...selected.values()];
 }
 
+/** The placement of an ended owner's latest folder, which defines its completed placement and version. */
+export function latestFolderPlacement(folders: readonly ArchivedFolder[], historyRef: string): ReadPlacement | undefined {
+  if (!historyRef.startsWith("refs/arc/history/")) return undefined;
+  const live = historyRef.replace("refs/arc/history/", "refs/arc/");
+  return latestArchivedFolders(folders.filter(({ liveRef }) => liveRef === live))[0]?.placement;
+}
+
 function folderSequence(folder: ArchivedFolder): bigint {
   return BigInt("sequence" in folder.placement ? folder.placement.sequence : "0");
 }

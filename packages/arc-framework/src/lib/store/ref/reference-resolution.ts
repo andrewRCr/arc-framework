@@ -10,6 +10,7 @@ import { isArchiveRef } from "./archive-read.js";
 import { resolveLineageReadReference, lineageOwnerCandidates } from "./lineage-resolution.js";
 import { matchesFamilyRef, rootFamily, refOwner } from "./codec.js";
 import { checkRefKey } from "./path-admission.js";
+import { canonicalPrimaryKind } from "./metadata.js";
 
 /** A concrete owner needs no scan; names bind only within their declared owner namespace. */
 export function resolveCapturedReference(context: Pick<RefBackendContext, "registry">, reference: RecordReference,
@@ -22,11 +23,8 @@ export function resolveCapturedReference(context: Pick<RefBackendContext, "regis
   const preferred = preferredNameTrees(context, own, owner.name, requirePrimary);
   const skipped = [...unreadable].find(([ref]) => matchesFamilyRef(ref, family) || isArchiveRef(ref))?.[1];
   if (skipped && !preferred.some(([, tree]) => !tree.liveRef && tree.metadata.slug === owner.name)) return { status: "refused", refusal: skipped };
-  const candidates = preferred.map(([ref, tree]) => {
-    const primary = ["work-item/meta", "work-item/record"].includes(reference.kind);
-    return RecordReferenceSchema.parse({ ...reference, owner: refOwner(tree.liveRef ?? ref, family, tree.metadata),
-      ...(primary ? { kind: tree.metadata.primary?.role ?? reference.kind } : {}) });
-  });
+  const candidates = preferred.map(([ref, tree]) => RecordReferenceSchema.parse({ ...reference,
+    owner: refOwner(tree.liveRef ?? ref, family, tree.metadata), kind: canonicalPrimaryKind(reference.kind, tree.metadata) }));
   if (candidates.length > 1) return { status: "refused", refusal: { code: "ambiguous-match", class: "recoverable", candidates,
     condition: "More than one captured owner holds this name.", remedy: { text: "Name the intended owner by UID, then retry." } } };
   const resolved = candidates[0];

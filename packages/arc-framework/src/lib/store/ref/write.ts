@@ -9,6 +9,7 @@ import { randomUUID } from "node:crypto";
 import { resolveRefWrites, refWriteTargets, refWriteIdentityRefusal } from "./write-resolution.js";
 import { commitRefWrites } from "./write-build.js";
 import { archivedLockRefs, archiveBasisChanged } from "./archive-resolution.js";
+import { completedMoveLockRefs } from "./write-completed.js";
 import { retirementLockRefs } from "./write-retirement.js";
 import { archiveLockRefs } from "./write-archive.js";
 import { withRefLocks } from "./write-locks.js";
@@ -138,7 +139,7 @@ async function attemptRefBatch(context: RefBackendContext, input: BatchInput, ba
   const collision = checkRefBatchPaths(resolved.result.writes.filter((write) => write.mutation.action === "put")
     .map((write) => write.mutation.reference), context.registry);
   if (collision) return { status: "refused", refusal: collision };
-  return withRefLocks(context, [...refWriteTargets(context, resolved.result).map(({ home }) => home.ref), ...(resolved.result.retained?.length ? ["refs/arc/project/registry", ...resolved.result.retained.map(({ home }) => home.ref.replace("refs/arc/history/", "refs/arc/"))] : []), ...archiveLockRefs(resolved.result), ...archivedLockRefs(resolved.result), ...retirementLockRefs(refWriteTargets(context, resolved.result))], () =>
+  return withRefLocks(context, [...refWriteTargets(context, resolved.result).map(({ home }) => home.ref), ...(resolved.result.retained?.length ? ["refs/arc/project/registry", ...resolved.result.retained.map(({ home }) => home.ref.replace("refs/arc/history/", "refs/arc/"))] : []), ...archiveLockRefs(resolved.result), ...archivedLockRefs(resolved.result), ...completedMoveLockRefs(resolved.result), ...retirementLockRefs(refWriteTargets(context, resolved.result))], () =>
     commitLockedRefBatch(context, resolved.result, input.provenance, batchId, input.observations ?? []));
 }
 

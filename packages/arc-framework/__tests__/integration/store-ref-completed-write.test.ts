@@ -8,10 +8,12 @@ import { createRefStore } from "../../src/lib/store/create.js";
 import { randomUUID } from "node:crypto";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { renderStoreCommitMessage } from "../../src/lib/store/commit-provenance.js";
-import { plantRef, type PlantTreeEntry } from "../helpers/store/ref-plant.js";
+import { plantRef, removeLooseObject, type PlantTreeEntry } from "../helpers/store/ref-plant.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
+import { RecordReferenceSchema, sameOwner, type RecordReference } from "../../src/lib/store/index.js";
 
 const quarter = ArchiveQuarterSchema.parse("2026-q4");
+const later = ArchiveQuarterSchema.parse("2027-q1");
 
 describe("writes to completed ref records", () => {
   it.each(["default", "separate"] as const)("updates retained history and its folder atomically, keeps the end batch, and reopens the latest state (%s)", async (layout) => {
@@ -278,10 +280,167 @@ describe("writes to completed ref records", () => {
     expect((await git("git", ["for-each-ref", "--format=%(objectname) %(refname)", "refs/arc/"])).stdout).toBe(before);
   });
 
+  it("keeps an ended item's folder in place when a review record is written to it or resolves its conflict", async () => {
+    const f = await createRefFixture();
+    const base = await seed(f, f.reference("work-item/companion"), "base\n");
+    const primary = success(await f.store.read({ reference: { ...base.reference, kind: "work-item/meta", key: undefined } }));
+    success(await f.store.write({ ...update(f, primary), placement: { kind: "completed", quarter } }));
+    const archived = success(await f.store.read({ reference: base.reference }));
+    success(await f.store.write(update(f, archived, "current\n")));
+    const conflict = success(await f.store.write(update(f, archived, "incoming\n"))).conflicts[0];
+    if (!conflict) throw new Error("Expected a produced conflict");
+    const review = (key: string) => RecordReferenceSchema.parse({ owner: base.reference.owner, kind: "review/evidence", key });
+    success(await f.store.write({ action: "put", reference: review("first"), expected: null, content: f.content(review("first")), provenance: testProvenance }));
+    success(await f.store.write({ action: "put", reference: review("second"), expected: null, content: f.content(review("second")),
+      resolves: [conflict], provenance: testProvenance }));
+    const folder = `01_${base.reference.owner.name}/`, git = makeGitExec(f.root);
+    const paths = (await git("git", ["ls-tree", "-r", "--name-only", `refs/arc/archive/${quarter}`])).stdout.split("\n").filter(Boolean);
+    expect(paths.filter((path) => !path.startsWith(folder) || path.startsWith(`${folder}review/metadata-`))).toEqual([]);
+    expect(success(await f.store.read({ reference: primary.reference })).placement).toEqual({ kind: "completed", quarter, sequence: "01" });
+    expect(success(await f.store.read({ reference: base.reference }))).toMatchObject({ content: "current\n", conflicts: [] });
+    for (const key of ["first", "second"]) expect(success(await f.store.read({ reference: review(key) })).content).toBe(f.content(review(key)));
+    expect(success(await f.store.list({ family: "work-item", kind: "work-item/meta" }))).toMatchObject({ status: "complete", records: [expect.anything()] });
+  });
+
+  it("reads, writes, logs, and reopens a twice-ended item by its later folder while its history names the earlier quarter", async () => {
+    const f = await createRefFixture();
+    const { primary, history, metadataPath, nextQuarter, firstRef, firstRoot, ref, nextRoot } = await endTwice(f, "another quarter", "reversed");
+    const read = success(await f.store.read({ reference: primary.reference }));
+    expect(read.placement).toMatchObject({ kind: "completed", quarter: nextQuarter });
+    expect(success(await f.store.history({ reference: primary.reference }))[0]?.version).toBe(read.version);
+    const written = success(await f.store.write(update(f, read)));
+    const after = success(await f.store.read({ reference: primary.reference }));
+    expect(after).toMatchObject({ version: written.version, content: f.content(primary.reference, "changed"), placement: { quarter: nextQuarter } });
+    expect(success(await f.store.history({ reference: primary.reference }))[0]?.version).toBe(after.version);
+    const git = makeGitExec(f.root);
+    expect(JSON.parse((await git("git", ["show", `${history}:${metadataPath}`])).stdout)).toMatchObject({ primary: { placement: { kind: "completed", quarter: nextQuarter } } });
+    for (const path of [`${firstRef}:${firstRoot}`, `${ref}:${nextRoot}`]) {
+      expect((await git("git", ["show", `${path}meta-${primary.reference.owner.name}.md`])).stdout).toBe(after.content);
+    }
+    success(await f.store.write({ ...update(f, after, after.content), placement: { kind: "active" } }));
+    expect(success(await f.store.read({ reference: primary.reference })).placement).toEqual({ kind: "active" });
+  });
+
+  it.each(["work-item/meta", "work-item/record", "cohort/document"] as const)("moves an ended %s written with another quarter into one folder there", async (kind) => {
+    const f = await createRefFixture();
+    const seeded = await seed(f, f.reference(kind));
+    success(await f.store.write({ ...update(f, seeded), placement: { kind: "completed", quarter } }));
+    const archived = success(await f.store.read({ reference: seeded.reference }));
+    const content = f.content(archived.reference, "changed-again");
+    const moved = success(await f.store.write({ ...update(f, archived, content), placement: { kind: "completed", quarter: later } }));
+    const read = success(await f.store.read({ reference: seeded.reference }));
+    expect(read).toMatchObject({ version: moved.version, content, placement: { kind: "completed", quarter: later } });
+    const git = makeGitExec(f.root), name = seeded.reference.owner.name;
+    const folders = async (at: string) => (await git("git", ["ls-tree", "--name-only", `refs/arc/archive/${at}`])).stdout.split("\n").filter((path) => path.includes(name));
+    expect(await folders(quarter)).toEqual([]);
+    expect(await folders(later)).toHaveLength(1);
+    const listing = success(await f.store.list({ family: kind === "cohort/document" ? "cohort" : "work-item", kind }));
+    if (listing.status !== "complete") throw new Error("Expected a complete listing");
+    expect(listing.records.filter(({ reference }) => sameOwner(reference.owner, read.reference.owner))).toEqual([read]);
+    expect(success(await f.store.history({ reference: seeded.reference }))[0]?.version).toBe(read.version);
+    success(await f.store.write(update(f, read)));
+  });
+
+  it("archives a companion's same-batch clash into the folder and its archived read", async () => {
+    const f = await createRefFixture();
+    const base = await seed(f, f.reference("work-item/companion"), "base\n");
+    success(await f.store.write(update(f, base, "current\n")));
+    const primary = success(await f.store.read({ reference: { ...base.reference, kind: "work-item/meta", key: undefined } }));
+    const result = success(await f.store.batch({ writes: [mutationOf(update(f, base, "incoming\n")),
+      mutationOf({ ...update(f, primary), placement: { kind: "completed", quarter } })], provenance: testProvenance }));
+    const conflict = result.writes[0]?.conflicts[0];
+    if (!conflict) throw new Error("Expected a same-batch conflict");
+    expect(success(await f.store.read({ reference: base.reference }))).toMatchObject({ content: "current\n", conflicts: [conflict],
+      placement: { kind: "completed", quarter } });
+    expect(JSON.parse(success(await f.store.read({ reference: conflict })).content)).toMatchObject({ baseVersion: base.version });
+    const paths = (await makeGitExec(f.root)("git", ["ls-tree", "-r", "--name-only", `refs/arc/archive/${quarter}`])).stdout;
+    expect(paths).toContain(`01_${base.reference.owner.name}/conflicts/`);
+  });
+
+  it("leaves an untouched quarter's tip in place when a reopen shares its batch with an identical rewrite there", async () => {
+    const f = await createRefFixture();
+    const reopening = await seed(f, f.reference("work-item/meta", "reopening"));
+    const kept = await seed(f, f.reference("work-item/meta", "kept"));
+    success(await f.store.write({ ...update(f, reopening), placement: { kind: "completed", quarter } }));
+    success(await f.store.write({ ...update(f, kept), placement: { kind: "completed", quarter: later } }));
+    const ended = success(await f.store.read({ reference: reopening.reference }));
+    const unchanged = success(await f.store.read({ reference: kept.reference }));
+    const git = makeGitExec(f.root), tips = async () => (await git("git", ["for-each-ref", "--format=%(objectname) %(refname)",
+      `refs/arc/archive/${later}`, `refs/arc/history/work/${ownerUid(kept.reference)}`])).stdout;
+    const before = await tips();
+    success(await f.store.batch({ writes: [mutationOf({ ...update(f, ended), placement: { kind: "active" } }),
+      mutationOf(update(f, unchanged, unchanged.content))], provenance: testProvenance }));
+    expect(success(await f.store.read({ reference: reopening.reference })).placement).toEqual({ kind: "active" });
+    expect(await tips()).toBe(before);
+  });
+
+  it("writes to an ended item whose folder metadata names no end batch, leaving it absent", async () => {
+    const f = await createRefFixture();
+    const primary = await seed(f, f.reference("work-item/meta"));
+    success(await f.store.write({ ...update(f, primary), placement: { kind: "completed", quarter } }));
+    const archive = `refs/arc/archive/${quarter}`, path = `01_${primary.reference.owner.name}/metadata-${ownerUid(primary.reference)}.json`;
+    const git = makeGitExec(f.root), tip = (await git("git", ["rev-parse", archive])).stdout.trim();
+    const metadata = JSON.parse((await git("git", ["show", `${archive}:${path}`])).stdout) as Record<string, unknown>;
+    delete metadata.endBatch;
+    await plantRef(f.root, archive, (await entriesAt(f.root, archive)).map((entry) => entry.path === path ? { path, content: canonicalize(metadata) } : entry), { parents: [tip] });
+    const archived = success(await f.store.read({ reference: primary.reference }));
+    const written = success(await f.store.write(update(f, archived, f.content(archived.reference, "changed-again"))));
+    expect(success(await f.store.read({ reference: primary.reference })).version).toBe(written.version);
+    expect(JSON.parse((await git("git", ["show", `${archive}:${path}`])).stdout)).not.toHaveProperty("endBatch");
+  });
+
+  it("refuses an ended item's history and write while its retained metadata names no slug, and serves both after repair", async () => {
+    const f = await createRefFixture();
+    const primary = await seed(f, f.reference("work-item/meta"));
+    success(await f.store.write({ ...update(f, primary), placement: { kind: "completed", quarter } }));
+    const archived = success(await f.store.read({ reference: primary.reference }));
+    const history = `refs/arc/history/work/${ownerUid(primary.reference)}`, path = `metadata-${ownerUid(primary.reference)}.json`;
+    const git = makeGitExec(f.root), tip = (await git("git", ["rev-parse", history])).stdout.trim();
+    const metadata = JSON.parse((await git("git", ["show", `${history}:${path}`])).stdout) as Record<string, unknown>;
+    delete metadata.slug;
+    await plantRef(f.root, history, (await entriesAt(f.root, history)).map((entry) => entry.path === path ? { path, content: canonicalize(metadata) } : entry), { parents: [tip] });
+    for (const result of [await f.store.history({ reference: primary.reference }), await f.store.write(update(f, archived))]) {
+      expect(result).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: history } });
+    }
+    await git("git", ["update-ref", history, tip]);
+    expect(success(await f.store.history({ reference: primary.reference }))).toHaveLength(2);
+    success(await f.store.write(update(f, archived)));
+  });
+
+  it.each(["tree", "commit"] as const)("refuses an ended item's write and history while its retained history's tip %s is missing, naming restoration", async (damage) => {
+    const f = await createRefFixture();
+    const primary = await seed(f, f.reference("work-item/meta"));
+    success(await f.store.write({ ...update(f, primary), placement: { kind: "completed", quarter } }));
+    const archived = success(await f.store.read({ reference: primary.reference }));
+    const history = `refs/arc/history/work/${ownerUid(primary.reference)}`, path = `metadata-${ownerUid(primary.reference)}.json`;
+    const git = makeGitExec(f.root), tip = (await git("git", ["rev-parse", history])).stdout.trim();
+    // A distinct metadata blob keeps the planted tree from being the folder's own subtree.
+    const metadata = { ...JSON.parse((await git("git", ["show", `${history}:${path}`])).stdout) as Record<string, unknown>, batch: randomUUID() };
+    const planted = await plantRef(f.root, history, (await entriesAt(f.root, history)).map((entry) => entry.path === path ? { path, content: canonicalize(metadata) } : entry), { parents: [tip] });
+    const oid = damage === "tree" ? planted.tree : planted.tip;
+    const object = (await f.ports.rawExec(["cat-file", damage, oid])).stdout;
+    await removeLooseObject(f.root, oid);
+    for (const result of [await f.store.write(update(f, archived)), await f.store.history({ reference: primary.reference })]) {
+      expect(result).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: history,
+        remedy: { text: expect.stringMatching(/restore|fetch/iu) } } });
+    }
+    expect(success(await f.store.read({ reference: primary.reference })).version).toBe(archived.version);
+    await f.ports.rawExec(["hash-object", "-w", "-t", damage, "--stdin"], { input: object });
+    success(await f.store.write(update(f, archived)));
+  });
+
 });
 
-/** End one item a second time, as another clone's published end leaves it: a later folder in the same or the next quarter. */
-async function endTwice(f: RefConformanceFixture, location: "same quarter" | "another quarter") {
+function ownerUid(reference: RecordReference): string {
+  if (!("uid" in reference.owner) || !reference.owner.uid) throw new Error("Expected a resolved owner");
+  return reference.owner.uid;
+}
+
+/**
+ * End one item a second time, as another clone's published end leaves it: a later folder in the same or the next quarter.
+ * A reversed history keeps naming the first end's quarter while the later folder names its own, as a merge can leave it.
+ */
+async function endTwice(f: RefConformanceFixture, location: "same quarter" | "another quarter", order: "agreeing" | "reversed" = "agreeing") {
   const primary = await seed(f, f.reference("work-item/meta"));
   success(await f.store.write({ ...update(f, primary), placement: { kind: "completed", quarter } }));
   const other = await seed(f, f.reference("work-item/meta", "other"));
@@ -297,16 +456,17 @@ async function endTwice(f: RefConformanceFixture, location: "same quarter" | "an
   const firstEnd = metadata.endBatch;
   const priorPrimary = metadata.primary;
   if (!priorPrimary || typeof priorPrimary !== "object" || Array.isArray(priorPrimary)) throw new Error("No archived primary metadata");
-  metadata.primary = { ...priorPrimary, placement: { kind: "completed", quarter: nextQuarter } };
+  const ended = { ...priorPrimary, placement: { kind: "completed", quarter: nextQuarter } };
   const batch = randomUUID(); metadata.endBatch = batch; metadata.batch = batch;
-  const records = (await entriesAt(f.root, history)).map((entry): PlantTreeEntry => entry.path === metadataPath
-    ? { path: entry.path, content: canonicalize(metadata) }
+  const records = async (named: unknown) => (await entriesAt(f.root, history)).map((entry): PlantTreeEntry => entry.path === metadataPath
+    ? { path: entry.path, content: canonicalize({ ...metadata, primary: named }) }
     : entry.path === `meta-${primary.reference.owner.name}.md` ? { path: entry.path, content: f.content(primary.reference, "changed-again") } : entry);
   const message = renderStoreCommitMessage({ ...testProvenance, verb: "archive" }, primary.reference, batch);
-  await plantRef(f.root, history, records, { parents: [previous], message });
+  const folder = await records(ended);
+  await plantRef(f.root, history, order === "reversed" ? await records(priorPrimary) : folder, { parents: [previous], message });
   const priorQuarter = location === "same quarter" ? (await git("git", ["rev-parse", ref])).stdout.trim() : undefined;
   await plantRef(f.root, ref, [...(location === "same quarter" ? await entriesAt(f.root, ref) : []),
-    ...records.map((entry) => ({ ...entry, path: nextRoot + entry.path }))], { parents: priorQuarter ? [priorQuarter] : [], message });
+    ...folder.map((entry) => ({ ...entry, path: nextRoot + entry.path }))], { parents: priorQuarter ? [priorQuarter] : [], message });
   return { primary, other, history, firstRef, firstRoot, firstEnd, metadataPath, nextQuarter, ref, nextRoot, batch };
 }
 

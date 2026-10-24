@@ -1,6 +1,7 @@
 /** Stage final publication metadata without changing the prepared admission views. */
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
-import { completedFolderMetadata } from "./archive-refresh.js";
+import { completedFolderMetadata, folderTarget } from "./archive-refresh.js";
+import { completedMoveQuarter } from "./write-completed.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefWriteGroup } from "./write-commits.js";
 import type { ResolvedBatch } from "./write-resolution.js";
@@ -12,7 +13,9 @@ export async function stagePublicationMetadata(context: RefBackendContext, batch
   if (context.writeEvidence && context.blobStage) context.writeEvidence.format = context.blobStage.format;
   for (const group of [...groups.values(), ...completed.values()]) await writeRefBlob(context, canonicalize(group.metadata));
   for (const folder of batch.archived ?? []) {
-    const group = completed.get(folder.liveRef.replace("refs/arc/", "refs/arc/history/"));
-    if (group && !group.viewRef) await writeRefBlob(context, canonicalize(completedFolderMetadata(folder, group.metadata)));
+    const history = folder.liveRef.replace("refs/arc/", "refs/arc/history/"), group = completed.get(history);
+    const quarter = completedMoveQuarter(batch, history), target = folderTarget(folder);
+    if (group && !group.viewRef) await writeRefBlob(context, canonicalize(completedFolderMetadata(quarter
+      ? { ...target, placement: { kind: "completed", quarter } } : target, group.metadata)));
   }
 }

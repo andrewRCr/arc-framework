@@ -12,7 +12,7 @@ import type { FamilyId } from "../catalog.js";
 import { FAMILY_REGISTRY } from "../registry.js";
 import { readBatchObjects, readRefTips, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { decodeRecord, decodeReference, matchesFamilyRef, refOwner, rootFamily } from "./codec.js";
-import { parseRefMetadata, metadataFailure, type RefMetadata } from "./metadata.js";
+import { canonicalPrimaryKind, parseRefMetadata, metadataFailure, type RefMetadata } from "./metadata.js";
 import type { RefBackendContext } from "./context.js";
 import { saveCapturedManifest } from "./manifest.js";
 import { recordDiagnostic } from "./content-read.js";
@@ -309,7 +309,7 @@ async function readArchivedRecord(context: RefBackendContext, reference: RecordR
   // The owner is resolved only now, so its companion aliases are checked under the folder's slug, as a live read checks them.
   const invalidKey = checkRefKey(RecordReferenceSchema.parse({ ...reference, owner: folder.owner }), context.registry);
   if (invalidKey) return { status: "refused", refusal: invalidKey };
-  const kind = ["work-item/meta", "work-item/record"].includes(reference.kind) ? folder.metadata.primary?.role ?? reference.kind : reference.kind;
+  const kind = canonicalPrimaryKind(reference.kind, folder.metadata);
   const decoded = decodeCapturedRef(context, { family, kind, owner: reference.owner }, folder.liveRef,
     folder.entries, objects, folder.metadata, undefined, folder.placement);
   const record = decoded.records.find((record) => record.reference.key === reference.key || JSON.stringify(record.reference.key) === JSON.stringify(reference.key));

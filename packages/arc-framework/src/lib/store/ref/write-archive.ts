@@ -13,7 +13,9 @@ import type { RefBackendContext } from "./context.js";
 import type { ResolvedBatch, ResolvedMutation } from "./write-resolution.js";
 import type { PreparedRefMutation } from "./write-merge.js";
 import { preparedCohortParents, cohortClosePlacement } from "./cohort-coordinates.js";
+import { corruptRef } from "./namespace-health.js";
 import { commitRefTree, type RefWriteGroup } from "./write-commits.js";
+import { archivedFolderRoot } from "./archive-refresh.js";
 
 /** One item's assigned destination, resolved from the locked quarter tree. */
 export interface RefArchivePlan {
@@ -96,8 +98,7 @@ async function readArchiveQuarters(context: RefBackendContext, selected: readonl
   const captured = new Map([...tips].filter(([ref]) => quarters.has(ref)));
   const trees = captured.size ? await readRefTrees(context, captured) : new Map<string, RefTreeEntry[]>();
   for (const ref of captured.keys()) {
-    if (!trees.has(ref)) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: ref,
-      condition: "The archive quarter's captured tree is unavailable.", remedy: { text: `Restore or fetch the missing objects for ${ref}, then retry the archive.` } } };
+    if (!trees.has(ref)) return { status: "refused", refusal: corruptRef(ref, true) };
   }
   const entries = sharedQuarters ?? new Map<string, Map<string, RefTreeEntry>>();
   for (const ref of quarters) if (!entries.has(ref)) entries.set(ref, new Map((trees.get(ref) ?? []).map((entry) => [entry.path, entry])));
@@ -106,7 +107,7 @@ async function readArchiveQuarters(context: RefBackendContext, selected: readonl
 
 function copyArchiveEntries(context: RefBackendContext, plan: RefArchivePlan, group: RefWriteGroup): void {
   const live = expandStoredPath(plan.reference, { registry: context.registry });
-  const folder = plan.home.metadataPath.slice(0, -live.metadataPath.length);
+  const folder = archivedFolderRoot(context, plan.reference.owner, group.metadata, plan.placement);
   for (const entry of group.entries.values()) {
     if (entry.path === live.manifestPath.slice(0, -1) || entry.path.startsWith(live.manifestPath)) continue;
     const path = folder + entry.path;
@@ -119,7 +120,8 @@ function archiveWrites<T extends ResolvedBatch["writes"][number]>(writes: readon
     && (mutation.reference.kind === "work-item/meta" || mutation.reference.kind === "work-item/record" || mutation.reference.kind === "cohort/document") && mutation.placement?.kind === "completed");
 }
 
-function nextArchiveSequence(entries: Iterable<RefTreeEntry>): ReturnType<typeof ArchiveSequenceSchema.parse> {
+/** The next work-unit number in a quarter: one past the highest folder number its entries hold. */
+export function nextArchiveSequence(entries: Iterable<RefTreeEntry>): ReturnType<typeof ArchiveSequenceSchema.parse> {
   let highest = 0n;
   for (const { path } of entries) {
     const match = /^((?:0[1-9]|[1-9][0-9]+))[ab]?_/u.exec(path);

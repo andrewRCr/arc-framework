@@ -18,7 +18,7 @@ import { archiveOwnerTrees, isArchiveRef, unreadableOwnedFolder } from "./archiv
 import type { RefTreeEntry } from "./batch-read.js";
 import { lookupCapturedRefTrees, type RefLookupTree } from "./lookup.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
-import { metadataFailure, type RefMetadata } from "./metadata.js";
+import { canonicalPrimaryKind, metadataFailure, type RefMetadata } from "./metadata.js";
 import { FAMILY_REGISTRY } from "../registry.js";
 import { projectOwnerFromEntries, admitProjectReference, projectListInput, projectListingBinding } from "./project-identity.js";
 import { archivedViewRecords } from "./archive-view.js";
@@ -198,7 +198,7 @@ function resolveViewOwner(context: RefBackendContext, state: RefViewState, refer
 }
 
 function canonicalViewReference(context: RefBackendContext, reference: RecordReference, ref: string, metadata: RefMetadata): RecordReference {
-  const kind = ["work-item/meta", "work-item/record"].includes(reference.kind) ? metadata.primary?.role ?? reference.kind : reference.kind;
+  const kind = canonicalPrimaryKind(reference.kind, metadata);
   return RecordReferenceSchema.parse({ ...reference, kind, owner: refOwner(ref, context.registry[reference.kind].family, metadata) });
 }
 

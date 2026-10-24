@@ -7,7 +7,7 @@ import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import { updateRefTransaction } from "../../git/ref-transaction.js";
 import type { BatchInput, BatchResult, WriteResult, RecordObservation } from "../write.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
-import { readBatchObjects, readRefTrees, type RefTreeEntry } from "./batch-read.js";
+import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { metadataFailure, parseRefMetadata, type RefMetadata } from "./metadata.js";
 import { refRecordVersion } from "./record-version.js";
 import { writeRefBlob } from "./tree-write.js";
@@ -29,6 +29,9 @@ import { planRefReopens, reopenRefChanges } from "./write-reopen.js";
 import { planRefArchives, archiveRefChanges } from "./write-archive.js";
 import { prepareRefAnchors } from "./write-anchors.js";
 import { stampCompletedWrites, refreshCompletedChanges } from "./write-completed.js";
+import { corruptRef } from "./namespace-health.js";
+import { latestFolderPlacement } from "./archive-read.js";
+import { withCompletedPlacement } from "./archive-refresh.js";
 import { planRefRetirements, sweepRefRetirements, retirementRefChanges } from "./write-retirement.js";
 import { prepareRefConflicts } from "./write-conflicts.js";
 import { proposedRefCreatedOwners } from "./write-creation.js";
@@ -82,7 +85,8 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
     const committed = await prepareRefCommits(physical, prepared.result, refWriteTargets(context, resolved), groups, completed, tips, provenance, batchId, receipt, actor);
     const archived = await archiveRefChanges(physical, committed, archives.result, groups, completed, prepared.result, tips, provenance, batchId, receipt);
     const reopened = await reopenRefChanges(physical, archived, reopens.result, tips, provenance, batchId, receipt);
-    const refreshed = await refreshCompletedChanges(physical, reopened, resolved, completed, provenance, batchId, receipt, actor);
+    const refreshed = await refreshCompletedChanges(physical, reopened, resolved, completed, provenance, batchId, receipt, actor,
+      { archives: archives.result, writes: prepared.result });
     if (refreshed.status === "refused") return refreshed;
     const changes = retirementRefChanges(refreshed.result, retirements.result, tips);
     if (changes.length === 0) return { status: "ok", result: { batchId, writes: results } };
@@ -222,19 +226,27 @@ async function readWriteGroups(context: RefBackendContext, resolved: ResolvedBat
   const objects = await readBatchObjects(context, [...new Set(queries)]);
   const groups = new Map<string, RefGroup>();
   for (const { reference, home } of targets) {
-    let group = groups.get(home.ref);
-    if (!group) {
-      const tip = tips.get(home.ref);
-      const metadata = tip ? parseRefMetadata(objects.get(metadataOids.get(home.ref) ?? ""), home.ref)
-        : { formatVersion: 1 as const, formats: {},
-          ...(/^refs\/arc\/(?:work|cohort)\//u.test(home.ref)
-            ? { slug: reference.owner.name } : {}) };
-      if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
-        namespace: home.ref, ...metadataFailure(home.ref) } };
-      const entries = new Map((trees.get(home.ref) ?? []).map((entry) => [entry.path, entry]));
-      group = { metadata, entries, original: new Map(entries) };
-      groups.set(home.ref, group);
-    }
+    if (groups.has(home.ref)) continue;
+    const tip = tips.get(home.ref);
+    // A tip whose tree cannot be read names restoration; only a readable tree without usable metadata needs a forward repair.
+    if (tip && !trees.has(home.ref)) return { status: "refused", refusal: corruptRef(home.ref, true) };
+    const metadata = capturedGroupMetadata(resolved, home.ref, reference, tip ? objects.get(metadataOids.get(home.ref) ?? "") ?? null : undefined);
+    if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
+      namespace: home.ref, ...metadataFailure(home.ref) } };
+    const entries = new Map((trees.get(home.ref) ?? []).map((entry) => [entry.path, entry]));
+    groups.set(home.ref, { metadata, entries, original: new Map(entries) });
   }
   return { status: "ok", result: groups };
+}
+
+/**
+ * Parse a captured ref's metadata, or start a new ref's. An ended owner's version names its latest folder's quarter,
+ * so admission and results agree with what reads return.
+ */
+function capturedGroupMetadata(resolved: ResolvedBatch, ref: string, reference: RecordReference, object: BatchObject | null | undefined): RefMetadata | null {
+  // Undefined means the ref has no tip yet; a captured tip without a readable metadata object passes null.
+  const metadata = object !== undefined ? parseRefMetadata(object, ref)
+    : { formatVersion: 1 as const, formats: {}, ...(/^refs\/arc\/(?:work|cohort)\//u.test(ref) ? { slug: reference.owner.name } : {}) };
+  const latest = latestFolderPlacement(resolved.archived ?? [], ref);
+  return metadata && latest ? withCompletedPlacement(metadata, latest) : metadata;
 }

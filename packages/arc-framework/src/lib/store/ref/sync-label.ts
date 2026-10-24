@@ -7,7 +7,7 @@ import type { RefBackendContext } from "./context.js";
 import { readHistoryPaths } from "./history-paths.js";
 import { orderHistoryCommits, parseHistoryRows } from "./history-order.js";
 import { readRefTrees, readBatchObjects, type BatchObject, type RefTreeEntry } from "./batch-read.js";
-import { historicalMetadataFailure, parseRefMetadata } from "./metadata.js";
+import { canonicalPrimaryKind, historicalMetadataFailure, parseRefMetadata } from "./metadata.js";
 import type { StoreRefusal } from "../refusal.js";
 import { refFormatKey } from "./format-key.js";
 import { refRecordVersion } from "./record-version.js";
@@ -60,7 +60,7 @@ function versionAt(context: RefBackendContext, reference: RecordReference, ref: 
   }
   const family = context.registry[reference.kind].family;
   const owner = reference.owner.type === "project" || family === "lineage" ? reference.owner : refOwner(ref, family, metadata);
-  const kind = ["work-item/meta", "work-item/record"].includes(reference.kind) ? metadata.primary?.role ?? reference.kind : reference.kind;
+  const kind = canonicalPrimaryKind(reference.kind, metadata);
   reference = RecordReferenceSchema.parse({ ...reference, owner, kind });
   const path = expandStoredPath(reference, { registry: context.registry }).path, entry = entries.find((candidate) => candidate.path === path);
   return entry ? refRecordVersion(reference, entry.oid, metadata, metadata.formats[refFormatKey(reference)] ?? 1) : null;

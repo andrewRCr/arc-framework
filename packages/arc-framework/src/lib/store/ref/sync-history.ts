@@ -4,10 +4,10 @@ import type { RefBackendContext } from "./context.js";
 import { archivedFolders, isArchiveRef, unreadableOwnedFolder, type ArchivedFolder } from "./archive-read.js";
 import { readBatchObjects, readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import { parseStoreCommitProvenance } from "../commit-provenance.js";
-import { OwnerIdentitySchema, RecordReferenceSchema } from "../identity.js";
+import { OwnerIdentitySchema } from "../identity.js";
 import type { SyncMergedTree } from "./sync-tree.js";
 import { readSyncRefs } from "./sync-graph.js";
-import { refreshArchivedFolder } from "./archive-refresh.js";
+import { ownerPrimaryReference, refreshArchivedFolder } from "./archive-refresh.js";
 import { parseRefMetadata } from "./metadata.js";
 import { writeRefBlob } from "./tree-write.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
@@ -29,8 +29,7 @@ export async function prepareSyncHistoryFastForward(context: RefBackendContext, 
   const objects = await readBatchObjects(context, entry ? [entry.oid] : []);
   const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : undefined, ref);
   if (!entries || !metadata) return { status: "refused", refusal: corruptRef(ref) };
-  const reference = RecordReferenceSchema.parse({ owner: { ...folder.owner, name: metadata.slug ?? folder.owner.name },
-    kind: metadata.primary?.role ?? "cohort/document" });
+  const reference = ownerPrimaryReference(folder.owner, metadata);
   const tree: SyncMergedTree = { entries: new Map(entries.map((entry) => [entry.path, entry])), metadata, reference };
   const preview = quarters.map((quarter) => ({ ...quarter, entries: new Map(quarter.entries) }));
   await prepareSyncHistoryQuarters(context, preview, tree);
@@ -62,7 +61,7 @@ export async function readSyncHistoryQuarters(context: RefBackendContext, ref: s
     folders: archivedFolders(family, quarter, entries, objects).folders.filter((folder) => folder.liveRef === live) })).filter(({ folders }) => folders.length);
   const first = own[0]?.folders[0];
   if (!first) return { status: "ok", result: [] };
-  const reference = RecordReferenceSchema.parse({ owner: first.owner, kind: first.metadata.primary?.role ?? "cohort/document" });
+  const reference = ownerPrimaryReference(first.owner, first.metadata);
   const { stdout } = await context.exec("git", ["log", "--format=%B%x00", ...new Set([...(tip ? [tip] : []), ...additionalTips])], { cwd: context.checkoutRoot, objectAccess: "local-only" });
   const batches = new Set(stdout.split("\0").map((message) => parseStoreCommitProvenance(message.trimStart(), reference))
     .flatMap((entry) => "batchId" in entry ? [entry.batchId] : []));
@@ -78,7 +77,7 @@ export async function readSyncHistoryQuarters(context: RefBackendContext, ref: s
 export async function prepareSyncHistoryQuarters(context: RefBackendContext, quarters: readonly SyncHistoryQuarter[], tree: SyncMergedTree): Promise<void> {
   if (!tree.metadata) throw new Error("A retained item merge has no group metadata");
   for (const quarter of quarters) for (const folder of quarter.folders) {
-    await refreshArchivedFolder(context, folder, { entries: tree.entries, metadata: tree.metadata }, quarter.entries, tree.reference);
+    await refreshArchivedFolder(context, folder, { entries: tree.entries, metadata: tree.metadata }, quarter.entries);
   }
 }
 

@@ -14,6 +14,8 @@ import { readBatchObjects, readRefTips } from "./batch-read.js";
 import { checkRefKey } from "./path-admission.js";
 import { resolveReadReference } from "./read.js";
 import { resolveArchivedReferences } from "./archive-resolution.js";
+import { latestFolderPlacement } from "./archive-read.js";
+import type { ReadPlacement } from "../placement.js";
 import { readHistoryPaths } from "./history-paths.js";
 import { retiredHistoryHome } from "./retired-history.js";
 import { parseHistoryRows, orderHistoryCommits } from "./history-order.js";
@@ -51,19 +53,22 @@ export async function readCapturedRefHistory(context: RefBackendContext, request
   if (retired.status === "refused") return retired;
   const home = retired.result ?? expandStoredPath(reference, { registry: context.registry, history: archived.result.length > 0 });
   const tip = tips.get(home.ref);
-  return tip ? readRefHistory(context, reference, home, tip, evidence) : { status: "ok", result: [] };
+  return tip ? readRefHistory(context, reference, home, tip, evidence, latestFolderPlacement(archived.result, home.ref)) : { status: "ok", result: [] };
 }
 
 /** Read a record log against one exact tip, also usable by a locked stale-base lookup. */
 async function readRefHistory(context: RefBackendContext, reference: RecordReference,
-  home: StoredRecordHome, tip: string, evidence = new StoreCreationReceiptReader()): Promise<StoreResult<HistoryEntry[]>> {
-  const history = await readRefHistoryDetails(context, reference, home, tip, evidence);
+  home: StoredRecordHome, tip: string, evidence = new StoreCreationReceiptReader(), ended?: ReadPlacement): Promise<StoreResult<HistoryEntry[]>> {
+  const history = await readRefHistoryDetails(context, reference, home, tip, evidence, ended);
   return history.status === "refused" ? history : { status: "ok", result: history.result.map(({ entry }) => entry) };
 }
 
-/** Retain change-commit identities for merge bases and stored-side labels. */
+/**
+ * Retain change-commit identities for merge bases and stored-side labels. An ended owner's tip state takes its latest
+ * folder's placement, as its current version does; every earlier state keeps the placement it was written with.
+ */
 export async function readRefHistoryDetails(context: RefBackendContext, reference: RecordReference,
-  home: StoredRecordHome, tip: string, evidence = new StoreCreationReceiptReader()): Promise<StoreResult<RefHistoryDetail[]>> {
+  home: StoredRecordHome, tip: string, evidence = new StoreCreationReceiptReader(), ended?: ReadPlacement): Promise<StoreResult<RefHistoryDetail[]>> {
   const unhealthy = await checkRefTip(context, home.ref, tip, home.metadataPath);
   if (unhealthy) return { status: "refused", refusal: unhealthy };
   const paths = await readHistoryPaths(context, reference, home, tip);
@@ -71,7 +76,7 @@ export async function readRefHistoryDetails(context: RefBackendContext, referenc
     ...paths.map((path) => `:(literal)${path}`)], { cwd: context.checkoutRoot, objectAccess: "local-only" });
   const rows = parseHistoryRows(stdout);
   const revisions = [...new Set(rows.flatMap((row) => [row.revision, ...row.parents]))];
-  const snapshots = await readHistorySnapshots(context, reference, home, revisions, paths, evidence);
+  const snapshots = await readHistorySnapshots(context, reference, home, revisions, paths, evidence, ended, tip);
   if (snapshots.status === "refused") return snapshots;
   const entries: RefHistoryDetail[] = [];
   for (const row of orderHistoryCommits(rows).reverse()) {

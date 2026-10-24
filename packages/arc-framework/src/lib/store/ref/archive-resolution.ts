@@ -4,11 +4,11 @@ import type { StoreCreationReceiptReader } from "../commit-creation-receipt.js";
 import type { RecordReference } from "../identity.js";
 import { sameOwner } from "../identity.js";
 import { HistoryRefSchema, type StoreResult, type StoreRefusal } from "../refusal.js";
-import { parseStoreCommitProvenance } from "../commit-provenance.js";
 import { archivedFolders, archiveOwnerTrees, isArchiveRef, unreadableOwnedFolder, type ArchivedFolder } from "./archive-read.js";
 import { readBatchObjects, readRefTrees } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
 import { corruptRef } from "./namespace-health.js";
+import { readHistoryBatchIndex } from "./history-batches.js";
 import type { ResolvedBatch } from "./write-resolution.js";
 
 /** Find every folder belonging to a requested ended UID, validating its history basis. */
@@ -47,17 +47,9 @@ export async function resolveArchivedReferences(context: RefBackendContext, refe
 
 async function archivedHistoryBatches(context: RefBackendContext, reference: RecordReference, history: string,
   tip: string, evidence?: StoreCreationReceiptReader): Promise<StoreResult<Set<string>>> {
-  const { stdout } = await context.exec("git", ["log", "--format=%H%x00%B%x00", tip], { cwd: context.checkoutRoot, objectAccess: "local-only" });
-  const values = stdout.split("\0"), batches = new Set<string>();
-  for (let index = 0; index + 1 < values.length; index += 2) {
-    const revision = values[index]?.trim(), message = values[index + 1];
-    if (!revision || message === undefined) continue;
-    const receipt = evidence?.read(message, reference, `${history}@${revision}`);
-    if (receipt?.status === "refused") return receipt;
-    const provenance = parseStoreCommitProvenance(message, reference);
-    if ("verb" in provenance && provenance.batchId) batches.add(provenance.batchId);
-  }
-  return { status: "ok", result: batches };
+  const index = await readHistoryBatchIndex(context, history, tip, reference, evidence);
+  if (!index) return { status: "refused", refusal: corruptRef(history, true) };
+  return index.status === "refused" ? index : { status: "ok", result: new Set(index.result.keys()) };
 }
 
 /** Lock both lifecycle ref names and every quarter holding a completed owner. */

@@ -10,16 +10,17 @@ import type { RecordReference, RecordVersion } from "../identity.js";
 import { checkSerializationRules } from "../serialization.js";
 import { readMergeLabels } from "./side-labels.js";
 import type { EntryConfig } from "../registry.js";
+import type { ReadPlacement } from "../placement.js";
 
 /** Mutation bytes and the preserved clashes produced while merging them. */
 export interface PreparedRefMutation extends ResolvedMutation { conflicts: TextConflictRecord[] }
 
 /** Merge a stale put, or report an absent historical base without changing trees. */
 export async function mergeRefMutation(context: RefBackendContext, write: ResolvedMutation,
-  tip: string, currentVersion: RecordVersion): Promise<StoreResult<PreparedRefMutation | null>> {
+  tip: string, currentVersion: RecordVersion, ended?: ReadPlacement): Promise<StoreResult<PreparedRefMutation | null>> {
   const { mutation, home } = write;
   if (mutation.action !== "put") throw new Error("Only puts have merge content");
-  const history = await readRefHistoryDetails(context, mutation.reference, home, tip);
+  const history = await readRefHistoryDetails(context, mutation.reference, home, tip, undefined, ended);
   if (history.status === "refused") return history;
   const base = history.result.find(({ entry }) => entry.version === mutation.expected)?.entry;
   const current = history.result.find(({ entry }) => entry.version === currentVersion);

@@ -6,6 +6,7 @@ import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import { WritePlacementSchema } from "../placement.js";
 import { LinksSchema } from "../links.js";
 import type { Remedy } from "../refusal.js";
+import type { KindId } from "../catalog.js";
 import type { BatchObject } from "./batch-read.js";
 
 /** The supported metadata format, including retained primary facts and lineage names. */
@@ -29,9 +30,14 @@ export function parseRefMetadata(object: BatchObject | null | undefined, namespa
     const canonical = canonicalize(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(object.bytes)));
     const parsed = RefMetadataSchema.safeParse(JSON.parse(canonical));
     if (!parsed.success) return null;
-    if (namespace && /^refs\/arc\/(?:work|cohort)\//u.test(namespace) && !parsed.data.slug) return null;
+    if (namespace && /^refs\/arc\/(?:history\/)?(?:work|cohort)\//u.test(namespace) && !parsed.data.slug) return null;
     return parsed.data;
   } catch { return null; }
+}
+
+/** The kind a work-item primary handle names: the owner's recorded primary role, else the handle's own kind. */
+export function canonicalPrimaryKind(kind: KindId, metadata: Pick<RefMetadata, "primary">): KindId {
+  return kind === "work-item/meta" || kind === "work-item/record" ? metadata.primary?.role ?? kind : kind;
 }
 
 /** Describe the observed metadata condition and a forward-only repair route. */

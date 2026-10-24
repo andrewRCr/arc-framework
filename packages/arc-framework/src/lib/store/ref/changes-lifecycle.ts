@@ -4,7 +4,7 @@ import { captureCommitReceipts } from "./history-receipts.js";
 import type { ChangesInput } from "../contract.js";
 import { RecordReferenceSchema } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
-import { parseStoreCommitProvenance } from "../commit-provenance.js";
+import { readHistoryBatchIndex } from "./history-batches.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefTips, readBatchObjects } from "./batch-read.js";
 import { readChangeEnds, isLifecycleRef, type ChangeEnds } from "./changes-ends.js";
@@ -61,17 +61,8 @@ async function lifecycleBatchIndex(context: RefBackendContext, history: string, 
   const cohort = history.startsWith("refs/arc/history/cohort/");
   const reference = RecordReferenceSchema.parse({ kind: cohort ? "cohort/document" : "work-item/meta",
     owner: { type: cohort ? "cohort" : "work-item", name: "unresolved", uid: history.split("/").at(-1) } });
-  const { stdout } = await context.exec("git", ["log", "--topo-order", "--format=%H%x00%B%x00", tip], { cwd: context.checkoutRoot, objectAccess: "local-only" });
-  const values = stdout.split("\0"), batches = new Map<string, string>();
-  for (let index = 0; index + 1 < values.length; index += 2) {
-    const revision = values[index]?.trim(), message = values[index + 1];
-    if (!revision || message === undefined) continue;
-    const receipt = evidence.read(message, reference, `${history}@${revision}`);
-    if (receipt.status === "refused") return receipt;
-    const provenance = parseStoreCommitProvenance(message, reference);
-    if ("batchId" in provenance && provenance.batchId && !batches.has(provenance.batchId)) batches.set(provenance.batchId, revision);
-  }
-  return { status: "ok", result: batches };
+  return await readHistoryBatchIndex(context, history, tip, reference, evidence)
+    ?? { status: "refused", refusal: missingChangeState({ ref: history, version: input.to }) };
 }
 
 function hasLifecycleBatches(live: string, ends: ChangeEnds, index: ReadonlyMap<string, string>, batches: ReadonlySet<string>): boolean {

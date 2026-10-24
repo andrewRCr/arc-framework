@@ -12,6 +12,7 @@ import { expandStoredPath } from "../stored-path.js";
 import { isTerminalSnapshotRepair } from "../kinds/lineage/repair.js";
 import { mergeRefMutation, type PreparedRefMutation } from "./write-merge.js";
 import type { StoreResult } from "../refusal.js";
+import { latestFolderPlacement } from "./archive-read.js";
 
 /** Captured tree and metadata shared by admission and tree preparation. */
 export interface CapturedWriteGroup { entries: Map<string, RefTreeEntry>; metadata: RefMetadata }
@@ -37,7 +38,7 @@ export async function prepareCapturedWrites(context: RefBackendContext, resolved
       && basis.mutation.reference.kind === mutation.reference.kind && definition.merge !== "single-writer" && !["create-only", "write-once"].includes(definition.writerRule)) {
       const current = refRecordVersion(mutation.reference, entry.oid, group.metadata,
         group.metadata.formats[refFormatKey(mutation.reference)] ?? 1);
-      const merged = await mergeRefMutation(context, { ...write, home }, tip, current);
+      const merged = await mergeRefMutation(context, { ...write, home }, tip, current, latestFolderPlacement(resolved.archived ?? [], home.ref));
       if (merged.status === "refused") return merged;
       if (merged.result) { prepared.push({ ...merged.result, home: write.home }); continue; }
     }

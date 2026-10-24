@@ -6,7 +6,7 @@ import type { RefBackendContext } from "./context.js";
 import { archivedFolders, isArchiveRef, type ArchivedFolder } from "./archive-read.js";
 import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { missingChangeState, type RefChangeInterval, type ChangeWindowReader, type CapturedChangeWindow } from "./changes-graph.js";
-import { parseRefMetadata, metadataFailure } from "./metadata.js";
+import { parseRefMetadata, historicalMetadataFailure } from "./metadata.js";
 import { refPrototype } from "./read.js";
 
 /** Endpoint folders and every owner whose end evidence changed inside the interval. */
@@ -111,7 +111,7 @@ function lineageEndOwners(context: RefBackendContext, entries: readonly RefTreeE
   if (entries.every(({ path }) => path === home.metadataPath || path === home.manifestPath.slice(0, -1) || path.startsWith(home.manifestPath))) return { status: "ok", result: new Set() };
   const entry = entries.find(({ path }) => path === home.metadataPath);
   const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : null);
-  if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: home.ref, ...metadataFailure(home.ref) } };
+  if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: home.ref, ...historicalMetadataFailure(home.ref) } };
   return { status: "ok", result: new Set(Object.entries(metadata.lineage ?? {}).flatMap(([uid, name]) => {
     const reference = RecordReferenceSchema.parse({ kind: "lineage/transition", owner: { type: "work-item", uid, name } });
     const path = expandStoredPath(reference, { registry: context.registry }).path;

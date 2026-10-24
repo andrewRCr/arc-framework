@@ -6,7 +6,7 @@ import type { StoreRecord } from "../read.js";
 import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, readRefTrees } from "./batch-read.js";
-import { parseRefMetadata, type RefMetadata } from "./metadata.js";
+import { canonicalPrimaryKind, parseRefMetadata, type RefMetadata } from "./metadata.js";
 import { decodeRecord, refOwner, rootFamily } from "./codec.js";
 import { readOpenConflicts } from "./conflicts-read.js";
 import { checkRefKey } from "./path-admission.js";
@@ -46,7 +46,7 @@ function liveUidReference(context: RefBackendContext, reference: RecordReference
 }
 
 function canonicalUidReference(context: RefBackendContext, requested: RecordReference, ref: string, metadata: RefMetadata): RecordReference {
-  const kind = ["work-item/meta", "work-item/record"].includes(requested.kind) ? metadata.primary?.role ?? requested.kind : requested.kind;
+  const kind = canonicalPrimaryKind(requested.kind, metadata);
   return RecordReferenceSchema.parse({ ...requested, kind, owner: refOwner(ref, context.registry[requested.kind].family, metadata) });
 }
 

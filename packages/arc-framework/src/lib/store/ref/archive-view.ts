@@ -6,6 +6,7 @@ import type { ListInput, StoreRecord, ListingDiagnostic } from "../read.js";
 import { archivedFolders, isArchiveRef, latestArchivedFolders, type ArchivedFolder } from "./archive-read.js";
 import { rootFamily } from "./path-decode.js";
 import { decodeCapturedRef } from "./read.js";
+import { corruptRef } from "./namespace-health.js";
 
 /** Decode archived owners, with a prepared live owner superseding its former folders. */
 export function archivedViewRecords(context: RefBackendContext, state: RefViewState, input: ListInput): {
@@ -17,8 +18,8 @@ export function archivedViewRecords(context: RefBackendContext, state: RefViewSt
   for (const [ref, group] of state.refs) {
     if (!isArchiveRef(ref)) continue;
     if (!group.entries) {
-      diagnostics.push({ kind: "unreadable", key: ref, condition: "The captured quarter tree is unavailable.",
-        remedy: { text: `Restore or fetch the missing objects for ${ref}, then retry.` } });
+      const { condition, remedy } = corruptRef(ref, true);
+      diagnostics.push({ kind: "unreadable", key: ref, condition, remedy });
       continue;
     }
     const parsed = archivedFolders(input.family, ref, group.entries, state.objects);

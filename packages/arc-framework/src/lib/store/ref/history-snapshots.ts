@@ -10,10 +10,12 @@ import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { decodeReference, refOwner } from "./codec.js";
 import { readRefContent } from "./content-read.js";
-import { historicalMetadataFailure, parseRefMetadata, type RefMetadata } from "./metadata.js";
+import { canonicalPrimaryKind, historicalMetadataFailure, parseRefMetadata, type RefMetadata } from "./metadata.js";
 import { checkRefKey } from "./path-admission.js";
 import { refFormatKey } from "./format-key.js";
 import { refRecordVersion } from "./record-version.js";
+import { withCompletedPlacement } from "./archive-refresh.js";
+import type { ReadPlacement } from "../placement.js";
 
 /** Exact state at a commit before attaching the commit's provenance. */
 export type HistoricalState = Pick<HistoryEntry, "reference" | "version" | "content">;
@@ -23,7 +25,7 @@ export interface HistoricalSnapshot { state: HistoricalState; message: string; c
 /** Read candidate and parent states without confusing an absent path with an unavailable blob. */
 export async function readHistorySnapshots(context: RefBackendContext, reference: RecordReference,
   home: StoredRecordHome, revisions: readonly string[], paths: readonly string[] = [home.path, home.metadataPath],
-  evidence = new StoreCreationReceiptReader()): Promise<StoreResult<Map<string, HistoricalSnapshot>>> {
+  evidence = new StoreCreationReceiptReader(), ended?: ReadPlacement, tip?: string): Promise<StoreResult<Map<string, HistoricalSnapshot>>> {
   if (revisions.length === 0) return { status: "ok", result: new Map() };
   const trees = await readRefTrees(context, new Map(revisions.map((revision) => [revision, revision])), paths);
   const objects = await readBatchObjects(context, [...new Set([...revisions, ...[...trees.values()].flatMap((entries) => entries.map((entry) => entry.oid))])]);
@@ -34,7 +36,7 @@ export async function readHistorySnapshots(context: RefBackendContext, reference
     const tree = trees.get(revision);
     const commit = objects.get(revision);
     if (!tree || commit?.type !== "commit") return { status: "refused", refusal: unavailableHistory(reference, revision) };
-    const state = historicalState(context, reference, home, tree, objects);
+    const state = historicalState(context, reference, home, tree, objects, revision === tip ? ended : undefined);
     if (state.status === "refused") return state;
     const creationReceipt = receipts.result.get(revision);
     snapshots.set(revision, { state: state.result, message: capturedCommitMessage(commit),
@@ -45,9 +47,9 @@ export async function readHistorySnapshots(context: RefBackendContext, reference
 
 /** Decode one logical record from its historical tree without applying current semantic parsers. */
 export function historicalState(context: RefBackendContext, requested: RecordReference, home: StoredRecordHome,
-  tree: readonly RefTreeEntry[], objects: ReadonlyMap<string, BatchObject | null>): StoreResult<HistoricalState> {
+  tree: readonly RefTreeEntry[], objects: ReadonlyMap<string, BatchObject | null>, ended?: ReadPlacement): StoreResult<HistoricalState> {
   const metadataEntry = tree.find((entry) => entry.path === home.metadataPath);
-  const metadata = parseRefMetadata(metadataEntry ? objects.get(metadataEntry.oid) : null, home.ref);
+  const metadata = stateMetadata(metadataEntry ? objects.get(metadataEntry.oid) : null, home.ref, ended);
   if (!metadata && tree.every((entry) => entry.path === home.metadataPath)) return { status: "ok", result: { reference: requested, version: null, content: null } };
   if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: home.ref, ...historicalMetadataFailure(home.ref) } };
   requested = historicalReference(context, requested, home, metadata);
@@ -69,6 +71,12 @@ export function historicalState(context: RefBackendContext, requested: RecordRef
   return { status: "ok", result: { reference, content: content.content, version: refRecordVersion(reference, object.oid, metadata, formatVersion) } };
 }
 
+/** Parse a state's metadata; an ended owner's tip state takes its latest folder's placement. */
+function stateMetadata(object: BatchObject | null | undefined, namespace: string, ended?: ReadPlacement): RefMetadata | null {
+  const metadata = parseRefMetadata(object, namespace);
+  return metadata && ended ? withCompletedPlacement(metadata, ended) : metadata;
+}
+
 function unavailableHistory(reference: RecordReference, object: string): StoreRefusal {
   return { code: "state-unresolvable", class: "recoverable", reference, historyRefs: [],
     condition: `The historical object ${object} is not available locally.`,
@@ -83,6 +91,6 @@ function malformedHistory(reference: RecordReference, condition: string): StoreR
 function historicalReference(context: RefBackendContext, requested: RecordReference, home: StoredRecordHome, metadata: RefMetadata): RecordReference {
   const family = context.registry[requested.kind].family;
   const owner = requested.owner.type === "project" || family === "lineage" ? requested.owner : refOwner(home.ref, family, metadata);
-  const kind = ["work-item/meta", "work-item/record"].includes(requested.kind) ? metadata.primary?.role ?? requested.kind : requested.kind;
+  const kind = canonicalPrimaryKind(requested.kind, metadata);
   return RecordReferenceSchema.parse({ ...requested, owner, kind });
 }
