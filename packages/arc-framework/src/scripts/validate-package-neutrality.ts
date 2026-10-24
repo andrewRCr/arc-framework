@@ -18,11 +18,13 @@
  * @module
  */
 
+import { execFileSync } from "node:child_process";
 import { basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runPathListScript } from "./cli-runner.js";
 import { parseMethodFrontmatter } from "../lib/frontmatter/index.js";
+import { MAX_GIT_OUTPUT_BYTES } from "../lib/git/process-executor.js";
 import {
   defaultMethodActivation,
   isActivatableMethodName,
@@ -135,6 +137,14 @@ export function validateFiles(
 
 // --- CLI entry ---
 
+function readStagedFile(path: string): string {
+  return execFileSync("git", ["show", `:${path}`], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    maxBuffer: MAX_GIT_OUTPUT_BYTES,
+  });
+}
+
 if (fileURLToPath(import.meta.url) === process.argv[1]) {
-  runPathListScript(validateFiles);
+  runPathListScript(validateFiles, { readFile: readStagedFile });
 }
