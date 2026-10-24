@@ -38,7 +38,9 @@ export async function reconcileSyncRecords(context: RefBackendContext, ref: stri
     const sides = currentSide === "local" ? { base, local, incoming } : { base, local: incoming, incoming: local };
     const values = currentSide === "local" ? records : { base: records.base, local: records.incoming, incoming: records.local };
     const choice = await chooseRecord(context, ref, sides, values, group.metadata, ownsMetadataConflict(key, records, metadataConflicts));
-    if (choice.followsIncoming) followLineageName(group.metadata, sides.incoming.metadata, (records.local ?? records.incoming ?? records.base)?.value.reference);
+    // Only the transition record's row carries the lineage name; a conflict record owning the same coordinate leaves it.
+    const subject = (records.local ?? records.incoming ?? records.base)?.value.reference;
+    if (choice.followsIncoming && subject?.kind === "lineage/transition") followLineageName(group.metadata, sides.incoming.metadata, subject);
     conflicts.push(...choice.conflicts);
     if (choice.retainMetadata && key === "primary") retainPrimaryMetadata(group.metadata, currentSide === "local" ? local.metadata : incoming.metadata);
     choices.push({ records, choice });

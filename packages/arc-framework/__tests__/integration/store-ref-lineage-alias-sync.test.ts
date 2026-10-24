@@ -136,3 +136,34 @@ it.each(["default", "separate"] as const)("settles a rename against a lineage re
     expect(await store.lookup({ kind: "lineage", origin: h.uid })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   }
 }, 60_000);
+
+it.each(["default", "separate"] as const)("keeps the transition record's lineage name beside a one-sided lineage conflict record in %s", async layout => {
+  const h = await refSyncFixture(layout);
+  const made = success(await h.a.store.write({ action: "put", expected: null,
+    reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "beside" } }),
+    content: makeMetaFixture("beside", { owner: "andrew" }), placement: { kind: "active" }, provenance }));
+  const owner = made.reference.owner;
+  if (owner.type !== "work-item" || !owner.uid) throw new Error("Expected a generation-bound item");
+  success(await h.a.store.push()); success(await h.b.store.pull());
+  const lineage = RecordReferenceSchema.parse({ owner, kind: "lineage/transition" });
+  const end = (side: typeof h.a, retiredBranches?: []) => side.store.write({ action: "put", expected: null, reference: lineage,
+    content: writeLineageRecord(LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: owner.name, uid: owner.uid }, kind: "abandon",
+      successors: [], incoming: [], ...retiredBranches ? { retiredBranches } : {} })), provenance: { verb: "abandon", lifecycleAction: "abandon" } });
+  // Clashing transitions leave a lineage conflict record on the side that pulled them and has not pushed since.
+  success(await end(h.a)); success(await h.a.store.push());
+  success(await end(h.b, []));
+  success(await h.b.store.pull());
+  expect(success(await h.b.store.read({ reference: lineage })).conflicts.length).toBeGreaterThan(0);
+  const rename = async (side: typeof h.a, name: string) => {
+    const current = success(await side.store.read({ reference: made.reference }));
+    const reference = RecordReferenceSchema.parse({ ...current.reference, owner: { ...current.reference.owner, name } });
+    success(await side.store.write({ action: "put", reference, expected: current.version, content: makeMetaFixture(name, { owner: "andrew" }),
+      placement: { kind: "active" }, provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  };
+  await rename(h.a, "left-name"); success(await h.a.store.push());
+  await rename(h.b, "right-name");
+  const pulled = success(await h.b.store.pull());
+  expect(pulled.pulls.every(({ status }) => status !== "failed")).toBe(true);
+  const item = success(await h.b.store.read({ reference: made.reference }));
+  expect(success(await h.b.store.lookup({ kind: "lineage", origin: owner.uid })).reference.owner.name).toBe(item.reference.owner.name);
+}, 60_000);
