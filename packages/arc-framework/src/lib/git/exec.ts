@@ -423,13 +423,14 @@ export async function gitMergeFile(
   other: string,
 ): Promise<MergeResult> {
   try {
+    // The merged text becomes the file, so its trailing newlines and whitespace must survive
     const { stdout } = await exec("git", [
       "merge-file",
       "-p",
       current,
       base,
       other,
-    ]);
+    ], { preserveOutput: true });
     return { content: stdout, hasConflicts: false };
   } catch (err: unknown) {
     const error = normalizeGitRejection(err, {
