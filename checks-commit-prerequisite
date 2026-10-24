@@ -3,14 +3,20 @@
   "slug": "checks-commit-prerequisite",
   "claimId": "77cb94ba02199bd71d679ef646ebf273",
   "createdAt": "2026-10-23T23:42:21.415Z",
-  "updatedAt": "2026-10-23T23:42:21.415Z",
+  "updatedAt": "2026-10-24T00:02:26.360Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Say in the define-project step that a commit changing the check declaration runs every commit-gate check across all its inputs, so their tools must be installed first",
   "branch": "fix/checks-commit-prerequisite",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "fix/checks-commit-prerequisite",
+    "headSha": "614500568e7efbc03f25378c3da317b33ff9f7c8"
+  }
 }
