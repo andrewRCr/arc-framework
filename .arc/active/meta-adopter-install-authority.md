@@ -5,14 +5,14 @@
 | `Planning` | `andrew`  | `plan/adopter-install-authority` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
-- **Depends On:** [none]
+- **Depends On:** `storage-cutover`
 
 - **Origin:** [internal]
-- **Design:** [none]
+- **Design:** `draft-adopter-install-authority.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
