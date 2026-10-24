@@ -339,6 +339,21 @@ describe("changes between ref manifests", () => {
     expect(changes.filter(({ reference }) => sameReference(reference, record.reference)).map(({ version }) => version)).toEqual([record.version, null]);
   });
 
+  it("names the historical remedy for an unparseable registry commit beside lineage inside the window", async () => {
+    const f = await createRefFixture();
+    const { from, git } = await abandonInWindow(f);
+    const registry = "refs/arc/project/registry", metadata = "metadata-registry.json";
+    const ended = (await git("git", ["rev-parse", registry])).stdout.trim(), intact = await treeEntries(git, ended);
+    expect(intact.some(({ path }) => path.startsWith("lineage/"))).toBe(true);
+    // Repaired forward on top, so only the window's own history holds the damage.
+    const broken = await plantRef(f.root, registry, intact.map((entry) => entry.path === metadata ? { path: entry.path, content: "not metadata" } : entry),
+      { parents: [ended] });
+    await plantRef(f.root, registry, intact, { parents: [broken.tip] });
+    expect(await f.store.changes({ from, to: await f.settle() })).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt",
+      namespace: registry, condition: `Historical metadata on ${registry} is missing or cannot be parsed.`,
+      remedy: { text: expect.stringContaining("a forward repair cannot change an ancestor") } } });
+  });
+
   it("reads a restricted changes window beside another owner's unreadable folder", async () => {
     const f = await createRefFixture(), quarter = ArchiveQuarterSchema.parse("2026-q4");
     const damaged = await seed(f, f.reference("work-item/meta", "damaged"));
