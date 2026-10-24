@@ -103,26 +103,27 @@ async function decideDesignation(context: RefBackendContext, result: RefDesignat
     if (present.has(code.name)) return { ...result, states: [question] };
     const answered = await answeredRegistry(context, designation, question);
     if (answered === "none") return { ...result, states: [question] };
-    if (answered !== "held") return { ...result, pulls: [answered] };
+    if (answered !== "held") return { ...result, pulls: answered };
   }
   return { ...result, states: [{ status: "no-remote" }] };
 }
 
 /**
- * An answered remote holding the registry, or one whose presence read fails, leaves the code remote unasked. A read
- * source's failure surfaces in its own fetch; an `off` remote is never fetched, so its failure is reported here.
+ * An answered remote holding the registry, or a read source whose presence read fails, leaves the code remote unasked
+ * wherever it sits. A read source's failure surfaces in its own fetch; an `off` remote is never fetched, so where no
+ * answered remote settles the question, each `off` remote whose read fails is reported here.
  */
 async function answeredRegistry(context: RefBackendContext, designation: RefDesignation,
-  code: ReturnType<typeof designationQuestion>): Promise<"held" | "none" | Extract<PullOutcome, { status: "failed" }>> {
+  code: ReturnType<typeof designationQuestion>): Promise<"held" | "none" | Extract<PullOutcome, { status: "failed" }>[]> {
+  const failed: Extract<PullOutcome, { status: "failed" }>[] = [];
   for (const remote of designation.remotes) {
     if (remote.role === undefined) continue;
     const observed = await readRefRegistryPresence(context, remote.name);
     if (observed.status === "unreachable" && remote.role === "off") {
-      return failedPresence(remote, observed, `Repair or remove ${remote.name} and retry the pull, or designate the code remote by hand. ${code.remedy.text}`, code);
-    }
-    if (observed.status === "unreachable" || observed.present) return "held";
+      failed.push(failedPresence(remote, observed, `Repair or remove ${remote.name} and retry the pull, or designate the code remote by hand. ${code.remedy.text}`, code));
+    } else if (observed.status === "unreachable" || observed.present) return "held";
   }
-  return "none";
+  return failed.length ? failed : "none";
 }
 
 function failedPresence(remote: RefRemoteDesignation, observed: Extract<RefRegistryPresence, { status: "unreachable" }>,

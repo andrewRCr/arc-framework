@@ -205,6 +205,35 @@ describe("first state designation", () => {
     expect(success(await h.b.store.pull()).states).toMatchObject([question("origin", ["push", "off"], "push")]);
   });
 
+  it.each([["alpha", "zeta"], ["zeta", "alpha"]])(
+    "asks nothing about the code remote while a read source holds the registry, an unreachable off remote %s listed beside it",
+    async (off, read) => {
+      const h = await fresh();
+      const empty = join(h.cloneB, "empty.git");
+      await h.b.exec("git", ["init", "--bare", empty]);
+      await h.b.exec("git", ["remote", "set-url", "origin", empty]);
+      await h.b.exec("git", ["remote", "add", read, h.origin]);
+      await h.b.exec("git", ["config", `remote.${read}.arc-state`, "read"]);
+      await h.b.exec("git", ["remote", "add", off, join(h.cloneB, "missing.git")]);
+      await h.b.exec("git", ["config", `remote.${off}.arc-state`, "off"]);
+      const result = success(await h.b.store.pull());
+      expect(result.states).toEqual([{ status: "no-remote" }]);
+      expect(result.pulls.filter(({ role }) => role === "candidate")).toEqual([]);
+      expect(await roles(h)).not.toContain("remote.origin.arc-state");
+    });
+
+  it("reports each unreachable off remote as its own failed candidate when no answered remote holds the registry", async () => {
+    const h = await fresh("default", false);
+    for (const name of ["alpha", "zeta"]) {
+      await h.b.exec("git", ["remote", "add", name, join(h.cloneB, `${name}-missing.git`)]);
+      await h.b.exec("git", ["config", `remote.${name}.arc-state`, "off"]);
+    }
+    const result = success(await h.b.store.pull());
+    expect(result.states).toEqual([]);
+    expect(result.pulls).toMatchObject(["alpha", "zeta"].map((remote) => ({ remote, role: "candidate", status: "failed",
+      failure: { code: "unreachable", remedy: { argv: ["arc", "store", "remote", "origin", "push"] } } })));
+  });
+
   it("pulls a fork's designated upstream while its unanswered origin cannot be read", async () => {
     const h = await fresh();
     await h.b.exec("git", ["remote", "set-url", "origin", join(h.cloneB, "missing.git")]);
