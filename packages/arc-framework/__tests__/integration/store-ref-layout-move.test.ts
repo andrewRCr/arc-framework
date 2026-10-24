@@ -723,3 +723,77 @@ it("leaves refs, roles, and the physical store unchanged for a trial request wit
   expect((await h.a.ports.fs.lstat(h.storeDirectory)).isDirectory()).toBe(true);
   expect(success(await h.a.store.read({ reference: h.primary.reference })).content).toBe(makeMetaFixture("alpha"));
 });
+
+describe("remote moves beside an unsettled layout", () => {
+  const recordTip = async (h: Awaited<ReturnType<typeof layoutFixture>>) =>
+    (await h.a.exec("git", ["for-each-ref", "--format=%(objectname)", "refs/arc/tmp/migrate/move"])).stdout;
+  const destination = async (h: Awaited<ReturnType<typeof layoutFixture>>) => {
+    const path = join(dirname(h.a.root), "elsewhere.git");
+    await h.a.exec("git", ["init", "--bare", path]);
+    return path;
+  };
+
+  it.each([true, false])("refuses a remote move while a layout record stands and keeps the record (trial: %s)", async (trial) => {
+    const h = await layoutFixture();
+    success(await h.a.store.push());
+    expect((await runStoreRemote(h.a.ports, { remote: "origin", role: "off" })).status).toBe("ok");
+    await expect(runStoreRemote({ ...h.a.ports, migrateStep: (step) => step === "layout.delete"
+      ? Promise.reject(new Error("Stop before source delete")) : Promise.resolve() }, { remote: "origin", role: "push" })).rejects.toThrow("Stop before source delete");
+    const to = await destination(h), record = await recordTip(h);
+    const config = (await h.a.exec("git", ["config", "--list", "--local"])).stdout;
+    expect(record).not.toBe("");
+    expect(await runStoreMigrate(h.a.ports, { to, ...trial ? { trial } : {} })).toMatchObject({ status: "refused",
+      refusal: { code: "move-unfinished", remedy: { argv: ["arc", "store", "migrate"] } } });
+    expect(await recordTip(h)).toBe(record);
+    expect((await h.a.exec("git", ["config", "--list", "--local"])).stdout).toBe(config);
+    expect((await h.a.ports.fs.lstat(join(h.a.root, ".git", "arc", "store-migrate-old"))).isDirectory()).toBe(true);
+    expect((await h.a.exec("git", ["--git-dir", to, "for-each-ref"])).stdout).toBe("");
+    expect((await runStoreMigrate(h.a.ports)).status).toBe("ok");
+  });
+
+  it.each(["push-default", "removal"] as const)("refuses move-incomplete before copying or recording after an external %s edit", async (edit) => {
+    const h = await layoutFixture();
+    success(await h.a.store.push());
+    if (edit === "push-default") {
+      await h.a.exec("git", ["remote", "add", "other", h.origin]);
+      await h.a.exec("git", ["config", "remote.other.arc-state", "off"]);
+      await h.a.exec("git", ["config", "remote.pushDefault", "other"]);
+    } else {
+      expect((await runStoreRemote(h.a.ports, { remote: "origin", role: "off" })).status).toBe("ok");
+      await h.a.exec("git", ["remote", "add", "upstream", h.origin]);
+      expect((await runStoreRemote(h.a.ports, { remote: "upstream", role: "push" })).status).toBe("ok");
+      await h.a.exec("git", ["remote", "remove", "origin"]);
+    }
+    const to = await destination(h);
+    const config = (await h.a.exec("git", ["config", "--list", "--local"])).stdout;
+    const remoteBefore = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout;
+    expect(await runStoreMigrate(h.a.ports, { to })).toMatchObject({ status: "refused",
+      refusal: { code: "move-incomplete", remedy: { argv: ["arc", "store", "migrate"] } } });
+    expect((await h.a.exec("git", ["config", "--list", "--local"])).stdout).toBe(config);
+    expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout).toBe(remoteBefore);
+    expect((await h.a.exec("git", ["--git-dir", to, "for-each-ref"])).stdout).toBe("");
+    expect(await recordTip(h)).toBe("");
+  });
+
+  it("stops no-target reconciliation on an ambiguous designation without moving the store", async () => {
+    const h = await layoutFixture();
+    await h.a.exec("git", ["remote", "add", "other", h.origin]);
+    await h.a.exec("git", ["config", "remote.other.arc-state", "push"]);
+    expect(await runStoreMigrate(h.a.ports)).toMatchObject({ status: "refused", refusal: { code: "role-conflict",
+      condition: expect.stringMatching(/origin.*other/u), remedy: { text: expect.stringContaining("arc store remote <name> off") } } });
+    await expect(h.a.ports.fs.lstat(h.storeDirectory)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(success(await h.a.store.read({ reference: h.primary.reference })).content).toBe(makeMetaFixture("alpha"));
+  });
+
+  it("returns the recorded layout report from a rerun that resumes after the source delete", async () => {
+    const h = await layoutFixture();
+    await expect(runStoreRemote({ ...h.a.ports, migrateStep: (step) => step === "layout.deleted"
+      ? Promise.reject(new Error("Stop after source delete")) : Promise.resolve() }, { remote: "origin", role: "off" })).rejects.toThrow("Stop after source delete");
+    const rerun = await runStoreMigrate(h.a.ports);
+    if (rerun.status === "designation-needed") throw new Error("Unexpected designation question");
+    const resumed = report(rerun);
+    expect(resumed.move).toBe("layout");
+    expect(resumed.refs.map(({ ref }) => ref).sort()).toEqual(h.before.map((line) => line.split(" ")[0]).sort());
+    expect(resumed.refs.every(({ action }) => action === "copy")).toBe(true);
+  });
+});

@@ -8,7 +8,7 @@ import type { RefBackendContext } from "./context.js";
 import { directoryExists } from "./designation.js";
 import { bindRefRepository } from "./repository-context.js";
 import { readRefRepository } from "./repository.js";
-import { migrationCodeContext, saveMoveRecord, removeMoveRecord, type RecordedLayout,
+import { migrationCodeContext, saveMoveRecord, removeMoveRecord, readMoveReport, type RecordedLayout,
   type LayoutMoveRecord, type StoreLayout, type LayoutSetting, type RecordedMove } from "./migrate-record.js";
 import { buildLayoutMove, layoutRefs, fetchLayoutObjects, requireLayoutTransaction, clearLayoutGathering, type LayoutBuild } from "./migrate-layout-build.js";
 
@@ -79,10 +79,11 @@ async function buildAndSwitchLayout(state: LayoutMoveState, store: Store, resume
   const prepared = await buildLayoutMove(code, source, store, record, paths.build, state.configuration !== undefined);
   if (state.configuration) { await state.configuration.prepareTarget(prepared.context); prepared.planned = await layoutRefs(prepared.context); }
   await context.migrateStep?.("layout.record");
-  const recorded = state.configuration ? resume : await saveMoveRecord(code, record, resume?.tip ?? null);
+  const report = layoutReport(prepared.source, prepared);
+  const recorded = state.configuration ? resume : await saveMoveRecord(code, record, resume?.tip ?? null, report);
   if (!recorded) throw new Error("A containing move must retain its record");
   await switchLayout(state, prepared, recorded);
-  return { recorded, report: layoutReport(prepared.source, prepared) };
+  return { recorded, report };
 }
 
 async function finishSwitchedLayout(state: LayoutMoveState, recorded?: RecordedLayout): Promise<{ recorded: RecordedLayout; report: MigrateReport }> {
@@ -91,9 +92,11 @@ async function finishSwitchedLayout(state: LayoutMoveState, recorded?: RecordedL
   let source: RefBackendContext | undefined;
   if (record.source === "default") source = code;
   else if (await directoryExists(code, paths.aside)) source = bindRefRepository(context, paths.common, paths.aside);
-  const refs = source ? await layoutRefs(source) : new Map<string, string>();
+  // The record keeps the report its build made, since the source may already be partly or wholly deleted.
+  const kept = state.configuration ? null : await readMoveReport(code, recorded.tip);
+  const refs = kept || !source ? new Map<string, string>() : await layoutRefs(source);
   if (record.destination === "separate" && (record.setting || state.configuration)) await applyLayoutDesignation(state);
-  return { recorded, report: layoutReport(refs) };
+  return { recorded, report: kept ?? layoutReport(refs) };
 }
 
 async function deleteLayoutSource(state: LayoutMoveState, recorded: RecordedLayout): Promise<void> {

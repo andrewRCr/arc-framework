@@ -14,7 +14,7 @@ import { readBatchObjects } from "./batch-read.js";
 import { writeRefBlob } from "./tree-write.js";
 import { projectIdentityQueries, projectOwnerFromObjects } from "./project-identity.js";
 import { readSyncRefs, syncRefIsAncestor } from "./sync-graph.js";
-import { saveMoveRecord, removeMoveRecord, type MoveRemote, type RecordedRemote, type RemoteMoveRecord } from "./migrate-record.js";
+import { saveMoveRecord, removeMoveRecord, type MoveRemote, type MoveTransports, type RecordedRemote, type RemoteMoveRecord } from "./migrate-record.js";
 
 const registryRef = "refs/arc/project/registry";
 const copyRoot = "refs/arc/tmp/migrate/remote/copy/";
@@ -24,8 +24,9 @@ const deletedRecordRef = "refs/arc/tmp/migrate/deleted-record";
 export interface RemoteCopy { recorded?: RecordedRemote; ended?: "source-forwarded" | "destination-forwarded" | "moved-back"; report: MigrateReport; source: Map<string, string>; destination: Map<string, string> }
 
 /** The caller holds only the move lock; all merge commits target temporary refs in the code repository. */
-export async function copyRemoteMove(code: RefBackendContext, source: MoveRemote, destination: MoveRemote,
+export async function copyRemoteMove(code: RefBackendContext, transports: MoveTransports,
   local: ReadonlyMap<string, string>, trial: boolean, resume?: RecordedRemote): Promise<RemoteCopy> {
+  const { source, destination } = transports;
   let recorded = resume;
   const firstRun = resume === undefined;
   for (;;) {
@@ -40,7 +41,8 @@ export async function copyRemoteMove(code: RefBackendContext, source: MoveRemote
     const prepared = await buildRemoteCopy(code, incoming, held);
     const report = remoteCopyReport(prepared.refs, held, prepared.notices);
     if (trial) { await clearMigrationRefs(code, copyRoot); return { report, source: incoming, destination: held }; }
-    recorded = await saveRemoteCopyRecord(code, { kind: "remote", source, destination, registryCommit: prepared.registry }, recorded);
+    recorded = await saveRemoteCopyRecord(code, { kind: "remote", source, destination, registryCommit: prepared.registry,
+      sourceLayout: transports.sourceLayout, destinationLayout: transports.destinationLayout }, recorded);
     await retainDeletedRecord(code, held.get(FORWARDING_REF));
     await code.migrateStep?.("remote.copy");
     const changes = remoteCopyChanges(prepared.refs, held);

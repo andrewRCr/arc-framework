@@ -10,6 +10,7 @@ import { projectIdentityQueries, projectOwnerFromObjects } from "./project-ident
 import { readSyncRefs } from "./sync-graph.js";
 import { migrationCodeContext, saveMoveRecord, removeMoveRecord, readMoveRecord, type RecordedFollow, type FollowMoveRecord } from "./migrate-record.js";
 import { readRefRepository } from "./repository.js";
+import { publisherLayout } from "./layout-state.js";
 import { followSwitchComplete, switchRefFollow } from "./follow-switch.js";
 import { clearRemoteGathering, remoteCopyReport, readRemoteCopyReport } from "./migrate-remote-copy.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
@@ -27,8 +28,8 @@ export async function answerRefFollow(context: RefBackendContext, store: Store, 
     const physical = await readRefRepository(context);
     if (answer === "push") await requireFollowPublication(physical, judged.record.projectId);
     const sourceLayout = physical.repository?.gitDir ? "separate" : "default";
-    const ownCodePush = due.designation.pushes.some(row => row.repository === "code" && row.name === due.designation.codeRemote && row.name !== due.remote.name);
-    const destinationLayout = ownCodePush || answer === "push" && candidate.remote.repository === "code" && candidate.remote.name === due.designation.codeRemote ? "default" : "separate";
+    const ownCodePush = due.designation.pushes.find(row => row.repository === "code" && row.name === due.designation.codeRemote && row.name !== due.remote.name);
+    const destinationLayout = publisherLayout(ownCodePush ?? (answer === "push" ? candidate.remote : undefined), due.designation.codeRemote);
     const sourceRole = due.remote.role;
     if (sourceRole !== "push" && sourceRole !== "read") throw new Error("A due follow's old remote carries neither push nor read");
     const record: FollowMoveRecord = { kind: "follow", source: judged.source, destination: candidate.remote,

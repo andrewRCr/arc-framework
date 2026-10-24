@@ -1,7 +1,7 @@
 /** Observe physical layout mismatches and unfinished source cleanup before state transport. */
 
 import type { RefBackendContext } from "./context.js";
-import type { RefDesignation } from "./designation.js";
+import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
 import { isStateRef } from "./manifest.js";
 import { migrationCodeContext, MOVE_REF, type StoreLayout } from "./migrate-record.js";
 import { readRefRepository } from "./repository.js";
@@ -11,7 +11,13 @@ import type { SyncState } from "../sync.js";
 
 /** Only the code remote's sole push designation places the store in the code repository. */
 export function designatedStoreLayout(designation: RefDesignation): StoreLayout {
-  return designation.backing?.role !== "push" && designation.pushes.length === 1 && designation.pushes[0]?.name === designation.codeRemote ? "default" : "separate";
+  const publisher = designation.backing?.role === "push" || designation.pushes.length !== 1 ? undefined : designation.pushes[0];
+  return publisherLayout(publisher, designation.codeRemote);
+}
+
+/** The layout a designation calls for once the given remote is its one push remote; a switch's source is the physical layout. */
+export function publisherLayout(publisher: Pick<RefRemoteDesignation, "name" | "repository"> | undefined, codeRemote: string | null): StoreLayout {
+  return publisher?.repository === "code" && publisher.name === codeRemote ? "default" : "separate";
 }
 
 /** The no-target command finishes a recorded switch and any remaining source cleanup. */

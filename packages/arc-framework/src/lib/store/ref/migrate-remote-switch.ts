@@ -18,10 +18,10 @@ export async function remoteSwitchComplete(context: RefBackendContext, recorded:
   const designation = await readRefDesignation(context), destination = recorded.record.destination;
   const current = designation.remotes.find(remote => remote.name === destination.name && remote.repository === destination.repository && remote.role === "push");
   if (!current) return false;
-  const physical = await readRefRepository(context);
-  if (Boolean(physical.repository?.gitDir) !== (remoteLayout(destination, designation.codeRemote) === "separate")) return false;
+  const physical = await readRefRepository(context), { sourceLayout, destinationLayout } = recorded.record;
+  if (Boolean(physical.repository?.gitDir) !== (destinationLayout === "separate")) return false;
   const code = await migrationCodeContext(context);
-  if (!await remoteLayoutCleanupComplete(code, remoteLayout(recorded.record.source, designation.codeRemote), remoteLayout(destination, designation.codeRemote))) return false;
+  if (!await remoteLayoutCleanupComplete(code, sourceLayout, destinationLayout)) return false;
   const captured = await captureMoveRemote(context, code, current);
   if (captured.fetchUrl !== destination.fetchUrl || captured.pushUrl !== destination.pushUrl) return false;
   if (recorded.record.source.repository === "backing") return destination.repository === "backing" || designation.backing === null;
@@ -31,9 +31,8 @@ export async function remoteSwitchComplete(context: RefBackendContext, recorded:
 /** Borrow the enclosing move's record while its optional layout change holds layout serialization. */
 export async function switchRemoteMove(context: RefBackendContext, store: Store, recorded: RecordedRemote): Promise<void> {
   if (await remoteSwitchComplete(context, recorded)) return;
-  const code = await migrationCodeContext(context), designation = await readRefDesignation(context);
-  const { source, destination } = recorded.record;
-  const from = remoteLayout(source, designation.codeRemote), to = remoteLayout(destination, designation.codeRemote);
+  const code = await migrationCodeContext(context);
+  const { destination, sourceLayout: from, destinationLayout: to } = recorded.record;
   if (!context.writeBackingRepository) throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable",
     condition: "This migration caller has no tracked backing-pointer writer.", remedy: { text: "Run arc store migrate through the store command to finish the recorded switch.", argv: ["arc", "store", "migrate"] } });
   await context.migrateStep?.("remote.pointer");
@@ -58,10 +57,9 @@ export async function switchRemoteMove(context: RefBackendContext, store: Store,
 }
 
 /** A remote move's switch is undone from its record: the source's pointer, roles, and layout. */
-export async function remoteSwitchUndo(context: RefBackendContext, recorded: RecordedRemote): Promise<SwitchUndo> {
-  const { codeRemote } = await readRefDesignation(context), { source, destination } = recorded.record;
-  return { recorded, source, destination, sourceRole: "push", destinationRole: "push",
-    sourceLayout: remoteLayout(source, codeRemote), destinationLayout: remoteLayout(destination, codeRemote),
+export function remoteSwitchUndo(recorded: RecordedRemote): SwitchUndo {
+  const { source, destination, sourceLayout, destinationLayout } = recorded.record;
+  return { recorded, source, destination, sourceRole: "push", destinationRole: "push", sourceLayout, destinationLayout,
     pointer: { source: movePointer(source), destination: movePointer(destination) } };
 }
 
@@ -76,10 +74,6 @@ export async function writeMovePointer(context: RefBackendContext, value: string
 
 function movePointer(remote: MoveRemote): string | null {
   return remote.repository === "backing" ? remote.fetchUrl : null;
-}
-
-function remoteLayout(remote: MoveRemote, codeRemote: string | null): StoreLayout {
-  return remote.repository === "code" && remote.name === codeRemote ? "default" : "separate";
 }
 
 /** Carry retained comparison heads into the destination's physical store. */

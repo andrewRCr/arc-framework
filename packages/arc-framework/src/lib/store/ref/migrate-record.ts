@@ -6,12 +6,13 @@ import { z } from "zod";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import { readGitDirectories } from "../../git/directories.js";
 import { updateRefTransaction } from "../../git/ref-transaction.js";
-import type { StoreCommandResult } from "../commands.js";
+import { MigrateReportSchema, type MigrateReport, type StoreCommandResult } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects } from "./batch-read.js";
 import { bindRefRepository } from "./repository-context.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { writeRefBlob, writeRefTree } from "./tree-write.js";
+import { MigrationRefusal } from "./migrate-refusal.js";
 
 /** Only the code repository owns a move record, regardless of the active store layout. */
 export const MOVE_REF = "refs/arc/tmp/migrate/move";
@@ -21,7 +22,7 @@ const LayoutRecordSchema = z.strictObject({ kind: z.literal("layout"), source: L
   destination: LayoutSchema, setting: SettingSchema.optional() }).refine((record) => record.source !== record.destination);
 const RemoteSchema = z.strictObject({ name: z.string().min(1), fetchUrl: z.string().min(1), pushUrl: z.string().min(1), repository: z.enum(["code", "backing"]) });
 const RemoteRecordSchema = z.strictObject({ kind: z.literal("remote"), source: RemoteSchema, destination: RemoteSchema,
-  registryCommit: CommitShaSchema });
+  registryCommit: CommitShaSchema, sourceLayout: LayoutSchema, destinationLayout: LayoutSchema });
 const FollowRecordSchema = z.strictObject({ kind: z.literal("follow"), source: RemoteSchema, destination: RemoteSchema,
   answer: SettingSchema.shape.role, sourceRole: z.enum(["push", "read"]), forwarding: ForwardingRecordSchema, forwardingTip: CommitShaSchema,
   sourceLayout: LayoutSchema, destinationLayout: LayoutSchema });
@@ -44,6 +45,8 @@ export type RemoteMoveRecord = z.infer<typeof RemoteRecordSchema>;
 export type MoveRecord = z.infer<typeof MoveRecordSchema>;
 /** A captured remote record and its compare-and-swap basis. */
 export interface RecordedRemote { record: RemoteMoveRecord; tip: string }
+/** A remote move's two remotes and the layout on each side of its switch, fixed before its record is written. */
+export type MoveTransports = Pick<RemoteMoveRecord, "source" | "destination" | "sourceLayout" | "destinationLayout">;
 /** The complete record read preserves its kind for dispatch. */
 export interface RecordedMove { record: MoveRecord; tip: string }
 /** A layout record retains the final setting when it has not taken effect yet. */
@@ -75,10 +78,27 @@ export async function readMoveRecord(code: RefBackendContext): Promise<StoreComm
   return { status: "ok", result: { record: parsed.data, tip } };
 }
 
-/** Write a root commit and install it only against the captured record value. */
-export async function saveMoveRecord<T extends MoveRecord>(code: RefBackendContext, record: T, expected: string | null): Promise<{ record: T; tip: string }> {
+/** The report a move kept beside its record, or null where it kept none. */
+export async function readMoveReport(code: RefBackendContext, tip: string): Promise<MigrateReport | null> {
+  const object = (await readBatchObjects(code, [`${tip}:report.json`])).get(`${tip}:report.json`);
+  if (object?.type !== "blob") return null;
+  let parsed: ReturnType<typeof MigrateReportSchema.safeParse> | undefined;
+  try { parsed = MigrateReportSchema.safeParse(JSON.parse(new TextDecoder().decode(object.bytes))); }
+  catch { /* Invalid JSON is the same malformed record. */ }
+  if (!parsed?.success) throw new MigrationRefusal({ code: "move-record-malformed", class: "recoverable",
+    condition: `The report.json at ${MOVE_REF} is not a valid migration report.`,
+    remedy: { text: `Repair the recorded move at ${MOVE_REF}, then retry arc store migrate.`, argv: ["arc", "store", "migrate"] } });
+  return parsed.data;
+}
+
+/** Write a root commit and install it only against the captured record value.
+ * @param report The move's report, kept beside the record so a rerun returns it whatever its source then holds.
+ */
+export async function saveMoveRecord<T extends MoveRecord>(code: RefBackendContext, record: T, expected: string | null,
+  report?: MigrateReport): Promise<{ record: T; tip: string }> {
   const oid = await writeRefBlob(code, canonicalize(record));
-  const tree = await writeRefTree(code, [{ path: "move.json", mode: "100644", oid }]);
+  const kept = report ? [{ path: "report.json", mode: "100644" as const, oid: await writeRefBlob(code, canonicalize(MigrateReportSchema.parse(report))) }] : [];
+  const tree = await writeRefTree(code, [{ path: "move.json", mode: "100644", oid }, ...kept]);
   const tip = (await code.exec("git", ["commit-tree", tree, "-m", "Record local store move"], { cwd: code.checkoutRoot })).stdout.trim();
   const result = await updateRefTransaction(code, [{ ref: MOVE_REF, next: tip, expected }], { cwd: code.checkoutRoot });
   if (result.status !== "committed") throw new Error("The recorded migration changed before its replacement");

@@ -4,8 +4,9 @@ import type { MigrateReport, StoreMigrateResult } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefDesignation } from "./designation.js";
 import { captureMoveRemote } from "./migrate-remote-target.js";
-import { migrationCodeContext, readMoveRecord, type MoveRemote, type RecordedRemote, type RemoteMoveRecord } from "./migrate-record.js";
+import { migrationCodeContext, readMoveRecord, type MoveRemote, type MoveTransports, type RecordedRemote } from "./migrate-record.js";
 import { readRefRepository } from "./repository.js";
+import { publisherLayout } from "./layout-state.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { fetchLayoutObjects } from "./migrate-layout-build.js";
 import { copyRemoteMove, clearRemoteGathering, remoteCopyReport, readRemoteCopyReport, type RemoteCopy } from "./migrate-remote-copy.js";
@@ -42,14 +43,14 @@ async function performRemoteMove(context: RefBackendContext, code: RefBackendCon
 }
 
 async function runRemoteMoveRounds(context: RefBackendContext, code: RefBackendContext, store: Store,
-  transports: Pick<RemoteMoveRecord, "source" | "destination">, local: ReadonlyMap<string, string>, trial: boolean, active?: RecordedRemote): Promise<StoreMigrateResult> {
+  transports: MoveTransports, local: ReadonlyMap<string, string>, trial: boolean, active?: RecordedRemote): Promise<StoreMigrateResult> {
   for (;;) {
-    const copied = await copyRemoteMove(code, transports.source, transports.destination, local, trial, active);
+    const copied = await copyRemoteMove(code, transports, local, trial, active);
     if (trial) return remoteMoveTrial(context, code, copied, active !== undefined);
     if (copied.ended) {
       const recorded = copied.recorded;
       if (!recorded) throw new Error("An ended remote move has no record");
-      const ended = await endRemoteMove(code, recorded, copied, async () => undoSwitch(context, store, await remoteSwitchUndo(context, recorded)));
+      const ended = await endRemoteMove(code, recorded, copied, async () => undoSwitch(context, store, remoteSwitchUndo(recorded)));
       if (ended) return { status: "ok", result: ended };
       active = copied.recorded;
       continue;
@@ -70,10 +71,10 @@ async function remoteMoveTrial(context: RefBackendContext, code: RefBackendConte
 
 async function trialEnd(context: RefBackendContext, recorded: RecordedRemote): Promise<EndedSwitch> {
   if (await remoteSwitchComplete(context, recorded)) return "after";
-  return await switchBegun(context, await remoteSwitchUndo(context, recorded)) ? "during" : "before";
+  return await switchBegun(context, remoteSwitchUndo(recorded)) ? "during" : "before";
 }
 
-async function resolveMoveRemotes(context: RefBackendContext, code: RefBackendContext, to?: string): Promise<{ source: MoveRemote; destination: MoveRemote }> {
+async function resolveMoveRemotes(context: RefBackendContext, code: RefBackendContext, to?: string): Promise<MoveTransports> {
   const designation = await readRefDesignation(context), source = designation.pushes[0];
   if (!source || designation.pushes.length !== 1) throw new MigrationRefusal({ code: "no-state-remote", class: "recoverable",
     condition: "This clone has no single state remote to move from.", remedy: { text: "Designate a code repository remote with arc store remote <remote> push, or change the backing pointer and run arc store remote backing push, then retry --to." } });
@@ -83,7 +84,9 @@ async function resolveMoveRemotes(context: RefBackendContext, code: RefBackendCo
   const captured = await captureMoveRemote(context, code, source);
   if (captured.fetchUrl === destination.fetchUrl && captured.pushUrl === destination.pushUrl) throw new MigrationRefusal({ code: "request-invalid", class: "terminal",
     condition: "The source and destination resolve to the same state remote.", remedy: { text: "Choose a different remote or run arc store migrate with no target to reconcile this clone's layout." } });
-  return { source: captured, destination };
+  const physical = await readRefRepository(context);
+  return { source: captured, destination, sourceLayout: physical.repository?.gitDir ? "separate" : "default",
+    destinationLayout: publisherLayout(destination, designation.codeRemote) };
 }
 
 function unfinishedMove(destination: string): Extract<StoreMigrateResult, { status: "refused" }> {

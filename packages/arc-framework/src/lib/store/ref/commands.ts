@@ -4,8 +4,8 @@ import type { Store } from "../contract.js";
 import { StoreMigrateInputSchema, StoreRemoteInputSchema, type StoreMigrateInput, type StoreMigrateResult,
   type StoreRemoteInput, type StoreRemoteResult, type MigrateReport } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
-import { designatedStoreLayout } from "./layout-state.js";
-import { readRefDesignation } from "./designation.js";
+import { designatedStoreLayout, observeRefLayout } from "./layout-state.js";
+import { readRefDesignation, refDesignationStop } from "./designation.js";
 import { migrationCodeContext, readMoveRecord, type RecordedMove, type RecordedFollow } from "./migrate-record.js";
 import { moveRefRemote } from "./migrate-remote.js";
 import { clearRemoteGathering } from "./migrate-remote-copy.js";
@@ -36,15 +36,24 @@ export async function runRefMigrate(context: RefBackendContext, store: Store, in
     }
     if (existing.result?.record.kind === "remote") return moveRefRemote(context, store, parsed.data.to, parsed.data.trial, { record: existing.result.record, tip: existing.result.tip });
     if (existing.result?.record.kind === "follow") return resumeFollowRequest(context, store, { record: existing.result.record, tip: existing.result.tip }, parsed.data);
+    const layout = existing.result?.record.kind === "layout" ? { record: existing.result.record, tip: existing.result.tip } : undefined;
+    const unsettled = parsed.data.to ? await unsettledLayout(context, layout !== undefined) : undefined;
+    if (unsettled) return unsettled;
     // A move ended after removing its record leaves gathering no later move may read as its own.
     if (!existing.result && !parsed.data.trial) await clearRemoteGathering(code);
-    if (existing.result?.record.kind === "layout") {
-      const resumed = await moveRefLayout(context, store, existing.result.record.destination, existing.result.record.setting, { record: existing.result.record, tip: existing.result.tip });
-      if (resumed.status === "refused" || !parsed.data.to) return resumed;
-    }
     if (parsed.data.to) return moveRefRemote(context, store, parsed.data.to, parsed.data.trial);
+    if (layout) return moveRefLayout(context, store, layout.record.destination, layout.record.setting, layout);
     return reconcileNoTarget(context, store);
   });
+}
+
+/** A remote move or its trial starts only with no layout move recorded and the store where its designation puts it. */
+async function unsettledLayout(context: RefBackendContext, layoutRecorded: boolean): Promise<Extract<StoreMigrateResult, { status: "refused" }> | undefined> {
+  if (layoutRecorded) return { status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
+    condition: "A layout move is recorded; finish it before requesting a remote migration or trial.",
+    remedy: { text: "Run arc store migrate with no target to finish the recorded layout move, then retry the requested migration.", argv: ["arc", "store", "migrate"] } } };
+  const { incomplete } = await observeRefLayout(context, await readRefDesignation(context));
+  return incomplete ? { status: "refused", refusal: { code: "move-incomplete", class: "recoverable", condition: incomplete.condition, remedy: incomplete.remedy } } : undefined;
 }
 
 /** With no record standing, follow a due move, then bring the clone into its designated layout. */
@@ -55,7 +64,11 @@ async function reconcileNoTarget(context: RefBackendContext, store: Store): Prom
     if (followed.status === "refused") return followed;
     if (followed.status === "decided") return followed.result;
   }
-  return moveRefLayout(context, store, designatedStoreLayout(await readRefDesignation(context)));
+  const designation = await readRefDesignation(context), stop = refDesignationStop(designation);
+  // Several push remotes call for no one layout, so nothing moves until all but one are set off.
+  if (stop?.status === "designation-ambiguous") return { status: "refused", refusal: { code: "role-conflict", class: "recoverable",
+    condition: `Remotes ${stop.remotes.join(", ")} each carry push, so no one layout is designated.`, remedy: stop.remedy } };
+  return moveRefLayout(context, store, designatedStoreLayout(designation));
 }
 
 /** Apply a code remote's own setting in the order its layout switch requires. */

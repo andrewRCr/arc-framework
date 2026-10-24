@@ -5,6 +5,7 @@ import { readRefDesignation } from "./designation.js";
 import { captureMoveRemote } from "./migrate-remote-target.js";
 import { readRefRepository } from "./repository.js";
 import { fetchLayoutObjects } from "./migrate-layout-build.js";
+import { publisherLayout } from "./layout-state.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { captureMoveHeads } from "./migrate-remote-copy.js";
 import { FORWARDING_REF, readForwardingRecord, type ForwardingRecord } from "./forwarding-record.js";
@@ -42,7 +43,7 @@ export async function resolveLeaveSource(context: RefBackendContext, code: RefBa
   incoming.delete(FORWARDING_REF);
   return { incoming, local, heads, forwarding: forwarding.result, record: { kind: "leave-source", source, destination,
     sourceLayout: physical.repository?.gitDir ? "separate" : "default",
-    destinationLayout: destination.repository === "code" && destination.name === designation.codeRemote ? "default" : "separate" } };
+    destinationLayout: publisherLayout(destination, designation.codeRemote) } };
 }
 
 /** Invalid target choices retain all state and roles for a corrected request. */
