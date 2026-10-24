@@ -1,4 +1,4 @@
-/** Resolve explicit remote move targets and preserve their recorded transport coordinates. */
+/** Move a project's state between remotes: copy, forward, switch, and delete the source, restartable from its record. */
 import type { Store } from "../contract.js";
 import type { MigrateReport, StoreMigrateResult } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
@@ -33,7 +33,7 @@ export async function moveRefRemote(context: RefBackendContext, store: Store, to
 async function performRemoteMove(context: RefBackendContext, code: RefBackendContext, store: Store,
   to: string | undefined, trial: boolean, resume?: RecordedRemote): Promise<StoreMigrateResult> {
   const transports = resume?.record ?? await resolveMoveRemotes(context, code, to);
-  if (to && resume && ![transports.destination.name, transports.destination.fetchUrl].includes(to)) return unfinishedMove(transports.destination.name);
+  if (to && resume && ![transports.destination.name, transports.destination.url].includes(to)) return unfinishedMove(transports.destination.name);
   const physical = await readRefRepository(context);
   const local = await readSyncRefs(physical, "refs/arc/project/registry");
   await fetchLayoutObjects(code, physical.repository?.gitDir ?? physical.repository?.commonDir ?? "", local);
@@ -88,7 +88,7 @@ async function resolveMoveRemotes(context: RefBackendContext, code: RefBackendCo
     condition: "This clone has no single state remote to move from.", remedy: { text: "Designate a code repository remote with arc store remote <remote> push, or change the backing pointer and run arc store remote backing push, then retry --to." } });
   if (!to) throw new Error("An unrecorded remote move requires a destination");
   const candidate = designation.codeRemotes.find(remote => remote.name === to);
-  const destination: MoveRemote = candidate ? await captureMoveRemote(context, code, candidate) : { name: "backing", fetchUrl: to, pushUrl: to, repository: "backing" };
+  const destination: MoveRemote = candidate ? await captureMoveRemote(context, code, candidate) : { name: "backing", url: to, fetchUrl: to, pushUrl: to, repository: "backing" };
   const captured = await captureMoveRemote(context, code, source);
   if (sharesMoveUrl(captured, destination)) throw new MigrationRefusal({ code: "request-invalid", class: "terminal",
     condition: "The source and destination resolve to the same state remote.", remedy: { text: "Choose a different remote or run arc store migrate with no target to reconcile this clone's layout." } });
@@ -122,7 +122,7 @@ function trialRemoteReport(copy: RemoteCopy): MigrateReport {
   return { ...copy.report, refs: [...copy.report.refs, ...deletes], notices: [...copy.report.notices, pointerFollowNotice()] };
 }
 
-async function finishRemoteMove(code: RefBackendContext, recorded: RecordedRemote, copied: import("../commands.js").MigrateReport): Promise<StoreMigrateResult> {
+async function finishRemoteMove(code: RefBackendContext, recorded: RecordedRemote, copied: MigrateReport): Promise<StoreMigrateResult> {
   const deleted = await deleteRemoteSource(code, recorded);
   return { status: "ok", result: { ...copied, refs: [...copied.refs, ...deleted.refs], notices: [...copied.notices, ...deleted.notices, pointerFollowNotice()] } };
 }

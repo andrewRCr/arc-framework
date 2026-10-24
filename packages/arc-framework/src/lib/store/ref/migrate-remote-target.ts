@@ -4,14 +4,16 @@ import type { RefRemoteDesignation } from "./designation.js";
 import type { MoveRemote } from "./migrate-record.js";
 import { readRefRepository } from "./repository.js";
 
-/** Resolve both native URLs in the repository that owns this named remote. */
+/** Keep the URL this named remote is configured with, and resolve both transport URLs in the repository that owns it. */
 export async function captureMoveRemote(context: RefBackendContext, code: RefBackendContext, remote: RefRemoteDesignation): Promise<MoveRemote> {
   const physical = remote.repository === "backing" ? await readRefRepository(context) : code;
-  const urls = await Promise.all([[], ["--push"]].map(async flags => (await physical.exec("git", ["remote", "get-url", ...flags, remote.name], { cwd: context.checkoutRoot })).stdout.trim()));
-  return { name: remote.name, repository: remote.repository, fetchUrl: urls[0] ?? remote.url, pushUrl: urls[1] ?? remote.url };
+  const resolve = async (flags: string[]): Promise<string> =>
+    (await physical.exec("git", ["remote", "get-url", ...flags, remote.name], { cwd: context.checkoutRoot })).stdout.trim();
+  return { name: remote.name, repository: remote.repository, url: remote.url, fetchUrl: await resolve([]), pushUrl: await resolve(["--push"]) };
 }
 
-/** Two remotes are one repository to a move where either URL of one is either URL of the other. */
-export function sharesMoveUrl(left: Pick<MoveRemote, "fetchUrl" | "pushUrl">, right: Pick<MoveRemote, "fetchUrl" | "pushUrl">): boolean {
-  return [left.fetchUrl, left.pushUrl].some(url => url === right.fetchUrl || url === right.pushUrl);
+/** Two remotes are one repository to a move where any URL of one, as configured or reached, is any URL of the other. */
+export function sharesMoveUrl(left: Pick<MoveRemote, "url" | "fetchUrl" | "pushUrl">, right: Pick<MoveRemote, "url" | "fetchUrl" | "pushUrl">): boolean {
+  const urls = new Set([right.url, right.fetchUrl, right.pushUrl]);
+  return [left.url, left.fetchUrl, left.pushUrl].some(url => urls.has(url));
 }

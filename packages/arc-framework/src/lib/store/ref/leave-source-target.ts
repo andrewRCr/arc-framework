@@ -25,26 +25,27 @@ export async function resolveLeaveSource(context: RefBackendContext, code: RefBa
   if (!old) throw noSourceRemote(designation.codeRemotes.filter(remote => remote.role === "read").map(remote => remote.name));
   const source = await captureMoveRemote(context, code, old);
   const pointer = await context.backingRepository();
-  const target = to ?? (designation.backing && pointer !== source.fetchUrl ? pointer : null);
+  const target = to ?? (designation.backing && pointer !== source.url ? pointer : null);
   if (!target) throw leaveSourceInvalid("Leaving this source requires --to <remote> naming the state's new home.");
   const candidate = designation.codeRemotes.find(remote => remote.name === target);
   if (!candidate && target !== pointer) throw leaveSourceInvalid(
     `${target} is neither a remote of the code repository nor the URL this checkout's storage.backing_repository names${pointer ? ` (${pointer})` : ""}.`,
     "Name a remote of the code repository with --to, or bring in the tracked pointer's change naming the state's new home, then retry arc store migrate --leave-source.");
   const destination = candidate ? await captureMoveRemote(context, code, candidate)
-    : { name: "backing", repository: "backing" as const, fetchUrl: target, pushUrl: target };
+    : { name: "backing", repository: "backing" as const, url: target, fetchUrl: target, pushUrl: target };
   if (sharesMoveUrl(destination, source)) throw leaveSourceInvalid("The destination URL is the old source's URL; choose a different remote with --to.");
   const physical = await readRefRepository(context), root = `refs/arc-remotes/${source.name}/`;
   const tracking = await readSyncRefs(physical, root), local = await readSyncRefs(physical, "refs/arc/project/registry");
   const heads = await captureMoveHeads(code, source);
   await fetchLayoutObjects(code, physical.repository?.gitDir ?? physical.repository?.commonDir ?? "", new Map([...tracking, ...local]));
   const incoming = new Map([...tracking].map(([ref, tip]) => ["refs/arc/" + ref.slice(root.length), tip]));
-  const forwarding = await readForwardingRecord(code, incoming.get(FORWARDING_REF), source.name);
+  const forwardingTip = incoming.get(FORWARDING_REF);
+  const forwarding = await readForwardingRecord(code, forwardingTip, source.name);
   if (forwarding.status === "refused") throw new MigrationRefusal(forwarding.refusal);
   incoming.delete(FORWARDING_REF);
   return { incoming, local, heads, forwarding: forwarding.result, record: { kind: "leave-source", source, destination,
     sourceLayout: physical.repository?.gitDir ? "separate" : "default",
-    destinationLayout: publisherLayout(destination, designation.codeRemote) } };
+    destinationLayout: publisherLayout(destination, designation.codeRemote), ...forwardingTip ? { forwardingTip } : {} } };
 }
 
 /** Invalid target choices retain all state and roles for a corrected request. */

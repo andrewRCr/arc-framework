@@ -108,9 +108,9 @@ async function readDepartureRecord(code: RefBackendContext, resume?: RecordedLea
 }
 
 function checkDepartureResume(resume: RecordedLeaveSource | undefined, { to, trial }: Pick<StoreMigrateInput, "to" | "trial">): void {
-  if (resume && (trial || to && ![resume.record.destination.name, resume.record.destination.fetchUrl].includes(to))) {
+  if (resume && (trial || to && ![resume.record.destination.name, resume.record.destination.url].includes(to))) {
     throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable",
-      condition: `A source departure to ${resume.record.destination.fetchUrl} is recorded; finish it before another migration or trial.`,
+      condition: `A source departure to ${resume.record.destination.url} is recorded; finish it before another migration or trial.`,
       remedy: { text: "Run arc store migrate with no target to finish the recorded source departure, then retry.", argv: ["arc", "store", "migrate"] } });
   }
 }

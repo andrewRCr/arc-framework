@@ -5,7 +5,6 @@ import type { RefBackendContext } from "./context.js";
 import { directoryExists, readRefDesignation } from "./designation.js";
 import { readRefRepository } from "./repository.js";
 import { migrationCodeContext, type MoveRemote, type RecordedRemote, type StoreLayout } from "./migrate-record.js";
-import { captureMoveRemote } from "./migrate-remote-target.js";
 import { readCopiedRemoteRefs } from "./migrate-remote-copy.js";
 import { moveRefLayoutAsSwitch } from "./migrate-layout.js";
 import { fetchLayoutObjects, requireLayoutTransaction, layoutRefs } from "./migrate-layout-build.js";
@@ -22,8 +21,7 @@ export async function remoteSwitchComplete(context: RefBackendContext, recorded:
   if (Boolean(physical.repository?.gitDir) !== (destinationLayout === "separate")) return false;
   const code = await migrationCodeContext(context);
   if (!await remoteLayoutCleanupComplete(code, sourceLayout, destinationLayout)) return false;
-  const captured = await captureMoveRemote(context, code, current);
-  if (captured.fetchUrl !== destination.fetchUrl || captured.pushUrl !== destination.pushUrl) return false;
+  if (current.url !== destination.url) return false;
   if (recorded.record.source.repository === "backing") return destination.repository === "backing" || designation.backing === null;
   return designation.codeRemotes.find(remote => remote.name === recorded.record.source.name)?.role === "off";
 }
@@ -33,8 +31,6 @@ export async function switchRemoteMove(context: RefBackendContext, store: Store,
   if (await remoteSwitchComplete(context, recorded)) return;
   const code = await migrationCodeContext(context);
   const { destination, sourceLayout: from, destinationLayout: to } = recorded.record;
-  if (!context.writeBackingRepository) throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable",
-    condition: "This migration caller has no tracked backing-pointer writer.", remedy: { text: "Run arc store migrate through the store command to finish the recorded switch.", argv: ["arc", "store", "migrate"] } });
   await context.migrateStep?.("remote.pointer");
   await writeMovePointer(context, movePointer(destination));
   const configuration = {
@@ -73,7 +69,7 @@ export async function writeMovePointer(context: RefBackendContext, value: string
 }
 
 function movePointer(remote: MoveRemote): string | null {
-  return remote.repository === "backing" ? remote.fetchUrl : null;
+  return remote.repository === "backing" ? remote.url : null;
 }
 
 /** Carry retained comparison heads into the destination's physical store. */
@@ -87,10 +83,10 @@ export async function installCopiedHeads(code: RefBackendContext, target: RefBac
   }
 }
 
-/** Configure the physical backing remote at a switch, preserving the explicit answer. */
+/** Configure the physical backing remote at a switch with the URL its record keeps as configured, preserving the explicit answer. */
 export async function configureBacking(target: RefBackendContext, destination: MoveRemote, role: "push" | "read" | "off" = "push"): Promise<void> {
   const names = (await target.exec("git", ["remote"], { cwd: target.checkoutRoot })).stdout.split(/\r?\n/u);
-  await target.exec("git", ["remote", names.includes("backing") ? "set-url" : "add", "backing", destination.fetchUrl], { cwd: target.checkoutRoot });
+  await target.exec("git", ["remote", names.includes("backing") ? "set-url" : "add", "backing", destination.url], { cwd: target.checkoutRoot });
   await target.migrateStep?.("backing.repointed");
   await target.exec("git", ["config", "remote.backing.arc-state", role], { cwd: target.checkoutRoot });
 }

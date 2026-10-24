@@ -57,7 +57,7 @@ export async function judgeRefFollow(context: RefBackendContext, due: RefFollowD
 
 async function followCandidates(context: RefBackendContext, code: RefBackendContext, due: RefFollowDue, exclude?: string): Promise<MoveRemote[]> {
   const pointer = await context.backingRepository();
-  if (pointer) return [{ name: "backing", repository: "backing", fetchUrl: pointer, pushUrl: pointer }];
+  if (pointer) return [{ name: "backing", repository: "backing", url: pointer, fetchUrl: pointer, pushUrl: pointer }];
   const candidates: MoveRemote[] = [];
   for (const remote of due.designation.codeRemotes) {
     if (remote.name === exclude) continue;
@@ -86,7 +86,7 @@ async function departedSourceRemedy(context: RefBackendContext, code: RefBackend
       }
     }
   } catch (error) { if (!(error instanceof MigrationRefusal)) throw error; }
-  const targets = destinations.map(remote => remote.repository === "backing" ? remote.fetchUrl : remote.name);
+  const targets = destinations.map(remote => remote.repository === "backing" ? remote.url : remote.name);
   const commands = (targets.length ? targets : ["<remote>"]).map(target => `arc store migrate --leave-source --to ${target}`);
   return { ...failure, refusal: { ...failure.refusal, remedy: {
     text: `Repair the old remote and retry arc store migrate, or leave it from this clone's last view with ${commands.join(" or ")}. To publish nothing, use ${off}.`,

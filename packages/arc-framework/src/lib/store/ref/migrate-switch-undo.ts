@@ -7,7 +7,6 @@ import { migrationCodeContext, type MoveRemote, type RecordedMove, type StoreLay
 import { moveRefLayoutAsSwitch } from "./migrate-layout.js";
 import { requireLayoutTransaction } from "./migrate-layout-build.js";
 import { configureBacking, layoutMoveLeftovers, removeBacking, writeMovePointer } from "./migrate-remote-switch.js";
-import { captureMoveRemote } from "./migrate-remote-target.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 
@@ -54,13 +53,11 @@ async function layoutChanged(context: RefBackendContext, layout: StoreLayout): P
 }
 
 async function holdsSourceDesignation(context: RefBackendContext, undo: SwitchUndo): Promise<boolean> {
-  const designation = await readRefDesignation(context), code = await migrationCodeContext(context);
-  const configured = async (remote: MoveRemote): Promise<RefRemoteDesignation | undefined> => {
-    if (remote.repository === "code") return designation.codeRemotes.find(row => row.name === remote.name);
-    const backing = designation.backing ?? undefined;
-    return backing && (await captureMoveRemote(context, code, backing)).fetchUrl === remote.fetchUrl ? backing : undefined;
-  };
-  return (await configured(undo.source))?.role === undo.sourceRole && (await configured(undo.destination))?.role !== undo.destinationRole;
+  const designation = await readRefDesignation(context);
+  const configured = (remote: MoveRemote): RefRemoteDesignation | undefined => remote.repository === "code"
+    ? designation.codeRemotes.find(row => row.name === remote.name)
+    : designation.backing?.url === remote.url ? designation.backing : undefined;
+  return configured(undo.source)?.role === undo.sourceRole && configured(undo.destination)?.role !== undo.destinationRole;
 }
 
 /** The source carries its role again before a code remote destination takes `off`, as a move the other way sets them. */

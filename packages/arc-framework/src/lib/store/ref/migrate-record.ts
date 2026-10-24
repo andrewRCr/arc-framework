@@ -20,14 +20,15 @@ const LayoutSchema = z.enum(["default", "separate"]);
 const SettingSchema = z.strictObject({ remote: z.string().min(1), role: z.enum(["push", "read", "off"]) });
 const LayoutRecordSchema = z.strictObject({ kind: z.literal("layout"), source: LayoutSchema,
   destination: LayoutSchema, setting: SettingSchema.optional() }).refine((record) => record.source !== record.destination);
-const RemoteSchema = z.strictObject({ name: z.string().min(1), fetchUrl: z.string().min(1), pushUrl: z.string().min(1), repository: z.enum(["code", "backing"]) });
+const RemoteSchema = z.strictObject({ name: z.string().min(1), url: z.string().min(1), fetchUrl: z.string().min(1), pushUrl: z.string().min(1),
+  repository: z.enum(["code", "backing"]) });
 const RemoteRecordSchema = z.strictObject({ kind: z.literal("remote"), source: RemoteSchema, destination: RemoteSchema,
   registryCommit: CommitShaSchema, sourceLayout: LayoutSchema, destinationLayout: LayoutSchema });
 const FollowRecordSchema = z.strictObject({ kind: z.literal("follow"), source: RemoteSchema, destination: RemoteSchema,
   answer: SettingSchema.shape.role, sourceRole: z.enum(["push", "read"]), forwarding: ForwardingRecordSchema, forwardingTip: CommitShaSchema,
   sourceLayout: LayoutSchema, destinationLayout: LayoutSchema });
 const LeaveSourceRecordSchema = z.strictObject({ kind: z.literal("leave-source"), source: RemoteSchema, destination: RemoteSchema,
-  sourceLayout: LayoutSchema, destinationLayout: LayoutSchema });
+  sourceLayout: LayoutSchema, destinationLayout: LayoutSchema, forwardingTip: CommitShaSchema.optional() });
 const MoveRecordSchema = z.union([LayoutRecordSchema, RemoteRecordSchema, FollowRecordSchema, LeaveSourceRecordSchema]);
 /** A source departure retains its targets and layout direction after its last-view copy lands. */
 export type LeaveSourceMoveRecord = z.infer<typeof LeaveSourceRecordSchema>;
@@ -37,7 +38,7 @@ export interface RecordedLeaveSource { record: LeaveSourceMoveRecord; tip: strin
 export type FollowMoveRecord = z.infer<typeof FollowRecordSchema>;
 /** The follow's compare-and-swap basis stays in the code repository across layout changes. */
 export interface RecordedFollow { record: FollowMoveRecord; tip: string }
-/** Captured transport targets remain usable after the designation repoints a remote. */
+/** A remote as configured, which a move compares and restores, and as reached, its transport URLs, fixed when its record is written. */
 export type MoveRemote = z.infer<typeof RemoteSchema>;
 /** A remote record binds restart to the move commit actually copied to its destination. */
 export type RemoteMoveRecord = z.infer<typeof RemoteRecordSchema>;

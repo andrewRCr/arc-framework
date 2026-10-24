@@ -20,7 +20,7 @@ export async function endRecordedSource(code: RefBackendContext, recorded: Recor
       const restored = await withdrawRecordedSource(code, { record: recorded.record, tip: recorded.tip });
       if (restored) report.notices.push({ condition: `The old remote ${recorded.record.source.fetchUrl} is the state's home again. Revert the tracked pointer change in this checkout and as code for followers.`,
         remedy: { text: recorded.record.source.repository === "backing"
-          ? `Restore storage.backing_repository to ${recorded.record.source.fetchUrl}, then run arc store migrate --leave-source to that pointer's home. Other clones may leave the deleted destination after this withdrawal.`
+          ? `Restore storage.backing_repository to ${recorded.record.source.url}, then run arc store migrate --leave-source to that pointer's home. Other clones may leave the deleted destination after this withdrawal.`
           : `Remove storage.backing_repository, then run arc store migrate --leave-source --to ${recorded.record.source.name}. Other clones may leave the deleted destination after this withdrawal.` } });
     }
     report.notices.push({ condition: `The recorded cleanup ended without deleting state at ${recorded.record.source.fetchUrl}; its existing publications remain there.` });

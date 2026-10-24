@@ -8,12 +8,11 @@ import { requireLayoutTransaction } from "./migrate-layout-build.js";
 import { configureBacking, installCopiedHeads, remoteLayoutCleanupComplete, removeBacking } from "./migrate-remote-switch.js";
 import { readRefRepository } from "./repository.js";
 import { readSyncRefs } from "./sync-graph.js";
-import { captureMoveRemote } from "./migrate-remote-target.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 
 type RecordedSourceSwitch = RecordedFollow | RecordedLeaveSource;
 
-/** Completion includes cleanup, designation, URLs, and removal of the old forwarding observation. */
+/** Completion includes cleanup, designation, the configured URL, and removal of the old remote's forwarding observation the record names. */
 export async function followSwitchComplete(context: RefBackendContext, recorded: RecordedSourceSwitch): Promise<boolean> {
   const { source, destination, sourceLayout, destinationLayout } = recorded.record;
   const answer = recorded.record.kind === "follow" ? recorded.record.answer : "push";
@@ -21,12 +20,13 @@ export async function followSwitchComplete(context: RefBackendContext, recorded:
   if (Boolean(physical.repository?.gitDir) !== (destinationLayout === "separate")) return false;
   const selected = designation.remotes.find(row => row.name === destination.name && row.repository === destination.repository && row.role === answer);
   if (!selected) return false;
-  const code = await migrationCodeContext(context), captured = await captureMoveRemote(context, code, selected);
-  if (captured.fetchUrl !== destination.fetchUrl || captured.pushUrl !== destination.pushUrl) return false;
+  if (selected.url !== destination.url) return false;
   if (source.repository === "code" && designation.codeRemotes.find(row => row.name === source.name)?.role !== "off") return false;
   if (source.repository === "backing" && destination.repository === "code" && designation.backing) return false;
-  if ((await readSyncRefs(physical, `refs/arc-remotes/${source.name}/project/moved`)).size) return false;
-  return remoteLayoutCleanupComplete(code, sourceLayout, destinationLayout);
+  // Between two backing repositories the old and new remote share a name, so only the recorded tip identifies the old observation.
+  const moved = `refs/arc-remotes/${source.name}/project/moved`, observed = recorded.record.forwardingTip;
+  if (observed && (await readSyncRefs(physical, moved)).get(moved) === observed) return false;
+  return remoteLayoutCleanupComplete(await migrationCodeContext(context), sourceLayout, destinationLayout);
 }
 
 /** The invoking checkout already supplies the pointer; following changes only clone-local designation and layout. */

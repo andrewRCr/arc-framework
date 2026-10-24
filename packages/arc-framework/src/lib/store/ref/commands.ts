@@ -96,7 +96,7 @@ export async function runRefRemote(context: RefBackendContext, store: Store, inp
 }
 
 async function resumeFollowRequest(context: RefBackendContext, store: Store, recorded: RecordedFollow, { to, trial }: StoreMigrateInput): Promise<import("../commands.js").StoreCommandResult<MigrateReport>> {
-  if (trial || to && ![recorded.record.destination.name, recorded.record.destination.fetchUrl].includes(to)) return { status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
+  if (trial || to && ![recorded.record.destination.name, recorded.record.destination.url].includes(to)) return { status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
     condition: "A follow is recorded; finish its retained answer before requesting another remote migration or trial.",
     remedy: { text: "Run arc store migrate with no target to finish the recorded follow, then retry the requested migration.", argv: ["arc", "store", "migrate"] } } };
   return resumeRefFollow(context, store, recorded);
