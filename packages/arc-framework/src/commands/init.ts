@@ -7,7 +7,7 @@
  */
 
 import { preparePersonalIdentitySetup, type PersonalIdentitySetupOptions } from "../lib/personal-identity-setup.js";
-import { join, dirname } from "node:path";
+import { join, dirname, relative, sep } from "node:path";
 import {
   ensureDir, writeArcGitignoreBlock,
   renderTokens, renderConditionals, renderConfigOverrides,
@@ -38,6 +38,7 @@ import {
 } from "../lib/classification.js";
 import { UserFacingError } from "../lib/errors.js";
 import { atomicWriteJson } from "../lib/fs.js";
+import { findOccupiedPaths, occupiedPathsError } from "../lib/manifest/index.js";
 import {
   nodeEditorDocumentsFs, writeEditorDocumentsOrThrow, type EditorDocumentsWriter,
 } from "../lib/schema-command/editor-documents.js";
@@ -132,6 +133,8 @@ export interface InitResult {
  * @param options - Init options with all dependencies injected
  * @returns Init result, or null if user cancelled
  * @throws UserFacingError with code 'ALREADY_INSTALLED' if ARC is already installed
+ * @throws UserFacingError with code 'manifest.install-paths-occupied' if files ARC did not install already hold
+ *   other content at paths it would write
  * @throws UserFacingError with code 'INIT_IN_PROGRESS' if another init holds the lock file
  */
 export async function runInit(
@@ -205,24 +208,18 @@ export async function runInit(
       }
     }
 
-    // Render and write files, tracking content for manifest and pristine
+    // Render every file before writing any, so files already at these paths refuse the install first
     const filesWritten: string[] = [];
     const fileContents: Record<string, string> = {};
     const templatePathMap: Record<string, string> = {};
     const pristineStore: Record<string, string> = {};
     const ARC_CONFIG_PATH = ARC_CONFIG_TEMPLATE_PATH;
 
+    const renderedFiles: Array<{ templatePath: string; outputRelPath: string; renderedContent: string }> = [];
     for (const { templatePath, outputPath: outputRelPath } of templateBindings) {
-      const srcPath = join(templateDir, templatePath);
-      const destPath = join(arcDir, outputRelPath);
-      const classification = classifyFile(templatePath);
-
-      // Ensure destination directory exists
-      await ensureDir(dirname(destPath), io.mkdir);
-
       // Render content: arc-config.yml has its own path, .template files get
       // token + conditional rendering, everything else is copied as-is.
-      const raw = await io.readFile(srcPath);
+      const raw = await io.readFile(join(templateDir, templatePath));
       let renderedContent: string;
       if (templatePath === ARC_CONFIG_PATH) {
         renderedContent = renderConfigOverrides(raw, configKeyOverrides);
@@ -231,8 +228,23 @@ export async function runInit(
       } else {
         renderedContent = raw;
       }
+      renderedFiles.push({ templatePath, outputRelPath, renderedContent });
+    }
+
+    const arcRoot = relative(cwd, arcDir).split(sep).join("/");
+    const occupied = await findOccupiedPaths(cwd, renderedFiles.map((file) => ({
+      path: `${arcRoot}/${file.outputRelPath}`, content: file.renderedContent,
+    })), io.readFile);
+    if (occupied.length > 0) {
+      throw occupiedPathsError(occupied, "init");
+    }
+
+    for (const { templatePath, outputRelPath, renderedContent } of renderedFiles) {
+      const destPath = join(arcDir, outputRelPath);
+      const classification = classifyFile(templatePath);
 
       // Write to .arc/
+      await ensureDir(dirname(destPath), io.mkdir);
       await io.writeFile(destPath, renderedContent);
       filesWritten.push(outputRelPath);
       fileContents[outputRelPath] = renderedContent;

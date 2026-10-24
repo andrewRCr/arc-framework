@@ -1284,6 +1284,53 @@ describe("update integration — uncommitted changes", () => {
     expect(await readFile(join(tempDir, ".arc", ADDED_FILE), "utf-8")).toBe("# Local workflows\n");
   });
 
+  it("a committed file at a path it adds → refuses before writing, and applies once moved aside", async () => {
+    await ensureDir(dirname(join(tempDir, ".arc", ADDED_FILE)));
+    await writeFile(join(tempDir, ".arc", ADDED_FILE), "# Local workflows\n", "utf-8");
+    await commitAll(tempDir);
+    const manifestBefore = await readFile(manifestPath(tempDir), "utf-8");
+
+    const refusal = await update().catch((err: unknown) => err);
+
+    expect(refusal).toBeInstanceOf(UserFacingError);
+    expect(refusal).toMatchObject({ code: "manifest.install-paths-occupied" });
+    expect((refusal as UserFacingError).why).toContain(`.arc/${ADDED_FILE}`);
+    expect(await readFile(join(tempDir, ".arc", ADDED_FILE), "utf-8")).toBe("# Local workflows\n");
+    expect(await readFile(join(tempDir, ".arc", FRAMEWORK_FILE), "utf-8")).toBe(CONTENT);
+    expect(await readFile(manifestPath(tempDir), "utf-8")).toBe(manifestBefore);
+
+    await rm(join(tempDir, ".arc", ADDED_FILE));
+    await commitAll(tempDir);
+    const result = await update();
+
+    expect(result.added).toEqual([ADDED_FILE]);
+    expect(await readFile(join(tempDir, ".arc", ADDED_FILE), "utf-8")).toBe("# Workflows\n");
+  });
+
+  it("an ignored file at a path it adds → refuses, leaving the file in place", async () => {
+    await writeFile(join(tempDir, ".gitignore"), `.arc/${ADDED_FILE}\n`, "utf-8");
+    await commitAll(tempDir);
+    await ensureDir(dirname(join(tempDir, ".arc", ADDED_FILE)));
+    await writeFile(join(tempDir, ".arc", ADDED_FILE), "# Ignored notes\n", "utf-8");
+
+    const refusal = await update().catch((err: unknown) => err);
+
+    expect(refusal).toMatchObject({ code: "manifest.install-paths-occupied" });
+    expect((refusal as UserFacingError).why).toContain(`.arc/${ADDED_FILE}`);
+    expect(await readFile(join(tempDir, ".arc", ADDED_FILE), "utf-8")).toBe("# Ignored notes\n");
+  });
+
+  it("a file at a path it adds that already holds the new content → updates", async () => {
+    await ensureDir(dirname(join(tempDir, ".arc", ADDED_FILE)));
+    await writeFile(join(tempDir, ".arc", ADDED_FILE), "# Workflows\n", "utf-8");
+    await commitAll(tempDir);
+
+    const result = await update();
+
+    expect(result.added).toEqual([ADDED_FILE]);
+    expect(await readFile(join(tempDir, ".arc", FRAMEWORK_FILE), "utf-8")).toBe(V2_CONTENT);
+  });
+
   it("uncommitted changes outside the files it writes → updates", async () => {
     await writeFile(join(tempDir, "app.ts"), "export const app = 1;\n", "utf-8");
     await commitAll(tempDir);

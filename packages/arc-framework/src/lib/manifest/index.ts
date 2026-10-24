@@ -54,3 +54,9 @@ export {
   findUncommittedPaths,
   uncommittedChangesError,
 } from "./uncommitted.js";
+
+export {
+  findOccupiedPaths,
+  occupiedPathsError,
+  type FirstWrite,
+} from "./occupied.js";
