@@ -505,12 +505,24 @@ Record each artifact's filename and hash in the pass entry for the pass and each
 loop has ended, its stop reason is recorded, and no round is offered or running. Moving to another machine or
 checkout may lose the copies; scope the fix check from the account alone and disclose that limitation in its report.
 
+**Kept prompts and reports.** Whether fold verification is on or off, save each look's exact prompts before sending
+and its returned reports on receipt, including scoped, chunk, seam, aggregate, and fix-check calls. Planning and
+criteria callers keep them in an `adversarial-review/` folder in the work unit's personal workspace, beside
+`ADVERSARIAL-PASSES.md` when present, until that workspace is swept at archive, not just until the loop ends. Name
+each file `{sha256}.md` from its exact content; reuse a name only for identical content and never replace it with
+different bytes. For a stub groomed before it starts, keep these files beside its kept reviewed versions under
+`.arc/user/{identity}/.internal/reviewed-versions/{slug}/`; they stay machine-local and are removed with those
+versions when the loop ends.
+
 ### Pass record
 
 Advisory planning callers keep the finding/account/action set, conditional decision, response-performance check, and
 consumption fact in `ADVERSARIAL-PASSES.md` in the work unit's personal workspace; criteria callers keep them with
 the criteria report. This creates no lane-progress record, stored review-gate operation, Candidate, policy binding,
 or receipt.
+
+Both callers record each kept look file's filename, content hash, and role (`prompt` or `report`) with that record,
+identifying its pass and any fix-check round, chunk, seam, or aggregate call.
 
 A planning pass entry carries:
 
