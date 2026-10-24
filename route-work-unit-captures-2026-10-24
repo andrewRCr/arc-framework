@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "route-work-unit-captures-2026-10-24",
+  "claimId": "aed86bad4f69db36a784645846aedc7e",
+  "createdAt": "2026-10-24T18:47:32.243Z",
+  "updatedAt": "2026-10-24T18:47:32.243Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route the 2026-10-24 housekeep's work-unit captures into their backlog stubs' inbound buffers, promote test-suite-contention-hardening, and mint verification-hosted-evidence",
+  "branch": "chore/route-work-unit-captures-2026-10-24",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
