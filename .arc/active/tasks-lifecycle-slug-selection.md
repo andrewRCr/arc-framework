@@ -269,25 +269,17 @@ its test is a regression pin that passes before the change; each re-read's faili
   metadata and notes. Current-name coverage is assigned to 4.3.c with a UID-bound checkout; the segment's effective
   exit criterion retains every final behavior requirement.
 
-### `[ ]` **2.8 A reused slug's verbs end to end** — validate exit criterion at segment scope
+### `[x]` **2.8 A reused slug's verbs end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds end to end: every store-arm lifecycle verb that takes an operand acts on a
   reused slug's live holder over the reference backend.
 
     - _Amended in:_ 2.R (A1)
 
-    - Over the reference backend with a completed and a live holder of one slug, run `arc activate`, `arc deactivate`,
-      `arc abandon`, `arc start`, `arc materialize`, `arc publish`, `arc reopen`, `arc pause`, `arc handover`,
-      `arc resume`, `arc set-class`, `arc rename`, `arc archive`, `arc promote` and `arc demote`, `arc decompose`, and
-      `arc wu reconcile` through its former-name operand only, each on a fixture in the state the verb takes,
-      confirming each acts on the live holder's entry and leaves the completed holder's records unchanged; run status's
-      output-pinning tests. The verbs that take no operand (`arc set-stage`, `arc task close`, `arc finalize`,
-      `arc repoint-design`) resolve their checkout's claim, which matches by slug until 4.3, so 4.3.c runs them under
-      reuse. The current-name `arc wu reconcile` reuse scenario also runs in 4.3.c.
-    - Rerun the operand cases with the live holder renamed off the slug, so the slug is its former name. Rename's
-      collision check refuses a rename onto a completed holder's slug, so a former name is made by renaming the live
-      holder away from the reused slug; publish's fixture carries Candidate attestation.
-    - Request `arc check segment` after the scenario checks.
+- _Outcome:_ Registered Commander dispatch exercises every operand verb in the effective segment scope against
+  the reference store in real Git repositories, through current and former names, preserving the completed holder's
+  metadata and artifacts. Publication carries producer-generated Candidate evidence, withdrawal observes the logical
+  request, and decomposition executes a preflight-derived cut. Status's output pins remain unchanged.
 
 ## **Phase 3:** Clash refusals and dependency edges
 

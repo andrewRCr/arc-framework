@@ -1558,6 +1558,6 @@ settler are implementation detail; § 7.3 fixes the request `LocusPorts` takes.
 ## Amendments
 
 - **A1** — 2026-10-24 — design: verify current-name checkout-owned reconciliation after UID claims are available.
-  _Supersedes:_ 2.8 current-name reconcile. _Trigger:_ 2.8 segment. _Work:_ 2.R. _Revalidated:_ pending → 2.8.
+  _Supersedes:_ 2.8 current-name reconcile. _Trigger:_ 2.8 segment. _Work:_ 2.R. _Revalidated:_ 2.8.
 
 ---
