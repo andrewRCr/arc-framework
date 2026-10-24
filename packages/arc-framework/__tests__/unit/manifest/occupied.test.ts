@@ -1,4 +1,6 @@
 import { describe, test, expect, vi } from "vitest";
+import { mkdir, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { findOccupiedPaths, occupiedPathsError } from "../../../src/lib/manifest/occupied.js";
@@ -34,6 +36,21 @@ describe("findOccupiedPaths", () => {
     const readFile = async (): Promise<string> => { throw readError(code); };
 
     expect(await findOccupiedPaths("/project", [{ path: ".arc/a.md", content: "" }], readFile)).toEqual([".arc/a.md"]);
+  });
+
+  test("names a symlink at the path even when its target does not exist", async () => {
+    const root = await mkdtemp(join(tmpdir(), "arc-occupied-"));
+    try {
+      await mkdir(join(root, ".arc"));
+      await symlink(join(root, "elsewhere.md"), join(root, ".arc", "a.md"), "file");
+
+      const occupied = await findOccupiedPaths(root, [{ path: ".arc/a.md", content: "# ARC\n" }],
+        (path) => readFile(path, "utf-8"));
+
+      expect(occupied).toEqual([".arc/a.md"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   test("rethrows any other read failure", async () => {
