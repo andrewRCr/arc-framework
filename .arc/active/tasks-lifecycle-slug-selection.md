@@ -169,23 +169,11 @@ its test is a regression pin that passes before the change; each re-read's faili
 - _Goal:_ A slug with a live holder contributes no completed evidence, and each holder of a reused slug reads its
   artifacts at its own projected path.
 
-    - `[ ]` **2.5.a Completed evidence**
+    - `[x]` **2.5.a Completed evidence**
 
-        - `readStoreCompletedEvidence` (`lib/store/lifecycle-completed.ts`) keeps its completed listing and its rule for
-          an available, partial, or unavailable result, and lists the live locations beside it. A slug a live entry
-          holds as its current or a former name contributes no completed evidence, as the in-repo arm's
-          `compareLifecycleSources` lets an active copy outrank an archived one, and neither does a slug whose live meta
-          that listing withholds (`work-item/meta:<slug>`), which leaves the result's status as it is. A refused or
-          unreadable live listing makes the result unavailable.
-        - Its consumers, `resolveCompletedCandidateWorkUnits` (`handlers/candidate-mutation-owner.ts`) and the
-          stale-worktree sweep's husk reports (`completedWorkUnit`, `stale-worktree-sweep.ts`), change nothing of their
-          own; the store arm's sweep keeps no other shipped set.
-        - Build `test-first` (one behavior at a time):
-            - with a completed and a live holder of one slug, completed evidence omits the slug, and omits it where a
-              live holder keeps it only as a former name
-            - a withheld live meta's slug is omitted, and the result stays available
-            - the free primary gains no Candidate mutation authority over the slug, and a husk stamped for it reports
-              `completedWorkUnit: null`
+        - Completed evidence selects canonical archived holders and suppresses every live current/former name and
+          name-bearing live diagnostic. Unavailable live inventory withholds authority even without completed records;
+          Candidate and husk-consumer tests retain no completed authority for a reused live slug.
 
     - `[ ]` **2.5.b The lifecycle snapshot**
 
