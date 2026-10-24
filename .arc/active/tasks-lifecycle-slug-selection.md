@@ -235,16 +235,12 @@ its test is a regression pin that passes before the change; each re-read's faili
           tests retain a selected group through a mid-verb clash; activation and publication reconcile only the live
           namesake's records, with first-listed selection reconstructions proving both regressions.
 
-    - `[ ]` **2.7.c Decomposition's acquisitions**
+    - `[x]` **2.7.c Decomposition's acquisitions**
 
-        - `acquireDecomposeOrigin` passes the selected origin's reference, conservation the primary's, `discard-plan.ts`
-          the origin primary's and each member primary's, `revision-members.ts` each prior member primary's,
-          `acquireDecomposeTerminal` the origin it resolves from the operand through `readWorkUnit`, and
-          `acquire-terminal-targets.ts` each home primary's (`lib/decompose/`).
-        - Build `test-first` (one behavior at a time):
-            - over the clash double's mid-verb mode, decomposition acquires the origin and members it selected
-            - regression pin: decomposing a reused slug's live holder acquires that holder's group and leaves the
-              completed holder's records unchanged
+        - Origin, conservation, discard, revision, terminal, and home acquisitions use their selected references.
+          Origin and authenticated-member regressions survive mid-verb clashes; an additive cut on a reused origin
+          preserves the completed group's metadata and draft. Narrow name-reread and first-listed reconstructions
+          fail those cases before restoration.
 
     - `[ ]` **2.7.d The pause check's basis**
 
