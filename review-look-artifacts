@@ -3,7 +3,7 @@
   "slug": "review-look-artifacts",
   "claimId": "257aa802396200359fcfb761c3ac0be7",
   "createdAt": "2026-10-24T19:38:40.478Z",
-  "updatedAt": "2026-10-24T19:38:40.478Z",
+  "updatedAt": "2026-10-24T21:53:35.694Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Keep adversarial-review prompts and reports with their work unit and record their content identities.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Keep an adversarial-review look's prompts and reports in the work unit's workspace",
   "originEntrySourceDigest": "sha256:39ecdaf5e10a5f784fd211c3503fff1482fbe4fd1bfe7ef6fb3ea46174ca728a",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/review-look-artifacts",
+    "headSha": "adb72aad09c28ce83f2a94548ec2e22f3ffaf64b"
+  }
 }
