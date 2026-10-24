@@ -192,6 +192,19 @@ describe("first state designation", () => {
     expect(result.pulls).toMatchObject([{ remote: "upstream", role: "read", status: "failed" }]);
   });
 
+  it("reports an unreachable off remote as a failed candidate beside an unanswered code remote, then asks once it is removed", async () => {
+    const h = await fresh("default", false);
+    await h.b.exec("git", ["remote", "add", "upstream", join(h.cloneB, "missing.git")]);
+    await h.b.exec("git", ["config", "remote.upstream.arc-state", "off"]);
+    const result = success(await h.b.store.pull());
+    expect(result.states).toEqual([]);
+    expect(result.pulls).toMatchObject([{ remote: "upstream", role: "candidate", status: "failed", notices: [],
+      failure: { code: "unreachable", remedy: { text: expect.stringContaining("upstream"), argv: ["arc", "store", "remote", "origin", "push"] } } }]);
+    expect(await roles(h)).not.toContain("remote.origin.arc-state");
+    await h.b.exec("git", ["remote", "remove", "upstream"]);
+    expect(success(await h.b.store.pull()).states).toMatchObject([question("origin", ["push", "off"], "push")]);
+  });
+
   it("pulls a fork's designated upstream while its unanswered origin cannot be read", async () => {
     const h = await fresh();
     await h.b.exec("git", ["remote", "set-url", "origin", join(h.cloneB, "missing.git")]);

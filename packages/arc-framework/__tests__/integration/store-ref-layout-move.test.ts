@@ -789,6 +789,20 @@ describe("remote moves beside an unsettled layout", () => {
     expect(await recordTip(h)).toBe("");
   });
 
+  it.each([true, false])("refuses a remote move on an ambiguous designation as a role conflict, then moves once one push remains (trial: %s)", async (trial) => {
+    const h = await layoutFixture();
+    await h.a.exec("git", ["remote", "add", "other", h.origin]);
+    await h.a.exec("git", ["config", "remote.other.arc-state", "push"]);
+    const to = await destination(h);
+    expect(await runStoreMigrate(h.a.ports, { to, trial })).toMatchObject({ status: "refused", refusal: { code: "role-conflict",
+      condition: expect.stringMatching(/origin.*other/u), remedy: { text: expect.stringContaining("arc store remote <name> off") } } });
+    expect((await h.a.exec("git", ["--git-dir", to, "for-each-ref"])).stdout).toBe("");
+    expect(await recordTip(h)).toBe("");
+    await h.a.exec("git", ["config", "remote.other.arc-state", "off"]);
+    success(await h.a.store.push());
+    expect((await runStoreMigrate(h.a.ports, { to, trial: true })).status).toBe("ok");
+  });
+
   it("stops no-target reconciliation on an ambiguous designation without moving the store", async () => {
     const h = await layoutFixture();
     await h.a.exec("git", ["remote", "add", "other", h.origin]);

@@ -5,7 +5,7 @@ import type { RefBackendContext } from "./context.js";
 import { readRefDesignation, refDesignationStop, type RefDesignation, type RefRemoteDesignation } from "./designation.js";
 import { codeHoldsState, readRefRepository, writeRefRepository } from "./repository.js";
 import { checkRefDesignationProject, type RefDesignationProjectCheck } from "./designation-project.js";
-import { readRefRegistryPresence } from "./designation-presence.js";
+import { readRefRegistryPresence, type RefRegistryPresence } from "./designation-presence.js";
 import type { PullOutcome, SyncState } from "../sync.js";
 
 /** Configuration questions and candidate failures prevent state publication independently. */
@@ -76,9 +76,7 @@ Promise<{ status: "ok"; present: Set<string> } | Extract<PullOutcome, { status: 
     const observed = await readRefRegistryPresence(context, remote.name);
     if (observed.status === "unreachable") {
       const question = designationQuestion(remote, designation);
-      return { status: "failed", role: "candidate", remote: remote.name, families: ["project-registry"], notices: [],
-        failure: { code: "unreachable", class: "recoverable", cause: observed.cause, condition: observed.condition,
-          remedy: { text: `Repair the remote and retry the pull, or designate it by hand. ${question.remedy.text}`, argv: question.remedy.argv } } };
+      return failedPresence(remote, observed, `Repair the remote and retry the pull, or designate it by hand. ${question.remedy.text}`, question);
     }
     if (observed.present) present.add(remote.name);
   }
@@ -101,19 +99,36 @@ async function decideDesignation(context: RefBackendContext, result: RefDesignat
       await source.exec("git", ["config", `remote.${code.name}.arc-state`, "push"]);
       return { ...result, designation: await readRefDesignation(context) };
     }
-    if (present.has(code.name) || !await answeredMayHoldRegistry(context, designation)) return { ...result, states: [designationQuestion(code, designation)] };
+    const question = designationQuestion(code, designation);
+    if (present.has(code.name)) return { ...result, states: [question] };
+    const answered = await answeredRegistry(context, designation, question);
+    if (answered === "none") return { ...result, states: [question] };
+    if (answered !== "held") return { ...result, pulls: [answered] };
   }
   return { ...result, states: [{ status: "no-remote" }] };
 }
 
-/** An answered remote holding the registry, or one whose presence read fails, leaves the code remote unasked. */
-async function answeredMayHoldRegistry(context: RefBackendContext, designation: RefDesignation): Promise<boolean> {
+/**
+ * An answered remote holding the registry, or one whose presence read fails, leaves the code remote unasked. A read
+ * source's failure surfaces in its own fetch; an `off` remote is never fetched, so its failure is reported here.
+ */
+async function answeredRegistry(context: RefBackendContext, designation: RefDesignation,
+  code: ReturnType<typeof designationQuestion>): Promise<"held" | "none" | Extract<PullOutcome, { status: "failed" }>> {
   for (const remote of designation.remotes) {
     if (remote.role === undefined) continue;
     const observed = await readRefRegistryPresence(context, remote.name);
-    if (observed.status === "unreachable" || observed.present) return true;
+    if (observed.status === "unreachable" && remote.role === "off") {
+      return failedPresence(remote, observed, `Repair or remove ${remote.name} and retry the pull, or designate the code remote by hand. ${code.remedy.text}`, code);
+    }
+    if (observed.status === "unreachable" || observed.present) return "held";
   }
-  return false;
+  return "none";
+}
+
+function failedPresence(remote: RefRemoteDesignation, observed: Extract<RefRegistryPresence, { status: "unreachable" }>,
+  text: string, question: ReturnType<typeof designationQuestion>): Extract<PullOutcome, { status: "failed" }> {
+  return { status: "failed", role: "candidate", remote: remote.name, families: ["project-registry"], notices: [],
+    failure: { code: "unreachable", class: "recoverable", cause: observed.cause, condition: observed.condition, remedy: { text, argv: question.remedy.argv } } };
 }
 
 function designationQuestion(remote: RefRemoteDesignation, designation: RefDesignation): Extract<SyncState, { status: "designation-needed" }> {

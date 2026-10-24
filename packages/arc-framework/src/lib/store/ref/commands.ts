@@ -5,7 +5,7 @@ import { StoreMigrateInputSchema, StoreRemoteInputSchema, type StoreMigrateInput
   type StoreRemoteInput, type StoreRemoteResult, type MigrateReport } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import { designatedStoreLayout, observeRefLayout } from "./layout-state.js";
-import { readRefDesignation, refDesignationStop } from "./designation.js";
+import { readRefDesignation, refDesignationStop, type RefDesignation } from "./designation.js";
 import { migrationCodeContext, readMoveRecord, type LayoutSetting, type RecordedMove, type RecordedFollow } from "./migrate-record.js";
 import { moveRefRemote } from "./migrate-remote.js";
 import { clearRemoteGathering } from "./migrate-remote-copy.js";
@@ -52,8 +52,18 @@ async function unsettledLayout(context: RefBackendContext, layoutRecorded: boole
   if (layoutRecorded) return { status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
     condition: "A layout move is recorded; finish it before requesting a remote migration or trial.",
     remedy: { text: "Run arc store migrate with no target to finish the recorded layout move, then retry the requested migration.", argv: ["arc", "store", "migrate"] } } };
-  const { incomplete } = await observeRefLayout(context, await readRefDesignation(context));
+  const designation = await readRefDesignation(context);
+  const ambiguous = ambiguousDesignation(designation);
+  if (ambiguous) return ambiguous;
+  const { incomplete } = await observeRefLayout(context, designation);
   return incomplete ? { status: "refused", refusal: { code: "move-incomplete", class: "recoverable", condition: incomplete.condition, remedy: incomplete.remedy } } : undefined;
+}
+
+/** Several push remotes call for no one layout, so nothing moves until all but one are set off. */
+function ambiguousDesignation(designation: RefDesignation): Extract<StoreMigrateResult, { status: "refused" }> | undefined {
+  const stop = refDesignationStop(designation);
+  return stop?.status === "designation-ambiguous" ? { status: "refused", refusal: { code: "role-conflict", class: "recoverable",
+    condition: `Remotes ${stop.remotes.join(", ")} each carry push, so no one layout is designated.`, remedy: stop.remedy } } : undefined;
 }
 
 /** With no record standing, follow a due move, then bring the clone into its designated layout. */
@@ -64,11 +74,8 @@ async function reconcileNoTarget(context: RefBackendContext, store: Store): Prom
     if (followed.status === "refused") return followed;
     if (followed.status === "decided") return followed.result;
   }
-  const designation = await readRefDesignation(context), stop = refDesignationStop(designation);
-  // Several push remotes call for no one layout, so nothing moves until all but one are set off.
-  if (stop?.status === "designation-ambiguous") return { status: "refused", refusal: { code: "role-conflict", class: "recoverable",
-    condition: `Remotes ${stop.remotes.join(", ")} each carry push, so no one layout is designated.`, remedy: stop.remedy } };
-  return moveRefLayout(context, store, designatedStoreLayout(designation));
+  const designation = await readRefDesignation(context);
+  return ambiguousDesignation(designation) ?? moveRefLayout(context, store, designatedStoreLayout(designation));
 }
 
 /** Apply a code remote's own setting in the order its layout switch requires. */
