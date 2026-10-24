@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "package-prepack-build",
+  "claimId": "cba04427193f802cf61f66a1897326cf",
+  "createdAt": "2026-10-24T21:57:53.208Z",
+  "updatedAt": "2026-10-24T21:57:53.208Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Build the CLI package before packing or publishing and keep file-list tests script-free",
+  "branch": "chore/package-prepack-build",
+  "origin": "inbox",
+  "originEntry": "Build the CLI package before it is packed or published",
+  "originEntrySourceDigest": "sha256:c7a047b09d491b8383f283c637f35bc6ffff82d3c36d4d9f4363438b299f7373",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
