@@ -1,4 +1,5 @@
 /** Store-held backlog graduation with reversible branchless checkout occupation. */
+import { sameReference } from "../lib/store/identity.js";
 import type { ExecuteTransitionContext, TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
 import { executeTransition } from "../lib/work-unit/lifecycle-executor.js";
 import { occupyStoreGraduation, type StoreGraduationOccupation } from "../lib/work-unit/atomic-graduation.js";
@@ -24,7 +25,7 @@ async function graduate(ctx: ExecuteTransitionContext, params: GraduateParams): 
   const read = await readWorkUnit(ctx.store, params.name);
   if (read.status === "refused") return { status: "rejected", reason: `${read.refusal.condition} ${read.refusal.remedy.text}` };
   const name = read.result.reference.owner.name;
-  const entry = view.result.entries.find((candidate) => candidate.reference.owner.name === read.result.reference.owner.name);
+  const entry = view.result.entries.find((candidate) => sameReference(candidate.reference, read.result.reference));
   if (entry === undefined || (entry.location !== "planned" && entry.location !== "provisional")) return { status: "rejected", reason: `${name} is not a backlog stub that can graduate.` };
   if (entry.version !== read.result.version) return { status: "rejected", reason: `${name} changed after its inventory read; retry start to use its current Class and ownership.` };
   const recordedClass = WorkClassSchema.safeParse(entry.fields.workClass);

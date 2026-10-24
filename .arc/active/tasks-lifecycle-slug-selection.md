@@ -204,15 +204,11 @@ its test is a regression pin that passes before the change; each re-read's faili
         - Abandon's handler and verb match the selected primary's reference in the lifecycle view. A handler regression
           removes the live branchless Planning holder while preserving its completed namesake.
 
-    - `[ ]` **2.6.d Start's already-started check and graduation**
+    - `[x]` **2.6.d Start's already-started check and graduation**
 
-        - `startedPlanningReason` (`handlers/start-store.ts`) and `graduate` (`commands/start-store.ts`) find the
-          subject's entry by reference; `resolveStartName` returns the lookup's reference beside the name, and
-          `startedPlanningReason` finds by it.
-        - Build `test-first` (one behavior at a time):
-            - `arc start <slug>` of a reused slug's live backlog holder graduates it
-            - `arc start <slug>` of a reused slug whose live holder is Planning in active placement, with the completed
-              holder listed first, reports it already started rather than start's generic refusal
+        - Start retains the lookup's reference beside its current name for the already-started check, and graduation
+          matches that reference in the view. Handler integration cases graduate a live backlog namesake and direct an
+          active Planning namesake to materialize while leaving completed records unchanged.
 
     - `[ ]` **2.6.e Materialize**
 
