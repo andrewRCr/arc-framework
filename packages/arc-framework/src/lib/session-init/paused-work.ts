@@ -4,6 +4,8 @@ import { z } from "zod";
 import { SlugSchema } from "../kernel/index.js";
 import { listLifecycleIndex } from "../store/lifecycle-index.js";
 import { requireCompleteInventory } from "../store/lifecycle-storage.js";
+import { readLifecycleView } from "../store/lifecycle-view.js";
+import { clashRepair } from "../store/clash-repair.js";
 import type { Store } from "../store/contract.js";
 import { MetaPauseSchema, ParsedMetaRecordSchema, type MetaPause } from "../active/meta-schema.js";
 import { parseLineageRecord } from "../store/kinds/lineage/parser.js";
@@ -53,17 +55,25 @@ async function readPausedWork(options: RunPausedWorkOptions): Promise<PausedWork
   const listing = unwrap(await listLifecycleIndex(options.store, { locations: ["active"] }));
   requireCompleteInventory(options.store, listing);
   if (listing.status !== "complete") return { items: [] };
+  const view = unwrap(await readLifecycleView(options.store));
+  requireCompleteInventory(options.store, view.listing);
+  const clashes = new Map(view.standing.clashes.map(clash => [clash.slug, clash]));
   const items: PausedWorkResult["items"] = [];
   for (const entry of listing.index.entries()) {
     if (entry.fields.owner !== options.identity || entry.fields.pause === null) continue;
     const slug = entry.reference.owner.name;
     const pause = MetaPauseSchema.parse(entry.fields.pause);
     const marking = await markPausedWorkItem({ slug, pause }, options);
+    const item = { slug: SlugSchema.parse(slug), reason: pause.reason, waitsOn: pause.waitsOn, open: pause.open, marks: marking.marks };
+    const clash = clashes.get(slug);
+    if (clash !== undefined) {
+      items.push({ ...item, actions: [clashRepair(clash.holders, { liveness: "live", name: clash.kind === "current-name" ? "current" : "former" })] });
+      continue;
+    }
     const holder = await options.findHoldingCheckout(slug);
     const action = await pausedWorkAction(options, slug, holder, entry);
     const reviewActions = marking.actions.filter(review => action.argv === undefined || JSON.stringify(review.argv) !== JSON.stringify(action.argv));
-    items.push({ slug: SlugSchema.parse(slug), reason: pause.reason, waitsOn: pause.waitsOn, open: pause.open,
-      marks: marking.marks, ...(marking.reviewPrompt === undefined ? {} : { reviewPrompt: marking.reviewPrompt }),
+    items.push({ ...item, ...(marking.reviewPrompt === undefined ? {} : { reviewPrompt: marking.reviewPrompt }),
       actions: [action, ...reviewActions] });
   }
   items.sort((left, right) => Buffer.compare(Buffer.from(left.slug), Buffer.from(right.slug)));

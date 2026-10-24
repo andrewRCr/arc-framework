@@ -412,23 +412,14 @@ cohort over the reference backend directly.
           dependents and passing over unrelated ties. Other operational failures still refuse before mutation and retain
           a successful retry after repair.
 
-### `[ ]` **3.6 Offer a paused clashed item its repair alone — § 2.4**
+### `[x]` **3.6 Offer a paused clashed item its repair alone — § 2.4**
 
 - _Goal:_ A paused item whose slug the selection reports as a clash offers the clash repair alone, never a command that
   would refuse, whatever the other holder's pause state or placement.
 
-    - `runPausedWork` (`lib/session-init/paused-work.ts`) keeps its active listing and its complete-inventory check
-      (`requireCompleteInventory`), and reads the view (`readLifecycleView`) beside them for the clash facts
-      (`standing.clashes`), which cover every live placement, as § 2.4 states; where the view refuses, the slot reads
-      unavailable, as a refused listing does today.
-    - For a paused item whose slug the clash facts name, the item skips the holder lookup (`findHoldingCheckout`) and
-      `pausedWorkAction`, and offers `clashRepair`'s repair in place of `arc resume`, `arc materialize`, or the
-      location-unavailable text, and of a review-due item's review prompt and actions (`markPausedWorkItem`), keeping
-      its marks. A clash with a cohort or Errand, which the selection does not see, keeps today's actions.
-    - Build `test-first` (one behavior at a time):
-        - over the clash double, a paused holder offers the clash repair alone, whether the other holder is paused,
-          unpaused, or in the backlog, and while both holders hold a checkout
-        - a review-due paused holder keeps its marks and offers the repair in place of its review prompt and actions
+- _Outcome:_ Paused work reads complete standing clash facts across live placements and offers the shared repair
+  alone, bypassing holder selection and normal lifecycle/review actions while preserving marks. Unavailable clash
+  evidence keeps the slot unavailable until repaired.
 
 ### `[ ]` **3.7 A clash end to end** — validate exit criterion at segment scope
 
