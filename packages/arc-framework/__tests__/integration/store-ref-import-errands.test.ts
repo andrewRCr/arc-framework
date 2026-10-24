@@ -13,6 +13,8 @@ import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { rejoinEntryList, splitEntryList } from "../../src/lib/store/concurrency/entries.js";
 import { ENTRY_CONFIGS } from "../../src/lib/store/kinds/entry-configs.js";
 import { parseEntryList } from "../../src/lib/store/kinds/entry-list.js";
+import { PASSIVE_REMOTE_INTERACTION } from "../../src/lib/git/remote-ref-reader.js";
+import type { GitExecOptions } from "../../src/lib/git/exec.js";
 
 /** Prepare the empty separate store with a backing repository at origin's URL as its state remote. */
 async function designateBacking(h: Awaited<ReturnType<typeof importFixture>>): Promise<void> {
@@ -357,4 +359,37 @@ describe.each(["default", "separate"] as const)("Errand import in %s", (layout) 
       expect(claims.records.map(({ reference }) => reference.kind).sort()).toEqual(["claims/groom", "claims/housekeep"]);
     });
   }
+});
+
+it("reports a duplicated Errand origin title under a trial and imports once the titles differ", async () => {
+  const h = await importFixture();
+  const entry = "### **Captured**\n\n- _Description:_ Original source prose.\n";
+  const inbox = `# Inbox\n\n## Errand\n\n${entry}\n${entry.replace("Original source prose.", "Second capture.")}`;
+  await mkdir(join(h.root, ".arc/user/andrew"), { recursive: true });
+  await writeFile(join(h.root, ".arc/user/andrew/USER-INBOX.md"), inbox);
+  await saveImportPersonal(h.root);
+  await seed(h, [{ ...common, kind: "errand", purpose: "errand", slug: "captured", branch: "chore/captured", intent: "Fallback captured",
+    origin: "inbox", originEntry: "Captured", originEntrySourceDigest: null, state: "open", savedHead: null, changeRequest: null }]);
+  const trial = await h.migrate(true);
+  expect(trial).toMatchObject({ status: "ok", result: { notices: expect.arrayContaining([expect.objectContaining({
+    condition: expect.stringContaining("Captured"), remedy: expect.objectContaining({ text: expect.stringContaining("retry arc store migrate --import") }) })]) } });
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
+  await writeFile(join(h.root, ".arc/user/andrew/USER-INBOX.md"), inbox.replace("### **Captured**\n\n- _Description:_ Second", "### **Recaptured**\n\n- _Description:_ Second"));
+  await saveImportPersonal(h.root);
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+});
+
+it("retires origin's transient copy with passive interaction and stable diagnostics", async () => {
+  const h = await importFixture();
+  await seed(h, [ordinary]);
+  await h.git("git", ["push", "origin", `${sourceRef}:${sourceRef}`]);
+  const original = h.ports.exec, calls: { args: string[]; options?: GitExecOptions }[] = [];
+  h.ports.exec = async (command, args, options) => {
+    if (["ls-remote", "push"].includes(args[0] ?? "") && args.some((arg) => arg.includes(sourceRef))) calls.push({ args, options });
+    return original(command, args, options);
+  };
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", sourceRef])).stdout).toBe("");
+  expect(calls.map(({ args }) => args[0]).sort()).toEqual(["ls-remote", "push"]);
+  for (const { options } of calls) expect(options).toMatchObject({ diagnosticLocale: "stable", interaction: PASSIVE_REMOTE_INTERACTION });
 });

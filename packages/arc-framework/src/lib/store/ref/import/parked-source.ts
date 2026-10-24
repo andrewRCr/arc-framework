@@ -10,6 +10,7 @@ import { MetaPauseSchema } from "../../../active/meta-schema.js";
 import { writeMetaPause } from "../../kinds/meta/section-writer.js";
 import { pauseProseProblem } from "../../kinds/meta/pause-section.js";
 import { SlugSchema } from "../../../kernel/schema/slug.js";
+import { WorkUnitArtifactKindSchema } from "../../../layout/index.js";
 import { resolveImportBranchTip } from "./branch-tip.js";
 import { reportBranchRefusal } from "./code-links.js";
 import { readBatchObjects } from "../batch-read.js";
@@ -71,25 +72,29 @@ function pausedMeta(meta: StoreRecord, pointer: string, since: string, report: M
   return { ...meta, content, fields: parseMetaRecord(content), placement: { kind: "active" } };
 }
 
+/** The standing pointer's first commit: walking back from the importing head, the oldest of its unbroken parked versions. */
 async function firstPointerTime(context: RefBackendContext, path: string, codeHead: string): Promise<string | null> {
   const source = context.importSource;
   if (!source) throw new Error("No import source bound");
   const log = await source.ports.exec("git", ["log", codeHead, "--format=%H%x00%ct", "--", path],
     { cwd: source.ports.checkoutRoot, objectAccess: "local-only" });
-  const commits = log.stdout.split(/\r?\n/u).filter(Boolean).reverse().map(line => line.split("\0"));
+  const commits = log.stdout.split(/\r?\n/u).filter(Boolean).map(line => line.split("\0"));
   const objects = await readBatchObjects({ ...context, checkoutRoot: source.ports.checkoutRoot, rawExec: source.ports.rawExec,
     readSource: undefined, blobStage: undefined }, commits.map(([sha]) => `${sha}:${path}`));
+  let first: string | undefined;
   for (const [sha, time] of commits) {
     const object = objects.get(`${sha}:${path}`);
-    if (object?.type !== "blob" || !/^> \*\*Parked\*\*/mu.test(Buffer.from(object.bytes).toString("utf8"))) continue;
-    const date = new Date(Number(time) * 1000);
-    return Number.isFinite(date.valueOf()) ? date.toISOString() : null;
+    if (object?.type !== "blob" || !/^> \*\*Parked\*\*/mu.test(Buffer.from(object.bytes).toString("utf8"))) break;
+    first = time;
   }
-  return null;
+  if (first === undefined) return null;
+  const date = new Date(Number(first) * 1000);
+  return Number.isFinite(date.valueOf()) ? date.toISOString() : null;
 }
 
-/** Exclude only diagnostics belonging to an owner acquired through its explicit parked snapshot. */
+/** Exclude only diagnostics belonging to an owner acquired through its explicit parked snapshot: its key or its own artifact file. */
 export function isParkedSourceDiagnostic(diagnostic: ListingDiagnostic, names: ReadonlySet<string>): boolean {
+  const file = /(?:^|\/)([^/]+)\.md$/u.exec(diagnostic.key)?.[1];
   return [...names].some(name => diagnostic.key === `work-item:${name}`
-    || new RegExp(`(?:^|/)[^/]+-${name}\\.md$`, "u").test(diagnostic.key));
+    || WorkUnitArtifactKindSchema.options.some(role => file === `${role}-${name}`));
 }

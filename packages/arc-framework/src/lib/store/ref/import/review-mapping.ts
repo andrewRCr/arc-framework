@@ -8,6 +8,7 @@ import { SlugSchema } from "../../../kernel/schema/slug.js";
 import { readImportReviewGate, inspectUnmappedReviewGate } from "./review-gate.js";
 import { inspectReviewCoverage } from "./review-coverage.js";
 import { importReviewWorkItems } from "./review-work-items.js";
+import { RecordReferenceSchema } from "../../identity.js";
 
 /** Replace live review bytes only after the mapping has accounted for the supplied sources. */
 export async function mapImportReview(context: RefBackendContext, records: ImportRecord[], report: MigrateReport, projectId: string): Promise<ImportRecord[]> {
@@ -34,14 +35,25 @@ export async function mapImportReview(context: RefBackendContext, records: Impor
     remedy: { text: "Finish the named review, then retry arc store migrate --import." } });
   const result = records.filter(record => !review.includes(record));
   for (const record of mapped.records) {
+    const parsed = RecordReferenceSchema.safeParse(record.reference);
+    const remedy = { text: "Correct the review mapping's returned record, then retry arc store migrate --import." };
+    if (!parsed.success) {
+      report.notices.push({ condition: `Review mapping record ${JSON.stringify(record.reference)} has no valid reference.`, remedy });
+      continue;
+    }
+    if (parsed.data.owner.type !== "work-item" || !live.has(parsed.data.owner.uid ?? "")) {
+      report.refused.push({ reference: parsed.data, rule: "review-mapping" });
+      report.notices.push({ condition: `Review mapping record ${JSON.stringify(record.reference)} names no supplied live work item.`, remedy });
+      continue;
+    }
     const content = record.contents.at(-1);
     if (content === undefined) {
       report.refused.push({ reference: record.reference, rule: "review-mapping" });
       report.notices.push({ condition: `Review mapping record ${JSON.stringify(record.reference)} has no content revisions.`,
-        remedy: { text: "Correct the review mapping's returned record, then retry arc store migrate --import." } });
+        remedy });
       continue;
     }
-    result.push({ reference: record.reference, content, mappedVersions: record.contents });
+    result.push({ reference: parsed.data, content, mappedVersions: record.contents });
   }
   return result;
 }

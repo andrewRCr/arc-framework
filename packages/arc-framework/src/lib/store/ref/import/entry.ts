@@ -43,7 +43,7 @@ export async function importTrackedState(context: RefBackendContext, store: Stor
     content: JSON.stringify({ projectId }) }], report);
   if (!identity.length) return importRefused(report);
   records.push(...identity);
-  report.refs.push({ ref: "refs/arc/project/registry", scope: "project", action: "create" });
+  if (!report.refs.some(({ ref }) => ref === "refs/arc/project/registry")) report.refs.push({ ref: "refs/arc/project/registry", scope: "project", action: "create" });
   return landImport(context, store, report, records, { codeHead, projectId, tips: transients.tips, trial: input.trial === true });
 }
 

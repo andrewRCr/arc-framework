@@ -6,8 +6,8 @@ import { importFixture } from "../helpers/store/import-fixture.js";
 import { ordinaryErrand, seedTransients, transientSourceRef } from "../helpers/store/import-transients.js";
 
 describe("import publication", () => {
-  it("publishes every landed ref through the designated state remote without moving code", async () => {
-    const h = await importFixture();
+  it.each([false, true])("publishes every landed ref through the designated state remote without moving code (lineage: %s)", async (lineage) => {
+    const h = await importFixture("default", lineage ? { completed: true, lineage: true } : {});
     const head = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
     const result = await h.migrate();
     expect(result.status, JSON.stringify(result)).toBe("ok");

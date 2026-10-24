@@ -193,3 +193,20 @@ it("refuses unresolved and cyclic rename chains, then imports them after source 
   const terminal = success(await store.read({ reference: ref("lineage/transition", "abandoned") }));
   for (const [origin] of edges) expect(success(await store.lookup({ kind: "lineage", origin: SlugSchema.parse(origin) })).reference).toEqual(terminal.reference);
 });
+
+it.each(["alpha", "archived"])("mints a terminal origin its own owner when it shares held work unit %s's slug", async (name) => {
+  const h = await importFixture("default", { completed: true, lineage: true });
+  const path = resolveArcPath({ kind: "transition-record", origin: SlugSchema.parse(name) });
+  await writeFile(join(h.root, path), writeLineageRecord(LineageRecordSchema.parse({ schemaVersion: 2, origin: { name }, kind: "abandon", successors: [], incoming: [] })));
+  await h.git("git", ["add", path]);
+  await h.git("git", ["commit", "-m", "Seed a terminal origin sharing a held slug"]);
+  const migrated = await h.migrate();
+  expect(migrated.status, JSON.stringify(migrated)).toBe("ok");
+  const store = createRefStore(h.ports);
+  const held = success(await store.read({ reference: ref("work-item/meta", name) }));
+  const terminal = success(await store.lookup({ kind: "lineage", origin: SlugSchema.parse(name) }));
+  const uid = (owner: typeof held.reference.owner) => owner.type === "work-item" ? owner.uid : "";
+  expect(uid(terminal.reference.owner)).not.toBe(uid(held.reference.owner));
+  expect(success(await store.history({ reference: held.reference })).some(({ content }) => content !== null)).toBe(true);
+  expect((await h.git("git", ["ls-tree", "-r", "--name-only", `refs/arc/history/work/${uid(terminal.reference.owner)}`])).stdout).toBe("");
+});

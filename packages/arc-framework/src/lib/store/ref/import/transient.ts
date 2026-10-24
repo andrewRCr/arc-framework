@@ -68,7 +68,7 @@ function appendTransientRecord(context: RefBackendContext, report: MigrateReport
   records.push({ reference, content: serializeTransientIdentityRecord(record.kind === "errand" && record.purpose === "errand"
     ? { ...record, owner: SlugSchema.parse(identity) } : record), ...(kind === "work-item/record" ? { placement: { kind: "active" as const } } : {}) });
   if (record.kind === "errand" && record.purpose === "errand") {
-    const bytes = record.origin === "inbox" ? takeOrigin(context, records, identity, record.originEntry, record.originEntrySourceDigest, state) : undefined;
+    const bytes = record.origin === "inbox" ? takeOrigin(context, report, records, identity, record.originEntry, record.originEntrySourceDigest, state) : undefined;
     appendDescription(context, report, records, reference, bytes, record.intent);
   }
 }
@@ -83,7 +83,7 @@ function appendDescription(context: RefBackendContext, report: MigrateReport, re
     content: `# ${title}\n\n## ${entry.sections[0]}\n\n${body}\n` });
 }
 
-function takeOrigin(context: RefBackendContext, records: ImportRecord[], person: string, title: string, digest: string | null,
+function takeOrigin(context: RefBackendContext, report: MigrateReport, records: ImportRecord[], person: string, title: string, digest: string | null,
   state: ImportTransientState): string | undefined {
   const inbox = records.find(({ reference }) => reference.kind === "personal/inbox" && reference.owner.name === person);
   const grammar = context.registry["personal/inbox"].entry;
@@ -91,10 +91,20 @@ function takeOrigin(context: RefBackendContext, records: ImportRecord[], person:
   const split = splitEntryList(inbox.content, grammar);
   const matches = split.parts.filter((part) => part.kind === "entry" && matchInboxEntryTitle(part.bytes.split("\n")[0] ?? "") === title);
   if (matches.length === 0) return;
-  if (matches.length !== 1) throw new Error(`Duplicate Errand origin entry: ${title}`);
+  const remedy = { text: `Give the entry in ${person}'s inbox one distinct title, then retry arc store migrate --import.` };
+  if (matches.length !== 1) {
+    report.notices.push({ condition: `Errand origin entry '${title}' appears ${matches.length} times in ${person}'s inbox, so no one entry becomes its description.`, remedy });
+    return;
+  }
   const selected = matches[0];
   if (!selected) return;
-  if (digest !== null && inboxEntrySourceDigest(inbox.content, title) !== digest) state.notices.push({
+  let current: string | undefined;
+  try { current = digest === null ? undefined : inboxEntrySourceDigest(inbox.content, title); }
+  catch (error) {
+    report.notices.push({ condition: `Errand origin entry '${title}' cannot be read as one entry of ${person}'s inbox: ${error instanceof Error ? error.message : String(error)}`, remedy });
+    return;
+  }
+  if (current !== undefined && current !== digest) state.notices.push({
     condition: `Errand origin entry '${title}' changed since adoption; its current content was moved into the description.` });
   inbox.content = rejoinEntryList({ parts: split.parts.filter((part) => part !== selected) });
   return selected.bytes;

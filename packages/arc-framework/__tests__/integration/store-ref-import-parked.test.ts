@@ -208,3 +208,33 @@ it("imports Planning work parked in the backlog as a stub without a pause", asyn
   expect(record.content).toBe(planned);
   expect(parseMetaRecord(record.content)).toMatchObject({ state: "Planning", pause: null });
 }, 30_000);
+
+it("reports a malformed record of a work unit whose slug ends in a parked slug and imports after repair", async () => {
+  const h = await importFixture();
+  await park(h);
+  await mkdir(join(h.root, ".arc/active"), { recursive: true });
+  await writeFile(join(h.root, ".arc/active/meta-beta-alpha.md"), "# Not a meta record\n");
+  await h.git("git", ["add", ".arc"]);
+  await h.git("git", ["commit", "-m", "Add a malformed suffix-sharing meta"]);
+  const result = await h.migrate(true);
+  expect(result.status).toBe("ok");
+  if (result.status !== "ok") throw new Error("Import trial did not return a report");
+  expect(result.result.notices).toEqual(expect.arrayContaining([expect.objectContaining({ condition: expect.stringContaining("meta-beta-alpha.md") })]));
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
+  await h.git("git", ["rm", ".arc/active/meta-beta-alpha.md"]);
+  await h.git("git", ["commit", "-m", "Remove the malformed meta"]);
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+}, 30_000);
+
+it("dates a pause from the standing pointer after a park, resume, and park again", async () => {
+  const h = await importFixture();
+  await park(h);
+  await h.git("git", ["rm", pointerPath]);
+  await h.git("git", ["commit", "-m", "Resume the work unit"]);
+  const repark = "2026-05-06T07:08:09.000Z";
+  await mkdir(dirname(join(h.root, pointerPath)), { recursive: true });
+  await pointerCommit(h, reason, repark);
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  expect(parseMetaRecord(success(await createRefStore(h.ports).read({ reference })).content).pause)
+    .toEqual(MetaPauseSchema.parse({ pausedBy: "andrew", since: repark, reason }));
+}, 30_000);

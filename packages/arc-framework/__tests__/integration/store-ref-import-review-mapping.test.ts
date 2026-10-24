@@ -450,3 +450,26 @@ it("accounts for materialization folders once and refuses overlapping or noncano
   mode = "valid";
   expect(await h.migrate()).toMatchObject({ status: "ok" });
 }, 60_000);
+
+it.each(["unknown-owner", "unparsable"] as const)("refuses a mapping record with an %s reference and lands after the mapping is repaired", async defect => {
+  const h = await importFixture();
+  let broken = true;
+  h.ports.reviewMapping = input => {
+    const alpha = input.workItems.find(item => item.slug === "alpha")!;
+    const reference = RecordReferenceSchema.parse({ kind: "review/candidate", owner: { type: "work-item", name: alpha.slug, uid: alpha.uid } });
+    const stray = defect === "unknown-owner"
+      ? RecordReferenceSchema.parse({ kind: "review/candidate", owner: { type: "work-item", name: "stray", uid: "01234567-89ab-4def-8123-456789abcdef" } })
+      : { kind: "review/candidate", owner: { type: "work-item", name: "Not A Slug" } } as unknown as RecordReference;
+    const records = [{ reference, contents: ['{"allowed":true}'] }, ...broken ? [{ reference: stray, contents: ['{"allowed":true}'] }] : []];
+    return { records, listing: listing(input, [reference]) };
+  };
+  const trial = await h.migrate(true);
+  expect(trial).toMatchObject({ status: "ok", result: {
+    notices: expect.arrayContaining([expect.objectContaining({ condition: expect.stringContaining("Review mapping record"), remedy: { text: expect.stringContaining("mapping") } })]) } });
+  if (defect === "unknown-owner") expect(trial).toMatchObject({ result: { refused: [expect.objectContaining({ rule: "review-mapping",
+    reference: expect.objectContaining({ owner: expect.objectContaining({ name: "stray" }) }) })] } });
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
+  broken = false;
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+}, 40_000);

@@ -17,12 +17,12 @@ export async function appendImportLineage(context: RefBackendContext, report: Mi
   if (listing.result.status !== "complete") return;
   report.notices.push(...listing.result.diagnostics.map(({ condition, remedy }) => ({ condition, remedy })));
   const transitions = listing.result.records.map((record) => ({ record, fields: LineageRecordSchema.parse(JSON.parse(record.content)) }));
-  for (const { fields } of transitions.filter(({ fields }) => fields.kind !== "rename")) {
-    const key = `work-item:${fields.origin.name}`;
-    if (!owners.has(key)) owners.set(key, randomUUID());
-  }
-  for (const { record, fields } of transitions.filter(({ fields }) => fields.kind !== "rename")) {
-    const mapped = bindLineageUids(fields, owners);
+  const terminal = transitions.filter(({ fields }) => fields.kind !== "rename");
+  // A held work unit that reused an ended origin's slug keeps its own UID; the slug names that owner elsewhere.
+  const origins = new Map(terminal.map(({ fields }) => [fields.origin.name, randomUUID()]));
+  for (const [name, uid] of origins) if (!owners.has(`work-item:${name}`)) owners.set(`work-item:${name}`, uid);
+  for (const { record, fields } of terminal) {
+    const mapped = bindLineageUids(fields, owners, origins.get(fields.origin.name) ?? randomUUID());
     records.push({ ...record, reference: RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner,
       uid: mapped.origin.uid } }), content: writeLineageRecord(mapped) });
   }
@@ -50,12 +50,12 @@ function importRename(records: ImportRecord[], fields: LineageRecord, renames: R
   for (const target of targets) target.formerSlugs = [...new Set([...(target.formerSlugs ?? []), SlugSchema.parse(fields.origin.name)])];
 }
 
-function bindLineageUids(record: LineageRecord, owners: ReadonlyMap<string, string>): LineageRecord {
+function bindLineageUids(record: LineageRecord, owners: ReadonlyMap<string, string>, origin: string): LineageRecord {
   const bind = (reference: WorkItemRef): WorkItemRef => {
     const uid = owners.get(`work-item:${reference.name}`);
     return uid ? { ...reference, uid } : reference;
   };
-  return { ...record, origin: bind(record.origin), successors: record.successors.map(bind),
+  return { ...record, origin: { ...record.origin, uid: origin }, successors: record.successors.map(bind),
     incoming: record.incoming.map((entry) => ({ dependent: bind(entry.dependent), disposition: entry.disposition.kind === "replace"
       ? { ...entry.disposition, replacementTargets: entry.disposition.replacementTargets.map(bind) } : entry.disposition })),
     ...(record.outgoing ? { outgoing: record.outgoing.map((entry) => ({ prerequisite: bind(entry.prerequisite), members: entry.members.map(bind) })) } : {}) };
