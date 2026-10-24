@@ -19,7 +19,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { basename } from "node:path";
+import { basename, isAbsolute, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runPathListScript } from "./cli-runner.js";
@@ -138,7 +138,10 @@ export function validateFiles(
 // --- CLI entry ---
 
 function readStagedFile(path: string): string {
-  return execFileSync("git", ["show", `:${path}`], {
+  const indexPath = isAbsolute(path)
+    ? `./${relative(process.cwd(), path).split(sep).join("/")}`
+    : path;
+  return execFileSync("git", ["show", `:${indexPath}`], {
     cwd: process.cwd(),
     encoding: "utf8",
     maxBuffer: MAX_GIT_OUTPUT_BYTES,

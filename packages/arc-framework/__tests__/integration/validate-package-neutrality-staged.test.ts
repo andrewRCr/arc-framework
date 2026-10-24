@@ -2,7 +2,7 @@
 
 import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
@@ -57,9 +57,9 @@ describe("package-neutrality staged content", () => {
     return root;
   }
 
-  function runValidator(root: string) {
-    return execute(process.execPath, ["--import", tsxLoader, validatorPath, methodPath], {
-      cwd: root,
+  function runValidator(cwd: string, path = methodPath) {
+    return execute(process.execPath, ["--import", tsxLoader, validatorPath, path], {
+      cwd,
       env: { ...process.env, FORCE_COLOR: undefined },
     });
   }
@@ -77,6 +77,27 @@ describe("package-neutrality staged content", () => {
     const root = await fixture(neutralMethod, customizedMethod);
 
     await expect(runValidator(root)).resolves.toMatchObject({ stdout: "", stderr: "" });
+  });
+
+  it.each([".", "nested"])("accepts neutral staged content through an absolute path from %s", async (directory) => {
+    const root = await fixture(neutralMethod, customizedMethod);
+    const cwd = join(root, directory);
+    await mkdir(cwd, { recursive: true });
+    const absolutePath = join(root, methodPath).split(sep).join("/");
+
+    await expect(runValidator(cwd, absolutePath)).resolves.toMatchObject({ stdout: "", stderr: "" });
+  });
+
+  it.each([".", "nested"])("rejects customized staged content through an absolute path from %s", async (directory) => {
+    const root = await fixture(customizedMethod, neutralMethod);
+    const cwd = join(root, directory);
+    await mkdir(cwd, { recursive: true });
+    const absolutePath = join(root, methodPath).split(sep).join("/");
+
+    await expect(runValidator(cwd, absolutePath)).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining("package source must ship `override-active: false`"),
+    });
   });
 
   it("refuses a candidate absent from the index even when the worktree is neutral", async () => {
