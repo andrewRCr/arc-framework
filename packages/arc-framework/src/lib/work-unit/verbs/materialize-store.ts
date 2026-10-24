@@ -1,4 +1,5 @@
 /** Give owned in-flight operational records a checkout without changing their state or pause. */
+import { sameReference } from "../../store/identity.js";
 import { stat } from "node:fs/promises";
 import { describeWorktreePreparationFailure } from "../incomplete-worktree-preparation.js";
 import { localPathsEqual } from "../../local-path-identity.js";
@@ -54,7 +55,7 @@ export async function runStoreMaterialize(ctx: MaterializeContext, params: Mater
     if (!occupancy.ok) return { status: "rejected", reason: occupancy.message, remedy: occupancy.remedy };
     const held = new Map<string, string>();
     const candidates = await listStoreMaterializable(bound, identity, held);
-    const entry = candidates.find((item) => item.reference.owner.name === name);
+    const entry = candidates.find((item) => sameReference(item.reference, read.result.reference));
     if (entry === undefined) {
       const holder = held.get(name) ?? null;
       return { status: "rejected", reason: holder === null ? `${params.name} is not an owned in-flight materialize candidate. Candidates: ${candidates.map((item) => item.reference.owner.name).join(", ") || "[none]"}.` : workUnitMarkerExit(holder, name, read.result, identity) };

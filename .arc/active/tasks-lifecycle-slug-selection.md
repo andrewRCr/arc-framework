@@ -181,7 +181,7 @@ its test is a regression pin that passes before the change; each re-read's faili
           saved-version reads. Tests read archived/live metadata and companions independently and reject a clashed path;
           the existing Git snapshot integration cases retain their behavior.
 
-### `[ ]` **2.6 Find each verb's entry by the subject's reference — § 3.1**
+### `[x]` **2.6 Find each verb's entry by the subject's reference — § 3.1**
 
 - _Goal:_ Every lifecycle verb's store arm acts on the record `readWorkUnit` returns, finding its view entry by that
   record's reference (`sameReference`, `lib/store/identity.ts`) and resolving its position, guards, and finalization
@@ -210,12 +210,10 @@ its test is a regression pin that passes before the change; each re-read's faili
           matches that reference in the view. Handler integration cases graduate a live backlog namesake and direct an
           active Planning namesake to materialize while leaving completed records unchanged.
 
-    - `[ ]` **2.6.e Materialize**
+    - `[x]` **2.6.e Materialize**
 
-        - `runStoreMaterialize` (`lib/work-unit/verbs/materialize-store.ts`) finds the subject's entry by reference.
-        - Build `test-first` (one behavior at a time):
-            - regression pin: materializing a reused slug acts on the live holder's entry, since its candidates hold
-              active entries only
+        - Materialize matches its candidate to the selected metadata reference. Its reuse regression keeps both
+          generations unchanged and claims the live holder; a narrow first-listed selection reconstruction fails it.
 
 ### `[ ]` **2.7 Re-acquire a selected record by its reference — § 3.2**
 

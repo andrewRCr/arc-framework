@@ -14,11 +14,13 @@ import type { ReconcileWorkUnitWorktreeOp } from "../../../../src/lib/work-unit/
 import { createDefaultLocusPorts } from "../../../../src/lib/work-unit/locus-ports.js";
 import { writeMetaPause, writeMetaOwner, renderMetaFile } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
-import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../../../src/lib/kernel/index.js";
 
 const tip = "a".repeat(40);
-async function harness(options: { branch?: string; remoteOnly?: boolean; offline?: boolean; noBase?: boolean; held?: boolean; paused?: boolean; state?: "Planning" | "Active" | "Integrating" } = {}) {
+async function harness(options: { branch?: string; remoteOnly?: boolean; offline?: boolean; noBase?: boolean; held?: boolean; paused?: boolean; state?: "Planning" | "Active" | "Integrating"; archived?: boolean } = {}) {
   const h = createLifecycleHarness();
+  const archived = options.archived ? await h.seedMeta("demo", { state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }) : undefined;
   let meta = await h.seedMeta("demo", { state: options.state ?? "Planning", owner: "starter", currentWorkflow: options.state === "Integrating" ? "integrate-work-unit" : options.state === "Active" ? "process-task-loop" : "draft-design" }, { kind: "active" }, options.branch === undefined ? undefined : { branches: [{ repository: "repo", ref: options.branch, linkedAs: "created", excluded: [] }] });
   if (options.paused) {
     const content = writeMetaPause(meta.content, { pausedBy: SlugSchema.parse("starter"), since: "2026-10-14T00:00:00Z", reason: "wait", waitsOn: null, resumeNotes: null, open: false });
@@ -49,7 +51,7 @@ async function harness(options: { branch?: string; remoteOnly?: boolean; offline
     reconcileWorkUnitWorktree: async (op) => { placement = op; return { mutation: "spawn", worktreePath: "/spawn", branch: op.mutation === "spawn" ? op.branch ?? null : null }; },
     writeSoftFields: async () => {}, writeBranchField: async () => {}, writeCurrentWorkflowField: async () => {}, writeDesignField: async () => {},
   };
-  return { ...h, ctx, meta, state: () => ({ fetches, placement }), read: async () => lifecycleSuccess(await h.store.read({ reference: meta.reference })) };
+  return { ...h, ctx, meta, archived, state: () => ({ fetches, placement }), read: async () => lifecycleSuccess(await h.store.read({ reference: meta.reference })) };
 }
 const params = { name: "demo", baseBranch: "main", identity: "starter", spawningIdentity: "starter", locationTemplate: "/spawn", repo: "repo" };
 describe("store materialize", () => {
@@ -164,4 +166,13 @@ it.each([undefined, "feat/demo"])("reports the occupied checkout before unreadab
     expect(h.state().placement).toMatchObject({ wuName: "demo", inPlace: true });
     expect(lifecycleSuccess(await h.store.version())).toBe(before);
   } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+it("materializes the live holder when its completed namesake was listed first", async () => {
+  const h = await harness({ archived: true });
+  expect(await runMaterialize(h.ctx, params)).toMatchObject({ status: "materialized", branch: null });
+  expect(h.state().placement).toMatchObject({ wuName: "demo", detached: true });
+  expect(await h.read()).toEqual(h.meta);
+  if (h.archived === undefined) throw Error("Expected archived namesake");
+  expect(lifecycleSuccess(await h.store.read({ reference: h.archived.reference }))).toEqual(h.archived);
 });
