@@ -3,14 +3,20 @@
   "slug": "help-text-preconditions",
   "claimId": "2c85d4144f7ee8dd17436c554b056267",
   "createdAt": "2026-10-23T23:45:36.788Z",
-  "updatedAt": "2026-10-23T23:45:36.788Z",
+  "updatedAt": "2026-10-24T00:09:10.630Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Say in CLI help that arc start --from needs --here and that errand open --type names a branch only under full protection",
   "branch": "fix/help-text-preconditions",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "fix/help-text-preconditions",
+    "headSha": "f23fc65968df3c42fd4ebbe13e23fdbf910326e0"
+  }
 }
