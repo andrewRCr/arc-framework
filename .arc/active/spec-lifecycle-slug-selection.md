@@ -1432,6 +1432,11 @@ This design consumes behavior two other changes build. Each is an expected contr
   store arm's reconcile tests (`store-reconcile-context.test.ts`) change where they pin the disposition query's lookup,
   which moves into the resolution (§ 5.2). The one exception is `store-project-standing.test.ts`'s warning assertions,
   which move to status's rendering of the clash facts, with today's text. The in-repo arm's tests pass unchanged.
+  Checkout-owned reconciliation has one verification-order exception (A1): `handleStoreReconcile` requires a
+  checkout claim even with an explicit operand. Verify current-name reuse after UID claim readers are available
+  (§ 7.1), with the live holder's bound checkout and the completed holder's records and artifacts unchanged. The
+  earlier operand-verification segment retains the former-name case with a unique current-name marker; it does not
+  claim current-name reconciliation coverage before UID claims.
 - **Migration and rollout.** Everything is dark until the flip. Records already carry UIDs, so no store data migrates.
   The marker's work-unit subject, the derived row's, the store refusal's `tie` (§ 1.5), the lifecycle refusal's
   `refusal` (§ 4.1), the reconcile component's `held` list (§ 5.2), the husk stamp's and sweep decision's reason sets,
@@ -1540,6 +1545,11 @@ Each holds over the reference backend, and over the ref backend once it lands (�
     selection's import path, the standing test's warning assertions, which move to status's rendering, and the status
     handler fixtures the Testing bullet names (§ Cross-cutting Considerations).
 
+13. **Checkout-owned reconciliation under reuse (A1).** After UID claims are available, `arc wu reconcile <slug>
+    --apply` from the live holder's bound checkout acts on that holder and preserves the completed holder's records
+    and artifacts. The earlier operand-verification segment covers the former-name case using the unique current name
+    in its marker; the UID-claim segment closes current-name coverage.
+
 ## Open Questions
 
 None blocks starting. Module and field names inside `lib/store/` for the selection, the admission check, and the
@@ -1547,6 +1557,7 @@ settler are implementation detail; § 7.3 fixes the request `LocusPorts` takes.
 
 ## Amendments
 
-None.
+- **A1** — 2026-10-24 — design: verify current-name checkout-owned reconciliation after UID claims are available.
+  _Supersedes:_ 2.8 current-name reconcile. _Trigger:_ 2.8 segment. _Work:_ 2.R. _Revalidated:_ pending → 2.8.
 
 ---

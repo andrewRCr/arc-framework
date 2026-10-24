@@ -95,6 +95,9 @@ operand acts on its live holder, and the other store-arm verbs that take an oper
 status's output-pinning tests pass unchanged but for the selection's source, and `store-project-standing.test.ts`'s
 warning assertions move to status's rendering with today's text.
 
+_Exit amendment (A1):_ The current-name `wu reconcile` reuse scenario closes in 4.3.c after UID checkout claims;
+2.8 retains its former-name scenario with a marker naming the live holder's unique current name.
+
 _Design decisions:_ The word and paired-spec checks take a tie as an answer (2.2) before the view's index drops a
 clashed slug (2.3), so no tie newly blocks an unrelated activation. The store-arm dependency reconcile reads the index
 until Phase 3 resolves edges through the lookup, so no test reconciles a `Depends On` edge on a clashed slug before
@@ -257,19 +260,30 @@ its test is a regression pin that passes before the change; each re-read's faili
           reconcile a reused former operand without altering its completed namesake, and preserve ambient publication's
           initial clash refusal and untouched publication boundary.
 
+### `[ ]` **2.R Realign checkout-owned reconciliation verification — A1**
+
+- _Goal:_ Apply A1's verification ordering: keep the former-name `wu reconcile` scenario in 2.8 and verify its
+  current-name reuse scenario in 4.3.c after UID checkout claims are available, preserving the required end behavior.
+
+    - Retain the registered-CLI former-name reconciliation test, and remove the current-name case from this phase's
+      runnable fixture matrix. The current-name case in 4.3.c must bind its marker to the live holder's UID and
+      preserve the completed holder's records and artifacts.
+
 ### `[ ]` **2.8 A reused slug's verbs end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds end to end: every store-arm lifecycle verb that takes an operand acts on a
   reused slug's live holder over the reference backend.
 
+    - _Amended in:_ 2.R (A1)
+
     - Over the reference backend with a completed and a live holder of one slug, run `arc activate`, `arc deactivate`,
       `arc abandon`, `arc start`, `arc materialize`, `arc publish`, `arc reopen`, `arc pause`, `arc handover`,
       `arc resume`, `arc set-class`, `arc rename`, `arc archive`, `arc promote` and `arc demote`, `arc decompose`, and
-      `arc wu reconcile`, each with its operand on a fixture in the state the verb takes,
+      `arc wu reconcile` through its former-name operand only, each on a fixture in the state the verb takes,
       confirming each acts on the live holder's entry and leaves the completed holder's records unchanged; run status's
       output-pinning tests. The verbs that take no operand (`arc set-stage`, `arc task close`, `arc finalize`,
       `arc repoint-design`) resolve their checkout's claim, which matches by slug until 4.3, so 4.3.c runs them under
-      reuse.
+      reuse. The current-name `arc wu reconcile` reuse scenario also runs in 4.3.c.
     - Rerun the operand cases with the live holder renamed off the slug, so the slug is its former name. Rename's
       collision check refuses a rename onto a completed holder's slug, so a former name is made by renaming the live
       holder away from the reused slug; publish's fixture carries Candidate attestation.
@@ -759,6 +773,9 @@ unclosed task commits (§ 3.2) re-read by the UID claim here.
               reopen, and a verb that resolves its checkout's current work unit itself
             - a reconcile in either holder's checkout, without an operand or naming the clashed slug, its holder's
               current name, runs
+            - with a completed and a live holder of one slug, `arc wu reconcile <slug> --apply` in the live holder's
+              UID-bound checkout acts on the live holder and leaves the completed holder's records and artifacts
+              unchanged; retain the former-operand case from 2.8
             - an ended holder's checkout's reconcile fallback reaches the ended holder
             - with a completed and a live holder of one slug, `arc set-stage`, `arc task close`, `arc finalize`, and
               `arc repoint-design` in the live holder's checkout act on the live holder, and pass the pause check where
@@ -1921,3 +1938,8 @@ Each holds over the reference backend, and over the ref backend from Phase 8.
 - `[ ]` All quality gates pass (tests, linting, type checking)
 
 - `[ ]` Ready for integration
+
+- `[ ]` After UID claims are available, `arc wu reconcile <slug> --apply` from the live holder's bound checkout acts
+  on that holder and preserves the completed holder's records and artifacts. The earlier operand-verification
+  segment covers its former-name case with a unique current-name marker; the UID-claim segment closes current-name
+  coverage (A1).
