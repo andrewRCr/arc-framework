@@ -7,15 +7,29 @@ import {
 import type { HostedFinding } from "./await.js";
 import type { HostedGitHubReview, HostedGitHubThreadComment } from "./github.js";
 
-/** CodeRabbit's icon image, which a badge may carry in place of its leading emoji. */
-const ICON = "<picture>[^*\\r\\n]*?</picture>";
+/**
+ * CodeRabbit's icon image, which a badge may carry in place of its leading emoji. It ends at its own `</picture>`, so
+ * a run of icon badges has one reading and a line that does not match fails fast.
+ */
+const ICON = "<picture>(?:(?!</picture>)[^*\\r\\n])*</picture>";
 /** One provider badge: an italic or bold span that opens with an emoji or icon, such as `**🔵 Trivial**`. */
 const BADGE = `(?:_(?:\\p{Extended_Pictographic}|${ICON})[^_\\r\\n]*_`
   + `|\\*\\*(?:\\p{Extended_Pictographic}|${ICON})[^*\\r\\n]*\\*\\*)`;
-const BADGES = new RegExp(BADGE, "gu");
-/** A grouped finding's metadata line: its line or line range, then only pipe-separated badges. */
+/**
+ * Any italic or bold span, as a badge joined by `·` may be: that layout drops the category and effort emoji. An italic
+ * span reads a leading icon whole, since its URL may hold `_`; a bold span's text already covers one.
+ */
+const SPAN = `(?:_(?:${ICON}|[^_<\\r\\n])[^_\\r\\n]*_|\\*\\*[^*\\r\\n]+\\*\\*)`;
+/**
+ * A run of badges in either layout: emoji-led badges joined by `|`, such as `**🎯 Correctness** | **🟡 Minor**`, or
+ * two or more spans joined by `·`, such as `**🟡 Minor** · **Correctness**`. Only emoji-led badges join by `|`, so a
+ * bold title sharing that line stays prose.
+ */
+const BADGE_RUN = `(?:${BADGE}(?:[\\t ]*\\|[\\t ]*${BADGE})*|${SPAN}(?:[\\t ]*·[\\t ]*${SPAN})+)`;
+const BADGE_LINE = new RegExp(`^[\\t ]*${BADGE_RUN}[\\t ]*\\r?$`, "u");
+/** A grouped finding's metadata line: its line or line range, then only badges. */
 const GROUPED_METADATA_LINE = new RegExp(
-  `^[\\t ]*(?:>[\\t ]*)*\`(\\d+(?:-\\d+)?)\`:[\\t ]*${BADGE}(?:[\\t ]*\\|[\\t ]*${BADGE})*[\\t ]*\\r?$`,
+  `^[\\t ]*(?:>[\\t ]*)*\`(\\d+(?:-\\d+)?)\`:[\\t ]*${BADGE_RUN}[\\t ]*\\r?$`,
   "gmu",
 );
 
@@ -49,7 +63,7 @@ function severityOnMetadataLine(body: string, start: number): ReturnType<typeof 
 
 /** A metadata line made only of badges, one of them the severity this parser reads. */
 function isBadgeLine(line: string): boolean {
-  return severity(line) !== null && line.replace(BADGES, "").replace(/\|/gu, "").trim().length === 0;
+  return severity(line) !== null && BADGE_LINE.test(line);
 }
 
 /**
