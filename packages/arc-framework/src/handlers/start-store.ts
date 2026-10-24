@@ -1,6 +1,7 @@
 /** Capability-selected start handler: operational records never require a code-branch snapshot. */
 import { basename } from "node:path";
 import * as p from "../lib/terminal.js";
+import { refuse } from "./lifecycle-shared.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { readLifecycleView } from "../lib/store/lifecycle-view.js";
 import { SlugSchema } from "../lib/kernel/index.js";
@@ -33,7 +34,7 @@ export async function handleStoreStart(input: Input, ctx: StoreStartContext): Pr
   if (input.here && input.name === undefined && ctx.admitColdStart !== undefined) { await ctx.admitColdStart(input); return; }
   if (input.name === undefined) { refuse("Store-backed start requires a work-unit name; supply arc start <name>."); return; }
   const view = await readLifecycleView(store);
-  if (view.status === "refused") { refuse(`${view.refusal.condition} ${view.refusal.remedy.text}`); return; }
+  if (view.status === "refused") { refuse(view.refusal.condition, view.refusal); return; }
   try { requireCompleteInventory(store, view.result.listing); }
   catch (error) { refuse(String(error)); return; }
   const selected = await resolveStartName(store, input.name);
@@ -66,14 +67,19 @@ async function resolveStartName(store: Store, requested: string): Promise<{ name
   const lookup = await store.lookup({ kind: "slug", slug: SlugSchema.parse(requested) });
   if (lookup.status === "refused") {
     if (lookup.refusal.code === "not-found") return { name: requested };
-    refuse(`${lookup.refusal.condition} ${lookup.refusal.remedy.text}`); return null;
+    refuse(lookup.refusal.condition, lookup.refusal); return null;
   }
   if (lookup.result.reference.kind === "cohort/document") {
     refuse(`\`${requested}\` resolves to a cohort rather than a work unit. Use the cohort's own commands, or name a work unit.`);
     return null;
   }
   if (lookup.result.reference.kind !== "work-item/meta") { refuse(`${requested} resolves to an Errand; use its Errand verb.`); return null; }
-  return { name: lookup.result.reference.owner.name, reference: lookup.result.reference };
+  const name = lookup.result.reference.owner.name;
+  if (name !== requested) {
+    const current = await store.lookup({ kind: "slug", slug: SlugSchema.parse(name) });
+    if (current.status === "refused") { refuse(current.refusal.condition, current.refusal); return null; }
+  }
+  return { name, reference: lookup.result.reference };
 }
 async function create(input: Input, ctx: StoreStartContext): Promise<void> {
   if (input.class !== undefined) { refuse("--class is only valid when graduating a backlog stub."); return; }
@@ -106,9 +112,8 @@ async function graduate(input: Input, ctx: StoreStartContext): Promise<void> {
     repo: basename(primaryWorktreePath ?? ctx.cwd), primaryWorktreePath: primaryWorktreePath ?? undefined,
     postCreateScript: settings["worktree.post_create"], registeredHarnessDirs: settings["worktree.harness_dirs"] };
   const result = await runGraduate(ctx.executor, { name: input.name, cls: input.class, spawningIdentity: ctx.identity, ...params });
-  if (result.status !== "graduated") { refuse(result.reason); return; }
+  if (result.status !== "graduated") { refuse(result.reason, result.status === "rejected" ? result.refusal : undefined); return; }
   p.note(`Work unit: ${input.name}\nPrevious Owner: ${result.previousOwner ?? "[none]"}\nOwner: ${ctx.identity}\nWorktree: ${result.worktreePath ?? ctx.cwd}`, "Started in Planning");
   if (result.postCreateNotice !== undefined) p.log.info(result.postCreateNotice);
   p.outro("Done.");
 }
-function refuse(reason: string): void { p.log.error(reason); process.exitCode = 1; }

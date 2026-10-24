@@ -339,21 +339,11 @@ cohort over the reference backend directly.
           Reopen rejects an already-clashed subject before host contact and leaves both records unchanged; the
           existing mid-verb case retains the admitted reference through withdrawal.
 
-    - `[ ]` **3.2.b Materialize and start**
+    - `[x]` **3.2.b Materialize and start**
 
-        - Materialize's handler (`handleStoreMaterialize`, `handlers/materialize-store.ts`), start's name resolution and
-          graduation report (`resolveStartName` and the handler's report, `handlers/start-store.ts`), and `graduate`
-          (`commands/start-store.ts`) pass the refusal whole and render through `refuse`; `GraduateResult`'s rejected
-          arm (`commands/start.ts`) carries it. `resolveStartName` looks a former slug's current name up again, so a
-          clash on that name refuses there, whole, before dispatch, which would report the clashed name nonexistent and
-          advise `--new`.
-        - Build `test-first` (one behavior at a time):
-            - `arc materialize <slug>` and `arc start <slug>` of a clashed slug refuse naming both holders and the
-              repair
-            - `arc start <former-slug>`, whose holder's current name a live cohort also holds, refuses at name
-              resolution naming both holders, over the reference backend with the work unit's `formerSlugs` planted
-            - over the clash double's mid-verb mode, `arc start <slug>` of a backlog holder refuses at graduation naming
-              both holders, through `GraduateResult`'s refusal
+        - Materialize and start use the shared renderer with complete refusals. Graduation retains refusal evidence
+          in its result and report, including rejected transitions. Former-name resolution checks the selected
+          holder's current name before dispatch while retaining the first selected reference.
 
     - `[ ]` **3.2.c Teardown's retirement read**
 

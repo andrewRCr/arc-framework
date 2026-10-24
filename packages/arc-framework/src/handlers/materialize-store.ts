@@ -1,6 +1,7 @@
 /** Render widened materialize candidates without expanding remote artifact branches. */
 import { basename } from "node:path";
 import * as p from "../lib/terminal.js";
+import { refuse } from "./lifecycle-shared.js";
 import type { UserIOContext } from "../commands/user/types.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { runMaterialize } from "../lib/work-unit/verbs/materialize.js";
@@ -25,9 +26,8 @@ export async function handleStoreMaterialize(input: { name?: string; here?: bool
     ...(input.here ? { inPlace: true } : { locationTemplate: settings["worktree.location_template"], repo: basename(primary ?? ctx.cwd),
       primaryWorktreePath: primary, registeredHarnessDirs: settings["worktree.harness_dirs"], postCreateScript: settings["worktree.post_create"] }),
   });
-  if (result.status === "rejected") { refuse(result.reason); return; }
+  if (result.status === "rejected") { refuse(result.reason, result.refusal, result.remedy); return; }
   p.note(`Work unit: ${input.name}\nCheckout: ${result.branch ?? (input.here ? "current HEAD preserved" : "detached")}\nWorktree: ${result.worktreePath}`, "Materialized");
   for (const advisory of result.advisories) p.log.info(advisory);
   p.outro("Done.");
 }
-function refuse(reason: string): void { p.log.error(reason); process.exitCode = 1; }

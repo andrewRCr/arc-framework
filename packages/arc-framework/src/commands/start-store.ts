@@ -20,10 +20,10 @@ export async function runStoreGraduate(ctx: ExecuteTransitionContext, params: Gr
 async function graduate(ctx: ExecuteTransitionContext, params: GraduateParams): Promise<GraduateResult> {
   if (ctx.store === undefined || ctx.exec === undefined || params.spawningIdentity === undefined) return { status: "rejected", reason: "Store graduation requires the store, Git executor, and starter identity." };
   const view = await readLifecycleView(ctx.store);
-  if (view.status === "refused") return { status: "rejected", reason: `${view.refusal.condition} ${view.refusal.remedy.text}` };
+  if (view.status === "refused") return { status: "rejected", reason: view.refusal.condition, refusal: view.refusal };
   try { requireCompleteInventory(ctx.store, view.result.listing); } catch (error) { return { status: "rejected", reason: String(error) }; }
   const read = await readWorkUnit(ctx.store, params.name);
-  if (read.status === "refused") return { status: "rejected", reason: `${read.refusal.condition} ${read.refusal.remedy.text}` };
+  if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
   const name = read.result.reference.owner.name;
   const entry = view.result.entries.find((candidate) => sameReference(candidate.reference, read.result.reference));
   if (entry === undefined || (entry.location !== "planned" && entry.location !== "provisional")) return { status: "rejected", reason: `${name} is not a backlog stub that can graduate.` };
@@ -75,5 +75,6 @@ function graduationWorkflow(fields: { currentWorkflow: string | null; design: re
 
 function graduationRejection(outcome: Exclude<TransitionOutcome, { status: "ok" }>): Extract<GraduateResult, { status: "rejected" }> {
   return { status: "rejected", reason: outcome.message,
+    ...(outcome.status === "rejected" && outcome.refusal !== undefined ? { refusal: outcome.refusal } : {}),
     ...(outcome.status === "rejected" && outcome.recovery !== undefined ? { recovery: outcome.recovery } : {}) };
 }

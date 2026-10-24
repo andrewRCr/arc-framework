@@ -26,6 +26,7 @@
  * @module
  */
 
+import type { StoreRefusal } from "../lib/store/refusal.js";
 import { runStoreColdStart } from "./start-cold-store.js";
 import { basename, join } from "node:path";
 import { usesOffBranchState } from "../lib/store/lifecycle-write.js";
@@ -327,7 +328,7 @@ export function buildCreateNewCeremonyCommitMessage(name: string): string {
 
 /** The outcome of a `graduate` attempt — a rejection, or the relocated meta path + branch. */
 export type GraduateResult =
-  | { status: "rejected"; reason: string; recovery?: LifecycleRollbackRecovery }
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal; recovery?: LifecycleRollbackRecovery }
   | {
       status: "graduation-recovery-required";
       reason: string;
