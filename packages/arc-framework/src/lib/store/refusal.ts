@@ -2,11 +2,12 @@
 
 import { z } from "zod";
 import { RemoteFailureReasonSchema } from "../kernel/index.js";
-import { RecordReferenceSchema, StateVersionSchema } from "./identity.js";
+import { RecordReferenceSchema, StateVersionSchema, STORED_UID_SOURCE } from "./identity.js";
 import { LookupInputSchema } from "./lookup.js";
 
-/** An ended work item's or cohort's history ref. */
-export const HistoryRefSchema = z.templateLiteral(["refs/arc/history/", z.enum(["work", "cohort"]), "/", z.uuid()]);
+/** An ended work item's or cohort's history ref, named by the lowercase UID its stored names carry. */
+export const HistoryRefSchema = z.templateLiteral(["refs/arc/history/", z.enum(["work", "cohort"]), "/",
+  z.string().regex(new RegExp(`^${STORED_UID_SOURCE}$`, "u"))]);
 /** A history ref fetched explicitly by name. */
 export type HistoryRef = z.infer<typeof HistoryRefSchema>;
 

@@ -10,7 +10,8 @@ import { success } from "../helpers/store/suite-tools.js";
 const inbox = RecordReferenceSchema.parse({ kind: "personal/inbox", owner: { type: "person", name: "andrew" } });
 const seed = { verb: "user", lifecycleAction: "seed" };
 
-describe.each(["refs/arc/history/archive/2026-q3", "refs/arc/history/project/registry"])("a stray %s", (stray) => {
+describe.each(["refs/arc/history/archive/2026-q3", "refs/arc/history/project/registry", "refs/arc/history/work/0F8FAD5B-D9CB-469F-A165-70867728950E"])(
+  "a stray %s", (stray) => {
   const plant = async (exec: (command: string, args: string[]) => Promise<{ stdout: string }>): Promise<void> => {
     const head = (await exec("git", ["rev-parse", "HEAD"])).stdout.trim();
     await exec("git", ["update-ref", stray, head]);
