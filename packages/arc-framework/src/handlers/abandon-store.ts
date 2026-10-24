@@ -40,12 +40,19 @@ async function integratingDependents(store: Store, entries: readonly LifecycleEn
   const dependents: LifecycleEntry[] = [], name = owner.name;
   for (const entry of entries.filter((candidate) => candidate.phase === "Integrating")) {
     for (const prerequisite of entry.fields.dependsOn) {
-      if (prerequisite === name) { dependents.push(entry); break; }
-      const resolved = await store.lookup({ kind: "slug", slug: SlugSchema.parse(prerequisite) });
-      if (resolved.status === "refused") {
-        if (resolved.refusal.code !== "not-found") throw Error(`${resolved.refusal.condition} ${resolved.refusal.remedy.text}`);
-      } else if (sameOwner(resolved.result.reference.owner, owner)) { dependents.push(entry); break; }
+      if (prerequisite === name || await dependencyIncludesOwner(store, prerequisite, owner)) {
+        dependents.push(entry);
+        break;
+      }
     }
   }
   return dependents;
+}
+
+async function dependencyIncludesOwner(store: Store, prerequisite: string, owner: OwnerIdentity): Promise<boolean> {
+  const resolved = await store.lookup({ kind: "slug", slug: SlugSchema.parse(prerequisite) });
+  if (resolved.status === "ok") return sameOwner(resolved.result.reference.owner, owner);
+  if (resolved.refusal.code === "not-found") return false;
+  if (resolved.refusal.code === "ambiguous-match") return resolved.refusal.candidates.some(candidate => sameOwner(candidate.owner, owner));
+  throw Error(`${resolved.refusal.condition} ${resolved.refusal.remedy.text}`);
 }

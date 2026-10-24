@@ -390,13 +390,10 @@ cohort over the reference backend directly.
   Absent lineage holds cohort and Errand edges without rejecting activation. The reference fixture retains cohort
   aliases through checked rename writes, and former-primary lookup assertions now exercise the resolver.
 
-### `[ ]` **3.5 Hold a tie's edge, surface it, and let abandon read it — § 4.2, § 4.3, § 5.2**
+### `[x]` **3.5 Hold a tie's edge, surface it, and let abandon read it — § 4.2, § 4.3, § 5.2**
 
 - _Goal:_ An edge a tie leaves unsettled stays in `Depends On`, unsatisfied, never discharged, and blocks no ceremony
   and no unrelated abandon, while session start and `arc wu reconcile` show it with its holders and repair.
-
-- _Note:_ A dependent's edge on the clashed name is seeded before the clash double forms the clash, since
-  `checkMetaDependsOn` refuses a new edge whose lookup refuses.
 
     - `[x]` **3.5.a The tie row**
 
@@ -409,15 +406,11 @@ cohort over the reference backend directly.
         - Session prompts name held edges and offer inspection. Human reconcile output prints every held edge with its
           typed holders and repair through the shared candidate renderer; JSON retains the complete held list.
 
-    - `[ ]` **3.5.c Abandon's impact plan**
+    - `[x]` **3.5.c Abandon's impact plan**
 
-        - `integratingDependents` (`handlers/abandon-store.ts`) takes `ambiguous-match` as an answer, where it throws
-          today: it lists an Integrating work unit for coordination where a candidate the refusal names is the abandoned
-          owner (`sameOwner`), and passes over it otherwise. Any other refusal but `not-found` still refuses.
-        - Build `test-first` (one behavior at a time):
-            - abandoning an unrelated work unit runs while an Integrating work unit's held edge names a clashed slug
-            - an Integrating work unit whose edge ties the abandoned work unit with another holder is listed for
-              coordination
+        - Impact planning matches an ambiguous dependency's candidate owners by identity, listing matching Integrating
+          dependents and passing over unrelated ties. Other operational failures still refuse before mutation and retain
+          a successful retry after repair.
 
 ### `[ ]` **3.6 Offer a paused clashed item its repair alone — § 2.4**
 
