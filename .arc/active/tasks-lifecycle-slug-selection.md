@@ -260,14 +260,14 @@ its test is a regression pin that passes before the change; each re-read's faili
           reconcile a reused former operand without altering its completed namesake, and preserve ambient publication's
           initial clash refusal and untouched publication boundary.
 
-### `[ ]` **2.R Realign checkout-owned reconciliation verification — A1**
+### `[x]` **2.R Realign checkout-owned reconciliation verification — A1**
 
 - _Goal:_ Apply A1's verification ordering: keep the former-name `wu reconcile` scenario in 2.8 and verify its
   current-name reuse scenario in 4.3.c after UID checkout claims are available, preserving the required end behavior.
 
-    - Retain the registered-CLI former-name reconciliation test, and remove the current-name case from this phase's
-      runnable fixture matrix. The current-name case in 4.3.c must bind its marker to the live holder's UID and
-      preserve the completed holder's records and artifacts.
+- _Outcome:_ The registered-CLI former-name scenario selects the renamed live holder and preserves completed
+  metadata and notes. Current-name coverage is assigned to 4.3.c with a UID-bound checkout; the segment's effective
+  exit criterion retains every final behavior requirement.
 
 ### `[ ]` **2.8 A reused slug's verbs end to end** — validate exit criterion at segment scope
 
