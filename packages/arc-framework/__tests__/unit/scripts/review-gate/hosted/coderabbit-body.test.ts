@@ -144,6 +144,11 @@ describe("CodeRabbit inline thread labels", () => {
         "**Match the file on a path boundary.**",
       ],
       [
+        "a title after a marker that follows the badge line",
+        `${badges}\n\n<!-- cr-indicator-types:potential_issue -->\n\n**Match the file on a path boundary.**\n`,
+        "**Match the file on a path boundary.**",
+      ],
+      [
         "a severity line that carries its own text",
         `${emphasize("🟠 Major")} broken boundary\n\nDetails.`,
         `${emphasize("🟠 Major")} broken boundary`,

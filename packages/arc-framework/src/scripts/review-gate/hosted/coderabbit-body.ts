@@ -55,18 +55,20 @@ function isBadgeLine(line: string): boolean {
 /**
  * Select the prose that labels an inline thread comment.
  *
- * Collapsed `<details>` content is supporting material, and the provider's leading HTML comment markers and badge
- * line are metadata, so the label comes from the first top-level prose after them; a comment that opens with
- * anything else keeps its first top-level line.
+ * Collapsed `<details>` content is supporting material, and the provider's HTML comment marker lines and leading
+ * badge line are metadata, so the label comes from the first top-level prose after them; a comment that opens with
+ * anything else keeps its first top-level prose line.
  */
 function threadLabelSource(body: string): string {
   const blocks = detailsBlocks(body);
   const topLevel = blocks === null ? body : maskDetailsRanges(body, 0, body.length, blocks);
   const lines = topLevel.split(/\r?\n/u);
-  const first = lines.findIndex((line) => line.trim().length > 0 && !/^[\t ]*<!--.*-->[\t ]*$/u.test(line));
+  const isProse = (line: string): boolean => line.trim().length > 0 && !/^[\t ]*<!--.*-->[\t ]*$/u.test(line);
+  const first = lines.findIndex(isProse);
   const firstLine = lines[first];
   if (firstLine === undefined) return "";
-  return lines.slice(isBadgeLine(firstLine) ? first + 1 : first).join("\n");
+  const label = isBadgeLine(firstLine) ? lines.findIndex((line, index) => index > first && isProse(line)) : first;
+  return label === -1 ? "" : lines.slice(label).join("\n");
 }
 
 type UnorderedThreadFinding = Omit<Extract<HostedFinding, { origin: "review-thread" }>, "sourceOrdinal">;
