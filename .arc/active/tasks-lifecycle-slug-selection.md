@@ -450,7 +450,7 @@ creation's semantics. From 4.3.e until Phase 6 binds or refuses it, a marker wit
 the store arm is dark until the flip, so nothing reaches that window. The reconcile handler's marker fallback and
 unclosed task commits (§ 3.2) re-read by the UID claim here.
 
-### `[ ]` **4.1 Record the owner's UID on the marker subject and the derived row — § 7.1**
+### `[x]` **4.1 Record the owner's UID on the marker subject and the derived row — § 7.1**
 
 - _Goal:_ A work-unit marker's subject and the derived checkout row reduced from it carry the owner's UID where one is
   bound, optional in both, and every reader of the marker's fields accepts the new key.
@@ -461,18 +461,11 @@ unclosed task commits (§ 3.2) re-read by the UID claim here.
           typed value. Husk subjects use a separate validator forbidding UID bindings; dormant subjects retain exact
           key validation and both spawn provenance values.
 
-    - `[ ]` **4.1.b The derived row**
+    - `[x]` **4.1.b The derived row**
 
-        - `DerivedCheckoutRowSchema`'s work-unit subject (`lib/locus/derived-schema.ts`) gains an optional `uid`. The
-          reduction carries it from the marker through `projectMarker` (`lib/locus/derived-evidence.ts`, an edit inside
-          its existing body), `markerSubject` (`derived-lifecycle-evidence.ts`), and the role's marker candidate
-          (`DerivedWorkUnitSubject`, `role-derivation.ts`). The schema's one work-unit subject serves the row, the
-          frame's `active`, and `primaryAvailability` alike; it is part of the published derived schema that
-          `lib/session-envelope/registry.ts` and `commands/status/schema.ts` import, and changes in place under the
-          pre-public compatibility posture.
-        - Build `test-first` (one behavior at a time):
-            - a bound marker's row carries its `uid` in `arc locus --json` and the session-start envelope
-            - a marker without a `uid`, and the in-repo arm's rows, carry none
+        - Both marker projections preserve a bound UID through the role candidate and shared derived schema, which
+          validates UUIDs in rows, active subjects, and primary availability. Registered locus and session readers
+          retain bound UIDs and omit absent ones; in-repo row coverage remains unchanged.
 
 ### `[ ]` **4.2 Write the UID from every marker writer, and stamp a creation's marker after its batch — § 7.2**
 

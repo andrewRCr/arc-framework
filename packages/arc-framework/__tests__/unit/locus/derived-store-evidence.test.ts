@@ -10,6 +10,7 @@ import { projectCandidateMutationOwner } from "../../../src/lib/work-unit/candid
 import { recordReferences, OwnerIdentitySchema } from "../../../src/lib/store/identity.js";
 import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
 import { readDerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
+import { DerivedCheckoutRowSchema } from "../../../src/lib/locus/derived-schema.js";
 import type { SubjectMetaIO } from "../../../src/lib/locus/subject-meta.js";
 import type { WorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
 import { describe, expect, it } from "vitest";
@@ -22,13 +23,16 @@ import { deriveStoreInFlight } from "../../../src/lib/git/in-flight-store.js";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import { batchLifecycleWrites } from "../../../src/lib/store/lifecycle-write.js";
 
-async function fixture() {
+async function fixture(bound = false) {
   const fixture = createReferenceFixture({}, { "cohort/document": { parser: parseCohortDocument },
     "work-item/task-list": { parser: content => ({ success: true, data: parseTaskListRecord(content) }) } });
   const reference = fixture.reference("work-item/meta");
   const fields = parseMetaRecord(makeMetaFixture(reference.owner.name, { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" }));
   success(await fixture.store.write({ action: "put", reference, content: JSON.stringify(fields), expected: null,
     placement: { kind: "active" }, provenance: testProvenance }));
+  const owner = success(await fixture.store.read({ reference })).reference.owner;
+  const uid = owner.type === "work-item" ? owner.uid : undefined;
+  if (bound && uid === undefined) throw new Error("Expected a minted work-unit UID");
   const io: DerivedLocusEvidenceIO = {
     store: fixture.store,
     projectId: async () => "project-1",
@@ -36,7 +40,7 @@ async function fixture() {
       detached: false, branch: "main", folderPresent: true }] }),
     readMarker: async () => {
       const marker: WorktreeMarker = { spawnedByArc: false, spawningIdentity: "andrew", createdAt: "2026-10-16T12:00:00.000Z",
-        createdFor: { kind: "work-unit", name: reference.owner.name } };
+        createdFor: { kind: "work-unit", name: reference.owner.name, ...(bound ? { uid } : {}) } };
       return { kind: "present", bytes: Buffer.from(`${JSON.stringify(marker, null, 2)}\n`), marker };
     },
     listDirectory: async () => { throw new Error("Checkout files are stale"); },
@@ -47,7 +51,7 @@ async function fixture() {
     readPrimarySafety: async () => ({ kind: "complete", clean: true, onBase: true }),
     canonicalizePath: async path => path,
   };
-  return { fixture, reference, io, fields };
+  return { fixture, reference, io, fields, uid };
 }
 
 describe("store locus evidence", () => {
@@ -84,6 +88,18 @@ async function frame(io: DerivedLocusEvidenceIO, metaIO: SubjectMetaIO = subject
   return readDerivedLocusFrame({ ...evidence, store: io.store, identity: "andrew", enteringCheckoutPath: "/repo",
     canonicalizePath: async path => path, subjectMetaIO: metaIO });
 }
+
+it.each([false, true])("carries only a bound marker's UUID through row validation, bound=%s", async bound => {
+  const h = await fixture(bound), result = await frame(h.io);
+  if (result.entering.kind !== "selected") throw new Error("Expected the entering row");
+  const row = result.entering.row;
+  expect(row).toMatchObject({ kind: "work-unit", subject: { kind: "work-unit", key: h.reference.owner.name } });
+  if (bound) expect(row.subject).toMatchObject({ uid: h.uid });
+  else expect(row.subject).not.toHaveProperty("uid");
+  expect(DerivedCheckoutRowSchema.safeParse({ ...row,
+    subject: { kind: "work-unit", key: h.reference.owner.name, uid: "not-a-uuid" },
+  }).success).toBe(false);
+});
 
 it("leaves both checkouts unresolved when two markers name one work unit", async () => {
   const h = await fixture();

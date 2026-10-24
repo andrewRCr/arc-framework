@@ -16,6 +16,7 @@ export interface SubjectTopologyExpectation {
 export interface DerivedWorkUnitSubject {
   readonly kind: "work-unit";
   readonly key: string;
+  readonly uid?: string;
 }
 
 /** Transient subject selected by marker or identity authority. */
