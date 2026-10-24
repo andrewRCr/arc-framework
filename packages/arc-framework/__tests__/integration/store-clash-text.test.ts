@@ -1,5 +1,7 @@
 /** Registered lifecycle commands explain typed clashes and continue after the preferred repair. */
 import { expect, it } from "vitest";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { repairCli, repairCliFixture } from "../helpers/repair-cli.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { createClashDouble } from "../helpers/store/clash-double.js";
@@ -13,11 +15,13 @@ import { META_REGISTRATION } from "../../src/lib/store/kinds/meta/registration.j
 import { renderMetaFile } from "../../src/lib/store/kinds/meta/writers.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 
-it.each(["pause", "handover"] as const)("%s prints both live holders and their repair", async verb => {
+it.each(["pause", "handover", "resume", "set-class"] as const)("%s prints both live holders and their repair", async verb => {
   const f = await repairCliFixture(), h = createLifecycleHarness();
   const primary = await h.seedMeta("example"), other = await h.seedMeta("other");
   const store = createClashDouble(h.store, { slug: "example", holders: [primary.reference, other.reference] });
-  const args = verb === "pause" ? [verb, "example", "--reason", "Waiting"] : [verb, "example", "--to", "next-owner"];
+  const args = verb === "pause" ? [verb, "example", "--reason", "Waiting"]
+    : verb === "handover" ? [verb, "example", "--to", "next-owner"]
+    : verb === "set-class" ? [verb, "Heavy", "example"] : [verb, "example"];
   const result = await repairCli(f, args, { store });
   expect(result.exitCode).toBe(1);
   if (primary.reference.owner.type === "person" || other.reference.owner.type === "person") throw new Error("Expected work-item identities");
@@ -111,4 +115,27 @@ it("resumes after the Errand closes and retains the completed work-unit winner",
   const current = success(await fixture.store.read({ reference: primary.reference }));
   success(await fixture.store.write({ ...recordPut(current, { placement }), provenance: testProvenance }));
   expect(success(await lookup()).reference).toEqual(primary.reference);
+}, 60_000);
+
+it("reopen refuses an already-clashed subject before contacting the host", async () => {
+  const f = await repairCliFixture(), h = createLifecycleHarness();
+  const primary = await h.seedMeta("example", { state: "Integrating", currentWorkflow: "integrate-work-unit" });
+  const other = await h.seedMeta("other");
+  const store = createClashDouble(h.store, { slug: "example", holders: [primary.reference, other.reference] });
+  const bin = join(f.cwd, ".git", "host-probe"), activity = join(bin, "called");
+  await mkdir(bin);
+  await writeFile(join(bin, "gh"), `#!${process.execPath}\nrequire('node:fs').writeFileSync(${JSON.stringify(activity)}, 'called');\nprocess.stdout.write(JSON.stringify({state:'OPEN',isDraft:false}));\n`);
+  await chmod(join(bin, "gh"), 0o755);
+  const oldPath = process.env.PATH;
+  let result: Awaited<ReturnType<typeof repairCli>>;
+  try { process.env.PATH = `${bin}:${oldPath ?? ""}`; result = await repairCli(f, ["reopen", "example"], { store }); }
+  finally { if (oldPath === undefined) delete process.env.PATH; else process.env.PATH = oldPath; }
+  expect(result.exitCode).toBe(1);
+  expect(result.stdout + result.stderr).toContain("work unit `example`");
+  if (primary.reference.owner.type === "person" || other.reference.owner.type === "person") throw new Error("Expected work-item identities");
+  expect(result.stdout + result.stderr).toContain(primary.reference.owner.uid);
+  expect(result.stdout + result.stderr).toContain(other.reference.owner.uid);
+  await expect(readFile(activity, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference }))).toEqual(primary);
+  expect(lifecycleSuccess(await h.store.read({ reference: other.reference }))).toEqual(other);
 }, 60_000);

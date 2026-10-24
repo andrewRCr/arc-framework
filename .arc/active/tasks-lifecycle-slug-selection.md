@@ -333,19 +333,11 @@ cohort over the reference backend directly.
 - _Goal:_ Wherever a verb first meets the clash, the refusal reaches the shared renderer whole, with its candidates and
   tier, rather than as text.
 
-    - `[ ]` **3.2.a Verbs that read their own subject**
+    - `[x]` **3.2.a Verbs that read their own subject**
 
-        - The verbs that read their subject from an operand outside the shared preamble already return the refusal on
-          their rejected result and pass it to `refuse`: store `arc pause`, `arc handover`, and `arc resume`
-          (`handlers/lifecycle-collaboration.ts`, `handlers/lifecycle.ts`) and `arc set-class`
-          (`lib/work-unit/verbs/set-class.ts`). Their tests are pins that pass once 3.1 lands. Publish and reopen
-          without an operand, and the verbs resolving their checkout's current work unit (`resolveCurrentWorkUnit`), are
-          pinned in 4.3.c.
-        - Build `test-first` (one behavior at a time):
-            - `arc pause`, `arc handover`, `arc resume`, and `arc set-class` naming a clashed slug refuse with both
-              holders and the repair
-            - reopen naming an already-clashed slug refuses before production withdrawal preparation or any GitHub
-              write; a clash formed after subject admission leaves withdrawal on the selected reference (2.7.d)
+        - Registered CLI pins cover pause, handover, resume, and set-class with complete typed holder repairs.
+          Reopen rejects an already-clashed subject before host contact and leaves both records unchanged; the
+          existing mid-verb case retains the admitted reference through withdrawal.
 
     - `[ ]` **3.2.b Materialize and start**
 
