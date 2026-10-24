@@ -3,7 +3,7 @@
   "slug": "coderabbit-badge-separators",
   "claimId": "5f1e9bbea3de0e9c19ae8cdb00a5f4fe",
   "createdAt": "2026-10-24T15:42:49.736Z",
-  "updatedAt": "2026-10-24T15:42:49.736Z",
+  "updatedAt": "2026-10-24T16:19:34.740Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Read CodeRabbit badge lines separated by a middle dot as well as a pipe",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Read CodeRabbit badge lines separated by `·` as well as `|`",
   "originEntrySourceDigest": "sha256:bc6d85ab610590334829f62ae8461648a4d6e77f4a43cee670a516083c648980",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/coderabbit-badge-separators",
+    "headSha": "7aaa7466c434903442e23b5ffb0d94b9586f6b2d"
+  }
 }
