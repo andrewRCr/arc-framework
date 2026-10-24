@@ -11,6 +11,8 @@
 
 import type { RecordReference } from "../../store/identity.js";
 import type { DependencyResolver } from "./store-dependency-resolution.js";
+import { planStoreDependencyReconcile } from "./store-dependency-rows.js";
+import type { ClashTie } from "../../store/clash-repair.js";
 import type { PreparedLifecycleWrite } from "../prepared-lifecycle-write.js";
 import type { StoreRefusal, Remedy } from "../../store/refusal.js";
 import {
@@ -61,8 +63,19 @@ export interface DependencyReconcileConflict {
   reason: DependencyReconcileConflictReason;
 }
 
-/** Typed dependency component shared by current-WU reconcile consumers. */
+/** An edge retained because its intended holder cannot be selected. */
+export interface HeldDependencyEdge {
+  edge: string;
+  name: string;
+  cause: "tie" | "not-a-work-unit" | "unresolved-follow";
+  candidates: RecordReference[];
+  tie?: ClashTie;
+  repair: Remedy;
+}
+
+/** Scheduling edges and the identity evidence that discharged, held, or replaced them. */
 export interface DependencyReconcileComponent {
+  held?: readonly HeldDependencyEdge[];
   before: readonly string[];
   after: readonly string[];
   replacements: ReadonlyArray<{
@@ -219,6 +232,11 @@ interface ResolvedRetiredEdge {
 export async function planDependencyReconcile(
   input: PlanDependencyReconcileInput,
 ): Promise<CurrentWuReconcilePlan> {
+  return input.resolveDependency === undefined ? planIndexedDependencyReconcile(input)
+    : planStoreDependencyReconcile({ ...input, resolveDependency: input.resolveDependency });
+}
+
+async function planIndexedDependencyReconcile(input: PlanDependencyReconcileInput): Promise<CurrentWuReconcilePlan> {
   const before = canonicalEdges(input.edges);
   const after: string[] = [];
   const discharged: string[] = [];
@@ -495,8 +513,13 @@ export async function prepareCurrentWuReconcile(
       reason: plan.dependency.conflicts[0]?.reason ?? "reference-history-conflict",
     };
   }
-  if (edits.length === 0 && combinedPlan.advisories.length === 0) return { status: "clean", prepared };
+  if (edits.length === 0 && !hasPendingReconcileFindings(combinedPlan)) return { status: "clean", prepared };
   return { status: "pending", prepared };
+}
+
+/** Whether a plan remains visible even when it has no tracked edits to apply. */
+export function hasPendingReconcileFindings(plan: CurrentWuReconcilePlan): boolean {
+  return plan.advisories.length > 0 || (plan.dependency.held?.length ?? 0) > 0;
 }
 
 /**

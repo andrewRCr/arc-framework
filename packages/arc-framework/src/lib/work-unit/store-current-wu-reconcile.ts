@@ -5,7 +5,7 @@ import { writeMetaDependsOn } from "../store/kinds/meta/writers.js";
 import { checkAdvancingPause } from "../store/lifecycle-pause.js";
 import { applyPreparedLifecycleWrite, revalidateLifecycleRecords } from "./prepared-lifecycle-write.js";
 import { createStoreReconcilePrepareContext } from "./store-reconcile-context.js";
-import { prepareCurrentWuReconcile, type CurrentWuReconcileCeremony, type CurrentWuReconcileResult,
+import { hasPendingReconcileFindings, prepareCurrentWuReconcile, type CurrentWuReconcileCeremony, type CurrentWuReconcileResult,
   type PreparedCurrentWuReconcile } from "./side-effects/discharge-dep-edges.js";
 
 /** Bind complete record acquisition and one version-bound atomic apply. */
@@ -44,7 +44,7 @@ export async function applyStoreCurrentWuReconcile(store: Store, prepared: Prepa
   if (plan.writes.length === 0) {
     const valid = await revalidateLifecycleRecords(store, plan.records);
     if (valid.status === "refused") return { status: "conflict", prepared, reason: "stale-content", refusal: valid.refusal };
-    return { status: prepared.plan.advisories.length === 0 ? "clean" : "pending", prepared };
+    return { status: hasPendingReconcileFindings(prepared.plan) ? "pending" : "clean", prepared };
   }
   const result = await applyPreparedLifecycleWrite(store, plan, { verb: "wu-reconcile", lifecycleAction: "reconcile" });
   if (result.status === "refused") return { status: "conflict", prepared, reason: "stale-content", refusal: result.refusal };

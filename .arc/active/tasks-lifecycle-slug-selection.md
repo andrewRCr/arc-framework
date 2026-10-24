@@ -357,7 +357,7 @@ cohort over the reference backend directly.
           Current-name and omitted operands keep the checkout-owned selection path; a clashed different operand
           leaves every holder and the caller unchanged. The current primary's read refusal also remains structured.
 
-### `[ ]` **3.3 Resolve each name an edge meets once, and decide by the resolved record — § 5.1, § 5.2**
+### `[x]` **3.3 Resolve each name an edge meets once, and decide by the resolved record — § 5.1, § 5.2**
 
 - _Goal:_ The store arm's reconcile decides each `Depends On` edge from one lookup resolution of each name it meets, and
   from then on by the resolved record's reference, discharging only an Integrating or completed work unit and never
@@ -369,50 +369,16 @@ cohort over the reference backend directly.
           view's entry or retain their exact lineage identity; store retarget and replacement dispositions carry their
           target references, while the shared in-repo projection stays unchanged.
 
-    - `[ ]` **3.3.b The held list**
+    - `[x]` **3.3.b The held list**
 
-        - `DependencyReconcileComponent` (`discharge-dep-edges.ts`) carries an optional `held` list, each entry carrying
-          `edge`, `name`, `cause` (`"tie"`, `"not-a-work-unit"`, or `"unresolved-follow"`), `candidates`
-          (`RecordReference[]`), an optional `tie`, and `repair`: the edge, the name whose resolution held it, why, the
-          holder or each tied candidate, the tie's facts where a tie held it, and the repair as a `Remedy`, which is
-          `clashRepair`'s for a tie that includes a work unit and otherwise the text alone of editing the edge to name
-          the intended holder's current name, or removing it. A held edge stays in `after` and is not listed in `live`;
-          the in-repo planner leaves `held` out.
-        - The session-start reconcile schema (`lib/session-init/current-wu-reconcile-schema.ts`), whose `dependency` is
-          a strict object, gains the field in place, its candidates through `RecordReferenceSchema`. A held edge makes
-          an otherwise clean plan `pending` at prepare and at apply alike (`prepareCurrentWuReconcile`,
-          `applyStoreCurrentWuReconcile`).
-        - Build `test-first` (one behavior at a time):
-            - a component with a held entry parses through the session schema, and one without parses as today's
-            - a plan whose only finding is a held edge is `pending` at prepare and at apply
+        - Added typed held-edge diagnostics to dependency components and the strict session schema. A shared finding
+          predicate keeps held-only plans pending at prepare and store apply.
 
-    - `[ ]` **3.3.c The rows**
+    - `[x]` **3.3.c The rows**
 
-        - `planDependencyReconcile` takes the store path where its context carries the resolver, dispatching to a new
-          module of store rows (`lib/work-unit/side-effects/store-dependency-rows.ts`), since `discharge-dep-edges.ts`
-          is at its suppressed complexity counts. The first matching row applies: the dependent itself refuses as
-          `self-dependency`; an Integrating or completed work unit discharges; a live work unit under the name as its
-          current name stays; a live work unit under another current name follows it where that name's lookup returns
-          the same work unit (`sameReference`), and is held otherwise, cause `unresolved-follow`; any refusal but
-          `ambiguous-match` and `not-found` refuses as `namespace-corrupt`. 3.4 and 3.5 add the lineage and tie rows;
-          until they land, a result no store row matches, a cohort's, an Errand's, a tie's, or `not-found`, falls back
-          to today's disposition query (`queryDisposition`).
-        - A disposition that substitutes targets resolves each target once: targets that stay live replace the edge
-          under their current names, and Integrating or completed ones discharge; where any target's row would hold the
-          edge, the whole edge is held under its own name. Any conflict refuses the whole rewrite; a cycle among lineage
-          names stays `rename-cycle`. An edge on the dependent's own current name refuses as a self-dependency before
-          any lookup.
-        - The in-repo contexts (`buildCurrentWuReconcile`, `handleWuReconcile`, session start's probe in
-          `handlers/status.ts`) supply no resolver and keep `resolveSlugState` and `queryGitTransitionDisposition`; the
-          planner's in-repo tests (`discharge-dep-edges.test.ts`) pass unchanged.
-        - Build `test-first` (one behavior at a time):
-            - an edge naming a reused slug classifies against the live holder and is not discharged
-            - an edge on a completed work unit's former name is discharged, with no self-dependency, where the dependent
-              has taken that work unit's current name
-            - an edge on a live work unit's former name takes its current name where that name's lookup returns the same
-              work unit, and is held where that name's lookup ties, a live cohort also taking the current name
-            - a decomposition's replacements stay for the live targets and discharge for the completed ones, and one
-              target that would hold holds the whole edge under its own name
+        - Added the store row planner with exact identity classification, guarded current-name follows, and recursive
+          UID-bearing lineage replacements. A held target retains the whole original edge; any conflict refuses the
+          rewrite. The in-repo planner retains its index path.
 
 ### `[ ]` **3.4 Read the lineage for a name the lookup leaves to it — § 5.3**
 
