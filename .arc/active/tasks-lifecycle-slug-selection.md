@@ -328,7 +328,7 @@ cohort over the reference backend directly.
           while retaining the original remedy without ranking facts. Registered CLI cases cover collaboration and
           former ties, then retry successfully after cohort rename or Errand close, including completed lookups.
 
-### `[ ]` **3.2 Pass the refusal whole from every site that meets the clash first — § 4.1**
+### `[x]` **3.2 Pass the refusal whole from every site that meets the clash first — § 4.1**
 
 - _Goal:_ Wherever a verb first meets the clash, the refusal reaches the shared renderer whole, with its candidates and
   tier, rather than as text.
@@ -351,15 +351,11 @@ cohort over the reference backend directly.
           read failures. Teardown preserves it in its rejected result and shared rendering; the session sweep retains
           the previous diagnostic message, including recovery guidance.
 
-    - `[ ]` **3.2.d The reconcile handler's operand check**
+    - `[x]` **3.2.d The reconcile handler's operand check**
 
-        - `requestedReconcileConflict` (`handlers/reconcile.ts`) returns `{ reason, refusal }`. `emitConflict`, which
-          builds its own envelope with no `refusal` field today and prints its reason alone, takes the optional store
-          refusal, carries it as `refusal` in its envelope, and renders its text through `refuse` where one is present.
-          The check still skips the lookup for an operand equal to the checkout's holder's current name.
-        - Build `test-first` (one behavior at a time):
-            - `arc wu reconcile <slug>` naming a clashed slug from another checkout reports the refusal whole in
-              `--json` and prints both holders and the repair in text
+        - Reconcile operand conflicts carry their original store refusal into JSON and shared text rendering.
+          Current-name and omitted operands keep the checkout-owned selection path; a clashed different operand
+          leaves every holder and the caller unchanged. The current primary's read refusal also remains structured.
 
 ### `[ ]` **3.3 Resolve each name an edge meets once, and decide by the resolved record — § 5.1, § 5.2**
 

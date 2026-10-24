@@ -18,6 +18,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import * as p from "../lib/terminal.js";
+import { refuse } from "./lifecycle-shared.js";
 import { z } from "zod";
 
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
@@ -167,9 +168,9 @@ export async function handleStoreReconcile(store: Store, cwd: string, input: z.i
     return;
   }
   const meta = current.status === "resolved" ? await store.read({ reference: current.candidate.reference }) : await readWorkUnit(store, slug);
-  if (meta.status === "refused") { emitConflict(input, slug, `${meta.refusal.condition} ${meta.refusal.remedy.text}`); return; }
+  if (meta.status === "refused") { emitConflict(input, slug, meta.refusal.condition, meta.refusal); return; }
   const operandConflict = await requestedReconcileConflict(store, meta.result, input.slug);
-  if (operandConflict !== undefined) { emitConflict(input, input.slug ?? slug, operandConflict); return; }
+  if (operandConflict !== undefined) { emitConflict(input, input.slug ?? slug, operandConflict.reason, operandConflict.refusal); return; }
   const ceremony = buildStoreCurrentWuReconcile(store);
   try {
     const prepared = await ceremony.prepare({ slug, metaPath: workUnitMetaPath(meta.result), reference: meta.result.reference });
@@ -181,12 +182,12 @@ export async function handleStoreReconcile(store: Store, cwd: string, input: z.i
   } catch (error) { emitConflict(input, slug, error instanceof Error ? error.message : String(error)); }
 }
 
-async function requestedReconcileConflict(store: Store, primary: StoreRecord, requested?: string): Promise<string | undefined> {
+async function requestedReconcileConflict(store: Store, primary: StoreRecord, requested?: string): Promise<{ reason: string; refusal?: StoreRefusal } | undefined> {
   if (requested === undefined || requested === primary.reference.owner.name) return undefined;
   const read = await readWorkUnit(store, requested);
-  if (read.status === "refused") return `${read.refusal.condition} ${read.refusal.remedy.text}`;
+  if (read.status === "refused") return { reason: read.refusal.condition, refusal: read.refusal };
   return sameOwner(read.result.reference.owner, primary.reference.owner)
-    ? undefined : "The requested work unit does not match the checkout's work-unit identity.";
+    ? undefined : { reason: "The requested work unit does not match the checkout's work-unit identity." };
 }
 
 async function resolveOwnedTarget(
@@ -252,12 +253,13 @@ function toEnvelope(result: CurrentWuReconcileResult): ReconcileEnvelope {
   };
 }
 
-function emitConflict(opts: WuReconcileOptions, slug: string, reason: string): void {
+function emitConflict(opts: WuReconcileOptions, slug: string, reason: string, refusal?: StoreRefusal): void {
   const envelope = {
     schemaVersion: 1,
     status: "conflict",
     slug,
     reason,
+    ...(refusal === undefined ? {} : { refusal }),
     dependency: null,
     trackedReferences: { edits: [] },
     advisories: [],
@@ -265,6 +267,7 @@ function emitConflict(opts: WuReconcileOptions, slug: string, reason: string): v
     stagedPaths: [],
   };
   if (opts.json === true) process.stdout.write(`${JSON.stringify(envelope)}\n`);
+  else if (refusal !== undefined) refuse(reason, refusal);
   else p.log.error(reason);
   process.exitCode = 1;
 }
