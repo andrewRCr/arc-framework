@@ -8,7 +8,7 @@
  * @module
  */
 
-import { join, relative, sep } from "node:path";
+import { join } from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
 import { writeFile as fsWriteFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -28,12 +28,7 @@ import {
   applyChangePlan,
   resolveMissingBaselines,
   missingBaselineError,
-  plannedWritePaths,
-  findUncommittedPaths,
-  uncommittedChangesError,
-  findOccupiedPaths,
-  occupiedPathsError,
-  renderTemplate,
+  refuseUnsafePlanWrites,
   type FileMergeFn,
 } from "../lib/manifest/index.js";
 import { gitMergeFile, type GitExec } from "../lib/git/index.js";
@@ -393,20 +388,9 @@ export async function runUpdate(
     return path === arcConfigPath ? migrateUserSyncPush(content).content : content;
   };
   const initialPlan = buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles);
-  const writePaths = [...plannedWritePaths(initialPlan, arcDir), manifestPath];
-  const uncommitted = await findUncommittedPaths(io.exec, cwd, writePaths);
-  if (uncommitted.length > 0) {
-    throw uncommittedChangesError(uncommitted);
-  }
-  const arcRoot = relative(cwd, arcDir).split(sep).join("/");
-  const additions = await Promise.all(initialPlan.additions.map(async (entry) => ({
-    path: `${arcRoot}/${entry.outputPath}`,
-    content: await renderTemplate(templateDir, entry.templateFile, tokens, config, configKeyOverrides, io.readFile),
-  })));
-  const occupied = await findOccupiedPaths(cwd, additions, io.readFile);
-  if (occupied.length > 0) {
-    throw occupiedPathsError(occupied, "update");
-  }
+  await refuseUnsafePlanWrites({
+    plan: initialPlan, cwd, arcDir, manifestPath, renderCtx, exec: io.exec, readFile: io.readFile, command: "update",
+  });
   const missing = await resolveMissingBaselines(
     initialPlan, manifest, arcDir, { readFile: io.readFile, readAsMerged }, renderCtx,
   );

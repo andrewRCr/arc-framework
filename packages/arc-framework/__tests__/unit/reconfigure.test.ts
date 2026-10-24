@@ -20,7 +20,7 @@ vi.mock("../../src/lib/fs.js", async (importOriginal) => ({
 import { runReconfigure } from "../../src/commands/reconfigure.js";
 import type { DryRunResult, ReconfigureResult } from "../../src/commands/reconfigure.js";
 import type { IOContext } from "../../src/commands/init.js";
-import type { Recipe, Manifest } from "../../src/lib/types.js";
+import type { Recipe, Manifest, InstallConfig } from "../../src/lib/types.js";
 import type { PlannedRemoval } from "../../src/lib/manifest/plan.js";
 
 // --- Helpers ---
@@ -66,7 +66,8 @@ const minimalRecipe: Recipe = {
  * @param pristineStore - Pristine store data (returned for pristine.json reads)
  * @param templateFiles - Template file contents keyed by template-relative path
  * @param currentFiles - Current .arc/ file contents keyed by output-relative path
- *   (for tests that need to distinguish template reads from on-disk reads)
+ *   (for tests that need to distinguish template reads from on-disk reads, or that place a file the manifest does not
+ *   list)
  */
 function mockIO(
   manifest: Manifest,
@@ -76,20 +77,20 @@ function mockIO(
 ): IOContext {
   const manifestJson = JSON.stringify(manifest);
   const pristineJson = JSON.stringify(pristineStore);
+  const absent = (): NodeJS.ErrnoException => Object.assign(new Error("ENOENT"), { code: "ENOENT" });
 
   return {
     readFile: vi.fn(async (path: string) => {
       if (path.endsWith("manifest.json")) return manifestJson;
       if (path.endsWith("pristine.json")) return pristineJson;
-      if (path.endsWith(".gitignore")) {
-        const err = new Error("ENOENT") as NodeJS.ErrnoException;
-        err.code = "ENOENT";
-        throw err;
-      }
+      if (path.endsWith(".gitignore")) throw absent();
       // Current file reads (path includes .arc/ prefix from arcDir join)
       for (const [key, val] of Object.entries(currentFiles)) {
         if (path.endsWith(key)) return val;
       }
+      // An .arc/ file the manifest does not list is not installed yet
+      const installed = /\/\.arc\/(.+)$/u.exec(path)?.[1];
+      if (installed !== undefined && !(installed in manifest.files)) throw absent();
       // Template reads and fallback current file reads
       for (const [key, val] of Object.entries(templateFiles)) {
         if (path.endsWith(key)) return val;
@@ -772,5 +773,93 @@ describe("runReconfigure", () => {
       // Merges may exist (keep-set files) but they represent existing files, not changes
       // The key indicator is: no additions and no removals
     });
+  });
+});
+
+describe("runReconfigure refusals before writing", () => {
+  const toArcInGit: InstallConfig = {
+    project_name: "Test Project",
+    pm_mode: "arc-in-git",
+    tools: ["claude"],
+    team_mode: false,
+  };
+  const arcInGitRecipe: Recipe = {
+    include_files: ["reference/README.md", "system/arc-config.yml"],
+    computed_tokens: {},
+    prompts: [],
+    conditions: {
+      "pm.mode == arc-in-git": { include_files: ["backlog/ROADMAP.template.md"] },
+    },
+  };
+  const templateFiles = {
+    "reference/README.md": "# Readme",
+    "system/arc-config.yml": "pm.mode: none",
+    "backlog/ROADMAP.template.md": "# Roadmap for {{PROJECT_NAME}}",
+  };
+  const pristineStore = {
+    "reference/README.md": "# Readme",
+    "system/arc-config.yml": "pm.mode: none",
+  };
+
+  /** Report the given porcelain status entries for every `git status` call. */
+  function withStatus(io: IOContext, entries: string[]): IOContext {
+    return {
+      ...io,
+      exec: vi.fn(async (_command: string, args: readonly string[]) => ({
+        stdout: args.includes("status") ? entries.map((entry) => `${entry}\0`).join("") : "",
+        stderr: "",
+      })),
+    };
+  }
+
+  function reconfigure(io: IOContext, dryRun = false): ReturnType<typeof runReconfigure> {
+    return runReconfigure({
+      cwd: "/project", io, templateDir: "/templates", recipe: arcInGitRecipe, newInstallConfig: toArcInGit, dryRun,
+    });
+  }
+
+  beforeEach(() => {
+    atomicWriteJson.mockClear();
+  });
+
+  it.each([
+    ["a reconfigure", false],
+    ["a dry run", true],
+  ])("refuses %s over uncommitted changes to a file it rewrites, then runs once they are committed", async (
+    _shape, dryRun,
+  ) => {
+    const dirty = withStatus(mockIO(makeManifest(), pristineStore, templateFiles), [" M .arc/system/arc-config.yml"]);
+
+    await expect(reconfigure(dirty, dryRun)).rejects.toMatchObject({
+      code: "manifest.uncommitted-changes",
+      whatHappened: "reconfigure would rewrite files that have uncommitted changes",
+      whatToDo: "Commit or stash these changes, then retry `arc init --reconfigure`.",
+    });
+    const statusArgs = vi.mocked(dirty.exec).mock.calls[0]?.[1];
+    expect(statusArgs).toEqual(expect.arrayContaining([
+      ".arc/system/arc-config.yml", ".arc/backlog/ROADMAP.md", ".arc/system/.internal/manifest.json",
+    ]));
+    expect(dirty.writeFile).not.toHaveBeenCalled();
+    expect(atomicWriteJson).not.toHaveBeenCalled();
+
+    const committed = withStatus(mockIO(makeManifest(), pristineStore, templateFiles), []);
+    await expect(reconfigure(committed, dryRun)).resolves.toBeDefined();
+  });
+
+  it("refuses an addition over a file already at its path, then adds it once the file is moved aside", async () => {
+    const occupied = mockIO(makeManifest(), pristineStore, templateFiles, {
+      "backlog/ROADMAP.md": "# The project's own roadmap",
+    });
+
+    await expect(reconfigure(occupied)).rejects.toMatchObject({
+      code: "manifest.install-paths-occupied",
+      why: expect.stringContaining(".arc/backlog/ROADMAP.md"),
+      whatToDo: expect.stringContaining("retry `arc init --reconfigure`"),
+    });
+    expect(occupied.writeFile).not.toHaveBeenCalled();
+    expect(atomicWriteJson).not.toHaveBeenCalled();
+
+    const moved = await reconfigure(mockIO(makeManifest(), pristineStore, templateFiles)) as ReconfigureResult;
+    expect(moved.added).toContain("backlog/ROADMAP.md");
   });
 });

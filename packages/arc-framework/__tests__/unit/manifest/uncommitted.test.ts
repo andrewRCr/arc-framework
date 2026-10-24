@@ -57,11 +57,20 @@ describe("findUncommittedPaths", () => {
 
 describe("uncommittedChangesError", () => {
   test("names each file and the remedy", () => {
-    const err = uncommittedChangesError([".arc/system/arc-config.yml", ".arc/README.md"]);
+    const err = uncommittedChangesError([".arc/system/arc-config.yml", ".arc/README.md"], "update");
 
     expect(err).toBeInstanceOf(UserFacingError);
     expect(err.code).toBe("manifest.uncommitted-changes");
+    expect(err.whatHappened).toBe("update would rewrite files that have uncommitted changes");
     expect(err.why).toContain(".arc/system/arc-config.yml, .arc/README.md");
     expect(err.whatToDo).toBe("Commit or stash these changes, then retry `arc update`.");
+  });
+
+  test("names reconfigure and its retry when reconfigure refuses", () => {
+    const err = uncommittedChangesError([".arc/system/arc-config.yml"], "reconfigure");
+
+    expect(err.whatHappened).toBe("reconfigure would rewrite files that have uncommitted changes");
+    expect(err.why).toContain("Reconfiguring over them");
+    expect(err.whatToDo).toBe("Commit or stash these changes, then retry `arc init --reconfigure`.");
   });
 });

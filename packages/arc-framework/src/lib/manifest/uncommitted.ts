@@ -1,8 +1,8 @@
 /**
- * Uncommitted changes among the files an update writes — refused so the update starts from a clean point.
+ * Uncommitted changes among the files an update or reconfigure writes — refused so it starts from a clean point.
  *
- * An update rewrites ARC's installed files in place. Over uncommitted changes to those files, its own changes cannot
- * be told apart from the project's or reset on their own, and an untracked file it overwrites cannot be restored at
+ * Both rewrite ARC's installed files in place. Over uncommitted changes to those files, their own changes cannot be
+ * told apart from the project's or reset on their own, and an untracked file they overwrite cannot be restored at
  * all. Changes elsewhere in the working tree are left alone.
  *
  * @module
@@ -61,17 +61,23 @@ export async function findUncommittedPaths(exec: GitExec, cwd: string, paths: re
 }
 
 /**
- * Build the refusal for an update over uncommitted changes to the files it writes.
+ * Build the refusal for an update or reconfigure over uncommitted changes to the files it writes.
  *
  * @param paths - Repository-relative paths with uncommitted changes
+ * @param command - The refusing command
  * @returns The user-facing refusal, naming each file and the remedy
  */
-export function uncommittedChangesError(paths: readonly string[]): UserFacingError {
+export function uncommittedChangesError(
+  paths: readonly string[],
+  command: "update" | "reconfigure",
+): UserFacingError {
+  const action = command === "update" ? "Updating" : "Reconfiguring";
+  const retry = command === "update" ? "arc update" : "arc init --reconfigure";
   return new UserFacingError({
     code: "manifest.uncommitted-changes",
-    whatHappened: "update would rewrite files that have uncommitted changes",
-    why: `Uncommitted changes in: ${paths.join(", ")}. Updating over them leaves no clean point to inspect or reset `
-      + "the update from, and an untracked file it overwrote could not be restored.",
-    whatToDo: "Commit or stash these changes, then retry `arc update`.",
+    whatHappened: `${command} would rewrite files that have uncommitted changes`,
+    why: `Uncommitted changes in: ${paths.join(", ")}. ${action} over them leaves no clean point to inspect or reset `
+      + `the ${command} from, and an untracked file it overwrote could not be restored.`,
+    whatToDo: `Commit or stash these changes, then retry \`${retry}\`.`,
   });
 }
