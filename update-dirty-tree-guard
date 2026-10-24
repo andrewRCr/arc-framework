@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "update-dirty-tree-guard",
+  "claimId": "1b303405953a2b886241894cfc5acd22",
+  "createdAt": "2026-10-24T01:23:22.059Z",
+  "updatedAt": "2026-10-24T01:23:22.059Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Refuse arc update before any write when the paths it would touch carry uncommitted changes, naming them and giving the commit-or-stash remedy",
+  "branch": "fix/update-dirty-tree-guard",
+  "origin": "inbox",
+  "originEntry": "Refuse `arc update` on a dirty working tree",
+  "originEntrySourceDigest": "sha256:c9b8ae10796d0db5cd8fa8fc2dfcb429f518bb0d22b65eee3bd4d5489aab6bc5",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
