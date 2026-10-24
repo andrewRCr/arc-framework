@@ -4,7 +4,7 @@ import type { RecordedRemote } from "./migrate-record.js";
 import { fetchMigrationRemote } from "./migrate-remote-fetch.js";
 import { FORWARDING_REF, readForwardingRecord } from "./forwarding-record.js";
 import { commitMigrationRegistry } from "./migrate-registry.js";
-import { atomicMigrationPush, lostCopyLease, migrationPushRefusal } from "./migrate-remote-copy.js";
+import { atomicMigrationPush, migrationPushLanded } from "./migrate-remote-copy.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 
 /** A missing registry means an earlier delete landed; a different forwarding record is never removed. */
@@ -33,11 +33,9 @@ async function withdrawRounds(code: RefBackendContext, recorded: RecordedRemote)
     if (!tip) throw new Error("A parsed forwarding record has no ref tip");
     const next = await commitMigrationRegistry(code, registry, "forward");
     await code.migrateStep?.("leave.withdraw");
-    const pushed = await atomicMigrationPush(code, recorded.record.source.pushUrl, [
-      { ref: FORWARDING_REF, next: null, expected: tip }, { ref: "refs/arc/project/registry", next, expected: registry },
-    ]);
-    if (lostCopyLease(pushed)) continue;
-    if (pushed.status !== "refs" || pushed.refs.some(row => row.status !== "ok")) throw new MigrationRefusal(migrationPushRefusal(pushed));
+    const changes = [{ ref: FORWARDING_REF, next: null, expected: tip }, { ref: "refs/arc/project/registry", next, expected: registry }];
+    const pushed = await atomicMigrationPush(code, recorded.record.source.pushUrl, changes);
+    if (!await migrationPushLanded(code, recorded.record.source.pushUrl, changes, pushed)) continue;
     await code.migrateStep?.("leave.withdrawn");
     return true;
   }

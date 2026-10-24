@@ -1,5 +1,4 @@
 /** Finish remote moves through freshly licensed, leased re-copy and delete rounds. */
-import type { PushOutcome } from "../../git/push.js";
 import type { MigrateReport } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import type { RecordedRemote } from "./migrate-record.js";
@@ -8,7 +7,7 @@ import { fetchMigrationRemote } from "./migrate-remote-fetch.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { finishEndedRemoteMove } from "./migrate-remote-end.js";
 import { FORWARDING_REF, readForwardingRecord } from "./forwarding-record.js";
-import { atomicMigrationPush, clearRemoteGathering, lostCopyLease, migrationPushRefusal, prepareRemoteReCopy,
+import { atomicMigrationPush, clearRemoteGathering, migrationPushLanded, prepareRemoteReCopy,
   registryHoldsMove, remoteCopyChanges, remoteCopyReport, retainRemoteCopiedState } from "./migrate-remote-copy.js";
 
 /** Every round proves both move versions before any remote write; interruptions retain the move record. */
@@ -34,9 +33,9 @@ export async function deleteRemoteSource(code: RefBackendContext, recorded: Reco
       if (!await readDestinationLicense(code, recorded, destination)) return await finishEndedRemoteMove(code, recorded, { report, source, destination }, "after");
       if (!await recopyDeleteRound(code, recorded, ordinary, destination, report)) continue;
       await code.migrateStep?.("remote.delete");
-      const deleted = await atomicMigrationPush(code, recorded.record.source.pushUrl,
-        [...ordinary].map(([ref, expected]) => ({ ref, next: null, expected })));
-      if (!roundPushLanded(deleted)) continue;
+      const deletes = [...ordinary].map(([ref, expected]) => ({ ref, next: null, expected }));
+      const deleted = await atomicMigrationPush(code, recorded.record.source.pushUrl, deletes);
+      if (!await migrationPushLanded(code, recorded.record.source.pushUrl, deletes, deleted)) continue;
       report.refs.push(...remoteCopyReport(ordinary, new Map(), []).refs.map(row => ({ ...row, action: "delete" as const })));
       await code.migrateStep?.("remote.deleted");
     }
@@ -53,7 +52,7 @@ async function recopyDeleteRound(code: RefBackendContext, recorded: RecordedRemo
   const changes = remoteCopyChanges(prepared.refs, destination).filter(change => change.next !== change.expected);
   if (changes.length) {
     const copied = await atomicMigrationPush(code, recorded.record.destination.pushUrl, changes);
-    if (!roundPushLanded(copied)) return false;
+    if (!await migrationPushLanded(code, recorded.record.destination.pushUrl, changes, copied)) return false;
   }
   await retainRemoteCopiedState(code, ordinary);
   report.notices.push(...prepared.notices);
@@ -76,10 +75,4 @@ async function readSourceLicense(code: RefBackendContext, recorded: RecordedRemo
   const forwarding = await readForwardingRecord(code, refs.get(FORWARDING_REF), recorded.record.source.name);
   if (forwarding.status === "refused") throw new MigrationRefusal(forwarding.refusal);
   return forwarding.result?.registryCommit === recorded.record.registryCommit;
-}
-
-function roundPushLanded(outcome: PushOutcome): boolean {
-  if (lostCopyLease(outcome)) return false;
-  if (outcome.status !== "refs" || outcome.refs.some(row => row.status !== "ok")) throw new MigrationRefusal(migrationPushRefusal(outcome));
-  return true;
 }

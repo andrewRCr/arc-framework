@@ -6,8 +6,8 @@ import { migrationCodeContext, readMoveRecord, saveMoveRecord, removeMoveRecord,
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { resolveLeaveSource, leaveSourceInvalid, type LeaveSourceView } from "./leave-source-target.js";
 import { fetchMigrationRemote } from "./migrate-remote-fetch.js";
-import { checkCopyProject, copyProjectId, prepareRemoteReCopy, remoteCopyChanges, atomicMigrationPush, lostCopyLease,
-  migrationPushRefusal, remoteCopyReport, retainCopiedTips, readRemoteCopyReport, clearRemoteGathering, registryHoldsMove } from "./migrate-remote-copy.js";
+import { checkCopyProject, copyProjectId, prepareRemoteReCopy, remoteCopyChanges, atomicMigrationPush, migrationPushLanded,
+  remoteCopyReport, retainCopiedTips, readRemoteCopyReport, clearRemoteGathering, registryHoldsMove } from "./migrate-remote-copy.js";
 import { FORWARDING_REF, readForwardingRecord } from "./forwarding-record.js";
 import { switchRefFollow } from "./follow-switch.js";
 import { readFollowRemote } from "./follow-candidates.js";
@@ -59,8 +59,7 @@ async function copyLastSourceView(code: RefBackendContext, view: LeaveSourceView
     await code.migrateStep?.("leave.copy");
     if (changes.length) {
       const copied = await atomicMigrationPush(code, view.record.destination.pushUrl, changes);
-      if (lostCopyLease(copied)) continue;
-      if (copied.status !== "refs" || copied.refs.some(row => row.status !== "ok")) throw new MigrationRefusal(migrationPushRefusal(copied));
+      if (!await migrationPushLanded(code, view.record.destination.pushUrl, changes, copied)) continue;
     }
     const report = remoteCopyReport(prepared.refs, destination, prepared.notices);
     for (const ref of view.incoming.keys()) report.notices.push({

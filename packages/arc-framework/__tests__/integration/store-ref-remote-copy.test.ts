@@ -177,6 +177,30 @@ it("restarts a lost destination lease and records the commit that actually lands
   expect((await h.a.exec("git", [`--git-dir=${h.destination}`, "grep", "-F", '"next":2', landed])).stdout).toContain('"next":2');
 }, 45_000);
 
+it("restarts a destination lease the receiver reports lost and lands over the racing commit", async () => {
+  const h = await copyFixture(), counter = RecordReferenceSchema.parse({ kind: "project-registry/counter", key: "race", owner: { type: "project", name: "project" } });
+  success(await h.b.store.write({ action: "put", reference: counter, expected: null, content: '{"next":2}', provenance }));
+  await h.b.git(["push", h.destination, "refs/arc/project/registry:refs/test/raced"]);
+  const race = (await h.b.git(["rev-parse", "refs/arc/project/registry"])).stdout.trim(), marker = join(h.a.root, "raced");
+  const hook = join(h.destination, "hooks", "update");
+  await writeFile(hook, [
+    "#!/bin/sh",
+    `if [ "$1" = refs/arc/project/registry ] && [ ! -e '${marker}' ]; then`,
+    `  touch '${marker}'`,
+    `  env -u GIT_QUARANTINE_PATH -u GIT_OBJECT_DIRECTORY -u GIT_ALTERNATE_OBJECT_DIRECTORIES git --git-dir='${h.destination}' update-ref "$1" ${race} '' || exit 1`,
+    "fi",
+    "exit 0",
+    "",
+  ].join("\n"));
+  await chmod(hook, 0o755);
+  await expect(invokeStoreMigrate(h.argv, h.pause)).rejects.toThrow("Paused after remote copy");
+  await h.a.exec("test", ["-e", marker]);
+  const landed = (await h.a.exec("git", [`--git-dir=${h.destination}`, "rev-parse", "refs/arc/project/registry"])).stdout.trim();
+  expect(JSON.parse((await h.a.exec("git", ["show", "refs/arc/tmp/migrate/move:move.json"])).stdout).registryCommit).toBe(landed);
+  expect(landed).not.toBe(race);
+  await h.a.exec("git", [`--git-dir=${h.destination}`, "merge-base", "--is-ancestor", race, landed]);
+}, 45_000);
+
 
 it("merges onto this project's destination, reports broken rules, and makes the trial match the copy", async () => {
   const h = await copyFixture();

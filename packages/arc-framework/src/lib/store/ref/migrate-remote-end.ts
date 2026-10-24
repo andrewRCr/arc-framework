@@ -4,7 +4,7 @@ import type { RefBackendContext } from "./context.js";
 import { FORWARDING_REF, readForwardingRecord } from "./forwarding-record.js";
 import { removeMoveRecord, type RecordedRemote, type MoveRemote } from "./migrate-record.js";
 import { commitMigrationRegistry } from "./migrate-registry.js";
-import { atomicMigrationPush, clearRemoteGathering, lostCopyLease, migrationPushRefusal, readRemoteCopyVersion, registryHoldsMove, type RemoteCopy } from "./migrate-remote-copy.js";
+import { atomicMigrationPush, clearRemoteGathering, migrationPushLanded, readRemoteCopyVersion, registryHoldsMove, type RemoteCopy } from "./migrate-remote-copy.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 
 /** Where an overtaken move ended: before its switch, inside it and undone, or after it. */
@@ -53,11 +53,6 @@ export function describeEndedRemoteMove(recorded: RecordedRemote, copy: RemoteCo
 async function preserveForwarding(code: RefBackendContext, remote: MoveRemote, tip: string, expected: string | null,
   parent: string, registryLease: string): Promise<boolean> {
   const next = await commitMigrationRegistry(code, parent, "forward");
-  const pushed = await atomicMigrationPush(code, remote.pushUrl, [
-    { ref: FORWARDING_REF, next: tip, expected },
-    { ref: "refs/arc/project/registry", next, expected: registryLease },
-  ]);
-  if (lostCopyLease(pushed)) return false;
-  if (pushed.status !== "refs" || pushed.refs.some(row => row.status !== "ok")) throw new MigrationRefusal(migrationPushRefusal(pushed));
-  return true;
+  const changes = [{ ref: FORWARDING_REF, next: tip, expected }, { ref: "refs/arc/project/registry", next, expected: registryLease }];
+  return migrationPushLanded(code, remote.pushUrl, changes, await atomicMigrationPush(code, remote.pushUrl, changes));
 }

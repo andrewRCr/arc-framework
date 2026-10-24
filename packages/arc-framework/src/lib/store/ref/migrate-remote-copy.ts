@@ -2,6 +2,9 @@
 import { MigrateReportSchema, type MigrateReport } from "../commands.js";
 import { RecordReferenceSchema } from "../identity.js";
 import { pushRefs, type PushOutcome, type PushRefChange } from "../../git/push.js";
+import { classifyPushOutcome } from "../../git/push-classification.js";
+import { gitFailureText, isGitProcessError } from "../../git/process-error.js";
+import { classifyRemoteFailure } from "../../git/remote-ref-reader.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefRepository } from "./repository.js";
 import { commitMigrationRegistry, requireMoveProject } from "./migrate-registry.js";
@@ -48,10 +51,9 @@ export async function copyRemoteMove(code: RefBackendContext, transports: MoveTr
     await code.migrateStep?.("remote.copy");
     const changes = remoteCopyChanges(prepared.refs, held);
     const pushed = await atomicMigrationPush(code, destination.pushUrl, changes);
-    if (lostCopyLease(pushed)) continue;
-    if (pushed.status !== "refs" || pushed.refs.some(row => row.status !== "ok")) {
-      await refuseCopyPush(code, recorded, pushed, firstRun);
-    }
+    const settled = await settleMigrationPush(code, destination.pushUrl, changes, pushed);
+    if (settled === "restart") continue;
+    if (settled === "refused") await refuseCopyPush(code, recorded, pushed, firstRun);
     await retainCopiedTips(code, incoming, observed, { registry: prepared.registry, report, destination: held });
     await code.migrateStep?.("remote.copied");
     return { recorded, report, source: incoming, destination: held };
@@ -155,9 +157,33 @@ export async function atomicMigrationPush(code: RefBackendContext, url: string, 
   return pushRefs(async (command, args, options) => code.exec(command, args.includes("--atomic") ? args : [args[0] ?? "push", "--atomic", ...args.slice(1)], options), url, changes, { cwd: code.checkoutRoot });
 }
 
-/** A stale acquisition restarts the round instead of weakening its receiver leases. */
-export function lostCopyLease(outcome: PushOutcome): boolean {
-  return outcome.status === "refs" && outcome.refs.some(row => row.status === "rejected" && /stale info|fetch first|non-fast-forward/u.test(row.reason));
+/** A lost lease, or a receiver refusal whose leased refs have moved since, reruns the round rather than weakening its leases. */
+async function settleMigrationPush(code: RefBackendContext, url: string, changes: readonly PushRefChange[],
+  outcome: PushOutcome): Promise<"landed" | "restart" | "refused"> {
+  const classified = classifyPushOutcome(outcome);
+  if (classified.status === "ok") return "landed";
+  if (classified.status === "lost-race") return "restart";
+  return classified.status === "by-state" && await leasesMoved(code, url, changes) ? "restart" : "refused";
+}
+
+/** True once the push landed and false to rerun its round; any other outcome refuses with the receiver's cause. */
+export async function migrationPushLanded(code: RefBackendContext, url: string, changes: readonly PushRefChange[], outcome: PushOutcome): Promise<boolean> {
+  const settled = await settleMigrationPush(code, url, changes, outcome);
+  if (settled === "refused") throw new MigrationRefusal(migrationPushRefusal(outcome));
+  return settled === "landed";
+}
+
+async function leasesMoved(code: RefBackendContext, url: string, changes: readonly PushRefChange[]): Promise<boolean> {
+  let listed: string;
+  try { listed = (await code.exec("git", ["ls-remote", url, "refs/arc/*"], { cwd: code.checkoutRoot })).stdout; }
+  catch (error) {
+    if (!isGitProcessError(error)) throw error;
+    throw new MigrationRefusal({ code: "store", refusal: { code: "unreachable", class: "recoverable", cause: classifyRemoteFailure(error),
+      condition: `Could not read ${url} after it refused the move's push: ${gitFailureText(error)}`,
+      remedy: { text: "Restore access and run arc store migrate; the refused push changed nothing there." } } });
+  }
+  const tips = new Map(listed.split("\n").filter(Boolean).map(row => { const [tip = "", ref = ""] = row.split("\t"); return [ref, tip]; }));
+  return changes.some(({ ref, expected }) => (tips.get(ref) ?? null) !== (expected ?? null));
 }
 
 /** Preserve transport and definitive receiver refusals for a recorded migration. */

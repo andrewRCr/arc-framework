@@ -1,6 +1,5 @@
 /** Clear a followed source in freshly licensed rounds after the explicit designation switch. */
 import { readFollowRemote } from "./follow-candidates.js";
-import type { PushOutcome } from "../../git/push.js";
 import type { MigrateReport } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import type { RecordedFollow } from "./migrate-record.js";
@@ -10,7 +9,7 @@ import { fetchLayoutObjects, requireLayoutTransaction } from "./migrate-layout-b
 import { readSyncRefs } from "./sync-graph.js";
 import { FORWARDING_REF, readForwardingRecord } from "./forwarding-record.js";
 import { requireFollowDestination } from "./follow-copy.js";
-import { prepareRemoteReCopy, remoteCopyChanges, atomicMigrationPush, lostCopyLease, migrationPushRefusal,
+import { prepareRemoteReCopy, remoteCopyChanges, atomicMigrationPush, migrationPushLanded,
   remoteCopyReport, retainRemoteCopiedState } from "./migrate-remote-copy.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 
@@ -31,8 +30,9 @@ export async function deleteFollowSource(code: RefBackendContext, recorded: Reco
       if (!ordinary.size) return;
       if (!await recopyFollowRound(code, recorded, ordinary, destination, report)) continue;
       await code.migrateStep?.("follow.delete");
-      const deleted = await atomicMigrationPush(code, recorded.record.source.pushUrl, [...ordinary].map(([ref, expected]) => ({ ref, next: null, expected })));
-      if (!followPushLanded(deleted)) continue;
+      const deletes = [...ordinary].map(([ref, expected]) => ({ ref, next: null, expected }));
+      const deleted = await atomicMigrationPush(code, recorded.record.source.pushUrl, deletes);
+      if (!await migrationPushLanded(code, recorded.record.source.pushUrl, deletes, deleted)) continue;
       report.refs.push(...remoteCopyReport(ordinary, new Map(), []).refs.map(row => ({ ...row, action: "delete" as const })));
       await code.migrateStep?.("follow.deleted");
     }
@@ -50,7 +50,7 @@ async function recopyFollowRound(code: RefBackendContext, recorded: RecordedFoll
   const changes = remoteCopyChanges(prepared.refs, destination).filter(row => row.next !== row.expected);
   if (changes.length) {
     const copied = await atomicMigrationPush(code, recorded.record.destination.pushUrl, changes);
-    if (!followPushLanded(copied)) return false;
+    if (!await migrationPushLanded(code, recorded.record.destination.pushUrl, changes, copied)) return false;
   }
   await retainRemoteCopiedState(code, ordinary);
   report.notices.push(...prepared.notices);
@@ -69,12 +69,6 @@ async function retainLaterFollow(code: RefBackendContext, recorded: RecordedFoll
   await requireLayoutTransaction(physical, [{ ref, next: tip, expected }]);
   report.notices.push({ condition: "A later move ended this follow's cleanup. No remaining source refs were deleted; follow the new forwarding record.",
     remedy: { text: "Bring in the latest tracked pointer, then run arc store migrate.", argv: ["arc", "store", "migrate"] } });
-  return true;
-}
-
-function followPushLanded(outcome: PushOutcome): boolean {
-  if (lostCopyLease(outcome)) return false;
-  if (outcome.status !== "refs" || outcome.refs.some(row => row.status !== "ok")) throw new MigrationRefusal(migrationPushRefusal(outcome));
   return true;
 }
 

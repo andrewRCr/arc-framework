@@ -3,7 +3,7 @@ import type { RefBackendContext } from "./context.js";
 import { FORWARDING_REF, readForwardingRecord, writeForwardingRecord } from "./forwarding-record.js";
 import { fetchMigrationRemote } from "./migrate-remote-fetch.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
-import { atomicMigrationPush, migrationPushRefusal, type RemoteCopy } from "./migrate-remote-copy.js";
+import { atomicMigrationPush, migrationPushLanded, type RemoteCopy } from "./migrate-remote-copy.js";
 import { commitMigrationRegistry, requireMoveProject } from "./migrate-registry.js";
 import type { RecordedRemote } from "./migrate-record.js";
 
@@ -20,11 +20,9 @@ export async function forwardRemoteMove(code: RefBackendContext, copy: RemoteCop
     const forwarding = await writeForwardingRecord(code, { projectId, registryCommit: recorded.record.registryCommit });
     const next = await commitMigrationRegistry(code, registry, "forward");
     await code.migrateStep?.("remote.forward");
-    const pushed = await atomicMigrationPush(code, recorded.record.source.pushUrl, [
-      { ref: FORWARDING_REF, next: forwarding, expected: null }, { ref: "refs/arc/project/registry", next, expected: registry },
-    ]);
-    if (pushed.status === "refs" && pushed.refs.some(row => row.status === "rejected" && /stale info|fetch first|non-fast-forward/u.test(row.reason))) return "restart";
-    if (pushed.status !== "refs" || pushed.refs.some(row => row.status !== "ok")) throw new MigrationRefusal(migrationPushRefusal(pushed));
+    const changes = [{ ref: FORWARDING_REF, next: forwarding, expected: null }, { ref: "refs/arc/project/registry", next, expected: registry }];
+    const pushed = await atomicMigrationPush(code, recorded.record.source.pushUrl, changes);
+    if (!await migrationPushLanded(code, recorded.record.source.pushUrl, changes, pushed)) return "restart";
     await code.migrateStep?.("remote.forwarded");
   }
   return await holdsOwnForwarding(code, recorded) ? "forwarded" : "restart";

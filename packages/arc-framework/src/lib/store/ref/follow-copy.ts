@@ -7,7 +7,7 @@ import { fetchMigrationRemote } from "./migrate-remote-fetch.js";
 import { FORWARDING_REF, readForwardingRecord } from "./forwarding-record.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { captureMoveHeads, retainCopiedTips, prepareRemoteReCopy, remoteCopyChanges, remoteCopyReport,
-  atomicMigrationPush, lostCopyLease, migrationPushRefusal, registryHoldsMove } from "./migrate-remote-copy.js";
+  atomicMigrationPush, migrationPushLanded, registryHoldsMove } from "./migrate-remote-copy.js";
 import { projectIdentityQueries, projectOwnerFromObjects } from "./project-identity.js";
 import { readBatchObjects } from "./batch-read.js";
 
@@ -32,8 +32,7 @@ async function copyLicensedFollowState(code: RefBackendContext, record: FollowMo
     await code.migrateStep?.("follow.copy");
     if (changes.length) {
       const copied = await atomicMigrationPush(code, record.destination.pushUrl, changes);
-      if (lostCopyLease(copied)) continue;
-      if (copied.status !== "refs" || copied.refs.some(row => row.status !== "ok")) throw new MigrationRefusal(migrationPushRefusal(copied));
+      if (!await migrationPushLanded(code, record.destination.pushUrl, changes, copied)) continue;
     }
     const report = remoteCopyReport(prepared.refs, destination, prepared.notices);
     await retainCopiedTips(code, source, heads, { registry: record.forwarding.registryCommit, report, destination, headBasis: prepared.refs });
