@@ -193,6 +193,11 @@ export async function runReconfigure(
     buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles), manifest, arcDir,
     { readFile: io.readFile }, renderCtx,
   );
+  // Refuse before any preview, prompt, or write: merging a customized file with no baseline would drop its upstream
+  // changes
+  if (missing.edits.length > 0) {
+    throw missingBaselineError(missing.edits, "reconfigure");
+  }
   Object.assign(pristineStore, missing.recovered);
 
   // Build change plan (pure computation — old manifest vs new file list)
@@ -210,11 +215,6 @@ export async function runReconfigure(
       previousConfig,
       newConfig: newInstallConfig,
     };
-  }
-
-  // Refuse before any prompt or write: merging a customized file with no baseline would drop its upstream changes
-  if (missing.edits.length > 0) {
-    throw missingBaselineError(missing.edits, "reconfigure");
   }
 
   const originalRemovals = [...plan.removals];

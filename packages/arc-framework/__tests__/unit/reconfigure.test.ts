@@ -459,7 +459,10 @@ describe("runReconfigure", () => {
       expect(writtenPristine["reference/QUICK-REFERENCE.md"]).toContain("New Name");
     });
 
-    it("refuses before writing when a customized file has no merge baseline", async () => {
+    it.each([
+      ["a reconfigure", false],
+      ["a dry run", true],
+    ])("%s refuses before writing when a customized file has no merge baseline", async (_mode, dryRun) => {
       const manifest = makeManifest({
         files: {
           "reference/QUICK-REFERENCE.md": {
@@ -485,6 +488,7 @@ describe("runReconfigure", () => {
           conditions: {},
         },
         newInstallConfig: { project_name: "New Name", pm_mode: "none", tools: [], team_mode: false },
+        dryRun,
       })).rejects.toThrow(expect.objectContaining({ code: "manifest.baseline-missing" }));
 
       expect(io.writeFile).not.toHaveBeenCalled();
