@@ -751,6 +751,20 @@ describe("remote moves beside an unsettled layout", () => {
     expect((await runStoreMigrate(h.a.ports)).status).toBe("ok");
   });
 
+  it("refuses leaving the source while a layout record stands, recoverably naming arc store migrate", async () => {
+    const h = await layoutFixture();
+    success(await h.a.store.push());
+    expect((await runStoreRemote(h.a.ports, { remote: "origin", role: "off" })).status).toBe("ok");
+    await expect(runStoreRemote({ ...h.a.ports, migrateStep: (step) => step === "layout.delete"
+      ? Promise.reject(new Error("Stop before source delete")) : Promise.resolve() }, { remote: "origin", role: "push" })).rejects.toThrow("Stop before source delete");
+    const record = await recordTip(h);
+    expect(await invokeStoreMigrate(["--leave-source"], h.a.ports)).toMatchObject({ status: "refused",
+      refusal: { code: "move-unfinished", class: "recoverable", remedy: { argv: ["arc", "store", "migrate"] } } });
+    expect(await recordTip(h)).toBe(record);
+    expect((await runStoreMigrate(h.a.ports)).status).toBe("ok");
+    expect(await recordTip(h)).toBe("");
+  });
+
   it.each(["push-default", "removal"] as const)("refuses move-incomplete before copying or recording after an external %s edit", async (edit) => {
     const h = await layoutFixture();
     success(await h.a.store.push());

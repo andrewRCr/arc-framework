@@ -74,9 +74,9 @@ async function reconcileNoTarget(context: RefBackendContext, store: Store): Prom
 /** Apply a code remote's own setting in the order its layout switch requires. */
 export async function runRefRemote(context: RefBackendContext, store: Store, input: StoreRemoteInput): Promise<StoreRemoteResult> {
   const parsed = StoreRemoteInputSchema.safeParse(input);
-  if (!parsed.success) return unsupportedCommand("The remote request is invalid.");
+  if (!parsed.success) return invalidRemoteCommand("The remote request is invalid.");
   if (!input.remote && !input.role) return { status: "ok", result: await remoteView(context) };
-  if (!input.remote || !input.role) return invalidCommand("A remote setting requires both a remote and a role.");
+  if (!input.remote || !input.role) return invalidRemoteCommand("A remote setting requires both a remote and a role.");
   const setting = { remote: input.remote, role: input.role };
   return withMigrationLock(context, async () => {
     const existing = await readMoveRecord(await migrationCodeContext(context));
@@ -122,9 +122,9 @@ async function withMigrationLock<T>(context: RefBackendContext, operation: () =>
   }
 }
 
-function unsupportedCommand(condition: string): { status: "refused"; refusal: { code: "unsupported"; class: "terminal"; condition: string; remedy: { text: string } } } {
-  return { status: "refused", refusal: { code: "unsupported", class: "terminal", condition,
-    remedy: { text: "Use a supported store command input, then retry." } } };
+function invalidRemoteCommand(condition: string): Extract<StoreRemoteResult, { status: "refused" }> {
+  return { status: "refused", refusal: { code: "request-invalid", class: "terminal", condition,
+    remedy: { text: "Set one remote's role with arc store remote <remote> <push|read|off>, or run arc store remote alone to view the roles." } } };
 }
 
 function invalidCommand(condition: string): Extract<StoreMigrateResult, { status: "refused" }> {

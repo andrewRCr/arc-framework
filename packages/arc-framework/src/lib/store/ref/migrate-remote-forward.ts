@@ -4,7 +4,7 @@ import { FORWARDING_REF, readForwardingRecord, writeForwardingRecord } from "./f
 import { fetchMigrationRemote } from "./migrate-remote-fetch.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { atomicMigrationPush, migrationPushRefusal, type RemoteCopy } from "./migrate-remote-copy.js";
-import { commitMigrationRegistry, migrationProjectId } from "./migrate-registry.js";
+import { commitMigrationRegistry, requireMoveProject } from "./migrate-registry.js";
 import type { RecordedRemote } from "./migrate-record.js";
 
 /** A lost registry or absence lease restarts acquisition without switching this clone. */
@@ -16,7 +16,7 @@ export async function forwardRemoteMove(code: RefBackendContext, copy: RemoteCop
   if (!prior.result) {
     const registry = copy.source.get("refs/arc/project/registry");
     if (!registry) throw new Error("A remote move has no captured source registry");
-    const projectId = await migrationProjectId(code, registry);
+    const projectId = await requireMoveProject(code, registry, recorded.record.source.name);
     const forwarding = await writeForwardingRecord(code, { projectId, registryCommit: recorded.record.registryCommit });
     const next = await commitMigrationRegistry(code, registry, "forward");
     await code.migrateStep?.("remote.forward");

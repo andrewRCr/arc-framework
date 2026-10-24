@@ -2,7 +2,7 @@
 import type { RefBackendContext } from "./context.js";
 import type { LeaveSourceMoveRecord } from "./migrate-record.js";
 import { readRefDesignation } from "./designation.js";
-import { captureMoveRemote } from "./migrate-remote-target.js";
+import { captureMoveRemote, sharesMoveUrl } from "./migrate-remote-target.js";
 import { readRefRepository } from "./repository.js";
 import { fetchLayoutObjects } from "./migrate-layout-build.js";
 import { publisherLayout } from "./layout-state.js";
@@ -28,11 +28,12 @@ export async function resolveLeaveSource(context: RefBackendContext, code: RefBa
   const target = to ?? (designation.backing && pointer !== source.fetchUrl ? pointer : null);
   if (!target) throw leaveSourceInvalid("Leaving this source requires --to <remote> naming the state's new home.");
   const candidate = designation.codeRemotes.find(remote => remote.name === target);
+  if (!candidate && target !== pointer) throw leaveSourceInvalid(
+    `${target} is neither a remote of the code repository nor the URL this checkout's storage.backing_repository names${pointer ? ` (${pointer})` : ""}.`,
+    "Name a remote of the code repository with --to, or bring in the tracked pointer's change naming the state's new home, then retry arc store migrate --leave-source.");
   const destination = candidate ? await captureMoveRemote(context, code, candidate)
     : { name: "backing", repository: "backing" as const, fetchUrl: target, pushUrl: target };
-  if (destination.fetchUrl === source.fetchUrl || destination.pushUrl === source.pushUrl) {
-    throw leaveSourceInvalid("The destination URL is the old source's URL; choose a different remote with --to.");
-  }
+  if (sharesMoveUrl(destination, source)) throw leaveSourceInvalid("The destination URL is the old source's URL; choose a different remote with --to.");
   const physical = await readRefRepository(context), root = `refs/arc-remotes/${source.name}/`;
   const tracking = await readSyncRefs(physical, root), local = await readSyncRefs(physical, "refs/arc/project/registry");
   const heads = await captureMoveHeads(code, source);

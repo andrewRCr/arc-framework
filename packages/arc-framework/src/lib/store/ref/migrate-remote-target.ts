@@ -11,3 +11,7 @@ export async function captureMoveRemote(context: RefBackendContext, code: RefBac
   return { name: remote.name, repository: remote.repository, fetchUrl: urls[0] ?? remote.url, pushUrl: urls[1] ?? remote.url };
 }
 
+/** Two remotes are one repository to a move where either URL of one is either URL of the other. */
+export function sharesMoveUrl(left: Pick<MoveRemote, "fetchUrl" | "pushUrl">, right: Pick<MoveRemote, "fetchUrl" | "pushUrl">): boolean {
+  return [left.fetchUrl, left.pushUrl].some(url => url === right.fetchUrl || url === right.pushUrl);
+}

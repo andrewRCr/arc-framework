@@ -102,9 +102,9 @@ async function readDepartureRecord(code: RefBackendContext, resume?: RecordedLea
   if (existing.status === "refused") return existing;
   if (!existing.result) return { status: "ok", result: null };
   if (existing.result.record.kind !== "layout") return existing;
-  return { status: "refused", refusal: { code: "unsupported", class: "terminal",
-    condition: "Ending another recorded move with --leave-source is not implemented.",
-    remedy: { text: "Finish the recorded move with arc store migrate before leaving its source." } } };
+  return { status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
+    condition: "A layout move is recorded; finish it before leaving the source.",
+    remedy: { text: "Run arc store migrate with no target to finish the recorded layout move, then retry --leave-source.", argv: ["arc", "store", "migrate"] } } };
 }
 
 function checkDepartureResume(resume: RecordedLeaveSource | undefined, { to, trial }: Pick<StoreMigrateInput, "to" | "trial">): void {

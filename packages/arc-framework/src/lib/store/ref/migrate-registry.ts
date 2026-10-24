@@ -23,12 +23,16 @@ export async function commitMigrationRegistry(code: RefBackendContext, parent: s
   return stdout.trim();
 }
 
-/** Require an initialized project where a forwarding record must carry its UUID. */
-export async function migrationProjectId(code: RefBackendContext, registry: string): Promise<string> {
-  const refs = new Map([["refs/arc/project/registry", registry]]);
-  const owner = projectOwnerFromObjects(refs, await readBatchObjects(code, projectIdentityQueries(refs)));
-  if (owner.status === "refused") throw new MigrationRefusal({ code: "store", refusal: owner.refusal });
-  if (owner.result.type === "project" && owner.result.uid) return owner.result.uid;
-  throw new MigrationRefusal({ code: "store", refusal: { code: "namespace-corrupt", class: "terminal", namespace: "refs/arc/project/registry",
-    condition: "The state remote's registry has no project identity to forward.", remedy: { text: "Restore the initialized project identity on the state remote, then retry arc store migrate." } } });
+/** Require the initialized project whose UUID a move's forwarding record names, before the move writes anything. */
+export async function requireMoveProject(code: RefBackendContext, registry: string | undefined, remote: string): Promise<string> {
+  if (registry) {
+    const refs = new Map([["refs/arc/project/registry", registry]]);
+    const owner = projectOwnerFromObjects(refs, await readBatchObjects(code, projectIdentityQueries(refs)));
+    if (owner.status === "refused") throw new MigrationRefusal({ code: "store", refusal: owner.refusal });
+    if (owner.result.type === "project" && owner.result.uid) return owner.result.uid;
+  }
+  throw new MigrationRefusal({ code: "store", refusal: { code: "not-found", class: "recoverable",
+    reference: RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } }),
+    condition: `Remote ${remote} holds no project identity, which the move's forwarding record must name.`,
+    remedy: { text: `Publish the project identity to ${remote} from a clone whose store holds it, then retry the move.` } } });
 }

@@ -87,6 +87,21 @@ it("refuses trial, the same URL, and a missing explicit destination without chan
   expect(await invokeStoreMigrate(["--leave-source", "--to", h.to], h.ports)).toMatchObject({ status: "refused", refusal: { code: "no-state-remote" } });
 });
 
+it.each(["code", "backing"] as const)("refuses a --to URL the checkout's pointer does not name, leaving a %s source untouched", async source => {
+  const h = await switchFixture(source, "backing"), elsewhere = join(h.a.root, "elsewhere.git");
+  await h.a.exec("git", ["init", "--bare", elsewhere]);
+  const before = success(await h.store.version());
+  const roles = (await invokeStoreRemote(["--json"], { cwd: h.a.root, ports: h.ports })).result;
+  const held = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
+  expect(await invokeStoreMigrate(["--leave-source", "--to", elsewhere], h.ports)).toMatchObject({ status: "refused",
+    refusal: { code: "request-invalid", condition: expect.stringContaining(elsewhere) } });
+  expect(success(await h.store.version())).toBe(before);
+  expect((await invokeStoreRemote(["--json"], { cwd: h.a.root, ports: h.ports })).result).toEqual(roles);
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(held);
+  expect((await h.a.exec("git", [`--git-dir=${elsewhere}`, "for-each-ref"])).stdout).toBe("");
+  expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/"])).stdout).toBe("");
+});
+
 it("routes a deleted read source to off and refuses to treat it as this clone's publisher", async () => {
   const h = await deletedFollowSource(), follower = h.follower;
   await follower.exec("git", ["config", "remote.origin.arc-state", "read"]);
@@ -118,6 +133,7 @@ it("refuses a destination another move left, then leaves straight to the repaire
   expect(success(await follower.store.version())).toBe(before);
   expect((await invokeStoreRemote(["--json"], { cwd: follower.root, ports: follower.ports })).result).toEqual(roles);
   expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(departed);
+  await writeFile(follower.config, `storage.backing_repository: ${JSON.stringify(fork)}\n`);
   expect(await invokeStoreMigrate(["--leave-source", "--to", fork], follower.ports)).toMatchObject({ status: "refused",
     refusal: { code: "moved", condition: expect.stringContaining("registry commit") } });
   expect(success(await follower.store.version())).toBe(before);

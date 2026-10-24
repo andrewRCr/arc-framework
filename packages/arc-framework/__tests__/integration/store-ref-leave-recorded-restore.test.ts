@@ -23,6 +23,7 @@ it.each(["code", "backing"] as const)("re-homes mover and followed clone after r
   success(await follower.pull());
   await rm(h.destinationDirectory, { recursive: true, force: true });
   const target = source === "code" ? "origin" : h.origin;
+  if (source === "backing") await production.writeBackingRepository?.(h.origin);
   expect(await invokeStoreMigrate(["--leave-source", "--to", target], ports)).toMatchObject({ status: "refused", refusal: { code: "moved" } });
   const ended = await invokeStoreMigrate(["--leave-source"], h.ports);
   expect(ended).toMatchObject({ status: "ok", result: { notices: expect.arrayContaining([

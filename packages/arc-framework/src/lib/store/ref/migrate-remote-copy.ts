@@ -4,7 +4,7 @@ import { RecordReferenceSchema } from "../identity.js";
 import { pushRefs, type PushOutcome, type PushRefChange } from "../../git/push.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefRepository } from "./repository.js";
-import { commitMigrationRegistry } from "./migrate-registry.js";
+import { commitMigrationRegistry, requireMoveProject } from "./migrate-registry.js";
 import { prepareRefCopy } from "./migrate-copy.js";
 import { requireLayoutTransaction } from "./migrate-layout-build.js";
 import { clearMigrationRefs, fetchMigrationRemote } from "./migrate-remote-fetch.js";
@@ -36,6 +36,7 @@ export async function copyRemoteMove(code: RefBackendContext, transports: MoveTr
     if (basis.ownForwarding && recorded) {
       return { recorded, report: await readRemoteCopyReport(code), source: incoming, destination: held };
     }
+    await requireMoveProject(code, incoming.get(registryRef), source.name);
     await retainKnownCopyVersion(code, recorded, held);
     await code.migrateStep?.("remote.build");
     const prepared = await buildRemoteCopy(code, incoming, held);

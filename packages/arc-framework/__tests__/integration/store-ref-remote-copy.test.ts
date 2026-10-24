@@ -1,7 +1,7 @@
 /** Remote copies gather the publisher's complete state without adopting it locally. */
 import { chmod, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { plantRef } from "../helpers/store/ref-plant.js";
@@ -248,3 +248,48 @@ it("retains a deleted forwarding root when a landed copy loses its response and 
     expect((await h.a.exec("git", ["for-each-ref", "--format=%(objectname)", ref])).stdout.trim()).toBe(moved.tip);
   }
 }, 45_000);
+
+
+describe.each(["registry-less", "identity-less"] as const)("a move from a %s state remote", (shape) => {
+  it.each([false, true])("refuses before any record or copy (trial: %s)", async (trial) => {
+    const h = await refSyncFixture(), destination = join(h.a.root, "destination.git");
+    await h.a.exec("git", ["init", "--bare", destination]);
+    if (shape === "identity-less") {
+      const created = success(await h.a.store.write({ action: "put", expected: null,
+        reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "unidentified" } }),
+        content: makeMetaFixture("unidentified"), placement: { kind: "active" }, provenance }));
+      success(await h.a.store.write({ action: "put", expected: success(await h.a.store.read({ reference: created.reference })).version,
+        reference: RecordReferenceSchema.parse({ ...created.reference, owner: { ...created.reference.owner, name: "renamed" } }),
+        content: makeMetaFixture("renamed"), placement: { kind: "active" }, provenance: { verb: "rename", lifecycleAction: "rename" } }));
+      success(await h.a.store.push());
+      expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/project/registry"])).stdout.trim()).toBe("refs/arc/project/registry");
+    }
+    const source = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout;
+    expect(await invokeStoreMigrate(["--to", destination, ...trial ? ["--trial"] : []], h.a.ports)).toMatchObject({ status: "refused",
+      refusal: { code: "store", refusal: { code: "not-found", class: "recoverable", reference: identity } } });
+    expect((await h.a.exec("git", [`--git-dir=${destination}`, "for-each-ref"])).stdout).toBe("");
+    expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout).toBe(source);
+    expect((await h.a.git(["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/"])).stdout).toBe("");
+  });
+});
+
+it.each(["fetch", "push"] as const)("refuses a destination naming the source's own %s URL before any write", async (named) => {
+  const h = await copyFixture(), pushUrl = `file://${h.origin}`;
+  await h.a.exec("git", ["config", "remote.origin.pushurl", pushUrl]);
+  const source = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout;
+  expect(await invokeStoreMigrate(["--to", named === "fetch" ? h.origin : pushUrl], h.a.ports)).toMatchObject({ status: "refused",
+    refusal: { code: "request-invalid", condition: expect.stringContaining("same state remote") } });
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout).toBe(source);
+  expect((await h.a.git(["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/"])).stdout).toBe("");
+});
+
+it("ends a move whose destination is its source under another spelling after a bounded number of rounds", async () => {
+  const h = await copyFixture();
+  const looped = await invokeStoreMigrate(["--to", `${h.origin}/`], h.a.ports);
+  expect(looped).toMatchObject({ status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
+    remedy: { argv: ["arc", "store", "migrate", "--leave-source"] } } });
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/project/moved"])).stdout).toBe("");
+  expect((await invokeStoreMigrate(["--leave-source"], h.a.ports)).status).toBe("ok");
+  expect((await h.a.git(["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/"])).stdout).toBe("");
+  expect(success(await h.a.store.pull()).states).toEqual([]);
+}, 60_000);

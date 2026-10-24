@@ -385,3 +385,11 @@ it("names leaving a gone backing repository for a code remote that holds the pro
     expect(refused).toMatchObject({ refusal: { remedy: { text: expect.stringContaining(route) } } });
   }
 });
+
+it.each([{ remote: "origin" }, { role: "push" as const }, { remote: "", role: "push" as const }])("refuses the incomplete or invalid setting %j as invalid input naming the remote command", async (input) => {
+  const h = await refSyncFixture();
+  const config = (await h.a.exec("git", ["config", "--null", "--list", "--local"])).stdout;
+  expect(await runStoreRemote(h.a.ports, input)).toMatchObject({ status: "refused", refusal: { code: "request-invalid", class: "terminal",
+    remedy: { text: expect.stringContaining("arc store remote <remote> <push|read|off>") } } });
+  expect((await h.a.exec("git", ["config", "--null", "--list", "--local"])).stdout).toBe(config);
+});
