@@ -102,7 +102,8 @@ import {
   runTeardown,
   type TeardownResult,
 } from "../lib/work-unit/verbs/teardown.js";
-import type { StoreRefusal } from "../lib/store/refusal.js";
+import type { StoreRecord } from "../lib/store/read.js";
+import type { StoreRefusal, StoreResult } from "../lib/store/refusal.js";
 import { handleStoreMaterialize } from "./materialize-store.js";
 import { usesOffBranchState, readWorkUnit } from "../lib/store/lifecycle-write.js";
 import type { Store } from "../lib/store/contract.js";
@@ -1393,21 +1394,35 @@ export async function handlePublish(
   const target = await resolvePublicationTarget(bound, "publish", input.slug, input.json === true);
   if (target === null) return;
 
-  await publishCandidateWithReviewBoundary(bound, target, input);
+  await publishCandidateWithReviewBoundary(bound, target.name, input, target.record, input.slug === undefined ? undefined : target.record?.reference);
 }
 
 // ---------------------------------------------------------------------------
 // Phase move (withdrawal) — `reopen`
 // ---------------------------------------------------------------------------
 
+type PublicationTarget = { name: string; record?: StoreRecord };
+
 /** Resolve publication through the selected work-unit identity before reading its evidence. */
-export async function resolvePublicationTarget(base: Pick<VerbBase, "cwd" | "store">, verb: "publish" | "reopen", slug?: string, json = false): Promise<string | null> {
-  if (!usesOffBranchState(base.store)) return resolveVerbTargetOrReport(verb, slug, base.cwd, json);
-  if (slug !== undefined) return canonicalVerbTarget(slug, base.store, json);
-  const current = await resolveCurrentWorkUnit({ cwd: base.cwd, store: base.store });
-  if (current.status === "resolved") return current.candidate.reference.owner.name;
+export async function resolvePublicationTarget(base: Pick<VerbBase, "cwd" | "store">, verb: "publish" | "reopen", slug?: string, json = false): Promise<PublicationTarget | null> {
+  const store = base.store;
+  if (!usesOffBranchState(store) || store === undefined) {
+    const name = await resolveVerbTargetOrReport(verb, slug, base.cwd, json);
+    return name === null ? null : { name };
+  }
+  if (slug !== undefined) {
+    const read = await readWorkUnit(store, slug);
+    return read.status === "refused" && read.refusal.code === "not-found" ? { name: slug } : publicationRecordTarget(read, json);
+  }
+  const current = await resolveCurrentWorkUnit({ cwd: base.cwd, store });
+  if (current.status === "resolved") return publicationRecordTarget(await store.read({ reference: current.candidate.reference }), json);
   refuseWithRemedy(`Supply a work-unit slug; this checkout's current work unit is ${current.status}.`,
     spineRemedy("Publication requires one selected work unit", "Inspect the current work unit", ["arc", "status", "--json"]), json);
+  return null;
+}
+function publicationRecordTarget(read: StoreResult<StoreRecord>, json: boolean): PublicationTarget | null {
+  if (read.status === "ok") return { name: read.result.reference.owner.name, record: read.result };
+  refuseWithRemedy(read.refusal.condition, read.refusal.remedy, json);
   return null;
 }
 
@@ -1425,11 +1440,11 @@ export interface ReopenOptions {
  * than risk reopening a WU whose merge state can't be confirmed. Only a
  * positively-unmerged PR (`false`) clears the guard.
  */
-async function resolvePrMerged(base: VerbBase, slug: string, executor: Awaited<ReturnType<typeof buildExecutor>>["executor"]): Promise<boolean | undefined> {
+async function resolvePrMerged(base: VerbBase, slug: string, executor: Awaited<ReturnType<typeof buildExecutor>>["executor"], record?: StoreRecord): Promise<boolean | undefined> {
   let branch: string | null;
   try {
     if (base.store !== undefined && usesOffBranchState(base.store)) {
-      const read = await readWorkUnit(base.store, slug);
+      const read = record === undefined ? await readWorkUnit(base.store, slug) : { status: "ok" as const, result: record };
       if (read.status === "refused") return undefined;
       branch = await linkedWorkBranch({ exec: base.io.exec, cwd: base.cwd, projectId: executor.projectId }, read.result);
     } else branch = parseMetaRecord(await base.io.readFile(materializeActiveMetaPath(base.cwd, slug))).branch;
@@ -1477,17 +1492,19 @@ export async function handleReopen(
 
   const { executor, settings } = await buildExecutor(base);
   const bound = { ...base, store: executor.store };
-  const target = await resolvePublicationTarget(bound, "reopen", input.slug);
-  if (target === null) return;
+  const selected = await resolvePublicationTarget(bound, "reopen", input.slug);
+  if (selected === null) return;
+  const { name: target, record } = selected;
   if (executor.store !== undefined && usesOffBranchState(executor.store)) {
-    const pause = await checkAdvancingPause(executor.store, target);
+    const pause = await checkAdvancingPause(executor.store, target, record);
     if (pause.status === "rejected") { refuse(pause.reason, pause.refusal, pause.remedy); return; }
   }
-  if (!await permitDeliveryReopen(bound, target, settings)) return;
+  if (!await permitDeliveryReopen(bound, target, settings, record)) return;
 
-  const prMerged = await resolvePrMerged(bound, target, executor);
+  const prMerged = await resolvePrMerged(bound, target, executor, record);
   const result = await runReopen(executor, {
     name: target,
+    ...(input.slug === undefined || record === undefined ? {} : { reference: record.reference }),
     prMerged,
     withdrawMode: input.keepPr === true ? "draft" : "close",
     nextTask: input.task,

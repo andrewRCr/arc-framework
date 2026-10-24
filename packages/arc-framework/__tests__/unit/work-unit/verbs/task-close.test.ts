@@ -1,4 +1,5 @@
 /** Task closure and deferral use checked reference-store batches and scripted Git boundaries. */
+import { createClashDouble } from "../../../helpers/store/clash-double.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
@@ -30,7 +31,7 @@ async function harness(content = tasks(), links: Links = { branches: [{ reposito
     { match: ["--no-replace-objects", "cat-file", "--batch"], responses: [({ options }) => ({ stdout: Buffer.from(Buffer.from(options?.input ?? []).toString().trim().split("\n").map((sha) => `${sha} missing\n`).join("")) })] },
   ]);
   const ctx: TaskVerbContext = { store, cwd: "/repo", slug: "demo", baseBranch: "main", projectId: async () => "repo", exec: git.exec, execRaw: raw.exec };
-  return { ctx, store, git, taskRef, meta,
+  return { ctx, store, git, taskRef, meta, seedMeta,
     readTasks: async () => lifecycleSuccess(await store.read({ reference: taskRef })),
     readMeta: async () => lifecycleSuccess(await store.read({ reference: meta.reference })),
   };
@@ -191,4 +192,13 @@ it("refuses an explicit tag object before changing task marks or captures", asyn
     .toMatchObject({ status: "refused", reason: expect.stringContaining("not a commit") });
   expect(await h.readTasks()).toEqual(beforeTasks);
   expect(await h.readMeta()).toEqual(beforeMeta);
+});
+
+it("closes tasks using its selected metadata pause after a mid-verb name clash", async () => {
+  const h = await harness();
+  const other = await h.seedMeta("other");
+  h.ctx.store = createClashDouble(h.store, { slug: "demo", holders: [h.meta.reference, other.reference], mode: "mid-verb" });
+  expect(await runTaskClose(h.ctx)).toMatchObject({ status: "closed", ids: ["1.1.a"] });
+  expect((await h.readTasks()).content).toBe(tasks(" ", "x", " "));
+  expect(lifecycleSuccess(await h.store.read({ reference: other.reference }))).toEqual(other);
 });

@@ -33,12 +33,13 @@ export function buildStoreCurrentWuReconcile(store: Store): CurrentWuReconcileCe
 }
 /** Apply the record plan without touching the checkout's artifacts or index. */
 export async function applyStoreCurrentWuReconcile(store: Store, prepared: PreparedCurrentWuReconcile): Promise<CurrentWuReconcileResult> {
-  const pause = await checkAdvancingPause(store, prepared.slug);
+  const plan = prepared.storePlan;
+  const primary = plan?.records.find(record => record.reference.kind === "work-item/meta");
+  const pause = await checkAdvancingPause(store, prepared.slug, primary);
   if (pause.status === "rejected") return { status: "conflict", prepared, reason: pause.refusal === undefined ? "paused" : "stale-content",
     ...(pause.refusal === undefined ? {} : { refusal: pause.refusal }), ...(pause.remedy === undefined ? {} : { remedy: pause.remedy }) };
   if (prepared.plan.status === "conflict") return { status: "conflict", prepared,
     reason: prepared.plan.dependency.conflicts[0]?.reason ?? "reference-history-conflict" };
-  const plan = prepared.storePlan;
   if (plan === undefined) throw new Error("Store reconcile requires its complete prepared record basis");
   if (plan.writes.length === 0) {
     const valid = await revalidateLifecycleRecords(store, plan.records);

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { recordReferences, OwnerIdentitySchema } from "../../../src/lib/store/identity.js";
 import { recordPut, batchLifecycleWrites } from "../../../src/lib/store/lifecycle-write.js";
-import { writeMetaTitle, writeMetaDesign, writeMetaDependsOn } from "../../../src/lib/store/kinds/meta/writers.js";
+import { writeMetaTitle, writeMetaDesign, writeMetaDependsOn, writeMetaPause } from "../../../src/lib/store/kinds/meta/writers.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { writeLineageRecord } from "../../../src/lib/store/kinds/lineage/writer.js";
 import { runStoreRename } from "../../../src/lib/work-unit/verbs/rename-store.js";
@@ -237,4 +237,21 @@ it.each([false, true])("acquires the selected reconcile group after a mid-verb c
       .toMatchObject({ status: "clean", prepared: { storePlan: { records: [primary, notes] } } });
   } else expect(await createStoreReconcilePrepareContext(store, "subject", selected.reference))
     .toMatchObject({ status: "ok", result: { primary, records: [primary, notes] } });
+});
+
+it.each([false, true])("applies the prepared primary's pause without reranking its clashed name, paused=%s", async paused => {
+  const h = createLifecycleHarness();
+  let primary = await h.seedMeta("subject");
+  const other = await h.seedMeta("other");
+  if (paused) {
+    lifecycleSuccess(await h.store.write({ ...recordPut(primary, { content: writeMetaPause(primary.content, {
+      pausedBy: SlugSchema.parse("test-user"), since: "2026-10-14T00:00:00Z", reason: "Wait", waitsOn: null, resumeNotes: null, open: false,
+    }) }), provenance: { verb: "pause", lifecycleAction: "pause" } }));
+    primary = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
+  }
+  const prepared = await buildStoreCurrentWuReconcile(h.store).prepare({ slug: "subject", metaPath: workUnitMetaPath(primary), reference: primary.reference });
+  const store = createClashDouble(h.store, { slug: "subject", holders: [primary.reference, other.reference] });
+  const result = await buildStoreCurrentWuReconcile(store).apply(prepared.prepared);
+  expect(result).toMatchObject(paused ? { status: "conflict", reason: "paused", remedy: { argv: ["arc", "resume", "subject"] } } : { status: "clean" });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference }))).toEqual(primary);
 });

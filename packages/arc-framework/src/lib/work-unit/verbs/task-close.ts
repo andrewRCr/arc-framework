@@ -102,7 +102,7 @@ async function readTaskBasis(ctx: TaskVerbContext, ids: readonly string[], opera
   if (meta.status === "refused") return taskStoreRefusal(meta.refusal);
   const fields = ParsedMetaRecordSchema.safeParse(meta.result.fields);
   if (!fields.success) return refuseTask("Work-unit metadata does not read.", "Repair the work-unit metadata, then retry.");
-  const pause = await checkAdvancingPause(store, ctx.slug);
+  const pause = await checkAdvancingPause(store, ctx.slug, meta.result);
   if (pause.status === "rejected") return pause.refusal === undefined ? { status: "refused", code: "paused", reason: pause.reason,
     remedy: { text: `Run arc resume ${ctx.slug}.`, argv: ["arc", "resume", ctx.slug] } }
     : taskStoreRefusal(pause.refusal);

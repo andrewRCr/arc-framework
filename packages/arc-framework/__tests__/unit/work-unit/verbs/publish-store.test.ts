@@ -1,4 +1,6 @@
 /** Publication preserves Candidate authority and atomic record ordering off branch. */
+import { seedPausedCompletedWorkUnit } from "../../../helpers/store/paused-completed-work-unit.js";
+import { createClashDouble } from "../../../helpers/store/clash-double.js";
 import { describe, expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { writeMetaPause, writeMetaCandidate } from "../../../../src/lib/store/kinds/meta/writers.js";
@@ -139,7 +141,7 @@ it("a rerun after reconcile lands reaches the publication batch and preserves ig
   expect(claims).toBe(2);
 });
 
-it("preserves the resume remedy when a pause arrives after prepare, then publishes after resume", async () => {
+it("rejects stale preparation when a pause arrives after prepare, then publishes after resume", async () => {
   const h = createLifecycleHarness();
   const primary = await h.seedMeta("example", { candidateId }, { kind: "active" },
     { branches: [{ repository: "project", ref: "feat/example", linkedAs: "created", excluded: [] }] });
@@ -156,8 +158,8 @@ it("preserves the resume remedy when a pause arrives after prepare, then publish
     return apply(prepared);
   };
   const params = { ...parameters(async () => {}), claimPublicationBoundary: async () => { claims++; } };
-  expect(await runPublish(ctx, params)).toMatchObject({ status: "reconcile-failed", reason: "paused",
-    remedy: { argv: ["arc", "resume", "example"] } });
+  expect(await runPublish(ctx, params)).toMatchObject({ status: "reconcile-failed",
+    reconcile: { reason: "stale-content", refusal: { code: "version-conflict" } } });
   const paused = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
   expect(paused.fields).toMatchObject({ state: "Active", pause: expect.any(Object) });
   expect(claims).toBe(0);
@@ -245,5 +247,25 @@ it("publication reconciles only its live namesake's records", async () => {
     { branches: [{ repository: "project", ref: "feat/example", linkedAs: "created", excluded: [] }] });
   expect(await runPublish(context(h.store), parameters(async () => {}))).toMatchObject({ status: "published" });
   expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).fields).toMatchObject({ state: "Integrating", dependsOn: [] });
+  expect(lifecycleSuccess(await h.store.read({ reference: archived.reference }))).toEqual(archived);
+});
+
+it("publication rereads the selected primary after reconciliation when its name becomes clashed", async () => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("example", { candidateId }, { kind: "active" },
+    { branches: [{ repository: "project", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+  const other = await h.seedMeta("other");
+  const store = createClashDouble(h.store, { slug: "example", holders: [primary.reference, other.reference], mode: "mid-verb" });
+  expect(await runPublish(context(store), parameters(async () => {}))).toMatchObject({ status: "published" });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).fields).toMatchObject({ state: "Integrating" });
+  expect(lifecycleSuccess(await h.store.read({ reference: other.reference }))).toEqual(other);
+});
+
+it("publishes the unpaused live holder despite its paused completed namesake", async () => {
+  const h = createLifecycleHarness(), archived = await seedPausedCompletedWorkUnit(h, "example");
+  const primary = await h.seedMeta("example", { candidateId }, { kind: "active" },
+    { branches: [{ repository: "project", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+  expect(await runPublish(context(h.store), parameters(async () => {}))).toMatchObject({ status: "published" });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).fields).toMatchObject({ state: "Integrating", pause: null });
   expect(lifecycleSuccess(await h.store.read({ reference: archived.reference }))).toEqual(archived);
 });

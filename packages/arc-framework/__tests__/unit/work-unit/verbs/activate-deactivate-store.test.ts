@@ -1,4 +1,6 @@
 /** Activation and deactivation over checked reference records and a scripted repository. */
+import { seedPausedCompletedWorkUnit } from "../../../helpers/store/paused-completed-work-unit.js";
+import { createClashDouble } from "../../../helpers/store/clash-double.js";
 import { describe, expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { makeGitProcessError } from "../../../helpers/git-exec-fake.js";
@@ -26,9 +28,9 @@ it("activates while its notes mention a slug tied among completed Errands", asyn
 });
 
 const base = "0".repeat(40), local = "1".repeat(40), remote = "2".repeat(40);
-async function harness(options: { branch?: string | null; commits?: string[]; link?: BranchLink; remoteHead?: string; taken?: boolean; noBase?: boolean; archived?: boolean; archivedBranch?: string } = {}) {
+async function harness(options: { branch?: string | null; commits?: string[]; link?: BranchLink; remoteHead?: string; taken?: boolean; noBase?: boolean; archived?: boolean; archivedBranch?: string; archivedPaused?: boolean } = {}) {
   const h = createLifecycleHarness();
-  const archived = options.archived ? await h.seedMeta("demo", { state: "Shipped", currentWorkflow: null },
+  const archived = options.archivedPaused ? await seedPausedCompletedWorkUnit(h, "demo") : options.archived ? await h.seedMeta("demo", { state: "Shipped", currentWorkflow: null },
     { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, options.archivedBranch === undefined ? undefined
       : { branches: [{ repository: "repo", ref: options.archivedBranch, linkedAs: "created", excluded: [] }] }) : undefined;
   const meta = await h.seedMeta("demo", { state: "Planning", currentWorkflow: "draft-design", workClass: "Novel" }, { kind: "active" }, options.link === undefined ? undefined : { branches: [options.link] });
@@ -231,5 +233,24 @@ it("activation reconciles the live namesake's records through the real store cer
   expect(await runActivate(h.ctx, params)).toMatchObject({ status: "activated" });
   expect((await h.read()).fields).toMatchObject({ state: "Active", dependsOn: [] });
   if (h.archived === undefined) throw Error("Expected archived namesake");
+  expect(lifecycleSuccess(await h.store.read({ reference: h.archived.reference }))).toEqual(h.archived);
+});
+
+it("activation rereads the selected primary after reconciliation when its name becomes clashed", async () => {
+  const h = await harness({ branch: "main" });
+  const other = await h.seedMeta("other");
+  const store = createClashDouble(h.store, { slug: "demo", holders: [h.meta.reference, other.reference], mode: "mid-verb" });
+  expect(await runActivate({ ...h.ctx, store, currentWuReconcile: buildStoreCurrentWuReconcile(store) }, params))
+    .toMatchObject({ status: "activated" });
+  expect((await h.read()).fields).toMatchObject({ state: "Active" });
+  expect(h.state().current).toBe("feat/demo");
+  expect(lifecycleSuccess(await h.store.read({ reference: other.reference }))).toEqual(other);
+});
+
+it("activates the unpaused live holder despite its paused completed namesake", async () => {
+  const h = await harness({ branch: "main", archivedPaused: true });
+  expect(await runActivate(h.ctx, params)).toMatchObject({ status: "activated" });
+  expect((await h.read()).fields).toMatchObject({ state: "Active", pause: null });
+  if (h.archived === undefined) throw Error("Expected completed namesake");
   expect(lifecycleSuccess(await h.store.read({ reference: h.archived.reference }))).toEqual(h.archived);
 });

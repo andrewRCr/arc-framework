@@ -22,6 +22,7 @@
  * @module
  */
 
+import type { RecordReference } from "../../store/identity.js";
 import { usesOffBranchState } from "../../store/lifecycle-write.js";
 import type { StoreRefusal } from "../../store/refusal.js";
 import { runStorePublish } from "./publish-store.js";
@@ -126,6 +127,8 @@ export function authorizeActivePublication(input: {
 
 /** The orientation inputs a `publish` supplies. */
 export interface PublishParams {
+  /** Exact already-selected subject, when the caller holds one. */
+  reference?: RecordReference;
   /** Target WU name (the CLI defaults this to the current Active WU). */
   name: string;
   /** Override for `Last Completed`; absent reads the task list's terminal completed task. */

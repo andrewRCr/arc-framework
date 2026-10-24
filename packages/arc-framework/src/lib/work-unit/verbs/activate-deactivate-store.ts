@@ -22,7 +22,7 @@ export async function runStoreActivate(ctx: ActivateContext, params: ActivatePar
   if (facts.status === "rejected") return facts;
   const { primary, entry } = facts;
   const record = entry.fields;
-  const pause = await checkAdvancingPause(store, params.name);
+  const pause = await checkAdvancingPause(store, params.name, primary);
   if (pause.status === "rejected") return pause;
   if (record.state !== "Planning" || primary.placement?.kind !== "active") return { status: "rejected", reason: `${params.name} is not a Planning work unit held in active placement.` };
   const peers = await readOtherPrimaries(store, primary);
@@ -37,7 +37,7 @@ export async function runStoreActivate(ctx: ActivateContext, params: ActivatePar
   if (prepared.status === "conflict") return { status: "rejected", reason: `Cannot activate ${params.name}: current-WU reconcile refused (${prepared.reason}).` };
   const reconcile = await ctx.currentWuReconcile.apply(prepared.prepared);
   if (reconcile.status === "conflict") return { status: "reconcile-failed", reason: `Activation reconcile became stale; retry arc activate ${params.name}.`, metaPath, reconcile };
-  const updated = await readWorkUnit(store, params.name);
+  const updated = await store.read({ reference: primary.reference });
   if (updated.status === "refused") return { status: "rejected", reason: updated.refusal.condition, refusal: updated.refusal };
   const links = mergeLifecycleLinks(updated.result.links, { branches: [plan.link] },
     plan.priorRef === null ? {} : { branches: [{ repository: plan.link.repository, ref: plan.priorRef }] });
@@ -56,7 +56,7 @@ export async function runStoreDeactivate(ctx: DeactivateContext, params: Deactiv
   const facts = await readLifecyclePrimary(ctx.store, params.name);
   if (facts.status === "rejected") return facts;
   const { primary, entry } = facts;
-  const pause = await checkAdvancingPause(ctx.store, params.name);
+  const pause = await checkAdvancingPause(ctx.store, params.name, primary);
   if (pause.status === "rejected") return pause;
   const meta = entry.fields;
   const planningWorkflow = meta.design.length !== 0 && meta.design.every((name) => name.startsWith("spec-")) ? "generate-tasks" : "draft-design";

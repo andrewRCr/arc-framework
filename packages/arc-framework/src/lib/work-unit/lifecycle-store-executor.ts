@@ -47,7 +47,7 @@ export async function executeStoreTransition(
   if (guardFailure !== undefined) return guardFailure;
   const inputFailure = validateStoreInputs(edge, inputs);
   if (inputFailure !== undefined) return inputFailure;
-  const effects = await prepareStoreSideEffects(ctx, edge, slug, inputs);
+  const effects = await prepareStoreSideEffects(ctx, edge, slug, inputs, basis);
   if ("status" in effects) return effects;
   const prepared = prepareWrites(edge, inputs, basis);
   if ("status" in prepared) return prepared;
@@ -162,8 +162,9 @@ async function validateStoreGuards(ctx: ExecuteTransitionContext & { store: Stor
 type PreparedStoreSideEffect = { id: TransitionRecord["sideEffects"][number]; step: LifecycleGitStep };
 
 async function prepareStoreSideEffects(ctx: ExecuteTransitionContext, edge: TransitionRecord, slug: string,
-  inputs: TransitionInputs): Promise<PreparedStoreSideEffect[] | Rejected> {
+  inputs: TransitionInputs, primary?: StoreRecord): Promise<PreparedStoreSideEffect[] | Rejected> {
   const prepared: PreparedStoreSideEffect[] = [];
+  const selectedInputs = primary === undefined ? inputs : { ...inputs, storeTransition: { ...inputs.storeTransition, primary } };
   for (const id of edge.fromFlip.sideEffects) {
     const handler = ctx.sideEffects?.[id];
     const fail = (message: string): Rejected => ({ status: "rejected", stage: "inputs", message });
@@ -171,7 +172,8 @@ async function prepareStoreSideEffects(ctx: ExecuteTransitionContext, edge: Tran
     const prepare = (handler as Partial<RecoverablePrWithdrawalHandler>).prepareWithdrawal;
     if (id !== "withdraw-pr" || typeof prepare !== "function") return fail(`side effect \`${id}\` requires its recoverable physical preparation.`);
     try {
-      const step = await prepare({ cwd: ctx.cwd, slug, from: edge.from, to: edge.to, inputs });
+      const step = await prepare({ cwd: ctx.cwd, slug, from: edge.from, to: edge.to,
+        inputs: selectedInputs });
       if (step.retryCommand.length === 0) return fail(`side effect \`${id}\` requires its executable continuation.`);
       prepared.push({ id, step });
     } catch (error) { return fail(`Cannot prepare side effect \`${id}\`: ${String(error)}`); }

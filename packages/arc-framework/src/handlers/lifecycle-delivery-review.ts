@@ -6,10 +6,11 @@ import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/comma
 import { formatValue, parseMetaRecord, setMetaBulletFields, setMetaCandidate } from "../lib/active/meta-reader.js";
 import { checkCurrentWorkflowConsistency } from "../lib/active/current-workflow-consistency.js";
 import { checkAdvancingPause } from "../lib/store/lifecycle-pause.js";
+import type { StoreRecord } from "../lib/store/read.js";
 import type { Store } from "../lib/store/contract.js";
 import { usesOffBranchState, readWorkUnit } from "../lib/store/lifecycle-write.js";
 import { lifecycleRecordPath } from "../lib/store/lifecycle-record-path.js";
-import { recordReferences } from "../lib/store/identity.js";
+import { recordReferences, type RecordReference } from "../lib/store/identity.js";
 import { ParsedMetaRecordSchema } from "../lib/active/meta-schema.js";
 import { resolveTaskListPath } from "../commands/active.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
@@ -605,9 +606,9 @@ export async function handleAttest(
   if (result.status === "blocked" || result.status === "refused") process.exitCode = 1;
 }
 
-async function permitUnpausedPublication(store: Store | undefined, target: string, json: boolean): Promise<boolean> {
+async function permitUnpausedPublication(store: Store | undefined, target: string, json: boolean, record?: StoreRecord): Promise<boolean> {
   if (store === undefined || !usesOffBranchState(store)) return true;
-  const pause = await checkAdvancingPause(store, target);
+  const pause = await checkAdvancingPause(store, target, record);
   if (pause.status === "clear") return true;
   const remedy = pause.remedy ?? pause.refusal?.remedy;
   const rejected = { status: "rejected", reason: pause.reason,
@@ -623,17 +624,21 @@ async function permitUnpausedPublication(store: Store | undefined, target: strin
  * @param base - Resolved checkout, identity, and I/O.
  * @param target - Work-unit slug selected by the lifecycle handler.
  * @param input - Validated publication options.
+ * @param primary - Checkout- or operand-selected metadata for admission checks.
+ * @param reference - Verb admission identity, supplied only for an explicit operand.
  * @returns Resolves after reporting the publication result.
  */
 export async function publishCandidateWithReviewBoundary(
   base: VerbBase,
   target: string,
   input: PublishOptions,
+  primary?: StoreRecord,
+  reference?: RecordReference,
 ): Promise<void> {
   const { lastCompleted, action } = input;
 
   const { executor, settings } = await buildExecutor(base);
-  if (!await permitUnpausedPublication(executor.store, target, input.json === true)) return;
+  if (!await permitUnpausedPublication(executor.store, target, input.json === true, primary)) return;
   const rawGit = createRawGitExec(base.cwd);
   const readCandidateAuthorization = async () => {
     const record = await readCandidateRecord(base.cwd, target);
@@ -705,6 +710,7 @@ export async function publishCandidateWithReviewBoundary(
     }),
     10_000, () => runPublish(executor, {
     name: target,
+    reference,
     ...(lastCompleted === undefined ? {} : { lastCompleted }),
     ...(action === undefined ? {} : { nextAction: action }),
     candidateId: candidate.candidateId,
@@ -805,17 +811,14 @@ export async function permitDeliveryReopen(
   base: VerbBase,
   target: string,
   settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"],
+  record?: StoreRecord,
 ): Promise<boolean> {
   let taskListPath: string | null;
   try {
     if (base.store !== undefined && usesOffBranchState(base.store)) {
-      const primary = await readWorkUnit(base.store, target);
-      if (primary.status === "refused") { refuse(primary.refusal.condition, primary.refusal); return false; }
-      const meta = ParsedMetaRecordSchema.parse(primary.result.fields);
-      const task = await base.store.read({ reference: recordReferences["work-item/task-list"](primary.result.reference.owner) });
-      if (task.status === "refused") { refuse(task.refusal.condition, task.refusal); return false; }
-      const projected = lifecycleRecordPath(primary.result, task.result);
-      taskListPath = projected !== null && meta.taskList === projected.split("/").at(-1) ? projected : null;
+      const path = await readStoreReopenTaskPath(base.store, target, record);
+      if (path === undefined) return false;
+      taskListPath = path;
     } else {
       const metaPath = projectActiveMetaPath(target);
       const meta = parseMetaRecord(await base.io.readFile(materializeArcPath(base.cwd, metaPath)));
@@ -851,6 +854,16 @@ export async function permitDeliveryReopen(
   }
 
   return true;
+}
+
+async function readStoreReopenTaskPath(store: Store, target: string, record?: StoreRecord): Promise<string | null | undefined> {
+  const primary = record === undefined ? await readWorkUnit(store, target) : { status: "ok" as const, result: record };
+  if (primary.status === "refused") { refuse(primary.refusal.condition, primary.refusal); return undefined; }
+  const meta = ParsedMetaRecordSchema.parse(primary.result.fields);
+  const task = await store.read({ reference: recordReferences["work-item/task-list"](primary.result.reference.owner) });
+  if (task.status === "refused") { refuse(task.refusal.condition, task.refusal); return undefined; }
+  const projected = lifecycleRecordPath(primary.result, task.result);
+  return projected !== null && meta.taskList === projected.split("/").at(-1) ? projected : null;
 }
 
 /** Command-owned Candidate attestation input. */

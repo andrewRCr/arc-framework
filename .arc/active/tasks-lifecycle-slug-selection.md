@@ -215,7 +215,7 @@ its test is a regression pin that passes before the change; each re-read's faili
         - Materialize matches its candidate to the selected metadata reference. Its reuse regression keeps both
           generations unchanged and claims the live holder; a narrow first-listed selection reconstruction fails it.
 
-### `[ ]` **2.7 Re-acquire a selected record by its reference — § 3.2**
+### `[x]` **2.7 Re-acquire a selected record by its reference — § 3.2**
 
 - _Goal:_ A record already selected is read again by its reference, never ranked again by its name, so a held subject's
   group, its pause state, and its reconcile context are its own under reuse and under a clash formed during the verb,
@@ -242,67 +242,20 @@ its test is a regression pin that passes before the change; each re-read's faili
           preserves the completed group's metadata and draft. Narrow name-reread and first-listed reconstructions
           fail those cases before restoration.
 
-    - `[ ]` **2.7.d The pause check's basis**
+    - `[x]` **2.7.d The pause check's basis**
 
-        - `checkAdvancingPause` (`lib/store/lifecycle-pause.ts`) takes the record its caller already read as its
-          `basis`, as reopen and publish pass it, from `runStoreActivate` and `runStoreDeactivate`,
-          `applyStoreCurrentWuReconcile` from its acquired primary, `task-close.ts`, `set-stage.ts`, `handleReopen`
-          (`handlers/lifecycle.ts`), and `permitUnpausedPublication` (`handlers/lifecycle-delivery-review.ts`). Reopen's
-          delivery checks, `permitDeliveryReopen` (`lifecycle-delivery-review.ts`) and `resolvePrMerged`
-          (`handlers/lifecycle.ts`), call no pause check but read their subject by name (`readWorkUnit`), and each takes
-          the record reopen's handler resolved in place of that read. The store executor's guard (`makePauseGuard`,
-          `lib/work-unit/lifecycle-guards.ts`) already takes the primary `validateStoreGuards` selects.
-        - `applyStoreCurrentWuReconcile`'s acquired primary is the meta among its prepared plan's records
-          (`discharge-dep-edges.ts`), read at prepare time, so a pause that lands between prepare and apply refuses as
-          stale content under the plan's version guard rather than as paused.
-        - `resolvePublicationTarget` (`handlers/lifecycle.ts`) returns `{ name, record? }`. With an operand it reads the
-          subject through `readWorkUnit` once, as `canonicalVerbTarget` does, returning the record and its current name,
-          or the operand with no record where the lookup refuses `not-found`; with none, it reads the current work
-          unit's record by reference. `publishCandidateWithReviewBoundary` (`lifecycle-delivery-review.ts`), through
-          which `permitUnpausedPublication` is reached, `permitDeliveryReopen`, and `resolvePrMerged` each gain an
-          optional record, reading by name only where it is absent.
-        - `PublishParams` and `ReopenParams` gain an optional work-unit `reference` (`RecordReference`). With an
-          explicit operand whose lookup succeeded, `handlePublish` passes that record's reference through
-          `publishCandidateWithReviewBoundary` to `runPublish`, and `handleReopen` passes it to `runReopen`.
-          `runStorePublish`'s initial `inspectPublication` and `runStoreReopen` read by that reference (`store.read`)
-          where supplied, and through `readWorkUnit` by name otherwise. Without an operand, the handlers use the
-          checkout-selected record for their checks but leave the verb's reference absent, retaining its initial
-          by-name clash check (4.3.c); direct callers without a selected reference keep the same entry path.
-        - `prepareStoreSideEffects` (`lib/work-unit/lifecycle-store-executor.ts`) receives the executor-selected
-          primary and passes it as `inputs.storeTransition.primary` to withdrawal preparation, preserving the other
-          transition inputs, even where the executor's caller supplied no primary. The production withdrawal
-          callbacks (`legacyWithdrawPrHandler`, `withdrawPrHandler.prepareWithdrawal`, `executor-context.ts`) pass
-          that optional primary to `withdrawalBranch`; in the store arm it re-reads by that primary's reference
-          (`store.read`) before `linkedWorkBranch` selects the branch, using `readWorkUnit` by name only where no
-          primary was supplied. The in-repo arm keeps its file-based branch read.
-        - Build `test-first` (one behavior at a time):
-            - over the clash double's mid-verb mode, set-stage, task close, and reopen's and publish's handler checks
-              pass the pause check on the record they hold; with an explicit operand, reopen and publish carry its
-              selected reference into their initial verb reads and then succeed, the executor re-reading their
-              prepared primary by reference (2.6.a)
-            - the reopen case uses the real `buildExecutorContext` withdrawal binding with fake Git execution, as
-              `store-withdrawal-recovery.test.ts` does: after its one successful slug lookup, the selected record
-              transitions and its own linked branch's PR is withdrawn; a direct store-executor call with no supplied
-              primary passes its selected basis to the same production preparation
-            - a paused live holder still refuses each of them
-            - regression pin: with a paused completed holder and an unpaused live holder of one slug, activation,
-              reopen, and publish of the live holder pass the pause check; set-stage and task close resolve their
-              checkout's claim, run under reuse in 4.3.c
-            - `lifecycle-publication-target.test.ts` (`__tests__/unit/handlers/`) expects `{ name, record }`, and
-              `reopen-store-permit.test.ts` and `lifecycle-collaboration.test.ts` pass the record where their calls
-              change
+        - Advancing pause and delivery checks use selected metadata. Publication target resolution retains that record;
+          explicit operands carry its reference into publish/reopen, while ambient verbs retain initial name admission.
+          The executor passes its selected primary into production withdrawal preparation, which rereads by reference.
+          A pause after reconcile preparation fails the version guard. Tests cover clashed subjects, retained completed
+          pauses, exact logical-branch withdrawal, and handler publication with real Candidate evidence.
 
-    - `[ ]` **2.7.e The re-reads after a reconcile, and the reconcile handler's subject**
+    - `[x]` **2.7.e The re-reads after a reconcile, and the reconcile handler's subject**
 
-        - `runStoreActivate` re-reads its subject after its reconcile by reference, and so does `runStorePublish`
-          (`inspectPublication`, `lib/work-unit/verbs/publish-store.ts`), by the primary's reference from its first
-          inspection, whether that inspection read a supplied reference or resolved its subject by name.
-          `handleStoreReconcile` (`handlers/reconcile.ts`) takes the resolved current work unit's reference; its marker
-          fallback through the UID claim lands in 4.3.
-        - Build `test-first` (one behavior at a time):
-            - over the clash double's mid-verb mode, activation and publish re-read their subject by reference after the
-              reconcile and succeed, where they refuse `ambiguous-match` today
-            - regression pin: `arc wu reconcile <slug>` of a reused slug reconciles the live holder
+        - Activation and publication reread the initially selected primary by reference after reconcile; the reconcile
+          handler reads its checkout-selected reference directly. Tests retain those subjects through mid-verb clashes,
+          reconcile a reused former operand without altering its completed namesake, and preserve ambient publication's
+          initial clash refusal and untouched publication boundary.
 
 ### `[ ]` **2.8 A reused slug's verbs end to end** — validate exit criterion at segment scope
 

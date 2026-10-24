@@ -166,7 +166,7 @@ export async function handleStoreReconcile(store: Store, cwd: string, input: z.i
     emitConflict(input, input.slug ?? "", current.warnings.join("; ") || "The checkout does not hold exactly one matching work unit.");
     return;
   }
-  const meta = await readWorkUnit(store, slug);
+  const meta = current.status === "resolved" ? await store.read({ reference: current.candidate.reference }) : await readWorkUnit(store, slug);
   if (meta.status === "refused") { emitConflict(input, slug, `${meta.refusal.condition} ${meta.refusal.remedy.text}`); return; }
   const operandConflict = await requestedReconcileConflict(store, meta.result, input.slug);
   if (operandConflict !== undefined) { emitConflict(input, input.slug ?? slug, operandConflict); return; }
