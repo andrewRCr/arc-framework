@@ -3302,10 +3302,13 @@ The plain executor takes a `signal` (`cancelSignal`, `lib/git/process-executor.t
 locked ref or a slow disk can be ended. On every variant an abort ends the call's whole process tree and settles without
 waiting on a descendant's output (§ 6.1), so the existing bounded reads (`boundedFetch`, `lib/git/exec.ts`;
 `readRemoteHeadSnapshot`, `lib/git/remote-ref-reader.ts`) hold their bounds too. `pull` and `push` pass one for their
-deadline (§ 6.1), and so does a `push` designation's fetch (§ 9.8). Every other store call passes none: its local
-processes are one-shot, their ref updates bounded by Git's lock timeout (§ 11.2); the presence read runs under the
-shipped bound (§ 9.2); and a move's transfers take no deadline (§ 6.1). The long-lived reader of § 11.7 takes one if its
-budget brings it.
+deadline (§ 6.1), and so does a `push` designation's fetch (§ 9.8). Every listing of a remote's refs — the presence read
+(§ 9.2), a move's lease probe (§ 10.2), the carry race (§ 6.8), and the import's read of origin's transient refs
+(§ 10.11) — runs through one passive reader under the shipped bound (`listRemoteRefs`,
+`lib/store/ref/remote-listing.ts`), and within the deadline of a pull or push that runs it; a read the bound ends
+reports `unreachable` with cause `timeout` (A42). Every other store call passes none: its local processes are one-shot,
+their ref updates bounded by Git's lock timeout (§ 11.2), and a move's transfers take no deadline (§ 6.1). The
+long-lived reader of § 11.7 takes one if its budget brings it.
 
 ### 12. Maintenance and measurements
 
@@ -4607,6 +4610,11 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     and a first backing designation unchanged, reads as no unfinished move, leaves a backing setting unrefused, stays
     out of a layout move, and leaves an import destination unoccupied (§ 2.1) (A41).
 
+48. **Every store listing of a remote's refs is passive and bounded.** The presence read, a move's lease probe, the
+    carry race, and the import's read of origin list a remote's refs through one reader that passes `--refs --`, never
+    prompts, reads stable diagnostics, and ends at the shipped bound or the sync deadline; a read the bound ends reports
+    `unreachable` with cause `timeout` (§ 11.8) (A42).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4770,5 +4778,8 @@ open:
 
 - **A41** — 2026-10-24 — design: a history ref names its owner by the lowercase UID stored names carry.
   _Supersedes:_ § 2.1 `HistoryRef`. _Trigger:_ fix-check-2/F3 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A42** — 2026-10-24 — design: every store listing of a remote's refs runs under the shipped network bound.
+  _Supersedes:_ § 11.8's signal calls. _Trigger:_ fix-check-2/F4 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

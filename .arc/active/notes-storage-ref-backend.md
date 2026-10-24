@@ -2907,6 +2907,19 @@ one share one grammar, and an uppercase-UID ref, which no store writes, neither 
 through a § 2 amendment, recorded here (fix-check-2 F3). The producer's suggested correction kept the contract schema
 loose and narrowed classification alone; the approved set chose one grammar under the pre-public posture.
 
+## A42 — Every store listing of a remote's refs runs under the shipped network bound
+
+**Superseded text.** § 11.8: "Every other store call passes none: its local processes are one-shot, their ref updates
+bounded by Git's lock timeout (§ 11.2); the presence read runs under the shipped bound (§ 9.2); and a move's transfers
+take no deadline (§ 6.1)."
+
+**Decision.** fix-check-1 F22's approved fix routed every store listing of a remote's refs through one reader
+(`listRemoteRefs`, `lib/store/ref/remote-listing.ts`) that passes `--refs --`, the passive interaction, and the stable
+locale, under the shipped bound and any sync deadline. The presence read already ran under that bound; a move's lease
+probe and the import's read of origin's transient refs now do too, and the carry race runs inside push's deadline as
+before. § 11.8 now names them (fix-check-2 F4). A timeout at the import's read surfaces as its cleanup's recoverable
+refusal, which a rerun retries.
+
 ## Unreadable archive quarters
 
 While a quarter's tree cannot be read locally, or a quarter holds a folder whose metadata does not read — one whose
