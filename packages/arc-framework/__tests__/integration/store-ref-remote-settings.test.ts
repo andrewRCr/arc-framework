@@ -1,5 +1,7 @@
 /** Explicit remote role settings through the ref-store command entry. */
 
+import { access } from "node:fs/promises";
+import { join } from "node:path";
 import { expect, it } from "vitest";
 import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
@@ -392,4 +394,21 @@ it.each([{ remote: "origin" }, { role: "push" as const }, { remote: "", role: "p
   expect(await runStoreRemote(h.a.ports, input)).toMatchObject({ status: "refused", refusal: { code: "request-invalid", class: "terminal",
     remedy: { text: expect.stringContaining("arc store remote <remote> <push|read|off>") } } });
   expect((await h.a.exec("git", ["config", "--null", "--list", "--local"])).stdout).toBe(config);
+});
+
+it.each(["out of", "into"] as const)("finishes a move %s the code repository interrupted at its source cleanup before the opposite setting moves back", async (direction) => {
+  const h = await refCarryFixture("default");
+  if (direction === "into") expect((await runStoreRemote(h.a.ports, { remote: "origin", role: "off" })).status).toBe("ok");
+  const [first, second] = direction === "out of" ? ["off", "push"] as const : ["push", "off"] as const;
+  await expect(runStoreRemote({ ...h.a.ports, migrateStep: async (step) => {
+    if (step === "layout.delete") throw new Error("Interrupted at source cleanup");
+  } }, { remote: "origin", role: first })).rejects.toThrow("Interrupted at source cleanup");
+  const result = await runStoreRemote(h.a.ports, { remote: "origin", role: second });
+  expect(result).toMatchObject({ status: "ok", result: { layout: direction === "out of" ? "default" : "separate", report: { move: "layout" } } });
+  if (result.status !== "ok") throw new Error("Setting refused");
+  expect(result.result.report?.refs.filter(({ ref }) => ref === "refs/arc/user/andrew/personal").length).toBeGreaterThanOrEqual(2);
+  for (const leftover of ["store-migrate-old", "store-migrate-build"]) await expect(access(join(h.a.root, ".git", "arc", leftover))).rejects.toMatchObject({ code: "ENOENT" });
+  expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/"])).stdout).toBe("");
+  expect(success(await h.a.store.read({ reference: carriedDocument })).content).toBe("Carried state.\n");
+  expect(success(await h.a.store.pull()).states).toEqual(direction === "out of" ? [] : [{ status: "no-remote" }]);
 });

@@ -1,6 +1,6 @@
 /** Backing-repository configuration through the public configuration readers. */
 
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { runConfigStatus } from "../../../src/commands/config/status.js";
 import { validateConfigFile } from "../../../src/commands/config/validate.js";
 import { ARC_CONFIG_FIELDS } from "../../../src/lib/config/schema.js";
+import { readBackingRepository, writeBackingRepository } from "../../../src/lib/config/status-reader.js";
 
 const roots: string[] = [];
 
@@ -67,5 +68,34 @@ describe("backing repository configuration", () => {
     expect(descriptor.schema.parse("")).toBe("");
     expect(descriptor.schema.parse(" https://example.test/state.git ")).toBe("https://example.test/state.git");
     expect(descriptor.schema.safeParse(" \t ").success).toBe(false);
+  });
+});
+
+describe("the tracked backing pointer writer", () => {
+  it.each([["LF", "\n"], ["CRLF", "\r\n"]])("round-trips a backslash path through the production reader in a %s file, keeping its other lines", async (_name, eol) => {
+    const lines = ["# Keep this comment.", 'history.policy: "rewrite-with-lease"', 'storage.backing_repository: ""', "commit.format: conventional", ""];
+    const { root, configPath } = await fixture(lines.join(eol));
+    const value = "C:\\repos\\state.git";
+    for (let write = 0; write < 2; write++) {
+      await writeBackingRepository(root, value);
+      expect(await readBackingRepository(root)).toBe(value);
+      expect(await readFile(configPath, "utf8")).toBe(lines.map((line) => line.startsWith("storage.") ? `storage.backing_repository: "${value}"` : line).join(eol));
+    }
+    await writeBackingRepository(root, null);
+    expect(await readBackingRepository(root)).toBeNull();
+    expect(await readFile(configPath, "utf8")).toBe(lines.join(eol));
+  });
+
+  it.each([["LF", "\n"], ["CRLF", "\r\n"]])("appends an absent pointer with the %s file's line ending", async (_name, eol) => {
+    const { root, configPath } = await fixture(["# Settings.", "commit.format: conventional"].join(eol));
+    await writeBackingRepository(root, "https://example.test/state.git");
+    expect(await readFile(configPath, "utf8")).toBe(["# Settings.", "commit.format: conventional", 'storage.backing_repository: "https://example.test/state.git"', ""].join(eol));
+    expect(await readBackingRepository(root)).toBe("https://example.test/state.git");
+  });
+
+  it("refuses a pointer the configuration file cannot hold on one line, leaving the file unchanged", async () => {
+    const { root, configPath } = await fixture('storage.backing_repository: ""\n');
+    await expect(writeBackingRepository(root, "https://example.test/a\nstate.git")).rejects.toThrow(/one line/u);
+    expect(await readFile(configPath, "utf8")).toBe('storage.backing_repository: ""\n');
   });
 });

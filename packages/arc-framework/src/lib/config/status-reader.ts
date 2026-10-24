@@ -18,7 +18,6 @@
  */
 
 import { atomicWriteFile } from "../fs.js";
-import { renderConfigOverrides } from "../template/render.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -80,18 +79,21 @@ export async function readBackingRepository(cwd: string): Promise<string | null>
   return getArcConfigField("storage.backing_repository").schema.parse(value) || null;
 }
 
-/** Write the tracked backing pointer while preserving unrelated configuration text. */
+/** Write the tracked backing pointer as the configuration reader decodes it, preserving unrelated text and line endings. */
 export async function writeBackingRepository(cwd: string, value: string | null): Promise<void> {
   const path = configSettingsPath(cwd), key = "storage.backing_repository";
   const validated = getArcConfigField(key).schema.parse(value ?? "");
+  // The reader strips one pair of surrounding quotes and unescapes nothing, so any one-line value round-trips quoted as is.
+  if (/[\r\n]/u.test(validated)) throw new Error(`The backing pointer must fit on one line of arc-config.yml: ${JSON.stringify(validated)}`);
   let content = "";
   try { content = await readFile(path, "utf8"); }
   catch (error) {
     if (!(typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT")) throw error;
   }
-  const rendered = JSON.stringify(validated);
-  const next = /^storage\.backing_repository:/mu.test(content) ? renderConfigOverrides(content, { [key]: rendered })
-    : content + (content.length && !content.endsWith("\n") ? "\n" : "") + `${key}: ${rendered}\n`;
+  const line = `${key}: "${validated}"`, eol = content.includes("\r\n") ? "\r\n" : "\n";
+  const claimed = /^storage\.backing_repository:[^\r\n]*/mu;
+  const next = claimed.test(content) ? content.replace(claimed, () => line)
+    : content + (content.length && !content.endsWith("\n") ? eol : "") + line + eol;
   await atomicWriteFile(path, next);
 }
 

@@ -8,8 +8,10 @@ import { readBatchObjects } from "./batch-read.js";
 export async function readMergeLabels(context: RefBackendContext, revision: string): Promise<{ currentLabel: SideLabel; incomingLabel: SideLabel }> {
   const currentLabel = await readStoredMergeLabel(context, revision);
   const identity = await context.identity();
+  // The commit takes its person from the code checkout, never from a separate store directory's configuration.
+  const code = context.repository?.source ?? context;
   const incomingActor = identity === null
-    ? /<([^>]*)>/u.exec((await context.exec("git", ["var", "GIT_COMMITTER_IDENT"], { cwd: context.checkoutRoot })).stdout)?.[1] ?? "unknown"
+    ? /<([^>]*)>/u.exec((await code.exec("git", ["var", "GIT_COMMITTER_IDENT"], { cwd: code.checkoutRoot })).stdout)?.[1] ?? "unknown"
     : await context.actor(identity);
   return { currentLabel, incomingLabel: { actor: incomingActor, time: context.clock().toISOString() } };
 }

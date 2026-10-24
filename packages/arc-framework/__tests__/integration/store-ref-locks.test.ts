@@ -1,4 +1,4 @@
-import { mkdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { AdvisoryLockTimeoutError } from "../../src/lib/advisory-lock.js";
@@ -10,7 +10,7 @@ describe.each(["default", "separate"])("shared ref locks (%s layout)", (layout) 
     const f = await createRefReadFixture();
     const linked = join(f.root, "linked");
     await f.exec("git", ["worktree", "add", "--detach", linked, "HEAD"]);
-    if (layout === "separate") await mkdir(join(f.root, ".git", "arc", "store.git"), { recursive: true });
+    if (layout === "separate") await f.exec("git", ["init", "--bare", join(f.root, ".git", "arc", "store")]);
     const lock = createRefLockFactory(f.ports);
     const other = createRefLockFactory(createDefaultStorePorts({ checkoutRoot: linked }));
     const ref = "refs/arc/work/12345678-1234-4234-8234-123456789abc";

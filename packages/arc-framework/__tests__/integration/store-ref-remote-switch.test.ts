@@ -209,3 +209,14 @@ it("keeps newer comparison heads when an already-switched move resumes", async (
   expect(resumed.status, JSON.stringify(resumed)).toBe("ok");
   expect((await h.a.git(["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc-remotes/backing/", "refs/arc/tmp/seen/backing/"])).stdout).toBe(before);
 }, 45_000);
+
+it("refuses a switch whose tracked pointer does not read back and finishes once it does", async () => {
+  const h = await switchFixture();
+  const refused = await invokeStoreMigrate(["--to", h.to], { ...h.ports, writeBackingRepository: async () => {} });
+  expect(refused).toMatchObject({ status: "refused", refusal: { code: "move-unfinished", condition: expect.stringContaining("pointer"),
+    remedy: { text: expect.stringContaining("arc-config.yml"), argv: ["arc", "store", "migrate"] } } });
+  expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout.trim()).toBe("refs/arc/tmp/migrate/move");
+  const finished = await invokeStoreMigrate([], h.ports);
+  expect(finished.status, JSON.stringify(finished)).toBe("ok");
+  expect(await h.ports.backingRepository()).toBe(h.to);
+}, 45_000);

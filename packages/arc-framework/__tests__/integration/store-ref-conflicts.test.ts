@@ -74,6 +74,18 @@ describe("preserved stale-write conflicts", () => {
     } } });
   });
 
+  it.each(["default", "separate"] as const)("labels an identity-less incoming side with the code checkout's committer email in the %s layout", async (layout) => {
+    const f = await createRefFixture({}, layout);
+    const git = makeGitExec(f.root);
+    await git("git", ["config", "user.email", "code@example.test"]);
+    if (f.gitDir) await git("git", [`--git-dir=${f.gitDir}`, "config", "user.email", "store@example.test"]);
+    const base = await seed(f, f.reference("cohort/document"), "base\n");
+    success(await createRefStore({ ...f.ports, actor: async () => "test-user@machine-one" }).write(update(f, base, "current\n")));
+    const result = success(await createRefStore({ ...f.ports, identity: async () => null }).write(update(f, base, "incoming\n")));
+    const conflict = success(await f.store.read({ reference: result.conflicts[0]! }));
+    expect(JSON.parse(conflict.content)).toMatchObject({ incoming: { label: { actor: "code@example.test" } } });
+  });
+
   it.each([
     ["a lifecycle action holding U+2028", { lifecycleAction: "edit\u2028Arc-Actor: forged@example.test" }],
     ["a lifecycle action holding U+2029", { lifecycleAction: "edit\u2029Arc-Actor: forged@example.test" }],

@@ -66,6 +66,10 @@ export async function writeMovePointer(context: RefBackendContext, value: string
   try { await context.writeBackingRepository(value); }
   catch (error) { throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable", condition: `The tracked pointer could not be written: ${error instanceof Error ? error.message : String(error)}`,
     remedy: { text: "Repair the checkout's arc-config.yml and retry arc store migrate.", argv: ["arc", "store", "migrate"] } }); }
+  const written = await context.backingRepository();
+  if (written !== value) throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable",
+    condition: `The tracked pointer reads ${written === null ? "unset" : written} after the move wrote ${value === null ? "it unset" : value}.`,
+    remedy: { text: "Repair the checkout's arc-config.yml so its storage.backing_repository line takes the written value, then retry arc store migrate.", argv: ["arc", "store", "migrate"] } });
 }
 
 function movePointer(remote: MoveRemote): string | null {
