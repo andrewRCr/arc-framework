@@ -232,7 +232,10 @@ interface Store {
   maintain(): Promise<StoreResult<MaintainResult>>;
 }
 
-/** An ended item's history ref, fetched by name. */
+/**
+ * An ended item's history ref, fetched by name. Its last segment is the item's UID in the lowercase form stored names
+ * carry, and `pull` refuses any other spelling (A41).
+ */
 type HistoryRef = `refs/arc/history/${"work" | "cohort"}/${string}`;
 interface PullInput { history?: readonly HistoryRef[] }
 interface PushInput { carry?: { ref: string; expect?: CommitSha } }   // CommitSha: CommitShaSchema's type, lib/store/links.ts
@@ -4599,6 +4602,11 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     out, refuses `state-unresolvable` naming the history ref and lists once the ref is restored (§ 4.5, § 4.6)
     (A38, A40).
 
+47. **A history ref names its owner by the lowercase UID stored names carry.** `pull` refuses a `history` entry spelled
+    with any other UID, and a stray history ref so spelled counts as no held state: it leaves a first write's placement
+    and a first backing designation unchanged, reads as no unfinished move, leaves a backing setting unrefused, stays
+    out of a layout move, and leaves an import destination unoccupied (§ 2.1) (A41).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4759,5 +4767,8 @@ open:
 
 - **A40** — 2026-10-24 — design: a window reads through the latest end the clone's held history holds.
   _Supersedes:_ § 4.6 A38's refusal. _Trigger:_ fix-check-2/F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A41** — 2026-10-24 — design: a history ref names its owner by the lowercase UID stored names carry.
+  _Supersedes:_ § 2.1 `HistoryRef`. _Trigger:_ fix-check-2/F3 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

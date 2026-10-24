@@ -51,9 +51,13 @@ describe("remote operation inputs", () => {
     expect(assertSchemaAccepts(HistoryRefSchema, historyRef)).toBe(historyRef);
     expect(assertSchemaAccepts(PullInputSchema, { history: [historyRef] })).toEqual({ history: [historyRef] });
   });
-  it.each(["refs/arc/work/example", "refs/arc/history/other/example", "refs/arc/history/work/", { ref }])(
+  it.each(["refs/arc/work/example", "refs/arc/history/other/example", "refs/arc/history/work/", { ref },
+    `refs/arc/history/work/${uid.replace(/1/g, "A")}`])(
     "rejects an invalid history ref %j", (value) => assertSchemaRefuses(HistoryRefSchema, value),
   );
+  it("refuses a history ref spelled with any UID but the lowercase form stored names carry", () => {
+    assertSchemaRefuses(PullInputSchema, { history: ["refs/arc/history/cohort/0F8FAD5B-D9CB-469F-A165-70867728950E"] });
+  });
   it("keeps history optional and refuses unknown input fields", () => {
     expect(assertSchemaAccepts(PullInputSchema, {})).toEqual({});
     assertSchemaRefuses(PullInputSchema, { history: [ref], unexpected: true });

@@ -2895,6 +2895,18 @@ reads through it (criterion 46).
 with the archive, for a case no local state shows. A pull that compares each held history ref with its remote tip: a
 listing of every history ref on every pull, for the same case.
 
+## A41 — A history ref names its owner by the lowercase UID stored names carry
+
+**Superseded text.** § 2.1's `HistoryRef` type, documented as "An ended item's history ref, fetched by name", whose
+shipped schema took any UUID.
+
+**Decision.** fix-check-1 F23's approved fix built `HistoryRefSchema` (`lib/store/refusal.ts`) from the stored UID form
+(`STORED_UID_SOURCE`, `lib/store/identity.ts`), so every site that classifies a history ref and every input that names
+one share one grammar, and an uppercase-UID ref, which no store writes, neither counts as held state nor passes as
+`pull`'s `history`. That narrows `PullInput` and `state-unresolvable`'s `historyRefs`, which the first Non-Goal routes
+through a § 2 amendment, recorded here (fix-check-2 F3). The producer's suggested correction kept the contract schema
+loose and narrowed classification alone; the approved set chose one grammar under the pre-public posture.
+
 ## Unreadable archive quarters
 
 While a quarter's tree cannot be read locally, or a quarter holds a folder whose metadata does not read — one whose
