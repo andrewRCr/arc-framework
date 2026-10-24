@@ -15,6 +15,10 @@ const iconBadgeThreadCommentUrl = new URL(
   "../../../../fixtures/coderabbit-hosted/icon-badge-thread-comment.txt",
   import.meta.url,
 );
+const colonCountReviewBodyUrl = new URL(
+  "../../../../fixtures/coderabbit-hosted/colon-count-review-body.txt",
+  import.meta.url,
+);
 
 const badgeEmphasis = [
   ["italic", (label: string) => `_${label}_`],
@@ -298,6 +302,75 @@ describe("CodeRabbit bold-badge review body", () => {
         sourceLabel: "**Inject the raw Git executor into the contribution proof.**",
       })],
     });
+  });
+});
+
+describe("CodeRabbit review-body section headers", () => {
+  const nitpickHeader = "<summary>🧹 Nitpick comments: 1</summary>";
+
+  async function colonCountReview(body = (text: string) => text): Promise<HostedGitHubReview> {
+    return {
+      id: "PRR_COLON",
+      url: "https://github.com/owner/repo/pull/42#pullrequestreview-colon",
+      actorIdentity: "136622811",
+      state: "commented",
+      headSha: "a".repeat(40),
+      submittedAt: "2026-10-23T20:17:48.000Z",
+      body: body(await readFile(colonCountReviewBodyUrl, "utf8")),
+    };
+  }
+
+  it("parses the grouped nitpick from a review CodeRabbit posted with colon counts", async () => {
+    expect(parseCodeRabbitReviewBody(await colonCountReview())).toEqual({
+      kind: "parsed",
+      actionableCount: null,
+      supplementalCounts: { nitpick: 1, "outside-diff": 0 },
+      findings: [expect.objectContaining({
+        findingId: "PRR_COLON:db6b75842d7626a57adad521",
+        severity: "minor",
+        nit: true,
+        locus: "packages/arc-framework/__tests__/integration/pre-commit-installed-validators.test.ts:121-123",
+        sourceLabel: "**Assert the complete cohort-consistency and ROADMAP notices.**",
+      })],
+    });
+  });
+
+  it("reads a section header that opens with an icon image", async () => {
+    const icon = "<picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/"
+      + "review-comment-icons-v1/broom.svg\" width=\"16\" height=\"16\" align=\"absmiddle\" alt=\"\"></picture>";
+    const review = await colonCountReview((body) =>
+      body.replace(nitpickHeader, `<summary>${icon} Nitpick comments: 1</summary>`));
+
+    expect(parseCodeRabbitReviewBody(review)).toMatchObject({
+      kind: "parsed",
+      supplementalCounts: { nitpick: 1 },
+      findings: [{ fingerprint: "db6b75842d7626a57adad521" }],
+    });
+  });
+
+  it("fails closed when a finding marker sits in a section whose header it does not recognize", async () => {
+    const review = await colonCountReview((body) =>
+      body.replace(nitpickHeader, "<summary>♻️ Duplicate comments: 1</summary>"));
+
+    expect(parseCodeRabbitReviewBody(review)).toEqual({
+      kind: "malformed",
+      reason: "provider-supplemental-marker-unattributed: "
+        + "{\"markers\":1,\"fingerprint\":\"db6b75842d7626a57adad521\"}",
+    });
+  });
+
+  it("ignores a finding marker quoted in fenced code outside every section", () => {
+    const review: HostedGitHubReview = {
+      id: "PRR_FENCED",
+      url: "https://github.com/owner/repo/pull/42#pullrequestreview-fenced",
+      actorIdentity: "136622811",
+      state: "commented",
+      headSha: "a".repeat(40),
+      submittedAt: "2026-10-23T20:17:48.000Z",
+      body: "**Actionable comments posted: 1**\n\n```md\n<!-- cr-comment:v1:aaaaaaaaaaaaaaaaaaaaaaaa -->\n```\n",
+    };
+
+    expect(parseCodeRabbitReviewBody(review)).toMatchObject({ kind: "parsed", actionableCount: 1, findings: [] });
   });
 });
 

@@ -156,20 +156,30 @@ function nonNegativeInteger(value: string): number | null {
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
+/** Match one-line `<summary>` headers; the text excludes a leading icon image, whose URL is not header text. */
 function summaryMatches(body: string): SummaryMatch[] {
-  return [...body.matchAll(/^[\t ]*(?:>[\t ]*)*<summary>([^<\r\n]+)<\/summary>/gimu)].map((match) => ({
+  const summary = new RegExp(`^[\\t ]*(?:>[\\t ]*)*<summary>(?:${ICON})?([^<\\r\\n]+)<\\/summary>`, "gimu");
+  return [...body.matchAll(summary)].map((match) => ({
     text: (match[1] as string).trim(),
     start: match.index,
     end: match.index + match[0].length,
   }));
 }
 
+/** Read a header's trailing count, written `(1)` or `: 1`, and the label before it. */
+function headerCount(text: string): { label: string; count: number } | null {
+  const countMatch = /(?:\((\d+)\)|:[\t ]*(\d+))[\t ]*$/u.exec(text);
+  const digits = countMatch?.[1] ?? countMatch?.[2];
+  if (countMatch === null || digits === undefined) return null;
+  const count = nonNegativeInteger(digits);
+  return count === null ? null : { label: text.slice(0, countMatch.index), count };
+}
+
 function supplementalHeader(text: string): Pick<SupplementalSection, "category" | "count"> | null {
-  const countMatch = /\((\d+)\)\s*$/u.exec(text);
-  if (countMatch?.[1] === undefined) return null;
-  const count = nonNegativeInteger(countMatch[1]);
-  if (count === null) return null;
-  const label = text.slice(0, countMatch.index).toLowerCase();
+  const header = headerCount(text);
+  if (header === null) return null;
+  const { count } = header;
+  const label = header.label.replace(new RegExp(ICON, "gu"), "").toLowerCase();
   if (label.includes("nitpick") && label.includes("comment")) {
     return { category: "nitpick", count };
   }
@@ -469,15 +479,12 @@ function supplementalGroups(
 ) {
   return blocks.filter((block) => block.parentId === section.blockId).flatMap((block) => {
     const match = directSummary(body, block, blocks);
-    if (match === null) return [];
-    const countMatch = /\((\d+)\)\s*$/u.exec(match.text);
-    if (countMatch?.[1] === undefined) return [];
-    const count = nonNegativeInteger(countMatch[1]);
-    if (count === null) return [];
+    const header = match === null ? null : headerCount(match.text);
+    if (match === null || header === null) return [];
     return [{
       blockId: block.id,
-      path: match.text.slice(0, countMatch.index).trim(),
-      count,
+      path: header.label.trim(),
+      count: header.count,
       start: match.end,
       end: block.closeStart,
     }];
@@ -574,6 +581,29 @@ function parseSupplementalSection(
   return { kind: "parsed", findings };
 }
 
+/**
+ * Refuse a finding marker outside fenced code that no recognized section holds.
+ *
+ * A section whose header the parser does not recognize is skipped while the rest of the body still parses, so its
+ * findings would otherwise vanish from a result that reads as complete.
+ */
+function unattributedMarker(
+  body: string,
+  sections: readonly SupplementalSection[],
+): CodeRabbitReviewBodyParseResult | null {
+  const fencedRanges = fencedMarkdownRanges(body);
+  const unattributed = [...body.matchAll(/<!--\s*cr-comment:v1:([a-f0-9]+)\s*-->/giu)].filter((marker) =>
+    !fencedRanges.some((range) => range.start <= marker.index && marker.index < range.end)
+    && !sections.some((section) => section.start <= marker.index && marker.index < section.end));
+  const first = unattributed[0];
+  return first === undefined
+    ? null
+    : malformedWithContext("provider-supplemental-marker-unattributed", {
+      markers: unattributed.length,
+      fingerprint: first[1] as string,
+    });
+}
+
 /** Parse CodeRabbit's optional review-thread count claim and non-thread findings. */
 export function parseCodeRabbitReviewBody(
   review: HostedGitHubReview,
@@ -608,6 +638,8 @@ export function parseCodeRabbitReviewBody(
     .filter((section): section is SupplementalSection => section !== null)
     .concat(calloutSections(detailBody, blocks))
     .sort((left, right) => left.start - right.start);
+  const unattributed = unattributedMarker(detailBody, sections);
+  if (unattributed !== null) return unattributed;
   const findings: ReviewBodyFinding[] = [];
   for (const section of sections) {
     const parsed = parseSupplementalSection(
