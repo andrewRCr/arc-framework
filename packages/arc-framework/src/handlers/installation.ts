@@ -40,7 +40,7 @@ export const installationCommandInputPolicyDeclarations = [{
 // --- Update ---
 
 export async function handleUpdate(
-  options: { quiet?: boolean } = {},
+  options: { quiet?: boolean; keepLocalWithoutBaseline?: boolean } = {},
   interaction?: InteractionContext,
 ): Promise<void> {
   p.intro("arc update");
@@ -55,7 +55,10 @@ export async function handleUpdate(
     const result = await runWithSpinner(
       output,
       "Updating ARC framework files...",
-      () => runUpdate({ cwd, io: createIOContext(interaction?.subprocess), templateDir, recipe }),
+      () => runUpdate({
+        cwd, io: createIOContext(interaction?.subprocess), templateDir, recipe,
+        keepLocalWithoutBaseline: options.keepLocalWithoutBaseline === true,
+      }),
       "Update complete.",
     );
 

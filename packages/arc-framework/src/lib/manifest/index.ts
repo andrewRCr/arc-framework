@@ -41,3 +41,9 @@ export {
   type RenderContext,
   type ApplyResult,
 } from "./apply.js";
+
+export {
+  recoverUneditedBaselines,
+  findEditsWithoutBaseline,
+  missingBaselineError,
+} from "./baseline.js";

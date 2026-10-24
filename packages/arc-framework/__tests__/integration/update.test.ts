@@ -1011,7 +1011,7 @@ describe("update integration — file add/remove", () => {
   });
 });
 
-describe("update integration — pristine repair", () => {
+describe("update integration — missing merge baseline", () => {
   let tempDir: string;
   let templateDir: string;
 
@@ -1029,46 +1029,109 @@ describe("update integration — pristine repair", () => {
     }
   });
 
-  it("missing pristine → one-pass repair: file preserved, pristine rebuilt from framework content", async () => {
+  async function dropBaseline(path: string): Promise<Record<string, string>> {
+    const fullStore = await readPristineStore(tempDir);
+    await writePristineStore(tempDir, Object.fromEntries(Object.entries(fullStore).filter(([key]) => key !== path)));
+    return fullStore;
+  }
+
+  it("missing pristine store, file unedited since install → takes the new version and restores its baseline", async () => {
     await setupInitialState(tempDir, {
       [CONFIGURABLE_FILE]: { content: CONTENT, classification: "Configurable" },
     });
+    // A fresh clone or another machine: the gitignored store is absent, the tracked manifest is present
+    await rm(join(tempDir, ".arc", "system", ".internal", "pristine.json"));
+    templateDir = await createTemplateDir({ [CONFIGURABLE_FILE]: V2_CONTENT });
 
-    // Remove the configurable file's entry from pristine store to simulate corruption
-    const fullStore = await readPristineStore(tempDir);
-    const store = Object.fromEntries(
-      Object.entries(fullStore).filter(([key]) => key !== CONFIGURABLE_FILE),
-    );
-    await writePristineStore(tempDir, store);
-
-    templateDir = await createTemplateDir({
-      [CONFIGURABLE_FILE]: V2_CONTENT,
-    });
-
-    const recipe = makeRecipe([CONFIGURABLE_FILE]);
     const result = await runUpdate({
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir,
-      recipe,
+      recipe: makeRecipe([CONFIGURABLE_FILE]),
+    });
+
+    expect(result.updated).toBe(1);
+    expect(result.pristineRebuilt).toEqual([]);
+    expect(await readFile(join(tempDir, ".arc", CONFIGURABLE_FILE), "utf-8")).toBe(V2_CONTENT);
+    expect((await readPristineStore(tempDir))[CONFIGURABLE_FILE]).toBe(V2_CONTENT);
+  });
+
+  it("customized file with no baseline → refuses before writing anything", async () => {
+    await setupInitialState(tempDir, {
+      [FRAMEWORK_FILE]: { content: CONTENT, classification: "Framework" },
+      [CONFIGURABLE_FILE]: { content: CONTENT, classification: "Configurable" },
+    });
+    const edited = `${CONTENT}\nLocal rule\n`;
+    await writeFile(join(tempDir, ".arc", CONFIGURABLE_FILE), edited, "utf-8");
+    await dropBaseline(CONFIGURABLE_FILE);
+    const manifestBefore = await readFile(manifestPath(tempDir), "utf-8");
+    templateDir = await createTemplateDir({ [FRAMEWORK_FILE]: V2_CONTENT, [CONFIGURABLE_FILE]: V2_CONTENT });
+
+    await expect(
+      runUpdate({
+        cwd: tempDir,
+        io: makeIOContext(tempDir),
+        templateDir,
+        recipe: makeRecipe([FRAMEWORK_FILE, CONFIGURABLE_FILE]),
+      }),
+    ).rejects.toThrow(expect.objectContaining({ code: "manifest.baseline-missing", name: "UserFacingError" }));
+
+    expect(await readFile(join(tempDir, ".arc", CONFIGURABLE_FILE), "utf-8")).toBe(edited);
+    expect(await readFile(join(tempDir, ".arc", FRAMEWORK_FILE), "utf-8")).toBe(CONTENT);
+    expect(await readFile(manifestPath(tempDir), "utf-8")).toBe(manifestBefore);
+  });
+
+  it("refused update merges once the baseline is restored", async () => {
+    const base = "# Project\n\nIntro\n\nShared middle\n\nOriginal content\n";
+    await setupInitialState(tempDir, {
+      [CONFIGURABLE_FILE]: { content: base, classification: "Configurable" },
+    });
+    await writeFile(join(tempDir, ".arc", CONFIGURABLE_FILE), base.replace("Intro", "Intro, customized"), "utf-8");
+    const savedStore = await dropBaseline(CONFIGURABLE_FILE);
+    templateDir = await createTemplateDir({
+      [CONFIGURABLE_FILE]: base.replace("Original content", "Updated content"),
+    });
+    const options = {
+      cwd: tempDir, io: makeIOContext(tempDir), templateDir, recipe: makeRecipe([CONFIGURABLE_FILE]),
+    };
+
+    await expect(runUpdate(options)).rejects.toThrow(expect.objectContaining({ code: "manifest.baseline-missing" }));
+    await writePristineStore(tempDir, savedStore);
+    const result = await runUpdate(options);
+
+    expect(result.updated).toBe(1);
+    expect(result.conflicts).toEqual([]);
+    const merged = await readFile(join(tempDir, ".arc", CONFIGURABLE_FILE), "utf-8");
+    expect(merged).toContain("Intro, customized");
+    expect(merged).toContain("Updated content");
+  });
+
+  it("keep-local opt-in keeps the customized file, records the new baseline, and names the file", async () => {
+    await setupInitialState(tempDir, {
+      [CONFIGURABLE_FILE]: { content: CONTENT, classification: "Configurable" },
+    });
+    const edited = `${CONTENT}\nLocal rule\n`;
+    await writeFile(join(tempDir, ".arc", CONFIGURABLE_FILE), edited, "utf-8");
+    await dropBaseline(CONFIGURABLE_FILE);
+    templateDir = await createTemplateDir({ [CONFIGURABLE_FILE]: V2_CONTENT });
+
+    const result = await runUpdate({
+      cwd: tempDir,
+      io: makeIOContext(tempDir),
+      templateDir,
+      recipe: makeRecipe([CONFIGURABLE_FILE]),
+      keepLocalWithoutBaseline: true,
     });
 
     expect(result.pristineRebuilt).toEqual([CONFIGURABLE_FILE]);
-    // One-pass: base===updated → "unchanged" (adopter's content preserved)
-    expect(result.unchanged).toBe(1);
-    expect(result.updated).toBe(0);
-    expect(result.conflicts).toEqual([]);
-
-    // Current file untouched — adopter customizations preserved
-    const current = await readFile(join(tempDir, ".arc", CONFIGURABLE_FILE), "utf-8");
-    expect(current).toBe(CONTENT);
-
-    // Pristine rebuilt from rendered framework content (not adopter's current)
-    const repairedStore = await readPristineStore(tempDir);
-    expect(repairedStore[CONFIGURABLE_FILE]).toBe(V2_CONTENT);
+    expect(await readFile(join(tempDir, ".arc", CONFIGURABLE_FILE), "utf-8")).toBe(edited);
+    expect((await readPristineStore(tempDir))[CONFIGURABLE_FILE]).toBe(V2_CONTENT);
+    const summary = buildUpdateSummary(result);
+    expect(summary).toContain(`.arc/${CONFIGURABLE_FILE}`);
+    expect(summary).toContain("any upstream changes to them were skipped");
   });
 
-  it("after one-pass repair, next version update merges correctly", async () => {
+  it("a recovered baseline carries into the next version's update", async () => {
     const V3_CONTENT = "# Project\n\nVersion 3 content\n";
 
     // File on disk matches what was installed (no adopter modifications)
@@ -1089,7 +1152,7 @@ describe("update integration — pristine repair", () => {
 
     const recipe = makeRecipe([CONFIGURABLE_FILE]);
 
-    // First update: one-pass repair — pristine set to V2_CONTENT, file unchanged
+    // First update: the unedited file recovers its baseline from the manifest hash
     await runUpdate({
       cwd: tempDir,
       io: makeIOContext(tempDir),
@@ -1253,18 +1316,18 @@ describe("buildUpdateSummary", () => {
     hookUpgrade: { files: [], warnings: [], instructions: [] },
   };
 
-  it("shows 'rebuilt' count in summary line", () => {
+  it("shows the kept-local count in the summary line", () => {
     const result: UpdateResult = {
       ...baseResult,
       pristineRebuilt: ["README.md"],
       unchanged: 1,
     };
     const output = buildUpdateSummary(result);
-    expect(output).toContain("1 rebuilt");
-    expect(output).not.toContain("repaired");
+    expect(output).toContain("1 kept local");
+    expect(output).not.toContain("rebuilt");
   });
 
-  it("shows whole-store cause when pristineStoreError is not-found", () => {
+  it("names the whole-store cause and each kept file when pristineStoreError is not-found", () => {
     const result: UpdateResult = {
       ...baseResult,
       pristineRebuilt: ["README.md", "system/arc-config.yml"],
@@ -1273,10 +1336,10 @@ describe("buildUpdateSummary", () => {
     };
     const output = buildUpdateSummary(result);
     expect(output).toContain("pristine.json not found");
-    expect(output).toContain("rebuilt from current framework version");
-    expect(output).toContain("Your customizations are preserved");
-    // Should NOT list individual files for whole-store failure
-    expect(output).not.toContain(".arc/README.md");
+    expect(output).toContain(".arc/README.md");
+    expect(output).toContain(".arc/system/arc-config.yml");
+    expect(output).toContain("any upstream changes to them were skipped");
+    expect(output).not.toContain("customizations are preserved");
   });
 
   it("shows whole-store cause when pristineStoreError is invalid-json", () => {
@@ -1299,7 +1362,7 @@ describe("buildUpdateSummary", () => {
     };
     const output = buildUpdateSummary(result);
     expect(output).toContain(".arc/README.md");
-    expect(output).toContain("rebuilt from current framework version");
+    expect(output).toContain("any upstream changes to them were skipped");
   });
 
   it("omits rebuild section when no files were rebuilt", () => {
@@ -1308,8 +1371,8 @@ describe("buildUpdateSummary", () => {
       updated: 3,
     };
     const output = buildUpdateSummary(result);
-    expect(output).not.toContain("rebuilt");
-    expect(output).not.toContain("Pristine");
+    expect(output).not.toContain("kept local");
+    expect(output).not.toContain("merge baseline");
   });
 
   it("shows skill warnings when present", () => {

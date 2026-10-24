@@ -428,7 +428,10 @@ describe("applyChangePlan", () => {
       );
     });
 
-    test("tracks pristine rebuild when pristineContent is undefined", async () => {
+    test.each([
+      ["keeps a customized file local and records it", "local edit", ["system/arc-config.yml"]],
+      ["records nothing when the file already matches the update", "config content", []],
+    ])("with no stored baseline, %s", async (_name, current, kept) => {
       const plan: FileChangePlan = {
         ...emptyPlan(),
         merges: [{
@@ -447,7 +450,7 @@ describe("applyChangePlan", () => {
       (io.readFile as ReturnType<typeof vi.fn>).mockImplementation(
         async (path: string) => {
           if (path === "/project/.arc/system/arc-config.yml") {
-            return "config content";
+            return current;
           }
           if (path.endsWith("system/arc-config.yml")) {
             return "config content";
@@ -460,7 +463,8 @@ describe("applyChangePlan", () => {
         plan, "/project/.arc", makeManifest(), noopMerge, io, renderCtx,
       );
 
-      expect(result.pristineRebuilt).toEqual(["system/arc-config.yml"]);
+      expect(result.pristineRebuilt).toEqual(kept);
+      expect(result.newPristineStore["system/arc-config.yml"]).toBe("config content");
     });
 
     test("reinstalls Configurable file missing from disk", async () => {

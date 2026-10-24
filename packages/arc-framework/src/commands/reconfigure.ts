@@ -23,6 +23,9 @@ import {
   readManifest,
   buildChangePlan,
   applyChangePlan,
+  recoverUneditedBaselines,
+  findEditsWithoutBaseline,
+  missingBaselineError,
 } from "../lib/manifest/index.js";
 import { writeArcGitignoreBlock, ensureDir } from "../lib/template/index.js";
 import { getFrameworkVersion } from "../lib/version.js";
@@ -186,9 +189,11 @@ export async function runReconfigure(
   } catch {
     // Missing pristine store — proceed with empty
   }
+  Object.assign(pristineStore, await recoverUneditedBaselines(manifest, pristineStore, arcDir, io.readFile));
 
   // Build change plan (pure computation — old manifest vs new file list)
   const plan = buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles);
+  const renderCtx = { templateDir, tokens, config, configKeyOverrides };
 
   // Dry-run: return the plan without applying any changes
   if (options.dryRun) {
@@ -202,6 +207,12 @@ export async function runReconfigure(
       previousConfig,
       newConfig: newInstallConfig,
     };
+  }
+
+  // Refuse before any prompt or write: merging a customized file with no baseline would drop its upstream changes
+  const editsWithoutBaseline = await findEditsWithoutBaseline(plan, arcDir, io.readFile, renderCtx);
+  if (editsWithoutBaseline.length > 0) {
+    throw missingBaselineError(editsWithoutBaseline, "reconfigure");
   }
 
   const originalRemovals = [...plan.removals];
@@ -226,7 +237,7 @@ export async function runReconfigure(
     manifest,
     mergeFn,
     { readFile: io.readFile, writeFile: io.writeFile, mkdir: io.mkdir },
-    { templateDir, tokens, config, configKeyOverrides },
+    renderCtx,
   );
 
   // Regenerate skills

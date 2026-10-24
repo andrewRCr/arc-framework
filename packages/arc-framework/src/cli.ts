@@ -1283,9 +1283,13 @@ program
   .command("update")
   .description("Update ARC framework files to the latest version")
   .option("-q, --quiet", "Suppress changelog output")
+  .option(
+    "--keep-local-without-baseline",
+    "Keep customized files that have no merge baseline as they are, skipping their upstream changes",
+  )
   .action(withInteractionContext(
     {},
-    async (context, opts: { quiet?: boolean }) => {
+    async (context, opts: { quiet?: boolean; keepLocalWithoutBaseline?: boolean }) => {
       await (await import("./handlers/installation.js")).handleUpdate(opts, context);
     },
   ));
