@@ -2,6 +2,7 @@
 import type { LifecycleEntry } from "../store/lifecycle-index.js";
 import type { ListingDiagnostic } from "../store/read.js";
 import type { ProjectReadinessWarning } from "./project-view.js";
+import { compareCompletedPlacements } from "../store/placement.js";
 
 /** Standing entries and names withheld by incomplete primary-record evidence. */
 export interface StandingLifecycleSelection {
@@ -55,9 +56,5 @@ function clashWarning(name: string, holders: readonly LifecycleEntry[]): Project
 
 function compareArchive(left: LifecycleEntry, right: LifecycleEntry): number {
   if (left.placement.kind !== "completed" || right.placement.kind !== "completed") return 0;
-  const quarter = left.placement.quarter.localeCompare(right.placement.quarter);
-  if (quarter !== 0) return quarter;
-  const leftSequence = "sequence" in left.placement ? BigInt(left.placement.sequence) : 0n;
-  const rightSequence = "sequence" in right.placement ? BigInt(right.placement.sequence) : 0n;
-  return leftSequence < rightSequence ? -1 : leftSequence > rightSequence ? 1 : 0;
+  return compareCompletedPlacements(left.placement, right.placement);
 }

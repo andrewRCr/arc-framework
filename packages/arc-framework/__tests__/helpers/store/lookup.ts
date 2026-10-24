@@ -5,6 +5,7 @@ import type { ReferenceContext } from "./context.js";
 import type { MemoryRecord } from "./model.js";
 import { z } from "zod";
 import { missingLookup, namespaceAdmission, ok, recordAdmission, refused } from "./refusals.js";
+import { compareCompletedPlacements } from "../../../src/lib/store/placement.js";
 
 function primary(record: MemoryRecord): boolean {
   return record.reference.kind === "work-item/meta" || record.reference.kind === "work-item/record";
@@ -15,7 +16,15 @@ function preferredSlugRecords(records: MemoryRecord[], slug: string): MemoryReco
     && (record.reference.owner.name === slug || record.formerSlugs.includes(slug)));
   const priority = (record: MemoryRecord) => (record.placement?.kind === "completed" ? 0 : 2) + (record.reference.owner.name === slug ? 1 : 0);
   const highest = Math.max(...matches.map(priority));
-  return matches.filter((record) => priority(record) === highest);
+  return completedWinner(matches.filter((record) => priority(record) === highest));
+}
+
+function completedWinner(records: MemoryRecord[]): MemoryRecord[] {
+  if (records.length < 2 || records.some(record => record.placement?.kind !== "completed" || record.reference.kind === "cohort/document")) return records;
+  const workUnits = records.filter(record => record.reference.kind === "work-item/meta");
+  if (workUnits.length === 0) return records;
+  return workUnits.sort((left, right) => left.placement?.kind === "completed" && right.placement?.kind === "completed"
+    ? compareCompletedPlacements(left.placement, right.placement) : 0).slice(-1);
 }
 
 function lineageRecords(records: MemoryRecord[], origin: string): MemoryRecord[] {

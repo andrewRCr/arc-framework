@@ -61,10 +61,9 @@ it("opens a completed work unit's projected meta by default", async () => {
 
 it("preserves ambiguous completed lookup evidence and the projected-file route", async () => {
   const f = await fixture();
-  for (let index = 0; index < 2; index++) {
-    const meta = await f.seedMeta("archived", { state: "Shipped", currentWorkflow: null });
-    lifecycleSuccess(await f.store.write({ ...recordPut(meta, { placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }), provenance: { verb: "archive", lifecycleAction: "archive" } }));
-  }
+  await f.seedMeta("archived", { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  await f.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "archived" })),
+    "# Cohort: archived\n\n**Purpose:** Coordinate members.\n", { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
   const lookup = await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("archived") });
   expect(lookup.status).toBe("refused");
   if (lookup.status !== "refused") throw new Error("Expected ambiguous fixture");
@@ -74,6 +73,14 @@ it("preserves ambiguous completed lookup evidence and the projected-file route",
   expect(artifact.message).toContain(lookup.refusal.condition);
   expect(artifact.message).toContain(lookup.refusal.remedy.text);
   expect(artifact.message).toContain("completed/");
+});
+
+it("views the later completed work unit when its slug has been reused", async () => {
+  const f = await fixture();
+  await f.seedMeta("archived", { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const latest = await f.seedMeta("archived", { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const target = await f.deps.resolveExplicitTarget({ cwd: f.cwd, slug: "archived" });
+  expect(target).toMatchObject({ status: "resolved", artifactSource: { kind: "store", reference: latest.reference } });
 });
 
 

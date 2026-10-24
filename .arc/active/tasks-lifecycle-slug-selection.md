@@ -41,34 +41,15 @@ existing assertion, the work-unit claim's, to send the UID (4.3.d).
         - Work-unit reads, start, decomposition homes, and inbox work-item lists name cohorts in their refusals and
           preserve Errand handling; focused reader tests cover their refusals and successful work-unit continuations.
 
-### `[ ]` **1.2 Resolve a completed tie that includes a work unit to its latest archived work unit — § 1.2**
+### `[x]` **1.2 Resolve a completed tie that includes a work unit to its latest archived work unit — § 1.2**
 
 - _Goal:_ A reused slug stays resolvable once its later holder completes: a completed tie that includes a work unit
   resolves to its latest archived work unit, a work unit outranking an Errand, while a completed tie that includes a
   cohort, or holds only Errands, keeps refusing.
 
-    - `preferredSlugRecords` breaks a tie only within a completed tier, current name or former name: holder type orders
-      first (a work unit above an Errand), then the latest archived, read from each record's completed `placement`. A
-      tie whose holders include a cohort, or are all Errands, keeps every candidate.
-    - The latest archived is one exported comparator over completed placements, by the later quarter and then the higher
-      sequence, in `lib/store/placement.ts`. It takes the place of status's private `compareArchive`
-      (`lib/status/store-project-standing.ts`), which status's selection then calls through; the reference backend calls
-      it here, and the ref backend in 8.1.
-    - `view-store.test.ts`'s ambiguous completed case (`__tests__/unit/handlers/`) seeds two completed work units on one
-      slug, which now resolve; it moves onto a completed work unit and a completed cohort on one slug, which still
-      refuse.
-    - Build `test-first` (one behavior at a time):
-        - two completed work units on one slug resolve to the later quarter's, and within one quarter to the higher
-          sequence
-        - three completed generations of one slug resolve to the latest, built under `createLifecycleHarness`
-          (`__tests__/helpers/store/lifecycle-harness.ts`), whose write rules refuse the third creation today
-          (`checkFormerSlug`)
-        - a completed work unit and a completed Errand on one slug resolve to the work unit
-        - a completed former-name tie that includes a work unit resolves to its latest archived work unit
-        - a completed tie that includes a cohort, and a completed tie of Errands alone, refuse `ambiguous-match`
-        - a live tie still refuses `ambiguous-match`
-        - viewing a slug that two completed work units hold shows the later one (`resolveViewArtifact`)
-        - status's selection orders completed holders as before, `store-project-standing.test.ts` passing unchanged
+- _Outcome:_ Completed ties containing work units select the latest archive through one placement comparator shared
+  with status. Cohort and Errand-only ties remain ambiguous; lookup and view tests cover multiple generations and
+  former names, including third-generation creation through production write rules.
 
 ### `[ ]` **1.3 Rank the `ref` arm live-first — § 1.3**
 
