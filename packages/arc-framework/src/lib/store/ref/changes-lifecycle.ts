@@ -4,7 +4,7 @@ import { captureCommitReceipts } from "./history-receipts.js";
 import type { ChangesInput } from "../contract.js";
 import { RecordReferenceSchema } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
-import { readHistoryBatchIndex } from "./history-batches.js";
+import { indexHistoryBatches } from "./history-batches.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefTips, readBatchObjects, readRefTrees } from "./batch-read.js";
 import { expandStoredPath } from "../stored-path.js";
@@ -104,8 +104,7 @@ async function lifecycleBatchIndex(context: RefBackendContext, history: string, 
   const cohort = history.startsWith("refs/arc/history/cohort/");
   const reference = RecordReferenceSchema.parse({ kind: cohort ? "cohort/document" : "work-item/meta",
     owner: { type: cohort ? "cohort" : "work-item", name: "unresolved", uid: history.split("/").at(-1) } });
-  return await readHistoryBatchIndex(context, history, tip, reference, evidence)
-    ?? { status: "refused", refusal: missingChangeState({ ref: history, version: input.to }) };
+  return indexHistoryBatches(context, history, tip, reference, evidence);
 }
 
 function hasLifecycleBatches(live: string, ends: ChangeEnds, index: ReadonlyMap<string, string>, batches: ReadonlySet<string>): boolean {

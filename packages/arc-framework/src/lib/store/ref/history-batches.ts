@@ -14,6 +14,12 @@ import type { RefBackendContext } from "./context.js";
 export async function readHistoryBatchIndex(context: RefBackendContext, history: string, tip: string, reference: RecordReference,
   evidence?: StoreCreationReceiptReader): Promise<StoreResult<Map<string, string>> | undefined> {
   if ((await readBatchObjects(context, [tip])).get(tip)?.type !== "commit") return undefined;
+  return indexHistoryBatches(context, history, tip, reference, evidence);
+}
+
+/** Map each batch named from a tip its caller has already read as a commit to the newest commit naming it. */
+export async function indexHistoryBatches(context: RefBackendContext, history: string, tip: string, reference: RecordReference,
+  evidence?: StoreCreationReceiptReader): Promise<StoreResult<Map<string, string>>> {
   const { stdout } = await context.exec("git", ["log", "--topo-order", "--format=%H%x00%B%x00", tip], { cwd: context.checkoutRoot, objectAccess: "local-only" });
   const values = stdout.split("\0"), batches = new Map<string, string>();
   for (let index = 0; index + 1 < values.length; index += 2) {
