@@ -82,7 +82,7 @@ QUICK-REFERENCE records command patterns and environment context: platform tools
 
 - What command patterns does the agent need for everyday operations?
 - What runtime environment is required? (containers, services, tool versions)
-- What does a fresh checkout need before its checks can run? (dependencies, untracked files such as `.env`)
+- What does a fresh checkout need before its checks can run? (dependencies, gitignored files such as `.env`)
 
 Author `.arc/system/arc-checks.yml` with the person from the project's existing checks. Define each command and its real
 inputs, and assign the earliest event it must pass before: `commit`, `push`, or `merge`. Leave a check's gate unset when
@@ -109,8 +109,8 @@ Each work unit runs in its own worktree, which starts with only what Git tracks,
 
 - Set `worktree.post_create` in `.arc/system/arc-config.yml` to the command that installs what the checks call, such as
   `npm ci`, then check it with `arc config validate`.
-- List in a `.worktreeinclude` file at the repository root, in gitignore syntax, the untracked files a check or service
-  reads, such as `.env`.
+- List in a `.worktreeinclude` file at the repository root, in gitignore syntax, the gitignored files a check or service
+  reads, such as `.env`; a file Git does not ignore is not copied.
 - Go through the rest of [Concurrent Work][concurrent-work] § What each checkout needs its own of with the person:
   services, ports, databases, and toolchain versions stay the project's to arrange.
 

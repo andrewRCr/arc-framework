@@ -63,7 +63,7 @@ primarily for the sake of agent isolation rather than developer convenience.
   isolation guarantee above it is structural.
 
 - **A fresh worktree comes up working.** Worktree creation includes provisioning, not just `git worktree add`: the
-  untracked files a `.worktreeinclude` file lists are copied from the primary, a configured post-create step
+  gitignored files a `.worktreeinclude` file lists are copied from the primary, a configured post-create step
   (`worktree.post_create`) installs project dependencies, and registered harness integration directories (agent
   skills, hooks, allowlists — gitignored, so git alone won't carry them) are provisioned from the primary. A spawned
   worktree runs its quality gates and boots an agent session without hand setup — "cheap to create" includes coming
@@ -76,9 +76,10 @@ own. Anything a check or service reads or writes outside Git is either the check
 provisions the first two; the rest are the project's to arrange:
 
 - **Dependencies** — installed by `worktree.post_create`, for example `npm ci` or creating a virtual environment.
-- **Gitignored configuration and secrets** — `.env` files, local certificates, and other untracked files a run reads,
-  copied from the primary by gitignore-syntax patterns in `.worktreeinclude` at the repository root. The copies land
-  before `worktree.post_create` runs, so the script can read them.
+- **Gitignored configuration and secrets** — `.env` files, local certificates, and other gitignored files a run reads,
+  copied from the primary by gitignore-syntax patterns in `.worktreeinclude` at the repository root. A matched file is
+  copied only when the new worktree's own ignore rules ignore it, so a copy never leaves that worktree dirty, and the
+  copies land before `worktree.post_create` runs, so the script can read them.
 - **Services and ports** — a service started from one checkout can answer another checkout's commands, and services on
   fixed ports collide. Give each checkout its own service names and ports, or share one stack deliberately.
 - **Databases** — tests from two checkouts that use the same database name overwrite each other's data. Name test
