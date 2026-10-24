@@ -345,18 +345,11 @@ cohort over the reference backend directly.
           in its result and report, including rejected transitions. Former-name resolution checks the selected
           holder's current name before dispatch while retaining the first selected reference.
 
-    - `[ ]` **3.2.c Teardown's retirement read**
+    - `[x]` **3.2.c Teardown's retirement read**
 
-        - `readStoreRetirementEvidence` (`lib/work-unit/store-retirement-evidence.ts`) throws a new `StoreRefusalError`,
-          exported from `lib/store/refusal.ts` and carrying `refusal`, with today's text as its message, at each of its
-          three refusals: the subject's read, the lineage lookup, and the lineage read. `runStoreTeardown`'s catch
-          (`lib/work-unit/verbs/teardown-store.ts`) returns the refusal in `TeardownResult`'s rejected arm
-          (`lib/work-unit/verbs/teardown.ts`, a field added and nothing else), and `handleTeardown`
-          (`handlers/lifecycle.ts`) passes it to `refuse` in a one-line change. The session-start retirement sweep
-          (`store-retirement-sweep.ts`) keeps reporting the error's message.
-        - Build `test-first` (one behavior at a time):
-            - `arc teardown <slug>` of a clashed slug refuses naming both holders and the repair
-            - where the lineage lookup refuses, the retirement sweep reports the same message as today
+        - `StoreRefusalError` carries original evidence through retirement's subject, lineage lookup, and lineage
+          read failures. Teardown preserves it in its rejected result and shared rendering; the session sweep retains
+          the previous diagnostic message, including recovery guidance.
 
     - `[ ]` **3.2.d The reconcile handler's operand check**
 

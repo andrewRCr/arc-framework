@@ -3,6 +3,7 @@ import { canonicalDigest } from "../kernel/canonical/canonical-json.js";
 import { SlugSchema } from "../kernel/index.js";
 import { LineageRecordSchema } from "../store/kinds/lineage/index.js";
 import { readWorkUnit } from "../store/lifecycle-write.js";
+import { StoreRefusalError } from "../store/refusal.js";
 import type { Store } from "../store/contract.js";
 import type { StoreRecord } from "../store/read.js";
 import type { BranchLink } from "../store/links.js";
@@ -22,11 +23,11 @@ export async function readStoreRetirementEvidence(store: Store, name: string, ba
       kind: "shipped", expectedLifecycle: "completed", resultDigest: canonicalDigest(primary.result.content), baseProofOid: baseOid,
     });
   }
-  if (primary.refusal.code !== "not-found") throw new Error(`${primary.refusal.condition} ${primary.refusal.remedy.text}`);
+  if (primary.refusal.code !== "not-found") throw new StoreRefusalError(primary.refusal);
   const lookup = await store.lookup({ kind: "lineage", origin: SlugSchema.parse(name) });
-  if (lookup.status === "refused") throw new Error(`${lookup.refusal.condition} ${lookup.refusal.remedy.text}`);
+  if (lookup.status === "refused") throw new StoreRefusalError(lookup.refusal);
   const read = await store.read({ reference: lookup.result.reference });
-  if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
+  if (read.status === "refused") throw new StoreRefusalError(read.refusal);
   const lineage = LineageRecordSchema.parse(read.result.fields);
   if (read.result.reference.owner.type !== "work-item" || lineage.origin.name !== read.result.reference.owner.name
     || (lineage.origin.uid !== undefined && read.result.reference.owner.uid !== lineage.origin.uid)) throw new Error("Terminal lineage does not match its retiring owner; repair the lineage identity before teardown.");

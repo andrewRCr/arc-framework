@@ -87,3 +87,16 @@ it("blocks disputed abandonment lineage and restores teardown after explicit res
   }
   expect((await run(h.store)).retirements).toMatchObject([{ status: "actionable", teardown: { argv: ["arc", "teardown", "done"] } }]);
 });
+
+it("retains the sweep message when retirement's lineage lookup is refused", async () => {
+  const h = await abandoned();
+  const refusal = { code: "lock-held" as const, class: "recoverable" as const, lock: "terminal-state",
+    condition: "Terminal evidence is busy.", remedy: { text: "Retry when its writer finishes." } };
+  const store = Object.create(h.store) as Store;
+  let lineageLookups = 0;
+  store.lookup = async input => input.kind === "lineage" && ++lineageLookups === 2
+    ? { status: "refused", refusal } : h.store.lookup(input);
+  const message = `${refusal.condition} ${refusal.remedy.text}`;
+  expect((await run(store)).retirements).toMatchObject([{ status: "blocked", reason: "repair-required", repair: message,
+    actions: [{ text: message }] }]);
+});

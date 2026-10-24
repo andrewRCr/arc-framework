@@ -15,7 +15,7 @@ import { META_REGISTRATION } from "../../src/lib/store/kinds/meta/registration.j
 import { renderMetaFile } from "../../src/lib/store/kinds/meta/writers.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 
-it.each(["pause", "handover", "resume", "set-class"] as const)("%s prints both live holders and their repair", async verb => {
+it.each(["pause", "handover", "resume", "set-class", "teardown"] as const)("%s prints both live holders and their repair", async verb => {
   const f = await repairCliFixture(), h = createLifecycleHarness();
   const primary = await h.seedMeta("example"), other = await h.seedMeta("other");
   const store = createClashDouble(h.store, { slug: "example", holders: [primary.reference, other.reference] });

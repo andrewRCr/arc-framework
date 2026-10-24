@@ -58,6 +58,14 @@ export const LocalRefusalSchema = z.discriminatedUnion("code", [
 export const StoreRefusalSchema = z.union([LocalRefusalSchema, PublishFailureSchema]);
 /** A refusal is a value; defects and unclassifiable environment failures throw. */
 export type StoreRefusal = z.infer<typeof StoreRefusalSchema>;
+/** Carry structured store evidence through a throwing boundary while retaining its human diagnostic. */
+export class StoreRefusalError extends Error {
+  constructor(readonly refusal: StoreRefusal) {
+    super(`${refusal.condition} ${refusal.remedy.text}`);
+    this.name = "StoreRefusalError";
+  }
+}
+
 /** Every refused outcome code, used to make recovery coverage exhaustive. */
 export type RefusalCode = StoreRefusal["code"];
 

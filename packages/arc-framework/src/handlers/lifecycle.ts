@@ -1868,7 +1868,7 @@ export async function handleTeardown(
     if (result.huskRefusal !== undefined) {
       refuse(`Cannot husk: ${result.reason}. The worktree remains branched and unchanged.`);
     } else {
-      refuse(result.reason, undefined, result.remedy);
+      refuse(result.reason, result.refusal, result.remedy);
     }
     return;
   }

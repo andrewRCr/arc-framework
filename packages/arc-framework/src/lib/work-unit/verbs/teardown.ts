@@ -49,7 +49,7 @@ import { usesOffBranchState } from "../../store/lifecycle-write.js";
 import type { GitExecInput } from "../../git/exec.js";
 import type { LocusPorts } from "../locus-ports.js";
 import { runStoreTeardown } from "./teardown-store.js";
-import type { Remedy } from "../../store/refusal.js";
+import type { Remedy, StoreRefusal } from "../../store/refusal.js";
 import type { Store } from "../../store/contract.js";
 
 import { checkWorktreeRemoval, removeWorktreeCheckout, releaseWorktreeCheckout, describeRemovalRefusal, type ProjectionRemovalSlots } from "../../git/worktree-removal.js";
@@ -213,6 +213,7 @@ export type TeardownResult =
   | {
       status: "rejected";
       reason: string;
+      refusal?: StoreRefusal;
       remedy?: Remedy;
       huskRefusal?: "dirty" | "authorization-refused" | "preservation-unproven" | "user-surfaces";
     }

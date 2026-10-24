@@ -10,7 +10,7 @@ import { clearMissingWorktreeRegistrations, removeWorktreeCheckout, releaseWorkt
 import { reapZeroDeltaBranch } from "../../errand/abandon-runtime.js";
 import { selectWorkBranchLink, workBranchName } from "../../store/lifecycle-branch.js";
 import { readStoreRetirementEvidence, type StoreRetirementEvidence } from "../store-retirement-evidence.js";
-import type { Remedy } from "../../store/refusal.js";
+import { StoreRefusalError, type Remedy } from "../../store/refusal.js";
 import { selectStoreRetirementHusk, type SelectedStoreRetirementHusk } from "../store-retirement-husk.js";
 import { returnRetiringCheckout } from "../return-retiring-checkout.js";
 import { missingRegistrationActions } from "../../session-init/missing-worktree-folders.js";
@@ -42,7 +42,12 @@ export async function runStoreTeardown(ctx: TeardownContext, params: TeardownPar
     if (selected !== undefined) worktreeRemoved = await retireHolder(bound, ctx.cwd, selected);
     return { status: "torn-down", mode: evidence.rule === "discard" ? "abandoned" : "shipped", branch: retiring,
       branchDeleted, remoteBranchDeleted, worktreeRemoved, husk: null, pruned: true, notices: bound.notices, suggestion: params.suggestion ?? null };
-  } catch (error) { return { status: "rejected", reason: error instanceof Error ? error.message : String(error), ...(cleanupStarted ? { remedy: teardownRetryRemedy(params) } : {}) }; }
+  } catch (error) { return teardownRejection(error, cleanupStarted, params); }
+}
+function teardownRejection(error: unknown, cleanupStarted: boolean, params: TeardownParams): Extract<TeardownResult, { status: "rejected" }> {
+  return { status: "rejected", reason: error instanceof Error ? error.message : String(error),
+    ...(error instanceof StoreRefusalError ? { refusal: error.refusal } : {}),
+    ...(cleanupStarted ? { remedy: teardownRetryRemedy(params) } : {}) };
 }
 async function locked<T>(ctx: Bound, operation: () => Promise<T>): Promise<T> {
   const action = async () => { await ctx.evidence.revalidate(); return operation(); };
