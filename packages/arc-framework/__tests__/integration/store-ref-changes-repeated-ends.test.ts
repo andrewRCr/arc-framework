@@ -31,9 +31,19 @@ async function abandon(side: Side, reference: RecordReference): Promise<void> {
   ], provenance }));
 }
 
+/** Write an item the side holds beside its lineage again, then remove it, which ends it a second time. */
+async function reviveAndEnd(side: Side, reference: RecordReference, live: string): Promise<string> {
+  success(await side.store.write({ action: "put", expected: null, reference, content: makeMetaFixture(reference.owner.name),
+    placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "activate" } }));
+  const revived = success(await side.store.read({ reference }));
+  success(await side.store.write({ action: "remove", reference, expected: revived.version, provenance }));
+  expect((await side.git(["for-each-ref", "--format=%(refname)", live])).stdout).toBe("");
+  return revived.version;
+}
+
 /** End an item on the second clone, bring its live ref back beside the lineage alone, then end it again there. */
-async function endedTwice(h: Fixture): Promise<{ reference: RecordReference; revived: string; beforeEnds: StateVersion;
-  betweenEnds: StateVersion; afterRestore: StateVersion }> {
+async function endedTwice(h: Fixture): Promise<{ reference: RecordReference; history: string; revived: string;
+  beforeEnds: StateVersion; betweenEnds: StateVersion; afterRestore: StateVersion }> {
   const { reference, live } = await published(h, "twice");
   const original = (await h.a.git(["rev-parse", live])).stdout.trim();
   const beforeEnds = success(await h.b.store.version());
@@ -44,12 +54,8 @@ async function endedTwice(h: Fixture): Promise<{ reference: RecordReference; rev
   await h.a.git(["push", h.remoteName, `${original}:${live}`]);
   success(await h.b.store.pull());
   const afterRestore = success(await h.b.store.version());
-  success(await h.b.store.write({ action: "put", expected: null, reference, content: makeMetaFixture("twice"),
-    placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "activate" } }));
-  const revived = success(await h.b.store.read({ reference }));
-  success(await h.b.store.write({ action: "remove", reference, expected: revived.version, provenance }));
-  expect((await h.b.git(["for-each-ref", "--format=%(refname)", live])).stdout).toBe("");
-  return { reference, revived: revived.version, beforeEnds, betweenEnds, afterRestore };
+  const revived = await reviveAndEnd(h.b, reference, live);
+  return { reference, history: live.replace("refs/arc/", "refs/arc/history/"), revived, beforeEnds, betweenEnds, afterRestore };
 }
 
 function versionsOf(entries: readonly { reference: RecordReference; version: string | null }[], reference: RecordReference): (string | null)[] {
@@ -82,6 +88,38 @@ describe("changes over an item that ended more than once", () => {
         remedy: { text: expect.stringContaining("current state version") } } });
     expect(versionsOf(success(await h.b.store.changes({ from: twice.beforeEnds, to: success(await h.b.store.version()) })), twice.reference))
       .toEqual([null, twice.revived, null]);
+  });
+
+  it("refuses a window past the restore while retained history lacks the later end, and reads it once restored", async () => {
+    const h = await refSyncFixture();
+    const twice = await endedTwice(h);
+    const tip = (await h.b.git(["rev-parse", twice.history])).stdout.trim();
+    // The retained copy holds the first end and the revival, but not the second end.
+    await h.b.git(["update-ref", twice.history, `${tip}^`]);
+    const to = success(await h.b.store.version());
+    expect(await h.b.store.changes({ from: twice.afterRestore, to })).toMatchObject({ status: "refused",
+      refusal: { code: "state-unresolvable", historyRefs: [twice.history] } });
+    await h.b.git(["update-ref", twice.history, tip]);
+    expect(versionsOf(success(await h.b.store.changes({ from: twice.afterRestore, to })), twice.reference)).toEqual([twice.revived, null]);
+  });
+
+  it("reads through the end a clone holds when it missed a revival elsewhere, and through the latest once it pulls the history", async () => {
+    const h = await refSyncFixture();
+    const { reference, live } = await published(h, "missed");
+    const original = (await h.a.git(["rev-parse", live])).stdout.trim();
+    const beforeEnds = success(await h.a.store.version());
+    await abandon(h.a, reference);
+    success(await h.a.store.push()); success(await h.b.store.pull());
+    // The item comes back, is written, and ends again on the second clone while the first does not pull.
+    await h.a.git(["push", h.remoteName, `${original}:${live}`]);
+    success(await h.b.store.pull());
+    const revived = await reviveAndEnd(h.b, reference, live);
+    success(await h.b.store.push()); success(await h.a.store.pull());
+    const read = async (): Promise<(string | null)[]> =>
+      versionsOf(success(await h.a.store.changes({ from: beforeEnds, to: success(await h.a.store.version()) })), reference);
+    expect(await read()).toEqual([null]);
+    success(await h.a.store.pull({ history: [`refs/arc/history/work/${"uid" in reference.owner ? reference.owner.uid : ""}`] }));
+    expect(await read()).toEqual([null, revived, null]);
   });
 
   it("bounds a window at the published end, never at the retirement of an end this clone withdrew", async () => {

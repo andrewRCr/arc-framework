@@ -97,12 +97,13 @@ async function retirementCommit(context: RefBackendContext, evidence: EndEvidenc
   const retired = await readItemEndBatches(context, source, historyOwner(history), "retirement");
   // The index runs newest first, and each later end descends from the reopen before it.
   const ends = [...index].filter(([batch]) => retired.has(batch)).map(([, commit]) => commit).reverse();
-  if (ends.length < 2) return { status: "ok", result: ends[0] };
+  if (!ends.length) return { status: "ok", result: undefined };
   if (lower && (await readBatchObjects(context, [lower])).get(lower)?.type !== "commit") {
     return { status: "refused", refusal: missingChangeState({ ref: history, version }) };
   }
   const unreached: string[] = [];
   for (const end of ends) if (!lower || !await syncRefIsAncestor(context, end, lower)) unreached.push(end);
+  // With every end already reached, even a lone one, the history this clone holds lacks the end the newer holds.
   if (unreached.length < 2) return { status: "ok", result: unreached[0] };
   if (buildRefManifest(current, await readObjectFormat(context)).version === version) return { status: "ok", result: unreached.at(-1) };
   return { status: "refused", refusal: unorderedEnds(history, version) };

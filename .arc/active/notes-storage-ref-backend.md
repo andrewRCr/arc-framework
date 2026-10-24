@@ -2872,6 +2872,29 @@ earliest past the lower bound always, never refusing: it silently drops mutation
 window spans a return and a second end. The latest always: against a state between the ends it admits writes made
 after the newer, as F3 did.
 
+## A40 — A window reads through the latest end the clone's held history holds
+
+**Superseded text.** § 4.6, A38's bullet: "where the history this clone holds lacks that commit, `changes` refuses as
+§ 4.4 does, naming the history ref", read as a refusal wherever held history lacks the end the newer holds.
+
+**What decides it.** Held history can lack the later end in two ways. One shows: the lower bound reaches every end the
+history holds, so the end the newer holds lies past what this clone has; `retirementCommit` (`changes-lifecycle.ts`) now
+filters a lone end as it filters several, and refuses (fix-check-2 F1). The other leaves no local sign. A pull acquires
+a history ref by name, or when its merge finds an end or archive to apply to an item this clone holds
+(`readPendingRefEnds`, `readPendingArchiveHistories`, `sync-pull-lifecycle.ts`). A clone that held no live ref while the
+item was restored, written, and ended again elsewhere finds neither: its live ref stays absent across the pull, the
+registry's lineage does not change, and the second end may change no manifest ref. A two-clone probe confirmed it: that
+clone kept the history at the first end, its pull raised no notice, both clones reported the same state version, and its
+`changes` from before both ends returned the first end's removal alone, where the history holds the return and the
+second end.
+
+**Decision.** State the limit with its repair: pulling the history ref by name brings the later end, and the window then
+reads through it (criterion 46).
+
+**Rejected.** A pull that fetches every held history ref by name: a fetch pattern per ended item on every pull, growing
+with the archive, for a case no local state shows. A pull that compares each held history ref with its remote tip: a
+listing of every history ref on every pull, for the same case.
+
 ## Unreadable archive quarters
 
 While a quarter's tree cannot be read locally, or a quarter holds a folder whose metadata does not read — one whose

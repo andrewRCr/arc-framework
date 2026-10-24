@@ -1002,8 +1002,12 @@ caller names any. A ref in one manifest only reads by its namespace:
   a window, since the batch that wrote it may commit nothing on the item's ref. A late write merged in after the end,
   or a discard of the conflict record it filed, never moves the bound, since every commit a write or merge makes on the
   item's ref, but a retirement's, holds its metadata file (§ 3.3; `serializeRefMetadata`,
-  `lib/store/ref/write-commits.ts`); where the history this clone holds lacks that commit, `changes` refuses as § 4.4
-  does, naming the history ref.
+  `lib/store/ref/write-commits.ts`); where the history this clone holds lacks that commit — every end it holds lying at
+  or before the lower bound — `changes` refuses as § 4.4 does, naming the history ref. Held history can lack a later end
+  with no sign of it: where the item was restored, written, and ended again elsewhere while this clone held no live ref
+  for it, no pull of its own acquires the moved history (§ 6.2), so the window reads through the latest end that history
+  holds — a result a clone holding the later end does not give for the same two state versions — and pulling the history
+  ref by name (§ 4.5) brings the later end (A40).
 - **An identity ref is missing from a manifest only on another person's clone,** since each clone fetches its own
   identity alone (D10), and a shared ref leaves only by loss, which the next push restores (§ 6.4). So `changes` between
   two people's manifests carries the newer one's identity history whole, and a reader that wants project scope alone
@@ -4588,6 +4592,13 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     origin whose history is the import's empty root commit lists nothing of its own; and lineage written beside a live
     primary later archived ends the window at the archive (§ 4.6, § 6.4, § 7.4, § 10.11) (A38).
 
+46. **A window reads through the latest end the clone's held history holds.** A clone that held no live ref for an item
+    while it was restored, written, and ended again elsewhere lists, from before both ends to its current state version,
+    only the first end's removal, and after pulling the item's history ref by name lists the return and the second end
+    too; a window from the return whose lower bound reaches every end the retained history holds, its second end rewound
+    out, refuses `state-unresolvable` naming the history ref and lists once the ref is restored (§ 4.5, § 4.6)
+    (A38, A40).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4745,5 +4756,8 @@ open:
 
 - **A39** — 2026-10-24 — design: a setting that finishes a recorded move, then refuses or asks, keeps its own stop.
   _Supersedes:_ § 10.1 ¶8. _Trigger:_ fix-check-1/F17 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A40** — 2026-10-24 — design: a window reads through the latest end the clone's held history holds.
+  _Supersedes:_ § 4.6 A38's refusal. _Trigger:_ fix-check-2/F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---
