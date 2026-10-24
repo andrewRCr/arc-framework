@@ -12,6 +12,21 @@ import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { createMemoryRemote } from "../../../helpers/store/sync.js";
 import { withCompetingBatch } from "../../../helpers/store/decompose-harness.js";
 import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
+import { createClashDouble } from "../../../helpers/store/clash-double.js";
+
+it("keeps a cohort open while both clashed live members remain", async () => {
+  const h = createLifecycleHarness();
+  const group = await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group" })),
+    "# Cohort: group\n\n**Purpose:** Deliver all members.\n");
+  const first = await h.seedMeta("first", { cohort: "group" }), second = await h.seedMeta("second", { cohort: "group" });
+  const subject = await h.seedMeta("subject", { cohort: "group" });
+  const store = createClashDouble(h.store, { slug: "clashed", holders: [first.reference, second.reference] });
+  expect(await archive(store, "subject")).toMatchObject({ status: "archived", cohortSwept: null });
+  expect(lifecycleSuccess(await h.store.read({ reference: group.reference })).placement).toBeUndefined();
+  expect(lifecycleSuccess(await h.store.read({ reference: subject.reference })).placement).toMatchObject({ kind: "completed" });
+  for (const record of [first, second]) expect(lifecycleSuccess(await h.store.read({ reference: record.reference })))
+    .toMatchObject({ placement: { kind: "active" }, fields: { state: "Active" } });
+});
 function context(store: Store): ExecuteTransitionContext {
   const forbidden = async (): Promise<never> => { throw new Error("tracked artifact access"); };
   return { cwd: "/repo", store, indexFs: { readdir: forbidden, readFile: forbidden },

@@ -147,35 +147,22 @@ its test is a regression pin that passes before the change; each re-read's faili
   that same result. Tests cover reversed reuse listings, retained clash identities, malformed live holders, and
   retargeting former-name dependency and artifact references to their live holder.
 
-### `[ ]` **2.4 Count every holder in cohort membership — § 2.3**
+### `[x]` **2.4 Count every holder in cohort membership — § 2.3**
 
 - _Goal:_ A cohort's membership counts each holder rather than the one standing for a slug, so archiving the last other
   open member of a cohort that holds two clashed live members proposes no closeout `checkCohortOpenMembers` refuses, and
   the cohort consistency check sees each holder in its own cohort.
 
-    - `[ ]` **2.4.a Archive's cohort closeout**
+    - `[x]` **2.4.a Archive's cohort closeout**
 
-        - Both call sites, the `prospective` snapshot `runStoreArchive` builds and `prepareStoredCloseout`'s settle
-          loop, pass `prepareArchiveCohorts` an index of every view entry keyed by the entry's identity (`identityKey`,
-          `lib/store/lifecycle-index.ts`) in place of the slug-keyed index, and `runStoreArchive` marks the subject's
-          entry, found by `sameReference`, completed (`prepareObservedCohorts`, `lib/work-unit/verbs/archive-store.ts`).
-          `isArchivalTriggeredWithDescendants` (`lib/work-unit/lifecycle-membership.ts`) is unchanged, since it reads
-          only the index's values, and the in-repo arm (`archive.ts`) passes its slug index as today.
-        - _Note:_ `feat/storage-ref-backend` edits `lib/work-unit/verbs/archive-store.ts`; re-check that branch before
-          editing.
-        - Build `test-first` (one behavior at a time):
-            - over the clash double, archiving the last other open member of a cohort holding two clashed live members
-              proposes no closeout, and archives; it fails once 2.3 drops the clashed slug from the index
-            - archiving a cohort's last open member still proposes the closeout
+        - Both archive preparation and post-publication closeout use every lifecycle entry keyed by owner identity,
+          marking only the selected reference complete. A clashed cohort's other member archives without closing the
+          group; existing final-member and nested closeout cases retain their behavior.
 
-    - `[ ]` **2.4.b The cohort consistency check**
+    - `[x]` **2.4.b The cohort consistency check**
 
-        - The store arm of `resolveCohortValidationContext` (`scripts/validate-cohort-consistency.ts`) builds its member
-          sets from every view entry, completed included, where it builds them through `buildCohortMembership` over the
-          index today, so a reused slug is a member of each of its holders' cohorts.
-        - Build `test-first` (one behavior at a time):
-            - over the clash double, two clashed live holders in different cohorts each count in their own cohort, so
-              neither cohort's member section for the slug is reported orphan
+        - Store-backed validation derives member sets directly from all lifecycle entries, including completed ones.
+          Tests retain each clashed or reused holder in its own cohort without orphan member diagnostics.
 
 ### `[ ]` **2.5 Take the standing holder in completed evidence and the lifecycle snapshot — § 2.4**
 
