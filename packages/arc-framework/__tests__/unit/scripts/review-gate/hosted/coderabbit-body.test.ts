@@ -19,6 +19,10 @@ const colonCountReviewBodyUrl = new URL(
   "../../../../fixtures/coderabbit-hosted/colon-count-review-body.txt",
   import.meta.url,
 );
+const dotBadgeThreadCommentUrl = new URL(
+  "../../../../fixtures/coderabbit-hosted/dot-badge-thread-comment.txt",
+  import.meta.url,
+);
 
 const badgeEmphasis = [
   ["italic", (label: string) => `_${label}_`],
@@ -374,12 +378,12 @@ describe("CodeRabbit review-body section headers", () => {
   });
 });
 
-describe("CodeRabbit icon-image badges", () => {
-  function iconBadge(grade: string): string {
-    return `<picture><img src="https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/${
-      grade.toLowerCase()}-16.svg" width="16" height="16" align="absmiddle" alt=""></picture> ${grade}`;
-  }
+function iconBadge(grade: string): string {
+  return `<picture><img src="https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/${
+    grade.toLowerCase()}-16.svg" width="16" height="16" align="absmiddle" alt=""></picture> ${grade}`;
+}
 
+describe("CodeRabbit icon-image badges", () => {
   it("reads the grade and label from an inline thread CodeRabbit posted with an icon badge", async () => {
     const comment: HostedGitHubThreadComment = {
       id: "4365700538",
@@ -444,6 +448,81 @@ Details.
     expect(parseCodeRabbitReviewBody(review)).toMatchObject({
       kind: "parsed",
       findings: [{ severity: "minor", nit: true, locus: "src/a.ts:7", sourceLabel: "**Keep the mode explicit.**" }],
+    });
+  });
+});
+
+describe("CodeRabbit dot-separated badges", () => {
+  it("reads the grade and label from an inline thread CodeRabbit posted with dot-separated badges", async () => {
+    const comment: HostedGitHubThreadComment = {
+      id: "4367592734",
+      reviewId: "PRR_DOT",
+      replyToReviewId: null,
+      actorIdentity: "136622811",
+      body: await readFile(dotBadgeThreadCommentUrl, "utf8"),
+      url: "https://github.com/owner/repo/pull/42#discussion_r4367592734",
+      path: "packages/arc-framework/src/commands/init.ts",
+      line: 250,
+      headSha: "a".repeat(40),
+    };
+
+    expect(finding("PRRT_DOT", comment)).toMatchObject({
+      severity: "major",
+      sourceLabel: "**Preflight the generated state files.**",
+    });
+  });
+
+  it.each(badgeEmphasis)("keeps a long %s icon-badge line ending in prose as the label, promptly", (_form, emphasize) => {
+    const line = `${Array.from({ length: 25 }, () => emphasize(iconBadge("Minor"))).join(" · ")} and more prose`;
+    const comment: HostedGitHubThreadComment = {
+      id: "123",
+      reviewId: "PRR_1",
+      replyToReviewId: null,
+      actorIdentity: "136622811",
+      body: `${line}\n\n**Next title.**`,
+      url: "https://github.com/owner/repo/pull/42#discussion_r1",
+      path: "src/a.ts",
+      line: 7,
+      headSha: "a".repeat(40),
+    };
+
+    const started = performance.now();
+    const labelled = finding("PRRT_1", comment);
+
+    expect(performance.now() - started).toBeLessThan(1000);
+    expect(labelled).toMatchObject({ severity: "minor", sourceLabelTruncated: true });
+    expect(labelled?.sourceLabel?.startsWith(emphasize(iconBadge("Minor")))).toBe(true);
+  });
+
+  it.each(badgeEmphasis)("parses a grouped nitpick whose %s badges are dot-separated", (_form, emphasize) => {
+    const badges = [iconBadge("Trivial"), "Maintainability & Code Quality", "Quick win"].map(emphasize).join(" · ");
+    const review: HostedGitHubReview = {
+      id: "PRR_GROUPED",
+      url: "https://github.com/owner/repo/pull/42#pullrequestreview-grouped",
+      actorIdentity: "136622811",
+      state: "approved",
+      headSha: "a".repeat(40),
+      submittedAt: "2026-10-24T12:05:00.000Z",
+      body: `<details>
+<summary>🧹 Nitpick comments: 1</summary><blockquote>
+<details>
+<summary>src/a.ts (1)</summary><blockquote>
+
+\`7-9\`: ${badges}
+
+**Keep the mode explicit.**
+
+\`2\`: ${emphasize("required")}
+
+<!-- cr-comment:v1:aaaaaaaaaaaaaaaaaaaaaaaa -->
+
+</blockquote></details>
+</blockquote></details>`,
+    };
+
+    expect(parseCodeRabbitReviewBody(review)).toMatchObject({
+      kind: "parsed",
+      findings: [{ severity: "minor", nit: true, locus: "src/a.ts:7-9", sourceLabel: "**Keep the mode explicit.**" }],
     });
   });
 });
