@@ -1,5 +1,5 @@
 /** Operational abandonment reads the complete store view before confirmation and one terminal batch. */
-import { sameOwner, type OwnerIdentity } from "../lib/store/identity.js";
+import { sameReference, sameOwner, type OwnerIdentity } from "../lib/store/identity.js";
 import type { Store } from "../lib/store/contract.js";
 import type { LifecycleEntry } from "../lib/store/lifecycle-index.js";
 import { SlugSchema } from "../lib/kernel/index.js";
@@ -22,7 +22,7 @@ export async function handleStoreAbandon(base: VerbBase, executor: ExecuteTransi
     const read = await readWorkUnit(store, name);
     if (read.status === "refused") { refuse(read.refusal.condition, read.refusal); return; }
     const canonical = read.result.reference.owner.name;
-    const entry = view.result.entries.find((candidate) => candidate.reference.owner.name === canonical);
+    const entry = view.result.entries.find((candidate) => sameReference(candidate.reference, read.result.reference));
     if (entry?.phase === "Integrating") { refuse(`Withdraw the PR with arc reopen ${canonical} before abandonment.`); return; }
     const coordination = await integratingDependents(store, view.result.entries, read.result.reference.owner);
     p.note(["Remove the primary and retain its exact terminal branch links in one batch.",

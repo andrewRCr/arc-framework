@@ -199,15 +199,10 @@ its test is a regression pin that passes before the change; each re-read's faili
         - Activation matches its subject entry and excludes its primary from peers by reference. Tests activate a
           live Planning namesake from base and retain a completed namesake's branch link as a collision.
 
-    - `[ ]` **2.6.c Abandon**
+    - `[x]` **2.6.c Abandon**
 
-        - `runStoreAbandon` (`lib/work-unit/verbs/abandon-store.ts`) and `handleStoreAbandon`
-          (`handlers/abandon-store.ts`) find the subject's entry by reference.
-        - Teardown, which abandon runs for a holder with a checkout or a branch link, reads its subject by slug until
-          7.3, and holder matching matches by name until 4.4, so the fixture's live holder is Planning with neither.
-        - Build `test-first` (one behavior at a time):
-            - abandoning a reused slug's live holder abandons that holder and leaves the completed holder's records
-              unchanged
+        - Abandon's handler and verb match the selected primary's reference in the lifecycle view. A handler regression
+          removes the live branchless Planning holder while preserving its completed namesake.
 
     - `[ ]` **2.6.d Start's already-started check and graduation**
 

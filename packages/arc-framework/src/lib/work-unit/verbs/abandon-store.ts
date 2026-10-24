@@ -1,5 +1,5 @@
 /** A single version-bound terminal transition, followed by independently retryable checkout/ref cleanup. */
-import { recordReferences } from "../../store/identity.js";
+import { sameReference, recordReferences } from "../../store/identity.js";
 import { writeLineageRecord } from "../../store/kinds/lineage/index.js";
 import { readLifecycleView } from "../../store/lifecycle-view.js";
 import { requireCompleteInventory } from "../../store/lifecycle-storage.js";
@@ -55,7 +55,7 @@ async function abandonmentSubject(ctx: Pick<AbandonContext, "executor" | "remova
   const read = await readWorkUnit(store, params.name);
   if (read.status === "refused") return { status: "rejected" as const, reason: read.refusal.condition, refusal: read.refusal };
   const primary = read.result;
-  const entry = view.result.entries.find((item) => item.reference.owner.name === primary.reference.owner.name);
+  const entry = view.result.entries.find((item) => sameReference(item.reference, primary.reference));
   if (entry === undefined) throw new Error("The selected primary is absent from the complete lifecycle view.");
   if (entry.phase === "Integrating") return { status: "rejected" as const, reason: `Withdraw the PR with arc reopen ${entry.reference.owner.name} before abandonment.` };
   if (entry.phase !== "Planning" && entry.phase !== "Active") return { status: "rejected" as const, reason: "Only a stub, Planning, or Active work unit can be abandoned." };
