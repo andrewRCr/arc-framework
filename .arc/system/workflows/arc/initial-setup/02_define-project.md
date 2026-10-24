@@ -82,6 +82,7 @@ QUICK-REFERENCE records command patterns and environment context: platform tools
 
 - What command patterns does the agent need for everyday operations?
 - What runtime environment is required? (containers, services, tool versions)
+- What does a fresh checkout need before its checks can run? (dependencies, untracked files such as `.env`)
 
 Author `.arc/system/arc-checks.yml` with the person from the project's existing checks. Define each command and its real
 inputs, and assign the earliest event it must pass before: `commit`, `push`, or `merge`. Leave a check's gate unset when
@@ -103,6 +104,15 @@ arc check gate merge --dry-run
 A dry run executes nothing, and a commit that changes the declaration runs every commit-gate check over all its inputs,
 not only the files that commit touches; a check with `widen: false` keeps to its changed inputs. Install every tool
 those checks call before committing the declaration, or the pre-commit hook cannot run them.
+
+Each work unit runs in its own worktree, which starts with only what Git tracks, so prepare one for these checks:
+
+- Set `worktree.post_create` in `.arc/system/arc-config.yml` to the command that installs what the checks call, such as
+  `npm ci`, then check it with `arc config validate`.
+- List in a `.worktreeinclude` file at the repository root, in gitignore syntax, the untracked files a check or service
+  reads, such as `.env`.
+- Go through the rest of [Concurrent Work][concurrent-work] § What each checkout needs its own of with the person:
+  services, ports, databases, and toolchain versions stay the project's to arrange.
 
 ### Step 5: Define DEV-RULES.PROJECT
 
@@ -161,7 +171,8 @@ say. When they drift from reality, the agent works from wrong assumptions.
 
 Update `.arc/system/arc-checks.yml` when check commands, inputs, or deadlines change, and validate it with
 `arc check gate merge --dry-run`. Committing it runs the commit gate over all inputs, as in Step 4, so install a new
-check's tool first.
+check's tool first. Update `worktree.post_create` and `.worktreeinclude` with it when a check needs a new dependency or
+local file.
 
 **Reference documents — keep honest:**
 
@@ -197,3 +208,4 @@ artifacts, and helps you create a PRD and task list for your first work unit. Fr
 [quick-ref]: ../../../../reference/QUICK-REFERENCE.md
 [dev-rules]: ../../../../system/rules/DEV-RULES.PROJECT.md
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
+[concurrent-work]: ../../../../reference/strategies/arc/strategy-concurrent-work.md
