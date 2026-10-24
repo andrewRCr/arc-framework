@@ -48,3 +48,9 @@ export {
   type BaselineReads,
   type MissingBaselineResolution,
 } from "./baseline.js";
+
+export {
+  plannedWritePaths,
+  findUncommittedPaths,
+  uncommittedChangesError,
+} from "./uncommitted.js";

@@ -40,6 +40,8 @@ import { createTempRepoCore, removeGitBackedDir } from "./temp-repo.js";
 import { createExecaGitExec, createExecaGitExecInput } from "../../src/lib/git/process-executor.js";
 import { readUserDir } from "../../src/lib/io-context.js";
 
+export { commitAll } from "./temp-repo.js";
+
 const execFileAsync = promisify(execFile);
 
 /** Create a real GitExec bound to a specific cwd. */

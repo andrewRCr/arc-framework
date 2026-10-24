@@ -15,6 +15,8 @@ import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js"
 import { emitsMachineReadablePayload, usesPseudoTty } from "../helpers/cli-transport.js";
 import { recordCliInvocationForCurrentTest } from "../helpers/test-cost-timeout.js";
 
+export { commitAll } from "../helpers/temp-repo.js";
+
 const execFileAsync = promisify(execFile);
 
 /** Compose the deterministic environment shared by built-CLI tests. */
