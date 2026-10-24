@@ -51,36 +51,20 @@ existing assertion, the work-unit claim's, to send the UID (4.3.d).
   with status. Cohort and Errand-only ties remain ambiguous; lookup and view tests cover multiple generations and
   former names, including third-generation creation through production write rules.
 
-### `[ ]` **1.3 Rank the `ref` arm live-first — § 1.3**
+### `[x]` **1.3 Rank the `ref` arm live-first — § 1.3**
 
 - _Goal:_ A branch that two holders of a reused slug both link resolves to the live holder, and each session-start
   reader that looks a branch up reads that holder and offers no branch cleanup while a live work unit links it.
 
-    - `[ ]` **1.3.a The `ref` arm's ranking**
+    - `[x]` **1.3.a The `ref` arm's ranking**
 
-        - `lookupReference`'s `ref` case (`__tests__/helpers/store/lookup.ts`) ranks the primaries that link the branch
-          as the slug arm ranks a slug's holders: live before completed; a live tie refuses; a completed tie that
-          includes a work unit resolves by 1.2's rule; a completed tie of Errands alone refuses.
-        - Build `test-first` (one behavior at a time):
-            - a branch linked by a completed and a live holder resolves to the live holder
-            - a branch linked by two live holders refuses `ambiguous-match`
-            - a branch linked by two completed work units resolves to the latest archived, and one linked by two
-              completed Errands refuses
+        - Branch links rank live primaries first and share the completed work-unit tie-break with slug lookup. Tests
+          cover live reuse, live ambiguity, latest completed work units, and completed Errand-only ties.
 
-    - `[ ]` **1.3.b The session-start branch readers**
+    - `[x]` **1.3.b The session-start branch readers**
 
-        - The orphan advisory (`readOrphanStoreCandidates`, `lib/session-init/orphan-store-candidates.ts`, through
-          `resolveStoreBranch`, `store-branch-classification.ts`) and the missing-worktree check
-          (`readStoreMissingFolderActions`, `missing-worktree-store.ts`) take the ranked arm with no change of their
-          own; the tests pin their behavior under reuse, in `missing-worktree-folders-store.test.ts`
-          (`__tests__/unit/session-init/`) and `orphan-store-branches.test.ts` (`__tests__/integration/`).
-        - Branch ownership's store path (`storeLocusOwnsBranch`, `lib/session-init/locus-classification.ts`) reads the
-          same arm but has no production caller; 4.5.b matches its row by UID.
-        - Build `test-first` (one behavior at a time):
-            - with a reused slug's branch linked by both holders, the orphan advisory resolves the live holder and
-              offers no teardown, and its `git branch -D` offer still requires the branch merged into base
-              (`withOrphanActions`)
-            - the missing-worktree check offers no branch cleanup while a live work unit links the branch
+        - Missing-worktree and orphan tests pin reused branches to their live holder, with no teardown offer and the
+          orphan advisory's existing merged-branch requirement intact.
 
 ### `[ ]` **1.4 Name a tie's tier on `ambiguous-match` — § 1.5**
 

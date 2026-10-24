@@ -116,3 +116,34 @@ it("keeps completed cohort and Errand-only ties ambiguous", async () => {
       refusal: { code: "ambiguous-match", candidates: expect.arrayContaining([...candidates]) } });
   }
 });
+
+const branchLinks = { branches: [{ repository: "project", ref: "topic/shared", linkedAs: "created" as const, excluded: [] }] };
+const branchLookup = { kind: "ref" as const, repository: "project", ref: "topic/shared" };
+
+it("resolves a reused branch to its live holder and retains live ambiguity", async () => {
+  const h = createLifecycleHarness();
+  await archive(h, await h.seedMeta("shared", {}, { kind: "active" }, branchLinks));
+  const current = await h.seedMeta("shared", {}, { kind: "active" }, branchLinks);
+  expect(lifecycleSuccess(await h.store.lookup(branchLookup)).reference).toEqual(current.reference);
+  const other = await h.seedMeta("other", {}, { kind: "active" }, branchLinks);
+  expect(await h.store.lookup(branchLookup)).toMatchObject({ status: "refused", refusal: {
+    code: "ambiguous-match", candidates: expect.arrayContaining([current.reference, other.reference]),
+  } });
+});
+
+it("selects the latest completed branch holder but leaves Errand-only ties ambiguous", async () => {
+  const h = createLifecycleHarness();
+  await archive(h, await h.seedMeta("shared", {}, { kind: "active" }, branchLinks));
+  const latest = await archive(h, await h.seedMeta("shared", {}, { kind: "active" }, branchLinks));
+  expect(lifecycleSuccess(await h.store.lookup(branchLookup)).reference).toEqual(latest.reference);
+  const errands = createLifecycleHarness();
+  const references = [];
+  for (const name of ["first", "second"]) {
+    const record = await errand(errands, name);
+    lifecycleSuccess(await errands.store.write({ ...recordPut(record, { links: branchLinks }), provenance: { verb: "link", lifecycleAction: "link" } }));
+    references.push(record.reference);
+  }
+  expect(await errands.store.lookup(branchLookup)).toMatchObject({ status: "refused", refusal: {
+    code: "ambiguous-match", candidates: expect.arrayContaining(references),
+  } });
+});

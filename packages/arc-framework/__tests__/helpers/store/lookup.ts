@@ -27,6 +27,13 @@ function completedWinner(records: MemoryRecord[]): MemoryRecord[] {
     ? compareCompletedPlacements(left.placement, right.placement) : 0).slice(-1);
 }
 
+function preferredRefRecords(records: MemoryRecord[], input: Extract<LookupInput, { kind: "ref" }>): MemoryRecord[] {
+  const matches = records.filter(record => primary(record)
+    && record.links?.branches?.some(branch => branch.repository === input.repository && branch.ref === input.ref));
+  const live = matches.filter(record => record.placement?.kind !== "completed");
+  return live.length > 0 ? live : completedWinner(matches);
+}
+
 function lineageRecords(records: MemoryRecord[], origin: string): MemoryRecord[] {
   const terminal = records.filter(record => record.reference.kind === "lineage/transition");
   const exact = terminal.filter(record => record.reference.owner.type !== "person" && record.reference.owner.uid === origin);
@@ -77,10 +84,10 @@ export function lookupReference(context: ReferenceContext, input: LookupInput): 
     const sha = records.flatMap((record) => commitMatch(record, input, "sha") ?? []);
     candidates = sha.length > 0 ? sha : records.flatMap((record) => commitMatch(record, input, "copyKey") ?? []);
   } else if (input.kind === "slug") candidates = preferredSlugRecords(records, input.slug).map((record) => ({ reference: record.reference }));
+  else if (input.kind === "ref") candidates = preferredRefRecords(records, input).map(record => ({ reference: record.reference }));
   else if (input.kind === "lineage") candidates = lineageRecords(records, input.origin).map(record => ({ reference: record.reference }));
   else candidates = records.filter((record) => {
     switch (input.kind) {
-      case "ref": return primary(record) && record.links?.branches?.some((branch)=>branch.repository === input.repository && branch.ref === input.ref) === true;
       case "claim": {
         const claim = input.claim;
         if (claim.kind === "partial-errand") return false;

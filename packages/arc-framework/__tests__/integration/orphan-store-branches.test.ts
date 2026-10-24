@@ -11,6 +11,21 @@ import { acquireStoreClaims } from "../../src/lib/errand/store-discovery.js";
 import { analyzeOrphanBranchesSnapshot, runOrphanBranchSweep } from "../../src/lib/session-init/orphan-branch-sweep.js";
 import type { OrphanStoreOptions } from "../../src/lib/session-init/orphan-store-candidates.js";
 const repository = "11111111-1111-4111-8111-111111111111";
+it.each([false, true])("a reused branch has no teardown offer and retains its merge guard (unmerged=%s)", async unmerged => {
+  const h = await fixture(), name = "topic/reused";
+  await h.branch(name, unmerged);
+  const links = { branches: [{ repository, ref: name, linkedAs: "created" as const, excluded: [] }] };
+  await h.seedMeta("reused", { state: "Shipped" }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, links);
+  await h.seedMeta("reused", {}, { kind: "active" }, links);
+  const result = await h.sweep("snapshot", [name]);
+  expect(result.warnings ?? []).toEqual([]);
+  expect(result.orphans).toMatchObject([{ branch: name, merged: !unmerged, shippedWorkUnit: null }]);
+  const orphan = result.orphans[0];
+  if (orphan === undefined || orphan.merged === null) throw new Error("Expected complete branch evidence");
+  const actions = orphan.actions ?? [];
+  expect(actions.some(action => action.argv?.includes("teardown"))).toBe(false);
+  expect(actions.some(action => action.argv?.[0] === "git")).toBe(!unmerged);
+});
 async function fixture() {
   const cwd = await createTempRepo();
   onTestFinished(() => cleanupTempDir(cwd));

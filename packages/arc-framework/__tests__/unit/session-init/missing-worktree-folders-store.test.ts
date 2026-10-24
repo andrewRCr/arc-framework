@@ -7,6 +7,16 @@ import { DerivedCheckoutRowSchema } from "../../../src/lib/locus/derived-schema.
 import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
 import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
 import { serializeTransientIdentityRecord, TransientIdentityRecordSchema } from "../../../src/lib/errand/identity-record.js";
+it("keeps a reused branch on registration-only cleanup while a live holder links it", async () => {
+  const h = createLifecycleHarness(), warnings: string[] = [];
+  const links = { branches: [{ repository: "project", ref: "topic/arbitrary", linkedAs: "created" as const, excluded: [] }] };
+  await h.seedMeta("reused", { state: "Shipped" }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, links);
+  await h.seedMeta("reused", {}, { kind: "active" }, links);
+  const reports = await readMissingWorktreeFolders({ store: h.store, projectId: async () => "project", warnings,
+    rows: [row("topic/arbitrary")], shipped: new Set(), exec, folderExists: async () => false });
+  expect(warnings).toEqual([]);
+  expect(reports[0]?.actions).toEqual([{ text: "After confirming the folder is still missing, git worktree remove '/missing'." }]);
+});
 function row(branch: string | null, locked: string | null = null) {
   return DerivedCheckoutRowSchema.parse({ kind: "unmanaged-checkout", subject: null, checkout: { path: "/missing", branch, head: "a".repeat(40), detached: branch === null, primary: false, folderPresent: false, locked },
     markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, context: null, lifecycleLocation: null, diagnostics: [] });
