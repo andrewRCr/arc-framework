@@ -14,6 +14,22 @@ import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { readLifecycleView } from "../../src/lib/store/lifecycle-view.js";
 import { resolveProcessInteractionContext } from "../../src/lib/command-input/interaction-context.js";
 import * as terminal from "../../src/lib/terminal.js";
+import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
+
+it("names a cohort when start requires a work unit", async () => {
+  const h = await fixture();
+  await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group" })),
+    "# Cohort: group\n\n**Purpose:** Coordinate members.\n");
+  const errors: string[] = [];
+  vi.spyOn(terminal.log, "error").mockImplementation(message => { errors.push(String(message)); });
+  await handleStoreStart(StartCommandInputSchema.parse({ name: "group" }), {
+    cwd: h.root, identity: "starter", executor: h.executor, io: h.io, interaction: h.interaction,
+  });
+  expect(process.exitCode).toBe(1);
+  expect(errors.join("\n")).toContain("`group` resolves to a cohort rather than a work unit");
+  expect(errors.join("\n")).toContain("cohort's own commands");
+  expect(await stat(h.path).catch(() => null)).toBeNull();
+}, 30_000);
 
 let root: string | undefined;
 const initialExitCode = process.exitCode;

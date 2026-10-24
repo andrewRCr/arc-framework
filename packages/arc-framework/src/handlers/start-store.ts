@@ -65,6 +65,10 @@ async function resolveStartName(store: Store, requested: string): Promise<string
     if (lookup.refusal.code === "not-found") return requested;
     refuse(`${lookup.refusal.condition} ${lookup.refusal.remedy.text}`); return null;
   }
+  if (lookup.result.reference.kind === "cohort/document") {
+    refuse(`\`${requested}\` resolves to a cohort rather than a work unit. Use the cohort's own commands, or name a work unit.`);
+    return null;
+  }
   if (lookup.result.reference.kind !== "work-item/meta") { refuse(`${requested} resolves to an Errand; use its Errand verb.`); return null; }
   return lookup.result.reference.owner.name;
 }

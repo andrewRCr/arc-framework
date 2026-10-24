@@ -11,7 +11,8 @@ function primary(record: MemoryRecord): boolean {
 }
 
 function preferredSlugRecords(records: MemoryRecord[], slug: string): MemoryRecord[] {
-  const matches = records.filter((record) => primary(record) && (record.reference.owner.name === slug || record.formerSlugs.includes(slug)));
+  const matches = records.filter((record) => (primary(record) || record.reference.kind === "cohort/document")
+    && (record.reference.owner.name === slug || record.formerSlugs.includes(slug)));
   const priority = (record: MemoryRecord) => (record.placement?.kind === "completed" ? 0 : 2) + (record.reference.owner.name === slug ? 1 : 0);
   const highest = Math.max(...matches.map(priority));
   return matches.filter((record) => priority(record) === highest);

@@ -24,56 +24,22 @@ here would resolve every store-arm work-unit claim to nothing. The ref backend's
 assertions land in Phase 8 (§ 10.2); until then the reference backend's tests pin each rule. Phase 4 changes one
 existing assertion, the work-unit claim's, to send the UID (4.3.d).
 
-### `[ ]` **1.1 Rank cohort documents beside work items, and name a cohort where a work unit is required — § 1.1**
+### `[x]` **1.1 Rank cohort documents beside work items, and name a cohort where a work unit is required — § 1.1**
 
 - _Goal:_ A slug a cohort holds resolves through the slug arm to the cohort's document, ranked in the same four tiers as
   a work item's primaries, and each reader that requires a work unit refuses it as a cohort rather than misreporting it
   as an Errand.
 
-    - `[ ]` **1.1.a The reference backend's slug ranking**
+    - `[x]` **1.1.a The reference backend's slug ranking**
 
-        - The slug arm's holder predicate (`preferredSlugRecords`, `__tests__/helpers/store/lookup.ts`) admits
-          `cohort/document` records beside `work-item/meta` and `work-item/record`, under their current name and their
-          `formerSlugs`, live or completed by their `placement` (`MemoryRecord`, `__tests__/helpers/store/model.ts`).
-          `primary`, which the commit and `ref` arms share, keeps admitting work-item primaries alone.
-        - The reference backend's writes keep a former name for work-item primaries alone (`land`,
-          `__tests__/helpers/store/write.ts`), and no verb renames a cohort before the rename change, so a test that
-          needs a cohort's former name plants `formerSlugs` on its record through the backend's `state.records`, as
-          `view-store.test.ts` plants a clash.
-        - Every other slug-lookup caller takes a resolved cohort as it already does over the ref backend, with no change
-          of its own, among them `checkMetaDependsOn` (`lib/store/kinds/meta/reference-rules.ts`), `priorTarget`
-          (`slug-edges.ts`), rename's collision check (`lib/store/lifecycle-rename.ts`), the user-reference readers
-          (`lib/user-reference-scratch.ts`, `lib/store/user-reference-authority.ts`), and decomposition's edge and
-          dependency facts (`lib/decompose/`). Status's dependency resolution (`found`,
-          `lib/status/store-project-dependencies.ts`) answers no work unit for a cohort-held name, as over the ref
-          backend, so a reference-backend test behind these callers that seeds a cohort beside a slug-named work item
-          can change its result.
-        - The lookup's rules over the reference backend are tested in a new
-          `__tests__/unit/lib/store/reference-lookup-ranking.test.ts`, whose cases 8.3 lifts into the shared suite.
-        - Build `test-first` (one behavior at a time):
-            - a slug only a live cohort holds resolves to the cohort's document
-            - a live cohort holding a slug as a former name outranks a completed work unit holding it as its current
-              name, and a live work unit outranks a closed cohort under the same name
-            - a live work unit under its current name outranks a live cohort holding the slug as a former name, and a
-              completed work unit under its current name outranks a completed cohort holding it as a former name, as a
-              cohort renamed off a clash leaves them (3.1.c)
-            - a live cohort and a live work unit on one slug refuse `ambiguous-match` naming both
+        - The slug arm admits cohort documents in the same live/current-name tiers as work-item primaries; commit and
+          branch lookup retain their work-item-only predicate. Ranking tests cover cohort aliases, completed holders,
+          current-name precedence, and a mixed live clash.
 
-    - `[ ]` **1.1.b Readers that require a work unit name a cohort**
+    - `[x]` **1.1.b Readers that require a work unit name a cohort**
 
-        - Where the lookup returns a `cohort/document`, `readWorkUnit` (`lib/store/lifecycle-write.ts`) refuses
-          `record-malformed` under rule `lifecycle.work-unit`, with the condition "`<slug>` resolves to a cohort rather
-          than a work unit" and the remedy to use the cohort's own commands or name a work unit; an Errand keeps today's
-          condition and remedy.
-        - Start's name resolution (`resolveStartName`, `handlers/start-store.ts`), decomposition's home check
-          (`resolveHome`, `lib/decompose/check-homes.ts`), and the inbox's work-item list (`resolveWorkItemList`,
-          `lib/inbox/lists.ts`) each refuse a cohort with that condition in its own refusal form, and keep their
-          handling of an Errand. `arc errand open`'s admission (`decodeBasis`, `lib/errand/store-runtime.ts`) is
-          unchanged.
-        - Build `test-first` (one behavior at a time):
-            - a cohort-held slug refuses with the cohort condition and remedy, from `readWorkUnit`
-              (`__tests__/unit/lib/store/lifecycle-write.test.ts`) and from each of the three readers
-            - an Errand-held slug keeps `readWorkUnit`'s Errand text and each reader's handling of an Errand
+        - Work-unit reads, start, decomposition homes, and inbox work-item lists name cohorts in their refusals and
+          preserve Errand handling; focused reader tests cover their refusals and successful work-unit continuations.
 
 ### `[ ]` **1.2 Resolve a completed tie that includes a work unit to its latest archived work unit — § 1.2**
 

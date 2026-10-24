@@ -47,6 +47,8 @@ export async function resolveWorkItemList(selector: string, context: InboxContex
   const primary = await findPrimary(selector, context);
   if (primary.status === "refused") return primary;
   const value = primary.result;
+  if (value.reference.kind === "cohort/document") return failure("record-malformed",
+    `\`${selector}\` resolves to a cohort rather than a work unit.`, "Use the cohort's own commands, or name a work unit.");
   if (value.conflicts.length > 0) return failure("record-conflicted",
     `The work-item primary has unresolved conflicts: ${value.conflicts.map(reference => JSON.stringify(reference)).join(", ")}.`,
     "Resolve the named conflict records, then retry the entry command.");
