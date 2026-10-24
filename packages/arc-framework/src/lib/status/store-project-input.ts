@@ -3,7 +3,8 @@ import type { Store } from "../store/contract.js";
 import { readLifecycleView } from "../store/lifecycle-view.js";
 import { PROJECT_READINESS_TITLE, type ComposeProjectReadinessViewOptions } from "./project-view.js";
 import type { StatusViewResult } from "./store-view-result.js";
-import { selectStandingLifecycleEntries } from "./store-project-standing.js";
+import { selectStandingLifecycleEntries } from "../store/lifecycle-standing.js";
+import { renderLifecycleClashWarnings } from "./store-project-standing.js";
 import { readStoreProjectRecords } from "./store-project-records.js";
 import { resolveStoreProjectDependencies } from "./store-project-dependencies.js";
 import { readStoreProjectPauseMarks } from "./store-project-pauses.js";
@@ -39,5 +40,5 @@ export async function readStoreProjectViewInput(options: ReadStoreProjectViewOpt
   ]);
   return { status: "ok", result: { title: PROJECT_READINESS_TITLE, records: records.records, dependencyResolutions,
     pausedMarks: pauses.marks, sourceWarnings: [...listingDiagnosticWarnings(diagnostics),
-      ...selected.warnings, ...records.warnings, ...pauses.warnings] } };
+      ...renderLifecycleClashWarnings(selected.clashes, view.result.entries), ...records.warnings, ...pauses.warnings] } };
 }

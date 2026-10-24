@@ -13,7 +13,7 @@ import { testProvenance } from "../../helpers/store/suite-tools.js";
 import { serializeTransientIdentityRecord, TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
 import { LookupInputSchema } from "../../../src/lib/store/lookup.js";
 import { readLifecycleView } from "../../../src/lib/store/lifecycle-view.js";
-import { selectStandingLifecycleEntries } from "../../../src/lib/status/store-project-standing.js";
+import { selectStandingLifecycleEntries } from "../../../src/lib/store/lifecycle-standing.js";
 import { readStoreProjectRecords } from "../../../src/lib/status/store-project-records.js";
 import { resolveStoreProjectDependencies } from "../../../src/lib/status/store-project-dependencies.js";
 import { importRetiredAlias } from "../../helpers/store/terminal-alias-harness.js";

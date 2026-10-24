@@ -12,7 +12,8 @@ import type { LifecycleIndexOutcome } from "../../lib/store/lifecycle-index.js";
 import type { Store } from "../../lib/store/contract.js";
 import type { StoreSyncPort } from "../../lib/store/operational-sync.js";
 import { readLifecycleView, buildLifecycleViewIndex } from "../../lib/store/lifecycle-view.js";
-import { selectStandingLifecycleEntries } from "../../lib/status/store-project-standing.js";
+import { selectStandingLifecycleEntries } from "../../lib/store/lifecycle-standing.js";
+import { renderLifecycleClashWarnings } from "../../lib/status/store-project-standing.js";
 import { readLifecycleDesign } from "../../lib/store/lifecycle-design.js";
 import { readWorkUnit, usesOffBranchState } from "../../lib/store/lifecycle-write.js";
 import { MetaPauseSchema, ParsedMetaRecordSchema, type MetaPause, type ParsedMetaRecord } from "../../lib/active/meta-schema.js";
@@ -262,7 +263,7 @@ async function handleStoreLifecycleStatus(store: Store, slug: string, opts: Stat
     readRoster: ports?.readRoster ?? (identity => readStatusCheckoutRoster({ ...local, store }, identity)) });
   const scopeWindow = projectScopeWindow(query.state, derived.position, storeQueryPause(fields));
   const warnings = [...design.warnings, ...lifecycleListingWarnings(view.result.listing),
-    ...standing.warnings.map(warning => warning.rendered), ...locus.warnings, ...derived.warnings, ...refreshWarnings];
+    ...renderLifecycleClashWarnings(standing.clashes, view.result.entries).map(warning => warning.rendered), ...locus.warnings, ...derived.warnings, ...refreshWarnings];
   const designFields = ParsedDesignRecordSchema.safeParse(design.record?.fields);
   const purpose = extractPurposeSentence(designFields.success ? designFields.data.purpose : null);
   const output = { ...query, purpose, owner: fields?.owner ?? null,

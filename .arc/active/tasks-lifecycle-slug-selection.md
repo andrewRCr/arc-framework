@@ -103,51 +103,23 @@ slug, and a verb run without an operand under reuse is tested in 4.3. Where reus
 its test is a regression pin that passes before the change; each re-read's failing test runs over the clash double
 (2.1.a).
 
-### `[ ]` **2.1 Move the standing selection into `lib/store/` with its clash facts and the former-name tie — § 2.1**
+### `[x]` **2.1 Move the standing selection into `lib/store/` with its clash facts and the former-name tie — § 2.1**
 
 - _Goal:_ One selection in `lib/store/` returns only what it establishes, the standing entries, each clash as its slug,
   its kind, and each live holder's `RecordReference`, and the fail-closed names, and status renders its `slug-clash`
   warning from those facts with today's text.
 
-    - `[ ]` **2.1.a The selection**
+    - `[x]` **2.1.a The selection**
 
-        - `selectStandingLifecycleEntries` moves from `lib/status/store-project-standing.ts` into `lib/store/` and
-          returns `{ entries, clashes, failClosedNames }`, each clash carrying `slug`, `kind` (`"current-name"` or
-          `"former-name"`), and `holders` (`RecordReference[]`), ordering completed entries through 1.2's comparator. It
-          applies its rules to every slug a listed entry carries as its current or a former name, adding the former-name
-          tie to status's rules as shipped, split into a helper that groups entries by slug and one that decides a
-          slug's standing.
-        - A shared clash double (`__tests__/helpers/store/clash-double.ts`) wraps a reference-backend store holding two
-          live holders under distinct names. It renames them onto one slug only in a `work-item/meta` listing with no
-          owner filter, forwards every other listing unchanged, and makes the slug lookup refuse `ambiguous-match`
-          naming both references, with `tie: { liveness: "live", name: "current" }` (1.4). In a mid-verb mode its
-          listing holds the subject alone, and its slug lookup resolves the subject once and refuses `ambiguous-match`
-          on every later call, as if a clash formed during the verb. Writes land in the wrapped store under the holders'
-          real names, so post-state assertions read those names. Every later clash test runs over it.
-        - Build `test-first` (one behavior at a time):
-            - a live entry named by the slug stands and the completed entries named by it are left out
-            - one live entry holding the slug as a former name leaves none standing and reports no clash
-            - several live entries holding the slug as a former name, with no live entry named by it, leave none
-              standing and report a former-name tie naming each holder's reference, a completed entry named by the slug
-              included or not
-            - several live entries named by the slug leave none standing and report a current-name clash naming each
-              holder's reference
-            - with only completed entries named by the slug, the latest archived stands, by quarter then sequence
-            - a slug whose meta the listing withholds (`work-item/meta:<slug>`) fails closed and nothing stands for it
+        - `lifecycle-standing.ts` groups every current and former name and returns standing entries, typed current-name
+          clashes and former-name ties, and fail-closed diagnostic names. The shared clash double projects complete
+          inventory observations and supports a clash introduced after a verb's first lookup without changing writes.
 
-    - `[ ]` **2.1.b Status renders the clash facts**
+    - `[x]` **2.1.b Status renders the clash facts**
 
-        - `clashWarning` stays in `lib/status/` with `ProjectReadinessWarning` and renders each current-name clash with
-          today's text, matching each holder's reference to its listed entry for the owner and location it names;
-          former-name ties render nothing.
-        - `readStoreProjectViewInput` (`lib/status/store-project-input.ts`) and `handlers/status/lifecycle.ts` import
-          the selection from `lib/store/` and keep their output; `store-project-standing.test.ts`'s warning assertions
-          move to status's rendering with today's text, and status's other tests change only their import path.
-        - _Note:_ `feat/storage-ref-backend` edits `handlers/status/lifecycle.ts` and `store-project-input.test.ts`'s
-          imports (`__tests__/unit/status/`); re-check that branch before editing them.
-        - Build `test-first` (one behavior at a time):
-            - a current-name clash renders today's `slug-clash` warning naming each holder's UID, owner, and location
-            - a former-name tie renders no warning
+        - Status renders current-name clash facts with the existing UID, owner, location, and repair text; former-name
+          ties render no warning. Both status consumers use the store selection, and standing, records, dependencies,
+          and combined-input tests retain their output.
 
 ### `[ ]` **2.2 Take `ambiguous-match` as an answer in the word and paired-spec checks — § 4.2**
 

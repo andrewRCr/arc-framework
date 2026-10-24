@@ -1,47 +1,14 @@
-/** Select one lifecycle entry per visible slug without losing generation identity. */
+/** Render status warnings from the store's typed current-name clash facts. */
 import type { LifecycleEntry } from "../store/lifecycle-index.js";
-import type { ListingDiagnostic } from "../store/read.js";
+import type { StandingLifecycleClash } from "../store/lifecycle-standing.js";
+import { sameReference } from "../store/identity.js";
 import type { ProjectReadinessWarning } from "./project-view.js";
-import { compareCompletedPlacements } from "../store/placement.js";
 
-/** Standing entries and names withheld by incomplete primary-record evidence. */
-export interface StandingLifecycleSelection {
-  entries: readonly LifecycleEntry[];
-  failClosedNames: ReadonlySet<string>;
-  warnings: ProjectReadinessWarning[];
-}
-
-/** Select the visible generation for each slug and diagnose ambiguous live holders. */
-export function selectStandingLifecycleEntries(
-  entries: readonly LifecycleEntry[],
-  diagnostics: readonly ListingDiagnostic[],
-): StandingLifecycleSelection {
-  const failClosedNames = new Set(diagnostics.flatMap(diagnostic => {
-    const match = /^work-item\/meta:(.+)$/u.exec(diagnostic.key);
-    return match?.[1] === undefined ? [] : [match[1]];
-  }));
-  const byName = new Map<string, LifecycleEntry[]>();
-  for (const entry of entries) {
-    const name = entry.reference.owner.name;
-    const group = byName.get(name) ?? [];
-    group.push(entry);
-    byName.set(name, group);
-  }
-  const standing: LifecycleEntry[] = [];
-  const warnings: ProjectReadinessWarning[] = [];
-  const liveAliases = new Set<string>(entries.filter(entry => entry.location !== "completed").flatMap(entry => entry.aliases ?? []));
-  for (const [name, holders] of byName) {
-    if (failClosedNames.has(name)) continue;
-    const live = holders.filter(entry => entry.location !== "completed");
-    if (live.length > 1) {
-      warnings.push(clashWarning(name, live));
-      continue;
-    }
-    if (live.length === 0 && liveAliases.has(name)) continue;
-    const selected = live[0] ?? [...holders].sort(compareArchive).at(-1);
-    if (selected !== undefined) standing.push(selected);
-  }
-  return { entries: standing, failClosedNames, warnings };
+/** Preserve status's warning policy while the shared selection remains presentation-independent. */
+export function renderLifecycleClashWarnings(clashes: readonly StandingLifecycleClash[],
+  entries: readonly LifecycleEntry[]): ProjectReadinessWarning[] {
+  return clashes.filter(clash => clash.kind === "current-name").map(clash => clashWarning(clash.slug,
+    clash.holders.flatMap(reference => entries.find(entry => sameReference(entry.reference, reference)) ?? [])));
 }
 
 function clashWarning(name: string, holders: readonly LifecycleEntry[]): ProjectReadinessWarning {
@@ -52,9 +19,4 @@ function clashWarning(name: string, holders: readonly LifecycleEntry[]): Project
   });
   return { code: "slug-clash", workUnit: name,
     rendered: `Slug ${name} has multiple live holders (${descriptions.join("; ")}). The view omits them. Rename one holder to repair the clash.` };
-}
-
-function compareArchive(left: LifecycleEntry, right: LifecycleEntry): number {
-  if (left.placement.kind !== "completed" || right.placement.kind !== "completed") return 0;
-  return compareCompletedPlacements(left.placement, right.placement);
 }
