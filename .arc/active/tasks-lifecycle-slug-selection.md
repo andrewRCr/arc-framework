@@ -310,25 +310,11 @@ cohort over the reference backend directly.
 - _Goal:_ A lifecycle verb that meets a clash refuses with each live holder as a typed `RecordReference` and the repair
   for its tie's kind, in its text refusal and in `--json` where the verb takes it.
 
-    - `[ ]` **3.1.a The repair**
+    - `[x]` **3.1.a The repair**
 
-        - A pure builder in `lib/store/` (`clashRepair`) takes a refusal's candidates and `tie` and returns the repair
-          as one `Remedy` (`lib/store/refusal.ts`): its text names the move for each holder, and its argv runs as
-          printed. It reads each holder's type from its reference's kind (`work-item/meta`, `work-item/record`,
-          `cohort/document`), since `owner.type` is `work-item` for a work unit and an Errand alike
-          (`lib/store/identity.ts`).
-        - For a current-name clash it names the first move that applies: renaming a cohort holder
-          (`arc rename <uid> <new-slug>`), closing an Errand holder (`arc errand close <uid>`, which is the argv), or
-          renaming either work unit. For a former-name tie it names the intended holder by its current name, printed for
-          each holder; for a completed tie, no move, each holder's UID printed, a work-unit holder's being what
-          `arc teardown <uid>` takes (7.4). Where no move runs as printed, the argv is `arc status --json`.
-        - _Note:_ the rename and Errand-close UID operands land with the rename change; until then the repair names
-          operands those verbs do not yet accept (§ 11).
-        - Build `test-first` (one behavior at a time):
-            - a current-name clash between a work unit and a cohort names the cohort's rename, one between a work unit
-              and an Errand names the Errand's close as its argv, and one between two work units names renaming either
-            - a former-name tie names each holder's current name and no rename
-            - a completed tie names each holder's UID and no move
+        - Added the pure `clashRepair` builder, selecting cohort rename, Errand close, or either work-unit rename
+          by record kind. Former ties name current names; completed ties list UIDs without a lifecycle move. Only a
+          concrete Errand close supplies its action argv; the other cases use `arc status --json`.
 
     - `[ ]` **3.1.b The shared preamble and its schema**
 
