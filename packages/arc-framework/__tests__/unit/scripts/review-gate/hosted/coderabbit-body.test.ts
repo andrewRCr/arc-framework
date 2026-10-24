@@ -11,6 +11,10 @@ const boldBadgeReviewBodyUrl = new URL(
   "../../../../fixtures/coderabbit-hosted/bold-badge-review-body.txt",
   import.meta.url,
 );
+const iconBadgeThreadCommentUrl = new URL(
+  "../../../../fixtures/coderabbit-hosted/icon-badge-thread-comment.txt",
+  import.meta.url,
+);
 
 const badgeEmphasis = [
   ["italic", (label: string) => `_${label}_`],
@@ -133,6 +137,16 @@ describe("CodeRabbit inline thread labels", () => {
         `${badges}\r\n\r\n<details>\n<summary>🔎 Supported by static analysis</summary>\n\n**Script output**\n\n`
           + "<details>\n<summary>Nested</summary>\nMore.\n</details>\n</details>\n\n**Reject a stale scope replay.**\n",
         "**Reject a stale scope replay.**",
+      ],
+      [
+        "a title after the provider's generated-content marker",
+        `<!-- coderabbit-ai-generated:v1 -->\n\n${badges}\n\n**Match the file on a path boundary.**\n\nDetails.`,
+        "**Match the file on a path boundary.**",
+      ],
+      [
+        "a title after a marker that follows the badge line",
+        `${badges}\n\n<!-- cr-indicator-types:potential_issue -->\n\n**Match the file on a path boundary.**\n`,
+        "**Match the file on a path boundary.**",
       ],
       [
         "a severity line that carries its own text",
@@ -283,6 +297,80 @@ describe("CodeRabbit bold-badge review body", () => {
         locus: "packages/arc-framework/src/scripts/review-gate/status-errand.ts:413-418",
         sourceLabel: "**Inject the raw Git executor into the contribution proof.**",
       })],
+    });
+  });
+});
+
+describe("CodeRabbit icon-image badges", () => {
+  function iconBadge(grade: string): string {
+    return `<picture><img src="https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/${
+      grade.toLowerCase()}-16.svg" width="16" height="16" align="absmiddle" alt=""></picture> ${grade}`;
+  }
+
+  it("reads the grade and label from an inline thread CodeRabbit posted with an icon badge", async () => {
+    const comment: HostedGitHubThreadComment = {
+      id: "4365700538",
+      reviewId: "PRR_ICON",
+      replyToReviewId: null,
+      actorIdentity: "136622811",
+      body: await readFile(iconBadgeThreadCommentUrl, "utf8"),
+      url: "https://github.com/owner/repo/pull/42#discussion_r4365700538",
+      path: "packages/arc-framework/src/commands/update.ts",
+      line: 393,
+      headSha: "a".repeat(40),
+    };
+
+    expect(finding("PRRT_ICON", comment)).toMatchObject({
+      severity: "major",
+      sourceLabel: "**Check generated skill files before writing.**",
+    });
+  });
+
+  it.each(badgeEmphasis)("reads no grade from an %s icon without a grade label", (_form, emphasize) => {
+    const body = `${emphasize(iconBadge("Major").replace(/ Major$/u, " boundary drift"))}\n\nDetails.`;
+    const comment: HostedGitHubThreadComment = {
+      id: "123",
+      reviewId: "PRR_1",
+      replyToReviewId: null,
+      actorIdentity: "136622811",
+      body,
+      url: "https://github.com/owner/repo/pull/42#discussion_r1",
+      path: "src/a.ts",
+      line: 7,
+      headSha: "a".repeat(40),
+    };
+
+    expect(finding("PRRT_1", comment)).toBeNull();
+  });
+
+  it.each(badgeEmphasis)("parses a grouped nitpick whose %s severity badge is an icon", (_form, emphasize) => {
+    const review: HostedGitHubReview = {
+      id: "PRR_GROUPED",
+      url: "https://github.com/owner/repo/pull/42#pullrequestreview-grouped",
+      actorIdentity: "136622811",
+      state: "approved",
+      headSha: "a".repeat(40),
+      submittedAt: "2026-10-23T12:05:00.000Z",
+      body: `<details>
+<summary>🧹 Nitpick comments (1)</summary><blockquote>
+<details>
+<summary>src/a.ts (1)</summary><blockquote>
+
+\`7\`: ${badgeLine(emphasize, "📐 Maintainability & Code Quality", iconBadge("Trivial"), "⚡ Quick win")}
+
+**Keep the mode explicit.**
+
+Details.
+
+<!-- cr-comment:v1:aaaaaaaaaaaaaaaaaaaaaaaa -->
+
+</blockquote></details>
+</blockquote></details>`,
+    };
+
+    expect(parseCodeRabbitReviewBody(review)).toMatchObject({
+      kind: "parsed",
+      findings: [{ severity: "minor", nit: true, locus: "src/a.ts:7", sourceLabel: "**Keep the mode explicit.**" }],
     });
   });
 });
