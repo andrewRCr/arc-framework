@@ -3,7 +3,7 @@
   "slug": "planning-module-draft-names",
   "claimId": "803afbb01a8b7058985cd60de267da4e",
   "createdAt": "2026-10-24T00:01:32.509Z",
-  "updatedAt": "2026-10-24T00:01:32.509Z",
+  "updatedAt": "2026-10-24T00:21:56.661Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "planning-module-draft-names",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Name a backlog work unit's design file `draft-*` in the planning-module strategy",
   "originEntrySourceDigest": "sha256:0c32568ccb580fa84303ebab0d95696eefdfd3a404b8e92d00087ca1a0859d69",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "fix/planning-module-draft-names",
+    "headSha": "4464c7332d32c2f948320ee6908672af34bb360f"
+  }
 }
