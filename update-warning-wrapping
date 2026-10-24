@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "update-warning-wrapping",
+  "claimId": "8ad63dba096fb95c186d7b717a48b249",
+  "createdAt": "2026-10-24T19:11:48.127Z",
+  "updatedAt": "2026-10-24T19:11:48.127Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make update hook-upgrade warning assertions independent of summary-box wrapping.",
+  "branch": "chore/update-warning-wrapping",
+  "origin": "inbox",
+  "originEntry": "Assert the update hook-upgrade warning without depending on summary-box wrapping",
+  "originEntrySourceDigest": "sha256:9975e8d906f834039c24ac9e52952252d0e54d37dc35103b933487911f4f2eef",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
