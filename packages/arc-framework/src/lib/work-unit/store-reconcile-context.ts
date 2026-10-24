@@ -1,4 +1,5 @@
 /** Complete store-backed context and version bases for current-work-unit reconciliation. */
+import { readWorkUnit } from "../store/lifecycle-write.js";
 import { SlugSchema, type Slug } from "../kernel/index.js";
 import type { Store } from "../store/contract.js";
 import type { StoreRecord } from "../store/read.js";
@@ -22,7 +23,9 @@ export async function createStoreReconcilePrepareContext(store: Store, slug: str
   const view = await readLifecycleView(store);
   if (view.status === "refused") return view;
   requireCompleteInventory(store, view.result.listing);
-  const acquired = await acquireLifecycleRecords(store, slug);
+  const selected = await readWorkUnit(store, slug);
+  if (selected.status === "refused") return selected;
+  const acquired = await acquireLifecycleRecords(store, selected.result.reference);
   if (acquired.status === "refused") return acquired;
   const primary = acquired.result.find((record) => record.reference.kind === "work-item/meta");
   if (primary === undefined) throw new Error("The acquired work-unit group lacks its primary");

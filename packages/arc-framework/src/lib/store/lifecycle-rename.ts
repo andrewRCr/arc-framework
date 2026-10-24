@@ -82,13 +82,13 @@ function ownedArtifactRenames(records: readonly StoreRecord[], primary: StoreRec
   return names;
 }
 async function acquireRenameGroups(store: Store, primary: StoreRecord): Promise<StoreResult<StoreRecord[]>> {
-  const own = await acquireLifecycleRecords(store, primary.reference.owner.name); if (own.status === "refused") return own;
+  const own = await acquireLifecycleRecords(store, primary.reference); if (own.status === "refused") return own;
   const records = [...own.result];
   const view = await readLifecycleView(store); if (view.status === "refused") return view;
   requireCompleteInventory(store, view.result.listing);
   for (const entry of view.result.entries) {
     if (entry.placement.kind !== "backlog" || sameReference(entry.reference, primary.reference)) continue;
-    const group = await acquireLifecycleRecords(store, entry.reference.owner.name); if (group.status === "refused") return group;
+    const group = await acquireLifecycleRecords(store, entry.reference); if (group.status === "refused") return group;
     records.push(...group.result);
   }
   const cohort = ParsedMetaRecordSchema.parse(primary.fields).cohort?.split("/").at(-1);

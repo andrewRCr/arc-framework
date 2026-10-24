@@ -1,4 +1,5 @@
 /** Renames preserve one UID and change only the records in the transform's authority. */
+import { createClashDouble } from "../../../helpers/store/clash-double.js";
 import { expect, it } from "vitest";
 import { runStoreRename } from "../../../../src/lib/work-unit/verbs/rename-store.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
@@ -216,4 +217,28 @@ it("retains failed checkout compensation and retries only after its owner repair
   marker = "source"; checkoutPath = "/holder/source"; repaired = true;
   expect(await runStoreRename(ctx, request)).toMatchObject({ status: "renamed" });
   expect(marker).toBe("target"); expect(h.refs).toEqual(new Set(["feat/target"]));
+});
+
+it("renames its selected group while unrelated backlog entries clash on a slug", async () => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("source");
+  const first = await h.seedMeta("first", { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "planned" });
+  const second = await h.seedMeta("second", { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "planned" });
+  const store = createClashDouble(h.store, { slug: "clashed", holders: [first.reference, second.reference] });
+  expect(await runStoreRename({ store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main", locusPorts },
+    { sourceSlug: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).reference.owner.name).toBe("target");
+  expect(lifecycleSuccess(await h.store.read({ reference: first.reference }))).toMatchObject({ reference: first.reference, content: first.content, fields: first.fields, placement: first.placement });
+  expect(lifecycleSuccess(await h.store.read({ reference: second.reference }))).toMatchObject({ reference: second.reference, content: second.content, fields: second.fields, placement: second.placement });
+});
+
+it("acquires a rename subject's group after a mid-verb name clash", async () => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("source"), other = await h.seedMeta("other");
+  const notes = await h.seed(recordReferences["work-item/notes"](primary.reference.owner), "# Notes\n\nRead `spec-source.md`.\n");
+  const store = createClashDouble(h.store, { slug: "source", holders: [primary.reference, other.reference], mode: "mid-verb" });
+  expect(await runStoreRename({ store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main", locusPorts },
+    { sourceSlug: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
+  expect(lifecycleSuccess(await h.store.read({ reference: notes.reference })).content).toContain("`spec-target.md`");
+  expect(lifecycleSuccess(await h.store.read({ reference: other.reference }))).toEqual(other);
 });

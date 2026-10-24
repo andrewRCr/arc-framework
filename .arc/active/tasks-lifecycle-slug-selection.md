@@ -221,21 +221,12 @@ its test is a regression pin that passes before the change; each re-read's faili
   group, its pause state, and its reconcile context are its own under reuse and under a clash formed during the verb,
   and one backlog clash no longer blocks every rename.
 
-    - `[ ]` **2.7.a `acquireLifecycleRecords` takes the owner's reference**
+    - `[x]` **2.7.a `acquireLifecycleRecords` takes the owner's reference**
 
-        - `acquireLifecycleRecords` (`lib/work-unit/prepared-lifecycle-write.ts`) takes the owner's `RecordReference`
-          and reads that owner's group, refusing `not-found` naming the reference where the owner's listing holds no
-          `work-item/meta`; a caller holding only a typed operand resolves it through `readWorkUnit` first.
-        - `acquireRenameGroups` (`lib/store/lifecycle-rename.ts`) passes the subject's reference, and each backlog
-          entry's reference for its own group. The shared decompose helper
-          (`__tests__/helpers/store/decompose-batch.ts`) and `prepared-lifecycle-write.test.ts`
-          (`__tests__/unit/work-unit/`) pass references.
-        - Build `test-first` (one behavior at a time):
-            - over the clash double, a rename runs while two backlog entries clash on another slug
-            - over the clash double's mid-verb mode, a rename acquires its subject's group
-            - an owner whose listing holds no meta refuses `not-found` naming the reference
-            - regression pin: with a completed and a live holder of one slug, acquisition by the live holder's reference
-              reads its group alone
+        - Whole-group acquisition lists by the supplied owner and names that reference when metadata is absent,
+          preserving completeness and additional-record reads. Rename, reconcile, decomposition, and shared fixtures
+          pass selected references. Tests cover unrelated and mid-verb clashes, missing-primary recovery, and exact
+          live-group isolation under reuse, including a failing first-listed acquisition reconstruction.
 
     - `[ ]` **2.7.b The reconcile context's subject**
 
