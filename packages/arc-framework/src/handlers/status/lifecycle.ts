@@ -11,8 +11,7 @@ import type { StoreRefusal } from "../../lib/store/refusal.js";
 import type { LifecycleIndexOutcome } from "../../lib/store/lifecycle-index.js";
 import type { Store } from "../../lib/store/contract.js";
 import type { StoreSyncPort } from "../../lib/store/operational-sync.js";
-import { readLifecycleView, buildLifecycleViewIndex } from "../../lib/store/lifecycle-view.js";
-import { selectStandingLifecycleEntries } from "../../lib/store/lifecycle-standing.js";
+import { readLifecycleView } from "../../lib/store/lifecycle-view.js";
 import { renderLifecycleClashWarnings } from "../../lib/status/store-project-standing.js";
 import { readLifecycleDesign } from "../../lib/store/lifecycle-design.js";
 import { readWorkUnit, usesOffBranchState } from "../../lib/store/lifecycle-write.js";
@@ -253,9 +252,8 @@ async function handleStoreLifecycleStatus(store: Store, slug: string, opts: Stat
       remedy: { text: "Resolve the named conflict records, then retry this status query." } }, opts);
     return;
   }
-  const standing = selectStandingLifecycleEntries(view.result.entries,
-    view.result.listing.status === "complete" ? view.result.listing.diagnostics : []);
-  const query = resolveSlugQuery(buildLifecycleViewIndex(standing.entries), record.status === "ok" ? record.result.reference.owner.name : slug);
+  const standing = view.result.standing;
+  const query = resolveSlugQuery(view.result.index, record.status === "ok" ? record.result.reference.owner.name : slug);
   const fields = storeQueryMetaFields(record);
   const design = record.status === "ok" ? await readLifecycleDesign(store, record.result) : { record: null, content: null, warnings: [] };
   const locus = await readStoreStatusLocus({ ...local, store, slug: query.slug }, ports);

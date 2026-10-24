@@ -138,32 +138,14 @@ its test is a regression pin that passes before the change; each re-read's faili
           work-unit clashes, Errand-only ties, unchanged reconcile content, and rename alongside a backlog record's
           clashed paired reference.
 
-### `[ ]` **2.3 Build the view's index from the standing entries — § 2.2**
+### `[x]` **2.3 Build the view's index from the standing entries — § 2.2**
 
 - _Goal:_ Every consumer that asks the view's index by slug inherits the one selection, while the view's `listing` and
   `entries` keep every holder, each identified by its reference, and the view refuses only where the listing does.
 
-    - `readLifecycleView` (`lib/store/lifecycle-view.ts`) runs the selection over its listing's entries and diagnostics,
-      returns it as `standing` beside `listing`, `entries`, and `index`, and builds `index` with
-      `buildLifecycleViewIndex` over `standing.entries`. Status's two readers take `standing` from the view rather than
-      running the selection again.
-    - The index's consumers change nothing of their own: `executeStoreTransition` and `validateStoreGuards`
-      (`lib/work-unit/lifecycle-store-executor.ts`), `artifactAliasTransitions`, `handleStoreStart`
-      (`handlers/start-store.ts`), and `resolveVerbTargetOrReport` (`handlers/lifecycle.ts`). Two of their behaviors
-      move with the index, as § 5.1 states: a slug that a live entry keeps as a former name, while a completed entry
-      holds it as its current name, leaves the index, so the word check looks it up and records a rename to the live
-      holder's current name, and a `Depends On` edge on it reaches the retired-edge query and is retargeted to that name
-      rather than discharged. Until Phase 5, `arc stub` on such a slug reaches the create edge, and the reference
-      backend refuses its write `version-conflict` (`stale`, `__tests__/helpers/store/write.ts`), since its identities
-      map the former name to the live owner.
-    - Build `test-first` (one behavior at a time):
-        - with a completed and a live holder of one slug, the index answers for the live holder over a listing double
-          that lists the completed holder last, since the reference backend lists in insertion order
-        - with two live holders of one slug, the index lacks the slug, `entries` keeps both, the view does not refuse,
-          and `standing.clashes` names both holders
-        - a withheld meta's slug is a fail-closed name and has no index entry
-        - the word check records a rename for a slug that only a live entry's former name and a completed entry's
-          current name hold, and a `Depends On` edge on it is retargeted rather than discharged
+- _Outcome:_ Lifecycle views expose the shared standing selection and build their slug index from it; status consumes
+  that same result. Tests cover reversed reuse listings, retained clash identities, malformed live holders, and
+  retargeting former-name dependency and artifact references to their live holder.
 
 ### `[ ]` **2.4 Count every holder in cohort membership — § 2.3**
 

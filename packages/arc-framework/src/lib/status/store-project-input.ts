@@ -3,7 +3,6 @@ import type { Store } from "../store/contract.js";
 import { readLifecycleView } from "../store/lifecycle-view.js";
 import { PROJECT_READINESS_TITLE, type ComposeProjectReadinessViewOptions } from "./project-view.js";
 import type { StatusViewResult } from "./store-view-result.js";
-import { selectStandingLifecycleEntries } from "../store/lifecycle-standing.js";
 import { renderLifecycleClashWarnings } from "./store-project-standing.js";
 import { readStoreProjectRecords } from "./store-project-records.js";
 import { resolveStoreProjectDependencies } from "./store-project-dependencies.js";
@@ -31,7 +30,7 @@ export async function readStoreProjectViewInput(options: ReadStoreProjectViewOpt
     code: "listing-unreadable", condition: view.result.listing.condition, remedy: view.result.listing.remedy,
   } };
   const diagnostics = view.result.listing.status === "complete" ? view.result.listing.diagnostics : [];
-  const selected = selectStandingLifecycleEntries(view.result.entries, diagnostics);
+  const selected = view.result.standing;
   const [records, dependencyResolutions, pauses] = await Promise.all([
     readStoreProjectRecords(options.store, selected.entries),
     resolveStoreProjectDependencies({ store: options.store, entries: view.result.entries,
