@@ -34,6 +34,24 @@
   `bootstrapRetiredChecks` share it. `migrateUserSyncPush` handles notes-keyed configuration the cutover retires, so
   confirm at planning which migrators remain live after the flip.
 
+### `[ ]` **Count a deliberate takeover of a project-edited file as an install migration**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ its inbound entry "The trigger has fired: plan the registry before CineXplorer's first update", whose
+  approach leaves open "whether install migrations such as `bootstrapRetiredChecks` share it".
+
+- _Observation:_ `adopter-install-authority` makes `buildChangePlan` (`lib/manifest/plan.ts`) hold a file at its
+  recorded class when a new claim gives ARC more ownership of it — Scaffolded to Configurable or Framework, Configurable
+  to Framework — unless the file still matches its recorded `pristine_hash`, and report that taking it over needs a
+  migration (`draft-adopter-install-authority.md` D8). That migration must decide what happens to the project's edits: a
+  second install-migration case beside `bootstrapRetiredChecks`.
+
+- _Approach:_ weigh the takeover case when deciding whether install migrations share the registry; the likeliest first
+  one is a method `composable-workflows` makes fixed.
+
+- _Captured during:_ `adopter-install-authority` draft-design close, 2026-10-23.
+
 ---
 
 ## Problem / Motivation

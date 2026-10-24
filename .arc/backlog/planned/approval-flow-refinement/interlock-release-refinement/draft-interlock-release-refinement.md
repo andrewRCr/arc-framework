@@ -218,6 +218,43 @@ atomic companion and the personal atomic inbox.
   tag and approval callout or state the raw-routing exemption at the commit step. The always-loaded review
   invariant already supplies the gate; this concern is routing authority, not a missing approval rule.
 
+### `[ ]` **Decide whether the release wrappers still earn their place once harnesses stop prompting per call**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ the Problem, and § In-Flight's wrapper-routing extension, whose premise this questions: whether
+  `arc release commit` / `arc release push`, their setup workflow, and class-tag routing remain, shrink to a thin guard,
+  or are removed before the first public release.
+
+- _Observation:_ the wrappers carry two value layers (`strategy-interlock-release-wrappers.md` § Trust Model). The
+  conditional one — skipping the harness's per-call prompt after ARC's approval gate — does nothing under Claude Code's
+  auto mode, which is becoming the default, or under bypass mode. Most of the mechanism serves that layer: the setup
+  workflow and per-harness permission translation, the per-machine opt-in flag and markers, `releaseRouting` in the
+  session-init envelope, and class-tag routing across about 26 shipped workflow files and 16 source files. The
+  unconditional layer (interlock-scope validation, destructive-flag refusal, an audit entry) is small, and binds only
+  when the agent chooses the wrapper; raw `git` skips it, where a harness deny rule or a git hook would not.
+
+- _Evidence:_ the CineXplorer install rehearsal (`2026-10-23T083226`): `/arc-setup`'s wrapper step could not observe a
+  prompt either way, because the user-level allow `Bash(arc:*)` already covers the wrappers and `defaultMode: auto`
+  prompts for neither path. `setup-release-wrapper.md` § Mode detection knows only `bypassPermissions` and reads any
+  other value, `auto` included, as default-prompt; that misreading is a gap whatever this decides. Run through Claude
+  Code's `!` prefix, `arc release setup install` had no terminal to confirm in and stopped with "missing required input:
+  --yes, --workflow-verified", saying neither what the flags attest nor that a plain terminal would ask; the session
+  explained both and left them to the user.
+
+- _Approach:_ establish who still gets a per-call prompt — Codex CLI at its default approval policy (push likely still
+  prompts behind gated network), and teams whose managed settings disable auto mode; whether anything reads the audit
+  log; and which refusals a hook or harness deny rule would enforce better. Then choose between removal (workflows
+  commit with `git` after the approval gate), a thin guard verb with no setup, opt-in, or routing, or keeping the
+  wrappers only for prompting harnesses. Removal is cheapest before the first public release, while unpublished
+  contracts may change in place.
+
+- _Related:_ `composable-workflows` holds a routed concern to load the wrapper mechanics only when `arc.releaseOptedIn`
+  is set, which this would moot or reshape; `graduation-cleanup`'s state-flip commit fires through the `workflowCommit`
+  class tag.
+
+- _Captured during:_ the CineXplorer install rehearsal's `/arc-setup`, 2026-10-23.
+
 ---
 
 ## Problem / Motivation

@@ -742,4 +742,105 @@ _Routing boundary (2026-10-19):_ The stub retirement is a separate fresh-session
 representative rehearsal and both cohorts’ closeout against their unchanged criteria; neither cohort closes before that
 evidence.
 
+### `[ ]` **Drop CineXplorer from the cutover's purpose: it installs fresh after the flip**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ the Purpose line, and any step in the body written for a second repository.
+
+- _Observation:_ `draft-storage-cutover.md`'s Purpose line still reads "Flip this repository — and CineXplorer" (the
+  2026-09-28 re-cut). The import serves this repository alone (`cohort-state-storage.md` § Import scope, Owner
+  2026-10-10), and on 2026-10-22 the Owner chose to install CineXplorer fresh once the cutover lands (`RELEASE-GATES.md`
+  § `cinexplorer-adoption`), so the flip has one repository.
+
+- _Approach:_ at the cutover's planning, reword the Purpose and check the draft's body for any other step written for a
+  second repository.
+
+- _Captured during:_ the CineXplorer migration timing discussion, 2026-10-22.
+
+### `[ ]` **Carry every pre-flip checkout's UID-less work-unit marker across the flip by binding or releasing it**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ § Scope — the window's flip step, and its rehearsal.
+
+- _Observation:_ from the flip a work-unit checkout claim carries and matches its owner's UID, with no slug fallback
+  (`draft-lifecycle-slug-selection.md` D8, Owner 2026-10-22). No marker written before the flip carries one — the
+  in-repo store has no UIDs — and the import leaves the checkout marker out as machine-local
+  (`spec-storage-ref-backend.md`, "What stays out"). So every spawned pre-flip checkout's claim refuses after the flip
+  until it is bound.
+
+- _Approach:_ `lifecycle-slug-selection` makes such a marker unbound rather than building a re-stamp, under the
+  pre-public posture (`spec-lifecycle-slug-selection.md` § 7.4, Owner 2026-10-23): claim readers and holder matching
+  refuse it, naming the exits its marker and slug select: `arc materialize <slug> --here` for a live holder materialize
+  admits, the cold start's rerun for an anchored leftover whose slug has no record, and `arc locus release`. The
+  cutover's procedure tears down ended holders' checkouts and work-unit husks before the flip, since neither takes a
+  teardown after it (a work-unit husk's in-repo evidence never passes the store teardown's husk selection,
+  `huskEvidenceMatches`), and binds or releases each remaining checkout's marker after the import; the rehearsal
+  exercises the bind on a spawned pre-flip checkout (`spec-lifecycle-slug-selection.md` § 9).
+
+- _Related:_ neighbors this buffer's "Rehearse the flip's carry of checkouts claimed in place before it", which covers
+  checkouts with no marker; this one covers checkouts whose pre-flip marker lacks a UID.
+
+- _Captured during:_ `lifecycle-slug-selection` draft-design, 2026-10-22.
+
+### `[ ]` **Admit a started work unit's planning branch at planning entry under partial protection**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ the storage-coupling register row "State writes routed by where they can be committed" (owner
+  `storage-seam`): the write-context guard and `arc plan check`'s committability are deleted at the flip.
+
+- _Observation:_ under `branch.protection: partial`, `arc plan check --name <slug>` refuses a started work unit's own
+  `plan/<slug>` branch with `redirect` / `work-unit-branch`. `classifyPlanningEntry` (`lib/git/write-context.ts`)
+  computes `protection === "partial" ? writeContext.verdict === "proceed" : onPlanningBranch`, so under partial only the
+  base branch is committable. `draft-design`'s own redirect leg ("start now → `arc start <name> --new`, then draft on
+  its branch") leads straight back to the same redirect, and the reason's wording describes another work unit's branch.
+  arc-framework runs full protection, so self-hosting never takes the partial arm; partial is the default a new install
+  gets.
+
+- _Approach:_ no fix before the flip: the mechanism is deleted then, and no partial-protection project runs ARC before
+  it except the install rehearsal kit. The cutover's verification, or the kit's rerun against it, should start a work
+  unit under partial protection and draft on its branch.
+
+- _Captured during:_ the CineXplorer install rehearsal (`2026-10-23T083226`), `score-badge-low-votes` draft-design.
+
+### `[ ]` **Remove the projected-root install entries outright at the flip; the install authority is rebuilt after it**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ its inbound entry "Leave no tracked or installed file in a projected root from the flip", whose approach is
+  to "drop or relocate those entries in `lib/classification.ts` and `init-recipe.json`".
+
+- _Observation:_ `adopter-install-authority` implements the day the flip lands, against the post-flip shape
+  (`draft-adopter-install-authority.md` D1, D2, D6). It replaces `include_files`, `SCAFFOLDED_FILES`, and
+  `CONFIGURABLE_FILES` with one claims table in `init-recipe.json`, and every file under the package's `arc/` must then
+  carry a claim, with no not-installed list: a template the flip keeps under `arc/` but stops installing would fail its
+  coverage check. It also drops team mode's conditional install and installs `strategy-planning-module.md`
+  unconditionally, which empties `verify-integrity.sh`'s `strategy_expected` cases.
+
+- _Approach:_ at the flip, delete the ROADMAP and ATOMIC-INBOX templates and `completed/README.md` with their recipe,
+  classification, and manifest entries rather than relocating them within `arc/`; move anything kept for another purpose
+  outside `arc/`. Leave the recipe's structure as it is for the install-authority rebuild.
+
+- _Captured during:_ `adopter-install-authority` draft-design close, 2026-10-23.
+
+### `[ ]` **Say when the shipped `storage.backing_repository` comment takes effect**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ its documentation pass, which makes the backing pointer live and rewrites adopter-facing text.
+
+- _Observation:_ the shipped config template's Storage section (`packages/arc-framework/arc/system/arc-config.yml`,
+  mirrored in `.arc/system/arc-config.yml`) reads "Optional backing repository URL for ARC state. Empty uses no backing
+  repository pointer." Nothing reads the key to any effect before the flip: its only reader is `readBackingRepository`
+  through `src/commands/store-ports.ts`, and `createStore` still composes the in-repo backend. A project reading the
+  template may expect the privacy the backing repository exists for.
+
+- _Approach:_ at the documentation pass, rewrite the comment to say what the key does once live, or keep the key out of
+  the template until the flip makes it live.
+
+- _Captured during:_ `storage-ref-backend` pre-publication standard review (finding F19, deferred with the approved
+  disposition set), 2026-10-23.
+
 ---

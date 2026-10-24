@@ -413,6 +413,44 @@
   `ready-to-fix` result already does, or the approval call derives it from the source it is given; failing that, the
   refusal names the mismatched field and its expected value.
 
+### `[ ]` **Give a fix's verification evidence a typed reference the CLI can check**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ D4.4, and the entry "A registered request schema is looser than the validator".
+
+- _Observation:_ `arc review respond -`'s `verifiedFix.verificationEvidenceRefs` takes free strings, and
+  `arc check gate merge --force --json` returns per-check logs and the tree but no reference to bind, so
+  `storage-ref-backend`'s replay carried prose plus a log path and nothing ties the response to the gate run that
+  verified it.
+
+- _Approach:_ the gate emits an evidence identity (head, tree, checks, outcome) the replay cites and the CLI checks.
+
+- _Evidence:_ `fix-round-1/final-merge-gate.json` and `fix-round-1/respond-verified-fix-request.json` under
+  `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/` in that work unit's checkout
+  (checkout-local).
+
+- _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24.
+
+### `[ ]` **Make status agree with the typed continuation after a Candidate advance**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ the entry "Make review-verb judgment inputs durable and status inputs derivable": a status read without the
+  resume token.
+
+- _Observation:_ after `storage-ref-backend`'s fix round pushed, `arc status --json` projected `run-self-review` with a
+  null policy, while the retained pre-publication resume returned `ready / local-prepare` for the fix check. Status
+  without the resume token names an author check the procedure does not ask for.
+
+- _Approach:_ without a resume token, status says a typed continuation is needed rather than naming a step.
+
+- _Evidence:_ `fix-round-1/status-after-push.json` and `fix-round-1/envelope-after-fix.json` under
+  `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/` in that work unit's checkout
+  (checkout-local).
+
+- _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24.
+
 ---
 
 ## Reachable Request Contracts
