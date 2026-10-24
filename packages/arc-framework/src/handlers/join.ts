@@ -19,7 +19,7 @@ import { createIOContext } from "../lib/io-context.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { InputResolution } from "../lib/command-input/resolution.js";
 import {
-  requireArcProjectRoot, requireGitRepo, resolveIdentityWithPrompt,
+  requireArcProjectRoot, requireSetupGitRepo, resolveIdentityWithPrompt,
   isHandledError,
 } from "./shared.js";
 
@@ -92,7 +92,7 @@ export async function handleJoin(opts: JoinOptions, context: InteractionContext,
 
   p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Join Project`);
 
-  if (!(await requireGitRepo(io.exec))) return;
+  if (!(await requireSetupGitRepo(io.exec, "join"))) return;
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
@@ -170,7 +170,7 @@ async function handleJoinReconfigure(opts: JoinOptions, context: InteractionCont
   p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Reconfigure Workspace`);
   const io = createIOContext(context.subprocess);
 
-  if (!(await requireGitRepo(io.exec))) return;
+  if (!(await requireSetupGitRepo(io.exec, "join"))) return;
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
