@@ -54,6 +54,13 @@ from repository state by the command below; never assemble or restate them here.
 
 **Method fire-point** · [`classify-review-risk`][classify-review-risk]: Load and apply it to set the risk fact.
 
+**Size every call before it runs.** Before the initial invocation and before invoking each carrier,
+run [code-review's chunk gate][code-chunk-gate] and carry its selected frontline/standard scope through `--lanes`. The
+initial invocation saves each lane's scope mode in the Candidate boundary as author judgment, so size it over the
+exact target the command composes: `kind: change-set`, `baseRef` the configured `branch.base`, `diffBaseSha` the sole
+merge base of `refs/heads/<branch.base>` and `HEAD`, and `headSha` `HEAD`. Size each carrier over the envelope's exact
+`target` (below), chosen coverage, and any correction scope.
+
 Invoke `arc review pre-publication <wu>`, carrying the routing facts as `--change-set`, each lane's scope
 mode and one-run invocation override, and any approved ceiling override as `--lanes`, and a
 completed author self-review as `--self-review settled` only when the effective method is active and ran; omit the
@@ -93,9 +100,6 @@ cursor in prose.
 The envelope's `target` is the exact target every exact-target operation below binds against. A null `target`
 means the checkout could not compose one; resolve the returned advisory before invoking any operation. The lane
 `target` inside `policy` routes lanes and does not identify a review.
-
-Before invoking a carrier, run [code-review's chunk gate][code-chunk-gate] using the envelope's exact `target`,
-chosen coverage, and any correction scope. Carry its selected frontline/standard scope through `--lanes`.
 
 At `candidate-fix-pending` with `nextAction.command: arc review respond -`, the pass may already be `pass-complete`,
 `owner-accepted`, or `coverage-required`, but its current findings response is still unfinished. Use
