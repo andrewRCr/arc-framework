@@ -1,7 +1,7 @@
 /** Live UID reads resolve slug paths from metadata and pin their object basis. */
 import { corruptRef } from "./namespace-health.js";
 import { RecordReferenceSchema, type RecordReference } from "../identity.js";
-import { expandStoredPath } from "../stored-path.js";
+import { expandStoredPath, holdsNoRecord, type StoredRecordHome } from "../stored-path.js";
 import type { StoreRecord } from "../read.js";
 import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
@@ -21,7 +21,7 @@ export async function readUidRefRecord(context: RefBackendContext, requested: Re
     const tip = captured.get(shell.ref);
     if (tip?.type !== "commit") return null;
     const metadata = parseRefMetadata(captured.get(metadataQuery), shell.ref);
-    if (!metadata) return unreadableUidTip(context, shell.ref, tip.oid);
+    if (!metadata) return unreadableUidTip(context, shell, tip.oid);
 
     const reference = canonicalUidReference(context, requested, shell.ref, metadata);
     const home = expandStoredPath(reference, { registry: context.registry });
@@ -50,7 +50,8 @@ function canonicalUidReference(context: RefBackendContext, requested: RecordRefe
   return RecordReferenceSchema.parse({ ...requested, kind, owner: refOwner(ref, context.registry[requested.kind].family, metadata) });
 }
 
-async function unreadableUidTip(context: RefBackendContext, ref: string, tip: string): Promise<StoreResult<StoreRecord> | null> {
-  const trees = await readRefTrees(context, new Map([[ref, tip]]));
-  return trees.get(ref)?.length === 0 ? null : { status: "refused", refusal: corruptRef(ref, !trees.has(ref)) };
+/** Without metadata, a tree holding no record falls through to the name read, which reads it as holding none. */
+async function unreadableUidTip(context: RefBackendContext, shell: StoredRecordHome, tip: string): Promise<StoreResult<StoreRecord> | null> {
+  const entries = (await readRefTrees(context, new Map([[shell.ref, tip]]))).get(shell.ref);
+  return entries && holdsNoRecord(shell, entries.map(({ path }) => path)) ? null : { status: "refused", refusal: corruptRef(shell.ref, !entries) };
 }

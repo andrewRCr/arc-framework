@@ -22,6 +22,17 @@ export interface StoredRecordHome {
   manifestPath: string;
 }
 
+/** Whether a path is a group's manifest directory or an entry under it. */
+export function isManifestPath(home: StoredRecordHome, path: string): boolean {
+  return path === home.manifestPath.slice(0, -1) || path.startsWith(home.manifestPath);
+}
+
+/** A group tree whose entries are only its metadata and manifest holds no record; reads and listings alike read it as none. */
+export function holdsNoRecord(home: StoredRecordHome, paths: Iterable<string>): boolean {
+  for (const path of paths) if (path !== home.metadataPath && !isManifestPath(home, path)) return false;
+  return true;
+}
+
 function expandTemplate(template: string, reference: RecordReference): string {
   const { owner, key } = reference;
   return template.replace(/<(slug|uid|person|id|key)>/gu, (_, token: string) => {

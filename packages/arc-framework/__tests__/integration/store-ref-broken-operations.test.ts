@@ -43,6 +43,8 @@ describe.each(["default", "separate"] as const)("operations around a damaged ite
         expect(result).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt",
           remedy: { text: expect.stringMatching(/historical|ancestor/iu) } } });
       }
+      expect(success(await f.store.list({ family: "work-item", asOf: damaged }))).toMatchObject({ status: "complete",
+        diagnostics: [{ kind: "unreadable", key: ref, remedy: { text: expect.stringMatching(/historical|ancestor/iu) } }] });
       const repaired = success(await f.store.version());
       for (const result of [await f.store.history({ reference: record.reference }), await f.store.changes({ from, to: repaired, references: [record.reference] })]) {
         expect(result).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: ref,

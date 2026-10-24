@@ -10,7 +10,6 @@ import { parseRefTreeObject } from "./tree-content.js";
 import { corruptRef } from "./namespace-health.js";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
 
-const REGISTRY_TREE_UNAVAILABLE = "The registry's captured tree is unavailable.";
 const ProjectIdentitySchema = z.strictObject({ projectId: z.uuid().refine((id) => id === id.toLowerCase()) });
 
 /** Parse the exact backend-owned identity shape without normalizing its UUID spelling. */
@@ -33,14 +32,26 @@ export function projectIdentityQueries(tips: ReadonlyMap<string, string>): strin
   return tip ? [`${tip}^{tree}`, `${tip}:identity.json`] : [];
 }
 
+/** The registry as captured: no entries without a tip, and null entries when the tip's tree is unavailable. */
+export interface CapturedRegistry { entries: readonly RefTreeEntry[] | null; identity?: BatchObject | null }
+
+/** Select the registry's tree and identity blob from an operation's existing object batch. */
+export function capturedRegistry(tips: ReadonlyMap<string, string>, objects: ReadonlyMap<string, BatchObject | null>): CapturedRegistry {
+  const tip = tips.get("refs/arc/project/registry");
+  return tip ? { entries: parseRefTreeObject(objects.get(`${tip}^{tree}`)), identity: objects.get(`${tip}:identity.json`) } : { entries: [] };
+}
+
+/** Refuse ownership resolved over a registry whose captured tree is unavailable. */
+export function registryTreeUnavailable(): StoreRefusal {
+  return { code: "namespace-corrupt", class: "terminal", namespace: "refs/arc/project/registry",
+    condition: "The registry's captured tree is unavailable.", remedy: { text: "Restore or fetch the registry objects, then retry." } };
+}
+
 /** Resolve the one project from already acquired objects, distinguishing absent and unavailable identity. */
 export function projectOwnerFromObjects(tips: ReadonlyMap<string, string>, objects: ReadonlyMap<string, BatchObject | null>): StoreResult<OwnerIdentity> {
-  const tip = tips.get("refs/arc/project/registry");
-  if (!tip) return { status: "ok", result: projectOwner() };
-  const entries = parseRefTreeObject(objects.get(`${tip}^{tree}`));
-  if (!entries) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: "refs/arc/project/registry",
-    condition: REGISTRY_TREE_UNAVAILABLE, remedy: { text: "Restore or fetch the registry objects, then retry." } } };
-  return projectOwnerFromEntries(entries, objects, objects.get(`${tip}:identity.json`));
+  const registry = capturedRegistry(tips, objects);
+  return registry.entries ? projectOwnerFromEntries(registry.entries, objects, registry.identity)
+    : { status: "refused", refusal: registryTreeUnavailable() };
 }
 
 /** Resolve project ownership inside a complete captured or prepared tree view. */
@@ -127,11 +138,13 @@ export function projectListInput(input: ListInput, owner: OwnerIdentity): StoreR
 }
 
 /** Keep listing records observable while marking unresolved project ownership as incomplete evidence. */
-export function projectListingBinding(result: StoreResult<OwnerIdentity>): { owner: OwnerIdentity; diagnostic?: ListingDiagnostic } {
-  if (result.status === "ok") return { owner: result.result };
-  const refusal = result.refusal;
-  // Only an unavailable registry tree faults the namespace; any other identity fault is the identity entry's own.
-  const tree = refusal.code === "namespace-corrupt" && refusal.condition === REGISTRY_TREE_UNAVAILABLE;
-  return { owner: projectOwner(), diagnostic: { kind: refusal.code === "record-malformed" ? "malformed" : "unreadable",
-    key: tree ? refusal.namespace : "identity.json", condition: refusal.condition, remedy: refusal.remedy } };
+export function projectListingBinding(registry: CapturedRegistry, objects: ReadonlyMap<string, BatchObject | null>): { owner: OwnerIdentity; diagnostic?: ListingDiagnostic } {
+  // Only an unavailable registry tree faults the registry; any other identity fault is the identity entry's own.
+  if (!registry.entries) return { owner: projectOwner(), diagnostic: listingFault(registryTreeUnavailable(), "refs/arc/project/registry") };
+  const result = projectOwnerFromEntries(registry.entries, objects, registry.identity);
+  return result.status === "ok" ? { owner: result.result } : { owner: projectOwner(), diagnostic: listingFault(result.refusal, "identity.json") };
+}
+
+function listingFault(refusal: StoreRefusal, key: string): ListingDiagnostic {
+  return { kind: refusal.code === "record-malformed" ? "malformed" : "unreadable", key, condition: refusal.condition, remedy: refusal.remedy };
 }

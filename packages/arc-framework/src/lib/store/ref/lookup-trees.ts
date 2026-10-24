@@ -80,11 +80,11 @@ function lookupMetadataPath(context: RefBackendContext, ref: string): string {
 
 /** Add each completed owner's latest folder without consulting current refs. */
 export function appendArchivedLookupTrees(trees: Map<string, RefLookupTree>, captured: ReadonlyMap<string, readonly RefTreeEntry[]>,
-  objects: ReadonlyMap<string, BatchObject | null>, unreadable?: Map<string, StoreRefusal>): void {
+  objects: ReadonlyMap<string, BatchObject | null>, unreadable?: Map<string, StoreRefusal>, saved = false): void {
   const folders = [...captured].flatMap(([ref, entries]) => isArchiveRef(ref)
     ? (["work-item", "cohort"] as const).flatMap((family) => {
       const parsed = archivedFolders(family, ref, entries, objects);
-      if (parsed.diagnostics.some(({ kind }) => kind === "unreadable")) unreadable?.set(ref, corruptRef(ref));
+      if (parsed.diagnostics.some(({ kind }) => kind === "unreadable")) unreadable?.set(ref, corruptRef(ref, false, saved));
       return parsed.folders;
     }) : []);
   for (const folder of latestArchivedFolders(folders)) trees.set(`${folder.ref}:${folder.root}`, {

@@ -50,7 +50,7 @@ async function resolveLineageRestrictions(context: RefBackendContext, interval: 
 }
 
 async function restrictionOwners(context: RefBackendContext, tips: ReadonlyMap<string, string>): Promise<StoreResult<{ live: OwnerIdentity[]; lineage: OwnerIdentity[]; unreadable: ReadonlyMap<string, StoreRefusal> }>> {
-  const [live, lineage] = await Promise.all([readLiveRefOwners(context, tips), readLineageOwners(context, tips)]);
+  const [live, lineage] = await Promise.all([readLiveRefOwners(context, tips, true), readLineageOwners(context, tips, true)]);
   if (live.status === "refused") return live;
   if (lineage.status === "refused") return lineage;
   return { status: "ok", result: { live: live.result.owners.map(({ owner }) => owner), lineage: lineage.result, unreadable: live.result.unreadable } };

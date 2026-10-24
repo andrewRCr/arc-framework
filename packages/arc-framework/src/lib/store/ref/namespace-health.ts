@@ -1,8 +1,8 @@
 /** Admission of exact ref tips before traversing potentially damaged history. */
-import type { Remedy, StoreRefusal } from "../refusal.js";
+import type { StoreRefusal } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, readRefTrees } from "./batch-read.js";
-import { historicalMetadataFailure, metadataFailure, parseRefMetadata } from "./metadata.js";
+import { parseRefMetadata, unparsedMetadata } from "./metadata.js";
 
 /** Keep unavailable objects distinct from a present tree with unusable metadata. */
 export function corruptRef(ref: string, missingObjects = false, saved = false): StoreRefusal {
@@ -10,11 +10,6 @@ export function corruptRef(ref: string, missingObjects = false, saved = false): 
     condition: `The tip or a tree of ${ref} is unavailable locally.`,
     remedy: { text: `Restore or fetch the missing objects for ${ref} in the store repository, then retry.` },
   } : unparsedMetadata(ref, saved)) };
-}
-
-/** A saved state never takes a forward repair, so its unparseable metadata names the historical remedy. */
-function unparsedMetadata(ref: string, saved: boolean): { condition: string; remedy: Remedy } {
-  return saved ? historicalMetadataFailure(ref) : metadataFailure(ref);
 }
 
 /** Refuse an unreadable endpoint before Git's history walker can abort the operation. */

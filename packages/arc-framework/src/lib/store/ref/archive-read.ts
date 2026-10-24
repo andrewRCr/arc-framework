@@ -6,7 +6,7 @@ import type { FamilyId } from "../catalog.js";
 import type { ReadPlacement } from "../placement.js";
 import type { ListingDiagnostic } from "../read.js";
 import { rootFamily } from "./path-decode.js";
-import { parseRefMetadata, metadataFailure, type RefMetadata } from "./metadata.js";
+import { parseRefMetadata, historicalMetadataFailure, unparsedMetadata, type RefMetadata } from "./metadata.js";
 import type { RefTreeEntry, BatchObject } from "./batch-read.js";
 
 /** One archived owner with paths relative to its retained live tree layout. */
@@ -52,9 +52,9 @@ export function unreadableOwnedFolder(trees: ReadonlyMap<string, readonly RefTre
     .some((family) => archivedFolders(family, ref, entries, objects).diagnostics.some(({ kind }) => kind === "unreadable")))?.[0];
 }
 
-/** Decode folder metadata independently, retaining one diagnostic for each unreadable owner. */
+/** Decode folder metadata independently, retaining one diagnostic for each unreadable owner; a saved quarter names historical repair. */
 export function archivedFolders(family: FamilyId, ref: string, entries: readonly RefTreeEntry[],
-  objects: ReadonlyMap<string, BatchObject | null>): { folders: ArchivedFolder[]; diagnostics: ListingDiagnostic[] } {
+  objects: ReadonlyMap<string, BatchObject | null>, saved = false): { folders: ArchivedFolder[]; diagnostics: ListingDiagnostic[] } {
   const folders: ArchivedFolder[] = [], diagnostics: ListingDiagnostic[] = [];
   const familyRoot = rootFamily(family);
   if (familyRoot !== "work-item" && familyRoot !== "cohort") return { folders, diagnostics };
@@ -67,20 +67,24 @@ export function archivedFolders(family: FamilyId, ref: string, entries: readonly
     const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : undefined);
     const placement = folderPlacement(root, metadata, quarter, cohort);
     if (!metadata?.slug || !entry || !placement) {
-      diagnostics.push({ kind: "unreadable", key: `${ref}:${root}`, ...metadataFailure(`${ref}:${root}`) });
+      diagnostics.push({ kind: "unreadable", key: `${ref}:${root}`, ...unparsedMetadata(`${ref}:${root}`, saved) });
       continue;
     }
     const uid = entry.path.slice(root.length + "metadata-".length, -".json".length);
     const owner = OwnerIdentitySchema.safeParse({ type: familyRoot, name: metadata.slug, uid });
     if (!owner.success) {
-      diagnostics.push({ kind: "malformed", key: entry.path, condition: "The archive metadata filename does not name a valid owner UID.",
-        remedy: { text: "Repair the archive folder's metadata path, then retry." } });
+      diagnostics.push(malformedFolderOwner(entry.path, saved));
       continue;
     }
     folders.push({ ref, root, owner: owner.data, metadata, placement,
       liveRef: `refs/arc/${cohort ? "cohort" : "work"}/${uid}`, entries: members.map((member) => ({ ...member, path: member.path.slice(root.length) })) });
   }
   return { folders, diagnostics };
+}
+
+function malformedFolderOwner(path: string, saved: boolean): ListingDiagnostic {
+  return { kind: "malformed", key: path, condition: "The archive metadata filename does not name a valid owner UID.",
+    remedy: saved ? historicalMetadataFailure(path).remedy : { text: "Repair the archive folder's metadata path, then retry." } };
 }
 
 /** Choose one complete folder per owner, by later quarter then higher sequence. */

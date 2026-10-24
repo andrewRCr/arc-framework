@@ -114,7 +114,8 @@ function endFolders(ref: string, entries: readonly RefTreeEntry[], objects: Read
   owners?: readonly OwnerIdentity[]): StoreResult<ArchivedFolder[]> {
   // A restriction reads its owners' folders and any no metadata file names, as a read does, so other damage stays out.
   const selected = owners ? archiveOwnerTrees(new Map([[ref, entries]]), owners).get(ref) ?? [] : entries;
-  const parsed = (["work-item", "cohort"] as const).map((family) => archivedFolders(family, ref, selected, objects));
+  // Every folder here sits in a saved endpoint or a historical commit.
+  const parsed = (["work-item", "cohort"] as const).map((family) => archivedFolders(family, ref, selected, objects, true));
   const first = parsed.flatMap(({ diagnostics }) => diagnostics)[0];
   if (first) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: ref,
     condition: first.condition, remedy: first.remedy } };

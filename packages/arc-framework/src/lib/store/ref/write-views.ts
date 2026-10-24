@@ -20,7 +20,8 @@ import { lookupCapturedRefTrees, type RefLookupTree } from "./lookup.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
 import { canonicalPrimaryKind, type RefMetadata } from "./metadata.js";
 import { FAMILY_REGISTRY } from "../registry.js";
-import { projectOwnerFromEntries, admitProjectReference, projectListInput, projectListingBinding } from "./project-identity.js";
+import { projectOwnerFromEntries, admitProjectReference, projectListInput, projectListingBinding, registryTreeUnavailable,
+  type CapturedRegistry } from "./project-identity.js";
 import { archivedViewRecords } from "./archive-view.js";
 import { checkRefKey } from "./path-admission.js";
 import { rootFamily } from "./path-decode.js";
@@ -89,7 +90,7 @@ function lookupViewTrees(context: RefBackendContext, state: RefViewState, identi
   }
   const quarters = new Map([...state.refs].flatMap(([ref, group]) => isArchiveRef(ref) && group.entries ? [[ref, group.entries] as const] : []));
   for (const [ref, group] of state.refs) if (isArchiveRef(ref) && !group.entries) unreadable.set(ref, corruptRef(ref, !group.entries));
-  appendArchivedLookupTrees(trees, quarters, state.objects, unreadable);
+  appendArchivedLookupTrees(trees, quarters, state.objects, unreadable, state.saved);
   return { status: "ok", result: { trees, unreadable } };
 }
 
@@ -103,13 +104,14 @@ async function listView(context: RefBackendContext, state: RefViewState, input: 
   const refs = [...state.refs].filter(([ref]) => matchesFamilyRef(ref, input.family));
   const archived = archivedViewRecords(context, state, input);
   if (refs.length === 0 && !archived.records.length && !archived.diagnostics.length) return { status: "ok", result: { status: "absent" } };
-  const project = input.family === "project-registry" || input.family === "project-inbox" ? projectListingBinding(viewProjectOwner(state)) : undefined;
+  const project = input.family === "project-registry" || input.family === "project-inbox" ? projectListingBinding(viewRegistry(state), state.objects) : undefined;
   if (project && !project.diagnostic) {
     const admitted = projectListInput(input, project.owner);
     if (admitted.status === "refused") return admitted;
     input = admitted.result;
   }
-  const groups = refs.map(([ref, group]) => decodeCapturedRef(context, input, ref, group.entries, state.objects, group.metadata, project?.owner, group.readPlacement));
+  const groups = refs.map(([ref, group]) => decodeCapturedRef(context, input, ref, group.entries, state.objects, group.metadata, project?.owner,
+    group.readPlacement, state.saved));
   const diagnostics = [...groups.flatMap(({ diagnostics }) => diagnostics), ...archived.diagnostics];
   if (project?.diagnostic && !diagnostics.some(({ key }) => key === project.diagnostic?.key)) diagnostics.push(project.diagnostic);
   if (groups.length > 0 && !archived.records.length && groups.every(({ unreadable }) => unreadable)) return { status: "ok", result: { status: "unreadable",
@@ -169,11 +171,13 @@ function missing(reference: RecordReference, condition = "The record is absent f
 }
 
 function viewProjectOwner(state: RefViewState): StoreResult<OwnerIdentity> {
+  const { entries } = viewRegistry(state);
+  return entries ? projectOwnerFromEntries(entries, state.objects) : { status: "refused", refusal: registryTreeUnavailable() };
+}
+
+function viewRegistry(state: RefViewState): CapturedRegistry {
   const registry = state.refs.get("refs/arc/project/registry");
-  if (registry && !registry.entries) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
-    namespace: "refs/arc/project/registry", condition: "The captured registry tree is unavailable.",
-    remedy: { text: "Restore or fetch the registry objects, then retry." } } };
-  return projectOwnerFromEntries(registry?.entries ?? [], state.objects);
+  return { entries: registry ? registry.entries ?? null : [] };
 }
 
 function viewProjectReference(state: RefViewState, reference: RecordReference): StoreResult<RecordReference> {

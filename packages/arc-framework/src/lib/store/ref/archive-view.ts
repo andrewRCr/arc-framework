@@ -22,7 +22,7 @@ export function archivedViewRecords(context: RefBackendContext, state: RefViewSt
       diagnostics.push({ kind: "unreadable", key: ref, condition, remedy });
       continue;
     }
-    const parsed = archivedFolders(input.family, ref, group.entries, state.objects);
+    const parsed = archivedFolders(input.family, ref, group.entries, state.objects, state.saved);
     diagnostics.push(...parsed.diagnostics);
     folders.push(...parsed.folders);
   }

@@ -13,8 +13,8 @@ import type { LiveRefOwner } from "./namespace-admission.js";
 /** Readable owners and omitted live refs from one captured namespace. */
 export interface LiveRefOwners { owners: LiveRefOwner[]; unreadable: ReadonlyMap<string, StoreRefusal> }
 
-/** Read owner names and primary presence from exactly the caller's captured tips. */
-export async function readLiveRefOwners(context: RefBackendContext, tips: ReadonlyMap<string, string>): Promise<StoreResult<LiveRefOwners>> {
+/** Read owner names and primary presence from exactly the caller's captured tips; saved tips name historical repair. */
+export async function readLiveRefOwners(context: RefBackendContext, tips: ReadonlyMap<string, string>, saved = false): Promise<StoreResult<LiveRefOwners>> {
   const refs = [...tips].filter(([ref]) => matchesFamilyRef(ref, "work-item") || matchesFamilyRef(ref, "cohort"));
   const query = (ref: string, tip: string) => `${tip}:metadata-${ref.split("/").at(-1)}.json`;
   const objects = await readBatchObjects(context, refs.map(([ref, tip]) => query(ref, tip)));
@@ -25,7 +25,7 @@ export async function readLiveRefOwners(context: RefBackendContext, tips: Readon
     const entries = trees.get(ref);
     if (entries?.length === 0) continue;
     const metadata = parseRefMetadata(objects.get(query(ref, tip)), ref);
-    if (!entries || !metadata) { unreadable.set(ref, corruptRef(ref, !entries)); continue; }
+    if (!entries || !metadata) { unreadable.set(ref, corruptRef(ref, !entries, saved)); continue; }
     const owner = refOwner(ref, matchesFamilyRef(ref, "work-item") ? "work-item" : "cohort", metadata);
     const state: LiveRefOwner = { owner };
     owners.push(state);

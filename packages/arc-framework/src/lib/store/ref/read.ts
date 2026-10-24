@@ -7,18 +7,19 @@ import { archivedFolders, archiveOwnerTrees, isArchiveRef, latestArchivedFolders
 import type { ListInput, ListingOutcome, ListingDiagnostic, ReadInput, StoreRecord } from "../read.js";
 import { RecordReferenceSchema, OwnerIdentitySchema, sameOwner, type RecordReference, type OwnerIdentity, type StateVersion } from "../identity.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
-import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
+import { expandStoredPath, holdsNoRecord, isManifestPath, type StoredRecordHome } from "../stored-path.js";
 import type { FamilyId } from "../catalog.js";
 import { FAMILY_REGISTRY } from "../registry.js";
 import { readBatchObjects, readRefTips, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { decodeRecord, decodeReference, matchesFamilyRef, refOwner, rootFamily } from "./codec.js";
-import { canonicalPrimaryKind, parseRefMetadata, metadataFailure, type RefMetadata } from "./metadata.js";
+import { canonicalPrimaryKind, parseRefMetadata, unparsedMetadata, type RefMetadata } from "./metadata.js";
 import type { RefBackendContext } from "./context.js";
 import { saveCapturedManifest } from "./manifest.js";
 import { recordDiagnostic } from "./content-read.js";
 import { readOpenConflicts, attachOpenConflicts } from "./conflicts-read.js";
 import { checkRefKey } from "./path-admission.js";
-import { projectIdentityQueries, projectOwnerFromObjects, admitProjectReference, projectListInput, projectListingBinding, checkProjectIdentity } from "./project-identity.js";
+import { projectIdentityQueries, projectOwnerFromObjects, admitProjectReference, projectListInput, projectListingBinding, checkProjectIdentity,
+  capturedRegistry } from "./project-identity.js";
 import { resolveLineageReadReference } from "./lineage-resolution.js";
 
 import { resolveRefName, resolveRefListInput, resolveRefReadName } from "./reference-resolution.js";
@@ -60,7 +61,7 @@ async function readBoundRecord(context: RefBackendContext, requested: RecordRefe
   if (!metadata) {
     const entries = (await readRefTrees(context, new Map([[home.ref, tip]]))).get(home.ref);
     // A tree holding no record reads as holding none, as a listing reads it.
-    if (entries?.every(({ path }) => isManifestPath(home, path))) return missing(reference);
+    if (entries && holdsNoRecord(home, entries.map(({ path }) => path))) return missing(reference);
     return { status: "refused", refusal: corruptRef(home.ref, !entries) };
   }
   if (object?.type !== "blob") return missing(reference);
@@ -151,7 +152,7 @@ async function listBoundRecords(context: RefBackendContext, input: ListInput): P
   const projectFamily = input.family === "project-inbox" || input.family === "project-registry";
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map((entry) => entry.oid))),
     ...(projectFamily ? projectIdentityQueries(captured) : [])]);
-  const project = projectFamily ? projectListingBinding(projectOwnerFromObjects(captured, objects)) : undefined;
+  const project = projectFamily ? projectListingBinding(capturedRegistry(captured, objects), objects) : undefined;
   if (project && !project.diagnostic) {
     const admitted = projectListInput(input, project.owner);
     if (admitted.status === "refused") return admitted;
@@ -193,14 +194,15 @@ interface DecodedRecords { records: StoreRecord[]; diagnostics: ListingDiagnosti
 
 /** Decode one ref without observing live tips, with optional prepared metadata. */
 export function decodeCapturedRef(context: RefBackendContext, input: ListInput, ref: string,
-  entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>, metadataOverride?: RefMetadata, projectOwner?: OwnerIdentity, placement?: ReadPlacement): DecodedRecords {
+  entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>, metadataOverride?: RefMetadata, projectOwner?: OwnerIdentity,
+  placement?: ReadPlacement, saved = false): DecodedRecords {
   if (!entries) return unreadableRef(ref);
   const records: StoreRecord[] = [];
   const diagnostics: ListingDiagnostic[] = [];
   const prototype = refPrototype(context, ref, input.family);
   const home = expandStoredPath(prototype, { registry: context.registry });
-  if (entries.every((entry) => entry.path === home.metadataPath || isManifestPath(home, entry.path))) return { records, diagnostics };
-  const metadata = metadataOverride ?? capturedMetadata(home, entries, objects);
+  if (holdsNoRecord(home, entries.map(({ path }) => path))) return { records, diagnostics };
+  const metadata = metadataOverride ?? capturedMetadata(home, entries, objects, saved);
   if (!("formats" in metadata)) return metadata;
   const owner = projectOwner ?? refOwner(ref, input.family, metadata);
   for (const entry of entries) {
@@ -233,7 +235,7 @@ function decodeCapturedEntry(context: RefBackendContext, family: FamilyId, owner
 }
 
 function capturedMetadata(home: StoredRecordHome, entries: readonly RefTreeEntry[],
-  objects: ReadonlyMap<string, BatchObject | null>): RefMetadata | DecodedRecords {
+  objects: ReadonlyMap<string, BatchObject | null>, saved: boolean): RefMetadata | DecodedRecords {
   const entry = entries.find((candidate) => candidate.path === home.metadataPath);
   const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : null, home.ref);
   if (metadata) return metadata;
@@ -244,7 +246,7 @@ function capturedMetadata(home: StoredRecordHome, entries: readonly RefTreeEntry
       kind: "key-mismatch", condition: "The metadata filename names a UID other than its ref's owner",
     })) };
   return { records: [], unreadable: true,
-    diagnostics: [{ kind: "unreadable", key: home.ref, ...metadataFailure(home.ref) }] };
+    diagnostics: [{ kind: "unreadable", key: home.ref, ...unparsedMetadata(home.ref, saved) }] };
 }
 
 function unreadableRef(ref: string): DecodedRecords {
@@ -274,10 +276,6 @@ function missing(reference: RecordReference, condition = "The record is not pres
   remedy = "Pull state or create the record, then retry."): StoreResult<never> {
   return { status: "refused", refusal: { code: "not-found", class: "recoverable", reference,
     condition, remedy: { text: remedy } } };
-}
-
-function isManifestPath(home: StoredRecordHome, path: string): boolean {
-  return path === home.manifestPath.slice(0, -1) || path.startsWith(home.manifestPath);
 }
 
 function projectReadReference(reference: RecordReference, tips: ReadonlyMap<string, string>,

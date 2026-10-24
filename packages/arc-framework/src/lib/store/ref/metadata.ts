@@ -54,3 +54,8 @@ export function historicalMetadataFailure(namespace: string): { condition: strin
       + "For changes, compare readable saved states in an interval after repair. Do not infer historical metadata.",
   } };
 }
+
+/** A saved state never takes a forward repair, so its unparseable metadata names the historical remedy. */
+export function unparsedMetadata(namespace: string, saved = false): { condition: string; remedy: Remedy } {
+  return saved ? historicalMetadataFailure(namespace) : metadataFailure(namespace);
+}

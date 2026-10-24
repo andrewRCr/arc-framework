@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { RecordReferenceSchema, StateVersionSchema } from "../../src/lib/store/index.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { plantRef, removeLooseObject } from "../helpers/store/ref-plant.js";
+import { capturedEntries } from "../helpers/store/ref-fixture-plant.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { createRefFixture } from "../helpers/store/ref-fixture.js";
 import { seed, success, update } from "../helpers/store/suite-tools.js";
@@ -115,6 +116,20 @@ describe("reads from saved ref manifests", () => {
     expect(success(await f.store.read({ reference: record.reference, asOf }))).toEqual(record);
     expect(success(await f.store.list({ family: "work-item", owner: record.reference.owner, asOf })))
       .toMatchObject({ status: "complete", records: [record], missed: false, asOf });
+  });
+
+  it("names the historical remedy for a saved name read through a damaged quarter folder", async () => {
+    const f = await createRefFixture(), quarter = ArchiveQuarterSchema.parse("2026-q4");
+    const record = await seed(f, f.reference("work-item/meta"));
+    success(await f.store.write({ ...update(f, record, record.content), placement: { kind: "completed", quarter } }));
+    const archive = `refs/arc/archive/${quarter}`;
+    const parent = (await makeGitExec(f.root)("git", ["rev-parse", archive])).stdout.trim();
+    await plantRef(f.root, archive, (await capturedEntries(f, archive)).map((entry) => entry.path.includes("/metadata-")
+      ? { path: entry.path, content: "not metadata" } : entry), { parents: [parent] });
+    const asOf = await f.settle();
+    const byName = RecordReferenceSchema.parse({ ...record.reference, owner: { type: "work-item", name: record.reference.owner.name } });
+    expect(await f.store.read({ reference: byName, asOf })).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt",
+      namespace: archive, remedy: { text: expect.stringMatching(/historical|ancestor/iu) } } });
   });
 
   it("binds saved project inbox reads and ownerless listings to the saved project identity", async () => {

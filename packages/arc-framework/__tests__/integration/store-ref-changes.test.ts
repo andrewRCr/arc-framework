@@ -351,9 +351,29 @@ describe("changes between ref manifests", () => {
     const from = await f.settle();
     success(await f.store.write({ ...update(f, record, record.content), placement: { kind: "completed", quarter } }));
     const closed = success(await f.store.read({ reference: record.reference }));
-    const changes = success(await f.store.changes({ from, to: await f.settle(), references: [record.reference] }));
+    const to = await f.settle();
+    const changes = success(await f.store.changes({ from, to, references: [record.reference] }));
     expect(changes).toHaveLength(1);
     expect(changes[0]).toMatchObject({ reference: record.reference, version: closed.version });
+    // Both saved endpoints hold the damaged folder, which no forward repair reaches.
+    expect(await f.store.changes({ from, to })).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: archive,
+      remedy: { text: expect.stringMatching(/historical|ancestor/iu) } } });
+  });
+
+  it.each(["lineage map", "item metadata"] as const)("names the historical remedy for a saved lineage restriction over unparseable %s", async (damage) => {
+    const f = await createRefFixture();
+    await seed(f, f.reference("project-registry/counter"));
+    const item = await seed(f, f.reference("work-item/meta", "other"));
+    const from = await f.settle();
+    if (item.reference.owner.type !== "work-item") throw new Error("Expected work-item owner");
+    const ref = damage === "lineage map" ? "refs/arc/project/registry" : `refs/arc/work/${item.reference.owner.uid}`, git = makeGitExec(f.root);
+    const metadata = damage === "lineage map" ? "metadata-registry.json" : `metadata-${item.reference.owner.uid}.json`;
+    const parent = (await git("git", ["rev-parse", ref])).stdout.trim();
+    await plantRef(f.root, ref, (await treeEntries(git, ref)).map((entry) => entry.path === metadata ? { path: entry.path, content: "not metadata" } : entry),
+      { parents: [parent] });
+    const to = await f.settle();
+    expect(await f.store.changes({ from, to, references: [f.reference("lineage/transition")] })).toMatchObject({ status: "refused",
+      refusal: { code: "namespace-corrupt", namespace: ref, remedy: { text: expect.stringMatching(/historical|ancestor/iu) } } });
   });
 
 });

@@ -152,4 +152,35 @@ describe.each(["default", "separate"] as const)("the ref store's one project (%s
     expect(success(await f.store.read({ reference: record.reference })).conflicts).toEqual([]);
   });
 
+  it("lists an unavailable identity blob as one fault of the identity entry", async () => {
+    const f = await createRefFixture({}, layout);
+    success(await f.store.write({ action: "put", reference: f.reference("project-registry/identity"), expected: null, content: JSON.stringify({ projectId }), provenance: testProvenance }));
+    const inbox = await seed(f, f.reference("project-inbox/inbox"));
+    const oid = (await fixtureGit(f)("git", ["rev-parse", "refs/arc/project/registry:identity.json"])).stdout.trim();
+    await removeLooseObject(f.root, oid, f.gitDir);
+    const fault = { kind: "unreadable", key: "identity.json" };
+    expect(success(await f.store.list({ family: "project-registry" }))).toMatchObject({ status: "complete", records: [], diagnostics: [fault] });
+    expect(success(await f.store.list({ family: "project-inbox" }))).toMatchObject({ status: "complete",
+      records: [{ reference: { kind: inbox.reference.kind } }], diagnostics: [{ ...fault, condition: expect.stringContaining(oid) }] });
+  });
+
+  it("keys an unavailable registry tree to the registry inside a write's views", async () => {
+    const listings: unknown[] = [];
+    const f = await createRefFixture({ "work-item/meta": { check: async ({ before }) => {
+      for (const family of ["project-registry", "project-inbox"] as const) listings.push(success(await before.list({ family })));
+      return [];
+    } } }, layout);
+    const inbox = await seed(f, f.reference("project-inbox/inbox"));
+    success(await f.store.write({ action: "put", reference: f.reference("project-registry/identity"), expected: null, content: JSON.stringify({ projectId }), provenance: testProvenance }));
+    const tree = (await fixtureGit(f)("git", ["rev-parse", "refs/arc/project/registry^{tree}"])).stdout.trim();
+    await removeLooseObject(f.root, tree, f.gitDir);
+    const meta = f.reference("work-item/meta");
+    success(await f.store.write({ action: "put", reference: meta, expected: null, content: f.content(meta), placement: { kind: "active" }, provenance: testProvenance }));
+    expect(listings).toMatchObject([
+      { status: "unreadable", condition: "The tip or a tree of refs/arc/project/registry is not available locally" },
+      { status: "complete", records: [{ reference: { kind: inbox.reference.kind } }],
+        diagnostics: [{ kind: "unreadable", key: "refs/arc/project/registry" }] },
+    ]);
+  });
+
 });

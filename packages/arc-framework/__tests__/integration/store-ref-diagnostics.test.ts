@@ -139,6 +139,20 @@ describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) =
     expect(await f.store.read({ reference: held })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   });
 
+  it("reads a ref holding only an unparseable metadata entry as holding none, by name and by UID, as its listing does", async () => {
+    const f = await createRefReadFixture(format);
+    const metadataOnlyUid = "abcdef78-1234-4234-8234-123456789abc", metadataOnlyRef = `refs/arc/work/${metadataOnlyUid}`;
+    await plantRef(f.root, metadataOnlyRef, [{ path: `metadata-${metadataOnlyUid}.json`, content: "not JSON" }]);
+    await plantRef(f.root, "refs/arc/user/andrew/personal", [{ path: "andrew/metadata-andrew.json", content: "not JSON" }]);
+    expect(await f.store.list({ family: "work-item" })).toMatchObject({ status: "ok", result: { status: "complete", records: [], diagnostics: [] } });
+    expect(await f.store.list({ family: "personal" })).toMatchObject({ status: "ok", result: { status: "complete", records: [], diagnostics: [] } });
+    const byUid = RecordReferenceSchema.parse({ owner: { type: "work-item", name: "metadata-only", uid: metadataOnlyUid },
+      kind: "work-item/companion", key: "extra" });
+    expect(await f.store.read({ reference: byUid })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    const byName = RecordReferenceSchema.parse({ owner: { type: "person", name: "andrew" }, kind: "personal/document", key: "note.md" });
+    expect(await f.store.read({ reference: byName })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  });
+
   it("keeps parser failures and parsed owner mismatches beside valid lineage records", async () => {
     const f = await createRefReadFixture(format);
     const wrongUid = "abcdef12-1234-4234-8234-123456789abc";

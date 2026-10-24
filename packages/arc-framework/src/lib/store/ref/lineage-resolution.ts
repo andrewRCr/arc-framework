@@ -4,18 +4,18 @@ import { OwnerIdentitySchema, RecordReferenceSchema, type OwnerIdentity, type Re
 import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, readRefTips } from "./batch-read.js";
-import { parseRefMetadata, metadataFailure } from "./metadata.js";
+import { parseRefMetadata, unparsedMetadata } from "./metadata.js";
 import { readLiveRefOwners } from "./live-owners.js";
 
-/** Read the registry's UID-to-slug map from the caller's captured namespace. */
-export async function readLineageOwners(context: RefBackendContext, tips: ReadonlyMap<string, string>): Promise<StoreResult<OwnerIdentity[]>> {
+/** Read the registry's UID-to-slug map from the caller's captured namespace; a saved namespace names historical repair. */
+export async function readLineageOwners(context: RefBackendContext, tips: ReadonlyMap<string, string>, saved = false): Promise<StoreResult<OwnerIdentity[]>> {
   const ref = "refs/arc/project/registry";
   const tip = tips.get(ref);
   if (!tip) return { status: "ok", result: [] };
   const query = `${tip}:metadata-registry.json`;
   const objects = await readBatchObjects(context, [query]);
   const metadata = parseRefMetadata(objects.get(query), ref);
-  if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: ref, ...metadataFailure(ref) } };
+  if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: ref, ...unparsedMetadata(ref, saved) } };
   return { status: "ok", result: Object.entries(metadata.lineage ?? {}).map(([uid, name]) => OwnerIdentitySchema.parse({ type: "work-item", uid, name })) };
 }
 
