@@ -18,10 +18,11 @@ vi.mock("../../src/lib/fs.js", async (importOriginal) => ({
 }));
 
 import { runReconfigure } from "../../src/commands/reconfigure.js";
-import type { DryRunResult, ReconfigureResult } from "../../src/commands/reconfigure.js";
+import type { DryRunResult, ReconfigureOptions, ReconfigureResult } from "../../src/commands/reconfigure.js";
 import type { IOContext } from "../../src/commands/init.js";
 import type { Recipe, Manifest, InstallConfig } from "../../src/lib/types.js";
 import type { PlannedRemoval } from "../../src/lib/manifest/plan.js";
+import type { RemovalDecision } from "../../src/prompts/removal-prompts.js";
 
 // --- Helpers ---
 
@@ -801,12 +802,14 @@ describe("runReconfigure refusals before writing", () => {
     "system/arc-config.yml": "pm.mode: none",
   };
 
-  /** Report the given porcelain status entries for every `git status` call. */
+  /** Report each porcelain status entry whose path a `git status` call names. */
   function withStatus(io: IOContext, entries: string[]): IOContext {
     return {
       ...io,
       exec: vi.fn(async (_command: string, args: readonly string[]) => ({
-        stdout: args.includes("status") ? entries.map((entry) => `${entry}\0`).join("") : "",
+        stdout: args.includes("status")
+          ? entries.filter((entry) => args.includes(entry.slice(3))).map((entry) => `${entry}\0`).join("")
+          : "",
         stderr: "",
       })),
     };
@@ -861,5 +864,37 @@ describe("runReconfigure refusals before writing", () => {
 
     const moved = await reconfigure(mockIO(makeManifest(), pristineStore, templateFiles)) as ReconfigureResult;
     expect(moved.added).toContain("backlog/ROADMAP.md");
+  });
+
+  it("refuses to delete a file the user chose to remove over its uncommitted changes, then runs once committed", async () => {
+    const setup = makeArcInGitSetup();
+    const decide = (action: "remove" | "keep"): ReconfigureOptions["resolveRemovals"] => vi.fn(
+      async (): Promise<RemovalDecision[]> => [
+        { outputPath: "reference/strategies/arc/strategy-planning-module.md", classification: "Framework", action: "keep" },
+        { outputPath: "backlog/ROADMAP.md", classification: "Scaffolded", action },
+      ],
+    );
+    const toNone = (io: IOContext, action: "remove" | "keep"): ReturnType<typeof runReconfigure> => runReconfigure({
+      cwd: "/project", io, templateDir: "/templates", recipe: setup.recipe,
+      newInstallConfig: { ...setup.manifest.install_config, pm_mode: "none" }, resolveRemovals: decide(action),
+    });
+    const editedRoadmap = (): IOContext => withStatus(
+      mockIO(setup.manifest, setup.pristineStore, setup.templateFiles), [" M .arc/backlog/ROADMAP.md"],
+    );
+
+    const dirty = editedRoadmap();
+    await expect(toNone(dirty, "remove")).rejects.toMatchObject({
+      code: "manifest.uncommitted-changes",
+      why: expect.stringContaining(".arc/backlog/ROADMAP.md"),
+    });
+    expect(dirty.writeFile).not.toHaveBeenCalled();
+    expect(atomicWriteJson).not.toHaveBeenCalled();
+
+    const kept = await toNone(editedRoadmap(), "keep") as ReconfigureResult;
+    expect(kept.keptByUser).toContain("backlog/ROADMAP.md");
+
+    const committed = withStatus(mockIO(setup.manifest, setup.pristineStore, setup.templateFiles), []);
+    const removed = await toNone(committed, "remove") as ReconfigureResult;
+    expect(removed.removed).toContain("backlog/ROADMAP.md");
   });
 });

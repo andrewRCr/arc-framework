@@ -230,6 +230,10 @@ export async function runReconfigure(
     // Replace plan removals with only the files to actually delete
     plan.removals = applied.toRemove;
     keptByUser = applied.toKeep.map((r) => r.outputPath);
+    // A file chosen for deletion may be one the plan would have kept, so check the chosen plan before any write
+    await refuseUnsafePlanWrites({
+      plan, cwd, arcDir, manifestPath, renderCtx, exec: io.exec, readFile: io.readFile, command: "reconfigure",
+    });
   }
 
   const checkBootstrap = await bootstrapRetiredChecks(arcDir, originalRemovals, io);
