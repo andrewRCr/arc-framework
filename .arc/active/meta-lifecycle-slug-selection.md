@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** generate-tasks Finalize — run the approved fix check round 1 on adversarial pass 1's folds
 
 - **PR URL:** [none]
 - **Completed:** [none]
