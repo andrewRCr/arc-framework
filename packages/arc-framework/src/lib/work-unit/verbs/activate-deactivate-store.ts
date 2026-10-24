@@ -1,4 +1,5 @@
 /** Store-capability activation and deactivation around the shared lifecycle executor. */
+import { sameReference } from "../../store/identity.js";
 import { resolveProjectIdentity } from "../../store/project-identity.js";
 import { selectWorkBranchLink, workBranchName } from "../../store/lifecycle-branch.js";
 import { checkAdvancingPause } from "../../store/lifecycle-pause.js";
@@ -91,7 +92,7 @@ async function readLifecyclePrimary(store: Store, name: string): Promise<{ statu
   const read = await readWorkUnit(store, name);
   if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
   const primary = read.result;
-  const entry = view.result.entries.find((candidate) => candidate.reference.owner.name === primary.reference.owner.name);
+  const entry = view.result.entries.find((candidate) => sameReference(candidate.reference, primary.reference));
   return entry === undefined ? { status: "rejected", reason: `Lifecycle inventory does not contain ${name}.` } : { status: "ready", primary, entry };
 }
 async function readOtherPrimaries(store: Store, primary: StoreRecord): Promise<{ status: "ready"; records: StoreRecord[] } | Rejected> {
@@ -103,7 +104,7 @@ async function readOtherPrimaries(store: Store, primary: StoreRecord): Promise<{
     if (result.status === "unreadable") return { status: "rejected", reason: `${result.condition} ${result.remedy.text}` };
     if (result.status === "complete" && (result.missed || result.diagnostics.length !== 0)) return { status: "rejected",
       reason: result.diagnostics.map((entry) => `${entry.condition} ${entry.remedy.text}`).join("; ") || "Lifecycle inventory missed records; repair the inventory and retry activation." };
-    if (result.status === "complete") records.push(...result.records.filter((other) => other.reference.owner.name !== primary.reference.owner.name));
+    if (result.status === "complete") records.push(...result.records.filter((other) => !sameReference(other.reference, primary.reference)));
   }
   return { status: "ready", records };
 }

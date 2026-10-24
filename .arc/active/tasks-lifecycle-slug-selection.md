@@ -194,16 +194,10 @@ its test is a regression pin that passes before the change; each re-read's faili
           reference with version checks and reject unrelated operands. Reuse, aliases with occupancy, clashes,
           mid-verb preparation, and inconsistent finalization tuples have regression coverage.
 
-    - `[ ]` **2.6.b Activation**
+    - `[x]` **2.6.b Activation**
 
-        - `readLifecyclePrimary` finds the subject's entry by reference, and `readOtherPrimaries` excludes the subject
-          by reference rather than by name, so a completed namesake stays in the comparison
-          (`lib/work-unit/verbs/activate-deactivate-store.ts`).
-        - Build `test-first` (one behavior at a time):
-            - `arc activate` of a reused slug's live Planning holder from base, with the archived holder's branch
-              absent, succeeds, where it now rejects "is not a Planning work unit held in active placement"
-            - activating the live holder on a branch the completed namesake links refuses that another work item links
-              it (`branchLinkedElsewhere`, `activation-branch-plan.ts`)
+        - Activation matches its subject entry and excludes its primary from peers by reference. Tests activate a
+          live Planning namesake from base and retain a completed namesake's branch link as a collision.
 
     - `[ ]` **2.6.c Abandon**
 

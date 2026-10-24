@@ -5,6 +5,7 @@ import { makeGitProcessError } from "../../../helpers/git-exec-fake.js";
 import type { GitExec, RawGitExec } from "../../../../src/lib/git/exec.js";
 import { runActivate, runDeactivate, type ActivateContext } from "../../../../src/lib/work-unit/verbs/activate-deactivate.js";
 import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
+import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import type { BranchLink } from "../../../../src/lib/store/links.js";
 import type { PreparedCurrentWuReconcile } from "../../../../src/lib/work-unit/side-effects/discharge-dep-edges.js";
 import { recordReferences, OwnerIdentitySchema } from "../../../../src/lib/store/identity.js";
@@ -23,8 +24,11 @@ it("activates while its notes mention a slug tied among completed Errands", asyn
 });
 
 const base = "0".repeat(40), local = "1".repeat(40), remote = "2".repeat(40);
-async function harness(options: { branch?: string | null; commits?: string[]; link?: BranchLink; remoteHead?: string; taken?: boolean; noBase?: boolean } = {}) {
+async function harness(options: { branch?: string | null; commits?: string[]; link?: BranchLink; remoteHead?: string; taken?: boolean; noBase?: boolean; archived?: boolean; archivedBranch?: string } = {}) {
   const h = createLifecycleHarness();
+  const archived = options.archived ? await h.seedMeta("demo", { state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, options.archivedBranch === undefined ? undefined
+      : { branches: [{ repository: "repo", ref: options.archivedBranch, linkedAs: "created", excluded: [] }] }) : undefined;
   const meta = await h.seedMeta("demo", { state: "Planning", currentWorkflow: "draft-design", workClass: "Novel" }, { kind: "active" }, options.link === undefined ? undefined : { branches: [options.link] });
   let current = options.branch === undefined ? null : options.branch;
   let head = options.commits?.length ? local : base;
@@ -62,7 +66,7 @@ async function harness(options: { branch?: string | null; commits?: string[]; li
     writeSoftFields: async () => {}, writeBranchField: async () => {}, writeCurrentWorkflowField: async () => {}, writeDesignField: async () => {},
     currentWuReconcile: { prepare: async () => ({ status: "clean", prepared }), apply: async () => { reconciled = true; return { status: "applied", prepared, stagedPaths: [] }; } },
   };
-  return { ...h, ctx, meta, state: () => ({ current, head, reconciled, branches: [...branches.keys()] }), read: async () => lifecycleSuccess(await h.store.read({ reference: meta.reference })) };
+  return { ...h, ctx, meta, archived, state: () => ({ current, head, reconciled, branches: [...branches.keys()] }), read: async () => lifecycleSuccess(await h.store.read({ reference: meta.reference })) };
 }
 const params = { name: "demo", toBranch: "feat/demo", baseBranch: "main", nextAction: "Begin work" };
 
@@ -199,4 +203,20 @@ describe("store deactivation", () => {
     expect(parseMetaRecord((await h.read()).content).state).toBe("Planning");
     expect(await runActivate(h.ctx, params)).toMatchObject({ status: "activated", branch: "feat/demo" });
   });
+});
+
+it("activates a reused slug's live Planning holder from base without the archived branch", async () => {
+  const h = await harness({ branch: "main", archived: true, archivedBranch: "feat/old-demo" });
+  expect(await runActivate(h.ctx, params)).toMatchObject({ status: "activated", branch: "feat/demo" });
+  expect((await h.read()).fields).toMatchObject({ state: "Active" });
+  expect(h.archived).toBeDefined();
+  expect(lifecycleSuccess(await h.store.read({ reference: h.archived!.reference }))).toEqual(h.archived);
+});
+
+it("refuses activation on a branch linked by its completed namesake", async () => {
+  const h = await harness({ branch: "person", archived: true, archivedBranch: "person" });
+  expect(await runActivate(h.ctx, params)).toMatchObject({ status: "rejected", reason: expect.stringContaining("Another work item") });
+  expect(h.state()).toMatchObject({ current: "person", reconciled: false });
+  expect(await h.read()).toEqual(h.meta);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.archived!.reference }))).toEqual(h.archived);
 });
