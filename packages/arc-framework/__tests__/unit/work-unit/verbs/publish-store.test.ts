@@ -13,6 +13,17 @@ import { writeLineageRecord } from "../../../../src/lib/store/kinds/lineage/writ
 import { runStoreRename } from "../../../../src/lib/work-unit/verbs/rename-store.js";
 import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lifecycle-executor.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
+import { seedCompletedErrandTie } from "../../../helpers/store/completed-errand-tie.js";
+
+it("publishes an attested Candidate whose notes mention a tied Errand slug", async () => {
+  const h = createLifecycleHarness();
+  await seedCompletedErrandTie(h, "tied");
+  const meta = await h.seedMeta("example", { candidateId }, { kind: "active" },
+    { branches: [{ repository: "project", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+  const notes = await h.seed(recordReferences["work-item/notes"](meta.reference.owner), "# Notes\n\nNarrative tied context.\n");
+  expect(await runPublish(context(h.store), parameters(async () => {}))).toMatchObject({ status: "published" });
+  expect(lifecycleSuccess(await h.store.read({ reference: notes.reference }))).toEqual(notes);
+});
 const candidateId = `sha256:${"a".repeat(64)}` as const, candidateSubjectDigest = `sha256:${"b".repeat(64)}` as const;
 function context(store: Store) {
   const forbidden = async (): Promise<never> => { throw new Error("tracked artifact access"); };

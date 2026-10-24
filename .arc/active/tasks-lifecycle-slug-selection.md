@@ -121,37 +121,22 @@ its test is a regression pin that passes before the change; each re-read's faili
           ties render no warning. Both status consumers use the store selection, and standing, records, dependencies,
           and combined-input tests retain their output.
 
-### `[ ]` **2.2 Take `ambiguous-match` as an answer in the word and paired-spec checks — § 4.2**
+### `[x]` **2.2 Take `ambiguous-match` as an answer in the word and paired-spec checks — § 4.2**
 
 - _Goal:_ No tie the lookup refuses, whatever its holders' types, blocks an unrelated work unit's activation, reconcile,
   publish, or rename through a word or a paired spec's filename found in that work unit's records.
 
-    - `[ ]` **2.2.a The word check**
+    - `[x]` **2.2.a The word check**
 
-        - `artifactAliasTransitions` (`lib/work-unit/store-reconcile-context.ts`) records no rename for a word whose
-          lookup refuses `ambiguous-match`, where it returns the refusal today.
-        - The tie among Errands is built over the reference backend as two completed Errands on one slug, since it
-          refuses only a live collision at a write and 1.2 leaves a completed tie of Errands refusing. The work unit
-          under test mentions the slug in its records' prose, never in `Depends On`, whose edge reaches the retired-edge
-          query until Phase 3.
-        - Build `test-first` (one behavior at a time):
-            - a work unit whose records mention a slug tied among Errands activates, reconciles, and publishes,
-              recording no rename for the word, publish's fixture carrying Candidate attestation
-            - a word whose lookup refuses other than `ambiguous-match` or `not-found` still refuses the reconcile
+        - Artifact prose skips ambiguous lookup results without inventing renames; other lookup refusals propagate.
+          Completed-Errand tie fixtures cover reconcile, activation, Candidate-backed publication, and recovery from a
+          distinct namespace failure.
 
-    - `[ ]` **2.2.b The paired-spec owner check**
+    - `[x]` **2.2.b The paired-spec owner check**
 
-        - `knownArtifactOwner` (`lib/work-unit/paired-reference-owners.ts`), which the reconcile and rename's
-          shared-reference check (`checkSharedPairedReferences`, `lib/store/lifecycle-rename.ts`) both run, counts a
-          name whose lookup refuses `ambiguous-match` as a work unit's where a candidate the refusal names is a
-          `work-item/meta`, and as no owner's otherwise.
-        - _Note:_ `feat/storage-ref-backend` edits `lib/store/lifecycle-rename.ts`; re-check that branch before editing.
-        - Build `test-first` (one behavior at a time):
-            - over the clash double, a paired spec's filename naming the clashed slug counts as a work unit's, and the
-              reconcile of a work unit whose records name it runs
-            - a rename runs while another record mentions the clashed slug's paired spec, the clashed holders in active
-              placement, since rename acquires each backlog entry by name until 2.7.a
-            - a tie among Errands alone counts as no work unit's
+        - A tied name counts as a paired work-unit owner only when its candidates include metadata. Tests cover
+          work-unit clashes, Errand-only ties, unchanged reconcile content, and rename alongside a backlog record's
+          clashed paired reference.
 
 ### `[ ]` **2.3 Build the view's index from the standing entries — § 2.2**
 

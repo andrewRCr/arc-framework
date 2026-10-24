@@ -1,5 +1,5 @@
 /** Complete store-backed context and version bases for current-work-unit reconciliation. */
-import { SlugSchema } from "../kernel/index.js";
+import { SlugSchema, type Slug } from "../kernel/index.js";
 import type { Store } from "../store/contract.js";
 import type { StoreRecord } from "../store/read.js";
 import type { StoreResult } from "../store/refusal.js";
@@ -93,19 +93,22 @@ async function artifactAliasTransitions(store: Store, records: readonly StoreRec
   for (const candidate of candidates) {
     const slug = SlugSchema.safeParse(candidate);
     if (!slug.success || index.has(candidate)) continue;
-    const lookup = await store.lookup({ kind: "slug", slug: slug.data });
-    if (lookup.status === "refused") {
-      if (lookup.refusal.code === "not-found") {
-        for (const targetSlug of terminalAliases.get(candidate) ?? []) transitions.push({ subject: candidate, outcome: { kind: "rename", targetSlug } });
-        continue;
-      }
-      return lookup;
-    }
-    if (lookup.result.reference.kind === "work-item/meta" && lookup.result.reference.owner.name !== candidate) {
-      transitions.push({ subject: candidate, outcome: { kind: "rename", targetSlug: lookup.result.reference.owner.name } });
-    }
+    const resolved = await artifactAliasLookup(store, slug.data, terminalAliases.get(candidate) ?? []);
+    if (resolved.status === "refused") return resolved;
+    transitions.push(...resolved.result);
   }
   return { status: "ok", result: transitions };
+}
+async function artifactAliasLookup(store: Store, slug: Slug, retiredTargets: readonly string[]): Promise<StoreResult<ReachableReferenceTransition[]>> {
+  const lookup = await store.lookup({ kind: "slug", slug });
+  if (lookup.status === "refused") {
+    if (lookup.refusal.code === "ambiguous-match") return { status: "ok", result: [] };
+    if (lookup.refusal.code !== "not-found") return lookup;
+    return { status: "ok", result: retiredTargets.map(targetSlug => ({ subject: slug, outcome: { kind: "rename", targetSlug } })) };
+  }
+  const reference = lookup.result.reference;
+  return { status: "ok", result: reference.kind === "work-item/meta" && reference.owner.name !== slug
+    ? [{ subject: slug, outcome: { kind: "rename", targetSlug: reference.owner.name } }] : [] };
 }
 function artifactAliasCandidates(records: readonly StoreRecord[]): Set<string> {
   const candidates = new Set<string>();

@@ -11,6 +11,26 @@ import { buildStoreCurrentWuReconcile } from "../../../src/lib/work-unit/store-c
 import { createStoreReconcilePrepareContext } from "../../../src/lib/work-unit/store-reconcile-context.js";
 import { prepareCurrentWuReconcile } from "../../../src/lib/work-unit/side-effects/discharge-dep-edges.js";
 import { workUnitMetaPath } from "../../../src/lib/store/lifecycle-write.js";
+import { seedCompletedErrandTie } from "../../helpers/store/completed-errand-tie.js";
+
+it("leaves a tied word unchanged while preserving other lookup refusals and recovery", async () => {
+  const h = createLifecycleHarness();
+  await seedCompletedErrandTie(h, "tied");
+  const meta = await h.seedMeta("example");
+  const notes = await h.seed(recordReferences["work-item/notes"](meta.reference.owner), "# Notes\n\nNarrative tied context.\n");
+  const lookup = h.store.lookup.bind(h.store);
+  h.store.lookup = input => input.kind === "slug" && input.slug === "tied"
+    ? Promise.resolve({ status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: "work-item",
+      condition: "Word lookup unavailable.", remedy: { text: "Restore lookup and retry." } } }) : lookup(input);
+  expect(await createStoreReconcilePrepareContext(h.store, "example")).toMatchObject({ status: "refused",
+    refusal: { code: "namespace-corrupt", condition: "Word lookup unavailable." } });
+  h.store.lookup = lookup;
+  const acquired = lifecycleSuccess(await createStoreReconcilePrepareContext(h.store, "example"));
+  expect(acquired.context.additionalReferenceTransitions).toEqual([]);
+  expect(await buildStoreCurrentWuReconcile(h.store).prepare({ slug: "example", metaPath: workUnitMetaPath(meta) }))
+    .toMatchObject({ status: "clean", prepared: { edits: [], plan: { advisories: [] } } });
+  expect(lifecycleSuccess(await h.store.read({ reference: notes.reference }))).toEqual(notes);
+});
 
 describe("store reconcile context", () => {
   it.each(["uid", "former-name", "ambiguous", "namespace-corrupt"] as const)("retains or refuses a renamed dependent's immutable cut disposition: %s", async (scenario) => {

@@ -9,6 +9,18 @@ import type { BranchLink } from "../../../../src/lib/store/links.js";
 import type { PreparedCurrentWuReconcile } from "../../../../src/lib/work-unit/side-effects/discharge-dep-edges.js";
 import { recordReferences, OwnerIdentitySchema } from "../../../../src/lib/store/identity.js";
 import { transientContent } from "../../../helpers/store/in-repo-substrates.js";
+import { seedCompletedErrandTie } from "../../../helpers/store/completed-errand-tie.js";
+import { buildStoreCurrentWuReconcile } from "../../../../src/lib/work-unit/store-current-wu-reconcile.js";
+
+it("activates while its notes mention a slug tied among completed Errands", async () => {
+  const h = await harness();
+  await seedCompletedErrandTie(h, "tied");
+  const notes = await h.seed(recordReferences["work-item/notes"](h.meta.reference.owner), "# Notes\n\nNarrative tied context.\n");
+  h.ctx.currentWuReconcile = buildStoreCurrentWuReconcile(h.store);
+  expect(await runActivate(h.ctx, params)).toMatchObject({ status: "activated" });
+  expect(parseMetaRecord((await h.read()).content).state).toBe("Active");
+  expect(lifecycleSuccess(await h.store.read({ reference: notes.reference }))).toEqual(notes);
+});
 
 const base = "0".repeat(40), local = "1".repeat(40), remote = "2".repeat(40);
 async function harness(options: { branch?: string | null; commits?: string[]; link?: BranchLink; remoteHead?: string; taken?: boolean; noBase?: boolean } = {}) {
