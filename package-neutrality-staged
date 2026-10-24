@@ -3,7 +3,7 @@
   "slug": "package-neutrality-staged",
   "claimId": "3a3f933a25d26fcbaeedb39a56d8d58c",
   "createdAt": "2026-10-24T22:27:19.352Z",
-  "updatedAt": "2026-10-24T22:27:19.352Z",
+  "updatedAt": "2026-10-24T23:24:32.867Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Validate staged package-method bytes instead of working-tree content",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Read staged content in the package-neutrality hook validator",
   "originEntrySourceDigest": "sha256:377281f81c0dfb2478dc54c84a3064fda5635ad4d4af77b46e818979a2c1441f",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/package-neutrality-staged",
+    "headSha": "f30b041d757999d34f0ce08f7c0adacfbf6d8837"
+  }
 }
