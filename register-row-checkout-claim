@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "register-row-checkout-claim",
+  "claimId": "858ad81de1de2877067a85ebff0adab3",
+  "createdAt": "2026-10-24T19:27:29.153Z",
+  "updatedAt": "2026-10-24T19:27:29.153Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Widen the storage-coupling register's lifecycle selection row to take in the work-unit checkout claim",
+  "branch": "chore/register-row-checkout-claim",
+  "origin": "inbox",
+  "originEntry": "Widen storage-coupling register row 226 to take in the work-unit checkout claim",
+  "originEntrySourceDigest": "sha256:269bb1ce6ae8331e3d85089069cc8aad3d39ce260aba3dfe08529e8d99fbdd37",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
