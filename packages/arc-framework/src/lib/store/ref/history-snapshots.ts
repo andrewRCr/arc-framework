@@ -45,7 +45,10 @@ export async function readHistorySnapshots(context: RefBackendContext, reference
   return { status: "ok", result: snapshots };
 }
 
-/** Decode one logical record from its historical tree without applying current semantic parsers. */
+/**
+ * Decode one logical record from its historical tree without applying current semantic parsers. A state read at a version
+ * whose latest folder defined it takes that folder's placement, as read did.
+ */
 export function historicalState(context: RefBackendContext, requested: RecordReference, home: StoredRecordHome,
   tree: readonly RefTreeEntry[], objects: ReadonlyMap<string, BatchObject | null>, ended?: ReadPlacement): StoreResult<HistoricalState> {
   const metadataEntry = tree.find((entry) => entry.path === home.metadataPath);
@@ -71,7 +74,7 @@ export function historicalState(context: RefBackendContext, requested: RecordRef
   return { status: "ok", result: { reference, content: content.content, version: refRecordVersion(reference, object.oid, metadata, formatVersion) } };
 }
 
-/** Parse a state's metadata; an ended owner's tip state takes its latest folder's placement. */
+/** Parse a state's metadata, taking the placement of the folder that defined it at its version where one did. */
 function stateMetadata(object: BatchObject | null | undefined, namespace: string, ended?: ReadPlacement): RefMetadata | null {
   const metadata = parseRefMetadata(object, namespace);
   return metadata && ended ? withCompletedPlacement(metadata, ended) : metadata;

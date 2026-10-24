@@ -13,6 +13,7 @@ import { rootFamily, refOwner, decodeReference } from "./codec.js";
 import { refPrototype } from "./read.js";
 import { historicalMetadataFailure, parseRefMetadata } from "./metadata.js";
 import { historicalState, type HistoricalState } from "./history-snapshots.js";
+import type { ReadPlacement } from "../placement.js";
 
 /** Keep the record's location and prior version until cross-ref batch grouping is complete. */
 export interface RefChangeEvent { entry: HistoryEntry; before: RecordVersion | null; revision: string; ref: string; order: number }
@@ -51,20 +52,22 @@ export function changeWindowReferences(context: RefBackendContext, captured: Cap
   return { status: "ok", result: [...references.values()] };
 }
 
-/** Filter each record by its own version, using ordered state for merge commits. */
-export function changeWindowEvents(context: RefBackendContext, captured: CapturedChangeWindow, references: readonly RecordReference[]): StoreResult<RefChangeEvent[]> {
+/** Filter each record by its own version, using ordered state for merge commits and each bound's read placement. */
+export function changeWindowEvents(context: RefBackendContext, captured: CapturedChangeWindow, references: readonly RecordReference[],
+  placements?: ReadonlyMap<string, ReadPlacement>): StoreResult<RefChangeEvent[]> {
   const events: RefChangeEvent[] = [];
   for (const reference of references) {
-    const own = recordWindowEvents(context, captured, reference);
+    const own = recordWindowEvents(context, captured, reference, placements);
     if (own.status === "refused") return own;
     events.push(...own.result);
   }
   return { status: "ok", result: events.sort((left, right) => left.order - right.order) };
 }
 
-function recordWindowEvents(context: RefBackendContext, captured: CapturedChangeWindow, reference: RecordReference): StoreResult<RefChangeEvent[]> {
+function recordWindowEvents(context: RefBackendContext, captured: CapturedChangeWindow, reference: RecordReference,
+  placements?: ReadonlyMap<string, ReadPlacement>): StoreResult<RefChangeEvent[]> {
   const events: RefChangeEvent[] = [];
-  const loaded = recordWindowStates(context, captured, reference);
+  const loaded = recordWindowStates(context, captured, reference, placements);
   if (loaded.status === "refused") return loaded;
   const states = loaded.result;
   let previous: HistoricalState | undefined;
@@ -84,11 +87,12 @@ function recordWindowEvents(context: RefBackendContext, captured: CapturedChange
   return { status: "ok", result: events };
 }
 
-function recordWindowStates(context: RefBackendContext, captured: CapturedChangeWindow, reference: RecordReference): StoreResult<Map<string, HistoricalState>> {
+function recordWindowStates(context: RefBackendContext, captured: CapturedChangeWindow, reference: RecordReference,
+  placements?: ReadonlyMap<string, ReadPlacement>): StoreResult<Map<string, HistoricalState>> {
   const home = { ...expandStoredPath(reference, { registry: context.registry }), ref: captured.window.ref };
   const states = new Map<string, HistoricalState>();
   for (const [revision, entries] of captured.trees) {
-    const state = historicalState(context, reference, home, entries, captured.objects);
+    const state = historicalState(context, reference, home, entries, captured.objects, placements?.get(revision));
     if (state.status === "refused") return state;
     states.set(revision, state.result);
   }

@@ -12,6 +12,7 @@ import { refPrototype } from "./read.js";
 import { readChangeEnds, isLifecycleRef, type ChangeEnds } from "./changes-ends.js";
 import { includesLifecycleOwner } from "./changes-scope.js";
 import { latestArchivedFolders, type ArchivedFolder } from "./archive-read.js";
+import type { ReadPlacement } from "../placement.js";
 import { missingChangeState, type RefChangeWindow, type RefChangeInterval, type ChangeWindowReader } from "./changes-graph.js";
 
 /** Select one continuous history window per owner, excluding states before a reopen. */
@@ -52,7 +53,19 @@ async function ownerChangeWindow(context: RefBackendContext, input: ChangesInput
   const upper = newer ?? await endCommit(context, { live, history, source, index: index.result, to, ends });
   const lower = older ?? (from?.metadata.batch ? index.result.get(from.metadata.batch) : undefined);
   if (!upper) return { status: "refused", refusal: missingChangeState({ ref: history, version: input.to }) };
-  return { status: "ok", result: upper === lower ? null : { ref: newer ? live : history, upper, lower, version: input.to } };
+  const placements = boundPlacements([from, to], index.result, [upper, lower]);
+  return { status: "ok", result: upper === lower ? null : { ref: newer ? live : history, upper, lower, version: input.to, placements } };
+}
+
+/** A bound its version's latest folder wrote reads, as that version's read did, with the folder's placement. */
+function boundPlacements(folders: readonly (ArchivedFolder | undefined)[], index: ReadonlyMap<string, string>,
+  bounds: readonly (string | undefined)[]): Map<string, ReadPlacement> {
+  const placements = new Map<string, ReadPlacement>();
+  for (const folder of folders) {
+    const commit = folder?.metadata.batch ? index.get(folder.metadata.batch) : undefined;
+    if (folder && commit && bounds.includes(commit)) placements.set(commit, folder.placement);
+  }
+  return placements;
 }
 
 interface EndEvidence {

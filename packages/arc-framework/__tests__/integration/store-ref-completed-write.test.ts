@@ -321,6 +321,14 @@ describe("writes to completed ref records", () => {
     expect(success(await f.store.read({ reference: primary.reference })).placement).toEqual({ kind: "active" });
   });
 
+  it("reports a twice-ended item's change at the version its read returns while its history names the earlier quarter", async () => {
+    const f = await createRefFixture();
+    const { primary, from } = await endTwice(f, "another quarter", "reversed");
+    const read = success(await f.store.read({ reference: primary.reference }));
+    const changes = success(await f.store.changes({ from, to: await f.settle() }));
+    expect(changes.filter(({ reference }) => sameOwner(reference.owner, primary.reference.owner)).map(({ version }) => version)).toEqual([read.version]);
+  });
+
   it.each(["work-item/meta", "work-item/record", "cohort/document"] as const)("moves an ended %s written with another quarter into one folder there", async (kind) => {
     const f = await createRefFixture();
     const seeded = await seed(f, f.reference(kind));
@@ -438,7 +446,8 @@ function ownerUid(reference: RecordReference): string {
 
 /**
  * End one item a second time, as another clone's published end leaves it: a later folder in the same or the next quarter.
- * A reversed history keeps naming the first end's quarter while the later folder names its own, as a merge can leave it.
+ * A reversed history keeps naming the first end's quarter while the later folder names its own, as a history commit made
+ * outside the store can leave it.
  */
 async function endTwice(f: RefConformanceFixture, location: "same quarter" | "another quarter", order: "agreeing" | "reversed" = "agreeing") {
   const primary = await seed(f, f.reference("work-item/meta"));
@@ -463,11 +472,12 @@ async function endTwice(f: RefConformanceFixture, location: "same quarter" | "an
     : entry.path === `meta-${primary.reference.owner.name}.md` ? { path: entry.path, content: f.content(primary.reference, "changed-again") } : entry);
   const message = renderStoreCommitMessage({ ...testProvenance, verb: "archive" }, primary.reference, batch);
   const folder = await records(ended);
+  const from = await f.settle();
   await plantRef(f.root, history, order === "reversed" ? await records(priorPrimary) : folder, { parents: [previous], message });
   const priorQuarter = location === "same quarter" ? (await git("git", ["rev-parse", ref])).stdout.trim() : undefined;
   await plantRef(f.root, ref, [...(location === "same quarter" ? await entriesAt(f.root, ref) : []),
     ...folder.map((entry) => ({ ...entry, path: nextRoot + entry.path }))], { parents: priorQuarter ? [priorQuarter] : [], message });
-  return { primary, other, history, firstRef, firstRoot, firstEnd, metadataPath, nextQuarter, ref, nextRoot, batch };
+  return { primary, other, history, firstRef, firstRoot, firstEnd, metadataPath, nextQuarter, ref, nextRoot, batch, from };
 }
 
 async function entriesAt(root: string, ref: string): Promise<PlantTreeEntry[]> {

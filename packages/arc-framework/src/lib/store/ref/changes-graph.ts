@@ -8,13 +8,19 @@ import { refPrototype } from "./read.js";
 import { viewRefFamily } from "./view-state.js";
 import type { ChangesInput } from "../contract.js";
 import type { StateVersion } from "../identity.js";
+import type { ReadPlacement } from "../placement.js";
 import { HistoryRefSchema, type StoreResult, type StoreRefusal } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { parseHistoryRows, orderHistoryCommits, type HistoryCommit } from "./history-order.js";
 
-/** An exact upper commit with an optional older ancestry exclusion. */
-export interface RefChangeWindow { ref: string; upper: string; lower?: string; version: StateVersion; paths?: readonly string[] }
+/**
+ * An exact upper commit with an optional older ancestry exclusion. `placements` names each bound an ended owner's latest
+ * folder defined at its version, whose state decodes with that folder's placement as read took it; captures omit it.
+ */
+export interface RefChangeWindow {
+  ref: string; upper: string; lower?: string; version: StateVersion; paths?: readonly string[]; placements?: ReadonlyMap<string, ReadPlacement>;
+}
 /** Captured commits include boundary parents so per-record comparisons need no live reads. */
 export interface CapturedChangeWindow {
   receipts: Map<string, BatchCreationReceipt | undefined>;

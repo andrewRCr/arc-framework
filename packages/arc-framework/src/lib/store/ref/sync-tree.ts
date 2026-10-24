@@ -19,6 +19,7 @@ import { mergeArchiveTree } from "./sync-archive.js";
 import type { ReadPlacement } from "../placement.js";
 import { readLineageOwners } from "./lineage-resolution.js";
 import { completeSyncPlacements } from "./sync-placement.js";
+import { withCompletedPlacement } from "./archive-refresh.js";
 import { observeSyncChecks } from "./sync-checks.js";
 import type { PullNotice } from "../sync.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
@@ -27,7 +28,11 @@ import { RefSyncLabelError } from "./sync-label.js";
 /** One immutable side's raw entries and validated group metadata. */
 export interface SyncTreeSide { tip: string | null; entries: Map<string, RefTreeEntry>; metadata: RefMetadata; placement?: ReadPlacement }
 /** Exact incoming tips and the side a lifecycle merge must preserve at a clash. */
-export interface SyncTreeMergeScope { currentSide?: "local" | "incoming"; incoming?: ReadonlyMap<string, string>; priorState?: ReadonlyMap<string, string>; batchId?: string; reopening?: boolean }
+/** `ended` is the placement of an ended owner's latest folder, which its merged history stores as a write's does. */
+export interface SyncTreeMergeScope {
+  currentSide?: "local" | "incoming"; incoming?: ReadonlyMap<string, string>; priorState?: ReadonlyMap<string, string>; batchId?: string;
+  reopening?: boolean; ended?: ReadPlacement | undefined;
+}
 /** Prepared entries retain untouched blob identities and the provenance's actual owner. */
 export interface SyncMergedTree { entries: Map<string, RefTreeEntry>; reference: RecordReference; metadata?: RefMetadata; notices?: PullNotice[] }
 
@@ -77,12 +82,20 @@ async function mergeGroupTree(context: RefBackendContext, ref: string, local: st
   return { status: "ok", result: { entries, metadata, notices, reference: RecordReferenceSchema.parse({ ...prototype, owner: refOwner(live, family, metadata) }) } };
 }
 
+/**
+ * Stamp the merge's batch, or clear a reopened item's end. An ended item's history names its latest folder's quarter, as
+ * a write to it does, so every state it holds keeps the version read returned while that state was current.
+ */
 function finishSyncMetadata(ref: string, metadata: RefMetadata, local: RefMetadata, scope: SyncTreeMergeScope): void {
   if (scope.reopening) {
     delete metadata.endBatch;
     delete metadata.batch;
     if (metadata.primary && local.primary && local.primary.placement.kind !== "completed") metadata.primary = { ...metadata.primary, placement: local.primary.placement };
-  } else if (ref.startsWith("refs/arc/history/") && scope.batchId) metadata.batch = scope.batchId;
+    return;
+  }
+  if (!ref.startsWith("refs/arc/history/")) return;
+  if (scope.batchId) metadata.batch = scope.batchId;
+  if (scope.ended && (metadata.primary?.placement ?? metadata.placement)?.kind === "completed") Object.assign(metadata, withCompletedPlacement(metadata, scope.ended));
 }
 
 function mergeEntries(base: SyncTreeSide, current: SyncTreeSide, incoming: SyncTreeSide): Map<string, RefTreeEntry> {

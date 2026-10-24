@@ -48,7 +48,7 @@ export async function mergeRefSets(context: RefBackendContext, local: ReadonlyMa
     const source = route?.source ?? ref;
     const sourceTarget = options.targetRef?.(source) ?? source;
     const captured = await readSyncHistoryQuarters(context, ref, local, [next]);
-    const quarters = captured.status === "ok" ? captured.result : [];
+    const quarters = captured.status === "ok" ? captured.result.quarters : [];
     const result = await withRefLocks({ ...context, lock: options.lock }, [target, sourceTarget, ...quarters.map(({ ref }) => options.targetRef?.(ref) ?? ref)], async (): Promise<RefMergeResult> => {
       const current = (await readSyncRefs(context, sourceTarget)).get(sourceTarget) ?? null;
       if (current !== (local.get(source) ?? null)) return { status: "restart" };
@@ -58,8 +58,8 @@ export async function mergeRefSets(context: RefBackendContext, local: ReadonlyMa
       if (!await unchangedSyncHistoryQuarters(context, quarters, options.targetRef)) return { status: "restart" };
       const batchId = randomUUID();
       const staged = { ...context, blobStage: { format: await readObjectFormat(context), blobs: new Map<string, Uint8Array>() } };
-      const built = await prepareSyncMerge(staged, ref, current, next, local, quarters,
-        { currentSide: route?.currentSide, incoming: options.incomingState ?? incoming, priorState: options.priorState, batchId, reopening: route?.reopening });
+      const built = await prepareSyncMerge(staged, ref, current, next, local, quarters, { currentSide: route?.currentSide,
+        incoming: options.incomingState ?? incoming, priorState: options.priorState, batchId, reopening: route?.reopening, ended: captured.result.latest });
       if (built.status === "refused") return heldMerge(ref, built.refusal);
       const { tree: prepared, parents } = built.result;
       if (prepared?.metadata) await prepareSyncHistoryQuarters(staged, quarters, prepared);

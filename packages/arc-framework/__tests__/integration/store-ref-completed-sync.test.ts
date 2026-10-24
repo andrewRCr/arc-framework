@@ -177,6 +177,25 @@ describe("completed-item reconciliation in the default layout", () => {
     success(await h.a.store.pull());
     expect(success(await h.a.store.read({ reference: h.reference })).conflicts).toHaveLength(1);
   });
+
+  it("keeps history's versions across a write after concurrent moves into different quarters merge", async () => {
+    const h = await completedFixture(layout);
+    const move = async (side: typeof h.a, quarter: string) => {
+      const record = success(await side.store.read({ reference: h.reference }));
+      success(await side.store.write({ action: "put", reference: record.reference, expected: record.version, content: record.content,
+        placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse(quarter) }, provenance }));
+    };
+    await move(h.a, "2027-q1"); success(await h.a.store.push());
+    await move(h.b, "2027-q2");
+    expect(success(await h.b.store.push()).publishes).toContainEqual(expect.objectContaining({ status: "reconciled" }));
+    const read = success(await h.b.store.read({ reference: h.reference }));
+    expect(read.placement).toMatchObject({ kind: "completed", quarter: "2027-q2" });
+    const before = success(await h.b.store.history({ reference: h.reference })).map(({ version }) => version);
+    expect(before[0]).toBe(read.version);
+    const written = success(await h.b.store.write({ action: "put", reference: read.reference, expected: read.version,
+      content: `${read.content}\nAfter the merge.\n`, placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2027-q2") }, provenance }));
+    expect(success(await h.b.store.history({ reference: h.reference })).map(({ version }) => version)).toEqual([written.version, ...before]);
+  });
   it.each(["its tree removed", "its folder's metadata unparseable", "its folder's metadata file removed"] as const)(
     "holds a history merge while a local quarter has %s and rebuilds the folder once it is repaired", async (damage) => {
     const h = await completedFixture(layout);
