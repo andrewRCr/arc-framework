@@ -10,6 +10,34 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Decide whether per-finding gating earns a place in the disposition record**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ Current model (a verified nit is always record-only) and Unknown grades (an unrecognized high grade turning
+  record-only could pass a gate it should stop).
+
+- _Observation:_ Every disposition finding carries `gating: blocking | record-only`, resolved purely from the verified
+  grade plus the `minorGating` policy (`core/severity-gating-policy.ts`); an unsupported finding is always record-only.
+  A 2026-10-20 search found no consumer beyond schema validation, the canonical set's identity preimage, report display,
+  and sort order, which grade order already gives. Convergence follows material fixes independently of gating
+  (`review-response.md`). The draft's gate argument and the nit marker's only behavioral difference both assume gating
+  stops something; establish what does before relying on it. The term is also not self-explanatory. The
+  `disposition-report-trim` Errand removes it from the report; the stored field is unchanged.
+
+- _Approach:_ Trace every gate that reads `gating`. If none does, remove the field and its policy, or rework it into a
+  standing that drives behavior. Either changes the disposition set's identity preimage, which pre-release takes in
+  place. Settle it with the nit-class decision, since nit and gating stand or fall together.
+
+- _Captured during:_ disposition-report design discussion ahead of the `disposition-report-trim` Errand, 2026-10-20.
+
+---
+
 ## Problem / Motivation
 
 ARC grades findings `critical | major | minor`, and marks pure polish only as an optional `nit` on `minor`

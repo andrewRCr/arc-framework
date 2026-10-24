@@ -229,6 +229,24 @@ mechanism for which concern" in `strategy-configurability-architecture.md`.
 
 - _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
 
+### `[ ]` **Keep install class in the claims table when methods gain activation and override-mode axes**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ § Proposed Principle (methods carry `active` and `override-active`), Open Question (a)'s `core: true` flag,
+  and the inbound `override-mode` entry.
+
+- _Observation:_ `adopter-install-authority` makes one claims table in `init-recipe.json` the authority for each shipped
+  file's install class (`draft-adopter-install-authority.md` D1), and its coverage check refuses a file that declares an
+  override contract (`override-active`) under a claim other than Configurable. A method frontmatter axis that implies a
+  different install class — a `core` method projects must not redefine, say — would contradict the table silently unless
+  it lands with its own claim.
+
+- _Approach:_ land any class-changing method axis together with its claim edit, and keep the table as the one class
+  authority. A move toward Framework is held on `arc update` wherever a project edited the file (that unit's D8).
+
+- _Captured during:_ `adopter-install-authority` draft-design close, 2026-10-23.
+
 ---
 
 ## Problem / Motivation

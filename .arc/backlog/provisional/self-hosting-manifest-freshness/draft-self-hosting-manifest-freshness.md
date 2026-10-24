@@ -26,6 +26,30 @@
 - _Scope:_ repo development-time validation and tests/scripts only; do not ship the guard to adopters.
 - _Shapes:_ § Scope, direction 1 (the reconciliation command).
 
+### `[ ]` **Decide whether the self-host manifest's stored hashes earn their upkeep, and automate whichever survives**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ § Scope's open fork (a reconcile command versus content equality as the authority), with fresh evidence for
+  its second arm.
+
+- _Observation:_ 92 of the 148 entries in `.arc/system/.internal/manifest.json` carry a `pristine_hash` that no longer
+  matches package source (66 Framework, 26 Configurable), and 11 entries name files package source no longer has. Only
+  three entries are kept current, each by a `framework-sync.test.ts` case that pins the hash of a method a work unit
+  added (`pull-request-format`, `route-discovered-work`, `assess-evidence-applicability`). Every later edit to one of
+  those three needs a hand-recomputed hash, while the rest drift silently.
+
+- _Observation:_ the first question is whether this repository needs stored hashes at all. Nothing runs `arc health` or
+  `arc diff` against it, and the byte-equality checks between the two copies already prove content. If the hashes stay,
+  they are derived state and want a generator or a check, not a per-method test pinning one value.
+
+- _Approach:_ settle the draft's fork with this in view, then either drop the three per-method hash assertions in favor
+  of one whole-manifest freshness check backed by a reconcile command, or stop storing hashes in the self-host copy.
+  Check first whether the storage cohort's register already places `.internal/manifest.json`.
+
+- _Captured during:_ the `applicability-movement-check-choice` Errand, 2026-10-20, whose method edit needed a
+  hand-updated hash while two other stale hashes in the same diff went unnoticed.
+
 ## Problem / Motivation
 
 The self-hosting repo never runs `arc update` against itself (per DEV-RULES.PROJECT § Package-Project Sync), so

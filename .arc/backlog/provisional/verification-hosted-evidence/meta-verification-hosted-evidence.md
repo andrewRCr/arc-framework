@@ -1,4 +1,4 @@
-# Metadata: test-suite-contention-hardening
+# Metadata: verification-hosted-evidence
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
@@ -8,7 +8,7 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-test-suite-contention-hardening.md`
+- **Design:** `draft-verification-hosted-evidence.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
@@ -17,8 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Reproduce two concurrent full suites against a serialized control and inventory tests with weak
-  duration-to-timeout headroom.
+- **Next Action:** —
 
 - **PR URL:** [none]
 - **Completed:** [none]

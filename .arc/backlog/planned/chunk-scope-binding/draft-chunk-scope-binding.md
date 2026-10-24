@@ -66,6 +66,24 @@
 - _Captured during:_ `review-checkout-lifecycle` drafting, 2026-07-26 — surfaced as an out-of-scope knob while
   stripping speculative machinery from that draft.
 
+### `[ ]` **Keep one finding identity from a chunked aggregate to the commit body**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ binding every contributing finding to its producer and approved disposition.
+
+- _Observation:_ `storage-ref-backend`'s aggregate numbered findings `AGG-01`…`AGG-81` by chunk, while the approved set
+  and commit bodies use `F1`…`F81` by severity, joined only by a hand-kept map; the CLI's coverage offer cites
+  `standard-pass-1/AGG-nn`.
+
+- _Approach:_ one finding identity carried from the aggregate prompt through the approved set to the commit body.
+
+- _Evidence:_ `standard-pass-1/fix-map.md` under
+  `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/` in that work unit's checkout
+  (checkout-local).
+
+- _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24.
+
 ---
 
 ## Grooming status (continuity)

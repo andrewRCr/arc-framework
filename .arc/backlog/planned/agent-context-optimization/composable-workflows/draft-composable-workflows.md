@@ -311,6 +311,43 @@
 
 - _Captured during:_ `schema-introspection-layer` draft close, 2026-10-07.
 
+### `[ ]` **Co-design D3's `render` and `offer` step arguments with `cli-output-contract`'s result types**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ D3, the session-agenda compiler — § Open questions, "Agenda schema residuals": the remaining per-step
+  argument schemas (`render` / `note` surfaces, `offer`).
+
+- _Observation:_ `cli-output-contract` (draft at `maturing`, commit `87ed54c11`) settled that every command's
+  machine-mode result carries an Owner-facing part: a precomposed `report` and an optional `offer` — text plus a choice
+  set marked enforced or anticipated — designed to lift into D3's `render` and `offer` steps without translation, with
+  the recommendation left to the agent. The schemas are D3's own open residual, so neither work unit settles them alone.
+
+- _Approach:_ co-design the `report` and `offer` schemas and D3's `render` and `offer` arguments as one type set in the
+  shared schema kernel after the storage cutover, with `loadset-composition` for where the relay rule lives.
+  `cli-output-contract` is held in place for it (`RELEASE-GATES` § Holds). A shared seam, not types to adopt.
+
+- _Captured during:_ `cli-output-contract` draft-design, 2026-10-20.
+
+### `[ ]` **Keep install class in the claims table when methods gain an override policy**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ D2's `override-policy: overridable | fixed` method property.
+
+- _Observation:_ `adopter-install-authority` makes one claims table in `init-recipe.json` the authority for each shipped
+  file's install class (`draft-adopter-install-authority.md` D1). An overridable method installs Configurable, so a
+  project's override survives `arc update`; a Framework file is overwritten wholesale. Its coverage check refuses a file
+  that declares an override contract (`override-active`) under a claim other than Configurable, and checks nothing in
+  the other direction.
+
+- _Approach:_ a fixed method lands with its own Framework claim and without its override contract; `override-policy`
+  must not become a second class authority. On `arc update`, that unit's reclassification guard (D8) holds the method as
+  Configurable in any project that edited its override, and taking it over needs an install migration. If class should
+  derive from `override-policy` instead, move that derivation into the claims resolver, so one place still answers.
+
+- _Captured during:_ `adopter-install-authority` draft-design close, 2026-10-23.
+
 ---
 
 ### `[ ]` **Fire the execution-entry delivery inspection on the state it reads, not once per leaf task**
