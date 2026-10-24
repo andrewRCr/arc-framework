@@ -18,7 +18,7 @@ describe("review-gate package boundary", () => {
     try {
       const { stdout } = await run(
         "npm",
-        ["pack", "--dry-run", "--json", "--workspace", "@arc-framework/cli"],
+        ["pack", "--dry-run", "--json", "--ignore-scripts", "--workspace", "@arc-framework/cli"],
         {
           cwd: root,
           maxBuffer: 10 * 1024 * 1024,
