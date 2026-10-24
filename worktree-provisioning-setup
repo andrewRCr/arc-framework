@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "worktree-provisioning-setup",
+  "claimId": "bbdece718fb0f2a8d7ee87686ee5c557",
+  "createdAt": "2026-10-24T21:04:26.333Z",
+  "updatedAt": "2026-10-24T21:04:26.333Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Have setup prepare a project's worktrees for concurrent work units: offer worktree.post_create and .worktreeinclude at the check-declaration step, and list what each checkout needs its own of",
+  "branch": "chore/worktree-provisioning-setup",
+  "origin": "inbox",
+  "originEntry": "Have setup prepare a project's worktrees for concurrent work units",
+  "originEntrySourceDigest": "sha256:cb5db00f9b79e3a438b16ec41c0bdeafa7be07f9be44df7625cbd5ee100bc556",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
