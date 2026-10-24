@@ -8,7 +8,7 @@
  * @module
  */
 
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
 import { writeFile as fsWriteFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -31,6 +31,9 @@ import {
   plannedWritePaths,
   findUncommittedPaths,
   uncommittedChangesError,
+  findOccupiedPaths,
+  occupiedPathsError,
+  renderTemplate,
   type FileMergeFn,
 } from "../lib/manifest/index.js";
 import { gitMergeFile, type GitExec } from "../lib/git/index.js";
@@ -382,8 +385,9 @@ export async function runUpdate(
   const renderCtx = { templateDir, tokens, config, configKeyOverrides };
   const arcConfigPath = join(arcDir, ARC_CONFIG_TEMPLATE_PATH);
 
-  // Refuse before any write over uncommitted changes to the files the update writes, then recover the baselines the
-  // manifest proves and refuse where merging a customized file with no baseline would drop its upstream changes
+  // Refuse before any write over uncommitted changes to the files the update writes, or over files already at the
+  // paths it adds, then recover the baselines the manifest proves and refuse where merging a customized file with no
+  // baseline would drop its upstream changes
   const readAsMerged = async (path: string): Promise<string> => {
     const content = await io.readFile(path);
     return path === arcConfigPath ? migrateUserSyncPush(content).content : content;
@@ -393,6 +397,15 @@ export async function runUpdate(
   const uncommitted = await findUncommittedPaths(io.exec, cwd, writePaths);
   if (uncommitted.length > 0) {
     throw uncommittedChangesError(uncommitted);
+  }
+  const arcRoot = relative(cwd, arcDir).split(sep).join("/");
+  const additions = await Promise.all(initialPlan.additions.map(async (entry) => ({
+    path: `${arcRoot}/${entry.outputPath}`,
+    content: await renderTemplate(templateDir, entry.templateFile, tokens, config, configKeyOverrides, io.readFile),
+  })));
+  const occupied = await findOccupiedPaths(cwd, additions, io.readFile);
+  if (occupied.length > 0) {
+    throw occupiedPathsError(occupied, "update");
   }
   const missing = await resolveMissingBaselines(
     initialPlan, manifest, arcDir, { readFile: io.readFile, readAsMerged }, renderCtx,
