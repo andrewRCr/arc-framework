@@ -7,33 +7,36 @@ import { parseStoreCommitProvenance } from "../commit-provenance.js";
 import { readBatchObjects, readRefTrees } from "./batch-read.js";
 import { parseRefMetadata } from "./metadata.js";
 
-/** Read original archive stamps and swept retirement candidates; callers establish their current lineage record. */
+/**
+ * Read original archive stamps and empty-tree ends — swept retirements, and the root the import gives an origin it
+ * brought in ended; callers establish their current lineage record.
+ */
 export async function readItemEndBatches(context: RefBackendContext, tip: string | undefined,
   owner: OwnerIdentity, kind: "all" | "retirement" = "all"): Promise<Set<string>> {
   if (!tip || !("uid" in owner)) return new Set();
   const reference = RecordReferenceSchema.parse({ owner, kind: owner.type === "cohort" ? "cohort/document" : "work-item/meta" });
-  const { stdout } = await context.exec("git", ["log", "--format=%H %P%n%B%x00", tip],
+  const { stdout } = await context.exec("git", ["log", "--format=%H%n%B%x00", tip],
     { cwd: context.checkoutRoot, objectAccess: "local-only" });
   const withdrawn = new Set<string>();
   const commits = stdout.split("\0").flatMap((block) => {
-    const [header = "", ...message] = block.trimStart().split("\n"), [commit, ...parents] = header.split(" ");
+    const [commit = "", ...message] = block.trimStart().split("\n");
     const provenance = parseStoreCommitProvenance(message.join("\n"), reference);
     if ("verb" in provenance && provenance.verb === "sync" && provenance.lifecycleAction === "withdraw-end") {
       const original = /^Arc-Withdrawn-End: ([^\r\n]+)$/mu.exec(message.join("\n"))?.[1];
       if (original) withdrawn.add(original);
       return [];
     }
-    return commit && "batchId" in provenance && provenance.batchId ? [{ commit, batch: provenance.batchId, hasParent: parents.length > 0 }] : [];
+    return commit && "batchId" in provenance && provenance.batchId ? [{ commit, batch: provenance.batchId }] : [];
   });
   if (!commits.length) return new Set();
   const trees = await readRefTrees(context, new Map(commits.map(({ commit }) => [commit, commit])));
   const path = `metadata-${owner.uid}.json`;
   const metadata = [...trees.values()].flatMap((entries) => entries.filter((entry) => entry.path === path));
   const objects = await readBatchObjects(context, [...new Set(metadata.map(({ oid }) => oid))]);
-  return new Set(commits.filter(({ commit, batch, hasParent }) => {
+  return new Set(commits.filter(({ commit, batch }) => {
     const entries = trees.get(commit);
     if (!entries || withdrawn.has(batch)) return false;
     const entry = entries.find((entry) => entry.path === path);
-    return entries.length === 0 && hasParent || kind === "all" && parseRefMetadata(entry ? objects.get(entry.oid) : undefined)?.endBatch === batch;
+    return entries.length === 0 || kind === "all" && parseRefMetadata(entry ? objects.get(entry.oid) : undefined)?.endBatch === batch;
   }).map(({ batch }) => batch));
 }
