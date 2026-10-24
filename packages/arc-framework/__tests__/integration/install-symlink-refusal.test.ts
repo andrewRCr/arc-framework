@@ -1,9 +1,9 @@
 /**
  * Integration tests for installing through a symbolic link.
  *
- * `arc init` and `arc update` run against real temporary repositories whose `.arc/`, or a committed directory under it,
- * links to a directory outside the repository. Each refuses before its first write, leaves the link's target as it
- * was, and runs once the link is replaced with a regular directory.
+ * `arc init` and `arc update` run against real temporary repositories whose `.arc/`, or a directory under it, links to
+ * a directory outside the repository. Each refuses before its first write, leaves the link's target as it was, and runs
+ * once the link is replaced with a regular directory.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -21,7 +21,9 @@ import {
   fileExists,
   readFile,
   rm,
+  mkdir,
   join,
+  dirname,
   getArcTemplatePath,
   getInternalTemplatePath,
   DEFAULT_PROMPTS,
@@ -69,6 +71,25 @@ describe("init integration — a linked .arc/", () => {
     expect(await init()).not.toBeNull();
 
     expect(await fileExists(manifestPath(tempDir))).toBe(true);
+    expect(await readdir(outside)).toEqual([]);
+  });
+
+  it("refuses a linked personal directory before seeding through it, and seeds once it is a directory", async () => {
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+    await mkdir(dirname(userDir), { recursive: true });
+    await symlink(outside, userDir, "junction");
+
+    const refusal = await init().catch((err: unknown) => err);
+
+    expect(refusal).toBeInstanceOf(UserFacingError);
+    expect(refusal).toMatchObject({ code: "manifest.install-path-symlinked" });
+    expect((refusal as UserFacingError).why).toContain("symbolic links: .arc/user/test-user.");
+    expect(await readdir(outside)).toEqual([]);
+
+    await unlink(userDir);
+    expect(await init()).not.toBeNull();
+
+    expect(await fileExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
     expect(await readdir(outside)).toEqual([]);
   });
 });

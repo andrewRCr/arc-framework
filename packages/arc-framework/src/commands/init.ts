@@ -12,7 +12,7 @@ import {
   ensureDir, writeArcGitignoreBlock,
   renderTokens, renderConditionals, renderConfigOverrides,
 } from "../lib/template/index.js";
-import { configureGitIntegration, runPostInitSetup } from "../lib/setup.js";
+import { CROSS_WU_INSTANCE_FILES, configureGitIntegration, runPostInitSetup } from "../lib/setup.js";
 import type { InitPromptResult } from "../prompts/init-prompts.js";
 import type { Manifest, Recipe, CoreIO } from "../lib/types.js";
 import {
@@ -241,6 +241,8 @@ export async function runInit(
     const linked = await findSymlinkedWritePaths(cwd, [
       ...renderedFiles.map((file) => join(arcDir, file.outputRelPath)),
       join(internalDir, MANIFEST_FILENAME), join(internalDir, PRISTINE_FILENAME),
+      ...(identityResult && preparedIdentity === null
+        ? CROSS_WU_INSTANCE_FILES.map((filename) => join(arcDir, "user", identityResult, filename)) : []),
     ]);
     if (linked.length > 0) {
       throw symlinkedWritePathsError(linked, "init");
