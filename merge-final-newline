@@ -3,14 +3,20 @@
   "slug": "merge-final-newline",
   "claimId": "e5b294f5827bf1b15b02f157e31979d6",
   "createdAt": "2026-10-24T02:29:57.299Z",
-  "updatedAt": "2026-10-24T02:29:57.299Z",
+  "updatedAt": "2026-10-24T03:36:35.397Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Keep git merge-file output byte-exact so three-way merged Configurable files keep their final newline",
   "branch": "fix/merge-final-newline",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "fix/merge-final-newline",
+    "headSha": "f7d63084850f1a90a58b9031892d9bd2fc68a2e4"
+  }
 }
