@@ -2079,6 +2079,8 @@ report it rather than ask, so the store never prompts:
   and the store directory's own remote where it has one; `--json` gives the same as data.
 - **`arc store remote <remote> <push|read|off>`** sets one remote's role. A setting that changes the layout runs the
   migrate verb's layout move first (§ 10.2), after finishing any move whose record stands (§ 10.3), and reports it.
+  A setting that finishes such a move and then refuses or asks keeps its own refusal or question, which carries the
+  finished move's report, so neither the move's account nor the setting's stop is lost (§ 10.1) (A39).
   Setting `push` while another remote carries it refuses, naming that remote: repointing the state remote without moving
   state would strand it, so the remedies are `arc store migrate --to <remote>` to move the project's state, or
   `arc store remote <other> off` first. Setting `push` on a code repository's remote while the store directory's
@@ -2316,6 +2318,9 @@ private: a wording amendment to D10 (§ 2.6).
 
   The `store` arm keeps its refusal's class, and every other arm but the two terminal ones is recoverable. The
   contract's closed refusal union (`StoreRefusalSchema`) and every fixture's recovery table stay as they are.
+  Every arm but `import-refused`, which always carries its own, also carries the `MigrateReport` of a recorded move
+  the command finished before it refused, as a setting's refusal does (§ 9.4), and the question a setting asks carries
+  it the same way (A39).
 
 The import's transform is its one-time part, in its own module (§ 1.2), which the cutover's deletion pass removes with
 the in-repo implementation; everything at the destination is the verb's.
@@ -4551,6 +4556,12 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     starting states § 14.14 names build once per file, a case run against a copy proving what it proved against a fresh
     build (§ 14.12, § 14.14). Supersedes criterion 34 (A33).
 
+44. **A setting a finished move precedes keeps its own stop and carries that move's report.** A setting that first
+    finishes a recorded layout move and then refuses — `upstream push` beside a code remote carrying `push` — returns
+    `role-conflict` with its class, its remedy, and the layout move's report, and one that then asks — the code
+    remote's `push` while the checkout's pointer names a backing repository — returns its confirmation carrying the
+    report; on a terminal it asks, and the accepted setting's result carries both moves' reports (§ 9.4, § 10.1) (A39).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4702,5 +4713,8 @@ open:
 
 - **A37** — 2026-10-23 — design: a lineage holding retired branches is removable once its archived primary holds them.
   _Supersedes:_ § Non-Goals ¶4. _Trigger:_ standard-pass-1/AGG-29 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A39** — 2026-10-24 — design: a setting that finishes a recorded move, then refuses or asks, keeps its own stop.
+  _Supersedes:_ § 10.1 ¶8. _Trigger:_ fix-check-1/F17 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

@@ -13,6 +13,8 @@ import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registration
 import { createRefSyncCheckout, preparedRefSync } from "../helpers/store/ref-sync.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
+import { invokeStoreRemote } from "../helpers/store/remote-command.js";
+import type { PromptRenderer } from "../../src/lib/command-input/prompter.js";
 import { success } from "../helpers/store/suite-tools.js";
 
 const provenance = { verb: "start", lifecycleAction: "seed" };
@@ -826,7 +828,7 @@ describe("remote moves beside an unsettled layout", () => {
   });
 });
 
-it("returns the report of a layout move a refused setting finished first", async () => {
+it("keeps a setting's own refusal after the layout move it finished first, carrying that move's report", async () => {
   const h = await layoutFixture();
   expect((await runStoreRemote(h.a.ports, { remote: "origin", role: "off" })).status).toBe("ok");
   await h.a.exec("git", ["config", "remote.origin.arc-state", "push"]);
@@ -834,9 +836,40 @@ it("returns the report of a layout move a refused setting finished first", async
     ? Promise.reject(new Error("Stop after recorded switch")) : Promise.resolve() })).rejects.toThrow("Stop after recorded switch");
   await h.a.exec("git", ["remote", "add", "upstream", h.origin]);
   const result = await runStoreRemote(h.a.ports, { remote: "upstream", role: "push" });
-  expect(result, JSON.stringify(result)).toMatchObject({ status: "ok", result: { layout: "default", report: { move: "layout",
-    notices: expect.arrayContaining([expect.objectContaining({ condition: expect.stringContaining("upstream push was not applied"),
-      remedy: expect.objectContaining({ argv: ["arc", "store", "migrate", "--to", "upstream"] }) })]) } } });
+  expect(result, JSON.stringify(result)).toMatchObject({ status: "refused", refusal: { code: "role-conflict", class: "recoverable",
+    remedy: { argv: ["arc", "store", "migrate", "--to", "upstream"] }, report: { move: "layout" } } });
   expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout).toBe("");
   await expect(h.a.exec("git", ["config", "remote.upstream.arc-state"])).rejects.toThrow();
+  expect(await runStoreRemote(h.a.ports)).toMatchObject({ status: "ok", result: { layout: "default" } });
+});
+
+it("keeps a setting's question after the layout move it finished first, carrying that move's report", async () => {
+  const h = await layoutFixture();
+  await expect(runStoreRemote({ ...h.a.ports, migrateStep: (step) => step === "layout.deleted"
+    ? Promise.reject(new Error("Stop after source delete")) : Promise.resolve() }, { remote: "origin", role: "off" })).rejects.toThrow("Stop after source delete");
+  const ports = { ...h.a.ports, backingRepository: async () => h.origin };
+  const asked = await runStoreRemote(ports, { remote: "origin", role: "push" });
+  expect(asked, JSON.stringify(asked)).toMatchObject({ status: "confirmation-needed", repository: h.origin,
+    remedy: { argv: ["arc", "store", "remote", "origin", "push", "--own-state"] }, report: { move: "layout" } });
+  expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout).toBe("");
+  expect(await runStoreRemote(ports, { remote: "origin", role: "push", ownState: true })).toMatchObject({ status: "ok", result: { layout: "default" } });
+});
+
+it("asks on a terminal after the layout move a setting finished first, the answer's result carrying both moves", async () => {
+  const h = await layoutFixture();
+  await expect(runStoreRemote({ ...h.a.ports, migrateStep: (step) => step === "layout.deleted"
+    ? Promise.reject(new Error("Stop after source delete")) : Promise.resolve() }, { remote: "origin", role: "off" })).rejects.toThrow("Stop after source delete");
+  let asked = "";
+  const unexpected = async (): Promise<never> => { throw new Error("Unexpected prompt form"); };
+  const renderer: PromptRenderer = { text: unexpected, select: unexpected, multiselect: unexpected,
+    confirm: async (_context, question) => { asked = question.message; return { kind: "answered", value: true }; } };
+  const { result, exitCode } = await invokeStoreRemote(["origin", "push"], { cwd: h.a.root, renderer,
+    ports: { ...h.a.ports, backingRepository: async () => h.origin } });
+  expect(asked).toContain(h.origin);
+  expect(result, JSON.stringify(result)).toMatchObject({ status: "ok", result: { layout: "default" } });
+  if (result.status !== "ok" || !result.result.report) throw new Error("Expected the moves' report");
+  // The finished move copied each ref out of the code repository's refs, and the accepted setting's move copied it back.
+  const first = h.before[0]?.split(" ")[0];
+  expect(result.result.report.refs.filter(({ ref }) => ref === first)).toHaveLength(2);
+  expect(exitCode).toBe(0);
 });

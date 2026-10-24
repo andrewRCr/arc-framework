@@ -1,12 +1,12 @@
 /** Explicit ref-store commands and their clone-wide migration serialization. */
 
 import type { Store } from "../contract.js";
-import { StoreMigrateInputSchema, StoreRemoteInputSchema, type StoreMigrateInput, type StoreMigrateResult,
+import { StoreMigrateInputSchema, StoreRemoteInputSchema, combineMigrateReports, type StoreMigrateInput, type StoreMigrateResult,
   type StoreRemoteInput, type StoreRemoteResult, type MigrateReport } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import { designatedStoreLayout, observeRefLayout } from "./layout-state.js";
 import { readRefDesignation, refDesignationStop, type RefDesignation } from "./designation.js";
-import { migrationCodeContext, readMoveRecord, type LayoutSetting, type RecordedMove, type RecordedFollow } from "./migrate-record.js";
+import { migrationCodeContext, readMoveRecord, type RecordedMove, type RecordedFollow } from "./migrate-record.js";
 import { moveRefRemote } from "./migrate-remote.js";
 import { clearRemoteGathering } from "./migrate-remote-copy.js";
 import { moveRefLayout } from "./migrate-layout.js";
@@ -97,19 +97,16 @@ export async function runRefRemote(context: RefBackendContext, store: Store, inp
     const follow = await guardRefFollowSetting(context, store, setting.remote, setting.role);
     const applied = follow ?? await applyRefRemoteSetting(context, store, setting, input.ownState);
     if (!completed) return applied;
-    if (applied.status !== "ok") return unappliedSetting(context, completed, setting, applied);
-    applied.result.report = applied.result.report ? combineLayoutReports(completed, applied.result.report) : completed;
+    if (applied.status !== "ok") return unappliedSetting(completed, applied);
+    applied.result.report = applied.result.report ? combineMigrateReports(completed, applied.result.report) : completed;
     return applied;
   });
 }
 
-/** The finished move's record is already gone, so its report survives a setting that then refuses or asks first. */
-async function unappliedSetting(context: RefBackendContext, completed: MigrateReport, setting: LayoutSetting,
-  applied: Exclude<StoreRemoteResult, { status: "ok" }>): Promise<StoreRemoteResult> {
-  const { condition, remedy } = applied.status === "confirmation-needed" ? applied
-    : applied.refusal.code === "store" ? applied.refusal.refusal : applied.refusal;
-  return { status: "ok", result: { ...await remoteView(context), report: { ...completed, notices: [...completed.notices,
-    { condition: `The setting ${setting.remote} ${setting.role} was not applied: ${condition}`, remedy }] } } };
+/** The finished move's record is already gone, so a setting that then refuses or asks keeps its own stop and carries the report. */
+function unappliedSetting(completed: MigrateReport, applied: Exclude<StoreRemoteResult, { status: "ok" }>): StoreRemoteResult {
+  if (applied.status === "confirmation-needed") return { ...applied, report: completed };
+  return { status: "refused", refusal: applied.refusal.code === "import-refused" ? applied.refusal : { ...applied.refusal, report: completed } };
 }
 
 async function resumeFollowRequest(context: RefBackendContext, store: Store, recorded: RecordedFollow, { to, trial }: StoreMigrateInput): Promise<import("../commands.js").StoreCommandResult<MigrateReport>> {
@@ -147,10 +144,4 @@ function invalidRemoteCommand(condition: string): Extract<StoreRemoteResult, { s
 function invalidCommand(condition: string): Extract<StoreMigrateResult, { status: "refused" }> {
   return { status: "refused", refusal: { code: "request-invalid", class: "terminal", condition,
     remedy: { text: "Correct the migration input and retry." } } };
-}
-
-function combineLayoutReports(first: MigrateReport, last: MigrateReport): MigrateReport {
-  return { ...last, refs: [...first.refs, ...last.refs], refused: [...first.refused, ...last.refused],
-    brokenChains: [...first.brokenChains, ...last.brokenChains], reviewMapping: [...first.reviewMapping, ...last.reviewMapping],
-    differingNotes: [...first.differingNotes, ...last.differingNotes], notices: [...first.notices, ...last.notices] };
 }

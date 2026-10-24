@@ -4,7 +4,7 @@ import type { InteractionContext } from "../lib/command-input/interaction-contex
 import { declarePromptSite } from "../lib/command-input/declaration.js";
 import { prompt } from "../lib/command-input/prompter.js";
 import { runStoreRemote } from "../lib/store/create.js";
-import { StoreRemoteInputSchema, type StoreRemoteResult } from "../lib/store/commands.js";
+import { StoreRemoteInputSchema, combineMigrateReports, type MigrateReport, type StoreRemoteResult } from "../lib/store/commands.js";
 import { invalidStoreCommand, renderStoreCommand, storeCommandDependencies, type StoreCommandDependencies } from "./store-output.js";
 
 /** Output and explicit publication options supplied by Commander. */
@@ -31,13 +31,23 @@ export async function handleStoreRemote(remote: string | undefined, role: string
   const input = parsed.data;
   let result = await runStoreRemote(io.ports, input);
   if (result.status === "confirmation-needed") {
+    const finished = result.report;
     const answer = await prompt(storeOwnStatePromptSite, interaction, { message: result.condition, initialValue: false }, io.promptRenderer);
-    if (answer.kind === "answered" && answer.value) result = await runStoreRemote(io.ports, { ...input, ownState: true });
+    if (answer.kind === "answered" && answer.value) result = withFinishedMove(await runStoreRemote(io.ports, { ...input, ownState: true }), finished);
     else if (answer.kind !== "refused") {
       io.write("Remote setting left unchanged.\n");
-      result = await runStoreRemote(io.ports);
+      result = withFinishedMove(await runStoreRemote(io.ports), finished);
     }
   }
   renderStoreCommand(result, options.json === true, io);
   return result;
+}
+
+/** A move the question's run finished has no record left, so its report rides whatever the answer returns. */
+function withFinishedMove(result: StoreRemoteResult, finished: MigrateReport | undefined): StoreRemoteResult {
+  if (!finished) return result;
+  const carried = (report: MigrateReport | undefined) => report ? combineMigrateReports(finished, report) : finished;
+  if (result.status === "ok") return { ...result, result: { ...result.result, report: carried(result.result.report) } };
+  if (result.status === "confirmation-needed") return { ...result, report: carried(result.report) };
+  return result.refusal.code === "import-refused" ? result : { ...result, refusal: { ...result.refusal, report: carried(result.refusal.report) } };
 }

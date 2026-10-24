@@ -1,6 +1,6 @@
 /** Output and dependency binding for explicit ref-store commands. */
 
-import type { StoreConflictResult, StoreMigrateResult, StoreRemoteResult } from "../lib/store/commands.js";
+import type { MigrateReport, StoreConflictResult, StoreMigrateResult, StoreRemoteResult } from "../lib/store/commands.js";
 import type { RefStorePorts } from "../lib/store/ports.js";
 import type { PromptRenderer } from "../lib/command-input/prompter.js";
 import { createExecaGitExec } from "../lib/git/process-executor.js";
@@ -36,12 +36,20 @@ export function renderStoreCommand(result: StoreRemoteResult | StoreMigrateResul
   else if (result.status === "refused") {
     const refusal = result.refusal.code === "store" ? result.refusal.refusal : result.refusal;
     io.write(`${refusal.code}: ${refusal.condition}\n${refusal.remedy.text}\n`);
-  } else if (result.status === "confirmation-needed") io.write(`${result.condition}\n${result.remedy.text}\n`);
-  else if (result.status === "designation-needed") io.write(`Choose a state role for ${result.remote}.\n${result.remedy.text}\n`);
+    writeReport(io, "report" in result.refusal ? result.refusal.report : undefined);
+  } else if (result.status === "confirmation-needed") {
+    io.write(`${result.condition}\n${result.remedy.text}\n`);
+    writeReport(io, result.report);
+  } else if (result.status === "designation-needed") io.write(`Choose a state role for ${result.remote}.\n${result.remedy.text}\n`);
   else if ("remotes" in result.result) {
     io.write(`Layout: ${result.result.layout}\n`);
     for (const remote of result.result.remotes) io.write(`${remote.name} (${remote.repository}): ${remote.role ?? "undesignated"} ${remote.url}\n`);
-    if (result.result.report) io.write(`${JSON.stringify(result.result.report, null, 2)}\n`);
+    writeReport(io, result.result.report);
   } else io.write(`${JSON.stringify(result.result, null, 2)}\n`);
   io.setExitCode(result.status === "ok" ? 0 : 1);
+}
+
+/** A move's report, whether the command finished it and succeeded or then stopped. */
+function writeReport(io: Pick<StoreCommandDependencies, "write">, report: MigrateReport | undefined): void {
+  if (report) io.write(`${JSON.stringify(report, null, 2)}\n`);
 }

@@ -23,14 +23,23 @@ export const MigrateReportSchema = z.strictObject({
 /** A move's complete build and recovery report. */
 export type MigrateReport = z.infer<typeof MigrateReportSchema>;
 
+/** Account for two moves one command ran in order, the later one's kind standing for both. */
+export function combineMigrateReports(first: MigrateReport, last: MigrateReport): MigrateReport {
+  return { ...last, refs: [...first.refs, ...last.refs], refused: [...first.refused, ...last.refused],
+    brokenChains: [...first.brokenChains, ...last.brokenChains], reviewMapping: [...first.reviewMapping, ...last.reviewMapping],
+    differingNotes: [...first.differingNotes, ...last.differingNotes], notices: [...first.notices, ...last.notices] };
+}
+
 const explained = { condition: z.string().min(1), remedy: RemedySchema };
+/** The report of a recorded move the command finished before it refused. */
+const finished = { report: MigrateReportSchema.optional() };
 /** Command refusals remain separate from the storage operation's closed refusal vocabulary. */
 export const StoreCommandRefusalSchema = z.discriminatedUnion("code", [
-  z.strictObject({ code: z.enum(["unsupported", "request-invalid"]), class: z.literal("terminal"), ...explained }),
+  z.strictObject({ code: z.enum(["unsupported", "request-invalid"]), class: z.literal("terminal"), ...explained, ...finished }),
   z.strictObject({ code: z.enum(["no-state-remote", "role-conflict", "move-incomplete", "move-unfinished",
-    "move-record-malformed", "moved", "follow-refused"]), class: z.literal("recoverable"), ...explained }),
+    "move-record-malformed", "moved", "follow-refused"]), class: z.literal("recoverable"), ...explained, ...finished }),
   z.strictObject({ code: z.literal("import-refused"), class: z.literal("recoverable"), ...explained, report: MigrateReportSchema }),
-  z.strictObject({ code: z.literal("store"), refusal: StoreRefusalSchema }),
+  z.strictObject({ code: z.literal("store"), refusal: StoreRefusalSchema, ...finished }),
 ]);
 /** An explicit command's refusal, preserving a store refusal unchanged in its own arm. */
 export type StoreCommandRefusal = z.infer<typeof StoreCommandRefusalSchema>;
@@ -59,9 +68,9 @@ export interface StoreRemoteView {
 export interface StoreDesignationQuestion {
   status: "designation-needed"; remote: string; choices: ("push" | "read" | "off")[]; remedy: z.infer<typeof RemedySchema>;
 }
-/** A setting that needs explicit publication authority carries what accepting it publishes. */
+/** A setting that needs explicit publication authority carries what accepting it publishes, and any move it finished first. */
 export interface StoreRemoteConfirmation {
-  status: "confirmation-needed"; repository: string; condition: string; remedy: z.infer<typeof RemedySchema>;
+  status: "confirmation-needed"; repository: string; condition: string; remedy: z.infer<typeof RemedySchema>; report?: MigrateReport;
 }
 /** The migrate entry's complete result. */
 export type StoreMigrateResult = StoreCommandResult<MigrateReport> | StoreDesignationQuestion;
