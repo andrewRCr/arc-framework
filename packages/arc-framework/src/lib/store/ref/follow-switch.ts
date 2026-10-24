@@ -9,6 +9,7 @@ import { configureBacking, installCopiedHeads, remoteLayoutCleanupComplete, remo
 import { readRefRepository } from "./repository.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
+import type { SwitchUndo } from "./migrate-switch-undo.js";
 
 type RecordedSourceSwitch = RecordedFollow | RecordedLeaveSource;
 
@@ -60,12 +61,19 @@ async function prepareFollowTarget(code: RefBackendContext, target: RefBackendCo
     .map(([ref, expected]) => ({ ref, expected, delete: true })));
 }
 
+/** A follow's switch is undone to its old remote's recorded role and layout; the checkout's pointer stays as found. */
+export function followSwitchUndo(recorded: RecordedFollow): SwitchUndo {
+  const { source, destination, sourceRole, answer, sourceLayout, destinationLayout } = recorded.record;
+  return { recorded, source, destination, sourceRole, destinationRole: answer, sourceLayout, destinationLayout };
+}
+
 async function applyFollowDesignation(context: RefBackendContext, recorded: RecordedSourceSwitch): Promise<void> {
   const { source, destination } = recorded.record, code = await migrationCodeContext(context);
   const answer = recorded.record.kind === "follow" ? recorded.record.answer : "push";
+  if (destination.repository === "code") await code.exec("git", ["config", `remote.${destination.name}.arc-state`, answer], { cwd: context.checkoutRoot });
   if (source.repository === "code") await code.exec("git", ["config", `remote.${source.name}.arc-state`, "off"], { cwd: context.checkoutRoot });
-  if (destination.repository === "code") {
-    await code.exec("git", ["config", `remote.${destination.name}.arc-state`, answer], { cwd: context.checkoutRoot });
-    await removeBacking(await readRefRepository(context));
-  }
+  if (destination.repository !== "code") return;
+  // Without a store directory the physical repository is the code repository, whose remote named backing is the person's own.
+  const physical = await readRefRepository(context);
+  if (physical.repository?.gitDir) await removeBacking(physical);
 }

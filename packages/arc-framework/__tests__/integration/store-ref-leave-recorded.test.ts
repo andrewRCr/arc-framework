@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { switchFixture } from "../helpers/store/remote-move.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
+import { invokeStoreRemote } from "../helpers/store/remote-command.js";
+import { success } from "../helpers/store/suite-tools.js";
 
 it("withdraws only its own forwarding record when the copied destination is deleted", async () => {
   const h = await switchFixture();
@@ -63,4 +65,36 @@ it("keeps a failed withdrawal restartable and names the hand-ending route", asyn
   } })).rejects.toThrow("Pause after withdrawal");
   expect((await h.a.exec("git", ["rev-parse", "refs/arc/tmp/migrate/move"])).stdout).toBe(move);
   expect((await invokeStoreMigrate(["--leave-source"], h.ports)).status).toBe("ok");
+}, 60_000);
+
+it("ends a pre-switch move at a deleted destination with no pointer to revert and keeps syncing with the source", async () => {
+  const h = await switchFixture();
+  await expect(invokeStoreMigrate(["--to", h.to], { ...h.ports, migrateStep: async step => {
+    if (step === "remote.forwarded") throw new Error("Pause before switch");
+  } })).rejects.toThrow("Pause before switch");
+  const pointer = await readFile(h.config, "utf8");
+  await rm(h.destinationDirectory, { recursive: true, force: true });
+  const ended = await invokeStoreMigrate(["--leave-source"], h.ports);
+  expect(ended.status, JSON.stringify(ended)).toBe("ok");
+  if (ended.status !== "ok") throw new Error("Leaving refused");
+  expect(ended.result.notices.map(({ condition }) => condition).join("\n")).not.toMatch(/tracked pointer/u);
+  expect(await readFile(h.config, "utf8")).toBe(pointer);
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/project/moved"])).stdout).toBe("");
+  expect(success(await h.store.push()).states).toEqual([]);
+  expect((await h.a.exec("git", ["config", "remote.origin.arc-state"])).stdout.trim()).toBe("push");
+}, 60_000);
+
+it("finishes a begun switch from its record before ending it at a departed source", async () => {
+  const h = await switchFixture();
+  await expect(invokeStoreMigrate(["--to", h.to], { ...h.ports, migrateStep: async step => {
+    if (step === "layout.designation") throw new Error("Pause inside switch");
+  } })).rejects.toThrow("Pause inside switch");
+  await rm(h.origin, { recursive: true, force: true });
+  const ended = await invokeStoreMigrate(["--leave-source"], h.ports);
+  expect(ended.status, JSON.stringify(ended)).toBe("ok");
+  expect((await h.a.exec("git", ["config", "remote.origin.arc-state"])).stdout.trim()).toBe("off");
+  expect((await invokeStoreRemote(["--json"], { cwd: h.a.root, ports: h.ports })).result).toMatchObject({ status: "ok", result: {
+    layout: "separate", remotes: expect.arrayContaining([expect.objectContaining({ name: "backing", role: "push", url: h.destinationDirectory })]) } });
+  expect(success(await h.store.pull()).states).toEqual([]);
+  expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout).toBe("");
 }, 60_000);

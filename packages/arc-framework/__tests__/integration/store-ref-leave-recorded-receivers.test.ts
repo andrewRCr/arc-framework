@@ -41,7 +41,8 @@ it("ends read-only source cleanup without unpublishing it, then permits another 
   } })).rejects.toThrow("Pause before cleanup");
   await writeFile(hook, "#!/bin/sh\nexit 1\n"); await chmod(hook, 0o755);
   const source = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
-  for (let attempt = 0; attempt < 2; attempt++) expect(await invokeStoreMigrate([], h.ports)).toMatchObject({ status: "refused", refusal: { code: "move-unfinished" } });
+  for (let attempt = 0; attempt < 2; attempt++) expect(await invokeStoreMigrate([], h.ports)).toMatchObject({ status: "refused", refusal: { code: "move-unfinished",
+    remedy: { text: expect.stringContaining("arc store migrate --leave-source"), argv: ["arc", "store", "migrate"] } } });
   expect((await invokeStoreMigrate(["--leave-source"], h.ports)).status).toBe("ok");
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(source);
   const next = join(h.a.root, "next.git"); await h.a.exec("git", ["init", "--bare", next]);

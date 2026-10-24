@@ -42,7 +42,8 @@ export async function deleteRemoteSource(code: RefBackendContext, recorded: Reco
   } catch (error) {
     if (!(error instanceof MigrationRefusal)) throw error;
     throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable", condition: `The recorded remote move could not finish cleanup: ${error.message}`,
-      remedy: { text: "Repair the reported remote or receiver condition, then retry arc store migrate with no target.", argv: ["arc", "store", "migrate"] } });
+      remedy: { text: "Repair the reported remote or receiver condition, then retry arc store migrate with no target. Where the old remote is gone for good, end the move without its deletes with arc store migrate --leave-source.",
+        argv: ["arc", "store", "migrate"] } });
   }
 }
 

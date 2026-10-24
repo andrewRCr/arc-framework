@@ -6,7 +6,7 @@ import { StoreMigrateInputSchema, StoreRemoteInputSchema, type StoreMigrateInput
 import type { RefBackendContext } from "./context.js";
 import { designatedStoreLayout, observeRefLayout } from "./layout-state.js";
 import { readRefDesignation, refDesignationStop } from "./designation.js";
-import { migrationCodeContext, readMoveRecord, type RecordedMove, type RecordedFollow } from "./migrate-record.js";
+import { migrationCodeContext, readMoveRecord, type LayoutSetting, type RecordedMove, type RecordedFollow } from "./migrate-record.js";
 import { moveRefRemote } from "./migrate-remote.js";
 import { clearRemoteGathering } from "./migrate-remote-copy.js";
 import { moveRefLayout } from "./migrate-layout.js";
@@ -89,10 +89,20 @@ export async function runRefRemote(context: RefBackendContext, store: Store, inp
     }
     const follow = await guardRefFollowSetting(context, store, setting.remote, setting.role);
     const applied = follow ?? await applyRefRemoteSetting(context, store, setting, input.ownState);
-    if (applied.status === "ok" && completed) applied.result.report = applied.result.report
-      ? combineLayoutReports(completed, applied.result.report) : completed;
+    if (!completed) return applied;
+    if (applied.status !== "ok") return unappliedSetting(context, completed, setting, applied);
+    applied.result.report = applied.result.report ? combineLayoutReports(completed, applied.result.report) : completed;
     return applied;
   });
+}
+
+/** The finished move's record is already gone, so its report survives a setting that then refuses or asks first. */
+async function unappliedSetting(context: RefBackendContext, completed: MigrateReport, setting: LayoutSetting,
+  applied: Exclude<StoreRemoteResult, { status: "ok" }>): Promise<StoreRemoteResult> {
+  const { condition, remedy } = applied.status === "confirmation-needed" ? applied
+    : applied.refusal.code === "store" ? applied.refusal.refusal : applied.refusal;
+  return { status: "ok", result: { ...await remoteView(context), report: { ...completed, notices: [...completed.notices,
+    { condition: `The setting ${setting.remote} ${setting.role} was not applied: ${condition}`, remedy }] } } };
 }
 
 async function resumeFollowRequest(context: RefBackendContext, store: Store, recorded: RecordedFollow, { to, trial }: StoreMigrateInput): Promise<import("../commands.js").StoreCommandResult<MigrateReport>> {

@@ -23,7 +23,7 @@ export async function leaveRefSource(context: RefBackendContext, store: Store, i
     if (held.status === "refused") return held;
     if (held.result && held.result.record.kind !== "leave-source") {
       if (to) throw leaveSourceInvalid("--to cannot accompany --leave-source while a move or follow is recorded.");
-      return await endRecordedSource(code, held.result);
+      return await endRecordedSource(context, store, code, held.result);
     }
     resume = held.result?.record.kind === "leave-source" ? { record: held.result.record, tip: held.result.tip } : undefined;
     checkDepartureResume(resume, input);

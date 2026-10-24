@@ -11,10 +11,10 @@ import { readSyncRefs } from "./sync-graph.js";
 import { migrationCodeContext, saveMoveRecord, removeMoveRecord, readMoveRecord, type RecordedFollow, type FollowMoveRecord } from "./migrate-record.js";
 import { readRefRepository } from "./repository.js";
 import { publisherLayout } from "./layout-state.js";
-import { followSwitchComplete, switchRefFollow } from "./follow-switch.js";
+import { followSwitchComplete, followSwitchUndo, switchRefFollow } from "./follow-switch.js";
 import { clearRemoteGathering, remoteCopyReport, readRemoteCopyReport } from "./migrate-remote-copy.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
-import { undoSwitch, type SwitchUndo } from "./migrate-switch-undo.js";
+import { undoSwitch } from "./migrate-switch-undo.js";
 import { copyFollowState } from "./follow-copy.js";
 import { deleteFollowSource } from "./follow-delete.js";
 
@@ -88,12 +88,6 @@ function endedFollowNotice(cause: "stale" | "moved", undone: boolean): MigrateRe
     ? "Another move has taken the state since this follow judged it, overtaking the follow during its switch, which was undone; the follow ended without deletes."
     : "Another move has taken the state since this follow judged it; the follow ended without a switch or deletes.",
   remedy: { text: "Bring in the latest tracked pointer, then run arc store migrate to follow the current move.", argv: ["arc", "store", "migrate"] } };
-}
-
-/** A follow's switch is undone to its old remote's recorded role and layout; the checkout's pointer stays as found. */
-function followSwitchUndo(recorded: RecordedFollow): SwitchUndo {
-  const { source, destination, sourceRole, answer, sourceLayout, destinationLayout } = recorded.record;
-  return { recorded, source, destination, sourceRole, destinationRole: answer, sourceLayout, destinationLayout };
 }
 
 async function requireFollowPublication(physical: RefBackendContext, projectId: string): Promise<void> {

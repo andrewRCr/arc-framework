@@ -17,7 +17,8 @@ it.each(["deleted", "read-only"])("ends a switched follow whose old receiver is 
     const hook = join(h.origin, "hooks", "pre-receive");
     await writeFile(hook, "#!/bin/sh\nexit 1\n"); await chmod(hook, 0o755);
   }
-  for (let attempt = 0; attempt < 2; attempt++) expect(await invokeStoreMigrate([], follower.ports)).toMatchObject({ status: "refused", refusal: { code: "move-unfinished" } });
+  for (let attempt = 0; attempt < 2; attempt++) expect(await invokeStoreMigrate([], follower.ports)).toMatchObject({ status: "refused", refusal: { code: "move-unfinished",
+    remedy: { text: expect.stringContaining("arc store migrate --leave-source"), argv: ["arc", "store", "migrate"] } } });
   const ended = await invokeStoreMigrate(["--leave-source"], follower.ports);
   expect(ended).toMatchObject({ status: "ok", result: { notices: expect.arrayContaining([
     expect.objectContaining({ condition: expect.stringContaining("refs/arc/user/beth/personal") }),

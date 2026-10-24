@@ -180,7 +180,9 @@ it("names every accepted code remote regardless of role and asks once only one r
   }
   await writeFile(follower.config, "# The state moved back to code remotes.\n");
   const several = await invokeStoreMigrate([], follower.ports);
-  expect(several).toMatchObject({ status: "refused", refusal: { code: "follow-refused", condition: expect.stringMatching(/first.*second/u) } });
+  expect(several).toMatchObject({ status: "refused", refusal: { code: "follow-refused", condition: expect.stringMatching(/first.*second/u),
+    remedy: { text: expect.stringMatching(/arc store remote first <push\|read\|off>.*arc store remote second <push\|read\|off>/u) } } });
+  expect(several).not.toHaveProperty("refusal.remedy.argv");
   await follower.exec("git", ["remote", "remove", "second"]);
   expect(await invokeStoreMigrate([], follower.ports)).toMatchObject({ status: "designation-needed", remote: "first",
     remedy: { argv: ["arc", "store", "remote", "first", "push"] } });
@@ -290,4 +292,35 @@ it("follows successive layout kinds straight to the current upstream and rejects
     remedy: { text: expect.stringContaining("add the upstream") } } });
   await reader.exec("git", ["remote", "add", "returned", h.origin]);
   expect(await invokeStoreMigrate([], reader.ports)).toMatchObject({ status: "designation-needed", remote: "returned" });
+}, 60_000);
+
+it("follows one of several accepted remotes through the setting the refusal names", async () => {
+  const h = await followFixture(), follower = h.follower, duplicate = join(h.a.root, "duplicate.git");
+  await follower.exec("git", ["init", "--bare", duplicate]);
+  const refs = (await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim().split("\n");
+  await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "push", "--atomic", duplicate, ...refs.map(ref => `${ref}:${ref}`)]);
+  for (const [name, url] of [["first", h.destinationDirectory], ["second", duplicate]] as const) await follower.exec("git", ["remote", "add", name, url]);
+  await writeFile(follower.config, "# The state moved back to code remotes.\n");
+  expect(await invokeStoreMigrate([], follower.ports)).toMatchObject({ status: "refused", refusal: { code: "follow-refused" } });
+  const followed = (await invokeStoreRemote(["first", "push", "--json"], { cwd: follower.root, ports: follower.ports })).result;
+  expect(followed.status, JSON.stringify(followed)).toBe("ok");
+  expect((await follower.exec("git", ["config", "remote.first.arc-state"])).stdout.trim()).toBe("push");
+  expect((await follower.exec("git", ["config", "remote.origin.arc-state"])).stdout.trim()).toBe("off");
+  expect(success(await follower.store.read({ reference: follower.unpublished })).content).toBe("Unpublished follower data.\n");
+}, 60_000);
+
+it.each(["destination", "empty"] as const)("never designates or removes a code remote named backing that points at the %s repository", async target => {
+  const h = await followFixture(), follower = h.follower, empty = join(h.a.root, "empty.git");
+  await follower.exec("git", ["init", "--bare", empty]);
+  const url = target === "destination" ? h.destinationDirectory : empty;
+  for (const [name, remote] of [["first", h.destinationDirectory], ["backing", url]] as const) await follower.exec("git", ["remote", "add", name, remote]);
+  // As the code remote, first takes the state into the code repository, where no store directory holds a backing remote.
+  await follower.exec("git", ["config", "remote.pushdefault", "first"]);
+  await writeFile(follower.config, "# The state moved back to a code remote.\n");
+  expect(await invokeStoreMigrate([], follower.ports)).toMatchObject({ status: "designation-needed", remote: "first" });
+  const followed = (await invokeStoreRemote(["first", "push", "--json"], { cwd: follower.root, ports: follower.ports })).result;
+  expect(followed.status, JSON.stringify(followed)).toBe("ok");
+  expect((await follower.exec("git", ["remote", "get-url", "backing"])).stdout.trim()).toBe(url);
+  expect((await follower.exec("git", ["config", "remote.first.arc-state"])).stdout.trim()).toBe("push");
+  expect((await follower.exec("git", ["config", "remote.origin.arc-state"])).stdout.trim()).toBe("off");
 }, 60_000);

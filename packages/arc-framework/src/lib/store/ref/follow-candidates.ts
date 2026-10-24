@@ -60,7 +60,7 @@ async function followCandidates(context: RefBackendContext, code: RefBackendCont
   if (pointer) return [{ name: "backing", repository: "backing", url: pointer, fetchUrl: pointer, pushUrl: pointer }];
   const candidates: MoveRemote[] = [];
   for (const remote of due.designation.codeRemotes) {
-    if (remote.name === exclude) continue;
+    if (remote.name === exclude || remote.name === "backing") continue;
     const captured = await readFollowRemote(remote.name, () => captureMoveRemote(context, code, remote));
     const presence = await readRefRegistryPresence(code, captured.fetchUrl);
     if (presence.status === "unreachable") throw followReadFailure(remote.name, presence.condition, presence.cause);
@@ -121,11 +121,12 @@ async function holdsFollowCommit(code: RefBackendContext, move: string, registry
 }
 
 function followResult(due: RefFollowDue, accepted: RefFollowCandidate[], rejected: string[]): StoreMigrateResult {
-  if (accepted.length !== 1) return { status: "refused", refusal: { code: "follow-refused", class: "recoverable",
-    condition: accepted.length ? `Several remotes hold the move: ${accepted.map(row => row.remote.name).join(", ")}.`
-      : `No remote holds the move. ${rejected.join("; ") || "No code repository remote carries a registry."}`,
-    remedy: { text: accepted.length ? "Choose one with arc store remote <remote> <role>."
-      : "Bring in the code carrying the tracked pointer's change, or add the upstream remote the state moved to, then retry arc store migrate.", argv: ["arc", "store", "migrate"] } } };
+  if (accepted.length > 1) return { status: "refused", refusal: { code: "follow-refused", class: "recoverable",
+    condition: `Several remotes hold the move: ${accepted.map(row => row.remote.name).join(", ")}.`,
+    remedy: { text: `Choose the state's home with ${accepted.map(row => `arc store remote ${row.remote.name} <push|read|off>`).join(" or ")}.` } } };
+  if (!accepted.length) return { status: "refused", refusal: { code: "follow-refused", class: "recoverable",
+    condition: `No remote holds the move. ${rejected.join("; ") || "No code repository remote carries a registry."}`,
+    remedy: { text: "Bring in the code carrying the tracked pointer's change, or add the upstream remote the state moved to, then retry arc store migrate.", argv: ["arc", "store", "migrate"] } } };
   const candidate = accepted[0];
   if (!candidate) throw new Error("A single accepted follow candidate is absent");
   const conflict = backingPublicationConflict(due, candidate);

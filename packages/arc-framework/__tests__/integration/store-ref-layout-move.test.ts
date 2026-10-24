@@ -811,3 +811,18 @@ describe("remote moves beside an unsettled layout", () => {
     expect(resumed.refs.every(({ action }) => action === "copy")).toBe(true);
   });
 });
+
+it("returns the report of a layout move a refused setting finished first", async () => {
+  const h = await layoutFixture();
+  expect((await runStoreRemote(h.a.ports, { remote: "origin", role: "off" })).status).toBe("ok");
+  await h.a.exec("git", ["config", "remote.origin.arc-state", "push"]);
+  await expect(runStoreMigrate({ ...h.a.ports, migrateStep: (step) => step === "layout.delete"
+    ? Promise.reject(new Error("Stop after recorded switch")) : Promise.resolve() })).rejects.toThrow("Stop after recorded switch");
+  await h.a.exec("git", ["remote", "add", "upstream", h.origin]);
+  const result = await runStoreRemote(h.a.ports, { remote: "upstream", role: "push" });
+  expect(result, JSON.stringify(result)).toMatchObject({ status: "ok", result: { layout: "default", report: { move: "layout",
+    notices: expect.arrayContaining([expect.objectContaining({ condition: expect.stringContaining("upstream push was not applied"),
+      remedy: expect.objectContaining({ argv: ["arc", "store", "migrate", "--to", "upstream"] }) })]) } } });
+  expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout).toBe("");
+  await expect(h.a.exec("git", ["config", "remote.upstream.arc-state"])).rejects.toThrow();
+});

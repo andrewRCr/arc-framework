@@ -1,5 +1,6 @@
 /** Recorded follow direction and copy ownership survive interruptions at every switch boundary. */
 import { rename, writeFile } from "node:fs/promises";
+import type { GitExec } from "../../src/lib/git/exec.js";
 import { describe, expect, it } from "vitest";
 import { followFixture, lateFollowFixture } from "../helpers/store/follow.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
@@ -126,4 +127,26 @@ it("returns a finished layout move's report before the follow that became due be
   expect((await invokeStoreRemote(["--json"], { cwd: follower.root, ports: follower.ports })).result).toMatchObject({ status: "ok",
     result: { layout: "separate", remotes: [expect.objectContaining({ name: "origin", role: "read" })] } });
   expect(await invokeStoreMigrate([], follower.ports)).toMatchObject({ status: "designation-needed", remote: "backing" });
+}, 60_000);
+
+it("reports a follow interrupted between its role writes as unfinished rather than asking for a designation", async () => {
+  const h = await followFixture(), follower = h.follower;
+  await follower.exec("git", ["remote", "add", "first", h.destinationDirectory]);
+  await writeFile(follower.config, "# The state moved back to a code remote.\n");
+  let armed = false, writes = 0;
+  const exec: GitExec = async (command, args, options) => {
+    if (armed && command === "git" && args[0] === "config" && /^remote\..+\.arc-state$/u.test(args[1] ?? "") && ++writes === 2) {
+      throw new Error("Interrupted between role writes");
+    }
+    return follower.ports.exec(command, args, options);
+  };
+  await expect(invokeStoreRemote(["first", "push", "--json"], { cwd: follower.root, ports: { ...follower.ports, exec,
+    migrateStep: async step => { if (step === "follow.switch") armed = true; } } })).rejects.toThrow("Interrupted between role writes");
+  const states = success(await follower.store.pull()).states.map(({ status }) => status);
+  expect(states).not.toContain("designation-needed");
+  expect(states).toContain("move-unfinished");
+  const finished = await invokeStoreMigrate([], follower.ports);
+  expect(finished.status, JSON.stringify(finished)).toBe("ok");
+  expect((await follower.exec("git", ["config", "remote.first.arc-state"])).stdout.trim()).toBe("push");
+  expect((await follower.exec("git", ["config", "remote.origin.arc-state"])).stdout.trim()).toBe("off");
 }, 60_000);
