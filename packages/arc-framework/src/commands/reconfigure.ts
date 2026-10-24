@@ -190,8 +190,9 @@ export async function runReconfigure(
     // Missing pristine store — proceed with empty
   }
   const renderCtx = { templateDir, tokens, config, configKeyOverrides };
-  // Refuse before any preview, prompt, or write over uncommitted changes to the files it writes, or over files already
-  // at the paths it adds, then where merging a customized file with no baseline would drop its upstream changes
+  // Refuse before any preview, prompt, or write over a symbolic link on a path it writes, over uncommitted changes to
+  // the files it writes, or over files already at the paths it adds, then where merging a customized file with no
+  // baseline would drop its upstream changes
   const initialPlan = buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles);
   await refuseUnsafePlanWrites({
     plan: initialPlan, cwd, arcDir, manifestPath, renderCtx, exec: io.exec, readFile: io.readFile,

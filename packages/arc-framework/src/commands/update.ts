@@ -380,9 +380,9 @@ export async function runUpdate(
   const renderCtx = { templateDir, tokens, config, configKeyOverrides };
   const arcConfigPath = join(arcDir, ARC_CONFIG_TEMPLATE_PATH);
 
-  // Refuse before any write over uncommitted changes to the files the update writes, or over files already at the
-  // paths it adds, then recover the baselines the manifest proves and refuse where merging a customized file with no
-  // baseline would drop its upstream changes
+  // Refuse before any write over a symbolic link on a path it writes, over uncommitted changes to the files the update
+  // writes, or over files already at the paths it adds, then recover the baselines the manifest proves and refuse
+  // where merging a customized file with no baseline would drop its upstream changes
   const readAsMerged = async (path: string): Promise<string> => {
     const content = await io.readFile(path);
     return path === arcConfigPath ? migrateUserSyncPush(content).content : content;

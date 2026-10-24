@@ -4,14 +4,13 @@
  *
  * `arc init` and an update's additions write paths ARC has not installed before. A file already there belongs to the
  * project or to an earlier tree, committed or ignored, and writing over it would replace it without notice; an ignored
- * one could not be restored. A symlink there counts too, since the write would follow it to wherever it points. A file
- * that already holds exactly what would be written is not a conflict, so a retry after a partly applied run continues.
+ * one could not be restored. A file that already holds exactly what would be written is not a conflict, so a retry
+ * after a partly applied run continues. A symbolic link on the path is refused before this check runs.
  *
  * @module
  */
 
 import { join } from "node:path";
-import { lstat } from "node:fs/promises";
 
 import { UserFacingError } from "../errors.js";
 import type { ReadFileFn } from "../template/index.js";
@@ -26,20 +25,8 @@ export interface FirstWrite {
 /** Read errors meaning something other than a readable file already sits at or above the path. */
 const OCCUPIED_READ_ERRORS = new Set(["EISDIR", "ENOTDIR"]);
 
-/** Whether the path itself is a symlink, which a write would follow to wherever it points. */
-async function isSymlink(path: string): Promise<boolean> {
-  try {
-    return (await lstat(path)).isSymbolicLink();
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code === "ENOENT" || code === "ENOTDIR") return false;
-    throw err;
-  }
-}
-
 /**
- * Find the writes that would replace something already at their path with different content, or follow a symlink
- * there to wherever it points.
+ * Find the writes that would replace something already at their path with different content.
  *
  * @param root - Repository root the paths are relative to
  * @param writes - The files an install would write for the first time
@@ -54,10 +41,6 @@ export async function findOccupiedPaths(
   const occupied: string[] = [];
   for (const write of writes) {
     const path = join(root, write.path);
-    if (await isSymlink(path)) {
-      occupied.push(write.path);
-      continue;
-    }
     let current: string;
     try {
       current = await readFile(path);
