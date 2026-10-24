@@ -4,7 +4,7 @@ import type { RecordReference } from "../identity.js";
 import { parseStoreCommitProvenance } from "../commit-provenance.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefTrees, type RefTreeEntry } from "./batch-read.js";
-import { isManifestRef } from "./manifest.js";
+import { isStateRef } from "./manifest.js";
 
 /** One ref's complete contribution to the original batch, including its conflict commit. */
 export interface WithdrawJournalStep {
@@ -19,7 +19,7 @@ export async function readWithdrawJournal(context: RefBackendContext, held: Read
   batches: ReadonlySet<string>, reference: RecordReference, origin: string): Promise<WithdrawJournalStep[]> {
   const steps: WithdrawJournalStep[] = [];
   for (const [ref, tip] of held) {
-    if (!isManifestRef(ref) && !ref.startsWith("refs/arc/history/")) continue;
+    if (!isStateRef(ref)) continue;
     if (/^refs\/arc\/(?:history\/)?work\//u.test(ref) && ref !== origin) continue;
     const { stdout } = await context.exec("git", ["log", "--first-parent", "--format=%H %P%n%B%x00", tip],
       { cwd: context.checkoutRoot, objectAccess: "local-only" });

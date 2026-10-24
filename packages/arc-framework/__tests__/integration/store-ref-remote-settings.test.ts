@@ -358,3 +358,30 @@ it.each(["default", "separate"] as const)("refuses a second push designation wit
   expect((await runStoreRemote(h.a.ports, { remote: other, role: "off" })).status).toBe("ok");
   expect((await runStoreRemote(h.a.ports, { remote: target, role: "push" })).status).toBe("ok");
 });
+
+it("refuses a backing setting when state reaches the code repository while its store is placed", async () => {
+  const h = await refSyncFixture();
+  await h.a.exec("git", ["config", "remote.origin.arc-state", "off"]);
+  const head = (await h.a.exec("git", ["rev-parse", "HEAD"])).stdout.trim();
+  let armed = true;
+  const refused = await runStoreRemote({ ...h.a.ports, backingRepository: async () => h.origin, lock: async (name, waitMs) => {
+    if (armed && name === "layout") { armed = false; await h.a.exec("git", ["update-ref", "refs/arc/project/registry", head]); }
+    return h.a.ports.lock(name, waitMs);
+  } }, { remote: "backing", role: "push" });
+  expect(armed).toBe(false);
+  expect((await h.a.exec("git", ["remote"])).stdout).toBe("origin");
+  expect(refused).toMatchObject({ status: "refused", refusal: { code: "move-incomplete", remedy: { argv: ["arc", "store", "migrate"] } } });
+});
+
+it("names leaving a gone backing repository for a code remote that holds the project's state", async () => {
+  const h = await refSyncFixture("separate");
+  success(await h.a.store.write({ action: "put", reference: identity, expected: null, content: JSON.stringify({ projectId: localId }), provenance }));
+  success(await h.a.store.push());
+  expect((await h.a.exec("git", ["ls-remote", "origin", "refs/arc/project/registry"])).stdout).not.toBe("");
+  const refused = await runStoreRemote(h.a.ports, { remote: "origin", role: "push" });
+  expect(refused).toMatchObject({ status: "refused", refusal: { code: "role-conflict", condition: expect.stringContaining("backing"),
+    remedy: { argv: ["arc", "store", "migrate", "--to", "origin"] } } });
+  for (const route of ["arc store migrate --leave-source --to origin", "arc store remote backing off"]) {
+    expect(refused).toMatchObject({ refusal: { remedy: { text: expect.stringContaining(route) } } });
+  }
+});

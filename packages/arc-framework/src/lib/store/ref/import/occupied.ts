@@ -4,14 +4,14 @@ import type { Store } from "../../contract.js";
 import type { StoreCommandResult } from "../../commands.js";
 import { readRefRepository } from "../repository.js";
 import { readRefTips } from "../batch-read.js";
-import { isManifestRef } from "../manifest.js";
+import { isStateRef } from "../manifest.js";
 import { RecordReferenceSchema, type RecordReference } from "../../identity.js";
 
 /** True identifies only this repository's own earlier import landing. */
 export async function inspectImportDestination(context: RefBackendContext, store: Store, repositoryId: string | null): Promise<StoreCommandResult<boolean>> {
   const physical = await readRefRepository(context);
   const tips = await readRefTips(physical, { includeHistory: true });
-  if (![...tips.keys()].some((ref) => isManifestRef(ref.replace("refs/arc/history/", "refs/arc/")))) return { status: "ok", result: false };
+  if (![...tips.keys()].some(isStateRef)) return { status: "ok", result: false };
   const projectReference = (uid?: string) => RecordReferenceSchema.parse({ kind: "project-registry/identity",
     owner: { type: "project", name: "project", ...(uid ? { uid } : {}) } });
   const identity = await store.read({ reference: projectReference() });

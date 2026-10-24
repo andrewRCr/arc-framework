@@ -4,7 +4,7 @@ import { MigrationRefusal } from "./migrate-refusal.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import type { RefCommitMode } from "./commit-step.js";
 import type { RefBackendContext } from "./context.js";
-import { isManifestRef } from "./manifest.js";
+import { isStateRef } from "./manifest.js";
 import { mergeCapturedRefState } from "./sync-pull-lifecycle.js";
 import { HistoryRefSchema } from "../refusal.js";
 import type { PullNotice } from "../sync.js";
@@ -21,7 +21,7 @@ export async function prepareRefCopy(context: RefBackendContext, source: Readonl
   const capture = async (): Promise<Map<string, string>> => targetRoot
     ? new Map([...(await readSyncRefs(context, targetRoot))].map(([ref, tip]) => ["refs/arc/" + ref.slice(targetRoot.length), tip]))
     : readSyncRefs(context, ["refs/arc/", "refs/arc-remotes/"]);
-  const incoming = new Map([...source].filter(([ref]) => isCopyStateRef(ref)));
+  const incoming = new Map([...source].filter(([ref]) => isStateRef(ref)));
   const requested = [...incoming.keys()].flatMap((ref) => {
     const history = HistoryRefSchema.safeParse(ref);
     return history.success ? [history.data] : [];
@@ -43,13 +43,11 @@ export async function prepareRefCopy(context: RefBackendContext, source: Readonl
     break;
   }
   const held = await capture();
-  const controls = [...source].filter(([ref]) => !isCopyStateRef(ref));
+  const controls = [...source].filter(([ref]) => !isStateRef(ref));
   const applied = await updateRefTransaction(context, controls.map(([ref, next]) => ({ ref: targetRef(ref), next, expected: held.get(ref) ?? null })), { cwd: context.checkoutRoot });
   if (applied.status !== "committed") throw new Error("An isolated copy's keeper refs changed while preparing it");
   return { refs: await capture(), notices: notices.map(copyNotice) };
 }
-
-function isCopyStateRef(ref: string): boolean { return isManifestRef(ref.replace("refs/arc/history/", "refs/arc/")); }
 
 function copyNotice(notice: PullNotice): MigrateReport["notices"][number] {
   if (notice.kind === "rule-broken") return { condition: `${notice.rule}: ${notice.condition}`, remedy: notice.remedy };

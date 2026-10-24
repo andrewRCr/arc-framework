@@ -6,7 +6,7 @@ import { prepareRefCopy } from "./migrate-copy.js";
 import type { Store } from "../contract.js";
 import type { RefBackendContext } from "./context.js";
 import { bindRefRepository } from "./repository-context.js";
-import { isManifestRef, readObjectFormat } from "./manifest.js";
+import { isStateRef, readObjectFormat } from "./manifest.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
 import { MOVE_REF, type LayoutMoveRecord } from "./migrate-record.js";
@@ -30,7 +30,7 @@ export async function layoutRefs(context: RefBackendContext): Promise<Map<string
 
 function carriedByLayout(ref: string): boolean {
   return ref.startsWith("refs/arc-remotes/") || ref === "refs/arc/tmp/version" || LAYOUT_KEEPERS.some((prefix) => ref.startsWith(prefix))
-    || isManifestRef(ref.replace("refs/arc/history/", "refs/arc/"));
+    || isStateRef(ref);
 }
 
 /** Replace an interrupted build from fresh source refs, keeping the destination untouched. */

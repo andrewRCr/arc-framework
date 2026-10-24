@@ -3,7 +3,7 @@
 import type { PushRefChange } from "../../git/push.js";
 import { HistoryRefSchema, type HistoryRef } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
-import { isManifestRef } from "./manifest.js";
+import { isStateRef } from "./manifest.js";
 import { readSyncRefs, syncRefIsAncestor } from "./sync-graph.js";
 import { withRefLocks } from "./write-locks.js";
 import { readPendingRefEnds } from "./sync-lifecycle.js";
@@ -73,7 +73,7 @@ async function readPushListing(context: RefBackendContext, remote: string, ident
 }
 
 function publishableRef(ref: string, identity: string | null): boolean {
-  if (!isManifestRef(ref) && !HistoryRefSchema.safeParse(ref).success) return false;
+  if (!isStateRef(ref)) return false;
   return !ref.startsWith("refs/arc/user/") || identity !== null
     && (ref === `refs/arc/user/${identity}/personal` || ref === `refs/arc/user/${identity}/claims`);
 }

@@ -2,7 +2,7 @@
 
 import type { RefBackendContext } from "./context.js";
 import type { RefDesignation } from "./designation.js";
-import { isManifestRef } from "./manifest.js";
+import { isStateRef } from "./manifest.js";
 import { migrationCodeContext, MOVE_REF, type StoreLayout } from "./migrate-record.js";
 import { readRefRepository } from "./repository.js";
 import { readSyncRefs } from "./sync-graph.js";
@@ -29,7 +29,7 @@ export async function observeRefLayout(context: RefBackendContext, designation: 
 }> {
   const physical = await readRefRepository(context), code = await migrationCodeContext(context);
   const refs = await readSyncRefs(code, "refs/arc/");
-  const held = [...refs.keys()].some((ref) => isManifestRef(ref.replace("refs/arc/history/", "refs/arc/")));
+  const held = [...refs.keys()].some(isStateRef);
   const separate = Boolean(physical.repository?.gitDir);
   const recorded = refs.has(MOVE_REF);
   const unfinished = recorded || separate && held ? { status: "move-unfinished" as const,

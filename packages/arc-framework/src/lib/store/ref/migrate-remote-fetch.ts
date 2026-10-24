@@ -10,8 +10,7 @@ import { readSyncRefs } from "./sync-graph.js";
 import { requireLayoutTransaction } from "./migrate-layout-build.js";
 import { refFetchArgs, refFetchNegotiation } from "./fetch-target.js";
 import { refFetchNeedsCompleteness, missingRefFetchObjects, RefFetchIncompleteError } from "./fetch-completeness.js";
-import { isManifestRef } from "./manifest.js";
-import { HistoryRefSchema } from "../refusal.js";
+import { isStateRef } from "./manifest.js";
 import { FORWARDING_REF } from "./forwarding-record.js";
 
 /** Clear exactly one temporary acquisition namespace, preserving the move and copied tips. */
@@ -38,7 +37,7 @@ export async function fetchMigrationRemote(context: RefBackendContext, remote: M
     if (missing.length) throw new MigrationRefusal({ code: "store", refusal: new RefFetchIncompleteError(missing, []).failure });
   }
   return new Map([...(await readSyncRefs(context, prefix))].map(([ref, tip]): [string, string] => ["refs/arc/" + ref.slice(prefix.length), tip])
-    .filter(([ref]) => isManifestRef(ref) || HistoryRefSchema.safeParse(ref).success || ref === FORWARDING_REF));
+    .filter(([ref]) => isStateRef(ref) || ref === FORWARDING_REF));
 }
 
 async function runMigrationFetch(context: RefBackendContext, args: string[], remote: MoveRemote): Promise<Extract<FetchOutcome, { status: "refs" }>> {

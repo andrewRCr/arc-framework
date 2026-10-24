@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { createRefStore } from "../../src/lib/store/create.js";
-import { RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { RecordReferenceSchema, runStoreMigrate } from "../../src/lib/store/index.js";
 
 async function fresh(layout: "default" | "separate" = "default", published = true) {
   const h = await refSyncFixture(layout);
@@ -129,20 +129,76 @@ describe("first state designation", () => {
   });
 
 
-  it("preserves held code-repository state when a first backing pointer needs a layout move", async () => {
+  it("preserves held code-repository state when a first backing pointer needs a layout move, then follows its remedy", async () => {
     const h = await fresh();
     success(await h.b.store.pull());
     await h.b.exec("git", ["config", "--unset", "remote.origin.arc-state"]);
-    const store = createRefStore({ ...h.b.ports, backingRepository: async () => h.origin });
+    const ports = { ...h.b.ports, backingRepository: async () => h.origin }, store = createRefStore(ports);
     const result = success(await store.pull());
-    expect(result.states).toMatchObject([{ status: "move-incomplete", remedy: {
-      argv: ["arc", "store", "migrate", "--to", h.origin],
-    } }]);
+    expect(result.states).toMatchObject([{ status: "move-incomplete", remedy: { argv: ["arc", "store", "migrate"] } }]);
     expect(result.pulls).toEqual([]);
     expect((await h.b.exec("git", ["remote"])).stdout).toBe("origin");
     expect(success(await h.b.store.read({ reference: RecordReferenceSchema.parse({
       kind: "project-registry/identity", owner: { type: "project", name: "project" },
     }) })).content).toContain("34567890-1234-4234-8234-123456789abc");
+    expect((await runStoreMigrate(ports)).status).toBe("ok");
+    expect(success(await store.pull()).states).toMatchObject([question("backing", ["push", "off"], "push")]);
+  });
+
+  it("refuses a first backing when state reaches the code repository while its store is placed", async () => {
+    const h = await fresh("default", false);
+    const head = (await h.b.exec("git", ["rev-parse", "HEAD"])).stdout.trim();
+    let armed = true;
+    const store = createRefStore({ ...h.b.ports, backingRepository: async () => h.origin, lock: async (name, waitMs) => {
+      if (armed && name === "layout") { armed = false; await h.b.exec("git", ["update-ref", "refs/arc/project/registry", head]); }
+      return h.b.ports.lock(name, waitMs);
+    } });
+    const states = success(await store.pull()).states;
+    expect(armed).toBe(false);
+    expect((await h.b.exec("git", ["remote"])).stdout).toBe("origin");
+    expect(states).toMatchObject([{ status: "move-incomplete", remedy: { argv: ["arc", "store", "migrate"] } }]);
+  });
+
+  it("publishes to a designated upstream without asking about an unanswered code remote", async () => {
+    const h = await fresh("default", false);
+    const upstream = join(h.cloneB, "upstream.git");
+    await h.b.exec("git", ["init", "--bare", upstream]);
+    await h.b.exec("git", ["remote", "add", "upstream", upstream]);
+    await h.b.exec("git", ["config", "remote.upstream.arc-state", "push"]);
+    success(await h.b.store.write({ action: "put", expected: null, content: "# User Inbox\n",
+      reference: RecordReferenceSchema.parse({ kind: "personal/inbox", owner: { type: "person", name: "andrew" } }),
+      provenance: { verb: "user", lifecycleAction: "seed" } }));
+    expect(success(await h.b.store.push()).states).toEqual([]);
+    expect((await h.b.exec("git", ["--git-dir", upstream, "for-each-ref", "--format=%(refname)", "refs/arc/user/"])).stdout).toContain("refs/arc/user/andrew/");
+    expect(await roles(h)).not.toContain("remote.origin.arc-state");
+  });
+
+  it("reports an unreachable state remote's own failure without a designation remedy", async () => {
+    const h = await fresh();
+    await h.b.exec("git", ["remote", "add", "upstream", join(h.cloneB, "missing.git")]);
+    await h.b.exec("git", ["config", "remote.upstream.arc-state", "push"]);
+    const result = success(await h.b.store.pull());
+    expect(result.states).toEqual([]);
+    expect(result.pulls).toMatchObject([{ remote: "upstream", role: "state", status: "failed" }]);
+    expect(await roles(h)).not.toContain("remote.origin.arc-state");
+  });
+
+  it("asks nothing about the code remote while an answered read source cannot be read", async () => {
+    const h = await fresh("default", false);
+    await h.b.exec("git", ["remote", "add", "upstream", join(h.cloneB, "missing.git")]);
+    await h.b.exec("git", ["config", "remote.upstream.arc-state", "read"]);
+    const result = success(await h.b.store.pull());
+    expect(result.states).toEqual([{ status: "no-remote" }]);
+    expect(result.pulls).toMatchObject([{ remote: "upstream", role: "read", status: "failed" }]);
+  });
+
+  it("pulls a fork's designated upstream while its unanswered origin cannot be read", async () => {
+    const h = await fresh();
+    await h.b.exec("git", ["remote", "set-url", "origin", join(h.cloneB, "missing.git")]);
+    await h.b.exec("git", ["remote", "add", "upstream", h.origin]);
+    await h.b.exec("git", ["config", "remote.upstream.arc-state", "push"]);
+    expect(success(await h.b.store.pull())).toMatchObject({ states: [], pulls: [{ remote: "upstream", role: "state", status: "pulled" }] });
+    expect(await roles(h)).not.toContain("remote.origin.arc-state");
   });
 
 });

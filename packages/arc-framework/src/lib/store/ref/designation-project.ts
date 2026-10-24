@@ -5,7 +5,7 @@ import { normalizeGitRejection } from "../../git/process-error.js";
 import { PASSIVE_REMOTE_INTERACTION } from "../../git/remote-ref-reader.js";
 import { updateRefTransaction } from "../../git/ref-transaction.js";
 import type { PullOutcome } from "../sync.js";
-import type { StoreResult } from "../refusal.js";
+import type { Remedy, StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
 import { bindRefRepository } from "./repository-context.js";
@@ -30,7 +30,7 @@ export async function checkRefDesignationProject(context: RefBackendContext, rem
   designation: RefDesignation): Promise<RefDesignationProjectCheck> {
   context = await readRefRepository(context);
   const local = await projectIdAt(context, "refs/arc/project/registry");
-  if (local.status === "refused") return projectReadFailure(local.refusal.condition);
+  if (local.status === "refused") return projectReadFailure(local.refusal.condition, local.refusal.remedy);
   if (!local.result) return { status: "ok" };
   const original = context.syncDeadline?.cleanup ?? context;
   const cleanup = context.repository ? bindRefRepository(original, context.repository.commonDir, context.repository.gitDir) : original;
@@ -121,7 +121,7 @@ Promise<ProjectFetch | { status: "failed"; failure: ProjectFailure }> {
   return missing.length ? { status: "failed", failure: new RefFetchIncompleteError(missing, []).failure } : retry;
 }
 
-function projectReadFailure(condition: string): { status: "failed"; failure: ProjectFailure } {
-  return { status: "failed", failure: { code: "refused", class: "terminal", message: condition, condition,
-    remedy: { text: "Repair the candidate registry or its temporary ref lock, then retry; no role was set." } } };
+function projectReadFailure(condition: string,
+  remedy: Remedy = { text: "Repair the candidate registry or its temporary ref lock, then retry; no role was set." }): { status: "failed"; failure: ProjectFailure } {
+  return { status: "failed", failure: { code: "refused", class: "terminal", message: condition, condition, remedy } };
 }

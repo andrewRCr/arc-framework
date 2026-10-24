@@ -22,8 +22,7 @@ import { RefFetchIncompleteError } from "./fetch-completeness.js";
 import { readSyncRefs } from "./sync-graph.js";
 import type { RefMergeOptions } from "./sync-merge.js";
 import { mergePulledRefState, captureFetchedHistories, isWithheld } from "./sync-pull-lifecycle.js";
-import { isManifestRef } from "./manifest.js";
-import { HistoryRefSchema } from "../refusal.js";
+import { isStateRef } from "./manifest.js";
 import { FORWARDING_REF, readForwardingRecord, forwardingFollowRemedy, readSourceForwardingRemedy } from "./forwarding-record.js";
 
 /** Fetch only explicitly designated state sources into this store's tracking namespace. */
@@ -121,13 +120,11 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
   }
 }
 
-function stateRef(ref: string): boolean { return isManifestRef(ref) || HistoryRefSchema.safeParse(ref).success; }
-
 /** The fetched state refs a merge reads, less each one whose fetch drew a notice. */
 function fetchedSource(prefix: string, tips: ReadonlyMap<string, string>, notices: readonly PullNotice[]): { incoming: Map<string, string>; refused: Set<string> } {
   const refused = new Set(notices.flatMap((notice) => "ref" in notice ? [notice.ref] : []));
   const incoming = new Map([...tips].map(([ref, tip]): [string, string] => [`refs/arc/${ref.slice(prefix.length)}`, tip])
-    .filter(([ref]) => stateRef(ref) && !refused.has(ref)));
+    .filter(([ref]) => isStateRef(ref) && !refused.has(ref)));
   return { incoming, refused };
 }
 
@@ -135,7 +132,7 @@ function fetchedSource(prefix: string, tips: ReadonlyMap<string, string>, notice
 function withholdRefs(incoming: Map<string, string>, refused: ReadonlySet<string>, previous: ReadonlyMap<string, string>): Map<string, string> {
   const withheld = new Map([...refused].flatMap((ref) => {
     const tip = previous.get(ref);
-    return tip && stateRef(ref) && !incoming.has(ref) ? [[ref, tip] as const] : [];
+    return tip && isStateRef(ref) && !incoming.has(ref) ? [[ref, tip] as const] : [];
   }));
   for (const [ref, tip] of withheld) incoming.set(ref, tip);
   return withheld;

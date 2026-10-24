@@ -3,7 +3,7 @@
 import type { Store } from "../contract.js";
 import type { StoreRemoteResult, StoreRemoteView } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
-import { readRefDesignation, type RefDesignation } from "./designation.js";
+import { readRefDesignation, type RefDesignation, type RefRemoteDesignation } from "./designation.js";
 import { readRefRepository, restartOnVanishedStore } from "./repository.js";
 import { designatedStoreLayout } from "./layout-state.js";
 import { moveRefLayout } from "./migrate-layout.js";
@@ -32,9 +32,16 @@ export async function applyRefRemoteSetting(context: RefBackendContext, store: S
     .find(({ name, role, repository }) => name !== setting.remote && role === "push" && (name !== "backing" || repository === "backing"));
   if (setting.role === "push" && other) return { status: "refused", refusal: { code: "role-conflict", class: "recoverable",
     condition: `${other.name} already carries push; moving its designation alone would strand state.`,
-    remedy: { text: `Run arc store migrate --to ${setting.remote}, or arc store remote ${other.name} off then arc store remote ${setting.remote} push to designate this clone's state.`,
-      argv: ["arc", "store", "migrate", "--to", setting.remote] } } };
+    remedy: { text: otherPushRemedy(other, setting.remote), argv: ["arc", "store", "migrate", "--to", setting.remote] } } };
   return applyCodeSetting(context, store, designation, setting, ownState);
+}
+
+function otherPushRemedy(other: RefRemoteDesignation, remote: string): string {
+  if (other.repository !== "backing") {
+    return `Run arc store migrate --to ${remote}, or arc store remote ${other.name} off then arc store remote ${remote} push to designate this clone's state.`;
+  }
+  return `Run arc store migrate --to ${remote}. If the backing repository is gone, run arc store migrate --leave-source --to ${remote} where ${remote} `
+    + `holds the project's state, or else arc store remote backing off and then arc store remote ${remote} push.`;
 }
 
 async function applyCodeSetting(context: RefBackendContext, store: Store, designation: RefDesignation,

@@ -244,4 +244,24 @@ describe("automatic designation project check", () => {
     await partial.exec("git", ["cat-file", "-e", blob], { objectAccess: "local-only" });
   }, 30_000);
 
+  it.each(["automatic", "setting"] as const)("names the local identity's repair when this store's own identity is malformed through the %s path", async (entry) => {
+    const h = await refSyncFixture();
+    await putIdentity(h.a.store, localId);
+    await h.a.git(["push", "origin", "refs/arc/*:refs/arc/*"]);
+    await putIdentity(h.b.store, localId);
+    const tip = (await h.b.git(["rev-parse", "refs/arc/project/registry"])).stdout.trim();
+    const rows = (await h.b.git(["ls-tree", "-r", "--format=%(objectname) %(path)", tip])).stdout.split("\n").filter(Boolean);
+    await plantRef(h.b.root, "refs/arc/project/registry", rows.map((row) => {
+      const at = row.indexOf(" "), path = row.slice(at + 1);
+      return path === "identity.json" ? { path, content: "{ malformed identity\n" } : { path, oid: row.slice(0, at), mode: "100644" as const };
+    }), { parents: [tip] });
+    await h.b.exec("git", ["config", "--unset", "remote.origin.arc-state"]);
+    const remedy = { text: expect.stringMatching(/identity\.json forward/u) };
+    if (entry === "automatic") {
+      expect(success(await h.b.store.pull()).pulls).toMatchObject([{ remote: "origin", role: "candidate", status: "failed", failure: { remedy } }]);
+    } else {
+      expect(await runStoreRemote(h.b.ports, { remote: "origin", role: "push" })).toMatchObject({ status: "refused", refusal: { refusal: { remedy } } });
+    }
+    expect((await h.b.exec("git", ["config", "--list"])).stdout).not.toContain("remote.origin.arc-state");
+  });
 });

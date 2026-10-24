@@ -3,11 +3,11 @@
 import type { StoreCommandResult, MigrateReport } from "../commands.js";
 import type { Store } from "../contract.js";
 import type { RefBackendContext } from "./context.js";
-import type { RefDesignation } from "./designation.js";
+import { readRefDesignation, type RefDesignation, type RefRemoteDesignation } from "./designation.js";
 import { readRefRepository, writeRefRepository } from "./repository.js";
 import { observeRefLayout, layoutRecoveryRemedy } from "./layout-state.js";
 import { readSyncRefs } from "./sync-graph.js";
-import { isManifestRef } from "./manifest.js";
+import { isStateRef } from "./manifest.js";
 import { checkRemoteProject } from "./remote-project.js";
 import { leaveRefSource } from "./leave-source.js";
 import { requireLayoutTransaction } from "./migrate-layout-build.js";
@@ -17,18 +17,11 @@ export async function setRefBacking(context: RefBackendContext, store: Store, de
   role: "push" | "read" | "off"): Promise<StoreCommandResult<MigrateReport | null>> {
   const pointer = await context.backingRepository();
   const publisher = designation.pushes.find(({ repository }) => repository === "code");
-  if (publisher) return { status: "refused", refusal: { code: "role-conflict", class: "recoverable",
-    condition: `${publisher.name} already carries push; backing needs a state move.`,
-    remedy: { text: `Run arc store migrate --to ${pointer ?? "<URL>"} to move state and its designation.`,
-      ...pointer ? { argv: ["arc", "store", "migrate", "--to", pointer] } : {} } } };
+  if (publisher) return publisherRefusal(publisher, pointer);
   const physical = await readRefRepository(context);
   const layout = await observeRefLayout(context, designation);
   if (layout.incomplete || !physical.repository?.gitDir && [...(await readSyncRefs(physical, "refs/arc/"))]
-    .some(([ref]) => isManifestRef(ref.replace("refs/arc/history/", "refs/arc/")))) return {
-    status: "refused", refusal: { code: "move-incomplete", class: "recoverable",
-      condition: layout.incomplete?.condition ?? "State remains in the code repository's refs; backing requires the separate store.",
-      remedy: layoutRecoveryRemedy() },
-  };
+    .some(([ref]) => isStateRef(ref))) return heldStateRefusal(layout.incomplete?.condition);
   if (!pointer && (!designation.backing || role === "push")) return noBackingPointer(context);
   const url = pointer ?? designation.backing?.url;
   if (!url) throw new Error("An admitted backing setting has no URL");
@@ -37,15 +30,32 @@ export async function setRefBacking(context: RefBackendContext, store: Store, de
     if (refused) return refused;
   }
   if (pointer && designation.backing && designation.backing.url !== pointer && role === "push") return leaveRefSource(context, store);
-  await applyBackingSetting(context, designation, url, role);
-  return { status: "ok", result: null };
+  return await applyBackingSetting(context, pointer, url, role) ?? { status: "ok", result: null };
 }
 
-async function applyBackingSetting(context: RefBackendContext, designation: RefDesignation, url: string,
-  role: "push" | "read" | "off"): Promise<void> {
-  const separate = await writeRefRepository(context);
+type BackingRefusal = Extract<StoreCommandResult<null>, { status: "refused" }>;
+
+function publisherRefusal(publisher: RefRemoteDesignation, pointer: string | null): BackingRefusal {
+  return { status: "refused", refusal: { code: "role-conflict", class: "recoverable",
+    condition: `${publisher.name} already carries push; backing needs a state move.`,
+    remedy: { text: `Run arc store migrate --to ${pointer ?? "<URL>"} to move state and its designation.`,
+      ...pointer ? { argv: ["arc", "store", "migrate", "--to", pointer] } : {} } } };
+}
+
+function heldStateRefusal(condition = "State remains in the code repository's refs; backing requires the separate store."): BackingRefusal {
+  return { status: "refused", refusal: { code: "move-incomplete", class: "recoverable", condition, remedy: layoutRecoveryRemedy() } };
+}
+
+async function applyBackingSetting(context: RefBackendContext, pointer: string | null, url: string,
+  role: "push" | "read" | "off"): Promise<BackingRefusal | undefined> {
+  await writeRefRepository(context);
   const release = await context.lock("layout");
   try {
+    // Another checkout may have designated a code remote, added backing, or placed state in the code repository meanwhile.
+    const designation = await readRefDesignation(context), separate = await readRefRepository(context);
+    const publisher = designation.pushes.find(({ repository }) => repository === "code");
+    if (publisher) return publisherRefusal(publisher, pointer);
+    if (!separate.repository?.gitDir) return heldStateRefusal();
     if (!designation.backing) await separate.exec("git", ["remote", "add", "backing", url]);
     await separate.exec("git", ["config", "remote.backing.arc-state", role]);
     if (designation.backing && designation.backing.url !== url) {
@@ -55,6 +65,7 @@ async function applyBackingSetting(context: RefBackendContext, designation: RefD
       await separate.exec("git", ["remote", "set-url", "backing", url]);
     }
   } finally { await release(); }
+  return undefined;
 }
 
 async function noBackingPointer(context: RefBackendContext): Promise<Extract<StoreCommandResult<null>, { status: "refused" }>> {

@@ -3,9 +3,7 @@
 import { observeRefLayout, layoutRecoveryRemedy } from "./layout-state.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefDesignation, refDesignationStop, type RefDesignation, type RefRemoteDesignation } from "./designation.js";
-import { readRefRepository, writeRefRepository } from "./repository.js";
-import { readRefTips } from "./batch-read.js";
-import { isManifestRef } from "./manifest.js";
+import { codeHoldsState, readRefRepository, writeRefRepository } from "./repository.js";
 import { checkRefDesignationProject, type RefDesignationProjectCheck } from "./designation-project.js";
 import { readRefRegistryPresence } from "./designation-presence.js";
 import type { PullOutcome, SyncState } from "../sync.js";
@@ -32,8 +30,6 @@ export async function resolveRefDesignation(context: RefBackendContext): Promise
 async function resolveFirstDesignation(context: RefBackendContext, initial: RefDesignation): Promise<RefDesignationResolution> {
   let designation = initial;
   const result: RefDesignationResolution = { designation, states: [], pulls: [] };
-  const stopped = refDesignationStop(designation);
-  if (stopped && stopped.status !== "no-remote") return { ...result, states: [stopped] };
   if (!designation.backing && designation.remotes.every(({ role }) => role === undefined)) {
     const state = await installFirstBacking(context);
     if (state) return { ...result, states: [state] };
@@ -43,8 +39,9 @@ async function resolveFirstDesignation(context: RefBackendContext, initial: RefD
   const candidates = designation.backing ? [designation.backing] : designation.remotes;
   const unanswered = candidates.filter(({ role }) => role === undefined);
   if (designation.backing && unanswered[0]) return { ...result, states: [designationQuestion(unanswered[0], designation)] };
-  if (!unanswered.length) return { ...result, states: designation.pushes.length ? [] : [{ status: "no-remote" }] };
-  const observed = await registryPresence(context, candidates, designation);
+  // A designated push remote already publishes this clone's state, so no first designation is due and nothing is probed.
+  if (!unanswered.length || designation.pushes.length) return { ...result, states: designation.pushes.length ? [] : [{ status: "no-remote" }] };
+  const observed = await registryPresence(context, unanswered, designation);
   if (observed.status === "failed") return { ...result, pulls: [observed] };
   return decideDesignation(context, result, unanswered, observed.present);
 }
@@ -53,16 +50,23 @@ async function installFirstBacking(context: RefBackendContext): Promise<SyncStat
   const pointer = await context.backingRepository();
   if (!pointer) return null;
   const physical = await readRefRepository(context);
-  if (!physical.repository?.gitDir && await holdsState(physical)) return {
-    status: "move-incomplete", condition: "The tracked backing pointer needs a separate store, but state remains in the code repository.",
-    remedy: { text: "Move the held state with arc store migrate --to <URL> before designating backing.", argv: ["arc", "store", "migrate", "--to", pointer] },
-  };
-  const separate = await writeRefRepository(context);
+  if (!physical.repository?.gitDir && await codeHoldsState(physical)) return heldBeforeBacking();
+  await writeRefRepository(context);
   const release = await context.lock("layout");
   try {
-    if (!(await readRefDesignation(context)).backing) await separate.exec("git", ["remote", "add", "backing", pointer]);
+    // Another checkout may have designated a remote or placed state in the code repository since the store was placed.
+    const current = await readRefDesignation(context);
+    if (current.backing || current.pushes.length) return null;
+    const selected = await readRefRepository(context);
+    if (!selected.repository?.gitDir) return heldBeforeBacking();
+    await selected.exec("git", ["remote", "add", "backing", pointer]);
   } finally { await release(); }
   return null;
+}
+
+function heldBeforeBacking(): SyncState {
+  return { status: "move-incomplete", condition: "The tracked backing pointer needs a separate store, but state remains in the code repository.",
+    remedy: layoutRecoveryRemedy() };
 }
 
 async function registryPresence(context: RefBackendContext, candidates: RefRemoteDesignation[], designation: RefDesignation):
@@ -97,14 +101,19 @@ async function decideDesignation(context: RefBackendContext, result: RefDesignat
       await source.exec("git", ["config", `remote.${code.name}.arc-state`, "push"]);
       return { ...result, designation: await readRefDesignation(context) };
     }
-    if (!present.size || present.has(code.name)) return { ...result, states: [designationQuestion(code, designation)] };
+    if (present.has(code.name) || !await answeredMayHoldRegistry(context, designation)) return { ...result, states: [designationQuestion(code, designation)] };
   }
-  return { ...result, states: designation.pushes.length ? [] : [{ status: "no-remote" }] };
+  return { ...result, states: [{ status: "no-remote" }] };
 }
 
-async function holdsState(context: RefBackendContext): Promise<boolean> {
-  return [...(await readRefTips(context, { includeHistory: true })).keys()]
-    .some((ref) => isManifestRef(ref.replace("refs/arc/history/", "refs/arc/")));
+/** An answered remote holding the registry, or one whose presence read fails, leaves the code remote unasked. */
+async function answeredMayHoldRegistry(context: RefBackendContext, designation: RefDesignation): Promise<boolean> {
+  for (const remote of designation.remotes) {
+    if (remote.role === undefined) continue;
+    const observed = await readRefRegistryPresence(context, remote.name);
+    if (observed.status === "unreachable" || observed.present) return true;
+  }
+  return false;
 }
 
 function designationQuestion(remote: RefRemoteDesignation, designation: RefDesignation): Extract<SyncState, { status: "designation-needed" }> {

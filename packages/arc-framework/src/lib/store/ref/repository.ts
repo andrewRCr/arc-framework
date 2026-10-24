@@ -5,7 +5,7 @@ import { readGitDirectories } from "../../git/directories.js";
 import { isGitProcessError } from "../../git/process-error.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefTips } from "./batch-read.js";
-import { isManifestRef, readObjectFormat } from "./manifest.js";
+import { isStateRef, readObjectFormat } from "./manifest.js";
 import { directoryExists, readRefDesignation } from "./designation.js";
 import { bindRefRepository } from "./repository-context.js";
 
@@ -63,9 +63,12 @@ export async function writeRefRepository(context: RefBackendContext,
   } finally { await release(); }
 }
 
-async function codeHoldsState(context: RefBackendContext, captured?: (tips: ReadonlyMap<string, string>) => void): Promise<boolean> {
+/** Whether the bound repository holds any state ref, as the code repository does before a move out of it.
+ * @param captured Receives the namespace only when it holds state.
+ */
+export async function codeHoldsState(context: RefBackendContext, captured?: (tips: ReadonlyMap<string, string>) => void): Promise<boolean> {
   const tips = await readRefTips(context, { includeHistory: true });
-  const present = [...tips.keys()].some((ref) => isManifestRef(ref.replace("refs/arc/history/", "refs/arc/")));
+  const present = [...tips.keys()].some(isStateRef);
   if (present) captured?.(tips);
   return present;
 }
