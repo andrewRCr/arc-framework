@@ -83,7 +83,8 @@ async function checkWindowTips(context: RefBackendContext, window: RefChangeWind
   if (family) {
     const home = expandStoredPath(refPrototype(context, live, family), { registry: context.registry });
     for (const tip of [window.upper, ...window.lower ? [window.lower] : []]) {
-      const unhealthy = await checkRefTip(context, window.ref, tip, home.metadataPath);
+      // Each window tip is a saved endpoint or a historical commit, which no forward repair reaches.
+      const unhealthy = await checkRefTip(context, window.ref, tip, home.metadataPath, true);
       if (unhealthy) return unhealthy;
     }
   }

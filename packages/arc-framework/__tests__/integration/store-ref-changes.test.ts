@@ -3,11 +3,14 @@ import { describe, expect, it } from "vitest";
 import { createRefFixture } from "../helpers/store/ref-fixture.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { META_REGISTRATION } from "../../src/lib/store/kinds/meta/registration.js";
-import { plantRef } from "../helpers/store/ref-plant.js";
+import { plantRef, type PlantTreeEntry } from "../helpers/store/ref-plant.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { RecordReferenceSchema, StateVersionSchema, sameReference } from "../../src/lib/store/index.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { seed, success, testProvenance, update, mutationOf } from "../helpers/store/suite-tools.js";
+import { renderStoreCommitMessage } from "../../src/lib/store/commit-provenance.js";
+import type { RefConformanceFixture } from "../helpers/store/ref-fixture.js";
+import type { StoreRecord } from "../../src/lib/store/index.js";
 
 describe("changes between ref manifests", () => {
   it("orders normal ref logs by ref name and their writes oldest first", async () => {
@@ -295,4 +298,82 @@ describe("changes between ref manifests", () => {
     expect(changes[0]?.reference).toEqual(first.reference);
   });
 
+  it("bounds an abandoned item's window at its end, leaving a later retained-history commit out", async () => {
+    const f = await createRefFixture();
+    const { record, from, to, history, git } = await abandonInWindow(f);
+    const expected = success(await f.store.changes({ from, to }));
+    expect(expected.filter(({ reference }) => sameReference(reference, record.reference)).map(({ version }) => version)).toEqual([record.version, null]);
+    // A late write merged into retained history after the end, as a pull of another clone's write leaves it.
+    const tip = (await git("git", ["rev-parse", history])).stdout.trim();
+    const metadata = (await treeEntries(git, `${tip}^`)).filter(({ path }) => path.startsWith("metadata-"));
+    await plantRef(f.root, history, [...metadata, { path: `meta-${record.reference.owner.name}.md`, content: f.content(record.reference, "changed-again") }],
+      { parents: [tip], message: renderStoreCommitMessage({ ...testProvenance, verb: "merge" }, record.reference, randomUUID()) });
+    expect(success(await f.store.changes({ from, to }))).toEqual(expected);
+  });
+
+  it("bounds an abandoned item's window at its retirement's final commit when its registry commit names no batch", async () => {
+    const f = await createRefFixture();
+    const { record, from, history, git } = await abandonInWindow(f);
+    // A legacy registry commit carries the same end with no batch trailer.
+    const registry = "refs/arc/project/registry", ended = (await git("git", ["rev-parse", registry])).stdout.trim();
+    const parents = (await git("git", ["log", "-n1", "--format=%P", ended])).stdout.split(" ").filter(Boolean);
+    await plantRef(f.root, registry, await treeEntries(git, ended), { parents, message: "Record the end" });
+    const to = await f.settle();
+    const own = async () => success(await f.store.changes({ from, to })).filter(({ reference }) => sameReference(reference, record.reference));
+    expect((await own()).map(({ version }) => version)).toEqual([record.version, null]);
+    const tip = (await git("git", ["rev-parse", history])).stdout.trim();
+    const metadata = (await treeEntries(git, `${tip}^`)).filter(({ path }) => path.startsWith("metadata-"));
+    await plantRef(f.root, history, [...metadata, { path: `meta-${record.reference.owner.name}.md`, content: f.content(record.reference, "changed-again") }],
+      { parents: [tip], message: renderStoreCommitMessage({ ...testProvenance, verb: "merge" }, record.reference, randomUUID()) });
+    expect((await own()).map(({ version }) => version)).toEqual([record.version, null]);
+  });
+
+  it("refuses an abandoned item's window while its retained history lacks the end, and reads it once restored", async () => {
+    const f = await createRefFixture();
+    const { record, from, to, history, git } = await abandonInWindow(f);
+    const tip = (await git("git", ["rev-parse", history])).stdout.trim();
+    await git("git", ["update-ref", history, `${tip}^`]);
+    expect(await f.store.changes({ from, to })).toMatchObject({ status: "refused", refusal: { code: "state-unresolvable", historyRefs: [history] } });
+    await git("git", ["update-ref", history, tip]);
+    const changes = success(await f.store.changes({ from, to }));
+    expect(changes.filter(({ reference }) => sameReference(reference, record.reference)).map(({ version }) => version)).toEqual([record.version, null]);
+  });
+
+  it("reads a restricted changes window beside another owner's unreadable folder", async () => {
+    const f = await createRefFixture(), quarter = ArchiveQuarterSchema.parse("2026-q4");
+    const damaged = await seed(f, f.reference("work-item/meta", "damaged"));
+    success(await f.store.write({ ...update(f, damaged, damaged.content), placement: { kind: "completed", quarter } }));
+    const archive = `refs/arc/archive/${quarter}`, git = makeGitExec(f.root);
+    const parent = (await git("git", ["rev-parse", archive])).stdout.trim();
+    await plantRef(f.root, archive, (await treeEntries(git, archive)).map((entry) => entry.path.includes("/metadata-") ? { path: entry.path, content: "not metadata" } : entry),
+      { parents: [parent] });
+    const record = await seed(f, f.reference("work-item/meta"));
+    const from = await f.settle();
+    success(await f.store.write({ ...update(f, record, record.content), placement: { kind: "completed", quarter } }));
+    const closed = success(await f.store.read({ reference: record.reference }));
+    const changes = success(await f.store.changes({ from, to: await f.settle(), references: [record.reference] }));
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ reference: record.reference, version: closed.version });
+  });
+
 });
+
+async function treeEntries(git: ReturnType<typeof makeGitExec>, revision: string): Promise<PlantTreeEntry[]> {
+  return (await git("git", ["ls-tree", "-r", "-z", revision])).stdout.split("\0").filter(Boolean).map((row) => {
+    const match = /^100644 blob ([0-9a-f]+)\t(.*)$/su.exec(row);
+    if (!match?.[1] || !match[2]) throw new Error("Expected regular record blobs");
+    return { path: match[2], mode: "100644", oid: match[1] };
+  });
+}
+
+/** Create and abandon one work item inside a compared window, returning that window and its retained history. */
+async function abandonInWindow(f: RefConformanceFixture): Promise<{ record: StoreRecord; from: Awaited<ReturnType<RefConformanceFixture["settle"]>>;
+  to: Awaited<ReturnType<RefConformanceFixture["settle"]>>; history: string; git: ReturnType<typeof makeGitExec> }> {
+  const from = await f.settle();
+  const record = await seed(f, f.reference("work-item/meta"));
+  const lineage = RecordReferenceSchema.parse({ kind: "lineage/transition", owner: record.reference.owner });
+  success(await f.store.batch({ writes: [{ action: "put", reference: lineage, expected: null, content: f.content(lineage) },
+    { action: "remove", reference: record.reference, expected: record.version }], provenance: testProvenance }));
+  if (!("uid" in record.reference.owner) || !record.reference.owner.uid) throw new Error("Expected a resolved owner");
+  return { record, from, to: await f.settle(), history: `refs/arc/history/work/${record.reference.owner.uid}`, git: makeGitExec(f.root) };
+}

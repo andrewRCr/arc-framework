@@ -1,24 +1,29 @@
 /** Admission of exact ref tips before traversing potentially damaged history. */
-import type { StoreRefusal } from "../refusal.js";
+import type { Remedy, StoreRefusal } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, readRefTrees } from "./batch-read.js";
-import { metadataFailure, parseRefMetadata } from "./metadata.js";
+import { historicalMetadataFailure, metadataFailure, parseRefMetadata } from "./metadata.js";
 
 /** Keep unavailable objects distinct from a present tree with unusable metadata. */
-export function corruptRef(ref: string, missingObjects = false): StoreRefusal {
+export function corruptRef(ref: string, missingObjects = false, saved = false): StoreRefusal {
   return { code: "namespace-corrupt", class: "terminal", namespace: ref, ...(missingObjects ? {
     condition: `The tip or a tree of ${ref} is unavailable locally.`,
     remedy: { text: `Restore or fetch the missing objects for ${ref} in the store repository, then retry.` },
-  } : metadataFailure(ref)) };
+  } : unparsedMetadata(ref, saved)) };
+}
+
+/** A saved state never takes a forward repair, so its unparseable metadata names the historical remedy. */
+function unparsedMetadata(ref: string, saved: boolean): { condition: string; remedy: Remedy } {
+  return saved ? historicalMetadataFailure(ref) : metadataFailure(ref);
 }
 
 /** Refuse an unreadable endpoint before Git's history walker can abort the operation. */
-export async function checkRefTip(context: RefBackendContext, ref: string, tip: string, metadataPath: string): Promise<StoreRefusal | undefined> {
+export async function checkRefTip(context: RefBackendContext, ref: string, tip: string, metadataPath: string, saved = false): Promise<StoreRefusal | undefined> {
   const trees = await readRefTrees(context, new Map([[ref, tip]]));
   const entries = trees.get(ref);
   if (!entries) return corruptRef(ref, true);
   if (entries.every(({ path }) => path === metadataPath)) return undefined;
   const entry = entries.find(({ path }) => path === metadataPath);
   const objects = await readBatchObjects(context, entry ? [entry.oid] : []);
-  return parseRefMetadata(entry ? objects.get(entry.oid) : null, ref) ? undefined : corruptRef(ref);
+  return parseRefMetadata(entry ? objects.get(entry.oid) : null, ref) ? undefined : corruptRef(ref, false, saved);
 }

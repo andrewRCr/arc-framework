@@ -51,7 +51,7 @@ async function snapshotView(context: RefBackendContext, version: StateVersion, i
     historyRefs: unavailable.filter((ref) => /^refs\/arc\/(?:work|cohort)\//u.test(ref)).map((ref) => HistoryRefSchema.parse(ref.replace("refs/arc/", "refs/arc/history/"))),
     condition: `Saved state tips or their root trees are unavailable: ${unavailable.join(", ")}`,
     remedy: { text: "Pull the named history refs or restore the missing state objects, then retry this saved-state read." } } };
-  return { status: "ok", result: capturedRefView(context, () => Promise.resolve(state)) };
+  return { status: "ok", result: capturedRefView(context, () => Promise.resolve({ ...state, saved: true })) };
 }
 
 function selectSnapshotTips(manifest: ReadonlyMap<string, string>, input: ListInput, identity: string | null): Map<string, string> {

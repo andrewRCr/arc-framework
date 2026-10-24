@@ -16,7 +16,7 @@ import { archiveOwnerTrees, isArchiveRef } from "./archive-read.js";
 /** A ref's immutable entries, optionally overlaid with prepared metadata. */
 export interface RefViewGroup { entries?: readonly RefTreeEntry[]; metadata?: RefMetadata; readPlacement?: ReadPlacement }
 /** All observed entries and objects without any live-ref reads during selection. */
-export interface RefViewState { refs: ReadonlyMap<string, RefViewGroup>; objects: ReadonlyMap<string, BatchObject | null> }
+export interface RefViewState { refs: ReadonlyMap<string, RefViewGroup>; objects: ReadonlyMap<string, BatchObject | null>; saved?: boolean }
 
 /** Read only the caller's captured tips, retaining unavailable refs for diagnostics. */
 export async function captureRefViewState(context: RefBackendContext, tips: ReadonlyMap<string, string>): Promise<RefViewState> {

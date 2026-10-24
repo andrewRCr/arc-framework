@@ -18,7 +18,7 @@ import { archiveOwnerTrees, isArchiveRef, unreadableOwnedFolder } from "./archiv
 import type { RefTreeEntry } from "./batch-read.js";
 import { lookupCapturedRefTrees, type RefLookupTree } from "./lookup.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
-import { canonicalPrimaryKind, metadataFailure, type RefMetadata } from "./metadata.js";
+import { canonicalPrimaryKind, type RefMetadata } from "./metadata.js";
 import { FAMILY_REGISTRY } from "../registry.js";
 import { projectOwnerFromEntries, admitProjectReference, projectListInput, projectListingBinding } from "./project-identity.js";
 import { archivedViewRecords } from "./archive-view.js";
@@ -84,7 +84,7 @@ function lookupViewTrees(context: RefBackendContext, state: RefViewState, identi
     const family = viewRefFamily(ref);
     const metadata = family ? viewRefMetadata(context, state, ref, family) : null;
     if (group.entries?.length === 0) continue;
-    if (!group.entries || !metadata) { unreadable.set(ref, corruptRef(ref, !group.entries)); continue; }
+    if (!group.entries || !metadata) { unreadable.set(ref, corruptRef(ref, !group.entries, state.saved)); continue; }
     trees.set(ref, { entries: group.entries, metadata, objects: state.objects });
   }
   const quarters = new Map([...state.refs].flatMap(([ref, group]) => isArchiveRef(ref) && group.entries ? [[ref, group.entries] as const] : []));
@@ -140,7 +140,7 @@ async function readView(context: RefBackendContext, state: RefViewState, input: 
   if (!group) return archivedViewRead(context, state, reference);
   const family = context.registry[reference.kind].family;
   const metadata = viewRefMetadata(context, state, home.ref, family);
-  if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: home.ref, ...metadataFailure(home.ref) } };
+  if (!metadata) return { status: "refused", refusal: corruptRef(home.ref, false, state.saved) };
   if (family !== "lineage" && reference.owner.type !== "project") {
     reference = canonicalViewReference(context, reference, home.ref, metadata);
     home = expandStoredPath(reference, { registry: context.registry });
@@ -208,7 +208,7 @@ function archivedViewRead(context: RefBackendContext, state: RefViewState, refer
   const unreadable = [...state.refs].find(([ref, captured]) => isArchiveRef(ref) && !captured.entries)?.[0];
   if (unreadable) return { status: "refused", refusal: corruptRef(unreadable, true) };
   const broken = unreadableOwnedFolder(archivedViewTrees(state), [reference.owner], state.objects);
-  if (broken) return { status: "refused", refusal: corruptRef(broken) };
+  if (broken) return { status: "refused", refusal: corruptRef(broken, false, state.saved) };
   const record = archivedViewRecord(context, state, reference);
   return record ? { status: "ok", result: record } : missing(reference);
 }

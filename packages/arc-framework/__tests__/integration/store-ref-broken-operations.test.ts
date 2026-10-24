@@ -37,7 +37,12 @@ describe.each(["default", "separate"] as const)("operations around a damaged ite
       success(await f.store.changes({ from, to: damaged, references: [record.reference] }));
     } else {
       await plantRef(f.root, ref, [...entries, { path, content: metadata }], { parents: [broken.tip], gitDir: f.gitDir });
-      expect(await f.store.read({ reference: record.reference, asOf: damaged })).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt" } });
+      // A saved state never takes the forward repair, so its refusals name the historical remedy.
+      for (const result of [await f.store.read({ reference: record.reference, asOf: damaged }),
+        await f.store.changes({ from, to: damaged, references: [record.reference] })]) {
+        expect(result).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt",
+          remedy: { text: expect.stringMatching(/historical|ancestor/iu) } } });
+      }
       const repaired = success(await f.store.version());
       for (const result of [await f.store.history({ reference: record.reference }), await f.store.changes({ from, to: repaired, references: [record.reference] })]) {
         expect(result).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: ref,
