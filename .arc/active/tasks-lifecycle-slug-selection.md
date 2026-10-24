@@ -164,7 +164,7 @@ its test is a regression pin that passes before the change; each re-read's faili
         - Store-backed validation derives member sets directly from all lifecycle entries, including completed ones.
           Tests retain each clashed or reused holder in its own cohort without orphan member diagnostics.
 
-### `[ ]` **2.5 Take the standing holder in completed evidence and the lifecycle snapshot — § 2.4**
+### `[x]` **2.5 Take the standing holder in completed evidence and the lifecycle snapshot — § 2.4**
 
 - _Goal:_ A slug with a live holder contributes no completed evidence, and each holder of a reused slug reads its
   artifacts at its own projected path.
@@ -175,14 +175,11 @@ its test is a regression pin that passes before the change; each re-read's faili
           name-bearing live diagnostic. Unavailable live inventory withholds authority even without completed records;
           Candidate and husk-consumer tests retain no completed authority for a reused live slug.
 
-    - `[ ]` **2.5.b The lifecycle snapshot**
+    - `[x]` **2.5.b The lifecycle snapshot**
 
-        - `snapshotFs` (`lib/store/lifecycle-storage.ts`) resolves a requested path to the one listed entry whose own
-          projected artifact path it is; a path two entries project to reads as missing. It serves both arms, and the
-          in-repo arm, whose listing holds one entry per slug, is unchanged.
-        - Build `test-first` (one behavior at a time):
-            - the live and the archived holder of a reused slug each read their own artifacts at their own paths
-            - a path two live holders project to under a clash reads as missing
+        - Snapshot reads match the exact projected artifact path across all entries and require one holder, retaining
+          saved-version reads. Tests read archived/live metadata and companions independently and reject a clashed path;
+          the existing Git snapshot integration cases retain their behavior.
 
 ### `[ ]` **2.6 Find each verb's entry by the subject's reference — § 3.1**
 
