@@ -38,9 +38,8 @@ vs. project-shared) and **work character** (atomic vs. multi-step):
 | `{planned,provisional}/<wu-name>/` | `backlog/`         | Project-shared       | Per-WU subdirs for matured backlog WUs                |
 | `ROADMAP.md`                       | `backlog/`         | Project-shared       | Generated view — sequencing across committed WUs      |
 
-Per-WU subdirs always carry `meta-<wu-name>.md` and may carry `plan-<wu-name>.md`,
-`prd-<wu-name>.md`, and other companions when present. Meta-file shape lives in
-[Work Organization Strategy][work-org] § Work Unit State.
+Per-WU subdirs always carry `meta-<wu-name>.md` and may carry `draft-<wu-name>.md`, `spec-<wu-name>.md`, and other
+companions when present. Meta-file shape lives in [Work Organization Strategy][work-org] § Work Unit State.
 
 ROADMAP is a generated artifact, not a capture surface — it renders from `meta-*.md` files in
 `active/**` and `backlog/planned/**`. See [Work Organization Strategy][work-org] § ROADMAP for
@@ -113,9 +112,8 @@ _not_ the integration ceremony: every capture passes through the drain's routing
 no work-unit home and take the homeless-atomic route — execution, shared-inbox deferral, or explicit Owner retention.
 Work-unit-shaped concerns take the gate's existing or new stub outcome under `backlog/{planned,provisional}/`;
 `WU_Target` is a candidate to check, never an existence-based placement. There is no shared Work-Unit inbox.
-Errands execute from their capture; work-unit concerns mature into `plan-<wu-name>.md` and (when
-ready) a `spec-<wu-name>.md`. See [Work Planning Strategy][work-planning] for the draft → spec
-pipeline.
+Errands execute from their capture; work-unit concerns mature into `draft-<wu-name>.md` and (when ready) a
+`spec-<wu-name>.md`. See [Work Planning Strategy][work-planning] for the draft → spec pipeline.
 
 For the full intent × mode routing table (including `pm.mode: external` and `pm.mode: none`),
 see [DEV-RULES.ARC][dev-rules] § Discovered Work Routing.
@@ -162,8 +160,8 @@ commits. The default is **creation-path-keyed**: deliberate planning entry creat
 drain of an un-vetted capture creates `provisional` — the no-commitment-yet fallback, promotable at any later
 maintainer commitment.
 
-Each WU subdir carries `meta-<wu-name>.md` (always) plus `plan-<wu-name>.md` and any other
-companions when present.
+Each WU subdir carries `meta-<wu-name>.md` (always) plus `draft-<wu-name>.md` and any other companions when
+present.
 
 **Promotion:** `backlog/provisional/<wu-name>/` → `backlog/planned/<wu-name>/` fires when a
 maintainer commits to the WU. The `git mv` of the WU subdir and the regenerated ROADMAP (which
