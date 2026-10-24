@@ -363,29 +363,11 @@ cohort over the reference backend directly.
   from then on by the resolved record's reference, discharging only an Integrating or completed work unit and never
   moving an edge onto a name that does not resolve back to its work unit.
 
-    - `[ ]` **3.3.a The resolution**
+    - `[x]` **3.3.a The resolution**
 
-        - `CurrentWuReconcilePrepareContext` (`lib/work-unit/side-effects/discharge-dep-edges.ts`) gains a resolver,
-          which `createStoreReconcilePrepareContext` supplies and `prepareCurrentWuReconcile` passes to
-          `planDependencyReconcile`. It memoizes one resolution per name an edge meets, since a lineage disposition's
-          targets are known only once it is read: the edge's own slug, the current name of a work unit it would follow,
-          and each target a lineage disposition gives it. Its result is the dependent; a work unit, with its reference
-          and its entry's state (`deriveState`); a tie, with its candidates and `tie`; a cohort's or an Errand's
-          reference; `not-found`; or another refusal.
-        - A name resolves through the slug lookup; a lineage target carrying a UID (`WorkItemRef`,
-          `lib/store/kinds/lineage/schema.ts`) resolves to the view's entry with that UID, and where none has it, to its
-          own lineage. The context requires a complete inventory (`requireCompleteInventory`), so every work unit a
-          resolution returns has its entry.
-        - `TransitionReconcileDisposition`'s retarget and replace dispositions
-          (`lib/work-unit/transition-disposition-query.ts`) gain an optional `references`, the lineage's `WorkItemRef`
-          per target, which `queryStoreDisposition` sets and the shared projection (`queryTransitionDisposition`) leaves
-          out.
-        - Build `test-first` (one behavior at a time):
-            - a name met twice resolves once
-            - a decomposed origin's replacement target carrying a UID resolves to that work unit's entry under its
-              current name
-            - a UID target whose primary has left the store resolves to its lineage
-            - the in-repo arm's dispositions carry no `references`
+        - Added the memoized identity resolver to the reconcile context and planner input. UID targets use the complete
+          view's entry or retain their exact lineage identity; store retarget and replacement dispositions carry their
+          target references, while the shared in-repo projection stays unchanged.
 
     - `[ ]` **3.3.b The held list**
 

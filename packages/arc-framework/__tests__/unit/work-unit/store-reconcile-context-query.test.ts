@@ -33,5 +33,5 @@ it("reads a cut disposition by dependent UID after its rename", async () => {
 
   expect(lifecycleSuccess(await queryRetiredOriginDisposition(h.store, current.reference.owner, lineage,
     { origin: "origin", dependentSlug: "current-dependent" })))
-    .toEqual({ status: "unique", disposition: { kind: "replace", replacementTargets: ["member"] } });
+    .toEqual({ status: "unique", disposition: { kind: "replace", replacementTargets: ["member"], references: [{ name: "member" }] } });
 });

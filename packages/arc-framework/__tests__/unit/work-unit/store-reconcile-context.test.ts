@@ -133,7 +133,7 @@ describe("store reconcile context", () => {
           disposition: { kind: "replace", replacementTargets: [{ name: SlugSchema.parse("member") }] } }], outgoing: [] }));
     const acquired = lifecycleSuccess(await createStoreReconcilePrepareContext(h.store, "example"));
     expect(await acquired.context.queryDisposition?.({ origin: "abandoned", dependentSlug: "example" })).toEqual({ status: "unique", disposition: { kind: "abandoned" } });
-    expect(await acquired.context.queryDisposition?.({ origin: "cut", dependentSlug: "example" })).toEqual({ status: "unique", disposition: { kind: "replace", replacementTargets: ["member"] } });
+    expect(await acquired.context.queryDisposition?.({ origin: "cut", dependentSlug: "example" })).toEqual({ status: "unique", disposition: { kind: "replace", replacementTargets: ["member"], references: [{ name: "member" }] } });
   });
   it("discharges an integrating prerequisite while retaining live dependencies and acquiring prose", async () => {
     const h = createLifecycleHarness();

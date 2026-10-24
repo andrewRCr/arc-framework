@@ -10,6 +10,7 @@
  */
 
 import type { RecordReference } from "../../store/identity.js";
+import type { DependencyResolver } from "./store-dependency-resolution.js";
 import type { PreparedLifecycleWrite } from "../prepared-lifecycle-write.js";
 import type { StoreRefusal, Remedy } from "../../store/refusal.js";
 import {
@@ -108,6 +109,7 @@ export type CurrentWuReconcilePlan =
 
 /** Pure dependency-plan inputs. */
 export interface PlanDependencyReconcileInput {
+  resolveDependency?: DependencyResolver;
   index: LifecycleIndex;
   dependentSlug: string;
   edges: readonly string[];
@@ -139,6 +141,8 @@ export interface PreparedCurrentWuReconcile {
 
 /** I/O boundary for inspecting and applying one dependent-owned plan. */
 export interface CurrentWuReconcileContext {
+  /** Resolve dependency holders once through the store's identity inventory. */
+  resolveDependency?: DependencyResolver;
   /** Alias-backed reference evidence acquired from the current artifacts. */
   additionalReferenceTransitions?: readonly ReachableReferenceTransition[];
   /** Store-resolved artifact owner interpretations, including ambiguous paired names. */
@@ -156,7 +160,7 @@ export interface CurrentWuReconcileContext {
 /** Read-only dependencies for producing one exact current-WU reconcile plan. */
 export type CurrentWuReconcilePrepareContext = Pick<
   CurrentWuReconcileContext,
-  "index" | "queryDisposition" | "enumerateTransitionRecords" | "listArtifactPaths" | "readFile" | "additionalReferenceTransitions" | "artifactReferenceOwners"
+  "index" | "queryDisposition" | "enumerateTransitionRecords" | "listArtifactPaths" | "readFile" | "additionalReferenceTransitions" | "artifactReferenceOwners" | "resolveDependency"
 >;
 
 /** Mutation dependencies for applying a previously prepared exact plan. */
@@ -444,6 +448,7 @@ export async function prepareCurrentWuReconcile(
     index: ctx.index,
     dependentSlug: op.slug,
     edges,
+    ...(ctx.resolveDependency === undefined ? {} : { resolveDependency: ctx.resolveDependency }),
     queryDisposition: ctx.queryDisposition,
   });
 
