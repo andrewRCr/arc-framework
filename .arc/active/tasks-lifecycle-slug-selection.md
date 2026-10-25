@@ -857,34 +857,11 @@ edits land in package source and sync to `.arc/`.
 - _Goal:_ `arc teardown` selects an exact owner by UID or a slug through the lookup, and finds its subject's checkout by
   the evidence owner's UID, so a teardown by UID never takes the live holder's checkout for its subject's.
 
-    - `[ ]` **7.4.a The operand**
+    - `[x]` **7.4.a The operand**
 
-        - The operand (`TeardownCommandInputSchema` and its registration in `lifecycleCommandInputRegistrations`,
-          `handlers/lifecycle.ts`; `.command("teardown [name]")`, `cli.ts`; and its help, `cli-help-summaries.ts`)
-          admits a UUID, upper case included, beside a slug, and keeps its `name` key, so the registration's
-          `operand.name` and the repository inventory's derivation from `cli.ts` stay aligned.
-        - The handler uses the same UUID classification as 7.1.b's offer helper and parses a UUID-shaped operand into
-          7.1.a's owner subject through a store-level UID scan of the work-item listing, extracted from the inbox's
-          (`primaryByUid`, `lib/inbox/lists.ts`), which the inbox then calls: it lowercases the operand, returns the
-          primary carrying the UID with its record kind, or none, refuses `ambiguous-match` where several carry it, as
-          the inbox's does today, and refuses an incomplete listing, leaving each caller its own type rule. Where no
-          primary carries the UID, teardown asks the `lineage` arm, and it refuses an Errand's UID and a UID neither
-          finds. Any other operand is the slug subject. A UUID-shaped slug, which `SlugSchema` admits, so selects by
-          UID, and its holder stays reachable by its own UID. The in-repo arm takes every operand as a slug.
-        - _Note:_ `handleTeardown` holds `handlers/lifecycle.ts`'s suppressed function length and one of its suppressed
-          complexities; parse the operand in a helper.
-        - _Note:_ `feat/storage-ref-backend` edits `cli.ts` and `cli-help-summaries.ts`; re-check that branch before
-          editing them.
-        - Build `test-first` (one behavior at a time):
-            - `arc teardown <uid>` of an archived holder selects it while a live holder holds its slug
-            - regression pin: `arc teardown <uid>` of a retired origin resolves through its lineage, since a UUID passes
-              `SlugSchema` and reaches the lineage arm today
-            - an Errand's UID, an unknown UID, and an incomplete listing refuse
-            - an upper-case UID selects its holder, and the inbox's UID selector still refuses several matches
-              `ambiguous-match`
-            - `arc teardown <slug>` resolves through the lookup as today
-            - the generated teardown offer for an ended holder whose UUID-shaped name differs from its UID selects
-              that holder, leaving a second record whose UID equals the display name unchanged
+        - Teardown admits slug or case-insensitive UUID operands while retaining `name`; a shared store UID reader
+          selects complete, unambiguous primary evidence for teardown and inbox. Teardown enforces work-unit kind and
+          falls back to retired-origin lineage; CLI cases preserve namesakes, handle repaired refusals, and pin offers.
 
     - `[ ]` **7.4.b The checkout and the retries**
 

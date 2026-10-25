@@ -1,3 +1,5 @@
+import { teardownOperand } from "../../src/lib/work-unit/store-retirement-evidence.js";
+import { TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { acquireStoreClaims } from "../../src/lib/errand/store-discovery.js";
 import { readOrphanStoreCandidates } from "../../src/lib/session-init/orphan-store-candidates.js";
@@ -13,7 +15,7 @@ import { createClashDouble } from "../helpers/store/clash-double.js";
 import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import type { StoreRecord } from "../../src/lib/store/read.js";
-import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { SlugSchema, ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { writeMetaPause } from "../../src/lib/store/kinds/meta/writers.js";
 import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, readWorktreeMarker, resolveWorktreeMarkerPath, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
@@ -310,5 +312,76 @@ it("abandonment cleans its live holder and created branch beside an archived nam
   expect(await h.store.read({ reference: h.live.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   expect(lifecycleSuccess(await h.store.read({ reference: recordReferences["lineage/transition"](h.live.reference.owner) })).fields)
     .toMatchObject({ kind: "abandon", origin: { uid: boundWorkUnitSubject(h.live).uid }, retiredBranches: [link] });
+  await unchanged(h);
+}, 30_000);
+
+it.each([false, true])("teardown selects an archived holder by UID (uppercase=%s)", async uppercase => {
+  const h = await fixture(), livePath = await checkout(h, "live", h.live);
+  const liveMarker = await readFile(resolveWorktreeMarkerPath(livePath)), before = lifecycleSuccess(await h.store.version());
+  const uid = boundWorkUnitSubject(h.archived).uid;
+  const result = await repairCli(h, ["teardown", uppercase ? uid.toUpperCase() : uid], { store: h.store });
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  expect(await readWorktreeMarker(h.archivedPath)).toEqual({ kind: "absent" });
+  expect(await readFile(resolveWorktreeMarkerPath(livePath))).toEqual(liveMarker);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.live.reference }))).toEqual(h.live);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.archived.reference }))).toEqual(h.archived);
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+}, 30_000);
+
+it("teardown resolves a retired origin's UID through lineage without selecting its archived namesake", async () => {
+  const h = await fixture();
+  expect((await repairCli(h, ["abandon", "example", "--yes"], { store: h.store })).exitCode ?? 0).toBe(0);
+  const residue = await checkout(h, "retired-residue", h.live), before = lifecycleSuccess(await h.store.version());
+  const result = await repairCli(h, ["teardown", boundWorkUnitSubject(h.live).uid], { store: h.store });
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  expect(await readWorktreeMarker(residue)).toEqual({ kind: "absent" });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  await unchanged(h);
+}, 30_000);
+
+it.each(["errand", "unknown", "incomplete", "refused"] as const)("teardown refuses a %s UID selection and accepts an exact repaired operand", async kind => {
+  const h = await fixture(), archivedUid = boundWorkUnitSubject(h.archived).uid;
+  let operand = kind === "unknown" ? "55555555-5555-4555-8555-555555555555" : archivedUid;
+  if (kind === "errand") {
+    const owner = OwnerIdentitySchema.parse({ type: "work-item", name: "small-errand" });
+    const record = await h.seed(recordReferences["work-item/record"](owner), JSON.stringify(TransientIdentityRecordSchema.parse({
+      version: 3, kind: "errand", purpose: "errand", slug: "small-errand", owner: "test-user", claimId: "a".repeat(32),
+      createdAt: "2026-10-24T00:00:00Z", updatedAt: "2026-10-24T00:00:00Z", intent: "Small work", branch: "chore/small-errand",
+      state: "open", savedHead: null, changeRequest: null, origin: "description", originEntry: null,
+    })), { kind: "active" });
+    operand = boundWorkUnitSubject(record).uid;
+  }
+  const store = Object.create(h.store) as typeof h.store;
+  store.list = async input => input.kind === "work-item/record" && kind === "incomplete"
+    ? { status: "ok", result: { status: "unreadable", condition: "Work-item records unavailable.", remedy: { text: "Restore work-item records, then retry." } } }
+    : input.kind === "work-item/record" && kind === "refused"
+      ? { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: "work-items",
+        condition: "Work-item scan is busy.", remedy: { text: "Retry after its writer releases the lock." } } }
+      : h.store.list(input);
+  const before = lifecycleSuccess(await h.store.version());
+  const result = await repairCli(h, ["teardown", operand], { store });
+  expect(result.exitCode).toBe(1);
+  expect(result.stdout + result.stderr).toContain(kind === "errand" ? "Errand" : kind === "unknown" ? "not-found"
+    : kind === "incomplete" ? "Work-item records unavailable" : "Work-item scan is busy");
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  await unchanged(h);
+  const repaired = await repairCli(h, ["teardown", archivedUid], { store: h.store });
+  expect(repaired.exitCode ?? 0, repaired.stdout + repaired.stderr).toBe(0);
+  expect(await readWorktreeMarker(h.archivedPath)).toEqual({ kind: "absent" });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.live.reference }))).toEqual(h.live);
+}, 30_000);
+
+it("an offered teardown for a UUID-shaped display name selects its own UID", async () => {
+  const h = await fixture(), other = await h.seedMeta("other"), name = boundWorkUnitSubject(other).uid;
+  const archived = await h.seedMeta(name, { state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const path = await checkout(h, "uuid-named", archived), before = lifecycleSuccess(await h.store.version());
+  const operand = await teardownOperand(h.store, archived.reference.owner);
+  const result = await repairCli(h, ["teardown", operand], { store: h.store });
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  expect(operand).toBe(boundWorkUnitSubject(archived).uid);
+  expect(await readWorktreeMarker(path)).toEqual({ kind: "absent" });
+  expect(lifecycleSuccess(await h.store.read({ reference: other.reference }))).toEqual(other);
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
   await unchanged(h);
 }, 30_000);

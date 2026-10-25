@@ -18,6 +18,7 @@
  *
  * @module
  */
+import { runTeardownForOperand } from "./teardown-operand.js";
 import type { UnboundMarkerClassification } from "../lib/locus/unbound-marker.js";
 import { handleStoreAbandon } from "./abandon-store.js";
 
@@ -100,7 +101,6 @@ import { runReopen } from "../lib/work-unit/verbs/reopen.js";
 import { runArchive } from "../lib/work-unit/verbs/archive.js";
 import {
   runBranchTeardown,
-  runTeardown,
   type TeardownResult,
 } from "../lib/work-unit/verbs/teardown.js";
 import type { StoreRecord } from "../lib/store/read.js";
@@ -379,7 +379,7 @@ export const ArchiveCommandInputSchema = z.object({
   completed: z.iso.date().optional(),
 }).strict();
 export const TeardownCommandInputSchema = z.object({
-  name: SlugSchema.optional(),
+  name: z.union([SlugSchema, z.uuid()]).optional(),
   branch: z.string().regex(
     /^[a-z][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/u,
     "Branch must use a type/slug-safe-name shape.",
@@ -1855,7 +1855,7 @@ export async function handleTeardown(
   }
 
   const operational = usesOffBranchState(base.store) ? await buildExecutor(base) : undefined;
-  const result = await runTeardown(
+  const result = await runTeardownForOperand(
     {
       store: operational?.executor.store, execInput: base.io.execInput,
       projectId: operational?.executor.projectId, locusPorts: operational?.executor.locusPorts,
@@ -1869,7 +1869,7 @@ export async function handleTeardown(
       teardownWorktree,
     },
     {
-      subject: { kind: "slug", slug: wuName ?? "" },
+      name: wuName ?? "",
       base: baseBranch,
       mode: input.force ? "abandoned" : undefined,
       protection: settings["branch.protection"] === "full" ? "full" : "partial",
