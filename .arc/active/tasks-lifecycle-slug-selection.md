@@ -499,18 +499,11 @@ unclosed task commits (§ 3.2) re-read by the UID claim here.
   `lib/decompose/atomic-admission.test.ts`, and, under `__tests__/integration/`, `handoff-write-store.test.ts`,
   `recovery-state-basis.test.ts`, and `status-store-refresh-cli.test.ts`; re-check that branch before editing them.
 
-    - `[ ]` **4.3.a The claim and the reference backend's match**
+    - `[x]` **4.3.a The claim and the reference backend's match**
 
-        - `CheckoutClaimSchema`'s `work-unit` variant (`lib/store/lookup.ts`) gains the owner's UID as `uid`, optional
-          while the readers move. The reference backend's claim arm (`lookupReference`,
-          `__tests__/helpers/store/lookup.ts`) matches a claim carrying a `uid` to the one `work-item/meta` with that
-          UID, live or completed, ignoring the claim's slug, so a holder renamed on another machine still matches; a
-          claim without one matches by slug until 4.3.e. The in-repo implementation keeps matching by slug
-          (`lookupTracked`, `lib/store/in-repo/lookup.ts`) and ignores the field.
-        - Build `test-first` (one behavior at a time):
-            - a reused slug's claims resolve the live and the archived holder each by its own UID
-            - a claim carrying a holder's UID and another slug resolves that holder
-            - regression pin: the in-repo lookup resolves a claim carrying a `uid` by its slug
+        - Work-unit claims accept an optional validated UUID. The reference backend resolves it to that metadata owner,
+          live or completed, independently of the supplied slug; claims without it retain slug matching during reader
+          migration. The in-repo lookup remains unchanged and ignores the UID.
 
     - `[ ]` **4.3.b The readers send the UID**
 

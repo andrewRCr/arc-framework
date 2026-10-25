@@ -1,6 +1,7 @@
 /** Source-grounded reverse lookup over references, parsed claims and stored links. */
 
 import type { LookupInput, LookupResult, StoreResult } from "../../../src/lib/store/index.js";
+import type { CheckoutClaim } from "../../../src/lib/store/lookup.js";
 import type { ReferenceContext } from "./context.js";
 import type { MemoryRecord } from "./model.js";
 import { z } from "zod";
@@ -9,6 +10,12 @@ import { compareCompletedPlacements } from "../../../src/lib/store/placement.js"
 
 function primary(record: MemoryRecord): boolean {
   return record.reference.kind === "work-item/meta" || record.reference.kind === "work-item/record";
+}
+
+function workUnitClaimMatches(record: MemoryRecord, claim: Extract<CheckoutClaim, { kind: "work-unit" }>): boolean {
+  if (record.reference.kind !== "work-item/meta") return false;
+  const owner = record.reference.owner;
+  return claim.uid === undefined ? owner.name === claim.slug : owner.type === "work-item" && owner.uid === claim.uid;
 }
 
 function preferredSlugRecords(records: MemoryRecord[], slug: string): MemoryRecord[] {
@@ -94,7 +101,7 @@ export function lookupReference(context: ReferenceContext, input: LookupInput): 
       case "claim": {
         const claim = input.claim;
         if (claim.kind === "partial-errand") return false;
-        if (claim.kind === "work-unit") return record.reference.kind === "work-item/meta" && record.reference.owner.name === claim.slug;
+        if (claim.kind === "work-unit") return workUnitClaimMatches(record, claim);
         const kind = claim.kind === "errand" ? "work-item/record" : `claims/${claim.kind}`;
         const slug = claim.kind === "errand" ? record.reference.owner.name : record.reference.key;
         return record.reference.kind === kind && slug === claim.slug && fields(context, record)?.claimId === claim.claimId;
