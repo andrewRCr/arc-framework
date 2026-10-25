@@ -3,7 +3,7 @@
   "slug": "exposing-case-finding",
   "claimId": "a3dd0255294beb20c89ba45bcbdde527",
   "createdAt": "2026-10-25T19:03:42.992Z",
-  "updatedAt": "2026-10-25T19:03:42.992Z",
+  "updatedAt": "2026-10-25T19:25:49.273Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Trace unexpectedly passing exposing tests before writing their fixes",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Treat an exposing case that passes before its fix as a finding",
   "originEntrySourceDigest": "sha256:5bfcb528db5c5357bf26c2943523304072597a6cc97323f0ab82527119b57df2",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/exposing-case-finding",
+    "headSha": "ff7dff4adaf420716bbe3a2c053a7e75dbafe0ae"
+  }
 }
