@@ -87,7 +87,7 @@ export async function mergeCapturedRefState(context: RefBackendContext, incoming
       condition: "The end record is present but the state remote has no retained history for this item.",
       remedy: { text: `Have a clone holding ${history} push it back to the state remote, then pull again.` } });
   }
-  const unblocked = (refs: ReadonlyMap<string, string>): Map<string, string> => new Map([...refs].filter(([ref]) => merging(ref)));
+  const unblocked = (refs: ReadonlyMap<string, string>): Map<string, string> => new Map([...refs].filter(([ref]) => !isItem(ref) || merging(ref)));
   const reopens = await readPendingRefReopens(context, unblocked(held), unblocked(state), unblocked(incoming), published);
   const routes = lifecycleRoutes(held, items, reopens);
   for (const { live, history } of pending) if (held.has(live) && incoming.has(history)) {
