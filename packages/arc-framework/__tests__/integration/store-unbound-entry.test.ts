@@ -174,3 +174,48 @@ it("wu reconcile refuses unbound ownership and finds no current unit after unnam
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
   expect(await readWorktreeMarker(h.path)).toEqual({ kind: "absent" });
 }, 30_000);
+
+it("release commit refuses unbound ownership and commits after materialize binds it", async () => {
+  const h = await fixture({ execution: true }), invocation = { ...h, cwd: h.path };
+  await h.exec("git", ["config", "arc.commitInterlock", "on-task-approval"]);
+  await writeFile(join(h.path, "work.txt"), "Useful work\n");
+  await h.exec("git", ["add", "work.txt"], { cwd: h.path });
+  const argv = ["release", "commit", "-m", "fix: record useful work", "-m", "Context: tasks-example.md (Task 1.1)"];
+  const before = (await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.path })).stdout;
+  const refused = await repairCli(invocation, argv, { store: h.store });
+  expect(refused.exitCode).toBe(10);
+  expect(refused.stderr).toContain("arc materialize example --here");
+  expect(refused.stderr).toContain("arc locus release");
+  expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.path })).stdout).toBe(before);
+  expect((await repairCli(invocation, ["materialize", "example", "--here"], { store: h.store })).exitCode ?? 0).toBe(0);
+  const resumed = await repairCli(invocation, argv, { store: h.store });
+  expect(resumed.exitCode ?? 0, resumed.stdout + resumed.stderr).toBe(0);
+  expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.path })).stdout).not.toBe(before);
+}, 30_000);
+
+it("delivery refuses unbound ambient ownership with its unresolved-work-unit result", async () => {
+  const h = await fixture(), before = lifecycleSuccess(await h.store.version());
+  const result = await repairCli({ ...h, cwd: h.path }, ["delivery", "plan", "from-branch", "--design-inventory", "unused.json", "--json"], { store: h.store });
+  expect(result.exitCode).toBe(1);
+  expect(result.result).toMatchObject({ status: "refused", reason: "active-work-unit-unresolved" });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+}, 30_000);
+
+it("release push refuses unbound ownership and publishes after materialize binds it", async () => {
+  const h = await fixture({ execution: true }), invocation = { ...h, cwd: h.path };
+  const origin = join(h.cwd, ".git", "unbound-origin.git");
+  await h.exec("git", ["init", "--bare", origin]);
+  await h.exec("git", ["remote", "add", "origin", origin]);
+  await h.exec("git", ["push", "origin", "main"]);
+  await h.exec("git", ["config", "arc.pushInterlock", "on-workflow"]);
+  const refused = await repairCli(invocation, ["release", "push"], { store: h.store });
+  expect(refused.exitCode, refused.stderr).toBe(10);
+  expect(refused.stderr).toContain("arc materialize example --here");
+  expect(refused.stderr).toContain("arc locus release");
+  expect((await h.exec("git", ["ls-remote", origin, "refs/heads/feat/example"])).stdout).toBe("");
+  expect((await repairCli(invocation, ["materialize", "example", "--here"], { store: h.store })).exitCode ?? 0).toBe(0);
+  const resumed = await repairCli(invocation, ["release", "push"], { store: h.store });
+  expect(resumed.exitCode ?? 0, resumed.stdout + resumed.stderr).toBe(0);
+  const head = (await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.path })).stdout.trim();
+  expect((await h.exec("git", ["ls-remote", origin, "refs/heads/feat/example"])).stdout.trim()).toBe(`${head}\trefs/heads/feat/example`);
+}, 30_000);

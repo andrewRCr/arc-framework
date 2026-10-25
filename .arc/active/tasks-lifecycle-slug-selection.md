@@ -715,21 +715,11 @@ released, then rerun.
           classifier's refusal and recovery exits. Lifecycle JSON remedies retain every checkout-bound action, and
           planning target selection shares one helper without growing the handler file.
 
-    - `[ ]` **6.2.c The shared work-unit resolution and its importers**
+    - `[x]` **6.2.c The shared work-unit resolution and its importers**
 
-        - `resolveActiveWu` (`lib/release/wu-resolution.ts`) maps the unbound state to its `ambiguous` result with a
-          hint naming the exits, so `arc release commit` and `arc release push` refuse with the hint, delivery refuses
-          with `active-work-unit-unresolved` (`resolveDeliveryContext`, `handlers/delivery.ts`), and the notes sync's
-          work-unit name (`resolveCurrentWuName`, `lib/user-sync/current-wu.ts`) falls back to the branch's slug. Its
-          other importers, review, planning, delivery's entry and transfer, the sync audit, and pre-publication
-          composition among them, take an unbound checkout as ambiguous, as they take a resolver warning today.
-        - _Note:_ the release wrappers, delivery, and the notes sync inject no store, so `wu-resolution-store.test.ts`
-          pins the mapping over the reference backend, and the consumers' own ambiguous-result tests cover their
-          policies.
-        - Build `test-first` (one behavior at a time):
-            - `arc release commit` and `arc release push` in an unbound checkout refuse naming the exits, and succeed
-              once the checkout is bound
-            - delivery refuses with its generic refusal, and the notes sync uses the branch's slug
+        - Shared resolution maps unbound occupancy to ambiguous advice. Registered release commands refuse with both
+          exits, then commit or publish to a local bare repository after binding; delivery retains its generic refusal.
+          Notes synchronization retains the branch-slug fallback, and other importers preserve their ambiguity policies.
 
     - `[ ]` **6.2.d The readers that report**
 
