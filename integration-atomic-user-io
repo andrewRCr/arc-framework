@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "integration-atomic-user-io",
+  "claimId": "07253f9f1535ea1f18d23b661493c307",
+  "createdAt": "2026-10-25T12:19:02.735Z",
+  "updatedAt": "2026-10-25T12:19:02.735Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Reuse production filesystem IO in integration makeUserIO while retaining repository-bound Git executors.",
+  "branch": "chore/integration-atomic-user-io",
+  "origin": "inbox",
+  "originEntry": "Build the integration test helper's user IO from production's atomic writer",
+  "originEntrySourceDigest": "sha256:593622e1f4b239edb5a71778c627541571381bd3f98d6d84806a64b90eab3611",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
