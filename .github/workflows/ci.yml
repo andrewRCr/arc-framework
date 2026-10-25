@@ -933,7 +933,7 @@ jobs:
         include-hidden-files: true
         if-no-files-found: error
     - id: macos
-      if: ${{ runner.os == 'macOS' }}
+      if: ${{ runner.os == 'macOS' && !inputs.portability_timing_only }}
       run: node --import tsx scripts/run-ci-checks.mjs run portability-cross-platform macos
       env:
         ARC_E2E_SKIP_BUILD: '1'
