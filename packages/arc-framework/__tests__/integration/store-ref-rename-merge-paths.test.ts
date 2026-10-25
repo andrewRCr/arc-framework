@@ -34,6 +34,23 @@ describe.each(["default", "separate"] as const)("rename merge paths in %s", layo
       kind: "namespace-corrupt", ref: h.ref, condition: expect.stringContaining("memo-login.md"),
     }));
     expect((await merging.git(["rev-parse", h.ref])).stdout).toBe(before);
+    const colliding = success(await h.b.store.read({ reference: h.companion("memo-login.md") }));
+    const safe = h.companion("concurrent");
+    success(await h.b.store.batch({ writes: [
+      { action: "remove", reference: colliding.reference, expected: colliding.version },
+      { action: "put", reference: safe, expected: null, content: colliding.content },
+    ], provenance: testProvenance }));
+    if (reverse) success(await h.b.store.push());
+    expect(success(await merging.store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
+    const listed = success(await merging.store.list({ family: "work-item", kind: "work-item/companion" }));
+    expect(listed).toMatchObject({ status: "complete", missed: false, records: expect.arrayContaining([
+      expect.objectContaining({ reference: expect.objectContaining({ key: "memo", owner: expect.objectContaining({ name: "login" }) }), content: "original\n" }),
+      expect.objectContaining({ reference: expect.objectContaining({ key: "concurrent", owner: expect.objectContaining({ name: "login" }) }), content: "concurrent\n" }),
+    ]) });
+    if (listed.status !== "complete") throw new Error("Expected repaired companions");
+    expect(listed.records).toHaveLength(2);
+    success(await merging.store.push()); success(await published.store.pull());
+    expect(success(await published.store.list({ family: "work-item", kind: "work-item/companion" }))).toEqual(listed);
   });
 });
 
@@ -53,5 +70,5 @@ async function scenario(layout: "default" | "separate", renamed: string, addedKe
   success(await h.b.store.write({ action: "put", reference: companion(addedKey), expected: null,
     content: "concurrent\n", provenance: testProvenance }));
   if (made.reference.owner.type !== "work-item" || !made.reference.owner.uid) throw new Error("Expected an allocated owner");
-  return { ...h, ref: `refs/arc/work/${made.reference.owner.uid}` };
+  return { ...h, companion, ref: `refs/arc/work/${made.reference.owner.uid}` };
 }
