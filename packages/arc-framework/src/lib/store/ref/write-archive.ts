@@ -16,6 +16,7 @@ import { preparedCohortParents, cohortClosePlacement } from "./cohort-coordinate
 import { corruptRef } from "./namespace-health.js";
 import { commitRefTree, type RefWriteGroup } from "./write-commits.js";
 import { archivedFolderRoot } from "./archive-refresh.js";
+import { quarterCommitReference } from "./quarter-provenance.js";
 
 /** One item's assigned destination, resolved from the locked quarter tree. */
 export interface RefArchivePlan {
@@ -85,7 +86,8 @@ export async function archiveRefChanges(context: RefBackendContext, changes: rea
   const quarters = new Map(plans.map((plan) => [plan.home.ref, plan]));
   for (const [ref, plan] of quarters) {
     const parent = tips.get(ref);
-    const next = await commitRefTree(context, plan.entries.values(), parent, provenance, plan.reference, batchId, actor, receipt);
+    const reference = await quarterCommitReference(context, writes, ref, plan.entries.values(), tips);
+    const next = await commitRefTree(context, plan.entries.values(), parent, provenance, reference, batchId, actor, receipt);
     result.push({ ref, next, expected: parent ?? null });
   }
   return result;

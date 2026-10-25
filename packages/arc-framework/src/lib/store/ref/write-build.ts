@@ -91,7 +91,7 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
     const identity = await physical.identity(), actor = identity === null ? undefined : await physical.actor(identity);
     const committed = await prepareRefCommits(physical, prepared.result, refWriteTargets(context, resolved), groups, completed, tips, provenance, batchId, receipt, actor);
     const archived = await archiveRefChanges(physical, committed, archives.result, groups, completed, prepared.result, tips, provenance, batchId, receipt);
-    const reopened = await reopenRefChanges(physical, archived, reopens.result, tips, provenance, batchId, receipt);
+    const reopened = await reopenRefChanges(physical, archived, reopens.result, resolved.writes, tips, provenance, batchId, receipt);
     const refreshed = await refreshCompletedChanges(physical, reopened, resolved, completed, provenance, batchId, receipt, actor);
     if (refreshed.status === "refused") return refreshed;
     const anchored = await anchorRefWriteManifest(physical, { changes: retirementRefChanges(refreshed.result, retirements.result, tips),

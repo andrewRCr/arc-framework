@@ -8,10 +8,11 @@ import { sameOwner } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
 import { readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
-import type { ResolvedBatch } from "./write-resolution.js";
+import type { ResolvedBatch, ResolvedMutation } from "./write-resolution.js";
 import type { ArchivedFolder } from "./archive-read.js";
 import { commitRefTree, type RefWriteGroup } from "./write-commits.js";
 import { corruptRef } from "./namespace-health.js";
+import { quarterCommitReference } from "./quarter-provenance.js";
 
 /** One history ref becoming live, sharing mutable quarter trees with the other reopens and their captured entries. */
 export interface RefReopenPlan {
@@ -48,7 +49,7 @@ export async function planRefReopens(context: RefBackendContext, batch: Resolved
 
 /** Move each prepared history commit live and publish all quarter removals in that transaction. */
 export async function reopenRefChanges(context: RefBackendContext, changes: readonly RefChange[], plans: readonly RefReopenPlan[],
-  tips: ReadonlyMap<string, string>, provenance: BatchInput["provenance"], batchId: string, receipt: BatchCreationReceipt): Promise<RefChange[]> {
+  writes: readonly ResolvedMutation[], tips: ReadonlyMap<string, string>, provenance: BatchInput["provenance"], batchId: string, receipt: BatchCreationReceipt): Promise<RefChange[]> {
   if (!plans.length) return [...changes];
   const result = changes.filter(({ ref }) => !plans.some(({ history, quarters }) => history === ref || quarters.has(ref)));
   for (const plan of plans) {
@@ -63,7 +64,8 @@ export async function reopenRefChanges(context: RefBackendContext, changes: read
     // A quarter holding only folders the batch leaves alone keeps its tip, as an identical rewrite commits nothing.
     if (sameEntries(entries, first.captured.get(ref))) continue;
     const parent = tips.get(ref);
-    const next = await commitRefTree(context, entries.values(), parent, provenance, first.reference, batchId, actor, receipt);
+    const reference = await quarterCommitReference(context, writes, ref, entries.values(), tips);
+    const next = await commitRefTree(context, entries.values(), parent, provenance, reference, batchId, actor, receipt);
     result.push({ ref, next, expected: parent ?? null });
   }
   return result;

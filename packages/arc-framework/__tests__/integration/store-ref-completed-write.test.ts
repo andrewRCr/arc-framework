@@ -195,6 +195,10 @@ describe("writes to completed ref records", () => {
     expect(archived.conflicts).toEqual([conflict]);
     const target = subject === "same owner" ? archived : await seed(f, f.reference("personal/document"), "other\n");
     success(await f.store.write({ ...update(f, target, target.content), resolves: [conflict] }));
+    const owner = primary.reference.owner;
+    if (owner.type !== "work-item" || !owner.uid) throw new Error("Expected stored work-item owner");
+    expect((await f.ports.exec("git", ["log", "-1", "--format=%B", `refs/arc/archive/${quarter}`])).stdout)
+      .toContain(`Arc-Owner: ${owner.uid}\n`);
     expect(await f.store.read({ reference: conflict })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
     expect(success(await f.store.read({ reference: base.reference }))).toMatchObject({ content: "current\n", conflicts: [] });
     const log = success(await f.store.history({ reference: conflict }));

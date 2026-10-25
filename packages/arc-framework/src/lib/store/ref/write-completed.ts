@@ -19,6 +19,7 @@ import { cohortClosePlacement, preparedCohortParents } from "./cohort-coordinate
 import { corruptRef } from "./namespace-health.js";
 import { writeRefBlob } from "./tree-write.js";
 import { expandStoredPath } from "../stored-path.js";
+import { quarterCommitReference } from "./quarter-provenance.js";
 
 /** The archives and prepared writes a moved cohort's closeout reads, as a closing cohort's does. */
 export interface CompletedMoveBasis { archives: readonly RefArchivePlan[]; writes: readonly PreparedRefMutation[] }
@@ -123,10 +124,11 @@ export async function refreshCompletedChanges(context: RefBackendContext, change
     await moveArchivedFolders(context, quarters, owned, group, quarter);
   }
   const result = changes.filter(({ ref }) => !refs.has(ref));
-  const reference = batch.writes[0]?.mutation.reference;
-  if (!reference) throw new Error("A completed batch has no mutation");
-  for (const [ref, entries] of quarters) result.push({ ref,
-    next: await commitRefTree(context, entries.values(), batch.tips.get(ref), provenance, reference, batchId, actor, receipt), expected: batch.tips.get(ref) ?? null });
+  for (const [ref, entries] of quarters) {
+    const reference = await quarterCommitReference(context, batch.writes, ref, entries.values(), batch.tips);
+    result.push({ ref, next: await commitRefTree(context, entries.values(), batch.tips.get(ref), provenance, reference, batchId, actor, receipt),
+      expected: batch.tips.get(ref) ?? null });
+  }
   return { status: "ok", result };
 }
 
