@@ -19,9 +19,13 @@ export async function retiredHistoryHome(context: RefBackendContext, reference: 
   if (lineage.status === "refused") return lineage;
   if (!lineage.result.some((owner) => sameOwner(owner, reference.owner))) return { status: "ok", result: null };
   const home = expandStoredPath(reference, { registry: context.registry, history: true });
+  const history = HistoryRefSchema.safeParse(home.ref);
+  if (!history.success) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: home.ref,
+    condition: "The lineage-ended origin's history ref does not carry a stored UID.",
+    remedy: { text: "Repair the origin's registry identity to use the lowercase stored UID, then retry." } } };
   const tip = tips.get(home.ref);
   if (!tip) return { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", reference,
-    historyRefs: [HistoryRefSchema.parse(home.ref)], condition: "The lineage-ended origin's retained history is not available locally.",
+    historyRefs: [history.data], condition: "The lineage-ended origin's retained history is not available locally.",
     remedy: { text: `Pull ${home.ref} by name, then retry. If the remote no longer holds it, restore it from a clone holding the ref.` } } };
   const { stdout } = await context.exec("git", ["rev-list", tip, "--", `:(literal)${home.metadataPath}`],
     { cwd: context.checkoutRoot, objectAccess: "local-only" });

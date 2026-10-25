@@ -7,6 +7,7 @@ import { WritePlacementSchema } from "../placement.js";
 import { LinksSchema } from "../links.js";
 import type { Remedy } from "../refusal.js";
 import type { KindId } from "../catalog.js";
+import { StoredUidSchema } from "../identity.js";
 import type { BatchObject } from "./batch-read.js";
 
 /** The supported metadata format, including retained primary facts and lineage names. */
@@ -15,8 +16,8 @@ export const RefMetadataSchema = z.strictObject({
   primary: z.strictObject({ role: z.enum(["work-item/meta", "work-item/record"]), placement: WritePlacementSchema,
     links: LinksSchema.optional() }).optional(),
   placement: z.strictObject({ kind: z.literal("completed"), quarter: ArchiveQuarterSchema }).optional(),
-  lineage: z.record(z.uuid(), SlugSchema).optional(),
-  lineageFormerSlugs: z.record(z.uuid(), z.array(SlugSchema)).optional(),
+  lineage: z.record(StoredUidSchema, SlugSchema).optional(),
+  lineageFormerSlugs: z.record(StoredUidSchema, z.array(SlugSchema)).optional(),
   endBatch: z.string().optional(), batch: z.string().optional(),
   formats: z.record(z.string(), z.number().int().positive()),
 });

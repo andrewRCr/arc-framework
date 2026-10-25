@@ -1,7 +1,7 @@
 /** The backend-owned project identity value and its single logical owner. */
 
 import { z } from "zod";
-import { RecordReferenceSchema, OwnerIdentitySchema, type RecordReference, type OwnerIdentity } from "../identity.js";
+import { RecordReferenceSchema, OwnerIdentitySchema, StoredUidSchema, type RecordReference, type OwnerIdentity } from "../identity.js";
 import type { ListInput, ListingDiagnostic } from "../read.js";
 import type { Mutation } from "../write.js";
 import type { RefBackendContext } from "./context.js";
@@ -10,7 +10,7 @@ import { parseRefTreeObject } from "./tree-content.js";
 import { corruptRef } from "./namespace-health.js";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
 
-const ProjectIdentitySchema = z.strictObject({ projectId: z.uuid().refine((id) => id === id.toLowerCase()) });
+const ProjectIdentitySchema = z.strictObject({ projectId: StoredUidSchema });
 
 /** Parse the exact backend-owned identity shape without normalizing its UUID spelling. */
 export function parseProjectIdentity(content: string): { projectId: string } | null {

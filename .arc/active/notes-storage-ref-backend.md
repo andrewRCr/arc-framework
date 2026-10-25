@@ -2895,6 +2895,18 @@ reads through it (criterion 46).
 with the archive, for a case no local state shows. A pull that compares each held history ref with its remote tip: a
 listing of every history ref on every pull, for the same case.
 
+## A43 — Every store UID uses the stored lowercase grammar
+
+**Superseded text.** § 2.1 left owner construction unchanged; `OwnerIdentitySchema` (`lib/store/identity.ts`) used
+`uid: z.uuid().optional()`, admitting uppercase while history refs required lowercase after A41.
+
+**Decision.** Use `StoredUidSchema` for owner handles, metadata lineage keys, retained owner facts, lineage origins,
+and the conflict command's UID operand. `readPendingRefEnds` and `addPendingLineageEnds` (`ref/sync-lifecycle.ts`)
+and `retiredHistoryHome` (`ref/retired-history.ts`) check derived history refs rather than throwing on parse. An
+uppercase registry key receives the existing typed namespace refusal instead of becoming an unrepresentable owner.
+`store-ref-uid-grammar.test.ts` exercises admission without effects and planted keys through pull and push in both
+layouts; criterion 49 records those outcomes.
+
 ## A41 — A history ref names its owner by the lowercase UID stored names carry
 
 **Superseded text.** § 2.1's `HistoryRef` type, documented as "An ended item's history ref, fetched by name", whose

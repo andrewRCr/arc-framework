@@ -3,14 +3,13 @@
 import type { LookupInput, LookupResult } from "../lookup.js";
 import { restartOnVanishedStore } from "./repository.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
-import { RecordReferenceSchema, type RecordReference } from "../identity.js";
+import { RecordReferenceSchema, StoredUidSchema, type RecordReference } from "../identity.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefMetadata } from "./metadata.js";
 import type { BatchObject, RefTreeEntry } from "./batch-read.js";
 import { lookupPrimary, preferredNameTrees } from "./lookup-primary.js";
 import { claimLookupCandidates, claimIdentityRefusal } from "./lookup-claims.js";
 import { readLookupTrees } from "./lookup-trees.js";
-import { z } from "zod";
 import type { Slug } from "../../kernel/schema/slug.js";
 import type { ArchivedFolder } from "./archive-read.js";
 
@@ -87,7 +86,7 @@ function slugCandidates(context: Pick<RefBackendContext, "registry">, trees: Rea
 function lineageCandidates(trees: ReadonlyMap<string, RefLookupTree>, origin: string): RecordReference[] {
   const registry = trees.get("refs/arc/project/registry");
   if (!registry) return [];
-  const byUid = z.uuid().safeParse(origin).success;
+  const byUid = StoredUidSchema.safeParse(origin).success;
   const paths = new Set(registry.entries.map(({ path }) => path));
   const held = Object.entries(registry.metadata.lineage ?? {})
     .filter(([uid]) => paths.has(`lineage/${uid}.json`));

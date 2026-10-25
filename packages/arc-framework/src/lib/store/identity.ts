@@ -11,9 +11,12 @@ import { KIND_SHAPES, type KindId, type KeyedKindId, type SingletonKindId } from
 export const STORED_UID_SOURCE = "(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
   + "|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)";
 
+/** One UID grammar shared by stored names, owner handles, and retained identity facts. */
+export const StoredUidSchema = z.string().regex(new RegExp(`^${STORED_UID_SOURCE}$`, "u"));
+
 /** Owner identity without presentation paths or former names. */
 export const OwnerIdentitySchema = z.union([
-  z.strictObject({ type: z.enum(["work-item", "cohort", "project"]), name: SlugSchema, uid: z.uuid().optional() }),
+  z.strictObject({ type: z.enum(["work-item", "cohort", "project"]), name: SlugSchema, uid: StoredUidSchema.optional() }),
   z.strictObject({ type: z.literal("person"), name: SlugSchema }),
 ]).brand<"StoreOwnerIdentity">();
 /** A validated owner handle, opaque in construction. */

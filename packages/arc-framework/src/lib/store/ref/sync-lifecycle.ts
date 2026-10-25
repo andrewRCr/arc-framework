@@ -105,7 +105,9 @@ export async function readPendingRefEnds(context: RefBackendContext, held: Reado
   published: RefEndPublished = refEndPublished(context, incoming)): Promise<PendingRefEnd[]> {
   const pending = new Map<string, PendingRefEnd>();
   for (const folder of await readLifecycleFolders(context, state)) {
-    const live = folder.liveRef, history = HistoryRefSchema.parse(live.replace("refs/arc/", "refs/arc/history/"));
+    const live = folder.liveRef, parsed = HistoryRefSchema.safeParse(live.replace("refs/arc/", "refs/arc/history/"));
+    if (!parsed.success) continue;
+    const history = parsed.data;
     if (!held.has(live) && !held.has(history)) continue;
     const batches = await lifecycleBatches(context, held.get(history), folder.owner);
     if (held.has(live) || !folder.metadata.endBatch || !batches.has(folder.metadata.endBatch)) {
@@ -124,10 +126,12 @@ async function addPendingLineageEnds(context: RefBackendContext, held: ReadonlyM
   if (lineage.status === "ok") for (const owner of lineage.result) {
     if (!("uid" in owner)) continue;
     const live = `refs/arc/work/${owner.uid}`;
-    const history = HistoryRefSchema.parse(live.replace("refs/arc/", "refs/arc/history/"));
+    const parsed = HistoryRefSchema.safeParse(live.replace("refs/arc/", "refs/arc/history/"));
+    if (!parsed.success) continue;
+    const history = parsed.data;
     if (!incoming.has(live) && !pending.has(live) && (held.has(live)
       || held.has(history) && await hasOwnRefEnd(context, held, live, folders, published))) pending.set(live, {
-      live, history: HistoryRefSchema.parse(live.replace("refs/arc/", "refs/arc/history/")), owner, ownReopen: ownReopens.has(live),
+      live, history, owner, ownReopen: ownReopens.has(live),
     });
   }
 }

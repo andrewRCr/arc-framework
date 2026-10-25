@@ -218,6 +218,10 @@ describes types the code does not have.
 
 #### 2.1 Operations
 
+An owner UID uses the lowercase grammar stored names carry, enforced by `StoredUidSchema` and
+`OwnerIdentitySchema` (`lib/store/identity.ts`). Every stored UID, lineage key, retained owner fact, and UID operand
+uses that same grammar; a malformed stored lineage key receives the existing typed namespace refusal (A43).
+
 `sync()` becomes `push()`, and `pull()` and `maintain()` join it:
 
 ```ts
@@ -4615,6 +4619,10 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     prompts, reads stable diagnostics, and ends at the shipped bound or the sync deadline; a read the bound ends reports
     `unreachable` with cause `timeout` (§ 11.8) (A42).
 
+49. **Every store UID uses the stored lowercase grammar.** An uppercase owner UID refuses admission without changing
+    state, an uppercase conflict operand refuses typed, and an uppercase registry lineage or former-slug key holds
+    pull and push with a typed namespace refusal rather than throwing (§ 2.1) (A43).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4781,5 +4789,8 @@ open:
 
 - **A42** — 2026-10-24 — design: every store listing of a remote's refs runs under the shipped network bound.
   _Supersedes:_ § 11.8's signal calls. _Trigger:_ fix-check-2/F4 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A43** — 2026-10-25 — design: an owner UID takes the lowercase form stored names carry.
+  _Supersedes:_ § 2.1 owner UID. _Trigger:_ standard-pass-2/AGG-01 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

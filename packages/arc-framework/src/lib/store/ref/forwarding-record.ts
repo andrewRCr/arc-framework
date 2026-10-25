@@ -3,6 +3,7 @@ import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import { writeRefBlob, writeRefTree } from "./tree-write.js";
 import { z } from "zod";
 import { CommitShaSchema } from "../links.js";
+import { StoredUidSchema } from "../identity.js";
 import type { StoreCommandRefusal } from "../commands.js";
 import type { Remedy } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
@@ -11,7 +12,7 @@ import { readBatchObjects } from "./batch-read.js";
 /** The remote control ref is distinct from every manifested store ref. */
 export const FORWARDING_REF = "refs/arc/project/moved";
 /** The registry commit is data rather than a parent, so no state history stays reachable. */
-export const ForwardingRecordSchema = z.strictObject({ projectId: z.uuid(), registryCommit: CommitShaSchema });
+export const ForwardingRecordSchema = z.strictObject({ projectId: StoredUidSchema, registryCommit: CommitShaSchema });
 /** Exact project and move identity carried by the forwarding record. */
 export type ForwardingRecord = z.infer<typeof ForwardingRecordSchema>;
 type ForwardingRecordRead = { status: "ok"; result: ForwardingRecord | null }

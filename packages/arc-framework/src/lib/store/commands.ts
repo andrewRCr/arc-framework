@@ -5,7 +5,7 @@ import { FAMILY_REGISTRY, KIND_REGISTRY } from "./registry.js";
 import type { ConflictRecord } from "./conflict.js";
 import type { RecordReference, RecordVersion } from "./identity.js";
 import type { StoreResult } from "./refusal.js";
-import { KindIdSchema, RecordReferenceSchema } from "./identity.js";
+import { KindIdSchema, RecordReferenceSchema, StoredUidSchema } from "./identity.js";
 import { RemedySchema, StoreRefusalSchema } from "./refusal.js";
 
 /** A complete account of the refs and source records a move examined. */
@@ -78,7 +78,7 @@ export type StoreMigrateResult = StoreCommandResult<MigrateReport> | StoreDesign
 export type StoreRemoteResult = StoreCommandResult<StoreRemoteView> | StoreRemoteConfirmation;
 
 /** Exact conflict inspection or explicit discard; the handler owns output formatting. */
-export const StoreConflictInputSchema = z.strictObject({ uid: z.uuid(), kind: KindIdSchema.refine((kind) => {
+export const StoreConflictInputSchema = z.strictObject({ uid: StoredUidSchema, kind: KindIdSchema.refine((kind) => {
   const family = KIND_REGISTRY[kind].family, home = FAMILY_REGISTRY[family].ref;
   return kind.endsWith("/conflict-record") && KIND_REGISTRY[kind].ref !== undefined
     && (family === "work-item" || home && "subtreeOf" in home && home.subtreeOf === "work-item");

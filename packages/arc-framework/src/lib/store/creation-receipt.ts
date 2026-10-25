@@ -1,13 +1,14 @@
 /** Backend allocation evidence, independent of caller provenance and record content. */
 import { z } from "zod";
 import { SlugSchema } from "../kernel/index.js";
+import { StoredUidSchema } from "./identity.js";
 
 /** A primary actually created under a freshly allocated owner generation. */
 export const CreatedOwnerSchema = z.union([
   z.strictObject({ kind: z.enum(["work-item/meta", "work-item/record"]),
-    owner: z.strictObject({ type: z.literal("work-item"), name: SlugSchema, uid: z.uuid() }) }),
+    owner: z.strictObject({ type: z.literal("work-item"), name: SlugSchema, uid: StoredUidSchema }) }),
   z.strictObject({ kind: z.literal("cohort/document"),
-    owner: z.strictObject({ type: z.literal("cohort"), name: SlugSchema, uid: z.uuid() }) }),
+    owner: z.strictObject({ type: z.literal("cohort"), name: SlugSchema, uid: StoredUidSchema }) }),
 ]);
 /** One backend-proved primary birth. */
 export type CreatedOwner = z.infer<typeof CreatedOwnerSchema>;
