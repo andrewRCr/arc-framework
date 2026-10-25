@@ -58,10 +58,16 @@ it.each([false, true])("creation preserves a changed marker and the committed re
   const result = await repairCli(f, argv, { store });
   expect(result.exitCode, result.stdout + result.stderr).toBe(1);
   expect(result.stdout + result.stderr).toContain("arc materialize created --here");
-  await createdOwner(h);
+  const owner = await createdOwner(h);
   expect(await readFile(resolveWorktreeMarkerPath(path))).toEqual(concurrent);
   const current = await readWorktreeMarker(path);
   expect(current).toMatchObject({ kind: "present", marker: { createdFor: { kind: "work-unit", name: "created" } } });
   expect(current).not.toHaveProperty("marker.createdFor.uid");
   expect((await f.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(path);
+  const before = lifecycleSuccess(await h.store.version());
+  const recovered = await repairCli({ ...f, cwd: path }, ["materialize", "created", "--here"], { store: h.store });
+  expect(recovered.exitCode ?? 0, recovered.stdout + recovered.stderr).toBe(0);
+  expect(await readWorktreeMarker(path)).toMatchObject({ kind: "present", marker: { spawnedByArc: !here,
+    createdAt: "2000-01-01T00:00:00.000Z", createdFor: { kind: "work-unit", name: "created", uid: owner.uid } } });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
 }, 30_000);

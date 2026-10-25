@@ -709,29 +709,11 @@ released, then rerun.
           explicit unbound state without growing the resolver's branching. Direct reconciliation preserves recovery
           actions, and shared release resolution maps the new union arm to ambiguous advice for type-safe propagation.
 
-    - `[ ]` **6.2.b The callers that refuse**
+    - `[x]` **6.2.b The callers that refuse**
 
-        - A lifecycle verb run without an operand (`resolveCurrentWuSlug`, `resolvePublicationTarget`, and the store-arm
-          target of `arc set-stage`, `arc finalize`, and `arc repoint-design` in `handleSetStage`,
-          `handleFinalizeStage`, and `handleRepointDesign`, `handlers/lifecycle.ts`; `target`,
-          `handlers/lifecycle-collaboration.ts`), `arc wu reconcile` (`handleStoreReconcile`, whose `storeReconcileSlug`
-          then never reads an unbound marker's name), the task commands (`handlers/task.ts`), `arc handoff write`
-          (`lib/handoff/write.ts`), `arc set-class` without a name (`lib/work-unit/verbs/set-class.ts`), the ambient
-          `arc view` (`resolveStoreAmbientViewTarget`, `handlers/view-store.ts`), and the planning base sync
-          (`handlers/base-sync-planning.ts`) refuse the unbound state naming the exits.
-        - `resolveCurrentWuSlug` returns the slug or the unbound refusal, and `resolveVerbTargetOrReport` refuses with
-          its reason, and under `--json` its exits as the remedy, in place of the verb-candidate list it prints for an
-          unresolved checkout. The other callers render the classification's reason. The base sync consults the resolver
-          on a detached HEAD alone, where the unbound state joins its existing refusal condition.
-        - _Note:_ `handlers/lifecycle.ts` is over the file-length gate and in the suppression record; `handleSetStage`,
-          `handleFinalizeStage`, and `handleRepointDesign` repeat one target block, which a shared helper replaces so
-          the file's net length holds.
-        - _Note:_ `feat/storage-ref-backend` edits `lib/handoff/write.ts`; re-check that branch before editing.
-        - Build `test-first` (one behavior at a time):
-            - `arc set-stage`, a task command, and `arc handoff write` in an unbound checkout each refuse naming the
-              exits, and succeed once `arc materialize <slug> --here` binds it
-            - `arc wu reconcile` without an operand in an unbound checkout refuses rather than reconciling by the
-              marker's name, and finds no current work unit once `arc locus release` frees it
+        - Ambient lifecycle, task, handoff, reconciliation, class, view, and detached-base synchronization preserve the
+          classifier's refusal and recovery exits. Lifecycle JSON remedies retain every checkout-bound action, and
+          planning target selection shares one helper without growing the handler file.
 
     - `[ ]` **6.2.c The shared work-unit resolution and its importers**
 
@@ -771,38 +753,11 @@ released, then rerun.
 - _Goal:_ The two exits that bind admit an unbound marker: materialize stamps it onto the live holder the person names,
   and the cold start's rerun takes back its own leftover, each then succeeding.
 
-    - `[ ]` **6.3.a `arc materialize <slug> --here`**
+    - `[x]` **6.3.a `arc materialize <slug> --here`**
 
-        - The occupancy guard (`readStoreOccupancy`, `lib/work-unit/lifecycle-guards.ts`), which start, resume, and
-          materialize share, takes its subject's primary from an optional `primary` on its context (`GuardContext`,
-          `lifecycle-executor.ts`): `validateStoreGuards` sets it from the primary it selects, as it gives
-          `makePauseGuard` that primary, and `materializationOccupancy` (`materialize-store.ts`) sets it with a
-          materialize-only `admitUnbound`. Given a primary, the guard matches a bound marker, and the checkout's current
-          work unit, by that primary's UID rather than by name; with none, a creation's, no bound marker is its own. It
-          admits an unbound marker naming the slug, and the resolver's unbound state, only on materialize's call and
-          only where that record is `ownedInFlight`; start and resume refuse both. The admission moves into a helper
-          within the guard's limit.
-        - The spawn op (`ReconcileWorkUnitWorktreeOp`) gains a materialize-only `bind: { expected }`, the unbound
-          marker's generation, which the guard's admission returns from the occupancy read it makes
-          (`inspectCheckoutMarker`) and `runStoreMaterialize` passes into the op. The in-place leg
-          (`reconcileWorkUnitWorktree`) resolves its checkout before its exclusivity check and passes it as
-          `checkoutPath`. With `bind`, it stamps the marker by its generation (`writeAnchoredMarker` with `expected`),
-          adding the UID and keeping the marker's other fields, `spawnedByArc` among them; without it, the leg refuses
-          an existing marker or writes a fresh one setting `spawnedByArc: false`, as today, so graduation `--here` keeps
-          refusing (`lifecycle-default-locus-ports.test.ts`). `listStoreMaterializable` passes the same `checkoutPath`
-          to `findWorkUnitHoldingCheckout`.
-        - _Note:_ `reconcileWorkUnitWorktreeUnlocked` is over the function-length limit and in the suppression record;
-          extract the stamp into a helper.
-        - Build `test-first` (one behavior at a time):
-            - materialize `--here` binds a marker written before the flip to its live holder, keeping `spawnedByArc`,
-              and the checkout's verbs then act on that holder
-            - it binds one while another owned work unit's checkout is unbound too
-            - it refuses an unbound marker whose live holder it does not admit, naming the release exit, and the release
-              then frees the checkout
-            - a creation interrupted after its create batch commits, before its stamp, binds through it and then
-              resolves
-            - `arc start <slug> --here` of the live holder in a bound checkout of the archived holder refuses at the
-              occupancy guard, which matches the marker by UID
+        - Materialize carries its selected primary and admitted marker generation into placement. Bound occupancy
+          matches by UID; binding checks the generation before branch changes, adds only the UID, preserves former
+          display names and origin fields, and retains competing markers until a fresh admission retries.
 
     - `[ ]` **6.3.b The cold start's rerun**
 

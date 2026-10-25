@@ -21,6 +21,7 @@ export async function runSetClass(context: SetClassContext, params: { name?: str
   let name = params.name;
   if (name === undefined) {
     const current = await resolveCurrentWorkUnit({ cwd: context.cwd, store: context.store });
+    if (current.status === "unbound") return { status: "rejected", reason: current.unbound.reason };
     if (current.status !== "resolved") return { status: "rejected",
       reason: `arc set-class needs exactly one current work unit; name a stub or another work unit explicitly. ${current.warnings.join(" ")}`.trim() };
     name = current.candidate.reference.owner.name;

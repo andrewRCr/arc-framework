@@ -28,6 +28,16 @@ async function fixture() {
   return { ...h, cwd, deps };
 }
 
+it("names unbound recovery exits for an ambient view and resolves after binding", async () => {
+  const f = await fixture(), meta = await f.seedMeta("demo", { owner: "alice" });
+  await writeWorktreeOwnershipMarker(f.cwd, { createdByArc: true, createdFor: { kind: "work-unit", name: "demo" }, spawningIdentity: "alice", now: 0 });
+  const result = await f.deps.resolveAmbientTarget({ cwd: f.cwd, identity: "alice" });
+  expect(result).toMatchObject({ status: "unavailable", message: expect.stringContaining("arc materialize demo --here") });
+  expect(result).toMatchObject({ message: expect.stringContaining("arc locus release") });
+  await writeWorktreeOwnershipMarker(f.cwd, { createdByArc: true, createdFor: boundWorkUnitSubject(meta), spawningIdentity: "alice", now: 0 });
+  expect(await f.deps.resolveAmbientTarget({ cwd: f.cwd, identity: "alice" })).toMatchObject({ status: "resolved", slug: "demo" });
+});
+
 it.each(["former", "reused"] as const)("resolves a %s slug to the selected live store identity", async scenario => {
   const f = await fixture(), original = await f.seedMeta("original");
   let expected: typeof original;

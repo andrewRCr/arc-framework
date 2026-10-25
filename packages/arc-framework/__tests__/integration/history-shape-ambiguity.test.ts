@@ -352,7 +352,7 @@ describe("the Candidate attestation ceremony over an ambiguous history", () => {
     expect(refused.exitCode).toBe(1);
     const refusal = LifecycleCommandRefusalSchema.parse(refused.result);
     expect(refusal.reason).toContain("merge-base-ambiguous");
-    expect(refusal.remedy.argv).toEqual(["arc", "attest", WORK_UNIT]);
+    expect(refusal.remedy).toMatchObject({ argv: ["arc", "attest", WORK_UNIT] });
 
     // The remedy the refusal names, run as an operator would run it: one merge leaves the advanced base an
     // ancestor of the branch, so the pair has one best ancestor again and the same ceremony goes through.

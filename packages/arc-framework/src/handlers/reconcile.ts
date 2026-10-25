@@ -163,6 +163,7 @@ export async function handleWuReconcile(
 /** Run current-work-unit reconciliation with the caller's already-bound operational store. */
 export async function handleStoreReconcile(store: Store, cwd: string, input: z.infer<typeof WuReconcileCommandInputSchema>): Promise<void> {
   const current = await resolveCurrentWorkUnit({ cwd, store });
+  if (current.status === "unbound") { emitConflict(input, input.slug ?? "", current.unbound.reason); return; }
   const selected = await storeReconcilePrimary(store, current, cwd);
   if (selected === undefined) {
     emitConflict(input, input.slug ?? "", current.warnings.join("; ") || "The checkout does not hold exactly one matching work unit.");

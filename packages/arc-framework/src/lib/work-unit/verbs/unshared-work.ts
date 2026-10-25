@@ -44,22 +44,23 @@ export async function readUnsharedWork(ctx: UnsharedWorkContext, record: StoreRe
 /** Find one owner-bound holder, refusing unbound operational claims with their recovery exits.
  * @param ctx - Checkout, store, bound Git, and optional locus lookup.
  * @param record - Selected owner whose marker supplies current occupancy.
+ * @param checkoutPath - Exclude the checkout whose placement is being admitted.
  * @returns Its holding checkout, or absence; inconsistent observations throw.
  */
 export async function findWorkUnitHoldingCheckout(ctx: Pick<UnsharedWorkContext, "cwd" | "exec" | "locusPorts" | "store">,
-  record: Pick<StoreRecord, "reference" | "aliases">): Promise<string | null> {
-  const result = await readWorkUnitCheckout(ctx, record);
+  record: Pick<StoreRecord, "reference" | "aliases">, checkoutPath?: string): Promise<string | null> {
+  const result = await readWorkUnitCheckout(ctx, record, checkoutPath);
   if (result.kind === "unbound") throw new Error(result.reason);
   return result.kind === "held" ? result.path : null;
 }
 
-/** Observe a holder without discarding the unbound state needed by reporting callers. */
+/** Observe a holder, optionally excluding the requesting checkout, while retaining unbound reporting evidence. */
 export async function readWorkUnitCheckout(ctx: Pick<UnsharedWorkContext, "cwd" | "exec" | "locusPorts" | "store">,
-  record: Pick<StoreRecord, "reference" | "aliases">): Promise<HoldingCheckoutResult> {
+  record: Pick<StoreRecord, "reference" | "aliases">, checkoutPath?: string): Promise<HoldingCheckoutResult> {
   const name = record.reference.owner.name;
   if (ctx.store?.capabilities.stateOffBranch) {
     const request = ownerHolderRequest(record);
-    return (ctx.locusPorts ?? createLocusPorts({ ...ctx, store: ctx.store })).findHoldingCheckout(request);
+    return (ctx.locusPorts ?? createLocusPorts({ ...ctx, store: ctx.store })).findHoldingCheckout({ ...request, ...(checkoutPath === undefined ? {} : { checkoutPath }) });
   }
   if (record.reference.owner.type === "work-item" && record.reference.owner.uid !== undefined) {
     throw new Error(`Bind the operational store to locate ${name}'s owner UUID, then retry.`);

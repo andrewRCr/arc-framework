@@ -165,7 +165,7 @@ async function validateStoreGuards(ctx: ExecuteTransitionContext & { store: Stor
   for (const name of edge.guards) {
     const guard = guards[name];
     if (guard === undefined) return { status: "rejected", stage: "guard", message: `guard \`${name}\` is not wired.` };
-    const result = await guard({ index: index, slug, position, inputs, store: ctx.store });
+    const result = await guard({ index: index, slug, position, inputs, store: ctx.store, primary });
     if (!result.ok) return { status: "rejected", stage: "guard", message: result.message, ...(result.remedy === undefined ? {} : { remedy: result.remedy }) };
   }
   return undefined;

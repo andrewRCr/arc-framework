@@ -1,5 +1,7 @@
 /** Ambient context, executor binding, and reporting shared by lifecycle command adapters. */
 
+import { SessionActionsSchema } from "../lib/session-init/actions.js";
+import type { UnboundMarkerClassification } from "../lib/locus/unbound-marker.js";
 import { readFile, readdir } from "node:fs/promises";
 import { StoreRefusalSchema, type Remedy, type StoreRefusal } from "../lib/store/refusal.js";
 import { clashRepair } from "../lib/store/clash-repair.js";
@@ -197,13 +199,21 @@ export function renderRefusalCandidate(reference: RecordReference): string {
   return `${label} \`${reference.owner.name}\` (UID ${uid ?? "unavailable"})`;
 }
 
-/** Refuse with the failed invariant and the one command that advances from it. */
+/** Lifecycle refusals preserve a corrective command or exact checkout recovery actions. */
 export const LifecycleCommandRefusalSchema = z.strictObject({
   status: z.literal("rejected"),
   reason: z.string().min(1),
-  remedy: SpineRemedySchema,
+  remedy: z.union([SpineRemedySchema, SessionActionsSchema]),
   refusal: StoreRefusalSchema.optional(),
 });
+
+/** Render every checkout-bound recovery exit for an unbound work-unit target. */
+export function refuseUnboundTarget(unbound: UnboundMarkerClassification, json = false): void {
+  if (!json) { refuse(unbound.reason); return; }
+  const envelope = LifecycleCommandRefusalSchema.parse({ status: "rejected", reason: unbound.reason, remedy: unbound.exits });
+  process.stdout.write(`${JSON.stringify(envelope)}\n`);
+  process.exitCode = 1;
+}
 
 /**
  * Report a refusal with its recovery command.

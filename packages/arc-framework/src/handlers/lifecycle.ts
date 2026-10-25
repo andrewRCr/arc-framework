@@ -18,6 +18,7 @@
  *
  * @module
  */
+import type { UnboundMarkerClassification } from "../lib/locus/unbound-marker.js";
 import { handleStoreAbandon } from "./abandon-store.js";
 
 
@@ -138,6 +139,7 @@ import {
   parseLifecycleCommand,
   refuse,
   refuseWithRemedy,
+  refuseUnboundTarget,
   reportOutcome,
   resolveVerbBase,
   type VerbBase,
@@ -145,9 +147,17 @@ import {
 import { permitDeliveryReopen, publishCandidateWithReviewBoundary } from "./lifecycle-delivery-review.js";
 
 /** Resolve this checkout's identity through the invocation's operational store. */
-async function resolveCurrentWuSlug(cwd: string, store?: Store): Promise<string | null> {
+async function resolveCurrentWuSlug(cwd: string, store?: Store): Promise<string | UnboundMarkerClassification | null> {
   const current = await resolveCurrentWorkUnit({ cwd, store });
+  if (current.status === "unbound") return current.unbound;
   return current.status === "resolved" ? current.candidate.reference.owner.name : null;
+}
+
+async function resolveStageWorkUnit(base: VerbBase, store: Store | undefined, verb: string): Promise<string | null> {
+  const slug = await resolveCurrentWuSlug(base.cwd, usesOffBranchState(store) ? store : base.store);
+  if (slug !== null && typeof slug !== "string") { refuseUnboundTarget(slug); return null; }
+  if (slug === null) refuse(`\`arc ${verb}\` needs exactly one active work unit to target — none resolved in this worktree.`);
+  return slug;
 }
 
 /**
@@ -171,6 +181,7 @@ export async function resolveVerbTargetOrReport(
 ): Promise<string | null> {
   const needsCurrentWu = !slugArg?.trim() && DISPATCH_MODE[verb] === "context-defaulting";
   const currentWuSlug = needsCurrentWu ? await resolveCurrentWuSlug(cwd, store) : null;
+  if (currentWuSlug !== null && typeof currentWuSlug !== "string") { refuseUnboundTarget(currentWuSlug, json); return null; }
 
   const target = selectVerbTarget(verb, slugArg, currentWuSlug);
   if (target.kind === "resolved") return canonicalVerbTarget(target.slug, store, json);
@@ -1415,6 +1426,7 @@ export async function resolvePublicationTarget(base: Pick<VerbBase, "cwd" | "sto
     return read.status === "refused" && read.refusal.code === "not-found" ? { name: slug } : publicationRecordTarget(read, json);
   }
   const current = await resolveCurrentWorkUnit({ cwd: base.cwd, store });
+  if (current.status === "unbound") { refuseUnboundTarget(current.unbound, json); return null; }
   if (current.status === "resolved") return publicationRecordTarget(await store.read({ reference: current.candidate.reference }), json);
   refuseWithRemedy(`Supply a work-unit slug; this checkout's current work unit is ${current.status}.`,
     spineRemedy("Publication requires one selected work unit", "Inspect the current work unit", ["arc", "status", "--json"]), json);
@@ -1935,14 +1947,8 @@ export async function handleSetStage(
   const stageArg = input.stage;
 
   const { executor } = await buildExecutor(base);
-  const current = executor.store !== undefined && usesOffBranchState(executor.store)
-    ? await resolveCurrentWorkUnit({ cwd: base.cwd, store: executor.store }) : undefined;
-  const slug = current === undefined ? await resolveCurrentWuSlug(base.cwd, base.store)
-    : current.status === "resolved" ? current.candidate.reference.owner.name : null;
-  if (slug === null) {
-    refuse("`arc set-stage` needs exactly one active work unit to target — none resolved in this worktree.");
-    return;
-  }
+  const slug = await resolveStageWorkUnit(base, executor.store, "set-stage");
+  if (slug === null) return;
 
   const result = await runSetStage(executor, { name: slug, stage: stageArg, advance: input.advance ?? false });
   if (result.status === "rejected") {
@@ -1990,14 +1996,8 @@ export async function handleFinalizeStage(
   const firePointArg = input.firePoint;
 
   const { executor } = await buildExecutor(base);
-  const current = executor.store !== undefined && usesOffBranchState(executor.store)
-    ? await resolveCurrentWorkUnit({ cwd: base.cwd, store: executor.store }) : undefined;
-  const slug = current === undefined ? await resolveCurrentWuSlug(base.cwd, base.store)
-    : current.status === "resolved" ? current.candidate.reference.owner.name : null;
-  if (slug === null) {
-    refuse("`arc finalize` needs exactly one active work unit to target — none resolved in this worktree.");
-    return;
-  }
+  const slug = await resolveStageWorkUnit(base, executor.store, "finalize");
+  if (slug === null) return;
 
   // `writeClassField` is an optional direct-invoke seam on the executor (like the
   // archive / reconcile seams); the production binder always provides it, so a miss
@@ -2056,14 +2056,8 @@ export async function handleRepointDesign(
   const eventArg = input.event;
 
   const { executor } = await buildExecutor(base);
-  const current = executor.store !== undefined && usesOffBranchState(executor.store)
-    ? await resolveCurrentWorkUnit({ cwd: base.cwd, store: executor.store }) : undefined;
-  const slug = current === undefined ? await resolveCurrentWuSlug(base.cwd, base.store)
-    : current.status === "resolved" ? current.candidate.reference.owner.name : null;
-  if (slug === null) {
-    refuse("`arc repoint-design` needs exactly one active work unit to target — none resolved in this worktree.");
-    return;
-  }
+  const slug = await resolveStageWorkUnit(base, executor.store, "repoint-design");
+  if (slug === null) return;
 
   const currentDesign = usesOffBranchState(executor.store) ? undefined
     : parseMetaRecord(await readFile(materializeActiveMetaPath(base.cwd, slug), "utf8")).design;

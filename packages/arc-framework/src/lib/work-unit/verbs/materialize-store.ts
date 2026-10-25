@@ -29,7 +29,7 @@ type Bound = MaterializeContext & { cwd: string; exec: GitExec };
 /** A held candidate preserves the distinction between a bound and an unbound checkout. */
 export type MaterializeHeldCheckout = Exclude<HoldingCheckoutResult, { kind: "none" }>;
 /** List candidates with one locus query per owned in-flight work unit. */
-export async function listStoreMaterializable(ctx: Bound, identity: string, held = new Map<RecordReference, MaterializeHeldCheckout>()): Promise<LifecycleEntry[]> {
+export async function listStoreMaterializable(ctx: Bound, identity: string, held = new Map<RecordReference, MaterializeHeldCheckout>(), checkoutPath?: string): Promise<LifecycleEntry[]> {
   if (ctx.store === undefined) throw new Error("Materialize requires its operational store");
   const view = await readLifecycleView(ctx.store);
   if (view.status === "refused") throw new Error(`${view.refusal.condition} ${view.refusal.remedy.text}`);
@@ -38,7 +38,7 @@ export async function listStoreMaterializable(ctx: Bound, identity: string, held
   for (const entry of view.result.entries) {
     if (entry.location !== "active" || entry.fields.owner !== identity) continue;
     if (!new Set(["Planning", "Active", "Integrating"]).has(entry.phase)) continue;
-    const checkout = await readWorkUnitCheckout(ctx, entry);
+    const checkout = await readWorkUnitCheckout(ctx, entry, checkoutPath);
     if (checkout.kind === "none") candidates.push(entry); else held.set(entry.reference, checkout);
   }
   return candidates;
@@ -53,19 +53,20 @@ export async function runStoreMaterialize(ctx: MaterializeContext, params: Mater
     const read = await readWorkUnit(ctx.store, params.name);
     if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
     const name = read.result.reference.owner.name;
+    const occupancy = await materializationOccupancy(bound, read.result, params.inPlace === true);
+    if (!occupancy.ok) return { status: "rejected", reason: occupancy.message, remedy: occupancy.remedy };
     if (!ownedInFlight(read.result, identity)) {
       return { status: "rejected", reason: `${name} is not owned in-flight work; refresh its ownership and lifecycle state, then retry materialize.` };
     }
-    const occupancy = await materializationOccupancy(bound, name, params.inPlace === true);
-    if (!occupancy.ok) return { status: "rejected", reason: occupancy.message, remedy: occupancy.remedy };
     const held = new Map<RecordReference, MaterializeHeldCheckout>();
-    const candidates = await listStoreMaterializable(bound, identity, held);
+    const candidates = await listStoreMaterializable(bound, identity, held, params.inPlace ? bound.cwd : undefined);
     const entry = candidates.find((item) => sameReference(item.reference, read.result.reference));
     if (entry === undefined) return { status: "rejected", reason: heldCandidateReason(read.result, identity, candidates, held) };
     const chosen = selectWorkBranchLink(read.result, { repository: await ctx.projectId?.() });
     if (chosen.kind === "ambiguous") return { status: "rejected", reason: chosen.reason };
     const branch = chosen.kind === "none" ? null : workBranchName(chosen.link.ref);
-    const operation = await placementOperation(bound, { ...params, name }, branch, identity, ownerHolderRequest(read.result));
+    const placement = await placementOperation(bound, { ...params, name }, branch, identity, ownerHolderRequest(read.result));
+    const operation = placement.inPlace && occupancy.bind !== undefined ? { ...placement, bind: occupancy.bind } : placement;
     return await claimMaterialization({ ...bound, store: ctx.store }, { primary: read.result, operation, branch, inPlace: params.inPlace === true });
   } catch (error) { return { status: "rejected", reason: describeWorktreePreparationFailure(error,
     ["arc", "materialize", params.name, ...(params.inPlace ? ["--here"] : [])]) }; }
@@ -77,7 +78,7 @@ function heldCandidateReason(record: StoreRecord, identity: string, candidates: 
     : workUnitMarkerExit(holder.path, record.reference.owner.name, record, identity);
 }
 async function placementOperation(ctx: Bound, params: MaterializeParams, branch: string | null, identity: string,
-  holder: WorkUnitHolderRequest): Promise<ReconcileWorkUnitWorktreeOp> {
+  holder: WorkUnitHolderRequest): Promise<Extract<ReconcileWorkUnitWorktreeOp, { mutation: "spawn" }>> {
   if (params.inPlace && branch === null) return { mutation: "spawn", inPlace: true, preserveHead: true, wuName: params.name, holder, spawningIdentity: identity };
   const baseBranch = params.baseBranch;
   if (baseBranch === undefined) throw new Error("Materialize requires the configured base branch.");
@@ -121,7 +122,7 @@ async function claimMaterialization(ctx: Bound & { store: Store }, request: {
   primary: StoreRecord; operation: ReconcileWorkUnitWorktreeOp; branch: string | null; inPlace: boolean;
 }): Promise<MaterializeResult> {
   const { primary, operation, branch, inPlace } = request;
-  const allowed = await materializationOccupancy(ctx, primary.reference.owner.name, inPlace, operation);
+  const allowed = await materializationOccupancy(ctx, primary, inPlace, operation);
   if (!allowed.ok) return { status: "rejected", reason: allowed.message, remedy: allowed.remedy };
   const valid = await revalidateLifecycleRecords(ctx.store, [primary]);
   if (valid.status === "refused") return { status: "rejected", reason: valid.refusal.condition, refusal: valid.refusal };
@@ -131,10 +132,10 @@ async function claimMaterialization(ctx: Bound & { store: Store }, request: {
     advisories: result.postCreateNotice === undefined ? [] : [result.postCreateNotice] };
 }
 
-async function materializationOccupancy(ctx: Bound, name: string, inPlace: boolean,
+async function materializationOccupancy(ctx: Bound, primary: StoreRecord, inPlace: boolean,
   operation?: ReconcileWorkUnitWorktreeOp): Promise<GuardResult> {
   const occupancy = ctx.guardValidators?.["worktree-occupancy"];
   if (occupancy === undefined) return { ok: false, message: "guard `worktree-occupancy` is not wired." };
-  return occupancy({ index: new Map(), slug: name, position: null,
+  return occupancy({ index: new Map(), slug: primary.reference.owner.name, primary, admitUnbound: true, position: null,
     inputs: { ...(operation === undefined ? {} : { worktreeOp: operation }), materializesCurrentCheckout: inPlace }, store: ctx.store });
 }

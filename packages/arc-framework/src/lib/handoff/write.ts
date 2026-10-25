@@ -25,6 +25,8 @@ export async function runHandoffWrite(input: { cwd: string; request: unknown; st
   if (boundary !== null) return refused("invalid-handoff-request", `Session Context line ${String(boundary.line)} would end the section: ${boundary.text}`,
     "Rewrite that line as contained Session Context prose and retry arc handoff write.");
   const current = await resolveCurrentWorkUnit({ cwd: input.cwd, store });
+  if (current.status === "unbound") return refused("no-current-work-unit", current.unbound.reason,
+    current.unbound.exits.map(action => action.text).join("; "));
   if (current.status !== "resolved") return refused("no-current-work-unit", `This checkout does not resolve one current work unit. ${current.warnings.join(" ")}`,
     "Run arc handoff write from the work unit's checkout; resolve any ambiguous checkout claims first.");
   const read = await store.read({ reference: current.candidate.reference });
