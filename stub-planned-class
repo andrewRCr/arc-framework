@@ -3,7 +3,7 @@
   "slug": "stub-planned-class",
   "claimId": "23ac97dae94d04d2c20de718ee2b9d63",
   "createdAt": "2026-10-25T02:12:14.882Z",
-  "updatedAt": "2026-10-25T02:12:14.882Z",
+  "updatedAt": "2026-10-25T11:48:57.175Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Refuse planned stub creation without a resolved Class on both tracked and store-backed paths.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Refuse an unresolved Class when `arc stub` mints a planned stub",
   "originEntrySourceDigest": "sha256:a071782909e1553e9412d79c077d420b956f5d41dcd9036c8b9612fa735a4949",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/stub-planned-class",
+    "headSha": "3004bddc2501ff64caa00d9d1e3542dc19e866ce"
+  }
 }
