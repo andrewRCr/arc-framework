@@ -331,6 +331,8 @@ import {
   LocalPrepareRequestSchema,
   prepareLocalReview,
 } from "../scripts/review-gate/runtime/local-prepare.js";
+import { LocalCancelEnvelopeSchema } from "../scripts/review-gate/core/local-cancel-envelope.js";
+import { cancelLocalReviewCommand, LocalCancelRequestSchema } from "../scripts/review-gate/runtime/local-cancel-command.js";
 import { createLocalAttestDependencies } from "../scripts/review-gate/runtime/local-attest-composition.js";
 import {
   LocalAttestRequestSchema,
@@ -469,6 +471,7 @@ export const REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS = [
   "review hosted settle",
   "review local prepare",
   "review local attest",
+  "review local cancel",
   "review local resume",
   "review terminus accept",
 ] as const;
@@ -3120,6 +3123,32 @@ export async function handleReviewLocalAttest(
     resultSchema: LocalAttestEnvelopeSchema,
     dependencies,
     execute: dependencies.attest,
+  });
+}
+
+export interface ReviewLocalCancelHandlerDependencies extends ReviewHandlerBoundary {
+  cancel: (request: unknown, root: string) => Promise<unknown>;
+}
+
+/** Cancel a pending local dispatch and emit its public continuation as JSON. */
+export async function handleReviewLocalCancel(
+  source: string,
+  overrides: Partial<ReviewLocalCancelHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false, machineReadable: true, yes: "absent",
+  });
+  const exec = createGitExec(context.subprocess);
+  const dependencies: ReviewLocalCancelHandlerDependencies = {
+    ...defaultReviewHandlerBoundary(),
+    cancel: (request, root) => cancelLocalReviewCommand(request, createLocalAttestDependencies({ exec, cwd: root })),
+    ...overrides,
+  };
+  await executeReviewHandler({
+    mode: "review-local-cancel", source,
+    requestSchema: LocalCancelRequestSchema, resultSchema: LocalCancelEnvelopeSchema,
+    dependencies, execute: dependencies.cancel,
   });
 }
 

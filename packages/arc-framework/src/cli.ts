@@ -2336,6 +2336,22 @@ localReviewCmd
   }));
 
 localReviewCmd
+  .command("cancel")
+  .description("Cancel a pending local review dispatch without settling its review obligation")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-local-cancel-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewLocalCancel(input ?? "", {}, context);
+  }));
+
+localReviewCmd
   .command("resume")
   .description("Resume one durable local review as JSON")
   .usage("[file | -] [--schema]")

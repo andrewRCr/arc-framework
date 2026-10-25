@@ -92,6 +92,7 @@ describe("packaged review CLI surfaces", () => {
     [["review", "hosted", "settle"], "urn:arc:schema:review-hosted-settle-request"],
     [["review", "local", "prepare"], "urn:arc:schema:review-local-prepare-request"],
     [["review", "local", "attest"], "urn:arc:schema:review-local-attest-request"],
+    [["review", "local", "cancel"], "urn:arc:schema:review-local-cancel-request"],
     [["review", "local", "resume"], "urn:arc:schema:review-local-resume-request"],
     [["review", "terminus", "accept"], "urn:arc:schema:review-terminus-accept-request"],
   ] as const)("emits one self-contained public request schema at %s", async (

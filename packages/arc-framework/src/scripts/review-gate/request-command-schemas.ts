@@ -12,6 +12,7 @@ import { FrontlineResolveRequestSchema } from "./policy/frontline-command-schema
 import { HostedSettleEnvelopeSchema } from "./hosted/settle.js";
 import { LocalPrepareRequestSchema } from "./runtime/local-prepare.js";
 import { LocalAttestRequestSchema } from "./runtime/local-attest-command.js";
+import { LocalCancelRequestSchema } from "./runtime/local-cancel-command.js";
 import { LocalResumeRequestSchema } from "./runtime/local-resume-command.js";
 import { DeliveryReviewTerminusAcceptanceInputSchema } from "./policy/delivery-review-terminus.js";
 
@@ -26,6 +27,7 @@ export const REVIEW_FRONTLINE_RESOLVE_REQUEST_SCHEMA_ID = "review-frontline-reso
 export const REVIEW_HOSTED_SETTLE_REQUEST_SCHEMA_ID = "review-hosted-settle-request";
 export const REVIEW_LOCAL_PREPARE_REQUEST_SCHEMA_ID = "review-local-prepare-request";
 export const REVIEW_LOCAL_ATTEST_REQUEST_SCHEMA_ID = "review-local-attest-request";
+export const REVIEW_LOCAL_CANCEL_REQUEST_SCHEMA_ID = "review-local-cancel-request";
 export const REVIEW_LOCAL_RESUME_REQUEST_SCHEMA_ID = "review-local-resume-request";
 export const REVIEW_TERMINUS_ACCEPT_REQUEST_SCHEMA_ID = "review-terminus-accept-request";
 
@@ -52,6 +54,7 @@ export function registerReviewRequestCommandSchemas(registry: KernelRegistry): K
     [REVIEW_HOSTED_SETTLE_REQUEST_SCHEMA_ID, HostedSettleEnvelopeSchema],
     [REVIEW_LOCAL_PREPARE_REQUEST_SCHEMA_ID, LocalPrepareRequestSchema],
     [REVIEW_LOCAL_ATTEST_REQUEST_SCHEMA_ID, LocalAttestRequestSchema],
+    [REVIEW_LOCAL_CANCEL_REQUEST_SCHEMA_ID, LocalCancelRequestSchema],
     [REVIEW_LOCAL_RESUME_REQUEST_SCHEMA_ID, LocalResumeRequestSchema],
     [REVIEW_TERMINUS_ACCEPT_REQUEST_SCHEMA_ID, DeliveryReviewTerminusAcceptanceInputSchema],
   ] as const) {
