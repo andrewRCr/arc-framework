@@ -1,7 +1,7 @@
 /** Decode archive-folder ownership and placement from captured quarter trees. */
 
 import { ArchiveQuarterSchema, ArchiveSequenceSchema } from "../../kernel/index.js";
-import { OwnerIdentitySchema, type OwnerIdentity } from "../identity.js";
+import { OwnerIdentitySchema, StoredUidSchema, type OwnerIdentity } from "../identity.js";
 import type { FamilyId } from "../catalog.js";
 import type { ReadPlacement } from "../placement.js";
 import type { ListingDiagnostic } from "../read.js";
@@ -30,8 +30,8 @@ export function isArchiveMetadataPath(path: string): boolean {
 export function isArchiveRef(ref: string): boolean { return /^refs\/arc\/archive\/\d{4}-q[1-4]$/u.test(ref); }
 
 /**
- * Select the folders these owners' metadata files name, and any folder no metadata file names, since it could be
- * theirs, without acquiring unrelated record blobs.
+ * Select the folders these owners' metadata files name, and any folder without valid UID attribution, since it
+ * could be theirs, without acquiring unrelated record blobs.
  */
 export function archiveOwnerTrees(trees: ReadonlyMap<string, readonly RefTreeEntry[]>,
   owners: readonly OwnerIdentity[]): Map<string, RefTreeEntry[]> {
@@ -44,7 +44,7 @@ export function archiveOwnerTrees(trees: ReadonlyMap<string, readonly RefTreeEnt
       if (slash < 0) continue;
       const root = path.slice(0, slash + 1), name = path.slice(slash + 1);
       roots.add(root);
-      if (isArchiveMetadataName(name)) attributed.add(root);
+      if (isArchiveMetadataName(name) && StoredUidSchema.safeParse(name.slice("metadata-".length, -".json".length)).success) attributed.add(root);
       if (names.has(name)) owned.add(root);
     }
     const kept = new Set([...roots].filter((root) => owned.has(root) || !attributed.has(root)));

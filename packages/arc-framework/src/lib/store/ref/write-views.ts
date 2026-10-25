@@ -14,7 +14,7 @@ import { matchesFamilyRef, refOwner, decodeRecord } from "./codec.js";
 import { resolveCapturedReference, resolveCapturedListInput, listOwnerReference } from "./reference-resolution.js";
 import { claimIdentityRefusal } from "./lookup-claims.js";
 import { appendArchivedLookupTrees, type RefLookupCapture } from "./lookup-trees.js";
-import { archiveOwnerTrees, isArchiveRef, unreadableOwnedFolder } from "./archive-read.js";
+import { archiveOwnerTrees, isArchiveRef } from "./archive-read.js";
 import type { RefTreeEntry } from "./batch-read.js";
 import { lookupCapturedRefTrees, type RefLookupTree } from "./lookup.js";
 import { expandStoredPath, holdsNoRecord, type StoredRecordHome } from "../stored-path.js";
@@ -25,6 +25,7 @@ import { archivedViewRecords } from "./archive-view.js";
 import { checkRefKey } from "./path-admission.js";
 import { rootFamily } from "./path-decode.js";
 import { readCapturedRefHistory } from "./history.js";
+import { captureArchivedFolders } from "./ended-owners.js";
 
 /** Build lazy views which never recapture a live ref during a check. */
 export function createRefWriteViews(context: RefBackendContext, tips: ReadonlyMap<string, string>,
@@ -227,8 +228,9 @@ function archivedViewRead(context: RefBackendContext, state: RefViewState, refer
   if (!archivable(context, reference)) return missing(reference, state.saved);
   const unreadable = [...state.refs].find(([ref, captured]) => isArchiveRef(ref) && !captured.entries)?.[0];
   if (unreadable) return { status: "refused", refusal: corruptRef(unreadable, true, state.saved) };
-  const broken = unreadableOwnedFolder(archivedViewTrees(state), [reference.owner], state.objects);
-  if (broken) return { status: "refused", refusal: corruptRef(broken, false, state.saved) };
+  const diagnostic = captureArchivedFolders(state, context.registry[reference.kind].family, [reference.owner]).diagnostics[0];
+  if (diagnostic) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
+    namespace: diagnostic.key.split(":")[0] ?? diagnostic.key, condition: diagnostic.condition, remedy: diagnostic.remedy } };
   const record = archivedViewRecord(context, state, reference);
   return record ? { status: "ok", result: record } : missing(reference, state.saved);
 }

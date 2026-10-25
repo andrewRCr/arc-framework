@@ -11,7 +11,7 @@ const quarter = ArchiveQuarterSchema.parse("2026-q4"), ref = `refs/arc/archive/$
 const malformedName = "metadata-00000000-0000-0000-0000-000000000001.json";
 
 describe.each(["default", "separate"] as const)("archive owner diagnostics in %s", layout => {
-  it.each(["close", "lookup", "list", "saved-list"] as const)("locates malformed ownership during %s and admits repair", async mode => {
+  it.each(["close", "lookup", "list", "saved-list", "read", "saved-read"] as const)("locates malformed ownership during %s and admits repair", async mode => {
     const f = await createRefFixture({ "cohort/document": { parser: parseCohortDocument } }, layout);
     const closing = await seed(f, f.reference("cohort/document", "closing"), "# Closing\n");
     const other = await seed(f, f.reference("cohort/document", "other"), "# Other\n");
@@ -23,12 +23,15 @@ describe.each(["default", "separate"] as const)("archive owner diagnostics in %s
     })), { parents: [parent], gitDir: f.gitDir });
     const asOf = await f.settle(), before = success(await f.store.version());
     const write = { ...update(f, closing), placement: { kind: "completed" as const, quarter } };
-    const capture = () => mode === "close" ? f.store.write(write)
+    const capture = (revision = asOf) => mode === "close" ? f.store.write(write)
       : mode === "lookup" ? f.store.lookup({ kind: "slug", slug: other.reference.owner.name })
-      : f.store.list({ family: "cohort", ...(mode === "saved-list" ? { asOf } : {}) });
+      : mode === "read" || mode === "saved-read" ? f.store.read({ reference: other.reference,
+        ...(mode === "saved-read" ? { asOf: revision } : {}) })
+      : f.store.list({ family: "cohort", ...(mode === "saved-list" ? { asOf: revision } : {}) });
     const result = await capture();
-    if (mode === "close" || mode === "lookup") expect(result).toMatchObject({ status: "refused", refusal: {
+    if (mode === "close" || mode === "lookup" || mode === "read" || mode === "saved-read") expect(result).toMatchObject({ status: "refused", refusal: {
       code: "namespace-corrupt", namespace: ref, condition: expect.stringContaining(malformedName),
+      ...(mode === "saved-read" ? { remedy: { text: expect.stringMatching(/historical|ancestor/iu) } } : {}),
     } });
     else expect(result).toMatchObject({ status: "ok", result: { status: "complete", diagnostics: [expect.objectContaining({
       key: expect.stringContaining(`${ref}:`), condition: expect.stringContaining(malformedName),
@@ -36,10 +39,11 @@ describe.each(["default", "separate"] as const)("archive owner diagnostics in %s
     })] } });
     expect(success(await f.store.version())).toBe(before);
     await plantRef(f.root, ref, original, { parents: [broken.tip], gitDir: f.gitDir });
-    if (mode === "saved-list") {
+    if (mode === "saved-list" || mode === "saved-read") {
       expect(await capture()).toEqual(result);
-      expect(success(await f.store.list({ family: "cohort", asOf: await f.settle() })))
-        .toMatchObject({ status: "complete", diagnostics: [] });
+      const repaired = await capture(await f.settle());
+      expect(repaired).toMatchObject({ status: "ok", result: mode === "saved-list" ? { status: "complete", diagnostics: [] }
+        : { reference: other.reference, placement: { kind: "completed", quarter } } });
     } else expect(await capture()).toMatchObject({ status: "ok" });
     expect(success(await f.store.read({ reference: other.reference })).placement).toMatchObject({ kind: "completed", quarter });
   });
