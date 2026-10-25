@@ -67,10 +67,21 @@ describe("published double ends in the default layout", () => {
   it("recovers from full mirror erasure through the named registry divergence repair", async () => {
     const h = await doubleFixture(layout), registry = "refs/arc/project/registry";
     await h.place(h.a, { kind: "completed", quarter }); success(await h.a.store.push());
+    const uid = "uid" in h.reference.owner ? h.reference.owner.uid : "";
+    const metadata = `metadata-${uid}.json`;
+    const firstFolder = async (remote: boolean) => {
+      const args = ["ls-tree", "-r", "--name-only", `refs/arc/archive/${quarter}`];
+      const refs = ["for-each-ref", "--format=%(refname)", `refs/arc/archive/${quarter}`];
+      if (!(await (remote ? h.remote("git", refs) : h.a.git(refs))).stdout.trim()) return "";
+      return (await (remote ? h.remote("git", args) : h.a.git(args))).stdout;
+    };
+    expect(await firstFolder(false)).toContain(metadata);
+    expect(await firstFolder(true)).toContain(metadata);
     const retained = (await h.a.git(["rev-parse", registry])).stdout.trim();
     const erased = (await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim().split("\n");
     for (const ref of erased) await h.remote("git", ["update-ref", "-d", ref]);
     expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
+    expect(await firstFolder(true)).toBe("");
     await h.place(h.b, { kind: "completed", quarter: laterQuarter }); success(await h.b.store.push());
     const replacement = (await h.remote("git", ["rev-parse", registry])).stdout.trim();
     const observed = success(await h.a.store.pull()).pulls.flatMap(({ notices }) => notices);
@@ -79,18 +90,32 @@ describe("published double ends in the default layout", () => {
     expect(diverged).toMatchObject({ kind: "history-diverged", ref: registry, remedy: { text: expect.stringContaining("Merge both") } });
     expect((await h.a.git(["rev-parse", registry])).stdout.trim()).toBe(retained);
     expect((await h.remote("git", ["rev-parse", registry])).stdout.trim()).toBe(replacement);
+    expect(observed).toContainEqual(expect.objectContaining({ kind: "ended-twice", item: h.reference.owner }));
+    expect(await firstFolder(false)).toContain(metadata);
+    expect(await firstFolder(true)).not.toContain(metadata);
     if (!diverged) throw new Error("Expected registry rewrite repair");
     await mergeBoth(h, diverged);
     const repaired = success(await h.a.store.pull()).pulls.flatMap(({ notices }) => notices);
+    expect(repaired).toContainEqual(expect.objectContaining({ kind: "ended-twice", item: h.reference.owner }));
+    expect(await firstFolder(false)).toContain(metadata);
+    expect(await firstFolder(true)).not.toContain(metadata);
     for (const notice of repaired) if (notice.kind === "history-diverged") await mergeBoth(h, notice);
-    const uid = "uid" in h.reference.owner ? h.reference.owner.uid : "";
     const history = HistoryRefSchema.parse(`refs/arc/history/work/${uid}`);
     const tracking = `refs/arc-remotes/${h.remoteName}/history/work/${uid}`;
     await h.a.git(["fetch", "--refmap=", "--no-tags", "--no-filter", h.remoteName, `+${history}:${tracking}`]);
     const settled = success(await h.a.store.pull({ history: [history] })).pulls.flatMap(({ notices }) => notices);
     expect(settled.some(({ kind }) => kind === "history-diverged")).toBe(false);
+    // Replacing the retained history removes the first end's captured publication proof.
+    const lifecycle = settled.filter(({ kind }) =>
+      kind === "end-withdrawn" || kind === "ended-twice" || kind === "end-pending");
+    expect(lifecycle).toEqual([expect.objectContaining({ kind: "end-withdrawn", item: h.reference.owner })]);
+    expect(await firstFolder(false)).not.toContain(metadata);
+    expect(await firstFolder(true)).not.toContain(metadata);
     expect(success(await h.a.store.read({ reference: h.reference })).placement).toMatchObject({ kind: "completed", quarter: laterQuarter });
     expect(success(await h.a.store.push()).publishes.every(({ status }) => status !== "failed")).toBe(true);
+    expect(await firstFolder(false)).not.toContain(metadata);
+    expect(await firstFolder(true)).not.toContain(metadata);
+    expect((await h.remote("git", ["ls-tree", "-r", "--name-only", `refs/arc/archive/${laterQuarter}`])).stdout).toContain(metadata);
     for (const side of [h.a, h.b]) {
       expect(success(await side.store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
       expect(success(await side.store.read({ reference: h.reference })).placement).toMatchObject({ kind: "completed", quarter: laterQuarter });
