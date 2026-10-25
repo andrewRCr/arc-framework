@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "cancel-unlaunched-local-review",
+  "claimId": "dde62b197c4055bdc4a3f7674a723788",
+  "createdAt": "2026-10-25T20:17:51.584Z",
+  "updatedAt": "2026-10-25T20:17:51.584Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Allow an operator to cancel an unlaunched local review without inventing an evaluator run, retaining the outstanding review obligation and enabling a fresh evaluator binding.",
+  "branch": "fix/cancel-unlaunched-local-review",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
