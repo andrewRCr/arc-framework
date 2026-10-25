@@ -104,9 +104,9 @@ finding's status line. These judgments are advisory and outside the canonical se
 carries the same tags again; only those tags are stored, as an immutable advisory note beside the set. Verified-fix
 and settlement replays read that note.
 
-When a `new-design` fix lands in work a spec governs, ask whether the spec settles that design. When it does not, put
-`amend-design` in that finding's `openQuestions` with a recommendation for this round, rather than leaving the gap for
-a later look to find.
+When a `new-design` fix lands in work a spec governs, ask whether the spec settles that design. When it does not, the
+fix changes the design record and enters [`amend-design`'s entry gate][amend-design-gate] before the set is approved,
+rather than leaving the gap for a later look to find.
 
 Author each finding's narrative so the report stands without the raw review:
 
@@ -187,6 +187,7 @@ disposition-set identity.
 
 [review-model]: review-model.md
 [shared-causes]: review-model.md#shared-causes
+[amend-design-gate]: ../workflows/arc/supplemental/amend-design.md#entry-gate
 [code-author-check]: code-review.md#author-check
 
 [trend-reading]: review-model.md#trend
