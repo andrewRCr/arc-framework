@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "node-lts-matrix",
+  "claimId": "ab51d48b23811dc500e296c58f9edb99",
+  "createdAt": "2026-10-25T19:59:07.647Z",
+  "updatedAt": "2026-10-25T19:59:07.647Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Test unit compatibility on Node 24 and current LTS while keeping heavier tiers single-version",
+  "branch": "chore/node-lts-matrix",
+  "origin": "inbox",
+  "originEntry": "Test the Node floor and the current LTS in CI",
+  "originEntrySourceDigest": "sha256:2c09d8ae5275bab8a1f6f3f8a555e134c57cc4896f442688c25a4faf4b39854e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
