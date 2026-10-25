@@ -2,7 +2,7 @@
 import { ownerHolderRequest, type HoldingCheckoutResult } from "../locus-ports.js";
 import { rm } from "node:fs/promises";
 import { resolve } from "node:path";
-import { assessReapSafety, isLandedInBase } from "../../git/branch-containment.js";
+import { assessReapSafety, isLandedInBase, isContainedIn } from "../../git/branch-containment.js";
 import { deleteRemoteBranch } from "../mutators/reconcile-branch.js";
 import { localLifecycleTip, resolveLifecycleBase } from "../../git/lifecycle-ref-refresh.js";
 import { decodeWorktreeMarkerOwnership, readWorktreeMarker, resolveWorktreeMarkerPath } from "../../git/worktree-marker.js";
@@ -163,14 +163,14 @@ async function reapRetiringBranch(ctx: Bound, link: RetirementLink, generation: 
       if (!safety.safe) { ctx.notices.push(`Kept ${branch}: ${safety.reason}`); return { local: false, remote: false }; }
     }
     if (!await prepareCreatedBranch(ctx, branch)) return { local: false, remote: false };
-    const remote = await reapRetiringRemote(ctx, branch, landed);
+    const remote = await reapRetiringRemote(ctx, branch, landed, generation.localHead);
     await ctx.evidence.revalidate();
     if (local !== null) await ctx.exec("git", ["update-ref", "-d", `refs/heads/${branch}`, local], { cwd: ctx.cwd });
     // A successful remote deletion may already prune its tracking ref; any surviving generation still uses the observed OID.
-    if (tracking !== null && (ctx.evidence.rule === "discard" || landed) && await localLifecycleTip(ctx.exec, ctx.cwd, `refs/remotes/origin/${branch}`) !== null) {
+    if (tracking !== null && !remote.keepTracking && await localLifecycleTip(ctx.exec, ctx.cwd, `refs/remotes/origin/${branch}`) !== null) {
       await ctx.exec("git", ["update-ref", "-d", `refs/remotes/origin/${branch}`, tracking], { cwd: ctx.cwd });
     }
-    return { local: local !== null, remote };
+    return { local: local !== null, remote: remote.deleted };
   });
 }
 async function reapAdditionalBranch(ctx: Bound, link: RetirementLink, retiringContainer: RetiringGeneration["container"]): Promise<boolean> {
@@ -210,17 +210,23 @@ async function selectRetiringLinks(ctx: Bound) {
     return { links, retiring, generation: { localHead, trackingHead, container } };
 }
 
-async function reapRetiringRemote(ctx: Bound, branch: string, landed: boolean): Promise<boolean> {
-    let remote = false;
-    if (ctx.evidence.rule === "discard" || landed) {
-      const advertised = await advertisedTip(ctx, branch);
-      if (advertised !== null) {
-        const safeRemote = ctx.evidence.rule === "discard" || await isLandedInBase(ctx.exec, advertised, ctx.baseOid);
-        if (safeRemote) { const result = await deleteRemoteBranch(ctx.exec, "origin", branch, advertised); if (result === "stale") throw new Error(`Remote ${branch} moved; retry teardown.`); remote = result === "deleted"; }
-        else ctx.notices.push(`Kept origin/${branch}: its commits have not landed in base.`);
-      }
-    } else ctx.notices.push(`Kept origin/${branch}: its commits have not landed in base.`);
-    return remote;
+async function reapRetiringRemote(ctx: Bound, branch: string, landed: boolean, localHead: string | null): Promise<{ deleted: boolean; keepTracking: boolean }> {
+  if (ctx.evidence.rule === "landed" && !landed) {
+    ctx.notices.push(`Kept origin/${branch}: its commits have not landed in base.`);
+    return { deleted: false, keepTracking: true };
+  }
+  const advertised = await advertisedTip(ctx, branch);
+  if (advertised === null) return { deleted: false, keepTracking: false };
+  const safe = ctx.evidence.rule === "discard" ? localHead !== null && await isContainedIn(ctx.exec, advertised, localHead)
+    : await isLandedInBase(ctx.exec, advertised, ctx.baseOid);
+  if (!safe) {
+    ctx.notices.push(`Kept origin/${branch}: ${ctx.evidence.rule === "discard"
+      ? "its advertised tip is not contained in the retiring local branch" : "its commits have not landed in base"}.`);
+    return { deleted: false, keepTracking: true };
+  }
+  const result = await deleteRemoteBranch(ctx.exec, "origin", branch, advertised);
+  if (result === "stale") throw new Error(`Remote ${branch} moved; retry teardown.`);
+  return { deleted: result === "deleted", keepTracking: false };
 }
 
 function teardownRetryRemedy(params: TeardownParams): Remedy {

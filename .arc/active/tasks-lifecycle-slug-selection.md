@@ -869,7 +869,7 @@ edits land in package source and sync to `.arc/`.
           ports and the transaction driver isolate same-name holders and retain unbound repair exits. Lineage and husk
           repair text retain the UID, alongside ordinary and `--husk` typed retries through successful repair.
 
-### `[ ]` **7.5 Touch only a branch the retiring holder owns, and delete a remote only at a held tip — § 8.5, § 8.6**
+### `[x]` **7.5 Touch only a branch the retiring holder owns, and delete a remote only at a held tip — § 8.5, § 8.6**
 
 - _Goal:_ Teardown never returns a live holder's checkout to base, deletes its local branch, or deletes its push: it
   keeps and reports a branch another live holder owns or the lookup cannot prove, and a remote whose advertised tip its
@@ -881,19 +881,11 @@ edits land in package source and sync to `.arc/`.
           another live holder or unavailable ownership keeps and reports checkouts, local refs, and remotes by known
           UID without blocking teardown. Completed holders proceed; live adopted links offer no deletion advice.
 
-    - `[ ]` **7.5.b The remote's tip**
+    - `[x]` **7.5.b The remote's tip**
 
-        - Under `discard`, teardown deletes the remote branch only when the advertised tip is contained in this
-          machine's local branch for the retiring holder (`generation.localHead`, `selectRetiringLinks`), and otherwise
-          keeps it and reports it, as `landed` keeps a remote whose commits have not landed (`reapRetiringRemote`). A
-          kept remote keeps its tracking ref, and an advertised tip whose object this machine lacks counts as not
-          contained (`isContainedIn`).
-        - `retirement-store.test.ts`'s tracking variants, which assert `remoteBranchDeleted: true` under `discard`,
-          change where the local branch lacks the tip.
-        - Build `test-first` (one behavior at a time):
-            - under `discard`, a remote whose advertised tip the local branch contains is deleted
-            - a remote whose advertised tip the local branch does not contain, or on a machine without the local branch,
-              is kept and reported with its tracking ref
+        - Discard cleanup requires the advertised tip to be contained in the captured local head; missing objects or
+          a missing local branch keep the remote and its tracking ref. Native Git cases cover ahead, missing-object,
+          and absent-local evidence, then restore evidence and complete cleanup; tracking-only retries retain origin.
 
 ### `[ ]` **7.6 An ended holder's cleanup end to end** — validate exit criterion at segment scope
 

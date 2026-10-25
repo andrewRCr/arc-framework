@@ -250,9 +250,10 @@ it.each(["local", "tracking"].flatMap((source) => ["moved", "absent"].map((fault
   expect(await h.local("refs/heads/chore/demo")).toBe(h.workOid);
   expect(await h.local("refs/remotes/origin/chore/demo")).toBe(h.workOid);
   await h.exec("git", ["update-ref", ref, h.workOid]); h.ctx.execInput = normal;
-  expect(await h.teardown()).toMatchObject({ status: "torn-down", remoteBranchDeleted: true });
+  expect(await h.teardown()).toMatchObject({ status: "torn-down", remoteBranchDeleted: source === "local" });
   for (const name of ["feat/demo", "chore/demo"]) {
-    expect(await h.local(`refs/heads/${name}`)).toBeNull(); expect(await h.local(`refs/remotes/origin/${name}`)).toBeNull();
+    expect(await h.local(`refs/heads/${name}`)).toBeNull();
+    expect(await h.local(`refs/remotes/origin/${name}`)).toBe(source === "tracking" && name === "feat/demo" ? h.workOid : null);
   }
   expect((await h.exec("git", ["ls-remote", "origin", "refs/heads/chore/demo"])).stdout).toContain(h.workOid);
 }, 30_000);
@@ -338,11 +339,7 @@ async function reusedNativeFixture() {
     await ensureWorktreeMarkerIgnored(path, h.exec, nodeWorktreeMarkerIgnoreFs);
     await writeWorktreeMarker(path, { ...h.marker, spawnedByArc: true, createdFor: boundWorkUnitSubject(record) });
   }
-  const io = { ...createUserIOContext(), exec: h.exec, execInput: makeGitExecInput(h.root) };
-  const executor = buildExecutorContext({ cwd: h.root, io, store: h.store,
-    locusPorts: createLocusPorts({ cwd: h.root, exec: h.exec, store: h.store }), projectId: async () => "repo",
-    identity: "test-user", teamMode: false, internalTemplateDir: "/templates" });
-  const ctx = createStoreTeardownContext({ cwd: h.root, identity: "test-user", io }, executor);
+  const ctx = nativeRetirementContext(h);
   const teardownUid = () => {
     const input = TeardownCommandInputSchema.parse({ name: boundWorkUnitSubject(h.meta).uid });
     if (input.name === undefined) throw Error("Missing test operand");
@@ -462,4 +459,48 @@ it("omits adopted-branch cleanup advice when a live holder links that branch", a
   expect(result.notices.join(" ")).not.toContain("Owner cleanup:");
   expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"], { cwd: h.livePath })).stdout).toBe("feat/demo");
   expect(await h.local("refs/heads/feat/demo")).toBe(h.workOid); expect((await h.remote()).stdout).toContain(h.workOid);
+}, 30_000);
+
+function nativeRetirementContext(h: Awaited<ReturnType<typeof fixture>>) {
+  const io = { ...createUserIOContext(), exec: h.exec, execInput: makeGitExecInput(h.root) };
+  const executor = buildExecutorContext({ cwd: h.root, io, store: h.store,
+    locusPorts: createLocusPorts({ cwd: h.root, exec: h.exec, store: h.store }), projectId: async () => "repo",
+    identity: "test-user", teamMode: false, internalTemplateDir: "/templates" });
+  return createStoreTeardownContext({ cwd: h.root, identity: "test-user", io }, executor);
+}
+it.each(["contained", "ahead", "missing-object", "no-local"] as const)("discard teardown deletes only a held advertised remote tip, state=%s", async state => {
+  const h = await fixture(), ctx = nativeRetirementContext(h);
+  await ensureWorktreeMarkerIgnored(h.root, h.exec, nodeWorktreeMarkerIgnoreFs);
+  await writeWorktreeMarker(h.root, h.marker);
+  let advertised = h.workOid;
+  if (state === "ahead" || state === "missing-object") {
+    const tree = (await h.exec("git", ["rev-parse", `${h.workOid}^{tree}`])).stdout;
+    advertised = (await h.exec("git", ["--git-dir", join(h.root, "origin.git"), "-c", "user.name=Test", "-c", "user.email=test@example.com",
+      "commit-tree", tree, "-p", h.workOid, "-m", "Another machine's push"])).stdout;
+    await h.exec("git", ["--git-dir", join(h.root, "origin.git"), "update-ref", "refs/heads/feat/demo", advertised]);
+    if (state === "ahead") await h.exec("git", ["fetch", "origin", "feat/demo"]);
+    else await expect(h.exec("git", ["cat-file", "-e", advertised])).rejects.toBeDefined();
+  }
+  if (state === "no-local") {
+    await h.exec("git", ["switch", "main"]); await h.exec("git", ["branch", "-D", "feat/demo"]);
+  }
+  const tracking = await h.local("refs/remotes/origin/feat/demo");
+  const input = TeardownCommandInputSchema.parse({ name: boundWorkUnitSubject(h.meta).uid });
+  if (input.name === undefined) throw Error("Missing UID operand");
+  const result = await runTeardownForOperand(ctx, { name: input.name, base: "main" });
+  expect(result).toMatchObject({ status: "torn-down", remoteBranchDeleted: state === "contained" });
+  if (state === "contained") {
+    expect((await h.remote()).stdout).toBe(""); expect(await h.local("refs/remotes/origin/feat/demo")).toBeNull();
+  } else {
+    expect((await h.remote()).stdout).toContain(advertised);
+    expect(await h.local("refs/remotes/origin/feat/demo")).toBe(tracking);
+    if (result.status !== "torn-down") throw Error(result.reason);
+    expect(result.notices.join(" ")).toContain("Kept origin/feat/demo");
+    expect(await h.local("refs/heads/feat/demo")).toBeNull();
+    await h.exec("git", ["fetch", "origin", "feat/demo"]);
+    await h.exec("git", ["branch", "feat/demo", advertised]);
+    expect(await runTeardownForOperand(ctx, { name: input.name, base: "main" }))
+      .toMatchObject({ status: "torn-down", remoteBranchDeleted: true });
+    expect((await h.remote()).stdout).toBe(""); expect(await h.local("refs/remotes/origin/feat/demo")).toBeNull();
+  }
 }, 30_000);
