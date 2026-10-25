@@ -16,6 +16,31 @@ const quarter = ArchiveQuarterSchema.parse("2026-q4");
 const later = ArchiveQuarterSchema.parse("2027-q1");
 
 describe("writes to completed ref records", () => {
+  it.each(["same quarter", "another quarter"] as const)("refuses to move two ended folders in %s, then admits a reopen and one end", async location => {
+    const f = await createRefFixture();
+    const { primary, firstRef, firstRoot, ref, nextRoot, metadataPath } = await endTwice(f, location);
+    const git = makeGitExec(f.root), destination = ArchiveQuarterSchema.parse("2027-q2");
+    const archived = success(await f.store.read({ reference: primary.reference }));
+    const before = (await git("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
+    const result = await f.store.write({ ...update(f, archived), placement: { kind: "completed", quarter: destination } });
+    expect(result).toMatchObject({ status: "refused", refusal: { code: "record-malformed", class: "recoverable" } });
+    if (result.status !== "refused") throw new Error("Expected a refused multi-folder move");
+    expect(result.refusal.condition).toMatch(/more than one.*folder/iu);
+    expect(result.refusal.remedy.text).toMatch(/reopen.*every.*once/iu);
+    expect((await git("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(before);
+    for (const [quarterRef, root] of [[firstRef, firstRoot], [ref, nextRoot]] as const) {
+      expect((await git("git", ["ls-tree", "-r", "--name-only", quarterRef])).stdout).toContain(root + metadataPath);
+    }
+    success(await f.store.write({ ...update(f, archived), placement: { kind: "active" } }));
+    const reopened = success(await f.store.read({ reference: primary.reference }));
+    for (const quarterRef of new Set([firstRef, ref])) {
+      expect((await git("git", ["ls-tree", "-r", "--name-only", quarterRef])).stdout).not.toContain(metadataPath);
+    }
+    success(await f.store.write({ ...update(f, reopened), placement: { kind: "completed", quarter: destination } }));
+    expect(success(await f.store.read({ reference: primary.reference })).placement)
+      .toEqual({ kind: "completed", quarter: destination, sequence: "01" });
+  });
+
   it.each(["default", "separate"] as const)("updates retained history and its folder atomically, keeps the end batch, and reopens the latest state (%s)", async (layout) => {
     const f = await createRefFixture({}, layout);
     const primary = await seed(f, f.reference("work-item/meta"));

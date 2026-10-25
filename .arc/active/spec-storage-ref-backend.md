@@ -713,8 +713,9 @@ interface RefMetadata {
 - **Read placement derives from it:** an active, backlog, or completed placement as written, and for a completed work
   unit or cohort the sequence and closeout read from its folder's name. An item two published ends left with two folders
   (§ 6.6) reads by the one in the later quarter, or with the higher number in one quarter — its placement, version, and
-  records — and a listing and § 8's scan count it once; a write to it refreshes each folder (§ 7.3) until the
-  `ended-twice` remedy's reopen removes them all (§ 7.2).
+  records — and a listing and § 8's scan count it once; a write that keeps its quarter refreshes each folder
+  (§ 7.3) until the `ended-twice` remedy's reopen removes them all (§ 7.2). A put naming another quarter moves only
+  an owner's single folder and refuses where it holds several (§ 7.3, A45).
 - **A completed item's folder names its batches:** the end writes `endBatch` and `batch` with its own batch ID, and each
   later write to the item (§ 7.3), a rename among them (§ 3.6), writes `batch` with its own and keeps `endBatch`. A
   merge's renumbering keeps both, and a folder a pull's merge rebuilds or refreshes takes as `batch` the batch the pull
@@ -1860,6 +1861,12 @@ it by name first. A reopen whose slug a live work item or cohort has taken since
   quarter's ref — each folder, where two published ends left two (§ 3.3, § 6.6) — in one transaction under both refs'
   compare-and-swaps and one `--atomic` push. `history` keeps reading one ref's log, and a reopen finds the latest state.
   A rename renames the folder too.
+- **A primary put naming another quarter moves the ended item's one folder** into that quarter, using its next
+  number where folders are numbered (§ 7.1), and keeps the original `endBatch` (A45). An owner holding more than one
+  archived folder refuses `record-malformed` under `store.ended-twice-placement` before any ref changes, with the
+  `ended-twice` remedy: remove terminal lineage where present, reopen to remove every folder, then end once in the
+  desired quarter. `planCompletedMoves` (`lib/store/ref/write-completed.ts`) admits the single-folder move and
+  assigns the placement checks read; `moveArchivedFolders` carries that folder and its original end batch.
 - **The history ref's push is leased** (§ 6.5), so another machine's reopen reads as `stale info`, a lost race, where an
   unleased push would recreate the ref the reopen deleted.
 - **A clone that holds no copy of the history ref** refuses the write `state-unresolvable`, naming it, and refuses
@@ -4624,6 +4631,10 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     state, an uppercase conflict operand refuses typed, and an uppercase registry lineage or former-slug key holds
     pull and push with a typed namespace refusal rather than throwing (§ 2.1) (A43).
 
+50. **A quarter-changing put moves one ended folder without losing an end.** A single folder moves to the destination
+    quarter's next position and keeps its end batch. An owner with multiple folders refuses without changing any ref;
+    reopening removes all its folders, after which ending once in the requested quarter succeeds (§ 3.3, § 7.3) (A45).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4796,5 +4807,8 @@ open:
 
 - **A44** — 2026-10-25 — spec-depth: § 3.2 lists work-item/cut-map's stored path. _Supersedes:_ none. _Trigger:_
   standard-pass-2/AGG-13 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A45** — 2026-10-25 — design: a quarter-changing put moves one ended folder. _Supersedes:_ §§ 3.3, 7.3 folder
+  retention. _Trigger:_ standard-pass-2/AGG-22 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

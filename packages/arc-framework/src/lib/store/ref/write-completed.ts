@@ -61,8 +61,13 @@ export async function planCompletedMoves(context: RefBackendContext, batch: Reso
   for (const plan of basis.archives) if (quarters.has(plan.home.ref)) quarters.set(plan.home.ref, new Map(plan.entries));
   for (const { history, quarter } of moves) {
     const group = groups.get(history);
-    const [folder] = latestArchivedFolders((batch.archived ?? []).filter(({ liveRef }) => liveRef.replace("refs/arc/", "refs/arc/history/") === history));
+    const owned = (batch.archived ?? []).filter(({ liveRef }) => liveRef.replace("refs/arc/", "refs/arc/history/") === history);
+    const [folder] = latestArchivedFolders(owned);
     if (!group || !folder) throw new Error("A completed move has no prepared group or captured folder");
+    if (owned.length > 1) return { status: "refused", refusal: { code: "record-malformed", class: "recoverable",
+      reference: ownerPrimaryReference(folder.owner, group.metadata), rule: "store.ended-twice-placement",
+      condition: "This item holds more than one archived folder; moving it would discard an independently published end.",
+      remedy: { text: "Remove terminal lineage where present, then reopen the item to remove every archived folder, and end it once in the requested quarter." } } };
     const target = quarterEntries(quarters, `refs/arc/archive/${quarter}`);
     const placement = await movedPlacement(context, { batch, groups, basis }, folder, group, quarter, target);
     if ("code" in placement) return { status: "refused", refusal: placement };
@@ -89,7 +94,7 @@ export async function stampCompletedWrites(context: RefBackendContext, batch: Re
   }
 }
 
-/** Refresh every folder in the same transaction, composing with other quarter changes; a move replaces them with one. */
+/** Refresh every folder in the same transaction, composing with other quarter changes; a move transfers one folder. */
 export async function refreshCompletedChanges(context: RefBackendContext, changes: readonly RefChange[], batch: ResolvedBatch,
   groups: ReadonlyMap<string, RefWriteGroup>, provenance: BatchInput["provenance"], batchId: string, receipt: BatchCreationReceipt,
   actor: string | undefined): Promise<StoreResult<RefChange[]>> {
@@ -129,7 +134,7 @@ interface MoveScope {
   batch: ResolvedBatch; groups: ReadonlyMap<string, RefWriteGroup>; basis: CompletedMoveBasis;
 }
 
-/** Remove every folder of one ended owner and write it once into the quarter its put names, keeping its end batch. */
+/** Transfer the ended owner's one admitted folder to the quarter its put names, keeping its end batch. */
 async function moveArchivedFolders(context: RefBackendContext, quarters: ReadonlyMap<string, Map<string, RefTreeEntry>>, owned: readonly ArchivedFolder[],
   group: RefWriteGroup, quarter: ArchiveQuarter): Promise<void> {
   const [latest] = latestArchivedFolders(owned);

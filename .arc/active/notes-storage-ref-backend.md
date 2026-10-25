@@ -2983,3 +2983,16 @@ case took 30.1 s against the 30 s default timeout under the contention A36's thr
 runner. Its macOS and Linux jobs passed. That failure stays recorded as a failure; `0331ed4f5` then gave each
 conformance case a 90 s hang guard, and this run is the passing pair at the delivered head. Run metadata and job logs
 are retained under `verification/task-19.1/` in the machine-local storage-ref-backend tools directory.
+
+## A45 — Move one ended folder while preserving published ends
+
+**Superseded text.** § 3.3: “a write to it refreshes each folder (§ 7.3) until the `ended-twice` remedy's reopen removes
+them all (§ 7.2).” § 7.3 requires every completed write to refresh “each folder, where two published ends left two”.
+Those statements omitted the quarter-changing put already implemented by `moveArchivedFolders`
+(`lib/store/ref/write-completed.ts`).
+
+**Decision.** Moving one folder keeps its original end batch and uses the destination's normal numbering. Combining
+several would discard an independently published end, so `planCompletedMoves` refuses the request before checks or ref
+publication. The existing remedy resolves that state explicitly: remove terminal lineage where present, reopen to clear
+all folders, then end once. Criterion 50 verifies the refusal leaves every ref unchanged and the repaired operation
+succeeds.
