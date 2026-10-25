@@ -48,7 +48,9 @@ export function decodeRecord(context: RefBackendContext, reference: RecordRefere
     condition: "Stored format version is newer than this build supports." });
   const decoded = readRefContent(kind, object.bytes);
   if ("condition" in decoded) return recordDiagnostic(path, decoded);
-  const mismatch = parsedOwnerProblem(reference, decoded.fields);
+  const formerNames = reference.owner.type === "work-item" && reference.owner.uid
+    ? metadata.lineageFormerSlugs?.[reference.owner.uid] ?? [] : [];
+  const mismatch = parsedOwnerProblem(reference, decoded.fields, formerNames);
   if (mismatch) return recordDiagnostic(path, mismatch);
   const placement = placementOverride ?? metadata.primary?.placement ?? metadata.placement;
   const record = StoreRecordSchema.safeParse({ reference, ...decoded, formatVersion, conflicts,

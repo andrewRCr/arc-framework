@@ -33,7 +33,7 @@ export function recordDiagnostic(path: string, problem: ContentProblem): Listing
 }
 
 /** Compare a parsed origin or conflict target with its containing ref's owner. */
-export function parsedOwnerProblem(reference: RecordReference, fields: unknown): ContentProblem | null {
+export function parsedOwnerProblem(reference: RecordReference, fields: unknown, formerNames: readonly string[] = []): ContentProblem | null {
   if (reference.kind.endsWith("/conflict-record")) {
     const conflict = ConflictRecordSchema.safeParse(fields);
     const target = conflict.success ? conflict.data.record.owner : null;
@@ -43,14 +43,15 @@ export function parsedOwnerProblem(reference: RecordReference, fields: unknown):
       kind: "key-mismatch", condition: "Stored conflict names an owner other than its ref's metadata",
     };
   }
-  return reference.kind === "lineage/transition" ? lineageOriginProblem(reference, fields) : null;
+  return reference.kind === "lineage/transition" ? lineageOriginProblem(reference, fields, formerNames) : null;
 }
 
-function lineageOriginProblem(reference: RecordReference, fields: unknown): ContentProblem | null {
+function lineageOriginProblem(reference: RecordReference, fields: unknown, formerNames: readonly string[]): ContentProblem | null {
   const lineage = LineageRecordSchema.safeParse(fields);
   if (!lineage.success) return null;
   const { origin } = lineage.data;
-  if (origin.name === reference.owner.name && (origin.uid === undefined
-    || reference.owner.type === "work-item" && origin.uid === reference.owner.uid)) return null;
+  const sameUid = reference.owner.type === "work-item" && origin.uid !== undefined && origin.uid === reference.owner.uid;
+  if (origin.name === reference.owner.name && (origin.uid === undefined || sameUid)) return null;
+  if (sameUid && formerNames.includes(origin.name)) return null;
   return { kind: "key-mismatch", condition: "Stored lineage origin names an owner other than its registry metadata" };
 }
