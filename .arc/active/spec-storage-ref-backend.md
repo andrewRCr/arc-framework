@@ -222,6 +222,11 @@ An owner UID uses the lowercase grammar stored names carry, enforced by `StoredU
 `OwnerIdentitySchema` (`lib/store/identity.ts`). Every stored UID, lineage key, retained owner fact, and UID operand
 uses that same grammar; a malformed stored lineage key receives the existing typed namespace refusal (A43).
 
+For malformed `write` and `batch` admission, the `record-malformed` arm of `LocalRefusalSchema`
+(`lib/store/refusal.ts`) permits an absent `reference` only when the failing input operand has no schema-valid
+`RecordReference`. Its condition identifies the write operand or the failing batch operand and index; otherwise it
+preserves the valid input reference. Neither backend fabricates an owner or normalizes an invalid reference (A50).
+
 `sync()` becomes `push()`, and `pull()` and `maintain()` join it:
 
 ```ts
@@ -4663,6 +4668,11 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     Restoring access admits that rerun without changing the landed state, lists the retained origin refs, and drops
     the kept tips without deleting those origin refs (§ 10.11) (A48).
 
+54. **Malformed inputs produce valid refusals without changing state.** Both ref layouts and the interim backend
+    return schema-valid `record-malformed` for invalid input references at `write`, at the first or a later batch
+    operand, and for an empty invalid batch. The condition identifies the failing operand and index; a valid input
+    reference is retained, an invalid one is omitted, and repairing the input admits the same operation (§ 2.1) (A50).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4850,5 +4860,8 @@ open:
 
 - **A49** — 2026-10-25 — spec-depth: § 14.1 counts the ref backend's own unsupported-case exclusions. _Supersedes:_
   § 14.1's count. _Trigger:_ standard-pass-2/AGG-12 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A50** — 2026-10-25 — design: malformed-input refusals can omit invalid references. _Supersedes:_ § 2.1 inputs.
+  _Trigger:_ standard-pass-2-fix-check-1/AGG-05 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

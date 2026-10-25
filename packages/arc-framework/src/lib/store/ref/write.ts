@@ -1,5 +1,6 @@
 /** Validated local mutations resolved onto state refs before object construction. */
 
+import { malformedStoreInput } from "../malformed-input.js";
 import { storeDirectoryVanished, writeRefRepository } from "./repository.js";
 import { BatchInputSchema, WriteInputSchema, type Mutation, type BatchInput, type BatchResult, type WriteInput, type WriteResult, type RecordObservation } from "../write.js";
 import { RecordReferenceSchema, sameReference, type RecordReference } from "../identity.js";
@@ -32,7 +33,7 @@ function malformedMutation(reference: RecordReference, condition: string, rule =
 /** Validate a single mutation before resolving its owner or starting Git. */
 export async function writeRefRecord(context: RefBackendContext, input: WriteInput): Promise<StoreResult<WriteResult>> {
   const parsed = WriteInputSchema.safeParse(input);
-  if (!parsed.success) return { status: "refused", refusal: mutationValidationFailure(input, parsed.error.message) };
+  if (!parsed.success) return { status: "refused", refusal: malformedStoreInput(input, parsed.error, "write") };
   const { provenance, ...mutation } = parsed.data;
   const result = await batchRefRecords(context, { writes: [mutation], provenance });
   if (result.status === "refused") return result;
@@ -74,9 +75,7 @@ export async function batchRefRecords(context: RefBackendContext, input: BatchIn
 function parseBatchInput(input: BatchInput): StoreResult<BatchInput> {
   const parsed = BatchInputSchema.safeParse(input);
   if (parsed.success) return { status: "ok", result: parsed.data };
-  const mutation = input.writes[0];
-  if (!mutation) throw parsed.error;
-  return { status: "refused", refusal: mutationValidationFailure(mutation, parsed.error.message) };
+  return { status: "refused", refusal: malformedStoreInput(input, parsed.error, "batch") };
 }
 
 function checkMutationReferences(context: Pick<RefBackendContext, "registry">, writes: readonly Mutation[],
@@ -103,13 +102,6 @@ function prepareBatchPuts(context: Pick<RefBackendContext, "registry">, input: B
     result.push(next);
   }
   return { status: "ok", result };
-}
-
-function mutationValidationFailure(mutation: Mutation, condition: string): StoreRefusal {
-  const primary = mutation.reference.kind === "work-item/meta" || mutation.reference.kind === "work-item/record";
-  const missingPlacement = mutation.action === "put" && primary && mutation.placement === undefined;
-  return malformedMutation(mutation.reference, missingPlacement ? "Primary records require placement" : condition,
-    missingPlacement ? "store.primary-placement" : "store.mutation");
 }
 
 async function executeRefBatch(context: RefBackendContext, input: BatchInput, batchId: string): Promise<StoreResult<BatchResult>> {

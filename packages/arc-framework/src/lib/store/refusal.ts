@@ -48,7 +48,7 @@ export const LocalRefusalSchema = z.discriminatedUnion("code", [
   z.strictObject({ code: z.literal("version-conflict"), ...recoverable, records: z.array(RecordReferenceSchema).min(1) }),
   z.strictObject({ code: z.literal("state-unresolvable"), ...recoverable, stateVersion: StateVersionSchema.optional(),
     historyRefs: z.array(HistoryRefSchema), reference: RecordReferenceSchema.optional(), field: z.string().min(1).optional() }),
-  z.strictObject({ code: z.literal("record-malformed"), ...recoverable, reference: RecordReferenceSchema, rule: z.string().min(1) }),
+  z.strictObject({ code: z.literal("record-malformed"), ...recoverable, reference: RecordReferenceSchema.optional(), rule: z.string().min(1) }),
   z.strictObject({ code: z.literal("identity-mismatch"), ...recoverable, expected: RecordReferenceSchema, actual: RecordReferenceSchema }),
   z.strictObject({ code: z.literal("ambiguous-match"), ...recoverable, candidates: z.array(RecordReferenceSchema).min(2) }),
   z.strictObject({ code: z.literal("lock-held"), ...recoverable, lock: z.string().min(1) }),

@@ -3048,3 +3048,11 @@ atomically, as `suite-observations.ts` exercises. Keep that truthful exclusion a
 with the primary path, then repairs it to an admitted key. Both layouts run that recovery and their supported atomic
 observation case. The existing conformance success criterion covers these cases; no criterion changes. Generic
 unsupported-case prose now includes a key without a storage home, since the refusal covers keys as well as kinds.
+
+## A50 — Keep malformed input refusals inside the contract
+
+The inherited `LocalRefusalSchema` arm required `reference: RecordReferenceSchema` even when the input reference
+itself failed that schema. A50 supersedes that mandatory field only for such input failures. A schema-valid
+reference remains exact; the condition names the failing operand and index. `malformedStoreInput` shares operand
+selection and refusal construction between both admission paths, with no fabricated owner. The source schema and
+both backend admission paths, rather than a serialization workaround, carry the correction.
