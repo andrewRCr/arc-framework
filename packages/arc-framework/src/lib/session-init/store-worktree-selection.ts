@@ -1,5 +1,6 @@
 /** Placement and exact marker claims select off-branch cleanup candidates. */
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
+import type { OwnerIdentity } from "../store/identity.js";
 import type { Store } from "../store/contract.js";
 import { listLifecycleIndex } from "../store/lifecycle-index.js";
 import { LineageRecordSchema } from "../store/kinds/lineage/index.js";
@@ -12,11 +13,11 @@ import type { SessionAction } from "./actions.js";
 import { classifyUnboundMarker } from "../locus/unbound-marker.js";
 type SelectionInput = { store: Store; topology: readonly RegisteredWorktree[]; derivedRoster: readonly DerivedCheckoutRow[];
   readMarker: (path: string) => Promise<WorktreeMarkerReadResult>; identity?: string | null; excludeWorktreePath?: string };
-type Selected = { kind: "ended"; name: string } | { kind: "release"; name: string; actions?: readonly SessionAction[] } | null;
+type Selected = { kind: "ended"; owner: OwnerIdentity } | { kind: "release"; name: string; actions?: readonly SessionAction[] } | null;
 /** Read complete authority before treating a missing claim as a marker with no record. */
 export async function selectStoreWorktreeCleanup(input: SelectionInput): Promise<{
-  ended: { checkout: RegisteredWorktree; name: string }[]; releases: StaleWorktreeReport[]; warnings: string[] }> {
-  const result: { ended: { checkout: RegisteredWorktree; name: string }[]; releases: StaleWorktreeReport[]; warnings: string[] } = { ended: [], releases: [], warnings: [] };
+  ended: { checkout: RegisteredWorktree; owner: OwnerIdentity }[]; releases: StaleWorktreeReport[]; warnings: string[] }> {
+  const result: { ended: { checkout: RegisteredWorktree; owner: OwnerIdentity }[]; releases: StaleWorktreeReport[]; warnings: string[] } = { ended: [], releases: [], warnings: [] };
   const listing = await listLifecycleIndex(input.store);
   if (listing.status === "refused" || listing.result.status === "unreadable" || (listing.result.status === "complete" && (listing.result.missed || listing.result.diagnostics.length > 0))) {
     result.warnings.push(incompleteInventoryMessage(listing));
@@ -26,7 +27,7 @@ export async function selectStoreWorktreeCleanup(input: SelectionInput): Promise
     if (checkout.path === input.excludeWorktreePath) continue;
     try {
       const selected = await selectCheckout(input, checkout);
-      if (selected?.kind === "ended") result.ended.push({ checkout, name: selected.name });
+      if (selected?.kind === "ended") result.ended.push({ checkout, owner: selected.owner });
       if (selected?.kind === "release") result.releases.push(release(checkout, selected.name, selected.actions));
     } catch (error) { result.warnings.push(`Cannot select checkout ${checkout.path}: ${error instanceof Error ? error.message : String(error)}`); }
   }
@@ -58,7 +59,7 @@ async function selectCheckout(input: SelectionInput, checkout: RegisteredWorktre
     `The work-unit primary has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry checkout cleanup.`);
   const fields = ParsedMetaRecordSchema.parse(read.result.fields);
   if ((input.identity != null && fields.owner !== input.identity) || read.result.placement?.kind === "backlog") return { kind: "release", name };
-  return read.result.placement?.kind === "completed" ? { kind: "ended", name: read.result.reference.owner.name } : null;
+  return read.result.placement?.kind === "completed" ? { kind: "ended", owner: read.result.reference.owner } : null;
 }
 async function selectUnboundCheckout(input: SelectionInput, cwd: string, marker: WorktreeMarker): Promise<Selected> {
   const unbound = await classifyUnboundMarker({ store: input.store, cwd, marker,

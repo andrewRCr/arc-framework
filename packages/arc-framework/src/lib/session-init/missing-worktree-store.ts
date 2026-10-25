@@ -1,4 +1,5 @@
 /** Missing-folder repairs use the linked work item's placement and branch authority. */
+import { teardownOperand } from "../work-unit/store-retirement-evidence.js";
 import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 import type { Store } from "../store/contract.js";
 import { createProjectIdentityReader, resolveProjectIdentity } from "../store/project-identity.js";
@@ -36,5 +37,5 @@ export async function readStoreMissingFolderActions(input: { store: Store; proje
     return null;
   }
   const link = links[0];
-  return link.linkedAs === "created" ? missingRegistrationActions(checkout.path, { locked, workUnitName: read.result.reference.owner.name }) : plain();
+  return link.linkedAs === "created" ? missingRegistrationActions(checkout.path, { locked, workUnitName: await teardownOperand(input.store, read.result.reference.owner) }) : plain();
 }

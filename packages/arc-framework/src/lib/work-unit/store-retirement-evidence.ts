@@ -1,4 +1,5 @@
 /** Exact operational evidence and branch authority retained after a work unit ends. */
+import { z } from "zod";
 import { canonicalDigest } from "../kernel/canonical/canonical-json.js";
 import { SlugSchema } from "../kernel/index.js";
 import { LineageRecordSchema } from "../store/kinds/lineage/index.js";
@@ -7,7 +8,7 @@ import type { Store } from "../store/contract.js";
 import type { StoreRecord } from "../store/read.js";
 import type { BranchLink } from "../store/links.js";
 import type { RetirementEvidenceRef } from "./retirement-authority.js";
-import { recordReferences, type OwnerIdentity, type RecordReference } from "../store/identity.js";
+import { recordReferences, sameOwner, type OwnerIdentity, type RecordReference } from "../store/identity.js";
 /** User operands resolve once; callers holding an owner retain that exact identity. */
 export type TeardownSubject = { kind: "slug"; slug: string } | { kind: "owner"; owner: OwnerIdentity };
 /** Read a typed teardown request's unambiguous command operand. */
@@ -16,6 +17,14 @@ export function teardownSubjectOperand(subject: TeardownSubject): string {
   if (subject.owner.type !== "work-item" || subject.owner.uid === undefined)
     throw new Error("Owner-selected teardown requires an owner UID; resolve the exact owner, then retry.");
   return subject.owner.uid;
+}
+/** Use a display slug only when command selection still identifies this exact holder. */
+export async function teardownOperand(store: Store, owner: OwnerIdentity): Promise<string> {
+  const uid = teardownSubjectOperand({ kind: "owner", owner });
+  if (z.uuid().safeParse(owner.name).success) return uid;
+  const selected = await store.lookup({ kind: "slug", slug: owner.name });
+  return selected.status === "ok" && selected.result.reference.kind === "work-item/meta"
+    && sameOwner(selected.result.reference.owner, owner) ? owner.name : uid;
 }
 /** Resolve a user-selected work unit or retired origin without reselecting a supplied owner. */
 export async function resolveTeardownSubject(store: Store, subject: TeardownSubject): Promise<RecordReference> {

@@ -1,6 +1,6 @@
 /** Retirement evidence carries operational refusals across its throwing boundary without changing messages. */
 import { expect, it } from "vitest";
-import { readStoreRetirementEvidence, resolveTeardownSubject } from "../../../src/lib/work-unit/store-retirement-evidence.js";
+import { readStoreRetirementEvidence, resolveTeardownSubject, teardownOperand } from "../../../src/lib/work-unit/store-retirement-evidence.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { createClashDouble } from "../../helpers/store/clash-double.js";
 import { OwnerIdentitySchema, recordReferences, sameReference } from "../../../src/lib/store/identity.js";
@@ -71,4 +71,23 @@ it.each(["lookup", "read"] as const)("carries a refused lineage %s with the orig
     ? { status: "refused", refusal } : h.store.read(input);
   await expect(readStoreRetirementEvidence(store, primary.reference, base)).rejects.toMatchObject({ name: "StoreRefusalError",
     refusal, message: `${refusal.condition} ${refusal.remedy.text}` });
+});
+
+it("keeps an ended holder's non-UUID slug when lookup selects that exact owner", async () => {
+  const h = createDecomposeHarness(), archived = await h.seedCompletedWorkUnit("example");
+  expect(await teardownOperand(h.store, archived.reference.owner)).toBe("example");
+});
+it("uses an ended holder's UID when its slug lookup refuses", async () => {
+  const h = createDecomposeHarness(), archived = await h.seedCompletedWorkUnit("example"), other = await h.seedMeta("other");
+  const store = createClashDouble(h.store, { slug: "example", holders: [archived.reference, other.reference] });
+  expect(await teardownOperand(store, archived.reference.owner)).toBe(archived.reference.owner.type === "work-item" ? archived.reference.owner.uid : undefined);
+});
+it("uses the owner UID even when its UUID-shaped display name selects the same owner", async () => {
+  const h = createDecomposeHarness(), name = "11111111-1111-4111-8111-111111111111";
+  const archived = await h.seedCompletedWorkUnit(name);
+  const selected = lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse(name) }));
+  expect(selected.reference).toEqual(archived.reference);
+  const uid = archived.reference.owner.type === "work-item" ? archived.reference.owner.uid : undefined;
+  expect(uid).not.toBe(name);
+  expect(await teardownOperand(h.store, archived.reference.owner)).toBe(uid);
 });

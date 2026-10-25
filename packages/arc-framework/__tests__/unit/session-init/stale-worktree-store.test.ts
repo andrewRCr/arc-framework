@@ -260,6 +260,31 @@ it("withholds the branched abandonment retirement offer for duplicate holders, t
   expect(duplicate.derivedRoster?.every(row => row.kind === "unresolved-checkout")).toBe(true);
   expect((await runStaleWorktreeSweep(duplicate)).retirements).toEqual([]);
   const repaired = await withDerivedRows({ ...input, scanWorktrees: async () => ({ ok: true, worktrees: [branched] }) });
-  expect((await runStaleWorktreeSweep(repaired)).retirements).toMatchObject([{ status: "actionable", teardown: { argv: ["arc", "teardown", "done"] } }]);
+  expect((await runStaleWorktreeSweep(repaired)).retirements).toMatchObject([{ status: "actionable", teardown: { argv: ["arc", "teardown", boundWorkUnitSubject(primary).uid] } }]);
   } finally { await rm(path, { recursive: true, force: true }); }
+});
+
+
+it.each([false, true])("offers only the archived holder's teardown beside live work (detached=%s)", async detached => {
+  const h = createLifecycleHarness();
+  const archived = await h.seedMeta("done", { state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const live = await h.seedMeta("done"), before = lifecycleSuccess(await h.store.version());
+  const original = await options(h.store, boundWorkUnitSubject(archived));
+  const ended = { ...checkout, branch: detached ? null : "feat/archived", detached };
+  const liveCheckout = { ...checkout, path: "/live", branch: "feat/live", detached: false };
+  const input = await withDerivedRows({ ...original,
+    exec: async (command, args, opts) => args[0] === "cherry" ? { stdout: "" } : original.exec(command, args, opts),
+    scanWorktrees: async () => ({ ok: true, worktrees: [ended, liveCheckout] }),
+    readMarker: async path => ({ kind: "present", marker: { spawnedByArc: true, wuName: "done",
+      createdFor: boundWorkUnitSubject(path === "/live" ? live : archived), spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00Z" } }),
+  });
+  const result = await runStaleWorktreeSweep(input);
+  const teardown = { argv: ["arc", "teardown", archived.reference.owner.type !== "person" ? archived.reference.owner.uid : undefined],
+    text: `arc teardown ${archived.reference.owner.type !== "person" ? archived.reference.owner.uid : undefined}` };
+  expect(result.warnings).toEqual([]);
+  expect(result.worktrees).toEqual([expect.objectContaining({ worktreePath: "/checkout", kind: detached ? "detached" : "branched",
+    decision: { action: "removable" }, teardown, actions: [teardown] })]);
+  expect(StaleWorktreeSweepResultSchema.safeParse(result).success).toBe(true);
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
 });

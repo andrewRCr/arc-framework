@@ -878,9 +878,12 @@ tracked source documents the work.
 
 - `sweep.value.worktrees` non-empty (primary worktree only): branched shipped-WU worktrees and stamped detached
   husks linger. Branch on `kind`; never infer a label from optional fields.
-    - `branched`: label with `branch`. `removable` offers an interlock-gated
-      `git worktree remove {worktreePath}`; map `blocked.reason` as `uncommitted`, `user-surfaces`, or `unmerged`;
-      `external` is externally managed. Keep every action offer-only and never use `--force`.
+    - `branched`: label with `branch`. `removable` offers the report's `teardown` when present, using `teardown.text`
+      and its structured `teardown.argv`; otherwise offer `git worktree remove {worktreePath}`. Map `blocked.reason`
+      as `uncommitted`, `user-surfaces`, or `unmerged`; `external` is externally managed. Keep every action
+      interlock-gated and offer-only; never use `--force`.
+    - `detached`: label with `workUnit` and `worktreePath`. For `removable`, offer the report's `teardown.text`
+      and structured `teardown.argv`; otherwise surface the decision without a removal offer.
     - `husk`: label a non-null `completedWorkUnit` as work unit `{name}`; otherwise label a `work-unit` subject as
       work unit `{subject.name}`, a `branch` subject as branch husk `{subject.ref}`, and an `errand` subject as errand
       husk `{subject.slug}`. `removable` means clean at the exact stamped `HEAD`; offer `arc teardown {subject.name}`
@@ -891,7 +894,8 @@ tracked source documents the work.
 
   ```text
   **Stale worktrees:** {N} shipped worktree(s) or stamped husk(s) linger:
-  - `{branch}` — clean & merged → remove? `git worktree remove {worktreePath}`
+  - `{branch}` — clean & merged → clean up? `{teardown.text}` when present, else `git worktree remove {worktreePath}`
+  - `work unit {workUnit}` at `{worktreePath}` — ended & detached, clean & merged → clean up? `{teardown.text}`
   - `{branch}` — {uncommitted | user surfaces not reconciled | unmerged}; surfaced, not removed
   - `{branch}` — externally-managed (no ARC marker); remove manually if desired
   - `work unit {completedWorkUnit}` — stamped husk, clean & exact HEAD → remove?
@@ -908,26 +912,27 @@ tracked source documents the work.
 - `orphanBranchSweep.value.orphans` non-empty (primary worktree only): type-prefixed local branches whose
   upstream is `gone` linger — the residue integration leaves on every non-integrating machine (or a sibling's
   local-only `plan/ → <type>/` rename); worktree-checked-out and errand-record-carrying branches never appear
-  here (their own surfaces clean those up). Prefer the re-runnable `arc teardown {shippedWorkUnit}` when the orphan
-  carries a non-null `shippedWorkUnit` (its own containment guards decide the reap); otherwise offer an
-  interlock-gated `git branch -d` only for a `merged` orphan (commits landed in the advertised base; never `-D`),
-  and surface an unmerged or `blockingReason: evidence-unavailable` entry as not-removable. Branch hygiene only —
-  never auto-removed.
+  here (their own surfaces clean those up). Prefer the report's `teardown.text` and structured `teardown.argv`
+  when present; otherwise use `arc teardown {shippedWorkUnit}` for a non-null `shippedWorkUnit` (its own containment
+  guards decide the reap), or offer an interlock-gated `git branch -d` only for a `merged` orphan (commits landed
+  in the advertised base; never `-D`), and surface an unmerged or `blockingReason: evidence-unavailable` entry as
+  not-removable. Branch hygiene only — never auto-removed.
 
   ```text
   **Branch orphans:** {N} stale local branch(es) with a deleted upstream linger:
-  - `{branch}` — work unit shipped → clean up? `arc teardown {shippedWorkUnit}`
+  - `{branch}` — work unit shipped → clean up? `{teardown.text}` when present, else `arc teardown {shippedWorkUnit}`
   - `{branch}` — merged to base → remove? `git branch -d {branch}`
   - `{branch}` — remote evidence unavailable; no cleanup authority
   - `{branch}` — not merged; surfaced, not removed (never `-D`)
   ```
 
 - Linked worktree with a non-empty `sweep.value.worktrees` or `orphanBranchSweep.value.orphans`: render one combined
-  section instead of the primary-only sections above. Branch on the typed husk subject before rendering an action:
-  a `work-unit` uses the exact path-qualified `arc teardown {subject.name} --husk "{worktreePath}"` form. `branch`
-  and `errand` husks have no exact path-qualified cleanup driver and stay manual-only.
-  `stamp.kind == manual-only`, moved/dirty husks, and unmerged non-shipped orphans also remain manual-only. Omit the
-  section when both arrays are empty; write no marker or nudge state.
+  section instead of the primary-only sections above. Render a branched, detached, or orphan report's `teardown`
+  using its `text` and structured `argv` when present, with the same decision guards as above. For husks, branch on
+  the typed subject before rendering an action: a `work-unit` uses the exact path-qualified
+  `arc teardown {subject.name} --husk "{worktreePath}"` form. `branch` and `errand` husks have no exact path-qualified
+  cleanup driver and stay manual-only. `stamp.kind == manual-only`, moved/dirty husks, and unmerged non-shipped
+  orphans also remain manual-only. Omit the section when both arrays are empty; write no marker or nudge state.
 
   ```text
   **Cleanup residues:** {N} sibling husk(s) or orphan ref(s) linger:
@@ -936,7 +941,7 @@ tracked source documents the work.
   - `{worktreePath}` — branch husk `{subject.ref}`; no exact husk cleanup driver, manual-only
   - `{worktreePath}` — errand husk `{subject.slug}`; no shipped cleanup driver, manual-only
   - `{worktreePath}` — {manual-only reason | dirty | HEAD moved}; surfaced, not removed
-  - `{branch}` — {shipped → `arc teardown {shippedWorkUnit}` | merged → `git branch -d {branch}` | not merged}
+  - `{branch}` — {shipped → `{teardown.text}` when present, else `arc teardown {shippedWorkUnit}` | merged | not merged}
   ```
 
 - `retiredSubdirs.value.recommendedAction === "surface"` (`session.init_load.notes: manual`): retired-WU

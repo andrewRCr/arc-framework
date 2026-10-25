@@ -28,11 +28,17 @@ const HuskCleanupDecisionSchema = z.discriminatedUnion("action", [
   }),
   z.strictObject({ action: z.literal("outside"), reason: z.enum(["untrusted-marker", "missing-stamp"]) }),
 ]);
+/** Exact holder-selected command shared by cleanup report projections. */
+export const TeardownCommandSchema = z.strictObject({
+  argv: z.tuple([z.literal("arc"), z.literal("teardown"), z.string()]).readonly(), text: z.string(),
+});
+/** Holder-selected teardown projection. */
+export type TeardownCommand = z.infer<typeof TeardownCommandSchema>;
 const StaleWorktreeReportSchema = z.discriminatedUnion("kind", [
   z.strictObject({
-    kind: z.literal("branched"), worktreePath: z.string(), branch: z.string(), decision: BranchedCleanupDecisionSchema, actions: SessionActionsSchema.optional(),
+    kind: z.literal("branched"), worktreePath: z.string(), branch: z.string(), decision: BranchedCleanupDecisionSchema, teardown: TeardownCommandSchema.optional(), actions: SessionActionsSchema.optional(),
   }),
-  z.strictObject({ kind: z.literal("detached"), worktreePath: z.string(), branch: z.null(), workUnit: z.string(), decision: BranchedCleanupDecisionSchema, actions: SessionActionsSchema.optional() }),
+  z.strictObject({ kind: z.literal("detached"), worktreePath: z.string(), branch: z.null(), workUnit: z.string(), decision: BranchedCleanupDecisionSchema, teardown: TeardownCommandSchema.optional(), actions: SessionActionsSchema.optional() }),
   z.strictObject({
     kind: z.literal("husk"), worktreePath: z.string(), branch: z.null(), stampedBranch: z.string(),
     completedWorkUnit: z.string().nullable(), subject: WorktreeSubjectSchema,
@@ -62,9 +68,7 @@ const LandedRetirementResidueSchema = z.discriminatedUnion("status", [
       }),
       successorReadiness: SuccessorReadinessSchema,
     }),
-    teardown: z.strictObject({
-      argv: z.tuple([z.literal("arc"), z.literal("teardown"), z.string()]).readonly(), text: z.string(),
-    }),
+    teardown: TeardownCommandSchema,
   }),
   z.strictObject({
     status: z.literal("blocked"), worktreePath: z.string(),

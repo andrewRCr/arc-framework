@@ -34,7 +34,7 @@ function run(store: Store, subjects: { name: string; uid?: string }[], remote = 
     baseEvidence: { remoteSyncEnabled: remote, snapshot: { kind: "available", scope: "all-heads", tips: { main: base } }, objectAvailability: { kind: "complete", commits: { [base]: true } }, history: { kind: "complete" } } });
 }
 it("offers teardown from abandonment's retained lineage links without a Git receipt", async () => {
-  const h = await abandoned(); expect((await run(h.store, [boundWorkUnitSubject(h.primary)])).retirements).toMatchObject([{ status: "actionable", teardown: { argv: ["arc", "teardown", "done"] } }]);
+  const h = await abandoned(); expect((await run(h.store, [boundWorkUnitSubject(h.primary)])).retirements).toMatchObject([{ status: "actionable", teardown: { argv: ["arc", "teardown", boundWorkUnitSubject(h.primary).uid] } }]);
 });
 it("reports neither a live work unit nor a marker with no lineage as a retirement", async () => {
   const h = createLifecycleHarness(); const primary = await h.seedMeta("live"); expect((await run(h.store, [boundWorkUnitSubject(primary), { name: "absent" }])).retirements).toEqual([]);
@@ -86,7 +86,7 @@ it("blocks disputed abandonment lineage and restores teardown after explicit res
     lifecycleSuccess(await h.store.write({ action: "remove", reference, expected: conflict.version, resolves: [reference],
       provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
   }
-  expect((await run(h.store, [boundWorkUnitSubject(h.primary)])).retirements).toMatchObject([{ status: "actionable", teardown: { argv: ["arc", "teardown", "done"] } }]);
+  expect((await run(h.store, [boundWorkUnitSubject(h.primary)])).retirements).toMatchObject([{ status: "actionable", teardown: { argv: ["arc", "teardown", boundWorkUnitSubject(h.primary).uid] } }]);
 });
 
 it("retains the sweep message when retirement's lineage lookup is refused", async () => {
@@ -100,4 +100,15 @@ it("retains the sweep message when retirement's lineage lookup is refused", asyn
   const message = `${refusal.condition} ${refusal.remedy.text}`;
   expect((await run(store, [boundWorkUnitSubject(h.primary)])).retirements).toMatchObject([{ status: "blocked", reason: "repair-required", repair: message,
     actions: [{ text: message }] }]);
+});
+
+it("offers the abandoned holder's UID beside a live namesake", async () => {
+  const h = await abandoned();
+  const live = await h.seedMeta("done"), before = lifecycleSuccess(await h.store.version());
+  const subject = boundWorkUnitSubject(h.primary);
+  const result = await run(h.store, [subject]);
+  const teardown = { argv: ["arc", "teardown", subject.uid], text: `arc teardown ${subject.uid}` };
+  expect(result.retirements).toMatchObject([{ status: "actionable", teardown, actions: [teardown] }]);
+  expect(lifecycleSuccess(await h.store.read({ reference: live.reference }))).toEqual(live);
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
 });

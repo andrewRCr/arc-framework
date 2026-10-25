@@ -16,7 +16,9 @@
  */
 
 import type { z } from "zod";
-import { StaleWorktreeSweepResultSchema } from "./stale-worktree-sweep-schema.js";
+import { StaleWorktreeSweepResultSchema, type TeardownCommand } from "./stale-worktree-sweep-schema.js";
+import { teardownOperand } from "../work-unit/store-retirement-evidence.js";
+import type { OwnerIdentity } from "../store/identity.js";
 import type { Store } from "../store/contract.js";
 import { readStoreCompletedEvidence } from "../store/lifecycle-completed.js";
 import { selectStoreCleanupTopology, selectStoreWorktreeCleanup } from "./store-worktree-selection.js";
@@ -134,7 +136,7 @@ export type StaleWorktreeReport = (
       stamp: DecodedWorktreeHuskStamp;
       completedWorkUnit: string | null;
       decision: HuskCleanupDecision | EvidenceUnavailableDecision | { action: "blocked"; reason: "locked" | "unobservable" };
-    }) & { actions?: SessionAction[] };
+    }) & { actions?: SessionAction[]; teardown?: TeardownCommand };
 
 export type StaleWorktreeSweepResult = z.infer<typeof StaleWorktreeSweepResultSchema>;
 
@@ -293,14 +295,14 @@ export async function runStaleWorktreeSweep(
   const primaryWorktreePath = candidates.length === 0 && !storeSelection?.ended.length ? null : await resolvePrimaryWorktreePath(exec);
 
   const worktrees: StaleWorktreeReport[] = await Promise.all(candidates.map((entry) => inspectBranchedRemoval(entry, {
-    options, readMarker, userSurfaceFs, primaryWorktreePath, exactBaseOid, analysisExec, mergeBase,
+    options, readMarker, userSurfaceFs, primaryWorktreePath, exactBaseOid, analysisExec, mergeBase, ended: storeSelection?.ended,
   })));
 
   worktrees.push(...(storeSelection?.releases ?? []));
-  for (const { checkout, name } of storeSelection?.ended ?? []) {
+  for (const { checkout, owner } of storeSelection?.ended ?? []) {
     if (checkout.branch !== null || missingPaths.has(checkout.path)) continue;
-    const report = await inspectBranchedRemoval({ worktreePath: checkout.path, branch: checkout.head }, { options, readMarker, userSurfaceFs, primaryWorktreePath, exactBaseOid, analysisExec, mergeBase });
-    worktrees.push({ ...report, kind: "detached", branch: null, workUnit: name });
+    const report = await inspectBranchedRemoval({ worktreePath: checkout.path, branch: checkout.head }, { options, readMarker, userSurfaceFs, primaryWorktreePath, exactBaseOid, analysisExec, mergeBase, ended: storeSelection?.ended });
+    worktrees.push({ ...report, kind: "detached", branch: null, workUnit: owner.name });
   }
 
   if (!scan.ok) {
@@ -384,6 +386,7 @@ export async function runStaleWorktreeSweep(
 
 async function inspectBranchedRemoval(entry: WorktreeRosterEntry & { branch: string }, context: {
   options: RunStaleWorktreeSweepOptions;
+  ended?: readonly { checkout: RegisteredWorktree; owner: OwnerIdentity }[];
   readMarker: (path: string) => Promise<WorktreeMarkerReadResult>;
   userSurfaceFs: UserSurfaceMigrationFs;
   primaryWorktreePath: string | null;
@@ -411,9 +414,13 @@ async function inspectBranchedRemoval(entry: WorktreeRosterEntry & { branch: str
     && localDecision.reason === "unmerged"
     ? { action: "blocked" as const, reason: "evidence-unavailable" as const }
     : localDecision.action === "missing" ? { action: "external" as const } : localDecision;
-  const report = { kind: "branched" as const, worktreePath: entry.worktreePath, branch: entry.branch, decision };
+  const owner = context.ended?.find(item => item.checkout.path === entry.worktreePath)?.owner;
+  const operand = owner === undefined || options.store === undefined ? undefined : await teardownOperand(options.store, owner);
+  const teardown = operand === undefined ? undefined : { argv: ["arc", "teardown", operand] as const, text: `arc teardown ${operand}` };
+  const report = { kind: "branched" as const, worktreePath: entry.worktreePath, branch: entry.branch, decision,
+    ...(teardown === undefined ? {} : { teardown }) };
   if (decision.action !== "removable") return report;
-  const name = marker.kind === "present" ? marker.marker.wuName : undefined;
+  const name = operand ?? (marker.kind === "present" ? marker.marker.wuName : undefined);
   return name === undefined ? { ...report, decision: { action: "external" as const } }
     : { ...report, actions: [workUnitTeardownAction(name)] };
 }

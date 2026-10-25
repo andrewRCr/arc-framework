@@ -803,46 +803,11 @@ edits land in package source and sync to `.arc/`.
           reused names and colliding retired generations. Teardown carries typed slug or owner subjects; owner-selected
           retries preserve the UID and husk path, and existing callers transport their operands through the typed API.
 
-    - `[ ]` **7.1.b The session-start exits**
+    - `[x]` **7.1.b The session-start exits**
 
-        - The stale-worktree sweep (`selectStoreWorktreeCleanup`, `store-worktree-selection.ts`, whose `ended` entries
-          gain the holder's owner in place of its name), the missing-worktree check (`readStoreMissingFolderActions`,
-          `lib/session-init/missing-worktree-store.ts`), the orphan advisory (`orphan-store-candidates.ts`, rendered in
-          `orphan-branch-sweep.ts`), and the retirement sweep (`hasAbandonment`, `store-retirement-sweep.ts`) resolve
-          their holder by UID, the retirement sweep reading its evidence by the owner subject (7.1.a). Each offer names
-          its holder through one helper (`teardownOperand`, beside `readStoreRetirementEvidence`): by slug only where
-          the slug is not UUID-shaped and its lookup returns exactly that holder, and by UID otherwise, a refused lookup
-          included. A UUID-shaped display name, classified as the command's operand in 7.4.a, always yields the holder's
-          own UID; 7.1.c and 7.1.d use the helper too. For a store-arm ended checkout, branched or detached, the sweep's
-          report (`inspectBranchedRemoval`, `stale-worktree-sweep.ts`, shared with the in-repo arm) carries that
-          operand's teardown as `teardown` (`{ argv, text }`, the retirement report's shape,
-          `stale-worktree-sweep-schema.ts`), and its teardown action takes the same operand in place of the marker's
-          `wuName`; the orphan advisory's shipped report carries its teardown as `teardown` too
-          (`orphan-branch-sweep.ts`). The in-repo arm's reports carry no `teardown` and keep their actions as today.
-        - Branch-gone recovery's teardown offer (`inferBranchGoneRecovery`, `lib/session-init/recommended-action.ts`,
-          from `CascadeCandidate.workUnitName`, `branch-gone-recovery.ts`) holds no store, so it names the derived row's
-          UID where the row carries one, and its name otherwise, as an in-repo row carries none.
-        - `session-init.template.md` offers a stale-worktree or orphan report's `teardown` where it carries one, the
-          command the CLI composes, and otherwise composes `git worktree remove {worktreePath}` or
-          `arc teardown {shippedWorkUnit}` from the report's fields as today, so the in-repo arm's offers are unchanged;
-          it gains a rule for the store arm's ended `detached` report.
-        - _Note:_ `runStaleWorktreeSweep` is over the function-length and complexity limits and in the suppression
-          record, so carry the operand through a helper; `readStoreMissingFolderActions`, `readOrphanStoreCandidates`,
-          `selectStoreWorktreeCleanup`, and `buildWorktreeCandidate` sit at or near the complexity limit.
-        - Build `test-first` (one behavior at a time):
-            - with a live holder and a bound checkout of the archived holder, the stale-worktree sweep offers the
-              archived checkout's teardown by UID, branched or detached, and never lists the live holder's checkout
-            - with the archived holder's branch, which the live holder does not link, and no checkout of it, the orphan
-              advisory names the archived holder's UID in its teardown offer, and with that checkout registered but its
-              folder missing, so does the missing-worktree check
-            - branch-gone recovery offers teardown by the archived holder's UID, and by an in-repo row's name
-            - with a live namesake beside an abandoned holder's bound checkout, the retirement sweep offers the
-              abandoned holder's teardown by UID
-            - an ended holder whose non-UUID-shaped slug resolves to it is offered by slug, as today
-            - an ended holder whose slug's lookup refuses is offered by UID
-            - an ended holder whose UUID-shaped display name differs from its UID is offered by its own UID, even
-              where that name's slug lookup resolves to it
-            - the in-repo arm's stale-worktree and orphan reports carry no `teardown` and keep today's actions
+        - Session-start cleanup retains claimed checkout owners and branch-linked owners, emitting exact teardown
+          projections for ended worktrees, orphan branches, and abandoned holders. One operand helper keeps a slug
+          only when it selects that owner; branch-gone recovery uses the derived UID, and the template renders offers.
 
     - `[ ]` **7.1.c Locus release's ended remedy**
 

@@ -72,7 +72,7 @@ it.each([false, true])("cleanup follows the bound holder's placement, completed=
   const h = await fixture(completed), frame = await claimFrame(h.store, h.cwd);
   const result = await selectStoreWorktreeCleanup({ store: h.store, topology: h.topology, derivedRoster: frame.roster,
     readMarker: readWorktreeMarker });
-  expect(result).toEqual({ warnings: [], releases: [], ended: completed ? [{ checkout: h.topology[0], name: "shared" }] : [] });
+  expect(result).toEqual({ warnings: [], releases: [], ended: completed ? [{ checkout: h.topology[0], owner: h.record.reference.owner }] : [] });
 });
 
 it("overlap resolves the live caller's bound identity before excluding its state targets", async () => {

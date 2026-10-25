@@ -8,7 +8,7 @@ import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/ident
 import { runStoreRename } from "../../src/lib/work-unit/verbs/rename-store.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { acquireStoreClaims } from "../../src/lib/errand/store-discovery.js";
-import { analyzeOrphanBranchesSnapshot, runOrphanBranchSweep } from "../../src/lib/session-init/orphan-branch-sweep.js";
+import { analyzeOrphanBranchesSnapshot, runOrphanBranchSweep, OrphanBranchSweepResultSchema } from "../../src/lib/session-init/orphan-branch-sweep.js";
 import type { OrphanStoreOptions } from "../../src/lib/session-init/orphan-store-candidates.js";
 const repository = "11111111-1111-4111-8111-111111111111";
 it.each([false, true])("a reused branch has no teardown offer and retains its merge guard (unmerged=%s)", async unmerged => {
@@ -65,7 +65,7 @@ it.each(["snapshot", "run"] as const)("%s scans an arbitrary created link using 
   await h.branch("arbitrary-branch");
   await h.seedMeta("shipped-widget", { state: "Shipped" }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q1") }, { branches: [{ repository, ref: "arbitrary-branch", linkedAs: "created", excluded: [] }] });
   const result = await h.sweep(path, ["arbitrary-branch"], { claims: undefined, identity: "test-user" });
-  expect(result.orphans, JSON.stringify(result)).toEqual([{ branch: "arbitrary-branch", merged: true, shippedWorkUnit: "shipped-widget", actions: [{ text: "arc teardown shipped-widget", argv: ["arc", "teardown", "shipped-widget"] }] }]);
+  expect(result.orphans, JSON.stringify(result)).toEqual([{ branch: "arbitrary-branch", merged: true, shippedWorkUnit: "shipped-widget", teardown: { text: "arc teardown shipped-widget", argv: ["arc", "teardown", "shipped-widget"] }, actions: [{ text: "arc teardown shipped-widget", argv: ["arc", "teardown", "shipped-widget"] }] }]);
   expect((await h.exec("git", ["rev-parse", "arbitrary-branch"])).stdout.trim()).toBe(h.head);
 });
 it.each(["snapshot", "run"] as const)("%s keeps adopted cleanup with its owner, whether merged or not", async path => {
@@ -94,6 +94,7 @@ it.each([
   lifecycleSuccess(await h.store.write({ action: "put", reference: primary.reference, expected: primary.version, content: primary.content,
     placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q1") }, links: { branches: [link] }, provenance: { verb: "repair-links", lifecycleAction: "repair-links" } }));
   expect((await h.sweep(path, [branch])).orphans).toEqual([{ branch, merged: true, shippedWorkUnit: linkedAs === "created" ? "shipped-widget" : null,
+    ...(linkedAs === "created" ? { teardown: { text: "arc teardown shipped-widget", argv: ["arc", "teardown", "shipped-widget"] } } : {}),
     actions: linkedAs === "created" ? [{ text: "arc teardown shipped-widget", argv: ["arc", "teardown", "shipped-widget"] }]
       : [{ text: `git branch -D ${branch}`, argv: ["git", "branch", "-D", branch] }],
   }]);
@@ -134,7 +135,7 @@ it.each(["snapshot", "run"] as const)("%s admits the branch retained by the prod
   await h.seedMeta("former-widget", { state: "Shipped" }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q1") }, { branches: [{ repository, ref: "kept-arbitrary-name", linkedAs: "created", excluded: [] }] });
   expect(await runStoreRename({ store: h.store, cwd: h.cwd, exec: h.exec, baseBranch: "main", projectId: async () => repository }, { sourceSlug: "former-widget", targetSlug: "renamed-widget" })).toMatchObject({ status: "renamed" });
   const result = await h.sweep(path, ["kept-arbitrary-name"]);
-  expect(result.orphans).toEqual([{ branch: "kept-arbitrary-name", merged: true, shippedWorkUnit: "renamed-widget", actions: [{ text: "arc teardown renamed-widget", argv: ["arc", "teardown", "renamed-widget"] }] }]);
+  expect(result.orphans).toEqual([{ branch: "kept-arbitrary-name", merged: true, shippedWorkUnit: "renamed-widget", teardown: { text: "arc teardown renamed-widget", argv: ["arc", "teardown", "renamed-widget"] }, actions: [{ text: "arc teardown renamed-widget", argv: ["arc", "teardown", "renamed-widget"] }] }]);
 });
 
 it.each(["snapshot", "run"] as const)("%s declines an absent claims acquisition as incomplete", async path => {
@@ -147,4 +148,21 @@ it.each(["snapshot", "run"] as const)("%s declines an absent claims acquisition 
   const claims = await acquireStoreClaims(h.store, "test-user");
   expect(claims.kind).toBe("absent");
   expect(await h.sweep(path, ["linked-branch"], { claims })).toMatchObject({ orphans: [], warnings: [expect.stringContaining("not complete")] });
+});
+
+it.each(["snapshot", "run"] as const)("%s offers the archived branch holder's UID beside live work", async path => {
+  const h = await fixture(), branch = "topic/archived";
+  await h.branch(branch);
+  const archived = await h.seedMeta("reused", { state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+    { branches: [{ repository, ref: branch, linkedAs: "created", excluded: [] }] });
+  const live = await h.seedMeta("reused"), before = lifecycleSuccess(await h.store.version());
+  const uid = archived.reference.owner.type === "work-item" ? archived.reference.owner.uid : undefined;
+  const teardown = { argv: ["arc", "teardown", uid], text: `arc teardown ${uid}` };
+  const result = await h.sweep(path, [branch]);
+  expect(result.orphans).toEqual([{ branch, merged: true, shippedWorkUnit: "reused", teardown, actions: [teardown] }]);
+  expect(OrphanBranchSweepResultSchema.safeParse(result).success).toBe(true);
+  expect(lifecycleSuccess(await h.store.read({ reference: live.reference }))).toEqual(live);
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  expect((await h.exec("git", ["rev-parse", branch])).stdout.trim()).toBe(h.head);
 });
