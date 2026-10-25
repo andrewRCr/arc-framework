@@ -14,6 +14,7 @@ import type { Store, HistoryEntry } from "../store/contract.js";
 import { CommitShaSchema } from "../store/links.js";
 import type { StoreRecord } from "../store/read.js";
 import { ownerHolderRequest } from "../work-unit/locus-ports.js";
+import { checkCreationAdmission, renderCreationAdmissionRefusal } from "../store/creation-admission.js";
 /** Caller-owned checkout frame metadata stays outside these storage steps. */
 export interface StorePromotionOptions {
   store: Store; exec: GitExec; repository: string; slug: string; name: string; type?: string;
@@ -64,6 +65,11 @@ async function readPrimary(options: StorePromotionOptions): Promise<{ kind: "rea
   return conflict === undefined ? { kind: "ready", record: read.result } : { kind: "refused", reason: conflict };
 }
 async function replace(input: StorePromotionOptions, source: OrdinaryErrandRecord, basis: StoreRecord): Promise<PromotionFrameResult> {
+  const admission = await checkCreationAdmission(input.store, input.name, [basis.reference.owner]);
+  if (admission.kind !== "free") {
+    const rendered = renderCreationAdmissionRefusal(input.name, admission);
+    return refused(`${rendered.condition} ${rendered.remedy.text}`);
+  }
   const checkout = await input.checkout(source, "replaceFrame", ownerHolderRequest(basis).uid);
   if (checkout.kind !== "ready") return checkout;
   const options: BoundStorePromotionOptions = { ...input, cwd: checkout.checkoutPath, frame: checkout };

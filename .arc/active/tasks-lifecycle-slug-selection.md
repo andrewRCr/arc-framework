@@ -593,7 +593,7 @@ refuses through `work-item.slug-edges` with its remedy.
   exemptions; the renderer names holder types and UUIDs, limits waiting advice to live current names, and preserves
   actionable lookup/read repairs without offering lifecycle clash repairs.
 
-### `[ ]` **5.2 Admit through the check at every creating path — § 6.2, § 6.5**
+### `[x]` **5.2 Admit through the check at every creating path — § 6.2, § 6.5**
 
 - _Goal:_ Every path that creates a work item, and Errand promotion, runs the one check and refuses with § 6.5's remedy
   before any write, so each admits a completed work unit's slug and refuses a live, Errand, cohort, or former-name
@@ -613,25 +613,12 @@ refuses through `work-item.slug-edges` with its remedy.
           pointers without selecting from a tie. Cold-start rollback retains the original store refusal and repair;
           graduation alone still resolves former names to their current owner.
 
-    - `[ ]` **5.2.c Decomposition's work-item names and Errand promotion**
+    - `[x]` **5.2.c Decomposition's work-item names and Errand promotion**
 
-        - `checkNamespaceName` (`lib/decompose/check-names.ts`) runs the check for a work-item name, with the retained
-          members' owners as its writing owners (`admitDecomposeRevision`, `lib/decompose/revision-admission.ts`, builds
-          the list it matches by `sameReference` today). It now refuses a completed Errand or cohort holder it admits
-          today, and its refusal keeps decomposition's map-locus remedy (`nameCollision`).
-        - `replace` (`lib/errand/promote-store.ts`) runs the check on promotion's target name before any write, with the
-          Errand's owner as its writing owner: `--name` defaults to the Errand's own slug (`handlers/errand.ts`), whose
-          lookup returns the Errand's `work-item/record` while promotion writes a `work-item/meta`. Today it relies on
-          the store's write checks alone. Its refusal of an existing local target branch (`localBranchExists`) stays.
-        - `nameCollisionGuard` (`lib/work-unit/lifecycle-guards.ts`), the transition table, and the in-repo arm are
-          unchanged.
-        - Build `test-first` (one behavior at a time):
-            - decomposition names a new member on a completed work unit's slug, a reused one included, and refuses a
-              completed Errand's slug and a completed cohort's, inverting `check-names.test.ts`'s case admitting a
-              completed cohort
-            - a decomposition revision keeps a retained live member's name
-            - promotion onto a completed work unit's slug succeeds, a default-named promotion still promotes, and
-              promotion onto a live holder's slug refuses before any write
+        - Decomposition checks work-item names through shared admission with retained members' owners, preserving its
+          map-locus repair. Completed work-unit generations remain reusable; completed Errand and cohort names refuse.
+          Promotion checks its target before checkout preparation or writes, exempting the source owner for default
+          naming and preserving its independent target-branch refusal.
 
 ### `[ ]` **5.3 Refuse a completed holder's slug to a new cohort — § 6.3**
 
