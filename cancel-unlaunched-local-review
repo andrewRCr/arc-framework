@@ -3,14 +3,20 @@
   "slug": "cancel-unlaunched-local-review",
   "claimId": "dde62b197c4055bdc4a3f7674a723788",
   "createdAt": "2026-10-25T20:17:51.584Z",
-  "updatedAt": "2026-10-25T20:17:51.584Z",
+  "updatedAt": "2026-10-25T20:53:42.687Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Allow an operator to cancel an unlaunched local review without inventing an evaluator run, retaining the outstanding review obligation and enabling a fresh evaluator binding.",
   "branch": "fix/cancel-unlaunched-local-review",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "fix/cancel-unlaunched-local-review",
+    "headSha": "e4d8c1bb6f7ad83bd80ceacabe9f7fcfc9cefddc"
+  }
 }
