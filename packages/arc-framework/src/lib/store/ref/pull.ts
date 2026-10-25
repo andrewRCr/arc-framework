@@ -111,7 +111,7 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
       const applied = new Map([...incoming].filter(([ref]) => !isWithheld(ref, incoming, withheld)));
       await releaseEndedRefKeepers(context, remote.name, applied);
       onMerged?.(remote.name, applied);
-    }
+    } else await releaseEndedRefKeepers(context, remote.name, incoming, true);
     return { ...common, notices: uniqueNotices([...notices, ...merged?.notices ?? []]),
       status: observed.changed || merged?.changed ? "pulled" : "noop" };
   } catch (error) {

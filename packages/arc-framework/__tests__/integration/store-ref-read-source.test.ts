@@ -3,6 +3,7 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { writeLineageRecord } from "../../src/lib/store/kinds/lineage/index.js";
 import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
 import { createReadSourceStore, createRefStore, HistoryRefSchema, RecordReferenceSchema, PushResultSchema } from "../../src/lib/store/index.js";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
@@ -298,5 +299,60 @@ describe.each(["default", "separate"] as const)("concurrent read-source adoption
     expect(success(await h.b.store.history({ reference: identity }))).toEqual([
       expect.objectContaining({ provenance: expect.objectContaining({ lifecycleAction: "adopt-project-id" }) }),
     ]);
+  });
+});
+
+describe.each(["default", "separate"] as const)("read-source keeper retirement in %s", layout => {
+  it.each(["archive", "abandon", "cohort archive"] as const)("releases the fetched live tip after its %s without merging upstream state", async end => {
+    const h = await sourceFixture(layout, false);
+    const reference = end === "cohort archive" ? success(await h.a.store.write({ action: "put", expected: null,
+      reference: RecordReferenceSchema.parse({ kind: "cohort/document", owner: { type: "cohort", name: "ending" } }),
+      content: "# Cohort: `ending`\n\n**Purpose:** Finish the group.\n", provenance })).reference : h.primary;
+    const owner = reference.owner;
+    if ((owner.type !== "work-item" && owner.type !== "cohort") || !owner.uid) throw new Error("Expected a minted owner");
+    const live = `refs/arc/${owner.type === "cohort" ? "cohort" : "work"}/${owner.uid}`;
+    const tracking = live.replace("refs/arc/", "refs/arc-remotes/upstream/");
+    const keeper = live.replace("refs/arc/", "refs/arc/tmp/seen/upstream/");
+    success(await h.a.store.push()); success(await h.b.store.pull());
+    const local = success(await h.b.store.version());
+    expect((await h.b.git(["for-each-ref", "--format=%(refname)", tracking])).stdout.trim()).toBe(tracking);
+    const current = success(await h.a.store.read({ reference }));
+    if (end === "abandon") {
+      if (owner.type !== "work-item") throw new Error("Expected work item");
+      success(await h.a.store.batch({ writes: [
+        { action: "remove", reference, expected: current.version },
+        { action: "put", reference: RecordReferenceSchema.parse({ owner, kind: "lineage/transition" }), expected: null,
+          content: writeLineageRecord({ schemaVersion: 2, origin: { name: owner.name, uid: owner.uid }, kind: "abandon", successors: [], incoming: [] }) },
+      ], provenance: { verb: "abandon", lifecycleAction: "abandon" } }));
+    } else success(await h.a.store.write({ action: "put", reference, expected: current.version, content: current.content,
+      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
+    success(await h.a.store.push());
+    const result = success(await h.b.store.pull());
+    expect(result.pulls.every(({ status }) => status !== "failed")).toBe(true);
+    expect((await h.b.git(["for-each-ref", "--format=%(refname)", tracking, keeper])).stdout).toBe("");
+    expect(success(await h.b.store.version())).toBe(local);
+    expect((await h.b.git(["for-each-ref", "--format=%(refname)", "refs/arc/history/"])).stdout).toBe("");
+    if (end === "abandon") expect(JSON.parse(success(await h.source.read({ reference:
+      RecordReferenceSchema.parse({ owner, kind: "lineage/transition" }) })).content)).toMatchObject({ kind: "abandon" });
+    else expect(success(await h.source.read({ reference })).placement).toMatchObject({ kind: "completed", quarter: "2026-q4" });
+  });
+
+  it("retains a merely missing upstream tip until it returns without an end record", async () => {
+    const h = await sourceFixture(layout, false);
+    success(await h.a.store.push()); success(await h.b.store.pull());
+    const owner = h.primary.owner;
+    if (owner.type !== "work-item" || !owner.uid) throw new Error("Expected a minted work item");
+    const live = `refs/arc/work/${owner.uid}`, keeper = `refs/arc/tmp/seen/upstream/work/${owner.uid}`;
+    const tip = (await h.remote("git", ["rev-parse", live])).stdout.trim();
+    const local = success(await h.b.store.version());
+    await h.remote("git", ["update-ref", "-d", live]);
+    success(await h.b.store.pull());
+    expect((await h.b.git(["for-each-ref", "--format=%(objectname)", keeper])).stdout.trim()).toBe(tip);
+    expect(success(await h.b.store.version())).toBe(local);
+    await h.remote("git", ["update-ref", live, tip]);
+    success(await h.b.store.pull());
+    expect((await h.b.git(["for-each-ref", "--format=%(refname)", keeper])).stdout).toBe("");
+    expect(success(await h.source.read({ reference: h.reference })).content).toBe("Upstream notes.\n");
+    expect(success(await h.b.store.version())).toBe(local);
   });
 });
