@@ -109,7 +109,7 @@ it("persists retirement before cleanup failure and completes its teardown retry"
     argv: ["arc", "teardown", "demo"], reason: expect.stringContaining("marker unreadable") } } } });
   expect(await readWorkUnit(h.store, "demo")).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   teardown.readMarker = original;
-  expect(await runStoreTeardown(teardown, { name: "demo", base: "main" })).toMatchObject({ status: "torn-down",
+  expect(await runStoreTeardown(teardown, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "torn-down",
     notices: expect.arrayContaining([expect.stringContaining("Released checkout /repo")]) });
 });
 

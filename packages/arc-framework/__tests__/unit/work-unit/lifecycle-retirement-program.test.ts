@@ -64,7 +64,7 @@ it("pauses, hands over and materializes the same owner before abandoning it and 
   const reference = recordReferences["lineage/transition"](h.meta.reference.owner), terminal = lifecycleSuccess(await h.store.read({ reference }));
   expect(terminal.reference.owner).toEqual(h.meta.reference.owner); expect(terminal.fields).toMatchObject({ kind: "abandon", retiredBranches: handed.links?.branches });
   expect(h.marker()).toBeNull(); expect(h.state().current).toBe("main"); expect(h.refs.has("refs/heads/feat/demo")).toBe(false); expect(h.refs.has("remote/feat/demo")).toBe(false);
-  expect(await runTeardown(h.ctx, { name: "demo", base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: false, remoteBranchDeleted: false });
+  expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: false, remoteBranchDeleted: false });
   expect(lifecycleSuccess(await h.store.read({ reference }))).toEqual(terminal);
 });
 it.each(["created", "adopted"] as const)("archives the same owner then tears down by its %s link without rewriting the completed record", async (linkedAs) => {
@@ -72,7 +72,7 @@ it.each(["created", "adopted"] as const)("archives the same owner then tears dow
   expect(await runArchive({ executor: h.executor, fs: { readdir: async () => { throw new Error("No quarter folder scan"); } },
     clock: () => new Date("2026-10-14T00:00:00Z") }, { name: "demo" })).toMatchObject({ status: "archived", destination: { quarter: "2026-q4", sequence: "01" } });
   const archived = await h.read(); expect(archived.reference).toEqual(h.meta.reference); expect(archived.placement).toMatchObject({ kind: "completed", quarter: "2026-q4", sequence: "01" });
-  const result = await runTeardown(h.ctx, { name: "demo", base: "main" });
+  const result = await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
   expect(result).toMatchObject({ status: "torn-down", branchDeleted: linkedAs === "created", remoteBranchDeleted: linkedAs === "created" });
   expect(h.refs.has("refs/heads/feat/demo")).toBe(linkedAs === "adopted"); expect(h.refs.has("remote/feat/demo")).toBe(linkedAs === "adopted");
   expect(await h.read()).toEqual(archived);

@@ -2,12 +2,40 @@
 import { canonicalDigest } from "../kernel/canonical/canonical-json.js";
 import { SlugSchema } from "../kernel/index.js";
 import { LineageRecordSchema } from "../store/kinds/lineage/index.js";
-import { readWorkUnit } from "../store/lifecycle-write.js";
 import { StoreRefusalError } from "../store/refusal.js";
 import type { Store } from "../store/contract.js";
 import type { StoreRecord } from "../store/read.js";
 import type { BranchLink } from "../store/links.js";
 import type { RetirementEvidenceRef } from "./retirement-authority.js";
+import { recordReferences, type OwnerIdentity, type RecordReference } from "../store/identity.js";
+/** User operands resolve once; callers holding an owner retain that exact identity. */
+export type TeardownSubject = { kind: "slug"; slug: string } | { kind: "owner"; owner: OwnerIdentity };
+/** Read a typed teardown request's unambiguous command operand. */
+export function teardownSubjectOperand(subject: TeardownSubject): string {
+  if (subject.kind === "slug") return subject.slug;
+  if (subject.owner.type !== "work-item" || subject.owner.uid === undefined)
+    throw new Error("Owner-selected teardown requires an owner UID; resolve the exact owner, then retry.");
+  return subject.owner.uid;
+}
+/** Resolve a user-selected work unit or retired origin without reselecting a supplied owner. */
+export async function resolveTeardownSubject(store: Store, subject: TeardownSubject): Promise<RecordReference> {
+  if (subject.kind === "owner") return recordReferences["work-item/meta"](subject.owner);
+  const slug = SlugSchema.parse(subject.slug), selected = await store.lookup({ kind: "slug", slug });
+  if (selected.status === "refused") {
+    if (selected.refusal.code !== "not-found") throw new StoreRefusalError(selected.refusal);
+    const lineage = await store.lookup({ kind: "lineage", origin: slug });
+    if (lineage.status === "refused") throw new StoreRefusalError(lineage.refusal);
+    return recordReferences["work-item/meta"](lineage.result.reference.owner);
+  }
+  const reference = selected.result.reference;
+  if (reference.kind !== "work-item/meta") throw new StoreRefusalError({
+    code: "record-malformed", class: "recoverable", reference, rule: "lifecycle.work-unit",
+    condition: `\`${slug}\` resolves to ${reference.kind === "cohort/document" ? "a cohort" : "an Errand"} rather than a work unit.`,
+    remedy: { text: reference.kind === "cohort/document" ? `Use the cohort's own commands for \`${slug}\`, or name a work unit.`
+      : `Use the Errand verb for \`${slug}\`, or name a work unit.` },
+  });
+  return reference;
+}
 /** A selected terminal version binds every subsequent physical mutation. */
 export interface StoreRetirementEvidence {
   record: StoreRecord; name: string; rule: "discard" | "landed"; branches: BranchLink[];
@@ -15,8 +43,12 @@ export interface StoreRetirementEvidence {
   revalidate: () => Promise<void>;
 }
 /** Read completed placement or terminal lineage, never guessing authority from a branch name. */
-export async function readStoreRetirementEvidence(store: Store, name: string, baseOid: string): Promise<StoreRetirementEvidence> {
-  const primary = await readWorkUnit(store, name);
+export async function readStoreRetirementEvidence(store: Store, subject: RecordReference, baseOid: string): Promise<StoreRetirementEvidence> {
+  const owner = subject.owner;
+  if (subject.kind !== "work-item/meta" || owner.type !== "work-item" || owner.uid === undefined)
+    throw new Error("Retirement evidence requires a work-unit primary reference with an owner UID; resolve the exact owner, then retry teardown.");
+  const name = owner.name;
+  const primary = await store.read({ reference: subject });
   if (primary.status === "ok") {
     if (primary.result.placement?.kind !== "completed") throw new Error(`${name} has not ended; abandon or archive it before teardown.`);
     return bind(store, primary.result, "landed", primary.result.links?.branches ?? [], {
@@ -24,7 +56,10 @@ export async function readStoreRetirementEvidence(store: Store, name: string, ba
     });
   }
   if (primary.refusal.code !== "not-found") throw new StoreRefusalError(primary.refusal);
-  const lookup = await store.lookup({ kind: "lineage", origin: SlugSchema.parse(name) });
+  return readRetiredOrigin(store, name, owner.uid);
+}
+async function readRetiredOrigin(store: Store, name: string, uid: string): Promise<StoreRetirementEvidence> {
+  const lookup = await store.lookup({ kind: "lineage", origin: uid });
   if (lookup.status === "refused") throw new StoreRefusalError(lookup.refusal);
   const read = await store.read({ reference: lookup.result.reference });
   if (read.status === "refused") throw new StoreRefusalError(read.refusal);

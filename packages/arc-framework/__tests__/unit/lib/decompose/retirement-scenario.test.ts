@@ -80,7 +80,7 @@ it.each([[false, false], [false, true], [true, false], [true, true]] as const)("
     const written = preview.result.writes.find(write => write.action === "put" && write.reference.kind === "cohort/document");
     expect(written?.action === "put" ? written.content : "").toContain("<!-- arc:decompose-fanout:demo:start -->");
   }
-  expect(await runStoreTeardown(h.teardown, { name: "demo", base: "main" })).toMatchObject({ status: "torn-down" });
+  expect(await runStoreTeardown(h.teardown, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "torn-down" });
   expect(h.files.has(h.markerPath)).toBe(false);
   expect(h.files.get("/repo/local.txt")).toBe("Retained personal content.");
   expect(await runStoreDecomposeFinish(h.ctx, "demo")).toMatchObject({ status: "ok", result: { kind: "landed", members: [{ name: "member-a" }, { name: "member-b" }] } });

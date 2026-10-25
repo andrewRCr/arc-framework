@@ -68,7 +68,7 @@ describe("store abandonment", () => {
     expect(await runAbandon(h.ctx, { name: "demo", confirmed: true })).toMatchObject({ status: "abandoned", outcome: { continuation: { argv: ["arc", "teardown", "demo"] } } });
     expect((await h.store.read({ reference: h.meta.reference })).status).toBe("refused");
     h.ctx.storeTeardown!.exec = original;
-    expect(await runTeardown(h.ctx.storeTeardown!, { name: "demo", base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true });
+    expect(await runTeardown(h.ctx.storeTeardown!, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true });
   });
   it("returns typed teardown continuation when the additional-ref CAS fails after the batch", async () => {
     const h = await fixture({ branches: [retirementLink("chore/demo"), retirementLink()] });
@@ -79,7 +79,7 @@ describe("store abandonment", () => {
     expect(await runAbandon(h.ctx, { name: "demo", confirmed: true })).toMatchObject({ status: "abandoned", outcome: { continuation: { argv: ["arc", "teardown", "demo"] } } });
     expect(h.refs.has("refs/heads/chore/demo")).toBe(true);
     teardown.execInput = original;
-    expect(await runTeardown(teardown, { name: "demo", base: "main" })).toMatchObject({ status: "torn-down" });
+    expect(await runTeardown(teardown, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "torn-down" });
     expect(h.refs.has("refs/heads/chore/demo")).toBe(false);
   });
   it("refuses Integrating and absence of confirmation without a batch", async () => {

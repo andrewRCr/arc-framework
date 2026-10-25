@@ -303,7 +303,7 @@ describe("arc teardown — merge-strategy-independent branch reaping", () => {
         await writeShippedMeta(h.cloneA, "demo");
         expect(await branchPresent(h.cloneA, "feat/demo")).toBe(true);
 
-        const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+        const result = await runTeardown(teardownCtx(h.cloneA), { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
         expect(result.status).toBe("torn-down");
         if (result.status !== "torn-down") return;
@@ -331,7 +331,7 @@ describe("arc teardown — merge-strategy-independent branch reaping", () => {
       await git(h.cloneA, ["checkout", "feat/demo"]);
 
       const staleCheckout = await runTeardown(teardownCtx(h.cloneA), {
-        name: "demo",
+        subject: { kind: "slug", slug: "demo" },
         base: "main",
         mode: "abandoned",
         protection: "full",
@@ -344,7 +344,7 @@ describe("arc teardown — merge-strategy-independent branch reaping", () => {
       expect(await branchPresent(h.cloneA, "feat/demo")).toBe(true);
 
       const shipped = await runTeardown(teardownCtx(h.cloneA), {
-        name: "demo",
+        subject: { kind: "slug", slug: "demo" },
         base: "main",
         protection: "full",
       });
@@ -365,7 +365,7 @@ describe("arc teardown — merge-strategy-independent branch reaping", () => {
       await writeShippedMeta(h.cloneA, "demo");
       expect(await git(h.origin, ["show-ref", "--verify", "refs/heads/feat/demo"])).toContain("feat/demo");
 
-      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+      const result = await runTeardown(teardownCtx(h.cloneA), { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
       expect(result.status).toBe("torn-down");
       if (result.status !== "torn-down") return;
@@ -405,7 +405,7 @@ describe("arc teardown — merge-strategy-independent branch reaping", () => {
       await git(h.cloneA, ["push", "origin", "main"]);
       await writeShippedMeta(h.cloneA, "demo");
 
-      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+      const result = await runTeardown(teardownCtx(h.cloneA), { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
       expect(result.status).toBe("torn-down");
       if (result.status !== "torn-down") return;
@@ -436,7 +436,7 @@ describe("arc teardown — merge-strategy-independent branch reaping", () => {
 
       // Teardown checks containment against the branch's own upstream instead, so it
       // reaps the branch regardless of how `main` merged it.
-      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+      const result = await runTeardown(teardownCtx(h.cloneA), { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
       expect(result.status).toBe("torn-down");
       if (result.status !== "torn-down") return;
@@ -462,7 +462,7 @@ describe("arc teardown — merge-strategy-independent branch reaping", () => {
         git(h.cloneA, ["merge-base", "--is-ancestor", "feat/demo", "main"]),
       ).rejects.toThrow();
 
-      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+      const result = await runTeardown(teardownCtx(h.cloneA), { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
       expect(result.status).toBe("torn-down");
       if (result.status !== "torn-down") return;
@@ -491,7 +491,7 @@ describe("arc teardown — merge-strategy-independent branch reaping", () => {
         git(h.cloneA, ["rev-parse", "--verify", "--quiet", "refs/remotes/origin/feat/demo"]),
       ).rejects.toThrow();
 
-      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+      const result = await runTeardown(teardownCtx(h.cloneA), { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
       expect(result.status).toBe("torn-down");
       if (result.status !== "torn-down") return;
@@ -512,7 +512,7 @@ describe("arc teardown — merge-strategy-independent branch reaping", () => {
       await writeShippedMeta(h.cloneA, "demo");
       expect(await git(h.cloneA, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("feat/demo");
 
-      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+      const result = await runTeardown(teardownCtx(h.cloneA), { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
       expect(result.status).toBe("torn-down");
       if (result.status !== "torn-down") return;
@@ -631,7 +631,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       const wtPath = await prepareSelfTeardownWorktree(h, wtParent, { marked: true });
       const stampedHead = await git(wtPath, ["rev-parse", "HEAD"]);
 
-      const created = await runTeardown(teardownCtx(wtPath), { name: "demo", base: "main" });
+      const created = await runTeardown(teardownCtx(wtPath), { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
       expect(created.status).toBe("torn-down");
       if (created.status !== "torn-down") return;
@@ -655,7 +655,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
         });
       }
 
-      const replay = await runTeardown(teardownCtx(wtPath), { name: "demo", base: "main" });
+      const replay = await runTeardown(teardownCtx(wtPath), { subject: { kind: "slug", slug: "demo" }, base: "main" });
       expect(replay.status).toBe("torn-down");
       if (replay.status !== "torn-down") return;
       expect(replay.husk?.outcome).toBe("already-husked");
@@ -666,7 +666,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       await mkdir(linkedUserDir, { recursive: true });
       await writeFile(join(linkedUserDir, "FUTURE.md"), "written after husking\n");
 
-      const removed = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+      const removed = await runTeardown(teardownCtx(h.cloneA), { subject: { kind: "slug", slug: "demo" }, base: "main" });
       expect(removed.status).toBe("torn-down");
       if (removed.status !== "torn-down") return;
       expect(removed.worktreeRemoved?.endsWith("/wt")).toBe(true);
@@ -684,7 +684,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
     try {
       const wtPath = await prepareSelfTeardownWorktree(h, wtParent, { marked: false });
 
-      const result = await runTeardown(teardownCtx(wtPath), { name: "demo", base: "main" });
+      const result = await runTeardown(teardownCtx(wtPath), { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
       expect(result.status).toBe("torn-down");
       if (result.status !== "torn-down") return;
@@ -723,7 +723,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
           chdir: () => {},
           readBlob: (ref, path) => readGitBlobBytes(wtPath, ref, path),
         },
-        { name: "demo", base: "main" },
+        { subject: { kind: "slug", slug: "demo" }, base: "main" },
       );
       expect(first.status).toBe("torn-down");
       if (first.status !== "torn-down") return;
@@ -731,7 +731,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       expect(first.notices.some((notice) => /compare-and-delete/iu.test(notice))).toBe(true);
       expect(await branchPresent(h.cloneA, "feat/demo")).toBe(true);
 
-      const replay = await runTeardown(teardownCtx(wtPath), { name: "demo", base: "main" });
+      const replay = await runTeardown(teardownCtx(wtPath), { subject: { kind: "slug", slug: "demo" }, base: "main" });
       expect(replay.status).toBe("torn-down");
       if (replay.status !== "torn-down") return;
       expect(replay.husk?.outcome).toBe("already-husked");
@@ -750,17 +750,17 @@ describe("arc teardown — worktree dispatch over real git", () => {
     const wtParent = await mkdtemp(join(tmpdir(), "arc-teardown-husk-"));
     try {
       const wtPath = await prepareSelfTeardownWorktree(h, wtParent, { marked: true });
-      const created = await runTeardown(teardownCtx(wtPath), { name: "demo", base: "main" });
+      const created = await runTeardown(teardownCtx(wtPath), { subject: { kind: "slug", slug: "demo" }, base: "main" });
       expect(created.status).toBe("torn-down");
 
       await writeFile(join(wtPath, "dirty.txt"), "dirty\n");
-      const dirty = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+      const dirty = await runTeardown(teardownCtx(h.cloneA), { subject: { kind: "slug", slug: "demo" }, base: "main" });
       expect(dirty).toMatchObject({ status: "rejected" });
       if (dirty.status === "rejected") expect(dirty.reason).toMatch(/uncommitted/iu);
       await rm(join(wtPath, "dirty.txt"));
 
       await git(wtPath, ["switch", "--detach", "main"]);
-      const moved = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+      const moved = await runTeardown(teardownCtx(h.cloneA), { subject: { kind: "slug", slug: "demo" }, base: "main" });
       expect(moved).toMatchObject({ status: "rejected" });
       if (moved.status === "rejected") expect(moved.reason).toMatch(/head-moved/iu);
       expect(await git(h.cloneA, ["worktree", "list"])).toContain(wtPath);
@@ -785,7 +785,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       const wtPath = join(wtParent, "wt");
       await git(h.cloneA, ["worktree", "add", wtPath, "feat/demo"]);
 
-      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+      const result = await runTeardown(teardownCtx(h.cloneA), { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
       expect(result.status).toBe("torn-down");
       if (result.status !== "torn-down") return;
@@ -812,7 +812,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       await git(h.cloneA, ["worktree", "add", wtPath, "feat/demo"]);
       await writeFile(join(wtPath, "uncommitted.txt"), "dirty\n");
 
-      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+      const result = await runTeardown(teardownCtx(h.cloneA), { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
       expect(result.status).toBe("rejected");
       if (result.status !== "rejected") return;
@@ -860,7 +860,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       );
       expect(await git(wtPath, ["status", "--porcelain"])).toBe("");
 
-      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+      const result = await runTeardown(teardownCtx(h.cloneA), { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
       expect(result.status).toBe("torn-down");
       if (result.status !== "torn-down") return;
@@ -892,7 +892,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       await writeFile(join(linkedUserDir, "FUTURE.md"), "linked\n");
       expect(await git(wtPath, ["status", "--porcelain"])).toBe("");
 
-      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+      const result = await runTeardown(teardownCtx(h.cloneA), { subject: { kind: "slug", slug: "demo" }, base: "main" });
 
       expect(result.status).toBe("rejected");
       if (result.status !== "rejected") return;

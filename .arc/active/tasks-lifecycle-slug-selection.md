@@ -797,23 +797,11 @@ edits land in package source and sync to `.arc/`.
   the claim arm and a branch's through the `ref` arm, and reads retirement evidence by that reference, so no exit
   reaches the live namesake or offers a command naming a slug that resolves to it.
 
-    - `[ ]` **7.1.a Retirement evidence by reference**
+    - `[x]` **7.1.a Retirement evidence by reference**
 
-        - `readStoreRetirementEvidence` (`lib/work-unit/store-retirement-evidence.ts`) takes the subject's reference
-          rather than its name, and reads a retired origin's lineage through the `lineage` arm by its UID
-          (`LookupInputSchema`'s `origin`).
-        - `TeardownParams` (`lib/work-unit/verbs/teardown.ts`) takes a typed subject in place of `name`,
-          `{ kind: "slug"; slug }` or `{ kind: "owner"; owner }`, which `runStoreTeardown` resolves through one helper
-          before the evidence read: the helper owns the slug lookup and a retired origin's lineage lookup by name,
-          throwing 3.2.c's `StoreRefusalError` on their refusals, and takes an owner as given. The in-repo
-          `runTeardown`, whose callers all pass a slug subject, reads its slug in a one-line edit, and `teardown.ts`'s
-          other edits are type-only.
-        - _Note:_ 3.2.c, this task, and 7.4.b each edit `readStoreRetirementEvidence`, which is near the complexity
-          limit; extract its lineage read.
-        - Build `test-first` (one behavior at a time):
-            - with a live and an archived holder of one slug, evidence read by the archived holder's reference reads it
-              ended
-            - a retired origin's evidence reads through its lineage by UID
+        - Evidence reads the selected primary reference and retired lineage by UID, preserving exact versions across
+          reused names and colliding retired generations. Teardown carries typed slug or owner subjects; owner-selected
+          retries preserve the UID and husk path, and existing callers transport their operands through the typed API.
 
     - `[ ]` **7.1.b The session-start exits**
 

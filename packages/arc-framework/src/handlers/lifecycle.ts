@@ -1869,7 +1869,7 @@ export async function handleTeardown(
       teardownWorktree,
     },
     {
-      name: wuName ?? "",
+      subject: { kind: "slug", slug: wuName ?? "" },
       base: baseBranch,
       mode: input.force ? "abandoned" : undefined,
       protection: settings["branch.protection"] === "full" ? "full" : "partial",

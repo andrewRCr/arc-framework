@@ -12,7 +12,7 @@ import { scanRegisteredWorktrees, type RegisteredWorktree } from "../../git/work
 import { clearMissingWorktreeRegistrations, removeWorktreeCheckout, releaseWorktreeCheckout, describeRemovalRefusal } from "../../git/worktree-removal.js";
 import { reapZeroDeltaBranch } from "../../errand/abandon-runtime.js";
 import { selectWorkBranchLink, workBranchName } from "../../store/lifecycle-branch.js";
-import { readStoreRetirementEvidence, type StoreRetirementEvidence } from "../store-retirement-evidence.js";
+import { readStoreRetirementEvidence, resolveTeardownSubject, teardownSubjectOperand, type StoreRetirementEvidence } from "../store-retirement-evidence.js";
 import { StoreRefusalError, type Remedy } from "../../store/refusal.js";
 import { selectStoreRetirementHusk, type SelectedStoreRetirementHusk } from "../store-retirement-husk.js";
 import { returnRetiringCheckout } from "../return-retiring-checkout.js";
@@ -30,7 +30,8 @@ export async function runStoreTeardown(ctx: TeardownContext, params: TeardownPar
   try {
     const baseOid = await resolveLifecycleBase(ctx.exec, ctx.cwd, params.base);
     if (baseOid === null) throw new Error(`No base ref resolves; run git branch ${params.base} <commit> or fetch the configured base, then retry teardown.`);
-    const evidence = await readStoreRetirementEvidence(ctx.store, params.name, baseOid);
+    const subject = await resolveTeardownSubject(ctx.store, params.subject);
+    const evidence = await readStoreRetirementEvidence(ctx.store, subject, baseOid);
     const roster = await (ctx.scanWorktrees ?? scanRegisteredWorktrees)(ctx.exec);
     if (!roster.ok) throw new Error(roster.message);
     const primaryPath = roster.worktrees.find((item) => item.primary)?.path;
@@ -216,7 +217,7 @@ async function reapRetiringRemote(ctx: Bound, branch: string, landed: boolean): 
 
 function teardownRetryRemedy(params: TeardownParams): Remedy {
   return { text: "Complete the named repair or restore the physical boundary, then retry teardown.",
-    argv: ["arc", "teardown", params.name, ...(params.huskPath === undefined ? [] : ["--husk", params.huskPath])] };
+    argv: ["arc", "teardown", teardownSubjectOperand(params.subject), ...(params.huskPath === undefined ? [] : ["--husk", params.huskPath])] };
 }
 
 async function reapRetirementLinks(ctx: Bound, links: StoreRetirementEvidence["branches"], retiring: string | null, generation: RetiringGeneration) {

@@ -31,7 +31,7 @@ export async function runStoreAbandon(ctx: Pick<AbandonContext, "executor" | "re
         run: async () => {
           if (checkout === null && (primary.links?.branches?.length ?? 0) === 0) return;
           if (ctx.storeTeardown === undefined || ctx.baseBranch === undefined) throw new Error("Bind the checkout/ref cleanup boundaries and configured base, then retry teardown.");
-          cleanup = await runStoreTeardown({ ...ctx.storeTeardown, store }, { name, base: ctx.baseBranch });
+          cleanup = await runStoreTeardown({ ...ctx.storeTeardown, store }, { subject: { kind: "slug", slug: name }, base: ctx.baseBranch });
           if (cleanup.status === "rejected") throw new Error(cleanup.reason);
         },
       }] },

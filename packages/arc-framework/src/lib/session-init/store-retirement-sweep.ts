@@ -4,7 +4,7 @@ import { SlugSchema } from "../kernel/index.js";
 import { readWorkUnit } from "../store/lifecycle-write.js";
 import { createProjectIdentityReader, resolveProjectIdentity } from "../store/project-identity.js";
 import { workBranchName } from "../store/lifecycle-branch.js";
-import { readStoreRetirementEvidence } from "../work-unit/store-retirement-evidence.js";
+import { readStoreRetirementEvidence, resolveTeardownSubject } from "../work-unit/store-retirement-evidence.js";
 import { checkWorktreeRemoval } from "../git/worktree-removal.js";
 import { projectSuccessorReadiness } from "../work-unit/retirement-lifecycle-result.js";
 import { projectCleanupRemoteEvidence } from "./cleanup-remote-evidence.js";
@@ -40,7 +40,8 @@ function candidateName(options: StoreSweepOptions, checkout: RegisteredWorktree)
 }
 async function inspectAbandonment(options: StoreSweepOptions, checkout: BranchedCheckout, name: string, exact: boolean): Promise<LandedRetirementResidue | null> {
   if (!await hasAbandonment(options.store, name)) return null;
-  const evidence = await readStoreRetirementEvidence(options.store, name, checkout.head);
+  const subject = await resolveTeardownSubject(options.store, { kind: "slug", slug: name });
+  const evidence = await readStoreRetirementEvidence(options.store, subject, checkout.head);
   if (evidence.rule !== "discard" || evidence.evidence.kind !== "lineage" || evidence.evidence.transition !== "abandon") return null;
   const project = await resolveProjectIdentity(options.projectId ?? createProjectIdentityReader(options.store));
   if (project.status !== "ready") throw new Error(`${project.reason} ${project.remedy.text}`);

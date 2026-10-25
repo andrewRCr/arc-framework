@@ -46,15 +46,15 @@
  */
 
 import { usesOffBranchState } from "../../store/lifecycle-write.js";
-import type { GitExecInput } from "../../git/exec.js";
+import type { GitExec, GitExecInput } from "../../git/exec.js";
 import type { LocusPorts } from "../locus-ports.js";
 import { runStoreTeardown } from "./teardown-store.js";
 import type { Remedy, StoreRefusal } from "../../store/refusal.js";
 import type { Store } from "../../store/contract.js";
+import { teardownSubjectOperand, type TeardownSubject } from "../store-retirement-evidence.js";
 
 import { checkWorktreeRemoval, removeWorktreeCheckout, releaseWorktreeCheckout, describeRemovalRefusal, type ProjectionRemovalSlots } from "../../git/worktree-removal.js";
 import { isContainedIn, isLandedInBase } from "../../git/branch-containment.js";
-import type { GitExec } from "../../git/exec.js";
 import { readRefTip } from "../../git/ref-tree.js";
 import { refreshBase } from "../../git/refresh-base.js";
 import type { ProtectionMode } from "../../git/write-context.js";
@@ -178,8 +178,8 @@ export type TeardownMode = "shipped" | "abandoned";
 
 /** The operational inputs a `teardown` supplies. */
 export interface TeardownParams {
-  /** Target WU name (the CLI defaults this to the current worktree's WU). */
-  name: string;
+  /** A user slug or an already selected operational owner. */
+  subject: TeardownSubject;
   /** Base branch — the merged-into target the reap oracle checks, and the relocation target for an in-place branch. */
   base: string;
   /** Remote whose ref the containment check reads and the prune cleans (default `origin`). */
@@ -1295,7 +1295,7 @@ async function tryCleanupDecomposeCandidate(
 export async function runTeardown(ctx: TeardownContext, params: TeardownParams): Promise<TeardownResult> {
   if (usesOffBranchState(ctx.store)) return runStoreTeardown(ctx, params);
   const { cwd, exec, indexFs } = ctx;
-  const { name, base, remote, suggestion } = params;
+  const { base, remote, suggestion } = params, name = teardownSubjectOperand(params.subject);
   if (params.huskPath !== undefined && !isAbsolute(params.huskPath)) {
     return { status: "rejected", reason: "`--husk` requires an absolute worktree path." };
   }

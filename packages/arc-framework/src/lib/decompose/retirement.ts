@@ -39,7 +39,7 @@ export async function applyDecomposeRetirement(ctx: DecomposeContext, plan: Deco
       gitSteps: [{ name: "retire-checkout-and-created-ref-set", retryCommand: ["arc", "teardown", name], run: async () => {
         if (plan.checkout === null && (primary.links?.branches?.length ?? 0) === 0) return;
         if (ctx.storeTeardown === undefined) throw Error("Bind the checkout/ref cleanup boundaries, then retry teardown.");
-        cleanup = await runStoreTeardown({ ...ctx.storeTeardown, store: ctx.executor.store }, { name, base: ctx.baseBranch });
+        cleanup = await runStoreTeardown({ ...ctx.storeTeardown, store: ctx.executor.store }, { subject: { kind: "slug", slug: name }, base: ctx.baseBranch });
         if (cleanup.status === "rejected") throw Error(cleanup.reason);
       } }] },
   } });
