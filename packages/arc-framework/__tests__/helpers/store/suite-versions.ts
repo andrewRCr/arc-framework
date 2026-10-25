@@ -13,6 +13,24 @@ function mutable(kind: KindId): boolean { return !["create-only", "write-once"].
  */
 export function registerBatchAssertions(context: SuiteContext): void {
   registerObservationAssertions(context);
+  assertion(context, "personal", "unknown-write-and-batch-input-refusal", async (fixture) => {
+    const first = await seed(fixture, fixture.reference("personal/document"));
+    const second = await seed(fixture, fixture.reference("personal/document", "two"));
+    const before = await fixture.settle();
+    const extraWrite = { ...update(fixture, first), unknownInput: true };
+    expect(await fixture.store.write(extraWrite)).toMatchObject({ status: "refused", refusal: { code: "record-malformed" } });
+    expect(await fixture.settle()).toBe(before);
+    expect(success(await fixture.store.read({ reference: first.reference }))).toEqual(first);
+    const extraMutation = { ...mutationOf(update(fixture, second)), unknownInput: true };
+    expect(await fixture.store.batch({ writes: [mutationOf(update(fixture, first)), extraMutation], provenance: testProvenance }))
+      .toMatchObject({ status: "refused", refusal: { code: "record-malformed" } });
+    expect(await fixture.settle()).toBe(before);
+    expect(success(await fixture.store.read({ reference: first.reference }))).toEqual(first);
+    expect(success(await fixture.store.read({ reference: second.reference }))).toEqual(second);
+    success(await fixture.store.batch({ writes: [mutationOf(update(fixture, first)), mutationOf(update(fixture, second))], provenance: testProvenance }));
+    expect(success(await fixture.store.read({ reference: first.reference })).content).toBe(fixture.content(first.reference, "changed"));
+    expect(success(await fixture.store.read({ reference: second.reference })).content).toBe(fixture.content(second.reference, "changed"));
+  });
   assertion(context, "personal", "derived-status-root-write-and-batch-refusal", async (fixture) => {
     const existing = await seed(fixture, fixture.reference("personal/document"));
     const derived = RecordReferenceSchema.parse({ ...existing.reference, key: "STATUS.USER.md" });
