@@ -11,7 +11,8 @@ import { lookupTracked } from "./lookup.js";
 import { listTracked } from "./list.js";
 import type { ListInput, ListingOutcome } from "../read.js";
 import { writeTracked, batchTracked } from "./write.js";
-import type { WriteInput, WriteResult, BatchInput, BatchResult } from "../write.js";
+import { WriteInputSchema, BatchInputSchema, type WriteInput, type WriteResult, type BatchInput, type BatchResult } from "../write.js";
+import { malformedWrite } from "./write-codec.js";
 import type { InRepoContext } from "./context.js";
 import type { ReadInput, StoreRecord } from "../read.js";
 import type { LookupInput, LookupResult } from "../lookup.js";
@@ -40,12 +41,22 @@ export function createInRepoBackend(ports: StorePorts): Store {
   };
 }
 async function dispatchedWrite(context: InRepoContext, input: WriteInput): Promise<WriteResult> {
+  const parsed = WriteInputSchema.safeParse(input);
+  if (!parsed.success) return malformedWrite(input.reference, parsed.error.message);
+  input = parsed.data;
   const home = context.registry[input.reference.kind].inRepo.substrate;
   if (home === "personal") return (await import("./personal-write.js")).writePersonal(context, input);
   if (home === "transient-identity") return (await import("./transient-write.js")).writeTransient(context, input);
   return writeTracked(context, input);
 }
 async function dispatchedBatch(context: InRepoContext, input: BatchInput): Promise<BatchResult> {
+  const parsed = BatchInputSchema.safeParse(input);
+  if (!parsed.success) {
+    const mutation = input.writes[0];
+    if (!mutation) throw parsed.error;
+    return malformedWrite(mutation.reference, parsed.error.message);
+  }
+  input = parsed.data;
   if ((input.observations?.length ?? 0) > 0) return unsupported("batch-observations",
     "The interim backend cannot admit read observations atomically with a batch",
     "Use a backend serving atomic batch observations; keep using the existing verb before the storage cutover.");
