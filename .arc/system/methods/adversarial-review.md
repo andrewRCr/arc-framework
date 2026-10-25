@@ -235,7 +235,8 @@ reads.
 
 **Severity is not disposition.** Severity measures materiality. Disposition is the primary's verified action on a
 finding: fix it in place, carry it forward durably, or drop it. The primary assigns disposition only after source
-verification and obtains approval for the complete set before any finding-driven response.
+verification and a look across the verified set by [review-model § Shared causes][review-model-shared-causes], and
+obtains approval for the complete set before any finding-driven response.
 
 Disposition is orthogonal to severity: any severity can be fixed, carried forward, or dropped. Disposing a finding
 settles the approved response backlog; it does not rewrite what the pass surfaced. Carry-forward is therefore not a
@@ -298,11 +299,11 @@ pass completes normally and reports that its allowance is exhausted. Neither out
 current pass, and cap exhaustion resolves no material finding.
 
 **Re-inspection test.** After fix-check rounds converge, recommend another complete pass when the folds changed the
-artifact so much that the last complete assessment no longer holds. Otherwise, the caller's response check verifies
-rework where it stands. The test decides whether a complete pass follows the fix checks, never whether it replaces
-them. This is a recommendation input, never a trigger or authorization; the share of majors landing in earlier fixes
-may inform its cost-and-signal rationale, except under sustained non-convergence (below): there the re-entry offer
-comes before another pass.
+artifact so much that the last complete assessment no longer holds, or a fold repaired a rule that sections it did
+not touch also state. Otherwise, the caller's response check verifies rework where it stands. The test decides
+whether a complete pass follows the fix checks, never whether it replaces them. This is a recommendation input, never
+a trigger or authorization; the share of majors landing in earlier fixes may inform its cost-and-signal rationale,
+except under sustained non-convergence (below): there the re-entry offer comes before another pass.
 
 **Severity beside fold tags.** With fold verification on, severity and the fold tags answer different questions.
 Severity decides whether a fix needs a successor look: an approved fix of a confirmed `critical` or `major` withholds
@@ -703,3 +704,4 @@ the same source verification, disposition, and exit-gate rules as a standard pas
 
 [review-model]: review-model.md
 [review-model-trend]: review-model.md#trend
+[review-model-shared-causes]: review-model.md#shared-causes

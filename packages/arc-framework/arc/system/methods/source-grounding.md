@@ -88,6 +88,10 @@ rule or hold reaches — before the disposition set carrying it is presented, an
 refutes it. Hold the evidence for the approver to request by [disposition-report][disposition-report]. This
 grounding is author-run and never stands in for the fix check.
 
+**Corrections toward the code.** A grounding correction that narrows a rule to match what the code does is a claim
+that the code is right. Check the code's special case against the general rule before narrowing the rule; when the
+special case is wrong, it is a finding against the code, not a correction to the artifact.
+
 **Procedure.** Enumerate the claims, verify each against source on its own, then cross-check them against what was
 found. An independent runner verifies from source, never from the author's account. Probe wherever a behavior claim can
 be cheaply executed; otherwise trace the named path.
