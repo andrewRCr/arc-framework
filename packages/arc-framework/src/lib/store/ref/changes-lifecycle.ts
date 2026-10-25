@@ -44,7 +44,7 @@ async function ownerChangeWindow(context: RefBackendContext, input: ChangesInput
   const from = latestArchivedFolders(ends.before.filter(({ liveRef }) => liveRef === live))[0];
   const to = latestArchivedFolders(ends.after.filter(({ liveRef }) => liveRef === live))[0];
   const batches = ends.changed.get(live) ?? new Set<string>();
-  if (!older && !newer && !batches.size && !ends.origins.has(live)) return { status: "ok", result: null };
+  if (!older && !newer && !ends.changed.has(live) && !ends.origins.has(live)) return { status: "ok", result: null };
   if (newer && !from) return { status: "ok", result: { ref: live, upper: newer, version: input.to } };
   const source = newer ?? current.get(history) ?? current.get(live);
   if (!source) return { status: "refused", refusal: missingChangeState({ ref: history, version: input.to }) };
