@@ -305,6 +305,17 @@ describe("runStub — initial Class", () => {
     expect(writes[0]!.content).toContain("[TBD]");
   });
 
+  it.each(["", "  \t "])("refuses an explicitly blank provisional Class %j and accepts omission", async cls => {
+    const { ctx, writes, mkdirs, staged } = buildHarness();
+    const params = { ...BASE, commitment: "provisional" as const };
+    expect(await runStub(ctx, { ...params, cls })).toMatchObject({ status: "rejected" });
+    expect({ writes, mkdirs, staged }).toEqual({ writes: [], mkdirs: [], staged: [] });
+
+    expect(await runStub(ctx, { ...params, cls: undefined })).toMatchObject({ status: "scaffolded" });
+    expect(parseMetaRecord(writes[0]!.content).workClass).toBe("TBD");
+    expect(staged).toEqual([".arc/backlog/provisional/foo/meta-foo.md"]);
+  });
+
   it.each([undefined, "", "  \t "])("refuses unresolved planned Class %j and succeeds after repair", async cls => {
     const { ctx, writes, mkdirs, staged } = buildHarness();
     const refused = await runStub(ctx, { ...BASE, cls });

@@ -102,11 +102,12 @@ type StubClassResult =
 
 function resolveStubClass(commitment: StubCommitment, supplied: string | undefined): StubClassResult {
   const value = supplied?.trim();
-  const cls = value === undefined || value === "" ? undefined : validateClass(value);
+  const cls = value === undefined ? undefined : validateClass(value);
   if (cls === "[TBD]") {
     return {
       status: "rejected",
-      reason: `\`${value}\` is not a resolved Class (expected \`Light\` | \`Heavy\` | \`Novel\`).`,
+      reason: `\`${value}\` is not a resolved Class; pass \`--class\` (\`Light\`, \`Heavy\`, or \`Novel\`),`
+        + " or omit `--class` and use `--commitment provisional`.",
     };
   }
   if (commitment === "planned" && cls === undefined) {

@@ -27,6 +27,18 @@ describe("store stub", () => {
     expect(parseMetaRecord(read.content)).toMatchObject({ owner: "starter", priority: "P1", workClass: "Novel", design: ["draft-demo.md"], origin: "#42", branch: null });
     expect(read.links?.branches ?? []).toEqual([]);
   });
+  it("refuses an explicitly blank provisional Class without storing it and accepts omission", async () => {
+    const h = context();
+    const params = { name: "demo", commitment: "provisional", priority: "P1", owner: "starter" } as const;
+    expect(await runStub(h.ctx, { ...params, cls: "  " })).toMatchObject({ status: "rejected" });
+    expect(lifecycleSuccess(await h.store.list({ family: "work-item" })).status).toBe("absent");
+
+    expect(await runStub(h.ctx, params)).toMatchObject({ status: "scaffolded" });
+    const lookup = lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("demo") }));
+    const read = lifecycleSuccess(await h.store.read({ reference: lookup.reference }));
+    expect(read.placement).toEqual({ kind: "backlog", commitment: "provisional" });
+    expect(parseMetaRecord(read.content).workClass).toBe("TBD");
+  });
   it("refuses a planned stub without Class before storing it and succeeds after repair", async () => {
     const h = context();
     const params = { name: "demo", commitment: "planned", priority: "P1", owner: "starter" } as const;
