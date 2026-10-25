@@ -875,26 +875,11 @@ edits land in package source and sync to `.arc/`.
   keeps and reports a branch another live holder owns or the lookup cannot prove, and a remote whose advertised tip its
   local branch does not contain.
 
-    - `[ ]` **7.5.a The branch gate**
+    - `[x]` **7.5.a The branch gate**
 
-        - A gate runs before the retiring link's `prepareCreatedBranch` (`reapRetirementLinks`, `teardown-store.ts`)
-          and, for every other created link, in `reapAdditionalBranch` before `reapZeroDeltaBranch`. It looks the branch
-          up through the `ref` arm by the link's `repository` and `ref` exactly. It proceeds where the lookup finds no
-          record, as for an abandoned or decomposed holder whose links moved to its lineage (`retiredBranches`), or
-          returns the subject or a completed holder. Where the lookup returns a live holder other than the subject, or
-          refuses, it keeps the checkout, the local branch, and the remote and reports each, naming the holder by UID; a
-          link so kept never counts as the blocked cleanup that fails the teardown.
-        - An adopted link a live holder links drops its owner-cleanup advice (`reportAdopted`), which would advise
-          deleting that holder's branch.
-        - Build `test-first` (one behavior at a time):
-            - tearing down the archived holder of a reused slug leaves the live holder's checkout on its branch, the
-              local branch, and the remote, and reports each kept naming the live holder
-            - a zero-delta additional branch a live holder links is kept and reported while the teardown completes
-            - a branch two live holders of distinct names link is kept and reported, built over the reference backend,
-              which checks a branch's uniqueness only at activation (`branchLinkedElsewhere`)
-            - a branch the lookup resolves to a completed holder other than the subject proceeds and is reaped
-            - an adopted link a live holder links reports no owner-cleanup advice
-            - an abandoned holder's teardown still reaps its own branches
+        - Exact repository/ref lookup gates retiring and additional created links before checkout preparation or reap;
+          another live holder or unavailable ownership keeps and reports checkouts, local refs, and remotes by known
+          UID without blocking teardown. Completed holders proceed; live adopted links offer no deletion advice.
 
     - `[ ]` **7.5.b The remote's tip**
 

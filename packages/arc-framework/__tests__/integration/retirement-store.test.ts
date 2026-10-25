@@ -1,3 +1,5 @@
+import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
+import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { boundHolderLookup } from "../helpers/store/bound-checkout.js";
 /** Operational terminal snapshots drive real Git checkout and ref cleanup, including resumable failures. */
 import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
@@ -379,4 +381,85 @@ it("keeps a UID husk retry in its preservation refusal and completes after upstr
   await h.exec("git", ["update-ref", "refs/remotes/origin/feat/demo", h.workOid]);
   expect(await runTeardownForOperand(h.ctx, { name: uid, base: "main", huskPath: path }))
     .toMatchObject({ status: "torn-down", worktreeRemoved: path });
+}, 30_000);
+
+it("keeps and reports the live holder's checkout, branch, and remote during archived UID teardown", async () => {
+  const h = await reusedNativeFixture(), liveUid = boundWorkUnitSubject(h.live).uid;
+  await h.exec("git", ["switch", "--detach", h.baseOid], { cwd: h.archivedPath });
+  await h.exec("git", ["switch", "feat/demo"], { cwd: h.livePath });
+  lifecycleSuccess(await h.store.write({ ...recordPut(h.live, { links: { branches: [retirementLink()] } }),
+    provenance: { verb: "link", lifecycleAction: "link" } }));
+  const marker = await readFile(resolveWorktreeMarkerPath(h.livePath)), before = lifecycleSuccess(await h.store.version());
+  const result = await h.teardownUid();
+  expect(result).toMatchObject({ status: "torn-down", branchDeleted: false, remoteBranchDeleted: false,
+    notices: expect.arrayContaining([expect.stringContaining(`checkout`), expect.stringContaining(`local branch`),
+      expect.stringContaining(`origin/feat/demo`)]) });
+  if (result.status !== "torn-down") throw Error(result.reason);
+  expect(result.notices.join(" ")).toContain(liveUid);
+  expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"], { cwd: h.livePath })).stdout).toBe("feat/demo");
+  expect(await h.local("refs/heads/feat/demo")).toBe(h.workOid);
+  expect((await h.remote()).stdout).toContain(h.workOid);
+  expect(await readFile(resolveWorktreeMarkerPath(h.livePath))).toEqual(marker);
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+}, 30_000);
+
+it.each(["live", "ambiguous", "refused"] as const)("keeps an additional zero-delta branch after a %s ref lookup without blocking teardown", async kind => {
+  const h = await reusedNativeFixture(), link = retirementLink("chore/demo");
+  await h.exec("git", ["branch", link.ref, h.workOid]); await h.exec("git", ["push", "origin", link.ref]);
+  lifecycleSuccess(await h.store.write({ ...recordPut(h.meta, { links: { branches: [link, retirementLink()] } }),
+    provenance: { verb: "link", lifecycleAction: "link" } }));
+  if (kind !== "refused") {
+    await h.exec("git", ["switch", link.ref], { cwd: h.livePath });
+    lifecycleSuccess(await h.store.write({ ...recordPut(h.live, { links: { branches: [link] } }),
+      provenance: { verb: "link", lifecycleAction: "link" } }));
+  }
+  const second = kind === "ambiguous" ? await h.seedMeta("other-live", {}, { kind: "active" }, { branches: [link] }) : undefined;
+  const store = Object.create(h.store) as typeof h.store;
+  store.lookup = async input => input.kind === "ref" && input.ref === link.ref
+    ? { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: "work-items",
+      condition: "Branch ownership unavailable.", remedy: { text: "Retry after the writer finishes." } } }
+    : h.store.lookup(input);
+  if (kind === "refused") h.ctx.store = store;
+  const marker = await readFile(resolveWorktreeMarkerPath(h.livePath));
+  const result = await h.teardownUid();
+  expect(result).toMatchObject({ status: "torn-down", notices: expect.arrayContaining([expect.stringContaining("Kept local branch chore/demo")]) });
+  if (result.status !== "torn-down") throw Error(result.reason);
+  for (const owner of kind === "refused" ? [] : [h.live, ...(second === undefined ? [] : [second])])
+    expect(result.notices.join(" ")).toContain(boundWorkUnitSubject(owner).uid);
+  if (kind === "refused") expect(result.notices.join(" ")).toContain("Branch ownership unavailable");
+  expect(await h.local("refs/heads/chore/demo")).toBe(h.workOid);
+  expect(await h.local("refs/remotes/origin/chore/demo")).toBe(h.workOid);
+  expect((await h.exec("git", ["ls-remote", "origin", "refs/heads/chore/demo"])).stdout).toContain(h.workOid);
+  expect(await readFile(resolveWorktreeMarkerPath(h.livePath))).toEqual(marker);
+  if (kind !== "refused") expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"], { cwd: h.livePath })).stdout).toBe(link.ref);
+  else {
+    h.ctx.store = h.store;
+    expect(await h.teardownUid()).toMatchObject({ status: "torn-down" });
+    expect(await h.local("refs/heads/chore/demo")).toBeNull();
+  }
+}, 30_000);
+it("reaps a branch linked by another completed holder", async () => {
+  const h = await reusedNativeFixture();
+  await h.exec("git", ["merge", "--ff-only", "feat/demo"]); await h.exec("git", ["push", "origin", "main"]);
+  const other = await h.seedMeta("other-ended", { state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, { branches: [retirementLink()] });
+  expect(await h.teardownUid()).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
+  expect(await h.local("refs/heads/feat/demo")).toBeNull(); expect((await h.remote()).stdout).toBe("");
+  expect(lifecycleSuccess(await h.store.read({ reference: other.reference }))).toEqual(other);
+}, 30_000);
+it("omits adopted-branch cleanup advice when a live holder links that branch", async () => {
+  const h = await reusedNativeFixture();
+  await h.exec("git", ["switch", "--detach", h.baseOid], { cwd: h.archivedPath });
+  await h.exec("git", ["switch", "feat/demo"], { cwd: h.livePath });
+  lifecycleSuccess(await h.store.write({ ...recordPut(h.meta, { links: { branches: [retirementLink("feat/demo", "adopted")] } }),
+    provenance: { verb: "link", lifecycleAction: "link" } }));
+  lifecycleSuccess(await h.store.write({ ...recordPut(h.live, { links: { branches: [retirementLink()] } }),
+    provenance: { verb: "link", lifecycleAction: "link" } }));
+  const result = await h.teardownUid();
+  expect(result.status).toBe("torn-down");
+  if (result.status !== "torn-down") throw Error(result.reason);
+  expect(result.notices.join(" ")).toContain(boundWorkUnitSubject(h.live).uid);
+  expect(result.notices.join(" ")).not.toContain("Owner cleanup:");
+  expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"], { cwd: h.livePath })).stdout).toBe("feat/demo");
+  expect(await h.local("refs/heads/feat/demo")).toBe(h.workOid); expect((await h.remote()).stdout).toContain(h.workOid);
 }, 30_000);

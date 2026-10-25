@@ -7,6 +7,7 @@ import { deleteRemoteBranch } from "../mutators/reconcile-branch.js";
 import { localLifecycleTip, resolveLifecycleBase } from "../../git/lifecycle-ref-refresh.js";
 import { decodeWorktreeMarkerOwnership, readWorktreeMarker, resolveWorktreeMarkerPath } from "../../git/worktree-marker.js";
 import { classifyUnboundMarker } from "../../locus/unbound-marker.js";
+import { sameOwner, type OwnerIdentity } from "../../store/identity.js";
 import type { Store } from "../../store/contract.js";
 import { scanRegisteredWorktrees, type RegisteredWorktree } from "../../git/worktree-roster.js";
 import { clearMissingWorktreeRegistrations, removeWorktreeCheckout, releaseWorktreeCheckout, describeRemovalRefusal } from "../../git/worktree-removal.js";
@@ -21,6 +22,7 @@ import { withWorktreeOperationLock } from "../worktree-operation-lock.js";
 import { nodeReconcileWorkUnitWorktreeFs, isSelfTeardown, reconcileUserSurfacesForRemoval } from "../mutators/reconcile-work-unit-worktree.js";
 import type { TeardownContext, TeardownParams, TeardownResult } from "./teardown.js";
 
+type RetirementLink = StoreRetirementEvidence["branches"][number];
 type RetiringGeneration = { localHead: string | null; trackingHead: string | null; container: { ref: string; oid: string } | null };
 type Bound = TeardownContext & { store: Store; evidence: StoreRetirementEvidence; baseOid: string; baseBranch: string; worktrees: RegisteredWorktree[]; primaryPath: string; notices: string[]; selectedHusk?: string };
 /** Teardown reads the selected end's rule; force flags never grant discard authority. */
@@ -121,7 +123,9 @@ async function retireHolder(ctx: Bound, invokingPath: string, selected?: Selecte
   }
   return locked(ctx, async () => { await selected?.revalidate(); return operation(); });
 }
-function reportAdopted(ctx: Bound, branch: string): void {
+async function reportAdopted(ctx: Bound, link: RetirementLink): Promise<void> {
+  const branch = workBranchName(link.ref);
+  if (!await mayRetireBranch(ctx, link)) return;
   const holder = ctx.worktrees.find((item) => item.branch === branch);
   ctx.notices.push(`Kept ${branch}: it was adopted from its owner.`);
   if (holder?.folderPresent === false) {
@@ -147,8 +151,10 @@ async function prepareCreatedBranch(ctx: Bound, branch: string): Promise<boolean
   }
   return true;
 }
-async function reapRetiringBranch(ctx: Bound, branch: string, generation: RetiringGeneration): Promise<{ local: boolean; remote: boolean }> {
+async function reapRetiringBranch(ctx: Bound, link: RetirementLink, generation: RetiringGeneration): Promise<{ local: boolean; remote: boolean }> {
   return locked(ctx, async () => {
+    if (!await mayRetireBranch(ctx, link)) return { local: false, remote: false };
+    const branch = workBranchName(link.ref);
     const local = await localLifecycleTip(ctx.exec, ctx.cwd, `refs/heads/${branch}`), tracking = await localLifecycleTip(ctx.exec, ctx.cwd, `refs/remotes/origin/${branch}`);
     if (local !== generation.localHead || tracking !== generation.trackingHead) throw new Error("The retiring branch ref generation changed; retry teardown.");
     const landed = tracking === null || await isLandedInBase(ctx.exec, tracking, ctx.baseOid);
@@ -167,7 +173,9 @@ async function reapRetiringBranch(ctx: Bound, branch: string, generation: Retiri
     return { local: local !== null, remote };
   });
 }
-async function reapAdditionalBranch(ctx: Bound, branch: string, retiringContainer: RetiringGeneration["container"]): Promise<boolean> {
+async function reapAdditionalBranch(ctx: Bound, link: RetirementLink, retiringContainer: RetiringGeneration["container"]): Promise<boolean> {
+  if (!await mayRetireBranch(ctx, link)) return false;
+  const branch = workBranchName(link.ref);
   if (ctx.execInput === undefined) throw new Error("Ref-set cleanup requires stdin-capable Git I/O; bind it and retry teardown.");
   const localHead = await localLifecycleTip(ctx.exec, ctx.cwd, `refs/heads/${branch}`), remoteTrackingHead = await localLifecycleTip(ctx.exec, ctx.cwd, `refs/remotes/origin/${branch}`);
   if (localHead === null && remoteTrackingHead === null) return false;
@@ -222,20 +230,45 @@ function teardownRetryRemedy(params: TeardownParams): Remedy {
 
 async function reapRetirementLinks(ctx: Bound, links: StoreRetirementEvidence["branches"], retiring: string | null, generation: RetiringGeneration) {
   let branchDeleted = false, remoteBranchDeleted = false;
-  const createdRetiring = links.some((link) => link.linkedAs === "created" && workBranchName(link.ref) === retiring);
-  const retiringReady = retiring !== null && createdRetiring && await locked(ctx, () => prepareCreatedBranch(ctx, retiring));
+  const createdRetiring = links.find((link) => link.linkedAs === "created" && workBranchName(link.ref) === retiring);
+  const retiringReady = createdRetiring !== undefined && await mayRetireBranch(ctx, createdRetiring)
+    && await locked(ctx, () => prepareCreatedBranch(ctx, workBranchName(createdRetiring.ref)));
   let additionalBlocked = false;
   for (const link of links) {
       const branch = workBranchName(link.ref);
-      if (link.linkedAs === "adopted") { reportAdopted(ctx, branch); continue; }
+      if (link.linkedAs === "adopted") { await reportAdopted(ctx, link); continue; }
       if (branch === retiring) continue;
-      const blocked = await reapAdditionalBranch(ctx, branch, generation.container);
+      const blocked = await reapAdditionalBranch(ctx, link, generation.container);
       additionalBlocked = blocked || additionalBlocked;
     }
   if (additionalBlocked) throw new Error(`Additional branch cleanup remains blocked. The retiring refs were retained; repair the named checkout or ref observation and retry teardown. ${ctx.notices.join(" ")}`);
-  if (retiring !== null && retiringReady) {
-    const reaped = await reapRetiringBranch(ctx, retiring, generation);
+  if (createdRetiring !== undefined && retiringReady) {
+    const reaped = await reapRetiringBranch(ctx, createdRetiring, generation);
     branchDeleted = reaped.local; remoteBranchDeleted = reaped.remote;
   }
   return { branchDeleted, remoteBranchDeleted };
+}
+
+async function mayRetireBranch(ctx: Bound, link: RetirementLink): Promise<boolean> {
+  const lookup = await ctx.store.lookup({ kind: "ref", repository: link.repository, ref: link.ref });
+  let reason: string;
+  if (lookup.status === "refused") {
+    if (lookup.refusal.code === "not-found") return true;
+    const holders = lookup.refusal.code === "ambiguous-match"
+      ? ` Holders: ${lookup.refusal.candidates.map(item => ownerLabel(item.owner)).join(", ")}.` : "";
+    reason = `${lookup.refusal.condition}${holders} ${lookup.refusal.remedy.text}`;
+  } else {
+    if (sameOwner(lookup.result.reference.owner, ctx.evidence.record.reference.owner)) return true;
+    const record = await ctx.store.read({ reference: lookup.result.reference });
+    if (record.status === "ok" && record.result.placement?.kind === "completed") return true;
+    reason = record.status === "refused" ? `Owner ${ownerLabel(lookup.result.reference.owner)} could not be checked: ${record.refusal.condition} ${record.refusal.remedy.text}`
+      : `live holder ${ownerLabel(record.result.reference.owner)} still links it.`;
+  }
+  const branch = workBranchName(link.ref);
+  ctx.notices.push(`Kept checkouts and registrations for ${branch}: ${reason}`,
+    `Kept local branch ${branch}: ${reason}`, `Kept origin/${branch}: ${reason}`);
+  return false;
+}
+function ownerLabel(owner: OwnerIdentity): string {
+  return owner.type === "person" ? owner.name : owner.uid ?? owner.name;
 }
