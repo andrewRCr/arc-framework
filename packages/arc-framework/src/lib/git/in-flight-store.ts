@@ -182,6 +182,10 @@ async function workUnitLocation(context: InFlightProjection, request: ReturnType
   }
   try {
     const found = await context.options.findHoldingCheckout(request);
+    if (found.kind === "unbound") {
+      context.warn(found.reason);
+      return { path: found.path, marks: ["degraded"] };
+    }
     const path = found.kind === "held" ? found.path : undefined;
     return { path, holder: rows.find(row => row.checkout.path === path) };
   } catch (error) {

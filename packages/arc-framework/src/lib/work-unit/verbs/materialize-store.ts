@@ -14,7 +14,7 @@ import { readLifecycleView } from "../../store/lifecycle-view.js";
 import { requireCompleteInventory } from "../../store/lifecycle-storage.js";
 import { readWorkUnit } from "../../store/lifecycle-write.js";
 import { workUnitMarkerExit } from "../../locus/marker-occupancy.js";
-import { findWorkUnitHoldingCheckout } from "./unshared-work.js";
+import { readWorkUnitCheckout } from "./unshared-work.js";
 import type { MaterializeContext, MaterializeParams, MaterializeResult } from "./materialize.js";
 import type { Store } from "../../store/contract.js";
 import type { StoreRecord } from "../../store/read.js";
@@ -22,11 +22,14 @@ import type { LifecycleEntry } from "../../store/lifecycle-index.js";
 import type { ReconcileWorkUnitWorktreeOp } from "../mutators/reconcile-work-unit-worktree.js";
 import type { GuardResult } from "../lifecycle-executor.js";
 import { ownerHolderRequest } from "../locus-ports.js";
+import type { HoldingCheckoutResult } from "../locus-ports.js";
 import type { WorkUnitHolderRequest } from "../mutators/reconcile-work-unit-worktree.js";
 
 type Bound = MaterializeContext & { cwd: string; exec: GitExec };
+/** A held candidate preserves the distinction between a bound and an unbound checkout. */
+export type MaterializeHeldCheckout = Exclude<HoldingCheckoutResult, { kind: "none" }>;
 /** List candidates with one locus query per owned in-flight work unit. */
-export async function listStoreMaterializable(ctx: Bound, identity: string, held = new Map<RecordReference, string>()): Promise<LifecycleEntry[]> {
+export async function listStoreMaterializable(ctx: Bound, identity: string, held = new Map<RecordReference, MaterializeHeldCheckout>()): Promise<LifecycleEntry[]> {
   if (ctx.store === undefined) throw new Error("Materialize requires its operational store");
   const view = await readLifecycleView(ctx.store);
   if (view.status === "refused") throw new Error(`${view.refusal.condition} ${view.refusal.remedy.text}`);
@@ -35,8 +38,8 @@ export async function listStoreMaterializable(ctx: Bound, identity: string, held
   for (const entry of view.result.entries) {
     if (entry.location !== "active" || entry.fields.owner !== identity) continue;
     if (!new Set(["Planning", "Active", "Integrating"]).has(entry.phase)) continue;
-    const checkout = await findWorkUnitHoldingCheckout(ctx, entry);
-    if (checkout === null) candidates.push(entry); else held.set(entry.reference, checkout);
+    const checkout = await readWorkUnitCheckout(ctx, entry);
+    if (checkout.kind === "none") candidates.push(entry); else held.set(entry.reference, checkout);
   }
   return candidates;
 }
@@ -55,13 +58,10 @@ export async function runStoreMaterialize(ctx: MaterializeContext, params: Mater
     }
     const occupancy = await materializationOccupancy(bound, name, params.inPlace === true);
     if (!occupancy.ok) return { status: "rejected", reason: occupancy.message, remedy: occupancy.remedy };
-    const held = new Map<RecordReference, string>();
+    const held = new Map<RecordReference, MaterializeHeldCheckout>();
     const candidates = await listStoreMaterializable(bound, identity, held);
     const entry = candidates.find((item) => sameReference(item.reference, read.result.reference));
-    if (entry === undefined) {
-      const holder = [...held].find(([reference]) => sameReference(reference, read.result.reference))?.[1] ?? null;
-      return { status: "rejected", reason: holder === null ? `${params.name} is not an owned in-flight materialize candidate. Candidates: ${candidates.map((item) => item.reference.owner.name).join(", ") || "[none]"}.` : workUnitMarkerExit(holder, name, read.result, identity) };
-    }
+    if (entry === undefined) return { status: "rejected", reason: heldCandidateReason(read.result, identity, candidates, held) };
     const chosen = selectWorkBranchLink(read.result, { repository: await ctx.projectId?.() });
     if (chosen.kind === "ambiguous") return { status: "rejected", reason: chosen.reason };
     const branch = chosen.kind === "none" ? null : workBranchName(chosen.link.ref);
@@ -69,6 +69,12 @@ export async function runStoreMaterialize(ctx: MaterializeContext, params: Mater
     return await claimMaterialization({ ...bound, store: ctx.store }, { primary: read.result, operation, branch, inPlace: params.inPlace === true });
   } catch (error) { return { status: "rejected", reason: describeWorktreePreparationFailure(error,
     ["arc", "materialize", params.name, ...(params.inPlace ? ["--here"] : [])]) }; }
+}
+function heldCandidateReason(record: StoreRecord, identity: string, candidates: readonly LifecycleEntry[], held: ReadonlyMap<RecordReference, MaterializeHeldCheckout>): string {
+  const holder = [...held].find(([reference]) => sameReference(reference, record.reference))?.[1];
+  if (holder?.kind === "unbound") return holder.reason;
+  return holder === undefined ? `${record.reference.owner.name} is not an owned in-flight materialize candidate. Candidates: ${candidates.map(item => item.reference.owner.name).join(", ") || "[none]"}.`
+    : workUnitMarkerExit(holder.path, record.reference.owner.name, record, identity);
 }
 async function placementOperation(ctx: Bound, params: MaterializeParams, branch: string | null, identity: string,
   holder: WorkUnitHolderRequest): Promise<ReconcileWorkUnitWorktreeOp> {

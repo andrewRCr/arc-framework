@@ -1,5 +1,5 @@
 /** Per-identity pause listing and shared review marks. */
-import { ownerHolderRequest, type LocusPorts } from "../work-unit/locus-ports.js";
+import { ownerHolderRequest, type LocusPorts, type HoldingCheckoutResult } from "../work-unit/locus-ports.js";
 import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 import { z } from "zod";
 import { SlugSchema } from "../kernel/index.js";
@@ -11,7 +11,7 @@ import type { Store } from "../store/contract.js";
 import { MetaPauseSchema, ParsedMetaRecordSchema, type MetaPause } from "../active/meta-schema.js";
 import { parseLineageRecord } from "../store/kinds/lineage/parser.js";
 import type { StoreResult } from "../store/refusal.js";
-import { SessionActionsSchema } from "./actions.js";
+import { SessionActionsSchema, type SessionAction } from "./actions.js";
 import { readTerminalReferenceAliases } from "../work-unit/terminal-reference-aliases.js";
 import type { StoreRecord } from "../store/read.js";
 import { storeInFlightLocationUnavailable, type StoreInFlightEntry } from "../git/in-flight-store.js";
@@ -72,27 +72,27 @@ async function readPausedWork(options: RunPausedWorkOptions): Promise<PausedWork
       continue;
     }
     const found = await options.findHoldingCheckout(ownerHolderRequest(entry));
-    const holder = found.kind === "held" ? found.path : null;
-    const action = await pausedWorkAction(options, slug, holder, entry);
-    const reviewActions = marking.actions.filter(review => action.argv === undefined || JSON.stringify(review.argv) !== JSON.stringify(action.argv));
+    const actions = await pausedWorkActions(options, slug, found, entry);
+    const reviewActions = marking.actions.filter(review => !actions.some(action => action.argv !== undefined && JSON.stringify(review.argv) === JSON.stringify(action.argv)));
     items.push({ ...item, ...(marking.reviewPrompt === undefined ? {} : { reviewPrompt: marking.reviewPrompt }),
-      actions: [action, ...reviewActions] });
+      actions: [...actions, ...reviewActions] });
   }
   items.sort((left, right) => Buffer.compare(Buffer.from(left.slug), Buffer.from(right.slug)));
   return PausedWorkResultSchema.parse({ items });
 }
 
-async function pausedWorkAction(options: RunPausedWorkOptions, slug: string, holder: string | null,
-  record: Pick<StoreRecord, "links">): Promise<{ text: string; argv?: string[]; checkout?: string }> {
-  if (holder !== null) return { text: `arc resume ${slug}`, argv: ["arc", "resume", slug] };
+async function pausedWorkActions(options: RunPausedWorkOptions, slug: string, holder: HoldingCheckoutResult,
+  record: Pick<StoreRecord, "links">): Promise<SessionAction[]> {
+  if (holder.kind === "unbound") return [...holder.exits];
+  if (holder.kind === "held") return [{ text: `arc resume ${slug}`, argv: ["arc", "resume", slug] }];
   const location = options.inFlightEntries?.find(item => item.kind === "work-unit" && item.name === slug);
   if ((location !== undefined && storeInFlightLocationUnavailable(location)) || await unknownCurrentBranch(options, record)) {
-    return { text: `Local branch location for '${slug}' is unavailable. Repair the reported Git or checkout evidence, then retry arc status --session-init --json.` };
+    return [{ text: `Local branch location for '${slug}' is unavailable. Repair the reported Git or checkout evidence, then retry arc status --session-init --json.` }];
   }
   const markerless = options.markerlessCheckouts?.find(pair => pair.workUnit === slug);
-  return markerless === undefined ? { text: `arc materialize ${slug}`, argv: ["arc", "materialize", slug] }
-    : { text: `Run arc materialize ${slug} --here from ${markerless.checkoutPath}.`,
-      argv: ["arc", "materialize", slug, "--here"], checkout: markerless.checkoutPath };
+  return markerless === undefined ? [{ text: `arc materialize ${slug}`, argv: ["arc", "materialize", slug] }]
+    : [{ text: `Run arc materialize ${slug} --here from ${markerless.checkoutPath}.`,
+      argv: ["arc", "materialize", slug, "--here"], checkout: markerless.checkoutPath }];
 }
 
 async function unknownCurrentBranch(options: RunPausedWorkOptions, record: Pick<StoreRecord, "links">): Promise<boolean> {

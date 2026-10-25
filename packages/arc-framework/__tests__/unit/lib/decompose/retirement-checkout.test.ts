@@ -20,3 +20,12 @@ it.each([false, true])("admits only the retiring live owner's checkout, live hel
   expect(await h.store.read({ reference: h.live.reference })).toMatchObject({ status: "ok", result: h.live });
   expect(await readWorktreeMarker(h.oldPath)).toEqual(before);
 });
+it("refuses an unbound retiring holder with its recovery exits before physical admission", async () => {
+  const h = await workUnitHoldersFixture(), ctx = decomposeContext(h.store);
+  await h.write(h.livePath, { kind: "work-unit", name: "demo" });
+  ctx.executor = { ...ctx.executor, cwd: h.cwd, exec: h.exec, locusPorts: h.ports };
+  const result = await checkDecomposeRetirementCheckout(ctx, h.live);
+  expect(result).toMatchObject({ status: "refused", reason: "removal-check", remedy: { text: expect.stringContaining("arc materialize demo --here") } });
+  expect(JSON.stringify(result)).toContain("arc locus release");
+  expect(await h.store.read({ reference: h.live.reference })).toMatchObject({ status: "ok", result: h.live });
+});

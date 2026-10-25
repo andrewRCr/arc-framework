@@ -678,31 +678,12 @@ released, then rerun.
           `ownedInFlight` predicate, preserves former-name binding under the current name, and reports incomplete
           inventories as unreadable until repair.
 
-    - `[ ]` **6.1.b Holder matching**
+    - `[x]` **6.1.b Holder matching**
 
-        - `findHoldingCheckout`'s result (4.4.a) gains `{ kind: "unbound"; path; exits }` for a marker without a UID
-          naming the owner request's current or a former name, and `checkMarkerExclusivity`'s refusal carries the same
-          case. Callers that act on the holder refuse on it, naming its exits, as the scan refuses a marker whose
-          ownership it cannot read (`readMarkerHolder`, `lib/locus/lifecycle-ports.ts`): exclusivity, rename, abandon,
-          decomposition's retirement check, the sharing report, teardown (`holdingCheckout`, `teardown-store.ts`), and
-          `arc locus release <slug>` (6.4). Where a bound match and an unbound holder are both found, each refuses
-          naming both.
-        - Callers that only list or report show the work unit as held at its bound checkout or, with none, at the
-          unbound one, carrying the unbound marker's exits: materialize's candidates, start's already-started check,
-          paused work, the in-flight projection, and materializable work units.
-        - The sharing report gates handover alone: pause writes first and reports afterwards (`pause-handover.ts`), so a
-          paused work unit's unbound holder reports its work as unobservable, naming the exits.
-        - _Note:_ `createLocusPorts` takes 4.4's changes, this task's, and 6.5's; keep the classifier in its own module
-          so the function stays within its limit.
-        - Build `test-first` (one behavior at a time):
-            - rename of a work unit with an unbound checkout naming its slug refuses naming the exits, and succeeds once
-              `arc materialize <slug> --here` binds that checkout
-            - an owner request that finds the holder's bound checkout and an unbound marker naming its slug refuses
-              naming both
-            - start's already-started check and paused work show the work unit held at the unbound checkout, with the
-              exits
-            - pausing a work unit with an unbound checkout pauses it and reports its work as unobservable, naming the
-              exits
+        - Owner queries retain unbound current- or former-name matches with recovery actions; mixed bound/unbound
+          matches refuse naming both checkouts. Operational readers refuse while start, paused work, in-flight,
+          status, and materialize reports preserve the location and exits. Pause persists before its unobservable
+          sharing report; named release prefers binding owned in-flight work.
 
     - `[ ]` **6.1.c Marker occupancy and the cleanup sweep**
 

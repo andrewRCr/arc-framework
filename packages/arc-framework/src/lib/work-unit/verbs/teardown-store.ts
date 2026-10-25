@@ -1,11 +1,13 @@
 /** End-rule ref-set cleanup over version-bound operational retirement evidence. */
-import { ownerHolderRequest } from "../locus-ports.js";
+import { ownerHolderRequest, type HoldingCheckoutResult } from "../locus-ports.js";
 import { rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { assessReapSafety, isLandedInBase } from "../../git/branch-containment.js";
 import { deleteRemoteBranch } from "../mutators/reconcile-branch.js";
 import { localLifecycleTip, resolveLifecycleBase } from "../../git/lifecycle-ref-refresh.js";
-import { readWorktreeMarker, resolveWorktreeMarkerPath } from "../../git/worktree-marker.js";
+import { decodeWorktreeMarkerOwnership, readWorktreeMarker, resolveWorktreeMarkerPath } from "../../git/worktree-marker.js";
+import { classifyUnboundMarker } from "../../locus/unbound-marker.js";
+import type { Store } from "../../store/contract.js";
 import { scanRegisteredWorktrees, type RegisteredWorktree } from "../../git/worktree-roster.js";
 import { clearMissingWorktreeRegistrations, removeWorktreeCheckout, releaseWorktreeCheckout, describeRemovalRefusal } from "../../git/worktree-removal.js";
 import { reapZeroDeltaBranch } from "../../errand/abandon-runtime.js";
@@ -20,7 +22,7 @@ import { nodeReconcileWorkUnitWorktreeFs, isSelfTeardown, reconcileUserSurfacesF
 import type { TeardownContext, TeardownParams, TeardownResult } from "./teardown.js";
 
 type RetiringGeneration = { localHead: string | null; trackingHead: string | null; container: { ref: string; oid: string } | null };
-type Bound = TeardownContext & { evidence: StoreRetirementEvidence; baseOid: string; baseBranch: string; worktrees: RegisteredWorktree[]; primaryPath: string; notices: string[]; selectedHusk?: string };
+type Bound = TeardownContext & { store: Store; evidence: StoreRetirementEvidence; baseOid: string; baseBranch: string; worktrees: RegisteredWorktree[]; primaryPath: string; notices: string[]; selectedHusk?: string };
 /** Teardown reads the selected end's rule; force flags never grant discard authority. */
 export async function runStoreTeardown(ctx: TeardownContext, params: TeardownParams): Promise<TeardownResult> {
   if (ctx.store === undefined) return { status: "rejected", reason: "Teardown requires its operational store." };
@@ -34,7 +36,7 @@ export async function runStoreTeardown(ctx: TeardownContext, params: TeardownPar
     const primaryPath = roster.worktrees.find((item) => item.primary)?.path;
     if (primaryPath === undefined) throw new Error("The primary checkout could not be resolved for retirement.");
     const exec: TeardownContext["exec"] = (command, args, options) => ctx.exec(command, args, { cwd: primaryPath, ...options });
-    const bound: Bound = { ...ctx, exec, cwd: primaryPath, evidence, baseOid, baseBranch: params.base, worktrees: roster.worktrees, primaryPath, notices: [], selectedHusk: params.huskPath };
+    const bound: Bound = { ...ctx, store: ctx.store, exec, cwd: primaryPath, evidence, baseOid, baseBranch: params.base, worktrees: roster.worktrees, primaryPath, notices: [], selectedHusk: params.huskPath };
     const { links, retiring, generation } = await selectRetiringLinks(bound);
     const selected = params.huskPath === undefined ? undefined : await selectStoreRetirementHusk({ ctx: bound, evidence, baseOid, path: params.huskPath }, bound.worktrees);
     cleanupStarted = true;
@@ -58,17 +60,31 @@ async function holdingCheckout(ctx: Bound): Promise<string | null> {
   const request = ownerHolderRequest(ctx.evidence.record);
   if (ctx.locusPorts !== undefined) {
     const result = await ctx.locusPorts.findHoldingCheckout(request);
+    if (result.kind === "unbound") throw new Error(result.reason);
     return result.kind === "held" ? result.path : null;
   }
-  const paths: string[] = [];
+  const holders: Exclude<HoldingCheckoutResult, { kind: "none" }>[] = [];
   for (const item of ctx.worktrees) {
-    const marker = await (ctx.readMarker ?? readWorktreeMarker)(item.path);
-    if (marker.kind === "malformed") throw new Error(`${marker.path}: ${marker.message}`);
-    if (marker.kind === "present" && marker.marker.husk === undefined
-      && marker.marker.createdFor?.kind === "work-unit" && marker.marker.createdFor.uid === request.uid) paths.push(item.path);
+    const found = await retirementHolder(ctx, item.path, request);
+    if (found.kind !== "none") holders.push(found);
   }
-  if (paths.length > 1) throw new Error(`More than one checkout holds ${ctx.evidence.name}: ${paths.join(", ")}`);
-  return paths[0] ?? null;
+  if (holders.length > 1) throw new Error(`More than one checkout holds ${ctx.evidence.name}: ${holders.map(holder => holder.path).join(", ")}. ${holders.flatMap(holder => holder.kind === "unbound" ? [holder.reason] : []).join(" ")}`);
+  const holder = holders[0];
+  if (holder?.kind === "unbound") throw new Error(holder.reason);
+  return holder?.path ?? null;
+}
+async function retirementHolder(ctx: Bound, path: string, request: ReturnType<typeof ownerHolderRequest>): Promise<HoldingCheckoutResult> {
+  const marker = await (ctx.readMarker ?? readWorktreeMarker)(path);
+  if (marker.kind === "malformed") throw new Error(`${marker.path}: ${marker.message}`);
+  if (marker.kind !== "present" || marker.marker.husk !== undefined) return { kind: "none" };
+  const ownership = decodeWorktreeMarkerOwnership(marker.marker);
+  if (ownership.kind !== "current") throw new Error(`${resolveWorktreeMarkerPath(path)}: marker ownership is ${ownership.reason}. Inspect and repair its marker, then retry.`);
+  if (ownership.subject.kind !== "work-unit") return { kind: "none" };
+  if (ownership.subject.uid === request.uid) return { kind: "held", path };
+  if (ownership.subject.uid !== undefined || ![request.names.current, ...request.names.former].includes(ownership.subject.name)) return { kind: "none" };
+  const classified = await classifyUnboundMarker({ store: ctx.store, cwd: path, marker: marker.marker });
+  if (classified.kind === "unreadable") throw new Error(classified.reason);
+  return { kind: "unbound", path, exits: classified.exits, reason: classified.reason };
 }
 
 async function retireHolder(ctx: Bound, invokingPath: string, selected?: SelectedStoreRetirementHusk): Promise<string | null> {

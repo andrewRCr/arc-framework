@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import { ownerHolderRequest } from "../../../src/lib/work-unit/locus-ports.js";
 import { createLocusPorts } from "../../../src/lib/locus/lifecycle-ports.js";
-import { writeWorktreeOwnershipMarker, resolveWorktreeMarkerPath, stampWorktreeHusk, readWorktreeMarker, removeWorktreeMarkerGeneration } from "../../../src/lib/git/worktree-marker.js";
+import { writeWorktreeMarker, writeWorktreeOwnershipMarker, resolveWorktreeMarkerPath, stampWorktreeHusk, readWorktreeMarker, removeWorktreeMarkerGeneration } from "../../../src/lib/git/worktree-marker.js";
 import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
 import { createReferenceFixture } from "../../helpers/store/reference-fixture.js";
 
@@ -22,7 +22,7 @@ async function fixture() {
     `worktree ${other}`, `HEAD ${"b".repeat(40)}`, "branch refs/heads/feat/demo", "", "",
   ].join("\0") });
   const ports = createLocusPorts({ cwd, exec, store });
-  return { cwd, other, ports, record, marker: () => writeWorktreeOwnershipMarker(other, { createdByArc: true,
+  return { cwd, other, ports, record, store, marker: () => writeWorktreeOwnershipMarker(other, { createdByArc: true,
     createdFor: boundWorkUnitSubject(record), spawningIdentity: "andrew", now: 0 }) };
 }
 
@@ -94,4 +94,48 @@ it.each(["primary", "linked"])("writes, replaces and rolls back exact anchored g
   if (replaced.kind !== "replaced") throw new Error("Expected replacement");
   expect(await removeWorktreeMarkerGeneration(checkout, replaced.bytes)).toEqual({ kind: "removed" });
   expect(await readWorktreeMarker(checkout)).toEqual({ kind: "absent" });
+});
+
+it.each([false, true])("reports an unbound owner holder through its current or former name, former=%s", async former => {
+  const h = await fixture();
+  let primary = h.record;
+  if (former) {
+    const { recordPut } = await import("../../../src/lib/store/lifecycle-write.js");
+    const { SlugSchema } = await import("../../../src/lib/kernel/index.js");
+    const { lifecycleSuccess } = await import("../../helpers/store/lifecycle-harness.js");
+    lifecycleSuccess(await h.store.write({ ...recordPut(primary), action: "put", content: primary.content.replaceAll("demo", "current"),
+      reference: { ...primary.reference, owner: { ...primary.reference.owner, name: SlugSchema.parse("current") } },
+      provenance: { verb: "rename", lifecycleAction: "rename" } }));
+    primary = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
+  }
+  await writeWorktreeOwnershipMarker(h.other, { createdByArc: true, createdFor: { kind: "work-unit", name: "demo" }, spawningIdentity: "test-user", now: 0 });
+  const request = ownerHolderRequest(primary);
+  const found = await h.ports.findHoldingCheckout(request);
+  expect(found).toMatchObject({ kind: "unbound", path: h.other, exits: [
+    { argv: ["arc", "materialize", former ? "current" : "demo", "--here"], checkout: h.other },
+    { argv: ["arc", "locus", "release"], checkout: h.other } ], reason: expect.stringContaining("unbound") });
+  const exclusive = await h.ports.checkMarkerExclusivity(request);
+  expect(exclusive).toMatchObject({ kind: "refused", checkoutPath: h.other,
+    unbound: { kind: "unbound", path: h.other }, reason: expect.stringContaining("arc locus release") });
+  expect(JSON.stringify(found)).toContain(request.uid);
+});
+it("refuses a bound owner holder beside an unbound namesake and names both checkouts and exits", async () => {
+  const h = await fixture();
+  await h.marker();
+  await writeWorktreeMarker(h.cwd, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "demo" }, spawningIdentity: "test-user", createdAt: new Date(0).toISOString() });
+  const request = ownerHolderRequest(h.record);
+  await expect(h.ports.findHoldingCheckout(request)).rejects.toThrow(h.cwd);
+  await expect(h.ports.findHoldingCheckout(request)).rejects.toThrow(h.other);
+  await expect(h.ports.findHoldingCheckout(request)).rejects.toThrow("arc materialize demo --here");
+  const exclusive = await h.ports.checkMarkerExclusivity(request);
+  expect(exclusive).toMatchObject({ kind: "refused", reason: expect.stringContaining(h.cwd) });
+  expect(JSON.stringify(exclusive)).toContain(h.other);
+  expect(JSON.stringify(exclusive)).toContain("arc locus release");
+});
+it("excludes an unbound entering checkout from both owner holder queries", async () => {
+  const h = await fixture();
+  await writeWorktreeOwnershipMarker(h.other, { createdByArc: true, createdFor: { kind: "work-unit", name: "demo" }, spawningIdentity: "test-user", now: 0 });
+  const request = { ...ownerHolderRequest(h.record), checkoutPath: h.other };
+  expect(await h.ports.findHoldingCheckout(request)).toEqual({ kind: "none" });
+  expect(await h.ports.checkMarkerExclusivity(request)).toEqual({ kind: "clear" });
 });

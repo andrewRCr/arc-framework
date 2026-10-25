@@ -2,6 +2,7 @@
 import type { WorktreeMarker } from "../git/worktree-marker.js";
 import type { StoreRecord } from "../store/read.js";
 import type { WorkUnitHolderRequest } from "./mutators/reconcile-work-unit-worktree.js";
+import type { SessionAction } from "../session-init/actions.js";
 
 /** Bind a record-holding caller to its exact operational owner, refusing an incomplete identity. */
 export function ownerHolderRequest(record: Pick<StoreRecord, "reference" | "aliases">): Extract<WorkUnitHolderRequest, { kind: "owner" }> {
@@ -13,13 +14,15 @@ export function ownerHolderRequest(record: Pick<StoreRecord, "reference" | "alia
 }
 
 /** Exclusivity refusal identifies the checkout that already holds this work unit. */
-export type MarkerExclusivityResult = { kind: "clear" } | { kind: "refused"; checkoutPath?: string; reason: string };
+export type MarkerExclusivityResult = { kind: "clear" } | { kind: "refused"; checkoutPath?: string; reason: string; unbound?: UnboundHoldingCheckout };
 /** Exact generation written by an anchored claim, or its non-writing refusal. */
 export type AnchoredMarkerWriteResult =
   | { kind: "created" | "replaced"; bytes: Buffer }
   | { kind: "exists" | "generation-mismatch" | "unadmitted" };
 /** A holder lookup retains absence distinctly from one exact checkout. */
-export type HoldingCheckoutResult = { kind: "none" } | { kind: "held"; path: string };
+export type HoldingCheckoutResult = { kind: "none" } | { kind: "held"; path: string } | UnboundHoldingCheckout;
+/** An unbound owner match carries its recovery actions without conferring owner authority. */
+export interface UnboundHoldingCheckout { kind: "unbound"; path: string; exits: readonly SessionAction[]; reason: string }
 /** A checkout exclusion applies identically to owner and creation requests. */
 export type HolderLookupRequest = WorkUnitHolderRequest & { checkoutPath?: string; resolveLegacy?: () => Promise<string | null> };
 /** Locus supplies these ports when it admits anchored work-unit markers. */

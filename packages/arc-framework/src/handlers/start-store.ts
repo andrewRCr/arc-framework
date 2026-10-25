@@ -11,7 +11,7 @@ import { sameReference, type RecordReference } from "../lib/store/identity.js";
 import type { Store } from "../lib/store/contract.js";
 import { requireCompleteInventory } from "../lib/store/lifecycle-storage.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
-import { findWorkUnitHoldingCheckout } from "../lib/work-unit/verbs/unshared-work.js";
+import { readWorkUnitCheckout } from "../lib/work-unit/verbs/unshared-work.js";
 import { resolveLifecycleBase } from "../lib/git/lifecycle-ref-refresh.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import { runCreateNew, runGraduate, resolveStartDispatch } from "../commands/start.js";
@@ -71,11 +71,12 @@ async function startedPlanningReason(entries: readonly LifecycleEntry[],
   const { name, reference } = selected;
   const entry = reference === undefined ? undefined : entries.find((item) => sameReference(item.reference, reference));
   if (entry?.phase !== "Planning" || entry.location !== "active" || ctx.executor.exec === undefined) return null;
-  let holder: string | null;
-  try { holder = await findWorkUnitHoldingCheckout({ cwd: ctx.cwd, exec: ctx.executor.exec, locusPorts: ctx.executor.locusPorts, store: ctx.executor.store }, entry); }
+  let holder: Awaited<ReturnType<typeof readWorkUnitCheckout>>;
+  try { holder = await readWorkUnitCheckout({ cwd: ctx.cwd, exec: ctx.executor.exec, locusPorts: ctx.executor.locusPorts, store: ctx.executor.store }, entry); }
   catch (error) { return error instanceof Error ? error.message : String(error); }
-  return holder === null ? `${name} is already started; run arc materialize ${name} to give it a checkout.`
-    : `${name} is already started in checkout ${holder}; continue work there.`;
+  if (holder.kind === "unbound") return `${name} is already started in checkout ${holder.path}. ${holder.reason}`;
+  return holder.kind === "none" ? `${name} is already started; run arc materialize ${name} to give it a checkout.`
+    : `${name} is already started in checkout ${holder.path}; continue work there.`;
 }
 async function resolveStartName(store: Store, requested: string): Promise<{ name: string; reference?: RecordReference } | null> {
   const lookup = await store.lookup({ kind: "slug", slug: SlugSchema.parse(requested) });

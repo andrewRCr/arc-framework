@@ -16,6 +16,7 @@ import { releaseWorktreeCheckout, removeWorktreeCheckout, describeRemovalRefusal
 import type { LocusPorts } from "../work-unit/locus-ports.js";
 import { createLocusPorts } from "./lifecycle-ports.js";
 import { inspectCheckoutMarker, type PresentMarker } from "./marker-occupancy.js";
+import { ownedInFlight } from "./unbound-marker.js";
 import { withWorktreeOperationLock } from "../work-unit/worktree-operation-lock.js";
 export interface LocusReleaseContext {
   cwd: string; exec: GitExec; store: Store; identity: string; baseBranch: string;
@@ -34,7 +35,7 @@ export async function runLocusRelease(ctx: LocusReleaseContext, slug?: string): 
 async function releaseUnderLock(ctx: LocusReleaseContext, slug?: string): Promise<LocusReleaseResult> {
   const exec = ctx.exec;
   const ports = ctx.locusPorts ?? createLocusPorts({ cwd: ctx.cwd, exec, store: ctx.store });
-  const target = slug === undefined ? ctx.cwd : await namedReleaseCheckout(ctx.store, ports, slug);
+  const target = slug === undefined ? ctx.cwd : await namedReleaseCheckout(ctx.store, ports, slug, ctx.identity);
   if (target === null) return refused(`No checkout here holds '${slug}'. Run arc locus --json to inspect this machine's checkouts.`);
   const occupancy = await inspectCheckoutMarker({ cwd: target, store: ctx.store, identity: ctx.identity });
   if (occupancy.kind === "clear") return refused(`Checkout ${target} has no work-unit marker to release. Run arc locus --json to inspect this machine's checkouts.`);
@@ -54,11 +55,15 @@ async function releaseUnderLock(ctx: LocusReleaseContext, slug?: string): Promis
   await releaseCheckout({ ...ctx, exec }, target, primary.path, spawned, occupancy.marker);
   return { status: "released", checkoutPath: target, spawned, ...(nextCheckoutPath === undefined ? {} : { nextCheckoutPath }) };
 }
-async function namedReleaseCheckout(store: Store, ports: LocusPorts, slug: string): Promise<string | null> {
+async function namedReleaseCheckout(store: Store, ports: LocusPorts, slug: string, identity: string): Promise<string | null> {
   const primary = await readWorkUnit(store, slug);
   if (primary.status === "refused" && primary.refusal.code !== "not-found") throw new StoreRefusalError(primary.refusal);
   if (primary.status === "ok" && primary.result.placement?.kind !== "completed") {
     const holder = await ports.findHoldingCheckout(ownerHolderRequest(primary.result));
+    if (holder.kind === "unbound") {
+      if (ownedInFlight(primary.result, identity)) throw new Error(holder.reason);
+      return holder.path;
+    }
     if (holder.kind === "held") return holder.path;
   }
   const unbound = await ports.findHoldingCheckout({ kind: "creation", slug });

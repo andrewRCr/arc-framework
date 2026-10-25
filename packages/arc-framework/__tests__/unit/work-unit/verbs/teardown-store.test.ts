@@ -95,3 +95,32 @@ describe("store retirement ref sets", () => {
   });
 
 });
+it.each([false, true])("refuses an unbound retirement holder before changing refs, locus port=%s", async port => {
+  const h = await fixture({ end: "archive", held: true });
+  const { classifyUnboundMarker } = await import("../../../../src/lib/locus/unbound-marker.js");
+  const { createDefaultLocusPorts } = await import("../../../../src/lib/work-unit/locus-ports.js");
+  const marker = { spawnedByArc: false, createdFor: { kind: "work-unit" as const, name: "demo" }, spawningIdentity: "test-user", createdAt: new Date(0).toISOString() };
+  const classified = await classifyUnboundMarker({ store: h.store, cwd: "/repo", marker });
+  if (classified.kind !== "unbound") throw new Error(classified.reason);
+  h.ctx.readMarker = async () => ({ kind: "present", marker });
+  if (port) h.ctx.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "unbound", path: "/repo", exits: classified.exits, reason: classified.reason }) };
+  const refs = [...h.refs];
+  const result = await runTeardown(h.ctx, { name: "demo", base: "main" });
+  expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("arc locus release") });
+  expect([...h.refs]).toEqual(refs);
+});
+it("names both bound and unbound retirement holders before changing refs without locus ports", async () => {
+  const h = await fixture({ end: "archive", held: true });
+  const { boundWorkUnitSubject } = await import("../../../helpers/store/bound-checkout.js");
+  h.ctx.scanWorktrees = async () => ({ ok: true, worktrees: [
+    { path: "/repo", head: h.refs.get("refs/heads/feat/demo")!, branch: "feat/demo", detached: false, primary: true, folderPresent: true },
+    { path: "/unbound", head: h.refs.get("refs/heads/main")!, branch: null, detached: true, primary: false, folderPresent: true },
+  ] });
+  h.ctx.readMarker = async path => ({ kind: "present", marker: { spawnedByArc: false, createdFor: path === "/repo" ? boundWorkUnitSubject(h.meta)
+    : { kind: "work-unit", name: "demo" }, spawningIdentity: "test-user", createdAt: new Date(0).toISOString() } });
+  const refs = [...h.refs], result = await runTeardown(h.ctx, { name: "demo", base: "main" });
+  expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("/repo") });
+  expect(JSON.stringify(result)).toContain("/unbound");
+  expect(JSON.stringify(result)).toContain("arc locus release");
+  expect([...h.refs]).toEqual(refs);
+});

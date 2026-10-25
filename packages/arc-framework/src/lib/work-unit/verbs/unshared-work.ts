@@ -7,7 +7,7 @@ import { scanRegisteredWorktrees } from "../../git/worktree-roster.js";
 import { decodeWorktreeMarkerOwnership, readWorktreeMarker } from "../../git/worktree-marker.js";
 import { selectWorkBranchLink, workBranchName } from "../../store/lifecycle-branch.js";
 import type { StoreRecord } from "../../store/read.js";
-import { ownerHolderRequest, type LocusPorts } from "../locus-ports.js";
+import { ownerHolderRequest, type LocusPorts, type HoldingCheckoutResult } from "../locus-ports.js";
 import { createLocusPorts } from "../../locus/lifecycle-ports.js";
 import type { Store } from "../../store/contract.js";
 
@@ -41,26 +41,33 @@ export async function readUnsharedWork(ctx: UnsharedWorkContext, record: StoreRe
   } catch (error) { return { kind: "unobservable", detail: error instanceof Error ? error.message : String(error) }; }
 }
 
-/** Find one owner-bound holder, retaining the name scan only for tracked records.
+/** Find one owner-bound holder, refusing unbound operational claims with their recovery exits.
  * @param ctx - Checkout, store, bound Git, and optional locus lookup.
  * @param record - Selected owner whose marker supplies current occupancy.
  * @returns Its holding checkout, or absence; inconsistent observations throw.
  */
 export async function findWorkUnitHoldingCheckout(ctx: Pick<UnsharedWorkContext, "cwd" | "exec" | "locusPorts" | "store">,
   record: Pick<StoreRecord, "reference" | "aliases">): Promise<string | null> {
+  const result = await readWorkUnitCheckout(ctx, record);
+  if (result.kind === "unbound") throw new Error(result.reason);
+  return result.kind === "held" ? result.path : null;
+}
+
+/** Observe a holder without discarding the unbound state needed by reporting callers. */
+export async function readWorkUnitCheckout(ctx: Pick<UnsharedWorkContext, "cwd" | "exec" | "locusPorts" | "store">,
+  record: Pick<StoreRecord, "reference" | "aliases">): Promise<HoldingCheckoutResult> {
   const name = record.reference.owner.name;
   if (ctx.store?.capabilities.stateOffBranch) {
     const request = ownerHolderRequest(record);
-    const result = await (ctx.locusPorts ?? createLocusPorts({ ...ctx, store: ctx.store })).findHoldingCheckout(request);
-    return result.kind === "held" ? result.path : null;
+    return (ctx.locusPorts ?? createLocusPorts({ ...ctx, store: ctx.store })).findHoldingCheckout(request);
   }
   if (record.reference.owner.type === "work-item" && record.reference.owner.uid !== undefined) {
     throw new Error(`Bind the operational store to locate ${name}'s owner UUID, then retry.`);
   }
   const resolveLegacy = () => legacyHoldingCheckout(ctx, name);
-  if (ctx.locusPorts === undefined) return resolveLegacy();
-  const result = await ctx.locusPorts.findHoldingCheckout({ kind: "creation", slug: name, resolveLegacy });
-  return result.kind === "held" ? result.path : null;
+  if (ctx.locusPorts !== undefined) return ctx.locusPorts.findHoldingCheckout({ kind: "creation", slug: name, resolveLegacy });
+  const path = await resolveLegacy();
+  return path === null ? { kind: "none" } : { kind: "held", path };
 }
 
 async function legacyHoldingCheckout(ctx: Pick<UnsharedWorkContext, "cwd" | "exec">, name: string): Promise<string | null> {

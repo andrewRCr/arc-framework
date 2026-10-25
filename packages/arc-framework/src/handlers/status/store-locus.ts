@@ -33,13 +33,15 @@ export async function readStoreStatusLocus(input: { cwd: string; exec: GitExec; 
   const locus = createLocusPorts(input);
   const find = ports.findHoldingCheckout ?? locus.findHoldingCheckout;
   let worktreePath: string | null;
+  const warnings: string[] = [];
   try {
     const holder = input.record === undefined ? { kind: "none" as const } : await find(ownerHolderRequest(input.record));
-    worktreePath = holder.kind === "held" ? holder.path : null;
+    worktreePath = holder.kind === "none" ? null : holder.path;
+    if (holder.kind === "unbound") warnings.push(holder.reason);
   }
   catch (error) { worktreePath = error instanceof Error ? error.message : String(error); }
   const quality = ports.readInFlightWarnings === undefined ? await defaultWarnings(input, find) : await ports.readInFlightWarnings();
-  return { ...(worktreePath === null ? {} : { worktreePath }), warnings: quality };
+  return { ...(worktreePath === null ? {} : { worktreePath }), warnings: [...new Set([...warnings, ...quality])] };
 }
 async function defaultWarnings(input: { store: Store; cwd: string; exec: GitExec }, findHoldingCheckout: LocusPorts["findHoldingCheckout"]): Promise<string[]> {
   const identity = await resolveIdentity({ exec: input.exec });
