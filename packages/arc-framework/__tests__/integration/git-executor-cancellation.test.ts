@@ -247,6 +247,50 @@ describe("Git descendant cancellation", () => {
   });
 });
 
+describe("Git cancellation after direct-child exit", () => {
+  it.skipIf(process.platform === "win32").each(["plain", "stdin", "raw"])("ends a canceled %s call while an orphan still holds its output pipes", async variant => {
+    const root = await repository();
+    const ready = join(root, "pipe-holder-ready"), release = join(root, "release-git");
+    await writeFile(join(root, "pipe-holder.cjs"), [
+      'const { spawn } = require("node:child_process");',
+      'const { writeFileSync, existsSync } = require("node:fs");',
+      'const holder = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { detached: true, stdio: "inherit" });',
+      `writeFileSync(${JSON.stringify(ready)}, String(holder.pid));`,
+      'holder.unref();',
+      `setInterval(() => { if (existsSync(${JSON.stringify(release)})) process.exit(0); }, 5);`,
+    ].join("\n"));
+    const controller = new AbortController(), marker = `--git-dir=${join(root, ".git")}`;
+    const pending = invoke(variant, [marker, "-c", "alias.pipe-hold=!node ./pipe-holder.cjs", "pipe-hold"], { cwd: root, signal: controller.signal });
+    void pending.catch(() => undefined);
+    try {
+      const direct = await waitForProcess(marker);
+      let holder = 0;
+      for (let attempt = 0; attempt < 300; attempt++) {
+        holder = await readFile(ready, "utf8").then(Number, () => 0);
+        if (holder > 0) break;
+        await delay(10);
+      }
+      expect(holder).toBeGreaterThan(0);
+      children.add(holder);
+      await writeFile(release, "exit");
+      await expectEnded([direct]);
+      const alive = async () => (await processes()).some(({ pid, command }) => pid === holder && !command.includes("<defunct>"));
+      expect(await alive()).toBe(true);
+      let settled = false;
+      void pending.then(() => { settled = true; }, () => { settled = true; });
+      await delay(25);
+      expect(settled).toBe(false);
+      await canceledWithin(pending, controller);
+      expect(await alive()).toBe(true);
+    } finally {
+      controller.abort();
+      for (const pid of children) kill(pid);
+      await pending.catch(() => undefined);
+    }
+  }, 20_000);
+});
+
+
 describe("Git cancellation admission and spawn policy", () => {
   it.each(["plain", "stdin", "raw", "native raw"])("refuses a pre-aborted %s invocation before its side effect", async (variant) => {
     const root = await repository();

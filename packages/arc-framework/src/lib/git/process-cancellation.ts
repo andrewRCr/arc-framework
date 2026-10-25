@@ -91,7 +91,8 @@ export function bindGitProcessCancellation(
 
 /** Await an execa process, delaying its direct-child abort until descendants have been ended. */
 export async function runCancelableGitProcess<T>(
-  start: (signal: AbortSignal | undefined) => Pick<ChildProcess, "pid" | "kill"> & PromiseLike<T>,
+  start: (signal: AbortSignal | undefined) => Pick<ChildProcess, "pid" | "kill">
+    & Partial<Pick<ChildProcess, "stdout" | "stderr">> & PromiseLike<T>,
   signal: AbortSignal | undefined,
   invocation: GitInvocation,
 ): Promise<T> {
@@ -102,6 +103,9 @@ export async function runCancelableGitProcess<T>(
   const dispose = bindGitProcessCancellation(child, signal, () => { cancellation.requested = true; }, (unconfirmed) => {
     cancellation.descendantsUnconfirmed = unconfirmed;
     controller.abort();
+    // A surviving process may still hold inherited pipes after the direct child has exited or been killed.
+    child.stdout?.destroy();
+    child.stderr?.destroy();
   });
   try {
     const result = await child;
