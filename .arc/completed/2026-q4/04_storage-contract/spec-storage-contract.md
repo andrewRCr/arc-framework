@@ -2431,3 +2431,20 @@ operations and outcomes, and which test tier each conformance fixture runs in.
   coordinate with an explicit nonnull expected version. Every retired resolution target needs its own such removal
   in the same batch; ordinary retained records remain inaccessible and the owner stays retired. _Supersedes:_ D6.
   _Trigger:_ `spec-storage-ref-backend.md` § 2.6, 6.6 (A16). _Work:_ storage-ref-backend 13.5.R. _Revalidated:_ storage-ref-backend 13.5.R.
+
+
+- **A26** — 2026-10-25 — design: `HistoryRefSchema` admits only the lowercase owner UID forms that
+  `StoredUidSchema` accepts; explicit history requests and stored paths use one grammar. _Supersedes:_ D4 history
+  coordinates. _Trigger:_ `spec-storage-ref-backend.md` § 2.1, 2.6 (A41). _Work:_ review-fix.
+  _Revalidated:_ review-fix.
+- **A27** — 2026-10-25 — design: non-person owner generations use `StoredUidSchema` in `OwnerIdentitySchema` and
+  `CreatedOwnerSchema`, including retained creation receipts. _Supersedes:_ D2 UID grammar.
+  _Trigger:_ `spec-storage-ref-backend.md` § 2.1, 2.6 (A43). _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A28** — 2026-10-25 — design: the `record-malformed` arm of `LocalRefusalSchema` may omit its reference only when
+  the failing input operand has no valid `RecordReference`; its condition names that operand and any batch index.
+  A valid operand reference is preserved. _Supersedes:_ D4 record-malformed reference requirement.
+  _Trigger:_ `spec-storage-ref-backend.md` § 2.1, 2.6 (A50). _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A29** — 2026-10-25 — design: the unreachable arm of `CarryOutcomeSchema` requires a diagnostic message,
+  including an already-expired code leg's timeout and any reported descendant warning. _Supersedes:_ D1, D4
+  carried-code failure diagnostics. _Trigger:_ `spec-storage-ref-backend.md` § 2.2, 2.6 (A51).
+  _Work:_ review-fix. _Revalidated:_ review-fix.

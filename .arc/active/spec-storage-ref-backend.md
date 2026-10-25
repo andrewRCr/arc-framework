@@ -476,6 +476,19 @@ its retained conflict records through `write` and `batch`, explicitly resolving 
 `history` with the notice's UID-bearing reference. Ordinary `read` and `list` keep their lifecycle behavior, and the
 retired primary remains `not-found`.
 
+History-ref spelling also amends D4 forward (A41): `HistoryRefSchema` admits the lowercase UID forms that
+`StoredUidSchema` accepts, so a requested history ref and its stored owner use one grammar (§ 2.1).
+
+Owner identity also amends D2 forward (A43): `OwnerIdentitySchema` and `CreatedOwnerSchema` use that same
+`StoredUidSchema` grammar for non-person generations, including retained creation receipts (§ 2.1).
+
+Malformed-input refusals also amend D4 forward (A50): `LocalRefusalSchema` permits `record-malformed` to omit its
+reference only when the failing input operand has no valid `RecordReference`. The condition names the failing
+write or indexed batch operand; a valid operand reference is preserved (§ 2.1).
+
+Carried-code failures also amend D1 and D4 forward (A51): the unreachable arm of `CarryOutcomeSchema` requires a
+message, including an already-expired code leg's timeout and any reported descendant warning (§ 2.2).
+
 The contract left open where the designation is kept; § 9.1 settles it in Git config.
 
 ### 3. Record encoding
