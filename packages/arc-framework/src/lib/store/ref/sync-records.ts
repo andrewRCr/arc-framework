@@ -1,6 +1,7 @@
 /** Logical record selection and accepted whole-record sides for published tree merges. */
 
 import type { RefBackendContext } from "./context.js";
+import { ZodError } from "zod";
 import type { SyncTreeSide } from "./sync-tree.js";
 import type { BatchObject, RefTreeEntry } from "./batch-read.js";
 import { viewRefFamily } from "./view-state.js";
@@ -18,20 +19,21 @@ import type { RefMetadata } from "./metadata.js";
 import type { ReadPlacement } from "../placement.js";
 import type { EntryConfig, KindDefinition } from "../registry.js";
 import type { SyncCheckRecord } from "./sync-checks.js";
-import { readSyncRecordLabel } from "./sync-label.js";
+import { readSyncRecordLabel, RefSyncLabelError } from "./sync-label.js";
 
 interface IndexedRecord { entry: RefTreeEntry; value: ConflictRecordValue }
 
 interface SyncRecordSides { base: SyncTreeSide; local: SyncTreeSide; incoming: SyncTreeSide }
 interface RecordTriple { base: IndexedRecord | undefined; local: IndexedRecord | undefined; incoming: IndexedRecord | undefined }
 interface RecordChoice { selected: IndexedRecord | undefined; conflicts: ConflictRecord[]; retainMetadata?: boolean; followsIncoming?: boolean }
+interface PlannedRecord { records: RecordTriple; choice: RecordChoice }
 
 /** Reconcile semantic records while retaining opaque entries outside the registered record set. */
 export async function reconcileSyncRecords(context: RefBackendContext, ref: string, base: SyncTreeSide, local: SyncTreeSide,
   incoming: SyncTreeSide, objects: ReadonlyMap<string, BatchObject | null>, group: CapturedWriteGroup, metadataConflicts: readonly string[][], currentSide: "local" | "incoming" = "incoming"): Promise<SyncCheckRecord[]> {
   const previous = indexRecords(context, ref, base, objects), current = indexRecords(context, ref, local, objects);
   const remote = indexRecords(context, ref, incoming, objects), conflicts: ConflictRecord[] = [];
-  const choices: { records: RecordTriple; choice: RecordChoice }[] = [];
+  const choices: PlannedRecord[] = [];
   for (const key of new Set([...previous.keys(), ...current.keys(), ...remote.keys()])) {
     const records = { base: previous.get(key), local: current.get(key), incoming: remote.get(key) };
     // An end stays current against a late write; ordinary clashes keep the published side.
@@ -45,9 +47,27 @@ export async function reconcileSyncRecords(context: RefBackendContext, ref: stri
     if (choice.retainMetadata && key === "primary") retainPrimaryMetadata(group.metadata, currentSide === "local" ? local.metadata : incoming.metadata);
     choices.push({ records, choice });
   }
-  for (const { records, choice } of choices) installRecord(context, ref, group, records, choice.selected, choice.retainMetadata ?? false);
+  installSelectedRecords(context, ref, group, choices);
   await appendRefConflicts(context, ref, group, conflicts);
   return choices.flatMap(({ records, choice }) => checkRecords(ref, group.metadata, records.local, choice.selected));
+}
+
+function installSelectedRecords(context: RefBackendContext, ref: string, group: CapturedWriteGroup,
+  choices: readonly PlannedRecord[]): void {
+  const installations = choices.flatMap(({ choice }) => choice.selected
+    ? [recordInstallation(context, ref, group, choice.selected, choice.retainMetadata ?? false)] : []);
+  const homes = new Set<string>();
+  for (const { entry } of installations) {
+    if (homes.has(entry.path)) throw new RefSyncLabelError(ref, { code: "namespace-corrupt", class: "terminal", namespace: ref,
+      condition: `Two selected records on ${ref} resolve to the same stored path ${entry.path}.`,
+      remedy: { text: "Give the colliding records distinct stored paths in their source states, then retry the pull." } });
+    homes.add(entry.path);
+  }
+  for (const { records } of choices) removeRecordPaths(group, records);
+  for (const { reference, entry, formatVersion } of installations) {
+    group.entries.set(entry.path, entry);
+    group.metadata.formats[refFormatKey(reference)] = formatVersion;
+  }
 }
 
 async function chooseRecord(context: RefBackendContext, ref: string, sides: SyncRecordSides,
@@ -121,22 +141,38 @@ async function mergeTextRecord(context: RefBackendContext, definition: KindDefin
     version: refRecordVersion(local.value.reference, oid, metadata, local.value.formatVersion) } }, conflicts: merged.conflicts };
 }
 
-function installRecord(context: RefBackendContext, ref: string, group: CapturedWriteGroup,
-  records: RecordTriple, selected: IndexedRecord | undefined, retainMetadata: boolean): void {
-  const selectedFormat = selected ? group.metadata.formats[refFormatKey(selected.value.reference)] ?? 1 : 1;
+function removeRecordPaths(group: CapturedWriteGroup, records: RecordTriple): void {
   for (const record of [records.base, records.local, records.incoming]) {
     if (!record) continue;
     group.entries.delete(record.entry.path);
     Reflect.deleteProperty(group.metadata.formats, refFormatKey(record.value.reference));
   }
-  if (!selected) return;
+}
+
+function recordInstallation(context: RefBackendContext, ref: string, group: CapturedWriteGroup,
+  selected: IndexedRecord, retainMetadata: boolean): { reference: RecordReference; entry: RefTreeEntry; formatVersion: number } {
+  const selectedFormat = group.metadata.formats[refFormatKey(selected.value.reference)] ?? 1;
   const reference = canonicalRecordReference(ref, group.metadata, selected.value.reference);
   const home = expandStoredPath(reference, { registry: context.registry, history: ref.startsWith("refs/arc/history/") });
-  group.entries.set(home.path, { ...selected.entry, path: home.path });
-  group.metadata.formats[refFormatKey(reference)] = retainMetadata ? selected.value.formatVersion : selectedFormat;
+  return { reference, entry: { ...selected.entry, path: home.path },
+    formatVersion: retainMetadata ? selected.value.formatVersion : selectedFormat };
 }
 
 function indexRecords(context: RefBackendContext, ref: string, side: SyncTreeSide,
+  objects: ReadonlyMap<string, BatchObject | null>): Map<string, IndexedRecord> {
+  // A primary-less retired tree has no placement to expose; retain its entries in the opaque tree merge.
+  if (ref.startsWith("refs/arc/history/work/") && !side.metadata.primary && !side.placement) return new Map();
+  try { return indexRecordValues(context, ref, side, objects); }
+  catch (error) {
+    if (!(error instanceof ZodError) && !(error instanceof TypeError && "code" in error
+      && error.code === "ERR_ENCODING_INVALID_ENCODED_DATA")) throw error;
+    throw new RefSyncLabelError(ref, { code: "namespace-corrupt", class: "terminal", namespace: ref,
+      condition: `A stored record on ${ref} cannot be decoded: ${error.message}`,
+      remedy: { text: `Repair the malformed record on ${ref} forward in its source state, then retry the pull.` } });
+  }
+}
+
+function indexRecordValues(context: RefBackendContext, ref: string, side: SyncTreeSide,
   objects: ReadonlyMap<string, BatchObject | null>): Map<string, IndexedRecord> {
   const family = viewRefFamily(ref.replace("refs/arc/history/", "refs/arc/"));
   if (!family || side.entries.size === 0) return new Map();
