@@ -14,6 +14,7 @@ import { matchesFamilyRef, refOwner } from "./codec.js";
 import { captureArchivedFolders, selectEndedOwners } from "./ended-owners.js";
 import type { RefTreeEntry } from "./batch-read.js";
 import { readRefContent, recordDiagnostic } from "./content-read.js";
+import { corruptRef } from "./namespace-health.js";
 
 /** Gather parents through the registered parser, independently of unfinished closeout placement. */
 export async function preparedCohortParents(context: RefBackendContext, tips: ReadonlyMap<string, string>,
@@ -24,7 +25,7 @@ export async function preparedCohortParents(context: RefBackendContext, tips: Re
   for (const [ref, group] of state.refs) {
     if (!matchesFamilyRef(ref, "cohort")) continue;
     const metadata = viewRefMetadata(context, state, ref, "cohort");
-    if (!metadata || !group.entries) return unavailableCohort(ref);
+    if (!metadata || !group.entries) return unavailableCohort(ref, !group.entries);
     const reference = RecordReferenceSchema.parse({ owner: refOwner(ref, "cohort", metadata), kind: "cohort/document" });
     const result = collectParent(context, state, reference, group.entries, parents, ref);
     if (result.status === "refused") return result;
@@ -90,8 +91,6 @@ function stringField(fields: unknown, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-function unavailableCohort(namespace: string): StoreResult<never> {
-  return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace,
-    condition: "Cohort closeout requires the complete captured cohort documents and metadata.",
-    remedy: { text: "Restore or fetch the missing cohort objects, then retry the close." } } };
+function unavailableCohort(namespace: string, missingObjects = true): StoreResult<never> {
+  return { status: "refused", refusal: corruptRef(namespace, missingObjects) };
 }
