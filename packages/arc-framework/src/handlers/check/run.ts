@@ -19,9 +19,9 @@ import { matchTreeInputs } from "../../lib/checks/matching.js";
 import { resolveCheckRequest, type ResolvedCheckRequest } from "../../lib/checks/resolve-request.js";
 import { readRangeMergedInPaths } from "../../lib/checks/merged.js";
 import { resolveCheckKey, type CheckKeyIO } from "../../lib/checks/key-resolver.js";
-import { resolveCheckSelection, selectCheckInputs, type CheckSelection } from "../../lib/checks/selection.js";
+import { CI_ONLY_UNSELECTED_REASON, resolveCheckSelection, selectCheckInputs, type CheckSelection } from "../../lib/checks/selection.js";
 import { isCheckHookForm, type CheckRequest } from "../../lib/checks/request.js";
-import { selectRequestChecks, checkResultKind, type CheckResultKind } from "../../lib/checks/gates.js";
+import { selectIncrementDeferredChecks, selectRequestChecks, checkResultKind, type CheckResultKind } from "../../lib/checks/gates.js";
 import type { CheckPassStore, CheckPassWrite } from "../../lib/checks/record.js";
 import type { CheckReportStore } from "../../lib/checks/reports.js";
 import { checkVerification } from "./report.js";
@@ -144,9 +144,31 @@ export async function runDeclaredRequest(
   if (missing !== undefined) return { kind: "error", exitCode: 2,
     error: { kind: "refused", message: `Unknown check ${missing}; name a check declared in arc-checks.yml and retry.` } };
   const entries = selectRequestChecks(available, request.form);
-  const outcome = await resolveAndRunRequest(root, io, request, declaration, entries);
+  const outcome = reportDeferredPushChecks(await resolveAndRunRequest(root, io, request, declaration, entries), available, request);
   return outcome.kind === "result" && ignoredSkips.length > 0
     ? { ...outcome, result: { ...outcome.result, ignoredSkips } } : outcome;
+}
+
+const PUSH_GATE_DEFERRED = "runs at the push gate";
+
+/**
+ * Name each push-gate check an increment leaves unrun, so its report shows the push gate went untested.
+ * @param outcome - The request's executed result
+ * @param available - Declared entries in declaration order
+ * @param request - Form and CI policy
+ * @returns The result with each left-out push check as not selected, in declaration order
+ */
+function reportDeferredPushChecks(outcome: RunDeclaredChecksResult, available: CheckDeclaration["checks"],
+  request: CheckRequest): RunDeclaredChecksResult {
+  const deferred = selectIncrementDeferredChecks(available, request.form);
+  if (outcome.kind === "error" || deferred.length === 0) return outcome;
+  const order = Object.keys(available);
+  const checks = [...outcome.result.checks, ...deferred.map(([id, check]): DeclaredCheckResult => ({
+    id, kind: checkResultKind(request.form, check), outcome: "not selected",
+    reason: check.ci_only && !request.ci ? CI_ONLY_UNSELECTED_REASON : PUSH_GATE_DEFERRED,
+  }))].sort((first, second) => order.indexOf(first.id) - order.indexOf(second.id));
+  return { ...outcome, result: { ...outcome.result, status: "completed", checks,
+    verification: checkVerification("completed", checks) } };
 }
 
 async function resolveAndRunRequest(

@@ -12,7 +12,7 @@ import { scriptGitExec, scriptRawGitExec } from "../../../helpers/git-exec-fake.
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 
-async function fixture(checks: Record<string, { fixes?: boolean; no_evidence_exit?: number; mode?: "files" | "selection"; root?: string; runtime_inputs?: string[][]; inputs?: string[] }>, failSecondTreeWrite = false) {
+async function fixture(checks: Record<string, { fixes?: boolean; no_evidence_exit?: number; mode?: "files" | "selection"; root?: string; runtime_inputs?: string[][]; inputs?: string[]; gate?: "commit" | "push"; ci_only?: boolean }>, failSecondTreeWrite = false) {
   const root = await mkdtemp(join(tmpdir(), "arc-check-scheduling-"));
   roots.push(root);
   await mkdir(join(root, ".git"));
@@ -102,6 +102,36 @@ it("carries the notice a check's command reports into that check's result", asyn
   if (result.kind !== "result") throw new Error(result.error.message);
   expect(result.result.checks.find(check => check.id === "lint")).toMatchObject({ outcome: "passed", notice: "ran on build-vm" });
   expect(result.result.checks.find(check => check.id === "other")).not.toHaveProperty("notice");
+});
+
+it("names each push check an increment leaves unrun, in declaration order, without running it", async () => {
+  const { root, io } = await fixture({ whole: { gate: "push" }, commit: { gate: "commit" }, ci: { gate: "push", ci_only: true } });
+  const ran: string[] = [];
+  const execute = io.execute;
+  io.execute = async (command, ...rest) => { ran.push(command[0]!); return execute(command, ...rest); };
+  const result = await runDeclaredRequest(root, io, { form: { kind: "increment" } });
+  if (result.kind !== "result") throw new Error(result.error.message);
+  expect(result.exitCode).toBe(0);
+  expect(result.result.checks).toMatchObject([
+    { id: "whole", kind: "feedback", outcome: "not selected", reason: "runs at the push gate" },
+    { id: "commit", kind: "enforcement" },
+    { id: "ci", kind: "feedback", outcome: "not selected", reason: "CI-only check requires --ci" },
+  ]);
+  expect(result.result.verification).toContain("whole not selected");
+  expect(ran).not.toContain("whole");
+  expect(ran).not.toContain("ci");
+  const inCi = await runDeclaredRequest(root, io, { form: { kind: "increment" }, ci: true });
+  if (inCi.kind !== "result") throw new Error(inCi.error.message);
+  expect(inCi.result.checks.find(check => check.id === "ci")).toMatchObject({ reason: "runs at the push gate" });
+});
+
+it("reports a push check an increment leaves unrun when nothing else is selected, and none for a segment", async () => {
+  const { root, io } = await fixture({ whole: { gate: "push" } });
+  await expect(runDeclaredRequest(root, io, { form: { kind: "increment" } })).resolves.toMatchObject({ kind: "result",
+    exitCode: 0, result: { status: "completed", checks: [{ id: "whole", outcome: "not selected", reason: "runs at the push gate" }] } });
+  const segment = await runDeclaredRequest(root, io, { form: { kind: "segment" } });
+  if (segment.kind !== "result") throw new Error(segment.error.message);
+  expect(segment.result.checks.map(check => check.reason)).not.toContain("runs at the push gate");
 });
 
 it("reports a check's declared no-evidence status as its own non-passing outcome, without a pass or retry", async () => {
