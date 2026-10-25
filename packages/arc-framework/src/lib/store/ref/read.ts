@@ -25,6 +25,7 @@ import { resolveLineageReadReference } from "./lineage-resolution.js";
 import { resolveRefName, resolveRefListInput, resolveRefReadName } from "./reference-resolution.js";
 import type { RefLookupCapture } from "./lookup-trees.js";
 import { readUidRefRecord } from "./read-uid.js";
+import { refRecordAbsence } from "./record-absence.js";
 
 /** Read a record, resolving name-only owners through one captured namespace. */
 export async function readRefRecord(context: RefBackendContext, input: ReadInput): Promise<StoreResult<StoreRecord>> {
@@ -64,7 +65,7 @@ async function readBoundRecord(context: RefBackendContext, requested: RecordRefe
     if (entries && holdsNoRecord(home, entries.map(({ path }) => path))) return missing(reference);
     return { status: "refused", refusal: corruptRef(home.ref, !entries) };
   }
-  if (object?.type !== "blob") return missing(reference);
+  if (object?.type !== "blob") return refRecordAbsence(context, reference, home, tip);
   const owner = resolveCapturedOwner(context, reference, home, metadata, object);
   if (owner.status === "refused") return owner;
   reference = RecordReferenceSchema.parse({ ...reference, owner: owner.result });

@@ -10,6 +10,7 @@ import { canonicalPrimaryKind, parseRefMetadata, type RefMetadata } from "./meta
 import { decodeRecord, refOwner, rootFamily } from "./codec.js";
 import { readOpenConflicts } from "./conflicts-read.js";
 import { checkRefKey } from "./path-admission.js";
+import { refRecordAbsence } from "./record-absence.js";
 
 /** Read the canonical slug before choosing paths, checking it against the pinned tip. */
 export async function readUidRefRecord(context: RefBackendContext, requested: RecordReference): Promise<StoreResult<StoreRecord> | null> {
@@ -32,8 +33,7 @@ export async function readUidRefRecord(context: RefBackendContext, requested: Re
     const invalid = checkRefKey(reference, context.registry);
     if (invalid) return { status: "refused", refusal: invalid };
     const object = objects.get(recordQuery);
-    if (object?.type !== "blob") return { status: "refused", refusal: { code: "not-found", class: "recoverable", reference,
-      condition: "The record is not present in local state", remedy: { text: "Pull state or create the record, then retry." } } };
+    if (object?.type !== "blob") return refRecordAbsence(context, reference, home, tip.oid);
     const conflicts = await readOpenConflicts(context, reference, objects.get(conflictsQuery));
     const record = decodeRecord(context, reference, object, metadata, home.path, conflicts);
     return "reference" in record ? { status: "ok", result: record } : { status: "refused", refusal: { code: "record-malformed", class: "recoverable",
