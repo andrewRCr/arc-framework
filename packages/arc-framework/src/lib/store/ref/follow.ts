@@ -1,6 +1,6 @@
 /** Record and execute the person's answer to a freshly judged state follow. */
 import type { Store } from "../contract.js";
-import type { StoreCommandResult, MigrateReport } from "../commands.js";
+import type { StoreCommandResult, StoreCommandRefusal, MigrateReport } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefFollowDue } from "./follow-due.js";
 import { dropStaleFollow, type RefFollowJudgment, type RefFollowCandidate } from "./follow-candidates.js";
@@ -24,6 +24,8 @@ type DecidedFollow = Extract<RefFollowJudgment, { status: "decided" }>;
 /** A follow's answer is persisted before its physical switch can expose a new designation. */
 export async function answerRefFollow(context: RefBackendContext, store: Store, due: RefFollowDue, judged: DecidedFollow,
   candidate: RefFollowCandidate, answer: "push" | "read" | "off"): Promise<StoreCommandResult<MigrateReport> | { status: "stale" }> {
+  const conflict = followPublicationConflict(due, candidate, answer);
+  if (conflict) return { status: "refused", refusal: conflict };
   const code = await migrationCodeContext(context);
   try {
     const physical = await readRefRepository(context);
@@ -49,6 +51,16 @@ export async function answerRefFollow(context: RefBackendContext, store: Store, 
     if (held.status === "ok" && held.result === null) await clearRemoteGathering(code);
     return { status: "refused", refusal: error.refusal };
   }
+}
+
+function followPublicationConflict(due: RefFollowDue, candidate: RefFollowCandidate, answer: "push" | "read" | "off"): StoreCommandRefusal | undefined {
+  if (answer !== "push") return undefined;
+  const other = due.designation.pushes.find(remote => remote.name !== due.remote.name || remote.repository !== due.remote.repository);
+  if (!other) return undefined;
+  return { code: "role-conflict", class: "recoverable",
+    condition: `${other.name} already carries push; answering push for ${candidate.remote.name} would add another state publisher.`,
+    remedy: { text: `Choose read with arc store remote ${candidate.remote.name} read to follow while keeping the existing publisher.`,
+      argv: ["arc", "store", "remote", candidate.remote.name, "read"] } };
 }
 
 /** Resume from the retained answer rather than asking again after an interrupted switch. */
