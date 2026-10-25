@@ -12,6 +12,7 @@ import { requireFollowDestination } from "./follow-copy.js";
 import { prepareRemoteReCopy, remoteCopyChanges, atomicMigrationPush, migrationPushLanded,
   remoteCopyReport, retainRemoteCopiedState } from "./migrate-remote-copy.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
+import { withRefFetchKeepers } from "./fetch-seen.js";
 
 /** A delete never starts until both remotes and the complete re-copy have been observed in this round. */
 export async function deleteFollowSource(code: RefBackendContext, recorded: RecordedFollow, report: MigrateReport): Promise<void> {
@@ -65,9 +66,11 @@ async function retainLaterFollow(code: RefBackendContext, recorded: RecordedFoll
   const moved = await readForwardingRecord(code, tip, recorded.record.destination.name);
   if (moved.status === "refused") throw new MigrationRefusal(moved.refusal);
   const physical = await readRefRepository(code.repository?.source ?? code);
-  await fetchLayoutObjects(physical, code.repository?.commonDir ?? code.checkoutRoot, new Map([[FORWARDING_REF, tip]]));
-  const ref = `refs/arc-remotes/${recorded.record.destination.name}/project/moved`, expected = (await readSyncRefs(physical, ref)).get(ref) ?? null;
-  await requireLayoutTransaction(physical, [{ ref, next: tip, expected }]);
+  await withRefFetchKeepers(physical, recorded.record.destination.name, async () => {
+    await fetchLayoutObjects(physical, code.repository?.commonDir ?? code.checkoutRoot, new Map([[FORWARDING_REF, tip]]));
+    const ref = `refs/arc-remotes/${recorded.record.destination.name}/project/moved`, expected = (await readSyncRefs(physical, ref)).get(ref) ?? null;
+    await requireLayoutTransaction(physical, [{ ref, next: tip, expected }]);
+  });
   report.notices.push({ condition: "A later move ended this follow's cleanup. No remaining source refs were deleted; follow the new forwarding record.",
     remedy: { text: "Bring in the latest tracked pointer, then run arc store migrate.", argv: ["arc", "store", "migrate"] } });
   return true;

@@ -11,6 +11,7 @@ import { readSyncRefs } from "./sync-graph.js";
 import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
 import { MOVE_REF, type LayoutMoveRecord } from "./migrate-record.js";
 import { IMPORT_KEPT_PREFIX } from "./import/transient-cleanup.js";
+import { MigrationRefusal } from "./migrate-refusal.js";
 
 /** One isolated plan and its source/destination bases, all protected by the held layout lock. */
 export interface LayoutBuild {
@@ -68,7 +69,9 @@ export async function fetchLayoutObjects(context: RefBackendContext, source: str
 export async function requireLayoutTransaction(context: RefBackendContext, changes: RefChange[]): Promise<void> {
   if (!changes.length) return;
   const result = await updateRefTransaction(context, changes, { cwd: context.checkoutRoot });
-  if (result.status !== "committed") throw new Error("The held layout changed during its ref transaction");
+  if (result.status !== "committed") throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable",
+    condition: `The held layout changed during its ref transaction: ${result.refs.map(({ ref }) => ref).join(", ")}. The transaction applied no updates.`,
+    remedy: { text: "Run arc store migrate with no target to finish any retained move, then retry the original command if needed.", argv: ["arc", "store", "migrate"] } });
 }
 
 /** Gathering refs never travel into the installed store, and never erase the move's own record or the import's kept tips, which outlive a move until the import's cleanup ends. */

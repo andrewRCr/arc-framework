@@ -17,6 +17,7 @@ import { guardRefFollowSetting, readRefFollowDue } from "./follow-due.js";
 import { resumeRefFollow } from "./follow.js";
 import { judgeRefFollow } from "./follow-candidates.js";
 import { leaveRefSource } from "./leave-source.js";
+import { MigrationRefusal } from "./migrate-refusal.js";
 
 /** No-target migration reconciles the physical store with its explicitly recorded roles. */
 export async function runRefMigrate(context: RefBackendContext, store: Store, input: StoreMigrateInput): Promise<StoreMigrateResult> {
@@ -143,6 +144,7 @@ async function withMigrationLock<T>(context: RefBackendContext, operation: () =>
     const release = await context.lock("migrate");
     try { return await operation(); } finally { await release(); }
   } catch (error) {
+    if (error instanceof MigrationRefusal) return { status: "refused", refusal: error.refusal };
     if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire") throw error;
     return { status: "refused", refusal: { code: "store", refusal: { code: "lock-held", class: "recoverable", lock: error.lockPath,
       condition: `The lock remained held for ${error.waitedMs}ms.`, remedy: { text: "Wait for the holder to finish, then retry the command." } } } };

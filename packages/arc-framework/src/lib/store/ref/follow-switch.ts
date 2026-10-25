@@ -10,6 +10,7 @@ import { readRefRepository } from "./repository.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import type { SwitchUndo } from "./migrate-switch-undo.js";
+import { withRefFetchKeepers } from "./fetch-seen.js";
 
 type RecordedSourceSwitch = RecordedFollow | RecordedLeaveSource;
 
@@ -54,12 +55,16 @@ export async function switchRefFollow(context: RefBackendContext, store: Store, 
 async function prepareFollowTarget(code: RefBackendContext, target: RefBackendContext, recorded: RecordedSourceSwitch): Promise<void> {
   const { source, destination } = recorded.record;
   const answer = recorded.record.kind === "follow" ? recorded.record.answer : "push";
-  if (answer === "push") await installCopiedHeads(code, target, destination.name);
-  if (destination.repository === "backing") await configureBacking(target, destination, answer);
+  await withRefFetchKeepers(target, destination.name, async () => {
+    if (answer === "push") await installCopiedHeads(code, target, destination.name);
+    if (destination.repository === "backing") await configureBacking(target, destination, answer);
+  });
   const roots = answer !== "push" && source.name === destination.name
     ? [`refs/arc-remotes/${source.name}/`, `refs/arc/tmp/seen/${source.name}/`] : [`refs/arc-remotes/${source.name}/project/moved`];
-  for (const root of roots) await requireLayoutTransaction(target, [...await readSyncRefs(target, root)]
-    .map(([ref, expected]) => ({ ref, expected, delete: true })));
+  await withRefFetchKeepers(target, source.name, async () => {
+    for (const root of roots) await requireLayoutTransaction(target, [...await readSyncRefs(target, root)]
+      .map(([ref, expected]) => ({ ref, expected, delete: true })));
+  });
 }
 
 /** A follow's switch is undone to its old remote's recorded role and layout; the checkout's pointer stays as found. */

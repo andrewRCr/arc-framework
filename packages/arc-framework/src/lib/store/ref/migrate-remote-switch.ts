@@ -11,6 +11,7 @@ import { fetchLayoutObjects, requireLayoutTransaction, layoutRefs } from "./migr
 import { readSyncRefs } from "./sync-graph.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import type { SwitchUndo } from "./migrate-switch-undo.js";
+import { withRefFetchKeepers } from "./fetch-seen.js";
 
 /** Derive completion from the installed layout and exact configured destination URLs. */
 export async function remoteSwitchComplete(context: RefBackendContext, recorded: RecordedRemote): Promise<boolean> {
@@ -35,10 +36,10 @@ export async function switchRemoteMove(context: RefBackendContext, store: Store,
   await markSwitchBegun(code, recorded);
   await writeMovePointer(context, movePointer(destination));
   const configuration = {
-    prepareTarget: async (target: RefBackendContext): Promise<void> => {
+    prepareTarget: async (target: RefBackendContext): Promise<void> => withRefFetchKeepers(target, destination.name, async () => {
       await installCopiedHeads(code, target, destination.name);
       if (destination.repository === "backing") await configureBacking(target, destination);
-    },
+    }),
     applyDesignation: async (): Promise<void> => applyRemoteDesignation(context, code, recorded),
   };
   await context.migrateStep?.("remote.switch");
@@ -76,7 +77,7 @@ function movePointer(remote: MoveRemote): string | null {
   return remote.repository === "backing" ? remote.url : null;
 }
 
-/** Carry retained comparison heads into the destination's physical store. */
+/** Carry comparison heads while the caller holds the destination remote's fetch keeper lease. */
 export async function installCopiedHeads(code: RefBackendContext, target: RefBackendContext, remote: string): Promise<void> {
   for (const [part, root] of [["tracking", `refs/arc-remotes/${remote}/`], ["seen", `refs/arc/tmp/seen/${remote}/`]] as const) {
     const captured = await readCopiedRemoteRefs(code, part), prior = await readSyncRefs(target, root);

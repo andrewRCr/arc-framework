@@ -8,6 +8,7 @@ import { requireLayoutTransaction } from "./migrate-layout-build.js";
 import { configureBacking, removeBacking, writeMovePointer } from "./migrate-remote-switch.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
+import { withRefFetchKeepers } from "./fetch-seen.js";
 
 /** What a switch changes and what its undo returns to; a follow writes no pointer. */
 export interface SwitchUndo {
@@ -55,7 +56,9 @@ async function restoreDesignation(context: RefBackendContext, undo: SwitchUndo):
 
 async function dropCarriedHeads(target: RefBackendContext, undo: SwitchUndo): Promise<void> {
   if (undo.destination.name === undo.source.name) return;
-  for (const root of [`refs/arc-remotes/${undo.destination.name}/`, `refs/arc/tmp/seen/${undo.destination.name}/`]) {
-    await requireLayoutTransaction(target, [...await readSyncRefs(target, root)].map(([ref, expected]) => ({ ref, expected, delete: true as const })));
-  }
+  await withRefFetchKeepers(target, undo.destination.name, async () => {
+    for (const root of [`refs/arc-remotes/${undo.destination.name}/`, `refs/arc/tmp/seen/${undo.destination.name}/`]) {
+      await requireLayoutTransaction(target, [...await readSyncRefs(target, root)].map(([ref, expected]) => ({ ref, expected, delete: true as const })));
+    }
+  });
 }
