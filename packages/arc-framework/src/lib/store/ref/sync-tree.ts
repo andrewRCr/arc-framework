@@ -66,7 +66,8 @@ async function mergeGroupTree(context: RefBackendContext, ref: string, local: st
     if (!entries || !metadata) return { status: "refused", refusal: corruptRef(ref, !entries) };
     sides.push({ tip: tips.get(key) ?? null, entries: new Map(entries.map((entry) => [entry.path, entry])), metadata });
   }
-  if (!await completeSyncPlacements(context, ref, sides, [captured, scope.incoming ?? captured, scope.priorState ?? captured])) {
+  const tipSets = [captured, scope.incoming ?? captured, scope.priorState ?? captured];
+  if (!await completeSyncPlacements(context, ref, sides, tipSets)) {
     return { status: "refused", refusal: corruptRef(ref) };
   }
   const currentSide = scope.currentSide ?? "incoming";
@@ -75,7 +76,7 @@ async function mergeGroupTree(context: RefBackendContext, ref: string, local: st
   const preferred = currentSide === "local" ? current : remote, other = currentSide === "local" ? remote : current;
   const { metadata, conflicts } = mergeSyncMetadata(base ? previous.metadata : undefined, preferred.metadata, other.metadata);
   const entries = mergeEntries(previous, preferred, other);
-  const records = await reconcileSyncRecords(context, ref, previous, current, remote, objects, { entries, metadata }, conflicts, currentSide);
+  const records = await reconcileSyncRecords(context, ref, previous, current, remote, objects, { entries, metadata }, conflicts, tipSets, currentSide);
   finishSyncMetadata(ref, metadata, current.metadata, scope);
   entries.set(home.metadataPath, { path: home.metadataPath, mode: "100644", oid: await writeRefBlob(context, canonicalize(metadata)) });
   const notices = await observeSyncChecks(context, captured, ref, { entries, metadata, original: current.entries }, records);

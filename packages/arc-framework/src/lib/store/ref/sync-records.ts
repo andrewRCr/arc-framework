@@ -19,9 +19,9 @@ import type { RefMetadata } from "./metadata.js";
 import type { ReadPlacement } from "../placement.js";
 import type { EntryConfig, KindDefinition } from "../registry.js";
 import type { SyncCheckRecord } from "./sync-checks.js";
-import { readSyncRecordLabel, RefSyncLabelError } from "./sync-label.js";
+import { readSyncRecordLabel, readSyncRecordPlacement, RefSyncLabelError } from "./sync-label.js";
 
-interface IndexedRecord { entry: RefTreeEntry; value: ConflictRecordValue }
+interface IndexedRecord { entry: RefTreeEntry; value: ConflictRecordValue; retained?: boolean }
 
 interface SyncRecordSides { base: SyncTreeSide; local: SyncTreeSide; incoming: SyncTreeSide }
 interface RecordTriple { base: IndexedRecord | undefined; local: IndexedRecord | undefined; incoming: IndexedRecord | undefined }
@@ -30,9 +30,10 @@ interface PlannedRecord { records: RecordTriple; choice: RecordChoice }
 
 /** Reconcile semantic records while retaining opaque entries outside the registered record set. */
 export async function reconcileSyncRecords(context: RefBackendContext, ref: string, base: SyncTreeSide, local: SyncTreeSide,
-  incoming: SyncTreeSide, objects: ReadonlyMap<string, BatchObject | null>, group: CapturedWriteGroup, metadataConflicts: readonly string[][], currentSide: "local" | "incoming" = "incoming"): Promise<SyncCheckRecord[]> {
-  const previous = indexRecords(context, ref, base, objects), current = indexRecords(context, ref, local, objects);
-  const remote = indexRecords(context, ref, incoming, objects), conflicts: ConflictRecord[] = [];
+  incoming: SyncTreeSide, objects: ReadonlyMap<string, BatchObject | null>, group: CapturedWriteGroup, metadataConflicts: readonly string[][], tipSets: readonly ReadonlyMap<string, string>[], currentSide: "local" | "incoming" = "incoming"): Promise<SyncCheckRecord[]> {
+  const [previous, current, remote] = await Promise.all([base, local, incoming].map(side => indexRecords(context, ref, side, objects, tipSets)));
+  if (!previous || !current || !remote) throw new Error("A reconciliation lacks one indexed side");
+  const conflicts: ConflictRecord[] = [];
   const choices: PlannedRecord[] = [];
   for (const key of new Set([...previous.keys(), ...current.keys(), ...remote.keys()])) {
     const records = { base: previous.get(key), local: current.get(key), incoming: remote.get(key) };
@@ -113,7 +114,8 @@ function followLineageName(metadata: RefMetadata, side: RefMetadata, reference: 
 }
 
 function wholeRecordRequired(definition: KindDefinition, { base, local, incoming }: RecordTriple): boolean {
-  if (definition.merge === "single-writer" || !local || !incoming || local.value.reference.kind !== incoming.value.reference.kind) return true;
+  if (definition.merge === "single-writer" || !local || !incoming || local.retained || incoming.retained
+    || local.value.reference.kind !== incoming.value.reference.kind) return true;
   if (definition.merge !== "entry" || !definition.entry) return false;
   const grammar = definition.entry;
   return [base, local, incoming].some((record) => record !== undefined && invalidEntryIds(record.value.content, grammar));
@@ -158,11 +160,9 @@ function recordInstallation(context: RefBackendContext, ref: string, group: Capt
     formatVersion: retainMetadata ? selected.value.formatVersion : selectedFormat };
 }
 
-function indexRecords(context: RefBackendContext, ref: string, side: SyncTreeSide,
-  objects: ReadonlyMap<string, BatchObject | null>): Map<string, IndexedRecord> {
-  // A primary-less retired tree has no placement to expose; retain its entries in the opaque tree merge.
-  if (ref.startsWith("refs/arc/history/work/") && !side.metadata.primary && !side.placement) return new Map();
-  try { return indexRecordValues(context, ref, side, objects); }
+async function indexRecords(context: RefBackendContext, ref: string, side: SyncTreeSide,
+  objects: ReadonlyMap<string, BatchObject | null>, tipSets: readonly ReadonlyMap<string, string>[]): Promise<Map<string, IndexedRecord>> {
+  try { return await indexRecordValues(context, ref, side, objects, tipSets); }
   catch (error) {
     if (!(error instanceof ZodError) && !(error instanceof TypeError && "code" in error
       && error.code === "ERR_ENCODING_INVALID_ENCODED_DATA")) throw error;
@@ -172,8 +172,8 @@ function indexRecords(context: RefBackendContext, ref: string, side: SyncTreeSid
   }
 }
 
-function indexRecordValues(context: RefBackendContext, ref: string, side: SyncTreeSide,
-  objects: ReadonlyMap<string, BatchObject | null>): Map<string, IndexedRecord> {
+async function indexRecordValues(context: RefBackendContext, ref: string, side: SyncTreeSide,
+  objects: ReadonlyMap<string, BatchObject | null>, tipSets: readonly ReadonlyMap<string, string>[]): Promise<Map<string, IndexedRecord>> {
   const family = viewRefFamily(ref.replace("refs/arc/history/", "refs/arc/"));
   if (!family || side.entries.size === 0) return new Map();
   const owner = refOwner(ref, family, side.metadata), indexed = new Map<string, IndexedRecord>();
@@ -186,8 +186,14 @@ function indexRecordValues(context: RefBackendContext, ref: string, side: SyncTr
     if (entry.path === home.metadataPath) continue;
     const formatVersion = side.metadata.formats[refFormatKey(reference)] ?? 1;
     const primary = reference.kind === side.metadata.primary?.role || reference.kind === "cohort/document";
-    const value = recordValue(reference, entry, object, side.metadata, formatVersion, primary, side.placement);
-    indexed.set(primary ? "primary" : refFormatKey(reference), { entry, value });
+    const retained = ref.startsWith("refs/arc/history/work/") && !side.metadata.primary;
+    let placement = side.placement;
+    if (retained && !reference.kind.endsWith("/conflict-record") && !(placement ?? side.metadata.placement)) {
+      placement = await readSyncRecordPlacement(context, reference, ref, side.tip,
+        refRecordVersion(reference, entry.oid, side.metadata, formatVersion), tipSets);
+    }
+    const value = recordValue(reference, entry, object, side.metadata, formatVersion, primary, placement);
+    indexed.set(primary ? "primary" : refFormatKey(reference), { entry, value, retained });
   }
   return indexed;
 }
