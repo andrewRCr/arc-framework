@@ -20,6 +20,32 @@ function pauseAt(boundary: string): (step: string) => Promise<void> {
   return async step => { if (step === boundary) throw new Error(`Paused at ${boundary}`); };
 }
 
+it.each(["push", "read", "off"] as const)("preserves comparison heads for an unchanged rewritten backing URL set to %s", async role => {
+  const h = await oppositeMoveIntoCodeFixture(), state = "refs/arc/user/andrew/personal";
+  await h.remote("git", ["update-ref", "-d", state, h.sourcePersonal]);
+  success(await h.store.pull());
+  const roots = ["refs/arc-remotes/backing/", "refs/arc/tmp/seen/backing/"];
+  const heads = () => h.a.git(["for-each-ref", "--format=%(refname) %(objectname)", ...roots]).then(result => result.stdout);
+  const before = await heads();
+  expect(before).toContain("refs/arc-remotes/backing/project/registry");
+  expect(before).toContain("refs/arc/tmp/seen/backing/user/andrew/personal");
+  const alias = await rewriteUrls(h.a.root, "arc-unchanged:", h.origin);
+  await h.a.git(["remote", "set-url", "backing", alias]);
+  await h.ports.writeBackingRepository?.(alias);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    expect((await invokeStoreRemote(["backing", role, "--json"], { cwd: h.a.root, ports: h.ports })).result)
+      .toMatchObject({ status: "ok" });
+    expect(await heads()).toBe(before);
+    expect((await h.a.git(["config", "--get", "remote.backing.url"])).stdout.trim()).toBe(alias);
+    expect((await h.a.git(["config", "--get", "remote.backing.arc-state"])).stdout.trim()).toBe(role);
+  }
+  expect((await invokeStoreRemote(["backing", "push", "--json"], { cwd: h.a.root, ports: h.ports })).result)
+    .toMatchObject({ status: "ok" });
+  expect(success(await h.store.read({ reference: h.pending })).content).toBe("Pending local state.\n");
+  expect(success(await h.store.push()).publishes).toContainEqual(expect.objectContaining({ status: "pushed" }));
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", state])).stdout.trim()).toBe(state);
+});
+
 it("keeps a completed switch onto a rewritten backing URL that a move back then overtakes", async () => {
   const h = await oppositeMoveFixture(), alias = await rewriteUrls(h.a.root, "arc-destination:", h.destinationDirectory);
   await expect(invokeStoreMigrate(["--to", alias], { ...h.ports, migrateStep: pauseAt("remote.switched") })).rejects.toThrow("Paused at remote.switched");
