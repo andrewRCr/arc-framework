@@ -3,7 +3,7 @@
   "slug": "verification-record-name",
   "claimId": "48ae95d2ec30cff03b2c0d4cfbb57fad",
   "createdAt": "2026-10-25T00:27:18.759Z",
-  "updatedAt": "2026-10-25T00:27:18.759Z",
+  "updatedAt": "2026-10-25T00:47:23.241Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Distinguish the verification task's record from the meta Completion Notes narrative",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Name the verification task's record apart from the meta's Completion Notes",
   "originEntrySourceDigest": "sha256:5d4f852c7916ace9e5ecb7aff7ab156f977fed59be4925647ef2cb893cc11cd2",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/verification-record-name",
+    "headSha": "2639e60088668c2ca418da4442c91d95debd708a"
+  }
 }
