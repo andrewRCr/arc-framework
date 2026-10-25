@@ -82,7 +82,7 @@ export function archivedFolders(family: FamilyId, ref: string, entries: readonly
     const uid = entry.path.slice(root.length + "metadata-".length, -".json".length);
     const owner = OwnerIdentitySchema.safeParse({ type: familyRoot, name: metadata.slug, uid });
     if (!owner.success) {
-      diagnostics.push(malformedFolderOwner(entry.path, saved));
+      diagnostics.push(malformedFolderOwner(ref, entry.path, saved));
       continue;
     }
     folders.push({ ref, root, owner: owner.data, metadata, placement,
@@ -91,9 +91,11 @@ export function archivedFolders(family: FamilyId, ref: string, entries: readonly
   return { folders, diagnostics };
 }
 
-function malformedFolderOwner(path: string, saved: boolean): ListingDiagnostic {
-  return { kind: "malformed", key: path, condition: "The archive metadata filename does not name a valid owner UID.",
-    remedy: saved ? historicalMetadataFailure(path).remedy : { text: "Repair the archive folder's metadata path, then retry." } };
+function malformedFolderOwner(ref: string, path: string, saved: boolean): ListingDiagnostic {
+  const key = `${ref}:${path}`;
+  return { kind: "malformed", key, condition: `The archive metadata filename ${key} does not name a valid owner UID.`,
+    remedy: saved ? historicalMetadataFailure(key).remedy
+      : { text: `Restore the correct owner UID in the archive metadata path ${key}, then retry.` } };
 }
 
 /** Choose one complete folder per owner, by later quarter then higher sequence. */
