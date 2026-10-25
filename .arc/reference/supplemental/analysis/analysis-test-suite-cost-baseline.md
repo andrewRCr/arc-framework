@@ -480,30 +480,13 @@ from one CI sample; later member validation must resolve the criterion from the 
 
 ### Recorded budgets
 
-`test-cost-budgets.json` is the single tracked record for the instrument and CI. Each limit is the observed
-post-cost baseline plus the full 10% noise allowance, rounded upward to the next millisecond. Complete measurement
-modes keep local and CI observations disjoint; the E2E CI entries additionally name the shard job.
+The [test-cost budget record][test-cost-budgets] is the single tracked source for the instrument and CI. Each
+`budgets` entry records its observed baseline in `baselineMs` and limit in `budgetMs`, both in milliseconds; the
+record's `allowanceFraction` names the allowance applied when setting those limits.
 
-| Tier        | Mode                              | Baseline  | Budget    |
-| ----------- | --------------------------------- | --------- | --------- |
-| Unit        | tier-isolated / unit / 12 workers | 11.116 s  | 12.228 s  |
-| Integration | tier-isolated / integration / 12  | 44.836 s  | 49.320 s  |
-| Lane        | tier-isolated / lane / 12         | 48.793 s  | 53.673 s  |
-| E2E         | tier-isolated / e2e / 12          | 189.246 s | 208.171 s |
-
-| CI job      | Mode                     | Baseline  | Budget    |
-| ----------- | ------------------------ | --------- | --------- |
-| Unit        | CI job / unit / 1 worker | 40 s      | 44.0 s    |
-| Integration | CI job / integration / 1 | 194.067 s | 213.474 s |
-| E2E 1       | CI job / e2e / 1         | 125.854 s | 138.440 s |
-| E2E 2       | CI job / e2e / 1         | 147.918 s | 162.710 s |
-| E2E 3       | CI job / e2e / 1         | 140.095 s | 154.105 s |
-| E2E 4       | CI job / e2e / 1         | 100.962 s | 111.059 s |
-
-The unit local and CI rows retain their post-Phase 5 baselines because Phase 7 did not change that tier. The
-integration, lane, and E2E local rows use the post-audit baseline above; the integration and E2E CI rows use the
-exact-head reporter windows from dispatch `34666114866`. Accepted Phase 7 movement therefore does not present as
-regrowth. Earlier E2E observations that repeated each anchor in its remainder shard remain ineligible as baselines.
+Match observations by `tier`, `metric`, and the complete `mode` (`condition`, `projectSet`, and `workerSizing`),
+plus `ciJob` where present. Complete measurement modes keep local and CI observations disjoint, and `ciJob`
+distinguishes CI shard jobs.
 
 ### Budget exercise
 
@@ -883,3 +866,5 @@ is not proof.
 
 _This is the authoritative schema-v3 first instrument baseline. Later comparisons must preserve its complete mode
 stamps and normalization discipline._
+
+[test-cost-budgets]: ../../../../packages/arc-framework/test-cost-budgets.json
