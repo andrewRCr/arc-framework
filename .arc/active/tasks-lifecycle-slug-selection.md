@@ -727,7 +727,7 @@ released, then rerun.
           Advisory reference reconciliation prints unbound recovery advice in human output and preserves its JSON
           envelope; its context reader is extracted so the handler shrinks. Local review resolves no vehicle until binding.
 
-### `[ ]` **6.3 Bind an unbound marker through `arc materialize --here` and the cold start's rerun — § 7.4**
+### `[x]` **6.3 Bind an unbound marker through `arc materialize --here` and the cold start's rerun — § 7.4**
 
 - _Goal:_ The two exits that bind admit an unbound marker: materialize stamps it onto the live holder the person names,
   and the cold start's rerun takes back its own leftover, each then succeeding.
@@ -738,19 +738,11 @@ released, then rerun.
           matches by UID; binding checks the generation before branch changes, adds only the UID, preserves former
           display names and origin fields, and retains competing markers until a fresh admission retries.
 
-    - `[ ]` **6.3.b The cold start's rerun**
+    - `[x]` **6.3.b The cold start's rerun**
 
-        - `runStoreColdStart` checks the resolver first and admits an anchored unbound marker whose slug neither the
-          slug lookup nor the lineage arm finds, 6.1.a's rerun exit, replacing it at its observed generation under any
-          name, as `start-cold-store.test.ts` pins today. Today's admission (`missingRecord`) reads the work-unit claim
-          and misses an Errand's, a cohort's, or a former slug, and it no longer admits a bound marker whose claim and
-          lineage find nothing, which reruns no creation and keeps release alone (6.1.c).
-        - Build `test-first` (one behavior at a time):
-            - a cold start interrupted after its marker write, before its create batch commits, reruns in the same
-              checkout and succeeds
-            - a leftover whose slug an Errand, a cohort, or a former slug holds refuses the rerun and offers release,
-              and a cold start under another name succeeds once release frees it
-            - a bound marker whose record and lineage are gone refuses the rerun and offers release
+        - The existing occupancy classifier admits only an anchored no-holder/no-lineage rerun. A lost marker-write
+          acknowledgment leaves a recoverable pre-batch marker; registered CLI reruns replace it under a new name and
+          stamp the created UID. Errand, cohort, former-name, and bound missing-record residue require release first.
 
 ### `[ ]` **6.4 Release in the order the slug's lookup fixes — § 7.3, § 7.4**
 
