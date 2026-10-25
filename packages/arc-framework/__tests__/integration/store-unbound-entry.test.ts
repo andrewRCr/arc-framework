@@ -1,12 +1,15 @@
 /** Ambient commands refuse an unbound checkout until its owner binds the exact marker. */
 import { join } from "node:path";
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { expect, it } from "vitest";
 import { lifecycleReuseFixture } from "../fixtures/lifecycle-reuse.js";
-import { repairCli } from "../helpers/repair-cli.js";
+import { repairCli, withRepairStore } from "../helpers/repair-cli.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { recordReferences } from "../../src/lib/store/identity.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
+import { renderMetaFile } from "../../src/lib/store/kinds/meta/writers.js";
+import { readLocalReviewLiveContext } from "../../src/scripts/review-gate/hosts/local/live-context.js";
+import { resolveLocalReviewVehicle } from "../../src/scripts/review-gate/hosts/local/review-authority.js";
 import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, readWorktreeMarker, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 
@@ -218,4 +221,53 @@ it("release push refuses unbound ownership and publishes after materialize binds
   expect(resumed.exitCode ?? 0, resumed.stdout + resumed.stderr).toBe(0);
   const head = (await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.path })).stdout.trim();
   expect((await h.exec("git", ["ls-remote", origin, "refs/heads/feat/example"])).stdout.trim()).toBe(`${head}\trefs/heads/feat/example`);
+}, 30_000);
+
+it("active status warns about unbound ownership and resolves after materialize binds it", async () => {
+  const h = await fixture(), invocation = { ...h, cwd: h.path };
+  const before = lifecycleSuccess(await h.store.version());
+  const reported = await repairCli(invocation, ["active", "status", "--json"], { store: h.store });
+  expect(reported.exitCode ?? 0, reported.stdout + reported.stderr).toBe(0);
+  expect(reported.stdout).toContain("arc materialize example --here");
+  expect(reported.stdout).toContain("arc locus release");
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  expect((await repairCli(invocation, ["materialize", "example", "--here"], { store: h.store })).exitCode ?? 0).toBe(0);
+  const resumed = await repairCli(invocation, ["active", "status", "--json"], { store: h.store });
+  expect(resumed.exitCode ?? 0, resumed.stdout + resumed.stderr).toBe(0);
+  expect(resumed.result).toMatchObject({ candidates: [{ filename: "meta-example.md" }] });
+  expect(resumed.stdout).not.toContain("unbound");
+}, 30_000);
+
+it("user reference reconciliation warns only in human output and continues after binding", async () => {
+  const h = await fixture(), invocation = { ...h, cwd: h.path }, before = lifecycleSuccess(await h.store.version());
+  const reported = await repairCli(invocation, ["user", "reconcile-references"], { store: h.store });
+  expect(reported.exitCode ?? 0, reported.stdout + reported.stderr).toBe(0);
+  expect(reported.stdout + reported.stderr).toContain("arc materialize example --here");
+  expect(reported.stdout + reported.stderr).toContain("arc locus release");
+  const machine = await repairCli(invocation, ["user", "reconcile-references", "--json"], { store: h.store });
+  expect(machine.result).toMatchObject({ status: "clean" });
+  expect(machine.result).not.toHaveProperty("warnings");
+  expect(machine.stdout + machine.stderr).not.toContain("arc materialize");
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  expect((await repairCli(invocation, ["materialize", "example", "--here"], { store: h.store })).exitCode ?? 0).toBe(0);
+  const resumed = await repairCli(invocation, ["user", "reconcile-references"], { store: h.store });
+  expect(resumed.exitCode ?? 0, resumed.stdout + resumed.stderr).toBe(0);
+  expect(resumed.stdout + resumed.stderr).not.toContain("unbound");
+}, 30_000);
+
+it("local review refuses an unbound vehicle and resolves after binding", async () => {
+  const h = await fixture({ execution: true }), invocation = { ...h, cwd: h.path };
+  const content = renderMetaFile("example", { state: "Active", owner: "test-user", workClass: "Light",
+    branch: "feat/example", currentWorkflow: "process-task-loop" });
+  lifecycleSuccess(await h.store.write({ ...recordPut(h.live, { content }), provenance: { verb: "fixture", lifecycleAction: "arrange" } }));
+  await mkdir(join(h.path, ".arc/active"), { recursive: true });
+  await writeFile(join(h.path, ".arc/active/meta-example.md"), content);
+  await h.exec("git", ["checkout", "feat/example"], { cwd: h.path });
+  const read = () => withRepairStore(h.store, () => readLocalReviewLiveContext({ cwd: h.path, exec: h.exec }));
+  const dependencies = { readLiveContext: async () => (await read()).context };
+  expect((await read()).context.workUnit).toBeNull();
+  await expect(resolveLocalReviewVehicle({}, dependencies)).rejects.toMatchObject({ reason: "vehicle-unresolved" });
+  expect((await repairCli(invocation, ["materialize", "example", "--here"], { store: h.store })).exitCode ?? 0).toBe(0);
+  expect((await read()).context.workUnit).toEqual({ identity: "example", owner: "test-user" });
+  await expect(resolveLocalReviewVehicle({}, dependencies)).resolves.toMatchObject({ vehicle: { kind: "work-unit", identity: "example" } });
 }, 30_000);

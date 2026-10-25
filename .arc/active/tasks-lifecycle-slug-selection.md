@@ -697,7 +697,7 @@ released, then rerun.
           rows carry `work-unit-marker-unbound` and the classifier's checkout-bound exits; cleanup admits that
           diagnostic, roster warnings name the exits, and bound missing-record rows offer unnamed release alone.
 
-### `[ ]` **6.2 Give the current-work-unit resolver an unbound state, and refuse or warn at its callers — § 7.4**
+### `[x]` **6.2 Give the current-work-unit resolver an unbound state, and refuse or warn at its callers — § 7.4**
 
 - _Goal:_ The current-work-unit resolver reports an unbound marker as its own state, every caller acting on the
   checkout's one current work unit refuses it naming the exits, and readers that only report warn, so no verb acts on an
@@ -721,22 +721,11 @@ released, then rerun.
           exits, then commit or publish to a local bare repository after binding; delivery retains its generic refusal.
           Notes synchronization retains the branch-slug fallback, and other importers preserve their ambiguity policies.
 
-    - `[ ]` **6.2.d The readers that report**
+    - `[x]` **6.2.d The readers that report**
 
-        - The active-meta candidate read behind `arc active status` (`readHeldCandidates`, `lib/active/meta-reader.ts`)
-          and the advisory notes reconcile's current-work-unit read (`resolveReconcileCurrentWorkUnit`,
-          `handlers/user.ts`) take the unbound state as a warning naming the exits, the latter then running with no
-          current work unit. `arc user reconcile-references` warns in human mode alone: its `--json` envelope
-          (`UserReferenceReconcileSessionObjectSchema`, `lib/user-reference-reconcile-schema.ts`) carries no warnings
-          and stays unchanged, and the exits print from `arc active status` and every verb that refuses. The local
-          review gate's live context (`readLocalReviewLiveContext`, `scripts/review-gate/hosts/local/live-context.ts`)
-          drops the warning, finds no work unit, and refuses `vehicle-unresolved`, as for an unresolved checkout today.
-        - _Note:_ `handlers/user.ts` is over the file-length gate and in the suppression record; the warning spans
-          `handleUserReconcileReferences` and `emitUserReferenceResult`, each kept within its limits.
-        - Build `test-first` (one behavior at a time):
-            - `arc active status` and `arc user reconcile-references` in an unbound checkout run with a warning naming
-              the exits
-            - the local review gate refuses `vehicle-unresolved`, and resolves once the checkout is bound
+        - Active status warns from operational state even when the checkout has no active projection directory.
+          Advisory reference reconciliation prints unbound recovery advice in human output and preserves its JSON
+          envelope; its context reader is extracted so the handler shrinks. Local review resolves no vehicle until binding.
 
 ### `[ ]` **6.3 Bind an unbound marker through `arc materialize --here` and the cold start's rerun — § 7.4**
 
