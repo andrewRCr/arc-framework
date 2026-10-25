@@ -5,11 +5,11 @@ import { readRefRepository } from "./repository.js";
 import { migrationCodeContext, switchMarked, type MoveRemote, type RecordedMove, type StoreLayout } from "./migrate-record.js";
 import { moveRefLayoutAsSwitch } from "./migrate-layout.js";
 import { requireLayoutTransaction } from "./migrate-layout-build.js";
-import { removeBacking, writeMovePointer } from "./migrate-remote-switch.js";
+import { installCopiedHeads, removeBacking, writeMovePointer } from "./migrate-remote-switch.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { withRefFetchKeepers } from "./fetch-seen.js";
-import { repointBackingRemote } from "./backing-configuration.js";
+import { configureBackingRemote, repointBackingRemote } from "./backing-configuration.js";
 
 /** What a switch changes and what its undo returns to; a follow writes no pointer. */
 export interface SwitchUndo {
@@ -56,7 +56,12 @@ async function restoreDesignation(context: RefBackendContext, undo: SwitchUndo):
 }
 
 async function restoreBacking(target: RefBackendContext, undo: SwitchUndo): Promise<void> {
-  await withRefFetchKeepers(target, undo.source.name, () => repointBackingRemote(target, undo.source.url, undo.sourceRole));
+  await withRefFetchKeepers(target, undo.source.name, async () => {
+    if (undo.sourceRole === "push" && undo.source.name === undo.destination.name) {
+      await installCopiedHeads(await migrationCodeContext(target), target, undo.source.name);
+      await configureBackingRemote(target, undo.source.url, undo.sourceRole);
+    } else await repointBackingRemote(target, undo.source.url, undo.sourceRole);
+  });
 }
 
 async function dropCarriedHeads(target: RefBackendContext, undo: SwitchUndo): Promise<void> {
