@@ -151,3 +151,25 @@ it("reports a follow interrupted between its role writes as unfinished rather th
   expect((await follower.exec("git", ["config", "remote.first.arc-state"])).stdout.trim()).toBe("push");
   expect((await follower.exec("git", ["config", "remote.origin.arc-state"])).stdout.trim()).toBe("off");
 }, 60_000);
+
+
+it.each(["source", "destination"] as const)("offers a usable escape when a recorded follow cannot read its %s", async failed => {
+  const h = await lateFollowFixture(), follower = h.follower;
+  await expect(invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: { ...follower.ports,
+    migrateStep: async step => { if (step === "follow.recorded") throw new Error("Paused recorded follow"); },
+  } })).rejects.toThrow("Paused recorded follow");
+  const record = (await follower.exec("git", ["rev-parse", "refs/arc/tmp/migrate/move"])).stdout;
+  const unavailable = failed === "source" ? h.origin : h.destinationDirectory;
+  await rename(unavailable, unavailable + ".offline");
+  try {
+    const refused = await invokeStoreMigrate([], follower.ports);
+    expect.soft(refused).toMatchObject({ status: "refused", refusal: { code: "store", refusal: { code: "unreachable",
+      remedy: { text: expect.stringContaining("arc store migrate --leave-source") } } } });
+    expect((await follower.exec("git", ["rev-parse", "refs/arc/tmp/migrate/move"])).stdout).toBe(record);
+    expect((await invokeStoreMigrate(["--leave-source"], follower.ports)).status).toBe("ok");
+    expect((await follower.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/"])).stdout).toBe("");
+  } finally { await rename(unavailable + ".offline", unavailable); }
+  expect((await invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: follower.ports })).result.status).toBe("ok");
+  expect(success(await follower.store.read({ reference: follower.unpublished })).content).toBe("Unpublished follower data.\n");
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim()).toBe("refs/arc/project/moved");
+}, 60_000);

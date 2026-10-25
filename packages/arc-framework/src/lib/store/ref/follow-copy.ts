@@ -14,19 +14,19 @@ import { readBatchObjects } from "./batch-read.js";
 
 /** The source is incoming; destination state is the local side of every lifecycle merge; a recorded rerun reports another move rather than refusing. */
 export async function copyFollowState(code: RefBackendContext, record: FollowMoveRecord, recorded = false): Promise<MigrateReport | null | "moved"> {
-  try { return await copyLicensedFollowState(code, record); }
+  try { return await copyLicensedFollowState(code, record, recorded); }
   catch (error) { if (recorded && error instanceof FollowMovedRefusal) return "moved"; throw error; }
 }
 
-async function copyLicensedFollowState(code: RefBackendContext, record: FollowMoveRecord): Promise<MigrateReport | null> {
+async function copyLicensedFollowState(code: RefBackendContext, record: FollowMoveRecord, recorded: boolean): Promise<MigrateReport | null> {
   for (;;) {
     const heads = await captureMoveHeads(code, record.source);
     await code.migrateStep?.("follow.fetch-source");
-    const source = await readMigrationRemote(record.source.name, followReadRemedy(record.source.name, record.source.name), () => fetchMigrationRemote(code, record.source, true));
+    const source = await readMigrationRemote(record.source.name, followReadRemedy(record.source.name, record.source.name, recorded), () => fetchMigrationRemote(code, record.source, true));
     if (!source.has(FORWARDING_REF)) return null;
     if (source.get(FORWARDING_REF) !== record.forwardingTip) throw followMoved(record.source.name);
     await code.migrateStep?.("follow.fetch-destination");
-    const destination = await readMigrationRemote(record.destination.name, followReadRemedy(record.destination.name, record.source.name), () => fetchMigrationRemote(code, record.destination, true));
+    const destination = await readMigrationRemote(record.destination.name, followReadRemedy(record.destination.name, record.source.name, recorded), () => fetchMigrationRemote(code, record.destination, true));
     await requireFollowDestination(code, record, destination);
     const prepared = await prepareRemoteReCopy(code, source, destination);
     const changes = remoteCopyChanges(prepared.refs, destination).filter(row => row.next !== row.expected);

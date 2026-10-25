@@ -159,7 +159,9 @@ export async function dropStaleFollow(context: RefBackendContext, due: Pick<RefF
 }
 
 /** A follow can retry its judgment or stop fetching the actual departed source. */
-export function followReadRemedy(remote: string, departed: string): Remedy {
-  return { text: `Repair access to ${remote} and retry arc store migrate, or stop fetching the departed source with arc store remote ${departed} off.`,
+export function followReadRemedy(remote: string, departed: string, recorded = false): Remedy {
+  const escape = recorded ? "end the recorded follow with arc store migrate --leave-source"
+    : `stop fetching the departed source with arc store remote ${departed} off`;
+  return { text: `Repair access to ${remote} and retry arc store migrate, or ${escape}.`,
     argv: ["arc", "store", "migrate"] };
 }
