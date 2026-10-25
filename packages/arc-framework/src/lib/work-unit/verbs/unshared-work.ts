@@ -7,10 +7,12 @@ import { scanRegisteredWorktrees } from "../../git/worktree-roster.js";
 import { decodeWorktreeMarkerOwnership, readWorktreeMarker } from "../../git/worktree-marker.js";
 import { selectWorkBranchLink, workBranchName } from "../../store/lifecycle-branch.js";
 import type { StoreRecord } from "../../store/read.js";
-import type { LocusPorts } from "../locus-ports.js";
+import { ownerHolderRequest, type LocusPorts } from "../locus-ports.js";
+import { createLocusPorts } from "../../locus/lifecycle-ports.js";
+import type { Store } from "../../store/contract.js";
 
 /** Checkout and Git boundaries used by pause and handover. */
-export interface UnsharedWorkContext { cwd: string; exec: GitExec; baseBranch: string; locusPorts?: LocusPorts; repository?: string }
+export interface UnsharedWorkContext { cwd: string; exec: GitExec; baseBranch: string; store?: Store; locusPorts?: LocusPorts; repository?: string }
 /** Observed sharing evidence; a missing remote deliberately has no unshared count. */
 export interface UnsharedWorkReport {
   kind: "observed"; checkoutPath: string | null; changedPaths: string[]; branch: string | null;
@@ -27,7 +29,7 @@ export type UnsharedWorkResult = UnsharedWorkReport | { kind: "unobservable"; de
  */
 export async function readUnsharedWork(ctx: UnsharedWorkContext, record: StoreRecord): Promise<UnsharedWorkResult> {
   try {
-    const checkoutPath = await findWorkUnitHoldingCheckout(ctx, record.reference.owner.name);
+    const checkoutPath = await findWorkUnitHoldingCheckout(ctx, record);
     const changes = checkoutPath === null ? { kind: "known" as const, paths: [] } : await readCheckoutChanges(ctx.exec, checkoutPath);
     if (changes.kind === "unobservable") return { kind: "unobservable", detail: changes.detail };
     const branch = linkedBranch(ctx, record);
@@ -39,28 +41,42 @@ export async function readUnsharedWork(ctx: UnsharedWorkContext, record: StoreRe
   } catch (error) { return { kind: "unobservable", detail: error instanceof Error ? error.message : String(error) }; }
 }
 
-/** Find the unique unhusked marker claim through locus or the registered-checkout fallback.
- * @param ctx - Checkout, bound Git, and optional locus lookup.
- * @param name - Work unit whose marker supplies current occupancy.
+/** Find one owner-bound holder, retaining the name scan only for tracked records.
+ * @param ctx - Checkout, store, bound Git, and optional locus lookup.
+ * @param record - Selected owner whose marker supplies current occupancy.
  * @returns Its holding checkout, or absence; inconsistent observations throw.
  */
-export async function findWorkUnitHoldingCheckout(ctx: Pick<UnsharedWorkContext, "cwd" | "exec" | "locusPorts">, name: string): Promise<string | null> {
-  const resolveLegacy = async (): Promise<string | null> => {
-    const exec: GitExec = (command, args, options) => ctx.exec(command, args, { cwd: ctx.cwd, ...options });
-    const roster = await scanRegisteredWorktrees(exec);
-    if (!roster.ok) throw new Error(roster.message);
-    const held: string[] = [];
-    for (const registration of roster.worktrees) {
-      const marker = await readWorktreeMarker(registration.path);
-      if (marker.kind === "malformed") throw new Error(`${marker.path}: ${marker.message}`);
-      if (marker.kind !== "present" || marker.marker.husk !== undefined) continue;
-      const ownership = decodeWorktreeMarkerOwnership(marker.marker);
-      if (ownership.kind === "current" && ownership.subject.kind === "work-unit" && ownership.subject.name === name) held.push(registration.path);
-    }
-    if (held.length > 1) throw new Error(`More than one checkout holds ${name}: ${held.join(", ")}`);
-    return held[0] ?? null;
-  };
-  return ctx.locusPorts === undefined ? resolveLegacy() : ctx.locusPorts.findHoldingCheckout({ name, resolveLegacy });
+export async function findWorkUnitHoldingCheckout(ctx: Pick<UnsharedWorkContext, "cwd" | "exec" | "locusPorts" | "store">,
+  record: Pick<StoreRecord, "reference" | "aliases">): Promise<string | null> {
+  const name = record.reference.owner.name;
+  if (ctx.store?.capabilities.stateOffBranch) {
+    const request = ownerHolderRequest(record);
+    const result = await (ctx.locusPorts ?? createLocusPorts({ ...ctx, store: ctx.store })).findHoldingCheckout(request);
+    return result.kind === "held" ? result.path : null;
+  }
+  if (record.reference.owner.type === "work-item" && record.reference.owner.uid !== undefined) {
+    throw new Error(`Bind the operational store to locate ${name}'s owner UUID, then retry.`);
+  }
+  const resolveLegacy = () => legacyHoldingCheckout(ctx, name);
+  if (ctx.locusPorts === undefined) return resolveLegacy();
+  const result = await ctx.locusPorts.findHoldingCheckout({ kind: "creation", slug: name, resolveLegacy });
+  return result.kind === "held" ? result.path : null;
+}
+
+async function legacyHoldingCheckout(ctx: Pick<UnsharedWorkContext, "cwd" | "exec">, name: string): Promise<string | null> {
+  const exec: GitExec = (command, args, options) => ctx.exec(command, args, { cwd: ctx.cwd, ...options });
+  const roster = await scanRegisteredWorktrees(exec);
+  if (!roster.ok) throw new Error(roster.message);
+  const held: string[] = [];
+  for (const registration of roster.worktrees) {
+    const marker = await readWorktreeMarker(registration.path);
+    if (marker.kind === "malformed") throw new Error(`${marker.path}: ${marker.message}`);
+    if (marker.kind !== "present" || marker.marker.husk !== undefined) continue;
+    const ownership = decodeWorktreeMarkerOwnership(marker.marker);
+    if (ownership.kind === "current" && ownership.subject.kind === "work-unit" && ownership.subject.name === name) held.push(registration.path);
+  }
+  if (held.length > 1) throw new Error(`More than one checkout holds ${name}: ${held.join(", ")}`);
+  return held[0] ?? null;
 }
 
 function linkedBranch(ctx: UnsharedWorkContext, record: StoreRecord): string | null {

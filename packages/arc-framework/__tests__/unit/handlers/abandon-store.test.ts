@@ -32,7 +32,7 @@ async function fixture(reused = false) {
   const io = { ...createUserIOContext(), exec, readFile: vi.fn(() => Promise.reject(Error("No invoking-checkout lifecycle artifact"))) };
   state.base = { cwd: "/repo", identity: "test-user", io, store: h.store };
   state.executor = buildExecutorContext({ cwd: "/repo", io, store: h.store, identity: "test-user", teamMode: false, internalTemplateDir: "/templates",
-    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: () => Promise.resolve(null) } });
+    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: () => Promise.resolve({ kind: "none" as const }) } });
   return { ...h, meta, archived, exec, io };
 }
 describe("operational abandon handler", () => {

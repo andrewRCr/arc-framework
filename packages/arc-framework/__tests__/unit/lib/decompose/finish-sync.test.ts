@@ -13,7 +13,7 @@ import type { Store } from "../../../../src/lib/store/contract.js";
 
 async function conflictingCuts() {
   const h = await createDecomposeCloneFixture();
-  h.right.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.right.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const leftCut = await addConcurrentDecomposeCut(h.left.ctx, "left");
   const rightCut = await addConcurrentDecomposeCut(h.right.ctx, "right");
   lifecycleSuccess(await h.left.store.sync());

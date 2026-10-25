@@ -1,3 +1,4 @@
+import { ownerHolderRequest } from "../../src/lib/work-unit/locus-ports.js";
 import { createLocusPorts } from "../../src/lib/locus/lifecycle-ports.js";
 import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { requireMarkerExclusivity } from "../../src/lib/work-unit/locus-ports.js";
@@ -154,7 +155,8 @@ it("graduation refuses its own crashed marker, then completes after registered C
   await writeWorktreeMarker(h.cwd, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "crashed-unit" }, spawningIdentity: "test-user", createdAt: new Date(0).toISOString() });
   const refused = await invoke(h, ["start", "crashed-unit", "--here", "--yes"]);
   expect(refused).toMatchObject({ exitCode: 1 });
-  expect(refused.output).toContain("arc locus release crashed-unit");
+  expect(refused.output).toContain(resolveWorktreeMarkerPath(h.cwd));
+  expect(refused.output).toContain("already has a marker");
   expect(lifecycleSuccess(await h.store.read({ reference: stub.reference }))).toEqual(stub);
   expect((await h.exec("git", ["rev-parse", "HEAD"])).stdout).toBe(h.head);
   const release = await invoke(h, ["locus", "release", "crashed-unit", "--json"]);
@@ -197,7 +199,7 @@ it("the bound spawn guard reports an Integrating holder's integration then teard
   const h = await fixture(false, "Integrating");
   const ports = createLocusPorts({ cwd: h.cwd, exec: h.exec, store: h.store });
   const before = lifecycleSuccess(await h.store.version());
-  const refusal = await requireMarkerExclusivity(ports, { name: "held-unit" }).then(() => "", (error: unknown) => error instanceof Error ? error.message : String(error));
+  const refusal = await requireMarkerExclusivity(ports, ownerHolderRequest(h.saved)).then(() => "", (error: unknown) => error instanceof Error ? error.message : String(error));
   expect(refusal).toContain(resolveWorktreeMarkerPath(h.holder));
   expect(refusal).toContain("finish integration, then run teardown there");
   expect(lifecycleSuccess(await h.store.version())).toBe(before);

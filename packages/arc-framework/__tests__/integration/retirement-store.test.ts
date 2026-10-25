@@ -1,3 +1,4 @@
+import { boundHolderLookup } from "../helpers/store/bound-checkout.js";
 /** Operational terminal snapshots drive real Git checkout and ref cleanup, including resumable failures. */
 import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { afterEach, describe, expect, it } from "vitest";
@@ -36,7 +37,7 @@ async function fixture(options: { adopted?: boolean; ended?: boolean; secondary?
   const h = await createRetirementHarness({ ended: options.ended, end: options.end, branches: [...(options.secondary ? [retirementLink("chore/demo")] : []), retirementLink("feat/demo", options.adopted ? "adopted" : "created")] });
   let holder: string | null = root;
   const marker: WorktreeMarker = { spawnedByArc: false, wuName: "demo", createdFor: boundWorkUnitSubject(h.meta), spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00Z" };
-  const ports = { ...createDefaultLocusPorts(), findHoldingCheckout: () => Promise.resolve(holder) };
+  const ports = { ...createDefaultLocusPorts(), findHoldingCheckout: boundHolderLookup(h.meta, () => holder) };
   const io = { ...createUserIOContext(), exec, execInput };
   const executor = buildExecutorContext({ cwd: root, io, store: h.store, locusPorts: ports, projectId: async () => "repo", identity: "test-user", teamMode: false, internalTemplateDir: "/templates" });
   const ctx = createStoreTeardownContext({ cwd: root, identity: "test-user", io }, executor);

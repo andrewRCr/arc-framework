@@ -27,7 +27,7 @@ async function fixture(linkedAs: "created" | "adopted" = "created") {
   };
   const locusPorts: LocusPorts = {
     checkMarkerExclusivity: async () => ({ kind: "clear" }),
-    findHoldingCheckout: async ({ name }) => marker?.createdFor?.kind === "work-unit" && marker.createdFor.name === name ? "/repo" : null,
+    findHoldingCheckout: async request => marker?.createdFor?.kind === "work-unit" && request.kind === "owner" && marker.createdFor.uid === request.uid && request.checkoutPath !== "/repo" ? { kind: "held", path: "/repo" } : { kind: "none" },
     writeAnchoredMarker: async (_cwd, value) => { marker = value; return { kind: "created", bytes: Buffer.from(JSON.stringify(value)) }; },
   };
   h.ctx.exec = exec;

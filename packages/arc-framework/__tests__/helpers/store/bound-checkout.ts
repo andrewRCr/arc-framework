@@ -5,6 +5,16 @@ import { join } from "node:path";
 import { onTestFinished } from "vitest";
 import type { StoreRecord } from "../../../src/lib/store/read.js";
 import { writeWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
+import type { LocusPorts } from "../../../src/lib/work-unit/locus-ports.js";
+
+export function boundHolderLookup(record: Pick<StoreRecord, "reference">, location: () => string | null): LocusPorts["findHoldingCheckout"] {
+  const subject = boundWorkUnitSubject(record);
+  return async request => {
+    const path = location();
+    return request.kind === "owner" && request.uid === subject.uid && path !== null && path !== request.checkoutPath
+      ? { kind: "held", path } : { kind: "none" };
+  };
+}
 
 export function boundWorkUnitSubject(record: Pick<StoreRecord, "reference">, name: string = record.reference.owner.name): { kind: "work-unit"; name: string; uid: string } {
   const owner = record.reference.owner;

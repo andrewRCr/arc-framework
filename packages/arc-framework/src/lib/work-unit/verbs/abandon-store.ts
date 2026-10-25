@@ -61,7 +61,7 @@ async function abandonmentSubject(ctx: Pick<AbandonContext, "executor" | "remova
   if (entry.phase !== "Planning" && entry.phase !== "Active") return { status: "rejected" as const, reason: "Only a stub, Planning, or Active work unit can be abandoned." };
   if (params.confirmed !== true) return { status: "rejected" as const, reason: "Abandonment requires explicit --yes confirmation." };
   const exec = ctx.executor.exec;
-  const checkout = exec === undefined ? null : await findWorkUnitHoldingCheckout({ cwd: ctx.executor.cwd, exec, locusPorts: ctx.executor.locusPorts }, primary.reference.owner.name);
+  const checkout = exec === undefined ? null : await findWorkUnitHoldingCheckout({ cwd: ctx.executor.cwd, exec, locusPorts: ctx.executor.locusPorts, store }, primary);
   if (checkout !== null && exec !== undefined) {
     const removalExec = ctx.removal?.exec ?? exec;
     const check = await checkRetiringCheckout({ ...ctx.removal, checkoutPath: checkout,

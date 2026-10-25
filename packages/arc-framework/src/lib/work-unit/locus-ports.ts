@@ -4,7 +4,7 @@ import type { StoreRecord } from "../store/read.js";
 import type { WorkUnitHolderRequest } from "./mutators/reconcile-work-unit-worktree.js";
 
 /** Bind a record-holding caller to its exact operational owner, refusing an incomplete identity. */
-export function ownerHolderRequest(record: StoreRecord): Extract<WorkUnitHolderRequest, { kind: "owner" }> {
+export function ownerHolderRequest(record: Pick<StoreRecord, "reference" | "aliases">): Extract<WorkUnitHolderRequest, { kind: "owner" }> {
   const owner = record.reference.owner;
   if (owner.type !== "work-item" || owner.uid === undefined) {
     throw new Error(`Operational work item ${owner.name} has no owner UID. Repair its owner identity, then retry.`);
@@ -18,22 +18,29 @@ export type MarkerExclusivityResult = { kind: "clear" } | { kind: "refused"; che
 export type AnchoredMarkerWriteResult =
   | { kind: "created" | "replaced"; bytes: Buffer }
   | { kind: "exists" | "generation-mismatch" | "unadmitted" };
+/** A holder lookup retains absence distinctly from one exact checkout. */
+export type HoldingCheckoutResult = { kind: "none" } | { kind: "held"; path: string };
+/** A checkout exclusion applies identically to owner and creation requests. */
+export type HolderLookupRequest = WorkUnitHolderRequest & { checkoutPath?: string; resolveLegacy?: () => Promise<string | null> };
 /** Locus supplies these ports when it admits anchored work-unit markers. */
 export interface LocusPorts {
-  checkMarkerExclusivity: (request: { name: string; checkoutPath?: string }) => Promise<MarkerExclusivityResult>;
-  findHoldingCheckout: (request: { name: string; resolveLegacy: () => Promise<string | null> }) => Promise<string | null>;
+  checkMarkerExclusivity: (request: WorkUnitHolderRequest & { checkoutPath?: string }) => Promise<MarkerExclusivityResult>;
+  findHoldingCheckout: (request: HolderLookupRequest) => Promise<HoldingCheckoutResult>;
   writeAnchoredMarker: (cwd: string, marker: WorktreeMarker, options?: { expected?: Buffer }) => Promise<AnchoredMarkerWriteResult>;
 }
 /** Retain today's Git guards and checkout lookup until locus binds its authoritative implementations. */
 export function createDefaultLocusPorts(): LocusPorts {
   return {
     checkMarkerExclusivity: () => Promise.resolve({ kind: "clear" }),
-    findHoldingCheckout: ({ resolveLegacy }) => resolveLegacy(),
+    findHoldingCheckout: async ({ resolveLegacy }) => {
+      const path = await resolveLegacy?.() ?? null;
+      return path === null ? { kind: "none" } : { kind: "held", path };
+    },
     writeAnchoredMarker: () => Promise.resolve({ kind: "unadmitted" }),
   };
 }
 /** Refuse a duplicate claim with the work-or-release repair before any marker write. */
-export async function requireMarkerExclusivity(ports: LocusPorts | undefined, request: { name: string; checkoutPath?: string }): Promise<void> {
+export async function requireMarkerExclusivity(ports: LocusPorts | undefined, request: WorkUnitHolderRequest & { checkoutPath?: string }): Promise<void> {
   const result = await (ports ?? createDefaultLocusPorts()).checkMarkerExclusivity(request);
   if (result.kind === "refused") throw new Error(result.reason);
 }

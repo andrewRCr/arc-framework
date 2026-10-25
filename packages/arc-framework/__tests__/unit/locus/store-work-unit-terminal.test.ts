@@ -122,7 +122,7 @@ it("withholds conflicted terminal authority after primary removal and retries af
   const exec = async () => { throw new Error("No checkout artifact applies"); };
   const executor = buildExecutorContext({ cwd: "/absent", store: writer, io: { ...createUserIOContext(), exec }, identity: "andrew",
     teamMode: false, internalTemplateDir: "/templates", projectId: async () => "project",
-    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null } });
+    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) } });
   expect(await runStoreAbandon({ executor }, { name: "ended", confirmed: true })).toMatchObject({ status: "abandoned" });
   ok(await h.store.sync());
   const disputed = ok(await h.store.read({ reference: h.terminal.reference })); expect(disputed.conflicts.length).toBeGreaterThan(0);

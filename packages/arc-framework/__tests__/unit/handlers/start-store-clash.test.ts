@@ -30,7 +30,7 @@ it("refuses a former operand's current-name clash before started-work dispatch",
   const before = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
   const io = { ...createUserIOContext(), exec: scriptGitExec([]).exec };
   const executor = buildExecutorContext({ cwd: "/repo", io, store: h.store, identity: "test-user", teamMode: false, internalTemplateDir: "/templates",
-    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null } });
+    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) } });
   let admitted = false;
   await handleStoreStart(StartCommandInputSchema.parse({ name: "former", here: true }), {
     cwd: "/repo", identity: "test-user", io, executor,

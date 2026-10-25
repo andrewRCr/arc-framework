@@ -1,5 +1,7 @@
 /** State targets use store identity while code targets retain Git probes and marker self-exclusion. */
 import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
+import { workUnitHoldersFixture } from "../../helpers/store/work-unit-holders.js";
+import { claimFrame } from "../../helpers/store/claim-frame.js";
 import { expect, it } from "vitest";
 import { runStoreErrandOverlap } from "../../../src/lib/errand/store-overlap.js";
 import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
@@ -36,4 +38,12 @@ it("excludes an Errand caller by its exact marker claim instead of the checkout'
   const fake = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [{ stdout: "" }] }]);
   expect((await runStoreErrandOverlap({ store: h.store, exec: fake.exec, cwd: "/caller", identity: "alice", teamMode: false, baseBranch: "main", projectId: async () => "project",
     readFrame: async () => own, targetPaths: [".arc/active/meta-fix-it.md"] })).result).toEqual({ overlaps: [] });
+});
+
+it("keeps live in-flight work when the caller holds its completed namesake", async () => {
+  const h = await workUnitHoldersFixture(), current = await claimFrame(h.store, h.oldPath);
+  const result = await runStoreErrandOverlap({ store: h.store, exec: h.exec, cwd: h.oldPath,
+    identity: "test-user", teamMode: false, baseBranch: "main", projectId: async () => "project",
+    readFrame: async () => current, targetPaths: [".arc/active/meta-demo.md"] });
+  expect(result.result.overlaps).toEqual([{ workItem: "demo", remoteOnly: false, matchedPaths: [".arc/active/meta-demo.md"] }]);
 });

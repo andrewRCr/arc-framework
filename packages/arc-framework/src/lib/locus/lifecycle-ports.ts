@@ -8,7 +8,7 @@ import type { GitExec } from "../git/exec.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import { createWorktreeMarkerGeneration, decodeWorktreeMarkerOwnership, ensureWorktreeMarkerIgnored,
   readWorktreeMarkerGeneration, replaceWorktreeMarkerGeneration, resolveWorktreeMarkerPath } from "../git/worktree-marker.js";
-import type { LocusPorts } from "../work-unit/locus-ports.js";
+import type { LocusPorts, HolderLookupRequest } from "../work-unit/locus-ports.js";
 
 interface MarkerHolder { path: string; name: string; uid?: string }
 const rerun = "Run again once Git lists all registered worktrees.";
@@ -51,14 +51,14 @@ export function createLocusPorts(input: { cwd: string; exec: GitExec; store: Sto
       let inventory: MarkerHolder[];
       try { inventory = await holders(); }
       catch (error) { return { kind: "refused", reason: error instanceof Error ? error.message : String(error) }; }
-      const other = inventory.find(holder => holder.name === request.name
-        && (request.checkoutPath === undefined || resolve(holder.path) !== resolve(request.checkoutPath)));
+      const other = matchingHolders(inventory, request)[0];
       return other === undefined ? { kind: "clear" } : { kind: "refused", checkoutPath: other.path, reason: await refusal(other) };
     },
-    findHoldingCheckout: async ({ name }) => {
-      const matches = (await holders()).filter(holder => holder.name === name);
+    findHoldingCheckout: async request => {
+      const matches = matchingHolders(await holders(), request);
+      const name = request.kind === "owner" ? request.names.current : request.slug;
       if (matches.length > 1) throw new Error(`Work unit '${name}' has multiple marker holders: ${matches.map(holder => `${holder.path} (${resolveWorktreeMarkerPath(holder.path)})`).join(", ")}. Inspect them, then repair or remove the stray marker, or remove its checkout.`);
-      return matches[0]?.path ?? null;
+      return matches[0] === undefined ? { kind: "none" } : { kind: "held", path: matches[0].path };
     },
     writeAnchoredMarker: async (cwd, marker, options) => {
       await ensureWorktreeMarkerIgnored(cwd, exec, { mkdir: async (path, options) => { await mkdir(path, options); }, readFile: path => readFile(path, "utf8"), writeFile });
@@ -67,6 +67,12 @@ export function createLocusPorts(input: { cwd: string; exec: GitExec; store: Sto
     },
   };
 }
+function matchingHolders(inventory: readonly MarkerHolder[], request: HolderLookupRequest): MarkerHolder[] {
+  return inventory.filter(holder => (request.kind === "owner" ? holder.uid === request.uid
+    : holder.uid === undefined && holder.name === request.slug)
+    && (request.checkoutPath === undefined || resolve(holder.path) !== resolve(request.checkoutPath)));
+}
+
 function markerRepair(checkout: string, path: string, diagnostic: string): string {
   return `Cannot read checkout ${checkout}'s marker ${path}: ${diagnostic}. inspect it, then repair or remove its marker, or remove the checkout.`;
 }

@@ -4,6 +4,7 @@ import { mkdtemp, rm, writeFile, mkdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
+import { ownerHolderRequest } from "../../../src/lib/work-unit/locus-ports.js";
 import { createLocusPorts } from "../../../src/lib/locus/lifecycle-ports.js";
 import { writeWorktreeOwnershipMarker, resolveWorktreeMarkerPath, stampWorktreeHusk, readWorktreeMarker, removeWorktreeMarkerGeneration } from "../../../src/lib/git/worktree-marker.js";
 import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
@@ -28,46 +29,46 @@ async function fixture() {
 it("refuses another checkout's marker and returns its holder rather than invoking the legacy scan", async () => {
   const h = await fixture();
   await h.marker();
-  expect(await h.ports.checkMarkerExclusivity({ name: "demo" })).toMatchObject({ kind: "refused", checkoutPath: h.other,
+  expect(await h.ports.checkMarkerExclusivity({ ...ownerHolderRequest(h.record) })).toMatchObject({ kind: "refused", checkoutPath: h.other,
     reason: expect.stringContaining("arc locus release") });
-  expect(await h.ports.findHoldingCheckout({ name: "demo", resolveLegacy: async () => { throw new Error("Legacy read"); } })).toBe(h.other);
+  expect(await h.ports.findHoldingCheckout({ ...ownerHolderRequest(h.record), resolveLegacy: async () => { throw new Error("Legacy read"); } })).toEqual({ kind: "held", path: h.other });
 });
 
 it("refuses an unreadable unrelated marker and carries its diagnostic and inspection repair", async () => {
   const h = await fixture();
   await h.marker();
   await writeFile(resolveWorktreeMarkerPath(h.other), "not JSON");
-  const result = await h.ports.checkMarkerExclusivity({ name: "other" });
+  const result = await h.ports.checkMarkerExclusivity({ kind: "creation", slug: "other" });
   expect(result).toMatchObject({ kind: "refused", reason: expect.stringContaining("malformed JSON") });
   if (result.kind !== "refused") throw new Error("Expected refusal");
   expect(result.reason).toContain(h.other);
   expect(result.reason).toContain("inspect");
-  await expect(h.ports.findHoldingCheckout({ name: "other", resolveLegacy: async () => null })).rejects.toThrow("malformed JSON");
+  await expect(h.ports.findHoldingCheckout({ kind: "creation", slug: "other", resolveLegacy: async () => null })).rejects.toThrow("malformed JSON");
 });
 
 it("admits its own marker explicitly and finds none for a different work unit", async () => {
   const h = await fixture();
   await h.marker();
-  expect(await h.ports.checkMarkerExclusivity({ name: "demo", checkoutPath: h.other })).toEqual({ kind: "clear" });
-  expect(await h.ports.checkMarkerExclusivity({ name: "other" })).toEqual({ kind: "clear" });
-  expect(await h.ports.findHoldingCheckout({ name: "other", resolveLegacy: async () => "/incorrect" })).toBeNull();
+  expect(await h.ports.checkMarkerExclusivity({ ...ownerHolderRequest(h.record), checkoutPath: h.other })).toEqual({ kind: "clear" });
+  expect(await h.ports.checkMarkerExclusivity({ kind: "creation", slug: "other" })).toEqual({ kind: "clear" });
+  expect(await h.ports.findHoldingCheckout({ kind: "creation", slug: "other", resolveLegacy: async () => "/incorrect" })).toEqual({ kind: "none" });
 });
 
 it.each(["failed", "incomplete"])("refuses a %s roster for both operations", async kind => {
   const h = await fixture();
   const ports = createLocusPorts({ cwd: h.cwd, store: createReferenceFixture().store,
     exec: async () => { if (kind === "failed") throw new Error("Git listing failed"); return { stdout: "" }; } });
-  expect(await ports.checkMarkerExclusivity({ name: "demo" })).toMatchObject({ kind: "refused", reason: expect.stringContaining("Git lists") });
-  await expect(ports.findHoldingCheckout({ name: "demo", resolveLegacy: async () => null })).rejects.toThrow("Git lists");
+  expect(await ports.checkMarkerExclusivity({ ...ownerHolderRequest(h.record) })).toMatchObject({ kind: "refused", reason: expect.stringContaining("Git lists") });
+  await expect(ports.findHoldingCheckout({ ...ownerHolderRequest(h.record), resolveLegacy: async () => null })).rejects.toThrow("Git lists");
 });
 
 it("rejects duplicate holders and passes over a husk-stamped marker", async () => {
   const h = await fixture();
   await h.marker();
   await writeWorktreeOwnershipMarker(h.cwd, { createdByArc: true, createdFor: boundWorkUnitSubject(h.record), spawningIdentity: "andrew", now: 0 });
-  await expect(h.ports.findHoldingCheckout({ name: "demo", resolveLegacy: async () => null })).rejects.toThrow(h.other);
+  await expect(h.ports.findHoldingCheckout({ ...ownerHolderRequest(h.record), resolveLegacy: async () => null })).rejects.toThrow(h.other);
   await stampWorktreeHusk(h.other, { sha: "a".repeat(40), at: new Date(0).toISOString(), subject: { kind: "work-unit", name: "demo" }, branch: "feat/demo" });
-  expect(await h.ports.findHoldingCheckout({ name: "demo", resolveLegacy: async () => null })).toBe(h.cwd);
+  expect(await h.ports.findHoldingCheckout({ ...ownerHolderRequest(h.record), resolveLegacy: async () => null })).toEqual({ kind: "held", path: h.cwd });
 });
 
 it.each(["primary", "linked"])("writes, replaces and rolls back exact anchored generations on the %s checkout", async topology => {

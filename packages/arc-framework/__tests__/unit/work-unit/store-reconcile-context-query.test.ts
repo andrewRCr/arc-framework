@@ -25,7 +25,7 @@ it("reads a cut disposition by dependent UID after its rename", async () => {
   ], { verb: "decompose", lifecycleAction: "decompose" }));
   expect(await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main",
     exec: async () => { throw new Error("No Git needed"); }, locusPorts: {
-      findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }),
+      findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }),
       writeAnchoredMarker: async () => ({ kind: "unadmitted" }),
     } }, { sourceSlug: "former-dependent", targetSlug: "current-dependent" })).toMatchObject({ status: "renamed" });
   const current = lifecycleSuccess(await h.store.read({ reference: dependent.reference }));

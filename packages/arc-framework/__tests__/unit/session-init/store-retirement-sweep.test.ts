@@ -22,7 +22,7 @@ async function abandoned(name = "done") {
   const primary = await h.seedMeta(name, {}, { kind: "active" }, { branches: [{ repository: "project", ref: `topic/${name}`, linkedAs: "created", excluded: [] }] });
   const exec = async () => { throw new Error("No Git lifecycle receipt is available"); };
   const executor = buildExecutorContext({ cwd: "/absent", store: h.store, io: { ...createUserIOContext(), exec }, identity: "test-user", teamMode: false,
-    internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null } });
+    internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) } });
   const result = await runStoreAbandon({ executor }, { name, confirmed: true });
   expect(result, JSON.stringify(result)).toMatchObject({ status: "abandoned" });
   return { ...h, primary };
@@ -70,7 +70,7 @@ it("blocks disputed abandonment lineage and restores teardown after explicit res
     provenance: { verb: "seed-lifecycle", lifecycleAction: "create" } }));
   const executor = buildExecutorContext({ cwd: "/absent", store: writer, io: { ...createUserIOContext(), exec: async () => { throw new Error("No Git lifecycle receipt"); } },
     identity: "test-user", teamMode: false, internalTemplateDir: "/templates", projectId: async () => "project",
-    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null } });
+    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) } });
   expect(await runStoreAbandon({ executor }, { name: "done", confirmed: true })).toMatchObject({ status: "abandoned" });
   lifecycleSuccess(await h.store.sync());
   const disputed = lifecycleSuccess(await h.store.read({ reference: initial.reference }));

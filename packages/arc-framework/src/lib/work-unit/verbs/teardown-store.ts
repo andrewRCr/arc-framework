@@ -1,4 +1,5 @@
 /** End-rule ref-set cleanup over version-bound operational retirement evidence. */
+import { ownerHolderRequest } from "../locus-ports.js";
 import { rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { assessReapSafety, isLandedInBase } from "../../git/branch-containment.js";
@@ -54,18 +55,22 @@ async function locked<T>(ctx: Bound, operation: () => Promise<T>): Promise<T> {
   return ctx.withWorkItemLock === undefined ? withWorktreeOperationLock({ exec: ctx.exec, cwd: ctx.cwd, operation: action }) : ctx.withWorkItemLock(action);
 }
 async function holdingCheckout(ctx: Bound): Promise<string | null> {
-  const resolveLegacy = async () => {
-    const paths: string[] = [];
-    for (const item of ctx.worktrees) {
-      const marker = await (ctx.readMarker ?? readWorktreeMarker)(item.path);
-      if (marker.kind === "malformed") throw new Error(`${marker.path}: ${marker.message}`);
-      if (marker.kind === "present" && marker.marker.husk === undefined && (marker.marker.createdFor?.kind === "work-unit" ? marker.marker.createdFor.name : marker.marker.wuName) === ctx.evidence.name) paths.push(item.path);
-    }
-    if (paths.length > 1) throw new Error(`More than one checkout holds ${ctx.evidence.name}: ${paths.join(", ")}`);
-    return paths[0] ?? null;
-  };
-  return ctx.locusPorts === undefined ? resolveLegacy() : ctx.locusPorts.findHoldingCheckout({ name: ctx.evidence.name, resolveLegacy });
+  const request = ownerHolderRequest(ctx.evidence.record);
+  if (ctx.locusPorts !== undefined) {
+    const result = await ctx.locusPorts.findHoldingCheckout(request);
+    return result.kind === "held" ? result.path : null;
+  }
+  const paths: string[] = [];
+  for (const item of ctx.worktrees) {
+    const marker = await (ctx.readMarker ?? readWorktreeMarker)(item.path);
+    if (marker.kind === "malformed") throw new Error(`${marker.path}: ${marker.message}`);
+    if (marker.kind === "present" && marker.marker.husk === undefined
+      && marker.marker.createdFor?.kind === "work-unit" && marker.marker.createdFor.uid === request.uid) paths.push(item.path);
+  }
+  if (paths.length > 1) throw new Error(`More than one checkout holds ${ctx.evidence.name}: ${paths.join(", ")}`);
+  return paths[0] ?? null;
 }
+
 async function retireHolder(ctx: Bound, invokingPath: string, selected?: SelectedStoreRetirementHusk): Promise<string | null> {
   const path = selected?.path ?? await holdingCheckout(ctx);
   if (path === null) return null;

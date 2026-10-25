@@ -1,3 +1,5 @@
+import { boundHolderLookup } from "../../helpers/store/bound-checkout.js";
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 /** Shared marking uses lifecycle identity, terminal evidence and the pause's original date. */
 import { expect, it } from "vitest";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
@@ -32,7 +34,7 @@ it("refuses disputed pause ownership after sync and lists only the explicitly re
   lifecycleSuccess(await writer.write({ ...recordPut(other, { content: other.content.replaceAll("andrew", "another").replace("Waiting for a decision", "Remote reason") }), provenance }));
   lifecycleSuccess(await h.store.sync());
   const disputed = lifecycleSuccess(await h.store.read({ reference: initial.reference })); expect(disputed.conflicts).toHaveLength(1);
-  const read = (identity: string) => runPausedWork({ store: h.store, identity, reviewAfterDays: 14, now, findHoldingCheckout: async () => "/holder" });
+  const read = (identity: string) => runPausedWork({ store: h.store, identity, reviewAfterDays: 14, now, findHoldingCheckout: boundHolderLookup(initial, () => "/holder") });
   for (const owner of ["andrew", "another"]) await expect(read(owner)).rejects.toThrow(/conflicts.*resolve.*retry/iu);
   lifecycleSuccess(await h.store.write({ ...recordPut(disputed, { content }), resolves: disputed.conflicts, provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
   expect(await read("andrew")).toMatchObject({ items: [{ slug: "paused", reason: "Local reason" }] });
@@ -59,13 +61,15 @@ it.each([null, { kind: "note", text: "Wait for a response" }])("marks an old pau
 
 it("lists by the current owner and selects resume or materialize for the actual holding checkout", async () => {
   const h = createLifecycleHarness();
+  let heldUid: string | undefined;
   for (const [slug, owner] of [["held", "andrew"], ["released", "andrew"], ["in-place", "andrew"], ["others", "someone"]] as const) {
     const record = await h.seedMeta(slug, { state: "Planning", owner, currentWorkflow: "draft-design" });
+    if (slug === "held") heldUid = boundWorkUnitSubject(record).uid;
     const content = writeMetaPause(record.content, pause(null, true));
     lifecycleSuccess(await h.store.write({ ...recordPut(record, { content }), provenance: { verb: "pause", lifecycleAction: "pause" } }));
   }
   const result = await runPausedWork({ store: h.store, identity: "andrew", reviewAfterDays: 14, now,
-    findHoldingCheckout: async slug => slug === "held" ? "/held" : null,
+    findHoldingCheckout: async request => request.kind === "owner" && request.uid === heldUid && request.checkoutPath !== "/held" ? { kind: "held", path: "/held" } : { kind: "none" },
     markerlessCheckouts: [{ workUnit: "in-place", checkoutPath: "/unmarked" }] });
   expect(result.items.map(item => item.slug)).toEqual(["held", "in-place", "released"]);
   expect(result.items[0]).toMatchObject({ open: true, reason: "Waiting for a decision", marks: ["review-due"],
@@ -119,7 +123,7 @@ async function renamedPrerequisite() {
   const dependent = await h.seedMeta("paused", { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" });
   const ctx = { store: h.store, cwd: "/memory", identity: "andrew", baseBranch: "main", now: () => new Date("2026-10-15T12:00:00Z"),
     exec: async () => ({ stdout: "", stderr: "" }),
-    locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" as const }), writeAnchoredMarker: async () => ({ kind: "unadmitted" as const }) } };
+    locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" as const }), writeAnchoredMarker: async () => ({ kind: "unadmitted" as const }) } };
   expect(await runPause(ctx, { name: "paused", identity: "andrew", reason: "Waiting for dependency", waitsOn: "dependency" })).toMatchObject({ status: "paused" });
   expect(await runStoreRename(ctx, { sourceSlug: "dependency", targetSlug: "current" })).toMatchObject({ status: "renamed" });
   const savedPause = MetaPauseSchema.parse(ParsedMetaRecordSchema.parse(lifecycleSuccess(await h.store.read({ reference: dependent.reference })).fields).pause);
@@ -145,7 +149,7 @@ it.each(["abandon", "decompose"] as const)("retains a pause's former-name prereq
   const before = lifecycleSuccess(await f.store.read({ reference: f.dependent.reference }));
   expect(await markPausedWorkItem(item, { store: f.store, reviewAfterDays: 14, now })).toMatchObject({ marks: ["review-due"],
     reviewPrompt: expect.stringContaining("arc handover paused --to <identity>"), actions: expect.arrayContaining([{ text: expect.any(String), argv: ["arc", "resume", "paused"] }]) });
-  expect(await runPausedWork({ store: f.store, identity: "andrew", reviewAfterDays: 14, now, findHoldingCheckout: async () => "/paused" }))
+  expect(await runPausedWork({ store: f.store, identity: "andrew", reviewAfterDays: 14, now, findHoldingCheckout: boundHolderLookup(f.dependent, () => "/paused") }))
     .toMatchObject({ items: [{ slug: "paused", waitsOn: { kind: "work-unit", slug: "dependency" }, marks: ["review-due"] }] });
   expect(lifecycleSuccess(await f.store.read({ reference: f.dependent.reference }))).toEqual(before);
 });

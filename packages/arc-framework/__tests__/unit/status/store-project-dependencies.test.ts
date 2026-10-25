@@ -273,7 +273,7 @@ it("retains a refused dependent identity lookup's repair route and recovers afte
   const h = await retiredOriginFixture("replace", false, false);
   expect(await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main",
     exec: async () => { throw new Error("No Git needed"); }, locusPorts: {
-      findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }),
+      findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }),
       writeAnchoredMarker: async () => ({ kind: "unadmitted" }),
     } }, { sourceSlug: "dependent", targetSlug: "current-dependent" })).toMatchObject({ status: "renamed" });
   const store = Object.create(h.store) as Store;

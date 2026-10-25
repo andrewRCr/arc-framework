@@ -1,3 +1,4 @@
+import { boundHolderLookup } from "../helpers/store/bound-checkout.js";
 /** Record rename composes the production marker, worktree and command adapters. */
 import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { afterEach, expect, it } from "vitest";
@@ -230,7 +231,7 @@ it("retains compensation before the adapter's final marker observation and prese
   const adapter = storeRenameAdapters(f.command).renameCheckout!;
   let concurrent: Buffer | undefined;
   const result = await runStoreRename({ store: f.store, cwd: f.root, exec: f.exec, baseBranch: "main", projectId: async () => "repo",
-    locusPorts: { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async () => f.checkout,
+    locusPorts: { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: boundHolderLookup(f.primary, () => f.checkout),
       writeAnchoredMarker: async () => ({ kind: "unadmitted" }) },
     renameCheckout: (request, onPrepared) => adapter(request, (receipt) => {
       onPrepared?.(receipt);

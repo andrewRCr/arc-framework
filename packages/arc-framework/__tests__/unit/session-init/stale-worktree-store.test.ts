@@ -174,7 +174,7 @@ it("keeps a branchless abandoned checkout in no-record release selection", async
   const h = createLifecycleHarness(); const primary = await h.seedMeta("done");
   const exec = async () => { throw new Error("No Git lifecycle artifact applies"); };
   const executor = buildExecutorContext({ cwd: "/absent", store: h.store, io: { ...createUserIOContext(), exec }, identity: "test-user", teamMode: false,
-    internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null } });
+    internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) } });
   expect(await runStoreAbandon({ executor }, { name: "done", confirmed: true })).toMatchObject({ status: "abandoned" });
   const result = await runStaleWorktreeSweep(await options(h.store, boundWorkUnitSubject(primary)));
   expect(result.worktrees[0]).toMatchObject({ kind: "detached", actions: [{ argv: ["arc", "locus", "release", "done"] }] });
@@ -186,7 +186,7 @@ it("withholds a missing-primary release after lineage becomes disputed and retri
   const primary = await h.seedMeta("done", {}, { kind: "active" }, { branches: [{ repository: "project", ref: "feat/done", linkedAs: "created", excluded: [] }] });
   const exec = async () => { throw new Error("No Git lifecycle artifact applies"); };
   const executor = buildExecutorContext({ cwd: "/absent", store: h.store, io: { ...createUserIOContext(), exec }, identity: "test-user", teamMode: false,
-    internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null } });
+    internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) } });
   expect(await runStoreAbandon({ executor }, { name: "done", confirmed: true })).toMatchObject({ status: "abandoned" });
   const input = await options(h.store, boundWorkUnitSubject(primary)), reference = recordReferences["lineage/transition"](primary.reference.owner);
   const initial = lifecycleSuccess(await h.store.read({ reference })), fields = LineageRecordSchema.parse(initial.fields);
@@ -196,7 +196,7 @@ it("withholds a missing-primary release after lineage becomes disputed and retri
     placement: { kind: "active" }, links: { branches: (fields.retiredBranches ?? []).map(link => ({ ...link, excluded: [{ repository: link.repository, sha: base }] })) },
     provenance: { verb: "seed-lifecycle", lifecycleAction: "create" } }));
   const remoteExecutor = buildExecutorContext({ cwd: "/absent", store: writer, io: { ...createUserIOContext(), exec }, identity: "test-user", teamMode: false,
-    internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null } });
+    internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) } });
   expect(await runStoreAbandon({ executor: remoteExecutor }, { name: "done", confirmed: true })).toMatchObject({ status: "abandoned" });
   lifecycleSuccess(await h.store.sync());
   const disputed = lifecycleSuccess(await h.store.read({ reference }));
@@ -244,7 +244,7 @@ it("withholds the branched abandonment retirement offer for duplicate holders, t
   const primary = await h.seedMeta("done", {}, { kind: "active" }, { branches: [{ repository: "project", ref: "feat/done", linkedAs: "created", excluded: [] }] });
   const exec = async () => { throw new Error("No Git lifecycle artifact applies"); };
   const executor = buildExecutorContext({ cwd: "/absent", store: h.store, io: { ...createUserIOContext(), exec }, identity: "test-user", teamMode: false,
-    internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null } });
+    internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) } });
   expect(await runStoreAbandon({ executor }, { name: "done", confirmed: true })).toMatchObject({ status: "abandoned" });
   const original = await options(h.store, boundWorkUnitSubject(primary)), branched = { ...checkout, path, branch: "feat/done", detached: false };
   const input = { ...original, projectId: async () => "project", scanWorktrees: async () => ({ ok: true as const, worktrees: [branched, { ...checkout, path: "/stray" }] }) };

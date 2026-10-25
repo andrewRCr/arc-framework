@@ -27,7 +27,7 @@ export async function runStoreColdStart(ctx: SpawnWorktreeContext, params: ColdS
     const occupancy = await inspectCheckoutMarker({ cwd: params.worktreePath, store, identity: params.identity });
     if (occupancy.kind === "unreadable") return { ok: false, reason: occupancy.reason };
     if (occupancy.kind === "occupied" && (!occupancy.missingRecord || occupancy.marker.marker.spawnedByArc)) return { ok: false, reason: occupancy.reason };
-    await requireMarkerExclusivity(ports, { name: wuName, checkoutPath: params.worktreePath });
+    await requireMarkerExclusivity(ports, { kind: "creation", slug: wuName, checkoutPath: params.worktreePath });
     await ensureWorktreeMarkerIgnored(params.worktreePath, ctx.io.exec, nodeWorktreeMarkerIgnoreFs);
     await writeEditorDocumentsOrThrow(params.worktreePath, ctx.io.exec, nodeEditorDocumentsFs, undefined, ctx.writeEditorDocuments);
     const expected = occupancy.kind === "occupied" ? occupancy.marker.bytes : undefined;

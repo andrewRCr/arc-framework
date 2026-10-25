@@ -118,7 +118,7 @@ it("withholds a preselected holder after a failed location lookup and resumes af
   let repaired = false;
   const options = { store: h.fixture.store, exec: fake.exec, identity: "andrew", teamMode: false,
     projectId: async () => "project-1", roster: derived.roster,
-    findHoldingCheckout: async () => { if (!repaired) throw new Error("Holder evidence is unavailable. Repair the checkout claim and retry."); return "/repo"; } };
+    findHoldingCheckout: async () => { if (!repaired) throw new Error("Holder evidence is unavailable. Repair the checkout claim and retry."); return { kind: "held" as const, path: "/repo" }; } };
   const uncertain = await deriveStoreInFlight(options);
   expect(uncertain.entries).toHaveLength(1);
   expect(uncertain.entries[0]).not.toHaveProperty("worktreePath");

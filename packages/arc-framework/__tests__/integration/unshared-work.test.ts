@@ -1,3 +1,4 @@
+import { boundHolderLookup } from "../helpers/store/bound-checkout.js";
 /** Published reachability uses refreshed named refs and treats deleted refs as absent. */
 import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { afterEach, expect, it } from "vitest";
@@ -30,7 +31,7 @@ async function fixture(origin = true, planning = false) {
   const harness = createLifecycleHarness();
   const record = await harness.seedMeta("example", planning ? { state: "Planning", currentWorkflow: "draft-design" } : {}, undefined,
     { branches: [{ repository: "repo", ref: "feat/example", linkedAs: "created", excluded: [] }] });
-  const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async () => root,
+  const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: boundHolderLookup(record, () => root),
     writeAnchoredMarker: async () => ({ kind: "unadmitted" }) };
   return { root, exec, sha, record, ...harness, context: { cwd: root, identity: "test-user", exec, baseBranch: "main", repository: "repo", locusPorts, store: harness.store } };
 }

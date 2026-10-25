@@ -1,3 +1,4 @@
+import { boundHolderLookup } from "../../../helpers/store/bound-checkout.js";
 /** One atomic terminal transition from every supported operational state, with resumable physical cleanup. */
 import { describe, expect, it } from "vitest";
 import { createRetirementHarness, retirementLink } from "../../../helpers/store/retirement-harness.js";
@@ -14,7 +15,7 @@ async function fixture(options: Parameters<typeof createRetirementHarness>[0] = 
   const forbidden = () => { throw Error("no Git-backed lifecycle artifact path"); };
   const ctx: AbandonContext = {
     baseBranch: "main", storeTeardown: h.ctx,
-    executor: { cwd: "/repo", store: h.store, exec: h.ctx.exec, projectId: async () => "repo", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: () => Promise.resolve(options.held ? "/repo" : null) },
+    executor: { cwd: "/repo", store: h.store, exec: h.ctx.exec, projectId: async () => "repo", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: boundHolderLookup(h.meta, () => options.held ? "/repo" : null) },
       indexFs: h.ctx.indexFs, setPhase: async () => ({ phase: "Planning" }), relocateArtifacts: async () => ({ moved: [] }), reconcileBranch: async () => forbidden(), reconcileWorkUnitWorktree: async () => forbidden(),
       writeSoftFields: async () => forbidden(), writeBranchField: async () => forbidden(), writeCurrentWorkflowField: async () => forbidden(), writeDesignField: async () => forbidden() },
     fs: { readdir: async () => forbidden(), rm: async () => forbidden(), rmdir: async () => forbidden() },

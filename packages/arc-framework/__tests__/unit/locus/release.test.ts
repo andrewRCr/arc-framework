@@ -47,9 +47,9 @@ it("refuses an owned live work unit and releases its dirty anchored checkout aft
 it.each(["foreign", "missing", "backlog"])("releases an anchored %s occupant without altering its lifecycle", async kind => {
   const h = await fixture();
   let name = "demo", record = h.record;
-  if (kind === "missing") { name = "missing"; record = await h.seedMeta(name); lifecycleSuccess(await h.store.write({ action: "remove", reference: record.reference, expected: record.version, provenance: { verb: "remove", lifecycleAction: "remove" } })); }
+  if (kind === "missing") name = "missing";
   if (kind === "backlog") { name = "stub"; record = await h.seedMeta(name, { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" }, { kind: "backlog", commitment: "planned" }); }
-  await writeWorktreeMarker(h.holder, { ...h.marker, createdFor: boundWorkUnitSubject(record, name) });
+  await writeWorktreeMarker(h.holder, { ...h.marker, createdFor: kind === "missing" ? { kind: "work-unit", name } : boundWorkUnitSubject(record, name) });
   expect(await runLocusRelease({ ...h.ctx, identity: kind === "foreign" ? "another" : "andrew" }, name))
     .toMatchObject({ status: "released", spawned: false });
   expect(await readWorktreeMarker(h.holder)).toEqual({ kind: "absent" });

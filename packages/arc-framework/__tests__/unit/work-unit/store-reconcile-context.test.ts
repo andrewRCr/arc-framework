@@ -51,7 +51,7 @@ describe("store reconcile context", () => {
     { verb: "decompose", lifecycleAction: "decompose" }));
     const immutable = lifecycleSuccess(await h.store.read({ reference: lineage }));
     expect(await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
-      locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+      locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
     { sourceSlug: "former-dependent", targetSlug: "current-dependent" })).toMatchObject({ status: "renamed" });
     const current = lifecycleSuccess(await h.store.read({ reference: dependent.reference }));
     const lookup = h.store.lookup.bind(h.store);
@@ -156,7 +156,7 @@ it.each([false, true])("owner reconcile repairs alias-backed artifact references
   const content = "# Notes\n\nRead `spec-origin.md`. Narrative origin context.\n";
   const notes = await h.seed(recordReferences["work-item/notes"](dependent.reference.owner), content);
   expect(await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
-    locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+    locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
   { sourceSlug: "origin", targetSlug: "successor" })).toMatchObject({ status: "renamed" });
   expect(lifecycleSuccess(await h.store.read({ reference: notes.reference })).content).toBe(content);
   const ceremony = buildStoreCurrentWuReconcile(h.store);
@@ -175,7 +175,7 @@ it.each([false, true])("retains authenticated former-name retirement evidence, d
   const content = "# Notes\n\nRead `spec-origin.md`. Narrative origin context.\n";
   const notes = await h.seed(recordReferences["work-item/notes"](dependent.reference.owner), content);
   expect(await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
-    locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+    locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
   { sourceSlug: "origin", targetSlug: "successor" })).toMatchObject({ status: "renamed" });
   const renamed = lifecycleSuccess(await h.store.read({ reference: origin.reference }));
   if (renamed.reference.owner.type !== "work-item") throw new Error("Expected a work item");
@@ -202,7 +202,7 @@ it.each(["prd", "rfc"])("owner reconcile preserves a renamed paired spec's %s su
   const dependent = await h.seedMeta("dependent");
   const notes = await h.seed(recordReferences["work-item/notes"](dependent.reference.owner), `# Notes\n\nRead \`spec-origin-${half}.md\`.\n`);
   expect(await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
-    locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+    locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
   { sourceSlug: "origin", targetSlug: "successor" })).toMatchObject({ status: "renamed" });
   const ceremony = buildStoreCurrentWuReconcile(h.store);
   const prepared = await ceremony.prepare({ slug: "dependent", metaPath: workUnitMetaPath(dependent) });
@@ -217,7 +217,7 @@ it("refuses ambiguous paired-suffix ownership before rewriting an active owner's
   const dependent = await h.seedMeta("dependent");
   const notes = await h.seed(recordReferences["work-item/notes"](dependent.reference.owner), "# Notes\n\nRead `spec-origin-prd.md`.\n");
   expect(await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
-    locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+    locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
   { sourceSlug: "origin", targetSlug: "successor" })).toMatchObject({ status: "renamed" });
   const ceremony = buildStoreCurrentWuReconcile(h.store);
   const prepared = await ceremony.prepare({ slug: "dependent", metaPath: workUnitMetaPath(dependent) });

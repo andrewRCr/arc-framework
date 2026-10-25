@@ -58,7 +58,7 @@ async function startedPlanningReason(entries: readonly LifecycleEntry[],
   const entry = reference === undefined ? undefined : entries.find((item) => sameReference(item.reference, reference));
   if (entry?.phase !== "Planning" || entry.location !== "active" || ctx.executor.exec === undefined) return null;
   let holder: string | null;
-  try { holder = await findWorkUnitHoldingCheckout({ cwd: ctx.cwd, exec: ctx.executor.exec, locusPorts: ctx.executor.locusPorts }, name); }
+  try { holder = await findWorkUnitHoldingCheckout({ cwd: ctx.cwd, exec: ctx.executor.exec, locusPorts: ctx.executor.locusPorts, store: ctx.executor.store }, entry); }
   catch (error) { return error instanceof Error ? error.message : String(error); }
   return holder === null ? `${name} is already started; run arc materialize ${name} to give it a checkout.`
     : `${name} is already started in checkout ${holder}; continue work there.`;

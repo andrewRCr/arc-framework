@@ -28,7 +28,7 @@ it.each(["unpaused", "paused", "backlog", "both-held"] as const)("offers repair 
   const result = await runPausedWork({ store: h.store, identity: "andrew", reviewAfterDays: 14, now,
     findHoldingCheckout: async () => {
       if (other === "both-held") throw new Error("Two holding checkouts cannot be selected by name");
-      return other === "backlog" ? null : "/holder";
+      return other === "backlog" ? { kind: "none" } : { kind: "held", path: "/holder" };
     } });
   expect(result.items).toHaveLength(other === "paused" || other === "both-held" ? 2 : 1);
   for (const item of result.items) {
@@ -43,7 +43,7 @@ it.each(["unpaused", "paused", "backlog", "both-held"] as const)("offers repair 
 
 it("keeps review-due marks while replacing review prompts and actions with the clash repair", async () => {
   const h = await fixture("unpaused", true);
-  const result = await runPausedWork({ store: h.store, identity: "andrew", reviewAfterDays: 14, now, findHoldingCheckout: async () => null });
+  const result = await runPausedWork({ store: h.store, identity: "andrew", reviewAfterDays: 14, now, findHoldingCheckout: async () => ({ kind: "none" as const }) });
   expect(result.items).toMatchObject([{ marks: ["review-due"], actions: [{ argv: ["arc", "status", "--json"] }] }]);
   expect(result.items[0]?.actions).toHaveLength(1);
   expect(result.items[0]).not.toHaveProperty("reviewPrompt");
@@ -59,7 +59,7 @@ it.each(["refused", "missed"] as const)("refuses an unavailable complete clash v
     const result = await list(input);
     return result.status === "ok" && result.result.status === "complete" ? { status: "ok", result: { ...result.result, missed: true } } : result;
   };
-  const options = { store: h.store, identity: "andrew", reviewAfterDays: 14, now, findHoldingCheckout: async () => null };
+  const options = { store: h.store, identity: "andrew", reviewAfterDays: 14, now, findHoldingCheckout: async () => ({ kind: "none" as const }) };
   await expect(runPausedWork(options)).rejects.toThrow(mode === "refused" ? "Whole lifecycle view unavailable" : "missed records");
   broken = false;
   expect((await runPausedWork(options)).items[0]?.actions).toMatchObject([{ argv: ["arc", "status", "--json"] }]);

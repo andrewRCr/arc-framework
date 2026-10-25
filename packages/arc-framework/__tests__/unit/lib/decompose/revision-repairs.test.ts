@@ -27,7 +27,7 @@ async function revise(ctx: DecomposeContext, origin: string, map: CutMap) {
 }
 
 async function finish(ctx: DecomposeContext, origin: string) {
-  ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const preview = await runStoreDecomposeFinish(ctx, origin);
   expect(preview.status).toBe("ok");
   if (preview.status === "refused" || preview.result.kind !== "preview") throw new Error(JSON.stringify(preview));
@@ -65,7 +65,7 @@ it.each(repairs)("finishes the same retirement after a native revision repairs %
     if (kind === "started-home" || kind === "provider-ended") for (const edge of map.authoring.outgoingDispositions)
       edge.disposition = { kind: "targets", targets: ["home"] };
   } });
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   if (withHome) {
     const home = lifecycleSuccess(await readWorkUnit(h.store, "home"));
     const draft = lifecycleSuccess(await h.store.read({ reference: recordReferences["work-item/draft"](home.reference.owner) }));

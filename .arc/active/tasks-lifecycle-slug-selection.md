@@ -522,95 +522,31 @@ unclosed task commits (§ 3.2) re-read by the UID claim here.
           after its arriving owner's UUID is stamped. Unbound rows remain unresolved, while completed-owner recovery
           stays exact beside namesakes. Candidate evidence carries its seeded owner; in-repo claims remain unchanged.
 
-### `[ ]` **4.4 Match holders by UID through `LocusPorts` — § 7.3, § 2.4**
+### `[x]` **4.4 Match holders by UID through `LocusPorts` — § 7.3, § 2.4**
 
 - _Goal:_ Marker exclusivity and holder lookup match a record-holding caller's request by the owner's UID and a
   creation's by its slug against unbound markers alone, so a bound checkout of the archived holder neither blocks the
   slug's reuse nor is taken for the live holder's, and each listed entry finds its own checkout.
 
-    - `[ ]` **4.4.a The request**
+    - `[x]` **4.4.a The request**
 
-        - `checkMarkerExclusivity` and `findHoldingCheckout` (`LocusPorts`, `lib/work-unit/locus-ports.ts`, bound by
-          `createLocusPorts`) and `requireMarkerExclusivity` take the holder request 4.2.a defines, and the spawn leg
-          graduation, materialize, and `arc start --new` share passes the request its op carries in place of `wuName`.
-          `findHoldingCheckout` returns a tagged result, `{ kind: "none" }` or `{ kind: "held"; path }`, which 6.1.b
-          extends with an unbound holder, and takes the optional `checkoutPath` exclusion `checkMarkerExclusivity`
-          takes; every caller 4.4.b and 4.4.c name adopts it here.
-        - An owner request matches markers by UID, never by name, and several markers carrying one UID still refuse as
-          several holders do today; its names go unused until 6.1.b reports an unbound holder. A creation request
-          compares against the other markers without a UID only. A store-arm record without a UID refuses rather than
-          taking a creation request. `findWorkUnitHoldingCheckout`'s legacy name scan (`resolveLegacy`,
-          `lib/work-unit/verbs/unshared-work.ts`) stays the in-repo arm's alone.
-        - The ports' test stubs sweep with them: about 40 files stub `findHoldingCheckout` or `checkMarkerExclusivity`
-          by slug, most as `async () => null`, and each takes the request and returns the tagged result, matching an
-          owner request by the UID its fixture's marker carries (4.3.d).
-        - Build `test-first` (one behavior at a time):
-            - an owner request passes over a bound checkout of another holder named by the same slug
-            - two markers carrying one UID refuse as several holders
-            - a creation request is blocked by a marker without a UID naming the slug, and never by one with a UID
-            - a store-arm record without a UID refuses rather than taking a creation request
+        - Holder ports take the discriminated owner/creation request and return tagged held/none results. Owner UUIDs
+          select bound markers; creation selects only unbound names. Both honor checkout exclusions, duplicate UUIDs
+          refuse, incomplete operational owners refuse, and the legacy name scan stays confined to tracked records.
+          Callers and fixture ports adopt the same contract together.
 
-    - `[ ]` **4.4.b Callers that hold a record pass the owner request**
+    - `[x]` **4.4.b Callers that hold a record pass the owner request**
 
-        - Through `requireMarkerExclusivity`: graduation (`graduate`, `commands/start-store.ts`) at its own check and in
-          the spawn leg graduation and materialize share (`reconcileWorkUnitWorktree`). Through
-          `checkMarkerExclusivity`: promotion, with the Errand's own UID (`promote-store-runtime.ts`). Through
-          `findWorkUnitHoldingCheckout` (`lib/work-unit/verbs/unshared-work.ts`): rename (`rename-store.ts`), abandon
-          (`abandon-store.ts`), decomposition's retirement check (`checkDecomposeRetirementCheckout`,
-          `lib/decompose/retirement-checkout.ts`, which takes the retiring record where `retirement-plan.ts` passes a
-          name today), the sharing report gating pause and handover (`readUnsharedWork`), start's already-started check
-          (`startedPlanningReason`), and materialize's candidates (`listStoreMaterializable`).
-        - Through `findHoldingCheckout` directly: teardown (`holdingCheckout`, `lib/work-unit/verbs/teardown-store.ts`)
-          with its evidence record's UID, and named release (`releaseUnderLock`, `lib/locus/release.ts`), which resolves
-          its slug through the lookup first; 7.4 adds teardown's UID operand.
-        - Named release takes 6.4's order but for what needs 6.1. Where the lookup returns a live holder, release passes
-          that holder's owner request; where that finds no bound checkout, or the lookup returns a completed holder or
-          refuses `not-found`, it passes the creation request, which matches the markers without a UID naming the slug;
-          another refusal refuses with it. So `release.test.ts`'s missing occupant,
-          `terminal-occupancy-admission.test.ts`'s ended origin, whose marker carries no UID (4.3.d), and the crashed
-          backlog stub `lifecycle-default-locus-ports.test.ts` pins each release as today. 6.4 adds the refusal where
-          materialize admits the live holder, the case of several unbound markers, and the unnamed form.
-        - Creation's exclusivity, through the spawn leg for `arc start --new` and in `runStoreColdStart`, passes the
-          creation request.
-        - _Note:_ `feat/storage-ref-backend` edits `lib/work-unit/verbs/rename-store.ts` and
-          `lib/errand/promote-store-runtime.ts`; re-check that branch before editing them.
-        - _Note:_ abandon and decomposition tear their subject down by slug until 7.3, which with the live holder's
-          primary removed would reach the archived holder's bound checkout, so their fixtures here leave the teardown
-          boundary (`storeTeardown`) unbound, and the teardown step stops with its retry.
-        - Build `test-first` (one behavior at a time):
-            - with a bound checkout of the archived holder, rename, abandon, and decomposition of the live holder each
-              find the live holder's own checkout, or none
-            - graduation and materialize of a reused slug's live holder pass exclusivity beside a bound checkout of the
-              archived holder
-            - teardown still finds its subject's bound checkout, and `arc locus release <slug>` releases the live
-              holder's checkout beside a bound checkout of the archived holder and, for a slug with no live holder, the
-              one marker without a UID naming it
+        - Graduation, promotion, materialize, rename, abandon, retirement admission, sharing reports, start checks,
+          and teardown pass their selected owner's UUID. Named release resolves the live owner first, then checks
+          unbound creation residue when no bound live holder exists. Creation paths pass creation requests; real
+          checkout reuse cases preserve the archived owner's marker and records through live-owner operations.
 
-    - `[ ]` **4.4.c Listed entries find their own checkouts**
+    - `[x]` **4.4.c Listed entries find their own checkouts**
 
-        - Through `findHoldingCheckout` directly, each session-start and status reader over listed entries passes the
-          entry's UID: paused work (`runPausedWork`), the in-flight projection (`workUnitLocation`,
-          `lib/git/in-flight-store.ts`, whose `StoreInFlightWorkUnit` entries gain the UID), and materializable work
-          units (`storeMaterializableCandidate`, `lib/session-init/materializable-work-units.ts`, with the UID of the
-          record its read returns), through the functions bound for them in `handlers/status/store-session.ts`,
-          `handlers/status/store-locus.ts`, and `handlers/active.ts`. Status's own holder lookup for `arc status <slug>`
-          (`readStoreStatusLocus`, `handlers/status/store-locus.ts`) passes the UID of the record
-          `handleStoreLifecycleStatus` read, through `StoreLifecycleStatusPorts.findHoldingCheckout`. Materialize's
-          candidates key `held` by reference.
-        - Paused work's own matches of in-flight entries and markerless checkouts by name (`pausedWorkAction`) stay: a
-          clashed item never reaches them (3.6), and under reuse a live entry's name is unique among live entries.
-        - The Errand overlap check's self-exclusion (`lib/errand/store-overlap.ts`) compares an in-flight entry's UID
-          with the caller identity's (4.3.b), where it compares `entryName` today.
-        - _Note:_ `feat/storage-ref-backend` edits `handlers/status/store-locus.ts`; re-check that branch before
-          editing.
-        - Build `test-first` (one behavior at a time):
-            - with a bound checkout of the archived holder, the live holder's paused-work item and in-flight row locate
-              its own checkout, and under a clash each live holder's in-flight row locates its own
-            - materialize's candidates mark only the holder whose own checkout is here as held
-            - `arc status <slug>` of a reused slug reports the live holder's `worktreePath` beside a bound checkout of
-              the archived holder
-            - from a bound checkout of the archived holder, the Errand overlap check keeps the live holder's in-flight
-              entry
+        - In-flight entries carry UUIDs and locate their own holders and rows. Paused work, materialization offers,
+          and status use the selected record's owner request; held candidates use reference keys, and overlap
+          self-exclusion uses the caller's UUID. Reused and clashed names retain independent checkout locations.
 
 ### `[ ]` **4.5 Match derived roster rows by UID — § 7.3**
 

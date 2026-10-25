@@ -49,7 +49,7 @@ async function graduate(ctx: ExecuteTransitionContext, params: GraduateParams): 
     storeTransition: { primary: read.result, content, placement: { kind: "active" }, gitSteps: [{
       name: "occupy-planning-checkout", retryCommand,
       run: async () => {
-        await requireMarkerExclusivity(ctx.locusPorts, { name });
+        await requireMarkerExclusivity(ctx.locusPorts, holder);
         occupation = await occupyStoreGraduation({ cwd: ctx.cwd, exec, inPlace: params.inPlace === true,
           onOccupied: (prepared) => { occupation = prepared; },
           occupy: () => ctx.reconcileWorkUnitWorktree(params.inPlace

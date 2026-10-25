@@ -29,7 +29,7 @@ import { writeMetaCohort } from "../../../src/lib/store/kinds/meta/writers.js";
 import { resolveDraftPresent } from "../../../src/handlers/plan.js";
 
 const quietLocusPorts: StoreLifecycleStatusPorts = {
-  findHoldingCheckout: async () => null,
+  findHoldingCheckout: async () => ({ kind: "none" as const }),
   readInFlightWarnings: async () => [],
 };
 

@@ -440,7 +440,8 @@ async function reconcileWorkUnitWorktreeUnlocked(
   }
   if (op.mutation === "spawn" && offBranch) {
     if (op.inPlace && op.spawningIdentity === undefined) throw new Error("anchored worktree claim requires a spawning identity");
-    await requireMarkerExclusivity(ctx.locusPorts, { name: op.wuName });
+    if (op.holder === undefined) throw new Error("Operational placement requires its owner or creation claim; repair the placement request, then retry.");
+    await requireMarkerExclusivity(ctx.locusPorts, op.holder);
   }
   if (op.mutation === "spawn" && op.inPlace) {
     // In place: cut/attach the branch in the current worktree — no `worktree add`,

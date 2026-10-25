@@ -1,3 +1,4 @@
+import type { LocusPorts } from "../../../../src/lib/work-unit/locus-ports.js";
 /** Session offers distinguish an unavailable ref inventory from branch absence. */
 import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { afterEach, expect, it, vi } from "vitest";
@@ -22,9 +23,11 @@ const pausedContent = (content: string) => writeMetaPause(content, MetaPauseSche
   reason: "Waiting", waitsOn: null, open: false, resumeNotes: "" }));
 async function fixture() {
   const h = createLifecycleHarness(); h.store.environment.identity = "alice";
+  let heldUid: string | undefined;
   for (const name of ["demo", "waiting", "held"]) {
     const record = await h.seedMeta(name, { owner: "alice" }, { kind: "active" },
       { branches: [{ repository: "project", ref: `feat/${name}`, linkedAs: "created", excluded: [] }] });
+    if (name === "held") heldUid = boundWorkUnitSubject(record).uid;
     if (name !== "demo") ok(await h.store.write({ ...recordPut(record, { content: pausedContent(record.content) }),
       provenance: { verb: "pause", lifecycleAction: "pause" } }));
   }
@@ -42,7 +45,7 @@ async function fixture() {
     { match: ["config", "--null", "--get", "arc.identity"], responses: [{ stdout: "alice\0" }] },
     { match: { prefix: ["cherry"] }, responses: [{ stdout: "" }] },
   ]);
-  const findHoldingCheckout = async (name: string) => name === "held" ? "/held" : null;
+  const findHoldingCheckout: LocusPorts["findHoldingCheckout"] = async request => request.kind === "owner" && request.uid === heldUid && request.checkoutPath !== "/held" ? { kind: "held", path: "/held" } : { kind: "none" };
   const caller = { kind: "unmanaged-checkout", subject: null, checkout: { path: "/current", head, branch: "main", detached: false, primary: false, folderPresent: true },
     markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, context: null, lifecycleLocation: null, diagnostics: [] };
   const frame = DerivedLocusFrameSchema.parse({ roster: [caller], entering: { kind: "selected", row: caller },

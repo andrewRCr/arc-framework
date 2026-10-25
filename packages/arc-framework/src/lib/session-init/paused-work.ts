@@ -1,4 +1,5 @@
 /** Per-identity pause listing and shared review marks. */
+import { ownerHolderRequest, type LocusPorts } from "../work-unit/locus-ports.js";
 import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 import { z } from "zod";
 import { SlugSchema } from "../kernel/index.js";
@@ -37,7 +38,7 @@ export type PausedWorkResult = z.infer<typeof PausedWorkResultSchema>;
 /** Report no paused work while the checkout-backed lifecycle is active. */
 export interface RunPausedWorkOptions {
   store: Store; identity: string; reviewAfterDays: number; now?: Date;
-  findHoldingCheckout: (slug: string) => Promise<string | null>;
+  findHoldingCheckout: LocusPorts["findHoldingCheckout"];
   markerlessCheckouts?: readonly { workUnit: string; checkoutPath: string }[];
   inFlightEntries?: readonly StoreInFlightEntry[];
   localRefsAvailable?: boolean;
@@ -70,7 +71,8 @@ async function readPausedWork(options: RunPausedWorkOptions): Promise<PausedWork
       items.push({ ...item, actions: [clashRepair(clash.holders, { liveness: "live", name: clash.kind === "current-name" ? "current" : "former" })] });
       continue;
     }
-    const holder = await options.findHoldingCheckout(slug);
+    const found = await options.findHoldingCheckout(ownerHolderRequest(entry));
+    const holder = found.kind === "held" ? found.path : null;
     const action = await pausedWorkAction(options, slug, holder, entry);
     const reviewActions = marking.actions.filter(review => action.argv === undefined || JSON.stringify(review.argv) !== JSON.stringify(action.argv));
     items.push({ ...item, ...(marking.reviewPrompt === undefined ? {} : { reviewPrompt: marking.reviewPrompt }),

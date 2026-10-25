@@ -1,3 +1,4 @@
+import { boundHolderLookup } from "../../../helpers/store/bound-checkout.js";
 /** Store-held materialization supports released, paused and branchless work without a state write. */
 import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { describe, expect, it } from "vitest";
@@ -30,7 +31,7 @@ async function harness(options: { branch?: string; remoteOnly?: boolean; offline
   }
   const fetches: string[][] = []; let placement: ReconcileWorkUnitWorktreeOp | undefined;
   const ctx: ExecuteTransitionContext = {
-    cwd: "/missing-root", store: h.store, projectId: async () => "repo", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: () => Promise.resolve(options.held ? "/holding" : null) },
+    cwd: "/missing-root", store: h.store, projectId: async () => "repo", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: boundHolderLookup(meta, () => options.held ? "/holding" : null) },
     exec: async (_command, args) => {
       const absent = () => { throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "not found" }); };
       if (args[0] === "remote") return { stdout: "origin" };

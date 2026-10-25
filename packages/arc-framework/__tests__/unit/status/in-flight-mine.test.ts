@@ -28,7 +28,7 @@ describe("buildInFlightMineSlice", () => {
 
   it("renders a branchless store work unit", () => {
     const entry: StoreInFlightWorkUnit = {
-      kind: "work-unit", name: "planning", state: "Planning",
+      kind: "work-unit", uid: "11111111-1111-4111-8111-111111111111", name: "planning", state: "Planning",
       remoteOnly: false, dependsOn: [], class: "Heavy", priority: "P2",
     };
 
@@ -39,7 +39,7 @@ describe("buildInFlightMineSlice", () => {
 
   it("renders paused store scheduling over the lifecycle state", () => {
     const entry: StoreInFlightWorkUnit = {
-      kind: "work-unit", name: "paused", state: "Active", scheduling: "paused",
+      kind: "work-unit", uid: "11111111-1111-4111-8111-111111111111", name: "paused", state: "Active", scheduling: "paused",
       branch: "feat/paused", remoteOnly: false, dependsOn: [],
     };
 

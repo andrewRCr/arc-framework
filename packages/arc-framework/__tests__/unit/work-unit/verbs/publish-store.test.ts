@@ -82,7 +82,7 @@ describe("store publish", () => {
     { verb: "decompose", lifecycleAction: "decompose" }));
     const immutable = lifecycleSuccess(await h.store.read({ reference: lineage }));
     const renamed = await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
-      locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+      locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
     { sourceSlug: "former-dependent", targetSlug: "example" });
     expect(renamed.status, JSON.stringify(renamed)).toBe("renamed");
     const current = lifecycleSuccess(await h.store.read({ reference: dependent.reference }));

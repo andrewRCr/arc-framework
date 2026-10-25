@@ -55,7 +55,7 @@ it.each([false, true])("lifecycle evidence reads its marker's exact record, comp
 
 it.each([false, true])("exclusivity reports its holder's own lifecycle exit, completed=%s", async completed => {
   const h = await fixture(completed);
-  const result = await createLocusPorts({ cwd: h.cwd, exec: h.exec, store: h.store }).checkMarkerExclusivity({ name: "shared" });
+  const result = await createLocusPorts({ cwd: h.cwd, exec: h.exec, store: h.store }).checkMarkerExclusivity({ kind: "owner", uid: h.uid, names: { current: "shared", former: [] } });
   expect(result).toMatchObject({ kind: "refused", checkoutPath: h.cwd,
     reason: expect.stringContaining(completed ? "finish integration" : "as owner 'live-owner' run arc pause") });
 });

@@ -256,7 +256,7 @@ async function handleStoreLifecycleStatus(store: Store, slug: string, opts: Stat
   const query = resolveSlugQuery(view.result.index, record.status === "ok" ? record.result.reference.owner.name : slug);
   const fields = storeQueryMetaFields(record);
   const design = record.status === "ok" ? await readLifecycleDesign(store, record.result) : { record: null, content: null, warnings: [] };
-  const locus = await readStoreStatusLocus({ ...local, store, slug: query.slug }, ports);
+  const locus = await readStoreStatusLocus({ ...local, store, slug: query.slug, record: record.status === "ok" ? record.result : undefined }, ports);
   const derived = await readDerivedSlugPosition({ slug: query.slug, worktreePath: locus.worktreePath, identity: local.identity,
     readRoster: ports?.readRoster ?? (identity => readStatusCheckoutRoster({ ...local, store }, identity)) });
   const scopeWindow = projectScopeWindow(query.state, derived.position, storeQueryPause(fields));

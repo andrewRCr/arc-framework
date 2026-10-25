@@ -1,3 +1,4 @@
+import { boundHolderLookup } from "../../../helpers/store/bound-checkout.js";
 /** Paired designs remain readable across an atomic work-unit rename. */
 import { expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
@@ -27,7 +28,7 @@ it("keeps both paired Design bindings and references coherent after a refused ba
     "# Draft: waiting\n\nRead `spec-source-prd.md` and `spec-source-rfc.md`.\n");
   const git = scriptGitExec([]);
   const ctx = { store: h.store, cwd: "/repo", exec: git.exec, baseBranch: "main", locusPorts: {
-    checkMarkerExclusivity: async () => ({ kind: "clear" as const }), findHoldingCheckout: async () => null,
+    checkMarkerExclusivity: async () => ({ kind: "clear" as const }), findHoldingCheckout: async () => ({ kind: "none" as const }),
     writeAnchoredMarker: async () => ({ kind: "unadmitted" as const }),
   } };
   const batch = h.store.batch.bind(h.store);
@@ -77,7 +78,7 @@ it.each(["prd", "rfc"])("refuses a shared %s reference with two live owners, the
   const batch = h.store.batch.bind(h.store);
   h.store.batch = (input) => { batches++; return batch(input); };
   const ctx = { store: h.store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main", locusPorts: {
-    checkMarkerExclusivity: async () => ({ kind: "clear" as const }), findHoldingCheckout: async () => "/holder/origin",
+    checkMarkerExclusivity: async () => ({ kind: "clear" as const }), findHoldingCheckout: boundHolderLookup(primary, () => "/holder/origin"),
     writeAnchoredMarker: async () => ({ kind: "unadmitted" as const }),
   }, renameCheckout: async () => { physical++; return { report: { checkout: { kind: "renamed" as const, checkoutPath: "/holder/successor", markerGeneration: "renamed" } }, rollback: async () => {} }; } };
   const request = { sourceSlug: "origin", targetSlug: "successor" };
@@ -113,7 +114,7 @@ it.each(["prd", "rfc"])("refuses the generic sweep of an ambiguous %s filename w
   const draft = await h.seed(recordReferences["work-item/draft"](waiting.reference.owner), `Read \`spec-origin-${half}.md\`.\n`);
   let checkout = "/holder/source";
   const ctx = { store: h.store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main", locusPorts: {
-    checkMarkerExclusivity: async () => ({ kind: "clear" as const }), findHoldingCheckout: async () => checkout,
+    checkMarkerExclusivity: async () => ({ kind: "clear" as const }), findHoldingCheckout: boundHolderLookup(primary, () => checkout),
     writeAnchoredMarker: async () => ({ kind: "unadmitted" as const }),
   }, renameCheckout: async () => { checkout = "/holder/successor"; return {
     report: { checkout: { kind: "renamed" as const, checkoutPath: checkout, markerGeneration: "renamed" } }, rollback: async () => {},
