@@ -1,7 +1,7 @@
 /** Isolated registry acquisition before a remote can publish this clone's project. */
 
 import { parseFetchPorcelain, type FetchOutcome } from "../../git/fetch.js";
-import { normalizeGitRejection } from "../../git/process-error.js";
+import { normalizeGitRejection, isCompletedGitFailure, isGitProcessError } from "../../git/process-error.js";
 import { PASSIVE_REMOTE_INTERACTION } from "../../git/remote-ref-reader.js";
 import { updateRefTransaction } from "../../git/ref-transaction.js";
 import type { PullOutcome } from "../sync.js";
@@ -37,7 +37,8 @@ export async function checkRefDesignationProject(context: RefBackendContext, rem
   const prefix = `refs/arc/tmp/designate/${remote.name}/`;
   const observed = new Map<string, string>();
   try {
-    await clearProjectCheck(context, prefix);
+    const cleared = await clearProjectCheck(context, prefix);
+    if (cleared) return cleared;
     const fetched = await fetchProjectCheck(context, remote, designation, prefix, observed);
     if (fetched.status === "failed") return fetched;
     const forwarding = await readForwardingRecord(context, fetched.moved, remote.name);
@@ -50,8 +51,9 @@ export async function checkRefDesignationProject(context: RefBackendContext, rem
       condition: `State moved from remote ${remote.name}.`, remedy: { text: `Bring in the tracked pointer's change and run arc store migrate to follow. If this clone does not fetch ${remote.name}, first run arc store remote ${remote.name} read. To move state back, run arc store migrate --to ${remote.name} from its current home.` } } };
     return { status: "ok" };
   } finally {
+    // Cleanup cannot replace the candidate decision; the next entry clears any retained temporary tips.
     for (const [ref, expected] of observed) {
-      await updateRefTransaction(cleanup, [{ ref, delete: true, expected }], { cwd: cleanup.checkoutRoot });
+      await updateRefTransaction(cleanup, [{ ref, delete: true, expected }], { cwd: cleanup.checkoutRoot }).catch(() => undefined);
     }
   }
 }
@@ -67,12 +69,19 @@ async function projectIdFromTip(context: RefBackendContext, tip?: string): Promi
   return owner.status === "refused" ? owner : { status: "ok", result: owner.result.type === "project" ? owner.result.uid ?? null : null };
 }
 
-async function clearProjectCheck(context: RefBackendContext, prefix: string): Promise<void> {
-  for (;;) {
-    const tips = await readSyncRefs(context, prefix);
-    if (!tips.size) return;
-    const changes = [...tips].map(([ref, expected]) => ({ ref, delete: true as const, expected }));
-    if ((await updateRefTransaction(context, changes, { cwd: context.checkoutRoot })).status === "committed") return;
+async function clearProjectCheck(context: RefBackendContext, prefix: string): Promise<Extract<RefDesignationProjectCheck, { status: "failed" }> | undefined> {
+  let subject = prefix;
+  try {
+    for (;;) {
+      const tips = await readSyncRefs(context, prefix);
+      if (!tips.size) return;
+      subject = [...tips.keys()].join(", ");
+      const changes = [...tips].map(([ref, expected]) => ({ ref, delete: true as const, expected }));
+      if ((await updateRefTransaction(context, changes, { cwd: context.checkoutRoot })).status === "committed") return;
+    }
+  } catch (error) {
+    if (!isGitProcessError(error) || !isCompletedGitFailure(error)) throw error;
+    return projectReadFailure(`Could not clear stale candidate refs ${subject}: ${error.message}`);
   }
 }
 

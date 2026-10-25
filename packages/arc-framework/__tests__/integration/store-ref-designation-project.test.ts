@@ -14,6 +14,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { describe, expect, it } from "vitest";
 
 import { createRefClock } from "../helpers/store/ref-clock.js";
+import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 import { createRefStore } from "../../src/lib/store/create.js";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
@@ -264,4 +265,78 @@ describe("automatic designation project check", () => {
     }
     expect((await h.b.exec("git", ["config", "--list"])).stdout).not.toContain("remote.origin.arc-state");
   });
+});
+
+function immediateRefWrites(ports: import("../../src/lib/store/ports.js").RefStorePorts): typeof ports {
+  const execInput: typeof ports.execInput = (args, input, options) => ports.execInput(args.map(arg =>
+    arg.replace(/^(reftable\.lockTimeout|core\.filesRefLockTimeout)=5000$/u, "$1=0")), input, options);
+  return { ...ports, execInput };
+}
+
+it.each(["pull", "push", "setting"] as const)("reports a locked stale designation ref through %s and continues after unlock", async operation => {
+  const h = await refSyncFixture();
+  await putIdentity(h.a.store, localId);
+  await h.a.git(["push", "origin", "refs/arc/*:refs/arc/*"]);
+  await putIdentity(h.b.store, localId);
+  const ref = "refs/arc/project/registry", temporary = "refs/arc/tmp/designate/origin/registry";
+  const before = (await h.b.git(["rev-parse", ref])).stdout.trim();
+  await h.b.git(["update-ref", temporary, before]);
+  await h.b.exec("git", ["config", "--unset", "remote.origin.arc-state"]);
+  const format = (await h.b.git(["rev-parse", "--show-ref-format"])).stdout.trim();
+  const lock = join(h.b.root, ".git", format === "reftable" ? "reftable/tables.list.lock" : `${temporary}.lock`);
+  await mkdir(dirname(lock), { recursive: true });
+  await writeFile(lock, "Held stale designation ref\n");
+  const ports = immediateRefWrites(h.b.ports), store = createRefStore(ports);
+  const invoke = async () => operation === "setting"
+    ? (await invokeStoreRemote(["origin", "push"], { cwd: h.b.root, ports })).result : store[operation]();
+  try {
+    const result = await invoke();
+    if (operation === "setting") expect(result).toMatchObject({ status: "refused", refusal: { code: "store", refusal: {
+      code: "refused", condition: expect.stringContaining(temporary), remedy: { text: expect.stringContaining("temporary ref lock") },
+    } } });
+    else expect(result).toMatchObject({ status: "ok", result: { pulls: [expect.objectContaining({ role: "candidate", status: "failed",
+      failure: { code: "refused", class: "terminal", message: expect.stringContaining(temporary),
+        condition: expect.stringContaining(temporary), remedy: { text: expect.stringContaining("temporary ref lock") } },
+    })] } });
+    expect((await h.b.git(["rev-parse", ref])).stdout.trim()).toBe(before);
+    expect((await h.b.git(["rev-parse", temporary])).stdout.trim()).toBe(before);
+    await expect(h.b.exec("git", ["config", "--get", "remote.origin.arc-state"])).rejects.toMatchObject({ exitCode: 1 });
+  } finally { await unlink(lock); }
+  const result = await invoke();
+  expect(result.status, JSON.stringify(result)).toBe("ok");
+  expect((await h.b.exec("git", ["config", "remote.origin.arc-state"])).stdout.trim()).toBe("push");
+  expect((await h.b.git(["for-each-ref", "--format=%(refname)", "refs/arc/tmp/designate/"])).stdout).toBe("");
+});
+
+it("preserves the foreign-project decision when the observed candidate ref cannot be cleaned", async () => {
+  const h = await refSyncFixture();
+  await putIdentity(h.a.store, foreignId);
+  await h.a.git(["push", "origin", "refs/arc/*:refs/arc/*"]);
+  await putIdentity(h.b.store, localId);
+  await h.b.exec("git", ["config", "--unset", "remote.origin.arc-state"]);
+  const temporary = "refs/arc/tmp/designate/origin/registry";
+  const format = (await h.b.git(["rev-parse", "--show-ref-format"])).stdout.trim();
+  const lock = join(h.b.root, ".git", format === "reftable" ? "reftable/tables.list.lock" : `${temporary}.lock`);
+  let armed = true;
+  const ports = immediateRefWrites(h.b.ports);
+  const store = createRefStore({ ...ports, exec: async (command, args, options) => {
+    const result = await ports.exec(command, args, options);
+    if (armed && args.includes("fetch") && args.some(arg => arg.includes(":refs/arc/tmp/designate/origin/"))) {
+      armed = false;
+      await mkdir(dirname(lock), { recursive: true });
+      await writeFile(lock, "Held after candidate fetch\n");
+    }
+    return result;
+  } });
+  try {
+    expect(success(await store.pull()).pulls).toMatchObject([{ role: "candidate", status: "failed", failure: {
+      code: "refused", condition: expect.stringContaining(localId), message: expect.stringContaining(foreignId),
+      remedy: { argv: ["arc", "store", "remote", "origin", "off"] },
+    } }]);
+    expect(armed).toBe(false);
+    expect((await h.b.git(["for-each-ref", "--format=%(refname)", temporary])).stdout.trim()).toBe(temporary);
+  } finally { await unlink(lock); }
+  expect(success(await store.pull()).pulls).toMatchObject([{ status: "failed", failure: { condition: expect.stringContaining(localId) } }]);
+  expect((await h.b.git(["for-each-ref", "--format=%(refname)", "refs/arc/tmp/designate/"])).stdout).toBe("");
+  await expect(h.b.exec("git", ["config", "--get", "remote.origin.arc-state"])).rejects.toMatchObject({ exitCode: 1 });
 });
