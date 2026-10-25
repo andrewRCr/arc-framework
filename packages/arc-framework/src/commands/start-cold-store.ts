@@ -8,7 +8,7 @@ import { writeEditorDocumentsOrThrow, nodeEditorDocumentsFs } from "../lib/schem
 import { createLocusPorts } from "../lib/locus/lifecycle-ports.js";
 import { inspectCheckoutMarker } from "../lib/locus/marker-occupancy.js";
 import { requireMarkerExclusivity } from "../lib/work-unit/locus-ports.js";
-import { SlugSchema } from "../lib/kernel/index.js";
+import { checkCreationAdmission, renderCreationAdmissionRefusal } from "../lib/store/creation-admission.js";
 import { resolveCurrentWorkUnit } from "../lib/store/current-work-unit.js";
 import type { OwnerIdentity } from "../lib/store/identity.js";
 import { stampCreatedWorkUnitMarker } from "../lib/work-unit/created-work-unit-marker.js";
@@ -27,6 +27,8 @@ export async function runStoreColdStart(ctx: SpawnWorktreeContext, params: ColdS
     const occupancy = await inspectCheckoutMarker({ cwd: params.worktreePath, store, identity: params.identity });
     if (occupancy.kind === "unreadable") return { ok: false, reason: occupancy.reason };
     if (occupancy.kind === "occupied" && (!occupancy.missingRecord || occupancy.marker.marker.spawnedByArc)) return { ok: false, reason: occupancy.reason };
+    const admission = await coldStartNameRefusal(store, wuName, params.name !== undefined);
+    if (admission !== null) return { ok: false, reason: admission };
     await requireMarkerExclusivity(ports, { kind: "creation", slug: wuName, checkoutPath: params.worktreePath });
     await ensureWorktreeMarkerIgnored(params.worktreePath, ctx.io.exec, nodeWorktreeMarkerIgnoreFs);
     await writeEditorDocumentsOrThrow(params.worktreePath, ctx.io.exec, nodeEditorDocumentsFs, undefined, ctx.writeEditorDocuments);
@@ -39,24 +41,27 @@ export async function runStoreColdStart(ctx: SpawnWorktreeContext, params: ColdS
     written = marker.bytes;
     owner = await scaffoldIntoWorktree({ ...ctx, locusPorts: ports }, { worktreePath: params.worktreePath, branch: null,
       wuName, spawningIdentity: params.identity, createdByArc: false, origin: seed.origin });
-  } catch (error) { return recoverColdStartFailure(store, params, wuName, written, error); }
+  } catch (error) { return recoverColdStartFailure(params, written, error); }
   const refusal = await stampCreatedWorkUnitMarker({ cwd: params.worktreePath, name: wuName, expected: written, owner });
   return refusal === null ? { ok: true, value: { worktreePath: params.worktreePath, branch: params.branch, wuName, ...seed } }
     : { ok: false, reason: refusal };
 }
 
-async function recoverColdStartFailure(store: Store, params: ColdStartParams, wuName: string,
+async function coldStartNameRefusal(store: Store, name: string, named: boolean): Promise<string | null> {
+  const admission = await checkCreationAdmission(store, name);
+  if (admission.kind === "free") return null;
+  const rendered = renderCreationAdmissionRefusal(name, admission);
+  if (named) return `${rendered.condition} ${rendered.remedy.text}`;
+  const holder = !admission.ambiguous && admission.holders.length === 1 ? admission.holders[0] : undefined;
+  const pointer = admission.kind === "held" && holder?.reference.kind === "work-item/meta"
+    ? ` For '${holder.reference.owner.name}', follow the lifecycle step shown by arc status ${holder.reference.owner.name}.` : "";
+  return `${rendered.condition} ${rendered.remedy.text} For a new work unit, run arc start <name> --new --here under another name.${pointer}`;
+}
+
+async function recoverColdStartFailure(params: ColdStartParams,
   written: Buffer | undefined, error: unknown): Promise<ColdStartOutcome> {
   const rollback = written === undefined ? "" : await rollbackMarker(params.worktreePath, written);
   const message = error instanceof Error ? error.message : String(error);
-  if (params.name !== undefined) return { ok: false, reason: `${message}${rollback}` };
-  try {
-    const held = await store.lookup({ kind: "slug", slug: SlugSchema.parse(wuName) });
-    if (held.status === "ok" && held.result.reference.kind === "work-item/meta") {
-      const name = held.result.reference.owner.name;
-      return { ok: false, reason: `Derived name '${wuName}' is held by work unit '${name}'. For a new work unit, run arc start <name> --new --here under another name. For '${name}', follow the lifecycle step shown by arc status ${name}.${rollback}` };
-    }
-  } catch { /* Preserve the original refusal when its follow-up inspection cannot resolve a name. */ }
   return { ok: false, reason: `${message}${rollback}` };
 }
 async function rollbackMarker(cwd: string, written: Buffer): Promise<string> {

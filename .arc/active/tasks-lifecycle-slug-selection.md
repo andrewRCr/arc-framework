@@ -606,38 +606,12 @@ refuses through `work-item.slug-edges` with its remedy.
           repair text. Reuse creates an independent backlog owner and preserves the archived bound checkout;
           surviving in-flight dependency edges still refuse with their reconciliation remedy.
 
-    - `[ ]` **5.2.b `arc start <name> --new` and the cold start**
+    - `[x]` **5.2.b `arc start <name> --new` and the cold start**
 
-        - For `--new`, `handleStoreStart` (`handlers/start-store.ts`) runs the check on the operand as typed, spawned or
-          `--here`, then creates, in place of `resolveStartName` and `resolveStartDispatch`'s refusal of any slug the
-          index holds; a helper carries the `--new` arm, keeping `handleStoreStart` within its limit.
-          `resolveStartDispatch` (`commands/start.ts`) is unchanged: the in-repo arm shares it (`handlers/start.ts`),
-          pinned by `start-dispatch.test.ts`.
-        - `runStoreColdStart` (`commands/start-cold-store.ts`) runs the check on its name, derived or named, before
-          `writeAnchoredMarker`, so a refusal writes no marker. The derived name exists only there (`runColdStart`,
-          `commands/start.ts`); a named `--here` start is checked by both, which keeps the cold start safe under any
-          caller.
-        - `recoverColdStartFailure` no longer rewrites a nameless failure into its held-name text: the check refuses a
-          held name first, and the rewrite would replace a write rule's refusal and its remedy.
-        - Refusals render through 5.1's renderer. Where the lookup returns a live work unit, `--new` adds today's
-          pointer: that work unit's already-started report where it is Planning in active placement
-          (`startedPlanningReason`), otherwise the pointer to omit `--new`; a tie takes no pointer. The nameless cold
-          start's remedy names `arc start <name> --new --here` for another name and `arc status <holder>` for the
-          holder, as today.
-        - `resolveStartName`'s rewrite of a former slug to its holder's current name stays for graduation only.
-        - _Note:_ 4.2.b, this task, and 6.3.b each add a branch to `runStoreColdStart`; extract the check into a helper.
-        - Build `test-first` (one behavior at a time):
-            - `arc start <name> --new`, spawned and `--here`, and the nameless cold start each create onto a completed
-              work unit's slug, with a bound checkout of the archived holder lingering
-            - `--new` on a live work unit's slug refuses naming it with today's pointer, the already-started report that
-              `start-cold-store.test.ts` pins included, and on a live tie with no pointer
-            - `--new` on a completed Errand's slug, a completed cohort's slug, and a completed holder's former slug
-              refuse with the remedy to choose another name
-            - the nameless cold start refuses a live work unit's derived name, as `start-cold-store.test.ts` pins, and a
-              live cohort's, a completed Errand's, and a completed holder's former slug, each with no marker written
-            - a nameless cold start onto a completed work unit's slug that an in-flight dependent's edge names refuses
-              with `work-item.slug-edges`'s remedy
-            - `arc start <former-slug>` of a live holder still graduates it under its current name
+        - Explicit creation checks the typed name before alias resolution; cold start checks its final named or derived
+          name before writing a marker. Both use shared admission and holder remedies, preserving unique live-work-unit
+          pointers without selecting from a tie. Cold-start rollback retains the original store refusal and repair;
+          graduation alone still resolves former names to their current owner.
 
     - `[ ]` **5.2.c Decomposition's work-item names and Errand promotion**
 

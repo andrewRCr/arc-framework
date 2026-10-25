@@ -1,4 +1,5 @@
 /** Capability-selected start handler: operational records never require a code-branch snapshot. */
+import { checkCreationAdmission, renderCreationAdmissionRefusal } from "../lib/store/creation-admission.js";
 import { basename } from "node:path";
 import * as p from "../lib/terminal.js";
 import { refuse } from "./lifecycle-shared.js";
@@ -37,11 +38,12 @@ export async function handleStoreStart(input: Input, ctx: StoreStartContext): Pr
   if (view.status === "refused") { refuse(view.refusal.condition, view.refusal); return; }
   try { requireCompleteInventory(store, view.result.listing); }
   catch (error) { refuse(String(error)); return; }
+  if (input.new === true) { await createRequestedName({ ...input, name: input.name }, ctx, store, view.result.entries); return; }
   const selected = await resolveStartName(store, input.name);
   if (selected === null) return;
   const { name } = selected;
   const selectedInput = { ...input, name };
-  const dispatch = resolveStartDispatch(view.result.index, name, { create: input.new === true });
+  const dispatch = resolveStartDispatch(view.result.index, name, { create: false });
   switch (dispatch.arm) {
     case "refuse": {
       refuse(await startedPlanningReason(view.result.entries, selected, ctx) ?? dispatch.reason);
@@ -52,6 +54,18 @@ export async function handleStoreStart(input: Input, ctx: StoreStartContext): Pr
     case "graduate": await graduate(selectedInput, ctx); return;
   }
 }
+async function createRequestedName(input: Input & { name: string }, ctx: StoreStartContext, store: Store,
+  entries: readonly LifecycleEntry[]): Promise<void> {
+  const admission = await checkCreationAdmission(store, input.name);
+  if (admission.kind === "free") { await create(input, ctx); return; }
+  const rendered = renderCreationAdmissionRefusal(input.name, admission);
+  const holder = !admission.ambiguous && admission.holders.length === 1 ? admission.holders[0] : undefined;
+  const pointer = admission.kind === "held" && holder?.reference.kind === "work-item/meta"
+    ? await startedPlanningReason(entries, { name: holder.reference.owner.name, reference: holder.reference }, ctx)
+      ?? `For '${holder.reference.owner.name}', omit \`--new\`; its current lifecycle state determines whether start can act on it.` : null;
+  refuse(`${rendered.condition} ${rendered.remedy.text}${pointer === null ? "" : ` ${pointer}`}`);
+}
+
 async function startedPlanningReason(entries: readonly LifecycleEntry[],
   selected: { name: string; reference?: RecordReference }, ctx: StoreStartContext): Promise<string | null> {
   const { name, reference } = selected;
