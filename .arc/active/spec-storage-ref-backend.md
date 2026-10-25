@@ -571,6 +571,7 @@ export interface RefHome {
 | `work-item/description`                                         | `errand-<slug>.md`                                                                             |
 | `work-item/inbound`                                             | `inbound-<slug>.md`                                                                            |
 | `work-item/record`                                              | `errand-<uid>.json`                                                                            |
+| `work-item/cut-map`                                             | `cut-map-<uid>.json`                                                                           |
 | `review/candidate`                                              | `review/candidate-<uid>.json`                                                                  |
 | `review/integration-boundary`                                   | `review/integration-boundary-<uid>.json`                                                       |
 | every `review/` kind keyed by `id` but `review/conflict-record` | `review/<name>-<key>-<uid>.json`, `<name>` the kind's name after `review/`                     |
@@ -4790,7 +4791,10 @@ open:
 - **A42** — 2026-10-24 — design: every store listing of a remote's refs runs under the shipped network bound.
   _Supersedes:_ § 11.8's signal calls. _Trigger:_ fix-check-2/F4 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
-- **A43** — 2026-10-25 — design: an owner UID takes the lowercase form stored names carry.
-  _Supersedes:_ § 2.1 owner UID. _Trigger:_ standard-pass-2/AGG-01 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A43** — 2026-10-25 — design: an owner UID takes the lowercase form stored names carry. _Supersedes:_ § 2.1
+  OwnerIdentity uid. _Trigger:_ standard-pass-2/AGG-01 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A44** — 2026-10-25 — spec-depth: § 3.2 lists work-item/cut-map's stored path. _Supersedes:_ none. _Trigger:_
+  standard-pass-2/AGG-13 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---
