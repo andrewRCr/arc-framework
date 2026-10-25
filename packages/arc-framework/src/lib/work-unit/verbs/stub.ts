@@ -239,5 +239,7 @@ async function runStoreStub(ctx: StubContext, params: StubParams, commitment: St
       storeTransition: { create: { action: "put", reference, expected: null,
         content: renderStoreMeta(params.name, creationFields), placement: { kind: "backlog", commitment } } },
     } });
-    return outcome.status === "ok" ? { status: "scaffolded", outcome, metaPath } : { status: "rejected", reason: outcome.message };
+    if (outcome.status === "ok") return { status: "scaffolded", outcome, metaPath };
+    const refusal = outcome.status === "rejected" ? outcome.refusal : undefined;
+    return { status: "rejected", reason: `${outcome.message}${refusal === undefined ? "" : ` ${refusal.remedy.text}`}` };
 }

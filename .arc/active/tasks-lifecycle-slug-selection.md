@@ -599,22 +599,12 @@ refuses through `work-item.slug-edges` with its remedy.
   before any write, so each admits a completed work unit's slug and refuses a live, Errand, cohort, or former-name
   holder's; rename and `arc errand open` keep their own admission.
 
-    - `[ ]` **5.2.a `arc stub`**
+    - `[x]` **5.2.a `arc stub`**
 
-        - A create in `executeStoreTransition` (`inputs.storeTransition.create`) runs the check and, when it passes,
-          takes position `null` rather than the completed holder's position the index would return; a helper carries the
-          create's admission and position, keeping `executeStoreTransition` within its complexity limit
-          (`lib/work-unit/lifecycle-store-executor.ts`). Its refusal's message is the rendered condition and remedy.
-        - `runStoreStub` (`lib/work-unit/verbs/stub.ts`) appends a rejected outcome's store refusal remedy
-          (`refusal.remedy`) to its reason, which carries only the refusal's condition today (`sequenceRejection`), so
-          `arc stub` prints a write rule's remedy.
-        - Build `test-first` (one behavior at a time):
-            - `arc stub` on a completed work unit's slug creates the stub at position `null`
-            - `arc stub` on a live holder's slug, a live cohort's included, refuses naming it, with the remedy to choose
-              another name or wait for it to complete; on a completed Errand's slug or a completed holder's former slug
-              it refuses with the remedy to choose another name
-            - `arc stub` onto a completed work unit's slug that an in-flight dependent's edge names refuses through
-              `work-item.slug-edges`, printing its remedy
+        - Creation selection checks admission and supplies position `null` before guards, side effects, or writes.
+          Stub refusals print creation's holder identities and remedies, while failed store writes retain their own
+          repair text. Reuse creates an independent backlog owner and preserves the archived bound checkout;
+          surviving in-flight dependency edges still refuse with their reconciliation remedy.
 
     - `[ ]` **5.2.b `arc start <name> --new` and the cold start**
 

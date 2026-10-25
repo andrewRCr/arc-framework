@@ -1,4 +1,5 @@
 /** Lifecycle transition guards and atomic record writes over off-branch operational state. */
+import { checkCreationAdmission, renderCreationAdmissionRefusal } from "../store/creation-admission.js";
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import { checkCurrentWorkflowConsistency } from "../active/current-workflow-consistency.js";
 import { sameReference } from "../store/identity.js";
@@ -75,13 +76,24 @@ async function selectTransitionSubject(store: Store, params: { verb: Verb; slug:
   const basis = await selectPrimary(store, params.slug, inputs.storeTransition?.create, inputs.storeTransition?.primary);
   if (basis !== undefined && "status" in basis) return basis;
   const slug = basis?.reference.owner.name ?? params.slug;
-  const position = resolveSlugPosition(view.index, slug);
+  const selectedPosition = await selectTransitionPosition(store, inputs, view.index, slug);
+  if ("status" in selectedPosition) return selectedPosition;
+  const { position } = selectedPosition;
   const edge = resolveTransitionEdge(verb, position, inputs.commitment);
   if (edge === undefined) return { status: "rejected", stage: "lookup", message: transitionLookupRejection(verb, position) };
   if (!agreesWithInventory(basis, view.entries)) return {
     status: "rejected", stage: "store", message: `The work unit changed during transition preparation; retry arc ${verb} ${slug}.`,
   };
   return { basis, slug, position, edge };
+}
+
+async function selectTransitionPosition(store: Store, inputs: TransitionInputs, index: LifecycleIndex,
+  slug: string): Promise<{ position: LifecyclePosition | null } | Rejected> {
+  if (inputs.storeTransition?.create === undefined) return { position: resolveSlugPosition(index, slug) };
+  const admission = await checkCreationAdmission(store, slug);
+  if (admission.kind === "free") return { position: null };
+  const refusal = renderCreationAdmissionRefusal(slug, admission);
+  return { status: "rejected", stage: "guard", message: `${refusal.condition} ${refusal.remedy.text}` };
 }
 
 function agreesWithInventory(basis: StoreRecord | undefined, entries: readonly LifecycleEntry[]): boolean {
