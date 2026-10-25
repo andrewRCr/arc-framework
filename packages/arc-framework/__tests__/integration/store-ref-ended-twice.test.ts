@@ -3,7 +3,7 @@ import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
-import { RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { RecordReferenceSchema, HistoryRefSchema, type PullNotice } from "../../src/lib/store/index.js";
 import { LineageRecordSchema } from "../../src/lib/store/kinds/lineage/index.js";
 
 const quarter = ArchiveQuarterSchema.parse("2026-q4"), laterQuarter = ArchiveQuarterSchema.parse("2027-q1");
@@ -64,6 +64,39 @@ describe("published double ends in the default layout", () => {
     }
   });
 
+  it("recovers from full mirror erasure through the named registry divergence repair", async () => {
+    const h = await doubleFixture(layout), registry = "refs/arc/project/registry";
+    await h.place(h.a, { kind: "completed", quarter }); success(await h.a.store.push());
+    const retained = (await h.a.git(["rev-parse", registry])).stdout.trim();
+    const erased = (await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim().split("\n");
+    for (const ref of erased) await h.remote("git", ["update-ref", "-d", ref]);
+    expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
+    await h.place(h.b, { kind: "completed", quarter: laterQuarter }); success(await h.b.store.push());
+    const replacement = (await h.remote("git", ["rev-parse", registry])).stdout.trim();
+    const observed = success(await h.a.store.pull()).pulls.flatMap(({ notices }) => notices);
+    const diverged = observed.find((notice): notice is Extract<PullNotice, { kind: "history-diverged" }> =>
+      notice.kind === "history-diverged" && notice.ref === registry);
+    expect(diverged).toMatchObject({ kind: "history-diverged", ref: registry, remedy: { text: expect.stringContaining("Merge both") } });
+    expect((await h.a.git(["rev-parse", registry])).stdout.trim()).toBe(retained);
+    expect((await h.remote("git", ["rev-parse", registry])).stdout.trim()).toBe(replacement);
+    if (!diverged) throw new Error("Expected registry rewrite repair");
+    await mergeBoth(h, diverged);
+    const repaired = success(await h.a.store.pull()).pulls.flatMap(({ notices }) => notices);
+    for (const notice of repaired) if (notice.kind === "history-diverged") await mergeBoth(h, notice);
+    const uid = "uid" in h.reference.owner ? h.reference.owner.uid : "";
+    const history = HistoryRefSchema.parse(`refs/arc/history/work/${uid}`);
+    const tracking = `refs/arc-remotes/${h.remoteName}/history/work/${uid}`;
+    await h.a.git(["fetch", "--refmap=", "--no-tags", "--no-filter", h.remoteName, `+${history}:${tracking}`]);
+    const settled = success(await h.a.store.pull({ history: [history] })).pulls.flatMap(({ notices }) => notices);
+    expect(settled.some(({ kind }) => kind === "history-diverged")).toBe(false);
+    expect(success(await h.a.store.read({ reference: h.reference })).placement).toMatchObject({ kind: "completed", quarter: laterQuarter });
+    expect(success(await h.a.store.push()).publishes.every(({ status }) => status !== "failed")).toBe(true);
+    for (const side of [h.a, h.b]) {
+      expect(success(await side.store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
+      expect(success(await side.store.read({ reference: h.reference })).placement).toMatchObject({ kind: "completed", quarter: laterQuarter });
+    }
+  });
+
   it.each([["one clone", false], ["two clones", false], ["one clone", true], ["two clones", true]] as const)(
     "reports published lineage beside an archive from %s with branch snapshot %s until the named repair", async (mode, snapshot) => {
     const h = await doubleFixture(layout, snapshot);
@@ -92,3 +125,14 @@ describe("published double ends in the default layout", () => {
     }
   });
 });
+
+async function mergeBoth(h: Awaited<ReturnType<typeof doubleFixture>>, notice: Extract<PullNotice, { kind: "history-diverged" }>) {
+  const lines = notice.remedy.text.slice(notice.remedy.text.indexOf("Merge both")).split("\n").slice(1);
+  let executed = false;
+  for (const line of lines) {
+    if (!line.startsWith("'git'")) break;
+    const argv = [...line.matchAll(/'((?:[^']|'"'"')*)'/gu)].map(match => (match[1] ?? "").replaceAll("'\"'\"'", "'"));
+    await h.a.exec("git", argv.slice(1), { cwd: h.a.root }); executed = true;
+  }
+  expect(executed).toBe(true);
+}
