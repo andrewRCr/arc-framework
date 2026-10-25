@@ -2,7 +2,7 @@
 import type { RefBackendContext } from "./context.js";
 import type { LeaveSourceMoveRecord } from "./migrate-record.js";
 import { readRefDesignation } from "./designation.js";
-import { captureMoveRemote, sharesMoveUrl } from "./migrate-remote-target.js";
+import { captureMoveRemote, sharesMoveUrl, resolveBackingTarget } from "./migrate-remote-target.js";
 import { readRefRepository } from "./repository.js";
 import { fetchLayoutObjects } from "./migrate-layout-build.js";
 import { publisherLayout } from "./layout-state.js";
@@ -20,14 +20,15 @@ export interface LeaveSourceView {
 /** No transport to the departed source occurs while selecting or acquiring this view. */
 export async function resolveLeaveSource(context: RefBackendContext, code: RefBackendContext, to?: string): Promise<LeaveSourceView> {
   const designation = await readRefDesignation(context);
-  const pushes = designation.codeRemotes.filter(remote => remote.role === "push");
+  const pushes = designation.codeRemotes.filter(remote => remote.name !== "backing" && remote.role === "push");
   const old = designation.backing ?? (pushes.length === 1 ? pushes[0] : undefined);
-  if (!old) throw noSourceRemote(designation.codeRemotes.filter(remote => remote.role === "read").map(remote => remote.name));
+  if (!old) throw noSourceRemote(designation.codeRemotes.filter(remote => remote.name !== "backing" && remote.role === "read").map(remote => remote.name));
   const source = await captureMoveRemote(context, code, old);
   const pointer = await context.backingRepository();
-  const target = to ?? (designation.backing && pointer !== source.url ? pointer : null);
+  const requested = to === undefined ? undefined : resolveBackingTarget(to, pointer);
+  const target = requested ?? (designation.backing && pointer !== source.url ? pointer : null);
   if (!target) throw leaveSourceInvalid("Leaving this source requires --to <remote> naming the state's new home.");
-  const candidate = designation.codeRemotes.find(remote => remote.name === target);
+  const candidate = designation.codeRemotes.find(remote => remote.name !== "backing" && remote.name === (to ?? target));
   if (!candidate && target !== pointer) throw leaveSourceInvalid(
     `${target} is neither a remote of the code repository nor the URL this checkout's storage.backing_repository names${pointer ? ` (${pointer})` : ""}.`,
     "Name a remote of the code repository with --to, or bring in the tracked pointer's change naming the state's new home, then retry arc store migrate --leave-source.");

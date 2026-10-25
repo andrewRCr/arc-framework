@@ -3,6 +3,16 @@ import type { RefBackendContext } from "./context.js";
 import type { RefRemoteDesignation } from "./designation.js";
 import type { MoveRemote } from "./migrate-record.js";
 import { readRefRepository } from "./repository.js";
+import { MigrationRefusal } from "./migrate-refusal.js";
+
+/** The reserved backing target names only the tracked pointer; other targets keep caller-specific admission. */
+export function resolveBackingTarget(target: string, pointer: string | null): string {
+  if (target !== "backing") return target;
+  if (!pointer) throw new MigrationRefusal({ code: "request-invalid", class: "terminal",
+    condition: "The target backing requires this checkout's storage.backing_repository pointer; a code remote named backing cannot carry that designation.",
+    remedy: { text: "Set storage.backing_repository to the intended state repository, then retry the migration." } });
+  return pointer;
+}
 
 /** Keep the URL this named remote is configured with, and resolve both transport URLs in the repository that owns it. */
 export async function captureMoveRemote(context: RefBackendContext, code: RefBackendContext, remote: RefRemoteDesignation): Promise<MoveRemote> {

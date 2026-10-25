@@ -3,7 +3,7 @@ import type { Store } from "../contract.js";
 import type { MigrateReport, StoreMigrateResult } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefDesignation } from "./designation.js";
-import { captureMoveRemote, sharesMoveUrl } from "./migrate-remote-target.js";
+import { captureMoveRemote, sharesMoveUrl, resolveBackingTarget } from "./migrate-remote-target.js";
 import { migrationCodeContext, readMoveRecord, type MoveRemote, type MoveTransports, type RecordedRemote } from "./migrate-record.js";
 import { readRefRepository } from "./repository.js";
 import { publisherLayout } from "./layout-state.js";
@@ -87,8 +87,9 @@ async function resolveMoveRemotes(context: RefBackendContext, code: RefBackendCo
   if (!source || designation.pushes.length !== 1) throw new MigrationRefusal({ code: "no-state-remote", class: "recoverable",
     condition: "This clone has no single state remote to move from.", remedy: { text: "Designate a code repository remote with arc store remote <remote> push, or change the backing pointer and run arc store remote backing push, then retry --to." } });
   if (!to) throw new Error("An unrecorded remote move requires a destination");
-  const candidate = designation.codeRemotes.find(remote => remote.name === to);
-  const destination: MoveRemote = candidate ? await captureMoveRemote(context, code, candidate) : { name: "backing", url: to, fetchUrl: to, pushUrl: to, repository: "backing" };
+  const target = resolveBackingTarget(to, to === "backing" ? await context.backingRepository() : null);
+  const candidate = designation.codeRemotes.find(remote => remote.name !== "backing" && remote.name === to);
+  const destination: MoveRemote = candidate ? await captureMoveRemote(context, code, candidate) : { name: "backing", url: target, fetchUrl: target, pushUrl: target, repository: "backing" };
   const captured = await captureMoveRemote(context, code, source);
   if (sharesMoveUrl(captured, destination)) throw new MigrationRefusal({ code: "request-invalid", class: "terminal",
     condition: "The source and destination resolve to the same state remote.", remedy: { text: "Choose a different remote or run arc store migrate with no target to reconcile this clone's layout." } });
