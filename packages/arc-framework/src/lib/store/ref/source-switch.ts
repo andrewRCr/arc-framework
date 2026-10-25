@@ -11,7 +11,7 @@ import { readSyncRefs } from "./sync-graph.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import type { SwitchUndo } from "./migrate-switch-undo.js";
 import { withRefFetchKeepers } from "./fetch-seen.js";
-import { configureBackingRemote } from "./backing-configuration.js";
+import { configureBackingRemote, repointBackingRemote } from "./backing-configuration.js";
 
 type RecordedSourceSwitch = RecordedFollow | RecordedLeaveSource;
 
@@ -56,10 +56,15 @@ export async function switchRefSource(context: RefBackendContext, store: Store, 
 async function prepareSourceTarget(code: RefBackendContext, target: RefBackendContext, recorded: RecordedSourceSwitch): Promise<void> {
   const { source, destination } = recorded.record;
   const answer = recorded.record.kind === "follow" ? recorded.record.answer : "push";
+  const replacingBacking = answer !== "push" && source.repository === "backing" && destination.repository === "backing";
   await withRefFetchKeepers(target, destination.name, async () => {
     if (answer === "push") await installCopiedHeads(code, target, destination.name);
-    if (destination.repository === "backing") await configureBackingRemote(target, destination.url, answer);
+    if (destination.repository === "backing") {
+      if (replacingBacking) await repointBackingRemote(target, destination.url, answer);
+      else await configureBackingRemote(target, destination.url, answer);
+    }
   });
+  if (replacingBacking) return;
   const roots = answer !== "push" && source.name === destination.name
     ? [`refs/arc-remotes/${source.name}/`, `refs/arc/tmp/seen/${source.name}/`] : [`refs/arc-remotes/${source.name}/project/moved`];
   await withRefFetchKeepers(target, source.name, async () => {

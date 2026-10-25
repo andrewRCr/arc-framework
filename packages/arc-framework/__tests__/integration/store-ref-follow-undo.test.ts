@@ -60,7 +60,17 @@ it.each(["layout.rename", "layout.delete"])("finishes a follow's undo interrupte
 
 it("returns a backing source it read when a follow answering push is overtaken between repointing backing and its role", async () => {
   const overtaken = await overtakenInsideSwitch("backing.repointed", "backing"), { h, follower, during } = overtaken;
-  await expectUndone(overtaken, await invokeStoreMigrate([], follower.ports));
+  const roots = ["refs/arc-remotes/backing/", "refs/arc/tmp/seen/backing/"];
+  expect((await follower.git(["for-each-ref", "--format=%(refname)", ...roots])).stdout).not.toBe("");
+  let restored = false;
+  const ports = { ...follower.ports, migrateStep: async (step: string) => {
+    if (step !== "backing.repointed") return;
+    restored = true;
+    expect((await follower.git(["remote", "get-url", "backing"])).stdout.trim()).toBe(h.origin);
+    expect((await follower.git(["for-each-ref", "--format=%(refname)", ...roots])).stdout).toBe("");
+  } };
+  await expectUndone(overtaken, await invokeStoreMigrate([], ports));
+  expect(restored).toBe(true);
   expect((await follower.git(["remote", "get-url", "backing"])).stdout.trim()).toBe(h.origin);
   expect((await follower.git(["config", "remote.backing.arc-state"])).stdout.trim()).toBe("read");
   expect(success(await follower.store.read({ reference: during })).content).toBe(written);

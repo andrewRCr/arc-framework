@@ -130,3 +130,31 @@ it("finishes its recorded losing move before answering a due follow", async () =
   expect(await invokeStoreMigrate([], ports)).toMatchObject({ status: "designation-needed", remote: "backing" });
   expect((await invokeStoreRemote(["backing", "push", "--json"], { cwd: h.b.root, ports })).result.status).toBe("ok");
 }, 60_000);
+
+it.each(["read", "off"] as const)("clears old comparison heads before an interrupted backing follow answers %s", async role => {
+  const h = await lateFollowFixture(true, "backing"), follower = h.follower;
+  const roots = ["refs/arc-remotes/backing/", "refs/arc/tmp/seen/backing/"];
+  const heads = () => follower.git(["for-each-ref", "--format=%(refname) %(objectname)", ...roots]);
+  expect((await heads()).stdout).not.toBe("");
+  const destinationBefore = (await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
+  let observed = false;
+  const ports = { ...follower.ports, migrateStep: async (step: string) => {
+    if (step !== "backing.repointed") return;
+    observed = true;
+    expect((await follower.git(["remote", "get-url", "backing"])).stdout.trim()).toBe(h.destinationDirectory);
+    expect((await heads()).stdout).toBe("");
+    throw new Error("Paused after safe backing repoint");
+  } };
+  await expect(invokeStoreRemote(["backing", role, "--json"], { cwd: follower.root, ports }))
+    .rejects.toThrow("Paused after safe backing repoint");
+  expect(observed).toBe(true);
+  expect((await follower.git(["config", "remote.backing.arc-state"])).stdout.trim()).toBe("off");
+  expect(success(await follower.store.read({ reference: follower.unpublished })).content).toBe("Unpublished follower data.\n");
+  expect((await invokeStoreMigrate([], follower.ports)).status).toBe("ok");
+  expect((await follower.git(["remote", "get-url", "backing"])).stdout.trim()).toBe(h.destinationDirectory);
+  expect((await follower.git(["config", "remote.backing.arc-state"])).stdout.trim()).toBe(role);
+  const pulled = success(await follower.store.pull());
+  if (role === "read") expect(pulled.pulls).toContainEqual(expect.objectContaining({ remote: "backing", role: "read" }));
+  expect(pulled.pulls.every(({ status }) => status !== "failed")).toBe(true);
+  expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(destinationBefore);
+}, 60_000);
