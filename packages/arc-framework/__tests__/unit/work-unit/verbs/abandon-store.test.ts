@@ -1,4 +1,4 @@
-import { boundHolderLookup } from "../../../helpers/store/bound-checkout.js";
+import { boundHolderLookup, boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 /** One atomic terminal transition from every supported operational state, with resumable physical cleanup. */
 import { describe, expect, it } from "vitest";
 import { createRetirementHarness, retirementLink } from "../../../helpers/store/retirement-harness.js";
@@ -65,10 +65,10 @@ describe("store abandonment", () => {
     const h = await fixture();
     const original = h.ctx.storeTeardown!.exec;
     h.ctx.storeTeardown!.exec = async (command, args, options) => { if (args[0] === "push") throw Error("origin offline"); return original(command, args, options); };
-    expect(await runAbandon(h.ctx, { name: "demo", confirmed: true })).toMatchObject({ status: "abandoned", outcome: { continuation: { argv: ["arc", "teardown", "demo"] } } });
+    expect(await runAbandon(h.ctx, { name: "demo", confirmed: true })).toMatchObject({ status: "abandoned", outcome: { continuation: { argv: ["arc", "teardown", boundWorkUnitSubject(h.meta).uid] } } });
     expect((await h.store.read({ reference: h.meta.reference })).status).toBe("refused");
     h.ctx.storeTeardown!.exec = original;
-    expect(await runTeardown(h.ctx.storeTeardown!, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true });
+    expect(await runTeardown(h.ctx.storeTeardown!, { subject: { kind: "slug", slug: boundWorkUnitSubject(h.meta).uid }, base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true });
   });
   it("returns typed teardown continuation when the additional-ref CAS fails after the batch", async () => {
     const h = await fixture({ branches: [retirementLink("chore/demo"), retirementLink()] });
@@ -76,7 +76,7 @@ describe("store abandonment", () => {
     if (teardown === undefined) throw Error("cleanup context is required");
     const original = teardown.execInput;
     teardown.execInput = () => Promise.reject(Error("injected ref transaction failure"));
-    expect(await runAbandon(h.ctx, { name: "demo", confirmed: true })).toMatchObject({ status: "abandoned", outcome: { continuation: { argv: ["arc", "teardown", "demo"] } } });
+    expect(await runAbandon(h.ctx, { name: "demo", confirmed: true })).toMatchObject({ status: "abandoned", outcome: { continuation: { argv: ["arc", "teardown", boundWorkUnitSubject(h.meta).uid] } } });
     expect(h.refs.has("refs/heads/chore/demo")).toBe(true);
     teardown.execInput = original;
     expect(await runTeardown(teardown, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "torn-down" });

@@ -4,7 +4,7 @@ import { readOrphanStoreCandidates } from "../../src/lib/session-init/orphan-sto
 import { locusOwnsBranch } from "../../src/lib/session-init/locus-classification.js";
 import { validateLocusEnvelope } from "../../src/commands/locus.js";
 /** Registered lifecycle commands distinguish bound checkout generations sharing one name. */
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { lifecycleReuseFixture } from "../fixtures/lifecycle-reuse.js";
@@ -283,4 +283,32 @@ it("session init reports a pre-store work-unit husk manually beside live work", 
   expect(await readFile(resolveWorktreeMarkerPath(h.archivedPath))).toEqual(marker);
   expect(await readFile(resolveWorktreeMarkerPath(livePath))).toEqual(liveMarker);
   expect(lifecycleSuccess(await h.store.read({ reference: h.live.reference }))).toEqual(h.live);
+}, 30_000);
+
+it("abandonment cleans its live holder and created branch beside an archived namesake", async () => {
+  const h = await fixture(), livePath = await checkout(h, "live", h.live), branch = "feat/live";
+  const origin = join(h.cwd, ".arc-checkouts", "origin.git");
+  await h.exec("git", ["init", "--bare", origin]);
+  await h.exec("git", ["remote", "add", "origin", origin]);
+  await h.exec("git", ["push", "origin", "main"]);
+  await h.exec("git", ["switch", "-c", branch], { cwd: livePath });
+  await writeFile(join(livePath, "discard.txt"), "Abandoned live work\n");
+  await h.exec("git", ["add", "discard.txt"], { cwd: livePath });
+  await h.exec("git", ["commit", "-m", "Unlanded live work"], { cwd: livePath });
+  await h.exec("git", ["push", "-u", "origin", branch], { cwd: livePath });
+  const marker = await readWorktreeMarker(livePath);
+  if (marker.kind !== "present") throw new Error("Expected bound live marker");
+  await writeWorktreeMarker(livePath, { ...marker.marker, spawnedByArc: true });
+  const link = { repository: h.repository, ref: branch, linkedAs: "created" as const, excluded: [] };
+  lifecycleSuccess(await h.store.write({ ...recordPut(h.live, { links: { branches: [link] } }),
+    provenance: { verb: "link", lifecycleAction: "link" } }));
+  const result = await repairCli(h, ["abandon", "example", "--yes"], { store: h.store });
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  await expect(stat(livePath)).rejects.toMatchObject({ code: "ENOENT" });
+  expect((await h.exec("git", ["branch", "--list", branch])).stdout.trim()).toBe("");
+  expect((await h.exec("git", ["ls-remote", "--heads", "origin", `refs/heads/${branch}`])).stdout.trim()).toBe("");
+  expect(await h.store.read({ reference: h.live.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  expect(lifecycleSuccess(await h.store.read({ reference: recordReferences["lineage/transition"](h.live.reference.owner) })).fields)
+    .toMatchObject({ kind: "abandon", origin: { uid: boundWorkUnitSubject(h.live).uid }, retiredBranches: [link] });
+  await unchanged(h);
 }, 30_000);

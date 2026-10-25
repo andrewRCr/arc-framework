@@ -1,4 +1,5 @@
 /** A single version-bound terminal transition, followed by independently retryable checkout/ref cleanup. */
+import { teardownSubjectOperand } from "../store-retirement-evidence.js";
 import { sameReference, recordReferences } from "../../store/identity.js";
 import { writeLineageRecord } from "../../store/kinds/lineage/index.js";
 import { readLifecycleView } from "../../store/lifecycle-view.js";
@@ -27,11 +28,11 @@ export async function runStoreAbandon(ctx: Pick<AbandonContext, "executor" | "re
     let cleanup: TeardownResult | undefined;
     const outcome = await executeTransition(executor, { verb: "abandon", slug: name, inputs: { confirmed: true,
       storeTransition: { primary, additionalWrites: [{ action: "put", reference: lineage, expected: null, content }], gitSteps: [{
-        name: "retire-checkout-and-created-ref-set", retryCommand: ["arc", "teardown", name],
+        name: "retire-checkout-and-created-ref-set", retryCommand: ["arc", "teardown", teardownSubjectOperand({ kind: "owner", owner: primary.reference.owner })],
         run: async () => {
           if (checkout === null && (primary.links?.branches?.length ?? 0) === 0) return;
           if (ctx.storeTeardown === undefined || ctx.baseBranch === undefined) throw new Error("Bind the checkout/ref cleanup boundaries and configured base, then retry teardown.");
-          cleanup = await runStoreTeardown({ ...ctx.storeTeardown, store }, { subject: { kind: "slug", slug: name }, base: ctx.baseBranch });
+          cleanup = await runStoreTeardown({ ...ctx.storeTeardown, store }, { subject: { kind: "owner", owner: primary.reference.owner }, base: ctx.baseBranch });
           if (cleanup.status === "rejected") throw new Error(cleanup.reason);
         },
       }] },

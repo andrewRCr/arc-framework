@@ -844,19 +844,13 @@ edits land in package source and sync to `.arc/`.
           without teardown commands. Sweeps pair `pre-store-husk` stamps with blocked decisions, and the template
           renders that reason. Branch occupancy uses `--branch`; real CLI replay removes a detached branch husk.
 
-### `[ ]` **7.3 Pass the retired primary's reference into teardown — § 8.2**
+### `[x]` **7.3 Pass the retired primary's reference into teardown — § 8.2**
 
 - _Goal:_ Abandon and decomposition tear down the record they retired, never a namesake, and their retries name its UID.
 
-    - Abandon's and decomposition's teardown steps (`runStoreTeardown`, from `lib/work-unit/verbs/abandon-store.ts` and
-      `lib/decompose/retirement.ts`) pass the retired primary's owner as 7.1.a's subject, whose lineage the `lineage`
-      arm finds by UID, and their retry commands name that UID.
-    - The tests pinning the retry `["arc", "teardown", "demo"]` take the UID: `retirement-store.test.ts`,
-      `abandon-store.test.ts`, `decompose/retirement.test.ts`, and `retirement-scenario.test.ts`.
-    - Build `test-first` (one behavior at a time):
-        - abandoning a reused slug's live holder tears down its own checkout and reaps its own branches, leaving the
-          completed holder's evidence unread
-        - a failed teardown step's retry names the retired holder's UID
+- _Outcome:_ Abandonment and decomposition pass the retired primary's owner into teardown and retain its UID in retry
+  commands. A reused-slug abandonment removes only the live holder's checkout and created local/remote refs; failed
+  cleanup preserves terminal evidence and completes through the emitted UID operand after repair.
 
 ### `[ ]` **7.4 Take `arc teardown <slug|uid>`, and find its checkout by UID — § 8.3, § 8.4**
 

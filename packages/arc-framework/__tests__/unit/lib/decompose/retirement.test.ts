@@ -1,3 +1,4 @@
+import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 /** Atomic retirement through the lifecycle executor and retryable physical cleanup. */
 import { expect, it } from "vitest";
 import { createDecomposeTerminalFixture } from "../../../fixtures/decompose-terminal.js";
@@ -106,10 +107,10 @@ it("persists retirement before cleanup failure and completes its teardown retry"
   teardown.readMarker = async () => { throw Error("marker unreadable"); };
   const applied = await runStoreDecomposeRetirement(h.ctx, "demo");
   expect(applied).toMatchObject({ status: "ok", result: { outcome: { continuation: {
-    argv: ["arc", "teardown", "demo"], reason: expect.stringContaining("marker unreadable") } } } });
+    argv: ["arc", "teardown", boundWorkUnitSubject(h.meta).uid], reason: expect.stringContaining("marker unreadable") } } } });
   expect(await readWorkUnit(h.store, "demo")).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   teardown.readMarker = original;
-  expect(await runStoreTeardown(teardown, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "torn-down",
+  expect(await runStoreTeardown(teardown, { subject: { kind: "slug", slug: boundWorkUnitSubject(h.meta).uid }, base: "main" })).toMatchObject({ status: "torn-down",
     notices: expect.arrayContaining([expect.stringContaining("Released checkout /repo")]) });
 });
 

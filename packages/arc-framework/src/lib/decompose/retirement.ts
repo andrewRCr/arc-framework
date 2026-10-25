@@ -1,4 +1,5 @@
 /** Prepared retirement transitions and independently retryable physical cleanup. */
+import { teardownSubjectOperand } from "../work-unit/store-retirement-evidence.js";
 import type { DecomposeContext } from "./context.js";
 import type { DecomposeResult, DecomposeRefusal } from "./refusal.js";
 import type { TransitionOutcome } from "../work-unit/lifecycle-executor.js";
@@ -36,10 +37,10 @@ export async function applyDecomposeRetirement(ctx: DecomposeContext, plan: Deco
   const outcome = await executeTransition(ctx.executor, { verb: "decompose", slug: name, inputs: {
     storeTransition: { primary, additionalWrites: [plan.lineage.write, ...plan.recordPlan.writes],
       preparedRecords: plan.records, observations: observeRecords(plan.records), provenance: decomposeProvenance("terminal"),
-      gitSteps: [{ name: "retire-checkout-and-created-ref-set", retryCommand: ["arc", "teardown", name], run: async () => {
+      gitSteps: [{ name: "retire-checkout-and-created-ref-set", retryCommand: ["arc", "teardown", teardownSubjectOperand({ kind: "owner", owner: primary.reference.owner })], run: async () => {
         if (plan.checkout === null && (primary.links?.branches?.length ?? 0) === 0) return;
         if (ctx.storeTeardown === undefined) throw Error("Bind the checkout/ref cleanup boundaries, then retry teardown.");
-        cleanup = await runStoreTeardown({ ...ctx.storeTeardown, store: ctx.executor.store }, { subject: { kind: "slug", slug: name }, base: ctx.baseBranch });
+        cleanup = await runStoreTeardown({ ...ctx.storeTeardown, store: ctx.executor.store }, { subject: { kind: "owner", owner: primary.reference.owner }, base: ctx.baseBranch });
         if (cleanup.status === "rejected") throw Error(cleanup.reason);
       } }] },
   } });

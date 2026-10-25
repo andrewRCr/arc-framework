@@ -46,7 +46,9 @@ async function fixture(options: { adopted?: boolean; ended?: boolean; secondary?
   ctx.readMarker = (path) => Promise.resolve(path === holder ? { kind: "present", marker } : { kind: "absent" });
   ctx.worktreeFs = nodeReconcileWorkUnitWorktreeFs;
   const abandon = () => runStoreAbandon({ executor, storeTeardown: ctx, baseBranch: "main", removal: { exec, readMarker: ctx.readMarker } }, { name: "demo", confirmed: true });
-  const teardown = async () => { const result = await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
+  const teardown = async (name = "demo") => { const input = TeardownCommandInputSchema.parse({ name });
+    if (input.name === undefined) throw Error("Expected teardown operand");
+    const result = await runTeardown(ctx, { subject: { kind: "slug", slug: input.name }, base: "main" });
     if (result.status === "rejected") throw Error(result.reason); return result; };
   return { ...h, root, exec, ctx, executor, marker, baseOid, workOid, abandon, teardown, setHolder: (path: string) => { holder = path; },
     local: (ref: string) => localLifecycleTip(exec, root, ref), remote: () => exec("git", ["ls-remote", "origin", "refs/heads/feat/demo"]) };
@@ -150,9 +152,9 @@ describe("store retirement real Git", () => {
   it("retains terminal authority and typed continuation when remote cleanup fails, then completes a real retry", async () => {
     const h = await fixture({ ended: false }); const original = h.ctx.exec;
     h.ctx.exec = (command, args, options) => args[0] === "push" ? Promise.reject(Error("injected remote failure")) : original(command, args, options);
-    expect(await h.abandon()).toMatchObject({ status: "abandoned", outcome: { continuation: { argv: ["arc", "teardown", "demo"] } } });
+    expect(await h.abandon()).toMatchObject({ status: "abandoned", outcome: { continuation: { argv: ["arc", "teardown", boundWorkUnitSubject(h.meta).uid] } } });
     expect((await h.store.read({ reference: h.meta.reference })).status).toBe("refused"); expect(await h.local("refs/heads/feat/demo")).toBe(h.workOid);
-    h.ctx.exec = original; expect(await h.teardown()).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
+    h.ctx.exec = original; expect(await h.teardown(boundWorkUnitSubject(h.meta).uid)).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
   });
   it("cleans the exact current-lineage husk while leaving a second husk registered", async () => {
     const h = await huskFixture();
