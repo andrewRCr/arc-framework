@@ -3,7 +3,7 @@
   "slug": "setup-separate-git-dir",
   "claimId": "3be73a055a1765739f70b305c35cb949",
   "createdAt": "2026-10-24T23:30:52.287Z",
-  "updatedAt": "2026-10-24T23:30:52.287Z",
+  "updatedAt": "2026-10-25T00:25:40.959Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Refuse ARC setup when a separate Git directory is listed as the primary worktree",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Refuse a primary made by `git init --separate-git-dir` at `arc init` and `arc join`",
   "originEntrySourceDigest": "sha256:e833fa9fcfb692e95adeb97dd30c88af582633a50b020681f6b65b5eb0f74196",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/setup-separate-git-dir",
+    "headSha": "d83c60724424723ec371084cdfa761e5623635bb"
+  }
 }
