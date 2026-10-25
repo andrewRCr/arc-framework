@@ -288,3 +288,23 @@ it.each([false, true])("offers only the archived holder's teardown beside live w
   expect(StaleWorktreeSweepResultSchema.safeParse(result).success).toBe(true);
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
 });
+
+it.each([false, true])("reports a pre-store work-unit husk blocked for manual cleanup (live namesake=%s)", async live => {
+  const h = createLifecycleHarness();
+  if (live) await h.seedMeta("done");
+  const original = await options(h.store, undefined), readMarker = original.readMarker;
+  if (!readMarker) throw new Error("Expected marker reader");
+  const input = await withDerivedRows({ ...original, readMarker: async path => {
+    const read = await readMarker(path);
+    if (read.kind !== "present") throw new Error("Expected marker");
+    return { kind: "present", marker: { ...read.marker, spawningIdentity: "test-user", husk: { sha: head, at: "2026-10-24T00:00:00Z",
+      subject: { kind: "work-unit", name: "done" }, branch: "feat/done" } } };
+  } });
+  const result = await runStaleWorktreeSweep(input);
+  expect(result.warnings).toEqual([]);
+  expect(result.worktrees).toEqual([expect.objectContaining({ kind: "husk", worktreePath: checkout.path,
+    stamp: { kind: "manual-only", reason: "pre-store-husk" }, decision: { action: "blocked", reason: "pre-store-husk" },
+    actions: [{ text: expect.stringContaining("manual decision") }] })]);
+  expect(JSON.stringify(result.worktrees)).not.toContain("arc teardown");
+  expect(StaleWorktreeSweepResultSchema.safeParse(result).success).toBe(true);
+});

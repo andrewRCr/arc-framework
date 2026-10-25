@@ -9,7 +9,7 @@ import { digestBytes } from "../kernel/canonical/canonical-json.js";
 import type { Store } from "../store/contract.js";
 import type { StoreRecord } from "../store/read.js";
 import { decodeWorktreeMarkerOwnership, readWorktreeMarkerGeneration, resolveWorktreeMarkerPath,
-  type WorktreeMarkerGenerationReadResult } from "../git/worktree-marker.js";
+  type WorktreeMarkerGenerationReadResult, type WorktreeHuskStamp } from "../git/worktree-marker.js";
 import type { DerivedCheckoutRow } from "./derived-roster.js";
 import { readWorkUnitLineage } from "./store-terminal-work-unit.js";
 import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
@@ -29,14 +29,21 @@ export async function inspectCheckoutMarker(input: { cwd: string; store: Store; 
     const marker = await readWorktreeMarkerGeneration(input.cwd);
     if (marker.kind === "absent") return { kind: "clear" };
     if (marker.kind === "malformed") return { kind: "unreadable", reason: `${marker.path}: ${marker.message}. Inspect and repair or remove the marker, then retry.` };
-    if (marker.marker.husk !== undefined) return occupied(marker,
-      `Checkout ${input.cwd} holds a husk; run arc teardown ${marker.marker.husk.subject.kind === "work-unit" ? marker.marker.husk.subject.name : marker.marker.husk.branch}.`);
+    if (marker.marker.husk !== undefined) return occupied(marker, huskMarkerExit(input, marker.marker.husk));
     const ownership = decodeWorktreeMarkerOwnership(marker.marker);
     if (ownership.kind !== "current") return { kind: "unreadable", reason: `${resolveWorktreeMarkerPath(input.cwd)}: marker ownership is ${ownership.reason}. Inspect and repair its marker, then retry.` };
     if (ownership.subject.kind !== "work-unit") return occupied(marker,
       await transientMarkerExit(input, marker, ownership.subject));
     return await readWorkUnitOccupancy(input, marker, ownership.subject.name, ownership.subject.uid);
   } catch (error) { return { kind: "unreadable", reason: `Cannot observe checkout ${input.cwd}'s marker: ${error instanceof Error ? error.message : String(error)}. Inspect and repair its marker, then retry.` }; }
+}
+function huskMarkerExit(input: { cwd: string; store: Store }, stamp: WorktreeHuskStamp): string {
+  if (input.store.capabilities.stateOffBranch && stamp.subject.kind === "work-unit") {
+    return `Checkout ${input.cwd} holds a work-unit husk (pre-store-husk); cleanup requires a manual decision. Inspect its marker and preserve any remaining work before removing that checkout.`;
+  }
+  const operand = stamp.subject.kind === "work-unit" ? stamp.subject.name
+    : stamp.subject.kind === "branch" ? `--branch ${stamp.subject.ref}` : stamp.branch;
+  return `Checkout ${input.cwd} holds a husk; run arc teardown ${operand}.`;
 }
 async function readWorkUnitOccupancy(input: { cwd: string; store: Store; identity?: string }, marker: PresentMarker,
   name: string, uid?: string): Promise<MarkerOccupancy> {

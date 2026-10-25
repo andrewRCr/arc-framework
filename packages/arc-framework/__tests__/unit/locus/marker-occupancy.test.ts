@@ -83,3 +83,11 @@ it("keeps a uniquely selected Integrating holder's slug in its occupancy remedy"
     reason: expect.stringContaining("finish integration, then run arc teardown example") });
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
 });
+
+it("names the branch-scoped teardown command for a branch husk", async () => {
+  const h = await fixture(), branch = "chore/leftover";
+  await writeWorktreeMarker(h.cwd, { ...h.marker, spawnedByArc: true, createdFor: { kind: "branch", ref: branch },
+    husk: { sha: "a".repeat(40), at: "2026-10-24T00:00:00Z", subject: { kind: "branch", ref: branch }, branch } });
+  expect(await inspectCheckoutMarker({ cwd: h.cwd, store: h.store }))
+    .toMatchObject({ kind: "occupied", reason: `Checkout ${h.cwd} holds a husk; run arc teardown --branch ${branch}.` });
+});

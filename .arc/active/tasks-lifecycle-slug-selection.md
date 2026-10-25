@@ -820,15 +820,11 @@ edits land in package source and sync to `.arc/`.
           Reused names retain the ended holder's UID, while an unambiguous Integrating holder keeps its slug and
           tracked-state callers preserve their existing remedies.
 
-### `[ ]` **7.2 Report every work-unit husk for a manual decision — § 8.1**
+### `[x]` **7.2 Report every work-unit husk for a manual decision — § 8.1**
 
 - _Goal:_ From the flip every work-unit husk, which predates the flip and carries in-repo evidence the store teardown
   never admits, reports a manual decision with no teardown command at every exit, reads as retired rather than holding
   its slug, and is never counted in flight.
-
-- _Note:_ session start's rendering lives in the shipped `session-init.template.md`
-  (`packages/arc-framework/arc/system/workflows/arc/session-lifecycle/`); edit it in package source in the
-  shipped-content register, load `strategy-workflow-authoring.md` before editing, and sync the `.arc/` copy.
 
     - `[x]` **7.2.a The stamp**
 
@@ -842,25 +838,11 @@ edits land in package source and sync to `.arc/`.
           context. Duplicate-claim grouping excludes those rows in the store arm, and the physical roster marks husks
           retired so they never count in flight, even beside an unbound marker or another husk of the same slug.
 
-    - `[ ]` **7.2.c The exits**
+    - `[x]` **7.2.c The exits**
 
-        - `inspectCheckoutMarker` (`marker-occupancy.ts`), the stale-worktree sweep's husk report (`inspectHuskRemoval`
-          and `withHuskActions`, `stale-worktree-sweep.ts`), and the current-husk advisory
-          (`resolveCurrentHuskAdvisory`) report the husk for a manual decision with no teardown command, whatever its
-          slug resolves to. The sweep pairs the stamp with a `blocked` decision carrying the same reason, as it pairs an
-          `evidence-mismatch` stamp today, and the template's primary-checkout sweep section maps the reason as manual
-          cleanup. The template's current-husk section, which already renders a manual-only reason with no command, is
-          unchanged, and marker occupancy's branch-husk arm prints `arc teardown --branch <ref>`, the form the command
-          takes, where it prints `arc teardown <branch>` today, which the slug operand rejects.
-        - `lifecycle-marker-occupancy.test.ts`'s husk case, which expects `arc teardown old`, takes the manual decision.
-        - _Note:_ `inspectHuskRemoval` sits at the complexity limit; extract the store arm's decision.
-        - Build `test-first` (one behavior at a time):
-            - the current-husk advisory in a work-unit husk's own checkout reports a manual decision with the pre-flip
-              reason and no command
-            - the primary checkout's sweep reports the husk `blocked` with the manual reason and no command naming its
-              slug
-            - marker occupancy in a branch husk's checkout names `arc teardown --branch <ref>`
-            - `arc teardown --branch` still removes a branch husk
+        - Store-arm occupancy, current-husk orientation, and stale sweeps report work-unit husks for a manual decision
+          without teardown commands. Sweeps pair `pre-store-husk` stamps with blocked decisions, and the template
+          renders that reason. Branch occupancy uses `--branch`; real CLI replay removes a detached branch husk.
 
 ### `[ ]` **7.3 Pass the retired primary's reference into teardown — § 8.2**
 

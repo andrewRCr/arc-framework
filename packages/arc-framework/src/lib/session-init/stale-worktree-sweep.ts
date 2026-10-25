@@ -440,12 +440,8 @@ async function inspectHuskRemoval(context: {
   const removalCheck = await checkWorktreeRemoval({ exec, checkoutPath: entry.path, disposition: "remove",
     check: options.projectionRemovalSlots?.check, folderExists: options.folderExists });
   if (removalCheck.kind === "missing") return null;
-  const clean = removalCheck.kind === "removable";
   let decoded = decodeWorktreeHuskStamp(stamp, { stateOffBranch: options.store?.capabilities.stateOffBranch });
-  let decision: Extract<StaleWorktreeReport, { kind: "husk" }>["decision"] = removalCheck.kind === "refused"
-    && (removalCheck.reason === "unobservable" || removalCheck.reason === "locked")
-    ? { action: "blocked", reason: removalCheck.reason }
-    : decideHuskCleanup({ marker, clean, head: entry.head });
+  let decision = observedHuskDecision({ marker, removalCheck, head: entry.head, decoded });
   const removalBlocked = removalCheck.kind === "refused"
     && (removalCheck.reason === "unobservable" || removalCheck.reason === "locked");
   if (decoded.kind === "current" && !removalBlocked) {
@@ -472,6 +468,16 @@ async function inspectHuskRemoval(context: {
         : null,
     decision,
   };
+}
+
+function observedHuskDecision(input: { marker: WorktreeMarkerReadResult; head: string; decoded: DecodedWorktreeHuskStamp;
+  removalCheck: Awaited<ReturnType<typeof checkWorktreeRemoval>> }): Extract<StaleWorktreeReport, { kind: "husk" }>["decision"] {
+  const { marker, removalCheck, head, decoded } = input;
+  if (decoded.kind === "manual-only" && decoded.reason === "pre-store-husk") return { action: "blocked", reason: decoded.reason };
+  if (removalCheck.kind === "refused" && (removalCheck.reason === "unobservable" || removalCheck.reason === "locked")) {
+    return { action: "blocked", reason: removalCheck.reason };
+  }
+  return decideHuskCleanup({ marker, clean: removalCheck.kind === "removable", head });
 }
 
 async function inspectCurrentHuskEvidence(context: {

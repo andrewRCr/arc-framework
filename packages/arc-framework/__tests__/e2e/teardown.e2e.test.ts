@@ -1,13 +1,7 @@
-/**
- * E2E smoke for `arc teardown` — confirms the command is registered and the
- * handler wiring reaches the verb's refusal paths through the built CLI. The
- * merge-strategy-independent reaping mechanics are covered at the integration tier
- * (against the verb directly with real git); this asserts only the user-facing
- * command surface.
- */
+/** Real CLI teardown refusals, self-teardown, and exact husk replay over temporary Git repositories. */
 
 import { describe, it, expect, afterEach } from "vitest";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runArc, createTempRepo, cleanupTempDir, git } from "./helpers.js";
@@ -90,6 +84,32 @@ describe("arc teardown (CLI surface)", () => {
     if (worktreeParent !== undefined) await cleanupTempDir(worktreeParent);
     tmpDir = undefined;
     worktreeParent = undefined;
+  });
+
+  it("removes a detached branch husk through branch-scoped CLI replay", async () => {
+    tmpDir = await createTempRepo();
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-branch-husk-e2e-"));
+    expect((await runArc(["init", "--yes", "--name", "test-project"], tmpDir)).exitCode).toBe(0);
+    await git(tmpDir, ["add", "."]);
+    await git(tmpDir, ["commit", "--allow-empty", "-m", "chore: initialize ARC"]);
+    const branch = "chore/leftover", worktree = join(worktreeParent, "wt");
+    await git(tmpDir, ["worktree", "add", "-b", branch, worktree, "main"]);
+    await writeFile(join(tmpDir, ".git/info/exclude"), "\n.arc/system/.internal/worktree-marker.json\n", { flag: "a" });
+    const markerPath = join(worktree, ".arc/system/.internal/worktree-marker.json");
+    await mkdir(join(worktree, ".arc/system/.internal"), { recursive: true });
+    await writeFile(markerPath, JSON.stringify({ spawnedByArc: true, createdFor: { kind: "branch", ref: branch },
+      spawningIdentity: "test-user", createdAt: "2026-10-24T00:00:00Z" }));
+    expect(await git(worktree, ["status", "--porcelain"])).toBe("");
+    const husked = await runArc(["teardown", "--branch", branch], worktree);
+    expect(husked.exitCode, husked.stdout + husked.stderr).toBe(0);
+    expect(await git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
+    expect(JSON.parse(await readFile(markerPath, "utf8"))).toMatchObject({ husk: { subject: { kind: "branch", ref: branch } } });
+    expect(await git(tmpDir, ["worktree", "list", "--porcelain"])).toContain(`worktree ${worktree}\n`);
+    const replay = await runArc(["teardown", "--branch", branch], tmpDir);
+    expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
+    await expect(stat(worktree)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await git(tmpDir, ["worktree", "list", "--porcelain"])).not.toContain(`worktree ${worktree}\n`);
+    expect(await git(tmpDir, ["branch", "--list", branch])).toBe("");
   });
 
   it("refuses without a work-unit name", async () => {

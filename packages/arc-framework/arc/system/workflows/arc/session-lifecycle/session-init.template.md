@@ -898,7 +898,8 @@ tracked source documents the work.
       husk `{subject.slug}`. `removable` means clean at the exact stamped `HEAD`; offer `arc teardown {subject.name}`
       for work units or `arc teardown --branch {subject.ref}` for branches so final user-surface reconciliation runs.
       The reserved errand subject has no shipped cleanup driver and stays manual. Map `blocked.reason` as dirty
-      (`uncommitted`) or moved `HEAD` (`head-moved`); `outside` has untrusted terminal evidence and stays manual.
+      (`uncommitted`) or moved `HEAD` (`head-moved`); `pre-store-husk` requires a manual decision with no teardown
+      command. An `outside` decision carries untrusted terminal evidence and requires manual cleanup.
   Removal runs from the current primary worktree.
 
   ```text
@@ -914,6 +915,7 @@ tracked source documents the work.
   - `branch husk {subject.ref}` — stamped husk, clean & exact HEAD → clean up?
     `arc teardown --branch {subject.ref}`
   - `{husk label}` — {dirty | HEAD moved}; surfaced, not removed
+  - `work unit {subject.name}` — `pre-store-husk`; cleanup requires a manual decision, with no teardown command
   - `errand husk {subject.slug}` — no shipped cleanup driver; surfaced for manual-only cleanup
   - `{husk label}` — untrusted terminal evidence; surfaced for manual-only cleanup
   ```
