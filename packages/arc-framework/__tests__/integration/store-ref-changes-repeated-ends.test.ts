@@ -42,7 +42,7 @@ async function reviveAndEnd(side: Side, reference: RecordReference, live: string
 }
 
 /** End an item on the second clone, bring its live ref back beside the lineage alone, then end it again there. */
-async function endedTwice(h: Fixture): Promise<{ reference: RecordReference; history: string; revived: string;
+async function endedTwice(h: Fixture): Promise<{ reference: RecordReference; history: string; revived: string; registryBefore: string;
   beforeEnds: StateVersion; betweenEnds: StateVersion; afterRestore: StateVersion }> {
   const { reference, live } = await published(h, "twice");
   const original = (await h.a.git(["rev-parse", live])).stdout.trim();
@@ -54,8 +54,9 @@ async function endedTwice(h: Fixture): Promise<{ reference: RecordReference; his
   await h.a.git(["push", h.remoteName, `${original}:${live}`]);
   success(await h.b.store.pull());
   const afterRestore = success(await h.b.store.version());
+  const registryBefore = (await h.b.git(["rev-parse", "refs/arc/project/registry"])).stdout.trim();
   const revived = await reviveAndEnd(h.b, reference, live);
-  return { reference, history: live.replace("refs/arc/", "refs/arc/history/"), revived, beforeEnds, betweenEnds, afterRestore };
+  return { reference, history: live.replace("refs/arc/", "refs/arc/history/"), revived, beforeEnds, betweenEnds, afterRestore, registryBefore };
 }
 
 function versionsOf(entries: readonly { reference: RecordReference; version: string | null }[], reference: RecordReference): (string | null)[] {
@@ -63,6 +64,19 @@ function versionsOf(entries: readonly { reference: RecordReference; version: str
 }
 
 describe("changes over an item that ended more than once", () => {
+  it.each(["default", "separate"] as const)("never repeats the state version across a second end beside standing lineage in %s", async layout => {
+    const h = await refSyncFixture(layout), twice = await endedTwice(h);
+    const to = success(await h.b.store.version());
+    expect(to).not.toBe(twice.betweenEnds);
+    const registry = "refs/arc/project/registry";
+    const tip = (await h.b.git(["rev-parse", registry])).stdout.trim();
+    expect(tip).not.toBe(twice.registryBefore);
+    expect((await h.b.git(["rev-parse", `${tip}^`])).stdout.trim()).toBe(twice.registryBefore);
+    expect((await h.b.git(["rev-parse", `${tip}^{tree}`])).stdout)
+      .toBe((await h.b.git(["rev-parse", `${twice.registryBefore}^{tree}`])).stdout);
+    expect(versionsOf(success(await h.b.store.changes({ from: twice.afterRestore, to })), twice.reference)).toEqual([twice.revived, null]);
+  });
+
   it("lists the writes and removal since a live ref came back beside lineage, when the item then ended again", async () => {
     const h = await refSyncFixture();
     const twice = await endedTwice(h);
@@ -80,9 +94,6 @@ describe("changes over an item that ended more than once", () => {
   it("refuses a window past both ends against an earlier state, and reads it against the current state", async () => {
     const h = await refSyncFixture();
     const twice = await endedTwice(h);
-    // The second end leaves every manifest ref as the first did, so the state between them is current until a later write.
-    success(await h.b.store.write({ action: "put", expected: null, content: makeMetaFixture("later"), placement: { kind: "active" },
-      reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "later" } }), provenance }));
     expect(await h.b.store.changes({ from: twice.beforeEnds, to: twice.betweenEnds })).toMatchObject({ status: "refused",
       refusal: { code: "state-unresolvable", stateVersion: twice.betweenEnds, historyRefs: [],
         remedy: { text: expect.stringContaining("current state version") } } });

@@ -50,6 +50,12 @@ export async function prepareRefCommits(context: RefBackendContext, writes: read
 export async function commitRefTree(context: RefBackendContext, entries: Iterable<RefTreeEntry>, parent: string | undefined,
   provenance: BatchInput["provenance"], reference: RecordReference, batchId: string, actor: string | undefined, receipt?: BatchCreationReceipt): Promise<string> {
   const tree = await writeRefTree(context, entries);
+  return commitRefTreeOid(context, tree, parent, provenance, reference, batchId, actor, receipt);
+}
+
+/** Commit an existing immutable tree without decoding or rebuilding any of its entries. */
+export async function commitRefTreeOid(context: RefBackendContext, tree: string, parent: string | undefined,
+  provenance: BatchInput["provenance"], reference: RecordReference, batchId: string, actor: string | undefined, receipt?: BatchCreationReceipt): Promise<string> {
   const { stdout } = await context.exec("git", ["commit-tree", tree, ...(parent ? ["-p", parent] : []),
     "-m", appendStoreCreationReceipt(renderStoreCommitMessage(provenance, reference, batchId, actor), receipt)], { cwd: context.checkoutRoot });
   return stdout.trim();

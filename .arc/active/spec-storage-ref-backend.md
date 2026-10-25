@@ -865,9 +865,14 @@ holds.
 - **It never names `refs/arc/history/`,** whose set differs from clone to clone.
 - **A gitlink names a commit without keeping it reachable;** the refs holding each tip do, so a manifest adds a few small
   trees, and each shares every unchanged subtree with the manifest before it.
-- **A manifest never repeats:** every write moves a tip forward, an end moves a quarter's or the registry's tip as it
-  deletes a live ref (§ 7), and no ref moves backward. The conformance suite compares state versions for equality only
-  (`registerStateAssertions`, `__tests__/helpers/store/suite-versions.ts`).
+- **A manifest never repeats across a material write:** every write moves a manifested tip forward, and ARC never
+  moves one backward (A46). A batch that ends an owner or whose changed refs are all history refs also commits
+  `refs/arc/project/registry` with the batch's provenance, even where its records and tree are unchanged. The registry
+  lock spans capture through the atomic compare-and-swap transaction (`registryAnchorLockRefs`,
+  `anchorRefWriteManifest`, `lib/store/ref/write-manifest.ts`); an actual registry change in the batch already supplies
+  that commit. An existing tree is committed by its exact object ID, preserving every entry; an absent registry starts
+  with its normal metadata-only tree. An identical no-op batch changes no ref. The conformance suite compares state
+  versions for equality only (`registerStateAssertions`, `__tests__/helpers/store/suite-versions.ts`).
 
 #### 4.2 `version` costs one Git call
 
@@ -4635,6 +4640,12 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     quarter's next position and keeps its end batch. An owner with multiple folders refuses without changing any ref;
     reopening removes all its folders, after which ending once in the requested quarter succeeds (§ 3.3, § 7.3) (A45).
 
+51. **Every end and history-only write advances the state version.** A second retirement beside standing lineage
+    and a standalone retained-conflict discard each move the registry tip under the write batch's provenance without
+    changing its existing tree or project identity. An archive or cohort close also commits that registry anchor; its
+    lock refuses a concurrent writer, and the same end succeeds after release. Empty or initially absent registries
+    admit subsequent ends, while identical no-op writes remain unchanged (§ 4.1) (A46).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4810,5 +4821,8 @@ open:
 
 - **A45** — 2026-10-25 — design: a quarter-changing put moves one ended folder. _Supersedes:_ §§ 3.3, 7.3 folder
   retention. _Trigger:_ standard-pass-2/AGG-22 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A46** — 2026-10-25 — design: every end and every history-only write commits the registry. _Supersedes:_ § 4.1 tip
+  movement. _Trigger:_ standard-pass-2/AGG-28 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

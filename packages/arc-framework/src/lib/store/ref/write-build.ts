@@ -37,6 +37,7 @@ import { prepareRefConflicts } from "./write-conflicts.js";
 import { proposedRefCreatedOwners } from "./write-creation.js";
 import { refAdmissionBasisChanged } from "./write-admission.js";
 import { stagePublicationMetadata } from "./write-metadata.js";
+import { anchorRefWriteManifest } from "./write-manifest.js";
 
 import { prepareRefRenames } from "./write-rename.js";
 
@@ -89,7 +90,10 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
     const reopened = await reopenRefChanges(physical, archived, reopens.result, tips, provenance, batchId, receipt);
     const refreshed = await refreshCompletedChanges(physical, reopened, resolved, completed, provenance, batchId, receipt, actor);
     if (refreshed.status === "refused") return refreshed;
-    const changes = retirementRefChanges(refreshed.result, retirements.result, tips);
+    const anchored = await anchorRefWriteManifest(physical, { changes: retirementRefChanges(refreshed.result, retirements.result, tips),
+      ended: archives.result.length > 0 || retirements.result.length > 0, tips, provenance, batchId, actor, receipt });
+    if (anchored.status === "refused") return anchored;
+    const changes = anchored.result;
     if (changes.length === 0) return { status: "ok", result: { batchId, writes: results } };
     const outcome = await updateRefTransaction(physical, changes, { cwd: context.checkoutRoot });
     if (outcome.status !== "committed") return "retry";

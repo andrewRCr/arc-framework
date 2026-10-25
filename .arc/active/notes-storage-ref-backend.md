@@ -2996,3 +2996,18 @@ several would discard an independently published end, so `planCompletedMoves` re
 publication. The existing remedy resolves that state explicitly: remove terminal lineage where present, reopen to clear
 all folders, then end once. Criterion 50 verifies the refusal leaves every ref unchanged and the repaired operation
 succeeds.
+
+## A46 — Keep every material write visible in the manifest
+
+**Superseded text.** § 4.1: “every write moves a tip forward, an end moves a quarter's or the registry's tip as it
+deletes a live ref (§ 7), and no ref moves backward.” A second retirement beside standing lineage and a standalone
+retained-conflict discard changed only a history ref, which the manifest omits. The same token could therefore name
+different current history.
+
+**Decision.** `anchorRefWriteManifest` (`lib/store/ref/write-manifest.ts`) adds one registry commit after a concrete end
+or history-only change, unless that batch already changes the registry. `registryAnchorLockRefs` reserves its lock
+before the locked snapshot and final transaction. `commitRefTreeOid` (`lib/store/ref/write-commits.ts`) preserves the
+existing tree object exactly, including foreign entry names; the project identity is resolved from that captured tree
+for provenance. A registry not yet present starts with normal empty metadata, without creating identity data. Ordinary
+no-op batches gain no commit. Criterion 51 checks state advancement, locking and retry, retained identity, and initially
+absent or empty registry boundaries.

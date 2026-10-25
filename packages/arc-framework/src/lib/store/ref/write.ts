@@ -3,6 +3,7 @@
 import { storeDirectoryVanished, writeRefRepository } from "./repository.js";
 import { BatchInputSchema, WriteInputSchema, type Mutation, type BatchInput, type BatchResult, type WriteInput, type WriteResult, type RecordObservation } from "../write.js";
 import { RecordReferenceSchema, sameReference, type RecordReference } from "../identity.js";
+import { registryAnchorLockRefs } from "./write-manifest.js";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { randomUUID } from "node:crypto";
@@ -139,7 +140,7 @@ async function attemptRefBatch(context: RefBackendContext, input: BatchInput, ba
   const collision = checkRefBatchPaths(resolved.result.writes.filter((write) => write.mutation.action === "put")
     .map((write) => write.mutation.reference), context.registry);
   if (collision) return { status: "refused", refusal: collision };
-  return withRefLocks(context, [...refWriteTargets(context, resolved.result).map(({ home }) => home.ref), ...(resolved.result.retained?.length ? ["refs/arc/project/registry", ...resolved.result.retained.map(({ home }) => home.ref.replace("refs/arc/history/", "refs/arc/"))] : []), ...archiveLockRefs(resolved.result), ...archivedLockRefs(resolved.result), ...completedMoveLockRefs(resolved.result), ...retirementLockRefs(refWriteTargets(context, resolved.result))], () =>
+  return withRefLocks(context, [...refWriteTargets(context, resolved.result).map(({ home }) => home.ref), ...registryAnchorLockRefs(context, resolved.result), ...(resolved.result.retained?.length ? ["refs/arc/project/registry", ...resolved.result.retained.map(({ home }) => home.ref.replace("refs/arc/history/", "refs/arc/"))] : []), ...archiveLockRefs(resolved.result), ...archivedLockRefs(resolved.result), ...completedMoveLockRefs(resolved.result), ...retirementLockRefs(refWriteTargets(context, resolved.result))], () =>
     commitLockedRefBatch(context, resolved.result, input.provenance, batchId, input.observations ?? []));
 }
 
