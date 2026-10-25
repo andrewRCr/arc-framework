@@ -74,7 +74,8 @@ export async function pushRefs(
     const failure = normalizeGitRejection(error, { command: "git", args });
     const cause = failure.kind === "canceled" && options.signal?.aborted ? "timeout" : classifyRemoteFailure(failure);
     if (!isCompletedGitFailure(failure)) {
-      return { status: "unreachable", cause, stdout: failure.stdout, stderr: failure.stderr };
+      return { status: "unreachable", cause, stdout: failure.stdout,
+        stderr: failure.descendantsUnconfirmed ? [failure.message, failure.stderr].filter(Boolean).join("\n") : failure.stderr };
     }
     return parsePushPorcelain(failure.stdout, failure.stderr, failure.exitCode ?? 128, cause);
   }

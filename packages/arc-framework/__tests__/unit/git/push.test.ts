@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { parsePushPorcelain } from "../../../src/lib/git/push.js";
+import { parsePushPorcelain, pushRefs } from "../../../src/lib/git/push.js";
+import { GitProcessError } from "../../../src/lib/git/process-error.js";
 
 // Recorded from Git 2.55 pushes to a disposable bare repository; paths and OIDs abbreviated.
 describe("push porcelain", () => {
@@ -51,4 +52,13 @@ describe("push porcelain", () => {
     });
   });
 
+});
+
+it("preserves unconfirmed descendant termination beside a canceled push's captured diagnostics", async () => {
+  const failure = new GitProcessError({ kind: "canceled", command: "git", args: ["push"], isCanceled: true,
+    descendantsUnconfirmed: true, stdout: "partial push output", stderr: "original push diagnostic" });
+  const result = await pushRefs(async () => { throw failure; }, "origin", [{ ref: "refs/heads/example", next: "a".repeat(40) }]);
+  expect(result).toMatchObject({ status: "unreachable", stdout: failure.stdout });
+  expect(result.stderr).toContain(failure.stderr);
+  expect(result.stderr).toContain("descendant processes not confirmed ended");
 });

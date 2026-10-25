@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { parseFetchPorcelain } from "../../../src/lib/git/fetch.js";
+import { GitProcessError } from "../../../src/lib/git/process-error.js";
 import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 import recordings from "../../fixtures/store/fetch-porcelain.json";
 
@@ -52,4 +53,13 @@ it("does not report a canceled fetch as complete when stdout already contains up
   const failure = makeGitProcessError({ command: "git", args: ["fetch", "--porcelain"], isCanceled: true,
     stdout, stderr: "" });
   expect(parseFetchPorcelain(failure)).toEqual({ status: "unreachable", cause: "error", stdout, stderr: "" });
+});
+
+it("preserves unconfirmed descendant termination beside a canceled fetch's captured diagnostics", () => {
+  const failure = new GitProcessError({ kind: "canceled", command: "git", args: ["fetch"], isCanceled: true,
+    descendantsUnconfirmed: true, stdout: "partial fetch output", stderr: "original fetch diagnostic" });
+  const result = parseFetchPorcelain(failure);
+  expect(result).toMatchObject({ status: "unreachable", stdout: failure.stdout });
+  expect(result.stderr).toContain(failure.stderr);
+  expect(result.stderr).toContain("descendant processes not confirmed ended");
 });

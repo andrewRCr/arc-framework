@@ -17,7 +17,8 @@ export type FetchOutcome = { stdout: string; stderr: string } & (
 /** Interpret complete fetch output or a typed process rejection. */
 export function parseFetchPorcelain(input: ExecResult | GitProcessError): FetchOutcome {
   if (input instanceof GitProcessError && !isCompletedGitFailure(input)) return {
-    status: "unreachable", cause: input.timedOut ? "timeout" : "error", stdout: input.stdout, stderr: input.stderr,
+    status: "unreachable", cause: input.timedOut ? "timeout" : "error", stdout: input.stdout,
+    stderr: input.descendantsUnconfirmed ? [input.message, input.stderr].filter(Boolean).join("\n") : input.stderr,
   };
   const refs = input.stdout.split(/\r?\n/u).flatMap((line) => {
     const row = /^([ +*\-!=]) ([0-9a-f]{40}|[0-9a-f]{64}) ([0-9a-f]{40}|[0-9a-f]{64}) (\S+)$/u.exec(line);
