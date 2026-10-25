@@ -1,39 +1,16 @@
 /** Publication and withdrawal retain their selected generation through Candidate and Git boundaries. */
 import { expect, it } from "vitest";
+import { attestStorePublication as attestPublication } from "../helpers/store/publication-fixture.js";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { lifecycleReuseFixture } from "../fixtures/lifecycle-reuse.js";
 import { createClashDouble } from "../helpers/store/clash-double.js";
 import { repairCli } from "../helpers/repair-cli.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
-import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
 import { recordReferences } from "../../src/lib/store/identity.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
-import { writeMetaCandidate, writeMetaDependsOn } from "../../src/lib/store/kinds/meta/writers.js";
-import { createCandidateAttestation } from "../../src/lib/work-unit/candidate-attestation.js";
-import { writeCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
-import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
-import { CandidatePublishReadyBoundarySchema } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { writeMetaDependsOn } from "../../src/lib/store/kinds/meta/writers.js";
 
-async function attestPublication(f: Awaited<ReturnType<typeof lifecycleReuseFixture>>): Promise<void> {
-  const live = lifecycleSuccess(await f.store.read({ reference: f.live.reference }));
-  const branch = `feat/${f.name}`;
-  await f.exec("git", ["switch", "-c", branch]);
-  await writeFile(join(f.cwd, "implementation.ts"), "export const value = true;\n");
-  await f.exec("git", ["add", "implementation.ts"]); await f.exec("git", ["commit", "-m", "implementation"]);
-  const target = await collectCandidateSubjectTarget({ cwd: f.cwd, name: f.name, baseBranch: "main", exec: f.exec });
-  const attestation = createCandidateAttestation({ workUnit: f.name, subject: target.subject, baseRevision: target.revision,
-    attestedBy: "test-user", attestedAt: "2026-10-24T00:00:00Z", verificationEvidenceRef: "test://publication-reuse" });
-  await writeCandidateRecord(f.cwd, f.name, { schemaVersion: 1, semanticsVersion: "candidate-attestation/v1", attestation,
-    subject: target.subject, transitions: [], lineageAttestations: [] }, null);
-  await writeSubmissionBoundary(f.cwd, CandidatePublishReadyBoundarySchema.parse({ schemaVersion: 1, mode: "pre-publication-review",
-    workUnit: f.name, candidateId: attestation.candidateId, candidateSubjectDigest: target.subject.subjectDigest,
-    locus: "candidate-publish-ready", standardLaneOwnerVersion: 0, policy: null, reservation: null, terminus: null,
-    deliveryReviewTermini: [], nextAction: { kind: "publish-candidate", command: `arc publish ${f.name} --json`, interactionText: "Publish" } }), null);
-  lifecycleSuccess(await f.store.write({ ...recordPut(live, { content: writeMetaCandidate(live.content, attestation.candidateId),
-    links: { branches: [{ repository: f.repository, ref: branch, linkedAs: "created", excluded: [] }] } }),
-    provenance: { verb: "fixture", lifecycleAction: "attest" } }));
-}
 
 it.each([false, true])("publishes the live generation with real Candidate evidence, former=%s", async former => {
   const f = await lifecycleReuseFixture(former);

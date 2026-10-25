@@ -13,6 +13,7 @@ import { ArcError } from "../kernel/errors.js";
 import type { Store } from "../store/contract.js";
 import { ListingDiagnosticSchema } from "../store/read.js";
 import { workUnitMetaPath } from "../store/lifecycle-write.js";
+import { readClaimedCurrentWorkUnit } from "../store/current-work-unit-marker.js";
 import { createStoreReconcilePrepareContext } from "../work-unit/store-reconcile-context.js";
 import { CurrentWuReconcileSessionResultSchema } from "./current-wu-reconcile-schema.js";
 import {
@@ -39,8 +40,12 @@ export async function runCurrentWuReconcileSessionProbe(
   op: CurrentWuReconcileSessionOp,
 ): Promise<CurrentWuReconcileSessionResult> {
   if (!("store" in ctx)) return projectCurrentWuResult(await prepareCurrentWuReconcile(ctx, op), op);
+  const warnings: string[] = [];
+  const current = await readClaimedCurrentWorkUnit({ cwd: op.checkoutPath, store: ctx.store }, warnings);
+  if (current === undefined) return unavailable(op.slug, warnings.join("\n") || "The checkout does not hold an active work-unit claim.",
+    [{ text: "Inspect arc locus --json, repair the checkout's work-unit claim, then retry session status." }]);
   let acquired;
-  try { acquired = await createStoreReconcilePrepareContext(ctx.store, op.slug); }
+  try { acquired = await createStoreReconcilePrepareContext(ctx.store, op.slug, current.reference); }
   catch (error) {
     if (!(error instanceof ArcError) || (error.code !== "store.lifecycle-incomplete" && error.code !== "store.lifecycle-unreadable")) throw error;
     const diagnostics = z.array(ListingDiagnosticSchema).safeParse(error.cause);

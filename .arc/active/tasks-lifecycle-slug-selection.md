@@ -512,33 +512,11 @@ unclosed task commits (§ 3.2) re-read by the UID claim here.
           the bound generation; missing primaries read lineage by that UID. Unclosed task commits resolve an exact
           claim using the entering frame's UID.
 
-    - `[ ]` **4.3.c The re-reads through the claim, and a clash without an operand**
+    - `[x]` **4.3.c The re-reads through the claim, and a clash without an operand**
 
-        - The reconcile handler's marker fallback (`storeReconcileSlug`, `handlers/reconcile.ts`) resolves through the
-          marker's UID claim, so an ended holder's checkout reaches its own holder, never the live namesake. Session
-          start's reconcile probe (`runCurrentWuReconcileSessionProbe`, `lib/session-init/current-wu-reconcile.ts`)
-          resolves the claim itself from its operation's checkout path and passes the reference of the work unit the
-          claim selects, with no plumbing through `handlers/status.ts`.
-        - Without an operand, a verb in either holder's checkout meets a clash where it reads its subject's name: a
-          context-defaulting verb in the shared preamble (`canonicalVerbTarget`), publish and reopen in their own read,
-          and the verbs resolving their checkout's current work unit themselves (`resolveCurrentWorkUnit`) in theirs.
-          The clash double gains UID claims here: it answers a work-unit claim carrying a clashed holder's UID with that
-          holder's reference under the clashed slug, and resolves a read of that reference by its UID to the wrapped
-          record, returned under the same name, so the checkout's current work unit's name is the clashed slug and the
-          verb's read by it refuses; other claims and reads pass to the reference backend it wraps.
-        - Build `test-first` (one behavior at a time):
-            - over the clash double, a lifecycle verb run without an operand in either holder's checkout refuses
-              `ambiguous-match` naming both holders, in text and `--json`: a context-defaulting verb, publish and
-              reopen, and a verb that resolves its checkout's current work unit itself
-            - a reconcile in either holder's checkout, without an operand or naming the clashed slug, its holder's
-              current name, runs
-            - with a completed and a live holder of one slug, `arc wu reconcile <slug> --apply` in the live holder's
-              UID-bound checkout acts on the live holder and leaves the completed holder's records and artifacts
-              unchanged; retain the former-operand case from 2.8
-            - an ended holder's checkout's reconcile fallback reaches the ended holder
-            - with a completed and a live holder of one slug, `arc set-stage`, `arc task close`, `arc finalize`, and
-              `arc repoint-design` in the live holder's checkout act on the live holder, and pass the pause check where
-              only the completed holder is paused
+        - Reconcile's marker fallback and session probe retain exact owner references. UID-backed clash fixtures prove
+          no-operand refusals and per-holder reconciliation. A1's current-name apply, the retained former-operand case,
+          and current task/planning mutations preserve completed namesakes and their artifacts, including pause state.
 
     - `[ ]` **4.3.d The fixture sweep**
 

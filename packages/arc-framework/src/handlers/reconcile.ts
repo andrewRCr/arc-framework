@@ -5,7 +5,7 @@
  */
 
 import type { Store } from "../lib/store/contract.js";
-import type { StoreRefusal, Remedy } from "../lib/store/refusal.js";
+import type { StoreRefusal, StoreResult, Remedy } from "../lib/store/refusal.js";
 import { createStore } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import { resolveCurrentWorkUnit } from "../lib/store/current-work-unit.js";
@@ -13,6 +13,7 @@ import { readWorkUnit, usesOffBranchState, workUnitMetaPath } from "../lib/store
 import { sameOwner } from "../lib/store/identity.js";
 import type { StoreRecord } from "../lib/store/read.js";
 import { readWorktreeMarker } from "../lib/git/worktree-marker.js";
+import { workUnitCheckoutClaim } from "../lib/store/work-unit-claim.js";
 import { buildStoreCurrentWuReconcile } from "../lib/work-unit/store-current-wu-reconcile.js";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -162,13 +163,14 @@ export async function handleWuReconcile(
 /** Run current-work-unit reconciliation with the caller's already-bound operational store. */
 export async function handleStoreReconcile(store: Store, cwd: string, input: z.infer<typeof WuReconcileCommandInputSchema>): Promise<void> {
   const current = await resolveCurrentWorkUnit({ cwd, store });
-  const slug = await storeReconcileSlug(current, cwd);
-  if (slug === undefined) {
+  const selected = await storeReconcilePrimary(store, current, cwd);
+  if (selected === undefined) {
     emitConflict(input, input.slug ?? "", current.warnings.join("; ") || "The checkout does not hold exactly one matching work unit.");
     return;
   }
-  const meta = current.status === "resolved" ? await store.read({ reference: current.candidate.reference }) : await readWorkUnit(store, slug);
-  if (meta.status === "refused") { emitConflict(input, slug, meta.refusal.condition, meta.refusal); return; }
+  const meta = selected.record;
+  if (meta.status === "refused") { emitConflict(input, selected.slug, meta.refusal.condition, meta.refusal); return; }
+  const slug = meta.result.reference.owner.name;
   const operandConflict = await requestedReconcileConflict(store, meta.result, input.slug);
   if (operandConflict !== undefined) { emitConflict(input, input.slug ?? slug, operandConflict.reason, operandConflict.refusal); return; }
   const ceremony = buildStoreCurrentWuReconcile(store);
@@ -307,11 +309,14 @@ const nodeLifecycleFs: LifecycleIndexFs = {
   readFile: (path) => readFile(path, "utf8"),
 };
 
-async function storeReconcileSlug(current: Awaited<ReturnType<typeof resolveCurrentWorkUnit>>, cwd: string): Promise<string | undefined> {
-  let slug = current.status === "resolved" ? current.candidate.reference.owner.name : undefined;
-  if (slug === undefined && current.status === "none") {
-    const marker = await readWorktreeMarker(cwd);
-    if (marker.kind === "present" && marker.marker.createdFor?.kind === "work-unit") slug = SlugSchema.parse(marker.marker.createdFor.name);
-  }
-  return slug;
+async function storeReconcilePrimary(store: Store, current: Awaited<ReturnType<typeof resolveCurrentWorkUnit>>,
+  cwd: string): Promise<{ slug: string; record: StoreResult<StoreRecord> } | undefined> {
+  if (current.status === "resolved") return { slug: current.candidate.reference.owner.name,
+    record: await store.read({ reference: current.candidate.reference }) };
+  if (current.status !== "none") return undefined;
+  const marker = await readWorktreeMarker(cwd);
+  if (marker.kind !== "present" || marker.marker.createdFor?.kind !== "work-unit") return undefined;
+  const subject = marker.marker.createdFor;
+  const lookup = await store.lookup({ kind: "claim", claim: workUnitCheckoutClaim(store, subject.name, subject.uid) });
+  return { slug: subject.name, record: lookup.status === "refused" ? lookup : await store.read({ reference: lookup.result.reference }) };
 }
