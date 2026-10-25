@@ -638,18 +638,15 @@ refuses through `work-item.slug-edges` with its remedy.
   preserve decomposition's behavior. Protected or unresolved edges remain for `work-item.slug-edges`; checked
   batches preserve records on refusal and reject stale provider evidence before applying settlements.
 
-### `[ ]` **5.5 Reuse end to end** — validate exit criterion at segment scope
+### `[x]` **5.5 Reuse end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds end to end: every creating path reuses a completed work unit's slug within
   the write rules and refuses the rest with its remedy.
 
-    - Over the reference backend, with a bound checkout of the archived holder lingering, create through `arc stub`,
-      `arc start <name> --new` spawned and `--here`, the nameless cold start, decomposition, and Errand promotion onto a
-      completed work unit's slug and a third generation; attempt each refused case; and create onto a slug a stub's edge
-      names and one an in-flight dependent's edge names.
-    - Request `arc check segment` after the scenario checks.
-    - _Note:_ promotion's fixture leaves no local `feat/<slug>` branch of the archived holder, since `replace` refuses
-      an existing target branch on its own.
+- _Outcome:_ Registered CLI scenarios over production reference-store checks exercise all six creating paths with
+  completed names, a third generation, and completed work-unit/Errand ties beside unchanged archived bound checkouts.
+  Every forbidden holder kind refuses before mutation; new cohorts cannot take completed work-item names. Stub edges
+  settle with creation, while in-flight edges retain their reconciliation remedy and leave the store unchanged.
 
 ## **Phase 6:** Unbound markers and their exits
 
