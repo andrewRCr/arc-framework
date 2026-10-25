@@ -45,7 +45,7 @@ export function changeWindowReferences(context: RefBackendContext, captured: Cap
     for (const entry of records) {
       const reference = decodeReference(context, owner, family, entry.path, metadata, captured.objects.get(entry.oid));
       if (!reference || !("owner" in reference)) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: captured.window.ref,
-        condition: `The saved path ${entry.path} does not decode as an admitted record.`, remedy: { text: "Repair the path and its metadata forward, then retry the comparison." } } };
+        condition: `The saved path ${entry.path} does not decode as an admitted record.`, remedy: historicalMetadataFailure(captured.window.ref).remedy } };
       references.set(changeRecordKey(reference), reference);
     }
   }

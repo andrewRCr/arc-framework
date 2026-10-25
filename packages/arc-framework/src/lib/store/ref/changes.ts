@@ -52,7 +52,7 @@ async function compareBoundWindows(context: RefBackendContext, input: ChangesInp
   }
   windows.sort((left, right) => left.ref < right.ref ? -1 : left.ref > right.ref ? 1 : 0);
   const project = windows.some(({ ref }) => ref.startsWith("refs/arc/project/"))
-    ? projectOwnerFromObjects(after, await readBatchObjects(context, projectIdentityQueries(after))) : { status: "ok" as const, result: null };
+    ? projectOwnerFromObjects(after, await readBatchObjects(context, projectIdentityQueries(after)), true) : { status: "ok" as const, result: null };
   if (project.status === "refused") return project;
   return collectChangeEvents(context, input, windows, readWindow, project.result ?? undefined);
 }

@@ -8,6 +8,7 @@ import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { parseRefTreeObject } from "./tree-content.js";
 import { corruptRef } from "./namespace-health.js";
+import { historicalMetadataFailure } from "./metadata.js";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
 
 const ProjectIdentitySchema = z.strictObject({ projectId: StoredUidSchema });
@@ -48,15 +49,15 @@ export function registryTreeUnavailable(): StoreRefusal {
 }
 
 /** Resolve the one project from already acquired objects, distinguishing absent and unavailable identity. */
-export function projectOwnerFromObjects(tips: ReadonlyMap<string, string>, objects: ReadonlyMap<string, BatchObject | null>): StoreResult<OwnerIdentity> {
+export function projectOwnerFromObjects(tips: ReadonlyMap<string, string>, objects: ReadonlyMap<string, BatchObject | null>, saved = false): StoreResult<OwnerIdentity> {
   const registry = capturedRegistry(tips, objects);
-  return registry.entries ? projectOwnerFromEntries(registry.entries, objects, registry.identity)
+  return registry.entries ? projectOwnerFromEntries(registry.entries, objects, registry.identity, saved)
     : { status: "refused", refusal: registryTreeUnavailable() };
 }
 
 /** Resolve project ownership inside a complete captured or prepared tree view. */
 export function projectOwnerFromEntries(entries: readonly RefTreeEntry[], objects: ReadonlyMap<string, BatchObject | null>,
-  captured?: BatchObject | null): StoreResult<OwnerIdentity> {
+  captured?: BatchObject | null, saved = false): StoreResult<OwnerIdentity> {
   const entry = entries.find(({ path }) => path === "identity.json");
   if (!entry) return { status: "ok", result: projectOwner() };
   const object = captured ?? objects.get(entry.oid);
@@ -66,7 +67,8 @@ export function projectOwnerFromEntries(entries: readonly RefTreeEntry[], object
   const content = new TextDecoder().decode(object.bytes);
   const identity = parseProjectIdentity(content);
   if (!identity) return { status: "refused", refusal: { ...projectIdentityFailure(reference),
-    remedy: { text: "Repair identity.json forward on refs/arc/project/registry with exactly projectId and a lowercase UUID, then retry." } } };
+    remedy: saved ? historicalMetadataFailure("refs/arc/project/registry").remedy
+      : { text: "Repair identity.json forward on refs/arc/project/registry with exactly projectId and a lowercase UUID, then retry." } } };
   return { status: "ok", result: projectOwner(identity.projectId) };
 }
 
