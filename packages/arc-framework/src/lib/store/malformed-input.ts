@@ -18,8 +18,9 @@ export function malformedStoreInput(input: unknown, error: ZodError, operation: 
 }
 
 function batchOperand(input: unknown, path: readonly PropertyKey[]): unknown {
-  const collection = field(input, path[0] === "observations" ? "observations" : "writes");
-  return Array.isArray(collection) ? collection[typeof path[1] === "number" ? path[1] : 0] : undefined;
+  if ((path[0] !== "writes" && path[0] !== "observations") || typeof path[1] !== "number") return undefined;
+  const collection = field(input, path[0]);
+  return Array.isArray(collection) ? collection[path[1]] : undefined;
 }
 
 function field(value: unknown, name: string): unknown {

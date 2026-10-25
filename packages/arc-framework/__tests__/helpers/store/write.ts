@@ -5,7 +5,7 @@ import { isTerminalSnapshotRepair } from "../../../src/lib/store/kinds/lineage/r
 import { assignCompletedCohorts } from "./cohort-placement.js";
 import { randomUUID } from "node:crypto";
 import {
-  MutationSchema, CallerProvenanceSchema, BatchInputSchema, ConflictRecordSchema, LinksSchema, ReadPlacementSchema, RecordReferenceSchema, familyOf, sameOwner, type BatchInput, type BatchResult, type ConflictRecord, type Mutation, type ReadPlacement,
+  WriteInputSchema, BatchInputSchema, ConflictRecordSchema, LinksSchema, ReadPlacementSchema, RecordReferenceSchema, familyOf, sameOwner, type BatchInput, type BatchResult, type ConflictRecord, type Mutation, type ReadPlacement,
   type StoreRefusal, type StoreResult, type WriteInput, type WriteResult, type OwnerIdentity, sameReference,
 } from "../../../src/lib/store/index.js";
 import { ArchiveSequenceSchema } from "../../../src/lib/kernel/index.js";
@@ -22,6 +22,7 @@ import { indexIdentities } from "./identities.js";
 import { checkRecordObservations } from "../../../src/lib/store/record-observations.js";
 import { readReference } from "./read.js";
 import { proposedBirths, retainCreationReceipt } from "./creation-receipts.js";
+import { malformedStoreInput } from "../../../src/lib/store/malformed-input.js";
 
 function detachedWrite(write: WriteInput): WriteInput {
   return { ...write, reference: structuredClone(write.reference), provenance: structuredClone(write.provenance),
@@ -254,12 +255,9 @@ function validatePlacement(context: ReferenceContext, since: number): StoreRefus
  * @returns Exact new mutation basis or an actionable refusal.
  */
 export async function writeReference(context: ReferenceContext, input: WriteInput): Promise<StoreResult<WriteResult>> {
-  const { provenance, ...mutationInput } = input;
-  const mutation = MutationSchema.safeParse(mutationInput);
-  if (!mutation.success) return refused(malformed(input.reference, mutation.error.message));
-  const caller = CallerProvenanceSchema.safeParse(provenance);
-  if (!caller.success) return refused(malformed(input.reference, caller.error.message));
-  const write = detachedWrite({ ...mutation.data, provenance: caller.data });
+  const parsed = WriteInputSchema.safeParse(input);
+  if (!parsed.success) return refused(malformedStoreInput(input, parsed.error, "write"));
+  const write = detachedWrite(parsed.data);
   return withStateQueue(context.state, async () => {
     const prepared = { ...context, state: structuredClone(context.state) };
     const generations = prepareGenerations(prepared, [write]);
@@ -292,11 +290,7 @@ export async function writeReference(context: ReferenceContext, input: WriteInpu
  */
 export async function batchReference(context: ReferenceContext, input: BatchInput): Promise<StoreResult<BatchResult>> {
   const parsed = BatchInputSchema.safeParse(input);
-  if (!parsed.success) {
-    const reference = input.writes[0]?.reference;
-    if (reference === undefined) throw parsed.error;
-    return refused(malformed(reference, parsed.error.message));
-  }
+  if (!parsed.success) return refused(malformedStoreInput(input, parsed.error, "batch"));
   input = parsed.data;
   const provenance = structuredClone(input.provenance);
   const writes = input.writes.map((write) => detachedWrite({ ...write, provenance }));
