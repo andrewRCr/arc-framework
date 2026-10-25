@@ -97,12 +97,12 @@ export async function resolveReadReference(context: RefBackendContext, reference
 }
 
 /** The identity an identity-scoped family lists under: undefined where none is configured, and null for any other family. */
-async function listingIdentity(context: RefBackendContext, family: FamilyId): Promise<string | null | undefined> {
+export async function listingIdentity(context: RefBackendContext, family: FamilyId): Promise<string | null | undefined> {
   return FAMILY_REGISTRY[family].scope === "identity" ? await context.identity() ?? undefined : null;
 }
 
 /** Another person's identity ref, which every read treats as absent, as a saved read does; a listing naming another person reads none. */
-function otherIdentityRef(ref: string, identity: string | null, owner?: ListInput["owner"]): boolean {
+export function otherIdentityRef(ref: string, identity: string | null, owner?: ListInput["owner"]): boolean {
   return ref.startsWith("refs/arc/user/") && (ref.split("/")[3] !== identity || owner?.type === "person" && owner.name !== identity);
 }
 
