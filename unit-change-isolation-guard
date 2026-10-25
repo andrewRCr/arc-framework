@@ -3,7 +3,7 @@
   "slug": "unit-change-isolation-guard",
   "claimId": "2654002a682e08e48a93dff43f74be7f",
   "createdAt": "2026-10-25T14:07:41.495Z",
-  "updatedAt": "2026-10-25T14:07:41.495Z",
+  "updatedAt": "2026-10-25T19:02:23.426Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Include the isolated mock-file guard in related unit feedback whenever supplied changes include a unit-test path.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Select the isolated-tier guard whenever a unit test file changes",
   "originEntrySourceDigest": "sha256:1a4a3ba37033ec22700f877fa930a9d43368aecfbd1b9bde9348e37209b7b171",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/unit-change-isolation-guard",
+    "headSha": "4cb38349f32956044717598ddc4a64fd525588b5"
+  }
 }
