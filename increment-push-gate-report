@@ -3,7 +3,7 @@
   "slug": "increment-push-gate-report",
   "claimId": "1c521875dc117d99b7e8b03c229a3129",
   "createdAt": "2026-10-25T00:40:34.745Z",
-  "updatedAt": "2026-10-25T00:40:34.745Z",
+  "updatedAt": "2026-10-25T01:15:17.432Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Report each push-gate check arc check increment leaves to the push as not selected, with a typed reason, so the report shows the push gate went untested; keep those checks unrun.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Name the push-gate checks `arc check increment` leaves to the push",
   "originEntrySourceDigest": "sha256:624bd2d869a6d549e6ecfd2e6e64642336cbbb14094a516945ec5fb80795c9d6",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/increment-push-gate-report",
+    "headSha": "40c32585ebee31e0678db02ce10c7ddca3a2a49f"
+  }
 }
