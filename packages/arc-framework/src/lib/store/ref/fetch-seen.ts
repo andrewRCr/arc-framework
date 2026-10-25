@@ -1,7 +1,7 @@
 /** Preserve the last verified tracking head across pruning without making it stored state. */
 
 import type { FetchOutcome } from "../../git/fetch.js";
-import { updateRefTransaction } from "../../git/ref-transaction.js";
+import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
 import type { PullNotice } from "../sync.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
@@ -23,7 +23,7 @@ export async function withRefFetchKeepers<T>(context: RefBackendContext, remote:
   return withRefLocks(context, [`refs/arc/tmp/seen/${remote}`], operation, REF_SYNC_DEADLINE_MS);
 }
 
-/** Capture tracking and retained heads in one immutable ref listing. */
+/** Capture comparison heads without promoting an unverified divergent tracking tip. */
 export async function readRefFetchBasis(context: RefBackendContext, remote: string, patterns: readonly string[]): Promise<RefFetchBasis> {
   const tracking = `refs/arc-remotes/${remote}/`, seen = `refs/arc/tmp/seen/${remote}/`;
   for (;;) {
@@ -31,15 +31,30 @@ export async function readRefFetchBasis(context: RefBackendContext, remote: stri
     const basis = { tracking: new Map([...tips].filter(([ref]) => ref.startsWith(tracking)
       && patterns.some((pattern) => `refs/arc/${ref.slice(tracking.length)}`.startsWith(pattern.slice(0, -1))))),
       seen: new Map([...tips].filter(([ref]) => ref.startsWith(seen))) };
-    const changes = [...basis.tracking].filter(([ref]) => ref !== `${tracking}project/moved`).flatMap(([ref, tip]) => {
-      const retained = `${seen}${ref.slice(tracking.length)}`, prior = basis.seen.get(retained) ?? null;
-      return prior === tip ? [] : [{ ref: retained, next: tip, expected: prior }];
-    });
+    const { changes, normalized } = await planKeeperChanges(context, basis, tracking, seen);
     if (!changes.length) return basis;
     const outcome = await updateRefTransaction(context, changes, { cwd: context.checkoutRoot })
       .catch((error: unknown) => rethrowRefFetchKeeperLock(context, changes.map(({ ref }) => ref), error));
-    if (outcome.status === "committed") return basis;
+    if (outcome.status === "committed" && !normalized) return basis;
   }
+}
+
+/** Separate keeper planning from the immutable capture and compare-and-swap retry. */
+async function planKeeperChanges(context: RefBackendContext, basis: RefFetchBasis, tracking: string, seen: string):
+Promise<{ changes: RefChange[]; normalized: boolean }> {
+  const changes: RefChange[] = [];
+  let normalized = false;
+  for (const [ref, tip] of basis.tracking) {
+    if (ref === `${tracking}project/moved`) continue;
+    const retained = `${seen}${ref.slice(tracking.length)}`, prior = basis.seen.get(retained) ?? null;
+    if (prior === tip) continue;
+    // A failed returned-ref cleanup can leave an unverified tracking tip beside its trusted keeper.
+    if (prior !== null && !await syncRefIsAncestor(context, prior, tip) && !await syncRefIsAncestor(context, tip, prior)) {
+      changes.push({ ref, delete: true, expected: tip });
+      normalized = true;
+    } else changes.push({ ref: retained, next: tip, expected: prior });
+  }
+  return { changes, normalized };
 }
 
 /** Drop temporary keepers only where a tracking ref still retains the observed objects, in one transaction. */

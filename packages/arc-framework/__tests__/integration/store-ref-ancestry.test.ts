@@ -128,34 +128,73 @@ describe.each(["default", "separate"] as const)("rewrite refusal in the %s layou
     expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Rewritten remote value.\n");
   });
 
-  it.each([false, true])("recovers returned-ref deletion locks and preserves unrelated errors (divergent %s)", async divergent => {
-    for (const fault of ["lock", "unrelated"] as const) {
-      const h = await rewrittenFixture(layout, divergent);
-      const remote = (await h.remote("git", ["rev-parse", h.ref])).stdout.trim();
-      const seen = `refs/arc/tmp/seen/${h.remoteName}/user/andrew/personal`;
-      await h.remote("git", ["update-ref", "-d", h.ref]);
-      success(await h.b.store.pull());
-      await h.remote("git", ["update-ref", h.ref, remote]);
-      const broken = await keeperDeleteFault(h.b, divergent ? h.tracking : seen, fault);
-      if (fault === "unrelated") await expect(broken.store.pull()).rejects.toBe(broken.unrelated);
-      else expect(await broken.store.pull()).toMatchObject({ status: "refused", refusal: {
-        code: "lock-held", lock: broken.lock, class: "recoverable", remedy: { text: expect.stringMatching(/retry/iu) },
-      } });
-      expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Second published value.\n");
-      await broken.release();
+  it.each(([[false, "Keep ours"], [true, "Keep ours"], [true, "Take theirs"], [true, "Merge both"]] as const).flatMap(([divergent, choice]) =>
+    (["lock", "unrelated"] as const).map(fault => [divergent, choice, fault] as const)))("recovers returned-ref deletion faults without accepting history (divergent %s, %s, %s)", async (divergent, choice, fault) => {
+    const h = await rewrittenFixture(layout, divergent);
+    const remote = (await h.remote("git", ["rev-parse", h.ref])).stdout.trim();
+    const seen = `refs/arc/tmp/seen/${h.remoteName}/user/andrew/personal`;
+    await h.remote("git", ["update-ref", "-d", h.ref]);
+    success(await h.b.store.pull());
+    await h.remote("git", ["update-ref", h.ref, remote]);
+    const broken = await keeperDeleteFault(h.b, divergent ? h.tracking : seen, fault);
+    if (fault === "unrelated") await expect(broken.store.pull()).rejects.toBe(broken.unrelated);
+    else expect(await broken.store.pull()).toMatchObject({ status: "refused", refusal: {
+      code: "lock-held", lock: broken.lock, class: "recoverable", remedy: { text: expect.stringMatching(/retry/iu) },
+    } });
+    expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Second published value.\n");
+    await broken.release();
+    let remedy = "";
+    for (let attempt = 0; attempt < 2; attempt++) {
       const retried = success(await h.b.store.pull());
       expect(retried.pulls.every(({ status }) => status !== "failed")).toBe(true);
-      expect((await h.b.git(["for-each-ref", "--format=%(refname)", seen])).stdout).toBe("");
-      const record = success(await h.b.store.read({ reference: h.reference }));
+      const notice = retried.pulls.flatMap(({ notices }) => notices).find(({ kind }) => kind === "history-diverged");
+      expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Second published value.\n");
       if (divergent) {
+        expect(notice).toMatchObject({ kind: "history-diverged", ref: h.ref, local: h.second, remote });
+        if (notice?.kind !== "history-diverged") throw new Error("Missing repeated divergence refusal");
+        remedy = notice.remedy.text;
+        expect((await h.b.git(["for-each-ref", "--format=%(objectname)", seen])).stdout.trim()).toBe(h.second);
+        expect((await h.b.git(["for-each-ref", "--format=%(refname)", h.tracking])).stdout).toBe("");
+      } else expect(notice).toBeUndefined();
+    }
+    if (divergent) {
+      await applyRemedy(h, remedy, choice);
+      expect(success(await h.b.store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
+      const record = success(await h.b.store.read({ reference: h.reference }));
+      expect(record.content).toBe(choice === "Keep ours" ? "Second published value.\n" : "Rewritten remote value.\n");
+      if (choice === "Merge both") {
         expect(record.conflicts).toHaveLength(1);
         expect(success(await h.b.store.history({ reference: h.reference })).map(({ content }) => content))
           .toEqual(expect.arrayContaining(["Second published value.\n", "Rewritten remote value.\n"]));
-      } else expect(record.content).toBe("Second published value.\n");
+      }
     }
+    expect((await h.b.git(["for-each-ref", "--format=%(refname)", seen])).stdout).toBe("");
   });
 
   if (layout === "default") {
+    it("accepts a returned rewrite only when the named fetch installs both heads atomically", async () => {
+      const h = await rewrittenFixture(layout, true), seen = `refs/arc/tmp/seen/${h.remoteName}/user/andrew/personal`;
+      expect((await h.b.git(["rev-parse", "--show-ref-format"])).stdout.trim()).toBe("files");
+      const remote = (await h.remote("git", ["rev-parse", h.ref])).stdout.trim();
+      await h.remote("git", ["update-ref", "-d", h.ref]); success(await h.b.store.pull());
+      await h.remote("git", ["update-ref", h.ref, remote]);
+      const notice = success(await h.b.store.pull()).pulls.flatMap(({ notices }) => notices).find(({ kind }) => kind === "history-diverged");
+      if (notice?.kind !== "history-diverged") throw new Error("Missing return refusal");
+      const lock = join(h.b.root, ".git", `${seen}.lock`);
+      await mkdir(dirname(lock), { recursive: true }); await writeFile(lock, "held keeper lock\n");
+      try {
+        await expect(applyRemedy(h, notice.remedy.text, "Merge both")).rejects.toMatchObject({ kind: "nonzero-exit" });
+        expect((await h.b.git(["for-each-ref", "--format=%(refname)", h.tracking])).stdout).toBe("");
+        expect((await h.b.git(["rev-parse", seen])).stdout.trim()).toBe(h.second);
+        expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Second published value.\n");
+      } finally { await rm(lock, { force: true }); }
+      expect(success(await h.b.store.pull()).pulls.flatMap(({ notices }) => notices))
+        .toContainEqual(expect.objectContaining({ kind: "history-diverged", ref: h.ref }));
+      await applyRemedy(h, notice.remedy.text, "Take theirs");
+      expect(success(await h.b.store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
+      expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Rewritten remote value.\n");
+    }, 60_000);
+
     it("retains the last tip before Git starts its pruning fetch", async () => {
       const h = await rewrittenFixture(layout), seen = `refs/arc/tmp/seen/${h.remoteName}/user/andrew/personal`;
       await h.remote("git", ["update-ref", "-d", h.ref]);

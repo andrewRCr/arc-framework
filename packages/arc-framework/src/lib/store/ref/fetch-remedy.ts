@@ -15,7 +15,10 @@ export async function refFetchRewriteRemedy(context: RefBackendContext, remote: 
   const target = await refFetchTarget(context, remote, designation);
   const tracking = `refs/arc-remotes/${remote.name}/${ref.slice("refs/arc/".length)}`;
   const negotiation = await refFetchNegotiation(context, remote.role === "read" ? null : await context.identity());
-  const fetchArgs = refFetchArgs(remote.name, negotiation, target, [`+${ref}:${tracking}`]);
+  const seen = `refs/arc/tmp/seen/${remote.name}/${ref.slice("refs/arc/".length)}`;
+  const fetchArgs = refFetchArgs(remote.name, negotiation, target, [`+${ref}:${tracking}`, `+${ref}:${seen}`]);
+  // Choosing a rewrite records one advertised tip in both comparison namespaces, or neither.
+  fetchArgs.splice(fetchArgs.indexOf("fetch") + 1, 0, "--atomic");
   const fetch = command(fetchArgs);
   if (remote.role === "read") return { text: `Take theirs (replace the read source’s saved history):\n${fetch}`, argv: [...git, ...fetchArgs] };
   const local = (await readSyncRefs(context, ref)).get(ref);
