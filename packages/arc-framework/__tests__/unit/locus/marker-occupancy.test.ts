@@ -51,9 +51,35 @@ it.each(["backlog", "foreign-completed", "owned-planning"] as const)("names unna
   const h = await fixture();
   const record = kind === "backlog" ? await h.seedStub("example") : kind === "foreign-completed"
     ? await h.seedCompletedWorkUnit("example") : await h.seedMeta("example");
-  const message = workUnitMarkerExit(h.cwd, "example", record, kind === "foreign-completed" ? "another" : "test-user");
+  const message = await workUnitMarkerExit(h.store, h.cwd, "example", record, kind === "foreign-completed" ? "another" : "test-user");
   expect(message).toContain(h.cwd);
   expect(message).toContain("arc locus release");
   expect(message).not.toContain("arc locus release example");
   if (kind === "owned-planning") expect(message).toContain("arc pause example --reason <text>");
+});
+
+it("names a retired origin's UID in its occupancy remedy beside a live namesake", async () => {
+  const h = await fixture(), primary = await h.seedMeta("example");
+  await h.seedRetiredWorkUnit(primary);
+  const live = await h.seedMeta("example"), before = lifecycleSuccess(await h.store.version());
+  await writeWorktreeMarker(h.cwd, { ...h.marker, createdFor: boundWorkUnitSubject(primary) });
+  const marker = await readWorktreeMarkerGeneration(h.cwd);
+  const result = await inspectCheckoutMarker({ cwd: h.cwd, store: h.store, identity: "test-user" });
+  expect(result).toMatchObject({ kind: "occupied", workUnit: null, missingRecord: false,
+    reason: expect.stringContaining(`arc teardown ${boundWorkUnitSubject(primary).uid}`) });
+  if (!("reason" in result)) throw new Error("Expected occupied checkout");
+  expect(result.reason).not.toContain("arc teardown example");
+  expect(await readWorktreeMarkerGeneration(h.cwd)).toEqual(marker);
+  expect(lifecycleSuccess(await h.store.read({ reference: live.reference }))).toEqual(live);
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+});
+
+it("keeps a uniquely selected Integrating holder's slug in its occupancy remedy", async () => {
+  const h = await fixture(), primary = await h.seedMeta("example", { state: "Integrating", currentWorkflow: "integrate-work-unit" });
+  await writeWorktreeMarker(h.cwd, { ...h.marker, createdFor: boundWorkUnitSubject(primary) });
+  const before = lifecycleSuccess(await h.store.version());
+  const result = await inspectCheckoutMarker({ cwd: h.cwd, store: h.store, identity: "test-user" });
+  expect(result).toMatchObject({ kind: "occupied", workUnit: primary,
+    reason: expect.stringContaining("finish integration, then run arc teardown example") });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
 });

@@ -61,7 +61,7 @@ export async function runStoreMaterialize(ctx: MaterializeContext, params: Mater
     const held = new Map<RecordReference, MaterializeHeldCheckout>();
     const candidates = await listStoreMaterializable(bound, identity, held, params.inPlace ? bound.cwd : undefined);
     const entry = candidates.find((item) => sameReference(item.reference, read.result.reference));
-    if (entry === undefined) return { status: "rejected", reason: heldCandidateReason(read.result, identity, candidates, held) };
+    if (entry === undefined) return { status: "rejected", reason: await heldCandidateReason(ctx.store, read.result, identity, candidates, held) };
     const chosen = selectWorkBranchLink(read.result, { repository: await ctx.projectId?.() });
     if (chosen.kind === "ambiguous") return { status: "rejected", reason: chosen.reason };
     const branch = chosen.kind === "none" ? null : workBranchName(chosen.link.ref);
@@ -71,11 +71,11 @@ export async function runStoreMaterialize(ctx: MaterializeContext, params: Mater
   } catch (error) { return { status: "rejected", reason: describeWorktreePreparationFailure(error,
     ["arc", "materialize", params.name, ...(params.inPlace ? ["--here"] : [])]) }; }
 }
-function heldCandidateReason(record: StoreRecord, identity: string, candidates: readonly LifecycleEntry[], held: ReadonlyMap<RecordReference, MaterializeHeldCheckout>): string {
+async function heldCandidateReason(store: Store, record: StoreRecord, identity: string, candidates: readonly LifecycleEntry[], held: ReadonlyMap<RecordReference, MaterializeHeldCheckout>): Promise<string> {
   const holder = [...held].find(([reference]) => sameReference(reference, record.reference))?.[1];
   if (holder?.kind === "unbound") return holder.reason;
   return holder === undefined ? `${record.reference.owner.name} is not an owned in-flight materialize candidate. Candidates: ${candidates.map(item => item.reference.owner.name).join(", ") || "[none]"}.`
-    : workUnitMarkerExit(holder.path, record.reference.owner.name, record, identity);
+    : workUnitMarkerExit(store, holder.path, record.reference.owner.name, record, identity);
 }
 async function placementOperation(ctx: Bound, params: MaterializeParams, branch: string | null, identity: string,
   holder: WorkUnitHolderRequest): Promise<Extract<ReconcileWorkUnitWorktreeOp, { mutation: "spawn" }>> {

@@ -791,7 +791,7 @@ remote whose advertised tip its local branch does not contain.
 _Design decisions:_ Session start's teardown offers and husk rendering live in the shipped session-init template, so its
 edits land in package source and sync to `.arc/`.
 
-### `[ ]` **7.1 Resolve each cleanup exit's ended holder by UID — § 8.1**
+### `[x]` **7.1 Resolve each cleanup exit's ended holder by UID — § 8.1**
 
 - _Goal:_ Each exit that holds an ended holder's checkout or branch resolves the holder by its UID, a checkout's through
   the claim arm and a branch's through the `ref` arm, and reads retirement evidence by that reference, so no exit
@@ -814,16 +814,11 @@ edits land in package source and sync to `.arc/`.
         - Release resolves the ended remedy through the held record's owner and the shared operand helper, preserving
           an archived checkout's UID beside live work with the same name, including the final eligibility recheck.
 
-    - `[ ]` **7.1.d Marker occupancy's teardown remedies**
+    - `[x]` **7.1.d Marker occupancy's teardown remedies**
 
-        - `readWorkUnitOccupancy` and `workUnitMarkerExit` (`marker-occupancy.ts`, which materialize's refusal reuses,
-          `materialize-store.ts`) name the holder through 7.1.b's helper in their teardown remedies, for a retained
-          lineage, a completed holder, and an Integrating one.
-        - Build `test-first` (one behavior at a time):
-            - from a bound checkout of the archived holder beside a live namesake, the occupancy refusal names
-              `arc teardown <uid>` for it; from a checkout of a retired origin whose lineage is retained and whose slug
-              another holder took, it names the origin's UID; and an Integrating holder's checkout, whose slug resolves
-              to it, keeps the slug
+        - Occupancy and materialization compose teardown remedies from the claimed primary or retained lineage owner.
+          Reused names retain the ended holder's UID, while an unambiguous Integrating holder keeps its slug and
+          tracked-state callers preserve their existing remedies.
 
 ### `[ ]` **7.2 Report every work-unit husk for a manual decision — § 8.1**
 

@@ -1,4 +1,6 @@
 /** Shared occupancy refusals preserve the marker's role and its exact checkout. */
+import { teardownOperand } from "../work-unit/store-retirement-evidence.js";
+import type { OwnerIdentity } from "../store/identity.js";
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import { deserializeTransientIdentityRecord, projectLocusIdentity } from "../errand/identity-record.js";
 import { deriveHandoffLocusPlan } from "../handoff/locus-plan.js";
@@ -48,13 +50,13 @@ async function readWorkUnitOccupancy(input: { cwd: string; store: Store; identit
   if (lookup.status === "refused") {
     if (lookup.refusal.code !== "not-found") return unreadable(`${lookup.refusal.condition} ${lookup.refusal.remedy.text}`);
     const lineage = await readWorkUnitLineage(input.store, uid ?? name);
-    if (lineage !== null) return occupied(marker, `Checkout ${input.cwd} holds '${name}' with retained lineage. Inspect arc status ${name}; run arc teardown ${name} for ended work, or repair the marker after a rename.`);
+    if (lineage !== null) return occupied(marker, `Checkout ${input.cwd} holds '${name}' with retained lineage. Inspect arc status ${name}; run ${await markerTeardown(input.store, lineage.reference.owner, name)} for ended work, or repair the marker after a rename.`);
     return { ...occupied(marker, `Checkout ${input.cwd} holds '${name}' but its bound record and lineage are gone; run arc locus release there to ${marker.marker.spawnedByArc ? "remove that checkout" : "clear the marker"}.`), missingRecord: true };
   }
   const read = await input.store.read({ reference: lookup.result.reference });
   if (read.status === "refused") return unreadable(`${read.refusal.condition} ${read.refusal.remedy.text}`);
   if (read.result.reference.kind !== "work-item/meta") return unreadable("The marker claim resolves to an Errand rather than a work unit.");
-  return occupied(marker, workUnitMarkerExit(input.cwd, name, read.result, input.identity), read.result);
+  return occupied(marker, await workUnitMarkerExit(input.store, input.cwd, name, read.result, input.identity), read.result);
 }
 async function readUnboundOccupancy(input: { cwd: string; store: Store; identity?: string }, marker: PresentMarker,
   listing: Awaited<ReturnType<Store["list"]>>): Promise<MarkerOccupancy> {
@@ -62,14 +64,17 @@ async function readUnboundOccupancy(input: { cwd: string; store: Store; identity
   return unbound.kind === "unreadable" ? unbound : { kind: "unbound", marker, unbound, reason: unbound.reason };
 }
 /** Preserve the owning work unit's state-specific exit at every occupancy guard. */
-export function workUnitMarkerExit(cwd: string, name: string, record: StoreRecord, identity?: string): string {
+export async function workUnitMarkerExit(store: Store, cwd: string, name: string, record: StoreRecord, identity?: string): Promise<string> {
   const fields = ParsedMetaRecordSchema.parse(record.fields);
   const location = `Checkout ${cwd} already holds work unit '${name}' in ${resolveWorktreeMarkerPath(cwd)}.`;
   if (record.placement?.kind === "backlog") return `${location} Run arc locus release there.`;
-  if (record.placement?.kind === "completed") return `${location} Run ${identity !== undefined && fields.owner !== identity ? "arc locus release" : `arc teardown ${name}`} there.`;
-  if (fields.state === "Integrating") return `${location} Work there to finish integration, then run arc teardown ${name} there.`;
+  if (record.placement?.kind === "completed") return `${location} Run ${identity !== undefined && fields.owner !== identity ? "arc locus release" : await markerTeardown(store, record.reference.owner, name)} there.`;
+  if (fields.state === "Integrating") return `${location} Work there to finish integration, then run ${await markerTeardown(store, record.reference.owner, name)} there.`;
   if (fields.state === "Planning" || fields.state === "Active") return `${location} Work there, or as owner '${fields.owner ?? "unknown"}' run arc pause ${name} --reason <text>, then arc locus release there.`;
   return `${location} Inspect arc status ${name}, then release it there with arc locus release once eligible.`;
+}
+async function markerTeardown(store: Store, owner: OwnerIdentity, name: string): Promise<string> {
+  return `arc teardown ${store.capabilities.stateOffBranch ? await teardownOperand(store, owner) : name}`;
 }
 function occupied(marker: PresentMarker, reason: string, workUnit: StoreRecord | null = null): Extract<MarkerOccupancy, { kind: "occupied" }> {
   return { kind: "occupied", marker, reason, workUnit, missingRecord: false };

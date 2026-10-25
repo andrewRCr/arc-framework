@@ -249,3 +249,18 @@ it("release in the archived checkout offers that holder's teardown by UID", asyn
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
   await unchanged(h);
 }, 30_000);
+
+it("materialize in the archived checkout offers that holder's teardown by UID", async () => {
+  const h = await fixture(), livePath = await checkout(h, "live", h.live);
+  const liveMarker = await readFile(resolveWorktreeMarkerPath(livePath));
+  const before = lifecycleSuccess(await h.store.version());
+  const head = (await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.archivedPath })).stdout;
+  const result = await repairCli({ ...h, cwd: h.archivedPath }, ["materialize", "example", "--here"], { store: h.store });
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr + result.stdout).toContain(`arc teardown ${boundWorkUnitSubject(h.archived).uid}`);
+  expect(result.stderr + result.stdout).not.toContain("arc teardown example");
+  expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.archivedPath })).stdout).toBe(head);
+  expect(await readFile(resolveWorktreeMarkerPath(livePath))).toEqual(liveMarker);
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  await unchanged(h);
+}, 30_000);
