@@ -550,3 +550,28 @@ it.each([false, true])("keeps a husk out of duplicate claims beside another mark
   expect(result.roster.every(row => row.diagnostics.every(item => item.code !== "work-unit-locus-conflict"))).toBe(true);
   if (!unbound) expect(other?.subject).toEqual(husk?.subject);
 });
+
+it.each(["manual", "with-integration"] as const)("admits a retired detached marker despite its retained branch link, cadence=%s", async cadence => {
+  const h = await fixture();
+  await changeMeta(h, { state: "Shipped", currentWorkflow: null }, {
+    branches: [{ repository: "project-1", ref: "feat/old", linkedAs: "created", excluded: [] }],
+    landingCommit: { repository: "project-1", sha: "b".repeat(40) },
+  }, true);
+  h.io.archiveCadence = cadence;
+  h.io.scanWorktrees = async () => ({ ok: true, worktrees: [{ path: "/repo", head: "a".repeat(40), primary: true,
+    detached: true, branch: null, folderPresent: true }] });
+  expect((await frame(h.io)).roster[0]).toMatchObject({ kind: "retired", context: null, diagnostics: [] });
+});
+it("refuses a detached integration holder that still requires its linked branch", async () => {
+  const h = await fixture();
+  await changeMeta(h, { state: "Shipped", currentWorkflow: null }, {
+    branches: [{ repository: "project-1", ref: "feat/pending", linkedAs: "created", excluded: [] }],
+  }, true);
+  h.io.archiveCadence = "with-integration";
+  h.io.exec = async () => { throw Error("Base unavailable"); };
+  h.io.baseBranch = "main";
+  h.io.scanWorktrees = async () => ({ ok: true, worktrees: [{ path: "/repo", head: "a".repeat(40), primary: true,
+    detached: true, branch: null, folderPresent: true }] });
+  expect((await frame(h.io)).roster[0]).toMatchObject({ kind: "unresolved-checkout",
+    diagnostics: [expect.objectContaining({ code: "topology-mismatch" })] });
+});

@@ -797,6 +797,8 @@ edits land in package source and sync to `.arc/`.
   the claim arm and a branch's through the `ref` arm, and reads retirement evidence by that reference, so no exit
   reaches the live namesake or offers a command naming a slug that resolves to it.
 
+    - _Amended in:_ 7.R (A2)
+
     - `[x]` **7.1.a Retirement evidence by reference**
 
         - Evidence reads the selected primary reference and retired lineage by UID, preserving exact versions across
@@ -886,6 +888,15 @@ edits land in package source and sync to `.arc/`.
         - Discard cleanup requires the advertised tip to be contained in the captured local head; missing objects or
           a missing local branch keep the remote and its tracking ref. Native Git cases cover ahead, missing-object,
           and absent-local evidence, then restore evidence and complete cleanup; tracking-only retries retain origin.
+
+### `[x]` **7.R Admit retired detached holders to cleanup**
+
+- _Goal:_ Realize § 8.1's ended-detached cleanup under the retired lifecycle classification (A2), so the derived
+  topology gate does not hide a bound archived holder before its UID teardown offer is composed.
+
+- _Outcome:_ `readStoreWorkUnitEvidence` drops branch topology only after retirement is established; unlanded integration
+  holders retain it. Registered session init exposes the detached archived holder's UID action, and executing that
+  action preserves the live namesake's checkout, branch, remote, marker, and records.
 
 ### `[ ]` **7.6 An ended holder's cleanup end to end** — validate exit criterion at segment scope
 

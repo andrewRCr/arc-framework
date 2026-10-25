@@ -43,7 +43,7 @@ export async function readStoreWorkUnitEvidence(input: StoreWorkUnitInput): Prom
     if (record.placement === undefined) throw new Error("The marker's work-unit record has no lifecycle placement.");
     const completed = record.placement.kind === "completed";
     const retired = completed && await completedWorkUnitRetired(input, record);
-    const expectedTopology = branch === null ? {} : { branch, detached: false };
+    const expectedTopology = retired || branch === null ? {} : { branch, detached: false };
     return { kind: "present", subject, record, fields, branch,
       lifecycle: { kind: "present", subject, expectedTopology,
         state: retired ? "retired" : completed ? "integration" : "active" } };

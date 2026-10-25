@@ -1,3 +1,4 @@
+import { SessionInitProbeResultSchema } from "../../src/commands/status/schema.js";
 import { teardownOperand } from "../../src/lib/work-unit/store-retirement-evidence.js";
 import { TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
@@ -384,4 +385,49 @@ it("an offered teardown for a UUID-shaped display name selects its own UID", asy
   expect(lifecycleSuccess(await h.store.read({ reference: other.reference }))).toEqual(other);
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
   await unchanged(h);
+}, 30_000);
+
+it("executes session init's archived UID offer while preserving the live holder's checkout and refs", async () => {
+  const h = await fixture(), livePath = await checkout(h, "live", h.live), branch = "feat/shared";
+  const origin = join(h.cwd, ".arc-checkouts", "origin.git");
+  await h.exec("git", ["init", "--bare", origin]); await h.exec("git", ["remote", "add", "origin", origin]);
+  const config = join(h.cwd, ".arc/system/arc-config.yml");
+  await writeFile(config, (await readFile(config, "utf8")).replace("session.remote_sync: disabled", "session.remote_sync: enabled"));
+  await h.exec("git", ["add", ".arc/system/arc-config.yml"]); await h.exec("git", ["commit", "-m", "Enable remote evidence"]);
+  await h.exec("git", ["push", "origin", "main"]); await h.exec("git", ["switch", "-c", branch], { cwd: livePath });
+  await writeFile(join(livePath, "live.txt"), "Live holder's commit\n");
+  await h.exec("git", ["add", "live.txt"], { cwd: livePath }); await h.exec("git", ["commit", "-m", "Live work"], { cwd: livePath });
+  await h.exec("git", ["push", "-u", "origin", branch], { cwd: livePath });
+  const marker = await readWorktreeMarker(h.archivedPath);
+  if (marker.kind !== "present") throw Error("Missing archived marker");
+  await writeWorktreeMarker(h.archivedPath, { ...marker.marker, spawnedByArc: true });
+  const link = { repository: h.repository, ref: branch, linkedAs: "created" as const, excluded: [] };
+  for (const primary of [h.archived, h.live]) lifecycleSuccess(await h.store.write({ ...recordPut(primary, { links: { branches: [link] } }),
+    provenance: { verb: "link", lifecycleAction: "link" } }));
+  const liveRecord = lifecycleSuccess(await h.store.read({ reference: h.live.reference }));
+  const archivedRecord = lifecycleSuccess(await h.store.read({ reference: h.archived.reference }));
+  const liveMarker = await readFile(resolveWorktreeMarkerPath(livePath)), before = lifecycleSuccess(await h.store.version());
+  const head = (await h.exec("git", ["rev-parse", `refs/heads/${branch}`])).stdout;
+  await h.exec("git", ["update-ref", "-d", `refs/remotes/origin/${branch}`]);
+  const start = await repairCli(h, ["status", "--session-init", "--json"], { store: h.store });
+  expect(start.exitCode ?? 0, start.stdout + start.stderr).toBe(0);
+  const init = SessionInitProbeResultSchema.parse(start.result);
+  if (!init.sweep?.ok || !init.orphanBranchSweep?.ok) throw Error("Unavailable cleanup sweeps");
+  const report = init.sweep.value.worktrees.find(item => item.worktreePath === h.archivedPath);
+  expect(report, JSON.stringify(init.sweep)).toMatchObject({ kind: "detached", decision: { action: "removable" },
+    teardown: { argv: ["arc", "teardown", boundWorkUnitSubject(h.archived).uid], text: `arc teardown ${boundWorkUnitSubject(h.archived).uid}` } });
+  expect(init.orphanBranchSweep.value.orphans.some(item => item.branch === branch)).toBe(false);
+  if (report?.kind !== "detached" || report.teardown === undefined) throw Error("Missing typed archived teardown offer");
+  const result = await repairCli(h, report.teardown.argv.slice(1), { store: h.store });
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  await expect(stat(h.archivedPath)).rejects.toMatchObject({ code: "ENOENT" });
+  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.archivedPath);
+  expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"], { cwd: livePath })).stdout).toBe(branch);
+  expect((await h.exec("git", ["rev-parse", `refs/heads/${branch}`])).stdout).toBe(head);
+  expect((await h.exec("git", ["ls-remote", "--heads", "origin", `refs/heads/${branch}`])).stdout).toContain(head);
+  expect(await readFile(resolveWorktreeMarkerPath(livePath))).toEqual(liveMarker);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.live.reference }))).toEqual(liveRecord);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.archived.reference }))).toEqual(archivedRecord);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.oldNotes.reference }))).toEqual(h.oldNotes);
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
 }, 30_000);
