@@ -89,6 +89,8 @@ const reviewIdentities = [
   "review-hosted-settle-request",
   "review-local-attest-envelope",
   "review-local-attest-request",
+  "review-local-cancel-envelope",
+  "review-local-cancel-request",
   "review-local-prepare-envelope",
   "review-local-prepare-request",
   "review-local-resume-envelope",

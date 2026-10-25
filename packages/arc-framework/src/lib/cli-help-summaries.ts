@@ -206,6 +206,7 @@ export const COMMAND_SUMMARIES: Readonly<Record<string, string>> = {
   "review local": "Manage immutable-source local reviews",
   "review local prepare": "Prepare an immutable local review",
   "review local attest": "Attest a normalized local review result",
+  "review local cancel": "Cancel a pending local review dispatch",
   "review local resume": "Resume a durable local review",
   "review respond": "Manage a source-bound review response",
   "review reduce": "Reduce a durable review operation",

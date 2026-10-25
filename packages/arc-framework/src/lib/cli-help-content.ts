@@ -183,6 +183,7 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
   "review hosted settle": { summary: COMMAND_SUMMARIES["review hosted settle"], notes: requestNotes },
   "review local prepare": { summary: COMMAND_SUMMARIES["review local prepare"], notes: requestNotes },
   "review local attest": { summary: COMMAND_SUMMARIES["review local attest"], notes: requestNotes },
+  "review local cancel": { summary: COMMAND_SUMMARIES["review local cancel"], notes: requestNotes },
   "review local resume": { summary: COMMAND_SUMMARIES["review local resume"], notes: requestNotes },
   "review terminus accept": { summary: COMMAND_SUMMARIES["review terminus accept"], notes: requestNotes },
   "review": { summary: COMMAND_SUMMARIES["review"], notes: [["Related:", "arc review resolve --help"]] },

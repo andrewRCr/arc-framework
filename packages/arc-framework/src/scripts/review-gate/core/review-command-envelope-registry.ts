@@ -1,5 +1,6 @@
 /** Registry binding for public review command envelopes. */
 
+import { LocalCancelEnvelopeSchema } from "./local-cancel-envelope.js";
 import { ReviewLaneReadEnvelopeSchema } from "../lane-read-schema.js";
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
 import { ReviewReadinessEnvelopeSchema } from "../readiness.js";
@@ -27,6 +28,7 @@ export function registerReviewCommandEnvelopeSchemas(registry: KernelRegistry): 
     ["review-frontline-run-envelope", FrontlineRunEnvelopeSchema],
     ["review-local-prepare-envelope", LocalPrepareEnvelopeSchema],
     ["review-local-attest-envelope", LocalAttestEnvelopeSchema],
+    ["review-local-cancel-envelope", LocalCancelEnvelopeSchema],
     ["review-respond-envelope", RespondEnvelopeSchema],
     ["review-reduce-envelope", ReduceEnvelopeSchema],
     ["review-local-resume-envelope", LocalResumeEnvelopeSchema],
