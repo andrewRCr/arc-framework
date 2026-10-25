@@ -38,7 +38,7 @@ import {
 } from "../../src/lib/user-sync/compaction-manifest.js";
 import { createTempRepoCore, removeGitBackedDir } from "./temp-repo.js";
 import { createExecaGitExec, createExecaGitExecInput } from "../../src/lib/git/process-executor.js";
-import { readUserDir } from "../../src/lib/io-context.js";
+import { createUserIOContext } from "../../src/lib/io-context.js";
 
 export { commitAll } from "./temp-repo.js";
 
@@ -443,12 +443,9 @@ export function makeGitNoteReader(cwd: string) {
 /** Create a real UserIOContext for a temp repo. */
 export function makeUserIO(cwd: string): UserIOContext {
   return {
+    ...createUserIOContext(),
     exec: makeGitExec(cwd),
     execInput: makeGitExecInput(cwd),
-    readFile: (path) => readFile(path, "utf-8"),
-    writeFile: (path, content) => writeFile(path, content, "utf-8"),
-    mkdir: (path, opts) => mkdir(path, opts).then(() => undefined),
-    readDir: readUserDir,
     writeNote: makeGitNoteWriter(cwd),
     readNote: makeGitNoteReader(cwd),
   };
