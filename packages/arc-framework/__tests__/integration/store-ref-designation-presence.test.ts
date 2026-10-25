@@ -1,3 +1,4 @@
+import { unconfirmedCancellation } from "../helpers/store/unconfirmed-cancellation.js";
 /** Candidate presence failures and deadlines through real Git transports. */
 
 import { createServer } from "node:http";
@@ -27,6 +28,26 @@ async function expectUndesignated(h: Awaited<ReturnType<typeof candidate>>): Pro
 }
 
 describe("registry presence reads", () => {
+  it("preserves cancellation warnings from a candidate listing and retries after repair", async () => {
+    const h = await candidate(), clock = createRefClock(new Date(0), 0);
+    let armed = true;
+    const store = createRefStore({ ...h.b.ports, ...clock, exec: async (command, args, options) => {
+      if (armed && args.includes("ls-remote")) {
+        armed = false; clock.advance(5_000); await Promise.resolve();
+        throw unconfirmedCancellation(args, "Original candidate listing cancellation.");
+      }
+      return h.b.ports.exec(command, args, options);
+    } });
+    const result = success(await store.pull());
+    expect(result.pulls).toMatchObject([{ role: "candidate", status: "failed", remote: "origin",
+      failure: { code: "unreachable", cause: "timeout", condition: expect.stringContaining("descendant processes not confirmed ended") } }]);
+    const failed = result.pulls[0];
+    if (failed?.status !== "failed") throw new Error("Expected canceled candidate listing");
+    expect(failed.failure.condition).toContain("Original candidate listing cancellation.");
+    await expectUndesignated(h);
+    expect(success(await store.pull()).states).toMatchObject([{ status: "designation-needed", remote: "origin" }]);
+    await expectUndesignated(h);
+  });
   it("reports an unreachable candidate without deciding and retries after repair", async () => {
     const h = await candidate();
     await h.b.exec("git", ["remote", "set-url", "origin", join(h.origin, "missing.git")]);

@@ -21,8 +21,9 @@ export async function listRemoteRefs(context: RefBackendContext, remote: string,
     return parseListing(stdout);
   } catch (error) {
     if (!isGitProcessError(error)) throw error;
+    const condition = gitFailureText(error) || `The refs at ${remote} could not be listed.`;
     return { status: "unreachable", cause: read.signal.aborted || context.syncDeadline?.signal.aborted ? "timeout" : classifyRemoteFailure(error),
-      condition: gitFailureText(error) || `The refs at ${remote} could not be listed.` };
+      condition: error.descendantsUnconfirmed ? `${error.message}\n${condition}` : condition };
   } finally { timer.abort(); await bound; }
 }
 

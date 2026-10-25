@@ -1,3 +1,5 @@
+import { createRefClock } from "../helpers/store/ref-clock.js";
+import { unconfirmedCancellation } from "../helpers/store/unconfirmed-cancellation.js";
 import { join } from "node:path";
 import { writeFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
@@ -30,6 +32,28 @@ exit 0
 }
 
 describe("carried branch receiver races", () => {
+  it("preserves cancellation warnings from the receiver listing and retries after repair", async () => {
+    const { h, code, other } = await codeRaceFixture("unleased"), clock = createRefClock(new Date(0), 0);
+    let armed = true;
+    const store = createRefStore({ ...h.a.ports, ...clock, exec: async (command, args, options) => {
+      if (armed && args.includes("ls-remote") && args.includes(carriedBranch)) {
+        armed = false; clock.advance(5_000); await Promise.resolve();
+        throw unconfirmedCancellation(args, "Original receiver listing cancellation.");
+      }
+      return h.a.ports.exec(command, args, options);
+    } });
+    const result = PushResultSchema.parse(success(await store.push({ carry: { ref: carriedBranch } })));
+    expect(result.carry).toMatchObject({ ref: carriedBranch, status: "unreachable", cause: "timeout",
+      message: expect.stringContaining("descendant processes not confirmed ended") });
+    expect(result.carry).toMatchObject({ message: expect.stringContaining("Original receiver listing cancellation.") });
+    expect(result.publishes).toContainEqual(expect.objectContaining({ status: "pushed", families: ["personal"] }));
+    expect((await h.remote("git", ["rev-parse", carriedBranch])).stdout.trim()).toBe(other.tip);
+    expect(success(await store.push({ carry: { ref: carriedBranch, expect: other.tip } })).carry)
+      .toEqual({ ref: carriedBranch, status: "pushed" });
+    expect((await h.remote("git", ["rev-parse", carriedBranch])).stdout.trim()).toBe(code.tip);
+    success(await h.b.store.pull());
+    expect(success(await h.b.store.read({ reference: carriedDocument })).content).toBe("State after code race.\n");
+  });
   it("still publishes state when the carried receiver tip cannot be read", async () => {
     const { h, other } = await codeRaceFixture("leased");
     const store = createRefStore({ ...h.a.ports, exec: (command, args, options) => {
