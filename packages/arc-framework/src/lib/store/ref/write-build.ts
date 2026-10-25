@@ -4,7 +4,6 @@ import { BatchCreationReceiptSchema } from "../creation-receipt.js";
 import { readObjectFormat } from "./manifest.js";
 import { commitRefStep } from "./commit-step.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
-import { updateRefTransaction } from "../../git/ref-transaction.js";
 import type { BatchInput, BatchResult, WriteResult, RecordObservation } from "../write.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
@@ -38,6 +37,8 @@ import { proposedRefCreatedOwners } from "./write-creation.js";
 import { refAdmissionBasisChanged } from "./write-admission.js";
 import { stagePublicationMetadata } from "./write-metadata.js";
 import { anchorRefWriteManifest } from "./write-manifest.js";
+import { checkRefHistoryDestinations } from "./write-history.js";
+import { publishRefBatchChanges } from "./write-publication.js";
 
 import { prepareRefRenames } from "./write-rename.js";
 
@@ -75,6 +76,9 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
   await stampCompletedWrites(context, resolved, prepared.result, groups, batchId);
   const retirements = await planRefRetirements(context, resolved, refWriteTargets(context, resolved), groups);
   if (retirements.status === "refused") return retirements;
+  const historyMoves = [...archives.result.map(({ source, history }) => ({ live: source, history })), ...retirements.result];
+  const historyRefusal = await checkRefHistoryDestinations(context, tips, historyMoves);
+  if (historyRefusal) return { status: "refused", refusal: historyRefusal };
   const completed = await prepareRefConflicts(context, prepared.result, groups, results);
   await stagePublicationMetadata(context, resolved, groups, completed);
   const step = await commitRefStep(context, async (physical): Promise<StoreResult<BatchResult> | "retry"> => {
@@ -94,10 +98,7 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
       ended: archives.result.length > 0 || retirements.result.length > 0, tips, provenance, batchId, actor, receipt });
     if (anchored.status === "refused") return anchored;
     const changes = anchored.result;
-    if (changes.length === 0) return { status: "ok", result: { batchId, writes: results } };
-    const outcome = await updateRefTransaction(physical, changes, { cwd: context.checkoutRoot });
-    if (outcome.status !== "committed") return "retry";
-    return { status: "ok", result: { batchId, writes: results } };
+    return publishRefBatchChanges(physical, changes, new Set(historyMoves.map(({ history }) => history)), { batchId, writes: results });
   });
   return step.status === "layout-changed" ? "layout-changed" : step.result;
 }

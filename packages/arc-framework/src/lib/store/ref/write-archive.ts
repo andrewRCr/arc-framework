@@ -78,7 +78,7 @@ export async function archiveRefChanges(context: RefBackendContext, changes: rea
       ? completed.get(plan.source) : groups.get(plan.source);
     if (!group) throw new Error("An archive has no final item tree");
     copyArchiveEntries(context, plan, group);
-    result.push({ ref: plan.history, next: change.next, expected: null });
+    result.push({ ref: plan.history, next: change.next, expected: tips.get(plan.history) ?? null });
     const prior = tips.get(plan.source);
     if (prior) result.push({ ref: plan.source, delete: true, expected: prior });
   }
