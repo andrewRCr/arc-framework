@@ -10,6 +10,7 @@ import { validateRefAnchors } from "./anchor-registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../kinds/registrations.js";
 import type { ObjectFormat } from "./manifest.js";
 import type { BatchObject, ListedTree } from "./batch-read.js";
+import type { LifecycleEvidence } from "./sync-lifecycle-evidence.js";
 
 /** Backend ports with a complete kind registry and failure-time executor checks. */
 export interface RefBackendContext extends RefStorePorts {
@@ -22,8 +23,10 @@ export interface RefBackendContext extends RefStorePorts {
   blobStage?: { format: ObjectFormat; blobs: Map<string, Uint8Array> };
   /** Native object readers belong to one public read or mutation call. */
   batchReader?: GitBatchReadScope;
-  /** Successful immutable evidence belongs to one repository-bound write attempt. */
+  /** Successful immutable evidence belongs to one repository-bound write or sync attempt. */
   writeEvidence?: { objects: Map<string, BatchObject>; trees: Map<string, ListedTree>; format?: ObjectFormat };
+  /** Decoded quarters and raw reachability are local to the selected repository's sync operation. */
+  lifecycleEvidence?: LifecycleEvidence;
   /** A push and all its nested pulls share one cancellation bound. */
   syncDeadline?: { signal: AbortSignal; end: number; cleanup: RefBackendContext };
 }

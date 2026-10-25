@@ -13,6 +13,7 @@ import { readSyncRefs } from "./sync-graph.js";
 import { mergeRefSets, type RefMergeOptions, type RefMergeResult, type RefMergeRoute } from "./sync-merge.js";
 import { readPendingRefEnds, readPendingRefReopens, resolvePendingRefEnds, refEndPublished, type RefEndPublished } from "./sync-lifecycle.js";
 import { readCorruptArchiveBatchRefs } from "./sync-corrupt.js";
+import { withLifecycleEvidence, primeLifecycleLogs } from "./sync-lifecycle-evidence.js";
 
 /** A failed supplemental fetch retains the shared merges already committed. */
 export type LifecyclePullResult = RefMergeResult | { status: "fetch-failed"; fetched: Extract<FetchOutcome, { status: "unreachable" }> };
@@ -45,6 +46,7 @@ export interface CapturedRefMergeOptions extends RefMergeOptions {
 /** Reconcile a complete captured source over the selected destination without assuming a transport. */
 export async function mergeCapturedRefState(context: RefBackendContext, incoming: Map<string, string>,
   requested: readonly HistoryRef[], options: CapturedRefMergeOptions): Promise<LifecyclePullResult> {
+  context = withLifecycleEvidence(context);
   const previous = options.previous ?? new Map<string, string>();
   const published = refEndPublished(context, incoming, previous);
   let held = await captureMergeRefs(context, options);
@@ -55,6 +57,7 @@ export async function mergeCapturedRefState(context: RefBackendContext, incoming
   const first = await mergeRefSets(context, held, shared, options);
   if (first.status === "restart") return first;
   let state = await captureMergeRefs(context, options);
+  await primeLifecycleLogs(context, [held, state, incoming, previous]);
   const completed = await readPendingArchiveHistories(context, held, state, incoming);
   let pending = await readPendingRefEnds(context, held, state, incoming, published);
   const required = new Map([...pending, ...completed].map((item) => [item.history, item]));
@@ -62,10 +65,12 @@ export async function mergeCapturedRefState(context: RefBackendContext, incoming
   const acquired = await acquireDiscoveredHistories(discovered.map(({ history }) => history), options);
   if (acquired.status === "fetch-failed") return acquired;
   first.notices.push(...acquired.notices);
+  await primeLifecycleLogs(context, [incoming]);
   const withdrawal = await withdrawEndBatches(context, held, state, incoming, options, published, blocked), withdrawn = withdrawal.result;
   if (withdrawn.status === "restart") return withdrawn;
   if (withdrawn.changed) {
     state = withdrawal.state; held = state;
+    await primeLifecycleLogs(context, [state]);
     pending = await readPendingRefEnds(context, held, state, incoming, published);
   }
   pending = await resolvePendingRefEnds(context, pending.filter(({ live, history }) => merging(live) && merging(history)), held, incoming);
@@ -117,7 +122,10 @@ async function withdrawEndBatches(context: RefBackendContext, held: Map<string, 
     for (const notice of result.notices) if (notice.kind === "namespace-corrupt") blockWithdrawalRef(blocked, notice.ref);
     notices.push(...result.notices);
     if (!result.changed && before === blocked.size) return { result: { status: "complete", changed, notices }, state };
-    if (result.changed) { changed = true; state = await captureMergeRefs(context, options); held = state; }
+    if (result.changed) {
+      changed = true; state = await captureMergeRefs(context, options); held = state;
+      await primeLifecycleLogs(context, [state]);
+    }
   }
 }
 

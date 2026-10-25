@@ -8,6 +8,7 @@ import { RecordReferenceSchema, type OwnerIdentity } from "../identity.js";
 import { HistoryRefSchema, type HistoryRef } from "../refusal.js";
 import { readLineageOwners } from "./lineage-resolution.js";
 import { readItemEndBatches } from "./sync-lifecycle-log.js";
+import { readLifecycleLog } from "./sync-lifecycle-evidence.js";
 
 /** A record requiring a held item to incorporate its end before publication. */
 export interface PendingRefEnd { live: string; history: HistoryRef; owner: OwnerIdentity; ownReopen?: boolean }
@@ -84,18 +85,26 @@ export async function readPendingRefReopens(context: RefBackendContext, held: Re
 export async function readLifecycleFolders(context: RefBackendContext, tips: ReadonlyMap<string, string>): Promise<ArchivedFolder[]> {
   const quarters = new Map([...tips].filter(([ref]) => isArchiveRef(ref)));
   if (!quarters.size) return [];
-  const trees = await readRefTrees(context, quarters);
-  const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
-  return [...trees].flatMap(([ref, entries]) => (["work-item", "cohort"] as const)
-    .flatMap((family) => archivedFolders(family, ref, entries, objects).folders));
+  const retained = context.lifecycleEvidence?.folders;
+  const uncached = new Map([...quarters].filter(([ref, tip]) => !retained?.has(JSON.stringify([ref, tip]))));
+  const trees = await readRefTrees(context, uncached);
+  const metadata = [...trees.values()].flatMap((entries) => entries.filter(({ path }) => /^[^/]+\/metadata-[0-9a-f-]{36}\.json$/u.test(path)));
+  const objects = await readBatchObjects(context, [...new Set(metadata.map(({ oid }) => oid))]);
+  const decoded = new Map<string, readonly ArchivedFolder[]>();
+  for (const [ref, entries] of trees) {
+    const families = (["work-item", "cohort"] as const).map((family) => archivedFolders(family, ref, entries, objects));
+    const folders = families.flatMap(({ folders }) => folders), key = JSON.stringify([ref, quarters.get(ref)]);
+    decoded.set(key, folders);
+    if (families.every(({ diagnostics }) => diagnostics.length === 0)) retained?.set(key, folders);
+  }
+  return [...quarters].flatMap(([ref, tip]) => [...retained?.get(JSON.stringify([ref, tip])) ?? decoded.get(JSON.stringify([ref, tip])) ?? []]);
 }
 
 /** Read batch reachability from the supplied tip, never a mutable tracking ref. */
 export async function lifecycleBatches(context: RefBackendContext, tip: string | undefined, owner: OwnerIdentity): Promise<Set<string>> {
   if (!tip) return new Set();
   const reference = RecordReferenceSchema.parse({ owner, kind: owner.type === "cohort" ? "cohort/document" : "work-item/meta" });
-  const { stdout } = await context.exec("git", ["log", "--format=%B%x00", tip], { cwd: context.checkoutRoot, objectAccess: "local-only" });
-  return new Set(stdout.split("\0").map((message) => parseStoreCommitProvenance(message.trimStart(), reference))
+  return new Set((await readLifecycleLog(context, tip)).map(({ message }) => parseStoreCommitProvenance(message, reference))
     .flatMap((entry) => "batchId" in entry && entry.batchId ? [entry.batchId] : []));
 }
 

@@ -20,6 +20,7 @@ import { fetchRefRemote } from "./fetch.js";
 import { releaseEndedRefKeepers } from "./fetch-seen-ended.js";
 import { RefFetchKeeperLockError } from "./fetch-keeper-lock.js";
 import { RefFetchIncompleteError } from "./fetch-completeness.js";
+import { withLifecycleEvidence } from "./sync-lifecycle-evidence.js";
 import { readSyncRefs } from "./sync-graph.js";
 import type { RefMergeOptions } from "./sync-merge.js";
 import { mergePulledRefState, captureFetchedHistories, isWithheld } from "./sync-pull-lifecycle.js";
@@ -51,7 +52,7 @@ async function pullRefStoreOnce(context: RefBackendContext, input: PullInput,
   const states = [...resolved.states];
   const sources = designation.remotes.filter(({ role }) => role === "read" || role === "push" && states.every(({ status }) => status === "move-unfinished") && !resolved.pulls.length);
   if (!sources.length) return { status: "ok", result: { states, pulls: resolved.pulls } };
-  context = await writeRefRepository(context);
+  context = withLifecycleEvidence(await writeRefRepository(context));
   const identity = await context.identity();
   const families = FAMILY_IDS.filter((family) => family !== "project-machinery" && family !== "constitution"
     && (identity !== null || FAMILY_REGISTRY[family].scope !== "identity"));

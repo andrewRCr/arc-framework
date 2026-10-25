@@ -35,7 +35,7 @@ export async function commitWithdrawEnd(context: RefBackendContext, end: Withdra
     const captured = await readSyncRefs(context, "refs/arc/");
     if ([...watched].some((ref) => captured.get(options.targetRef?.(ref) ?? ref) !== state.get(ref))) return { status: "restart" };
     // Prior reads may retain objects that disappeared before the lock was acquired. This hold starts fresh.
-    const fresh = { ...context, batchReader: undefined, writeEvidence: { objects: new Map(), trees: new Map() } };
+    const fresh = { ...context, batchReader: undefined, lifecycleEvidence: undefined, writeEvidence: { objects: new Map(), trees: new Map() } };
     const staged = { ...fresh, blobStage: { format: await readObjectFormat(fresh), blobs: new Map<string, Uint8Array>() } };
     try {
       const plan = await prepareWithdrawEnd(staged, basis);

@@ -6,6 +6,7 @@ import { RecordReferenceSchema } from "../identity.js";
 import { parseStoreCommitProvenance } from "../commit-provenance.js";
 import { readBatchObjects, readRefTrees } from "./batch-read.js";
 import { parseRefMetadata } from "./metadata.js";
+import { readLifecycleLog } from "./sync-lifecycle-evidence.js";
 
 /**
  * Read original archive stamps and empty-tree ends — swept retirements, and the root the import gives an origin it
@@ -15,14 +16,11 @@ export async function readItemEndBatches(context: RefBackendContext, tip: string
   owner: OwnerIdentity, kind: "all" | "retirement" = "all"): Promise<Set<string>> {
   if (!tip || !("uid" in owner)) return new Set();
   const reference = RecordReferenceSchema.parse({ owner, kind: owner.type === "cohort" ? "cohort/document" : "work-item/meta" });
-  const { stdout } = await context.exec("git", ["log", "--format=%H%n%B%x00", tip],
-    { cwd: context.checkoutRoot, objectAccess: "local-only" });
   const withdrawn = new Set<string>();
-  const commits = stdout.split("\0").flatMap((block) => {
-    const [commit = "", ...message] = block.trimStart().split("\n");
-    const provenance = parseStoreCommitProvenance(message.join("\n"), reference);
+  const commits = (await readLifecycleLog(context, tip)).flatMap(({ commit, message }) => {
+    const provenance = parseStoreCommitProvenance(message, reference);
     if ("verb" in provenance && provenance.verb === "sync" && provenance.lifecycleAction === "withdraw-end") {
-      const original = /^Arc-Withdrawn-End: ([^\r\n]+)$/mu.exec(message.join("\n"))?.[1];
+      const original = /^Arc-Withdrawn-End: ([^\r\n]+)$/mu.exec(message)?.[1];
       if (original) withdrawn.add(original);
       return [];
     }
