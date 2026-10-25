@@ -58,6 +58,7 @@ describe("one-shot TypeScript package scripts", () => {
       "lint:md:descriptors": "node --import tsx packages/arc-framework/src/scripts/lint-task-descriptors.ts",
       "lint:md:dependencies": "node --import tsx packages/arc-framework/src/scripts/verify-markdown-dependencies.ts",
       "format:tables": "node --import tsx packages/arc-framework/src/scripts/format-tables.ts",
+      "format:prose": "node --import tsx packages/arc-framework/src/scripts/format-prose.ts",
       "render:framework": "node --import tsx packages/arc-framework/src/scripts/render-framework.ts",
       "audit:tables": "node --import tsx packages/arc-framework/src/scripts/audit-tables.ts",
       "audit:emphasis": "node --import tsx packages/arc-framework/src/scripts/audit-emphasis.ts",
@@ -114,6 +115,15 @@ describe("one-shot TypeScript package scripts", () => {
       stderr: expect.stringContaining("--output requires a path"),
     });
     expect(await readFile(marker, "utf8")).toMatch(/^armed:\d+\n(?:armed:\d+\n)*$/u);
+  }, PROCESS_TIMEOUT_MS);
+
+  it("shows prose formatter usage before validating help as a Markdown path", async () => {
+    const result = await execute(npmExecutable, ["run", "-s", "format:prose", "--", "--help"], {
+      cwd: repositoryRoot, encoding: "utf8", env: { ...process.env, FORCE_COLOR: undefined },
+    });
+    expect(result.stdout).toContain("Usage: npm run format:prose");
+    expect(result.stdout).toContain("--line");
+    expect(result.stderr).toBe("");
   }, PROCESS_TIMEOUT_MS);
 
   it("shows framework renderer usage before validating help as a Markdown path", async () => {

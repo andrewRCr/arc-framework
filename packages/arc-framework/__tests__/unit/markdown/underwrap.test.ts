@@ -63,6 +63,13 @@ describe("Markdown under-wrap rule", () => {
     expect(await findings(content)).toHaveLength(1);
   });
 
+  it.each([
+    ["code span", "`several words`"],
+    ["section reference", "\u00a7 12.3.4.5.6"],
+  ])("keeps a nonbreaking %s together when its first word alone fits", async (_name, atom) => {
+    expect(await findings(`${"a".repeat(20)}\n${atom}\n`, { min: 25, max: 30 })).toEqual([]);
+  });
+
   it("rejects invalid width configuration rather than silently changing it", async () => {
     await expect(findings("Short line.\nNext line.\n", { min: 121, max: 120 })).rejects.toThrow();
   });
