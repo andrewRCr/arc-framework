@@ -3,7 +3,7 @@ import { sameReference, type RecordReference } from "../../store/identity.js";
 import { stat } from "node:fs/promises";
 import { describeWorktreePreparationFailure } from "../incomplete-worktree-preparation.js";
 import { localPathsEqual } from "../../local-path-identity.js";
-import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
+import { ownedInFlight } from "../../locus/unbound-marker.js";
 import { revalidateLifecycleRecords } from "../prepared-lifecycle-write.js";
 import { boundedGitInvocation, type GitExec } from "../../git/exec.js";
 import { refreshLifecycleRef, localLifecycleTip, resolveLifecycleBase } from "../../git/lifecycle-ref-refresh.js";
@@ -109,12 +109,6 @@ async function refuseUnmarkedHolder(ctx: Bound, params: MaterializeParams, branc
     if (present && params.inPlace && await localPathsEqual(item.path, ctx.cwd)) continue;
     if (present) throw new Error(`Checkout ${item.path} already has ${branch} out; run arc materialize ${params.name} --here from that checkout.`);
   }
-}
-
-function ownedInFlight(record: StoreRecord, identity: string): boolean {
-  const fields = ParsedMetaRecordSchema.parse(record.fields);
-  return record.placement?.kind === "active" && fields.owner === identity
-    && new Set(["Planning", "Active", "Integrating"]).has(fields.state ?? "");
 }
 
 async function claimMaterialization(ctx: Bound & { store: Store }, request: {

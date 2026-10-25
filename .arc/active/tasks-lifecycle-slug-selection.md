@@ -671,32 +671,12 @@ released, then rerun.
   reader that acts on its checkout refuses it, naming the slug's holders by UID and the exits its marker and slug
   select, where today it takes the not-found path that advises `arc locus release`.
 
-    - `[ ]` **6.1.a The classifier**
+    - `[x]` **6.1.a The classifier**
 
-        - `classifyUnboundMarker` (`lib/locus/unbound-marker.ts`) takes the store, the marker, and an optional identity,
-          and returns the marker's slug, its holders, the exit that applies, the exits as actions bound to the marker's
-          checkout (`SessionActionSchema`'s `checkout`, `lib/session-init/actions.ts`), and the reason that names them.
-        - Its holders are every work-unit meta under the slug as its current name, live and completed, from the listing
-          marker occupancy reads (`readWorkUnitOccupancy`, `lib/locus/marker-occupancy.ts`), and the record the slug's
-          lookup returns or the candidates it ties, each by its UID. An incomplete listing reads as unreadable, as
-          there.
-        - **A live holder materialize admits** (`ownedInFlight`, which moves beside the classifier from
-          `materialize-store.ts`): `arc materialize <name> --here` from that checkout, under the holder's current name
-          where the marker names a former slug, or `arc locus release` where the checkout is not that holder's. Without
-          an identity, the bind exit names the holder's owner. **An anchored marker (`spawnedByArc: false`) whose slug
-          neither the slug lookup nor the lineage arm finds:** the cold start's rerun (`arc start <name> --new --here`)
-          or `arc locus release`. **Otherwise** `arc locus release` alone: a spawned marker, one whose slug has a
-          completed holder or a retired origin, one whose live holder materialize does not admit, and one whose slug's
-          lookup refuses.
-        - Build `test-first` (one behavior at a time):
-            - a marker written before the flip whose slug has a live owned holder names both holders of a reused slug
-              and offers `arc materialize <slug> --here` and `arc locus release`, and without an identity names the
-              holder's owner on the bind exit
-            - a marker naming a live holder's former slug offers materialize under the holder's current name
-            - a cold start's anchored leftover with no record or lineage offers the rerun and `arc locus release`
-            - a spawned unbound marker, one whose slug has a retired origin, and one whose slug's lookup refuses
-              `ambiguous-match` offer `arc locus release` alone
-            - an incomplete work-unit listing reads as unreadable
+        - `classifyUnboundMarker` names all current-name work-unit generations and the slug lookup's selected or tied
+          holders, with checkout-bound bind, rerun, or unnamed release actions. It shares materialize's moved
+          `ownedInFlight` predicate, preserves former-name binding under the current name, and reports incomplete
+          inventories as unreadable until repair.
 
     - `[ ]` **6.1.b Holder matching**
 
