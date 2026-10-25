@@ -34,7 +34,8 @@ export async function pullRefStore(context: RefBackendContext, input: PullInput 
       condition: error.message, remedy: { text: `Wait for the Git writer holding ${error.lock} to finish. If the lock is stale, remove it after confirming no writer is active, then retry.` } } };
     if (error instanceof RefSyncDeadlineError) return { status: "refused", refusal: { code: "unreachable", class: "recoverable",
       cause: "timeout", condition: `${error.message} Earlier ref merges remain applied.`, remedy: refSyncDeadlineRemedy("pull") } };
-    if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire") throw error;
+    // A nested pull shares the publisher's deadline and its lock-recovery boundary.
+    if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire" || context.syncDeadline) throw error;
     return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lockPath,
       condition: `The lock remained held for ${error.waitedMs}ms.`,
       remedy: { text: "Wait for the holder to finish or release its lock, then retry the pull; earlier ref merges remain applied." } } };
