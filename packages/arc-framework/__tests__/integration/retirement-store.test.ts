@@ -17,6 +17,9 @@ import { scanRegisteredWorktrees } from "../../src/lib/git/worktree-roster.js";
 import { selectStoreRetirementHusk } from "../../src/lib/work-unit/store-retirement-husk.js";
 import { readStoreRetirementEvidence, type TeardownSubject } from "../../src/lib/work-unit/store-retirement-evidence.js";
 import { TeardownCommandInputSchema, AbandonCommandInputSchema } from "../../src/handlers/lifecycle.js";
+import { runTeardownForOperand } from "../../src/handlers/teardown-operand.js";
+import { createLocusPorts } from "../../src/lib/locus/lifecycle-ports.js";
+import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, resolveWorktreeMarkerPath } from "../../src/lib/git/worktree-marker.js";
 import { runTeardown } from "../../src/lib/work-unit/verbs/teardown.js";
 import { localLifecycleTip } from "../../src/lib/git/lifecycle-ref-refresh.js";
 import { writeWorktreeMarker, readWorktreeMarker, type WorktreeMarker } from "../../src/lib/git/worktree-marker.js";
@@ -321,3 +324,59 @@ it("revalidates stamped-commit preservation before locked husk removal and accep
   await h.exec("git", ["push", "origin", "feat/demo"]);
   await expect(selected.revalidate()).resolves.toBeUndefined();
 });
+
+async function reusedNativeFixture() {
+  const h = await fixture({ end: "archive" });
+  await h.exec("git", ["switch", "main"]);
+  const live = await h.seedMeta("demo", {}, { kind: "active" }, { branches: [retirementLink("feat/live")] });
+  await h.exec("git", ["branch", "feat/live", h.baseOid]);
+  const archivedPath = join(h.root, "checkout-archived"), livePath = join(h.root, "checkout-live");
+  for (const [path, branch, record] of [[archivedPath, "feat/demo", h.meta], [livePath, "feat/live", live]] as const) {
+    await h.exec("git", ["worktree", "add", path, branch]);
+    await ensureWorktreeMarkerIgnored(path, h.exec, nodeWorktreeMarkerIgnoreFs);
+    await writeWorktreeMarker(path, { ...h.marker, spawnedByArc: true, createdFor: boundWorkUnitSubject(record) });
+  }
+  const io = { ...createUserIOContext(), exec: h.exec, execInput: makeGitExecInput(h.root) };
+  const executor = buildExecutorContext({ cwd: h.root, io, store: h.store,
+    locusPorts: createLocusPorts({ cwd: h.root, exec: h.exec, store: h.store }), projectId: async () => "repo",
+    identity: "test-user", teamMode: false, internalTemplateDir: "/templates" });
+  const ctx = createStoreTeardownContext({ cwd: h.root, identity: "test-user", io }, executor);
+  const teardownUid = () => {
+    const input = TeardownCommandInputSchema.parse({ name: boundWorkUnitSubject(h.meta).uid });
+    if (input.name === undefined) throw Error("Missing test operand");
+    return runTeardownForOperand(ctx, { name: input.name, base: "main" });
+  };
+  return { ...h, ctx, live, archivedPath, livePath, teardownUid };
+}
+it.each([false, true])("native UID teardown removes only its archived holder, former marker name=%s", async former => {
+  const h = await reusedNativeFixture();
+  if (former) await writeWorktreeMarker(h.archivedPath, { ...h.marker, wuName: "former", spawnedByArc: true,
+    createdFor: boundWorkUnitSubject(h.meta, "former") });
+  const liveMarker = await readFile(resolveWorktreeMarkerPath(h.livePath)), before = lifecycleSuccess(await h.store.version());
+  expect(await h.teardownUid()).toMatchObject({ status: "torn-down", worktreeRemoved: h.archivedPath });
+  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.archivedPath);
+  expect(await readFile(resolveWorktreeMarkerPath(h.livePath))).toEqual(liveMarker);
+  expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"], { cwd: h.livePath })).stdout).toBe("feat/live");
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.live.reference }))).toEqual(h.live);
+}, 30_000);
+it("native UID teardown refuses an unbound namesake and completes after its owner binds it", async () => {
+  const h = await reusedNativeFixture();
+  await writeWorktreeMarker(h.archivedPath, { ...h.marker, spawnedByArc: true, createdFor: { kind: "work-unit", name: "demo" } });
+  const before = await readFile(resolveWorktreeMarkerPath(h.archivedPath));
+  expect(await h.teardownUid()).toMatchObject({ status: "rejected", reason: expect.stringContaining("arc locus release") });
+  expect(await readFile(resolveWorktreeMarkerPath(h.archivedPath))).toEqual(before);
+  await writeWorktreeMarker(h.archivedPath, { ...h.marker, spawnedByArc: true });
+  expect(await h.teardownUid()).toMatchObject({ status: "torn-down", worktreeRemoved: h.archivedPath });
+}, 30_000);
+
+it("keeps a UID husk retry in its preservation refusal and completes after upstream repair", async () => {
+  const h = await huskFixture({ end: "archive" }), uid = boundWorkUnitSubject(h.meta).uid, path = h.paths[0];
+  await h.exec("git", ["update-ref", "-d", "refs/remotes/origin/feat/demo"]);
+  expect(await runTeardownForOperand(h.ctx, { name: uid, base: "main", huskPath: path })).toMatchObject({ status: "rejected",
+    reason: expect.stringContaining(`retry arc teardown ${uid} --husk ${path}`) });
+  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(path);
+  await h.exec("git", ["update-ref", "refs/remotes/origin/feat/demo", h.workOid]);
+  expect(await runTeardownForOperand(h.ctx, { name: uid, base: "main", huskPath: path }))
+    .toMatchObject({ status: "torn-down", worktreeRemoved: path });
+}, 30_000);

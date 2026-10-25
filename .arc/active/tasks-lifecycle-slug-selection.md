@@ -852,7 +852,7 @@ edits land in package source and sync to `.arc/`.
   commands. A reused-slug abandonment removes only the live holder's checkout and created local/remote refs; failed
   cleanup preserves terminal evidence and completes through the emitted UID operand after repair.
 
-### `[ ]` **7.4 Take `arc teardown <slug|uid>`, and find its checkout by UID — § 8.3, § 8.4**
+### `[x]` **7.4 Take `arc teardown <slug|uid>`, and find its checkout by UID — § 8.3, § 8.4**
 
 - _Goal:_ `arc teardown` selects an exact owner by UID or a slug through the lookup, and finds its subject's checkout by
   the evidence owner's UID, so a teardown by UID never takes the live holder's checkout for its subject's.
@@ -863,31 +863,11 @@ edits land in package source and sync to `.arc/`.
           selects complete, unambiguous primary evidence for teardown and inbox. Teardown enforces work-unit kind and
           falls back to retired-origin lineage; CLI cases preserve namesakes, handle repaired refusals, and pin offers.
 
-    - `[ ]` **7.4.b The checkout and the retries**
+    - `[x]` **7.4.b The checkout and the retries**
 
-        - Teardown's holder lookup takes the evidence owner's UID from 4.4.b. Its selection check
-          (`readTeardownSelection`, a `TeardownContext` field bound in `executor-context.ts`,
-          `store-teardown-context.ts`, and `handlers/lifecycle.ts`, whose logic, `classifyTeardownSelection` and
-          `subjectsEqual` in `lib/work-unit/teardown-selection.ts`, compares work-unit subjects by name today) matches
-          that UID, which `TeardownSelectionRequest.subject` carries. `holdingCheckout`'s own scan (`resolveLegacy`,
-          `lib/work-unit/verbs/teardown-store.ts`), serving only where no locus ports are bound, matches by UID from the
-          flip. An unbound holder refuses with its exits (6.1.b).
-        - When teardown ran by UID, every retry it names carries the UID: its retry remedy (`teardownRetryRemedy`), the
-          lineage repair text (`store-retirement-evidence.ts`), and the `--husk` replay's retry
-          (`store-retirement-husk.ts`).
-        - _Note:_ this task's and 7.5's destructive tests run in `retirement-store.test.ts`, over real Git with a bare
-          origin, extended to seed both holders and, in the cases these tasks add, to bind the real `createLocusPorts`,
-          selection reader, and teardown driver, which it stubs today; its existing cases keep their stubs. Until
-          7.5.a's gate, `prepareCreatedBranch` returns any clean checkout on a linked branch to base, so this task's
-          fixture keeps the live holder's checkout off the archived holder's linked branch.
-        - _Note:_ `lib/work-unit/verbs/teardown.ts` is over the file-length gate and in the suppression record; keep
-          each edit inside its existing functions' limits.
-        - Build `test-first` (one behavior at a time):
-            - with a bound checkout of each holder of a reused slug, `arc teardown <uid>` of the archived holder removes
-              its checkout alone
-            - the selection check refuses a checkout whose marker carries another holder's UID
-            - teardown by UID with an unbound checkout naming the slug refuses naming the exits
-            - a retry after a failed teardown by UID names the UID
+        - Owner-bound selection carries and compares the evidence UID, including former display names; native locus
+          ports and the transaction driver isolate same-name holders and retain unbound repair exits. Lineage and husk
+          repair text retain the UID, alongside ordinary and `--husk` typed retries through successful repair.
 
 ### `[ ]` **7.5 Touch only a branch the retiring holder owns, and delete a remote only at a held tip — § 8.5, § 8.6**
 

@@ -112,7 +112,7 @@ async function retireHolder(ctx: Bound, invokingPath: string, selected?: Selecte
     return path;
   };
   if (ctx.readTeardownSelection !== undefined && ctx.teardownWorktree !== undefined) {
-    const chosen = await ctx.readTeardownSelection({ checkoutPath: path, subject: { kind: "work-unit", name: ctx.evidence.name } });
+    const chosen = await ctx.readTeardownSelection({ checkoutPath: path, subject: { kind: "work-unit", name: ctx.evidence.name, uid: ownerHolderRequest(ctx.evidence.record).uid } });
     if (chosen.kind !== "clear") throw new Error(chosen.message);
     let removed: string | null = null;
     await ctx.teardownWorktree.retire({ expectedSelection: chosen, revalidateLocal: revalidate,

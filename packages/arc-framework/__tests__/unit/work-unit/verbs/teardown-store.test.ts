@@ -1,5 +1,6 @@
 /** Exact terminal snapshots govern ref-set cleanup and retained checkout coordinates. */
 import { describe, expect, it } from "vitest";
+import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { createRetirementHarness as fixture, retirementLink as link } from "../../../helpers/store/retirement-harness.js";
 import { recordReferences } from "../../../../src/lib/store/identity.js";
 import { writeLineageRecord, parseLineageRecord } from "../../../../src/lib/store/kinds/lineage/index.js";
@@ -65,15 +66,16 @@ describe("store retirement ref sets", () => {
     const h = await fixture({ noSnapshot: true }); expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "rejected", reason: expect.stringContaining("retiredBranches") });
     expect(h.state().mutations).toEqual([]);
   });
-  it("retries successfully after an operator supplies the trusted exact missing terminal snapshot", async () => {
-    const h = await fixture({ noSnapshot: true });
-    expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "rejected", reason: expect.stringContaining("trusted pre-transition") });
+  it("preserves the UID in missing-lineage repair and retries the repaired snapshot", async () => {
+    const h = await fixture({ noSnapshot: true }), subject = { kind: "owner" as const, owner: h.meta.reference.owner };
+    expect(await runTeardown(h.ctx, { subject, base: "main" })).toMatchObject({ status: "rejected",
+      reason: expect.stringContaining(`then retry arc teardown ${boundWorkUnitSubject(h.meta).uid};`) });
     const terminal = lifecycleSuccess(await h.store.read({ reference: recordReferences["lineage/transition"](h.meta.reference.owner) }));
     const lineage = parseLineageRecord(terminal.content);
     if (lineage === null) throw Error("terminal fixture must decode");
     lifecycleSuccess(await h.store.write({ action: "put", reference: terminal.reference, expected: terminal.version,
       content: writeLineageRecord({ ...lineage, retiredBranches: [link()] }), provenance: { verb: "repair-lineage", lifecycleAction: "repair-lineage" } }));
-    expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
+    expect(await runTeardown(h.ctx, { subject, base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
     const repaired = lifecycleSuccess(await h.store.read({ reference: terminal.reference }));
     expect(await h.store.write({ action: "put", reference: repaired.reference, expected: repaired.version,
       content: writeLineageRecord({ ...lineage, retiredBranches: [] }), provenance: { verb: "repair-lineage", lifecycleAction: "repair-lineage" } })).toMatchObject({ status: "refused" });
@@ -86,12 +88,14 @@ describe("store retirement ref sets", () => {
     expect(h.state().mutations).toEqual([]);
   });
 
-  it("preserves typed ordinary teardown retry arguments after a transient remote cleanup failure", async () => {
+  it.each(["slug", "owner"] as const)("preserves typed ordinary teardown retry arguments after a transient remote cleanup failure, selector=%s", async selector => {
     const h = await fixture(), original = h.ctx.exec;
+    const subject = selector === "slug" ? { kind: "slug" as const, slug: "demo" } : { kind: "owner" as const, owner: h.meta.reference.owner };
+    const operand = selector === "slug" ? "demo" : boundWorkUnitSubject(h.meta).uid;
     h.ctx.exec = (command, args, options) => args[0] === "push" ? Promise.reject(Error("injected remote failure")) : original(command, args, options);
-    expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "rejected", remedy: { argv: ["arc", "teardown", "demo"] } });
+    expect(await runTeardown(h.ctx, { subject, base: "main" })).toMatchObject({ status: "rejected", remedy: { argv: ["arc", "teardown", operand] } });
     h.ctx.exec = original;
-    expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true });
+    expect(await runTeardown(h.ctx, { subject, base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true });
   });
 
 });

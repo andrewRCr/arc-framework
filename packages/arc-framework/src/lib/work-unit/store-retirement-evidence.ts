@@ -76,7 +76,7 @@ async function readRetiredOrigin(store: Store, name: string, uid: string): Promi
   if (read.result.reference.owner.type !== "work-item" || lineage.origin.name !== read.result.reference.owner.name
     || (lineage.origin.uid !== undefined && read.result.reference.owner.uid !== lineage.origin.uid)) throw new Error("Terminal lineage does not match its retiring owner; repair the lineage identity before teardown.");
   if (lineage.kind === "rename") throw new Error(`${name} was renamed; use its current work-unit name for teardown.`);
-  if (lineage.retiredBranches === undefined) throw new Error(`Terminal lineage for ${name} lacks retiredBranches. Repair it with an explicit exact snapshot of trusted pre-transition branch links (including created/adopted authority and original order), using write-back/save or repair-lineage, then retry arc teardown ${name}; do not infer it from branch names.`);
+  if (lineage.retiredBranches === undefined) throw new Error(`Terminal lineage for ${name} lacks retiredBranches. Repair it with an explicit exact snapshot of trusted pre-transition branch links (including created/adopted authority and original order), using write-back/save or repair-lineage, then retry arc teardown ${uid}; do not infer it from branch names.`);
   return bind(store, read.result, lineage.kind === "abandon" ? "discard" : "landed", lineage.retiredBranches, {
     kind: "lineage", transition: lineage.kind, reference: read.result.reference, version: read.result.version, resultDigest: canonicalDigest(read.result.content),
   });
