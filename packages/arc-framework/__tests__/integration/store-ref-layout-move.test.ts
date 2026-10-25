@@ -180,12 +180,17 @@ async function divergentLayoutFixture(mode: CopyMode = "live") {
 it("merges a pre-existing destination without losing either copy's records", async () => {
   const h = await divergentLayoutFixture();
   const source = h.sourceEdit, destination = h.destinationEdit, other = h.other;
+  if (!("uid" in other.reference.owner)) throw new Error("Expected a destination-only work UID");
+  const destinationOnly = `refs/arc/work/${other.reference.owner.uid}`;
+  const retainedTip = (await h.a.exec("git", ["rev-parse", destinationOnly])).stdout;
   const moved = await runStoreRemote(h.a.ports, { remote: "origin", role: "push" });
   expect(moved.status, JSON.stringify(moved)).toBe("ok");
   expect(success(await h.a.store.read({ reference: destination })).content).toBe("Destination edit.\n");
   expect(success(await h.a.store.read({ reference: source })).content).toBe("Source edit.\n");
   expect(success(await h.a.store.read({ reference: other.reference })).content).toBe(makeMetaFixture("destination-only"));
   if (moved.status !== "ok") throw new Error("Destination copy refused");
+  expect((await h.a.git(["rev-parse", destinationOnly])).stdout).toBe(retainedTip);
+  expect(moved.result.report?.refs).not.toContainEqual(expect.objectContaining({ ref: destinationOnly }));
   expect(moved.result.report?.refs).toContainEqual(expect.objectContaining({ ref: `refs/arc/work/${"uid" in h.primary.reference.owner ? h.primary.reference.owner.uid : ""}`, action: "merge" }));
 });
 

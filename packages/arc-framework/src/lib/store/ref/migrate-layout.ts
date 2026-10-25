@@ -146,7 +146,7 @@ async function setLayoutRole(context: RefBackendContext, setting: LayoutSetting)
 
 function layoutReport(refs: ReadonlyMap<string, string>, prepared?: LayoutBuild, sourceAction: "copy" | "delete" = "copy"): MigrateReport {
   const planned = prepared?.planned ?? refs;
-  const written = new Map([...planned].map(([ref, tip]) => [ref,
+  const written = new Map([...planned].filter(([ref, tip]) => refs.has(ref) || prepared?.destination.get(ref) !== tip).map(([ref, tip]) => [ref,
     prepared?.destination.has(ref) && prepared.destination.get(ref) !== tip ? "merge" as const : sourceAction]));
   const rows: MigrateReport["refs"] = [...written].map(([ref, action]) => ({ ref, ...refScope(ref), action }));
   if (prepared) for (const ref of prepared.destination.keys()) {
