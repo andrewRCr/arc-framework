@@ -73,13 +73,7 @@ async function checkNamespaceName(store: Store, named: AcquiredName,
   if (held !== undefined) return nameCollision(named.locus, `${JSON.stringify(named.name)} is held by a cohort document.`);
   const lookup = await store.lookup({ kind: "slug", slug: SlugSchema.parse(named.name) });
   if (lookup.status === "refused") return lookup.refusal.code === "not-found" ? undefined : decomposeStoreRefusal(lookup.refusal);
-  const holder = await store.read({ reference: lookup.result.reference });
-  if (holder.status === "refused") return decomposeStoreRefusal(holder.refusal);
-  if (holder.result.reference.owner.name !== named.name || holder.result.placement?.kind !== "completed") {
-    return nameCollision(named.locus, `${JSON.stringify(named.name)} is held by ${holder.result.reference.owner.name === named.name
-      ? "a live work item" : "a former slug"}.`);
-  }
-  return undefined;
+  return nameCollision(named.locus, `${JSON.stringify(named.name)} resolves to an existing ${lookup.result.reference.kind} owner '${lookup.result.reference.owner.name}'.`);
 }
 
 function placementCohorts(placement: CutMap["authoring"]["placement"]): { path: string; locus: string }[] {

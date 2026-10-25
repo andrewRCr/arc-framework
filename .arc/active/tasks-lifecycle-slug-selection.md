@@ -620,16 +620,12 @@ refuses through `work-item.slug-edges` with its remedy.
           Promotion checks its target before checkout preparation or writes, exempting the source owner for default
           naming and preserving its independent target-branch refusal.
 
-### `[ ]` **5.3 Refuse a completed holder's slug to a new cohort — § 6.3**
+### `[x]` **5.3 Refuse a completed holder's slug to a new cohort — § 6.3**
 
 - _Goal:_ A new cohort takes only a slug nothing resolves through, so it never inherits a completed work unit's edges.
 
-    - Decomposition's new-cohort names (`checkNamespaceName`) refuse whenever the slug lookup returns a record or
-      refuses other than `not-found`, so a completed work unit's slug and a completed Errand's, which they admit today,
-      refuse; a name a cohort document holds stays refused.
-    - Build `test-first` (one behavior at a time):
-        - a decomposition naming a new cohort on a completed work unit's slug, or on a completed Errand's, refuses with
-          the remedy to choose another name
+- _Outcome:_ New cohort names require a not-found lookup; completed work-unit and Errand names refuse with the
+  map-locus remedy. Existing cohort documents retain their separate inventory refusal and live-cohort reuse behavior.
 
 ### `[ ]` **5.4 Settle the edges naming a reused slug in the creating batch — § 6.4**
 
