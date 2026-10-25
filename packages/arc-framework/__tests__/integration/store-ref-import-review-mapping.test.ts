@@ -300,6 +300,12 @@ it.each(["parser", "serialization", "empty"] as const)("refuses a mapping's %s-i
   const trial = await h.migrate(true);
   expect(trial).toMatchObject({ status: "ok", result: { refused: [expect.objectContaining({ rule: "review-mapping", reference: expect.objectContaining({ kind: "review/candidate" }) })],
     notices: expect.arrayContaining([expect.objectContaining({ remedy: { text: expect.stringContaining("mapping") } })]) } });
+  if (defect !== "empty") {
+    expect(trial).toMatchObject({ status: "ok", result: { notices: expect.arrayContaining([
+      expect.objectContaining({ condition: expect.stringContaining(defect === "parser" ? "Mapped record is not allowed" : "NUL byte"),
+        remedy: { text: expect.stringContaining(defect === "parser" ? "parser" : "binary") } }),
+    ]) } });
+  }
   expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
   expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
   expect(await readRepositoryIdentity(new RepositoryGitCommonStatePublisher(h.git, h.root))).toBeNull();

@@ -8,6 +8,7 @@ import { splitEntryList, type ListEntry } from "../../concurrency/entries.js";
 import { matchInboxEntryTitle, writeEntryFields } from "../../kinds/entry-fields.js";
 import { RecordReferenceSchema } from "../../identity.js";
 import { generateRankBetween } from "../../concurrency/rank.js";
+import { reportImportAdmission, reportImportPutFailure, reportImportGrammar } from "./admission.js";
 import { importInboundEntries } from "./inbound-entries.js";
 
 /** Move pending source entries before generic identity stamping. */
@@ -25,21 +26,25 @@ function importQueue(registry: RefBackendContext["registry"], records: ImportRec
   const listing = listExecuteBoundInboxEntries(inbox.content);
   if (!listing.entries.length) return;
   const grammar = registry["personal/inbox"].entry;
-  if (!grammar) { report.refused.push({ reference: inbox.reference, rule: "entry-id" }); return; }
+  if (!grammar) { reportImportGrammar(report, inbox.reference); return; }
   const titles = new Set(listing.entries.map(entry => entry.title));
   const split = splitEntryList(inbox.content, grammar);
   const clean = split.parts.map(part => part.kind === "entry" && titles.has(entryTitle(part))
     ? { ...part, bytes: part.bytes.replace(/\r?\n- _Disposition:_ `execute-bound`\r?\n/u, "") } : part);
   const prepared = prepareRefPut(inbox.reference, null, clean.map(part => part.bytes + (part.kind === "entry" ? part.separator : "")).join(""), registry);
-  if (prepared.status === "refused") { report.refused.push({ reference: inbox.reference, rule: "entry-id" }); return; }
+  if (prepared.status === "refused") { reportImportPutFailure(registry, report, inbox, prepared.refusal); return; }
   inbox.content = prepared.result;
   const selected = splitEntryList(inbox.content, grammar).parts.filter((part): part is ListEntry => part.kind === "entry" && titles.has(entryTitle(part)));
   if (selected.length !== listing.entries.length || selected.some(part => part.id === undefined)) {
-    report.refused.push({ reference: inbox.reference, rule: "entry-id" }); return;
+    reportImportAdmission(report, inbox, {
+      condition: `Cannot stamp every execute-bound entry in ${inbox.reference.kind}: expected ${listing.entries.length} entries and selected ${selected.length}, including ${selected.filter(part => part.id === undefined).length} without IDs.`,
+      remedy: { text: "Correct the pending entry headings to match the declared entry grammar and give each entry a unique ID or leave it unstamped, then retry arc store migrate --import." },
+    }, "entry-id");
+    return;
   }
   const reference = RecordReferenceSchema.parse({ kind: "personal/errand-queue", owner: inbox.reference.owner });
   const config = registry[reference.kind].entry;
-  if (!config?.sections[0]) { report.refused.push({ reference, rule: "entry-id" }); return; }
+  if (!config?.sections[0]) { reportImportGrammar(report, reference); return; }
   let rank: string | null = null;
   const members = selected.map(part => {
     rank = generateRankBetween(rank, null);

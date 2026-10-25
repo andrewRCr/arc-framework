@@ -6,6 +6,7 @@ import { maskComments, rejoinEntryList, splitEntryList } from "../../concurrency
 import { readEntryField, targetNamedByLine, writeEntryFields } from "../../kinds/entry-fields.js";
 import { RecordReferenceSchema } from "../../identity.js";
 import { appendEntry } from "../../../inbox/entry-text.js";
+import { reportImportGrammar } from "./admission.js";
 import { hasExecuteBoundDisposition } from "../../../user-sync/inbox-writer.js";
 
 const bufferSection = "Inbound Buffer — Pending Integration";
@@ -67,7 +68,7 @@ function appendInbound(registry: Registry, records: ImportRecord[], source: Impo
   const reference = RecordReferenceSchema.parse({ kind: "work-item/inbound", owner: source.reference.owner });
   const grammar = registry[reference.kind].entry;
   const section = grammar?.sections[0];
-  if (!grammar || !section) { report.refused.push({ reference, rule: "entry-id" }); return false; }
+  if (!grammar || !section) { reportImportGrammar(report, reference); return false; }
   let inbound = records.find(record => record.reference.kind === "work-item/inbound" && record.reference.owner.name === reference.owner.name);
   if (!inbound) { inbound = { reference, content: "# Inbound\n\n", placement: source.placement }; records.push(inbound); }
   const heading = raw.split("\n")[0] ?? "";

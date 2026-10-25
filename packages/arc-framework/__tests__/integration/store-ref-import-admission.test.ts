@@ -2,13 +2,15 @@
 import { mkdir, writeFile, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { MigrateReportSchema } from "../../src/lib/store/index.js";
+import { MigrateReportSchema, createKindRegistry } from "../../src/lib/store/index.js";
 import { importFixture, saveImportPersonal } from "../helpers/store/import-fixture.js";
 import { resolveArcPath } from "../../src/lib/layout/index.js";
+import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 
 const candidate = resolveArcPath({ kind: "candidate-record", slug: SlugSchema.parse("alpha") });
 const cases = [
+  { rule: "store.env-file", path: ".arc/user/andrew/private.env", content: "API_TOKEN=example\n", remove: true },
   { rule: "store.text-only", path: ".arc/active/extra-alpha.md", content: "binary\0content" },
   { rule: "store.size-cap", path: ".arc/active/extra-alpha.md", content: "x".repeat(1048577) },
   { rule: "store.private-key", path: ".arc/active/extra-alpha.md", content: "-----BEGIN PRIVATE KEY-----\nexample\n-----END PRIVATE KEY-----\n" },
@@ -28,6 +30,13 @@ describe("import serialization admission", () => {
     if (trial.status !== "ok") throw new Error("No trial report");
     const report = MigrateReportSchema.parse(trial.result);
     expect(report.refused).toEqual(expect.arrayContaining([expect.objectContaining({ rule })]));
+    const refused = report.refused.find(row => row.rule === rule)!;
+    const causes: Record<string, string> = { "store.text-only": "NUL byte", "store.size-cap": "1048576",
+      "store.private-key": "private-key", "store.env-file": "environment file", "store.git-path": "Git-special", "store.json": "JSON" };
+    expect(report.notices).toEqual(expect.arrayContaining([expect.objectContaining({
+      condition: expect.stringContaining(JSON.stringify(refused.reference)), remedy: { text: expect.any(String) },
+    })]));
+    expect(report.notices.some(notice => notice.condition.includes(causes[rule]!))).toBe(true);
     expect(await h.migrate()).toMatchObject({ status: "refused", refusal: {
       code: "import-refused", report: { refused: expect.arrayContaining([expect.objectContaining({ rule })]) },
     } });
@@ -53,10 +62,49 @@ describe("import serialization admission", () => {
     expect(trial.status, JSON.stringify(trial)).toBe("ok");
     if (trial.status !== "ok") throw new Error("No trial report");
     expect(MigrateReportSchema.parse(trial.result).refused).toEqual(expect.arrayContaining([expect.objectContaining({ rule })]));
+    const cause = rule === "key" ? "errand" : path.endsWith("WORKING-MEMORY.md") && content.includes("11111111") ? "11111111" : "removal trigger";
+    expect(trial.result.notices).toEqual(expect.arrayContaining([expect.objectContaining({
+      condition: expect.stringContaining(cause), remedy: { text: expect.any(String) },
+    })]));
     expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
     if (repairPath) await unlink(join(h.root, path));
     await writeFile(join(h.root, repairPath ?? path), fixed ?? "Repaired companion\n");
     if (path.endsWith("WORKING-MEMORY.md")) await saveImportPersonal(h.root);
     expect(await h.migrate()).toMatchObject({ status: "ok" });
   });
+});
+
+it("reports an ordinary parser cause without inventing an import rule and succeeds after repair", async () => {
+  const h = await importFixture();
+  const registry = createKindRegistry(PRODUCTION_REGISTRATIONS);
+  h.ports.registry = { ...registry, "cohort/document": { ...registry["cohort/document"],
+    parser: () => ({ success: false, error: "Cohort source is not accepted" }) } };
+  const trial = await h.migrate(true);
+  expect(trial).toMatchObject({ status: "ok", result: { refused: [], notices: expect.arrayContaining([
+    expect.objectContaining({ condition: expect.stringContaining("Cohort source is not accepted"),
+      remedy: { text: expect.stringContaining("parser") } }),
+  ]) } });
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
+  h.ports.registry = registry;
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+});
+
+it("explains serialization refused only after entry stamping and succeeds after shrinking the source", async () => {
+  const h = await importFixture();
+  const path = join(h.root, resolveArcPath({ kind: "inbox", scope: { kind: "project" } }));
+  const prefix = "# Project Inbox\n\n## Inbox\n\n### **First**\n\nDetails.\n";
+  await writeFile(path, prefix + "x".repeat(1048575 - prefix.length));
+  await h.git("git", ["add", path]);
+  await h.git("git", ["commit", "-m", "Seed large project inbox"]);
+  const trial = await h.migrate(true);
+  expect(trial).toMatchObject({ status: "ok", result: { refused: expect.arrayContaining([expect.objectContaining({ rule: "store.size-cap" })]),
+    notices: expect.arrayContaining([expect.objectContaining({ condition: expect.stringContaining("1048576"),
+      remedy: { text: expect.stringContaining("Reduce") } })]) } });
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
+  await writeFile(path, prefix);
+  await h.git("git", ["add", path]);
+  await h.git("git", ["commit", "-m", "Shrink project inbox"]);
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
 });

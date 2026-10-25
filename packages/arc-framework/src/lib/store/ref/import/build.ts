@@ -12,6 +12,7 @@ import { prepareImportGroups } from "./groups.js";
 import { addImportArchive, type ImportQuarter } from "./archive.js";
 import { replayImportVersions } from "./candidate.js";
 import { expandStoredPath } from "../../stored-path.js";
+import { reportImportAdmission, reportImportPutFailure } from "./admission.js";
 import { RecordReferenceSchema } from "../../identity.js";
 
 /** Admit every record before any prepared commit can become visible. */
@@ -65,26 +66,17 @@ function prepareImportRevisions<T extends { content: string }>(context: RefBacke
 }
 
 function prepareImportContent(context: RefBackendContext, record: ImportRecord, report: MigrateReport): ImportRecord | undefined {
-  const refuse = (rule: string): undefined => {
-    report.refused.push({ reference: record.reference, rule: record.mappedVersions ? "review-mapping" : rule });
-    if (record.mappedVersions) report.notices.push({ condition: `Review mapping record ${JSON.stringify(record.reference)} was refused: ${rule}.`,
-      remedy: { text: "Correct the review mapping's returned record, then retry arc store migrate --import." } });
-  };
   const serialized = checkSerializationRules(record.reference, record.content);
-  if (serialized) { refuse(serialized.rule); return; }
-  if (checkRefKey(record.reference, context.registry)) { refuse("key"); return; }
+  if (serialized) { reportImportAdmission(report, record, serialized, serialized.rule); return; }
+  const key = checkRefKey(record.reference, context.registry);
+  if (key) { reportImportAdmission(report, record, key, "key"); return; }
   // Legacy review bytes remain useful evidence even when today's schema rejects them.
   const registry = record.asFound ? { ...context.registry, [record.reference.kind]: { ...context.registry[record.reference.kind], parser: null } } : context.registry;
   const result = prepareRefPut(record.reference, null, record.content, registry);
-  if (result.status === "refused") {
-    if (record.mappedVersions) { refuse(result.refusal.condition); return; }
-    if (result.refusal.code === "unsupported") report.notices.push({ condition: result.refusal.condition, remedy: result.refusal.remedy });
-    else report.refused.push({ reference: record.reference, rule: context.registry[record.reference.kind].merge === "entry" ? "entry-id" : "parse" });
-    return;
-  }
+  if (result.status === "refused") { reportImportPutFailure(registry, report, record, result.refusal); return; }
   const content = context.registry[record.reference.kind].projection === "never" ? canonicalize(JSON.parse(result.result)) : result.result;
   const stamped = checkSerializationRules(record.reference, content);
-  if (stamped) { refuse(stamped.rule); return; }
+  if (stamped) { reportImportAdmission(report, record, stamped, stamped.rule); return; }
   return { ...record, content };
 }
 

@@ -22,14 +22,15 @@ export function prepareRefPut(reference: RecordReference, expected: RecordVersio
     remedy: { text: "Declare this kind's entry grammar in the constructed registry, then retry." },
   } };
   if (kind.merge === "entry" && kind.entry) {
-    const refusal = entryProblem(reference, content, kind.entry);
+    const refusal = checkRefEntryProblem(reference, content, kind.entry);
     if (refusal) return { status: "refused", refusal };
     return { status: "ok", result: stampEntryIds(content, kind.entry, entryRandom(reference, expected, content)) };
   }
   return { status: "ok", result: content };
 }
 
-function entryProblem(reference: RecordReference, content: string, config: EntryConfig): StoreRefusal | undefined {
+/** Identify a duplicate entry ID or content on which stamping cannot place an ID. */
+export function checkRefEntryProblem(reference: RecordReference, content: string, config: EntryConfig): StoreRefusal | undefined {
   const seen = new Set<string>();
   for (const entry of splitEntryList(content, config).parts.filter((part) => part.kind === "entry")) {
     if (entry.id && seen.has(entry.id)) return { code: "record-malformed", class: "recoverable", reference, rule: `Entry ID ${entry.id} occurs more than once.`,

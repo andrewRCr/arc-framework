@@ -119,3 +119,57 @@ it.each([
   expect(await h.migrate()).toMatchObject({ status: "ok" });
   expect(success(await createRefStore(h.ports).read({ reference: ref("work-item/inbound") })).content).toContain("Held prose.");
 }, 30_000);
+
+it.each([
+  { defect: "missing inbox grammar", kind: "personal/inbox", entry: undefined, rule: undefined },
+  { defect: "missing queue grammar", kind: "personal/errand-queue", entry: undefined, rule: undefined },
+  { defect: "empty queue sections", kind: "personal/errand-queue", entry: { shape: "heading", sections: [] }, rule: undefined },
+  { defect: "missing inbound grammar", kind: "work-item/inbound", entry: undefined, rule: undefined },
+  { defect: "empty inbound sections", kind: "work-item/inbound", entry: { shape: "heading", sections: [] }, rule: undefined },
+  { defect: "unmatched pending entries", kind: "personal/inbox", entry: { shape: "heading", sections: ["Other"] }, rule: "entry-id" },
+] as const)("explains $defect before landing and accepts the repaired registry", async ({ kind, entry, rule }) => {
+  const h = await importFixture();
+  await seed(h);
+  const registry = createKindRegistry(PRODUCTION_REGISTRATIONS);
+  h.ports.registry = { ...registry, [kind]: { ...registry[kind], entry } };
+  const trial = await h.migrate(true);
+  expect(trial.status, JSON.stringify(trial)).toBe("ok");
+  if (trial.status !== "ok") throw new Error("No trial report");
+  expect(trial.result.refused).toEqual(rule ? [expect.objectContaining({ rule })] : []);
+  expect(trial.result.notices).toEqual(expect.arrayContaining([expect.objectContaining({
+    condition: expect.stringContaining(kind), remedy: { text: expect.stringMatching(/grammar|section|entr/iu) },
+  })]));
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/work/"])).stdout).toBe("");
+  h.ports.registry = registry;
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+});
+
+it("preserves a queue source parser's condition without calling it an entry ID fault", async () => {
+  const h = await importFixture();
+  await seed(h);
+  const registry = createKindRegistry(PRODUCTION_REGISTRATIONS);
+  h.ports.registry = { ...registry, "personal/inbox": { ...registry["personal/inbox"],
+    parser: () => ({ success: false, error: "Inbox source is not accepted" }) } };
+  const trial = await h.migrate(true);
+  expect(trial).toMatchObject({ status: "ok", result: { refused: [], notices: expect.arrayContaining([
+    expect.objectContaining({ condition: expect.stringContaining("Inbox source is not accepted"),
+      remedy: { text: expect.stringContaining("parser") } }),
+  ]) } });
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/work/"])).stdout).toBe("");
+  h.ports.registry = registry;
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+});
+
+it("names the repeated pending entry ID and imports after correcting its source", async () => {
+  const h = await importFixture();
+  await seed(h, inbox.replace("### **Second**\n\n", "### **Second**\n\n- _Id:_ `12345678`\n"));
+  const trial = await h.migrate(true);
+  expect(trial).toMatchObject({ status: "ok", result: { refused: expect.arrayContaining([expect.objectContaining({ rule: "entry-id" })]),
+    notices: expect.arrayContaining([expect.objectContaining({ condition: expect.stringContaining("12345678"),
+      remedy: { text: expect.stringContaining("fresh ID") } })]) } });
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
+  await seed(h);
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+});
