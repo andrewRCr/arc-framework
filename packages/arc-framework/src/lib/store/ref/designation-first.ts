@@ -20,7 +20,7 @@ export async function resolveRefDesignation(context: RefBackendContext): Promise
   const designation = await readRefDesignation(context);
   const layout = await observeRefLayout(context, designation), configured = refDesignationStop(designation);
   const configuredStop = configured && configured.status !== "no-remote" ? configured : undefined;
-  const stop = configuredStop ?? layout.incomplete;
+  const stop = layout.incomplete ?? configuredStop;
   if (stop) return { designation, states: [stop,
     ...layout.unfinished ? [layout.unfinished] : []], pulls: [] };
   const resolved = await resolveFirstDesignation(context, designation);

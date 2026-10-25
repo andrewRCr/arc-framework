@@ -31,7 +31,8 @@ export async function observeRefLayout(context: RefBackendContext, designation: 
   const declared = designation.remotes.some(({ role }) => role !== undefined);
   const expected = designatedStoreLayout(designation);
   const configured = refDesignationStop(designation);
-  if (configured?.status === "move-incomplete") return { unfinished, incomplete: { ...configured, status: "move-incomplete" } };
+  if (configured?.status === "move-incomplete") return { unfinished, incomplete: { ...configured, status: "move-incomplete",
+    remedy: recorded ? layoutRecoveryRemedy() : configured.remedy } };
   if (expected !== null && declared && (expected === "default" ? separate : !separate && held)) return {
     unfinished, incomplete: { status: "move-incomplete",
       condition: separate ? "The store is in the separate store directory while its designation requires the code repository's refs."
