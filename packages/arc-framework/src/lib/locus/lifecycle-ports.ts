@@ -44,8 +44,8 @@ export function createLocusPorts(input: { cwd: string; exec: GitExec; store: Sto
     const repair = state === "Integrating"
       ? "Work there to finish integration, then run teardown there."
       : state === "Planning" || state === "Active"
-        ? `Work there, or as owner${owner === null ? "" : ` '${owner}'`} run arc pause ${holder.name} --reason <text>, then arc locus release ${holder.name} there.`
-        : `Work there, or free that checkout there with arc locus release ${holder.name}.`;
+        ? `Work there, or as owner${owner === null ? "" : ` '${owner}'`} run arc pause ${holder.name} --reason <text>, then arc locus release there.`
+        : `Work there, or free that checkout there with arc locus release.`;
     return `${location} ${repair}`;
   }
   return {

@@ -85,7 +85,10 @@ describe("store materialize", () => {
     if (state === "Integrating") {
       expect(result.reason).toContain("finish integration, then run arc teardown demo");
       expect(result.reason).not.toContain("arc pause");
-    } else expect(result.reason).toContain("arc pause demo --reason <text>, then arc locus release demo");
+    } else {
+      expect(result.reason).toContain("arc pause demo --reason <text>, then arc locus release");
+      expect(result.reason).not.toContain("arc locus release demo");
+    }
     expect(h.state().placement).toBeUndefined(); expect(h.state().fetches).toEqual([]);
     expect(await h.read()).toEqual(h.meta);
   });
@@ -158,7 +161,8 @@ it.each([undefined, "feat/demo"])("reports the occupied checkout before unreadab
       readActiveMetaCandidates: async () => { throw new Error("Store occupancy must not read checkout metas"); } }) };
     const request = { name: "demo", inPlace: true as const, baseBranch: "main", identity: "starter", spawningIdentity: "starter" };
     const result = await runMaterialize(h.ctx, request);
-    expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("arc pause occupied --reason <text>, then arc locus release occupied") });
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("arc pause occupied --reason <text>, then arc locus release") });
+    if (result.status === "rejected") expect(result.reason).not.toContain("arc locus release occupied");
     expect(calls).toEqual([]);
     expect(h.state().placement).toBeUndefined();
     expect(lifecycleSuccess(await h.store.version())).toBe(before);

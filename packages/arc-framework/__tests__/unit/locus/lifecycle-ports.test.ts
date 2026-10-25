@@ -29,8 +29,13 @@ async function fixture() {
 it("refuses another checkout's marker and returns its holder rather than invoking the legacy scan", async () => {
   const h = await fixture();
   await h.marker();
-  expect(await h.ports.checkMarkerExclusivity({ ...ownerHolderRequest(h.record) })).toMatchObject({ kind: "refused", checkoutPath: h.other,
+  const result = await h.ports.checkMarkerExclusivity({ ...ownerHolderRequest(h.record) });
+  expect(result).toMatchObject({ kind: "refused", checkoutPath: h.other,
     reason: expect.stringContaining("arc locus release") });
+  if (result.kind !== "refused") throw new Error("Expected occupied checkout");
+  expect(result.reason).toContain(h.other);
+  expect(result.reason).toContain("arc pause demo --reason <text>");
+  expect(result.reason).not.toContain("arc locus release demo");
   expect(await h.ports.findHoldingCheckout({ ...ownerHolderRequest(h.record), resolveLegacy: async () => { throw new Error("Legacy read"); } })).toEqual({ kind: "held", path: h.other });
 });
 

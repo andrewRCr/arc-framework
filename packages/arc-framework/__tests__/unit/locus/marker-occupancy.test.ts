@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
-import { inspectCheckoutMarker } from "../../../src/lib/locus/marker-occupancy.js";
+import { inspectCheckoutMarker, workUnitMarkerExit } from "../../../src/lib/locus/marker-occupancy.js";
 import { readWorktreeMarkerGeneration, writeWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
 import { createDecomposeHarness } from "../../helpers/store/decompose-harness.js";
 import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
@@ -45,4 +45,15 @@ it("offers release without a creation rerun for a bound owner with no primary or
   if (!("reason" in result)) throw new Error("Expected occupied checkout");
   expect(result.reason).not.toContain("arc start");
   expect(result.reason).not.toContain("arc locus release example");
+});
+
+it.each(["backlog", "foreign-completed", "owned-planning"] as const)("names unnamed checkout-local release for %s occupancy", async kind => {
+  const h = await fixture();
+  const record = kind === "backlog" ? await h.seedStub("example") : kind === "foreign-completed"
+    ? await h.seedCompletedWorkUnit("example") : await h.seedMeta("example");
+  const message = workUnitMarkerExit(h.cwd, "example", record, kind === "foreign-completed" ? "another" : "test-user");
+  expect(message).toContain(h.cwd);
+  expect(message).toContain("arc locus release");
+  expect(message).not.toContain("arc locus release example");
+  if (kind === "owned-planning") expect(message).toContain("arc pause example --reason <text>");
 });

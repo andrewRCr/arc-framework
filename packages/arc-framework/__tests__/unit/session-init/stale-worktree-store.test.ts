@@ -144,7 +144,8 @@ it.each([true, false])("reports an ended branchless checkout and tests its HEAD 
 });
 it("offers release for a foreign marked checkout despite the marker's spawning identity", async () => {
   const h = createLifecycleHarness(); const primary = await h.seedMeta("done", { state: "Planning", currentWorkflow: "draft-design", owner: "foreign" });
-  expect((await runStaleWorktreeSweep(await options(h.store, boundWorkUnitSubject(primary)))).worktrees[0]?.actions?.[0]?.argv).toEqual(["arc", "locus", "release", "done"]);
+  expect((await runStaleWorktreeSweep(await options(h.store, boundWorkUnitSubject(primary)))).worktrees[0]?.actions?.[0])
+    .toEqual({ text: "arc locus release", argv: ["arc", "locus", "release"], checkout: "/checkout" });
 });
 it.each([true, false])("offers release for a marked checkout with no work-unit record (spawned=%s)", async spawned => {
   const h = createLifecycleHarness(), input = await options(h.store, undefined, true, spawned);
@@ -184,7 +185,7 @@ it("keeps a branchless abandoned checkout in no-record release selection", async
     internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) } });
   expect(await runStoreAbandon({ executor }, { name: "done", confirmed: true })).toMatchObject({ status: "abandoned" });
   const result = await runStaleWorktreeSweep(await options(h.store, boundWorkUnitSubject(primary)));
-  expect(result.worktrees[0]).toMatchObject({ kind: "detached", actions: [{ argv: ["arc", "locus", "release", "done"] }] });
+  expect(result.worktrees[0]).toMatchObject({ kind: "detached", actions: [{ argv: ["arc", "locus", "release"], checkout: "/checkout" }] });
   expect(result.retirements).toEqual([]);
 });
 
@@ -219,7 +220,7 @@ it("withholds a missing-primary release after lineage becomes disputed and retri
       provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
   }
   expect((await runStaleWorktreeSweep(await options(h.store, boundWorkUnitSubject(primary)))).worktrees[0]?.actions?.[0]?.argv)
-    .toEqual(["arc", "locus", "release", "done"]);
+    .toEqual(["arc", "locus", "release"]);
 });
 
 it.each(["completed", "foreign", "missing"] as const)("withholds cleanup and release for duplicate %s holders, then retries after releasing the stray claim", async state => {
@@ -238,7 +239,7 @@ it.each(["completed", "foreign", "missing"] as const)("withholds cleanup and rel
   const repaired = await runStaleWorktreeSweep(await options(h.store, primary === undefined ? undefined : boundWorkUnitSubject(primary)));
   expect(repaired.worktrees).toHaveLength(1);
   expect(repaired.worktrees[0]).toMatchObject(state === "completed" ? { decision: { action: "removable" } }
-    : { actions: [{ argv: ["arc", "locus", "release", ...(state === "foreign" ? ["done"] : [])] }] });
+    : { actions: [{ argv: ["arc", "locus", "release"], checkout: "/checkout" }] });
 });
 
 it("withholds the branched abandonment retirement offer for duplicate holders, then restores it for the sole holder", async () => {

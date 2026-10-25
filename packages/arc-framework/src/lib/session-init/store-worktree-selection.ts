@@ -97,6 +97,6 @@ async function releaseMissingClaim(store: Store, origin: string, branch: string 
   return true;
 }
 function release(checkout: RegisteredWorktree, name: string, actions?: readonly SessionAction[]): StaleWorktreeReport {
-  const common = { worktreePath: checkout.path, decision: { action: "external" as const }, actions: [...(actions ?? [{ text: `arc locus release ${name}`, argv: ["arc", "locus", "release", name] }])] };
+  const common = { worktreePath: checkout.path, decision: { action: "external" as const }, actions: [...(actions ?? [{ text: "arc locus release", argv: ["arc", "locus", "release"], checkout: checkout.path }])] };
   return checkout.branch === null ? { ...common, kind: "detached", branch: null, workUnit: name } : { ...common, kind: "branched", branch: checkout.branch };
 }

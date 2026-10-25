@@ -754,22 +754,14 @@ released, then rerun.
   completed bound holders, require binding before the owned live holder's normal pause-and-release path, refuse multiple
   unbound matches, and permit same-slug creation after either named or unnamed release frees a no-holder marker.
 
-### `[ ]` **6.5 Print the unnamed release form at every exit that locates a checkout — § 7.5**
+### `[x]` **6.5 Print the unnamed release form at every exit that locates a checkout — § 7.5**
 
 - _Goal:_ An exit that locates a checkout prints the unnamed release form, run in that checkout, rather than a slug that
   may resolve to another holder.
 
-    - The marker exits (`workUnitMarkerExit` and `noRecordMarkerExit`, `marker-occupancy.ts`), whose `arc pause <slug>`
-      stays named; the stale-worktree sweep's release action (`release`, `store-worktree-selection.ts`), which gains the
-      `checkout` its argv runs in, since the unnamed form acts on the checkout it runs from; the derived row's
-      spawn-residue action (`lib/locus/derived-reader.ts`); and the exclusivity refusal a crashed creation's retry
-      prints (`refusal`, `createLocusPorts`, `lifecycle-ports.ts`), for an owner and a creation request alike.
-    - The tests that pin the named form change: `start-cold-store.test.ts`, `lifecycle-default-locus-ports.test.ts`,
-      `lifecycle-marker-occupancy.test.ts`, `stale-worktree-store.test.ts`, `derived-store-evidence.test.ts`,
-      `materialize-store.test.ts`, and `spawn-rollback-ownership.test.ts`.
-    - Build `test-first` (one behavior at a time):
-        - each of the four exits prints `arc locus release` naming the checkout to run it in, and no slug, and the
-          sweep's action carries that checkout
+- _Outcome:_ Marker and exclusivity advice retain named pause commands and direct release to the identified checkout
+  without a slug. Sweep actions carry that checkout, matching the derived-row exit. Rollback fixtures carry the creation
+  claim required by operational placement, so their native compensation checks reach the intended failure boundaries.
 
 ### `[ ]` **6.6 Unbound markers end to end** — validate exit criterion at segment scope
 

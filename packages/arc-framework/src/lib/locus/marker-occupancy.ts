@@ -65,11 +65,11 @@ async function readUnboundOccupancy(input: { cwd: string; store: Store; identity
 export function workUnitMarkerExit(cwd: string, name: string, record: StoreRecord, identity?: string): string {
   const fields = ParsedMetaRecordSchema.parse(record.fields);
   const location = `Checkout ${cwd} already holds work unit '${name}' in ${resolveWorktreeMarkerPath(cwd)}.`;
-  if (record.placement?.kind === "backlog") return `${location} Run arc locus release ${name} there.`;
-  if (record.placement?.kind === "completed") return `${location} Run ${identity !== undefined && fields.owner !== identity ? "arc locus release" : "arc teardown"} ${name} there.`;
+  if (record.placement?.kind === "backlog") return `${location} Run arc locus release there.`;
+  if (record.placement?.kind === "completed") return `${location} Run ${identity !== undefined && fields.owner !== identity ? "arc locus release" : `arc teardown ${name}`} there.`;
   if (fields.state === "Integrating") return `${location} Work there to finish integration, then run arc teardown ${name} there.`;
-  if (fields.state === "Planning" || fields.state === "Active") return `${location} Work there, or as owner '${fields.owner ?? "unknown"}' run arc pause ${name} --reason <text>, then arc locus release ${name} there.`;
-  return `${location} Inspect arc status ${name}, then release it there with arc locus release ${name} once eligible.`;
+  if (fields.state === "Planning" || fields.state === "Active") return `${location} Work there, or as owner '${fields.owner ?? "unknown"}' run arc pause ${name} --reason <text>, then arc locus release there.`;
+  return `${location} Inspect arc status ${name}, then release it there with arc locus release once eligible.`;
 }
 function occupied(marker: PresentMarker, reason: string, workUnit: StoreRecord | null = null): Extract<MarkerOccupancy, { kind: "occupied" }> {
   return { kind: "occupied", marker, reason, workUnit, missingRecord: false };
