@@ -26,9 +26,9 @@ async function doubleFixture(layout: "default" | "separate", snapshot = false) {
   return { ...h, reference: made.reference, lineage, content, place };
 }
 
-describe("published double ends in the default layout", () => {
+describe("published double ends", () => {
   const layout = "default";
-  it("keeps both published archives after a mirror erases the first, until reopening clears every quarter", async () => {
+  it.each(["default", "separate"] as const)("keeps both published archives after a mirror erases the first, until reopening clears every quarter in %s", async layout => {
     const h = await doubleFixture(layout);
     await h.place(h.a, { kind: "completed", quarter }); success(await h.a.store.push());
     const registry = "refs/arc/project/registry";
@@ -64,7 +64,7 @@ describe("published double ends in the default layout", () => {
     }
   });
 
-  it("recovers from full mirror erasure through the named registry divergence repair", async () => {
+  it.each(["default", "separate"] as const)("recovers from full mirror erasure through the named registry divergence repair in %s", async layout => {
     const h = await doubleFixture(layout), registry = "refs/arc/project/registry";
     await h.place(h.a, { kind: "completed", quarter }); success(await h.a.store.push());
     const uid = "uid" in h.reference.owner ? h.reference.owner.uid : "";

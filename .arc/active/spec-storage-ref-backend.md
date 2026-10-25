@@ -119,6 +119,9 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
   Amended 2026-10-25 — unreachable carried-code outcomes include a required diagnostic message, including timeout
   before the code leg and any reported descendant warning (§ 2.1, A51) — approved review scope expansion.
 
+  Amended 2026-10-25 — an explicit forced replacement of item-history tracking may remove the last publication
+  witness, permitting withdrawal of that local end for the incoming published end (§ 6.6, A52) — code review.
+
 - **No caller is rerouted and nothing selects this backend before the flip.** The in-repo implementation keeps serving
   this repository; `createStore` (`lib/store/create.ts`) keeps composing it.
 - **No projection, `arc save`, write-back, worktree lock, or protected-file notice.** The projection builds them over
@@ -488,6 +491,11 @@ write or indexed batch operand; a valid operand reference is preserved (§ 2.1).
 
 Carried-code failures also amend D1 and D4 forward (A51): the unreachable arm of `CarryOutcomeSchema` requires a
 message, including an already-expired code leg's timeout and any reported descendant warning (§ 2.2).
+
+Publication evidence also qualifies D12 forward (A52): an explicit forced replacement of item-history tracking may
+remove the last captured item tip or incoming archive folder proving the local end was published. Only then may that
+end be treated as unpublished and withdrawn for the incoming published end; surviving evidence keeps `ended-twice` and
+the explicit clear/reopen/end repair (§ 6.6).
 
 The contract left open where the designation is kept; § 9.1 settles it in Git config.
 
@@ -1714,6 +1722,14 @@ one and an abandon on the other, or two archives, each perhaps after a reopen of
   its lineage record where it holds one — a removal, which a create-only record allows (§ 5.2), and which the lineage
   kind admits for a lineage holding retired branches once the item's archived primary carries exactly those branch
   links (A37) — then reopen it, which removes every folder it holds, in every quarter's ref (§ 7.2), and end it once.
+
+**Forced replacement of publication observations (A52).** The both-published rule requires retained evidence of each
+end. An explicit forced replacement of item-history tracking can remove the last captured item tip or incoming archive
+folder proving the local end was published. If no such witness survives, that end may be treated as unpublished and
+withdrawn for the incoming published end, with `end-withdrawn` and removal of its local archive folder. If evidence
+survives, `ended-twice` and the explicit clear/reopen/end repair above still apply. `refEndPublished`
+(`lib/store/ref/sync-lifecycle.ts`) checks the end batch against incoming and previous live/history tips and incoming
+archive folders; the local folder alone does not establish publication. No additional publication-proof store is kept.
 
 #### 6.7 The push loop
 
@@ -3760,7 +3776,11 @@ typed conflicts:
       meeting an abandon reports `ended-with-conflicts` naming its conflict records, and two ends both published after a
       mirror push erased the first report `ended-twice`, whose remedy, an archive's and an abandon's alike, leaves one
       end, as it does for two archives into two quarters, its reopen removing the folder from each, and meanwhile the
-      item reads from the later quarter's folder, lists once, and a write to it refreshes both;
+      item reads from the later quarter's folder, lists once, and a write to it refreshes both. With full mirror erasure,
+      `ended-twice` persists through registry repair while an item-publication witness survives. After an explicit forced
+      replacement of item-history tracking removes the last captured item tip or incoming archive-folder witness, the
+      next pull may instead report `end-withdrawn`, remove the first folder locally, keep it absent remotely, and converge
+      on the incoming published end. Both mirror-erasure families run in both layouts (§ 6.6, A52);
     - `maintain()` returns each never-retiring ref's commit count and disk usage — the person's `personal` and `claims`
       refs, `project/inbox`, and `project/registry` — and leaves out one the clone lacks;
     - `carry` over one atomic receiver and over ordered legs, a carried ref's own rejection, an ordered code leg to an
@@ -4698,6 +4718,12 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     already spent before the code leg explains that the leg did not run; canceled carried-code and state operations
     preserve the executor's warning, and a fresh push can complete afterward (§ 2.1, § 11.8) (A51).
 
+56. **Mirror-erasure recovery follows retained publication evidence.** In both layouts, two published ends retain
+    `ended-twice` and explicit clear/reopen/end repair while a captured item tip or incoming archive folder proves the
+    local end was published. In the full-erasure case, after explicit forced replacement of item-history tracking removes
+    the last such witness, the next pull may withdraw that end, report `end-withdrawn`, remove its local folder, keep it
+    absent remotely, and publish and converge on the incoming end. Qualifies criterion 37 (§ 6.6, § 14.5) (A52).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4891,5 +4917,8 @@ open:
 
 - **A51** — 2026-10-25 — design: unreachable carry includes a message. _Supersedes:_ § 2.1; § Non-Goals ¶1.
   _Trigger:_ standard-pass-2-fix-check-1/AGG-03 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A52** — 2026-10-25 — design: forced tracking loss permits withdrawal. _Supersedes:_ §§ 6.6, 14.5; Non-Goals ¶1.
+  _Trigger:_ standard-pass-2-fix-check-3/AGG-02 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

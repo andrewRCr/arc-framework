@@ -1122,6 +1122,8 @@ the withdrawal rule for two ends — the rules the model checks held.
 - _Goal:_ Of two ends of one item the first published holds: this clone withdraws its own unpublished end whole, and two
   ends both published are reported with the remedy that leaves one.
 
+    - _Amended in:_ review-fix (A52)
+
 - _Outcome:_ Losing unpublished end batches are inverted in one transaction, including earlier lineage, cohort closes,
   and selective inbox returns and receipts; surrounding writes and decomposition children remain. Published double ends
   persist as notices until their histories are reconciled, lineage cleared, and every archive folder reopened. Lineage

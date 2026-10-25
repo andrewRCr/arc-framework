@@ -3067,3 +3067,22 @@ condition and any reported descendant warning. The first Non-Goal retains its or
 `observeRefCarryCommitRace` retains failed-listing and canceled-process evidence. `refSyncCleanupContext` keeps local
 cleanup and post-fetch observations in the selected physical repository without inheriting the expired signal;
 `timedOutRemotePull` and `publishRefStore` retain the original canceled error in their failure conditions.
+
+## A52 — Bound mirror-erasure recovery to retained publication evidence
+
+**Superseded text.** § 6.6 said “Two ends both published — once a mirror push erased the first (§ 6.3) [...] cannot be
+ordered, so the pull reports an `ended-twice` notice”. § 14.5 required “two ends both published after a mirror push erased
+the first report `ended-twice`”. The first Non-Goal said “No caller-visible behavior beyond what § 2 amends.” Criterion
+37 and Task 10.5 retain their original wording; criterion 56 qualifies the former and the latter points to this review
+fix.
+
+**Decision.** Retain the existing runtime: an explicit forced replacement of item-history tracking that removes every
+captured item-tip or incoming archive-folder witness can make the local end unpublished for the next pull. That pull
+may withdraw it for the incoming published end. Surviving evidence keeps `ended-twice` and explicit clear/reopen/end
+repair. `refEndPublished` (`lib/store/ref/sync-lifecycle.ts`) derives publication from those captured tips and folders;
+no additional publication-proof store is introduced.
+
+**Verification boundary.** The two mirror-erasure scenarios in `store-ref-ended-twice.test.ts` exercise both layouts.
+One preserves the registry and proves both folders survive until explicit repair; the other proves publication before
+full erasure, notices before and after registry repair, withdrawal only after forced history-tracking replacement, and
+the first folder's local and remote fate through publication and convergence.
