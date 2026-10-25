@@ -93,7 +93,7 @@ it.each([false, true])("carries only a bound marker's UUID through row validatio
   const h = await fixture(bound), result = await frame(h.io);
   if (result.entering.kind !== "selected") throw new Error("Expected the entering row");
   const row = result.entering.row;
-  expect(row).toMatchObject({ kind: "work-unit", subject: { kind: "work-unit", key: h.reference.owner.name } });
+  expect(row).toMatchObject({ kind: bound ? "work-unit" : "unresolved-checkout", subject: { kind: "work-unit", key: h.reference.owner.name } });
   if (bound) expect(row.subject).toMatchObject({ uid: h.uid });
   else expect(row.subject).not.toHaveProperty("uid");
   expect(DerivedCheckoutRowSchema.safeParse({ ...row,

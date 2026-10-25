@@ -94,7 +94,7 @@ describe("current work-unit marker fallback", () => {
     expect(await h.resolve()).toMatchObject({ status: "resolved", warnings: [] });
   });
 
-  it("finds no current candidate for a missing claim and resolves once its actual record arrives", async () => {
+  it("finds no current candidate until its arriving record stamps the marker with its owner UUID", async () => {
     const h = await fixture();
     const reference = metaReferenceFixture();
     await reference.produce("not-found:name");
@@ -103,6 +103,8 @@ describe("current work-unit marker fallback", () => {
     const resolve = () => resolveCurrentWorkUnit({ cwd: h.cwd, store: reference.store });
     expect(await resolve()).toEqual({ status: "none", candidates: [], warnings: [] });
     await reference.repair("not-found:name");
+    expect(await resolve()).toEqual({ status: "none", candidates: [], warnings: [] });
+    await bindProducedMarker(h.cwd, reference);
     expect(await resolve()).toMatchObject({ status: "resolved", warnings: [] });
   });
 

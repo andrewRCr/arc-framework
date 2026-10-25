@@ -32,3 +32,12 @@ it("resolves a bound claim even when its marker still carries another placement 
   expect(await h.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse("elsewhere"), uid: uid(selected) } }))
     .toEqual({ status: "ok", result: { reference: selected.reference } });
 });
+
+it("refuses an unbound work-unit claim and resolves after supplying its owner UUID", async () => {
+  const h = createLifecycleHarness(), record = await h.seedMeta("bound");
+  const claim = { kind: "work-unit" as const, slug: record.reference.owner.name };
+  expect(await h.store.lookup({ kind: "claim", claim }))
+    .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  expect(await h.store.lookup({ kind: "claim", claim: { ...claim, uid: uid(record) } }))
+    .toEqual({ status: "ok", result: { reference: record.reference } });
+});

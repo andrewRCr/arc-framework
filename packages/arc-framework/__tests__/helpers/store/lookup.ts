@@ -15,7 +15,7 @@ function primary(record: MemoryRecord): boolean {
 function workUnitClaimMatches(record: MemoryRecord, claim: Extract<CheckoutClaim, { kind: "work-unit" }>): boolean {
   if (record.reference.kind !== "work-item/meta") return false;
   const owner = record.reference.owner;
-  return claim.uid === undefined ? owner.name === claim.slug : owner.type === "work-item" && owner.uid === claim.uid;
+  return claim.uid !== undefined && owner.type === "work-item" && owner.uid === claim.uid;
 }
 
 function preferredSlugRecords(records: MemoryRecord[], slug: string): MemoryRecord[] {

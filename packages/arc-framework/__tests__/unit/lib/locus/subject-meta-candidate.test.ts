@@ -1,4 +1,5 @@
 /** Candidate acquisition follows the selected Store's exact work-unit generation. */
+import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { mkdtemp, mkdir, readFile, writeFile, rm, access, realpath, lstat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -39,7 +40,7 @@ async function fixture() {
   const h = createLifecycleHarness();
   const authoritative = candidate();
   const meta = await seedPrepared(h, authoritative.id);
-  const workUnit = await readStoreWorkUnitEvidence({ store: h.store, slug: "demo", head: "a".repeat(40), projectId: async () => "project-1" });
+  const workUnit = await readStoreWorkUnitEvidence({ store: h.store, slug: "demo", uid: boundWorkUnitSubject(meta).uid, head: "a".repeat(40), projectId: async () => "project-1" });
   if (workUnit.kind !== "present") throw new Error(JSON.stringify(workUnit));
   const localCandidatePath = join(cwd, ".arc/system/.internal/candidates/demo.json");
   await mkdir(dirname(localCandidatePath), { recursive: true });

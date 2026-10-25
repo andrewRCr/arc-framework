@@ -486,18 +486,10 @@ unclosed task commits (§ 3.2) re-read by the UID claim here.
           committed record and checkout and reports `arc materialize <slug> --here`. Pre-batch failures retain their
           existing rollback behavior.
 
-### `[ ]` **4.3 Send the marker's UID with every work-unit claim, and match it in the reference backend — § 1.4, § 7.1**
+### `[x]` **4.3 Send the marker's UID with every work-unit claim, and match it in the reference backend — § 1.4, § 7.1**
 
 - _Goal:_ Every store-arm reader resolves a checkout's work unit by the marker's UID, so a reused slug's claims resolve
   the live and the archived holder each by its own UID, and a work-unit claim without one resolves to nothing.
-
-- _Note:_ `feat/storage-ref-backend` edits `lib/store/in-repo/lookup.ts`, `suite-lookup.ts`, and the marker and holder
-  fixtures in `git/worktree-roster-store.test.ts`, `locus/derived-store-evidence.test.ts`,
-  `locus/store-work-unit-terminal.test.ts`, `locus/derived-task-conflicts.test.ts`,
-  `release/wu-resolution-store.test.ts`, `session-init/stale-worktree-store.test.ts`,
-  `session-init/store-retirement-sweep.test.ts`, `session-init/paused-work-store.test.ts`, and
-  `lib/decompose/atomic-admission.test.ts`, and, under `__tests__/integration/`, `handoff-write-store.test.ts`,
-  `recovery-state-basis.test.ts`, and `status-store-refresh-cli.test.ts`; re-check that branch before editing them.
 
     - `[x]` **4.3.a The claim and the reference backend's match**
 
@@ -524,13 +516,11 @@ unclosed task commits (§ 3.2) re-read by the UID claim here.
           and husks retain their intended unbound subjects. Removed-owner and clash cases pin exact generations, and
           recovery projects UUID-bearing rows into its existing smaller frame.
 
-    - `[ ]` **4.3.e No slug fallback**
+    - `[x]` **4.3.e No slug fallback**
 
-        - The reference backend resolves a work-unit claim without a UID to `not-found`, with no slug fallback.
-        - `current-work-unit-marker.test.ts`'s case resolving a marker written before its record arrives stamps the
-          seeded record's UID onto that marker before it resolves, as a creation's stamp does (4.2.b).
-        - Build `test-first` (one behavior at a time):
-            - a work-unit claim without a `uid` resolves to `not-found` over the reference backend
+        - Work-unit claims without a UUID resolve to `not-found` over the reference backend; a creation resolves only
+          after its arriving owner's UUID is stamped. Unbound rows remain unresolved, while completed-owner recovery
+          stays exact beside namesakes. Candidate evidence carries its seeded owner; in-repo claims remain unchanged.
 
 ### `[ ]` **4.4 Match holders by UID through `LocusPorts` — § 7.3, § 2.4**
 

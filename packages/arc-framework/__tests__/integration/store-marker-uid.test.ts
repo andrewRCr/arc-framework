@@ -19,9 +19,13 @@ it.each(["locus", "session-init"] as const)("%s carries bound marker UIDs and le
     const result = await repairCli(f, command === "locus" ? ["locus", "--json"] : ["status", "--session-init", "--json"], { store: h.store });
     expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
     const subject = { kind: "work-unit", key: "example", ...(bound ? { uid } : {}) };
-    const frame = { entering: { kind: "selected", row: { kind: "work-unit", subject } }, active: { subject },
+    const frame = bound ? { entering: { kind: "selected", row: { kind: "work-unit", subject } }, active: { subject },
       roster: expect.arrayContaining([expect.objectContaining({ kind: "work-unit", subject })]),
-      primaryAvailability: { kind: "occupied", subject } };
+      primaryAvailability: { kind: "occupied", subject } } : {
+      entering: { kind: "selected", row: { kind: "unresolved-checkout", subject, context: null } }, active: null,
+      roster: expect.arrayContaining([expect.objectContaining({ kind: "unresolved-checkout", subject, context: null })]),
+      primaryAvailability: { kind: "unsafe" },
+    };
     expect(result.result).toMatchObject(command === "locus" ? { mode: "locus", ok: true, ...frame }
       : { derivedLocusState: { ok: true, value: frame } });
     if (!bound) {

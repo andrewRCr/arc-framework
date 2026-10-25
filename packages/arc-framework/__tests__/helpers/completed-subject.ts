@@ -45,4 +45,4 @@ export async function completedSubjectFixture(cadence: "manual" | "with-integrat
   return { ...h, cwd, exec, repository, record, head: (await exec("git", ["rev-parse", "HEAD"])).stdout.trim() };
 }
 
-export type CompletedSubjectScenario = "archive-restart" | "arc-landing" | "merge-commit" | "multi-commit-squash" | "cut" | "abandon" | "partial-teardown" | "missing" | "ambiguous";
+export type CompletedSubjectScenario = "archive-restart" | "arc-landing" | "merge-commit" | "multi-commit-squash" | "cut" | "abandon" | "partial-teardown" | "missing" | "namesake";
