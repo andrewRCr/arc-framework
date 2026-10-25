@@ -548,7 +548,7 @@ unclosed task commits (§ 3.2) re-read by the UID claim here.
           and status use the selected record's owner request; held candidates use reference keys, and overlap
           self-exclusion uses the caller's UUID. Reused and clashed names retain independent checkout locations.
 
-### `[ ]` **4.5 Match derived roster rows by UID — § 7.3**
+### `[x]` **4.5 Match derived roster rows by UID — § 7.3**
 
 - _Goal:_ Every reader that matches a derived row to a work unit it selected elsewhere matches by the row's UID, never
   its name, so a bound checkout or husk of the archived holder neither puts the live holder's checkout in conflict nor
@@ -560,22 +560,12 @@ unclosed task commits (§ 3.2) re-read by the UID claim here.
           name retain independent rows, while duplicate UUIDs refuse even under different display names and duplicate
           unbound names still refuse. Registered locus output retains the live checkout's resolved Planning context.
 
-    - `[ ]` **4.5.b The row readers**
+    - `[x]` **4.5.b The row readers**
 
-        - Branch ownership (`storeLocusOwnsBranch` under `locusOwnsBranch`, `lib/session-init/locus-classification.ts`)
-          and the orphan advisory's candidate filter (`orphan-store-candidates.ts`) match against the record the branch
-          resolves to; the in-flight projection (`workUnitLocation`) against each listed entry; status's slug position
-          (`selectWorkUnitRow`, `lib/status/slug-position.ts`) against the standing holder status selects; and
-          promotion's recovery checkout (`selectRecoveryCheckout`, `lib/errand/promote-store-runtime.ts`) against the
-          promoted record, whose UID it receives (4.2.a).
-        - `readOrphanStoreCandidates` is at the cognitive-complexity limit, so its name comparison is replaced one for
-          one.
-        - Readers of the entering row's own subject, the Errand and partial-Errand matches, and the in-repo arm's
-          collision guard (`guardWorkUnitLocusCollisions`) are unchanged.
-        - Build `test-first` (one behavior at a time):
-            - with a bound checkout of the archived holder on the same machine, the in-flight projection, status's slug
-              position and `worktreePath`, and branch ownership each read the live holder's checkout alone
-            - promotion's recovery checkout selects the promoted record's own checkout
+        - Branch ownership, orphan candidates, status position, and promotion recovery match their selected owner's
+          UUID. The in-flight row match introduced with holder requests is covered through registered CLI output;
+          status preserves the live Planning position beside an archived integration checkout, and promotion retries
+          select their own converted holder. Tracked-state and transient identity matching retain their existing arms.
 
 ## **Phase 5:** Creation
 

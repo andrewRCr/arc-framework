@@ -38,11 +38,12 @@ const TERMINAL_VERIFICATION_TITLE = "complete verification";
  * Select the one registered checkout that holds a work unit with a resolved context.
  * @param roster - Rows from one derived locus read.
  * @param slug - Work-unit slug.
+ * @param uid - Operational owner UUID; omitted for tracked-state selection.
  * @returns The row, or null when no single resolved row holds the work unit.
  */
-export function selectWorkUnitRow(roster: readonly DerivedCheckoutRow[], slug: string): ResolvedCheckoutRow | null {
+export function selectWorkUnitRow(roster: readonly DerivedCheckoutRow[], slug: string, uid?: string): ResolvedCheckoutRow | null {
   const matches = roster.filter((row): row is ResolvedCheckoutRow =>
-    row.kind === "work-unit" && row.subject.kind === "work-unit" && row.subject.key === slug && row.context !== null);
+    row.kind === "work-unit" && row.subject.kind === "work-unit" && (uid === undefined ? row.subject.key === slug : row.subject.uid === uid) && row.context !== null);
   return matches.length === 1 ? matches[0] ?? null : null;
 }
 
@@ -76,13 +77,14 @@ export function projectDerivedSlugPosition(row: ResolvedCheckoutRow): DerivedSlu
  */
 export async function readDerivedSlugPosition(options: {
   readonly slug: string;
+  readonly uid?: string;
   readonly worktreePath: string | undefined;
   readonly identity: string | null;
   readonly readRoster: (identity: string) => Promise<readonly DerivedCheckoutRow[]>;
 }): Promise<{ position: DerivedSlugPosition | null; warnings: string[] }> {
   if (options.worktreePath === undefined || options.identity === null) return { position: null, warnings: [] };
   try {
-    const row = selectWorkUnitRow(await options.readRoster(options.identity), options.slug);
+    const row = selectWorkUnitRow(await options.readRoster(options.identity), options.slug, options.uid);
     return { position: row === null ? null : projectDerivedSlugPosition(row), warnings: [] };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

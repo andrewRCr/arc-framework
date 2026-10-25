@@ -34,7 +34,7 @@ async function selectCheckout(options: StoreRuntimeOptions, record: OrdinaryErra
   mode: "replaceFrame" | "recoverPromoted", uid: string): Promise<StorePromotionCheckoutResult> {
   const frame = await options.readFrame();
   const branch = `${options.type}/${options.name}`;
-  const selected = mode === "recoverPromoted" ? selectRecoveryCheckout(frame, record, options.name, branch)
+  const selected = mode === "recoverPromoted" ? selectRecoveryCheckout(frame, record, uid, branch)
     : await selectTerminalCheckout(options, record, frame);
   if (selected.kind !== "ready") return selected;
   const ports = options.locusPorts ?? createLocusPorts({ cwd: selected.checkoutPath, exec: options.exec, store: options.store });
@@ -63,8 +63,8 @@ function refused(message: string): ErrandPromotionResult {
 }
 
 function selectRecoveryCheckout(frame: Awaited<ReturnType<PromoteOrdinaryErrandRuntimeOptions["readFrame"]>>, record: OrdinaryErrandRecord,
-  name: string, branch: string): StorePromotionCheckoutResult {
-  const rows = frame.roster.filter((row) => row.subject?.kind === "work-unit" ? row.subject.key === name
+  uid: string, branch: string): StorePromotionCheckoutResult {
+  const rows = frame.roster.filter((row) => row.subject?.kind === "work-unit" ? row.subject.uid === uid
     : row.subject?.kind === "errand" && row.subject.key === record.slug && row.subject.claimId === record.claimId);
   const row = rows[0];
   if (row === undefined) return { kind: "refused", reason: "checkout-missing", message: "Promoted work-unit checkout is unavailable." };

@@ -1,3 +1,5 @@
+import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
+import { DerivedCheckoutRowSchema } from "../../../src/lib/locus/derived-schema.js";
 import { createStore } from "../../../src/lib/store/create.js";
 import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
@@ -107,4 +109,16 @@ it("the in-repo implementation retains branch-slug ownership", async () => {
   const roster = [workUnitRow("widget", "/wt/widget")];
   expect(await locusOwnsBranch(roster, "feat/widget", { store })).toBe(true);
   expect(await locusOwnsBranch(roster, "arbitrary-name", { store })).toBe(false);
+});
+
+it.each(["work-unit", "retired"] as const)("an archived %s row does not claim the live namesake's branch", async kind => {
+  const h = createLifecycleHarness(), branch = "topic/live";
+  const archived = await h.seedMeta("widget", { state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const live = await h.seedMeta("widget", {}, { kind: "active" },
+    { branches: [{ repository: "project", ref: branch, linkedAs: "created", excluded: [] }] });
+  const oldRow = DerivedCheckoutRowSchema.parse({ ...workUnitRow("widget", "/wt/old", boundWorkUnitSubject(archived).uid), kind });
+  const options = { store: h.store, projectId: async () => "project" };
+  expect(await locusOwnsBranch([oldRow], branch, options)).toBe(false);
+  expect(await locusOwnsBranch([oldRow, workUnitRow("widget", "/wt/live", boundWorkUnitSubject(live).uid)], branch, options)).toBe(true);
 });

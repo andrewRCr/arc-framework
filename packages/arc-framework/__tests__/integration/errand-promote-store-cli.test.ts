@@ -1,11 +1,14 @@
+import { randomUUID } from "node:crypto";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 /** Registered promotion preserves exact Store/Git generations through refusal and interrupted recovery. */
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { repairCliFixture, repairCli } from "../helpers/repair-cli.js";
-import { success } from "../helpers/store/suite-tools.js";
-import { SlugSchema } from "../../src/lib/kernel/index.js";
-import { recordReferences } from "../../src/lib/store/identity.js";
+import { success, seed } from "../helpers/store/suite-tools.js";
+import { SlugSchema, ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
+import { recordReferences, OwnerIdentitySchema } from "../../src/lib/store/identity.js";
 import { ParsedMetaRecordSchema } from "../../src/lib/active/meta-schema.js";
 import { readWorktreeMarker, readWorktreeMarkerGeneration, removeWorktreeMarkerGeneration,
   writeWorktreeMarker, ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs } from "../../src/lib/git/worktree-marker.js";
@@ -81,7 +84,7 @@ it("checks confirmed foreign promotion against the selected checkout before muta
   expect(confirmation).toMatchObject({ outcome: "confirmation-required", checkoutPath: f.cwd });
   if (confirmation.outcome !== "confirmation-required") throw new Error("Missing exact foreign confirmation");
   await writeWorktreeMarker(caller.cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-16T00:00:00Z",
-    createdFor: { kind: "work-unit", name } });
+    createdFor: { kind: "work-unit", name, uid: f.uid } });
   const held = await readWorktreeMarker(caller.cwd), before = success(await f.store.version());
   const argv = [...promoteArgs(f.slug, name), "--confirm-foreign-generation", confirmation.generation];
   expect(await repairCli(caller, argv)).toMatchObject({ exitCode: 1, result: { outcome: "refused", recommendedPromptText: expect.stringContaining(caller.cwd) } });
@@ -199,4 +202,25 @@ it("recovers a registered promotion's recorded cut after a real ref lock and rep
   expect((await f.exec("git", ["rev-parse", `refs/heads/chore/${f.slug}`])).stdout.trim()).toBe(moved);
   expect((await f.exec("git", ["rev-parse", "refs/heads/preserved-recovery-conflict"])).stdout.trim()).toBe(f.head.trim());
   expect(await readWorktreeMarker(f.cwd)).toMatchObject({ kind: "present", marker: { spawnedByArc: false, createdFor: { kind: "work-unit", name, uid: f.uid } } });
+}, 30_000);
+
+it("promotion recovery selects its own converted checkout beside an archived namesake", async () => {
+  const f = await openedFixture("owner-recovery"), name = "grown-owner-recovery", caller = await foreignCaller(f);
+  expect(await repairCli(f, promoteArgs(f.slug, name))).toMatchObject({ result: { outcome: "applied" } });
+  const archived = await seed(f.h.fixture, recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name, uid: randomUUID() })),
+    makeMetaFixture(name, { state: "Shipped", owner: "test-user" }), { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const oldPath = join(caller.cwd, ".arc-checkouts", "archived-owner");
+  await f.exec("git", ["worktree", "add", "--detach", oldPath, "main"]);
+  await ensureWorktreeMarkerIgnored(oldPath, f.exec, nodeWorktreeMarkerIgnoreFs);
+  await writeWorktreeMarker(oldPath, { spawnedByArc: false, createdFor: boundWorkUnitSubject(archived),
+    spawningIdentity: "test-user", createdAt: "2026-10-24T00:00:00Z" });
+  const oldMarker = await readWorktreeMarker(oldPath), ownMarker = await readWorktreeMarker(f.cwd);
+  const before = success(await f.store.version());
+  expect(await repairCli(caller, promoteArgs(f.slug, name))).toMatchObject({
+    result: { outcome: "idempotent", checkoutPath: f.cwd, branch: `feat/${name}` },
+  });
+  expect(success(await f.store.version())).toBe(before);
+  expect(success(await f.store.read({ reference: archived.reference }))).toEqual(archived);
+  expect(await readWorktreeMarker(oldPath)).toEqual(oldMarker);
+  expect(await readWorktreeMarker(f.cwd)).toEqual(ownMarker);
 }, 30_000);

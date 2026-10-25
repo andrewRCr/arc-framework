@@ -1,4 +1,5 @@
 /** Derived-roster classification helpers for session cleanup surfaces. */
+import { ownerHolderRequest } from "../work-unit/locus-ports.js";
 
 import { resolveStoreBranch, type StoreBranchOptions } from "./store-branch-classification.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
@@ -43,5 +44,5 @@ async function storeLocusOwnsBranch(roster: readonly DerivedCheckoutRow[], branc
   const resolved = await resolveStoreBranch(options.store, branch, options.projectId);
   return resolved.status === "ready" && resolved.record.reference.kind === "work-item/meta"
     && roster.some(row => (row.kind === "work-unit" || row.kind === "retired")
-      && row.subject.kind === "work-unit" && row.subject.key === resolved.record.reference.owner.name);
+      && row.subject.kind === "work-unit" && row.subject.uid === ownerHolderRequest(resolved.record).uid);
 }

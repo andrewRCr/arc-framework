@@ -1,4 +1,5 @@
 /** Store-owned candidate selection shared by both orphan sweep entry points. */
+import { ownerHolderRequest } from "../work-unit/locus-ports.js";
 import type { StoreIdentityAcquisition } from "../errand/store-discovery.js";
 import { acquireStoreClaims } from "../errand/store-discovery.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
@@ -38,7 +39,7 @@ export async function readOrphanStoreCandidates(options: OrphanStoreOptions,
     }
     if (record.reference.kind === "work-item/record" ? record.placement?.kind === "active"
       : roster.some(row => (row.kind === "work-unit" || row.kind === "retired")
-        && row.subject.kind === "work-unit" && row.subject.key === record.reference.owner.name)) continue;
+        && row.subject.kind === "work-unit" && row.subject.uid === ownerHolderRequest(record).uid)) continue;
     candidates.push({ branch, authority });
   }
   return { status: "ready", candidates };
