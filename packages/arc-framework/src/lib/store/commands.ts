@@ -7,6 +7,7 @@ import type { RecordReference, RecordVersion } from "./identity.js";
 import type { StoreResult } from "./refusal.js";
 import { KindIdSchema, RecordReferenceSchema, StoredUidSchema } from "./identity.js";
 import { RemedySchema, StoreRefusalSchema } from "./refusal.js";
+import type { PullNotice } from "./sync.js";
 
 /** A complete account of the refs and source records a move examined. */
 export const MigrateReportSchema = z.strictObject({
@@ -22,6 +23,12 @@ export const MigrateReportSchema = z.strictObject({
 });
 /** A move's complete build and recovery report. */
 export type MigrateReport = z.infer<typeof MigrateReportSchema>;
+
+/** Preserve a pull observation in the migration report's condition and remedy shape. */
+export function migrateNoticeFromPull(notice: PullNotice): MigrateReport["notices"][number] {
+  const { condition, remedy, ...subject } = notice;
+  return { condition: `${JSON.stringify(subject)}: ${condition}`, remedy };
+}
 
 /** Account for two moves one command ran in order, the later one's kind standing for both. */
 export function combineMigrateReports(first: MigrateReport, last: MigrateReport): MigrateReport {

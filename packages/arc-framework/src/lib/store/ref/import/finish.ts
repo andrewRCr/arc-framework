@@ -1,6 +1,7 @@
 /** Finish publication from an already landed import without rereading or reminting its source. */
 import type { Store } from "../../contract.js";
 import type { MigrateReport, StoreMigrateResult } from "../../commands.js";
+import { migrateNoticeFromPull } from "../../commands.js";
 import type { RefBackendContext } from "../context.js";
 import type { StoreRefusal, Remedy } from "../../refusal.js";
 import { retireImportLocals, retireImportRemote } from "./transient-cleanup.js";
@@ -13,9 +14,7 @@ export async function publishImport(context: RefBackendContext, store: Store, re
   const pushed = await store.push();
   if (pushed.status === "refused") return storeFailure(pushed.refusal);
   for (const pull of pushed.result.pulls) {
-    report.notices.push(...pull.notices.map((notice) => ({
-      condition: notice.kind === "rule-broken" ? `${notice.rule}: ${notice.condition}` : notice.condition, remedy: notice.remedy,
-    })));
+    report.notices.push(...pull.notices.map(migrateNoticeFromPull));
     if (pull.status === "failed") return storeFailure(pull.failure);
   }
   for (const outcome of pushed.result.publishes) {

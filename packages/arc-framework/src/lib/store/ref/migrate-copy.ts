@@ -9,6 +9,7 @@ import { mergeCapturedRefState } from "./sync-pull-lifecycle.js";
 import { HistoryRefSchema } from "../refusal.js";
 import type { PullNotice } from "../sync.js";
 import type { MigrateReport } from "../commands.js";
+import { migrateNoticeFromPull } from "../commands.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { updateRefTransaction } from "../../git/ref-transaction.js";
 
@@ -46,10 +47,5 @@ export async function prepareRefCopy(context: RefBackendContext, source: Readonl
   const controls = [...source].filter(([ref]) => !isStateRef(ref));
   const applied = await updateRefTransaction(context, controls.map(([ref, next]) => ({ ref: targetRef(ref), next, expected: held.get(ref) ?? null })), { cwd: context.checkoutRoot });
   if (applied.status !== "committed") throw new Error("An isolated copy's keeper refs changed while preparing it");
-  return { refs: await capture(), notices: notices.map(copyNotice) };
-}
-
-function copyNotice(notice: PullNotice): MigrateReport["notices"][number] {
-  if (notice.kind === "rule-broken") return { condition: `${notice.rule}: ${notice.condition}`, remedy: notice.remedy };
-  return { condition: notice.condition, remedy: notice.remedy };
+  return { refs: await capture(), notices: notices.map(migrateNoticeFromPull) };
 }
