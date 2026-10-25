@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "amendment-row-preview",
+  "claimId": "8d304ac389d728efa477e288a0963b9b",
+  "createdAt": "2026-10-25T19:27:02.115Z",
+  "updatedAt": "2026-10-25T19:27:02.115Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Draft amendment record rows in their final grammar and width before approval",
+  "branch": "chore/amendment-row-preview",
+  "origin": "inbox",
+  "originEntry": "Draft a design amendment's row in its final grammar before approval",
+  "originEntrySourceDigest": "sha256:844accf6500fadc2c49e003ed773adbe3340a4d3924b0de1b531b4db26115915",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
