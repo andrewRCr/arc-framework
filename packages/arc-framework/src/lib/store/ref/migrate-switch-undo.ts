@@ -5,10 +5,11 @@ import { readRefRepository } from "./repository.js";
 import { migrationCodeContext, switchMarked, type MoveRemote, type RecordedMove, type StoreLayout } from "./migrate-record.js";
 import { moveRefLayoutAsSwitch } from "./migrate-layout.js";
 import { requireLayoutTransaction } from "./migrate-layout-build.js";
-import { configureBacking, removeBacking, writeMovePointer } from "./migrate-remote-switch.js";
+import { removeBacking, writeMovePointer } from "./migrate-remote-switch.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { withRefFetchKeepers } from "./fetch-seen.js";
+import { configureBackingRemote } from "./backing-configuration.js";
 
 /** What a switch changes and what its undo returns to; a follow writes no pointer. */
 export interface SwitchUndo {
@@ -31,7 +32,7 @@ export async function undoSwitch(context: RefBackendContext, store: Store, undo:
     const moved = await moveRefLayoutAsSwitch(context, store, undo.destinationLayout, undo.sourceLayout, undo.recorded, {
       prepareTarget: async (target: RefBackendContext): Promise<void> => {
         await dropCarriedHeads(target, undo);
-        if (undo.source.repository === "backing") await configureBacking(target, undo.source, undo.sourceRole);
+        if (undo.source.repository === "backing") await restoreBacking(target, undo);
       },
       applyDesignation: async (): Promise<void> => restoreDesignation(context, undo),
     });
@@ -49,9 +50,13 @@ async function restoreDesignation(context: RefBackendContext, undo: SwitchUndo):
   const code = await migrationCodeContext(context), physical = await readRefRepository(context);
   const separate = Boolean(physical.repository?.gitDir);
   if (undo.source.repository === "code") await code.exec("git", ["config", `remote.${undo.source.name}.arc-state`, undo.sourceRole], { cwd: context.checkoutRoot });
-  else if (separate) await configureBacking(physical, undo.source, undo.sourceRole);
+  else if (separate) await restoreBacking(physical, undo);
   if (undo.destination.repository === "code") await code.exec("git", ["config", `remote.${undo.destination.name}.arc-state`, "off"], { cwd: context.checkoutRoot });
   else if (undo.source.repository === "code" && separate) await removeBacking(physical);
+}
+
+async function restoreBacking(target: RefBackendContext, undo: SwitchUndo): Promise<void> {
+  await withRefFetchKeepers(target, undo.source.name, () => configureBackingRemote(target, undo.source.url, undo.sourceRole));
 }
 
 async function dropCarriedHeads(target: RefBackendContext, undo: SwitchUndo): Promise<void> {

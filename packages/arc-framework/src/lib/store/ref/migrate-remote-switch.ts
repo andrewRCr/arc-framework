@@ -12,6 +12,7 @@ import { readSyncRefs } from "./sync-graph.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import type { SwitchUndo } from "./migrate-switch-undo.js";
 import { withRefFetchKeepers } from "./fetch-seen.js";
+import { configureBackingRemote } from "./backing-configuration.js";
 
 /** Derive completion from the installed layout and exact configured destination URLs. */
 export async function remoteSwitchComplete(context: RefBackendContext, recorded: RecordedRemote): Promise<boolean> {
@@ -38,7 +39,7 @@ export async function switchRemoteMove(context: RefBackendContext, store: Store,
   const configuration = {
     prepareTarget: async (target: RefBackendContext): Promise<void> => withRefFetchKeepers(target, destination.name, async () => {
       await installCopiedHeads(code, target, destination.name);
-      if (destination.repository === "backing") await configureBacking(target, destination);
+      if (destination.repository === "backing") await configureBackingRemote(target, destination.url, "push");
     }),
     applyDesignation: async (): Promise<void> => applyRemoteDesignation(context, code, recorded),
   };
@@ -86,14 +87,6 @@ export async function installCopiedHeads(code: RefBackendContext, target: RefBac
     await requireLayoutTransaction(target, [...[...next].map(([ref, next]) => ({ ref, next, expected: prior.get(ref) ?? null })),
       ...[...prior].filter(([ref]) => !next.has(ref)).map(([ref, expected]) => ({ ref, expected, delete: true as const }))]);
   }
-}
-
-/** Configure the physical backing remote at a switch with the URL its record keeps as configured, preserving the explicit answer. */
-export async function configureBacking(target: RefBackendContext, destination: MoveRemote, role: "push" | "read" | "off" = "push"): Promise<void> {
-  const names = (await target.exec("git", ["remote"], { cwd: target.checkoutRoot })).stdout.split(/\r?\n/u);
-  await target.exec("git", ["remote", names.includes("backing") ? "set-url" : "add", "backing", destination.url], { cwd: target.checkoutRoot });
-  await target.migrateStep?.("backing.repointed");
-  await target.exec("git", ["config", "remote.backing.arc-state", role], { cwd: target.checkoutRoot });
 }
 
 async function applyRemoteDesignation(context: RefBackendContext, code: RefBackendContext, recorded: RecordedRemote): Promise<void> {

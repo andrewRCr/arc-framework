@@ -5,12 +5,13 @@ import { readRefDesignation } from "./designation.js";
 import { markSwitchBegun, migrationCodeContext, type RecordedFollow, type RecordedLeaveSource } from "./migrate-record.js";
 import { moveRefLayoutAsSwitch } from "./migrate-layout.js";
 import { requireLayoutTransaction } from "./migrate-layout-build.js";
-import { configureBacking, installCopiedHeads, remoteLayoutCleanupComplete, removeBacking } from "./migrate-remote-switch.js";
+import { installCopiedHeads, remoteLayoutCleanupComplete, removeBacking } from "./migrate-remote-switch.js";
 import { readRefRepository } from "./repository.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import type { SwitchUndo } from "./migrate-switch-undo.js";
 import { withRefFetchKeepers } from "./fetch-seen.js";
+import { configureBackingRemote } from "./backing-configuration.js";
 
 type RecordedSourceSwitch = RecordedFollow | RecordedLeaveSource;
 
@@ -57,7 +58,7 @@ async function prepareFollowTarget(code: RefBackendContext, target: RefBackendCo
   const answer = recorded.record.kind === "follow" ? recorded.record.answer : "push";
   await withRefFetchKeepers(target, destination.name, async () => {
     if (answer === "push") await installCopiedHeads(code, target, destination.name);
-    if (destination.repository === "backing") await configureBacking(target, destination, answer);
+    if (destination.repository === "backing") await configureBackingRemote(target, destination.url, answer);
   });
   const roots = answer !== "push" && source.name === destination.name
     ? [`refs/arc-remotes/${source.name}/`, `refs/arc/tmp/seen/${source.name}/`] : [`refs/arc-remotes/${source.name}/project/moved`];

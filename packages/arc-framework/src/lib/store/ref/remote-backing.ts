@@ -12,6 +12,7 @@ import { checkRemoteProject } from "./remote-project.js";
 import { leaveRefSource } from "./leave-source.js";
 import { requireLayoutTransaction } from "./migrate-layout-build.js";
 import { withRefFetchKeepers } from "./fetch-seen.js";
+import { configureBackingRemote } from "./backing-configuration.js";
 
 /** Check the pointer, physical layout and project before installing or changing backing. */
 export async function setRefBacking(context: RefBackendContext, store: Store, designation: RefDesignation,
@@ -62,14 +63,12 @@ async function applyBackingSetting(context: RefBackendContext, pointer: string |
     if (publisher) return publisherRefusal(publisher, pointer);
     if (!separate.repository?.gitDir) return heldStateRefusal();
     await withRefFetchKeepers(separate, "backing", async () => {
-      if (!designation.backing) await separate.exec("git", ["remote", "add", "backing", url]);
-      await separate.exec("git", ["config", "remote.backing.arc-state", role]);
       if (designation.backing && designation.backing.url !== url) {
         const tracking = await readSyncRefs(separate, "refs/arc-remotes/backing/");
         const seen = await readSyncRefs(separate, "refs/arc/tmp/seen/backing/");
         await requireLayoutTransaction(separate, [...tracking, ...seen].map(([ref, expected]) => ({ ref, expected, delete: true })));
-        await separate.exec("git", ["remote", "set-url", "backing", url]);
       }
+      await configureBackingRemote(separate, url, role);
     });
   } finally { await release(); }
   return undefined;
