@@ -467,7 +467,7 @@ unclosed task commits (§ 3.2) re-read by the UID claim here.
           validates UUIDs in rows, active subjects, and primary availability. Registered locus and session readers
           retain bound UIDs and omit absent ones; in-repo row coverage remains unchanged.
 
-### `[ ]` **4.2 Write the UID from every marker writer, and stamp a creation's marker after its batch — § 7.2**
+### `[x]` **4.2 Write the UID from every marker writer, and stamp a creation's marker after its batch — § 7.2**
 
 - _Goal:_ Every marker a writer holding the record writes carries the owner's UID, and each creation, which claims
   before its record exists, stamps the UID the store minted onto exactly the marker generation it wrote.
@@ -479,25 +479,12 @@ unclosed task commits (§ 3.2) re-read by the UID claim here.
           into either marker conversion, including interrupted recovery. Rename preserves a bound UID under the new
           placement name; tracked in-repo writers continue to omit it.
 
-    - `[ ]` **4.2.b A creation's stamp**
+    - `[x]` **4.2.b A creation's stamp**
 
-        - `arc start --new`'s spawn (`runCreateNew`, `commands/start.ts`) and the cold start (`runStoreColdStart`,
-          `commands/start-cold-store.ts`) write their marker without a UID and keep the record write last. The
-          scaffold's store arm (`scaffoldIntoWorktree`, `lib/git/worktree-scaffold.ts`), which returns nothing today,
-          returns the owner its create batch wrote, and each creation stamps that owner's UID after the batch, replacing
-          exactly the generation it wrote, as `settleOccupancy` (`lib/errand/promote-runtime.ts`) settles promotion's
-          marker.
-        - The stamp sits outside the rollback in both paths: the shipped rollbacks (`recoverColdStartFailure`, whose try
-          wraps the whole cold start, and `rejectCreateNewScaffold`) run only before the batch commits. The stamp is a
-          helper of its own, since `runCreateNew` is near the function-length limit.
-        - A stamp that fails once the batch has committed leaves the marker without a UID, and the creation reports its
-          exit, `arc materialize <slug> --here`, since the record is live; that exit binds the marker once 6.3.a lands.
-        - Build `test-first` (one behavior at a time):
-            - `arc start --new` and the cold start each leave a marker carrying the created owner's UID
-            - a stamp that finds a different marker generation writes nothing and reports the exit
-            - a stamp failing after the batch commits leaves the record live, the marker without a UID, and reports
-              `arc materialize <slug> --here`
-            - a failure before the batch commits still rolls back as today
+        - Operational scaffolding returns the owner minted by its final batch. Spawned and cold creation stamp that UID
+          onto their exact marker generation outside rollback; a changed generation or filesystem refusal preserves the
+          committed record and checkout and reports `arc materialize <slug> --here`. Pre-batch failures retain their
+          existing rollback behavior.
 
 ### `[ ]` **4.3 Send the marker's UID with every work-unit claim, and match it in the reference backend — § 1.4, § 7.1**
 

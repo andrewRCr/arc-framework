@@ -10,6 +10,8 @@ import { inspectCheckoutMarker } from "../lib/locus/marker-occupancy.js";
 import { requireMarkerExclusivity } from "../lib/work-unit/locus-ports.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { resolveCurrentWorkUnit } from "../lib/store/current-work-unit.js";
+import type { OwnerIdentity } from "../lib/store/identity.js";
+import { stampCreatedWorkUnitMarker } from "../lib/work-unit/created-work-unit-marker.js";
 
 /** Anchor an existing checkout without changing its branch, HEAD, or tracked files. */
 export async function runStoreColdStart(ctx: SpawnWorktreeContext, params: ColdStartParams, wuName: string,
@@ -18,6 +20,7 @@ export async function runStoreColdStart(ctx: SpawnWorktreeContext, params: ColdS
   if (store === undefined) throw new Error("Store cold start requires an operational store");
   const ports = ctx.locusPorts ?? createLocusPorts({ cwd: params.worktreePath, exec: ctx.io.exec, store });
   let written: Buffer | undefined;
+  let owner: OwnerIdentity | undefined;
   try {
     const current = await resolveCurrentWorkUnit({ cwd: params.worktreePath, store });
     if (current.status === "ambiguous" || current.warnings.length > 0) return { ok: false, reason: `Work-unit occupancy is unresolved. ${current.warnings.join(" ")}` };
@@ -34,10 +37,12 @@ export async function runStoreColdStart(ctx: SpawnWorktreeContext, params: ColdS
     if (marker.kind !== "created" && marker.kind !== "replaced") return { ok: false,
       reason: `Checkout ${params.worktreePath}'s anchored marker write refused (${marker.kind}). Inspect its marker and rerun.` };
     written = marker.bytes;
-    await scaffoldIntoWorktree({ ...ctx, locusPorts: ports }, { worktreePath: params.worktreePath, branch: null,
+    owner = await scaffoldIntoWorktree({ ...ctx, locusPorts: ports }, { worktreePath: params.worktreePath, branch: null,
       wuName, spawningIdentity: params.identity, createdByArc: false, origin: seed.origin });
-    return { ok: true, value: { worktreePath: params.worktreePath, branch: params.branch, wuName, ...seed } };
   } catch (error) { return recoverColdStartFailure(store, params, wuName, written, error); }
+  const refusal = await stampCreatedWorkUnitMarker({ cwd: params.worktreePath, name: wuName, expected: written, owner });
+  return refusal === null ? { ok: true, value: { worktreePath: params.worktreePath, branch: params.branch, wuName, ...seed } }
+    : { ok: false, reason: refusal };
 }
 
 async function recoverColdStartFailure(store: Store, params: ColdStartParams, wuName: string,
