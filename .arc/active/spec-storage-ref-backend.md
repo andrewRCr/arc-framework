@@ -2342,7 +2342,8 @@ private: a wording amendment to D10 (§ 2.6).
       naming that state's remedies (§ 10.3);
     - `move-unfinished`: `--to` naming another destination while a move's record stands, naming the recorded move and
       that `arc store migrate` with no target, or `--to` its destination, finishes it (§ 10.3);
-    - `move-record-malformed`: a `move.json` or `moved.json` that does not parse, naming its ref;
+    - `move-record-malformed`: a `move.json`, `moved.json`, or layout move's `report.json` that does not parse, naming
+      its ref (A47);
     - `import-refused`: an import whose build refuses a record, which its report's `refused` lists, or whose `notices`
       name a condition that refuses it, carrying that `MigrateReport` and landing nothing, a rerun landing once each
       source is fixed (§ 10.5);
@@ -2473,29 +2474,31 @@ the in-repo implementation; everything at the destination is the verb's.
   either way — and a remote move's switch repoints or removes `backing`, leaving the old URL only in an uncommitted
   pointer change. A remote move writes its kind, source, and destination just before its copy (§ 10.2); a follow,
   leaving the source (§ 10.6), and a layout move run on its own write theirs just before their switches. Each record
-  holds each remote's name and URLs, a follow's answer and the role its old remote carried
-  before it (A30), the registry commit a remote move's step 2 lands or a follow's
-  followed record names, or a layout move's two layouts, and goes to `refs/arc/tmp/migrate/move`, a root commit holding
-  only `move.json`, machine-local in the code repository beside the halves' temporary refs, written expecting its
-  absence, a rerun replacing its own leased on its value, so no run replaces a record another left. A remote's URLs
-  there are `backing`'s as the store directory holds it, or, for a remote of the code repository, the fetch and push
-  URLs `git remote get-url` and `git remote get-url --push` resolve in the code repository at the move's start, as § 9.7
-  reaches it. Every move runs whole under the clone's move lock (§ 11.4), a layout move run as another's switch under
-  that move's, so of two started from two worktrees the second refuses `lock-held` before it fetches, never touching the
-  temporary refs and heads the first gathers. A layout move run as another move's switch writes none, that move's record
-  covering it. Every step that reaches the old remote once the record is written — step 3's forwarding record and the
-  read before the switch, step 4's listings, re-fetches, and deletes, and a follow's deletes — reaches it by the URLs
-  the record holds, the fetch URL for its reads and the push URL for its pushes, never by a name a switch may have
-  repointed, since between two backing repositories the switch gives `backing`'s name to the new one. The record goes
-  once the move is done: a remote move's after its last listing (§ 10.2), a layout move's after its source's delete, and
-  a follow's after its deletes, or its switch where it copied nothing, and leaving the source's after its switch, since
-  it deletes nothing (§ 10.6). `arc store migrate` with no target finishes the move that record names, in its direction,
-  as `--to` naming its destination does — a remote move recorded before its switch from step 1, its copy merging onto
-  what an earlier run landed, and from step 3 where the old remote already carries its forwarding record; `--to` naming
-  another refuses `move-unfinished`, naming the recorded move, until it finishes. An `arc store remote` setting that
-  would run a move while a record stands first finishes the recorded one, as `arc store migrate` with no target does,
-  then runs its own, so no move replaces another's record and strands its leftover, such as a directory it renamed
-  aside.
+  holds each remote's name and URLs, a follow's answer and the role its old remote carried before it (A30), the registry
+  commit a remote move's step 2 lands or a follow's followed record names, or a layout move's two layouts, and goes to
+  `refs/arc/tmp/migrate/move`, a root commit holding `move.json` and, for a standalone layout move, `report.json` with
+  its build's `MigrateReport` (A47), machine-local in the code repository beside the halves' temporary refs, written
+  expecting its absence, a rerun replacing its own leased on its value, so no run replaces a record another left. A
+  remote's URLs there are `backing`'s as the store directory holds it, or, for a remote of the code repository, the
+  fetch and push URLs `git remote get-url` and `git remote get-url --push` resolve in the code repository at the move's
+  start, as § 9.7 reaches it. Every move runs whole under the clone's move lock (§ 11.4), a layout move run as another's
+  switch under that move's, so of two started from two worktrees the second refuses `lock-held` before it fetches, never
+  touching the temporary refs and heads the first gathers. A layout move run as another move's switch writes none, that
+  move's record covering it. Every step that reaches the old remote once the record is written — step 3's forwarding
+  record and the read before the switch, step 4's listings, re-fetches, and deletes, and a follow's deletes — reaches it
+  by the URLs the record holds, the fetch URL for its reads and the push URL for its pushes, never by a name a switch
+  may have repointed, since between two backing repositories the switch gives `backing`'s name to the new one. The
+  record goes once the move is done: a remote move's after its last listing (§ 10.2), a layout move's after its source's
+  delete, and a follow's after its deletes, or its switch where it copied nothing, and leaving the source's after its
+  switch, since it deletes nothing (§ 10.6). `arc store migrate` with no target finishes the move that record names, in
+  its direction, as `--to` naming its destination does — a remote move recorded before its switch from step 1, its copy
+  merging onto what an earlier run landed, and from step 3 where the old remote already carries its forwarding record;
+  `--to` naming another refuses `move-unfinished`, naming the recorded move, until it finishes. An `arc store remote`
+  setting that would run a move while a record stands first finishes the recorded one, as `arc store migrate` with no
+  target does, then runs its own, so no move replaces another's record and strands its leftover, such as a directory it
+  renamed aside. `saveMoveRecord` (`lib/store/ref/migrate-record.ts`) retains that report so a retry returns the build's
+  account even after some source refs are gone. A malformed report refuses `move-record-malformed` through
+  `readMoveReport`, retaining the record; repairing the report and rerunning the same move resumes its cleanup (A47).
 - **The registry ref is each remote's move version.** A remote move's copy and its forwarding record each land a commit
   on the registry ref of the remote they write, in the same `--atomic` push, leased on the registry tip step 1 read
   there (§ 10.2), so no other move's copy or forwarding record lands on that remote unseen between that read and either
@@ -4646,6 +4649,10 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     lock refuses a concurrent writer, and the same end succeeds after release. Empty or initially absent registries
     admit subsequent ends, while identical no-op writes remain unchanged (§ 4.1) (A46).
 
+52. **A layout move keeps and validates its recorded report.** After its switch, malformed `report.json` refuses
+    `move-record-malformed` and retains the move record. Repairing the report admits the same rerun, returns the
+    original build report, and removes the record only after source cleanup (§ 10.1, § 10.3) (A47).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4824,5 +4831,8 @@ open:
 
 - **A46** — 2026-10-25 — design: every end and every history-only write commits the registry. _Supersedes:_ § 4.1 tip
   movement. _Trigger:_ standard-pass-2/AGG-28 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A47** — 2026-10-25 — design: a layout move's record keeps its report. _Supersedes:_ § 10.3 ¶ the record holding only
+  move.json, and § 10.1's arm. _Trigger:_ standard-pass-2/AGG-40 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

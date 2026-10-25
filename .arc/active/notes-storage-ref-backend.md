@@ -3011,3 +3011,15 @@ existing tree object exactly, including foreign entry names; the project identit
 for provenance. A registry not yet present starts with normal empty metadata, without creating identity data. Ordinary
 no-op batches gain no commit. Criterion 51 checks state advancement, locking and retry, retained identity, and initially
 absent or empty registry boundaries.
+
+## A47 — Retain the layout build report across its switch
+
+**Superseded text.** § 10.3 called the move record “a root commit holding only `move.json`”; § 10.1 listed only
+malformed `move.json` or `moved.json`. A standalone layout build already passes its report to `saveMoveRecord`
+(`buildAndSwitchLayout`, `lib/store/ref/migrate-layout.ts`), and `finishSwitchedLayout` reads it through
+`readMoveReport` so partial source deletion cannot erase the report's account.
+
+**Decision.** Record `report.json` beside `move.json` and its existing recoverable malformed-report refusal. Criterion
+52 verifies that the record remains held, then repairing the report lets the identical migration resume and return the
+original report. A narrow reconstruction that treated malformed reports as absent made the test fail by completing the
+move instead; restoring the reader passed the refusal and successful continuation.

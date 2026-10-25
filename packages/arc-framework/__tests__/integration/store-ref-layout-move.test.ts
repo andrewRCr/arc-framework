@@ -17,6 +17,7 @@ import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 import { productionStore } from "../helpers/store/remote-move.js";
 import type { PromptRenderer } from "../../src/lib/command-input/prompter.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { plantRef, type PlantTreeEntry } from "../helpers/store/ref-plant.js";
 
 const provenance = { verb: "start", lifecycleAction: "seed" };
 
@@ -893,4 +894,33 @@ it("asks on a terminal after the layout move a setting finished first, the answe
   const first = h.before[0]?.split(" ")[0];
   expect(result.result.report.refs.filter(({ ref }) => ref === first)).toHaveLength(2);
   expect(exitCode).toBe(0);
+});
+
+it("refuses a malformed recorded layout report and resumes its unchanged move after repair", async () => {
+  const h = await layoutFixture();
+  await h.a.exec("git", ["config", "remote.origin.arc-state", "off"]);
+  await expect(invokeStoreMigrate([], { ...h.a.ports, migrateStep: async step => {
+    if (step === "layout.delete") throw new Error("Paused recorded layout switch");
+  } })).rejects.toThrow("Paused recorded layout switch");
+  const move = "refs/arc/tmp/migrate/move";
+  const tip = (await h.a.exec("git", ["rev-parse", move])).stdout.trim();
+  const savedReport = (await h.a.exec("git", ["show", `${tip}:report.json`])).stdout;
+  const entries = (await h.a.exec("git", ["ls-tree", "-r", "-z", tip])).stdout.split("\0").filter(Boolean).map((row): PlantTreeEntry => {
+    const match = /^100644 blob ([0-9a-f]+)\t(.*)$/su.exec(row);
+    if (!match?.[1] || !match[2]) throw new Error("Expected the move's regular record and report blobs");
+    return { path: match[2], mode: "100644", oid: match[1] };
+  });
+  const broken = await plantRef(h.a.root, move, entries.map(entry => entry.path === "report.json"
+    ? { path: entry.path, content: "malformed report JSON" } : entry), { parents: [tip] });
+  const result = await invokeStoreMigrate([], h.a.ports);
+  expect(result).toMatchObject({ status: "refused", refusal: { code: "move-record-malformed", class: "recoverable",
+    condition: expect.stringContaining("report.json"), remedy: { argv: ["arc", "store", "migrate"] } } });
+  expect((await h.a.exec("git", ["rev-parse", move])).stdout.trim()).toBe(broken.tip);
+  await plantRef(h.a.root, move, entries, { parents: [broken.tip] });
+  const resumed = await invokeStoreMigrate([], h.a.ports);
+  expect(resumed.status, JSON.stringify(resumed)).toBe("ok");
+  if (resumed.status !== "ok") throw new Error("Repaired layout report did not resume");
+  expect(resumed.result).toEqual(JSON.parse(savedReport));
+  expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", move])).stdout).toBe("");
+  expect(success(await h.a.store.read({ reference: h.primary.reference })).content).toBe(makeMetaFixture("alpha"));
 });
