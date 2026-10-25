@@ -135,7 +135,7 @@ describe("trusted review-gate workflows", () => {
     expect(upload?.uses).toMatch(/^actions\/upload-artifact@/u);
     expect(upload?.if).toBe("${{ !cancelled() }}");
     expect(upload?.with).toMatchObject({
-      name: "unit-test-report-${{ matrix.shard }}",
+      name: "unit-test-report-${{ matrix.node.label }}-${{ matrix.shard }}",
       path: "packages/arc-framework/unit-test-report.json",
       "if-no-files-found": "error",
     });
