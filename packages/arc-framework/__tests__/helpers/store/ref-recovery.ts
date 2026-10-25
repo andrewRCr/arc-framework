@@ -2,7 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { RecordReferenceSchema, StateVersionSchema } from "../../../src/lib/store/index.js";
 import { expandStoredPath } from "../../../src/lib/store/stored-path.js";
-import { seed, success, update } from "./suite-tools.js";
+import { seed, success, update, testProvenance } from "./suite-tools.js";
 import type { RecoveryCaseId, RecoveryOperation } from "./fixture-contract.js";
 import type { RefConformanceFixture } from "./ref-fixture.js";
 import { capturedEntries } from "./ref-fixture-plant.js";
@@ -30,6 +30,13 @@ export function createRefRecovery(fixture: RefConformanceFixture) {
       let heldHere = true;
       repairs.set(id, async () => { heldHere = false; });
       return { run: () => fixture.store.list({ family: "work-item", filter: { heldHere } }) };
+    }
+    if (id === "unsupported:unhomed-kind") {
+      const primary = await seed(fixture, fixture.reference("work-item/meta"));
+      let reference = RecordReferenceSchema.parse({ kind: "work-item/companion", owner: primary.reference.owner, key: "meta" });
+      repairs.set(id, async () => { reference = RecordReferenceSchema.parse({ ...reference, key: "recovered-companion" }); });
+      return { run: () => fixture.store.write({ action: "put", reference, expected: null,
+        content: fixture.content(reference), provenance: testProvenance }) };
     }
     if (id === "state-unresolvable") {
       const record = await seed(fixture, fixture.reference("work-item/meta"));

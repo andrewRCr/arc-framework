@@ -19,7 +19,7 @@ import { referenceContent, referenceDeclarations } from "./reference-fixture.js"
 import { createConformanceTestRegistry } from "./test-registry.js";
 import { createRefClock } from "./ref-clock.js";
 import { plantRefFixtureFault } from "./ref-fixture-plant.js";
-import { refFamilyExclusions } from "./ref-exclusions.js";
+import { refFamilyExclusions, refRefusalExclusions } from "./ref-exclusions.js";
 import { createTempRepoCore, removeGitBackedDir } from "../temp-repo.js";
 import { makeGitExec } from "../integration.js";
 import { copyPreparedRepository, prepareRepositoryTemplate, PREPARED_REMOTE_PATH, type PreparedRepositoryTemplate } from "../prepared-repository.js";
@@ -32,6 +32,7 @@ export const refDeclarations: FixtureDeclarations = {
   substrates: ["refs"], syncFamilies: families, syncRetryCount: 1, syncWaitedMs: 0,
   identitySyncFamilies: families.filter((family) => FAMILY_REGISTRY[family].scope === "identity"),
   familyExclusions: refFamilyExclusions(families),
+  refusalExclusions: refRefusalExclusions,
   rejectingContentUnavailable: Object.fromEntries(Object.entries(referenceDeclarations.rejectingContentUnavailable)
     .filter(([kind]) => families.some((family) => family === familyOf(kind as KindId)))),
 };

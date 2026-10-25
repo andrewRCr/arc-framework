@@ -3419,19 +3419,22 @@ files by those ranges, so no one file bounds a shard (A29) (A36).
   registry. Separate import cases exercise the production registry and its actual consumers (§ 14.7) (A18).
 - **Its project-owned references name the store's one project** (§ 3.2), `{ type: "project", name: "project" }`, as the
   in-repo fixture's do (`__tests__/helpers/store/in-repo-fixture.ts`).
-- **Exclusions for the refusals the suite's cases provoke only from the in-repo implementation,** as the reference
-  fixture's (`__tests__/helpers/store/reference-fixture.ts`): the cross-substrate and saved-state coverage items,
-  `checkout-not-writable`, nine of the ten `unsupported` cases, and the transient-write cases. Among the nine,
-  `unhomed-kind`'s case writes a kind this fixture's registry homes; the backend's own `unhomed-kind` refusals, for a
-  key landing on another kind's path and for an entry kind whose grammar its registry does not declare, have their cases
-  in § 14.3. It produces the tenth, `held-here` (`held-here-unsupported-remedy`,
-  `__tests__/helpers/store/suite-lookup.ts`), `state-unresolvable`, and `namespace-corrupt`, by a commit made outside
-  ARC that breaks an item ref's metadata file, which a forward repair restoring the file mends (§ 3.3). One more is its
-  own: `diagnostic-key-mismatch` for the kinds on the project's two refs whose stored state can name only the owner
-  their ref and path map to — `project-inbox/inbox`, `project-inbox/routing-receipt`, `project-registry/identity`,
+- **Its own refusal exclusions** (`refRefusalExclusions`, `__tests__/helpers/store/ref-exclusions.ts`) cover nine of
+  eleven `unsupported` cases: cross-substrate batches, uncovered state versions, kind-required listings, batch
+  observations, personal history, links writes, placement moves, completed creation, and rename. The ref backend
+  supports those operations, including atomic read observations (`commitRefWrites`, `lib/store/ref/write-build.ts`), so
+  their unsupported-refusal cases do not apply. It also excludes `checkout-not-writable`, since ref writes need no
+  tracked-checkout authority, and the transient-write cases, since local mutations do not publish remotely. The generic
+  cross-substrate and saved-state coverage items remain excluded by `refFamilyExclusions`. `createRefRecovery`
+  (`__tests__/helpers/store/ref-recovery.ts`) produces the other two unsupported cases: `held-here` on an off-branch
+  store and `unhomed-kind` through a companion key that collides with the primary record's path. It repairs the latter
+  with an admitted key. It produces `state-unresolvable` using an unavailable saved token, and `namespace-corrupt` by
+  breaking an item ref's metadata outside ARC and repairing it forward (§ 3.3). One more is its own:
+  `diagnostic-key-mismatch` for the kinds on the project's two refs whose stored state can name only the owner their ref
+  and path map to — `project-inbox/inbox`, `project-inbox/routing-receipt`, `project-registry/identity`,
   `project-registry/counter`, `lineage/transition`, whose metadata slug names the UID its path does (§ 3.3), and
   `lineage/conflict-record` — so no stored state there names two (§ 3.1). Any further exclusion is a defect or a forward
-  amendment.
+  amendment (A49).
 - **Its store factory takes the registry override** (`ConformanceRegistration.create`), which the write-check item
   installs its test registration through, and its content generator writes canonical JSON for JSON-homed kinds (§ 3.5),
   and for `project-registry/identity` the shape § 3.2 defines.
@@ -4844,5 +4847,8 @@ open:
 
 - **A48** — 2026-10-25 — design: with no state remote, the import keeps its tips until origin is listed. _Supersedes:_
   § 10.11's no-remote clause. _Trigger:_ standard-pass-2/AGG-53 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A49** — 2026-10-25 — spec-depth: § 14.1 counts the ref backend's own unsupported-case exclusions. _Supersedes:_
+  § 14.1's count. _Trigger:_ standard-pass-2/AGG-12 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

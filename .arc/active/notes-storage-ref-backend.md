@@ -3034,3 +3034,17 @@ failed listing to resume without losing its source basis.
 **Decision.** Preserve that order and name the actual prerequisite in the refusal's remedy: restore access to origin and
 rerun the import. Criterion 53 verifies kept tips survive the refusal, the landed heads remain unchanged on retry,
 origin's refs are reported and retained, and only the kept tips then disappear.
+
+## A49 — Declare the ref backend's own conformance exclusions
+
+**Superseded text.** § 14.1 counted “nine of the ten” unsupported cases and inherited the reference fixture's
+reasons, including its unsupported `unhomed-kind` case. The shared `UNSUPPORTED_CASES` table has eleven entries.
+
+**Decision.** `refRefusalExclusions` (`__tests__/helpers/store/ref-exclusions.ts`) states the ref backend's own reasons;
+nine unsupported-refusal cases do not apply because those operations are supported. The approved action mentioned
+provoking unsupported batch observations, but `commitRefWrites` (`lib/store/ref/write-build.ts`) validates them
+atomically, as `suite-observations.ts` exercises. Keep that truthful exclusion and exercise the reachable
+`unhomed-kind` refusal instead: `createRefRecovery` (`__tests__/helpers/store/ref-recovery.ts`) collides a companion key
+with the primary path, then repairs it to an admitted key. Both layouts run that recovery and their supported atomic
+observation case. The existing conformance success criterion covers these cases; no criterion changes. Generic
+unsupported-case prose now includes a key without a storage home, since the refusal covers keys as well as kinds.
