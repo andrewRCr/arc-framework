@@ -155,8 +155,9 @@ it("graduation refuses its own crashed marker, then completes after registered C
   await writeWorktreeMarker(h.cwd, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "crashed-unit" }, spawningIdentity: "test-user", createdAt: new Date(0).toISOString() });
   const refused = await invoke(h, ["start", "crashed-unit", "--here", "--yes"]);
   expect(refused).toMatchObject({ exitCode: 1 });
-  expect(refused.output).toContain(resolveWorktreeMarkerPath(h.cwd));
-  expect(refused.output).toContain("already has a marker");
+  expect(refused.output).toContain(h.cwd);
+  expect(refused.output).toContain("unbound work-unit marker");
+  expect(refused.output).toContain("arc locus release");
   expect(lifecycleSuccess(await h.store.read({ reference: stub.reference }))).toEqual(stub);
   expect((await h.exec("git", ["rev-parse", "HEAD"])).stdout).toBe(h.head);
   const release = await invoke(h, ["locus", "release", "crashed-unit", "--json"]);
@@ -188,7 +189,8 @@ it("start --new refuses a spawn residue's name in another checkout before creati
   const refused = await invoke(h, ["start", "residue-unit", "--new", "--yes"]);
   expect(refused).toMatchObject({ exitCode: 1 });
   expect(refused.output).toContain(h.holder);
-  expect(refused.output).toContain("arc locus release residue-unit");
+  expect(refused.output).toContain("arc locus release");
+  expect(refused.output).not.toContain("arc locus release residue-unit");
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
   expect(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("residue-unit") })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   expect(await readWorktreeMarker(h.holder)).toMatchObject({ kind: "present", marker: { createdFor: { name: "residue-unit" } } });

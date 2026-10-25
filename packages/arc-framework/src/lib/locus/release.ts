@@ -1,7 +1,6 @@
 /** Release machine-local work-unit occupancy without changing its operational lifecycle. */
 import { ownerHolderRequest } from "../work-unit/locus-ports.js";
 import { readWorkUnit } from "../store/lifecycle-write.js";
-import { StoreRefusalError } from "../store/refusal.js";
 import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 import { dirname, resolve } from "node:path";
 import { MetaPauseSchema, ParsedMetaRecordSchema } from "../active/meta-schema.js";
@@ -57,7 +56,8 @@ async function releaseUnderLock(ctx: LocusReleaseContext, slug?: string): Promis
 }
 async function namedReleaseCheckout(store: Store, ports: LocusPorts, slug: string, identity: string): Promise<string | null> {
   const primary = await readWorkUnit(store, slug);
-  if (primary.status === "refused" && primary.refusal.code !== "not-found") throw new StoreRefusalError(primary.refusal);
+  if (primary.status === "refused" && primary.refusal.code !== "not-found") throw new Error(
+    `${primary.refusal.condition} ${primary.refusal.remedy.text} To release an unbound checkout, run arc locus release from inside that checkout.`);
   if (primary.status === "ok" && primary.result.placement?.kind !== "completed") {
     const holder = await ports.findHoldingCheckout(ownerHolderRequest(primary.result));
     if (holder.kind === "unbound") {

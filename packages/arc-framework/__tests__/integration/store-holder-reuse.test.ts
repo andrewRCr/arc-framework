@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { lifecycleReuseFixture } from "../fixtures/lifecycle-reuse.js";
 import { repairCli } from "../helpers/repair-cli.js";
+import { createClashDouble } from "../helpers/store/clash-double.js";
 import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import type { StoreRecord } from "../../src/lib/store/read.js";
@@ -88,6 +89,87 @@ it("named release selects an unbound creation residue beside a completed bound h
   expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
   expect(result.result).toMatchObject({ status: "released", checkoutPath: residuePath });
   expect(await readWorktreeMarker(residuePath)).toEqual({ kind: "absent" });
+  await unchanged(h);
+}, 30_000);
+
+it("named release preserves a lookup clash and offers unnamed release in its checkout", async () => {
+  const h = await fixture(), path = await checkout(h, "unbound"), other = await h.seedMeta("other");
+  const store = createClashDouble(h.store, { slug: "example", holders: [h.live.reference, other.reference] });
+  const before = lifecycleSuccess(await h.store.version()), marker = await readWorktreeMarker(path);
+  const refused = await repairCli(h, ["locus", "release", "example", "--json"], { store });
+  expect(refused.exitCode).toBe(1);
+  expect(refused.result).toMatchObject({ status: "refused", reason: expect.stringContaining("more than one record generation") });
+  expect(refused.stdout).toContain("arc locus release");
+  expect(await readWorktreeMarker(path)).toEqual(marker);
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  const released = await repairCli({ ...h, cwd: path }, ["locus", "release", "--json"], { store });
+  expect(released.exitCode ?? 0, released.stdout + released.stderr).toBe(0);
+  expect(await readWorktreeMarker(path)).toEqual({ kind: "absent" });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  await unchanged(h);
+}, 30_000);
+
+it("named release requires binding an owned live marker before its normal pause-and-release path", async () => {
+  const h = await fixture(), path = await checkout(h, "unbound"), before = lifecycleSuccess(await h.store.version());
+  const refused = await repairCli(h, ["locus", "release", "example", "--json"], { store: h.store });
+  expect(refused.exitCode).toBe(1);
+  expect(refused.stdout).toContain("arc materialize example --here");
+  expect(refused.stdout).toContain("arc locus release");
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  const bound = await repairCli({ ...h, cwd: path }, ["materialize", "example", "--here"], { store: h.store });
+  expect(bound.exitCode ?? 0, bound.stdout + bound.stderr).toBe(0);
+  expect(await readWorktreeMarker(path)).toMatchObject({ kind: "present", marker: { createdFor: boundWorkUnitSubject(h.live) } });
+  const paused = await repairCli(h, ["pause", "example", "--reason", "Waiting"], { store: h.store });
+  expect(paused.exitCode ?? 0, paused.stdout + paused.stderr).toBe(0);
+  const pauseVersion = lifecycleSuccess(await h.store.version());
+  const released = await repairCli(h, ["locus", "release", "example", "--json"], { store: h.store });
+  expect(released.exitCode ?? 0, released.stdout + released.stderr).toBe(0);
+  expect(released.result).toMatchObject({ status: "released", checkoutPath: path });
+  expect(await readWorktreeMarker(path)).toEqual({ kind: "absent" });
+  expect(lifecycleSuccess(await h.store.version())).toBe(pauseVersion);
+  await unchanged(h);
+}, 30_000);
+
+it("named release refuses two unbound matches and releases the remaining one after unnamed repair", async () => {
+  const h = await fixture();
+  lifecycleSuccess(await h.store.write({ action: "remove", reference: h.live.reference, expected: h.live.version,
+    provenance: { verb: "remove", lifecycleAction: "remove" } }));
+  const first = await checkout(h, "first"), second = await checkout(h, "second");
+  const before = lifecycleSuccess(await h.store.version()), firstMarker = await readWorktreeMarker(first), secondMarker = await readWorktreeMarker(second);
+  const refused = await repairCli(h, ["locus", "release", "example", "--json"], { store: h.store });
+  expect(refused.exitCode).toBe(1);
+  expect(refused.stdout).toContain(first);
+  expect(refused.stdout).toContain(second);
+  expect(refused.stdout).toContain("arc locus release");
+  expect(await readWorktreeMarker(first)).toEqual(firstMarker);
+  expect(await readWorktreeMarker(second)).toEqual(secondMarker);
+  expect((await repairCli({ ...h, cwd: first }, ["locus", "release", "--json"], { store: h.store })).exitCode ?? 0).toBe(0);
+  expect(await readWorktreeMarker(first)).toEqual({ kind: "absent" });
+  expect(await readWorktreeMarker(second)).toEqual(secondMarker);
+  const released = await repairCli(h, ["locus", "release", "example", "--json"], { store: h.store });
+  expect(released.exitCode ?? 0, released.stdout + released.stderr).toBe(0);
+  expect(released.result).toMatchObject({ status: "released", checkoutPath: second });
+  expect(await readWorktreeMarker(second)).toEqual({ kind: "absent" });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  await unchanged(h);
+}, 30_000);
+
+it.each([false, true])("releases a free slug's marker and creates that slug afterward, named=%s", async named => {
+  const h = await fixture(), path = await checkout(h, "free");
+  await writeWorktreeMarker(path, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "fresh" },
+    spawningIdentity: "test-user", createdAt: "2026-10-24T00:00:00Z" });
+  const before = lifecycleSuccess(await h.store.version()), head = (await h.exec("git", ["rev-parse", "HEAD"], { cwd: path })).stdout;
+  const released = await repairCli(named ? h : { ...h, cwd: path }, ["locus", "release", ...(named ? ["fresh"] : []), "--json"], { store: h.store });
+  expect(released.exitCode ?? 0, released.stdout + released.stderr).toBe(0);
+  expect(await readWorktreeMarker(path)).toEqual({ kind: "absent" });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  const created = await repairCli({ ...h, cwd: path }, ["start", "fresh", "--new", "--here", "--yes"], { store: h.store });
+  expect(created.exitCode ?? 0, created.stdout + created.stderr).toBe(0);
+  const primary = lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("fresh") })).reference;
+  if (primary.owner.type === "person") throw new Error("Expected work-unit identity");
+  expect(await readWorktreeMarker(path)).toMatchObject({ kind: "present", marker: { createdFor: { name: "fresh", uid: primary.owner.uid } } });
+  expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd: path })).stdout).toBe(head);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.live.reference }))).toEqual(h.live);
   await unchanged(h);
 }, 30_000);
 

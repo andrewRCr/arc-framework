@@ -744,33 +744,15 @@ released, then rerun.
           acknowledgment leaves a recoverable pre-batch marker; registered CLI reruns replace it under a new name and
           stamp the created UID. Errand, cohort, former-name, and bound missing-record residue require release first.
 
-### `[ ]` **6.4 Release in the order the slug's lookup fixes — § 7.3, § 7.4**
+### `[x]` **6.4 Release in the order the slug's lookup fixes — § 7.3, § 7.4**
 
 - _Goal:_ `arc locus release` frees any unbound marker from its own checkout, and `arc locus release <slug>` acts on the
   live holder's checkout or, where no binding recovers it, on the one unbound marker naming the slug, so a completed
   holder's stamped checkout and a crashed reuse's unbound marker never both match.
 
-    - `runLocusRelease` (`lib/locus/release.ts`) resolves the slug through the lookup first. Where it returns a live
-      holder, release passes that holder's owner request (6.1.b); an unbound holder of the slug refuses where
-      materialize admits that holder for the invoking identity (`ownedInFlight`), since binding recovers it, and is
-      otherwise released as below. Where the lookup refuses other than `not-found`, release refuses with it and names
-      the unnamed form. Otherwise, for a completed holder or nothing, it matches only the unbound markers naming the
-      slug and releases the one it matches from wherever it runs, refusing on several and naming each. A selector
-      function carries the order, keeping `releaseAuthority` within its limit.
-    - `releaseAuthority` admits an unbound marker, the unnamed form in the checkout it runs from and the named form
-      where the order above matches it. A completed holder's stamped checkout is released from inside it by a
-      non-owner's unnamed form; its owner is sent to teardown, as today.
-    - Build `test-first` (one behavior at a time):
-        - `arc locus release` frees an unbound marker from its own checkout, and the next creation of the slug succeeds
-        - `arc locus release <slug>` frees the one unbound marker of a slug with no live holder from another checkout
-        - with a completed holder's bound checkout lingering and a crashed reuse's unbound marker present,
-          `arc locus release <slug>` frees only the unbound marker
-        - it refuses where the slug's live holder that materialize admits has an unbound checkout, naming the unnamed
-          form, and acts on that holder's checkout once materialize binds it; it frees a backlog stub's unbound marker,
-          as `lifecycle-default-locus-ports.test.ts` pins
-        - it refuses where the slug's lookup refuses `ambiguous-match`, naming the unnamed form
-        - it refuses on two unbound markers naming the slug, naming each, and frees the remaining one by name once the
-          unnamed form frees the other
+- _Outcome:_ Lookup refusals retain their evidence and name unnamed checkout-local release. Registered commands preserve
+  completed bound holders, require binding before the owned live holder's normal pause-and-release path, refuse multiple
+  unbound matches, and permit same-slug creation after either named or unnamed release frees a no-holder marker.
 
 ### `[ ]` **6.5 Print the unnamed release form at every exit that locates a checkout — § 7.5**
 
