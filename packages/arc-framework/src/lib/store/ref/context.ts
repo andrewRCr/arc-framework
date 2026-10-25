@@ -28,7 +28,7 @@ export interface RefBackendContext extends RefStorePorts {
   /** Decoded quarters and raw reachability are local to the selected repository's sync operation. */
   lifecycleEvidence?: LifecycleEvidence;
   /** A push and all its nested pulls share one cancellation bound. */
-  syncDeadline?: { signal: AbortSignal; end: number; cleanup: RefBackendContext };
+  syncDeadline?: { signal: AbortSignal; end: number; cleanup: RefBackendContext; operation: "pull" | "push" };
 }
 
 /** Bind failure-time checks and pure defaults without invoking any dependency. */

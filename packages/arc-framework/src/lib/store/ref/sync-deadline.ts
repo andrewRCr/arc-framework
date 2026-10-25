@@ -21,12 +21,12 @@ export function refSyncDeadlineRemedy(operation: "pull" | "push"): Remedy {
 }
 
 /** Bound Git calls and lock waits without restarting the timer for a nested pull. */
-export async function withRefSyncDeadline<T>(context: RefBackendContext, operation: (scoped: RefBackendContext) => Promise<T>): Promise<T> {
+export async function withRefSyncDeadline<T>(context: RefBackendContext, name: "pull" | "push", operation: (scoped: RefBackendContext) => Promise<T>): Promise<T> {
   if (context.syncDeadline) return operation(context);
   const timer = new AbortController(), deadline = new AbortController();
   const end = context.clock().getTime() + REF_SYNC_DEADLINE_MS;
   const bound = context.sleep.bound(REF_SYNC_DEADLINE_MS, timer.signal).then(() => { if (!timer.signal.aborted) deadline.abort(); });
-  try { return await operation(bindDeadline(context, { signal: deadline.signal, end, cleanup: context })); }
+  try { return await operation(bindDeadline(context, { signal: deadline.signal, end, cleanup: context, operation: name })); }
   finally { timer.abort(); await bound; }
 }
 

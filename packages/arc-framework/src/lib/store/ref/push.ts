@@ -23,7 +23,7 @@ import { captureRefCarry, finishRefCarry, pushRefListingWithCarry, type RefCarry
 
 /** Reconcile first, then publish only a stable listing of this clone's changed refs. */
 export async function pushRefStore(context: RefBackendContext, input: PushInput = {}): Promise<StoreResult<PushResult>> {
-  try { return await withRefSyncDeadline(context, async (scoped) => {
+  try { return await withRefSyncDeadline(context, "push", async (scoped) => {
     const carry = await captureRefCarry(scoped, input.carry);
     const result = await publishRefStore(scoped, carry);
     if (carry && result.status === "ok") result.result.carry = await finishRefCarry(carry);

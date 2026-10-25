@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { createRefClock } from "../helpers/store/ref-clock.js";
 import { success } from "../helpers/store/suite-tools.js";
-import { createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { createRefStore, RecordReferenceSchema, PushResultSchema } from "../../src/lib/store/index.js";
 
 const execFileAsync = promisify(execFile);
 const reference = RecordReferenceSchema.parse({ kind: "personal/document", key: "draft.md", owner: { type: "person", name: "andrew" } });
@@ -75,6 +75,10 @@ describe.each(["default", "separate"] as const)("sync deadline in the %s layout"
       if (mode === "pull") expect(result).toMatchObject({ pulls: [expect.objectContaining({ status: "failed", failure: expect.objectContaining({ code: "unreachable", cause: "timeout" }) })] });
       else expect(result).toMatchObject({ publishes: [expect.objectContaining({ status: "failed", failure: expect.objectContaining({ code: "unreachable", cause: "timeout" }) })] });
       if (firstRead) expect(result.pulls).toEqual([expect.objectContaining({ role: "read", remote: "aaa", status: "failed" })]);
+      if (mode === "push") {
+        const failed = PushResultSchema.parse(result).publishes.find(outcome => outcome.status === "failed");
+        expect(failed).toMatchObject({ failure: { remedy: { text: expect.stringMatching(/retry the push/iu) } } });
+      }
       if (process.platform !== "win32") await expectEnded(pids);
       if (firstRead) await h.a.exec("git", ["remote", "remove", "aaa"]);
       else await h.a.git(["remote", "set-url", ...mode === "push" ? ["--push"] : [], h.remoteName, h.origin]);

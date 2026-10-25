@@ -10,7 +10,7 @@ import { withRefSyncDeadline } from "./sync-deadline.js";
 /** Preserve the candidate check's refusal without changing any role. */
 export async function checkRemoteProject(context: RefBackendContext, remote: RefRemoteDesignation,
   designation: RefDesignation): Promise<Extract<StoreRemoteResult, { status: "refused" }> | undefined> {
-  const check = await withRefSyncDeadline(context, (scoped) => checkRefDesignationProject(scoped, remote, designation));
+  const check = await withRefSyncDeadline(context, "pull", (scoped) => checkRefDesignationProject(scoped, remote, designation));
   if (check.status === "control-refused") return { status: "refused", refusal: check.refusal };
   if (check.status === "failed") return { status: "refused", refusal: { code: "store", refusal: check.failure } };
   if (check.status === "identity-mismatch") return { status: "refused", refusal: { code: "store", refusal: {

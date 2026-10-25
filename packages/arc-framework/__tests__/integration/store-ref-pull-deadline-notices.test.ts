@@ -139,8 +139,12 @@ describe.each(["default", "separate"] as const)("a lock wait the deadline cuts s
     expect(result.pulls).toEqual([expect.objectContaining({ status: "failed",
       failure: expect.objectContaining({ code: "unreachable", cause: "timeout",
         condition: expect.stringContaining("deadline expired while waiting for"),
-        remedy: { text: expect.stringContaining("other store operations") } }) })]);
+        remedy: { text: expect.stringContaining(`Retry the ${operation}`) } }) })]);
     success(await store[operation]());
     expect(success(await h.b.store.read({ reference: personal("published.md") })).content).toBe("published\n");
+    if (operation === "push") {
+      success(await h.a.store.pull());
+      expect(success(await h.a.store.read({ reference: personal("local.md") })).content).toBe("local\n");
+    }
   });
 });

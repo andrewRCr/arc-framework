@@ -30,12 +30,12 @@ import { FORWARDING_REF, readForwardingRecord, forwardingFollowRemedy, readSourc
 /** Fetch only explicitly designated state sources into this store's tracking namespace. */
 export async function pullRefStore(context: RefBackendContext, input: PullInput = {},
   onMerged?: (remote: string, incoming: ReadonlyMap<string, string>) => void, onApplied?: RefMergeOptions["onApplied"], resolution?: RefDesignationResolution): Promise<StoreResult<PullResult>> {
-  try { return await withRefSyncDeadline(context, (scoped) => pullRefStoreOnce(scoped, input, onMerged, onApplied, new Map(), resolution)); }
+  try { return await withRefSyncDeadline(context, "pull", (scoped) => pullRefStoreOnce(scoped, input, onMerged, onApplied, new Map(), resolution)); }
   catch (error) {
     if (error instanceof RefFetchKeeperLockError) return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lock,
       condition: error.message, remedy: { text: `Wait for the Git writer holding ${error.lock} to finish. If the lock is stale, remove it after confirming no writer is active, then retry.` } } };
     if (error instanceof RefSyncDeadlineError) return { status: "refused", refusal: { code: "unreachable", class: "recoverable",
-      cause: "timeout", condition: `${error.message} Earlier ref merges remain applied.`, remedy: refSyncDeadlineRemedy("pull") } };
+      cause: "timeout", condition: `${error.message} Earlier ref merges remain applied.`, remedy: refSyncDeadlineRemedy(context.syncDeadline?.operation ?? "pull") } };
     // A nested pull shares the publisher's deadline and its lock-recovery boundary.
     if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire" || context.syncDeadline) throw error;
     return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lockPath,
@@ -139,7 +139,7 @@ async function timedOutRemotePull(context: RefBackendContext, common: PullScope,
   const ref = `refs/arc-remotes/${remote}/${FORWARDING_REF.slice("refs/arc/".length)}`;
   const followDue = (await readSyncRefs(observation, ref)).has(ref);
   if (error instanceof RefSyncDeadlineError) {
-    return failedRemotePull(context, common, "timeout", `${error.message} Earlier merges remain applied.`, followDue, refSyncDeadlineRemedy("pull"));
+    return failedRemotePull(context, common, "timeout", `${error.message} Earlier merges remain applied.`, followDue, refSyncDeadlineRemedy(context.syncDeadline?.operation ?? "pull"));
   }
   return failedRemotePull(context, common, "timeout", "The pull deadline expired while applying fetched state; earlier merges remain applied.", followDue);
 }
@@ -185,7 +185,7 @@ async function readRemoteForwarding(context: RefBackendContext, common: PullScop
 }
 
 function failedRemotePull(context: RefBackendContext, common: PullScope, cause: RemoteFailureReason, condition: string, followDue = false,
-  remedy = refSyncTransportRemedy(context, "pull")): PullOutcome {
+  remedy = refSyncTransportRemedy(context, context.syncDeadline?.operation ?? "pull")): PullOutcome {
   return { ...common, notices: uniqueNotices(common.notices), status: "failed", failure: { code: "unreachable", class: "recoverable", cause, condition,
     remedy: followDue ? { text: `${remedy.text} A forwarding record remains recorded for ${common.remote}; bring in the tracked pointer's change and run arc store migrate.`,
       argv: ["arc", "store", "migrate"] } : remedy,
