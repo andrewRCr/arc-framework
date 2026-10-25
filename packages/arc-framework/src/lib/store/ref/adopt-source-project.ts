@@ -20,5 +20,9 @@ export async function adoptSourceProjectIdentity(context: RefBackendContext, rem
   if (source.status === "refused") return source.refusal.code === "not-found" ? { status: "ok", result: false } : source;
   const written = await writeRefRecord(context, { action: "put", reference, content: source.result.content,
     expected: null, provenance: { verb: "sync", lifecycleAction: "adopt-project-id" } });
-  return written.status === "refused" ? written : { status: "ok", result: true };
+  if (written.status === "ok") return { status: "ok", result: true };
+  if (written.refusal.code !== "version-conflict") return written;
+  const concurrent = await readRefRecord(context, { reference });
+  if (concurrent.status === "ok") return { status: "ok", result: false };
+  return concurrent.refusal.code === "not-found" ? written : concurrent;
 }

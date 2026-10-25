@@ -250,3 +250,53 @@ describe.each(["default", "separate"] as const)("read-source store (%s)", (layou
   });
 
 });
+
+describe.each(["default", "separate"] as const)("concurrent read-source adoption in %s", layout => {
+  const identity = RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } });
+  const content = JSON.stringify({ projectId: "34567890-1234-4234-8234-123456789abc" });
+  async function uninitialized() {
+    const h = await sourceFixture(layout, false);
+    success(await h.a.store.write({ action: "put", reference: identity, expected: null, content,
+      provenance: { verb: "init", lifecycleAction: "seed" } }));
+    await h.a.git(["push", h.remoteName, "refs/arc/project/*:refs/arc/project/*"]);
+    await h.b.git(["config", `remote.${h.remoteName}.arc-state`, "off"]);
+    return h;
+  }
+  it("accepts a concurrently created identity without recording a second adoption", async () => {
+    const h = await uninitialized();
+    let race = true;
+    const store = createRefStore({ ...h.b.ports, lock: async (ref, waitMs) => {
+      if (race && ref === "refs/arc/project/registry") {
+        race = false;
+        success(await h.b.store.write({ action: "put", reference: identity, expected: null, content,
+          provenance: { verb: "init", lifecycleAction: "concurrent-create" } }));
+      }
+      return h.b.ports.lock(ref, waitMs);
+    } });
+    const result = success(await store.pull());
+    expect(race).toBe(false);
+    expect(result.pulls).toContainEqual(expect.objectContaining({ remote: "upstream", role: "read", status: "pulled" }));
+    expect(success(await h.b.store.read({ reference: identity })).content).toBe(content);
+    expect(success(await h.b.store.history({ reference: identity }))).toEqual([
+      expect.objectContaining({ provenance: expect.objectContaining({ lifecycleAction: "concurrent-create" }) }),
+    ]);
+    expect(success(await store.pull()).pulls).toContainEqual(expect.objectContaining({ remote: "upstream", status: "noop" }));
+    expect(success(await h.b.store.history({ reference: identity }))).toHaveLength(1);
+  });
+  it("preserves a recoverable adoption lock refusal and adopts after release", async () => {
+    const h = await uninitialized(), key = "refs/arc/project/registry";
+    const release = await h.b.ports.lock(key);
+    const store = createRefStore({ ...h.b.ports, lock: (ref, waitMs) => h.b.ports.lock(ref, ref === key ? 1 : waitMs) });
+    try {
+      expect(await store.pull()).toMatchObject({ status: "refused", refusal: { code: "lock-held", class: "recoverable",
+        remedy: { text: expect.stringContaining("retry") } } });
+      expect(await h.b.store.read({ reference: identity })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    } finally { await release(); }
+    const result = success(await store.pull());
+    expect(result.pulls.every(({ status }) => status !== "failed")).toBe(true);
+    expect(success(await h.b.store.read({ reference: identity })).content).toBe(content);
+    expect(success(await h.b.store.history({ reference: identity }))).toEqual([
+      expect.objectContaining({ provenance: expect.objectContaining({ lifecycleAction: "adopt-project-id" }) }),
+    ]);
+  });
+});

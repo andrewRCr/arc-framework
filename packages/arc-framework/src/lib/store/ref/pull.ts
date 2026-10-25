@@ -62,6 +62,7 @@ async function pullRefStoreOnce(context: RefBackendContext, input: PullInput,
     const outcome = await pullRemote(context, input, designation, remote, families, onMerged, onApplied, observed);
     if (outcome === "restart") return pullRefStoreOnce({ ...(context.repository?.source ?? context), syncDeadline: context.syncDeadline },
       input, onMerged, onApplied, retained);
+    if ("refusal" in outcome) return outcome;
     if ("state" in outcome) {
       states.push(outcome.state);
       if (outcome.partial) pulls.push(outcome.partial);
@@ -76,7 +77,7 @@ async function pullRefStoreOnce(context: RefBackendContext, input: PullInput,
 async function pullRemote(context: RefBackendContext, input: PullInput, designation: RefDesignation,
   remote: RefRemoteDesignation, families: FamilyId[],
   onMerged: ((remote: string, incoming: ReadonlyMap<string, string>) => void) | undefined,
-  onApplied: RefMergeOptions["onApplied"], observed: PullAttemptObservations): Promise<PullOutcome | ForwardedPull | "restart"> {
+  onApplied: RefMergeOptions["onApplied"], observed: PullAttemptObservations): Promise<PullOutcome | ForwardedPull | RefusedPull | "restart"> {
   const notices = observed.notices;
   const common = remotePullScope(remote, families, notices);
   try {
@@ -92,9 +93,7 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
     if (forwarded) return forwarded;
     observed.changed ||= fetched.refs.some(({ flag }) => flag !== "=");
     const adopted = await adoptSourceProjectIdentity(context, remote, designation);
-    if (adopted.status === "refused") return { ...common, status: "failed", failure: { code: "refused", class: "terminal",
-      message: "The read source was fetched, but its project identity could not be adopted.",
-      condition: adopted.refusal.condition, remedy: adopted.refusal.remedy } };
+    if (adopted.status === "refused") return adoptionFailure(common, adopted.refusal);
     observed.changed ||= adopted.result;
     const { incoming, refused } = fetchedSource(prefix, fetchedTips, fetched.notices);
     captureFetchedHistories(incoming, input.history ?? [], remote.name, fetched);
@@ -120,6 +119,14 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
     if (await storeDirectoryVanished(context, error)) return "restart";
     return timedOutRemotePull(context, common, error, remote.name);
   }
+}
+
+/** The per-remote failure arm is terminal; recoverable adoption stops retain their store-level route. */
+function adoptionFailure(common: PullScope, refusal: RefusedPull["refusal"]): Extract<PullOutcome, { status: "failed" }> | RefusedPull {
+  if (refusal.class === "recoverable") return { status: "refused", refusal };
+  return { ...common, status: "failed", failure: { code: "refused", class: "terminal",
+    message: "The read source was fetched, but its project identity could not be adopted.",
+    condition: refusal.condition, remedy: refusal.remedy } };
 }
 
 /** A remote pull the deadline ended, whether it aborted a Git call or cut a lock wait short; any other failure propagates. */
@@ -190,6 +197,7 @@ function timedOutPull(outcome: PullOutcome): boolean {
 
 interface PullAttemptObservations { notices: PullNotice[]; changed: boolean }
 
+type RefusedPull = Extract<StoreResult<never>, { status: "refused" }>;
 interface ForwardedPull { state: Extract<SyncState, { status: "moved" }>; partial?: PullOutcome }
 
 function uniqueNotices(notices: readonly PullNotice[]): PullNotice[] {
