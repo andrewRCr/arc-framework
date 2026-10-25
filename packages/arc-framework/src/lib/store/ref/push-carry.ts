@@ -78,7 +78,8 @@ async function settleCombinedCarry(carry: RefCarryPublication, outcome: PushOutc
 export async function finishRefCarry(carry: RefCarryPublication): Promise<CarryOutcome> {
   if (carry.outcome) return carry.outcome;
   if (!carry.remote) throw new Error("A pending code publication has no push destination");
-  if (refSyncDeadlineExpired(carry.source)) return carry.outcome = { ref: carry.change.ref, status: "unreachable", cause: "timeout" };
+  if (refSyncDeadlineExpired(carry.source)) return carry.outcome = { ref: carry.change.ref, status: "unreachable", cause: "timeout",
+    message: `The shared sync deadline expired before publishing the carried code ref ${carry.change.ref}.` };
   if (carry.unattributed) return carry.outcome = { ref: carry.change.ref, status: "refused", reason: "remote-rejected", message: carry.unattributed };
   const outcome = await pushRefs(carry.source.exec, carry.remote, [carry.change],
     { cwd: carry.source.checkoutRoot, signal: carry.source.syncDeadline?.signal });
@@ -97,8 +98,10 @@ async function ownCarryOutcome(carry: RefCarryPublication, outcome: PushOutcome)
 }
 
 function classifyRefCarry(ref: string, outcome: PushOutcome): CarryOutcome | undefined {
-  if (outcome.status === "unreachable") return { ref, status: "unreachable", cause: outcome.cause };
-  const message = [outcome.stdout, outcome.stderr].filter(Boolean).join("\n") || "The code push was refused.";
+  const evidence = [outcome.stdout, outcome.stderr].filter(Boolean).join("\n");
+  if (outcome.status === "unreachable") return { ref, status: "unreachable", cause: outcome.cause,
+    message: evidence || `The carried code ref ${ref} could not reach its receiver (${outcome.cause}).` };
+  const message = evidence || "The code push was refused.";
   if (outcome.status === "hook-declined") return { ref, status: "refused", reason: "hook-declined", message };
   if (outcome.status !== "refs") return undefined;
   const row = outcome.refs.find((row) => row.ref === ref);

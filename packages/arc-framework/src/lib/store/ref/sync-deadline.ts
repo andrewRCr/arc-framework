@@ -1,5 +1,6 @@
 /** One cancellable operation bound shared by a sync loop and its nested pulls. */
 
+import { bindRefRepository } from "./repository-context.js";
 import type { RefBackendContext } from "./context.js";
 import type { Remedy } from "../refusal.js";
 import { AdvisoryLockTimeoutError, DEFAULT_MAX_WAIT_MS } from "../../advisory-lock.js";
@@ -28,6 +29,12 @@ export async function withRefSyncDeadline<T>(context: RefBackendContext, name: "
   const bound = context.sleep.bound(REF_SYNC_DEADLINE_MS, timer.signal).then(() => { if (!timer.signal.aborted) deadline.abort(); });
   try { return await operation(bindDeadline(context, { signal: deadline.signal, end, cleanup: context, operation: name })); }
   finally { timer.abort(); await bound; }
+}
+
+/** Read and release local tracking evidence in the selected repository after its operation deadline. */
+export function refSyncCleanupContext(context: RefBackendContext): RefBackendContext {
+  const original = context.syncDeadline?.cleanup ?? context;
+  return context.repository ? bindRefRepository(original, context.repository.commonDir, context.repository.gitDir) : original;
 }
 
 /** Detect expiration between attempts as well as inside an executor call. */

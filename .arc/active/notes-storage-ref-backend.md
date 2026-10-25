@@ -3056,3 +3056,14 @@ itself failed that schema. A50 supersedes that mandatory field only for such inp
 reference remains exact; the condition names the failing operand and index. `malformedStoreInput` shares operand
 selection and refusal construction between both admission paths, with no fabricated owner. The source schema and
 both backend admission paths, rather than a serialization workaround, carry the correction.
+
+## A51 — Preserve carried-code failure evidence
+
+The former `CarryOutcome` unreachable arm was `{ ref: string; status: "unreachable"; cause: RemoteFailureReason }`.
+A51 is the approved scope expansion: the arm also requires a nonempty `message` with its concrete transport or timeout
+condition and any reported descendant warning. The first Non-Goal retains its original text and carries the amendment.
+
+`finishRefCarry` explains an already-expired code leg, `classifyRefCarry` retains transport output, and
+`observeRefCarryCommitRace` retains failed-listing and canceled-process evidence. `refSyncCleanupContext` keeps local
+cleanup and post-fetch observations in the selected physical repository without inheriting the expired signal;
+`timedOutRemotePull` and `publishRefStore` retain the original canceled error in their failure conditions.

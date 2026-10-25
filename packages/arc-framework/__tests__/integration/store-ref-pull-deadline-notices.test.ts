@@ -1,3 +1,4 @@
+import { unconfirmedCancellation } from "../helpers/store/unconfirmed-cancellation.js";
 import { setTimeout as delay } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
@@ -95,7 +96,7 @@ it.each(["default", "separate"] as const)("reports a timed-out tracking acknowle
     armed = false; admitted?.();
     const signal = options?.signal ?? rescue.signal;
     return new Promise((_, reject) => {
-      const cancel = () => reject(makeGitProcessError({ command: "git", args, isCanceled: true }));
+      const cancel = () => reject(unconfirmedCancellation(args, "Original acknowledgment cancellation."));
       if (signal.aborted) cancel(); else signal.addEventListener("abort", cancel, { once: true });
     });
   } });
@@ -109,7 +110,8 @@ it.each(["default", "separate"] as const)("reports a timed-out tracking acknowle
     expect(ended).not.toBe(waiting);
     if (typeof ended === "symbol") throw new Error("The acknowledgment did not honor the deadline");
     expect(success(ended).publishes).toEqual([expect.objectContaining({ status: "failed",
-      failure: expect.objectContaining({ code: "unreachable", cause: "timeout" }) })]);
+      failure: expect.objectContaining({ code: "unreachable", cause: "timeout",
+        condition: expect.stringContaining("descendant processes not confirmed ended") }) })]);
     expect((await h.remote("git", ["rev-parse", "refs/arc/user/andrew/personal"])).stdout)
       .toBe((await h.a.git(["rev-parse", "refs/arc/user/andrew/personal"])).stdout);
     success(await store.push()); success(await h.b.store.pull());

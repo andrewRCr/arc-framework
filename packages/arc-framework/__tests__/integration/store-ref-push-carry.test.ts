@@ -1,3 +1,4 @@
+import { unconfirmedCancellation } from "../helpers/store/unconfirmed-cancellation.js";
 import { join } from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
@@ -162,7 +163,8 @@ it("reports a code ref that never landed when state retries exhaust the shared d
       return h.a.ports.exec(command, args, options);
     } });
   const result = PushResultSchema.parse(success(await store.push({ carry: { ref: branch } })));
-  expect(result.carry).toEqual({ ref: branch, status: "unreachable", cause: "timeout" });
+  expect(result.carry).toEqual({ ref: branch, status: "unreachable", cause: "timeout",
+    message: expect.stringMatching(/deadline.*before.*code/iu) });
   expect(result.publishes).toContainEqual(expect.objectContaining({ status: "failed", retryCount: 1,
     failure: expect.objectContaining({ code: "retries-exhausted" }) }));
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", branch])).stdout).toBe("");
@@ -171,4 +173,24 @@ it("reports a code ref that never landed when state retries exhaust the shared d
   success(await h.b.store.pull());
   expect(success(await h.b.store.read({ reference: pending })).content).toBe("Pending state.\n");
   expect(success(await h.b.store.read({ reference: concurrent })).content).toBe("Concurrent state.\n");
+});
+
+it.each(["default", "separate"] as const)("preserves carried-code cancellation evidence and retries in %s", async layout => {
+  const h = await carryFixture(layout), clock = createRefClock(new Date(0), 0);
+  let armed = true;
+  const store = createRefStore({ ...h.a.ports, ...clock, exec: (command, args, options) => {
+    if (armed && args.includes("push")) {
+      armed = false; clock.advance(120_000);
+      throw unconfirmedCancellation(args, "Original carried-code cancellation.");
+    }
+    return h.a.ports.exec(command, args, options);
+  } });
+  const result = PushResultSchema.parse(success(await store.push({ carry: { ref: branch } })));
+  expect(result.carry).toMatchObject({ ref: branch, status: "unreachable", cause: "timeout",
+    message: expect.stringContaining("descendant processes not confirmed ended") });
+  expect(result.carry).toMatchObject({ message: expect.stringContaining("Original carried-code cancellation.") });
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", branch])).stdout).toBe("");
+  expect(success(await store.push({ carry: { ref: branch } })).carry).toEqual({ ref: branch, status: "pushed" });
+  success(await h.b.store.pull());
+  expect(success(await h.b.store.read({ reference })).content).toBe("Carried state.\n");
 });

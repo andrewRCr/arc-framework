@@ -85,7 +85,7 @@ export type CarryRefusal = z.infer<typeof CarryRefusalSchema>;
 export const CarryOutcomeSchema = z.discriminatedUnion("status", [
   z.strictObject({ ref: z.string().min(1), status: z.literal("pushed") }),
   z.strictObject({ ref: z.string().min(1), status: z.literal("refused"), reason: CarryRefusalSchema, message: z.string().min(1) }),
-  z.strictObject({ ref: z.string().min(1), status: z.literal("unreachable"), cause: RemoteFailureReasonSchema }),
+  z.strictObject({ ref: z.string().min(1), status: z.literal("unreachable"), cause: RemoteFailureReasonSchema, message: z.string().min(1) }),
 ]);
 /** A carried code ref's result. */
 export type CarryOutcome = z.infer<typeof CarryOutcomeSchema>;

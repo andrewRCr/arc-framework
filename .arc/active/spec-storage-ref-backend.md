@@ -115,6 +115,10 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
 
 - **No caller-visible behavior beyond what § 2 amends.** Everything else the contract fixes stays as written; a finding
   that it is wrong becomes a forward amendment, never a redesign here.
+
+  Amended 2026-10-25 — unreachable carried-code outcomes include a required diagnostic message, including timeout
+  before the code leg and any reported descendant warning (§ 2.1, A51) — approved review scope expansion.
+
 - **No caller is rerouted and nothing selects this backend before the flip.** The in-repo implementation keeps serving
   this repository; `createStore` (`lib/store/create.ts`) keeps composing it.
 - **No projection, `arc save`, write-back, worktree lock, or protected-file notice.** The projection builds them over
@@ -324,9 +328,12 @@ interface PushResult { states: SyncState[]; pulls: PullOutcome[]; publishes: Pub
 type CarryOutcome =
   | { ref: string; status: "pushed" }
   | { ref: string; status: "refused"; reason: CarryRefusal; message: string }
-  | { ref: string; status: "unreachable"; cause: RemoteFailureReason };
+  | { ref: string; status: "unreachable"; cause: RemoteFailureReason; message: string };
 type CarryRefusal = "non-fast-forward" | "fetch-first" | "stale-info" | "raced" | "remote-rejected" | "hook-declined"
   | "no-push-destination";
+
+// An unreachable carry's required nonempty message preserves its concrete transport or timeout condition and any
+// reported descendant warning, including an already-expired code leg (A51).
 
 type MaintainResult =
   | { measurements: null }
@@ -4673,6 +4680,11 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     operand, and for an empty invalid batch. The condition identifies the failing operand and index; a valid input
     reference is retained, an invalid one is omitted, and repairing the input admits the same operation (§ 2.1) (A50).
 
+55. **Every unreachable carried-code outcome explains its failure.** `CarryOutcomeSchema` requires a nonempty
+    `message` carrying the concrete transport or timeout condition and any reported descendant warning. A deadline
+    already spent before the code leg explains that the leg did not run; canceled carried-code and state operations
+    preserve the executor's warning, and a fresh push can complete afterward (§ 2.1, § 11.8) (A51).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4863,5 +4875,8 @@ open:
 
 - **A50** — 2026-10-25 — design: malformed-input refusals can omit invalid references. _Supersedes:_ § 2.1 inputs.
   _Trigger:_ standard-pass-2-fix-check-1/AGG-05 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A51** — 2026-10-25 — design: unreachable carry includes a message. _Supersedes:_ § 2.1; § Non-Goals ¶1.
+  _Trigger:_ standard-pass-2-fix-check-1/AGG-03 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

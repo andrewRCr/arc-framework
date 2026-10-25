@@ -107,7 +107,7 @@ describe("push outcomes and maintenance", () => {
   it.each([
     { ref: "refs/heads/topic", status: "pushed" },
     { ref: "refs/heads/topic", status: "refused", reason: "stale-info", message: "Lease lost" },
-    { ref: "refs/heads/topic", status: "unreachable", cause: "auth" },
+    { ref: "refs/heads/topic", status: "unreachable", cause: "auth", message: "Authentication failed" },
   ])("preserves a carried ref's $status result", (carry) => {
     expect(assertSchemaAccepts(CarryOutcomeSchema, carry)).toEqual(carry);
     const result = { states: [], pulls: [], publishes: [], carry };
@@ -120,6 +120,10 @@ describe("push outcomes and maintenance", () => {
       expect(assertSchemaAccepts(CarryOutcomeSchema, value)).toEqual(value);
     },
   );
+  it.each([undefined, ""])("refuses an unreachable carried ref without a nonempty message: %s", message => {
+    const value = { ref: "refs/heads/topic", status: "unreachable", cause: "timeout", ...message === undefined ? {} : { message } };
+    assertSchemaRefuses(CarryOutcomeSchema, value);
+  });
   it("refuses an unknown carried-ref rejection", () => {
     assertSchemaRefuses(CarryOutcomeSchema, { ref: "refs/heads/topic", status: "refused", reason: "invented", message: "Unknown" });
   });

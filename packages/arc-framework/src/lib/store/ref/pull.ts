@@ -12,9 +12,8 @@ import type { RefBackendContext } from "./context.js";
 import { type RefDesignation, type RefRemoteDesignation } from "./designation.js";
 import { resolveRefDesignation, type RefDesignationResolution } from "./designation-first.js";
 import { storeDirectoryVanished, writeRefRepository } from "./repository.js";
-import { bindRefRepository } from "./repository-context.js";
 import { refSyncTransportRemedy } from "./sync-remedy.js";
-import { RefSyncDeadlineError, refSyncDeadlineRemedy, withRefSyncDeadline } from "./sync-deadline.js";
+import { RefSyncDeadlineError, refSyncDeadlineRemedy, refSyncCleanupContext, withRefSyncDeadline } from "./sync-deadline.js";
 import { adoptSourceProjectIdentity } from "./adopt-source-project.js";
 import { fetchRefRemote } from "./fetch.js";
 import { releaseEndedRefKeepers } from "./fetch-seen-ended.js";
@@ -86,7 +85,7 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
     const previous = new Map([...(await readSyncRefs(context, prefix))].map(([ref, tip]) => [`refs/arc/${ref.slice(prefix.length)}`, tip]));
     const fetched = await fetchRefRemote(context, remote, designation, input.history, context.syncDeadline?.signal);
     notices.push(...fetched.notices);
-    const fetchedTips = await readSyncRefs(context, prefix);
+    const fetchedTips = await readSyncRefs(refSyncCleanupContext(context), prefix);
     const followDue = fetchedTips.has(`${prefix}${FORWARDING_REF.slice("refs/arc/".length)}`);
     if (fetched.status === "unreachable") return failedRemotePull(context, common, fetched.cause, fetched.stderr || "The state fetch failed.", followDue);
     const forwarded = await readRemoteForwarding(context, common,
@@ -134,14 +133,13 @@ function adoptionFailure(common: PullScope, refusal: RefusedPull["refusal"]): Ex
 async function timedOutRemotePull(context: RefBackendContext, common: PullScope, error: unknown, remote: string): Promise<PullOutcome> {
   const waiting = error instanceof RefSyncDeadlineError;
   if (!waiting && (!context.syncDeadline?.signal.aborted || !isGitProcessError(error) || error.kind !== "canceled")) throw error;
-  const original = context.syncDeadline?.cleanup ?? context;
-  const observation = context.repository ? bindRefRepository(original, context.repository.commonDir, context.repository.gitDir) : original;
+  const observation = refSyncCleanupContext(context);
   const ref = `refs/arc-remotes/${remote}/${FORWARDING_REF.slice("refs/arc/".length)}`;
   const followDue = (await readSyncRefs(observation, ref)).has(ref);
   if (error instanceof RefSyncDeadlineError) {
     return failedRemotePull(context, common, "timeout", `${error.message} Earlier merges remain applied.`, followDue, refSyncDeadlineRemedy(context.syncDeadline?.operation ?? "pull"));
   }
-  return failedRemotePull(context, common, "timeout", "The pull deadline expired while applying fetched state; earlier merges remain applied.", followDue);
+  return failedRemotePull(context, common, "timeout", `The pull deadline expired while applying fetched state; earlier merges remain applied. ${error.message}`, followDue);
 }
 
 /** The fetched state refs a merge reads, less each one whose fetch drew a notice. */

@@ -1,5 +1,6 @@
 /** Explicit state-only fetches into an isolated tracking namespace. */
 
+import { refSyncCleanupContext } from "./sync-deadline.js";
 import type { PullNotice } from "../sync.js";
 import { refFetchArgs, refFetchNegotiation, refFetchTarget } from "./fetch-target.js";
 import { checkRefFetchUpdates } from "./fetch-check.js";
@@ -60,7 +61,7 @@ async function fetchKeptRefPatterns(context: RefBackendContext, remote: RefRemot
       fetched = { outcome, failed: repaired.failed };
     }
     return { ...fetched.outcome, notices };
-  } finally { await finishRefFetchBasis(context, remote.name, basis); }
+  } finally { await finishRefFetchBasis(refSyncCleanupContext(context), remote.name, basis); }
 }
 
 async function runRefFetch(context: RefBackendContext, args: string[], signal?: AbortSignal): Promise<{ outcome: FetchOutcome; failed: boolean }> {

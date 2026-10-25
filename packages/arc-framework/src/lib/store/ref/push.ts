@@ -61,7 +61,8 @@ async function publishRefStore(context: RefBackendContext, carry?: RefCarryPubli
       else if (error instanceof RefSyncDeadlineError) return timedOutStatePublication(context, loop, { code: "unreachable", class: "recoverable",
         cause: "timeout", condition: `${error.message} Unpublished writes remain local.`, remedy: refSyncDeadlineRemedy("push") });
       else if (!context.syncDeadline?.signal.aborted || !isGitProcessError(error) || error.kind !== "canceled") throw error;
-      else return timedOutStatePublication(context, loop);
+      else return timedOutStatePublication(context, loop, pushOutcomeFailure(bound, { status: "unreachable", cause: "timeout",
+        message: `The push deadline expired while running Git; retry to reconcile any writes the receiver accepted. ${error.message}` }));
     }
     if (result !== "retry") return result;
     loop.retryCount++;

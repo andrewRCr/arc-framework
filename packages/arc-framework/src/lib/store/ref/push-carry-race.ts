@@ -15,8 +15,8 @@ export async function observeRefCarryCommitRace(carry: RefCarryPublication, mess
   try {
     const target = (await source.exec("git", ["remote", "get-url", "--push", remote], { cwd: source.checkoutRoot })).stdout.trim();
     const listed = await listRemoteRefs(source, target, [ref]);
-    if (listed.status === "unreachable") return { ref, status: "unreachable", cause: listed.cause };
-    if ([...listed.tips.keys()].some((name) => name !== ref)) return { ref, status: "unreachable", cause: "error" };
+    if (listed.status === "unreachable") return { ref, status: "unreachable", cause: listed.cause, message: listed.condition };
+    if ([...listed.tips.keys()].some((name) => name !== ref)) return { ref, status: "unreachable", cause: "error", message: `The code receiver listed refs other than ${ref}.` };
     const tip = listed.tips.get(ref) ?? null;
     const raced = change.expected !== undefined ? tip !== change.expected
       : tip !== null && (!(await readBatchObjects(source, [tip])).get(tip)
@@ -24,6 +24,6 @@ export async function observeRefCarryCommitRace(carry: RefCarryPublication, mess
     return raced ? { ref, status: "refused", reason: "raced", message } : undefined;
   } catch (error) {
     if (!isGitProcessError(error)) throw error;
-    return { ref, status: "unreachable", cause: source.syncDeadline?.signal.aborted ? "timeout" : classifyRemoteFailure(error) };
+    return { ref, status: "unreachable", cause: source.syncDeadline?.signal.aborted ? "timeout" : classifyRemoteFailure(error), message: error.message };
   }
 }
