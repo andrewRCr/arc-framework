@@ -49,6 +49,8 @@ instance it saw, and the rest otherwise surface one at a time across later passe
 search ran. An instance outside the reviewed change is not this round's fix: name it for the approver and route it as
 discovered work.
 
+Then look across the verified set by [review-model § Shared causes][shared-causes].
+
 ### 2. Classify two independent axes
 
 For each producer-backed finding, retain the producer's observation separately from ARC's source-verified judgment.
@@ -101,6 +103,10 @@ verifying it. Use the supplied rubric's item name alone, or `none` with a short 
 finding's status line. These judgments are advisory and outside the canonical set's identity. The approved call
 carries the same tags again; only those tags are stored, as an immutable advisory note beside the set. Verified-fix
 and settlement replays read that note.
+
+When a `new-design` fix lands in work a spec governs, ask whether the spec settles that design. When it does not, the
+fix would change the design record: it enters [`amend-design`'s entry gate][amend-design-gate] at triage, so its
+amendment is proposed inside the set and the record changes only once the set is approved.
 
 Author each finding's narrative so the report stands without the raw review:
 
@@ -180,6 +186,8 @@ disposition-set identity.
 [review-increment-invariant]: ../rules/DEV-RULES.ARC.md#review-increment-invariant
 
 [review-model]: review-model.md
+[shared-causes]: review-model.md#shared-causes
+[amend-design-gate]: ../workflows/arc/supplemental/amend-design.md#entry-gate
 [code-author-check]: code-review.md#author-check
 
 [trend-reading]: review-model.md#trend

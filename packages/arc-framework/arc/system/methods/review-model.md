@@ -65,6 +65,16 @@ A **fold** is a change made to a reviewed artifact before the next look: an appr
 or another approved change. Fix checks inspect those changes. Each round checks the previous round's repairs;
 rounds run outside the complete-pass cap and have no round cap.
 
+### Shared causes
+
+A reviewer reports the instances it saw, and fixing each where it stands leaves the rest of its cause for later looks
+to find one at a time. Before proposing dispositions, look across the verified findings for a shared cause: one rule,
+decision, or module, or one earlier fix, behind two or more of them. Look too at any finding whose rule is implemented
+in several places, since its siblings break the same way. Name the cause in each finding's rationale, and propose the
+fix at the cause: every implementation of the rule, or one implementation in place of copies that diverge. A site
+outside the reviewed change is named for the approver and routed as discovered work. Where no cause is shared, this
+adds nothing.
+
 ### Convergence and permission
 
 **Completeness** means every finding has an approved disposition, including unsupported findings. **Convergence**
@@ -92,8 +102,9 @@ display order, and recommendations; severity still decides materiality. In code 
 the approved set's identity. Planning review retains its tagged folds in its own pass record.
 
 Recommend another complete pass when the changes make the last complete assessment cease to hold, especially when
-new design reaches beyond a repair's locus. Otherwise the response check verifies the rework where it stands.
-State a cost-and-signal rationale, including at the cap, and obtain the separate approval before invoking a pass.
+new design reaches beyond a repair's locus, or a repair changed a rule that sites outside its fix range also
+implement. Otherwise the response check verifies the rework where it stands. State a cost-and-signal rationale,
+including at the cap, and obtain the separate approval before invoking a pass.
 
 ### Cadence and records
 
@@ -123,6 +134,10 @@ decision it points to:
 - **`sustained non-convergence`** — most material findings originate in earlier new-design folds and need new design
   again. Stop for the Owner's decision: planning review offers the stage's re-entry or shaping route; code review asks
   whether the spec needs `amend-design`. Another round must not silently become design authoring.
+
+A fix check reads its repairs, so a clean round shows those repairs hold, not that a rule repaired at one site holds at
+its others. Material findings that are siblings an earlier repair missed show the repair fixed a site rather than its
+rule: apply § Shared causes to that rule before reading the trend as `converging`.
 
 Planning review derives the counts, origins, and tags from its pass record. In code review, keep the CLI's ordered
 material trend separate from advisory interpretation: read its per-round change signals beside earlier stored tags

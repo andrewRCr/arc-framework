@@ -128,8 +128,8 @@ Owner-stop continuation; leave a recommendation and the selected continuation, w
 Run `arc review lane read -`, deriving the request from `arc review lane read --schema`. For a delivery member, supply
 its exact head as `memberHeadObjectId`; otherwise use the caller's Candidate or Errand subject. Follow a refusal's
 remedy. When `payload.lastLook` has `coverage: incremental` and `outcome: clean`, use `payload.facts` for advisory
-judgment: recommend another complete pass while new defect classes keep appearing in previously read code or a fix
-round introduced new design; otherwise recommend stopping. Prefer a different source for a successor pass. State the
+judgment: recommend another complete pass while the trend reads `discovering` or [review-model's re-inspection
+test][re-inspection] holds; otherwise recommend stopping. Prefer a different source for a successor pass. State the
 recommendation, its reasons, and what would change it. A complete pass never replaces a required fix check.
 
 Honor an existing decision for this exact successor across unchanged re-entry. Otherwise, when recommending stopping,
@@ -395,6 +395,7 @@ coordinates cannot be recovered.
 [verify-work-unit]: ../workflows/arc/work-unit-lifecycle/verify-work-unit.md
 [review-model]: review-model.md
 [convergence]: review-model.md#convergence-and-permission
+[re-inspection]: review-model.md#tags-and-the-re-inspection-test
 [code-review-author]: code-review-author.md
 [code-review-frontline]: code-review-frontline.md
 [code-review-standard]: code-review-standard.md
