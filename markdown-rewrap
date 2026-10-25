@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "markdown-rewrap",
+  "claimId": "8a4fa9273736569e066bb6d61da39c60",
+  "createdAt": "2026-10-25T00:48:52.234Z",
+  "updatedAt": "2026-10-25T00:48:52.234Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Add an explicit Markdown prose rewrap command using the existing underwrap scope and width",
+  "branch": "chore/markdown-rewrap",
+  "origin": "inbox",
+  "originEntry": "Add a Markdown rewrap command that fills prose to the line target without splitting code spans",
+  "originEntrySourceDigest": "sha256:198e6d914f797c5ea6b19be149f0091142e6abde73ba9d89893cf748d7727f54",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
