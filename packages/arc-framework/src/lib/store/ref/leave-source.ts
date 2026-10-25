@@ -8,7 +8,7 @@ import { MigrationRefusal } from "./migrate-refusal.js";
 import { resolveLeaveSource, leaveSourceInvalid, type LeaveSourceView } from "./leave-source-target.js";
 import { fetchMigrationRemote } from "./migrate-remote-fetch.js";
 import { checkCopyProject, copyProjectId, prepareRemoteReCopy, remoteCopyChanges, atomicMigrationPush, migrationPushLanded,
-  remoteCopyReport, retainCopiedTips, readRemoteCopyReport, clearRemoteGathering, registryHoldsMove } from "./migrate-remote-copy.js";
+  remoteCopyReport, retainCopiedTips, readRemoteCopyReport, clearRemoteGathering, clearUnrecordedGathering, registryHoldsMove } from "./migrate-remote-copy.js";
 import { FORWARDING_REF, readForwardingRecord } from "./forwarding-record.js";
 import { switchRefSource } from "./source-switch.js";
 import { readMigrationRemote } from "./migration-read.js";
@@ -45,9 +45,8 @@ export async function leaveRefSource(context: RefBackendContext, store: Store, i
     await clearRemoteGathering(code);
     return { status: "ok", result: report };
   } catch (error) {
+    await clearUnrecordedGathering(code);
     if (!(error instanceof MigrationRefusal)) throw error;
-    const held = await readMoveRecord(code);
-    if (held.status === "ok" && !held.result) await clearRemoteGathering(code);
     return { status: "refused", refusal: error.refusal };
   }
 }

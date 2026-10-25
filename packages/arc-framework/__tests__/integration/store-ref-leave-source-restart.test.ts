@@ -21,6 +21,7 @@ describe.each([
       if (step === boundary) throw new Error("Interrupted source departure");
     } })).rejects.toThrow("Interrupted source departure");
     const recorded = boundary !== "leave.copied";
+    if (!recorded) expect((await follower.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/"])).stdout).toBe("");
     const journal = (await follower.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout;
     expect(journal).toBe(recorded ? "refs/arc/tmp/migrate/move" : "");
     if (boundary === "leave.recorded" && source === "code") {

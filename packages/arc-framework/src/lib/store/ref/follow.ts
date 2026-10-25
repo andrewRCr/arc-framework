@@ -8,11 +8,11 @@ import { RecordReferenceSchema } from "../identity.js";
 import { readBatchObjects } from "./batch-read.js";
 import { projectIdentityQueries, projectOwnerFromObjects } from "./project-identity.js";
 import { readSyncRefs } from "./sync-graph.js";
-import { migrationCodeContext, saveMoveRecord, removeMoveRecord, readMoveRecord, type RecordedFollow, type FollowMoveRecord } from "./migrate-record.js";
+import { migrationCodeContext, saveMoveRecord, removeMoveRecord, type RecordedFollow, type FollowMoveRecord } from "./migrate-record.js";
 import { readRefRepository } from "./repository.js";
 import { publisherLayout } from "./layout-state.js";
 import { sourceSwitchComplete, followSwitchUndo, switchRefSource } from "./source-switch.js";
-import { clearRemoteGathering, remoteCopyReport, readRemoteCopyReport } from "./migrate-remote-copy.js";
+import { clearRemoteGathering, clearUnrecordedGathering, remoteCopyReport, readRemoteCopyReport } from "./migrate-remote-copy.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { undoSwitch } from "./migrate-switch-undo.js";
 import { copyFollowState } from "./follow-copy.js";
@@ -46,9 +46,8 @@ export async function answerRefFollow(context: RefBackendContext, store: Store, 
     await context.migrateStep?.("follow.recorded");
     return await resumeRefFollow(context, store, recorded, true);
   } catch (error) {
+    await clearUnrecordedGathering(code);
     if (!(error instanceof MigrationRefusal)) throw error;
-    const held = await readMoveRecord(code);
-    if (held.status === "ok" && held.result === null) await clearRemoteGathering(code);
     return { status: "refused", refusal: error.refusal };
   }
 }

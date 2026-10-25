@@ -18,6 +18,7 @@ it.each(["follow.copied", "follow.recorded", "layout.designation", "layout.delet
     const pending = RecordReferenceSchema.parse({ ...personal, key: "during-follow.md" });
     success(await follower.store.write({ action: "put", reference: pending, expected: null, content: "Written while follow paused.\n", provenance }));
     if (step === "follow.copied") {
+      expect((await follower.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/"])).stdout).toBe("");
       await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "update-ref", "-d", "refs/arc/user/beth/personal"]);
       expect(await invokeStoreMigrate([], follower.ports)).toMatchObject({ status: "designation-needed", remote: "backing" });
       expect((await invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: { ...follower.ports,

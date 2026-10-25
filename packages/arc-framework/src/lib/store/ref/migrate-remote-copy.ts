@@ -16,7 +16,7 @@ import { writeRefBlob } from "./tree-write.js";
 import { projectIdentityQueries, projectOwnerFromObjects } from "./project-identity.js";
 import { readSyncRefs, syncRefIsAncestor } from "./sync-graph.js";
 import { listRemoteRefs } from "./remote-listing.js";
-import { saveMoveRecord, removeMoveRecord, type MoveRemote, type MoveTransports, type RecordedRemote, type RemoteMoveRecord } from "./migrate-record.js";
+import { saveMoveRecord, removeMoveRecord, readMoveRecord, type MoveRemote, type MoveTransports, type RecordedRemote, type RemoteMoveRecord } from "./migrate-record.js";
 
 const registryRef = "refs/arc/project/registry";
 const copyRoot = "refs/arc/tmp/migrate/remote/copy/";
@@ -227,6 +227,14 @@ export async function clearRemoteGathering(code: RefBackendContext, includeDelet
   await clearMigrationRefs(code, "refs/arc/tmp/migrate/remote/");
   await clearMigrationRefs(code, copiedRoot);
   if (includeDeletedRecord) await clearMigrationRefs(code, deletedRecordRef);
+}
+
+/** Clean a failed attempt only after proving no record stands; cleanup never replaces its original failure. */
+export async function clearUnrecordedGathering(code: RefBackendContext): Promise<void> {
+  try {
+    const held = await readMoveRecord(code);
+    if (held.status === "ok" && held.result === null) await clearRemoteGathering(code);
+  } catch { /* Retain unproven recovery evidence and let the caller preserve the original failure. */ }
 }
 
 /** Describe the copied state, including identity scope and withdrawn destination controls. */

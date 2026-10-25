@@ -4,12 +4,12 @@ import type { MigrateReport, StoreMigrateResult } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefDesignation } from "./designation.js";
 import { captureMoveRemote, sharesMoveUrl, resolveBackingTarget } from "./migrate-remote-target.js";
-import { migrationCodeContext, readMoveRecord, type MoveRemote, type MoveTransports, type RecordedRemote } from "./migrate-record.js";
+import { migrationCodeContext, type MoveRemote, type MoveTransports, type RecordedRemote } from "./migrate-record.js";
 import { readRefRepository } from "./repository.js";
 import { publisherLayout } from "./layout-state.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { fetchLayoutObjects } from "./migrate-layout-build.js";
-import { copyRemoteMove, clearRemoteGathering, remoteCopyReport, readRemoteCopyReport, type RemoteCopy } from "./migrate-remote-copy.js";
+import { copyRemoteMove, clearRemoteGathering, clearUnrecordedGathering, remoteCopyReport, readRemoteCopyReport, type RemoteCopy } from "./migrate-remote-copy.js";
 import { deleteRemoteSource } from "./migrate-remote-delete.js";
 import { forwardRemoteMove } from "./migrate-remote-forward.js";
 import { switchRemoteMove, remoteSwitchComplete, remoteSwitchUndo } from "./migrate-remote-switch.js";
@@ -23,9 +23,8 @@ export async function moveRefRemote(context: RefBackendContext, store: Store, to
   const code = await migrationCodeContext(context);
   try { return await performRemoteMove(context, code, store, to, trial, resume); }
   catch (error) {
+    await clearUnrecordedGathering(code);
     if (!(error instanceof MigrationRefusal)) throw error;
-    const recorded = await readMoveRecord(code);
-    if (recorded.status === "ok" && recorded.result === null) await clearRemoteGathering(code);
     return { status: "refused", refusal: error.refusal };
   }
 }

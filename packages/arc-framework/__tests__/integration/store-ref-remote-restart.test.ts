@@ -133,9 +133,14 @@ it.each(["backing", "code"] as Endpoint[])("finishes a switched backing-to-%s mo
 
 it.each(["no-target run", "new move"] as const)("clears the gathering a move ended after removing its record left before a %s gathers", async (next) => {
   const h = await switchFixture();
+  const original = new Error("Paused after its record");
+  let removed = false;
   await expect(invokeStoreMigrate(["--to", h.to], { ...h.ports, migrateStep: async step => {
-    if (step === "record.removed") throw new Error("Paused after its record");
-  } })).rejects.toThrow("Paused after its record");
+    if (step === "record.removed") { removed = true; throw original; }
+  }, exec: async (...args: Parameters<typeof h.ports.exec>) => {
+    if (removed && args[1].includes("for-each-ref") && args[1].includes("refs/arc/tmp/migrate/move")) throw new Error("Cleanup read interrupted");
+    return h.ports.exec(...args);
+  } })).rejects.toBe(original);
   const gathering = async (...roots: string[]) => (await h.a.exec("git", ["for-each-ref", "--format=%(refname)", ...roots])).stdout.trim();
   expect(await gathering("refs/arc/tmp/migrate/move")).toBe("");
   expect(await gathering("refs/arc/tmp/migrate/remote/")).not.toBe("");
@@ -154,4 +159,34 @@ it.each(["no-target run", "new move"] as const)("clears the gathering a move end
   expect(rerun.status, JSON.stringify(rerun)).toBe("ok");
   expect(await gathering("refs/arc/tmp/migrate/move", "refs/arc/tmp/migrate/remote/", "refs/arc/tmp/migrate/copied/")).toBe("");
   expect((await h.a.exec("git", ["rev-parse", kept])).stdout.trim()).toBe(tip);
+}, 60_000);
+
+
+it.each([
+  { boundary: "remote.build", cleanupFails: false },
+  { boundary: "remote.copy", cleanupFails: false },
+  { boundary: "remote.build", cleanupFails: true },
+])("preserves a raw local move failure at $boundary with cleanup failure $cleanupFails and safely retries", async ({ boundary, cleanupFails }) => {
+  const h = await switchFixture();
+  const original = new Error("Local move failed"), cleanup = new Error("Move record read failed during cleanup");
+  let failed = false;
+  const ports = { ...h.ports, migrateStep: async (step: string) => {
+    if (step === boundary) { failed = true; throw original; }
+  }, exec: async (...args: Parameters<typeof h.ports.exec>) => {
+    if (failed && cleanupFails && args[1].includes("for-each-ref") && args[1].includes("refs/arc/tmp/migrate/move")) throw cleanup;
+    return h.ports.exec(...args);
+  } };
+  const source = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
+  const destination = (await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref"])).stdout;
+  const config = await readFile(h.config, "utf8");
+  await expect(invokeStoreMigrate(["--to", h.to], ports)).rejects.toBe(original);
+  const retained = (await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/"])).stdout;
+  if (boundary === "remote.build" && !cleanupFails) expect(retained).toBe("");
+  else expect(retained).toContain("refs/arc/tmp/migrate/remote/");
+  expect(retained.includes("refs/arc/tmp/migrate/move\n")).toBe(boundary === "remote.copy");
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(source);
+  expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref"])).stdout).toBe(destination);
+  expect(await readFile(h.config, "utf8")).toBe(config);
+  expect((await invokeStoreMigrate(boundary === "remote.copy" ? [] : ["--to", h.to], h.ports)).status).toBe("ok");
+  expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/"])).stdout).toBe("");
 }, 60_000);
