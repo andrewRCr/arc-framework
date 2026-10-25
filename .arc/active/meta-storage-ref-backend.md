@@ -18,7 +18,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run or resume the typed pre-publication review procedure.
+- **Next Action:** prepare-work-unit Step 2 — apply the approved standard-pass-2 fix round, then verify and replay it.
 
 - **PR URL:** [none]
 - **Completed:** [none]
