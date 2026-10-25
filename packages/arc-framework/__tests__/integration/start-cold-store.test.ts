@@ -179,7 +179,8 @@ it("refuses another checkout's marker through production ports before writing", 
   const stdout = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { output += String(chunk); return true; });
   try { expect(await invokeStart(h, "fresh")).toBe(1); } finally { stdout.mockRestore(); }
   expect(output).toContain(holder);
-  expect(output).toContain("arc locus release fresh");
+  expect(output).toContain("arc locus release");
+  expect(output).not.toContain("arc locus release fresh");
   expect(await readWorktreeMarker(h.cwd)).toEqual({ kind: "absent" });
   expect(lifecycleSuccess(await h.store.list({ family: "work-item", kind: "work-item/meta" }))).toMatchObject({ status: "absent" });
 }, 30_000);

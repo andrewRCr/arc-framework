@@ -70,9 +70,10 @@ async function namedReleaseCheckout(store: Store, ports: LocusPorts, slug: strin
   return unbound.kind === "held" ? unbound.path : null;
 }
 
-function releaseAuthority(identity: string, occupancy: Extract<Awaited<ReturnType<typeof inspectCheckoutMarker>>, { kind: "occupied" }>): string | null {
+function releaseAuthority(identity: string, occupancy: Extract<Awaited<ReturnType<typeof inspectCheckoutMarker>>, { kind: "occupied" | "unbound" }>): string | null {
   const ownership = decodeWorktreeMarkerOwnership(occupancy.marker.marker);
   if (ownership.kind !== "current" || ownership.subject.kind !== "work-unit" || occupancy.marker.marker.husk !== undefined) return occupancy.reason;
+  if (occupancy.kind === "unbound") return null;
   if (occupancy.missingRecord) return null;
   if (occupancy.workUnit === null) return occupancy.reason;
   if (occupancy.workUnit.conflicts.length > 0) return `The work-unit record has unresolved conflicts.${describeRecordConflicts(occupancy.workUnit.conflicts)}`;
@@ -111,7 +112,7 @@ async function releaseCheckout(ctx: LocusReleaseContext, target: string, primary
 }
 async function revalidateReleaseEligibility(ctx: LocusReleaseContext, target: string, expected: PresentMarker): Promise<void> {
   const occupancy = await inspectCheckoutMarker({ cwd: target, store: ctx.store, identity: ctx.identity });
-  if (occupancy.kind !== "occupied") throw new Error(occupancy.kind === "unreadable" ? occupancy.reason : `Checkout ${target}'s marker disappeared. Inspect arc locus --json and retry release.`);
+  if (occupancy.kind === "clear" || occupancy.kind === "unreadable") throw new Error(occupancy.kind === "unreadable" ? occupancy.reason : `Checkout ${target}'s marker disappeared. Inspect arc locus --json and retry release.`);
   if (!occupancy.marker.bytes.equals(expected.bytes)) throw new Error(`Checkout ${target}'s marker generation changed during release; inspect arc locus --json, then retry against its current marker.`);
   const authority = releaseAuthority(ctx.identity, occupancy);
   if (authority !== null) throw new Error(authority);

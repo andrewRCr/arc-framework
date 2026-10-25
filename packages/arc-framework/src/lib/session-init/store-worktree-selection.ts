@@ -4,13 +4,15 @@ import type { Store } from "../store/contract.js";
 import { listLifecycleIndex } from "../store/lifecycle-index.js";
 import { LineageRecordSchema } from "../store/kinds/lineage/index.js";
 import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
-import { decodeWorktreeMarkerOwnership, type WorktreeMarkerReadResult } from "../git/worktree-marker.js";
+import { decodeWorktreeMarkerOwnership, type WorktreeMarker, type WorktreeMarkerReadResult } from "../git/worktree-marker.js";
 import type { RegisteredWorktree } from "../git/worktree-roster.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
 import type { StaleWorktreeReport } from "./stale-worktree-sweep.js";
+import type { SessionAction } from "./actions.js";
+import { classifyUnboundMarker } from "../locus/unbound-marker.js";
 type SelectionInput = { store: Store; topology: readonly RegisteredWorktree[]; derivedRoster: readonly DerivedCheckoutRow[];
   readMarker: (path: string) => Promise<WorktreeMarkerReadResult>; identity?: string | null; excludeWorktreePath?: string };
-type Selected = { kind: "ended"; name: string } | { kind: "release"; name: string } | null;
+type Selected = { kind: "ended"; name: string } | { kind: "release"; name: string; actions?: readonly SessionAction[] } | null;
 /** Read complete authority before treating a missing claim as a marker with no record. */
 export async function selectStoreWorktreeCleanup(input: SelectionInput): Promise<{
   ended: { checkout: RegisteredWorktree; name: string }[]; releases: StaleWorktreeReport[]; warnings: string[] }> {
@@ -25,7 +27,7 @@ export async function selectStoreWorktreeCleanup(input: SelectionInput): Promise
     try {
       const selected = await selectCheckout(input, checkout);
       if (selected?.kind === "ended") result.ended.push({ checkout, name: selected.name });
-      if (selected?.kind === "release") result.releases.push(release(checkout, selected.name));
+      if (selected?.kind === "release") result.releases.push(release(checkout, selected.name, selected.actions));
     } catch (error) { result.warnings.push(`Cannot select checkout ${checkout.path}: ${error instanceof Error ? error.message : String(error)}`); }
   }
   return result;
@@ -43,6 +45,7 @@ async function selectCheckout(input: SelectionInput, checkout: RegisteredWorktre
   if (owner.kind !== "current" || owner.subject.kind !== "work-unit") return null;
   const name = owner.subject.name;
   if (row.subject?.kind !== "work-unit" || row.subject.key !== name) throw new Error("The marker no longer matches derived checkout authority. Refresh and retry cleanup.");
+  if (owner.subject.uid === undefined) return selectUnboundCheckout(input, checkout.path, marker.marker);
   const found = await input.store.lookup({ kind: "claim", claim: workUnitCheckoutClaim(input.store, name, owner.subject.uid) });
   if (found.status === "refused") {
     if (found.refusal.code !== "not-found") throw new Error(`${found.refusal.condition} ${found.refusal.remedy.text}`);
@@ -56,6 +59,12 @@ async function selectCheckout(input: SelectionInput, checkout: RegisteredWorktre
   const fields = ParsedMetaRecordSchema.parse(read.result.fields);
   if ((input.identity != null && fields.owner !== input.identity) || read.result.placement?.kind === "backlog") return { kind: "release", name };
   return read.result.placement?.kind === "completed" ? { kind: "ended", name: read.result.reference.owner.name } : null;
+}
+async function selectUnboundCheckout(input: SelectionInput, cwd: string, marker: WorktreeMarker): Promise<Selected> {
+  const unbound = await classifyUnboundMarker({ store: input.store, cwd, marker,
+    ...(input.identity == null ? {} : { identity: input.identity }) });
+  if (unbound.kind === "unreadable") throw new Error(unbound.reason);
+  return { kind: "release", name: unbound.slug, actions: unbound.exits };
 }
 function cleanupAuthorityRow(rows: readonly DerivedCheckoutRow[], path: string): DerivedCheckoutRow {
   const matches = rows.filter(row => row.checkout.path === path), row = matches[0];
@@ -86,7 +95,7 @@ async function releaseMissingClaim(store: Store, origin: string, branch: string 
   if (lineage.refusal.code !== "not-found") throw new Error(`${lineage.refusal.condition} ${lineage.refusal.remedy.text}`);
   return true;
 }
-function release(checkout: RegisteredWorktree, name: string): StaleWorktreeReport {
-  const common = { worktreePath: checkout.path, decision: { action: "external" as const }, actions: [{ text: `arc locus release ${name}`, argv: ["arc", "locus", "release", name] }] };
+function release(checkout: RegisteredWorktree, name: string, actions?: readonly SessionAction[]): StaleWorktreeReport {
+  const common = { worktreePath: checkout.path, decision: { action: "external" as const }, actions: [...(actions ?? [{ text: `arc locus release ${name}`, argv: ["arc", "locus", "release", name] }])] };
   return checkout.branch === null ? { ...common, kind: "detached", branch: null, workUnit: name } : { ...common, kind: "branched", branch: checkout.branch };
 }

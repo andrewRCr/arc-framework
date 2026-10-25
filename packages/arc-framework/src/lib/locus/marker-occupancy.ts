@@ -11,12 +11,14 @@ import { decodeWorktreeMarkerOwnership, readWorktreeMarkerGeneration, resolveWor
 import type { DerivedCheckoutRow } from "./derived-roster.js";
 import { readWorkUnitLineage } from "./store-terminal-work-unit.js";
 import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
+import { classifyUnboundMarker, type UnboundMarkerClassification } from "./unbound-marker.js";
 
 /** The generation retained by an occupancy observation. */
 export type PresentMarker = Extract<WorktreeMarkerGenerationReadResult, { kind: "present" }>;
 export type MarkerOccupancy =
   | { kind: "clear" }
   | { kind: "unreadable"; reason: string }
+  | { kind: "unbound"; reason: string; marker: PresentMarker; unbound: UnboundMarkerClassification }
   | { kind: "occupied"; reason: string; marker: PresentMarker; workUnit: StoreRecord | null; missingRecord: boolean };
 
 /** Read every marker role, including roles the current-work-unit resolver deliberately passes over. */
@@ -37,6 +39,7 @@ export async function inspectCheckoutMarker(input: { cwd: string; store: Store; 
 async function readWorkUnitOccupancy(input: { cwd: string; store: Store; identity?: string }, marker: PresentMarker,
   name: string, uid?: string): Promise<MarkerOccupancy> {
   const listing = await input.store.list({ family: "work-item", kind: "work-item/meta" });
+  if (input.store.capabilities.stateOffBranch && uid === undefined) return readUnboundOccupancy(input, marker, listing);
   if (listing.status === "refused") return unreadable(`${listing.refusal.condition} ${listing.refusal.remedy.text}`);
   const result = listing.result;
   if (result.status === "unreadable") return unreadable(`${result.condition} ${result.remedy.text}`);
@@ -46,12 +49,17 @@ async function readWorkUnitOccupancy(input: { cwd: string; store: Store; identit
     if (lookup.refusal.code !== "not-found") return unreadable(`${lookup.refusal.condition} ${lookup.refusal.remedy.text}`);
     const lineage = await readWorkUnitLineage(input.store, uid ?? name);
     if (lineage !== null) return occupied(marker, `Checkout ${input.cwd} holds '${name}' with retained lineage. Inspect arc status ${name}; run arc teardown ${name} for ended work, or repair the marker after a rename.`);
-    return { ...occupied(marker, noRecordMarkerExit(input.cwd, name, marker.marker.spawnedByArc)), missingRecord: true };
+    return { ...occupied(marker, `Checkout ${input.cwd} holds '${name}' but its bound record and lineage are gone; run arc locus release there to ${marker.marker.spawnedByArc ? "remove that checkout" : "clear the marker"}.`), missingRecord: true };
   }
   const read = await input.store.read({ reference: lookup.result.reference });
   if (read.status === "refused") return unreadable(`${read.refusal.condition} ${read.refusal.remedy.text}`);
   if (read.result.reference.kind !== "work-item/meta") return unreadable("The marker claim resolves to an Errand rather than a work unit.");
   return occupied(marker, workUnitMarkerExit(input.cwd, name, read.result, input.identity), read.result);
+}
+async function readUnboundOccupancy(input: { cwd: string; store: Store; identity?: string }, marker: PresentMarker,
+  listing: Awaited<ReturnType<Store["list"]>>): Promise<MarkerOccupancy> {
+  const unbound = await classifyUnboundMarker({ ...input, marker: marker.marker, listing });
+  return unbound.kind === "unreadable" ? unbound : { kind: "unbound", marker, unbound, reason: unbound.reason };
 }
 /** Describe the missing-record marker's distinct recovery paths. */
 export function noRecordMarkerExit(cwd: string, name: string, spawned: boolean): string {

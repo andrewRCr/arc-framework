@@ -217,7 +217,7 @@ export function makePauseGuard(store?: Store, basis?: StoreRecord): GuardValidat
 async function readStoreOccupancy(cwd: string, store: Store, slug: string, identity?: string): Promise<GuardResult> {
   if (usesOffBranchState(store)) {
     const occupancy = await inspectCheckoutMarker({ cwd, store, identity });
-    if (occupancy.kind === "unreadable") return { ok: false, message: occupancy.reason };
+    if (occupancy.kind === "unreadable" || occupancy.kind === "unbound") return { ok: false, message: occupancy.reason };
     if (occupancy.kind === "occupied") {
       const ownership = decodeWorktreeMarkerOwnership(occupancy.marker.marker);
       const own = occupancy.marker.marker.husk === undefined && ownership.kind === "current"

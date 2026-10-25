@@ -26,13 +26,13 @@ export async function runStoreColdStart(ctx: SpawnWorktreeContext, params: ColdS
     if (current.status === "ambiguous" || current.warnings.length > 0) return { ok: false, reason: `Work-unit occupancy is unresolved. ${current.warnings.join(" ")}` };
     const occupancy = await inspectCheckoutMarker({ cwd: params.worktreePath, store, identity: params.identity });
     if (occupancy.kind === "unreadable") return { ok: false, reason: occupancy.reason };
-    if (occupancy.kind === "occupied" && (!occupancy.missingRecord || occupancy.marker.marker.spawnedByArc)) return { ok: false, reason: occupancy.reason };
+    if (occupancy.kind === "occupied" || (occupancy.kind === "unbound" && occupancy.unbound.exit.kind !== "rerun")) return { ok: false, reason: occupancy.reason };
     const admission = await coldStartNameRefusal(store, wuName, params.name !== undefined);
     if (admission !== null) return { ok: false, reason: admission };
     await requireMarkerExclusivity(ports, { kind: "creation", slug: wuName, checkoutPath: params.worktreePath });
     await ensureWorktreeMarkerIgnored(params.worktreePath, ctx.io.exec, nodeWorktreeMarkerIgnoreFs);
     await writeEditorDocumentsOrThrow(params.worktreePath, ctx.io.exec, nodeEditorDocumentsFs, undefined, ctx.writeEditorDocuments);
-    const expected = occupancy.kind === "occupied" ? occupancy.marker.bytes : undefined;
+    const expected = occupancy.kind === "unbound" ? occupancy.marker.bytes : undefined;
     const marker = await ports.writeAnchoredMarker(params.worktreePath, { spawnedByArc: false,
       createdFor: { kind: "work-unit", name: wuName }, spawningIdentity: params.identity, createdAt: new Date().toISOString() },
     expected === undefined ? {} : { expected });

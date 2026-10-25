@@ -152,7 +152,10 @@ it.each([true, false])("offers release for a marked checkout with no work-unit r
     expect(input.derivedRoster?.[0]?.actions?.[0]).toMatchObject({ text: expect.stringMatching(/finish it.*clear the marker/iu) });
     expect(input.derivedRoster?.[0]?.actions?.[0]).not.toHaveProperty("argv");
   }
-  expect((await runStaleWorktreeSweep(input)).worktrees[0]?.actions?.[0]?.argv).toEqual(["arc", "locus", "release", "done"]);
+  expect((await runStaleWorktreeSweep(input)).worktrees[0]?.actions).toMatchObject([
+    ...(!spawned ? [{ argv: ["arc", "start", "done", "--new", "--here"], checkout: "/checkout" }] : []),
+    { argv: ["arc", "locus", "release"], checkout: "/checkout" },
+  ]);
 });
 it("withholds duplicate anchored cold-start releases and offers release after only one marker remains", async () => {
   const h = createLifecycleHarness(), original = await options(h.store, undefined, true, false);
@@ -161,7 +164,10 @@ it("withholds duplicate anchored cold-start releases and offers release after on
   expect(blocked.worktrees).toEqual([]);
   expect(blocked.warnings.join(" ")).toMatch(/multiple marker holders.*release the stray checkout/iu);
   const repaired = await runStaleWorktreeSweep(await options(h.store, undefined, true, false));
-  expect(repaired.worktrees[0]?.actions?.[0]?.argv).toEqual(["arc", "locus", "release", "done"]);
+  expect(repaired.worktrees[0]?.actions).toMatchObject([
+    { argv: ["arc", "start", "done", "--new", "--here"], checkout: "/checkout" },
+    { argv: ["arc", "locus", "release"], checkout: "/checkout" },
+  ]);
   expect(repaired.warnings).toEqual([]);
 });
 it("preserves the physical-removal remote gate for ended store records", async () => {
@@ -231,7 +237,7 @@ it.each(["completed", "foreign", "missing"] as const)("withholds cleanup and rel
   const repaired = await runStaleWorktreeSweep(await options(h.store, primary === undefined ? undefined : boundWorkUnitSubject(primary)));
   expect(repaired.worktrees).toHaveLength(1);
   expect(repaired.worktrees[0]).toMatchObject(state === "completed" ? { decision: { action: "removable" } }
-    : { actions: [{ argv: ["arc", "locus", "release", "done"] }] });
+    : { actions: [{ argv: ["arc", "locus", "release", ...(state === "foreign" ? ["done"] : [])] }] });
 });
 
 it("withholds the branched abandonment retirement offer for duplicate holders, then restores it for the sole holder", async () => {

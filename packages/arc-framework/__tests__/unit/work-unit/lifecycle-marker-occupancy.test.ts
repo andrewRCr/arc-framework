@@ -28,7 +28,8 @@ it("refuses a crashed anchored cold start naming both recovery exits", async () 
   await writeWorktreeMarker(h.cwd, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "crashed" },
     spawningIdentity: "andrew", createdAt: new Date(0).toISOString() });
   expect(await h.guard()).toMatchObject({ ok: false, message: expect.stringContaining("arc start crashed --new --here") });
-  expect(await h.guard()).toMatchObject({ ok: false, message: expect.stringContaining("arc locus release crashed") });
+  expect(await h.guard()).toMatchObject({ ok: false, message: expect.stringContaining("arc locus release") });
+  expect(await h.guard()).toMatchObject({ message: expect.stringContaining("unbound") });
 });
 
 it("refuses a husk marker naming teardown", async () => {

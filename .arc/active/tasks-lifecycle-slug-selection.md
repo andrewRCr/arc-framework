@@ -685,25 +685,11 @@ released, then rerun.
           status, and materialize reports preserve the location and exits. Pause persists before its unobservable
           sharing report; named release prefers binding owned in-flight work.
 
-    - `[ ]` **6.1.c Marker occupancy and the cleanup sweep**
+    - `[x]` **6.1.c Marker occupancy and the cleanup sweep**
 
-        - Marker occupancy (`inspectCheckoutMarker`, `lib/locus/marker-occupancy.ts`) and the stale-worktree selection
-          (`selectCheckout`, `lib/session-init/store-worktree-selection.ts`) classify a marker without a UID through
-          6.1.a before its claim lookup. Occupancy reports it as its own unbound occupancy carrying the classification;
-          the sweep reports it as a release report whose actions are the classifier's exits, rather than as the warning
-          `selectCheckout`'s other refusals become. `readWorkUnitOccupancy` keeps its listing and hands classification
-          to the classifier, within its limit.
-        - `missingRecord` stays for a bound marker whose claim and lineage find nothing, with today's release admission
-          (`releaseAuthority`, `lib/locus/release.ts`) and no rerun. This replaces the by-name residue test for an
-          unbound marker, which a reused slug defeats.
-        - `terminal-occupancy-admission.test.ts`'s three cases withholding release for an abandoned, a decomposed, and a
-          renamed origin invert, since such an unbound marker takes release alone (4.3.d keeps it without a UID), and
-          `stale-worktree-store.test.ts`'s no-record report cases take the unbound report.
-        - Build `test-first` (one behavior at a time):
-            - marker occupancy refuses an unbound marker of a reused slug naming both holders and the exits, and a bound
-              marker whose record and lineage are gone keeps today's release exit
-            - the cleanup sweep reports an unbound marker with its exits bound to its checkout, and the checkout is free
-              once the exit runs
+        - Occupancy retains the classifier and marker generation; cleanup reports its checkout-bound exits before claim
+          lookup. Unnamed release accepts and revalidates unbound markers, while bound missing records retain release
+          without rerun. Guards refuse unbound claims; cold-start retries retain generation replacement for rerun exits.
 
     - `[ ]` **6.1.d The derived roster's work-unit evidence**
 
