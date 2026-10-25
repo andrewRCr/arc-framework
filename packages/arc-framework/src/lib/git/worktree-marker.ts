@@ -101,7 +101,7 @@ export type DecodedWorktreeHuskStamp =
     }
   | {
       kind: "manual-only";
-      reason: "mixed-presence" | "unknown-authorization" | "unknown-evidence" | "evidence-mismatch";
+      reason: "mixed-presence" | "unknown-authorization" | "unknown-evidence" | "evidence-mismatch" | "pre-store-husk";
     };
 
 /** Trust classification for a structurally valid ownership marker. */
@@ -351,7 +351,8 @@ function isWorktreeHuskStamp(value: unknown): value is WorktreeHuskStamp {
 }
 
 /** Decode authorization-bearing fields without granting authority to partial or future shapes. */
-export function decodeWorktreeHuskStamp(stamp: WorktreeHuskStamp): DecodedWorktreeHuskStamp {
+export function decodeWorktreeHuskStamp(stamp: WorktreeHuskStamp, options: { stateOffBranch?: boolean } = {}): DecodedWorktreeHuskStamp {
+  if (options.stateOffBranch && stamp.subject.kind === "work-unit") return { kind: "manual-only", reason: "pre-store-husk" };
   const presence = [
     stamp.authorization !== undefined,
     Object.prototype.hasOwnProperty.call(stamp, "remoteRef"),

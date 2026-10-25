@@ -24,7 +24,7 @@ const HuskCleanupDecisionSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("removable") }),
   z.strictObject({
     action: z.literal("blocked"),
-    reason: z.enum(["uncommitted", "head-moved", "evidence-mismatch", "evidence-unavailable", "unobservable", "locked"]),
+    reason: z.enum(["uncommitted", "head-moved", "evidence-mismatch", "pre-store-husk", "evidence-unavailable", "unobservable", "locked"]),
   }),
   z.strictObject({ action: z.literal("outside"), reason: z.enum(["untrusted-marker", "missing-stamp"]) }),
 ]);

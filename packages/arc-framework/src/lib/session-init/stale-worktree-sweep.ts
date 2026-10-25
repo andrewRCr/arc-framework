@@ -441,7 +441,7 @@ async function inspectHuskRemoval(context: {
     check: options.projectionRemovalSlots?.check, folderExists: options.folderExists });
   if (removalCheck.kind === "missing") return null;
   const clean = removalCheck.kind === "removable";
-  let decoded = decodeWorktreeHuskStamp(stamp);
+  let decoded = decodeWorktreeHuskStamp(stamp, { stateOffBranch: options.store?.capabilities.stateOffBranch });
   let decision: Extract<StaleWorktreeReport, { kind: "husk" }>["decision"] = removalCheck.kind === "refused"
     && (removalCheck.reason === "unobservable" || removalCheck.reason === "locked")
     ? { action: "blocked", reason: removalCheck.reason }

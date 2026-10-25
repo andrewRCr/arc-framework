@@ -830,26 +830,11 @@ edits land in package source and sync to `.arc/`.
   (`packages/arc-framework/arc/system/workflows/arc/session-lifecycle/`); edit it in package source in the
   shipped-content register, load `strategy-workflow-authoring.md` before editing, and sync the `.arc/` copy.
 
-    - `[ ]` **7.2.a The stamp**
+    - `[x]` **7.2.a The stamp**
 
-        - `decodeWorktreeHuskStamp` (`lib/git/worktree-marker.ts`) takes an arm option, in-repo by default. In the store
-          arm every work-unit husk's stamp, a `legacy` one included, reads `manual-only` with a pre-flip reason that the
-          closed reason set gains, in `DecodedWorktreeHuskStamp`, `HuskCleanupDecision` (`lib/git/worktree-cleanup.ts`),
-          and the sweep report's decision union (`stale-worktree-sweep.ts`). The sweep passes the store arm from its
-          store's capability (`stateOffBranch`), and the current-husk advisory (`deriveCurrentHuskAdvisory`, reached
-          from `handlers/status.ts`) passes it likewise; marker occupancy reads the husk without the decoder (7.2.c).
-        - The store teardown's `--husk` replay (`selectStoreRetirementHusk`, `lib/work-unit/store-retirement-husk.ts`)
-          keeps the default decode. It admits only a stamp whose evidence matches the selected store version
-          (`huskEvidenceMatches`), which no shipped path writes, so it refuses every pre-flip husk as today, and
-          `retirement-store.test.ts`'s replay cases pass unchanged.
-        - The published schemas carrying the reason sets (`CurrentHuskAdvisorySchema`,
-          `lib/session-init/current-husk-advisory.ts`; `HuskCleanupDecisionSchema`, `stale-worktree-sweep-schema.ts`),
-          which `lib/session-envelope/registry.ts` and `commands/status/schema.ts` import, change in place.
-        - Build `test-first` (one behavior at a time):
-            - a work-unit husk stamped `shipped` or with `git-transition` evidence reads `manual-only` with the pre-flip
-              reason in the store arm, and as today in the in-repo arm
-            - the store teardown's `--husk` replay still tears down a husk whose evidence matches, and refuses one
-              carrying in-repo evidence
+        - The decoder marks every store-arm work-unit husk manual-only with `pre-store-husk`, including legacy stamps.
+          Current-husk and sweep readers pass the storage capability, and published reason sets carry the result.
+          Store teardown replay retains default decoding and its exact evidence admission.
 
     - `[ ]` **7.2.b The derived row and the roster**
 
