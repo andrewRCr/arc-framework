@@ -15,6 +15,12 @@ afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, {
 async function fixture() {
   const result = await makeFocusedVitestFixture();
   roots.push(result.root);
+  const configPath = join(result.packageRoot, "vitest.config.ts");
+  const config = await readFile(configPath, "utf8");
+  expect(config).toContain("__tests__/unit/**/*.test.mjs");
+  await writeFile(configPath, config.replace("__tests__/unit/**/*.test.mjs", "__tests__/unit/**/*.test.{mjs,ts}"));
+  await writeFile(join(result.packageRoot, "__tests__/unit/isolated-mock-files.guard.test.ts"),
+    'import { it } from "vitest"; it("isolation guard", () => { console.log("ISOLATION-GUARD-RAN"); });\n');
   await writeFile(join(result.packageRoot, "src/related-fixture.mjs"), "export const value = 42;\n");
   await writeFile(join(result.packageRoot, "src/unrelated-fixture.mjs"), "export const other = true;\n");
   await writeFile(join(result.packageRoot, "__tests__/unit/named.test.mjs"),
@@ -41,6 +47,30 @@ it("runs both related unit projects for a supplied source despite a clean Git di
   expect(result.stdout).toContain("RELATED-MOCK-RAN");
   expect(result.stdout + result.stderr).not.toContain("UNRELATED-UNIT-RAN");
   expect(result.stdout).toContain("2 passed");
+  expect(result.stdout).not.toContain("ISOLATION-GUARD-RAN");
+}, 30_000);
+
+it.each([
+  { path: "__tests__/unit/named.test.mjs", absolute: false, marker: "RELATED-UNIT-RAN" },
+  { path: "__tests__/unit/mocks/related.test.mjs", absolute: true, marker: "RELATED-MOCK-RAN" },
+])("runs the isolation guard for a unit-test-only change to $path", async ({ path, absolute, marker }) => {
+  const setup = await fixture();
+  const input = absolute ? resolve(setup.packageRoot, path) : path;
+  const result = await runVitestControllerFixture(setup.packageRoot, ["changed", input]);
+  expect(result.code, result.stdout + result.stderr).toBe(0);
+  expect(result.stdout).toContain(marker);
+  expect(result.stdout).toContain("ISOLATION-GUARD-RAN");
+  expect(result.stdout + result.stderr).not.toContain("UNRELATED-UNIT-RAN");
+  expect(result.stdout).toContain("2 passed");
+}, 30_000);
+
+it("propagates a selected isolation guard's failure", async () => {
+  const setup = await fixture();
+  await writeFile(join(setup.packageRoot, "__tests__/unit/isolated-mock-files.guard.test.ts"),
+    'import { it } from "vitest"; it("isolation guard", () => { throw new Error("ISOLATION-GUARD-FAILED"); });\n');
+  const result = await runVitestControllerFixture(setup.packageRoot, ["changed", "__tests__/unit/named.test.mjs"]);
+  expect(result.code, result.stdout + result.stderr).toBe(1);
+  expect(result.stdout + result.stderr).toContain("ISOLATION-GUARD-FAILED");
 }, 30_000);
 
 it("reports an empty related selection with its own status before executing either configured unit project", async () => {

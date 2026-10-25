@@ -6,7 +6,7 @@ import type { GitExec } from "./git/exec.js";
 import type { LocalHeavyTestTier } from "./local-test-admission.js";
 import { discoverVitestSelection } from "./vitest-discovery.js";
 import { executeVitestSelection } from "./vitest-execution.js";
-import { resolve } from "node:path";
+import { resolve, sep } from "node:path";
 
 /**
  * Integration suites that read this repository's own tracked content rather than temporary fixtures, so a
@@ -56,6 +56,12 @@ export async function runLocalVitestTier(
     ...localVitestTierArguments(tier),
     ...forwardedArguments,
   ]);
+  if (tier === "changed" && Array.isArray(options.related)) {
+    const unitDirectory = resolve(import.meta.dirname, "../../__tests__/unit");
+    if (options.related.some((path) => resolve(path).startsWith(`${unitDirectory}${sep}`))) {
+      options.related.push(resolve(unitDirectory, "isolated-mock-files.guard.test.ts"));
+    }
+  }
   const selection = await discoverVitestSelection(filter, options);
   await executeVitestSelection(selection, { cwd: process.cwd(), env: process.env, tier,
     packageRoot: resolve(import.meta.dirname, "../..") });
