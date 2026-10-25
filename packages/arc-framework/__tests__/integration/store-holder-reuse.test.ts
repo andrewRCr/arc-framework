@@ -268,7 +268,7 @@ it("materialize in the archived checkout offers that holder's teardown by UID", 
   await unchanged(h);
 }, 30_000);
 
-it("session init reports a pre-store work-unit husk manually beside live work", async () => {
+it.each([false, true])("session init reports the same pre-store husk manually, entering its checkout=%s", async ownCheckout => {
   const h = await fixture(), livePath = await checkout(h, "live", h.live);
   const head = (await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.archivedPath })).stdout.trim();
   await writeWorktreeMarker(h.archivedPath, { spawnedByArc: true, createdFor: { kind: "work-unit", name: "example" },
@@ -276,12 +276,23 @@ it("session init reports a pre-store work-unit husk manually beside live work", 
       subject: { kind: "work-unit", name: "example" }, branch: "feat/example" } });
   const marker = await readFile(resolveWorktreeMarkerPath(h.archivedPath)), liveMarker = await readFile(resolveWorktreeMarkerPath(livePath));
   const before = lifecycleSuccess(await h.store.version());
-  const result = await repairCli({ ...h, cwd: h.archivedPath }, ["status", "--session-init", "--json"], { store: h.store });
+  const result = await repairCli({ ...h, cwd: ownCheckout ? h.archivedPath : h.cwd }, ["status", "--session-init", "--json"], { store: h.store });
   expect(result.exitCode ?? 0, result.stderr).toBe(0);
-  expect(result.result).toMatchObject({ currentHusk: { ok: true, value: { worktreePath: h.archivedPath,
+  if (ownCheckout) expect(result.result).toMatchObject({ currentHusk: { ok: true, value: { worktreePath: h.archivedPath,
     subject: { kind: "work-unit", name: "example" }, stamp: { kind: "manual-only", reason: "pre-store-husk" } } },
     derivedLocusState: { ok: true, value: { entering: { kind: "selected", row: { kind: "retired", context: null } } } } });
+  else expect(result.result).toMatchObject({ sweep: { ok: true, value: { worktrees: [expect.objectContaining({
+    kind: "husk", worktreePath: h.archivedPath, stamp: { kind: "manual-only", reason: "pre-store-husk" },
+    decision: { action: "blocked", reason: "pre-store-husk" }, actions: [{ text: expect.stringContaining("manual decision") }],
+  })] } } });
   expect(result.result).not.toHaveProperty("currentHusk.value.actions");
+  if (!ownCheckout) {
+    const init = SessionInitProbeResultSchema.parse(result.result);
+    if (!init.sweep?.ok) throw Error("Unavailable husk sweep");
+    const husk = init.sweep.value.worktrees.find(item => item.worktreePath === h.archivedPath);
+    expect(husk).not.toHaveProperty("teardown");
+    for (const action of husk?.actions ?? []) expect(action).not.toHaveProperty("argv");
+  }
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
   expect(await readFile(resolveWorktreeMarkerPath(h.archivedPath))).toEqual(marker);
   expect(await readFile(resolveWorktreeMarkerPath(livePath))).toEqual(liveMarker);

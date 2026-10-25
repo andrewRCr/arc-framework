@@ -898,17 +898,15 @@ edits land in package source and sync to `.arc/`.
   holders retain it. Registered session init exposes the detached archived holder's UID action, and executing that
   action preserves the live namesake's checkout, branch, remote, marker, and records.
 
-### `[ ]` **7.6 An ended holder's cleanup end to end** — validate exit criterion at segment scope
+### `[x]` **7.6 An ended holder's cleanup end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds end to end: the archived holder of a reused slug is torn down by UID with
   the live holder's checkout, branch, and remote untouched, and every work-unit husk reports a manual decision.
 
-    - Over the reference backend, with a live holder and a bound checkout of the archived holder of one slug, run
-      session start's sweeps, confirming the offers the template renders name the archived holder's UID, and
-      `arc teardown <uid>` of the archived holder; place a work-unit husk and run session start in the primary checkout
-      and in the husk's own; tear down a branch husk with `arc teardown --branch`, an abandoned holder, and a retired
-      origin by UID; and run a `discard` teardown against a remote whose tip the local branch lacks.
-    - Request `arc check segment` after the scenario checks.
+- _Outcome:_ Registered session init offers the archived holder's UID; executing its action removes that checkout and
+  preserves the live holder's checkout, branch, remote, marker, and records. The same physical work-unit husk stays
+  manual from primary and own-checkout entry, branch-husk replay removes its residue, abandoned cleanup reaps its own
+  branches, retired origins resolve by UID, and discard retains unheld remote tips until local evidence is repaired.
 
 ## **Phase 8:** The ref backend's lookup
 
