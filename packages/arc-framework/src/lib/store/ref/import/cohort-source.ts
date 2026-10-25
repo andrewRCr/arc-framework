@@ -6,6 +6,7 @@ import { RecordReferenceSchema, type StateVersion } from "../../identity.js";
 import type { ReadPlacement } from "../../placement.js";
 import type { MigrateReport } from "../../commands.js";
 import type { RefBackendContext } from "../context.js";
+import { reportImportAdmission } from "./admission.js";
 import { cohortPaths } from "../../in-repo/paths.js";
 
 /** Open cohorts have no completed placement; closed cohorts retain their number and closeout suffix. */
@@ -22,7 +23,11 @@ export async function importCohortPlacements(context: RefBackendContext, report:
     const match = /^([0-9]+)([ab])_cohort-(.+)$/u.exec(folder ?? "");
     const q = ArchiveQuarterSchema.safeParse(quarter), sequence = ArchiveSequenceSchema.safeParse(match?.[1]);
     if (!q.success || !sequence.success || match?.[3] !== name.data) {
-      report.refused.push({ reference: RecordReferenceSchema.parse({ kind: "cohort/document", owner: { type: "cohort", name: name.data } }), rule: "key" });
+      const reference = RecordReferenceSchema.parse({ kind: "cohort/document", owner: { type: "cohort", name: name.data } });
+      reportImportAdmission(report, { reference }, {
+        condition: `The closed-cohort source ${path} has an invalid archive coordinate.`,
+        remedy: { text: `Repair ${path}: use a valid quarter (YYYY-q1 through YYYY-q4), a positive archive number, and the folder <number><a|b>_cohort-<slug> matching cohort-${name.data}.md; then retry arc store migrate --import.` },
+      }, "key");
       continue;
     }
     placements.set(name.data, { kind: "completed", quarter: q.data, sequence: sequence.data, closeout: match[2] === "a" ? "a" : "b" });

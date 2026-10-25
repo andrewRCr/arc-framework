@@ -1,5 +1,7 @@
 /** Imported archives retain their legacy coordinates and complete item histories. */
 import { describe, expect, it } from "vitest";
+import { rename } from "node:fs/promises";
+import { join } from "node:path";
 import { createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { importFixture } from "../helpers/store/import-fixture.js";
@@ -50,6 +52,40 @@ describe("archive import in the default layout", () => {
       content: makeMetaFixture("next-archive", { state: "Shipped", owner: "andrew", branch: null, completed: "2026-10-01", prUrl: "https://example.test/pull/2" }),
       placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q3") }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
     expect(success(await store.read({ reference: fresh.reference })).placement).toEqual({ kind: "completed", quarter: "2026-q3", sequence: "56" });
+  });
+  it("explains malformed closed-cohort coordinates in trial and import, then accepts repair", async () => {
+    const h = await importFixture(layout, { completed: true });
+    const original = ".arc/completed/2026-q3/53a_cohort-closed-a";
+    const malformed = ".arc/completed/2026-q3/00a_cohort-closed-a";
+    const sourcePath = `${malformed}/cohort-closed-a.md`;
+    await rename(join(h.root, original), join(h.root, malformed));
+    await h.git("git", ["add", ".arc/completed"]);
+    await h.git("git", ["commit", "-m", "Record malformed cohort placement"]);
+    const reference = RecordReferenceSchema.parse({ kind: "cohort/document", owner: { type: "cohort", name: "closed-a" } });
+    const trial = await h.migrate(true);
+    expect(trial).toMatchObject({ status: "ok", result: {
+      refused: expect.arrayContaining([{ reference, rule: "key" }]),
+      notices: expect.arrayContaining([expect.objectContaining({
+        condition: expect.stringContaining(sourcePath),
+        remedy: { text: expect.stringMatching(/quarter.*number.*[ab].*slug/iu) },
+      })]),
+    } });
+    const attempted = await h.migrate();
+    expect(attempted).toMatchObject({ status: "refused", refusal: { code: "import-refused", report: {
+      refused: expect.arrayContaining([{ reference, rule: "key" }]),
+      notices: expect.arrayContaining(trial.status === "ok" ? trial.result.notices.filter(({ condition }) => condition.includes(sourcePath)) : []),
+    } } });
+    expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
+    await rename(join(h.root, malformed), join(h.root, original));
+    await h.git("git", ["add", ".arc/completed"]);
+    await h.git("git", ["commit", "-m", "Repair cohort placement"]);
+    expect(await h.migrate()).toMatchObject({ status: "ok" });
+    const record = success(await createRefStore(h.ports).read({ reference }));
+    expect(record).toMatchObject({ content: "# Cohort: `closed-a`\n\n**Purpose:** Preserve the closed cohort.\n",
+      placement: { kind: "completed", quarter: "2026-q3", sequence: "53", closeout: "a" } });
+    const uid = "uid" in record.reference.owner ? record.reference.owner.uid : undefined;
+    expect((await h.git("git", ["show-ref", "--verify", `refs/arc/history/cohort/${uid}`])).stdout)
+      .toContain(`refs/arc/history/cohort/${uid}`);
   });
   it("retains each closed cohort's number and closeout letter", async () => {
     const h = await importFixture(layout, { completed: true });
