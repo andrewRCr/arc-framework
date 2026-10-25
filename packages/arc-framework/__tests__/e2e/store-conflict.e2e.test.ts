@@ -27,6 +27,7 @@ async function fixture(layout: "default" | "separate") {
 it.each(["default", "separate"] as const)("executes the exact inspection and explicit discard remedy in the %s layout", async (layout) => {
   const { cwd, captured, gitArgs, argv } = await fixture(layout);
   const registry = await git(cwd, [...gitArgs, "rev-parse", "refs/arc/project/registry"]);
+  const registryTree = await git(cwd, [...gitArgs, "rev-parse", `${registry}^{tree}`]);
   const inspected = await runArcNoTty([...argv, "--json"], cwd);
   expect(inspected.exitCode, JSON.stringify(inspected)).toBe(0);
   expect(JSON.parse(inspected.stdout)).toMatchObject({ status: "ok", result: {
@@ -37,15 +38,20 @@ it.each(["default", "separate"] as const)("executes the exact inspection and exp
   expect(human.stdout).toContain("Preserved late alternative.");
   expect(human.stdout).toContain('"current"');
   expect(human.stdout).toContain('"incoming"');
+  expect(await git(cwd, [...gitArgs, "rev-parse", "refs/arc/project/registry"])).toBe(registry);
   const discarded = await runArcNoTty([...argv, "--discard", "--json"], cwd);
   expect(discarded.exitCode, JSON.stringify(discarded)).toBe(0);
   expect(JSON.parse(discarded.stdout)).toEqual({ status: "ok", result: { status: "discarded", reference: captured.reference } });
+  const advancedRegistry = await git(cwd, [...gitArgs, "rev-parse", "refs/arc/project/registry"]);
+  expect(advancedRegistry).not.toBe(registry);
+  expect(await git(cwd, [...gitArgs, "rev-parse", `${advancedRegistry}^`])).toBe(registry);
+  expect(await git(cwd, [...gitArgs, "rev-parse", `${advancedRegistry}^{tree}`])).toBe(registryTree);
   for (const flags of [["--json"], ["--discard", "--json"]]) {
     const absent = await runArcNoTty([...argv, ...flags], cwd);
     expect(absent.exitCode).toBe(0);
     expect(JSON.parse(absent.stdout)).toMatchObject({ status: "ok", result: { status: "absent" } });
   }
-  expect(await git(cwd, [...gitArgs, "rev-parse", "refs/arc/project/registry"])).toBe(registry);
+  expect(await git(cwd, [...gitArgs, "rev-parse", "refs/arc/project/registry"])).toBe(advancedRegistry);
   expect(await git(cwd, [...gitArgs, "for-each-ref", "--format=%(refname)", `refs/arc/work/${captured.reference.owner.uid}`])).toBe("");
   expect(await git(cwd, [...gitArgs, "ls-tree", "-r", "--name-only", captured.history])).not.toContain(`conflicts/${captured.reference.key}.json`);
 }, 60_000);
