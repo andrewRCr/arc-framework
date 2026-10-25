@@ -22,6 +22,7 @@ import { leaveRefSource } from "./leave-source.js";
 export async function runRefMigrate(context: RefBackendContext, store: Store, input: StoreMigrateInput): Promise<StoreMigrateResult> {
   const parsed = StoreMigrateInputSchema.safeParse(input);
   if (!parsed.success) return invalidCommand("The migration request is invalid.");
+  if (parsed.data.import && (parsed.data.to || parsed.data.leaveSource)) return invalidCommand("--import cannot accompany --to or --leave-source.");
   if (parsed.data.trial && (!parsed.data.to && !parsed.data.import || parsed.data.leaveSource)) return invalidCommand("--trial requires --to or --import and cannot accompany --leave-source.");
   if (parsed.data.import) return withMigrationLock(context, async () => {
     const { importTrackedState } = await import("./import/entry.js");

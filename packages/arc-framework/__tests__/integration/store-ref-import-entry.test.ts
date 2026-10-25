@@ -15,6 +15,7 @@ import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 import { CandidateManagedRecordV1Schema, createCandidateAttestation, serializeCandidateManagedRecord } from "../../src/lib/work-unit/candidate-attestation.js";
 import { importFixture } from "../helpers/store/import-fixture.js";
+import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 
 describe("tracked import entry", () => {
   it.each(["default", "separate"] as const)("reports a %s trial without minting the gate identity or landing state", async (layout) => {
@@ -125,4 +126,19 @@ describe("tracked import entry", () => {
     expect((await h.git("git", ["show", `${home.ref}:${home.path}`])).stdout).toBe(content);
     expect(success(await createRefStore(h.ports).read({ reference })).content).toBe(content);
   });
+});
+
+
+it.each((["default", "separate"] as const).flatMap(layout => [
+  ["--import", "--to", "origin"], ["--import", "--leave-source"], ["--import", "--to", "origin", "--leave-source"],
+].map(argv => ({ layout, argv }))))("refuses incompatible import options $argv before creating $layout state", async ({ layout, argv }) => {
+  const h = await importFixture(layout);
+  const before = (await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout;
+  expect(await invokeStoreMigrate(argv, h.ports)).toMatchObject({ status: "refused", refusal: {
+    code: "request-invalid", class: "terminal", condition: expect.stringContaining("--import"),
+  } });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)"])).stdout).toBe(before);
+  await expect(readdir(join(h.root, ".git/arc/store"))).rejects.toMatchObject({ code: "ENOENT" });
+  await expect(readdir(join(h.root, ".git/arc/review-gate"))).rejects.toMatchObject({ code: "ENOENT" });
+  expect(await h.migrate(true)).toMatchObject({ status: "ok" });
 });
