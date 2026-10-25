@@ -17,6 +17,7 @@ import { MigrationRefusal } from "./migrate-refusal.js";
 import { undoSwitch } from "./migrate-switch-undo.js";
 import { copyFollowState } from "./follow-copy.js";
 import { deleteFollowSource } from "./follow-delete.js";
+import { describeEndedFollow } from "./follow-report.js";
 
 type DecidedFollow = Extract<RefFollowJudgment, { status: "decided" }>;
 
@@ -71,14 +72,16 @@ export async function resumeRefFollow(context: RefBackendContext, store: Store, 
 /** End a recorded follow another move overtook, undoing a begun switch; a changed record stays due for the next run to judge. */
 async function endRecordedFollow(context: RefBackendContext, store: Store, code: RefBackendContext, recorded: RecordedFollow,
   cause: "stale" | "moved"): Promise<StoreCommandResult<MigrateReport>> {
+  const report = await describeEndedFollow(code, recorded);
   const undone = await undoSwitch(context, store, followSwitchUndo(recorded));
   if (cause === "stale") {
     const physical = await readRefRepository(context), trackingRef = `refs/arc-remotes/${recorded.record.source.name}/project/moved`;
     const tip = (await readSyncRefs(physical, trackingRef)).get(trackingRef);
     if (tip) await dropStaleFollow(context, { trackingRef, tip });
   }
+  report.notices.push(endedFollowNotice(cause, undone));
   await removeMoveRecord(code, recorded); await clearRemoteGathering(code);
-  return { status: "ok", result: remoteCopyReport(new Map(), new Map(), [endedFollowNotice(cause, undone)]) };
+  return { status: "ok", result: report };
 }
 
 function endedFollowNotice(cause: "stale" | "moved", undone: boolean): MigrateReport["notices"][number] {

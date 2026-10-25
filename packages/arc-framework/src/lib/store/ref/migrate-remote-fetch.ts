@@ -22,8 +22,7 @@ export async function clearMigrationRefs(context: RefBackendContext, prefix: str
 /** Fetch every store ref, or just project controls, without adopting any as local state. */
 export async function fetchMigrationRemote(context: RefBackendContext, remote: MoveRemote, complete: boolean,
   options?: { prefix?: string; controls?: readonly ("registry" | "moved")[] }): Promise<Map<string, string>> {
-  const key = createHash("sha256").update(JSON.stringify([remote.name, remote.fetchUrl])).digest("hex");
-  const prefix = options?.prefix ?? `refs/arc/tmp/migrate/remote/${key}/`;
+  const prefix = options?.prefix ?? migrationGatheringPrefix(remote);
   await clearMigrationRefs(context, prefix);
   const patterns = complete ? ["work/*", "cohort/*", "archive/*", "project/*", "user/*", "history/work/*", "history/cohort/*"]
     : (options?.controls ?? ["registry", "moved"]).map(control => `project/${control}*`);
@@ -36,6 +35,20 @@ export async function fetchMigrationRemote(context: RefBackendContext, remote: M
     const missing = await missingRefFetchObjects(context, fetched);
     if (missing.length) throw new MigrationRefusal({ code: "store", refusal: new RefFetchIncompleteError(missing, []).failure });
   }
+  return readGatheringRefs(context, prefix);
+}
+
+/** Read the last acquired remote snapshot before its owning migration clears the gathering. */
+export async function readMigrationGathering(context: RefBackendContext, remote: MoveRemote): Promise<Map<string, string>> {
+  return readGatheringRefs(context, migrationGatheringPrefix(remote));
+}
+
+function migrationGatheringPrefix(remote: MoveRemote): string {
+  const key = createHash("sha256").update(JSON.stringify([remote.name, remote.fetchUrl])).digest("hex");
+  return `refs/arc/tmp/migrate/remote/${key}/`;
+}
+
+async function readGatheringRefs(context: RefBackendContext, prefix: string): Promise<Map<string, string>> {
   return new Map([...(await readSyncRefs(context, prefix))].map(([ref, tip]): [string, string] => ["refs/arc/" + ref.slice(prefix.length), tip])
     .filter(([ref]) => isStateRef(ref) || ref === FORWARDING_REF));
 }
