@@ -8,7 +8,7 @@ import type { RefBackendContext } from "./context.js";
 import { directoryExists } from "./designation.js";
 import { bindRefRepository } from "./repository-context.js";
 import { readRefRepository } from "./repository.js";
-import { migrationCodeContext, saveMoveRecord, removeMoveRecord, readMoveReport, type RecordedLayout,
+import { migrationCodeContext, saveMoveRecord, removeMoveRecord, readMoveRecord, readMoveReport, type RecordedLayout,
   type LayoutMoveRecord, type StoreLayout, type LayoutSetting, type RecordedMove } from "./migrate-record.js";
 import { buildLayoutMove, layoutRefs, fetchLayoutObjects, requireLayoutTransaction, clearLayoutGathering, type LayoutBuild } from "./migrate-layout-build.js";
 
@@ -23,8 +23,21 @@ export async function moveRefLayout(context: RefBackendContext, store: Store, de
   setting?: LayoutSetting, resume?: RecordedLayout): Promise<StoreCommandResult<MigrateReport>> {
   const release = await context.lock("layout");
   try { return await moveHeldLayout(context, store, destination, setting, resume); }
-  catch (error) { if (error instanceof MigrationRefusal) return { status: "refused", refusal: error.refusal }; throw error; }
+  catch (error) {
+    if (!(error instanceof MigrationRefusal)) throw error;
+    await cleanRefusedUnrecordedLayout(context);
+    return { status: "refused", refusal: error.refusal };
+  }
   finally { await release(); }
+}
+
+async function cleanRefusedUnrecordedLayout(context: RefBackendContext): Promise<void> {
+  const code = await migrationCodeContext(context), held = await readMoveRecord(code);
+  if (held.status !== "ok" || held.result) return;
+  const common = code.repository?.commonDir;
+  if (!common) throw new Error("No physical code repository selected");
+  await code.fs.removeDirectory(join(common, "arc", "store-migrate-build"));
+  await clearLayoutGathering(code, true);
 }
 
 /** A containing remote move prepares the unexposed target and applies its ordered designation. */
