@@ -48,10 +48,12 @@ export async function finishRefFetchBasis(context: RefBackendContext, remote: st
   const releases = [...basis.tracking].filter(([ref]) => current.has(ref) && ref !== `${prefix}project/moved`)
     .map(([ref, tip]) => ({ ref: `refs/arc/tmp/seen/${remote}/${ref.slice(prefix.length)}`, delete: true as const, expected: tip }));
   if (!releases.length) return;
-  const outcome = await updateRefTransaction(context, releases, { cwd: context.checkoutRoot });
+  const outcome = await updateRefTransaction(context, releases, { cwd: context.checkoutRoot })
+    .catch((error: unknown) => rethrowRefFetchKeeperLock(context, releases.map(({ ref }) => ref), error));
   if (outcome.status === "committed") return;
   // A keeper another step already moved stays; each other one is still released.
-  for (const release of releases) await updateRefTransaction(context, [release], { cwd: context.checkoutRoot });
+  for (const release of releases) await updateRefTransaction(context, [release], { cwd: context.checkoutRoot })
+    .catch((error: unknown) => rethrowRefFetchKeeperLock(context, [release.ref], error));
 }
 
 /** A returned ref must agree with its kept history until an explicit forced fetch chooses a new basis. */

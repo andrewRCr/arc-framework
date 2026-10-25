@@ -44,9 +44,9 @@ async function fetchKeptRefPatterns(context: RefBackendContext, remote: RefRemot
   const target = await refFetchTarget(context, remote, designation);
   const args = refFetchArgs(remote.name, negotiation, target,
     patterns.map((pattern) => `${pattern}:refs/arc-remotes/${remote.name}/${pattern.slice("refs/arc/".length)}`));
-  let fetched = await runRefFetch(context, args, signal);
-  const notices = await checkRefFetchUpdates(context, remote, designation, fetched.outcome, basis, fetched.failed);
   try {
+    let fetched = await runRefFetch(context, args, signal);
+    const notices = await checkRefFetchUpdates(context, remote, designation, fetched.outcome, basis, fetched.failed);
     if (fetched.outcome.status === "refs" && await refFetchNeedsCompleteness(context)
       && (await missingRefFetchObjects(context, fetched.outcome)).length) {
       const at = args.indexOf("fetch");

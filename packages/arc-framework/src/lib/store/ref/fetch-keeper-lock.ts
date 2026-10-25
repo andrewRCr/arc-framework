@@ -1,14 +1,14 @@
-/** Identify a held Git ref lock that prevented retaining tracking heads before a fetch. */
+/** Identify a held Git ref lock that prevented updating or preserving state tracking heads. */
 
 import { join } from "node:path";
 import { isCompletedGitFailure, isGitProcessError } from "../../git/process-error.js";
 import type { RefBackendContext } from "./context.js";
 
-/** A known local lock preserves the pre-fetch retry boundary. */
+/** A known local lock preserves the tracking operation's retry boundary. */
 export class RefFetchKeeperLockError extends Error {
   /** Preserve the exact lock and original Git evidence. */
   constructor(readonly lock: string, cause: unknown) {
-    super("A Git ref lock prevented preserving tracking heads before fetching.", { cause });
+    super("A Git ref lock prevented updating or preserving state tracking heads.", { cause });
     this.name = "RefFetchKeeperLockError";
   }
 }

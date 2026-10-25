@@ -8,6 +8,7 @@ import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
 import { readSyncRefs, syncRefIsAncestor } from "./sync-graph.js";
 import { refFetchRewriteRemedy } from "./fetch-remedy.js";
 import { checkSeenRefFetch, type RefFetchBasis } from "./fetch-seen.js";
+import { rethrowRefFetchKeeperLock } from "./fetch-keeper-lock.js";
 
 /** A failed fast-forward update is a local tracking failure; other rejected updates are rewrites. */
 export async function checkRefFetchUpdates(context: RefBackendContext, remote: RefRemoteDesignation,
@@ -22,7 +23,7 @@ export async function checkRefFetchUpdates(context: RefBackendContext, remote: R
     const ref = `refs/arc/${row.ref.slice(prefix.length)}`;
     if (ref === "refs/arc/project/moved") {
       await updateRefTransaction(context, [{ ref: row.ref, next: row.next, expected: /^0+$/u.test(row.old) ? null : row.old }],
-        { cwd: context.checkoutRoot });
+        { cwd: context.checkoutRoot }).catch((error: unknown) => rethrowRefFetchKeeperLock(context, [row.ref], error));
       continue;
     }
     if (/^0+$/u.test(row.old) || /^0+$/u.test(row.next) || await syncRefIsAncestor(context, row.old, row.next)) {
