@@ -237,3 +237,15 @@ it("in-flight reports only the live owner's checkout beside the archived bound h
     uid: boundWorkUnitSubject(h.live).uid, worktreePath: livePath }] });
   await unchanged(h);
 }, 30_000);
+
+it("release in the archived checkout offers that holder's teardown by UID", async () => {
+  const h = await fixture(), livePath = await checkout(h, "live", h.live);
+  const liveMarker = await readFile(resolveWorktreeMarkerPath(livePath));
+  const before = lifecycleSuccess(await h.store.version());
+  const result = await repairCli({ ...h, cwd: h.archivedPath }, ["locus", "release", "--json"], { store: h.store });
+  expect(result.exitCode).toBe(1);
+  expect(result.result).toEqual({ status: "refused", reason: `The work unit has ended; run arc teardown ${boundWorkUnitSubject(h.archived).uid}.` });
+  expect(await readFile(resolveWorktreeMarkerPath(livePath))).toEqual(liveMarker);
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  await unchanged(h);
+}, 30_000);

@@ -809,12 +809,10 @@ edits land in package source and sync to `.arc/`.
           projections for ended worktrees, orphan branches, and abandoned holders. One operand helper keeps a slug
           only when it selects that owner; branch-gone recovery uses the derived UID, and the template renders offers.
 
-    - `[ ]` **7.1.c Locus release's ended remedy**
+    - `[x]` **7.1.c Locus release's ended remedy**
 
-        - `releaseAuthority`'s ended remedy (`lib/locus/release.ts`) names the holder its occupancy resolved by the
-          marker's UID (4.3.b) through 7.1.b's helper.
-        - Build `test-first` (one behavior at a time):
-            - release from a bound checkout of the archived holder names the archived holder's teardown by UID
+        - Release resolves the ended remedy through the held record's owner and the shared operand helper, preserving
+          an archived checkout's UID beside live work with the same name, including the final eligibility recheck.
 
     - `[ ]` **7.1.d Marker occupancy's teardown remedies**
 
