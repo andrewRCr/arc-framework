@@ -148,26 +148,27 @@ it("always turns the departed backing off even when its old remote cannot be rea
   } finally { await rename(h.origin + ".offline", h.origin); }
 }, 60_000);
 
-it("reports a failed copy read without changing roles or remote state and completes after repair", async () => {
+it("propagates a local copy identity read failure without changing roles or remote state and retries", async () => {
   const h = await lateFollowFixture(), follower = h.follower;
   const source = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
   const destination = (await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
   let copying = false;
+  const localReadFailure = makeGitProcessError({ command: "git", args: ["cat-file", "--batch"], exitCode: 128,
+    stderr: "Injected local identity object read failure" });
   const broken = { ...follower.ports, migrateStep: async (step: string) => { if (step === "follow.fetch-destination") copying = true; },
     rawExec: async (...args: Parameters<NonNullable<typeof follower.ports.rawExec>>) => {
       const [gitArgs, options] = args;
       if (copying && gitArgs[0] === "cat-file" && gitArgs[1] === "--batch" && new TextDecoder().decode(options?.input).includes(":identity.json")) {
-        throw makeGitProcessError({ command: "git", args: gitArgs, exitCode: 128, stderr: "Injected follow copy identity read failure" });
+        throw localReadFailure;
       }
       if (!follower.ports.rawExec) throw new Error("Native raw executor missing");
       return follower.ports.rawExec(...args);
     } };
-  const failed = (await invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: broken })).result;
-  expect(failed).toMatchObject({ status: "refused", refusal: { code: "store", refusal: { code: "unreachable", condition: expect.stringContaining("backing") } } });
+  await expect(invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: broken })).rejects.toBe(localReadFailure);
   expect((await follower.exec("git", ["config", "remote.origin.arc-state"])).stdout.trim()).toBe("push");
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(source);
   expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(destination);
-  expect((await follower.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/"])).stdout).toBe("");
+  expect((await follower.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout).toBe("");
   expect((await invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: follower.ports })).result.status).toBe("ok");
 }, 60_000);
 

@@ -147,17 +147,17 @@ it.each(["forwarded", "foreign", "pre-move"] as const)("rejects a %s pointer can
   const before = (await follower.exec("git", [`--git-dir=${target}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
   if (fault === "forwarded") {
     const tip = (await follower.exec("git", [`--git-dir=${target}`, "rev-parse", "refs/arc/project/moved"])).stdout.trim();
+    const localReadFailure = makeGitProcessError({ command: "git", args: ["cat-file", "--batch"], exitCode: 128,
+      stderr: "Injected candidate record read failure" });
     const brokenRead = { ...follower.ports, rawExec: async (...args: Parameters<NonNullable<typeof follower.ports.rawExec>>) => {
       const [gitArgs, options] = args;
       if (gitArgs[0] === "cat-file" && gitArgs[1] === "--batch" && new TextDecoder().decode(options?.input).includes(`${tip}:moved.json`)) {
-        throw makeGitProcessError({ command: "git", args: gitArgs, exitCode: 128, stderr: "Injected candidate record read failure" });
+        throw localReadFailure;
       }
       if (!follower.ports.rawExec) throw new Error("Native raw executor missing");
       return follower.ports.rawExec(...args);
     } };
-    expect(await invokeStoreMigrate([], brokenRead)).toMatchObject({ status: "refused", refusal: { code: "store", refusal: {
-      code: "unreachable", condition: expect.stringContaining("backing"),
-    } } });
+    await expect(invokeStoreMigrate([], brokenRead)).rejects.toBe(localReadFailure);
   }
   const refused = await invokeStoreMigrate([], follower.ports);
   expect(refused).toMatchObject({ status: "refused", refusal: { code: "follow-refused", condition: expect.stringContaining(
@@ -213,7 +213,7 @@ it("takes the invoking checkout's pointer as the candidate and asks without movi
   expect((await follower.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move", "refs/arc/tmp/follow/"])).stdout).toBe("");
 }, 60_000);
 
-it("keeps follow read failures recoverable without changing state or designation", async () => {
+it("keeps transport failures recoverable and propagates local follow read failures without changing state or designation", async () => {
   const h = await followFixture(), follower = h.follower;
   const local = (await follower.git(["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/project/", "refs/arc/user/", "refs/arc-remotes/"])).stdout;
   const roles = (await follower.exec("git", ["config", "--get-regexp", "arc-state$"])).stdout;
@@ -242,12 +242,15 @@ it("keeps follow read failures recoverable without changing state or designation
   await writeFile(follower.config, follower.pointer);
   await repaired();
   for (const stage of ["source-record", "project-registry", "cat-file", "merge-base"] as const) {
+    const localReadFailure = makeGitProcessError({ command: "git",
+      args: stage === "merge-base" ? ["merge-base", "--is-ancestor"] : ["cat-file", stage === "cat-file" ? "-e" : "--batch"],
+      exitCode: 128, stderr: `Injected local ${stage} read failure` });
     const fault = { ...follower.ports,
       exec: async (...args: Parameters<typeof follower.ports.exec>) => {
-        const [command, gitArgs] = args;
+        const [, gitArgs] = args;
         if (stage === "cat-file" && gitArgs[0] === "cat-file" && gitArgs[1] === "-e" ||
             stage === "merge-base" && gitArgs[0] === "merge-base") {
-          throw makeGitProcessError({ command, args: gitArgs, exitCode: 128, stderr: "Injected object read failure" });
+          throw localReadFailure;
         }
         return follower.ports.exec(...args);
       },
@@ -256,13 +259,13 @@ it("keeps follow read failures recoverable without changing state or designation
         if (gitArgs[0] === "cat-file" && gitArgs[1] === "--batch" && (
           stage === "source-record" && query.includes(`${sourceTip}:moved.json`) ||
           stage === "project-registry" && query.includes(":identity.json") && query.includes("^{tree}"))) {
-          throw makeGitProcessError({ command: "git", args: gitArgs, exitCode: 128, stderr: "Injected batch read failure" });
+          throw localReadFailure;
         }
         if (!follower.ports.rawExec) throw new Error("Native raw executor missing");
         return follower.ports.rawExec(...args);
       },
     };
-    expect(await invokeStoreMigrate([], fault), stage).toMatchObject(unreachable(stage === "source-record" ? "origin" : "backing"));
+    await expect.soft(invokeStoreMigrate([], fault), stage).rejects.toBe(localReadFailure);
     await repaired();
   }
 }, 60_000);

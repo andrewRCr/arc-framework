@@ -4,7 +4,7 @@ import type { MigrateReport, StoreCommandResult } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import { removeMoveRecord, type RecordedMove } from "./migrate-record.js";
 import { switchRemoteMove } from "./migrate-remote-switch.js";
-import { switchRefFollow } from "./follow-switch.js";
+import { switchRefSource } from "./source-switch.js";
 import { switchBegun } from "./migrate-switch-undo.js";
 import { fetchMigrationRemote } from "./migrate-remote-fetch.js";
 import { clearRemoteGathering, readRemoteCopyReport, readCopiedRemoteRefs, readCopiedDeletedRecord } from "./migrate-remote-copy.js";
@@ -53,7 +53,7 @@ async function reportUnreadDestination(code: RefBackendContext, recorded: Record
 async function finishBegunSwitch(context: RefBackendContext, store: Store, recorded: RecordedMove): Promise<boolean> {
   if (!await switchBegun(context, recorded)) return false;
   if (recorded.record.kind === "remote") await switchRemoteMove(context, store, { record: recorded.record, tip: recorded.tip });
-  else if (recorded.record.kind === "follow") await switchRefFollow(context, store, { record: recorded.record, tip: recorded.tip });
+  else if (recorded.record.kind === "follow") await switchRefSource(context, store, { record: recorded.record, tip: recorded.tip });
   else throw new Error("Expected a remote move or follow");
   return true;
 }

@@ -11,7 +11,7 @@ import { readSyncRefs } from "./sync-graph.js";
 import { migrationCodeContext, saveMoveRecord, removeMoveRecord, readMoveRecord, type RecordedFollow, type FollowMoveRecord } from "./migrate-record.js";
 import { readRefRepository } from "./repository.js";
 import { publisherLayout } from "./layout-state.js";
-import { followSwitchComplete, followSwitchUndo, switchRefFollow } from "./follow-switch.js";
+import { sourceSwitchComplete, followSwitchUndo, switchRefSource } from "./source-switch.js";
 import { clearRemoteGathering, remoteCopyReport, readRemoteCopyReport } from "./migrate-remote-copy.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { undoSwitch } from "./migrate-switch-undo.js";
@@ -67,12 +67,12 @@ function followPublicationConflict(due: RefFollowDue, candidate: RefFollowCandid
 export async function resumeRefFollow(context: RefBackendContext, store: Store, recorded: RecordedFollow, copied = false): Promise<StoreCommandResult<MigrateReport>> {
   try {
     const code = await migrationCodeContext(context);
-    if (!copied && recorded.record.answer === "push" && !await followSwitchComplete(context, recorded)) {
+    if (!copied && recorded.record.answer === "push" && !await sourceSwitchComplete(context, recorded)) {
       const copiedState = await copyFollowState(code, recorded.record, true);
       if (copiedState === null || copiedState === "moved") return await endRecordedFollow(context, store, code, recorded, copiedState ?? "stale");
     }
     const report = recorded.record.answer === "push" ? await readRemoteCopyReport(code) : remoteCopyReport(new Map(), new Map(), []);
-    await switchRefFollow(context, store, recorded);
+    await switchRefSource(context, store, recorded);
     if (recorded.record.answer === "push") await deleteFollowSource(code, recorded, report);
     await context.migrateStep?.("follow.finish");
     await removeMoveRecord(code, recorded);

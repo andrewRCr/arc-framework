@@ -16,7 +16,7 @@ import { configureBackingRemote } from "./backing-configuration.js";
 type RecordedSourceSwitch = RecordedFollow | RecordedLeaveSource;
 
 /** Completion includes cleanup, designation, the configured URL, and removal of the old remote's forwarding observation the record names. */
-export async function followSwitchComplete(context: RefBackendContext, recorded: RecordedSourceSwitch): Promise<boolean> {
+export async function sourceSwitchComplete(context: RefBackendContext, recorded: RecordedSourceSwitch): Promise<boolean> {
   const { source, destination, sourceLayout, destinationLayout } = recorded.record;
   const answer = recorded.record.kind === "follow" ? recorded.record.answer : "push";
   const designation = await readRefDesignation(context), physical = await readRefRepository(context);
@@ -33,12 +33,12 @@ export async function followSwitchComplete(context: RefBackendContext, recorded:
 }
 
 /** The invoking checkout already supplies the pointer; following changes only clone-local designation and layout. */
-export async function switchRefFollow(context: RefBackendContext, store: Store, recorded: RecordedSourceSwitch): Promise<void> {
-  if (await followSwitchComplete(context, recorded)) return;
+export async function switchRefSource(context: RefBackendContext, store: Store, recorded: RecordedSourceSwitch): Promise<void> {
+  if (await sourceSwitchComplete(context, recorded)) return;
   const code = await migrationCodeContext(context), { sourceLayout, destinationLayout } = recorded.record;
   const configuration = {
-    prepareTarget: async (target: RefBackendContext): Promise<void> => prepareFollowTarget(code, target, recorded),
-    applyDesignation: async (): Promise<void> => applyFollowDesignation(context, recorded),
+    prepareTarget: async (target: RefBackendContext): Promise<void> => prepareSourceTarget(code, target, recorded),
+    applyDesignation: async (): Promise<void> => applySourceDesignation(context, recorded),
   };
   await context.migrateStep?.("follow.switch");
   await markSwitchBegun(code, recorded);
@@ -53,7 +53,7 @@ export async function switchRefFollow(context: RefBackendContext, store: Store, 
   await context.migrateStep?.("follow.switched");
 }
 
-async function prepareFollowTarget(code: RefBackendContext, target: RefBackendContext, recorded: RecordedSourceSwitch): Promise<void> {
+async function prepareSourceTarget(code: RefBackendContext, target: RefBackendContext, recorded: RecordedSourceSwitch): Promise<void> {
   const { source, destination } = recorded.record;
   const answer = recorded.record.kind === "follow" ? recorded.record.answer : "push";
   await withRefFetchKeepers(target, destination.name, async () => {
@@ -74,7 +74,7 @@ export function followSwitchUndo(recorded: RecordedFollow): SwitchUndo {
   return { recorded, source, destination, sourceRole, sourceLayout, destinationLayout };
 }
 
-async function applyFollowDesignation(context: RefBackendContext, recorded: RecordedSourceSwitch): Promise<void> {
+async function applySourceDesignation(context: RefBackendContext, recorded: RecordedSourceSwitch): Promise<void> {
   const { source, destination } = recorded.record, code = await migrationCodeContext(context);
   const answer = recorded.record.kind === "follow" ? recorded.record.answer : "push";
   if (destination.repository === "code") await code.exec("git", ["config", `remote.${destination.name}.arc-state`, answer], { cwd: context.checkoutRoot });

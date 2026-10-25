@@ -1,5 +1,6 @@
 /** Copy late source publications only while the judged forwarding record and destination still license it. */
-import { readFollowRemote } from "./follow-candidates.js";
+import { followReadRemedy } from "./follow-candidates.js";
+import { readMigrationRemote } from "./migration-read.js";
 import type { MigrateReport } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import type { FollowMoveRecord } from "./migrate-record.js";
@@ -21,13 +22,13 @@ async function copyLicensedFollowState(code: RefBackendContext, record: FollowMo
   for (;;) {
     const heads = await captureMoveHeads(code, record.source);
     await code.migrateStep?.("follow.fetch-source");
-    const source = await fetchMigrationRemote(code, record.source, true);
+    const source = await readMigrationRemote(record.source.name, followReadRemedy(record.source.name, record.source.name), () => fetchMigrationRemote(code, record.source, true));
     if (!source.has(FORWARDING_REF)) return null;
     if (source.get(FORWARDING_REF) !== record.forwardingTip) throw followMoved(record.source.name);
     await code.migrateStep?.("follow.fetch-destination");
-    const destination = await fetchMigrationRemote(code, record.destination, true);
+    const destination = await readMigrationRemote(record.destination.name, followReadRemedy(record.destination.name, record.source.name), () => fetchMigrationRemote(code, record.destination, true));
     await requireFollowDestination(code, record, destination);
-    const prepared = await readFollowRemote(record.destination.name, () => prepareRemoteReCopy(code, source, destination));
+    const prepared = await prepareRemoteReCopy(code, source, destination);
     const changes = remoteCopyChanges(prepared.refs, destination).filter(row => row.next !== row.expected);
     await code.migrateStep?.("follow.copy");
     if (changes.length) {
@@ -43,10 +44,6 @@ async function copyLicensedFollowState(code: RefBackendContext, record: FollowMo
 
 /** No follow writes to a remote another move left or whose current registry no longer holds this move. */
 export async function requireFollowDestination(code: RefBackendContext, record: FollowMoveRecord, refs: ReadonlyMap<string, string>): Promise<void> {
-  return readFollowRemote(record.destination.name, () => checkFollowDestination(code, record, refs));
-}
-
-async function checkFollowDestination(code: RefBackendContext, record: FollowMoveRecord, refs: ReadonlyMap<string, string>): Promise<void> {
   const forwarding = await readForwardingRecord(code, refs.get(FORWARDING_REF), record.destination.name);
   if (forwarding.status === "refused") throw new MigrationRefusal(forwarding.refusal);
   if (forwarding.result) throw followMoved(record.destination.name);

@@ -33,7 +33,9 @@ export async function setRefBacking(context: RefBackendContext, store: Store, de
     const refused = await checkRemoteProject(context, { name: "backing", url, repository: "backing" }, designation);
     if (refused) return refused;
   }
-  if (pointer && designation.backing && designation.backing.url !== pointer && role === "push") return leaveRefSource(context, store);
+  if (pointer && designation.backing && designation.backing.url !== pointer && role === "push") return leaveRefSource(context, store, {}, undefined, {
+    text: `Repair access to backing (${url}), then retry arc store remote backing push.`, argv: ["arc", "store", "remote", "backing", "push"],
+  });
   return await applyBackingSetting(context, pointer, url, role) ?? { status: "ok", result: null };
 }
 

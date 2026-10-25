@@ -1,6 +1,7 @@
 /** Re-home a clone's last source view without contacting or deleting on the departed receiver. */
 import type { Store } from "../contract.js";
 import type { MigrateReport, StoreCommandResult, StoreMigrateInput } from "../commands.js";
+import type { Remedy } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { migrationCodeContext, readMoveRecord, saveMoveRecord, removeMoveRecord, type RecordedLeaveSource, type RecordedMove } from "./migrate-record.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
@@ -9,13 +10,13 @@ import { fetchMigrationRemote } from "./migrate-remote-fetch.js";
 import { checkCopyProject, copyProjectId, prepareRemoteReCopy, remoteCopyChanges, atomicMigrationPush, migrationPushLanded,
   remoteCopyReport, retainCopiedTips, readRemoteCopyReport, clearRemoteGathering, registryHoldsMove } from "./migrate-remote-copy.js";
 import { FORWARDING_REF, readForwardingRecord } from "./forwarding-record.js";
-import { switchRefFollow } from "./follow-switch.js";
-import { readFollowRemote } from "./follow-candidates.js";
+import { switchRefSource } from "./source-switch.js";
+import { readMigrationRemote } from "./migration-read.js";
 import { endRecordedSource } from "./leave-recorded.js";
 
 /** The caller holds the clone's move lock; a recorded departure resumes only its already landed copy. */
 export async function leaveRefSource(context: RefBackendContext, store: Store, input: Pick<StoreMigrateInput, "to" | "trial"> = {},
-  resume?: RecordedLeaveSource): Promise<StoreCommandResult<MigrateReport>> {
+  resume?: RecordedLeaveSource, readRemedy?: Remedy): Promise<StoreCommandResult<MigrateReport>> {
   const code = await migrationCodeContext(context);
   const { to } = input;
   try {
@@ -32,13 +33,13 @@ export async function leaveRefSource(context: RefBackendContext, store: Store, i
     else {
       const view = await resolveLeaveSource(context, code, to);
       await clearRemoteGathering(code, true);
-      report = await copyLastSourceView(code, view);
+      report = await copyLastSourceView(code, view, readRemedy);
       await code.migrateStep?.("leave.record");
       resume = await saveMoveRecord(code, view.record, null);
       await code.migrateStep?.("leave.recorded");
     }
     await code.migrateStep?.("leave.switch");
-    await switchRefFollow(context, store, resume);
+    await switchRefSource(context, store, resume);
     await code.migrateStep?.("leave.switched");
     await removeMoveRecord(code, resume);
     await clearRemoteGathering(code);
@@ -51,9 +52,10 @@ export async function leaveRefSource(context: RefBackendContext, store: Store, i
   }
 }
 
-async function copyLastSourceView(code: RefBackendContext, view: LeaveSourceView): Promise<MigrateReport> {
+async function copyLastSourceView(code: RefBackendContext, view: LeaveSourceView, readRemedy?: Remedy): Promise<MigrateReport> {
   for (;;) {
-    const destination = await readFollowRemote(view.record.destination.name, () => fetchMigrationRemote(code, view.record.destination, true));
+    const destination = await readMigrationRemote(view.record.destination.name, readRemedy ?? departureReadRemedy(view),
+      () => fetchMigrationRemote(code, view.record.destination, true));
     await checkLeaveDestination(code, view, destination);
     const prepared = await prepareRemoteReCopy(code, view.incoming, destination);
     const changes = remoteCopyChanges(prepared.refs, destination).filter(row => row.next !== row.expected);
@@ -70,6 +72,12 @@ async function copyLastSourceView(code: RefBackendContext, view: LeaveSourceView
     await code.migrateStep?.("leave.copied");
     return report;
   }
+}
+
+function departureReadRemedy(view: LeaveSourceView): Remedy {
+  const destination = view.record.destination, target = destination.repository === "backing" ? destination.url : destination.name;
+  return { text: `Repair access to ${destination.name} (${destination.fetchUrl}), then retry arc store migrate --leave-source --to ${target}.`,
+    argv: ["arc", "store", "migrate", "--leave-source", "--to", target] };
 }
 
 async function checkLeaveDestination(code: RefBackendContext, view: LeaveSourceView, destination: Map<string, string>): Promise<void> {

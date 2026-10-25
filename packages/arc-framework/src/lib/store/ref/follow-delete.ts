@@ -1,5 +1,4 @@
 /** Clear a followed source in freshly licensed rounds after the explicit designation switch. */
-import { readFollowRemote } from "./follow-candidates.js";
 import type { MigrateReport } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import type { RecordedFollow } from "./migrate-record.js";
@@ -38,18 +37,21 @@ export async function deleteFollowSource(code: RefBackendContext, recorded: Reco
       report.refs.push(...remoteCopyReport(ordinary, new Map(), []).refs.map(row => ({ ...row, action: "delete" as const })));
       await code.migrateStep?.("follow.deleted");
     }
-  } catch (error) {
-    if (!(error instanceof MigrationRefusal)) throw error;
-    throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable", condition: `The recorded follow could not finish cleanup: ${error.message}`,
-      remedy: { text: "Repair the reported remote, then retry arc store migrate with no target. Where the old remote is gone for good, end the follow without its deletes with arc store migrate --leave-source.",
-        argv: ["arc", "store", "migrate"] } });
-  }
+  } catch (error) { throw followCleanupFailure(error); }
+}
+
+function followCleanupFailure(error: unknown): unknown {
+  if (!(error instanceof MigrationRefusal)) return error;
+  if (error.refusal.code === "store" && error.refusal.refusal.code === "namespace-corrupt") return error;
+  return new MigrationRefusal({ code: "move-unfinished", class: "recoverable", condition: `The recorded follow could not finish cleanup: ${error.message}`,
+    remedy: { text: "Repair the reported remote, then retry arc store migrate with no target. Where the old remote is gone for good, end the follow without its deletes with arc store migrate --leave-source.",
+      argv: ["arc", "store", "migrate"] } });
 }
 
 async function recopyFollowRound(code: RefBackendContext, recorded: RecordedFollow, ordinary: Map<string, string>,
   destination: Map<string, string>, report: MigrateReport): Promise<boolean> {
   await code.migrateStep?.("follow.recopy");
-  const prepared = await readFollowRemote(recorded.record.destination.name, () => prepareRemoteReCopy(code, ordinary, destination));
+  const prepared = await prepareRemoteReCopy(code, ordinary, destination);
   const changes = remoteCopyChanges(prepared.refs, destination).filter(row => row.next !== row.expected);
   if (changes.length) {
     const copied = await atomicMigrationPush(code, recorded.record.destination.pushUrl, changes);

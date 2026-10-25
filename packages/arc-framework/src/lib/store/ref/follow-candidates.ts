@@ -1,5 +1,6 @@
 /** Judge a follow against the departed remote's fresh record and isolated candidate registries. */
 import type { StoreCommandRefusal, StoreDesignationQuestion, StoreMigrateResult } from "../commands.js";
+import type { Remedy } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefFollowDue } from "./follow-due.js";
 import { migrationCodeContext, type MoveRemote } from "./migrate-record.js";
@@ -10,12 +11,12 @@ import { FORWARDING_REF, readForwardingRecord, type ForwardingRecord } from "./f
 import { readRefRegistryPresence } from "./designation-presence.js";
 import { readRefRepository } from "./repository.js";
 import { updateRefTransaction } from "../../git/ref-transaction.js";
-import { isCompletedGitFailure, isGitProcessError, gitFailureText } from "../../git/process-error.js";
-import { classifyRemoteFailure } from "../../git/remote-ref-reader.js";
+import { isCompletedGitFailure, isGitProcessError } from "../../git/process-error.js";
 import { syncRefIsAncestor } from "./sync-graph.js";
 import { readBatchObjects } from "./batch-read.js";
 import { projectIdentityQueries, projectOwnerFromObjects } from "./project-identity.js";
 import { fetchLayoutObjects } from "./migrate-layout-build.js";
+import { migrationReadFailure, readMigrationRemote } from "./migration-read.js";
 
 /** A registry observation belonging to one exact candidate. */
 export interface RefFollowCandidate { remote: MoveRemote; registry: string }
@@ -29,11 +30,12 @@ export async function judgeRefFollow(context: RefBackendContext, due: RefFollowD
   const code = await migrationCodeContext(context);
   let readingSource = false;
   try {
-    const source = await readFollowRemote(due.remote.name, () => captureMoveRemote(context, code, due.remote));
+    const source = await captureMoveRemote(context, code, due.remote);
     readingSource = true;
-    const refs = await readFollowRemote(source.name, () => fetchMigrationRemote(code, source, false, { prefix: "refs/arc/tmp/follow/source/", controls: ["moved"] }));
+    const refs = await readMigrationRemote(source.name, followReadRemedy(source.name, due.remote.name),
+      () => fetchMigrationRemote(code, source, false, { prefix: "refs/arc/tmp/follow/source/", controls: ["moved"] }));
     readingSource = false;
-    const forwarding = await readFollowRemote(source.name, () => readForwardingRecord(code, refs.get(FORWARDING_REF), source.name));
+    const forwarding = await readForwardingRecord(code, refs.get(FORWARDING_REF), source.name);
     if (forwarding.status === "refused") return forwarding;
     if (!forwarding.result) { await dropStaleFollow(context, due); return { status: "none" }; }
     const record = forwarding.result, forwardingTip = refs.get(FORWARDING_REF);
@@ -41,7 +43,7 @@ export async function judgeRefFollow(context: RefBackendContext, due: RefFollowD
     const candidates = await followCandidates(context, code, due);
     const accepted: RefFollowCandidate[] = [], rejected: string[] = [];
     for (const remote of candidates) {
-      const judged = await readFollowRemote(remote.name, () => judgeCandidate(code, remote, record));
+      const judged = await readMigrationRemote(remote.name, followReadRemedy(remote.name, due.remote.name), () => judgeCandidate(code, remote, record));
       if (judged.accepted) accepted.push({ remote, registry: judged.registry });
       else rejected.push(`${remote.name} (${remote.fetchUrl}): ${judged.reason}`);
     }
@@ -61,9 +63,9 @@ async function followCandidates(context: RefBackendContext, code: RefBackendCont
   const candidates: MoveRemote[] = [];
   for (const remote of due.designation.codeRemotes) {
     if (remote.name === exclude || remote.name === "backing") continue;
-    const captured = await readFollowRemote(remote.name, () => captureMoveRemote(context, code, remote));
+    const captured = await captureMoveRemote(context, code, remote);
     const presence = await readRefRegistryPresence(code, captured.fetchUrl);
-    if (presence.status === "unreachable") throw followReadFailure(remote.name, presence.condition, presence.cause);
+    if (presence.status === "unreachable") throw migrationReadFailure(remote.name, presence.condition, presence.cause, followReadRemedy(remote.name, due.remote.name));
     if (presence.present) candidates.push(captured);
   }
   return candidates;
@@ -82,7 +84,7 @@ async function departedSourceRemedy(context: RefBackendContext, code: RefBackend
     if (cached.status === "ok" && cached.result) {
       for (const candidate of await followCandidates(context, code, due, due.remote.name)) {
         const record = cached.result;
-        if ((await readFollowRemote(candidate.name, () => judgeCandidate(code, candidate, record))).accepted) destinations.push(candidate);
+        if ((await readMigrationRemote(candidate.name, followReadRemedy(candidate.name, due.remote.name), () => judgeCandidate(code, candidate, record))).accepted) destinations.push(candidate);
       }
     }
   } catch (error) { if (!(error instanceof MigrationRefusal)) throw error; }
@@ -104,7 +106,7 @@ async function judgeCandidate(code: RefBackendContext, remote: MoveRemote, recor
   const registry = refs.get("refs/arc/project/registry");
   if (!registry) return { accepted: false, reason: "its registry is absent and cannot hold the move's commit" };
   const project = projectOwnerFromObjects(refs, await readBatchObjects(code, projectIdentityQueries(refs)));
-  if (project.status === "refused") throw followReadFailure(remote.name, project.refusal.condition);
+  if (project.status === "refused") throw new MigrationRefusal({ code: "store", refusal: project.refusal });
   const projectId = project.result.type === "project" ? project.result.uid : undefined;
   if (projectId !== record.projectId) return { accepted: false, reason: `it names project ${projectId ?? "without an identity"}, not ${record.projectId}` };
   if (!await holdsFollowCommit(code, record.registryCommit, registry)) return { accepted: false, reason: `its registry lacks the move's commit ${record.registryCommit}` };
@@ -156,19 +158,8 @@ export async function dropStaleFollow(context: RefBackendContext, due: Pick<RefF
     remedy: { text: "Retry arc store migrate to judge the current record.", argv: ["arc", "store", "migrate"] } });
 }
 
-/** Convert follow acquisition failures to the remote-naming, repairable store refusal. */
-export async function readFollowRemote<T>(remote: string, operation: () => Promise<T>): Promise<T> {
-  try { return await operation(); }
-  catch (error) {
-    if (error instanceof MigrationRefusal && error.refusal.code === "store") throw followReadFailure(remote, error.message,
-      error.refusal.refusal.code === "unreachable" ? error.refusal.refusal.cause : "error");
-    if (isGitProcessError(error)) throw followReadFailure(remote, gitFailureText(error), classifyRemoteFailure(error));
-    throw error;
-  }
-}
-
-function followReadFailure(remote: string, condition: string, cause: "timeout" | "network" | "auth" | "error" = "error"): MigrationRefusal {
-  return new MigrationRefusal({ code: "store", refusal: { code: "unreachable", class: "recoverable", cause,
-    condition: `Could not read follow remote ${remote}: ${condition}`,
-    remedy: { text: `Repair ${remote} and retry arc store migrate, or turn the departed remote off with arc store remote <remote> off.` } } });
+/** A follow can retry its judgment or stop fetching the actual departed source. */
+export function followReadRemedy(remote: string, departed: string): Remedy {
+  return { text: `Repair access to ${remote} and retry arc store migrate, or stop fetching the departed source with arc store remote ${departed} off.`,
+    argv: ["arc", "store", "migrate"] };
 }
