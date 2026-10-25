@@ -102,6 +102,7 @@ it("merges a late source ref with a follower's independent publication on the ne
     reference.key === h.late.key && next?.content === "Prepared late publication.\n" && (await before.read({ reference: own })).status === "ok"
       ? [{ rule: "clear.merged", condition: "The merged copy needs correction.", remedy: { text: "Review the merged copy." } }] : [];
   const result = (await invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: { ...follower.ports,
+    identity: async () => SlugSchema.parse("beth"),
     registry: { ...registry, "personal/document": { ...registry["personal/document"], check } },
     migrateStep: async step => {
       if (step !== "follow.switched") return;
