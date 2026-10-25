@@ -6,23 +6,25 @@ import type { BrokenRule, WriteCheckInput } from "../../write-check.js";
 import { LineageRecordSchema } from "../lineage/schema.js";
 import { brokenRule, observeRecord, observeRecords, type RuleObservation } from "../rule-support.js";
 import { acquiresSlug } from "./slug-acquisition.js";
+import type { StoreView } from "../../write-check.js";
+import type { Slug } from "../../../kernel/index.js";
 
 const rule = "work-item.slug-edges";
 const remedy = "The dependent's owner settles Depends On with arc wu reconcile --apply from its checkout, after arc resume for a parked work unit, or edits Depends On if reconcile refuses. Anyone may edit a stub's edge; otherwise choose another slug. Restore unavailable state and retry.";
 
-async function priorTarget(input: WriteCheckInput): Promise<RuleObservation<OwnerIdentity | null>> {
-  const slug = input.reference.owner.name;
-  const primary = await input.before.lookup({ kind: "slug", slug });
+/** Resolve the previous owner whose dependency slots name a newly acquired slug. */
+export async function priorTarget(view: StoreView, slug: Slug): Promise<RuleObservation<OwnerIdentity | null>> {
+  const primary = await view.lookup({ kind: "slug", slug });
   if (primary.status === "ok") return { status: "known", value: primary.result.reference.owner };
   if (primary.refusal.code !== "not-found") return { status: "unavailable", condition: primary.refusal.condition };
-  const lineage = await input.before.lookup({ kind: "lineage", origin: slug });
+  const lineage = await view.lookup({ kind: "lineage", origin: slug });
   if (lineage.status === "refused") {
     if (lineage.refusal.code === "not-found") return { status: "absent" };
     if (lineage.refusal.code === "ambiguous-match" && lineage.refusal.candidates.every(reference =>
       reference.kind === "lineage/transition" && reference.owner.type === "work-item")) return { status: "known", value: null };
     return { status: "unavailable", condition: lineage.refusal.condition };
   }
-  const record = await observeRecord(input.before, lineage.result.reference);
+  const record = await observeRecord(view, lineage.result.reference);
   if (record.status !== "known") return { status: "unavailable", condition: "The resolved lineage record cannot be read." };
   const parsed = LineageRecordSchema.safeParse(record.value.fields);
   if (!parsed.success || record.value.reference.owner.type !== "work-item"
@@ -63,7 +65,7 @@ export async function checkSlugEdges(input: WriteCheckInput): Promise<readonly B
   const acquired = await acquiresSlug(input);
   if (acquired.status !== "known") return [brokenRule(rule, acquired.status === "unavailable" ? acquired.condition : "Name acquisition is unavailable.", remedy)];
   if (!acquired.value) return [];
-  const target = await priorTarget(input);
+  const target = await priorTarget(input.before, input.reference.owner.name);
   if (target.status === "unavailable") return [brokenRule(rule, target.condition, remedy)];
   if (target.status === "absent" || target.value !== null && sameOwner(target.value, input.reference.owner)) return [];
   const listed = await observeRecords(input.before, { family: "work-item", kind: "work-item/meta" });

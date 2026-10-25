@@ -73,3 +73,15 @@ it("prints the in-flight dependent edge's write-rule remedy", async () => {
   expect(lifecycleSuccess(await h.store.read({ reference: archived.reference }))).toEqual(archived);
   expect(lifecycleSuccess(await h.store.read({ reference: dependent.reference }))).toEqual(dependent);
 }, 30_000);
+
+it("settles a stub's completed dependency in the batch creating the reused name", async () => {
+  const h = await fixture(), archived = await h.seedMeta("demo", { state: "Shipped", currentWorkflow: null }, completed);
+  const dependent = await h.seedMeta("waiting", { state: "Planning", currentWorkflow: null, dependsOn: ["demo"] },
+    { kind: "backlog", commitment: "planned" });
+  const result = await repairCli(h, argv, { store: h.store });
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  const created = lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("demo") }));
+  expect(created.reference.owner).not.toEqual(archived.reference.owner);
+  expect(lifecycleSuccess(await h.store.read({ reference: dependent.reference }))).toMatchObject({ fields: { dependsOn: [] } });
+  expect(lifecycleSuccess(await h.store.read({ reference: archived.reference }))).toEqual(archived);
+}, 30_000);

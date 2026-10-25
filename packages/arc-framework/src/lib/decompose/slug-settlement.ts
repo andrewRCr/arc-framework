@@ -5,6 +5,7 @@ import type { DecomposeOriginRecords } from "./acquire-origin.js";
 import type { DecomposeResult } from "./refusal.js";
 import type { StoreRecord } from "../store/read.js";
 import type { RecordObservation } from "../store/write.js";
+import type { DependencyDisposition } from "../store/retired-edge.js";
 import type { WorkItemRef } from "../store/kinds/lineage/index.js";
 import { sameOwner, recordReferences, sameReference } from "../store/identity.js";
 import { readLifecycleMetaFields } from "../store/lifecycle-write.js";
@@ -16,7 +17,7 @@ export interface DecomposeSlugSettlement {
   primary: StoreRecord;
   edge: string;
   priorTarget: WorkItemRef;
-  disposition: { kind: "drop"; reason: string } | { kind: "replace"; replacementTargets: readonly string[] };
+  disposition: DependencyDisposition;
 }
 
 /** Read guards retained alongside the edges that can be settled without owner judgment. */

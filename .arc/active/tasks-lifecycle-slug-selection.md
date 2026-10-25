@@ -627,49 +627,16 @@ refuses through `work-item.slug-edges` with its remedy.
 - _Outcome:_ New cohort names require a not-found lookup; completed work-unit and Errand names refuse with the
   map-locus remedy. Existing cohort documents retain their separate inventory refusal and live-cohort reuse behavior.
 
-### `[ ]` **5.4 Settle the edges naming a reused slug in the creating batch — § 6.4**
+### `[x]` **5.4 Settle the edges naming a reused slug in the creating batch — § 6.4**
 
 - _Goal:_ A batch that gives a work item a slug an edge names for a prior holder first settles each such edge in the
   stubs it may write, so a reuse never leaves a stub's edge reading the new holder, while an in-flight dependent's edge
   still refuses for its owner to settle.
 
-    - One settler in `lib/store/` takes the store, the slug, and the writing owner, and returns its writes with
-      observations of the records it read (`RecordObservation`), which the batch binds (`batchLifecycleWrites`). It acts
-      only where `work-item.slug-edges` counts an edge: where the rule's prior-target resolution (`priorTarget`,
-      `lib/store/kinds/work-item/slug-edges.ts`, which reads a `WriteCheckInput` today and is exported as a function of
-      a lookup view and the slug, its caller in `checkSlugEdges` adapting) finds a prior target other than the writing
-      owner. An edge naming a slug no record has held names the new record and stays, and the settler leaves each
-      writing owner's own records to its caller.
-    - A stub is a work-unit meta in backlog placement and Planning, with no conflicts and no cut map
-      (`work-item/cut-map`), as decomposition's settlement plan reads it (`slug-settlement.ts`) plus the phase, since a
-      parked record sits in backlog placement too. Each stub's edge naming the slug takes the disposition
-      decomposition's resolver gives: an edge on shipped work discharges, and one on a retired origin takes its lineage
-      disposition.
-    - That resolver's target walk (`resolveDecomposeRetiredEdge`, `lib/decompose/retired-edge.ts`, with
-      `readDecomposeRetiredLineage`, `retired-lineage.ts`) moves into `lib/store/` returning `StoreResult`, its
-      disposition typed by a store-side type that decomposition's settlement type
-      (`DecomposeSlugSettlement["disposition"]`) then reuses, and so does the slot replacement (`replaceDependencySlot`,
-      `lib/decompose/dependency-slot.ts`); `lib/decompose/` wraps them in `DecomposeResult`, its behavior unchanged.
-      Decomposition keeps its own settler (`decomposeSlugSettlementWrites`, `lib/decompose/slug-settler.ts`).
-    - An edge the settler cannot settle, on a conflicted or cut-mapped stub or through lineage it cannot resolve, stays
-      for the rule to refuse. An in-flight dependent's `Depends On`, or a paused one's `waits-on`, refuses through
-      `work-item.slug-edges` (`checkSlugEdges`) with its remedy.
-    - Each batch keeps the create first, since 4.2.b reads the created owner from the batch's result order.
-      `runStoreStub` passes the settler's writes as `storeTransition.additionalWrites` and its observations as
-      `storeTransition.observations`; `scaffoldIntoWorktree`'s store arm (`lib/git/worktree-scaffold.ts`) adds them to
-      its create batch for `--new` and the cold start alike, importing only from `lib/store/`, which its suppression
-      floors require; and `replace` adds them to promotion's batch.
-    - Build `test-first` (one behavior at a time):
-        - creating onto a completed holder's slug discharges a stub's edge naming it in the same batch, through
-          `arc stub`, `arc start <name> --new`, and promotion
-        - an edge on a retired origin's slug takes its lineage disposition in the batch
-        - a stub's edge naming a slug no record has held stays
-        - a conflicted stub's edge, and one whose lineage does not resolve, refuse the creation through
-          `work-item.slug-edges`
-        - an in-flight dependent's edge naming the slug refuses the creation through `work-item.slug-edges`, printing
-          its remedy through `arc start <name> --new` and promotion, and a paused dependent's `waits-on` edge does too
-        - a refused batch writes neither the record nor the settled edges
-        - decomposition's settlement tests pass unchanged over the moved resolver
+- _Outcome:_ One store-side settler appends eligible Planning-stub edge writes and exact read observations to stub,
+  start, and promotion batches after their primary write. Shared retired-lineage resolution and slot replacement
+  preserve decomposition's behavior. Protected or unresolved edges remain for `work-item.slug-edges`; checked
+  batches preserve records on refusal and reject stale provider evidence before applying settlements.
 
 ### `[ ]` **5.5 Reuse end to end** — validate exit criterion at segment scope
 

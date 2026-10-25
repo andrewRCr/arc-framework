@@ -23,6 +23,7 @@
 import type { Store } from "../store/contract.js";
 import type { LocusPorts } from "../work-unit/locus-ports.js";
 import { usesOffBranchState, batchLifecycleWrites } from "../store/lifecycle-write.js";
+import { settleCreationSlugEdges } from "../store/creation-slug-settlement.js";
 import { OwnerIdentitySchema, recordReferences, type OwnerIdentity } from "../store/identity.js";
 import { renderMetaFile as renderStoreMeta } from "../store/kinds/meta/writers.js";
 import { runUserOpen } from "../../commands/user/open.js";
@@ -141,7 +142,9 @@ export async function scaffoldIntoWorktree(
       ...(params.origin === undefined ? {} : { origin: params.origin }),
       ...(params.lastCompleted === undefined ? {} : { lastCompleted: params.lastCompleted }),
     });
-    const result = await batchLifecycleWrites(ctx.store, [{ action: "put", reference, expected: null, content, placement: { kind: "active" } }], { verb: "start", lifecycleAction: "create" });
+    const settlement = await settleCreationSlugEdges(ctx.store, slug, reference.owner);
+    const result = await batchLifecycleWrites(ctx.store, [{ action: "put", reference, expected: null, content, placement: { kind: "active" } },
+      ...settlement.writes], { verb: "start", lifecycleAction: "create" }, settlement.observations);
     if (result.status === "refused") throw new Error(`${result.refusal.condition} ${result.refusal.remedy.text}`);
     return result.result.writes[0]?.reference.owner;
   }

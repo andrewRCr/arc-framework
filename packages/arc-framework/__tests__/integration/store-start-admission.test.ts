@@ -111,12 +111,12 @@ it.each(["named", "derived"] as const)("%s creation reports a live tie with no l
   expect(await readWorktreeMarker(h.cwd)).toEqual({ kind: "absent" });
 }, 30_000);
 
-it("derived-name failure preserves the in-flight dependency write-rule remedy", async () => {
+it.each(["spawn", "here", "derived"] as const)("%s failure preserves the in-flight dependency write-rule remedy", async mode => {
   const h = await fixture(), archived = await h.seedMeta("occupied", { state: "Shipped", currentWorkflow: null }, completed);
   const dependent = await h.seedMeta("dependent", { dependsOn: ["occupied"] });
-  await h.exec("git", ["switch", "-c", "feat/occupied"]);
+  if (mode === "derived") await h.exec("git", ["switch", "-c", "feat/occupied"]);
   const before = lifecycleSuccess(await h.store.version());
-  const result = await repairCli(h, ["start", "--new", "--here"], { store: h.store });
+  const result = await repairCli(h, ["start", ...(mode === "derived" ? [] : ["occupied"]), "--new", ...(mode === "spawn" ? [] : ["--here"])], { store: h.store });
   expect(result.exitCode).toBe(1);
   expect(result.stdout + result.stderr).toContain("Depends On edges in `dependent`");
   expect(result.stdout + result.stderr).toContain("arc wu reconcile --apply");
@@ -124,4 +124,17 @@ it("derived-name failure preserves the in-flight dependency write-rule remedy", 
   expect(await readWorktreeMarker(h.cwd)).toEqual({ kind: "absent" });
   expect(lifecycleSuccess(await h.store.read({ reference: archived.reference }))).toEqual(archived);
   expect(lifecycleSuccess(await h.store.read({ reference: dependent.reference }))).toEqual(dependent);
+}, 30_000);
+
+it.each(["spawn", "here", "derived"] as const)("%s creation settles a stub's completed dependency in its create batch", async mode => {
+  const h = await fixture(), archived = await h.seedMeta("example", { state: "Shipped", currentWorkflow: null }, completed);
+  const dependent = await h.seedMeta("waiting", { state: "Planning", currentWorkflow: null, dependsOn: ["example"] },
+    { kind: "backlog", commitment: "planned" });
+  if (mode === "derived") await h.exec("git", ["switch", "-c", "feat/example"]);
+  const result = await repairCli(h, ["start", ...(mode === "derived" ? [] : ["example"]), "--new", ...(mode === "spawn" ? [] : ["--here"])], { store: h.store });
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  const created = lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("example") }));
+  expect(created.reference.owner).not.toEqual(archived.reference.owner);
+  expect(lifecycleSuccess(await h.store.read({ reference: dependent.reference }))).toMatchObject({ fields: { dependsOn: [] } });
+  expect(lifecycleSuccess(await h.store.read({ reference: archived.reference }))).toEqual(archived);
 }, 30_000);

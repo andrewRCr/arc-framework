@@ -25,6 +25,7 @@ import { join } from "node:path";
 import { usesOffBranchState } from "../../store/lifecycle-write.js";
 import { OwnerIdentitySchema, recordReferences } from "../../store/identity.js";
 import { renderMetaFile as renderStoreMeta } from "../../store/kinds/meta/writers.js";
+import { settleCreationSlugEdges } from "../../store/creation-slug-settlement.js";
 
 import { validateClass } from "../../kernel/schema/vocabulary.js";
 import { isSafeCohortPath, validateCohortPath } from "../../active/cohort-path.js";
@@ -234,9 +235,12 @@ async function runStoreStub(ctx: StubContext, params: StubParams, commitment: St
   };
 
     const reference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: params.name }));
+    const store = ctx.executor.store;
+    if (store === undefined) throw new Error("Store stub requires an operational store");
+    const settlement = await settleCreationSlugEdges(store, params.name, reference.owner);
     const outcome = await executeTransition(ctx.executor, { verb: "stub", slug: params.name, inputs: {
       commitment, suggestion: params.suggestion,
-      storeTransition: { create: { action: "put", reference, expected: null,
+      storeTransition: { additionalWrites: [...settlement.writes], observations: settlement.observations, create: { action: "put", reference, expected: null,
         content: renderStoreMeta(params.name, creationFields), placement: { kind: "backlog", commitment } } },
     } });
     if (outcome.status === "ok") return { status: "scaffolded", outcome, metaPath };

@@ -15,6 +15,7 @@ import { CommitShaSchema } from "../store/links.js";
 import type { StoreRecord } from "../store/read.js";
 import { ownerHolderRequest } from "../work-unit/locus-ports.js";
 import { checkCreationAdmission, renderCreationAdmissionRefusal } from "../store/creation-admission.js";
+import { settleCreationSlugEdges } from "../store/creation-slug-settlement.js";
 /** Caller-owned checkout frame metadata stays outside these storage steps. */
 export interface StorePromotionOptions {
   store: Store; exec: GitExec; repository: string; slug: string; name: string; type?: string;
@@ -84,8 +85,10 @@ async function replace(input: StorePromotionOptions, source: OrdinaryErrandRecor
   const content = promotionMeta(options, source);
   const placement = recordWritePlacement(basis);
   const links = mergeLifecycleLinks(basis.links, { branches: [{ repository: options.repository, ref: branch, linkedAs: "created", excluded: inherited.excluded }] });
+  const settlement = await settleCreationSlugEdges(options.store, options.name, reference.owner);
   const written = await batchLifecycleWrites(options.store, [{ action: "put", reference, expected: basis.version, content,
-    ...(placement === undefined ? {} : { placement }), links }], { verb: "errand-promote", lifecycleAction: "promote", codeHead: tip });
+    ...(placement === undefined ? {} : { placement }), links }, ...settlement.writes],
+  { verb: "errand-promote", lifecycleAction: "promote", codeHead: tip }, settlement.observations);
   if (written.status === "refused") return refused(`${written.refusal.code}: ${written.refusal.condition}\n${written.refusal.remedy.text}`);
   await options.exec("git", ["branch", branch, tip], { cwd: options.cwd });
   await options.exec("git", ["switch", branch], { cwd: options.cwd });
