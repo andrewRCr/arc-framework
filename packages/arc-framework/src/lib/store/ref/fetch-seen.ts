@@ -71,10 +71,12 @@ export async function checkSeenRefFetch(context: RefBackendContext, remote: RefR
     const kept = basis.seen.get(retained);
     if (!kept || basis.tracking.has(row.ref) || row.flag === "!") continue;
     if (await syncRefIsAncestor(context, kept, row.next) || await syncRefIsAncestor(context, row.next, kept)) {
-      await updateRefTransaction(context, [{ ref: retained, delete: true, expected: kept }], { cwd: context.checkoutRoot });
+      await updateRefTransaction(context, [{ ref: retained, delete: true, expected: kept }], { cwd: context.checkoutRoot })
+        .catch((error: unknown) => rethrowRefFetchKeeperLock(context, [retained], error));
       continue;
     }
-    await updateRefTransaction(context, [{ ref: row.ref, delete: true, expected: row.next }], { cwd: context.checkoutRoot });
+    await updateRefTransaction(context, [{ ref: row.ref, delete: true, expected: row.next }], { cwd: context.checkoutRoot })
+      .catch((error: unknown) => rethrowRefFetchKeeperLock(context, [row.ref], error));
     row.flag = "!"; blocked.add(row.ref);
     notices.push({ kind: "history-diverged", ref, local: kept, remote: row.next,
       condition: `The returned ${ref} neither descends from its kept tip nor is an ancestor of it; both local heads were kept.`,

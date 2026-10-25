@@ -1,3 +1,4 @@
+import { keeperDeleteFault } from "../helpers/store/keeper-delete-fault.js";
 import { runStoreMigrate } from "../../src/lib/store/index.js";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { dirname, join } from "node:path";
@@ -125,6 +126,33 @@ describe.each(["default", "separate"] as const)("rewrite refusal in the %s layou
     expect(success(await h.b.store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
     expect((await h.b.git(["for-each-ref", "--format=%(refname)", seen])).stdout).toBe("");
     expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Rewritten remote value.\n");
+  });
+
+  it.each([false, true])("recovers returned-ref deletion locks and preserves unrelated errors (divergent %s)", async divergent => {
+    for (const fault of ["lock", "unrelated"] as const) {
+      const h = await rewrittenFixture(layout, divergent);
+      const remote = (await h.remote("git", ["rev-parse", h.ref])).stdout.trim();
+      const seen = `refs/arc/tmp/seen/${h.remoteName}/user/andrew/personal`;
+      await h.remote("git", ["update-ref", "-d", h.ref]);
+      success(await h.b.store.pull());
+      await h.remote("git", ["update-ref", h.ref, remote]);
+      const broken = await keeperDeleteFault(h.b, divergent ? h.tracking : seen, fault);
+      if (fault === "unrelated") await expect(broken.store.pull()).rejects.toBe(broken.unrelated);
+      else expect(await broken.store.pull()).toMatchObject({ status: "refused", refusal: {
+        code: "lock-held", lock: broken.lock, class: "recoverable", remedy: { text: expect.stringMatching(/retry/iu) },
+      } });
+      expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Second published value.\n");
+      await broken.release();
+      const retried = success(await h.b.store.pull());
+      expect(retried.pulls.every(({ status }) => status !== "failed")).toBe(true);
+      expect((await h.b.git(["for-each-ref", "--format=%(refname)", seen])).stdout).toBe("");
+      const record = success(await h.b.store.read({ reference: h.reference }));
+      if (divergent) {
+        expect(record.conflicts).toHaveLength(1);
+        expect(success(await h.b.store.history({ reference: h.reference })).map(({ content }) => content))
+          .toEqual(expect.arrayContaining(["Second published value.\n", "Rewritten remote value.\n"]));
+      } else expect(record.content).toBe("Second published value.\n");
+    }
   });
 
   if (layout === "default") {

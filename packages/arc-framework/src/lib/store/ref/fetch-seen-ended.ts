@@ -1,4 +1,5 @@
 /** Release prune keepers only after a captured published end makes them unnecessary. */
+import { rethrowRefFetchKeeperLock } from "./fetch-keeper-lock.js";
 import { updateRefTransaction } from "../../git/ref-transaction.js";
 import type { RefBackendContext } from "./context.js";
 import { readSyncRefs } from "./sync-graph.js";
@@ -25,7 +26,8 @@ async function releaseCapturedKeepers(context: RefBackendContext, remote: string
   for (const [ref, tip] of kept) {
     const live = `refs/arc/${ref.slice(prefix.length)}`, history = live.replace("refs/arc/", "refs/arc/history/");
     if (ended.has(live) && !state.has(live) && (readOnly || state.has(history))) {
-      await updateRefTransaction(context, [{ ref, delete: true, expected: tip }], { cwd: context.checkoutRoot });
+      await updateRefTransaction(context, [{ ref, delete: true, expected: tip }], { cwd: context.checkoutRoot })
+        .catch((error: unknown) => rethrowRefFetchKeeperLock(context, [ref], error));
     }
   }
 }

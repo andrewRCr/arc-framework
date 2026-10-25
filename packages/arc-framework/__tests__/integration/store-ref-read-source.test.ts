@@ -1,5 +1,6 @@
 /** Independently acquired upstream state through the public read-only store factory. */
 
+import { keeperDeleteFault } from "../helpers/store/keeper-delete-fault.js";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -335,6 +336,32 @@ describe.each(["default", "separate"] as const)("read-source keeper retirement i
     if (end === "abandon") expect(JSON.parse(success(await h.source.read({ reference:
       RecordReferenceSchema.parse({ owner, kind: "lineage/transition" }) })).content)).toMatchObject({ kind: "abandon" });
     else expect(success(await h.source.read({ reference })).placement).toMatchObject({ kind: "completed", quarter: "2026-q4" });
+  });
+
+  it("recovers an ended read-source keeper lock and preserves unrelated deletion failures", async () => {
+    for (const fault of ["lock", "unrelated"] as const) {
+      const h = await sourceFixture(layout, false);
+      success(await h.a.store.push()); success(await h.b.store.pull());
+      const owner = h.primary.owner;
+      if (owner.type !== "work-item" || !owner.uid) throw new Error("Expected a minted work item");
+      const keeper = `refs/arc/tmp/seen/upstream/work/${owner.uid}`;
+      const current = success(await h.a.store.read({ reference: h.primary }));
+      success(await h.a.store.write({ action: "put", reference: h.primary, expected: current.version, content: current.content,
+        placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
+      success(await h.a.store.push());
+      const before = success(await h.b.store.version()), broken = await keeperDeleteFault(h.b, keeper, fault);
+      if (fault === "unrelated") await expect(broken.store.pull()).rejects.toBe(broken.unrelated);
+      else expect(await broken.store.pull()).toMatchObject({ status: "refused", refusal: {
+        code: "lock-held", lock: broken.lock, class: "recoverable", remedy: { text: expect.stringMatching(/retry/iu) },
+      } });
+      expect(success(await h.b.store.version())).toBe(before);
+      expect((await h.b.git(["for-each-ref", "--format=%(refname)", keeper])).stdout.trim()).toBe(keeper);
+      await broken.release();
+      expect(success(await h.b.store.pull()).pulls.every(({ status }) => status !== "failed")).toBe(true);
+      expect((await h.b.git(["for-each-ref", "--format=%(refname)", keeper])).stdout).toBe("");
+      expect(success(await h.source.read({ reference: h.primary })).placement).toMatchObject({ kind: "completed", quarter: "2026-q4" });
+      expect(success(await h.b.store.version())).toBe(before);
+    }
   });
 
   it("retains a merely missing upstream tip until it returns without an end record", async () => {
