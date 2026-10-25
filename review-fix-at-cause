@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "review-fix-at-cause",
+  "claimId": "12cba1c5d5a63bf14181384ce9536aa4",
+  "createdAt": "2026-10-25T01:16:25.715Z",
+  "updatedAt": "2026-10-25T01:16:25.715Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Steer review fixes at a shared cause: a cross-finding cause pass, rule-level instance search with consolidation, a clean fix check read as repairs holding, and the spec question for new-design fixes.",
+  "branch": "chore/review-fix-at-cause",
+  "origin": "inbox",
+  "originEntry": "Fix review findings at their cause, not one site at a time",
+  "originEntrySourceDigest": "sha256:16596c4d526337a2ef28831395a5d0bfa81cf7c0d07acd3402a99c999348c757",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
