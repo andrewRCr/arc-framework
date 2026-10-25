@@ -12,7 +12,7 @@ import { acquireAdvisoryLock, releaseAdvisoryLock, withAdvisoryLock } from "../a
 import { readGitDirectories } from "../git/directories.js";
 import { withTrackedWriteLock } from "./tracked-lock.js";
 import type { RefStorePorts, StorePorts } from "./ports.js";
-import { getOrCreateMachineId } from "./machine-id.js";
+import { getOrCreateMachineId } from "../user-sync/sync-state.js";
 import { createKindRegistry } from "./registry.js";
 import { PRODUCTION_REGISTRATIONS } from "./kinds/registrations.js";
 
@@ -24,9 +24,10 @@ export function createDefaultRefStorePorts(input: { checkoutRoot: string; exec?:
     rawExec: createExecaRawGitExec(input.checkoutRoot), sleep: { wait: signalEndedSleep, bound: signalEndedSleep },
     random: Math.random, registry: createKindRegistry(PRODUCTION_REGISTRATIONS), migrateStep: async () => {},
     actor: async (identity) => {
-      const { commonDir } = await readGitDirectories(input.checkoutRoot, defaults.fs);
-      const id = await getOrCreateMachineId({ commonGitDir: commonDir, identity, fs: defaults.fs,
-        exclusiveCreate: (path, content) => defaults.fs.exclusiveCreate(path, content) });
+      const id = await getOrCreateMachineId(input.checkoutRoot, {
+        readFile: (path) => defaults.fs.readFile(path), writeFile: (path, content) => defaults.fs.writeFile(path, content), exec: defaults.exec,
+        mkdir: async (path, options) => { await defaults.fs.mkdir(path, options); },
+      }, identity, (path, content) => defaults.fs.exclusiveCreate(path, content));
       return `${identity}@${id}`;
     }, lock: createRefLockFactory(defaults),
   };
