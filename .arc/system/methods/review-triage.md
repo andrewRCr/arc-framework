@@ -105,8 +105,8 @@ carries the same tags again; only those tags are stored, as an immutable advisor
 and settlement replays read that note.
 
 When a `new-design` fix lands in work a spec governs, ask whether the spec settles that design. When it does not, the
-fix changes the design record and enters [`amend-design`'s entry gate][amend-design-gate] before the set is approved,
-rather than leaving the gap for a later look to find.
+fix would change the design record: it enters [`amend-design`'s entry gate][amend-design-gate] at triage, so its
+amendment is proposed inside the set and the record changes only once the set is approved.
 
 Author each finding's narrative so the report stands without the raw review:
 
