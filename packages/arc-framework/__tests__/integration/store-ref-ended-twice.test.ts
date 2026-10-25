@@ -31,10 +31,15 @@ describe("published double ends in the default layout", () => {
   it("keeps both published archives after a mirror erases the first, until reopening clears every quarter", async () => {
     const h = await doubleFixture(layout);
     await h.place(h.a, { kind: "completed", quarter }); success(await h.a.store.push());
+    const registry = "refs/arc/project/registry";
+    const firstRegistry = (await h.remote("git", ["rev-parse", registry])).stdout.trim();
     const erased = (await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim().split("\n");
-    for (const ref of erased) await h.remote("git", ["update-ref", "-d", ref]);
+    for (const ref of erased.filter(ref => ref !== registry)) await h.remote("git", ["update-ref", "-d", ref]);
     await h.place(h.b, { kind: "completed", quarter: laterQuarter });
+    const secondRegistry = (await h.b.git(["rev-parse", registry])).stdout.trim();
     expect(success(await h.b.store.push()).publishes).toContainEqual(expect.objectContaining({ status: "pushed" }));
+    const publishedRegistry = (await h.remote("git", ["rev-parse", registry])).stdout.trim();
+    for (const tip of [firstRegistry, secondRegistry]) await h.remote("git", ["merge-base", "--is-ancestor", tip, publishedRegistry]);
     for (let attempt = 0; attempt < 2; attempt++) {
       const notices = success(await h.a.store.pull()).pulls.flatMap(({ notices }) => notices);
       expect(notices).toContainEqual(expect.objectContaining({ kind: "ended-twice", item: h.reference.owner }));

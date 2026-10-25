@@ -80,7 +80,8 @@ describe.each(["default", "separate"] as const)("native accepted receipts in %s 
     const created = CreatedOwnerSchema.parse(batch.writes[1]!.reference);
     const expected = `Arc-Creation-Receipt: ${canonicalize({ schemaVersion: 1, batchId: batch.batchId, createdOwners: [created] })}`;
     const changed = [...await stateTips(f)].filter(([ref, oid]) => before.get(ref) !== oid);
-    expect(changed).toHaveLength(3);
+    expect(changed).toHaveLength(mode === "archive" ? 4 : 3);
+    if (mode === "archive") expect(changed.map(([ref]) => ref)).toContain("refs/arc/project/registry");
     for (const [ref] of changed) expect((await git(f, ["show", "-s", "--format=%B", ref])).split("\n")
       .filter(line => line.startsWith("Arc-Creation-Receipt:"))).toEqual([expected]);
   });

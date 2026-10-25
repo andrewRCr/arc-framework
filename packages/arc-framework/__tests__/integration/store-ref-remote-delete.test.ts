@@ -103,11 +103,17 @@ it("re-copies a prepared teammate write, new item, and archive that land after t
   const created = success(await h.b.store.write({ action: "put", expected: null,
     reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "late-item" } }),
     content: makeMetaFixture("late-item"), placement: { kind: "active" }, provenance }));
-  success(await h.b.store.write({ action: "put", reference: ending.reference, expected: success(await h.b.store.read({ reference: ending.reference })).version,
-    content: makeMetaFixture("ending"), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
-  const after = await capturePeerState(h);
+
   const moved = await invokeStoreMigrate(["--to", h.to], { ...h.ports, migrateStep: async step => {
-    if (step === "remote.switched") await landPreparedOldPush(h, before, after);
+    if (step !== "remote.switched") return;
+    // The archive's registry anchor descends from the forwarding tip it will lease.
+    await h.b.git(["fetch", "--refmap=", "--no-tags", "--", h.origin, "refs/arc/project/registry:refs/arc/project/registry"]);
+    const registry = "refs/arc/project/registry";
+    const preparedBasis = new Map(before);
+    preparedBasis.set(registry, (await h.b.git(["rev-parse", registry])).stdout.trim());
+    success(await h.b.store.write({ action: "put", reference: ending.reference, expected: success(await h.b.store.read({ reference: ending.reference })).version,
+      content: makeMetaFixture("ending"), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
+    await landPreparedOldPush(h, preparedBasis, await capturePeerState(h));
   } });
   expect(moved.status, JSON.stringify(moved)).toBe("ok");
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout.trim()).toBe("refs/arc/project/moved");
@@ -321,12 +327,12 @@ it("keeps the mover's end published after source acquisition when it syncs befor
       ended = true;
       success(await h.store.write({ action: "put", reference: created.reference, expected: success(await h.store.read({ reference: created.reference })).version,
         content: makeMetaFixture("ended-after-fetch"), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
-      success(await h.store.push());
     }
     if (step === "remote.switched") {
       expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname)", live, history])).stdout.trim()).toBe(live);
       const switchedRoot = "refs/arc-remotes/backing/";
       expect((await h.a.git(["for-each-ref", "--format=%(refname) %(objectname)", switchedRoot])).stdout.trim().split("\n").filter(Boolean).map(row => row.slice(switchedRoot.length))).toEqual(initialTracking);
+      success(await h.store.push());
       success(await h.store.pull());
       expect(success(await h.store.read({ reference: created.reference })).placement).toMatchObject({ kind: "completed", quarter: "2026-q4" });
     }

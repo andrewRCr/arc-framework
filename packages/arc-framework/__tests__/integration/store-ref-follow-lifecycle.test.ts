@@ -33,9 +33,7 @@ it.each(["write", "archive", "abandon"] as const)("follows over the mover's aban
   let publishedLineage = "", ownLineage = "";
   if (mode === "write") success(await h.b.store.write({ action: "put", reference: RecordReferenceSchema.parse({ ...companion, key: "late.md" }),
     expected: null, content: "Late follower write.\n", provenance }));
-  if (mode === "archive") success(await h.b.store.write({ action: "put", reference: created.reference,
-    expected: success(await h.b.store.read({ reference: created.reference })).version, content: makeMetaFixture("ended-during-follow"),
-    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
+
   const after = await capturePeerState(h), owner = created.reference.owner;
   if (owner.type !== "work-item" || !owner.uid) throw new Error("No minted work item");
   const history = HistoryRefSchema.parse(`refs/arc/history/work/${owner.uid}`), live = `refs/arc/work/${owner.uid}`;
@@ -43,10 +41,13 @@ it.each(["write", "archive", "abandon"] as const)("follows over the mover's aban
     if (step !== "remote.switched") return;
     ownLineage = await abandonRemoteWork(h, h.store, created.reference, h.a, "mover-end");
     success(await h.store.push());
-    if (mode === "abandon") {
+    if (mode !== "write") {
       await h.b.git(["fetch", "--refmap=", "--no-tags", "--", h.origin, "refs/arc/project/registry:refs/arc/project/registry"]);
       const beforeTerminal = await capturePeerState(h);
-      publishedLineage = await abandonRemoteWork(h, h.b.store, created.reference, h.b, "follower-end");
+      if (mode === "archive") success(await h.b.store.write({ action: "put", reference: created.reference,
+        expected: success(await h.b.store.read({ reference: created.reference })).version, content: makeMetaFixture("ended-during-follow"),
+        placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
+      else publishedLineage = await abandonRemoteWork(h, h.b.store, created.reference, h.b, "follower-end");
       await landPreparedOldPush(h, beforeTerminal, await capturePeerState(h));
     } else await landPreparedOldPush(h, before, after);
     throw new Error("Paused mover before cleanup");
