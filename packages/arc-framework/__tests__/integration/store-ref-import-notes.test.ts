@@ -1,6 +1,6 @@
 /** Import admits personal state only after notes and every materialized copy agree. */
 import { expect, it, onTestFinished } from "vitest";
-import { access, mkdir, readFile, writeFile, unlink, mkdtemp, rm } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile, unlink, mkdtemp, rm, rename } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { compactNotesRefSnapshot } from "../../src/lib/user-sync/compaction.js";
@@ -225,21 +225,36 @@ it("compares every person's notes and stale root copies, including a notes-only 
   }
 }, 40_000);
 
-it("reports unreadable personal materializations without landing and retries after access is restored", async () => {
+it.each(["readdir", "lstat", "readFile"] as const)("reports a personal %s failure with its cause and physical path, then retries after repair", async operation => {
   const h = await importFixture();
   await put(h.root, "memo.txt", "Read this personal file.\n");
   await reconcile(h.root);
-  const read = h.ports.fs.readdir;
-  h.ports.fs.readdir = async path => {
-    if (path.endsWith("/user/andrew")) throw Object.assign(new Error("Permission denied"), { code: "EACCES" });
-    return read(path);
-  };
+  const fs = h.ports.fs, original = { readdir: fs.readdir, lstat: fs.lstat, readFile: fs.readFile };
+  const path = join(h.root, ".arc/user/andrew", ...(operation === "readdir" ? [] : ["memo.txt"]));
+  const failure = () => Object.assign(new Error("Permission denied"), { code: "EACCES" });
+  fs.readdir = async current => { if (operation === "readdir" && current === path) throw failure(); return original.readdir(current); };
+  fs.lstat = async current => { if (operation === "lstat" && current === path) throw failure(); return original.lstat(current); };
+  fs.readFile = async current => { if (operation === "readFile" && current === path) throw failure(); return original.readFile(current); };
   const trial = trialReport(await h.migrate(true));
-  expect(trial.notices).toEqual(expect.arrayContaining([expect.objectContaining({
-    condition: expect.stringContaining("personal"), remedy: expect.objectContaining({ text: expect.stringContaining("retry") }),
-  })]));
+  const notice = trial.notices.find(({ condition }) => condition.includes("Permission denied"));
+  expect(notice).toMatchObject({ condition: expect.stringContaining(path),
+    remedy: { text: expect.stringContaining("retry") } });
   expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
   expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/project/"])).stdout).toBe("");
-  h.ports.fs.readdir = read;
+  Object.assign(fs, original);
   expect(await h.migrate()).toMatchObject({ status: "ok" });
 }, 40_000);
+
+it("names an invalid personal identity directory and imports after it is renamed", async () => {
+  const h = await importFixture();
+  const invalid = join(h.root, ".arc/user/Bad Name");
+  await put(h.root, "README.md", "Personal source.\n", "Bad Name");
+  const trial = trialReport(await h.migrate(true));
+  const notice = trial.notices.find(({ condition }) => condition.includes(invalid));
+  expect(notice).toMatchObject({ condition: expect.stringMatching(/identity.*(?:slug|name)/iu),
+    remedy: { text: expect.stringMatching(/rename|identity/iu) } });
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/project/"])).stdout).toBe("");
+  await rename(invalid, join(h.root, ".arc/user/alex"));
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+});

@@ -17,11 +17,11 @@ import type { Slug } from "../../../kernel/schema/slug.js";
 export async function appendImportPersonal(context: RefBackendContext, report: MigrateReport, records: ImportRecord[]): Promise<void> {
   let disk: Awaited<ReturnType<typeof readImportPersonalDisk>>;
   try { disk = await readImportPersonalDisk(context); }
-  catch { reportReadFailure(report, "personal materializations"); return; }
+  catch (error) { reportReadFailure(report, "personal materializations", error); return; }
   const live = new Set(records.filter(record => record.reference.kind === "work-item/meta" && record.placement?.kind !== "completed").map(record => record.reference.owner.name));
   for (const person of [...disk.people].sort()) {
     try { await appendPerson(context, report, records, person, disk.files.filter(file => file.person === person), live); }
-    catch { reportReadFailure(report, `${person}'s personal notes snapshot`); }
+    catch (error) { reportReadFailure(report, `${person}'s personal notes snapshot at refs/notes/arc/user/${person} in ${context.importSource?.ports.checkoutRoot ?? context.checkoutRoot}`, error); }
   }
 }
 
@@ -42,9 +42,9 @@ async function appendPerson(context: RefBackendContext, report: MigrateReport, r
   }
 }
 
-function reportReadFailure(report: MigrateReport, subject: string): void {
-  report.notices.push({ condition: `Cannot read all ${subject}.`,
-    remedy: { text: "Restore readable personal files and notes history in every registered checkout, then retry arc store migrate --import." } });
+function reportReadFailure(report: MigrateReport, subject: string, error: unknown): void {
+  report.notices.push({ condition: `Cannot read all ${subject}: ${error instanceof Error ? error.message : String(error)}`,
+    remedy: { text: "Repair the named personal source or identity directory and restore readable files and notes history in every registered checkout, then retry arc store migrate --import." } });
 }
 
 function comparePersonalFile(person: Slug, path: string, snapshot: string | undefined, copies: ImportPersonalFile[],

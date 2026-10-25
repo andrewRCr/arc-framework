@@ -41,9 +41,10 @@ export async function readImportPersonalDisk(context: RefBackendContext): Promis
     const root = join(checkout.path, ".arc", "user");
     for (const entry of await directories(source.ports.fs, root)) {
       if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
-      const person = SlugSchema.parse(entry.name);
-      result.people.add(person);
-      await walk(source.ports.fs, result.files, person, join(root, person), "");
+      const person = SlugSchema.safeParse(entry.name);
+      if (!person.success) throw new Error(`Personal identity directory ${join(root, entry.name)} has an invalid slug name ${JSON.stringify(entry.name)}. Rename it to a valid identity slug before retrying.`);
+      result.people.add(person.data);
+      await walk(source.ports.fs, result.files, person.data, join(root, person.data), "");
     }
   }
   return result;
@@ -53,7 +54,7 @@ async function directories(fs: StoreFileAccess, path: string) {
   try { return await fs.readdir(path); }
   catch (error) {
     if (typeof error === "object" && error !== null && "code" in error && (error.code === "ENOENT" || error.code === "ENOTDIR")) return [];
-    throw error;
+    throw personalReadError(path, error);
   }
 }
 
@@ -61,9 +62,19 @@ async function walk(fs: StoreFileAccess, files: ImportPersonalFile[], person: Sl
   for (const entry of await directories(fs, join(root, prefix))) {
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (importPersonalExcluded(path)) continue;
-    const physicalPath = join(root, path), stat = await fs.lstat(physicalPath);
+    const physicalPath = join(root, path), stat = await readPersonalPath(physicalPath, () => fs.lstat(physicalPath));
     if (stat.isSymbolicLink()) continue;
     if (stat.isDirectory()) await walk(fs, files, person, root, path);
-    else if (stat.isFile()) files.push({ person, path, physicalPath, size: stat.size, content: await fs.readFile(physicalPath) });
+    else if (stat.isFile()) files.push({ person, path, physicalPath, size: stat.size,
+      content: await readPersonalPath(physicalPath, () => fs.readFile(physicalPath)) });
   }
+}
+
+async function readPersonalPath<T>(path: string, read: () => Promise<T>): Promise<T> {
+  try { return await read(); }
+  catch (error) { throw personalReadError(path, error); }
+}
+
+function personalReadError(path: string, error: unknown): Error {
+  return new Error(`Cannot read personal path ${path}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
 }
