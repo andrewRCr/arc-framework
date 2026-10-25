@@ -5,7 +5,7 @@ import type { StoreView, WriteCheckInput } from "../write-check.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefWriteGroup } from "./write-commits.js";
 import { captureRefPointViewState, captureRefViewState, overlayRefViewState, viewRefFamily, viewRefMetadata, type RefViewState } from "./view-state.js";
-import type { ReadInput, StoreRecord, ListInput, ListingOutcome } from "../read.js";
+import type { ListingDiagnostic, ReadInput, StoreRecord, ListInput, ListingOutcome } from "../read.js";
 import type { LookupInput, LookupResult } from "../lookup.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { RecordReferenceSchema, sameReference, type RecordReference, type OwnerIdentity } from "../identity.js";
@@ -102,7 +102,7 @@ async function listView(context: RefBackendContext, state: RefViewState, input: 
   const refs = [...state.refs].filter(([ref]) => matchesFamilyRef(ref, input.family) && !otherIdentityRef(ref, identity, input.owner));
   const archived = archivedViewRecords(context, state, input);
   if (refs.length === 0 && !archived.records.length && !archived.diagnostics.length) return { status: "ok", result: { status: "absent" } };
-  const project = input.family === "project-registry" || input.family === "project-inbox" ? projectListingBinding(viewRegistry(state), state.objects) : undefined;
+  const project = input.family === "project-registry" || input.family === "project-inbox" ? projectListingBinding(viewRegistry(state), state.objects, state.saved) : undefined;
   if (project && !project.diagnostic) {
     const admitted = projectListInput(input, project.owner);
     if (admitted.status === "refused") return admitted;
@@ -111,11 +111,18 @@ async function listView(context: RefBackendContext, state: RefViewState, input: 
   const groups = refs.map(([ref, group]) => decodeCapturedRef(context, input, ref, group.entries, state.objects, group.metadata, project?.owner,
     group.readPlacement, state.saved));
   const diagnostics = [...groups.flatMap(({ diagnostics }) => diagnostics), ...archived.diagnostics];
-  if (project?.diagnostic && !diagnostics.some(({ key }) => key === project.diagnostic?.key)) diagnostics.push(project.diagnostic);
+  mergeProjectDiagnostic(diagnostics, project?.diagnostic, state.saved);
   if (groups.length > 0 && !archived.records.length && groups.every(({ unreadable }) => unreadable)) return { status: "ok", result: { status: "unreadable",
     condition: diagnostics.map(({ condition }) => condition).join("; "), remedy: { text: diagnostics.map(({ remedy }) => remedy.text).join(" ") } } };
   const records = [...groups.flatMap(({ records }) => records), ...archived.records];
   return { status: "ok", result: readableRefListing(input, records, diagnostics) };
+}
+
+function mergeProjectDiagnostic(diagnostics: ListingDiagnostic[], project: ListingDiagnostic | undefined, saved = false): void {
+  if (!project) return;
+  const matching = diagnostics.findIndex(({ key }) => key === project.key);
+  if (matching === -1) diagnostics.push(project);
+  else if (saved) diagnostics[matching] = project;
 }
 
 function resolveViewListInput(context: RefBackendContext, state: RefViewState, input: ListInput): StoreResult<ListInput> {
@@ -181,7 +188,7 @@ function missing(reference: RecordReference, saved = false): StoreResult<never> 
 
 function viewProjectOwner(state: RefViewState): StoreResult<OwnerIdentity> {
   const { entries } = viewRegistry(state);
-  return entries ? projectOwnerFromEntries(entries, state.objects) : { status: "refused", refusal: registryTreeUnavailable() };
+  return entries ? projectOwnerFromEntries(entries, state.objects, undefined, state.saved) : { status: "refused", refusal: registryTreeUnavailable() };
 }
 
 function viewRegistry(state: RefViewState): CapturedRegistry {

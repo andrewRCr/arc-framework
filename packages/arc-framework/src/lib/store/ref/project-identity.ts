@@ -140,10 +140,10 @@ export function projectListInput(input: ListInput, owner: OwnerIdentity): StoreR
 }
 
 /** Keep listing records observable while marking unresolved project ownership as incomplete evidence. */
-export function projectListingBinding(registry: CapturedRegistry, objects: ReadonlyMap<string, BatchObject | null>): { owner: OwnerIdentity; diagnostic?: ListingDiagnostic } {
+export function projectListingBinding(registry: CapturedRegistry, objects: ReadonlyMap<string, BatchObject | null>, saved = false): { owner: OwnerIdentity; diagnostic?: ListingDiagnostic } {
   // Only an unavailable registry tree faults the registry; any other identity fault is the identity entry's own.
   if (!registry.entries) return { owner: projectOwner(), diagnostic: listingFault(registryTreeUnavailable(), "refs/arc/project/registry") };
-  const result = projectOwnerFromEntries(registry.entries, objects, registry.identity);
+  const result = projectOwnerFromEntries(registry.entries, objects, registry.identity, saved);
   return result.status === "ok" ? { owner: result.result } : { owner: projectOwner(), diagnostic: listingFault(result.refusal, "identity.json") };
 }
 
