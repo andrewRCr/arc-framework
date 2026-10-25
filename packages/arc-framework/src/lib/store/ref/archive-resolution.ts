@@ -4,7 +4,7 @@ import type { StoreCreationReceiptReader } from "../commit-creation-receipt.js";
 import type { RecordReference } from "../identity.js";
 import { sameOwner } from "../identity.js";
 import { HistoryRefSchema, type StoreResult, type StoreRefusal } from "../refusal.js";
-import { archivedFolders, archiveOwnerTrees, isArchiveRef, unreadableOwnedFolder, type ArchivedFolder } from "./archive-read.js";
+import { archivedFolders, archiveOwnerTrees, isArchiveRef, type ArchivedFolder } from "./archive-read.js";
 import { readBatchObjects, readRefTrees } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
 import { corruptRef } from "./namespace-health.js";
@@ -21,13 +21,15 @@ export async function resolveArchivedReferences(context: RefBackendContext, refe
   const quarters = await readRefTrees(context, selected);
   const trees = archiveOwnerTrees(quarters, requested.map(reference => reference.owner));
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
-  const folders = [...trees].flatMap(([ref, entries]) => (["work-item", "cohort"] as const).flatMap((family) => archivedFolders(family, ref, entries, objects).folders))
+  const decoded = [...trees].flatMap(([ref, entries]) => (["work-item", "cohort"] as const).map((family) => archivedFolders(family, ref, entries, objects)));
+  const folders = decoded.flatMap(({ folders }) => folders)
     .filter(({ owner }) => requested.some((reference) => sameOwner(owner, reference.owner)));
   // A quarter whose tree cannot be read may hold a requested owner's folder, or a later one, so no folder set is established.
   const unreadable = [...selected.keys()].find((ref) => !quarters.has(ref));
   if (unreadable) return { status: "refused", refusal: corruptRef(unreadable, true) };
-  const broken = unreadableOwnedFolder(trees, requested.map(reference => reference.owner), objects);
-  if (broken) return { status: "refused", refusal: corruptRef(broken) };
+  const diagnostic = decoded.flatMap(({ diagnostics }) => diagnostics)[0];
+  if (diagnostic) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
+    namespace: diagnostic.key.split(":")[0] ?? diagnostic.key, condition: diagnostic.condition, remedy: diagnostic.remedy } };
   for (const reference of requested) {
     const own = folders.filter(({ owner }) => sameOwner(owner, reference.owner));
     if (!own.length) continue;
