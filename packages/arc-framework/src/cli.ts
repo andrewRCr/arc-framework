@@ -212,7 +212,7 @@ checkCmd
 
 checkCmd
   .command("increment")
-  .description("Run commit checks, early push file feedback, and changed projected selection feedback")
+  .description("Run commit checks, early push file feedback, and changed projected selection feedback; list other push checks as left to the push gate")
   .option("--json", "Emit a versioned JSON envelope")
   .option("--force", "Run selected checks without reusing passes")
   .option("--dry-run", "Forecast checks without executing them")
