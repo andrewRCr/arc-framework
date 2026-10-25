@@ -1,7 +1,7 @@
 /** Lifecycle decisions from held records and exact captured item histories. */
 
 import type { RefBackendContext } from "./context.js";
-import { archivedFolders, isArchiveRef, type ArchivedFolder } from "./archive-read.js";
+import { archivedFolders, isArchiveRef, isArchiveMetadataPath, type ArchivedFolder } from "./archive-read.js";
 import { readBatchObjects, readRefTrees } from "./batch-read.js";
 import { parseStoreCommitProvenance } from "../commit-provenance.js";
 import { RecordReferenceSchema, type OwnerIdentity } from "../identity.js";
@@ -88,7 +88,7 @@ export async function readLifecycleFolders(context: RefBackendContext, tips: Rea
   const retained = context.lifecycleEvidence?.folders;
   const uncached = new Map([...quarters].filter(([ref, tip]) => !retained?.has(JSON.stringify([ref, tip]))));
   const trees = await readRefTrees(context, uncached);
-  const metadata = [...trees.values()].flatMap((entries) => entries.filter(({ path }) => /^[^/]+\/metadata-[0-9a-f-]{36}\.json$/u.test(path)));
+  const metadata = [...trees.values()].flatMap((entries) => entries.filter(({ path }) => isArchiveMetadataPath(path)));
   const objects = await readBatchObjects(context, [...new Set(metadata.map(({ oid }) => oid))]);
   const decoded = new Map<string, readonly ArchivedFolder[]>();
   for (const [ref, entries] of trees) {

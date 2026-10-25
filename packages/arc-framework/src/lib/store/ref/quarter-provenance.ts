@@ -1,12 +1,10 @@
 /** Select quarter provenance from batch order and the records held on either side of its change. */
 import { sameOwner, type RecordReference } from "../identity.js";
 import { expandStoredPath } from "../stored-path.js";
-import { archiveOwnerTrees, archivedFolders, type ArchivedFolder } from "./archive-read.js";
+import { archiveOwnerTrees, archivedFolders, isArchiveMetadataPath, type ArchivedFolder } from "./archive-read.js";
 import { readBatchObjects, readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
 import type { ResolvedMutation } from "./write-resolution.js";
-
-const QUARTER_METADATA = /^[^/]+\/metadata-[0-9a-f-]{36}\.json$/u;
 
 /** The first batch mutation whose logical record the quarter holds before or after publication owns its commit. */
 export async function quarterCommitReference(context: RefBackendContext, writes: readonly ResolvedMutation[], ref: string,
@@ -20,7 +18,7 @@ export async function quarterCommitReference(context: RefBackendContext, writes:
   const owners = candidates.map(({ reference }) => reference.owner);
   const snapshots = [before, [...entries]].map(snapshot => archiveOwnerTrees(new Map([[ref, snapshot]]), owners).get(ref) ?? []);
   const objects = await readBatchObjects(context, [...new Set(snapshots.flatMap(snapshot => snapshot
-    .filter(({ path }) => QUARTER_METADATA.test(path)).map(({ oid }) => oid)))]);
+    .filter(({ path }) => isArchiveMetadataPath(path)).map(({ oid }) => oid)))]);
   const folders = snapshots.flatMap(snapshot => (["work-item", "cohort"] as const)
     .flatMap(family => archivedFolders(family, ref, snapshot, objects).folders));
   const first = candidates.find(({ reference }) => folders.some(folder => sameOwner(reference.owner, folder.owner)

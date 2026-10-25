@@ -17,6 +17,15 @@ export interface ArchivedFolder {
 
 const FOLDER_METADATA = /^metadata-[0-9a-f-]{36}\.json$/u;
 
+/** Recognize metadata candidates broadly enough to diagnose an invalid owner UID. */
+export function isArchiveMetadataName(name: string): boolean { return FOLDER_METADATA.test(name); }
+
+/** Identify one archive folder's metadata entry without admitting a nested path. */
+export function isArchiveMetadataPath(path: string): boolean {
+  const boundary = path.indexOf("/");
+  return boundary > 0 && isArchiveMetadataName(path.slice(boundary + 1));
+}
+
 /** Identify quarter refs without admitting other namespaces under the prefix. */
 export function isArchiveRef(ref: string): boolean { return /^refs\/arc\/archive\/\d{4}-q[1-4]$/u.test(ref); }
 
@@ -35,7 +44,7 @@ export function archiveOwnerTrees(trees: ReadonlyMap<string, readonly RefTreeEnt
       if (slash < 0) continue;
       const root = path.slice(0, slash + 1), name = path.slice(slash + 1);
       roots.add(root);
-      if (FOLDER_METADATA.test(name)) attributed.add(root);
+      if (isArchiveMetadataName(name)) attributed.add(root);
       if (names.has(name)) owned.add(root);
     }
     const kept = new Set([...roots].filter((root) => owned.has(root) || !attributed.has(root)));
@@ -63,7 +72,7 @@ export function archivedFolders(family: FamilyId, ref: string, entries: readonly
     const cohort = /^\d+[ab]_cohort-/u.test(root);
     if (cohort !== (familyRoot === "cohort")) continue;
     const members = entries.filter(({ path }) => path.startsWith(root));
-    const entry = members.find(({ path }) => FOLDER_METADATA.test(path.slice(root.length)));
+    const entry = members.find(({ path }) => isArchiveMetadataName(path.slice(root.length)));
     const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : undefined);
     const placement = folderPlacement(root, metadata, quarter, cohort);
     if (!metadata?.slug || !entry || !placement) {

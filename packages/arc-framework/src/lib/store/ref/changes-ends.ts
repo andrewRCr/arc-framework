@@ -3,7 +3,7 @@ import type { StoreResult } from "../refusal.js";
 import { RecordReferenceSchema, type OwnerIdentity } from "../identity.js";
 import { expandStoredPath } from "../stored-path.js";
 import type { RefBackendContext } from "./context.js";
-import { isArchiveRef, type ArchivedFolder } from "./archive-read.js";
+import { isArchiveRef, isArchiveMetadataPath, type ArchivedFolder } from "./archive-read.js";
 import { captureArchivedFolders } from "./ended-owners.js";
 import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { missingChangeState, type RefChangeInterval, type ChangeWindowReader, type CapturedChangeWindow } from "./changes-graph.js";
@@ -15,8 +15,6 @@ import { rootFamily } from "./codec.js";
 export interface ChangeEnds {
   before: ArchivedFolder[]; after: ArchivedFolder[]; changed: Map<string, Set<string>>; origins: Set<string>;
 }
-
-const FOLDER_METADATA = /^[^/]+\/metadata-[0-9a-f-]{36}\.json$/u;
 
 /** Identify a work item or cohort's live lifecycle coordinate. */
 export function isLifecycleRef(ref: string): boolean { return /^refs\/arc\/(?:work|cohort)\//u.test(ref); }
@@ -52,7 +50,7 @@ async function readEndSnapshots(context: RefBackendContext, interval: RefChangeI
   const trees = endpointTips.size ? await readRefTrees(context, endpointTips) : new Map<string, RefTreeEntry[]>();
   // Folders decode from their metadata files alone.
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries
-    .flatMap(({ path, oid }) => FOLDER_METADATA.test(path) ? [oid] : [])))]);
+    .flatMap(({ path, oid }) => isArchiveMetadataPath(path) ? [oid] : [])))]);
   for (const key of endpointTips.keys()) {
     const boundary = key.indexOf("|"), side = key.slice(0, boundary), ref = key.slice(boundary + 1);
     const entries = trees.get(key);
