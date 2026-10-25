@@ -1,4 +1,5 @@
 /** Release identity resolution follows current marker claims and qualified branch links. */
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -15,9 +16,9 @@ it("resolves a marker's work unit and its qualified branch link without an activ
   onTestFinished(async () => rm(cwd, { recursive: true, force: true }));
   const fixture = createReferenceFixture({}, { "work-item/meta": { parser: content => ({ success: true, data: parseMetaRecord(content) }) } });
   const reference = fixture.reference("work-item/meta");
-  success(await fixture.store.write({ action: "put", reference, content: makeMetaFixture(reference.owner.name, { branch: null }),
+  const record = success(await fixture.store.write({ action: "put", reference, content: makeMetaFixture(reference.owner.name, { branch: null }),
     placement: { kind: "active" }, links: { branches: [{ repository: "project-1", ref: "feat/demo", linkedAs: "created", excluded: [] }] }, expected: null, provenance: testProvenance }));
-  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name: reference.owner.name }, spawningIdentity: "andrew", now: 0 });
+  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: boundWorkUnitSubject(record), spawningIdentity: "andrew", now: 0 });
   const store = fixture.store;
   expect(await resolveActiveWu({ cwd, store, projectId: async () => "project-1" })).toEqual({ status: "resolved",
     name: reference.owner.name, path: `.arc/active/meta-${reference.owner.name}.md`, branch: "feat/demo" });
@@ -30,9 +31,9 @@ it("withholds a disputed primary's branch until an explicit resolution", async (
   const fixture = createReferenceFixture({}, { "work-item/meta": { parser: content => ({ success: true, data: parseMetaRecord(content) }) } });
   const reference = fixture.reference("work-item/meta"), content = makeMetaFixture(reference.owner.name, { branch: null });
   const branches = (ref: string) => ({ branches: [{ repository: "project-1", ref, linkedAs: "created" as const, excluded: [] }] });
-  success(await fixture.store.write({ action: "put", reference, expected: null, content, placement: { kind: "active" },
+  const record = success(await fixture.store.write({ action: "put", reference, expected: null, content, placement: { kind: "active" },
     links: branches("feat/base"), provenance: testProvenance }));
-  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name: reference.owner.name }, spawningIdentity: "andrew", now: 0 });
+  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: boundWorkUnitSubject(record), spawningIdentity: "andrew", now: 0 });
   const remote = fixture.remote(true);
   if (remote === undefined) throw new Error("Expected a remote writer");
   success(await fixture.store.sync());

@@ -1,4 +1,5 @@
 /** Completed subject fixtures retain actual Git merge topology and production record formats. */
+import { boundWorkUnitSubject } from "./store/bound-checkout.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -33,7 +34,6 @@ export async function completedSubjectFixture(cadence: "manual" | "with-integrat
     await exec("git", ["commit", "-m", `Work step ${step}`]);
   }
   await ensureWorktreeMarkerIgnored(cwd, exec, nodeWorktreeMarkerIgnoreFs);
-  await writeWorktreeMarker(cwd, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "completed-unit" }, spawningIdentity: "test-user", createdAt: "2026-10-16T12:00:00.000Z" });
   const h = createLifecycleHarness();
   h.store.environment.identity = "test-user";
   const repository = randomUUID();
@@ -41,6 +41,7 @@ export async function completedSubjectFixture(cadence: "manual" | "with-integrat
   const record = await h.seedMeta("completed-unit", terminal ? { state: "Active", currentWorkflow: "process-task-loop" } : { state: "Shipped", currentWorkflow: null },
     terminal ? { kind: "active" } : { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
     { branches: [{ repository, ref: "feat/completed-unit", linkedAs: "created", excluded: [] }] });
+  await writeWorktreeMarker(cwd, { spawnedByArc: false, createdFor: boundWorkUnitSubject(record), spawningIdentity: "test-user", createdAt: "2026-10-16T12:00:00.000Z" });
   return { ...h, cwd, exec, repository, record, head: (await exec("git", ["rev-parse", "HEAD"])).stdout.trim() };
 }
 

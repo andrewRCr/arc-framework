@@ -518,25 +518,11 @@ unclosed task commits (§ 3.2) re-read by the UID claim here.
           no-operand refusals and per-holder reconciliation. A1's current-name apply, the retained former-operand case,
           and current task/planning mutations preserve completed namesakes and their artifacts, including pause state.
 
-    - `[ ]` **4.3.d The fixture sweep**
+    - `[x]` **4.3.d The fixture sweep**
 
-        - Every store-arm fixture that writes a work-unit marker, builds a derived row's work-unit subject, or sends a
-          work-unit claim carries the owner's UID; one that means an unbound marker, and every husk fixture
-          (`session-envelope-compat.ts` among them), leaves it out. Holder-port stubs sweep with the ports in 4.4.a.
-        - The sweep is found by rule, not by list: under `__tests__/`, the files with a `kind: "work-unit"` subject or
-          claim literal that also open a store-arm store (`createLifecycleHarness`, `createReferenceFixture`, the
-          reference backend, or the clash double), about 56 files. Among them: the status handler tests
-          `checkout-roster.test.ts`, `store-derived-position.test.ts`, and `store-session-ref-failure.test.ts`
-          (`__tests__/unit/handlers/status/`), `view-store.test.ts`, the recovery integration tests, the helper
-          `completed-subject.ts`, and `errand-open-selected-store.test.ts`.
-        - Two fixtures read as this rule gives them: `current-work-unit-marker.test.ts`'s case expecting a removed
-          record's marker to resolve the namesake seeded after it inverts, the marker carrying the removed record's UID
-          and resolving to nothing; and `terminal-occupancy-admission.test.ts`'s marker, written as a creation's
-          residue, stays without a UID (6.1.c).
-        - The shared conformance assertion `checkout-work-unit-claim` (`__tests__/helpers/store/suite-lookup.ts`), which
-          runs over the reference backend, sends the seeded owner's `uid` where one was minted: the in-repo registration
-          mints none, and the ref backend's claim arm ignores the field until 8.2.b.
-        - Every swept test passes with the slug fallback still in place.
+        - Bound fixture markers, derived subjects, and conformance claims carry seeded owner UUIDs; creation residues
+          and husks retain their intended unbound subjects. Removed-owner and clash cases pin exact generations, and
+          recovery projects UUID-bearing rows into its existing smaller frame.
 
     - `[ ]` **4.3.e No slug fallback**
 

@@ -1,4 +1,5 @@
 /** Registered session status waits for the operational pull before selecting its frame. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -39,7 +40,7 @@ async function fixture(remoteSync = "enabled") {
   const meta = await h.seedMeta("demo", { state: "Planning", currentWorkflow: "draft-design", owner: "alice" }, { kind: "active" },
     { branches: [{ repository: project, ref: "feat/demo", linkedAs: "adopted", excluded: [] }] });
   await ensureWorktreeMarkerIgnored(cwd, exec, nodeWorktreeMarkerIgnoreFs);
-  await writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: "alice", createdAt: new Date(0).toISOString(), createdFor: { kind: "work-unit", name: "demo" } });
+  await writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: "alice", createdAt: new Date(0).toISOString(), createdFor: boundWorkUnitSubject(meta) });
   return { ...h, cwd, meta };
 }
 

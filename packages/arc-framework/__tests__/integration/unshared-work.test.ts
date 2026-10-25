@@ -1,4 +1,5 @@
 /** Published reachability uses refreshed named refs and treats deleted refs as absent. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { afterEach, expect, it } from "vitest";
 import { join } from "node:path";
 import { mkdir, rm, writeFile } from "node:fs/promises";
@@ -89,7 +90,7 @@ it("no origin has no unshared count, reports held-only work, and admits only a c
 
 it("finds the selected repository's dirty holder when the executor defaults to a nested repository", async () => {
   const f = await fixture(false);
-  await writeWorktreeOwnershipMarker(f.root, { createdByArc: true, createdFor: { kind: "work-unit", name: "example" }, spawningIdentity: "test-user" });
+  await writeWorktreeOwnershipMarker(f.root, { createdByArc: true, createdFor: boundWorkUnitSubject(f.record), spawningIdentity: "test-user" });
   await f.exec("git", ["add", "-A"]); await f.exec("git", ["commit", "--allow-empty", "-m", "holder marker"]);
   const nested = join(f.root, ".git", "nested"); await mkdir(nested);
   await f.exec("git", ["init", "-b", "main", nested]);
@@ -107,7 +108,7 @@ it("finds the selected repository's dirty holder when the executor defaults to a
 it("reports and refuses unpublished promoted work while the holder stays on its published Errand branch", async () => {
   const f = await fixture();
   await f.exec("git", ["switch", "-c", "chore/example", "main"]);
-  await writeWorktreeOwnershipMarker(f.root, { createdByArc: true, createdFor: { kind: "work-unit", name: "example" }, spawningIdentity: "test-user" });
+  await writeWorktreeOwnershipMarker(f.root, { createdByArc: true, createdFor: boundWorkUnitSubject(f.record), spawningIdentity: "test-user" });
   await f.exec("git", ["add", "-A"]); await f.exec("git", ["commit", "--allow-empty", "-m", "holder marker"]);
   await f.exec("git", ["push", "origin", "chore/example"]);
   lifecycleSuccess(await f.store.write({ action: "put", reference: f.record.reference, expected: f.record.version,

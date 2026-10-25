@@ -23,7 +23,7 @@ import { deriveStoreInFlight } from "../../../src/lib/git/in-flight-store.js";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import { batchLifecycleWrites } from "../../../src/lib/store/lifecycle-write.js";
 
-async function fixture(bound = false) {
+async function fixture(bound = true) {
   const fixture = createReferenceFixture({}, { "cohort/document": { parser: parseCohortDocument },
     "work-item/task-list": { parser: content => ({ success: true, data: parseTaskListRecord(content) }) } });
   const reference = fixture.reference("work-item/meta");

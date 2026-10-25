@@ -1,4 +1,5 @@
 /** Terminal lineage resolves a removed primary without inventing metadata or active work. */
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -41,7 +42,7 @@ async function fixture(kind: "abandon" | "decompose" = "abandon") {
     return ok(await h.store.read({ reference }));
   };
   const terminal = await retire();
-  const input = { store: h.store, slug: "ended", head: "a".repeat(40) };
+  const input = { store: h.store, slug: "ended", uid: boundWorkUnitSubject(terminal).uid, head: "a".repeat(40) };
   return { ...h, terminal, retire, input };
 }
 
@@ -78,7 +79,7 @@ it.each((["manual", "with-integration"] as const).flatMap(archiveCadence =>
     expect(result).toMatchObject({ kind: "terminal", subject: { kind: "work-unit", key: "ended" },
       lifecycle: { state: "retired", expectedTopology: {} } });
     expect(result).not.toHaveProperty("record"); expect(result).not.toHaveProperty("fields"); expect(result).not.toHaveProperty("branch");
-    expect(await h.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(h.terminal.reference.owner.name) } }))
+    expect(await h.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(h.terminal.reference.owner.name), uid: boundWorkUnitSubject(h.terminal).uid } }))
       .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   });
 
@@ -86,7 +87,7 @@ it("keeps a terminal physical association out of logical rosters and class compo
   const h = await fixture(), cwd = await mkdtemp(join(tmpdir(), "arc-terminal-roster-"));
   onTestFinished(async () => rm(cwd, { recursive: true, force: true }));
   await mkdir(join(cwd, ".arc"));
-  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name: "ended" }, spawningIdentity: "andrew", now: 0 });
+  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: boundWorkUnitSubject(h.terminal), spawningIdentity: "andrew", now: 0 });
   const options = { store: h.store, cwd, exec: async () => ({ stdout: `worktree ${cwd}\0HEAD ${"a".repeat(40)}\0detached\0\0` }),
     fs: { readdir: async () => [], readFile: async () => { throw new Error("No primary projection exists"); } } };
   const physical = await runWorktreeRoster(options);
@@ -96,9 +97,9 @@ it("keeps a terminal physical association out of logical rosters and class compo
   expect(resolveInFlightComposition(physical.entries)).toBeNull();
 });
 
-it("reports ambiguous terminal generations instead of choosing a retirement", async () => {
+it("reports ambiguous terminal generations for an unbound claim instead of choosing a retirement", async () => {
   const h = await fixture(); await h.retire();
-  const result = await readStoreWorkUnitEvidence(h.input);
+  const result = await readStoreWorkUnitEvidence({ ...h.input, uid: undefined });
   expect(result).toMatchObject({ kind: "unreadable", code: "subject-unresolved", reason: expect.stringMatching(/more than one record generation.*retry/iu) });
 });
 

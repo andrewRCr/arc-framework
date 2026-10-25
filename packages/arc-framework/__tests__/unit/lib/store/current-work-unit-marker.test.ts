@@ -1,4 +1,5 @@
 /** Off-branch current identity comes from real ownership markers and reference fixture hooks. */
+import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +8,7 @@ import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { resolveCurrentWorkUnit } from "../../../../src/lib/store/current-work-unit.js";
 import { writeWorktreeOwnershipMarker, writeWorktreeMarker, readWorktreeMarker, stampWorktreeHusk, resolveWorktreeMarkerPath } from "../../../../src/lib/git/worktree-marker.js";
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
+import { ReferenceBackend } from "../../../helpers/store/reference-backend.js";
 import { seed, success } from "../../../helpers/store/suite-tools.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
 import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
@@ -29,8 +31,16 @@ async function fixture() {
   const reference = metaReferenceFixture();
   const record = await seed(reference, reference.reference("work-item/meta"));
   const marker = async () => writeWorktreeOwnershipMarker(cwd, { createdByArc: true,
-    createdFor: { kind: "work-unit", name: record.reference.owner.name }, spawningIdentity: "andrew", now: 0 });
+    createdFor: boundWorkUnitSubject(record), spawningIdentity: "andrew", now: 0 });
   return { cwd, reference, record, marker, resolve: () => resolveCurrentWorkUnit({ cwd, store: reference.store }) };
+}
+
+async function bindProducedMarker(cwd: string, reference: ReturnType<typeof metaReferenceFixture>) {
+  if (!(reference.store instanceof ReferenceBackend)) throw new Error("Expected the reference backend fixture");
+  const primary = [...reference.store.state.records.values()][0];
+  if (primary === undefined) throw new Error("Expected the produced primary generation");
+  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, spawningIdentity: "andrew", now: 0,
+    createdFor: boundWorkUnitSubject(primary) });
 }
 
 describe("current work-unit marker fallback", () => {
@@ -96,13 +106,14 @@ describe("current work-unit marker fallback", () => {
     expect(await resolve()).toMatchObject({ status: "resolved", warnings: [] });
   });
 
-  it("warns on genuine claim ambiguity produced by the named hook and resolves after its repair", async () => {
+  it("resolves the bound generation through a genuine name clash before and after its repair", async () => {
     const h = await fixture();
     await h.marker();
     const reference = metaReferenceFixture();
     await reference.produce("ambiguous-match");
+    await bindProducedMarker(h.cwd, reference);
     const resolve = () => resolveCurrentWorkUnit({ cwd: h.cwd, store: reference.store });
-    expect(await resolve()).toMatchObject({ status: "none", warnings: [expect.stringContaining("more than one record")] });
+    expect(await resolve()).toMatchObject({ status: "resolved", warnings: [] });
     await reference.repair("ambiguous-match");
     expect(await resolve()).toMatchObject({ status: "resolved", warnings: [] });
   });
@@ -112,6 +123,7 @@ describe("current work-unit marker fallback", () => {
     await h.marker();
     const reference = metaReferenceFixture();
     await reference.produce("identity-mismatch");
+    await bindProducedMarker(h.cwd, reference);
     const resolve = () => resolveCurrentWorkUnit({ cwd: h.cwd, store: reference.store });
     expect(await resolve()).toMatchObject({ status: "none", warnings: [expect.stringContaining("identity")] });
     await reference.repair("identity-mismatch");
@@ -123,6 +135,7 @@ describe("current work-unit marker fallback", () => {
     await h.marker();
     const reference = metaReferenceFixture();
     await reference.produce("identity-mismatch");
+    await bindProducedMarker(h.cwd, reference);
     await reference.repair("identity-mismatch");
     const lookup = reference.store.lookup.bind(reference.store);
     const store = Object.create(reference.store) as Store;
@@ -139,7 +152,7 @@ describe("current work-unit marker fallback", () => {
     expect(await resolve()).toMatchObject({ status: "resolved", warnings: [] });
   });
 
-  it("finds none when the primary disappears between lookup and read, then resolves its replacement", async () => {
+  it("finds none when the primary disappears between lookup and read, including a later namesake", async () => {
     const h = await fixture();
     await h.marker();
     const lookup = h.reference.store.lookup.bind(h.reference.store);
@@ -158,7 +171,8 @@ describe("current work-unit marker fallback", () => {
     expect(await resolve()).toEqual({ status: "none", candidates: [], warnings: [] });
     remove = false;
     const replacement = await seed(h.reference, h.reference.reference("work-item/meta"));
-    expect(await resolve()).toMatchObject({ status: "resolved", candidate: { reference: replacement.reference }, warnings: [] });
+    expect(replacement.reference.owner).not.toEqual(h.record.reference.owner);
+    expect(await resolve()).toEqual({ status: "none", candidates: [], warnings: [] });
   });
 
   it("finds none when the primary changes to an Errand after lookup and resolves its restored role", async () => {

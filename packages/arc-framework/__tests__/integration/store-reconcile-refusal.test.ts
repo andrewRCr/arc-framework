@@ -1,4 +1,5 @@
 /** Reconcile rejects another clashed operand without losing evidence or changing the checkout owner. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { expect, it } from "vitest";
 import { repairCli, repairCliFixture } from "../helpers/repair-cli.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
@@ -12,7 +13,7 @@ it.each([false, true])("reports the clashed operand with its complete refusal, j
   const expected = await store.lookup({ kind: "slug", slug: SlugSchema.parse("example") });
   if (expected.status !== "refused") throw new Error("Expected a fixture clash");
   await writeWorktreeOwnershipMarker(f.cwd, { createdByArc: true,
-    createdFor: { kind: "work-unit", name: "caller" }, spawningIdentity: "test-user" });
+    createdFor: boundWorkUnitSubject(caller), spawningIdentity: "test-user" });
   const result = await repairCli(f, ["wu", "reconcile", "example", "--apply", ...(json ? ["--json"] : [])], { store });
   expect(result.exitCode).toBe(1);
   if (json) expect(result.result).toMatchObject({ status: "conflict", slug: "example", refusal: expected.refusal });

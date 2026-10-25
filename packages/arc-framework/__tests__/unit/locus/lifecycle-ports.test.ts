@@ -1,10 +1,12 @@
 /** Lifecycle lookup fails closed on marker and topology uncertainty. */
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { mkdtemp, rm, writeFile, mkdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import { createLocusPorts } from "../../../src/lib/locus/lifecycle-ports.js";
 import { writeWorktreeOwnershipMarker, resolveWorktreeMarkerPath, stampWorktreeHusk, readWorktreeMarker, removeWorktreeMarkerGeneration } from "../../../src/lib/git/worktree-marker.js";
+import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
 import { createReferenceFixture } from "../../helpers/store/reference-fixture.js";
 
 async function fixture() {
@@ -12,14 +14,15 @@ async function fixture() {
   const other = join(cwd, "holder");
   await mkdir(other);
   onTestFinished(async () => rm(cwd, { recursive: true, force: true }));
-  const store = createReferenceFixture().store;
+  const { store, seedMeta } = createLifecycleHarness();
+  const record = await seedMeta("demo");
   const exec = async () => ({ stdout: [
     `worktree ${cwd}`, `HEAD ${"a".repeat(40)}`, "branch refs/heads/main", "", "",
     `worktree ${other}`, `HEAD ${"b".repeat(40)}`, "branch refs/heads/feat/demo", "", "",
   ].join("\0") });
   const ports = createLocusPorts({ cwd, exec, store });
-  return { cwd, other, ports, marker: () => writeWorktreeOwnershipMarker(other, { createdByArc: true,
-    createdFor: { kind: "work-unit", name: "demo" }, spawningIdentity: "andrew", now: 0 }) };
+  return { cwd, other, ports, record, marker: () => writeWorktreeOwnershipMarker(other, { createdByArc: true,
+    createdFor: boundWorkUnitSubject(record), spawningIdentity: "andrew", now: 0 }) };
 }
 
 it("refuses another checkout's marker and returns its holder rather than invoking the legacy scan", async () => {
@@ -61,7 +64,7 @@ it.each(["failed", "incomplete"])("refuses a %s roster for both operations", asy
 it("rejects duplicate holders and passes over a husk-stamped marker", async () => {
   const h = await fixture();
   await h.marker();
-  await writeWorktreeOwnershipMarker(h.cwd, { createdByArc: true, createdFor: { kind: "work-unit", name: "demo" }, spawningIdentity: "andrew", now: 0 });
+  await writeWorktreeOwnershipMarker(h.cwd, { createdByArc: true, createdFor: boundWorkUnitSubject(h.record), spawningIdentity: "andrew", now: 0 });
   await expect(h.ports.findHoldingCheckout({ name: "demo", resolveLegacy: async () => null })).rejects.toThrow(h.other);
   await stampWorktreeHusk(h.other, { sha: "a".repeat(40), at: new Date(0).toISOString(), subject: { kind: "work-unit", name: "demo" }, branch: "feat/demo" });
   expect(await h.ports.findHoldingCheckout({ name: "demo", resolveLegacy: async () => null })).toBe(h.cwd);
@@ -70,7 +73,7 @@ it("rejects duplicate holders and passes over a husk-stamped marker", async () =
 it.each(["primary", "linked"])("writes, replaces and rolls back exact anchored generations on the %s checkout", async topology => {
   const h = await fixture();
   const checkout = topology === "primary" ? h.cwd : h.other;
-  const marker = { spawnedByArc: false, createdFor: { kind: "work-unit" as const, name: "demo" },
+  const marker = { spawnedByArc: false, createdFor: boundWorkUnitSubject(h.record),
     spawningIdentity: "andrew", createdAt: new Date(0).toISOString() };
   const ports = createLocusPorts({ cwd: h.cwd, store: createReferenceFixture().store,
     exec: async () => ({ stdout: join(h.cwd, ".git", "info", "exclude") }) });

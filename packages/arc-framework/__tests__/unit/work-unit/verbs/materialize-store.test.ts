@@ -1,4 +1,5 @@
 /** Store-held materialization supports released, paused and branchless work without a state write. */
+import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { describe, expect, it } from "vitest";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -135,9 +136,9 @@ it.each([undefined, "feat/demo"])("reports the occupied checkout before unreadab
   const cwd = await mkdtemp(join(tmpdir(), "arc-materialize-occupancy-"));
   try {
     const h = await harness({ ...(branch === undefined ? {} : { branch }) });
-    await h.seedMeta("occupied", { state: "Active", owner: "starter" });
+    const occupied = await h.seedMeta("occupied", { state: "Active", owner: "starter" });
     await writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: "starter", createdAt: "2026-10-18T00:00:00Z",
-      createdFor: { kind: "work-unit", name: "occupied" } });
+      createdFor: boundWorkUnitSubject(occupied) });
     const marker = await readFile(resolveWorktreeMarkerPath(cwd), "utf8");
     const before = lifecycleSuccess(await h.store.version());
     const originalExec = h.ctx.exec;

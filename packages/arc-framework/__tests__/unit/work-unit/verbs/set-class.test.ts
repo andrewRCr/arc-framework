@@ -1,4 +1,5 @@
 /** Classification persists at the selected placement and defaults only to the checkout's held unit. */
+import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -24,7 +25,7 @@ it("defaults the slug to the active work unit claimed by this checkout", async (
   const record = await seedMeta("example");
   await seedMeta("other");
   const cwd = await mkdtemp(join(tmpdir(), "arc-set-class-")); roots.push(cwd);
-  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name: "example" }, spawningIdentity: "test-user" });
+  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: boundWorkUnitSubject(record), spawningIdentity: "test-user" });
   expect(await runSetClass({ cwd, store }, { workClass: "Heavy" })).toMatchObject({ status: "ok", name: "example" });
   expect(lifecycleSuccess(await store.read({ reference: record.reference })).fields).toMatchObject({ workClass: "Heavy" });
 });

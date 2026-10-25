@@ -1,4 +1,5 @@
 /** Operational terminal snapshots drive real Git checkout and ref cleanup, including resumable failures. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -34,7 +35,7 @@ async function fixture(options: { adopted?: boolean; ended?: boolean; secondary?
   if (options.secondary) { await exec("git", ["branch", "chore/demo", workOid]); await exec("git", ["push", "origin", "chore/demo"]); }
   const h = await createRetirementHarness({ ended: options.ended, end: options.end, branches: [...(options.secondary ? [retirementLink("chore/demo")] : []), retirementLink("feat/demo", options.adopted ? "adopted" : "created")] });
   let holder: string | null = root;
-  const marker: WorktreeMarker = { spawnedByArc: false, wuName: "demo", createdFor: { kind: "work-unit", name: "demo" }, spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00Z" };
+  const marker: WorktreeMarker = { spawnedByArc: false, wuName: "demo", createdFor: boundWorkUnitSubject(h.meta), spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00Z" };
   const ports = { ...createDefaultLocusPorts(), findHoldingCheckout: () => Promise.resolve(holder) };
   const io = { ...createUserIOContext(), exec, execInput };
   const executor = buildExecutorContext({ cwd: root, io, store: h.store, locusPorts: ports, projectId: async () => "repo", identity: "test-user", teamMode: false, internalTemplateDir: "/templates" });

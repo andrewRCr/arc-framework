@@ -102,7 +102,7 @@ it("recovers from another checkout with its own converted holder and refuses dup
   const before = success(await f.store.version()), converted = await readWorktreeMarker(f.cwd);
   expect(await repairCli(caller, promoteArgs(f.slug, name))).toMatchObject({ result: { outcome: "idempotent", checkoutPath: f.cwd } });
   await writeWorktreeMarker(caller.cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-16T00:00:00Z",
-    createdFor: { kind: "work-unit", name } });
+    createdFor: { kind: "work-unit", name, uid: f.uid } });
   expect(await repairCli(caller, promoteArgs(f.slug, name))).toMatchObject({ exitCode: 1, result: { outcome: "refused", reason: "duplicate-locus" } });
   expect(success(await f.store.version())).toBe(before);
   expect(await readWorktreeMarker(f.cwd)).toEqual(converted);

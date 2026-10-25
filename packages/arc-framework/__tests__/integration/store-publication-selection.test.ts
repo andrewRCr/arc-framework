@@ -1,4 +1,5 @@
 /** Publication handlers keep the selected record through Candidate evidence and a concurrent name clash. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -49,7 +50,7 @@ it.each([true, false])("publication retains Candidate evidence and name admissio
     { branches: [{ repository: "repo", ref: "feat/example", linkedAs: "created", excluded: [] }] });
   const other = await h.seedMeta("other");
   const store = createClashDouble(h.store, { slug: "example", holders: [primary.reference, other.reference], mode: explicit ? "mid-verb" : "clash" });
-  if (!explicit) await writeWorktreeOwnershipMarker(root, { createdByArc: true, createdFor: { kind: "work-unit", name: "example" }, spawningIdentity: "test-user" });
+  if (!explicit) await writeWorktreeOwnershipMarker(root, { createdByArc: true, createdFor: boundWorkUnitSubject(primary), spawningIdentity: "test-user" });
   const io = { ...createUserIOContext(), exec };
   state.base = { cwd: root, identity: "test-user", io, store };
   state.executor = buildExecutorContext({ cwd: root, io, store, projectId: async () => "repo", identity: "test-user", teamMode: false, internalTemplateDir: "/templates" });

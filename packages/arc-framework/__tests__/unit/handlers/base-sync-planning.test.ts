@@ -1,4 +1,5 @@
 /** Detached Planning checkout catch-up belongs to the base handler, outside the shared Git synchronizer. */
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -14,8 +15,8 @@ const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });
 async function fixture(options: { branch?: string; commits?: string[]; result?: BaseSyncResult } = {}) {
   const cwd = await mkdtemp(join(tmpdir(), "arc-planning-sync-")); roots.push(cwd);
-  const h = createLifecycleHarness(); await h.seedMeta("demo", { state: "Planning", currentWorkflow: "draft-design" });
-  await writeWorktreeMarker(cwd, { spawnedByArc: true, wuName: "demo", createdFor: { kind: "work-unit", name: "demo" }, spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00.000Z" });
+  const h = createLifecycleHarness(); const record = await h.seedMeta("demo", { state: "Planning", currentWorkflow: "draft-design" });
+  await writeWorktreeMarker(cwd, { spawnedByArc: true, wuName: "demo", createdFor: boundWorkUnitSubject(record), spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00.000Z" });
   let head = options.commits?.length ? ahead : base; let synced = false;
   const exec: GitExec = async (_command, args) => {
     if (args[0] === "--no-replace-objects") args = args.slice(1);

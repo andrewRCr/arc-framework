@@ -1,4 +1,5 @@
 /** Actual handler composition over checked operational records and scripted physical boundaries. */
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -67,7 +68,7 @@ it.each([false, true])("runs a retirement through handler-built store and cleanu
   const marker = resolveWorktreeMarkerPath(state.root);
   await writeFile(join(state.root, "personal.txt"), "Retained personal content.");
   if (held) await writeWorktreeMarker(state.root, { spawnedByArc: false, wuName: "origin",
-    createdFor: { kind: "work-unit", name: "origin" }, spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00.000Z" });
+    createdFor: boundWorkUnitSubject(h.primary), spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00.000Z" });
   const base = "a".repeat(40);
   const git = scriptGitExec([
     { match: ["config", "--null", "--get", "arc.identity"], responses: [{ stdout: "test-user\0", stderr: "" }] },

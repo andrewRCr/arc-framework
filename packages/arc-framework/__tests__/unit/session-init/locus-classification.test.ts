@@ -1,4 +1,5 @@
 import { createStore } from "../../../src/lib/store/create.js";
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
@@ -74,11 +75,11 @@ function baseRow(path: string, branch: string | null) {
   };
 }
 
-function workUnitRow(name: string, path: string): DerivedCheckoutRow {
+function workUnitRow(name: string, path: string, uid?: string): DerivedCheckoutRow {
   return {
     ...baseRow(path, `feat/${name}`),
     kind: "work-unit",
-    subject: { kind: "work-unit", key: name },
+    subject: { kind: "work-unit", key: name, ...(uid === undefined ? {} : { uid }) },
   };
 }
 
@@ -95,8 +96,8 @@ function transientRow(identity: LocusIdentityV1): DerivedCheckoutRow {
 it.each(["default", "injected"] as const)("resolves an arbitrary linked work branch through the %s project identity port", async port => {
   const h = createLifecycleHarness();
   await h.seed(recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "example", uid: "11111111-1111-4111-8111-111111111111" })), "{}");
-  await h.seedMeta("widget", {}, { kind: "active" }, { branches: [{ repository: "11111111-1111-4111-8111-111111111111", ref: "arbitrary-name", linkedAs: "adopted", excluded: [] }] });
-  const roster = [workUnitRow("widget", "/wt/widget")];
+  const primary = await h.seedMeta("widget", {}, { kind: "active" }, { branches: [{ repository: "11111111-1111-4111-8111-111111111111", ref: "arbitrary-name", linkedAs: "adopted", excluded: [] }] });
+  const roster = [workUnitRow("widget", "/wt/widget", boundWorkUnitSubject(primary).uid)];
   expect(await locusOwnsBranch(roster, "arbitrary-name", { store: h.store, ...(port === "injected" ? { projectId: async () => "11111111-1111-4111-8111-111111111111" } : {}) })).toBe(true);
   expect(await locusOwnsBranch(roster, "feat/widget", { store: h.store, ...(port === "injected" ? { projectId: async () => "11111111-1111-4111-8111-111111111111" } : {}) })).toBe(false);
 });

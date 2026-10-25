@@ -1,4 +1,5 @@
 /** Task-list conflicts withhold execution context until an explicit resolution. */
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { createMemoryRemote } from "../../helpers/store/sync.js";
@@ -12,8 +13,8 @@ import type { WorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
 
 const tasks = (first: string, second: string) => `# Task List: Demo\n\n## **Phase 1:** Work\n\n### \`[${first}]\` **1.1 First**\n\n### \`[${second}]\` **1.2 Second**\n`;
 
-async function frame(store: Store) {
-  const marker: WorktreeMarker = { spawnedByArc: false, createdFor: { kind: "work-unit", name: "demo" }, spawningIdentity: "andrew", createdAt: "2026-10-16T00:00:00Z" };
+async function frame(store: Store, record: Parameters<typeof boundWorkUnitSubject>[0]) {
+  const marker: WorktreeMarker = { spawnedByArc: false, createdFor: boundWorkUnitSubject(record), spawningIdentity: "andrew", createdAt: "2026-10-16T00:00:00Z" };
   const io: DerivedLocusEvidenceIO = {
     store, projectId: async () => "project", canonicalizePath: async path => path,
     scanWorktrees: async () => ({ ok: true, worktrees: [{ folderPresent: true, path: "/repo", head: "a".repeat(40), branch: "main", detached: false, primary: true }] }),
@@ -46,7 +47,7 @@ it("derives no cursor or workflow from a synchronized task conflict, then resume
   lifecycleSuccess(await writer.write({ action: "put", reference, expected: other.version, content: tasks(" ", "x"), provenance }));
   lifecycleSuccess(await h.store.sync());
   const disputed = lifecycleSuccess(await h.store.read({ reference })); expect(disputed.conflicts).toHaveLength(1);
-  const unresolved = await frame(h.store);
+  const unresolved = await frame(h.store, meta);
   expect(unresolved.active).toBeNull();
   expect(unresolved.roster[0]).toMatchObject({ kind: "unresolved-checkout", context: null });
   const message = unresolved.roster[0]?.diagnostics.map(item => item.message).join(" ") ?? "";
@@ -55,7 +56,7 @@ it("derives no cursor or workflow from a synchronized task conflict, then resume
   lifecycleSuccess(await h.store.write({ action: "put", reference: disputed.reference, expected: disputed.version,
     resolves: disputed.conflicts, content: tasks("x", " "), provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
   expect(lifecycleSuccess(await h.store.read({ reference })).conflicts).toEqual([]);
-  expect((await frame(h.store)).active?.context).toMatchObject({ workflow: "process-task-loop", taskCursor: { status: "found", cursor: { leaf: { id: "1.2" } } } });
+  expect((await frame(h.store, meta)).active?.context).toMatchObject({ workflow: "process-task-loop", taskCursor: { status: "found", cursor: { leaf: { id: "1.2" } } } });
 });
 
 it("withholds cohort context until the exact document conflict is resolved", async () => {
@@ -65,7 +66,7 @@ it("withholds cohort context until the exact document conflict is resolved", asy
   const reference = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "leaf" }));
   const document = (purpose: string) => `# Cohort: leaf\n\n**Parent:** \`group\`\n\n**Purpose:** ${purpose}\n`;
   await h.seed(reference, document("Base purpose"));
-  await h.seedMeta("demo", { state: "Planning", owner: "andrew", branch: null, cohort: "group/leaf", currentWorkflow: "draft-design" });
+  const meta = await h.seedMeta("demo", { state: "Planning", owner: "andrew", branch: null, cohort: "group/leaf", currentWorkflow: "draft-design" });
   const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
   lifecycleSuccess(await h.store.sync());
   const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
@@ -76,7 +77,7 @@ it("withholds cohort context until the exact document conflict is resolved", asy
   lifecycleSuccess(await h.store.sync());
   const disputed = lifecycleSuccess(await h.store.read({ reference }));
   expect(disputed.conflicts.length).toBeGreaterThan(0);
-  const unresolved = await frame(h.store);
+  const unresolved = await frame(h.store, meta);
   expect(unresolved.active).toBeNull();
   expect(unresolved.roster[0]).toMatchObject({ kind: "unresolved-checkout", context: null });
   const message = unresolved.roster[0]?.diagnostics.map(item => item.message).join(" ") ?? "";
@@ -84,5 +85,5 @@ it("withholds cohort context until the exact document conflict is resolved", asy
   expect(message).toMatch(/resolve.*retry/iu);
   lifecycleSuccess(await h.store.write({ action: "put", reference, expected: disputed.version, content: document("Local purpose"),
     resolves: disputed.conflicts, provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
-  expect((await frame(h.store)).active?.context).toMatchObject({ workflow: "planning", stage: "draft-design", cohortDocPath: ".arc/backlog/planned/group/leaf/cohort-leaf.md" });
+  expect((await frame(h.store, meta)).active?.context).toMatchObject({ workflow: "planning", stage: "draft-design", cohortDocPath: ".arc/backlog/planned/group/leaf/cohort-leaf.md" });
 });

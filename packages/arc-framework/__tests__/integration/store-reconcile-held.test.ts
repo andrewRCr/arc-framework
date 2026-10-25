@@ -1,4 +1,5 @@
 /** Registered reconciliation carries held dependency facts through human and machine output. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { expect, it } from "vitest";
 import { repairCli, repairCliFixture } from "../helpers/repair-cli.js";
 import { createDecomposeHarness } from "../helpers/store/decompose-harness.js";
@@ -11,7 +12,7 @@ it.each([false, true])("reports a held edge with both typed holders and the repa
   const dependent = await h.seedMeta("dependent", { dependsOn: ["target"] });
   const cohort = await h.seedCohort("target");
   await writeWorktreeOwnershipMarker(f.cwd, { createdByArc: true,
-    createdFor: { kind: "work-unit", name: "dependent" }, spawningIdentity: "test-user" });
+    createdFor: boundWorkUnitSubject(dependent), spawningIdentity: "test-user" });
   const result = await repairCli(f, ["wu", "reconcile", "dependent", ...(json ? ["--json"] : [])], { store: h.store });
   expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
   if (json) expect(result.result).toMatchObject({ status: "pending", dependency: { after: ["target"], live: [], held: [{

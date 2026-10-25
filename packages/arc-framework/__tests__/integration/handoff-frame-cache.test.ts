@@ -1,4 +1,5 @@
 /** Handoff paths and restating retain one selected frame while marker authority advances. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
@@ -17,11 +18,12 @@ it("keeps a current record's projected context after a later marker change", asy
   await execFileAsync("git", ["config", "arc.identity", "andrew"], { cwd });
   const h = createLifecycleHarness(); h.store.environment.identity = "andrew";
   await h.seed(recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "demo-project" })), "{}");
+  const current = await h.seedMeta("current", { state: "Planning", currentWorkflow: "draft-design", owner: "andrew" });
+  const advanced = await h.seedMeta("advanced", { state: "Planning", currentWorkflow: "draft-design", owner: "andrew" });
   for (const name of ["current", "advanced"]) {
-    await h.seedMeta(name, { state: "Planning", currentWorkflow: "draft-design", owner: "andrew" });
     await mkdir(join(cwd, ".arc", "user", "andrew", name), { recursive: true });
   }
-  const marker = { spawnedByArc: false, spawningIdentity: "andrew", createdAt: "2026-10-16T00:00:00.000Z", createdFor: { kind: "work-unit" as const, name: "current" } };
+  const marker = { spawnedByArc: false, spawningIdentity: "andrew", createdAt: "2026-10-16T00:00:00.000Z", createdFor: boundWorkUnitSubject(current) };
   const created = await createWorktreeMarkerGeneration(cwd, marker);
   if (created.kind !== "created") throw new Error("Expected a new marker.");
   const boundary = createExecaGitExec();
@@ -31,7 +33,7 @@ it("keeps a current record's projected context after a later marker change", asy
   const settings = resolveAllSettings({ cwd, exec, readFile: context.io.readFile });
   const probes = createHandoffProbes(context, settings);
   expect(await probes.sessionNotesPath()).toBe(join(cwd, ".arc", "active", "meta-current.md"));
-  const replaced = await replaceWorktreeMarkerGeneration(cwd, created.bytes, { ...marker, createdFor: { kind: "work-unit", name: "advanced" } });
+  const replaced = await replaceWorktreeMarkerGeneration(cwd, created.bytes, { ...marker, createdFor: boundWorkUnitSubject(advanced) });
   expect(replaced.kind).toBe("replaced");
   expect((await probes.derivedLocusState("andrew")).active?.subject.key).toBe("current");
   expect(await probes.sessionNotesPath()).toBe(join(cwd, ".arc", "active", "meta-current.md"));

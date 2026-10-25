@@ -1,4 +1,5 @@
 /** Store-backed view targets preserve exact work-unit identity and lifecycle placement. */
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { mkdtemp, readFile, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -121,7 +122,7 @@ it.each(["none", "errand"] as const)("names the explicit target remedy for a %s 
 
 
 it("retains a malformed marker's warning in the no-claim remedy and resolves after repair", async () => {
-  const f = await fixture(); await f.seedMeta("demo");
+  const f = await fixture(); const meta = await f.seedMeta("demo");
   const marker = resolveWorktreeMarkerPath(f.cwd);
   await mkdir(dirname(marker), { recursive: true }); await writeFile(marker, "not JSON");
   const options = { cwd: f.cwd, project: false, identity: "alice", kind: "meta" };
@@ -129,7 +130,7 @@ it("retains a malformed marker's warning in the no-claim remedy and resolves aft
   expect(result).toMatchObject({ status: "error", message: expect.stringContaining("malformed JSON") });
   if (result.status === "error") expect(result.message).toContain("arc view <kind> --for <slug>");
   await writeWorktreeOwnershipMarker(f.cwd, { createdByArc: true, spawningIdentity: "alice", now: 0,
-    createdFor: { kind: "work-unit", name: "demo" } });
+    createdFor: boundWorkUnitSubject(meta) });
   expect(await f.deps.resolveAmbientTarget({ cwd: f.cwd, identity: "alice" })).toMatchObject({ status: "resolved", slug: "demo" });
 });
 
@@ -146,7 +147,7 @@ it("names every candidate when checkout-held work units are ambiguous", async ()
 
 it("opens a work-unit claim through a fresh read of its own placement", async () => {
   const f = await fixture(), meta = await f.seedMeta("claimed", { state: "Planning", currentWorkflow: "draft-design" });
-  await writeWorktreeOwnershipMarker(f.cwd, { createdByArc: true, spawningIdentity: "alice", now: 0, createdFor: { kind: "work-unit", name: "claimed" } });
+  await writeWorktreeOwnershipMarker(f.cwd, { createdByArc: true, spawningIdentity: "alice", now: 0, createdFor: boundWorkUnitSubject(meta) });
   const planned = join(f.cwd, workItemArtifactPath("claimed", "meta", { kind: "backlog", commitment: "planned" }, null));
   await mkdir(dirname(planned), { recursive: true }); await writeFile(planned, meta.content);
   const read = f.store.read.bind(f.store); let moved = false;
@@ -176,7 +177,7 @@ it("opens the claimed work unit despite a same-name Errand from a namespace clas
   clashed.reference = RecordReferenceSchema.parse({ ...clashed.reference, owner: { ...clashed.reference.owner, name: "claimed" } });
   clashed.content = serializeTransientIdentityRecord(TransientIdentityRecordV3Schema.parse({ ...value, slug: "claimed", branch: "chore/claimed" }));
   await writeWorktreeOwnershipMarker(f.cwd, { createdByArc: true, spawningIdentity: "alice", now: 0,
-    createdFor: { kind: "work-unit", name: "claimed" } });
+    createdFor: boundWorkUnitSubject(meta) });
 
   expect(await resolveViewArtifact({ cwd: f.cwd, kind: "meta", project: false, identity: null }, f.deps))
     .toMatchObject({ status: "resolved", content: meta.content, ref: meta.version });
@@ -187,7 +188,7 @@ it("opens the claimed work unit despite a same-name Errand from a namespace clas
 it("keeps the resolved claim generation when its name is reused before the fresh read", async () => {
   const f = await fixture(), meta = await f.seedMeta("claimed"), read = f.store.read.bind(f.store);
   await writeWorktreeOwnershipMarker(f.cwd, { createdByArc: true, spawningIdentity: "alice", now: 0,
-    createdFor: { kind: "work-unit", name: "claimed" } });
+    createdFor: boundWorkUnitSubject(meta) });
   let replaced = false;
   f.store.read = async input => {
     const result = await read(input);
@@ -206,7 +207,7 @@ it("keeps the resolved claim generation when its name is reused before the fresh
 it("retains a refused claim refresh's repair route and resolves after repair", async () => {
   const f = await fixture(), meta = await f.seedMeta("claimed"), read = f.store.read.bind(f.store);
   await writeWorktreeOwnershipMarker(f.cwd, { createdByArc: true, spawningIdentity: "alice", now: 0,
-    createdFor: { kind: "work-unit", name: "claimed" } });
+    createdFor: boundWorkUnitSubject(meta) });
   let reads = 0, repaired = false;
   f.store.read = async input => {
     if (input.reference.kind === "work-item/meta" && ++reads === 2 && !repaired) return {

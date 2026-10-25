@@ -105,7 +105,7 @@ export function registerLookupAssertions(context: SuiteContext): void {
   });
   assertion(context, "work-item", "checkout-work-unit-claim", async (fixture) => {
     const record = await seed(fixture, fixture.reference("work-item/meta"));
-    expect(success(await fixture.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: record.reference.owner.name } })).reference).toEqual(record.reference);
+    expect(success(await fixture.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: record.reference.owner.name, ...("uid" in record.reference.owner && record.reference.owner.uid !== undefined ? { uid: record.reference.owner.uid } : {}) } })).reference).toEqual(record.reference);
   });
   for (const kind of ["work-item/record", "claims/groom", "claims/housekeep"] as const) assertion(context, kind.startsWith("claims/") ? "claims" : "work-item", `checkout-claim:${kind}`, async (fixture) => {
     const record = await seed(fixture, fixture.reference(kind));

@@ -1,4 +1,5 @@
 /** Real checkout removal and detached-commit preservation through the release handler. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished, vi } from "vitest";
@@ -73,7 +74,7 @@ it("refuses a dirty spawned checkout and removes it once clean", async () => {
 it.each([false, true])("retains a checkout resumed during awaited projection work and releases after pausing again (spawned=%s)", async spawned => {
   const h = await fixture(), ctx = { ...h.context, baseBranch: "main" };
   const primary = await h.seedMeta("missing", { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" });
-  if (!spawned) await writeWorktreeMarker(h.holder, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "missing" }, spawningIdentity: "andrew", createdAt: new Date(0).toISOString() });
+  await writeWorktreeMarker(h.holder, { spawnedByArc: spawned, createdFor: boundWorkUnitSubject(primary), spawningIdentity: "andrew", createdAt: new Date(0).toISOString() });
   expect(await runPause(ctx, { name: "missing", identity: "andrew", reason: "Waiting" })).toMatchObject({ status: "paused" });
   const marker = await readWorktreeMarker(h.holder);
   const resume = async () => { expect(await runResumePaused(ctx, { name: "missing" })).toMatchObject({ status: "resumed" }); };
@@ -94,8 +95,8 @@ it.each([false, true])("retains a checkout resumed during awaited projection wor
 
 it("preserves a new live marker generation installed while spawned projection persistence awaits", async () => {
   const h = await fixture();
-  await h.seedMeta("replacement", { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" });
-  const marker = { spawnedByArc: true, createdFor: { kind: "work-unit" as const, name: "replacement" }, spawningIdentity: "andrew", createdAt: new Date(1).toISOString() };
+  const primary = await h.seedMeta("replacement", { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" });
+  const marker = { spawnedByArc: true, createdFor: boundWorkUnitSubject(primary), spawningIdentity: "andrew", createdAt: new Date(1).toISOString() };
   const slots = { ...passingProjectionRemovalSlots, persist: async () => { await writeWorktreeMarker(h.holder, marker); return { kind: "persisted" as const }; } };
   expect((await invoke({ ...h.context, projectionRemovalSlots: slots })).result).toMatchObject({ status: "refused", reason: expect.stringMatching(/generation changed|arc pause replacement/u) });
   expect(await readWorktreeMarker(h.holder)).toEqual({ kind: "present", marker });
@@ -106,7 +107,8 @@ it("preserves a new live marker generation installed while spawned projection pe
 
 it("serializes registered release behind a production rename transaction and preserves its renamed live checkout", async () => {
   const h = await fixture(), ctx = { ...h.context, baseBranch: "main" };
-  await h.seedMeta("missing", { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" });
+  const primary = await h.seedMeta("missing", { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" });
+  await writeWorktreeOwnershipMarker(h.holder, { createdByArc: true, createdFor: boundWorkUnitSubject(primary), spawningIdentity: "andrew", now: 0 });
   expect(await runPause(ctx, { name: "missing", identity: "andrew", reason: "Waiting" })).toMatchObject({ status: "paused" });
   const lock = await resolveWorktreeOperationLockPath(h.exec, h.cwd);
   let unblock = () => {}, entered = () => {}, blocked = false;

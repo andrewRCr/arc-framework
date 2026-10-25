@@ -1,4 +1,5 @@
 /** Store-backed transitions retain atomic writes and guard authority without checkout files. */
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -135,7 +136,7 @@ it("starts a former-name operand in its current holder's checkout through the oc
     provenance: { verb: "rename", lifecycleAction: "rename" } }));
   const cwd = await mkdtemp(join(tmpdir(), "arc-executor-alias-"));
   onTestFinished(() => rm(cwd, { recursive: true, force: true }));
-  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name: "current" }, spawningIdentity: "test-user" });
+  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: boundWorkUnitSubject(renamed), spawningIdentity: "test-user" });
   const ctx = { ...context(h.store), cwd, guardValidators: { "worktree-occupancy": makeWorktreeOccupancyGuard({ cwd, store: h.store,
     readActiveMetaCandidates: async () => { throw Error("Store occupancy must use its marker"); } }) } };
   const outcome = await executeTransition(ctx, { verb: "start", slug: "former", inputs: { class: "Light", currentWorkflowOverride: "draft-design", storeTransition: {

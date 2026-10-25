@@ -1,4 +1,5 @@
 /** Store-backed roster includes every registration, including detached work. */
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -17,8 +18,8 @@ import { renderMetaFile } from "../../../src/lib/store/kinds/meta/writers.js";
 it("preserves primary read refusal repair guidance and reads the owner after repair", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "arc-roster-refusal-"));
   onTestFinished(async () => rm(cwd, { recursive: true, force: true }));
-  const h = createLifecycleHarness(); await h.seedMeta("demo", { owner: "andrew" });
-  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name: "demo" }, spawningIdentity: "andrew", now: 0 });
+  const h = createLifecycleHarness(); const meta = await h.seedMeta("demo", { owner: "andrew" });
+  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: boundWorkUnitSubject(meta), spawningIdentity: "andrew", now: 0 });
   const roster = () => runWorktreeRoster({ cwd, store: h.store,
     exec: async () => ({ stdout: [`worktree ${cwd}`, `HEAD ${"a".repeat(40)}`, "detached", "", ""].join("\0") }),
     fs: { readdir: async () => [], readFile: async () => { throw new Error("No checkout metadata"); } } });
@@ -49,7 +50,7 @@ it("withholds disputed primary fields after sync while retaining the marked chec
   lifecycleSuccess(await writer.write({ action: "put", reference: meta.reference, expected: other.version, placement: { kind: "active" }, content: content("another"), provenance }));
   lifecycleSuccess(await h.store.sync());
   const disputed = lifecycleSuccess(await h.store.read({ reference: meta.reference })); expect(disputed.conflicts).toHaveLength(1);
-  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name: "demo" }, spawningIdentity: "andrew", now: 0 });
+  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: boundWorkUnitSubject(meta), spawningIdentity: "andrew", now: 0 });
   const readRoster = () => runWorktreeRoster({ cwd, store: h.store,
     exec: async () => ({ stdout: [`worktree ${cwd}`, `HEAD ${"a".repeat(40)}`, "detached", "", ""].join("\0") }),
     fs: { readdir: async () => [], readFile: async () => { throw new Error("No checkout metadata"); } } });
@@ -76,9 +77,9 @@ it("lists detached marked Planning work with its store owner while no checkout h
   const fixture = createReferenceFixture();
   const reference = fixture.reference("work-item/meta");
   const fields = parseMetaRecord(makeMetaFixture(reference.owner.name, { state: "Planning", owner: "andrew" }));
-  success(await fixture.store.write({ action: "put", reference, content: JSON.stringify(fields), expected: null,
+  const record = success(await fixture.store.write({ action: "put", reference, content: JSON.stringify(fields), expected: null,
     placement: { kind: "active" }, provenance: testProvenance }));
-  await writeWorktreeOwnershipMarker(holder, { createdByArc: true, createdFor: { kind: "work-unit", name: reference.owner.name }, spawningIdentity: "andrew", now: 0 });
+  await writeWorktreeOwnershipMarker(holder, { createdByArc: true, createdFor: boundWorkUnitSubject(record), spawningIdentity: "andrew", now: 0 });
   const roster = await runWorktreeRoster({ cwd, store: fixture.store,
     exec: async () => ({ stdout: [`worktree ${cwd}`, `HEAD ${"a".repeat(40)}`, "branch refs/heads/main", "", "",
       `worktree ${holder}`, `HEAD ${"b".repeat(40)}`, "detached", "", ""].join("\0") }),

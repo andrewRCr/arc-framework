@@ -1,4 +1,5 @@
 /** Handoff writes use real checkout claims and one reference-backend mutation. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -34,7 +35,7 @@ async function fixture(mark = true) {
   await exec("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "Initial"]);
   const h = createLifecycleHarness();
   const meta = await h.seedMeta("subject");
-  if (mark) await writeWorktreeMarker(cwd, { createdFor: { kind: "work-unit", name: "subject" }, spawningIdentity: "test-user", spawnedByArc: false, createdAt: "2026-10-16T00:00:00Z" });
+  if (mark) await writeWorktreeMarker(cwd, { createdFor: boundWorkUnitSubject(meta), spawningIdentity: "test-user", spawnedByArc: false, createdAt: "2026-10-16T00:00:00Z" });
   return { ...h, cwd, exec, meta };
 }
 const request = { schemaVersion: 1 as const, sessionContext: "Whole context.\n\n##inside is prose", nextAction: "Continue the task", sessionType: "execution" as const };
@@ -83,7 +84,7 @@ it("preserves a refusing version's repair, then succeeds once that read is repai
 it("names the work-unit checkout when no current work unit is held, then succeeds there", async () => {
   const h = await fixture(false);
   expect(await runHandoffWrite({ ...h, request })).toMatchObject({ status: "refused", refusal: { remedy: { text: expect.stringContaining("work unit's checkout") } } });
-  await writeWorktreeMarker(h.cwd, { createdFor: { kind: "work-unit", name: "subject" }, spawningIdentity: "test-user", spawnedByArc: false, createdAt: "2026-10-16T00:00:00Z" });
+  await writeWorktreeMarker(h.cwd, { createdFor: boundWorkUnitSubject(h.meta), spawningIdentity: "test-user", spawnedByArc: false, createdAt: "2026-10-16T00:00:00Z" });
   expect((await runHandoffWrite({ ...h, request })).status).toBe("written");
 });
 it("maintains once after the landed write and reports only excessive measurements", async () => {

@@ -1,4 +1,5 @@
 import { createLocusPorts } from "../../src/lib/locus/lifecycle-ports.js";
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { requireMarkerExclusivity } from "../../src/lib/work-unit/locus-ports.js";
 /** Actual CLI handlers bind marker-holder ports to the selected store without injected locus ports. */
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
@@ -48,9 +49,9 @@ async function fixture(completed = false, phase: "Active" | "Planning" | "Integr
   await writeFile(join(cwd, ".git", "info", "exclude"), ".arc-checkouts/\n", { flag: "a" });
   await exec("git", ["worktree", "add", "--detach", holder, "main"]);
   await ensureWorktreeMarkerIgnored(holder, exec, nodeWorktreeMarkerIgnoreFs);
-  await writeWorktreeMarker(holder, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "held-unit" }, spawningIdentity: "test-user", createdAt: new Date(0).toISOString() });
   const h = createLifecycleHarness();
   const saved = await h.seedMeta("held-unit", { state: completed ? "Shipped" : phase, owner: "test-user", currentWorkflow: phase === "Planning" ? "draft-design" : phase === "Integrating" ? "integrate-work-unit" : "process-task-loop" }, completed ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q1") } : { kind: "active" });
+  await writeWorktreeMarker(holder, { spawnedByArc: false, createdFor: boundWorkUnitSubject(saved), spawningIdentity: "test-user", createdAt: new Date(0).toISOString() });
   await h.seed(recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "test-project", uid: randomUUID() })), "{}");
   return { ...h, cwd, holder, exec, saved, head: (await exec("git", ["rev-parse", "HEAD"])).stdout };
 }
@@ -111,7 +112,7 @@ it.each(["marker", "roster"] as const)("handover refuses an unreadable %s observ
     const repaired = await invoke(h, ["handover", "held-unit", "--to", "next-owner"]);
     expect(repaired, repaired.output).toMatchObject({ exitCode: undefined });
     expect(lifecycleSuccess(await h.store.read({ reference: h.saved.reference }))).toMatchObject({ fields: { owner: "next-owner" } });
-    expect(await readWorktreeMarker(h.holder)).toMatchObject({ kind: "present", marker: { createdFor: { kind: "work-unit", name: "held-unit" } } });
+    expect(await readWorktreeMarker(h.holder)).toMatchObject({ kind: "present", marker: { createdFor: boundWorkUnitSubject(h.saved) } });
     expect((await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.holder })).stdout).toBe(h.head);
   }
   finally {
@@ -130,7 +131,7 @@ it("teardown refuses both anchored holders and proceeds after the stray marker i
   const stray = join(h.cwd, ".arc-checkouts", "stray");
   await h.exec("git", ["worktree", "add", "--detach", stray, "main"]);
   await ensureWorktreeMarkerIgnored(stray, h.exec, nodeWorktreeMarkerIgnoreFs);
-  await writeWorktreeMarker(stray, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "held-unit" }, spawningIdentity: "test-user", createdAt: new Date(0).toISOString() });
+  await writeWorktreeMarker(stray, { spawnedByArc: false, createdFor: boundWorkUnitSubject(h.saved), spawningIdentity: "test-user", createdAt: new Date(0).toISOString() });
   const refused = await invoke(h, ["teardown", "held-unit"]);
   expect(refused).toMatchObject({ exitCode: 1 });
   for (const checkout of [h.holder, stray]) expect(refused.output).toContain(resolveWorktreeMarkerPath(checkout));
