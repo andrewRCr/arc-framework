@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { join } from "node:path";
 import { access, mkdir, rename, writeFile } from "node:fs/promises";
 import { importFixture } from "../helpers/store/import-fixture.js";
-import { ordinaryErrand, seedTransients, transientSourceRef } from "../helpers/store/import-transients.js";
+import { ordinaryErrand, seedTransients, transientSourceRef, keptPrefix } from "../helpers/store/import-transients.js";
 
 describe("import publication", () => {
   it.each([false, true])("publishes every landed ref through the designated state remote without moving code (lineage: %s)", async (lineage) => {
@@ -159,4 +159,35 @@ describe("import landing in the default layout", () => {
     expect(batches[0]).toMatch(/^[0-9a-f-]{36}$/u);
   });
 
+});
+
+it("keeps no-remote import tips while origin is unreadable and finishes after restoring its access", async () => {
+  const h = await importFixture("separate");
+  const tip = await seedTransients(h, [ordinaryErrand]);
+  await h.git("git", ["push", "origin", `${transientSourceRef}:${transientSourceRef}`]);
+  const unavailable = `${h.origin}.unavailable`;
+  h.ports.migrateStep = async step => {
+    if (step === "import.publish") await rename(h.origin, unavailable);
+  };
+  const result = await h.migrate();
+  expect(result).toMatchObject({ status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
+    condition: expect.stringContaining("origin"), remedy: { argv: ["arc", "store", "migrate", "--import"] } } });
+  if (result.status !== "refused" || result.refusal.code !== "move-unfinished") throw new Error("Expected origin access refusal");
+  expect(result.refusal.remedy.text).toMatch(/(?:restore|access|reach).*origin/iu);
+  const kept = `${keptPrefix}${transientSourceRef.slice("refs/arc/".length)}`;
+  expect((await h.git("git", ["rev-parse", kept])).stdout.trim()).toBe(tip);
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", transientSourceRef])).stdout).toBe("");
+  const scope = [`--git-dir=${join(h.root, ".git/arc/store")}`];
+  const heads = async () => (await h.git("git", [...scope, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"]))
+    .stdout.split("\n").filter(row => row && !row.startsWith("refs/arc/tmp/")).sort();
+  const landed = await heads();
+  await rename(unavailable, h.origin);
+  h.ports.migrateStep = async () => {};
+  const resumed = await h.migrate();
+  expect(resumed).toMatchObject({ status: "ok", result: { notices: expect.arrayContaining([
+    expect.objectContaining({ condition: `origin still holds ${transientSourceRef}; no state remote is designated.` }),
+  ]) } });
+  expect(await heads()).toEqual(landed);
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", keptPrefix])).stdout).toBe("");
+  expect((await h.remote("git", ["rev-parse", transientSourceRef])).stdout.trim()).toBe(tip);
 });

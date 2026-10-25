@@ -51,7 +51,8 @@ export async function retireImportRemote(context: RefBackendContext, report: Mig
   if (!kept.size) return;
   if (refDesignationStop(await readRefDesignation(context))?.status === "no-remote") {
     try { report.notices.push(...await retainedRemoteNotices(context, kept)); }
-    catch (error) { return cleanupRefused(`Could not read origin's transient refs: ${error instanceof Error ? error.message : String(error)}`); }
+    catch (error) { return cleanupRefused(`Could not read origin's transient refs: ${error instanceof Error ? error.message : String(error)}`,
+      "Preserve the kept tips. Restore access to origin, then rerun arc store migrate --import to list its retained transient refs and finish cleanup."); }
     return dropKeptTips(context, kept);
   }
   await context.migrateStep?.("import.transient.remote-delete");
@@ -101,8 +102,8 @@ async function originTips(context: RefBackendContext, refs: string[]): Promise<M
 
 function keptRef(ref: string): string { return `${IMPORT_KEPT_PREFIX}${ref.slice("refs/arc/".length)}`; }
 function sourceRef(ref: string): string { return `refs/arc/${ref.slice(IMPORT_KEPT_PREFIX.length)}`; }
-function cleanupRefused(condition: string): StoreMigrateResult {
+function cleanupRefused(condition: string,
+  text = "Preserve the kept tips. Reconcile the named transient refs with the imported records, then rerun arc store migrate --import."): StoreMigrateResult {
   return { status: "refused", refusal: { code: "move-unfinished", class: "recoverable", condition,
-    remedy: { text: "Preserve the kept tips. Reconcile the named transient refs with the imported records, then rerun arc store migrate --import.",
-      argv: ["arc", "store", "migrate", "--import"] } } };
+    remedy: { text, argv: ["arc", "store", "migrate", "--import"] } } };
 }

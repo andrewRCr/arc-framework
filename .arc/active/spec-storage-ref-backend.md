@@ -3107,12 +3107,14 @@ or a fetch between the two machines, in the cutover's quiesce.
   `refs/arc/tmp/migrate/import/kept/` in the code repository, where those refs and the remote live, a prefix its landing
   leaves, until then: `refs/arc/user/<id>/errands` retires with the move. The local delete rides the landing's
   transaction in the default layout; in the separate one, whose landing is the store directory's own transaction, it is
-  a step of its own after the landing. Running the import again after any step past the landing finds its own landing
-  (§ 10.4), deletes what local refs remain, clears the remote's refs, and drops the kept tips. On a clone with no state
-  remote, which is always in the separate layout (§ 9.7), nothing publishes, so the kept tips drop in the local delete's
-  own transaction, and the transient-identity refs the remote still holds, where the Errand verbs publish them to
-  `origin`, are listed in `notices` with the remedy to delete them. `refs/arc/user/<id>/errands-remote` is residue and
-  `refs/arc/user/<id>/sync-state` retires with notes, both the cutover's.
+  a step of its own after the landing. Running the import again after any step past the landing finds its own landing (§
+  10.4), deletes what local refs remain, clears the remote's refs, and drops the kept tips. On a clone with no state
+  remote, which is always in the separate layout (§ 9.7), nothing publishes (A48). Its local deletes finish first;
+  `retireImportRemote` (`lib/store/ref/import/transient-cleanup.ts`) then lists origin's transient-identity refs in
+  `notices` with the remedy to delete them. Only after that listing does it drop the kept tips. If origin cannot be
+  read, it refuses `move-unfinished`, retaining those tips and naming restoration of origin access followed by `arc
+  store migrate --import`, whose retry completes the listing and cleanup. `refs/arc/user/<id>/errands-remote` is residue
+  and `refs/arc/user/<id>/sync-state` retires with notes, both the cutover's.
 
 #### 10.12 Personal state
 
@@ -4653,6 +4655,11 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     `move-record-malformed` and retains the move record. Repairing the report admits the same rerun, returns the
     original build report, and removes the record only after source cleanup (§ 10.1, § 10.3) (A47).
 
+53. **An import with no state remote keeps its tips until origin can be listed.** An unreadable origin refuses
+    `move-unfinished`, preserves the kept source tips, and names origin access and the import rerun as its remedy.
+    Restoring access admits that rerun without changing the landed state, lists the retained origin refs, and drops
+    the kept tips without deleting those origin refs (§ 10.11) (A48).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4834,5 +4841,8 @@ open:
 
 - **A47** — 2026-10-25 — design: a layout move's record keeps its report. _Supersedes:_ § 10.3 ¶ the record holding only
   move.json, and § 10.1's arm. _Trigger:_ standard-pass-2/AGG-40 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A48** — 2026-10-25 — design: with no state remote, the import keeps its tips until origin is listed. _Supersedes:_
+  § 10.11's no-remote clause. _Trigger:_ standard-pass-2/AGG-53 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

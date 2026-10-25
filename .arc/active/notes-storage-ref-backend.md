@@ -3023,3 +3023,14 @@ malformed `move.json` or `moved.json`. A standalone layout build already passes 
 52 verifies that the record remains held, then repairing the report lets the identical migration resume and return the
 original report. A narrow reconstruction that treated malformed reports as absent made the test fail by completing the
 move instead; restoring the reader passed the refusal and successful continuation.
+
+## A48 — Keep import tips until origin can be reported
+
+**Superseded text.** § 10.11's no-remote clause said “the kept tips drop in the local delete's own transaction”, while
+origin's surviving transient refs are listed in notices. `retireImportRemote`
+(`lib/store/ref/import/transient-cleanup.ts`) already keeps them until `retainedRemoteNotices` reads origin, allowing a
+failed listing to resume without losing its source basis.
+
+**Decision.** Preserve that order and name the actual prerequisite in the refusal's remedy: restore access to origin and
+rerun the import. Criterion 53 verifies kept tips survive the refusal, the landed heads remain unchanged on retry,
+origin's refs are reported and retained, and only the kept tips then disappear.
