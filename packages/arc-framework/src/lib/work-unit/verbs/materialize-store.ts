@@ -21,6 +21,8 @@ import type { StoreRecord } from "../../store/read.js";
 import type { LifecycleEntry } from "../../store/lifecycle-index.js";
 import type { ReconcileWorkUnitWorktreeOp } from "../mutators/reconcile-work-unit-worktree.js";
 import type { GuardResult } from "../lifecycle-executor.js";
+import { ownerHolderRequest } from "../locus-ports.js";
+import type { WorkUnitHolderRequest } from "../mutators/reconcile-work-unit-worktree.js";
 
 type Bound = MaterializeContext & { cwd: string; exec: GitExec };
 /** List candidates with one locus query per owned in-flight work unit. */
@@ -63,13 +65,14 @@ export async function runStoreMaterialize(ctx: MaterializeContext, params: Mater
     const chosen = selectWorkBranchLink(read.result, { repository: await ctx.projectId?.() });
     if (chosen.kind === "ambiguous") return { status: "rejected", reason: chosen.reason };
     const branch = chosen.kind === "none" ? null : workBranchName(chosen.link.ref);
-    const operation = await placementOperation(bound, { ...params, name }, branch, identity);
+    const operation = await placementOperation(bound, { ...params, name }, branch, identity, ownerHolderRequest(read.result));
     return await claimMaterialization({ ...bound, store: ctx.store }, { primary: read.result, operation, branch, inPlace: params.inPlace === true });
   } catch (error) { return { status: "rejected", reason: describeWorktreePreparationFailure(error,
     ["arc", "materialize", params.name, ...(params.inPlace ? ["--here"] : [])]) }; }
 }
-async function placementOperation(ctx: Bound, params: MaterializeParams, branch: string | null, identity: string): Promise<ReconcileWorkUnitWorktreeOp> {
-  if (params.inPlace && branch === null) return { mutation: "spawn", inPlace: true, preserveHead: true, wuName: params.name, spawningIdentity: identity };
+async function placementOperation(ctx: Bound, params: MaterializeParams, branch: string | null, identity: string,
+  holder: WorkUnitHolderRequest): Promise<ReconcileWorkUnitWorktreeOp> {
+  if (params.inPlace && branch === null) return { mutation: "spawn", inPlace: true, preserveHead: true, wuName: params.name, holder, spawningIdentity: identity };
   const baseBranch = params.baseBranch;
   if (baseBranch === undefined) throw new Error("Materialize requires the configured base branch.");
   const base = await resolveLifecycleBase(ctx.exec, ctx.cwd, baseBranch);
@@ -78,13 +81,13 @@ async function placementOperation(ctx: Bound, params: MaterializeParams, branch:
     const work = await refreshLifecycleRef(ctx.exec, ctx.cwd, branch);
     const local = await localLifecycleTip(ctx.exec, ctx.cwd, `refs/heads/${branch}`), remote = await localLifecycleTip(ctx.exec, ctx.cwd, `refs/remotes/origin/${branch}`);
     if (local === null && remote === null) throw new Error(await missingBranchRemedy(ctx, branch, work));
-    const common = { mutation: "spawn" as const, branch, createBranch: local === null, wuName: params.name, spawningIdentity: identity };
+    const common = { mutation: "spawn" as const, branch, createBranch: local === null, wuName: params.name, holder, spawningIdentity: identity };
     return params.inPlace ? { ...common, inPlace: true, ...(local === null ? { startPoint: remote ?? undefined } : {}) }
       : { ...common, base: remote ?? local ?? branch, ...spawnPlacement(params) };
   }
   if (base === null) throw new Error(`No base ref resolves. Fetch origin +refs/heads/${baseBranch}:refs/remotes/origin/${baseBranch}, or run git branch ${baseBranch} <commit>, then retry arc materialize ${params.name}.`);
   if (params.inPlace) throw new Error("Branchless in-place placement should have been marker-only");
-  return { mutation: "spawn", detached: true, base, wuName: params.name, spawningIdentity: identity, ...spawnPlacement(params) };
+  return { mutation: "spawn", detached: true, base, wuName: params.name, holder, spawningIdentity: identity, ...spawnPlacement(params) };
 }
 function spawnPlacement(params: Exclude<MaterializeParams, { inPlace: true }>) {
   return { locationTemplate: params.locationTemplate, repo: params.repo, primaryWorktreePath: params.primaryWorktreePath,

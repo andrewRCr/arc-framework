@@ -1,5 +1,16 @@
 /** Narrow lifecycle boundary for locus-owned checkout claims. */
 import type { WorktreeMarker } from "../git/worktree-marker.js";
+import type { StoreRecord } from "../store/read.js";
+import type { WorkUnitHolderRequest } from "./mutators/reconcile-work-unit-worktree.js";
+
+/** Bind a record-holding caller to its exact operational owner, refusing an incomplete identity. */
+export function ownerHolderRequest(record: StoreRecord): Extract<WorkUnitHolderRequest, { kind: "owner" }> {
+  const owner = record.reference.owner;
+  if (owner.type !== "work-item" || owner.uid === undefined) {
+    throw new Error(`Operational work item ${owner.name} has no owner UID. Repair its owner identity, then retry.`);
+  }
+  return { kind: "owner", uid: owner.uid, names: { current: owner.name, former: record.aliases ?? [] } };
+}
 
 /** Exclusivity refusal identifies the checkout that already holds this work unit. */
 export type MarkerExclusivityResult = { kind: "clear" } | { kind: "refused"; checkoutPath?: string; reason: string };

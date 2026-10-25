@@ -13,11 +13,12 @@ import type { GitExec } from "../git/exec.js";
 import type { Store, HistoryEntry } from "../store/contract.js";
 import { CommitShaSchema } from "../store/links.js";
 import type { StoreRecord } from "../store/read.js";
+import { ownerHolderRequest } from "../work-unit/locus-ports.js";
 /** Caller-owned checkout frame metadata stays outside these storage steps. */
 export interface StorePromotionOptions {
   store: Store; exec: GitExec; repository: string; slug: string; name: string; type?: string;
   floor: PromoteFloor; owner: string; identity: string; priority?: string; class?: string;
-  checkout: (record: OrdinaryErrandRecord, mode: "replaceFrame" | "recoverPromoted") => Promise<StorePromotionCheckoutResult>;
+  checkout: (record: OrdinaryErrandRecord, mode: "replaceFrame" | "recoverPromoted", uid: string) => Promise<StorePromotionCheckoutResult>;
 }
 /** Exact checkout selected by caller-owned terminal or recovery authority. */
 export type StorePromotionCheckoutResult = ({ kind: "ready" } & Pick<PromotionFrameReceipt, "checkoutPath" | "allocation" | "parentCheckoutPath">)
@@ -63,7 +64,7 @@ async function readPrimary(options: StorePromotionOptions): Promise<{ kind: "rea
   return conflict === undefined ? { kind: "ready", record: read.result } : { kind: "refused", reason: conflict };
 }
 async function replace(input: StorePromotionOptions, source: OrdinaryErrandRecord, basis: StoreRecord): Promise<PromotionFrameResult> {
-  const checkout = await input.checkout(source, "replaceFrame");
+  const checkout = await input.checkout(source, "replaceFrame", ownerHolderRequest(basis).uid);
   if (checkout.kind !== "ready") return checkout;
   const options: BoundStorePromotionOptions = { ...input, cwd: checkout.checkoutPath, frame: checkout };
   const branch = `${options.type ?? "feat"}/${options.name}`;
@@ -112,7 +113,7 @@ async function recover(options: StorePromotionOptions): Promise<PromotionFrameRe
   const { source, tip } = recovered;
   const ownerFailure = sourceOwnerRefusal(options.identity, source);
   if (ownerFailure !== null) return { kind: "refused", reason: "identity-conflict", message: ownerFailure };
-  const checkout = await options.checkout(source, "recoverPromoted");
+  const checkout = await options.checkout(source, "recoverPromoted", ownerHolderRequest(meta).uid);
   if (checkout.kind !== "ready") return checkout;
   const bound: BoundStorePromotionOptions = { ...options, cwd: checkout.checkoutPath, frame: checkout };
   if (tip === undefined) return refused("The promotion role-write history lacks its exact cut commit. Inspect and repair that evidence before retrying this promotion.");
@@ -153,7 +154,7 @@ function receipt(options: BoundStorePromotionOptions, meta: StoreRecord, source:
   kind: "applied" | "idempotent"): PromotionFrameReceipt {
   return { ...options.frame, kind, subject: { slug: source.slug, claimId: source.claimId },
     generation: `errand-v1/${source.slug}/${source.claimId}`, branch, metaPath: workUnitMetaPath(meta),
-    metaCommitted: true, originEntry: source.originEntry,
+    metaCommitted: true, uid: ownerHolderRequest(meta).uid, originEntry: source.originEntry,
     originEntrySourceDigest: source.origin === "inbox" ? source.originEntrySourceDigest as CanonicalDigest | null : null };
 }
 async function localBranchExists(options: BoundStorePromotionOptions, branch: string): Promise<boolean> {

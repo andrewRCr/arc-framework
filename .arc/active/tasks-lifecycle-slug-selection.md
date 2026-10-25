@@ -472,26 +472,12 @@ unclosed task commits (§ 3.2) re-read by the UID claim here.
 - _Goal:_ Every marker a writer holding the record writes carries the owner's UID, and each creation, which claims
   before its record exists, stamps the UID the store minted onto exactly the marker generation it wrote.
 
-    - `[ ]` **4.2.a Writers that hold the record**
+    - `[x]` **4.2.a Writers that hold the record**
 
-        - The holder request is one discriminated type, defined here with the spawn op that carries it
-          (`ReconcileWorkUnitWorktreeOp`, `lib/work-unit/mutators/reconcile-work-unit-worktree.ts`):
-          `{ kind: "owner"; uid; names: { current; former } }` from a caller that holds a record, or
-          `{ kind: "creation"; slug }`. The op carries it beside `wuName`, which stays its placement name, and the
-          in-place leg's exclusivity check takes the name until 4.4.a.
-        - Graduation, spawned or in place, and materialize write the UID with the claim (`claimSpawnedWorktree`,
-          `lib/work-unit/spawned-worktree-claim.ts`, and the in-place leg of `reconcileWorkUnitWorktree`,
-          `reconcile-work-unit-worktree.ts`), from the spawn op's owner request.
-        - Promotion writes the promoted owner's UID, which the record it reads carries (`basis` on its replace path and
-          `meta` on its recovery, `lib/errand/promote-store.ts`). `StorePromotionOptions.checkout` takes it, and
-          `PromotionFrameReceipt` (`promote.ts`), shared with the in-repo arm, gains an optional `uid` that the store
-          arm's `receipt()` sets; promotion's two marker conversions (`convertSpawnedMarker` and `anchorPromotedMarker`,
-          `lib/errand/promote-runtime.ts`) write it only where present.
-        - Rename's marker rewrite (`renamedMarker`, `lib/work-unit/rename-worktree-transaction.ts`) keeps the UID,
-          changing only the name. Decomposition writes `branch` subjects only, and husk stamps are unchanged.
-        - Build `test-first` (one behavior at a time):
-            - a graduated, a materialized, and a promoted work unit's marker each carry the owner's UID
-            - a renamed work unit's marker keeps its UID under the new name
+        - Store graduation and materialization carry an exact owner request on their spawn operation and write its UID
+          for anchored and spawned claims. Promotion carries the record UID through checkout selection and its receipt
+          into either marker conversion, including interrupted recovery. Rename preserves a bound UID under the new
+          placement name; tracked in-repo writers continue to omit it.
 
     - `[ ]` **4.2.b A creation's stamp**
 

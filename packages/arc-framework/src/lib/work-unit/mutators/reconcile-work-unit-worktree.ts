@@ -39,7 +39,7 @@
  */
 
 import { IncompleteWorktreePreparationError } from "../incomplete-worktree-preparation.js";
-import { claimSpawnedWorktree, requireSpawnedWorktreeClaim, requireSpawnedCheckoutCoordinate, removeDisposableSpawn,
+import { claimSpawnedWorktree, workUnitMarkerSubject, requireSpawnedWorktreeClaim, requireSpawnedCheckoutCoordinate, removeDisposableSpawn,
   type SpawnedCheckoutCoordinate } from "../spawned-worktree-claim.js";
 import { access, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
@@ -142,6 +142,11 @@ export const nodeReconcileWorkUnitWorktreeFs: ReconcileWorkUnitWorktreeFs = {
   removeFile: (path) => rm(path, { force: true }),
 };
 
+/** Exact record owner or not-yet-created work unit requesting a checkout claim. */
+export type WorkUnitHolderRequest =
+  | { kind: "owner"; uid: string; names: { current: string; former: readonly string[] } }
+  | { kind: "creation"; slug: string };
+
 /**
  * The worktree operation to perform, as a discriminated union:
  *
@@ -176,6 +181,8 @@ export type ReconcileWorkUnitWorktreeOp =
       repo: string;
       /** Work-unit name — drives the ownership marker. */
       wuName: string;
+      /** Store-arm owner identity; absent for tracked in-repo placement. */
+      holder?: WorkUnitHolderRequest;
       /** Identity creating the worktree — the ownership marker. */
       spawningIdentity: string;
       /** Project-supplied post-create provisioning script, run inside the new worktree when configured. */
@@ -201,6 +208,8 @@ export type ReconcileWorkUnitWorktreeOp =
       branch?: string;
       /** Work-unit whose trusted transition owns this checkout. */
       wuName: string;
+      /** Store-arm owner identity; absent for tracked in-repo placement. */
+      holder?: WorkUnitHolderRequest;
       /** `true` cuts a fresh branch (`-b`, graduate / create-new); `false` attaches an existing one (resume). */
       createBranch?: boolean;
       /** Exact selected commit for a newly created branch; omission retains Git's current-HEAD default. */
@@ -457,7 +466,7 @@ async function reconcileWorkUnitWorktreeUnlocked(
     let markerGeneration: Buffer | undefined;
     if (offBranch) {
       const marker = await (ctx.locusPorts ?? createDefaultLocusPorts()).writeAnchoredMarker(worktreePath, {
-        spawnedByArc: false, wuName: op.wuName, createdFor: { kind: "work-unit", name: op.wuName },
+        spawnedByArc: false, wuName: op.wuName, createdFor: workUnitMarkerSubject(op),
         spawningIdentity: op.spawningIdentity ?? "", createdAt: new Date(op.now ?? Date.now()).toISOString(),
       });
       if (marker.kind === "exists" || marker.kind === "generation-mismatch") throw new Error(

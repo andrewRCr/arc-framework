@@ -777,6 +777,7 @@ export async function runCreateNew(
       },
       {
         mutation: "spawn",
+        ...(offBranch ? { holder: { kind: "creation" as const, slug: wuName } } : {}),
         ...(offBranch ? { detached: true } : { branch: branch ?? undefined }),
         base: baseBranch,
         locationTemplate,
