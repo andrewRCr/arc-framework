@@ -3,7 +3,7 @@
 import type { StoreCommandResult, MigrateReport } from "../commands.js";
 import type { Store } from "../contract.js";
 import type { RefBackendContext } from "./context.js";
-import { readRefDesignation, type RefDesignation, type RefRemoteDesignation } from "./designation.js";
+import { readRefDesignation, refDesignationStop, type RefDesignation, type RefRemoteDesignation } from "./designation.js";
 import { readRefRepository, writeRefRepository } from "./repository.js";
 import { observeRefLayout, layoutRecoveryRemedy } from "./layout-state.js";
 import { readSyncRefs } from "./sync-graph.js";
@@ -16,6 +16,8 @@ import { requireLayoutTransaction } from "./migrate-layout-build.js";
 export async function setRefBacking(context: RefBackendContext, store: Store, designation: RefDesignation,
   role: "push" | "read" | "off"): Promise<StoreCommandResult<MigrateReport | null>> {
   const pointer = await context.backingRepository();
+  const configured = refDesignationStop(designation);
+  if (configured?.status === "move-incomplete") return heldStateRefusal(configured.condition);
   const publisher = designation.pushes.find(({ repository }) => repository === "code");
   if (publisher) return publisherRefusal(publisher, pointer);
   const physical = await readRefRepository(context);
@@ -53,6 +55,8 @@ async function applyBackingSetting(context: RefBackendContext, pointer: string |
   try {
     // Another checkout may have designated a code remote, added backing, or placed state in the code repository meanwhile.
     const designation = await readRefDesignation(context), separate = await readRefRepository(context);
+    const configured = refDesignationStop(designation);
+    if (configured?.status === "move-incomplete") return heldStateRefusal(configured.condition);
     const publisher = designation.pushes.find(({ repository }) => repository === "code");
     if (publisher) return publisherRefusal(publisher, pointer);
     if (!separate.repository?.gitDir) return heldStateRefusal();

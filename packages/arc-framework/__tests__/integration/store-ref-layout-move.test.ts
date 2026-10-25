@@ -924,3 +924,24 @@ it("refuses a malformed recorded layout report and resumes its unchanged move af
   expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", move])).stdout).toBe("");
   expect(success(await h.a.store.read({ reference: h.primary.reference })).content).toBe(makeMetaFixture("alpha"));
 });
+
+
+it.each(["off", "read"] as const)("refuses an unrelated %s setting while two code remotes carry push, then applies it after repair", async role => {
+  const h = await layoutFixture();
+  await h.a.exec("git", ["remote", "add", "other", h.origin]);
+  await h.a.exec("git", ["config", "remote.other.arc-state", "push"]);
+  await h.a.exec("git", ["remote", "add", "third", h.origin]);
+  await h.a.exec("git", ["config", "remote.third.arc-state", "off"]);
+  const before = await localState(h);
+  expect((await invokeStoreRemote(["third", role, "--json"], { cwd: h.a.root, ports: h.a.ports })).result).toMatchObject({ status: "refused", refusal: {
+    code: "role-conflict", class: "recoverable", condition: expect.stringMatching(/origin.*other/u),
+  } });
+  expect(await localState(h)).toEqual(before);
+  await expect(h.a.ports.fs.lstat(h.storeDirectory)).rejects.toMatchObject({ code: "ENOENT" });
+  await expect(h.a.ports.fs.lstat(join(h.a.root, ".git", "arc", "store-migrate-build"))).rejects.toMatchObject({ code: "ENOENT" });
+  expect(success(await h.a.store.read({ reference: h.primary.reference })).content).toBe(makeMetaFixture("alpha"));
+  expect((await invokeStoreRemote(["other", "off", "--json"], { cwd: h.a.root, ports: h.a.ports })).result).toMatchObject({ status: "ok" });
+  expect((await invokeStoreRemote(["third", role, "--json"], { cwd: h.a.root, ports: h.a.ports })).result).toMatchObject({ status: "ok" });
+  expect((await h.a.exec("git", ["config", "remote.third.arc-state"])).stdout.trim()).toBe(role);
+  await expect(h.a.ports.fs.lstat(h.storeDirectory)).rejects.toMatchObject({ code: "ENOENT" });
+});

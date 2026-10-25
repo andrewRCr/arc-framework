@@ -3,11 +3,13 @@ import { join } from "node:path";
 import { readGitDirectories } from "../../git/directories.js";
 import type { RefBackendContext } from "./context.js";
 import type { SyncState } from "../sync.js";
+import { layoutRecoveryRemedy } from "./layout-recovery.js";
 
 /** One configured remote and its explicit state role, if any. */
 export interface RefRemoteDesignation { name: string; role?: "push" | "read" | "off"; url: string; repository: "code" | "backing" }
 /** Counted candidates preserve the code-remote/backing distinction for sync and settings. */
 export interface RefDesignation {
+  storeDirectoryPresent: boolean;
   codeRemote: string | null;
   codeRemotes: RefRemoteDesignation[];
   remotes: RefRemoteDesignation[];
@@ -22,18 +24,19 @@ export async function readRefDesignation(context: RefBackendContext, common?: st
   const code = configRemotes(config, "code");
   const codeRemote = code.length === 0 ? null : config.get("remote.pushdefault") ?? (code.length === 1 ? code[0]?.name ?? null : code.some(({ name }) => name === "origin") ? "origin" : null);
   const store = join(commonDir, "arc", "store");
-  const backing = await directoryExists(context, store)
+  const storeDirectoryPresent = await directoryExists(context, store);
+  const backing = storeDirectoryPresent
     ? configRemotes(await repositoryConfig(context, store), "backing").find(({ name }) => name === "backing") ?? null : null;
   const remotes = code.filter(({ name, role }) => name !== "backing" && (backing === null || name === codeRemote || role === "read"));
   if (backing) remotes.push(backing);
-  return { codeRemote, codeRemotes: code, backing, remotes, pushes: remotes.filter(({ role }) => role === "push") };
+  return { storeDirectoryPresent, codeRemote, codeRemotes: code, backing, remotes, pushes: remotes.filter(({ role }) => role === "push") };
 }
 
 /** Configuration-only stops precede any fetch or publication. */
 export function refDesignationStop(designation: RefDesignation): SyncState | null {
-  if (designation.backing && designation.pushes.some(({ repository }) => repository === "code")) return {
-    status: "move-incomplete", condition: "A code remote carries push beside the store directory's backing remote.",
-    remedy: { text: "Finish or reverse the recorded store move before syncing." },
+  if (designation.storeDirectoryPresent && designation.pushes.some(({ name, repository }) => repository === "code" && name === designation.codeRemote)) return {
+    status: "move-incomplete", condition: "The code remote carries push beside the separate store directory.",
+    remedy: layoutRecoveryRemedy(),
   };
   if (designation.pushes.length > 1) return { status: "designation-ambiguous", remotes: designation.pushes.map(({ name }) => name),
     remedy: { text: "Set all but the intended state remote off with arc store remote <name> off, then retry." } };

@@ -61,7 +61,7 @@ async function applyCodeSetting(context: RefBackendContext, store: Store, design
   const remotes = [...codeRemotes, ...setting.role !== "push" && designation.backing ? [designation.backing] : []]
     .map((remote) => remote.name === setting.remote ? { ...remote, role: setting.role } : remote);
   const next = { ...designation, backing: setting.role === "push" ? null : designation.backing, remotes, pushes: remotes.filter(({ role }) => role === "push") };
-  const moved = await moveRefLayout(context, store, designatedStoreLayout(next), setting);
+  const moved = await moveDesignatedLayout(context, store, next, setting);
   if (moved.status === "ok" && setting.role === "push" && (await readRefDesignation(context)).backing) {
     await (await readRefRepository(context)).exec("git", ["remote", "remove", "backing"]);
   }
@@ -69,6 +69,15 @@ async function applyCodeSetting(context: RefBackendContext, store: Store, design
     remedy: { text: `To keep ${pointer} as a read source, add it as a code repository remote under another name and run arc store remote <name> read.`,
       argv: ["git", "remote", "add", "state-source", pointer] } });
   return moved.status === "refused" ? moved : { status: "ok", result: { ...await remoteView(context), report: moved.result } };
+}
+
+/** Resolve the prospective setting before allowing any physical layout effect. */
+async function moveDesignatedLayout(context: RefBackendContext, store: Store, designation: RefDesignation, setting: LayoutSetting) {
+  const layout = designatedStoreLayout(designation);
+  if (layout === null) return { status: "refused" as const, refusal: { code: "role-conflict" as const, class: "recoverable" as const,
+    condition: `Remotes ${designation.pushes.map(({ name }) => name).join(", ")} each carry push, so no one layout is designated.`,
+    remedy: { text: "Set all but the intended state remote off with arc store remote <name> off, then retry." } } };
+  return moveRefLayout(context, store, layout, setting);
 }
 
 function remoteRefusal(code: "unsupported" | "request-invalid", condition: string): Extract<StoreRemoteResult, { status: "refused" }> {

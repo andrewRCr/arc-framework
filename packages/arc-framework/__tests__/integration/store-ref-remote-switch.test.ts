@@ -220,3 +220,30 @@ it("refuses a switch whose tracked pointer does not read back and finishes once 
   expect(finished.status, JSON.stringify(finished)).toBe("ok");
   expect(await h.ports.backingRepository()).toBe(h.to);
 }, 45_000);
+
+
+it("reports an incomplete layout while a code-to-code switch has both push keys, then resumes the recorded move", async () => {
+  const h = await switchFixture("code", "upstream");
+  let during: Awaited<ReturnType<typeof h.store.pull>> | undefined;
+  let roles: string[] = [];
+  const exec: typeof h.ports.exec = async (command, args, options) => {
+    const result = await h.ports.exec(command, args, options);
+    if (args.includes("config") && args.includes("remote.upstream.arc-state") && args.at(-1) === "push") {
+      during = await h.store.pull();
+      roles = await Promise.all(["origin", "upstream"].map(async name =>
+        (await h.a.exec("git", ["config", `remote.${name}.arc-state`])).stdout.trim()));
+      throw new Error("Paused between code designation keys");
+    }
+    return result;
+  };
+  await expect(invokeStoreMigrate(["--to", h.to], { ...h.ports, exec })).rejects.toThrow("Paused between code designation keys");
+  expect(roles).toEqual(["push", "push"]);
+  const pulled = success(during!);
+  expect(pulled.states).toContainEqual(expect.objectContaining({ status: "move-incomplete",
+    remedy: expect.objectContaining({ argv: ["arc", "store", "migrate"] }) }));
+  expect(pulled.states.some(({ status }) => status === "designation-ambiguous")).toBe(false);
+  expect(pulled.pulls).toEqual([]);
+  expect((await h.a.git(["remote"])).stdout.trim().split("\n")).not.toContain("backing");
+  expect(await invokeStoreMigrate([], h.ports)).toMatchObject({ status: "ok" });
+  expect(success(await h.store.pull()).states.some(({ status }) => status === "move-incomplete" || status === "designation-ambiguous")).toBe(false);
+});

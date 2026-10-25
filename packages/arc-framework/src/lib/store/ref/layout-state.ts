@@ -1,30 +1,17 @@
 /** Observe physical layout mismatches and unfinished source cleanup before state transport. */
 
 import type { RefBackendContext } from "./context.js";
-import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
+import type { RefDesignation } from "./designation.js";
+import { refDesignationStop } from "./designation.js";
 import { isStateRef } from "./manifest.js";
-import { migrationCodeContext, MOVE_REF, type StoreLayout } from "./migrate-record.js";
+import { migrationCodeContext, MOVE_REF } from "./migrate-record.js";
 import { readRefRepository } from "./repository.js";
 import { readSyncRefs } from "./sync-graph.js";
-import type { Remedy } from "../refusal.js";
 import type { SyncState } from "../sync.js";
-
-/** Only the code remote's sole push designation places the store in the code repository. */
-export function designatedStoreLayout(designation: RefDesignation): StoreLayout {
-  const publisher = designation.backing?.role === "push" || designation.pushes.length !== 1 ? undefined : designation.pushes[0];
-  return publisherLayout(publisher, designation.codeRemote);
-}
-
-/** The layout a designation calls for once the given remote is its one push remote; a switch's source is the physical layout. */
-export function publisherLayout(publisher: Pick<RefRemoteDesignation, "name" | "repository"> | undefined, codeRemote: string | null): StoreLayout {
-  return publisher?.repository === "code" && publisher.name === codeRemote ? "default" : "separate";
-}
-
-/** The no-target command finishes a recorded switch and any remaining source cleanup. */
-export function layoutRecoveryRemedy(): Remedy {
-  return { text: "Run arc store migrate to finish the recorded move or align the layout; undo an unintended remote edit before retrying instead.",
-    argv: ["arc", "store", "migrate"] };
-}
+import { layoutRecoveryRemedy } from "./layout-recovery.js";
+export { layoutRecoveryRemedy } from "./layout-recovery.js";
+import { designatedStoreLayout } from "./layout-designation.js";
+export { designatedStoreLayout, publisherLayout } from "./layout-designation.js";
 
 type LayoutCondition = Omit<Extract<SyncState, { status: "move-incomplete" | "move-unfinished" }>, "status">;
 
@@ -43,7 +30,9 @@ export async function observeRefLayout(context: RefBackendContext, designation: 
     remedy: layoutRecoveryRemedy() } : undefined;
   const declared = designation.remotes.some(({ role }) => role !== undefined);
   const expected = designatedStoreLayout(designation);
-  if (declared && (expected === "default" ? separate : !separate && held)) return {
+  const configured = refDesignationStop(designation);
+  if (configured?.status === "move-incomplete") return { unfinished, incomplete: { ...configured, status: "move-incomplete" } };
+  if (expected !== null && declared && (expected === "default" ? separate : !separate && held)) return {
     unfinished, incomplete: { status: "move-incomplete",
       condition: separate ? "The store is in the separate store directory while its designation requires the code repository's refs."
         : "The store remains in the code repository's refs while its designation requires a separate store directory.",

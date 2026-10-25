@@ -54,7 +54,7 @@ async function unsettledLayout(context: RefBackendContext, layoutRecorded: boole
     condition: "A layout move is recorded; finish it before requesting a remote migration or trial.",
     remedy: { text: "Run arc store migrate with no target to finish the recorded layout move, then retry the requested migration.", argv: ["arc", "store", "migrate"] } } };
   const designation = await readRefDesignation(context);
-  const ambiguous = ambiguousDesignation(designation);
+  const ambiguous = configuredLayoutRefusal(designation);
   if (ambiguous) return ambiguous;
   if (await layoutMoveLeftovers(await migrationCodeContext(context))) return { status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
     condition: "An interrupted layout build left its build directory or temporary refs; clear them before requesting a remote migration or trial.",
@@ -63,9 +63,11 @@ async function unsettledLayout(context: RefBackendContext, layoutRecorded: boole
   return incomplete ? { status: "refused", refusal: { code: "move-incomplete", class: "recoverable", condition: incomplete.condition, remedy: incomplete.remedy } } : undefined;
 }
 
-/** Several push remotes call for no one layout, so nothing moves until all but one are set off. */
-function ambiguousDesignation(designation: RefDesignation): Extract<StoreMigrateResult, { status: "refused" }> | undefined {
+/** Shared designation stops retain their recovery route at the command boundary. */
+function configuredLayoutRefusal(designation: RefDesignation): Extract<StoreMigrateResult, { status: "refused" }> | undefined {
   const stop = refDesignationStop(designation);
+  if (stop?.status === "move-incomplete") return { status: "refused", refusal: { code: "move-incomplete", class: "recoverable",
+    condition: stop.condition, remedy: stop.remedy } };
   return stop?.status === "designation-ambiguous" ? { status: "refused", refusal: { code: "role-conflict", class: "recoverable",
     condition: `Remotes ${stop.remotes.join(", ")} each carry push, so no one layout is designated.`, remedy: stop.remedy } } : undefined;
 }
@@ -79,7 +81,13 @@ async function reconcileNoTarget(context: RefBackendContext, store: Store): Prom
     if (followed.status === "decided") return followed.result;
   }
   const designation = await readRefDesignation(context);
-  return ambiguousDesignation(designation) ?? moveRefLayout(context, store, designatedStoreLayout(designation));
+  const layout = designatedStoreLayout(designation);
+  if (layout === null) {
+    const stop = configuredLayoutRefusal(designation);
+    if (!stop) throw new Error("An ambiguous layout has no designation stop");
+    return stop;
+  }
+  return moveRefLayout(context, store, layout);
 }
 
 /** Apply a code remote's own setting in the order its layout switch requires. */

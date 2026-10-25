@@ -8,6 +8,7 @@ import { readRefTips } from "./batch-read.js";
 import { isStateRef, readObjectFormat } from "./manifest.js";
 import { directoryExists, readRefDesignation } from "./designation.js";
 import { bindRefRepository } from "./repository-context.js";
+import { designatedStoreLayout } from "./layout-designation.js";
 
 /** Reads select an existing directory without commands and never create a repository. */
 export async function readRefRepository(context: RefBackendContext): Promise<RefBackendContext> {
@@ -52,7 +53,7 @@ export async function writeRefRepository(context: RefBackendContext,
   if (!location) throw new Error("Repository selection did not return its coordinate");
   if (location.gitDir || await codeHoldsState(context, captured)) return selected;
   const designation = await readRefDesignation(context, location.commonDir);
-  if (designation.backing === null && designation.pushes.length === 1 && designation.pushes[0]?.name === designation.codeRemote) return selected;
+  if (designatedStoreLayout(designation) === "default") return selected;
   const release = await context.lock("layout");
   try {
     const directory = join(location.commonDir, "arc", "store");
