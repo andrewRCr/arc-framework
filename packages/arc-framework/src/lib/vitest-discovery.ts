@@ -21,13 +21,14 @@ export interface VitestSelection {
  * Initialize native reporting once and discover without executing setups or workers.
  * @param filters - Native package-relative filename filters
  * @param options - Parsed native options
- * @param selectInitial - Optional exact selection before configured native pre-parsing
+ * @param selectInitial - Optional asynchronous refinement using the owning controller before native pre-parsing
  * @param createController - Native controller creation boundary
  * @returns Controller and configured selection for the caller's owning execution
  */
 export async function discoverVitestSelection(
   filters: string[], options: CliOptions,
-  selectInitial?: (specifications: TestSpecification[]) => TestSpecification[],
+  selectInitial?: (specifications: TestSpecification[], controller: Vitest) =>
+    TestSpecification[] | Promise<TestSpecification[]>,
   createController: typeof createVitest = createVitest,
 ): Promise<VitestSelection> {
   process.env.TEST = "true";
@@ -39,7 +40,7 @@ export async function discoverVitestSelection(
     applyProjectCliExclusions(controller, normalized.cliExclude ?? []);
     await controller.standalone();
     let specifications = await controller.getRelevantTestSpecifications(filters);
-    if (selectInitial !== undefined) specifications = selectInitial(specifications);
+    if (selectInitial !== undefined) specifications = await selectInitial(specifications, controller);
     if (controller.config.experimental.preParse) {
       const modules = await controller.experimental_parseSpecifications(specifications);
       const failed = modules.filter((module) => module.errors().length > 0);

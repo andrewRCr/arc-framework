@@ -12,8 +12,8 @@ import { gitExec } from "../../src/lib/io-context.js";
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 
-async function fixture() {
-  const result = await makeFocusedVitestFixture();
+async function fixture(preParse = false) {
+  const result = await makeFocusedVitestFixture(preParse);
   roots.push(result.root);
   const configPath = join(result.packageRoot, "vitest.config.ts");
   const config = await readFile(configPath, "utf8");
@@ -21,6 +21,8 @@ async function fixture() {
   await writeFile(configPath, config.replace("__tests__/unit/**/*.test.mjs", "__tests__/unit/**/*.test.{mjs,ts}"));
   await writeFile(join(result.packageRoot, "__tests__/unit/isolated-mock-files.guard.test.ts"),
     'import { it } from "vitest"; it("isolation guard", () => { console.log("ISOLATION-GUARD-RAN"); });\n');
+  await writeFile(join(result.packageRoot, "__tests__/unit/isolated-mock-files.guard.test.ts-adjacent.test.ts"),
+    'import { it } from "vitest"; it("unrelated guard-adjacent file", () => { throw new Error("UNRELATED-UNIT-RAN"); });\n');
   await writeFile(join(result.packageRoot, "src/related-fixture.mjs"), "export const value = 42;\n");
   await writeFile(join(result.packageRoot, "src/unrelated-fixture.mjs"), "export const other = true;\n");
   await writeFile(join(result.packageRoot, "__tests__/unit/named.test.mjs"),
@@ -69,6 +71,67 @@ it("propagates a selected isolation guard's failure", async () => {
   await writeFile(join(setup.packageRoot, "__tests__/unit/isolated-mock-files.guard.test.ts"),
     'import { it } from "vitest"; it("isolation guard", () => { throw new Error("ISOLATION-GUARD-FAILED"); });\n');
   const result = await runVitestControllerFixture(setup.packageRoot, ["changed", "__tests__/unit/named.test.mjs"]);
+  expect(result.code, result.stdout + result.stderr).toBe(1);
+  expect(result.stdout + result.stderr).toContain("ISOLATION-GUARD-FAILED");
+}, 30_000);
+
+it("reports no evidence for an unimported unit helper after running the guard", async () => {
+  const setup = await fixture();
+  const path = "__tests__/unit/unimported-helper.mjs";
+  await writeFile(join(setup.packageRoot, path), "export const uncovered = true;\n");
+  const result = await runVitestControllerFixture(setup.packageRoot, ["changed", path]);
+  expect(result.code, result.stdout + result.stderr).toBe(EMPTY_RELATED_SELECTION_EXIT_CODE);
+  expect(result.stdout).toContain("ISOLATION-GUARD-RAN");
+  expect(result.stderr).toContain("No unit tests reach the changed files");
+  expect((await readFile(setup.events, "utf8")).split("\n").filter(line => line === "initialized")).toHaveLength(1);
+}, 30_000);
+
+it("retains no evidence when native exclusions remove every original related test", async () => {
+  const setup = await fixture();
+  const result = await runVitestControllerFixture(setup.packageRoot,
+    ["changed", "__tests__/unit/named.test.mjs", "--exclude", "**/named.test.mjs"]);
+  expect(result.code, result.stdout + result.stderr).toBe(EMPTY_RELATED_SELECTION_EXIT_CODE);
+  expect(result.stdout).toContain("ISOLATION-GUARD-RAN");
+  expect(result.stdout).not.toContain("RELATED-UNIT-RAN");
+}, 30_000);
+
+it.each([false, true])("rejects all-skipped originals with native pre-parsing=%s", async (preParse) => {
+  const setup = await fixture(preParse);
+  await writeFile(join(setup.packageRoot, "__tests__/unit/named.test.mjs"),
+    'import { it } from "vitest"; it.skip("unexecuted original case", () => {});\n');
+  const result = await runVitestControllerFixture(setup.packageRoot, ["changed", "__tests__/unit/named.test.mjs"]);
+  expect(result.code, result.stdout + result.stderr).toBe(preParse ? EMPTY_RELATED_SELECTION_EXIT_CODE : 1);
+  expect(result.stdout).toContain("ISOLATION-GUARD-RAN");
+  expect(result.stderr).toContain(preParse ? "No unit tests reach the changed files" : "No test cases completed");
+}, 30_000);
+
+it("keeps the guard for unit helpers reached by an original related test", async () => {
+  const setup = await fixture();
+  await writeFile(join(setup.packageRoot, "__tests__/unit/covered-helper.mjs"), "export const value = 42;\n");
+  await writeFile(join(setup.packageRoot, "__tests__/unit/named.test.mjs"),
+    'import { it, expect } from "vitest"; import { value } from "./covered-helper.mjs";\n'
+    + 'it("covered helper", () => { expect(value).toBe(42); console.log("HELPER-COVERAGE-RAN"); });\n');
+  const result = await runVitestControllerFixture(setup.packageRoot, ["changed", "__tests__/unit/covered-helper.mjs"]);
+  expect(result.code, result.stdout + result.stderr).toBe(0);
+  expect(result.stdout).toContain("HELPER-COVERAGE-RAN");
+  expect(result.stdout).toContain("ISOLATION-GUARD-RAN");
+}, 30_000);
+
+it("counts a direct edit to the guard as original related coverage", async () => {
+  const setup = await fixture();
+  const result = await runVitestControllerFixture(setup.packageRoot,
+    ["changed", "__tests__/unit/isolated-mock-files.guard.test.ts"]);
+  expect(result.code, result.stdout + result.stderr).toBe(0);
+  expect(result.stdout.match(/ISOLATION-GUARD-RAN/g)).toHaveLength(1);
+  expect(result.stdout).toContain("1 passed");
+}, 30_000);
+
+it("preserves a guard failure when the original related selection is empty", async () => {
+  const setup = await fixture();
+  await writeFile(join(setup.packageRoot, "__tests__/unit/unimported-helper.mjs"), "export const uncovered = true;\n");
+  await writeFile(join(setup.packageRoot, "__tests__/unit/isolated-mock-files.guard.test.ts"),
+    'import { it } from "vitest"; it("isolation guard", () => { throw new Error("ISOLATION-GUARD-FAILED"); });\n');
+  const result = await runVitestControllerFixture(setup.packageRoot, ["changed", "__tests__/unit/unimported-helper.mjs"]);
   expect(result.code, result.stdout + result.stderr).toBe(1);
   expect(result.stdout + result.stderr).toContain("ISOLATION-GUARD-FAILED");
 }, 30_000);
