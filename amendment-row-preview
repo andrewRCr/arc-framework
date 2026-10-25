@@ -3,7 +3,7 @@
   "slug": "amendment-row-preview",
   "claimId": "8d304ac389d728efa477e288a0963b9b",
   "createdAt": "2026-10-25T19:27:02.115Z",
-  "updatedAt": "2026-10-25T19:27:02.115Z",
+  "updatedAt": "2026-10-25T19:57:02.075Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Draft amendment record rows in their final grammar and width before approval",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Draft a design amendment's row in its final grammar before approval",
   "originEntrySourceDigest": "sha256:844accf6500fadc2c49e003ed773adbe3340a4d3924b0de1b531b4db26115915",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/amendment-row-preview",
+    "headSha": "7b99da6558233d7d5337cccd99a221f6095303bb"
+  }
 }
