@@ -582,41 +582,16 @@ slug, and a completed holder's former slug, each with its remedy and before any 
 work unit's slug; and a stub's edge naming the slug settles in the creating batch, while an in-flight dependent's edge
 refuses through `work-item.slug-edges` with its remedy.
 
-### `[ ]` **5.1 Build the admission check in `lib/store/` — § 6.1**
+### `[x]` **5.1 Build the admission check in `lib/store/` — § 6.1**
 
 - _Goal:_ One check in `lib/store/` answers whether a work item may take a slug — free, held by a live record, or
   refused — admitting only what the write rules `work-item.former-slug` and `work-item.slug-edges` admit, and refusing
   whatever it cannot read.
 
-    - The check (`checkCreationAdmission`, `lib/store/creation-admission.ts`) takes the store's `lookup` and `read`, the
-      slug, and the writing owners: the owners of records a caller already holds that take the name, matched by
-      `sameOwner` (`lib/store/identity.ts`).
-    - It returns `free`; `held`, with each live holder's `RecordReference`, whether the slug is its current or a former
-      name, and whether the lookup refused a tie; or `refused`, with its cause (a completed Errand or cohort, a
-      completed holder's former slug, a completed tie, or the lookup), the holders, and the lookup's refusal where it
-      refused.
-    - **Free:** the lookup finds nothing; returns a completed work unit under the slug as its current name, the latest
-      of several and above a completed Errand; or returns a writing owner. **Held:** the lookup returns a live record
-      under the slug as its current or a former name, or refuses `ambiguous-match` with a live `tie`. **Refused:** the
-      lookup returns a completed Errand or cohort holding the slug, or a completed record holding it as a former name;
-      refuses `ambiguous-match` with a completed `tie`; or refuses for any other reason.
-    - The lookup returns only a reference (`LookupResult`, `lib/store/lookup.ts`), so the check reads the returned
-      record for its placement, as `checkNamespaceName` does. It refuses on a read refusal, on a holder with unresolved
-      `conflicts`, and on an `ambiguous-match` without a `tie`, which the in-repo implementation returns (§ 1.5) and the
-      ref backend until Phase 8.
-    - A renderer beside it produces § 6.5's condition and remedy: it names each holder by type, current name, and UID;
-      its remedy is to choose another name or, for a live holder under its current name, to wait for it to complete; it
-      never offers a rename or `clashRepair`'s repair. Each caller adds its own pointer (5.2).
-    - Build `test-first` (one behavior at a time):
-        - a slug no record holds is free, and so is one whose only holders are completed work units under it as their
-          current name, a third generation included, or a completed work unit and a completed Errand
-        - a slug the lookup returns as a writing owner is free, under its current name or its own former slug
-        - a live record under the slug as its current or a former name holds it, and so does a live tie
-        - a completed Errand's or cohort's slug, a completed holder's former slug, and a completed tie refuse
-        - a lookup refusing other than `not-found` or `ambiguous-match`, a tie without a `tie`, a read refusal, and a
-          holder with conflicts refuse
-        - the rendered refusal names each holder, offers waiting only for a live holder under its current name, and
-          never a rename
+- _Outcome:_ `checkCreationAdmission` classifies ranked lookup and record reads as free, held, or refused, retaining
+  holder references, current/former-name facts, tie evidence, and refusal causes. Conflicts precede writing-owner
+  exemptions; the renderer names holder types and UUIDs, limits waiting advice to live current names, and preserves
+  actionable lookup/read repairs without offering lifecycle clash repairs.
 
 ### `[ ]` **5.2 Admit through the check at every creating path — § 6.2, § 6.5**
 
