@@ -763,20 +763,15 @@ released, then rerun.
   without a slug. Sweep actions carry that checkout, matching the derived-row exit. Rollback fixtures carry the creation
   claim required by operational placement, so their native compensation checks reach the intended failure boundaries.
 
-### `[ ]` **6.6 Unbound markers end to end** — validate exit criterion at segment scope
+### `[x]` **6.6 Unbound markers end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds end to end: an unbound marker refuses where it is acted on, warns where it
   is reported, and each exit binds or releases it and then succeeds.
 
-    - Over the reference backend, write a marker without a UID as one written before the flip would be, and interrupt
-      one creation before its create batch commits and one after; run the acting readers, `arc release commit` and
-      `arc release push`, `arc active status`, and `arc user reconcile-references` in each; then bind with
-      `arc materialize <slug> --here`, rerun the cold start, release with `arc locus release` and
-      `arc locus release <slug>`, and release and rerun a crashed creation of a reused slug, confirming each
-      continuation succeeds.
-    - Request `arc check segment` after the scenario checks.
-    - _Note:_ from Phase 4 until this phase, a marker without a UID resolves as not found and owner requests pass over
-      it; no flip lands between them.
+- _Outcome:_ Reference-backend scenarios cover legacy markers, creation interrupted before and after its batch, and a
+  crashed reuse whose completed holder remains unchanged. Acting commands refuse and reports warn without changing the
+  marker or Store; binding, cold-start rerun, and release followed by recreation restore command progress. The named
+  release matrix preserves completed bound holders and repairs multiple unbound matches from their own checkouts.
 
 ## **Phase 7:** An ended holder's cleanup
 
