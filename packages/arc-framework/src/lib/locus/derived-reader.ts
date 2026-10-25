@@ -279,7 +279,7 @@ export async function readDerivedLocusRoster(options: {
     }
     rows.push(row);
   }
-  const guardedRows = guardDuplicateMarkerClaims(guardWorkUnitLocusCollisions(rows));
+  const guardedRows = guardDuplicateMarkerClaims(guardWorkUnitLocusCollisions(rows), options.store?.capabilities.stateOffBranch === true);
   guardedRows.sort((left, right) => Buffer.compare(
     Buffer.from(left.checkout.path),
     Buffer.from(right.checkout.path),
@@ -422,22 +422,25 @@ function projectPrimaryAvailability(rows: readonly DerivedCheckoutRow[]): Derive
   };
 }
 
-function guardDuplicateMarkerClaims(rows: readonly DerivedCheckoutRow[]): DerivedCheckoutRow[] {
+function guardDuplicateMarkerClaims(rows: readonly DerivedCheckoutRow[], stateOffBranch: boolean): DerivedCheckoutRow[] {
   const holders = new Map<string, string[]>();
   for (const row of rows) {
-    if (row.markerGeneration === null || row.subject?.kind !== "work-unit") continue;
-    const paths = holders.get(markerClaimKey(row.subject)) ?? [];
+    const key = row.markerGeneration === null ? undefined : markerClaimKey(row, stateOffBranch);
+    if (key === undefined) continue;
+    const paths = holders.get(key) ?? [];
     paths.push(row.checkout.path);
-    holders.set(markerClaimKey(row.subject), paths);
+    holders.set(key, paths);
   }
   return rows.map(row => {
-    const paths = row.subject?.kind === "work-unit" ? holders.get(markerClaimKey(row.subject)) : undefined;
+    const key = markerClaimKey(row, stateOffBranch), paths = key === undefined ? undefined : holders.get(key);
     return paths === undefined || paths.length < 2 ? row : { ...row, kind: "unresolved-checkout", context: null, actions: undefined,
       diagnostics: [...row.diagnostics, { code: "work-unit-locus-conflict",
         message: `Work unit '${row.subject?.key ?? "unknown"}' has multiple marker holders: ${paths.join(", ")}. Inspect and release the stray checkout's claim.` }] };
   });
 }
 
-function markerClaimKey(subject: Extract<NonNullable<DerivedCheckoutRow["subject"]>, { kind: "work-unit" }>): string {
+function markerClaimKey(row: DerivedCheckoutRow, stateOffBranch: boolean): string | undefined {
+  const subject = row.subject;
+  if (subject?.kind !== "work-unit" || (stateOffBranch && row.kind === "retired" && subject.uid === undefined)) return undefined;
   return subject.uid === undefined ? `slug:${subject.key}` : `uid:${subject.uid}`;
 }

@@ -7,6 +7,7 @@
  * @module
  */
 
+import type { StoreRecord } from "../store/read.js";
 import type { Store } from "../store/contract.js";
 import { createStore } from "../store/create.js";
 import { createDefaultStorePorts } from "../store/default-ports.js";
@@ -479,6 +480,7 @@ async function runStoreRoster(store: Store, worktrees: readonly GitWorktreePorce
       const ownership = decodeWorktreeMarkerOwnership(marker.marker);
       if (ownership.kind !== "current" || ownership.subject.kind !== "work-unit") return entry;
       entry.workUnit = ownership.subject.name;
+      if (marker.marker.husk?.subject.kind === "work-unit") return { ...entry, retired: true as const };
       const unbound = await unboundRosterWarning(store, worktree.path, marker.marker, ownership.subject.uid);
       if (unbound !== null) {
         warnings.push(unbound);
@@ -496,8 +498,7 @@ async function runStoreRoster(store: Store, worktrees: readonly GitWorktreePorce
       if (read.status === "refused") { warnings.push(`${worktree.path}: ${read.refusal.condition} ${read.refusal.remedy.text}`); return entry; }
       if (read.result.conflicts.length > 0) throw new Error(
         `The work-unit primary has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry the roster.`);
-      if (read.result.placement !== undefined) entry.placement = read.result.placement.kind;
-      Object.assign(entry, storeRosterFields(ParsedMetaRecordSchema.parse(read.result.fields)));
+      Object.assign(entry, storeRosterFields(read.result));
     } catch (error) { warnings.push(`${worktree.path}: ${error instanceof Error ? error.message : String(error)}`); }
     return entry;
   }));
@@ -508,8 +509,10 @@ async function unboundRosterWarning(store: Store, cwd: string, marker: WorktreeM
   return (await classifyUnboundMarker({ store, cwd, marker })).reason;
 }
 
-function storeRosterFields(fields: ParsedMetaRecord): Partial<WorktreeRosterEntry> {
+function storeRosterFields(record: StoreRecord): Partial<WorktreeRosterEntry> {
+  const fields = ParsedMetaRecordSchema.parse(record.fields);
   return {
+    ...(record.placement === undefined ? {} : { placement: record.placement.kind }),
     ...(fields.owner === null ? {} : { identity: fields.owner }),
     ...(fields.state === null ? {} : { state: validateState(fields.state) }),
     ...(fields.cohort === null ? {} : { cohort: fields.cohort }),

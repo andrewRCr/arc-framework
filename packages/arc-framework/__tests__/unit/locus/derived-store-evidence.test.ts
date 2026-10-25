@@ -500,3 +500,53 @@ it("refuses two unbound marker claims for one name", async () => {
   expect(result.roster.every(row => row.kind === "unresolved-checkout"
     && row.diagnostics.some(item => item.code === "work-unit-locus-conflict"))).toBe(true);
 });
+
+async function huskFixture(bound = false) {
+  const h = await fixture(bound), scan = await h.io.scanWorktrees();
+  if (!scan.ok || !scan.worktrees[0]) throw new Error("Expected registration");
+  const checkout = scan.worktrees[0], readMarker = h.io.readMarker;
+  h.io.scanWorktrees = async () => ({ ok: true, worktrees: [
+    { ...checkout, path: "/primary" }, { ...checkout, primary: false, branch: null, detached: true },
+  ] });
+  h.io.readMarker = async path => {
+    if (path === "/primary") return { kind: "absent" };
+    const read = await readMarker(path);
+    if (read.kind !== "present") throw new Error("Expected work-unit marker");
+    const marker: WorktreeMarker = { ...read.marker, spawnedByArc: true,
+      husk: { sha: checkout.head, at: "2026-10-24T00:00:00Z", subject: { kind: "work-unit", name: h.reference.owner.name }, branch: "feat/example" } };
+    return { kind: "present", marker, bytes: Buffer.from(JSON.stringify(marker)) };
+  };
+  return h;
+}
+
+it.each([false, true])("derives a work-unit husk as retired without borrowing its live namesake's UID or context (bound=%s)", async bound => {
+  const h = await huskFixture(bound), before = success(await h.fixture.store.version());
+  const result = await frame(h.io);
+  expect(result.entering).toMatchObject({ kind: "selected", row: { kind: "retired", context: null, diagnostics: [] } });
+  if (result.entering.kind !== "selected") throw new Error("Expected entering checkout");
+  expect(result.entering.row.subject).toEqual({ kind: "work-unit", key: h.reference.owner.name });
+  expect(result.active).toBeNull();
+  expect(success(await h.fixture.store.version())).toBe(before);
+});
+
+it.each([false, true])("keeps a husk out of duplicate claims beside another marker (unbound=%s)", async unbound => {
+  const h = await huskFixture(), scan = await h.io.scanWorktrees();
+  if (!scan.ok || !scan.worktrees[1]) throw new Error("Expected a husk registration");
+  const sibling = { ...scan.worktrees[1], path: "/other" }, readMarker = h.io.readMarker;
+  h.io.scanWorktrees = async () => ({ ok: true, worktrees: [...scan.worktrees, sibling] });
+  h.io.readMarker = async path => {
+    const read = await readMarker(path);
+    if (path !== "/other" || !unbound || read.kind !== "present") return read;
+    const marker: WorktreeMarker = { ...read.marker, spawnedByArc: false };
+    delete marker.husk;
+    return { kind: "present", marker, bytes: Buffer.from(JSON.stringify(marker)) };
+  };
+  const result = await frame(h.io);
+  const husk = result.roster.find(row => row.checkout.path === "/repo");
+  expect(husk).toMatchObject({ kind: "retired", context: null, diagnostics: [] });
+  expect(husk?.subject).toEqual({ kind: "work-unit", key: h.reference.owner.name });
+  const other = result.roster.find(row => row.checkout.path === "/other");
+  expect(other?.kind).toBe(unbound ? "unresolved-checkout" : "retired");
+  expect(result.roster.every(row => row.diagnostics.every(item => item.code !== "work-unit-locus-conflict"))).toBe(true);
+  if (!unbound) expect(other?.subject).toEqual(husk?.subject);
+});

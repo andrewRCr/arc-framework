@@ -4,8 +4,8 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { expect, it, onTestFinished, vi } from "vitest";
-import { runWorktreeRoster, filterRosterByIdentity } from "../../../src/lib/git/worktree-roster.js";
-import { writeWorktreeOwnershipMarker } from "../../../src/lib/git/worktree-marker.js";
+import { runWorktreeRoster, filterRosterByIdentity, isInFlightWorkUnitRosterEntry } from "../../../src/lib/git/worktree-roster.js";
+import { writeWorktreeOwnershipMarker, stampWorktreeHusk, readWorktreeMarkerGeneration } from "../../../src/lib/git/worktree-marker.js";
 import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
 import { makeMetaFixture } from "../../helpers/meta-fixture.js";
 import { createReferenceFixture } from "../../helpers/store/reference-fixture.js";
@@ -107,4 +107,25 @@ it("warns with the live owner's bind and release exits for an unbound registrati
   expect(warning).toContain(cwd);
   if (meta.reference.owner.type !== "work-item" || meta.reference.owner.uid === undefined) throw new Error("Expected UID");
   expect(warning).toContain(meta.reference.owner.uid);
+});
+
+it("marks a pre-store husk retired and excludes it from in-flight work beside a live namesake", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "arc-roster-husk-")), holder = join(cwd, "old");
+  onTestFinished(() => rm(cwd, { recursive: true, force: true }));
+  await mkdir(holder);
+  const h = createLifecycleHarness();
+  await h.seedMeta("demo", { owner: "andrew" });
+  await writeWorktreeOwnershipMarker(holder, { createdByArc: true, createdFor: { kind: "work-unit", name: "demo" }, spawningIdentity: "andrew", now: 0 });
+  expect(await stampWorktreeHusk(holder, { sha: "a".repeat(40), at: "2026-10-24T00:00:00Z",
+    subject: { kind: "work-unit", name: "demo" }, branch: "feat/demo" })).toMatchObject({ kind: "stamped" });
+  const marker = await readWorktreeMarkerGeneration(holder), before = lifecycleSuccess(await h.store.version());
+  const roster = await runWorktreeRoster({ cwd, store: h.store,
+    exec: async () => ({ stdout: [`worktree ${cwd}`, `HEAD ${"a".repeat(40)}`, "branch refs/heads/main", "", "",
+      `worktree ${holder}`, `HEAD ${"a".repeat(40)}`, "detached", "", ""].join("\0") }),
+    fs: { readdir: async () => [], readFile: async () => { throw new Error("No checkout metadata"); } } });
+  expect(roster).toEqual({ warnings: [], entries: [{ worktreePath: cwd, branch: "main" },
+    { worktreePath: holder, workUnit: "demo", retired: true }] });
+  expect(roster.entries.filter(isInFlightWorkUnitRosterEntry)).toEqual([]);
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  expect(await readWorktreeMarkerGeneration(holder)).toEqual(marker);
 });

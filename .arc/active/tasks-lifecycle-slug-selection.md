@@ -836,27 +836,11 @@ edits land in package source and sync to `.arc/`.
           Current-husk and sweep readers pass the storage capability, and published reason sets carry the result.
           Store teardown replay retains default decoding and its exact evidence admission.
 
-    - `[ ]` **7.2.b The derived row and the roster**
+    - `[x]` **7.2.b The derived row and the roster**
 
-        - The work-unit reduction (`readStoreCheckout`, `lib/locus/derived-evidence.ts`) keeps the husk fact before
-          `projectMarker` drops it and returns before the claim with terminal evidence of the shape it reads for a work
-          unit with only lineage (`readRemovedWorkUnit`, `store-work-unit-evidence.ts`), built without a lineage read,
-          so the row is `retired` with a subject carrying no UID and no context. The store roster marks a husk's entry
-          `retired` (`runStoreRoster`), so it is never in flight (`isInFlightWorkUnitRosterEntry`).
-        - In the store arm the duplicate-marker guard (`guardDuplicateMarkerClaims`, `lib/locus/derived-reader.ts`)
-          passes over a `retired` row without a UID, which only a husk's row is there, so a husk never groups with
-          another row of its slug (4.5.a); the in-repo arm's grouping is unchanged.
-        - `cleanupAuthorityRow` (`store-worktree-selection.ts`) already admits a `retired` row with no diagnostics, and
-          session guidance already names its path alone (`renderDerivedCleanup`, `lib/locus/session-guidance.ts`); tests
-          pin both.
-        - _Note:_ `projectMarker` holds the file's suppressed complexity, so the husk check goes in `readStoreCheckout`;
-          `runStoreRoster`'s per-entry callback is near the complexity limit.
-        - Build `test-first` (one behavior at a time):
-            - a work-unit husk's row is `retired` with no UID and no context, and the duplicate-marker guard and the row
-              readers never match it to a holder
-            - two husks of one slug, and a husk beside an unbound marker of its slug, each stay `retired`, with no locus
-              conflict
-            - the store roster marks it `retired` and counts it out of flight
+        - Store evidence reduces a work-unit husk to a UID-free retired row before claim lookup, without work-unit
+          context. Duplicate-claim grouping excludes those rows in the store arm, and the physical roster marks husks
+          retired so they never count in flight, even beside an unbound marker or another husk of the same slug.
 
     - `[ ]` **7.2.c The exits**
 

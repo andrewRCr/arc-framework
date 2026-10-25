@@ -376,6 +376,14 @@ async function readStoreCheckout(worktree: RegisteredWorktree, identity: string,
     raw: read.kind === "present" ? read.marker : undefined }),
     (error: unknown) => ({ marker: { kind: "error" as const, reason: errorMessage(error) }, raw: undefined }));
   const marker = observed.marker;
+  const husk = observed.raw?.husk;
+  if (husk?.subject.kind === "work-unit" && marker.kind === "present" && marker.marker.createdFor.kind === "work-unit") {
+    const subject = { kind: "work-unit" as const, key: husk.subject.name };
+    const retiredMarker: DormantMarkerGenerationEvidence = { ...marker, marker: {
+      spawnedByArc: marker.marker.spawnedByArc, createdFor: { kind: "work-unit", name: marker.marker.createdFor.name } } };
+    return { checkoutPath: worktree.path, marker: retiredMarker, metaRoots: [], metas: [], workUnit: { kind: "terminal", subject,
+      lifecycle: { kind: "present", subject, state: "retired", expectedTopology: {} } } };
+  }
   const subject = marker.kind === "present" ? marker.marker.createdFor : null;
   const workUnit = inventoryError !== null ? { kind: "unreadable" as const, reason: inventoryError }
     : subject?.kind === "work-unit" && observed.raw !== undefined ? await readStoreWorkUnitEvidence({ store, slug: subject.name, uid: subject.uid, head: worktree.head,
