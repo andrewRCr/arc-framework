@@ -18,6 +18,7 @@ import { nextArchiveSequence, type RefArchivePlan } from "./write-archive.js";
 import { cohortClosePlacement, preparedCohortParents } from "./cohort-coordinates.js";
 import { corruptRef } from "./namespace-health.js";
 import { writeRefBlob } from "./tree-write.js";
+import { expandStoredPath } from "../stored-path.js";
 
 /** The archives and prepared writes a moved cohort's closeout reads, as a closing cohort's does. */
 export interface CompletedMoveBasis { archives: readonly RefArchivePlan[]; writes: readonly PreparedRefMutation[] }
@@ -43,6 +44,35 @@ export function completedMoveLockRefs(batch: ResolvedBatch): string[] {
   });
 }
 
+/** Assign completed moves before checks, reserving after the batch's archives and reopens without changing their trees. */
+export async function planCompletedMoves(context: RefBackendContext, batch: ResolvedBatch,
+  groups: ReadonlyMap<string, RefWriteGroup>, basis: CompletedMoveBasis,
+  reopened?: ReadonlyMap<string, ReadonlyMap<string, RefTreeEntry>>): Promise<StoreResult<undefined>> {
+  const histories = new Set((batch.archived ?? []).map(({ liveRef }) => liveRef.replace("refs/arc/", "refs/arc/history/")));
+  const moves = [...histories].flatMap(history => {
+    const quarter = completedMoveQuarter(batch, history);
+    return quarter ? [{ history, quarter }] : [];
+  });
+  if (!moves.length) return { status: "ok", result: undefined };
+  const captured = await completedQuarterTrees(context, [], batch, new Set(moves.map(({ quarter }) => `refs/arc/archive/${quarter}`)));
+  if (captured.status === "refused") return captured;
+  const quarters = captured.result;
+  for (const [ref, entries] of reopened ?? []) if (quarters.has(ref)) quarters.set(ref, new Map(entries));
+  for (const plan of basis.archives) if (quarters.has(plan.home.ref)) quarters.set(plan.home.ref, new Map(plan.entries));
+  for (const { history, quarter } of moves) {
+    const group = groups.get(history);
+    const [folder] = latestArchivedFolders((batch.archived ?? []).filter(({ liveRef }) => liveRef.replace("refs/arc/", "refs/arc/history/") === history));
+    if (!group || !folder) throw new Error("A completed move has no prepared group or captured folder");
+    const target = quarterEntries(quarters, `refs/arc/archive/${quarter}`);
+    const placement = await movedPlacement(context, { batch, groups, basis }, folder, group, quarter, target);
+    if ("code" in placement) return { status: "refused", refusal: placement };
+    group.readPlacement = placement;
+    const home = expandStoredPath(ownerPrimaryReference(folder.owner, group.metadata), { registry: context.registry, placement });
+    target.set(home.metadataPath, { path: home.metadataPath, mode: "100644", oid: "" });
+  }
+  return { status: "ok", result: undefined };
+}
+
 /** Stamp writes that keep the item completed, preserving its original end batch. */
 export async function stampCompletedWrites(context: RefBackendContext, batch: ResolvedBatch, writes: readonly PreparedRefMutation[],
   groups: ReadonlyMap<string, RefWriteGroup>, batchId: string): Promise<void> {
@@ -62,7 +92,7 @@ export async function stampCompletedWrites(context: RefBackendContext, batch: Re
 /** Refresh every folder in the same transaction, composing with other quarter changes; a move replaces them with one. */
 export async function refreshCompletedChanges(context: RefBackendContext, changes: readonly RefChange[], batch: ResolvedBatch,
   groups: ReadonlyMap<string, RefWriteGroup>, provenance: BatchInput["provenance"], batchId: string, receipt: BatchCreationReceipt,
-  actor: string | undefined, basis: CompletedMoveBasis): Promise<StoreResult<RefChange[]>> {
+  actor: string | undefined): Promise<StoreResult<RefChange[]>> {
   const folders = (batch.archived ?? []).filter(({ liveRef }) => {
     const history = liveRef.replace("refs/arc/", "refs/arc/history/");
     return changes.some(({ ref }) => ref === history) && !groups.get(history)?.viewRef;
@@ -85,8 +115,7 @@ export async function refreshCompletedChanges(context: RefBackendContext, change
       for (const folder of owned) await refreshArchivedFolder(context, folder, group, quarterEntries(quarters, folder.ref));
       continue;
     }
-    const moved = await moveArchivedFolders(context, { batch, groups, basis, quarters }, owned, group, quarter);
-    if (moved) return { status: "refused", refusal: moved };
+    await moveArchivedFolders(context, quarters, owned, group, quarter);
   }
   const result = changes.filter(({ ref }) => !refs.has(ref));
   const reference = batch.writes[0]?.mutation.reference;
@@ -98,20 +127,18 @@ export async function refreshCompletedChanges(context: RefBackendContext, change
 
 interface MoveScope {
   batch: ResolvedBatch; groups: ReadonlyMap<string, RefWriteGroup>; basis: CompletedMoveBasis;
-  quarters: ReadonlyMap<string, Map<string, RefTreeEntry>>;
 }
 
 /** Remove every folder of one ended owner and write it once into the quarter its put names, keeping its end batch. */
-async function moveArchivedFolders(context: RefBackendContext, scope: MoveScope, owned: readonly ArchivedFolder[],
-  group: RefWriteGroup, quarter: ArchiveQuarter): Promise<ReturnType<typeof corruptRef> | undefined> {
+async function moveArchivedFolders(context: RefBackendContext, quarters: ReadonlyMap<string, Map<string, RefTreeEntry>>, owned: readonly ArchivedFolder[],
+  group: RefWriteGroup, quarter: ArchiveQuarter): Promise<void> {
   const [latest] = latestArchivedFolders(owned);
   if (!latest) throw new Error("A moved owner has no folder");
-  const target = quarterEntries(scope.quarters, `refs/arc/archive/${quarter}`);
-  const placement = await movedPlacement(context, scope, latest, group, quarter, target);
-  if ("code" in placement) return placement;
-  for (const folder of owned) removeArchivedFolder(quarterEntries(scope.quarters, folder.ref), folder);
+  const target = quarterEntries(quarters, `refs/arc/archive/${quarter}`);
+  const placement = group.readPlacement;
+  if (placement?.kind !== "completed" || placement.quarter !== quarter) throw new Error("A completed move lacks its checked placement");
+  for (const folder of owned) removeArchivedFolder(quarterEntries(quarters, folder.ref), folder);
   await writeArchivedFolder(context, { placement, endBatch: latest.metadata.endBatch }, group, target, latest.owner);
-  return undefined;
 }
 
 /** Number a moved owner as an end in that quarter numbers it: the next work unit, a record's own name, or a cohort's closeout. */

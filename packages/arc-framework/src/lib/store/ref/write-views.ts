@@ -88,9 +88,7 @@ function lookupViewTrees(context: RefBackendContext, state: RefViewState, identi
     if (!group.entries || !metadata) { unreadable.set(ref, corruptRef(ref, !group.entries, state.saved)); continue; }
     trees.set(ref, { entries: group.entries, metadata, objects: state.objects });
   }
-  const quarters = new Map([...state.refs].flatMap(([ref, group]) => isArchiveRef(ref) && group.entries ? [[ref, group.entries] as const] : []));
-  for (const [ref, group] of state.refs) if (isArchiveRef(ref) && !group.entries) unreadable.set(ref, corruptRef(ref, !group.entries));
-  appendArchivedLookupTrees(trees, quarters, state.objects, unreadable, state.saved);
+  appendArchivedLookupTrees(trees, state, unreadable);
   return { status: "ok", result: { trees, unreadable } };
 }
 

@@ -3,7 +3,8 @@
 import { corruptRef } from "./namespace-health.js";
 import { restartOnVanishedStore } from "./repository.js";
 import type { ReadPlacement } from "../placement.js";
-import { archivedFolders, archiveOwnerTrees, isArchiveRef, latestArchivedFolders, unreadableOwnedFolder } from "./archive-read.js";
+import { archiveOwnerTrees, isArchiveRef } from "./archive-read.js";
+import { archiveStateFromCapture, captureArchivedFolders, selectEndedOwners } from "./ended-owners.js";
 import type { ListInput, ListingOutcome, ListingDiagnostic, ReadInput, StoreRecord } from "../read.js";
 import { RecordReferenceSchema, OwnerIdentitySchema, sameOwner, type RecordReference, type OwnerIdentity, type StateVersion } from "../identity.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
@@ -26,6 +27,7 @@ import { resolveRefName, resolveRefListInput, resolveRefReadName } from "./refer
 import type { RefLookupCapture } from "./lookup-trees.js";
 import { readUidRefRecord } from "./read-uid.js";
 import { refRecordAbsence } from "./record-absence.js";
+import type { RefViewState } from "./view-state.js";
 
 /** Read a record, resolving name-only owners through one captured namespace. */
 export async function readRefRecord(context: RefBackendContext, input: ReadInput): Promise<StoreResult<StoreRecord>> {
@@ -159,14 +161,11 @@ async function listBoundRecords(context: RefBackendContext, input: ListInput): P
     if (admitted.status === "refused") return admitted;
     input = admitted.result;
   }
-  // A standing live ref supersedes its owner's folders, as in a saved listing, so a pending end lists once.
-  const latest = new Set(latestArchivedFolders([...trees].flatMap(([ref, entries]) => isArchiveRef(ref)
-    ? archivedFolders(input.family, ref, entries, objects).folders : [])).filter(({ liveRef }) => !captured.has(liveRef))
-    .map(({ ref, root }) => `${ref}:${root}`));
-  const groups = [...tips.keys()].map((ref) => {
+  const groups = [...tips.keys()].filter(ref => !isArchiveRef(ref)).map((ref) => {
     const entries = trees.get(ref);
-    return entries ? decodeListedRef(context, input, ref, entries, objects, latest, project?.owner) : unreadableRef(ref);
+    return decodeCapturedRef(context, input, ref, entries, objects, undefined, project?.owner);
   });
+  if ([...tips.keys()].some(isArchiveRef)) groups.push(decodeArchivedListing(context, input, archiveStateFromCapture(captured, trees, objects)));
   const records = groups.flatMap((group) => group.records);
   const diagnostics = groups.flatMap((group) => group.diagnostics);
   if (project?.diagnostic && !diagnostics.some(({ key }) => key === project.diagnostic?.key)) diagnostics.push(project.diagnostic);
@@ -174,6 +173,16 @@ async function listBoundRecords(context: RefBackendContext, input: ListInput): P
     condition: diagnostics.map((diagnostic) => diagnostic.condition).join("; "),
     remedy: { text: diagnostics.map((diagnostic) => diagnostic.remedy.text).join(" ") } } };
   return { status: "ok", result: readableRefListing(input, records, diagnostics, asOf) };
+}
+
+function decodeArchivedListing(context: RefBackendContext, input: ListInput, state: RefViewState): DecodedRecords {
+  const ended = selectEndedOwners(state, captureArchivedFolders(state, input.family));
+  const decoded = ended.folders.map(folder => {
+    const group = decodeCapturedRef(context, input, folder.liveRef, folder.entries, state.objects, folder.metadata, undefined, folder.placement);
+    return { records: group.records, diagnostics: group.diagnostics.map(diagnostic => ({ ...diagnostic, key: folder.root + diagnostic.key })) };
+  });
+  return { records: decoded.flatMap(group => group.records), diagnostics: [...ended.diagnostics, ...decoded.flatMap(group => group.diagnostics)],
+    ...[...state.refs].filter(([ref]) => isArchiveRef(ref)).every(([, group]) => !group.entries) ? { unreadable: true as const } : {} };
 }
 
 /** Preserve kind-scoped absence and lifecycle filtering in current, saved, and checked listings. */
@@ -300,10 +309,12 @@ async function readArchivedRecord(context: RefBackendContext, reference: RecordR
   const trees = located ? new Map([[located.ref, located.entries.map(entry => ({ ...entry, path: located.root + entry.path }))]])
     : archiveOwnerTrees(quarters ?? new Map(), [reference.owner]);
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
-  const broken = unreadableOwnedFolder(trees, [reference.owner], objects);
-  if (broken) return { status: "refused", refusal: corruptRef(broken) };
-  const folders = [...trees].flatMap(([ref, entries]) => archivedFolders(family, ref, entries, objects).folders);
-  const folder = latestArchivedFolders(folders.filter(({ owner }) => sameOwner(owner, reference.owner)))[0];
+  const state = archiveStateFromCapture(tips, new Map([...selected.keys()].map(ref => [ref, trees.get(ref) ?? []])), objects);
+  const ended = selectEndedOwners(state, captureArchivedFolders(state, family, [reference.owner]));
+  const diagnostic = ended.diagnostics[0];
+  if (diagnostic) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: diagnostic.key.split(":")[0] ?? diagnostic.key,
+    condition: diagnostic.condition, remedy: diagnostic.remedy } };
+  const folder = ended.folders.find(({ owner }) => sameOwner(owner, reference.owner));
   if (!folder) return missing(reference);
   // The owner is resolved only now, so its companion aliases are checked under the folder's slug, as a live read checks them.
   const invalidKey = checkRefKey(RecordReferenceSchema.parse({ ...reference, owner: folder.owner }), context.registry);
@@ -314,17 +325,6 @@ async function readArchivedRecord(context: RefBackendContext, reference: RecordR
   const record = decoded.records.find((record) => record.reference.key === reference.key || JSON.stringify(record.reference.key) === JSON.stringify(reference.key));
   if (record) return { status: "ok", result: record };
   return missing(reference);
-}
-
-function decodeListedRef(context: RefBackendContext, input: ListInput, ref: string, entries: readonly RefTreeEntry[],
-  objects: ReadonlyMap<string, BatchObject | null>, latest: ReadonlySet<string>, owner?: OwnerIdentity): DecodedRecords {
-  if (!isArchiveRef(ref)) return decodeCapturedRef(context, input, ref, entries, objects, undefined, owner);
-  const parsed = archivedFolders(input.family, ref, entries, objects);
-  const groups = parsed.folders.filter(({ root }) => latest.has(`${ref}:${root}`)).map((folder) => {
-    const group = decodeCapturedRef(context, input, folder.liveRef, folder.entries, objects, folder.metadata, undefined, folder.placement);
-    return { records: group.records, diagnostics: group.diagnostics.map((diagnostic) => ({ ...diagnostic, key: folder.root + diagnostic.key })) };
-  });
-  return { records: groups.flatMap(({ records }) => records), diagnostics: [...parsed.diagnostics, ...groups.flatMap(({ diagnostics }) => diagnostics)] };
 }
 
 /** Ref-backed state cannot infer checkout ownership from stored record placement. */

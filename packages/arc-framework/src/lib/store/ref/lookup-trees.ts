@@ -4,7 +4,9 @@ import { corruptRef } from "./namespace-health.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefLookupTree } from "./lookup.js";
-import { archivedFolders, latestArchivedFolders, isArchiveRef } from "./archive-read.js";
+import { isArchiveRef } from "./archive-read.js";
+import { archiveStateFromCapture, captureArchivedFolders, selectEndedOwners } from "./ended-owners.js";
+import type { RefViewState } from "./view-state.js";
 import { expandStoredPath } from "../stored-path.js";
 import { refPrototype } from "./read.js";
 import { viewRefFamily } from "./view-state.js";
@@ -68,7 +70,7 @@ function decodeLookupCapture(context: RefBackendContext, tips: ReadonlyMap<strin
     if (!metadata) { unreadable.set(ref, corruptRef(ref)); continue; }
     trees.set(ref, { entries, metadata, objects });
   }
-  appendArchivedLookupTrees(trees, captured, objects, unreadable);
+  appendArchivedLookupTrees(trees, archiveStateFromCapture(tips, captured, objects), unreadable);
   return { trees, unreadable, acquisition };
 }
 
@@ -79,17 +81,19 @@ function lookupMetadataPath(context: RefBackendContext, ref: string): string {
 }
 
 /** Add each completed owner's latest folder without consulting current refs. */
-export function appendArchivedLookupTrees(trees: Map<string, RefLookupTree>, captured: ReadonlyMap<string, readonly RefTreeEntry[]>,
-  objects: ReadonlyMap<string, BatchObject | null>, unreadable?: Map<string, StoreRefusal>, saved = false): void {
-  const folders = [...captured].flatMap(([ref, entries]) => isArchiveRef(ref)
-    ? (["work-item", "cohort"] as const).flatMap((family) => {
-      const parsed = archivedFolders(family, ref, entries, objects);
-      if (parsed.diagnostics.some(({ kind }) => kind === "unreadable")) unreadable?.set(ref, corruptRef(ref, false, saved));
-      return parsed.folders;
-    }) : []);
-  for (const folder of latestArchivedFolders(folders)) trees.set(`${folder.ref}:${folder.root}`, {
-    entries: folder.entries, metadata: folder.metadata, liveRef: folder.liveRef, objects, archived: folder,
-  });
+export function appendArchivedLookupTrees(trees: Map<string, RefLookupTree>, state: RefViewState,
+  unreadable?: Map<string, StoreRefusal>): void {
+  for (const family of ["work-item", "cohort"] as const) {
+    const { folders, diagnostics } = selectEndedOwners(state, captureArchivedFolders(state, family));
+    for (const diagnostic of diagnostics) {
+      const ref = diagnostic.key.split(":")[0] ?? diagnostic.key;
+      unreadable?.set(ref, { code: "namespace-corrupt", class: "terminal", namespace: ref,
+        condition: diagnostic.condition, remedy: diagnostic.remedy });
+    }
+    for (const folder of folders) trees.set(`${folder.ref}:${folder.root}`, {
+      entries: folder.entries, metadata: folder.metadata, liveRef: folder.liveRef, objects: state.objects, archived: folder,
+    });
+  }
 }
 
 function claimPayloadPatterns(context: Pick<RefBackendContext, "registry">): RegExp[] {

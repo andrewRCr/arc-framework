@@ -3,9 +3,10 @@ import { describe, expect, it } from "vitest";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
-import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
 import { RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { runStoreRename } from "../../src/lib/work-unit/verbs/rename-store.js";
+import { writeMetaDependsOn } from "../../src/lib/store/kinds/meta/writers.js";
 
 async function archivedFixture(layout: "default" | "separate") {
   const h = await refSyncFixture(layout), quarter = ArchiveQuarterSchema.parse("2026-q4");
@@ -22,6 +23,18 @@ async function archivedFixture(layout: "default" | "separate") {
 }
 
 describe.each(["default", "separate"] as const)("archived rename recovery in the %s layout", (layout) => {
+  it("renames an archived prerequisite and its planned dependent through the prepared lookup view", async () => {
+    const h = await archivedFixture(layout);
+    const reference = RecordReferenceSchema.parse({ owner: { type: "work-item", name: "later" }, kind: "work-item/meta" });
+    const content = makeMetaFixture("later", { state: "Planning", currentWorkflow: null });
+    success(await h.b.store.write({ action: "put", reference, expected: null, content: writeMetaDependsOn(content, ["before"]),
+      placement: { kind: "backlog", commitment: "planned" }, provenance: { verb: "plan", lifecycleAction: "plan" } }));
+    expect(await runStoreRename(h.ctx, { sourceSlug: "before", targetSlug: "after" })).toMatchObject({ status: "renamed", shape: "archived" });
+    expect(success(await h.b.store.read({ reference })).content).toBe(writeMetaDependsOn(content, ["after"]));
+    expect(success(await h.b.store.lookup({ kind: "slug", slug: SlugSchema.parse("after") })).reference.owner)
+      .toEqual({ ...h.reference.owner, name: "after" });
+  });
+
   it("pulls missing history by name and renames the archived folder without changing its number", async () => {
     const h = await archivedFixture(layout), before = success(await h.b.store.read({ reference: h.reference }));
     expect(await runStoreRename(h.ctx, { sourceSlug: "before", targetSlug: "after" })).toMatchObject({ status: "renamed", shape: "archived" });

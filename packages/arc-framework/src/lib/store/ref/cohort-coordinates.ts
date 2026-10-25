@@ -11,7 +11,7 @@ import type { PreparedRefMutation } from "./write-merge.js";
 import type { RefArchivePlan } from "./write-archive.js";
 import { captureRefViewState, overlayRefViewState, viewRefMetadata, type RefViewState } from "./view-state.js";
 import { matchesFamilyRef, refOwner } from "./codec.js";
-import { archivedFolders, isArchiveRef, latestArchivedFolders, type ArchivedFolder } from "./archive-read.js";
+import { captureArchivedFolders, selectEndedOwners } from "./ended-owners.js";
 import type { RefTreeEntry } from "./batch-read.js";
 import { readRefContent, recordDiagnostic } from "./content-read.js";
 
@@ -57,19 +57,13 @@ export function cohortClosePlacement(context: RefBackendContext, reference: Reco
 }
 
 function collectArchivedParents(context: RefBackendContext, state: RefViewState, parents: Set<string>): StoreResult<null> {
-  const folders: ArchivedFolder[] = [];
-  for (const [ref, group] of state.refs) {
-    if (!isArchiveRef(ref)) continue;
-    if (!group.entries) return unavailableCohort(ref);
-    const decoded = archivedFolders("cohort", ref, group.entries, state.objects);
-    if (decoded.diagnostics.length) return unavailableCohort(ref);
-    folders.push(...decoded.folders);
-  }
-  for (const folder of latestArchivedFolders(folders)) {
-    if (state.refs.has(folder.liveRef)) continue;
-    const prepared = state.refs.get(folder.liveRef.replace("refs/arc/", "refs/arc/history/"));
-    const reference = RecordReferenceSchema.parse({ owner: refOwner(folder.liveRef, "cohort", prepared?.metadata ?? folder.metadata), kind: "cohort/document" });
-    const result = collectParent(context, state, reference, prepared?.entries ?? folder.entries, parents, folder.ref);
+  const { folders, diagnostics } = selectEndedOwners(state, captureArchivedFolders(state, "cohort"));
+  const first = diagnostics[0];
+  if (first) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: first.key.split(":")[0] ?? first.key,
+    condition: first.condition, remedy: first.remedy } };
+  for (const folder of folders) {
+    const reference = RecordReferenceSchema.parse({ owner: folder.owner, kind: "cohort/document" });
+    const result = collectParent(context, state, reference, folder.entries, parents, folder.ref);
     if (result.status === "refused") return result;
   }
   return { status: "ok", result: null };

@@ -3,7 +3,8 @@ import type { StoreResult } from "../refusal.js";
 import { RecordReferenceSchema, type OwnerIdentity } from "../identity.js";
 import { expandStoredPath } from "../stored-path.js";
 import type { RefBackendContext } from "./context.js";
-import { archivedFolders, archiveOwnerTrees, isArchiveRef, type ArchivedFolder } from "./archive-read.js";
+import { isArchiveRef, type ArchivedFolder } from "./archive-read.js";
+import { captureArchivedFolders } from "./ended-owners.js";
 import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { missingChangeState, type RefChangeInterval, type ChangeWindowReader, type CapturedChangeWindow } from "./changes-graph.js";
 import { parseRefMetadata, historicalMetadataFailure } from "./metadata.js";
@@ -99,10 +100,9 @@ function collectChangedOrigins(context: RefBackendContext, result: ChangeEnds, e
 
 function endFolders(ref: string, entries: readonly RefTreeEntry[], objects: ReadonlyMap<string, BatchObject | null>,
   owners?: readonly OwnerIdentity[]): StoreResult<ArchivedFolder[]> {
-  // A restriction reads its owners' folders and any no metadata file names, as a read does, so other damage stays out.
-  const selected = owners ? archiveOwnerTrees(new Map([[ref, entries]]), owners).get(ref) ?? [] : entries;
   // Every folder here sits in a saved endpoint or a historical commit.
-  const parsed = (["work-item", "cohort"] as const).map((family) => archivedFolders(family, ref, selected, objects, true));
+  const state = { refs: new Map([[ref, { entries }]]), objects, saved: true };
+  const parsed = (["work-item", "cohort"] as const).map(family => captureArchivedFolders(state, family, owners));
   const first = parsed.flatMap(({ diagnostics }) => diagnostics)[0];
   if (first) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: ref,
     condition: first.condition, remedy: first.remedy } };

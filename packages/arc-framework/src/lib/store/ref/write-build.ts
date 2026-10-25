@@ -28,7 +28,7 @@ import { bindProjectMutations } from "./project-identity.js";
 import { planRefReopens, reopenRefChanges } from "./write-reopen.js";
 import { planRefArchives, archiveRefChanges } from "./write-archive.js";
 import { prepareRefAnchors } from "./write-anchors.js";
-import { stampCompletedWrites, refreshCompletedChanges } from "./write-completed.js";
+import { stampCompletedWrites, refreshCompletedChanges, planCompletedMoves } from "./write-completed.js";
 import { corruptRef } from "./namespace-health.js";
 import { latestFolderPlacement } from "./archive-read.js";
 import { withCompletedPlacement } from "./archive-refresh.js";
@@ -69,6 +69,8 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
   if (reopens.status === "refused") return reopens;
   const archives = await planRefArchives(context, prepared.result, groups, tips, batchId, reopens.result[0]?.quarters);
   if (archives.status === "refused") return archives;
+  const moves = await planCompletedMoves(context, resolved, groups, { archives: archives.result, writes: prepared.result }, reopens.result[0]?.quarters);
+  if (moves.status === "refused") return moves;
   await stampCompletedWrites(context, resolved, prepared.result, groups, batchId);
   const retirements = await planRefRetirements(context, resolved, refWriteTargets(context, resolved), groups);
   if (retirements.status === "refused") return retirements;
@@ -85,8 +87,7 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
     const committed = await prepareRefCommits(physical, prepared.result, refWriteTargets(context, resolved), groups, completed, tips, provenance, batchId, receipt, actor);
     const archived = await archiveRefChanges(physical, committed, archives.result, groups, completed, prepared.result, tips, provenance, batchId, receipt);
     const reopened = await reopenRefChanges(physical, archived, reopens.result, tips, provenance, batchId, receipt);
-    const refreshed = await refreshCompletedChanges(physical, reopened, resolved, completed, provenance, batchId, receipt, actor,
-      { archives: archives.result, writes: prepared.result });
+    const refreshed = await refreshCompletedChanges(physical, reopened, resolved, completed, provenance, batchId, receipt, actor);
     if (refreshed.status === "refused") return refreshed;
     const changes = retirementRefChanges(refreshed.result, retirements.result, tips);
     if (changes.length === 0) return { status: "ok", result: { batchId, writes: results } };
