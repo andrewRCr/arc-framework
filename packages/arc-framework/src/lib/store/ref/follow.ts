@@ -34,6 +34,7 @@ export async function answerRefFollow(context: RefBackendContext, store: Store, 
     if (sourceRole !== "push" && sourceRole !== "read") throw new Error("A due follow's old remote carries neither push nor read");
     const record: FollowMoveRecord = { kind: "follow", source: judged.source, destination: candidate.remote,
       answer, sourceRole, forwarding: judged.record, forwardingTip: judged.forwardingTip, sourceLayout, destinationLayout };
+    await clearRemoteGathering(code, true);
     if (answer === "push" && await copyFollowState(code, record) === null) {
       await dropStaleFollow(context, due); await clearRemoteGathering(code); return { status: "stale" };
     }

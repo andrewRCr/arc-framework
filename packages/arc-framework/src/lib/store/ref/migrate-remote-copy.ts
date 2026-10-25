@@ -282,6 +282,13 @@ export async function readCopiedRemoteRefs(code: RefBackendContext, part: "state
   return new Map([...(await readSyncRefs(code, root))].map(([ref, tip]) => ["refs/arc/" + ref.slice(root.length), tip]));
 }
 
+/** Only a keeper retained by this copy can support its ended record's restoration notice. */
+export async function readCopiedDeletedRecord(code: RefBackendContext): Promise<{ ref: string; tip: string } | undefined> {
+  const copied = copiedRoot + "deleted-record", refs = await readSyncRefs(code, [deletedRecordRef, copied]);
+  const tip = refs.get(deletedRecordRef);
+  return tip && tip === refs.get(copied) ? { ref: deletedRecordRef, tip } : undefined;
+}
+
 async function saveRemoteCopyRecord(code: RefBackendContext, record: RemoteMoveRecord, prior?: RecordedRemote): Promise<RecordedRemote> {
   await code.migrateStep?.("remote.record");
   if (!prior) await clearMigrationRefs(code, deletedRecordRef);

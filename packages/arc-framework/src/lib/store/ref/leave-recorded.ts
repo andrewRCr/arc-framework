@@ -7,10 +7,9 @@ import { switchRemoteMove } from "./migrate-remote-switch.js";
 import { switchRefFollow } from "./follow-switch.js";
 import { switchBegun } from "./migrate-switch-undo.js";
 import { fetchMigrationRemote } from "./migrate-remote-fetch.js";
-import { clearRemoteGathering, readRemoteCopyReport, readCopiedRemoteRefs } from "./migrate-remote-copy.js";
+import { clearRemoteGathering, readRemoteCopyReport, readCopiedRemoteRefs, readCopiedDeletedRecord } from "./migrate-remote-copy.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { withdrawRecordedSource } from "./leave-recorded-withdraw.js";
-import { readSyncRefs } from "./sync-graph.js";
 
 /** A responding destination, including an empty one, never licenses withdrawing its source's control; a begun switch finishes first. */
 export async function endRecordedSource(context: RefBackendContext, store: Store, code: RefBackendContext,
@@ -22,9 +21,9 @@ export async function endRecordedSource(context: RefBackendContext, store: Store
     if (!await destinationAnswers(code, recorded)) await reportUnreadDestination(code, recorded, switched, report);
     report.notices.push({ condition: `The recorded cleanup ended without deleting state at ${recorded.record.source.fetchUrl}; its existing publications remain there.` });
     for (const ref of (await readCopiedRemoteRefs(code, "state")).keys()) report.notices.push({ condition: `The captured source view held ${ref} at ${recorded.record.source.fetchUrl}; ending the record does not unpublish it.` });
-    const keptRef = "refs/arc/tmp/migrate/deleted-record", kept = (await readSyncRefs(code, keptRef)).get(keptRef);
-    if (kept) report.notices.push({ condition: `An earlier copy removed forwarding record ${kept} from ${recorded.record.destination.fetchUrl}; clones relying on it may sync with a stranded copy.`,
-      remedy: { text: `Restore that record by hand: an admitted writer can push ${kept} from ${keptRef} in this clone to refs/arc/project/moved at ${recorded.record.destination.pushUrl}.` } });
+    const kept = await readCopiedDeletedRecord(code);
+    if (kept) report.notices.push({ condition: `An earlier copy removed forwarding record ${kept.tip} from ${recorded.record.destination.fetchUrl}; clones relying on it may sync with a stranded copy.`,
+      remedy: { text: `Restore that record by hand: an admitted writer can push ${kept.tip} from ${kept.ref} in this clone to refs/arc/project/moved at ${recorded.record.destination.pushUrl}.` } });
     await removeMoveRecord(code, recorded);
     await clearRemoteGathering(code);
     return { status: "ok", result: report };

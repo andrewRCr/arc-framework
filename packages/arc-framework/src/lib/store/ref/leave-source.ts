@@ -31,6 +31,7 @@ export async function leaveRefSource(context: RefBackendContext, store: Store, i
     if (resume) report = await readRemoteCopyReport(code);
     else {
       const view = await resolveLeaveSource(context, code, to);
+      await clearRemoteGathering(code, true);
       report = await copyLastSourceView(code, view);
       await code.migrateStep?.("leave.record");
       resume = await saveMoveRecord(code, view.record, null);
