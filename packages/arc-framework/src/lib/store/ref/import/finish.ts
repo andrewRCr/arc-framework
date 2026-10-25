@@ -4,6 +4,7 @@ import type { MigrateReport, StoreMigrateResult } from "../../commands.js";
 import { migrateNoticeFromPull } from "../../commands.js";
 import type { RefBackendContext } from "../context.js";
 import type { StoreRefusal, Remedy } from "../../refusal.js";
+import type { PullOutcome } from "../../sync.js";
 import { retireImportLocals, retireImportRemote } from "./transient-cleanup.js";
 
 /** A retry publishes the existing landing through the same store synchronization operation. */
@@ -13,10 +14,8 @@ export async function publishImport(context: RefBackendContext, store: Store, re
   await context.migrateStep?.("import.publish");
   const pushed = await store.push();
   if (pushed.status === "refused") return storeFailure(pushed.refusal);
-  for (const pull of pushed.result.pulls) {
-    report.notices.push(...pull.notices.map(migrateNoticeFromPull));
-    if (pull.status === "failed") return storeFailure(pull.failure);
-  }
+  const pullFailure = appendImportPulls(report, pushed.result.pulls);
+  if (pullFailure) return pullFailure;
   for (const outcome of pushed.result.publishes) {
     if (outcome.status === "failed") return storeFailure(outcome.failure);
     if ("condition" in outcome) return unfinished(outcome.condition, outcome.remedy);
@@ -28,6 +27,16 @@ export async function publishImport(context: RefBackendContext, store: Store, re
   const retired = await retireImportRemote(context, report);
   if (retired) return retired;
   return { status: "ok", result: report };
+}
+
+function appendImportPulls(report: MigrateReport, pulls: readonly PullOutcome[]): StoreMigrateResult | undefined {
+  for (const pull of pulls) {
+    report.notices.push(...pull.notices.map(migrateNoticeFromPull));
+    if (pull.status !== "failed") continue;
+    if (pull.role !== "read") return storeFailure(pull.failure);
+    report.notices.push({ condition: `Read source ${pull.remote} could not be synchronized: ${pull.failure.condition}`,
+      remedy: { ...pull.failure.remedy, text: `For read source ${pull.remote}: ${pull.failure.remedy.text}` } });
+  }
 }
 
 function importRetry(remedy: Remedy): Remedy {

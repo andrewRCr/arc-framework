@@ -191,3 +191,28 @@ it("keeps no-remote import tips while origin is unreadable and finishes after re
   expect((await h.git("git", ["for-each-ref", "--format=%(refname)", keptPrefix])).stdout).toBe("");
   expect((await h.remote("git", ["rev-parse", transientSourceRef])).stdout.trim()).toBe(tip);
 });
+
+it("publishes and retires origin transients despite an unavailable read source", async () => {
+  const h = await importFixture();
+  await seedTransients(h, [ordinaryErrand]);
+  await h.git("git", ["push", "origin", `${transientSourceRef}:${transientSourceRef}`]);
+  const missing = join(h.root, "unavailable-read-source.git");
+  await h.git("git", ["remote", "add", "upstream", missing]);
+  await h.git("git", ["config", "remote.upstream.arc-state", "read"]);
+  const result = await h.migrate();
+  expect(result.status, JSON.stringify(result)).toBe("ok");
+  expect(result).toMatchObject({ result: { notices: expect.arrayContaining([
+    expect.objectContaining({ condition: expect.stringContaining("upstream"),
+      remedy: { text: expect.stringContaining("upstream") } }),
+  ]) } });
+  if (result.status !== "ok") throw new Error("Import refused");
+  const notice = result.result.notices.find(({ condition }) => condition.includes("upstream"));
+  expect(notice?.condition).toContain(missing);
+  const state = (output: string) => output.split("\n").filter(row => row && !row.startsWith("refs/arc/tmp/")).sort();
+  const local = state((await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout);
+  const remote = state((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout);
+  expect(remote).toEqual(local);
+  expect(remote).toHaveLength(5);
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", transientSourceRef])).stdout).toBe("");
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", keptPrefix])).stdout).toBe("");
+});
