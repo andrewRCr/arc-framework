@@ -450,3 +450,53 @@ it("retains backlog occupancy without selecting a planning session, then selects
   success(await h.store.write({ action: "put", reference, expected: backlog.version, content: JSON.stringify(fields), placement: { kind: "active" }, provenance: testProvenance }));
   expect((await readFrame()).active).toMatchObject({ subject: { key: reference.owner.name }, context: { sessionType: "planning" } });
 });
+
+it("keeps a live checkout resolved beside a bound archived namesake", async () => {
+  const h = await fixture(), archived = success(await h.fixture.store.read({ reference: h.reference }));
+  success(await h.fixture.store.write({ action: "put", reference: archived.reference, expected: archived.version,
+    content: JSON.stringify({ ...h.fields, state: "Shipped", currentWorkflow: null }),
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: testProvenance }));
+  const live = await seed(h.fixture, h.reference, JSON.stringify(h.fields), { kind: "active" });
+  const liveRecord = success(await h.fixture.store.read({ reference: live.reference }));
+  if (liveRecord.reference.owner.type !== "work-item") throw new Error("Expected live owner");
+  const liveUid = liveRecord.reference.owner.uid;
+  const scan = await h.io.scanWorktrees();
+  if (!scan.ok || !scan.worktrees[0]) throw new Error("Expected registration");
+  h.io.scanWorktrees = async () => ({ ok: true, worktrees: [scan.worktrees[0]!, { ...scan.worktrees[0]!, path: "/live", primary: false }] });
+  const readMarker = h.io.readMarker;
+  h.io.readMarker = async path => {
+    const read = await readMarker(path);
+    if (path !== "/live" || read.kind !== "present") return read;
+    const marker: WorktreeMarker = { spawnedByArc: false, spawningIdentity: read.marker.spawningIdentity, createdAt: read.marker.createdAt, createdFor: { kind: "work-unit", name: h.reference.owner.name, uid: liveUid } };
+    return { kind: "present", marker, bytes: Buffer.from(JSON.stringify(marker)) };
+  };
+  const result = await frame(h.io);
+  expect(result.roster.find(row => row.checkout.path === "/live")).toMatchObject({ kind: "work-unit",
+    subject: { uid: liveRecord.reference.owner.uid }, context: { sessionType: "planning" } });
+  expect(result.roster.every(row => row.diagnostics.every(item => item.code !== "work-unit-locus-conflict"))).toBe(true);
+});
+
+it("refuses duplicate UUID markers even when their display names differ", async () => {
+  const h = await fixture(), scan = await h.io.scanWorktrees();
+  if (!scan.ok || !scan.worktrees[0]) throw new Error("Expected registration");
+  h.io.scanWorktrees = async () => ({ ok: true, worktrees: [scan.worktrees[0]!, { ...scan.worktrees[0]!, path: "/other", primary: false }] });
+  const readMarker = h.io.readMarker;
+  h.io.readMarker = async path => {
+    const read = await readMarker(path);
+    if (path !== "/other" || read.kind !== "present") return read;
+    const marker: WorktreeMarker = { spawnedByArc: false, spawningIdentity: read.marker.spawningIdentity, createdAt: read.marker.createdAt, createdFor: { kind: "work-unit", name: "former-name", uid: h.uid } };
+    return { kind: "present", marker, bytes: Buffer.from(JSON.stringify(marker)) };
+  };
+  const result = await frame(h.io);
+  expect(result.roster.every(row => row.kind === "unresolved-checkout"
+    && row.diagnostics.some(item => item.code === "work-unit-locus-conflict"))).toBe(true);
+});
+
+it("refuses two unbound marker claims for one name", async () => {
+  const h = await fixture(false), scan = await h.io.scanWorktrees();
+  if (!scan.ok || !scan.worktrees[0]) throw new Error("Expected registration");
+  h.io.scanWorktrees = async () => ({ ok: true, worktrees: [scan.worktrees[0]!, { ...scan.worktrees[0]!, path: "/other", primary: false }] });
+  const result = await frame(h.io);
+  expect(result.roster.every(row => row.kind === "unresolved-checkout"
+    && row.diagnostics.some(item => item.code === "work-unit-locus-conflict"))).toBe(true);
+});

@@ -554,14 +554,11 @@ unclosed task commits (§ 3.2) re-read by the UID claim here.
   its name, so a bound checkout or husk of the archived holder neither puts the live holder's checkout in conflict nor
   stands in for it.
 
-    - `[ ]` **4.5.a The duplicate-marker guard**
+    - `[x]` **4.5.a The duplicate-marker guard**
 
-        - `guardDuplicateMarkerClaims` (`lib/locus/derived-reader.ts`) groups rows by UID, and rows without one by slug
-          among themselves, as creation's exclusivity compares unbound markers. A husk's row carries no UID, so it never
-          groups with a bound row, and from 7.2.b, which marks it `retired`, the guard passes over it.
-        - Build `test-first` (one behavior at a time):
-            - a bound checkout of the archived holder leaves the live holder's checkout resolved
-            - two rows carrying one UID still refuse as duplicates, and two rows without one naming one slug do too
+        - Bound marker rows group by UUID; unbound rows group separately by name. Archived and live holders of one
+          name retain independent rows, while duplicate UUIDs refuse even under different display names and duplicate
+          unbound names still refuse. Registered locus output retains the live checkout's resolved Planning context.
 
     - `[ ]` **4.5.b The row readers**
 

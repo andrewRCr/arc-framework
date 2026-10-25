@@ -1,3 +1,4 @@
+import { validateLocusEnvelope } from "../../src/commands/locus.js";
 /** Registered lifecycle commands distinguish bound checkout generations sharing one name. */
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -83,5 +84,18 @@ it("named release selects an unbound creation residue beside a completed bound h
   expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
   expect(result.result).toMatchObject({ status: "released", checkoutPath: residuePath });
   expect(await readWorktreeMarker(residuePath)).toEqual({ kind: "absent" });
+  await unchanged(h);
+}, 30_000);
+
+it("keeps bound archived and live checkouts independent in the derived roster", async () => {
+  const h = await fixture(), livePath = await checkout(h, "live", h.live);
+  const result = await repairCli(h, ["locus", "--json"], { store: h.store });
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  const envelope = validateLocusEnvelope(result.result);
+  if (!envelope.ok) throw new Error(envelope.error.message);
+  const roster = envelope.roster;
+  expect(roster.find(row => row.checkout.path === livePath)).toMatchObject({ kind: "work-unit",
+    subject: { uid: boundWorkUnitSubject(h.live).uid }, context: { sessionType: "planning" } });
+  expect(roster.every(row => row.diagnostics.every(item => item.code !== "work-unit-locus-conflict"))).toBe(true);
   await unchanged(h);
 }, 30_000);

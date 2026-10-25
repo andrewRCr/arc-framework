@@ -428,14 +428,18 @@ function guardDuplicateMarkerClaims(rows: readonly DerivedCheckoutRow[]): Derive
   const holders = new Map<string, string[]>();
   for (const row of rows) {
     if (row.markerGeneration === null || row.subject?.kind !== "work-unit") continue;
-    const paths = holders.get(row.subject.key) ?? [];
+    const paths = holders.get(markerClaimKey(row.subject)) ?? [];
     paths.push(row.checkout.path);
-    holders.set(row.subject.key, paths);
+    holders.set(markerClaimKey(row.subject), paths);
   }
   return rows.map(row => {
-    const paths = row.subject?.kind === "work-unit" ? holders.get(row.subject.key) : undefined;
+    const paths = row.subject?.kind === "work-unit" ? holders.get(markerClaimKey(row.subject)) : undefined;
     return paths === undefined || paths.length < 2 ? row : { ...row, kind: "unresolved-checkout", context: null, actions: undefined,
       diagnostics: [...row.diagnostics, { code: "work-unit-locus-conflict",
         message: `Work unit '${row.subject?.key ?? "unknown"}' has multiple marker holders: ${paths.join(", ")}. Inspect and release the stray checkout's claim.` }] };
   });
+}
+
+function markerClaimKey(subject: Extract<NonNullable<DerivedCheckoutRow["subject"]>, { kind: "work-unit" }>): string {
+  return subject.uid === undefined ? `slug:${subject.key}` : `uid:${subject.uid}`;
 }
