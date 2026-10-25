@@ -376,7 +376,7 @@ async function readStoreCheckout(worktree: RegisteredWorktree, io: DerivedLocusE
     (error: unknown): DormantMarkerGenerationEvidence => ({ kind: "error", reason: errorMessage(error) }));
   const subject = marker.kind === "present" ? marker.marker.createdFor : null;
   const workUnit = inventoryError !== null ? { kind: "unreadable" as const, reason: inventoryError }
-    : subject?.kind === "work-unit" ? await readStoreWorkUnitEvidence({ store, slug: subject.name, head: worktree.head,
+    : subject?.kind === "work-unit" ? await readStoreWorkUnitEvidence({ store, slug: subject.name, uid: subject.uid, head: worktree.head,
         exec: io.exec, baseBranch: io.baseBranch, archiveCadence: io.archiveCadence, projectId: io.projectId })
       : { kind: "absent" as const };
   return { checkoutPath: worktree.path, marker, workUnit, metaRoots: [], metas: [] };

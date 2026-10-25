@@ -11,6 +11,7 @@ import { identifyArcFileAddress } from "../layout/index.js";
 import { classifyStoreAddress, type ClassifiedStoreTarget } from "../store/target-classification.js";
 import { SlugSchema } from "../kernel/index.js";
 import { CheckoutClaimSchema } from "../store/lookup.js";
+import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
 /** Invocation-bound overlap evidence, with optional acquisition ports for one captured frame. */
 export interface StoreErrandOverlapOptions {
   store: Store; exec: GitExec; cwd: string; identity: string; teamMode: boolean; baseBranch: string; targetPaths: string[];
@@ -43,8 +44,8 @@ function classify(path: string): ClassifiedStoreTarget | null {
 async function callerIdentity(store: Store, frame: DerivedLocusFrame): Promise<string | null> {
   const subject = frame.entering.kind === "selected" ? frame.entering.row.subject : null;
   if (subject === null) return null;
-  const claim = CheckoutClaimSchema.parse({ kind: subject.kind, slug: subject.key,
-    ...(subject.kind === "work-unit" ? {} : { claimId: subject.claimId }) });
+  const claim = subject.kind === "work-unit" ? workUnitCheckoutClaim(store, subject.key, subject.uid)
+    : CheckoutClaimSchema.parse({ kind: subject.kind, slug: subject.key, claimId: subject.claimId });
   const lookup = await store.lookup({ kind: "claim", claim });
   if (lookup.status === "refused") return null;
   const read = await store.read({ reference: lookup.result.reference });

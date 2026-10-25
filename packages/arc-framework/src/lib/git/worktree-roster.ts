@@ -12,7 +12,7 @@ import { createStore } from "../store/create.js";
 import { createDefaultStorePorts } from "../store/default-ports.js";
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import { decodeWorktreeMarkerOwnership, readWorktreeMarkerGeneration } from "./worktree-marker.js";
-import { SlugSchema } from "../kernel/index.js";
+import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
 import { lstat } from "node:fs/promises";
 import { readTerminalWorkUnitLineage } from "../locus/store-terminal-work-unit.js";
 
@@ -478,9 +478,9 @@ async function runStoreRoster(store: Store, worktrees: readonly GitWorktreePorce
       const ownership = decodeWorktreeMarkerOwnership(marker.marker);
       if (ownership.kind !== "current" || ownership.subject.kind !== "work-unit") return entry;
       entry.workUnit = ownership.subject.name;
-      const lookup = await store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(entry.workUnit) } });
+      const lookup = await store.lookup({ kind: "claim", claim: workUnitCheckoutClaim(store, entry.workUnit, ownership.subject.uid) });
       if (lookup.status === "refused") {
-        if (lookup.refusal.code === "not-found" && await readTerminalWorkUnitLineage(store, entry.workUnit) !== null) {
+        if (lookup.refusal.code === "not-found" && await readTerminalWorkUnitLineage(store, ownership.subject.uid ?? entry.workUnit) !== null) {
           entry.retired = true;
           return entry;
         }

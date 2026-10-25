@@ -1,6 +1,7 @@
 /** Marker-selected work-unit lifecycle evidence over the operational store. */
 import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
-import { SlugSchema, WorkUnitStateSchema } from "../kernel/index.js";
+import { WorkUnitStateSchema } from "../kernel/index.js";
+import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
 import { ParsedMetaRecordSchema, type ParsedMetaRecord } from "../active/meta-schema.js";
 import type { GitExec } from "../git/exec.js";
 import { isLandedInBaseStrict } from "../git/branch-containment.js";
@@ -21,14 +22,14 @@ export type StoreWorkUnitEvidence =
   | { kind: "present"; subject: DerivedWorkUnitSubject; record: StoreRecord;
       fields: ParsedMetaRecord; branch: string | null; lifecycle: WorkUnitLifecycleProjection };
 interface StoreWorkUnitInput {
-  store: Store; slug: string; head: string; exec?: GitExec; baseBranch?: string;
+  store: Store; slug: string; uid?: string; head: string; exec?: GitExec; baseBranch?: string;
   archiveCadence?: "manual" | "with-integration"; projectId?: () => Promise<string>;
 }
 
 /** Read a marker claim and its authoritative lifecycle without consulting checkout projections. */
 export async function readStoreWorkUnitEvidence(input: StoreWorkUnitInput): Promise<StoreWorkUnitEvidence> {
   try {
-    const record = await readClaimedWorkUnit(input.store, input.slug);
+    const record = await readClaimedWorkUnit(input.store, input.slug, input.uid);
     if (record === null) return await readRemovedWorkUnit(input);
     const fields = ParsedMetaRecordSchema.parse(record.fields);
     WorkUnitStateSchema.parse(fields.state);
@@ -45,8 +46,8 @@ export async function readStoreWorkUnitEvidence(input: StoreWorkUnitInput): Prom
     ...(error instanceof MissingWorkUnitRecord ? { missingRecord: true } : {}),
     ...((error instanceof SubjectBranchUnavailable || error instanceof SubjectClaimUnavailable) ? { code: "subject-unresolved" as const } : {}) }; }
 }
-async function readClaimedWorkUnit(store: Store, slug: string): Promise<StoreRecord | null> {
-  const result = await store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(slug) } });
+async function readClaimedWorkUnit(store: Store, slug: string, uid?: string): Promise<StoreRecord | null> {
+  const result = await store.lookup({ kind: "claim", claim: workUnitCheckoutClaim(store, slug, uid) });
   if (result.status === "refused" && result.refusal.code === "not-found") return null;
   if (result.status === "refused" && result.refusal.code === "ambiguous-match") throw new SubjectClaimUnavailable(`${result.refusal.condition} ${result.refusal.remedy.text}`);
   const lookup = unwrap(result);
@@ -57,7 +58,7 @@ async function readClaimedWorkUnit(store: Store, slug: string): Promise<StoreRec
 }
 async function readRemovedWorkUnit(input: StoreWorkUnitInput): Promise<StoreWorkUnitEvidence> {
   let lineage: StoreRecord | null;
-  try { lineage = await readWorkUnitLineage(input.store, input.slug); }
+  try { lineage = await readWorkUnitLineage(input.store, input.uid ?? input.slug); }
   catch (error) { throw new SubjectClaimUnavailable(error instanceof Error ? error.message : String(error), { cause: error }); }
   if (lineage === null) throw new MissingWorkUnitRecord(`Work unit '${input.slug}' has no primary or authenticated terminal lineage. Restore its record or repair the marker's subject, then retry.`);
   if (parseLineageRecord(lineage.content)?.kind === "rename") throw new SubjectClaimUnavailable(`Work unit '${input.slug}' has rename lineage but no current primary. Restore its current record or repair the marker, then retry.`);

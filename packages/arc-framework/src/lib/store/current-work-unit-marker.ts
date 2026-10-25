@@ -1,6 +1,6 @@
 /** Resolve an unhusked checkout's work-unit claim without consulting Git topology. */
 import { decodeWorktreeMarkerOwnership, readWorktreeMarker } from "../git/worktree-marker.js";
-import { SlugSchema } from "../kernel/schema/slug.js";
+import { workUnitCheckoutClaim } from "./work-unit-claim.js";
 import type { Store } from "./contract.js";
 import type { StoreRecord } from "./read.js";
 
@@ -17,7 +17,7 @@ export async function readClaimedCurrentWorkUnit(input: { cwd: string; store: St
     if (marker.marker.husk !== undefined) return undefined;
     const ownership = decodeWorktreeMarkerOwnership(marker.marker);
     if (ownership.kind !== "current" || ownership.subject.kind !== "work-unit") return undefined;
-    const lookup = await input.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(ownership.subject.name) } });
+    const lookup = await input.store.lookup({ kind: "claim", claim: workUnitCheckoutClaim(input.store, ownership.subject.name, ownership.subject.uid) });
     if (lookup.status === "refused") {
       if (lookup.refusal.code !== "not-found") warnings.push(`${lookup.refusal.condition} ${lookup.refusal.remedy.text}`);
       return undefined;

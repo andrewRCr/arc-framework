@@ -1,7 +1,7 @@
 /** Lifecycle checkout claim operations bound to one operational context. */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { SlugSchema } from "../kernel/index.js";
+import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import type { Store } from "../store/contract.js";
 import type { GitExec } from "../git/exec.js";
@@ -10,7 +10,7 @@ import { createWorktreeMarkerGeneration, decodeWorktreeMarkerOwnership, ensureWo
   readWorktreeMarkerGeneration, replaceWorktreeMarkerGeneration, resolveWorktreeMarkerPath } from "../git/worktree-marker.js";
 import type { LocusPorts } from "../work-unit/locus-ports.js";
 
-interface MarkerHolder { path: string; name: string }
+interface MarkerHolder { path: string; name: string; uid?: string }
 const rerun = "Run again once Git lists all registered worktrees.";
 
 /** Bind lifecycle's checkout claims to the selected checkout, executor and store. */
@@ -28,7 +28,7 @@ export function createLocusPorts(input: { cwd: string; exec: GitExec; store: Sto
     return holders;
   }
   async function refusal(holder: MarkerHolder): Promise<string> {
-    const lookup = await input.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(holder.name) } });
+    const lookup = await input.store.lookup({ kind: "claim", claim: workUnitCheckoutClaim(input.store, holder.name, holder.uid) });
     let state: string | null = null;
     let owner: string | null = null;
     if (lookup.status === "ok") {
@@ -81,5 +81,5 @@ async function readMarkerHolder(checkout: string): Promise<MarkerHolder | null> 
   if (marker.marker.husk !== undefined) return null;
   const ownership = decodeWorktreeMarkerOwnership(marker.marker);
   if (ownership.kind !== "current") throw new Error(markerRepair(checkout, path, `Marker ownership is ${ownership.reason}`));
-  return ownership.subject.kind === "work-unit" ? { path: checkout, name: ownership.subject.name } : null;
+  return ownership.subject.kind === "work-unit" ? { path: checkout, name: ownership.subject.name, uid: ownership.subject.uid } : null;
 }

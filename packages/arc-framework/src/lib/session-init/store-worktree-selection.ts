@@ -3,7 +3,7 @@ import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import type { Store } from "../store/contract.js";
 import { listLifecycleIndex } from "../store/lifecycle-index.js";
 import { LineageRecordSchema } from "../store/kinds/lineage/index.js";
-import { SlugSchema } from "../kernel/index.js";
+import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
 import { decodeWorktreeMarkerOwnership, type WorktreeMarkerReadResult } from "../git/worktree-marker.js";
 import type { RegisteredWorktree } from "../git/worktree-roster.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
@@ -43,10 +43,10 @@ async function selectCheckout(input: SelectionInput, checkout: RegisteredWorktre
   if (owner.kind !== "current" || owner.subject.kind !== "work-unit") return null;
   const name = owner.subject.name;
   if (row.subject?.kind !== "work-unit" || row.subject.key !== name) throw new Error("The marker no longer matches derived checkout authority. Refresh and retry cleanup.");
-  const found = await input.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(name) } });
+  const found = await input.store.lookup({ kind: "claim", claim: workUnitCheckoutClaim(input.store, name, owner.subject.uid) });
   if (found.status === "refused") {
     if (found.refusal.code !== "not-found") throw new Error(`${found.refusal.condition} ${found.refusal.remedy.text}`);
-    return await releaseMissingClaim(input.store, name, checkout.branch) ? { kind: "release", name } : null;
+    return await releaseMissingClaim(input.store, owner.subject.uid ?? name, checkout.branch) ? { kind: "release", name } : null;
   }
   if (row.kind === "unresolved-checkout") throw new Error("The missing-record release basis changed. Refresh checkout authority and retry cleanup.");
   const read = await input.store.read({ reference: found.result.reference });
@@ -74,8 +74,8 @@ export function selectStoreCleanupTopology(rows: readonly DerivedCheckoutRow[], 
     catch (error) { warnings.push(`Cannot select checkout ${checkout.path}: ${error instanceof Error ? error.message : String(error)}`); return false; }
   });
 }
-async function releaseMissingClaim(store: Store, name: string, branch: string | null): Promise<boolean> {
-  const lineage = await store.lookup({ kind: "lineage", origin: SlugSchema.parse(name) });
+async function releaseMissingClaim(store: Store, origin: string, branch: string | null): Promise<boolean> {
+  const lineage = await store.lookup({ kind: "lineage", origin });
   if (lineage.status === "ok") {
     const read = await store.read({ reference: lineage.result.reference });
     if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);

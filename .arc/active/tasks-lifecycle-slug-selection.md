@@ -505,30 +505,12 @@ unclosed task commits (§ 3.2) re-read by the UID claim here.
           live or completed, independently of the supplied slug; claims without it retain slug matching during reader
           migration. The in-repo lookup remains unchanged and ignores the UID.
 
-    - `[ ]` **4.3.b The readers send the UID**
+    - `[x]` **4.3.b The readers send the UID**
 
-        - In the store arm, each reader that resolves a checkout's work unit through the claim sends the marker's UID:
-          the current-work-unit resolver (`readClaimedCurrentWorkUnit`, `lib/store/current-work-unit-marker.ts`), marker
-          occupancy (`inspectCheckoutMarker`, `lib/locus/marker-occupancy.ts`), the exclusivity refusal
-          (`createLocusPorts`, `lib/locus/lifecycle-ports.ts`), work-unit evidence (`readClaimedWorkUnit`,
-          `lib/locus/store-work-unit-evidence.ts`), the stale-worktree selection (`selectCheckout`,
-          `lib/session-init/store-worktree-selection.ts`), the worktree roster (`lib/git/worktree-roster.ts`), and the
-          Errand overlap check's caller identity from the entering row (`callerIdentity`,
-          `lib/errand/store-overlap.ts`), whose self-exclusion moves to the UID in 4.4.c, once in-flight entries carry
-          it. Unclosed task commits (`computeUnclosedTaskCommits`, `lib/locus/unclosed-task-commits.ts`) switch from the
-          slug lookup (`readWorkUnit`) to a claim by the UID `withEnteringUnclosedTaskCommits` takes from the frame's
-          subject. The in-repo arm sends the slug claim as today.
-        - Where a reader's claim finds no primary and it then reads a retired origin's lineage, it reads the lineage by
-          the marker's UID (`readTerminalWorkUnitLineage`, `lib/locus/store-terminal-work-unit.ts`; the lineage lookups
-          in `store-work-unit-evidence.ts`, `store-worktree-selection.ts`, and `marker-occupancy.ts`), and a marker
-          without a UID reads it by name until Phase 6. `store-identities.ts` still returns before the claim for a
-          work-unit subject; a husk-stamped checkout still reaches the claim through the store roster (`runStoreRoster`)
-          and `readStoreCheckout`, where `projectMarker` drops the husk, until 7.2.b.
-        - `readClaimedCurrentWorkUnit` is at the cognitive-complexity limit, so the UID reaches it through a helper.
-        - Build `test-first` (one behavior at a time):
-            - with a bound checkout of each holder of a reused slug, each reader resolves its own checkout's holder
-            - a checkout of a decomposed holder reads its lineage by the marker's UID
-            - unclosed task commits read the entering holder by its UID under reuse
+        - Marker claim readers use a shared constructor preserving operational UIDs and retaining slug-only in-repo
+          claims. Current work, occupancy, lifecycle evidence, exclusivity messages, roster, cleanup, and overlap read
+          the bound generation; missing primaries read lineage by that UID. Unclosed task commits resolve an exact
+          claim using the entering frame's UID.
 
     - `[ ]` **4.3.c The re-reads through the claim, and a clash without an operand**
 

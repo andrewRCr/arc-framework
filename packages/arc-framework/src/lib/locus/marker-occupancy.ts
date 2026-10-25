@@ -10,6 +10,7 @@ import { decodeWorktreeMarkerOwnership, readWorktreeMarkerGeneration, resolveWor
   type WorktreeMarkerGenerationReadResult } from "../git/worktree-marker.js";
 import type { DerivedCheckoutRow } from "./derived-roster.js";
 import { readWorkUnitLineage } from "./store-terminal-work-unit.js";
+import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
 
 /** The generation retained by an occupancy observation. */
 export type PresentMarker = Extract<WorktreeMarkerGenerationReadResult, { kind: "present" }>;
@@ -30,19 +31,20 @@ export async function inspectCheckoutMarker(input: { cwd: string; store: Store; 
     if (ownership.kind !== "current") return { kind: "unreadable", reason: `${resolveWorktreeMarkerPath(input.cwd)}: marker ownership is ${ownership.reason}. Inspect and repair its marker, then retry.` };
     if (ownership.subject.kind !== "work-unit") return occupied(marker,
       await transientMarkerExit(input, marker, ownership.subject));
-    return await readWorkUnitOccupancy(input, marker, ownership.subject.name);
+    return await readWorkUnitOccupancy(input, marker, ownership.subject.name, ownership.subject.uid);
   } catch (error) { return { kind: "unreadable", reason: `Cannot observe checkout ${input.cwd}'s marker: ${error instanceof Error ? error.message : String(error)}. Inspect and repair its marker, then retry.` }; }
 }
-async function readWorkUnitOccupancy(input: { cwd: string; store: Store; identity?: string }, marker: PresentMarker, name: string): Promise<MarkerOccupancy> {
+async function readWorkUnitOccupancy(input: { cwd: string; store: Store; identity?: string }, marker: PresentMarker,
+  name: string, uid?: string): Promise<MarkerOccupancy> {
   const listing = await input.store.list({ family: "work-item", kind: "work-item/meta" });
   if (listing.status === "refused") return unreadable(`${listing.refusal.condition} ${listing.refusal.remedy.text}`);
   const result = listing.result;
   if (result.status === "unreadable") return unreadable(`${result.condition} ${result.remedy.text}`);
   if (result.status === "complete" && (result.missed || result.diagnostics.length > 0)) return unreadable(`Work-unit inventory is incomplete. ${result.diagnostics.map(item => `${item.condition} ${item.remedy.text}`).join(" ")}`);
-  const lookup = await input.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(name) } });
+  const lookup = await input.store.lookup({ kind: "claim", claim: workUnitCheckoutClaim(input.store, name, uid) });
   if (lookup.status === "refused") {
     if (lookup.refusal.code !== "not-found") return unreadable(`${lookup.refusal.condition} ${lookup.refusal.remedy.text}`);
-    const lineage = await readWorkUnitLineage(input.store, name);
+    const lineage = await readWorkUnitLineage(input.store, uid ?? name);
     if (lineage !== null) return occupied(marker, `Checkout ${input.cwd} holds '${name}' with retained lineage. Inspect arc status ${name}; run arc teardown ${name} for ended work, or repair the marker after a rename.`);
     return { ...occupied(marker, noRecordMarkerExit(input.cwd, name, marker.marker.spawnedByArc)), missingRecord: true };
   }

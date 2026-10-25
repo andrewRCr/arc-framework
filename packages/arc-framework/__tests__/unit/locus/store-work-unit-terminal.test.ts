@@ -7,7 +7,10 @@ import { readStoreWorkUnitEvidence } from "../../../src/lib/locus/store-work-uni
 import { runWorktreeRoster } from "../../../src/lib/git/worktree-roster.js";
 import { runActiveRoster } from "../../../src/commands/active/roster.js";
 import { resolveInFlightComposition } from "../../../src/lib/session-init/in-flight-composition.js";
-import { writeWorktreeOwnershipMarker } from "../../../src/lib/git/worktree-marker.js";
+import { readWorktreeMarker, writeWorktreeMarker, writeWorktreeOwnershipMarker } from "../../../src/lib/git/worktree-marker.js";
+import { inspectCheckoutMarker } from "../../../src/lib/locus/marker-occupancy.js";
+import { selectStoreWorktreeCleanup } from "../../../src/lib/session-init/store-worktree-selection.js";
+import { claimFrame } from "../../helpers/store/claim-frame.js";
 import { batchLifecycleWrites } from "../../../src/lib/store/lifecycle-write.js";
 import { recordReferences } from "../../../src/lib/store/identity.js";
 import { LineageRecordSchema, writeLineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
@@ -41,6 +44,32 @@ async function fixture(kind: "abandon" | "decompose" = "abandon") {
   const input = { store: h.store, slug: "ended", head: "a".repeat(40) };
   return { ...h, terminal, retire, input };
 }
+
+it.each(["evidence", "occupancy", "roster", "cleanup"] as const)("%s reads a decomposed marker's lineage by its bound UID", async reader => {
+  const h = await fixture("decompose");
+  await h.retire();
+  const owner = h.terminal.reference.owner;
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected the retired owner's UID");
+  const cwd = await mkdtemp(join(tmpdir(), "bound-terminal-"));
+  onTestFinished(() => rm(cwd, { recursive: true, force: true }));
+  await writeWorktreeMarker(cwd, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "ended", uid: owner.uid },
+    spawningIdentity: "andrew", createdAt: "2026-10-24T00:00:00Z" });
+  if (reader === "evidence") {
+    expect(await readStoreWorkUnitEvidence({ ...h.input, uid: owner.uid })).toMatchObject({ kind: "terminal", lifecycle: { state: "retired" } });
+  } else if (reader === "occupancy") {
+    expect(await inspectCheckoutMarker({ cwd, store: h.store })).toMatchObject({ kind: "occupied", missingRecord: false,
+      workUnit: null, reason: expect.stringContaining("retained lineage") });
+  } else if (reader === "roster") {
+    expect(await runWorktreeRoster({ cwd, store: h.store,
+      exec: async () => ({ stdout: `worktree ${cwd}\0HEAD ${"a".repeat(40)}\0detached\0\0` }),
+      fs: { readdir: async () => [], readFile: async () => { throw new Error("No checkout metadata"); } } }))
+      .toMatchObject({ warnings: [], entries: [{ workUnit: "ended", retired: true }] });
+  } else {
+    const frame = await claimFrame(h.store, cwd);
+    expect(await selectStoreWorktreeCleanup({ store: h.store, topology: frame.roster.map(row => row.checkout), derivedRoster: frame.roster,
+      readMarker: readWorktreeMarker })).toMatchObject({ warnings: [], ended: [], releases: [{ workUnit: "ended" }] });
+  }
+});
 
 it.each((["manual", "with-integration"] as const).flatMap(archiveCadence =>
   (["abandon", "decompose"] as const).map(kind => ({ archiveCadence, kind }))))(
