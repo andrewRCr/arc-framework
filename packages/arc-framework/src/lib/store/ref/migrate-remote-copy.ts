@@ -1,5 +1,6 @@
 /** Prepare and atomically land one remote copy while retaining restart and deletion bases. */
 import { MigrateReportSchema, type MigrateReport } from "../commands.js";
+import type { Remedy } from "../refusal.js";
 import { RecordReferenceSchema } from "../identity.js";
 import { pushRefs, type PushOutcome, type PushRefChange } from "../../git/push.js";
 import { classifyPushOutcome } from "../../git/push-classification.js";
@@ -60,8 +61,12 @@ export async function copyRemoteMove(code: RefBackendContext, transports: MoveTr
 }
 
 async function refuseCopyPush(code: RefBackendContext, recorded: RecordedRemote, pushed: PushOutcome, firstRun: boolean): Promise<never> {
-  if (firstRun && pushed.status !== "unreachable") { await removeMoveRecord(code, recorded); await clearRemoteGathering(code, true); }
-  throw new MigrationRefusal(migrationPushRefusal(pushed));
+  const removed = firstRun && pushed.status !== "unreachable";
+  if (removed) { await removeMoveRecord(code, recorded); await clearRemoteGathering(code, true); }
+  const destination = recorded.record.destination, target = destination.repository === "backing" ? destination.url : destination.name;
+  const retry = removed ? { text: `Enable atomic pushes and repair the receiver's hook or permissions, then retry arc store migrate --to ${target}.`,
+    argv: ["arc", "store", "migrate", "--to", target] } : undefined;
+  throw new MigrationRefusal(migrationPushRefusal(pushed, retry));
 }
 
 async function readRemoteCopyBasis(code: RefBackendContext, source: MoveRemote, destination: MoveRemote,
@@ -158,34 +163,34 @@ export async function atomicMigrationPush(code: RefBackendContext, url: string, 
 
 /** A lost lease, or a receiver refusal whose leased refs have moved since, reruns the round rather than weakening its leases. */
 async function settleMigrationPush(code: RefBackendContext, url: string, changes: readonly PushRefChange[],
-  outcome: PushOutcome): Promise<"landed" | "restart" | "refused"> {
+  outcome: PushOutcome, remedy?: Remedy): Promise<"landed" | "restart" | "refused"> {
   const classified = classifyPushOutcome(outcome);
   if (classified.status === "ok") return "landed";
   if (classified.status === "lost-race") return "restart";
-  return classified.status === "by-state" && await leasesMoved(code, url, changes) ? "restart" : "refused";
+  return classified.status === "by-state" && await leasesMoved(code, url, changes, remedy) ? "restart" : "refused";
 }
 
 /** True once the push landed and false to rerun its round; any other outcome refuses with the receiver's cause. */
-export async function migrationPushLanded(code: RefBackendContext, url: string, changes: readonly PushRefChange[], outcome: PushOutcome): Promise<boolean> {
-  const settled = await settleMigrationPush(code, url, changes, outcome);
-  if (settled === "refused") throw new MigrationRefusal(migrationPushRefusal(outcome));
+export async function migrationPushLanded(code: RefBackendContext, url: string, changes: readonly PushRefChange[], outcome: PushOutcome, remedy?: Remedy): Promise<boolean> {
+  const settled = await settleMigrationPush(code, url, changes, outcome, remedy);
+  if (settled === "refused") throw new MigrationRefusal(migrationPushRefusal(outcome, remedy));
   return settled === "landed";
 }
 
-async function leasesMoved(code: RefBackendContext, url: string, changes: readonly PushRefChange[]): Promise<boolean> {
+async function leasesMoved(code: RefBackendContext, url: string, changes: readonly PushRefChange[], remedy?: Remedy): Promise<boolean> {
   const listed = await listRemoteRefs(code, url, ["refs/arc/*"]);
   if (listed.status === "unreachable") throw new MigrationRefusal({ code: "store", refusal: { code: "unreachable", class: "recoverable", cause: listed.cause,
     condition: `Could not read ${url} after it refused the move's push: ${listed.condition}`,
-    remedy: { text: "Restore access and run arc store migrate; the refused push changed nothing there." } } });
+    remedy: remedy ?? { text: "Restore access and run arc store migrate; the refused push changed nothing there.", argv: ["arc", "store", "migrate"] } } });
   return changes.some(({ ref, expected }) => (listed.tips.get(ref) ?? null) !== (expected ?? null));
 }
 
-/** Preserve transport and definitive receiver refusals for a recorded migration. */
-export function migrationPushRefusal(outcome: PushOutcome): Extract<import("../commands.js").StoreCommandRefusal, { code: "store" }> {
+/** Preserve transport and definitive receiver refusals with the caller's restart route. */
+export function migrationPushRefusal(outcome: PushOutcome, remedy?: Remedy): Extract<import("../commands.js").StoreCommandRefusal, { code: "store" }> {
   const condition = outcome.stderr || outcome.stdout || "The destination refused the atomic state copy.";
   return { code: "store", refusal: outcome.status === "unreachable" ? { code: "unreachable", class: "recoverable", cause: outcome.cause, condition,
-    remedy: { text: "Restore access and run arc store migrate; the recorded copy may have landed." } } : { code: "refused", class: "terminal", message: condition, condition,
-    remedy: { text: "Enable atomic pushes and repair the receiver's hook or permissions, then retry arc store migrate." } } };
+    remedy: remedy ?? { text: "Restore access and run arc store migrate; the recorded copy may have landed.", argv: ["arc", "store", "migrate"] } } : { code: "refused", class: "terminal", message: condition, condition,
+    remedy: remedy ?? { text: "Enable atomic pushes and repair the receiver's hook or permissions, then retry arc store migrate.", argv: ["arc", "store", "migrate"] } } };
 }
 
 /** Pin a landed copy and comparison heads for an enclosing move or follow. */

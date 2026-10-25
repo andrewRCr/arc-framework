@@ -1,7 +1,8 @@
 /** Remote copies gather the publisher's complete state without adopting it locally. */
-import { chmod, writeFile } from "node:fs/promises";
+import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { productionStore } from "../helpers/store/remote-move.js";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { plantRef } from "../helpers/store/ref-plant.js";
@@ -140,7 +141,8 @@ it.each(["no-atomic", "hook"] as const)("leaves no first-run record after %s ref
     await writeFile(hook, "#!/bin/sh\nexit 1\n"); await chmod(hook, 0o755);
   }
   const first = await invokeStoreMigrate(h.argv, h.a.ports);
-  expect(first).toMatchObject({ status: "refused", refusal: { code: "store", refusal: { code: "refused", class: "terminal" } } });
+  expect(first).toMatchObject({ status: "refused", refusal: { code: "store", refusal: { code: "refused", class: "terminal",
+    remedy: { argv: ["arc", "store", "migrate", "--to", "destination"] } } } });
   expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/"])).stdout).toBe("");
   expect((await h.a.exec("git", [`--git-dir=${h.destination}`, "for-each-ref", "--format=%(refname)"])).stdout).toBe("");
   await expect(invokeStoreMigrate(h.argv, { ...h.a.ports, migrateStep: async step => {
@@ -215,11 +217,16 @@ it("reads a refusing receiver's leases passively within the network bound, refus
     return h.a.ports.exec(command, args.map(arg => arg === h.destination ? `${h.destination}.missing` : arg), options);
   } };
   expect(await invokeStoreMigrate(h.argv, ports)).toMatchObject({ status: "refused", refusal: { code: "store", refusal: { code: "unreachable",
-    class: "recoverable", condition: expect.stringContaining("after it refused the move's push") } } });
+    class: "recoverable", condition: expect.stringContaining("after it refused the move's push"),
+    remedy: { argv: ["arc", "store", "migrate"] } } } });
   expect(probes).toHaveLength(1);
   expect(probes[0]?.args.slice(0, 4)).toEqual(["ls-remote", "--refs", "--", h.destination]);
   expect(probes[0]?.options).toMatchObject({ diagnosticLocale: "stable", interaction: PASSIVE_REMOTE_INTERACTION, signal: expect.any(AbortSignal) });
   expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout.trim()).toBe("refs/arc/tmp/migrate/move");
+  await writeFile(hook, "#!/bin/sh\nexit 0\n");
+  await mkdir(join(h.a.root, ".arc", "system"), { recursive: true });
+  await writeFile(join(h.a.root, ".arc", "system", "arc-config.yml"), "# Repaired receiver.\n");
+  expect((await invokeStoreMigrate([], productionStore(h.a).ports)).status).toBe("ok");
 }, 45_000);
 
 it("merges onto this project's destination, reports broken rules, and makes the trial match the copy", async () => {

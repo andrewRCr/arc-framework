@@ -19,6 +19,10 @@ export async function copyFollowState(code: RefBackendContext, record: FollowMov
 }
 
 async function copyLicensedFollowState(code: RefBackendContext, record: FollowMoveRecord, recorded: boolean): Promise<MigrateReport | null> {
+  const retry = recorded ? undefined : {
+    text: `Repair access, atomic push support or receiver permissions at ${record.destination.pushUrl}, then retry arc store remote ${record.destination.name} push; the copy may have landed.`,
+    argv: ["arc", "store", "remote", record.destination.name, "push"],
+  };
   for (;;) {
     const heads = await captureMoveHeads(code, record.source);
     await code.migrateStep?.("follow.fetch-source");
@@ -33,7 +37,7 @@ async function copyLicensedFollowState(code: RefBackendContext, record: FollowMo
     await code.migrateStep?.("follow.copy");
     if (changes.length) {
       const copied = await atomicMigrationPush(code, record.destination.pushUrl, changes);
-      if (!await migrationPushLanded(code, record.destination.pushUrl, changes, copied)) continue;
+      if (!await migrationPushLanded(code, record.destination.pushUrl, changes, copied, retry)) continue;
     }
     const report = remoteCopyReport(prepared.refs, destination, prepared.notices);
     await retainCopiedTips(code, source, heads, { registry: record.forwarding.registryCommit, report, destination, headBasis: prepared.refs });

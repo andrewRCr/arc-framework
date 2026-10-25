@@ -182,7 +182,8 @@ it("keeps the original layout and source after a receiver refuses the first copy
   await writeFile(hook, "#!/bin/sh\ncat >/dev/null\nprintf 'Follow copy declined\\n' >&2\nexit 1\n");
   await chmod(hook, 0o755);
   const failed = (await invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: follower.ports })).result;
-  expect(failed).toMatchObject({ status: "refused", refusal: { code: "store", refusal: { code: "refused", class: "terminal", condition: expect.stringContaining("Follow copy declined") } } });
+  expect(failed).toMatchObject({ status: "refused", refusal: { code: "store", refusal: { code: "refused", class: "terminal", condition: expect.stringContaining("Follow copy declined"),
+    remedy: { argv: ["arc", "store", "remote", "backing", "push"], text: expect.not.stringContaining("recorded copy") } } } });
   expect((await follower.exec("git", ["config", "remote.origin.arc-state"])).stdout.trim()).toBe("push");
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(source);
   expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(destination);

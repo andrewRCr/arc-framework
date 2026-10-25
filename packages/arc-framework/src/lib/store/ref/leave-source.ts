@@ -52,8 +52,9 @@ export async function leaveRefSource(context: RefBackendContext, store: Store, i
 }
 
 async function copyLastSourceView(code: RefBackendContext, view: LeaveSourceView, readRemedy?: Remedy): Promise<MigrateReport> {
+  const remedy = readRemedy ?? departureReadRemedy(view);
   for (;;) {
-    const destination = await readMigrationRemote(view.record.destination.name, readRemedy ?? departureReadRemedy(view),
+    const destination = await readMigrationRemote(view.record.destination.name, remedy,
       () => fetchMigrationRemote(code, view.record.destination, true));
     await checkLeaveDestination(code, view, destination);
     const prepared = await prepareRemoteReCopy(code, view.incoming, destination);
@@ -61,7 +62,7 @@ async function copyLastSourceView(code: RefBackendContext, view: LeaveSourceView
     await code.migrateStep?.("leave.copy");
     if (changes.length) {
       const copied = await atomicMigrationPush(code, view.record.destination.pushUrl, changes);
-      if (!await migrationPushLanded(code, view.record.destination.pushUrl, changes, copied)) continue;
+      if (!await migrationPushLanded(code, view.record.destination.pushUrl, changes, copied, remedy)) continue;
     }
     const report = remoteCopyReport(prepared.refs, destination, prepared.notices);
     for (const ref of view.incoming.keys()) report.notices.push({
