@@ -26,11 +26,21 @@ export async function readRefTips(context: RefBackendContext, options: { include
     ...(options.includeHistory ? [] : [`--exclude=${physicalReadRef(context, "refs/arc/history/")}`]),
     "--format=%(objectname) %(refname)", physicalReadRef(context, "refs/arc/"),
     ...context.readSource ? [context.readSource.versionRef] : []], { cwd: context.checkoutRoot, objectAccess: "local-only" }));
-  return new Map(decoder.decode(stdout).split("\n").filter(Boolean).map((line) => {
+  const tips = new Map<string, string>();
+  let cursor = 0;
+  while (cursor < stdout.length) {
+    const newline = stdout.indexOf(10, cursor), end = newline < 0 ? stdout.length : newline;
+    const bytes = stdout.subarray(cursor, end);
+    cursor = end + 1;
+    if (!bytes.length) continue;
+    let line: string;
+    try { line = decoder.decode(bytes); }
+    catch { continue; }
     const separator = line.indexOf(" ");
     if (separator < 1) throw new Error("Malformed ref-tip response");
-    return [logicalReadRef(context, line.slice(separator + 1)), line.slice(0, separator)];
-  }));
+    tips.set(logicalReadRef(context, line.slice(separator + 1)), line.slice(0, separator));
+  }
+  return tips;
 }
 
 /** Read objects in one process, recursively partitioning only an exceeded output bound. */

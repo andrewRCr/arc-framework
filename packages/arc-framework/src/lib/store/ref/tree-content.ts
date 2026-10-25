@@ -14,8 +14,10 @@ export function parseRefTreeObject(object: BatchObject | null | undefined): RefT
       if (space < cursor || end <= space + 1 || end + 1 + width > object.bytes.length) return null;
       const decoder = new TextDecoder("utf-8", { fatal: true });
       const mode = decoder.decode(object.bytes.subarray(cursor, space)).padStart(6, "0");
-      const path = decoder.decode(object.bytes.subarray(space + 1, end));
-      entries.push({ mode, path, oid: Buffer.from(object.bytes.subarray(end + 1, end + 1 + width)).toString("hex") });
+      let path: string | undefined;
+      try { path = decoder.decode(object.bytes.subarray(space + 1, end)); }
+      catch { /* Undecodable foreign names cannot identify the exact entry a point read requests. */ }
+      if (path !== undefined) entries.push({ mode, path, oid: Buffer.from(object.bytes.subarray(end + 1, end + 1 + width)).toString("hex") });
       cursor = end + 1 + width;
     }
   } catch { return null; }
