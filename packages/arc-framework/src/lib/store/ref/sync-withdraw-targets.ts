@@ -11,7 +11,7 @@ import { viewRefFamily } from "./view-state.js";
 import { refOwner } from "./codec.js";
 import type { WithdrawJournalStep } from "./sync-withdraw-journal.js";
 
-/** Select lifecycle destinations before acquiring the complete ordered lock set. */
+/** Select lifecycle destinations while holding the history refs and their possible live counterparts. */
 export async function withdrawRefTargets(context: RefBackendContext, journal: readonly WithdrawJournalStep[],
   incoming: ReadonlyMap<string, string>, batches: ReadonlySet<string>): Promise<Map<string, string>> {
   const folders = await readLifecycleFolders(context, incoming), targets = new Map<string, string>();

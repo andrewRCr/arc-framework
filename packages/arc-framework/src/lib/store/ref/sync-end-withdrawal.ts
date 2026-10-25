@@ -10,10 +10,11 @@ import { readItemEndBatches } from "./sync-lifecycle-log.js";
 /** Withdraw one competing batch at a time, recapturing its effects before any further decision. */
 export async function withdrawUnpublishedRefEnds(context: RefBackendContext, held: ReadonlyMap<string, string>,
   state: ReadonlyMap<string, string>, incoming: ReadonlyMap<string, string>, options: RefMergeOptions,
-  published: RefEndPublished = refEndPublished(context, incoming)): Promise<RefMergeResult> {
+  published: RefEndPublished = refEndPublished(context, incoming), blocked: ReadonlySet<string> = new Set()): Promise<RefMergeResult> {
   const remote = await readLifecycleFolders(context, incoming);
   const lineage = await readLineageOwners(context, incoming);
   for (const end of await ownEndCandidates(context, held)) {
+    if (blocked.has(end.live) || blocked.has(end.history)) continue;
     if (await published(end.live, end.history, end.batch, end.owner)) continue;
     const batches = await lifecycleBatches(context, incoming.get(end.history), end.owner);
     const local = await lifecycleBatches(context, held.get(end.history), end.owner);

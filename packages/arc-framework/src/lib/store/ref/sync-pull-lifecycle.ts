@@ -49,7 +49,8 @@ export async function mergeCapturedRefState(context: RefBackendContext, incoming
   const published = refEndPublished(context, incoming, previous);
   let held = await captureMergeRefs(context, options);
   const corrupt = await readCorruptArchiveBatchRefs(context, held, new Map([...previous, ...incoming]));
-  const merging = (ref: string): boolean => !isWithheld(ref, incoming, options.withheld);
+  const blocked = blockedWithdrawalRefs([...corrupt.refs].filter(isItem));
+  const merging = (ref: string): boolean => !blocked.has(ref) && !isWithheld(ref, incoming, options.withheld);
   const shared = new Map([...incoming].filter(([ref]) => !isItem(ref) && merging(ref)));
   const first = await mergeRefSets(context, held, shared, options);
   if (first.status === "restart") return first;
@@ -61,16 +62,15 @@ export async function mergeCapturedRefState(context: RefBackendContext, incoming
   const acquired = await acquireDiscoveredHistories(discovered.map(({ history }) => history), options);
   if (acquired.status === "fetch-failed") return acquired;
   first.notices.push(...acquired.notices);
-  const withdrawal = await withdrawEndBatches(context, held, state, incoming, options, published), withdrawn = withdrawal.result;
+  const withdrawal = await withdrawEndBatches(context, held, state, incoming, options, published, blocked), withdrawn = withdrawal.result;
   if (withdrawn.status === "restart") return withdrawn;
   if (withdrawn.changed) {
     state = withdrawal.state; held = state;
     pending = await readPendingRefEnds(context, held, state, incoming, published);
   }
-  pending = await resolvePendingRefEnds(context, pending, held, incoming);
+  pending = await resolvePendingRefEnds(context, pending.filter(({ live, history }) => merging(live) && merging(history)), held, incoming);
   const histories = new Set<string>([...requested, ...discovered.map(({ history }) => history)]);
   const items = new Map([...incoming].filter(([ref]) => isItem(ref) && merging(ref)
-    && !corrupt.refs.has(ref) && !corrupt.refs.has(ref.replace("refs/arc/", "refs/arc/history/"))
     && !pending.some(({ live, history }) => ref === live || ref === history)
     && (!ref.startsWith("refs/arc/history/") || histories.has(ref))));
   const notices: PullNotice[] = [...corrupt.notices, ...first.notices, ...withdrawn.notices];
@@ -82,14 +82,15 @@ export async function mergeCapturedRefState(context: RefBackendContext, incoming
       condition: "The end record is present but the state remote has no retained history for this item.",
       remedy: { text: `Have a clone holding ${history} push it back to the state remote, then pull again.` } });
   }
-  const reopens = await readPendingRefReopens(context, held, state, incoming, published);
+  const unblocked = (refs: ReadonlyMap<string, string>): Map<string, string> => new Map([...refs].filter(([ref]) => merging(ref)));
+  const reopens = await readPendingRefReopens(context, unblocked(held), unblocked(state), unblocked(incoming), published);
   const routes = lifecycleRoutes(held, items, reopens);
   for (const { live, history } of pending) if (held.has(live) && incoming.has(history)) {
     routes.set(history, { ref: history, source: live });
   }
-  const last = await mergeRefSets(context, state, items, { ...options, routes, incomingState: incoming, priorState: held });
+  const last = await mergeRefSets(context, state, items, { ...options, routes, incomingState: unblocked(incoming), priorState: unblocked(held) });
   if (last.status === "restart") return last;
-  const doubled = await observeSyncEndedTwice(context, await captureMergeRefs(context, options), incoming, published);
+  const doubled = await observeSyncEndedTwice(context, unblocked(await captureMergeRefs(context, options)), unblocked(incoming), published);
   const doubledUids = new Set(doubled.flatMap((notice) => notice.kind === "ended-twice" && "uid" in notice.item ? [notice.item.uid] : []));
   const unambiguous = [...notices, ...last.notices].filter((notice) => notice.kind !== "end-pending"
     || !("uid" in notice.item) || !doubledUids.has(notice.item.uid));
@@ -105,16 +106,32 @@ async function acquireDiscoveredHistories(histories: readonly HistoryRef[], opti
 }
 
 async function withdrawEndBatches(context: RefBackendContext, held: Map<string, string>, state: Map<string, string>,
-  incoming: ReadonlyMap<string, string>, options: RefMergeOptions, published: RefEndPublished): Promise<{ result: RefMergeResult; state: Map<string, string> }> {
+  incoming: ReadonlyMap<string, string>, options: RefMergeOptions, published: RefEndPublished,
+  blocked: Set<string>): Promise<{ result: RefMergeResult; state: Map<string, string> }> {
   let changed = false;
   const notices: PullNotice[] = [];
   for (;;) {
-    const result = await withdrawUnpublishedRefEnds(context, held, state, incoming, options, published);
+    const result = await withdrawUnpublishedRefEnds(context, held, state, incoming, options, published, blocked);
     if (result.status === "restart") return { result, state };
-    if (!result.changed) return { result: { status: "complete", changed, notices: [...notices, ...result.notices] }, state };
-    changed = true; notices.push(...result.notices);
-    state = await captureMergeRefs(context, options); held = state;
+    const before = blocked.size;
+    for (const notice of result.notices) if (notice.kind === "namespace-corrupt") blockWithdrawalRef(blocked, notice.ref);
+    notices.push(...result.notices);
+    if (!result.changed && before === blocked.size) return { result: { status: "complete", changed, notices }, state };
+    if (result.changed) { changed = true; state = await captureMergeRefs(context, options); held = state; }
   }
+}
+
+function blockWithdrawalRef(blocked: Set<string>, ref: string): void {
+  blocked.add(ref);
+  if (!isItem(ref)) return;
+  const live = ref.replace("refs/arc/history/", "refs/arc/");
+  blocked.add(live); blocked.add(live.replace("refs/arc/", "refs/arc/history/"));
+}
+
+function blockedWithdrawalRefs(refs: Iterable<string>): Set<string> {
+  const blocked = new Set<string>();
+  for (const ref of refs) blockWithdrawalRef(blocked, ref);
+  return blocked;
 }
 
 function isItem(ref: string): boolean { return /^refs\/arc\/(?:history\/)?(?:work|cohort)\//u.test(ref); }

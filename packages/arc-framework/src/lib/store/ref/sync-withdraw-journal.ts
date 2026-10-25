@@ -14,10 +14,24 @@ export interface WithdrawJournalStep {
   after: Map<string, RefTreeEntry>;
 }
 
+/** Immutable commit coordinates can be discovered before holding the refs they will invert. */
+export interface WithdrawJournalDescription { ref: string; before?: string; after: string }
+
+/** Missing original evidence holds the entire end without swallowing unrelated read failures. */
+export class UnavailableWithdrawJournal extends Error {
+  constructor(readonly ref: string, message: string) { super(message); }
+}
+
 /** Read original writes from captured local tips, excluding unrelated item creations. */
 export async function readWithdrawJournal(context: RefBackendContext, held: ReadonlyMap<string, string>,
   batches: ReadonlySet<string>, reference: RecordReference, origin: string): Promise<WithdrawJournalStep[]> {
-  const steps: WithdrawJournalStep[] = [];
+  return materializeWithdrawJournal(context, await describeWithdrawJournal(context, held, batches, reference, origin));
+}
+
+/** Find original contributions without acquiring mutable object availability evidence. */
+export async function describeWithdrawJournal(context: RefBackendContext, held: ReadonlyMap<string, string>,
+  batches: ReadonlySet<string>, reference: RecordReference, origin: string): Promise<WithdrawJournalDescription[]> {
+  const descriptions: WithdrawJournalDescription[] = [];
   for (const [ref, tip] of held) {
     if (!isStateRef(ref)) continue;
     if (/^refs\/arc\/(?:history\/)?work\//u.test(ref) && ref !== origin) continue;
@@ -30,12 +44,20 @@ export async function readWithdrawJournal(context: RefBackendContext, held: Read
     });
     const first = rows.at(-1), last = rows[0];
     if (!first || !last) continue;
-    const before = first.parents[0];
-    const trees = await readRefTrees(context, new Map([["after", last.commit], ...before ? [["before", before] as const] : []]));
-    const afterTree = trees.get("after"), beforeTree = before ? trees.get("before") : [];
-    if (!afterTree || !beforeTree) throw new Error("An unpublished lifecycle batch has an unavailable original tree");
-    steps.push({ ref, before: new Map(beforeTree.map((entry) => [entry.path, entry])),
-      after: new Map(afterTree.map((entry) => [entry.path, entry])) });
+    descriptions.push({ ref, before: first.parents[0], after: last.commit });
   }
-  return steps;
+  return descriptions;
+}
+
+/** Read every original tree only after the caller holds the complete withdrawal lock set. */
+export async function materializeWithdrawJournal(context: RefBackendContext,
+  descriptions: readonly WithdrawJournalDescription[]): Promise<WithdrawJournalStep[]> {
+  const tips = new Map(descriptions.flatMap(({ before, after }) => [[after, after], ...before ? [[before, before]] : []] as [string, string][]));
+  const trees = await readRefTrees(context, tips);
+  return descriptions.map(({ ref, before, after }) => {
+    const afterTree = trees.get(after), beforeTree = before ? trees.get(before) : [];
+    if (!afterTree || !beforeTree) throw new UnavailableWithdrawJournal(ref, "An unpublished lifecycle batch has an unavailable original tree.");
+    return { ref, before: new Map(beforeTree.map((entry) => [entry.path, entry])),
+      after: new Map(afterTree.map((entry) => [entry.path, entry])) };
+  });
 }

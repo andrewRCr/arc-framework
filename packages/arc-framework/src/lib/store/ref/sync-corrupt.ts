@@ -5,13 +5,13 @@ import type { RefBackendContext } from "./context.js";
 import { isArchiveRef } from "./archive-read.js";
 import { checkSyncRefTip } from "./sync-tip.js";
 import { readUnpublishedRefBatches, expandRefBatchExclusion } from "./sync-batches.js";
+import { syncRefIsAncestor } from "./sync-graph.js";
 
 /** Broken folders cannot establish a reopen; hold their unpublished batch's item refs for repair. */
 export async function readCorruptArchiveBatchRefs(context: RefBackendContext, held: ReadonlyMap<string, string>,
   tracking: ReadonlyMap<string, string>): Promise<{ refs: Set<string>; notices: PullNotice[] }> {
   const refs = new Set<string>(), notices: PullNotice[] = [];
-  if (![...held.keys()].some((ref) => /^refs\/arc\/history\/(work|cohort)\//u.test(ref)
-    && tracking.has(ref.replace("refs/arc/history/", "refs/arc/")))) return { refs, notices };
+  if (!await hasCompetingHistory(context, held, tracking)) return { refs, notices };
   for (const [ref, tip] of held) {
     if (!isArchiveRef(ref)) continue;
     const refusal = await checkSyncRefTip(context, ref, tip);
@@ -24,4 +24,16 @@ export async function readCorruptArchiveBatchRefs(context: RefBackendContext, he
     expandRefBatchExclusion(refs, await readUnpublishedRefBatches(context, { local: held, tracking, changes }));
   }
   return { refs, notices };
+}
+
+async function hasCompetingHistory(context: RefBackendContext, held: ReadonlyMap<string, string>,
+  tracking: ReadonlyMap<string, string>): Promise<boolean> {
+  for (const [ref, tip] of held) {
+    if (!/^refs\/arc\/history\/(work|cohort)\//u.test(ref)) continue;
+    if (tracking.has(ref.replace("refs/arc/history/", "refs/arc/"))) return true;
+    const published = tracking.get(ref);
+    if (!published || published === tip) continue;
+    if (!await syncRefIsAncestor(context, tip, published) && !await syncRefIsAncestor(context, published, tip)) return true;
+  }
+  return false;
 }
