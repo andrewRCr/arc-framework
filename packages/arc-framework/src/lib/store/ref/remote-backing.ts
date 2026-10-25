@@ -1,6 +1,7 @@
 /** Settings of the separate store's own remote never strand code-held state. */
 
 import type { StoreCommandResult, MigrateReport } from "../commands.js";
+import type { Remedy } from "../refusal.js";
 import type { Store } from "../contract.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefDesignation, refDesignationStop, type RefDesignation, type RefRemoteDesignation } from "./designation.js";
@@ -18,7 +19,7 @@ export async function setRefBacking(context: RefBackendContext, store: Store, de
   role: "push" | "read" | "off"): Promise<StoreCommandResult<MigrateReport | null>> {
   const pointer = await context.backingRepository();
   const configured = refDesignationStop(designation);
-  if (configured?.status === "move-incomplete") return heldStateRefusal(configured.condition);
+  if (configured?.status === "move-incomplete") return heldStateRefusal(configured.condition, configured.remedy);
   const publisher = designation.pushes.find(({ repository }) => repository === "code");
   if (publisher) return publisherRefusal(publisher, pointer);
   const physical = await readRefRepository(context);
@@ -47,8 +48,8 @@ function publisherRefusal(publisher: RefRemoteDesignation, pointer: string | nul
       ...pointer ? { argv: ["arc", "store", "migrate", "--to", pointer] } : {} } } };
 }
 
-function heldStateRefusal(condition = "State remains in the code repository's refs; backing requires the separate store."): BackingRefusal {
-  return { status: "refused", refusal: { code: "move-incomplete", class: "recoverable", condition, remedy: layoutRecoveryRemedy() } };
+function heldStateRefusal(condition = "State remains in the code repository's refs; backing requires the separate store.", remedy: Remedy = layoutRecoveryRemedy()): BackingRefusal {
+  return { status: "refused", refusal: { code: "move-incomplete", class: "recoverable", condition, remedy } };
 }
 
 async function applyBackingSetting(context: RefBackendContext, pointer: string | null, url: string,
@@ -59,7 +60,7 @@ async function applyBackingSetting(context: RefBackendContext, pointer: string |
     // Another checkout may have designated a code remote, added backing, or placed state in the code repository meanwhile.
     const designation = await readRefDesignation(context), separate = await readRefRepository(context);
     const configured = refDesignationStop(designation);
-    if (configured?.status === "move-incomplete") return heldStateRefusal(configured.condition);
+    if (configured?.status === "move-incomplete") return heldStateRefusal(configured.condition, configured.remedy);
     const publisher = designation.pushes.find(({ repository }) => repository === "code");
     if (publisher) return publisherRefusal(publisher, pointer);
     if (!separate.repository?.gitDir) return heldStateRefusal();

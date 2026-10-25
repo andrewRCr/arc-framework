@@ -5,7 +5,7 @@ import { StoreMigrateInputSchema, StoreRemoteInputSchema, combineMigrateReports,
   type StoreRemoteInput, type StoreRemoteResult, type MigrateReport } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import { designatedStoreLayout, observeRefLayout } from "./layout-state.js";
-import { readRefDesignation, refDesignationStop, type RefDesignation } from "./designation.js";
+import { ambiguousDesignation, readRefDesignation, refDesignationStop, type RefDesignation } from "./designation.js";
 import { migrationCodeContext, readMoveRecord, type RecordedMove, type RecordedFollow } from "./migrate-record.js";
 import { moveRefRemote } from "./migrate-remote.js";
 import { layoutMoveLeftovers } from "./migrate-remote-switch.js";
@@ -71,7 +71,7 @@ function configuredLayoutRefusal(designation: RefDesignation): Extract<StoreMigr
   if (stop?.status === "move-incomplete") return { status: "refused", refusal: { code: "move-incomplete", class: "recoverable",
     condition: stop.condition, remedy: stop.remedy } };
   return stop?.status === "designation-ambiguous" ? { status: "refused", refusal: { code: "role-conflict", class: "recoverable",
-    condition: `Remotes ${stop.remotes.join(", ")} each carry push, so no one layout is designated.`, remedy: stop.remedy } } : undefined;
+    ...ambiguousDesignation(designation) } } : undefined;
 }
 
 /** With no record standing, follow a due move, then bring the clone into its designated layout. */

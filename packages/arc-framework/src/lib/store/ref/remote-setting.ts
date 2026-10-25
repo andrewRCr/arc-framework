@@ -3,7 +3,7 @@
 import type { Store } from "../contract.js";
 import type { StoreRemoteResult, StoreRemoteView } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
-import { readRefDesignation, type RefDesignation, type RefRemoteDesignation } from "./designation.js";
+import { ambiguousDesignation, readRefDesignation, type RefDesignation, type RefRemoteDesignation } from "./designation.js";
 import { readRefRepository, restartOnVanishedStore } from "./repository.js";
 import { designatedStoreLayout } from "./layout-state.js";
 import { moveRefLayout } from "./migrate-layout.js";
@@ -75,8 +75,7 @@ async function applyCodeSetting(context: RefBackendContext, store: Store, design
 async function moveDesignatedLayout(context: RefBackendContext, store: Store, designation: RefDesignation, setting: LayoutSetting) {
   const layout = designatedStoreLayout(designation);
   if (layout === null) return { status: "refused" as const, refusal: { code: "role-conflict" as const, class: "recoverable" as const,
-    condition: `Remotes ${designation.pushes.map(({ name }) => name).join(", ")} each carry push, so no one layout is designated.`,
-    remedy: { text: "Set all but the intended state remote off with arc store remote <name> off, then retry." } } };
+    ...ambiguousDesignation(designation) } };
   return moveRefLayout(context, store, layout, setting);
 }
 

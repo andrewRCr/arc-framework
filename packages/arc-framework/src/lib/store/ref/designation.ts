@@ -2,6 +2,7 @@
 import { join } from "node:path";
 import { readGitDirectories } from "../../git/directories.js";
 import type { RefBackendContext } from "./context.js";
+import type { Remedy } from "../refusal.js";
 import type { SyncState } from "../sync.js";
 import { layoutRecoveryRemedy } from "./layout-recovery.js";
 
@@ -35,12 +36,18 @@ export async function readRefDesignation(context: RefBackendContext, common?: st
 /** Configuration-only stops precede any fetch or publication. */
 export function refDesignationStop(designation: RefDesignation): SyncState | null {
   if (designation.storeDirectoryPresent && designation.pushes.some(({ name, repository }) => repository === "code" && name === designation.codeRemote)) return {
-    status: "move-incomplete", condition: "The code remote carries push beside the separate store directory.",
-    remedy: layoutRecoveryRemedy(),
+    status: "move-incomplete", ...designation.pushes.length > 1 ? ambiguousDesignation(designation) : {
+      condition: "The code remote carries push beside the separate store directory.", remedy: layoutRecoveryRemedy() },
   };
   if (designation.pushes.length > 1) return { status: "designation-ambiguous", remotes: designation.pushes.map(({ name }) => name),
-    remedy: { text: "Set all but the intended state remote off with arc store remote <name> off, then retry." } };
+    remedy: ambiguousDesignation(designation).remedy };
   return designation.remotes.every(({ role }) => role === "off") ? { status: "no-remote" } : null;
+}
+
+/** Name the competing publication grants and the setting that resolves their layout ambiguity. */
+export function ambiguousDesignation(designation: RefDesignation): { condition: string; remedy: Remedy } {
+  return { condition: `Remotes ${designation.pushes.map(({ name }) => name).join(", ")} each carry push, so no one layout is designated.`,
+    remedy: { text: "Set all but the intended state remote off with arc store remote <name> off, then retry." } };
 }
 
 /** Presence alone selects an installed store; filesystem failures remain visible. */
