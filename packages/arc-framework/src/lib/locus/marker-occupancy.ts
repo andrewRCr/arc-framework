@@ -61,11 +61,6 @@ async function readUnboundOccupancy(input: { cwd: string; store: Store; identity
   const unbound = await classifyUnboundMarker({ ...input, marker: marker.marker, listing });
   return unbound.kind === "unreadable" ? unbound : { kind: "unbound", marker, unbound, reason: unbound.reason };
 }
-/** Describe the missing-record marker's distinct recovery paths. */
-export function noRecordMarkerExit(cwd: string, name: string, spawned: boolean): string {
-  return spawned ? `Checkout ${cwd} is a spawn's residue; run arc locus release ${name} to remove that checkout.`
-    : `Checkout ${cwd} has an unfinished cold-start marker; run arc start ${name} --new --here there to finish it, or arc locus release ${name} to clear the marker.`;
-}
 /** Preserve the owning work unit's state-specific exit at every occupancy guard. */
 export function workUnitMarkerExit(cwd: string, name: string, record: StoreRecord, identity?: string): string {
   const fields = ParsedMetaRecordSchema.parse(record.fields);

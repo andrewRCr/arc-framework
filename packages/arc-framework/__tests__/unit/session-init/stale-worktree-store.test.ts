@@ -149,8 +149,9 @@ it("offers release for a foreign marked checkout despite the marker's spawning i
 it.each([true, false])("offers release for a marked checkout with no work-unit record (spawned=%s)", async spawned => {
   const h = createLifecycleHarness(), input = await options(h.store, undefined, true, spawned);
   if (!spawned) {
-    expect(input.derivedRoster?.[0]?.actions?.[0]).toMatchObject({ text: expect.stringMatching(/finish it.*clear the marker/iu) });
-    expect(input.derivedRoster?.[0]?.actions?.[0]).not.toHaveProperty("argv");
+    expect(input.derivedRoster?.[0]).toMatchObject({ diagnostics: [{ code: "work-unit-marker-unbound" }],
+      actions: [{ argv: ["arc", "start", "done", "--new", "--here"], checkout: "/checkout" },
+        { argv: ["arc", "locus", "release"], checkout: "/checkout" }] });
   }
   expect((await runStaleWorktreeSweep(input)).worktrees[0]?.actions).toMatchObject([
     ...(!spawned ? [{ argv: ["arc", "start", "done", "--new", "--here"], checkout: "/checkout" }] : []),

@@ -11,10 +11,11 @@ import type { Store } from "../store/contract.js";
 import { createStore } from "../store/create.js";
 import { createDefaultStorePorts } from "../store/default-ports.js";
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
-import { decodeWorktreeMarkerOwnership, readWorktreeMarkerGeneration } from "./worktree-marker.js";
+import { decodeWorktreeMarkerOwnership, readWorktreeMarkerGeneration, type WorktreeMarker } from "./worktree-marker.js";
 import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
 import { lstat } from "node:fs/promises";
 import { readTerminalWorkUnitLineage } from "../locus/store-terminal-work-unit.js";
+import { classifyUnboundMarker } from "../locus/unbound-marker.js";
 
 import { validateState } from "../kernel/schema/vocabulary.js";
 import { z } from "zod";
@@ -478,6 +479,11 @@ async function runStoreRoster(store: Store, worktrees: readonly GitWorktreePorce
       const ownership = decodeWorktreeMarkerOwnership(marker.marker);
       if (ownership.kind !== "current" || ownership.subject.kind !== "work-unit") return entry;
       entry.workUnit = ownership.subject.name;
+      const unbound = await unboundRosterWarning(store, worktree.path, marker.marker, ownership.subject.uid);
+      if (unbound !== null) {
+        warnings.push(unbound);
+        return entry;
+      }
       const lookup = await store.lookup({ kind: "claim", claim: workUnitCheckoutClaim(store, entry.workUnit, ownership.subject.uid) });
       if (lookup.status === "refused") {
         if (lookup.refusal.code === "not-found" && await readTerminalWorkUnitLineage(store, ownership.subject.uid ?? entry.workUnit) !== null) {
@@ -496,6 +502,10 @@ async function runStoreRoster(store: Store, worktrees: readonly GitWorktreePorce
     return entry;
   }));
   return { entries, warnings };
+}
+async function unboundRosterWarning(store: Store, cwd: string, marker: WorktreeMarker, uid?: string): Promise<string | null> {
+  if (uid !== undefined || marker.husk !== undefined) return null;
+  return (await classifyUnboundMarker({ store, cwd, marker })).reason;
 }
 
 function storeRosterFields(fields: ParsedMetaRecord): Partial<WorktreeRosterEntry> {

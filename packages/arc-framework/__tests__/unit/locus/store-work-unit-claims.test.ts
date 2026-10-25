@@ -26,12 +26,13 @@ async function fixture(completed = false) {
   const live = await h.seedMeta("shared", { state: "Planning", owner: "live-owner", currentWorkflow: "draft-design" });
   const record = completed ? archived : live, owner = record.reference.owner;
   if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected the selected owner's UID");
-  await writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: owner.name, createdAt: "2026-10-24T00:00:00Z",
-    createdFor: { kind: "work-unit", name: owner.name, uid: owner.uid } });
+  const marker = { spawnedByArc: false, spawningIdentity: owner.name, createdAt: "2026-10-24T00:00:00Z",
+    createdFor: { kind: "work-unit" as const, name: owner.name, uid: owner.uid } };
+  await writeWorktreeMarker(cwd, marker);
   const topology = [{ path: cwd, head: "a".repeat(40), branch: null, detached: true, primary: true, folderPresent: true }];
   const exec = scriptGitExec([{ match: { prefix: ["worktree", "list"] }, responses: [{ stdout:
     worktreePorcelainZ(`worktree ${cwd}\nHEAD ${"a".repeat(40)}\ndetached`) }] }]).exec;
-  return { ...h, cwd, record, uid: owner.uid, exec, topology };
+  return { ...h, cwd, marker, record, uid: owner.uid, exec, topology };
 }
 
 it.each([false, true])("current work-unit resolution respects the bound placement, completed=%s", async completed => {
@@ -49,7 +50,7 @@ it.each([false, true])("occupancy reads its marker's exact record, completed=%s"
 
 it.each([false, true])("lifecycle evidence reads its marker's exact record, completed=%s", async completed => {
   const h = await fixture(completed);
-  expect(await readStoreWorkUnitEvidence({ store: h.store, slug: "shared", uid: h.uid, head: "a".repeat(40),
+  expect(await readStoreWorkUnitEvidence({ store: h.store, cwd: h.cwd, marker: h.marker, slug: "shared", uid: h.uid, head: "a".repeat(40),
     archiveCadence: "manual", projectId: async () => "project" })).toMatchObject({ kind: "present", record: { reference: h.record.reference } });
 });
 

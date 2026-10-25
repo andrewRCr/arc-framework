@@ -42,7 +42,8 @@ async function fixture(kind: "abandon" | "decompose" = "abandon") {
     return ok(await h.store.read({ reference }));
   };
   const terminal = await retire();
-  const input = { store: h.store, slug: "ended", uid: boundWorkUnitSubject(terminal).uid, head: "a".repeat(40) };
+  const input = { store: h.store, cwd: "/checkout", marker: { spawnedByArc: false, createdFor: boundWorkUnitSubject(terminal),
+    spawningIdentity: "andrew", createdAt: new Date(0).toISOString() }, slug: "ended", uid: boundWorkUnitSubject(terminal).uid, head: "a".repeat(40) };
   return { ...h, terminal, retire, input };
 }
 
@@ -97,10 +98,11 @@ it("keeps a terminal physical association out of logical rosters and class compo
   expect(resolveInFlightComposition(physical.entries)).toBeNull();
 });
 
-it("reports ambiguous terminal generations for an unbound claim instead of choosing a retirement", async () => {
+it("reports release for an unbound terminal name instead of choosing a retirement", async () => {
   const h = await fixture(); await h.retire();
-  const result = await readStoreWorkUnitEvidence({ ...h.input, uid: undefined });
-  expect(result).toMatchObject({ kind: "unreadable", code: "subject-unresolved", reason: expect.stringMatching(/more than one record generation.*retry/iu) });
+  const result = await readStoreWorkUnitEvidence({ ...h.input, uid: undefined, marker: { ...h.input.marker, createdFor: { kind: "work-unit", name: "ended" } } });
+  expect(result).toMatchObject({ kind: "unreadable", code: "work-unit-marker-unbound", unbound: { exit: { kind: "release" },
+    exits: [{ argv: ["arc", "locus", "release"], checkout: "/checkout" }] } });
 });
 
 it("reports a failed terminal read with its remedy and retires after authority is restored", async () => {

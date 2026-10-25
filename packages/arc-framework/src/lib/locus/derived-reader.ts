@@ -1,7 +1,6 @@
 /** Dormant worktree-first reader over one fully injected evidence snapshot. */
 
 import { markerIdentitySnapshot, projectStoreIdentityDiscovery, type StoreIdentityEvidence, type StoreIdentityDiscovery } from "./store-identities.js";
-import { noRecordMarkerExit } from "./marker-occupancy.js";
 import type { z } from "zod";
 import { DerivedLocusFrameSchema } from "./derived-schema.js";
 import type { Store } from "../store/contract.js";
@@ -232,19 +231,7 @@ export async function readDerivedLocusRoster(options: {
         ? options.primarySafety
         : { kind: "error", message: "Primary safety does not apply to linked checkouts" },
     });
-    if (evidence.workUnit?.kind === "unreadable" && evidence.workUnit.code !== undefined) {
-      row = { ...row, diagnostics: row.diagnostics.map(diagnostic => diagnostic.source === "lifecycle"
-        ? { ...diagnostic, code: "subject-unresolved" } : diagnostic) };
-    }
-    if (evidence.workUnit?.kind === "unreadable" && evidence.workUnit.missingRecord === true
-      && evidence.marker.kind === "present" && evidence.marker.marker.createdFor.kind === "work-unit"
-      && row.subject?.kind === "work-unit" && row.diagnostics.every(diagnostic => diagnostic.source === "lifecycle")) {
-      const name = evidence.marker.marker.createdFor.name;
-      const spawned = evidence.marker.marker.spawnedByArc;
-      row = { ...row, diagnostics: row.diagnostics.map(diagnostic => ({ ...diagnostic, code: "work-unit-record-missing" })),
-        actions: [{ text: noRecordMarkerExit(item.checkout.path, name, spawned),
-        checkout: item.checkout.path, ...(spawned ? { argv: ["arc", "locus", "release", name] } : {}) }] };
-    }
+    row = withWorkUnitRecovery(row, evidence.workUnit);
     const subjectMeta = activeMeta.kind === "present"
       ? activeMeta
       : archivedMeta.kind === "present"
@@ -302,6 +289,17 @@ export async function readDerivedLocusRoster(options: {
     identityDiscovery: options.identityAcquisitions === undefined ? projectIdentityDiscovery(options.identities, guardedRows)
       : projectStoreIdentityDiscovery(options.identityAcquisitions, guardedRows),
   };
+}
+
+function withWorkUnitRecovery(row: DerivedCheckoutRow, workUnit: StoreWorkUnitEvidence | undefined): DerivedCheckoutRow {
+  if (workUnit?.kind !== "unreadable") return row;
+  const code = workUnit.missingRecord ? "work-unit-record-missing" : workUnit.code;
+  const diagnostics = row.diagnostics.map(diagnostic => diagnostic.source === "lifecycle" && code !== undefined
+    ? { ...diagnostic, code } : diagnostic);
+  if (row.subject?.kind !== "work-unit" || diagnostics.some(diagnostic => diagnostic.source !== "lifecycle")) return { ...row, diagnostics };
+  if (workUnit.unbound !== undefined) return { ...row, diagnostics, actions: [...workUnit.unbound.exits] };
+  return workUnit.missingRecord ? { ...row, diagnostics, actions: [{ text: "arc locus release",
+    argv: ["arc", "locus", "release"], checkout: row.checkout.path }] } : { ...row, diagnostics };
 }
 
 function guardWorkUnitLocusCollisions(rows: readonly DerivedCheckoutRow[]): DerivedCheckoutRow[] {

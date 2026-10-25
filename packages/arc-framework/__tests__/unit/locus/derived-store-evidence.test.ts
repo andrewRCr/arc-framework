@@ -352,7 +352,7 @@ it("withholds a declared missing task list and resumes execution after restoring
     taskListPath: `.arc/active/tasks-${name}.md`, taskCursor: { status: "found", cursor: { leaf: { id: "1.1" } } } });
 });
 
-it.each([false, true])("offers the correct repair for a no-record marker, spawned=%s", async spawnedByArc => {
+it.each([false, true])("offers unnamed release without rerun for a bound missing record, spawned=%s", async spawnedByArc => {
   const h = await fixture();
   const record = success(await h.fixture.store.read({ reference: h.reference }));
   success(await h.fixture.store.write({ action: "remove", reference: record.reference, expected: record.version, provenance: testProvenance }));
@@ -361,7 +361,8 @@ it.each([false, true])("offers the correct repair for a no-record marker, spawne
     if (path === "/primary") return { kind: "absent" };
     const observed = await markerRead(path);
     if (observed.kind !== "present") throw new Error("Expected marker");
-    return { ...observed, marker: { ...observed.marker, spawnedByArc } };
+    const marker = { ...observed.marker, spawnedByArc };
+    return { ...observed, marker, bytes: Buffer.from(JSON.stringify(marker)) };
   };
   h.io.scanWorktrees = async () => ({ ok: true, worktrees: [
     { path: "/primary", head: "a".repeat(40), primary: true, branch: "main", detached: false, folderPresent: true },
@@ -369,9 +370,8 @@ it.each([false, true])("offers the correct repair for a no-record marker, spawne
   ] });
   const result = await frame(h.io);
   const row = result.roster.find(row => row.checkout.path === "/repo");
-  expect(row?.actions).toEqual([expect.objectContaining(spawnedByArc
-    ? { argv: ["arc", "locus", "release", h.reference.owner.name] }
-    : { text: expect.stringContaining(`arc start ${h.reference.owner.name} --new --here`) })]);
+  expect(row).toMatchObject({ diagnostics: [{ code: "work-unit-record-missing" }],
+    actions: [{ text: "arc locus release", argv: ["arc", "locus", "release"], checkout: "/repo" }] });
 });
 
 it("loads the meta once and never a workspace session-notes seed", async () => {

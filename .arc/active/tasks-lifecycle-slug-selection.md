@@ -665,7 +665,7 @@ frees either, each then succeeding; `arc locus release <slug>` frees the one unb
 materialize admits the slug's live holder, and refuses where it does; and a crashed creation of a reused slug is
 released, then rerun.
 
-### `[ ]` **6.1 Report an unbound holder, and refuse it where a reader acts on the claim — § 7.3, § 7.4**
+### `[x]` **6.1 Report an unbound holder, and refuse it where a reader acts on the claim — § 7.3, § 7.4**
 
 - _Goal:_ A work-unit marker without a UID is unbound: holder matching reports it rather than passing over it, and every
   reader that acts on its checkout refuses it, naming the slug's holders by UID and the exits its marker and slug
@@ -691,22 +691,11 @@ released, then rerun.
           lookup. Unnamed release accepts and revalidates unbound markers, while bound missing records retain release
           without rerun. Guards refuse unbound claims; cold-start retries retain generation replacement for rerun exits.
 
-    - `[ ]` **6.1.d The derived roster's work-unit evidence**
+    - `[x]` **6.1.d The derived roster's work-unit evidence**
 
-        - The work-unit evidence reduction (`readStoreWorkUnitEvidence`, `lib/locus/store-work-unit-evidence.ts`)
-          recognizes a marker without a UID before its claim read (`readClaimedWorkUnit`) and returns a distinct
-          diagnostic carrying the classifier's exits. The derived reader (`readDerivedLocusRoster`,
-          `lib/locus/derived-reader.ts`) attaches them as actions bound to the checkout, in place of the
-          `work-unit-record-missing` code and its `noRecordMarkerExit` advice, which for a live holder's marker would
-          advise releasing a live work unit's checkout or a rerun Phase 5 refuses. `cleanupAuthorityRow`
-          (`store-worktree-selection.ts`) admits that diagnostic as it admits `work-unit-record-missing` today, and the
-          roster's claim read (`runStoreRoster`, `lib/git/worktree-roster.ts`) warns naming the exits.
-        - _Note:_ `readDerivedLocusRoster` is over the function-length limit and in the suppression record; extract its
-          residue block rather than growing it.
-        - Build `test-first` (one behavior at a time):
-            - `arc locus --json` reports a live holder's unbound marker with the bind and release exits, not the
-              spawn-residue advice
-            - the cleanup sweep admits that row, and the roster warns naming the exits
+        - Store evidence retains the observed marker and classifies unbound ownership before claim lookup. Derived
+          rows carry `work-unit-marker-unbound` and the classifier's checkout-bound exits; cleanup admits that
+          diagnostic, roster warnings name the exits, and bound missing-record rows offer unnamed release alone.
 
 ### `[ ]` **6.2 Give the current-work-unit resolver an unbound state, and refuse or warn at its callers — § 7.4**
 

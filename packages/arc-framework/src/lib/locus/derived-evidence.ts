@@ -163,7 +163,7 @@ async function readCheckout(
   io: DerivedLocusEvidenceIO,
   inventoryError: string | null,
 ): Promise<DormantCheckoutReadEvidence> {
-  if (io.store?.capabilities.stateOffBranch === true) return readStoreCheckout(worktree, io, io.store, inventoryError);
+  if (io.store?.capabilities.stateOffBranch === true) return readStoreCheckout(worktree, identity, io, io.store, inventoryError);
   const roots = [
     join(worktree.path, ".arc", "active"),
     join(worktree.path, ".arc", "user", identity, "active"),
@@ -370,13 +370,16 @@ async function workUnitInventoryFailure(store: Store): Promise<string | null> {
   } catch (error) { return errorMessage(error); }
 }
 
-async function readStoreCheckout(worktree: RegisteredWorktree, io: DerivedLocusEvidenceIO, store: Store,
+async function readStoreCheckout(worktree: RegisteredWorktree, identity: string, io: DerivedLocusEvidenceIO, store: Store,
   inventoryError: string | null): Promise<DormantCheckoutReadEvidence> {
-  const marker = await io.readMarker(worktree.path).then(projectMarker,
-    (error: unknown): DormantMarkerGenerationEvidence => ({ kind: "error", reason: errorMessage(error) }));
+  const observed = await io.readMarker(worktree.path).then(read => ({ marker: projectMarker(read),
+    raw: read.kind === "present" ? read.marker : undefined }),
+    (error: unknown) => ({ marker: { kind: "error" as const, reason: errorMessage(error) }, raw: undefined }));
+  const marker = observed.marker;
   const subject = marker.kind === "present" ? marker.marker.createdFor : null;
   const workUnit = inventoryError !== null ? { kind: "unreadable" as const, reason: inventoryError }
-    : subject?.kind === "work-unit" ? await readStoreWorkUnitEvidence({ store, slug: subject.name, uid: subject.uid, head: worktree.head,
+    : subject?.kind === "work-unit" && observed.raw !== undefined ? await readStoreWorkUnitEvidence({ store, slug: subject.name, uid: subject.uid, head: worktree.head,
+        cwd: worktree.path, marker: observed.raw, identity,
         exec: io.exec, baseBranch: io.baseBranch, archiveCadence: io.archiveCadence, projectId: io.projectId })
       : { kind: "absent" as const };
   return { checkoutPath: worktree.path, marker, workUnit, metaRoots: [], metas: [] };

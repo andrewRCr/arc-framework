@@ -40,7 +40,8 @@ async function fixture() {
   const h = createLifecycleHarness();
   const authoritative = candidate();
   const meta = await seedPrepared(h, authoritative.id);
-  const workUnit = await readStoreWorkUnitEvidence({ store: h.store, slug: "demo", uid: boundWorkUnitSubject(meta).uid, head: "a".repeat(40), projectId: async () => "project-1" });
+  const workUnit = await readStoreWorkUnitEvidence({ store: h.store, cwd, marker: { spawnedByArc: false, createdFor: boundWorkUnitSubject(meta),
+    spawningIdentity: "test-user", createdAt: new Date(0).toISOString() }, slug: "demo", uid: boundWorkUnitSubject(meta).uid, head: "a".repeat(40), projectId: async () => "project-1" });
   if (workUnit.kind !== "present") throw new Error(JSON.stringify(workUnit));
   const localCandidatePath = join(cwd, ".arc/system/.internal/candidates/demo.json");
   await mkdir(dirname(localCandidatePath), { recursive: true });

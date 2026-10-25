@@ -31,6 +31,8 @@ it("reports checkout-bound recovery actions and frees the unbound checkout throu
   const envelope = validateLocusEnvelope(locus.result), topology = await scanRegisteredWorktrees(h.exec);
   if (!envelope.ok) throw new Error(envelope.error.message);
   if (!topology.ok) throw new Error(topology.message);
+  expect(envelope.roster.find(row => row.checkout.path === h.path)).toMatchObject({ kind: "unresolved-checkout",
+    diagnostics: [{ source: "lifecycle", code: "work-unit-marker-unbound", message: expect.stringContaining("arc materialize example --here") }] });
   const selection = { store: h.store, topology: topology.worktrees, derivedRoster: envelope.roster,
     readMarker: readWorktreeMarker, identity: "test-user", excludeWorktreePath: h.cwd };
   const report = await selectStoreWorktreeCleanup(selection);

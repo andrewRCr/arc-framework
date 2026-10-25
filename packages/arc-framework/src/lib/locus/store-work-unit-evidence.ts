@@ -13,22 +13,27 @@ import { createProjectIdentityReader } from "../store/project-identity.js";
 import { parseLineageRecord } from "../store/kinds/lineage/parser.js";
 import type { DerivedWorkUnitSubject, WorkUnitLifecycleProjection } from "./role-derivation.js";
 import { readWorkUnitLineage } from "./store-terminal-work-unit.js";
+import type { WorktreeMarker } from "../git/worktree-marker.js";
+import { classifyUnboundMarker, type UnboundMarkerClassification } from "./unbound-marker.js";
 
 /** A complete subject observation retains the exact record for context projection. */
 export type StoreWorkUnitEvidence =
   | { kind: "absent" }
-  | { kind: "unreadable"; reason: string; missingRecord?: boolean; code?: "subject-unresolved" }
+  | { kind: "unreadable"; reason: string; missingRecord?: boolean;
+      code?: "subject-unresolved" | "work-unit-marker-unbound"; unbound?: UnboundMarkerClassification }
   | { kind: "terminal"; subject: DerivedWorkUnitSubject; lifecycle: WorkUnitLifecycleProjection }
   | { kind: "present"; subject: DerivedWorkUnitSubject; record: StoreRecord;
       fields: ParsedMetaRecord; branch: string | null; lifecycle: WorkUnitLifecycleProjection };
 interface StoreWorkUnitInput {
   store: Store; slug: string; uid?: string; head: string; exec?: GitExec; baseBranch?: string;
+  cwd: string; marker: WorktreeMarker; identity?: string;
   archiveCadence?: "manual" | "with-integration"; projectId?: () => Promise<string>;
 }
 
 /** Read a marker claim and its authoritative lifecycle without consulting checkout projections. */
 export async function readStoreWorkUnitEvidence(input: StoreWorkUnitInput): Promise<StoreWorkUnitEvidence> {
   try {
+    if (isUnboundClaim(input)) return await readUnboundEvidence(input);
     const record = await readClaimedWorkUnit(input.store, input.slug, input.uid);
     if (record === null) return await readRemovedWorkUnit(input);
     const fields = ParsedMetaRecordSchema.parse(record.fields);
@@ -45,6 +50,14 @@ export async function readStoreWorkUnitEvidence(input: StoreWorkUnitInput): Prom
   } catch (error) { return { kind: "unreadable", reason: error instanceof Error ? error.message : String(error),
     ...(error instanceof MissingWorkUnitRecord ? { missingRecord: true } : {}),
     ...((error instanceof SubjectBranchUnavailable || error instanceof SubjectClaimUnavailable) ? { code: "subject-unresolved" as const } : {}) }; }
+}
+function isUnboundClaim(input: StoreWorkUnitInput): boolean {
+  return input.store.capabilities.stateOffBranch && input.uid === undefined && input.marker.husk === undefined;
+}
+async function readUnboundEvidence(input: StoreWorkUnitInput): Promise<StoreWorkUnitEvidence> {
+  const unbound = await classifyUnboundMarker(input);
+  return unbound.kind === "unreadable" ? unbound
+    : { kind: "unreadable", reason: unbound.reason, code: "work-unit-marker-unbound", unbound };
 }
 async function readClaimedWorkUnit(store: Store, slug: string, uid?: string): Promise<StoreRecord | null> {
   const result = await store.lookup({ kind: "claim", claim: workUnitCheckoutClaim(store, slug, uid) });

@@ -88,3 +88,23 @@ it("lists detached marked Planning work with its store owner while no checkout h
     workUnit: reference.owner.name, placement: "active", identity: "andrew", state: "Planning", class: fields.workClass, priority: fields.priority }]);
   expect(filterRosterByIdentity(roster, { identity: "someone-else", teamMode: true }).entries).toEqual([{ worktreePath: cwd, branch: "main" }]);
 });
+
+it("warns with the live owner's bind and release exits for an unbound registration", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "arc-roster-unbound-"));
+  onTestFinished(() => rm(cwd, { recursive: true, force: true }));
+  const h = createLifecycleHarness(), meta = await h.seedMeta("demo", { owner: "andrew" });
+  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name: "demo" },
+    spawningIdentity: "andrew", now: 0 });
+  const roster = await runWorktreeRoster({ cwd, store: h.store,
+    exec: async () => ({ stdout: `worktree ${cwd}\0HEAD ${"a".repeat(40)}\0detached\0\0` }),
+    fs: { readdir: async () => [], readFile: async () => { throw new Error("No checkout metadata"); } } });
+  expect(roster.entries).toEqual([{ worktreePath: cwd, workUnit: "demo" }]);
+  const warning = roster.warnings.join(" ");
+  expect(warning).toContain("unbound");
+  expect(warning).toContain("As owner 'andrew'");
+  expect(warning).toContain("arc materialize demo --here");
+  expect(warning).toContain("arc locus release");
+  expect(warning).toContain(cwd);
+  if (meta.reference.owner.type !== "work-item" || meta.reference.owner.uid === undefined) throw new Error("Expected UID");
+  expect(warning).toContain(meta.reference.owner.uid);
+});

@@ -70,7 +70,8 @@ function cleanupAuthorityRow(rows: readonly DerivedCheckoutRow[], path: string):
   const matches = rows.filter(row => row.checkout.path === path), row = matches[0];
   if (matches.length !== 1 || row === undefined) throw new Error(`Expected one derived checkout row; found ${matches.length}. Refresh checkout authority and retry cleanup.`);
   const missingRecordRelease = row.subject?.kind === "work-unit" && row.diagnostics.length > 0
-    && row.diagnostics.every(diagnostic => diagnostic.source === "lifecycle" && diagnostic.code === "work-unit-record-missing");
+    && row.diagnostics.every(diagnostic => diagnostic.source === "lifecycle"
+      && (diagnostic.code === "work-unit-record-missing" || diagnostic.code === "work-unit-marker-unbound"));
   if ((row.kind === "unresolved-checkout" || row.diagnostics.length > 0) && !missingRecordRelease) {
     throw new Error(`${row.diagnostics.map(item => `${item.code}: ${item.message}`).join(" ")} Repair checkout authority and retry cleanup.`);
   }

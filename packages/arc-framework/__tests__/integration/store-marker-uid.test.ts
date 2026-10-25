@@ -22,7 +22,10 @@ it.each(["locus", "session-init"] as const)("%s carries bound marker UIDs and le
     const frame = bound ? { entering: { kind: "selected", row: { kind: "work-unit", subject } }, active: { subject },
       roster: expect.arrayContaining([expect.objectContaining({ kind: "work-unit", subject })]),
       primaryAvailability: { kind: "occupied", subject } } : {
-      entering: { kind: "selected", row: { kind: "unresolved-checkout", subject, context: null } }, active: null,
+      entering: { kind: "selected", row: { kind: "unresolved-checkout", subject, context: null,
+        diagnostics: [{ source: "lifecycle", code: "work-unit-marker-unbound", message: expect.stringContaining("arc materialize example --here") }],
+        actions: [{ argv: ["arc", "materialize", "example", "--here"], checkout: f.cwd },
+          { argv: ["arc", "locus", "release"], checkout: f.cwd }] } }, active: null,
       roster: expect.arrayContaining([expect.objectContaining({ kind: "unresolved-checkout", subject, context: null })]),
       primaryAvailability: { kind: "unsafe" },
     };
