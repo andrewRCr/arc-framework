@@ -26,7 +26,7 @@ export async function importCohortPlacements(context: RefBackendContext, report:
       const reference = RecordReferenceSchema.parse({ kind: "cohort/document", owner: { type: "cohort", name: name.data } });
       reportImportAdmission(report, { reference }, {
         condition: `The closed-cohort source ${path} has an invalid archive coordinate.`,
-        remedy: { text: `Repair ${path}: use a valid quarter (YYYY-q1 through YYYY-q4), a positive archive number, and the folder <number><a|b>_cohort-<slug> matching cohort-${name.data}.md; then retry arc store migrate --import.` },
+        remedy: { text: `Repair ${path}: use a valid quarter (YYYY-q1 through YYYY-q4), an archive number in canonical form (01–99, then 100 or higher without leading zeros), and the folder <number><a|b>_cohort-<slug> matching cohort-${name.data}.md; then retry arc store migrate --import.` },
       }, "key");
       continue;
     }
