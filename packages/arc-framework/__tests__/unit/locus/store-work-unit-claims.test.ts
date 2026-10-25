@@ -39,7 +39,7 @@ it.each([false, true])("current work-unit resolution respects the bound placemen
   const h = await fixture(completed), warnings: string[] = [];
   const result = await readClaimedCurrentWorkUnit({ cwd: h.cwd, store: h.store }, warnings);
   expect(warnings).toEqual([]);
-  expect(result).toEqual(completed ? undefined : h.record);
+  expect(result).toEqual(completed ? { kind: "absent" } : { kind: "present", record: h.record });
 });
 
 it.each([false, true])("occupancy reads its marker's exact record, completed=%s", async completed => {

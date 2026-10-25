@@ -39,3 +39,19 @@ it("withholds session reconciliation without a marker and resumes after its bind
   await writeWorktreeMarker(cwd, generation.marker);
   expect(await runCurrentWuReconcileSessionProbe({ store: h.store }, op)).toMatchObject({ status: "clean", slug: "example" });
 });
+
+it("reports unbound recovery exits and reconciles after restoring the bound marker", async () => {
+  const h = createLifecycleHarness(), record = await h.seedMeta("example"), cwd = await boundWorkUnitCheckout(record);
+  const generation = await readWorktreeMarkerGeneration(cwd);
+  if (generation.kind !== "present") throw new Error("Expected bound fixture marker");
+  await writeWorktreeMarker(cwd, { spawnedByArc: generation.marker.spawnedByArc, spawningIdentity: generation.marker.spawningIdentity,
+    createdAt: generation.marker.createdAt, createdFor: { kind: "work-unit", name: "example" } });
+  const op = { slug: "example", metaPath: "stale-path.md", checkoutPath: cwd };
+  expect(await runCurrentWuReconcileSessionProbe({ store: h.store }, op)).toMatchObject({ status: "unavailable",
+    condition: expect.stringContaining("unbound"), actions: [
+      { argv: ["arc", "materialize", "example", "--here"], checkout: cwd },
+      { argv: ["arc", "locus", "release"], checkout: cwd },
+    ] });
+  await writeWorktreeMarker(cwd, generation.marker);
+  expect(await runCurrentWuReconcileSessionProbe({ store: h.store }, op)).toMatchObject({ status: "clean", slug: "example" });
+});

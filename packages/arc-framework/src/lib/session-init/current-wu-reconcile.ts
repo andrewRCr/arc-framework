@@ -42,10 +42,11 @@ export async function runCurrentWuReconcileSessionProbe(
   if (!("store" in ctx)) return projectCurrentWuResult(await prepareCurrentWuReconcile(ctx, op), op);
   const warnings: string[] = [];
   const current = await readClaimedCurrentWorkUnit({ cwd: op.checkoutPath, store: ctx.store }, warnings);
-  if (current === undefined) return unavailable(op.slug, warnings.join("\n") || "The checkout does not hold an active work-unit claim.",
+  if (current.kind === "unbound") return unavailable(op.slug, current.reason, [...current.exits]);
+  if (current.kind === "absent") return unavailable(op.slug, warnings.join("\n") || "The checkout does not hold an active work-unit claim.",
     [{ text: "Inspect arc locus --json, repair the checkout's work-unit claim, then retry session status." }]);
   let acquired;
-  try { acquired = await createStoreReconcilePrepareContext(ctx.store, op.slug, current.reference); }
+  try { acquired = await createStoreReconcilePrepareContext(ctx.store, op.slug, current.record.reference); }
   catch (error) {
     if (!(error instanceof ArcError) || (error.code !== "store.lifecycle-incomplete" && error.code !== "store.lifecycle-unreadable")) throw error;
     const diagnostics = z.array(ListingDiagnosticSchema).safeParse(error.cause);

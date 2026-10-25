@@ -703,16 +703,11 @@ released, then rerun.
   checkout's one current work unit refuses it naming the exits, and readers that only report warn, so no verb acts on an
   unbound checkout and the exits print wherever a person meets it.
 
-    - `[ ]` **6.2.a The resolver**
+    - `[x]` **6.2.a The resolver**
 
-        - `readClaimedCurrentWorkUnit` (`lib/store/current-work-unit-marker.ts`) returns a tagged result, and
-          `resolveCurrentWorkUnit` (`lib/store/current-work-unit.ts`) reports an unbound marker as
-          `{ status: "unbound"; candidates: []; warnings; unbound }`, carrying 6.1.a's classification. The state is
-          built in the marker reader or `resolution`, not in `resolveCurrentWorkUnit`, which the suppression record
-          holds for complexity. The in-repo cold start's occupancy refusal (`coldStartOccupancyRefusal`,
-          `commands/start.ts`) never meets it and type-checks over it through `candidates: []`.
-        - Build `test-first` (one behavior at a time):
-            - an unbound checkout resolves to the unbound state naming its slug's holders and exits
+        - The marker reader tags active primaries, absence, and unbound classification; `resolution` constructs the
+          explicit unbound state without growing the resolver's branching. Direct reconciliation preserves recovery
+          actions, and shared release resolution maps the new union arm to ambiguous advice for type-safe propagation.
 
     - `[ ]` **6.2.b The callers that refuse**
 

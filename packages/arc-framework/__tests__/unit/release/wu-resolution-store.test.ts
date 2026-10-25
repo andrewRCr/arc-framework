@@ -1,15 +1,30 @@
 /** Release identity resolution follows current marker claims and qualified branch links. */
-import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
+import { boundWorkUnitSubject, boundWorkUnitCheckout } from "../../helpers/store/bound-checkout.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { expect, it, onTestFinished } from "vitest";
 import { resolveActiveWu, resolveOriginatingMetaPath } from "../../../src/lib/release/wu-resolution.js";
 import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
-import { writeWorktreeOwnershipMarker } from "../../../src/lib/git/worktree-marker.js";
+import { writeWorktreeOwnershipMarker, readWorktreeMarkerGeneration, writeWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
+import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
 import { createReferenceFixture } from "../../helpers/store/reference-fixture.js";
 import { makeMetaFixture } from "../../helpers/meta-fixture.js";
 import { success, testProvenance } from "../../helpers/store/suite-tools.js";
+
+it("maps unbound occupancy to ambiguous recovery advice and resolves after binding", async () => {
+  const h = createLifecycleHarness(), record = await h.seedMeta("example"), cwd = await boundWorkUnitCheckout(record);
+  const generation = await readWorktreeMarkerGeneration(cwd);
+  if (generation.kind !== "present") throw new Error("Expected fixture marker");
+  await writeWorktreeMarker(cwd, { spawnedByArc: generation.marker.spawnedByArc, spawningIdentity: generation.marker.spawningIdentity,
+    createdAt: generation.marker.createdAt, createdFor: { kind: "work-unit", name: "example" } });
+  const input = { cwd, store: h.store, projectId: async () => "project" };
+  expect(await resolveActiveWu(input)).toMatchObject({ status: "ambiguous", hint: expect.stringContaining("arc materialize example --here") });
+  expect(await resolveActiveWu(input)).toMatchObject({ hint: expect.stringContaining("arc locus release") });
+  expect(await resolveOriginatingMetaPath(cwd, h.store, input.projectId)).toBeUndefined();
+  await writeWorktreeMarker(cwd, generation.marker);
+  expect(await resolveActiveWu(input)).toMatchObject({ status: "resolved", name: "example", branch: null });
+});
 
 it("resolves a marker's work unit and its qualified branch link without an active file", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "arc-release-store-"));
