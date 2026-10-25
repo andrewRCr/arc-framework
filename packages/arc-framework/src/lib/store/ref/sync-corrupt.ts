@@ -21,9 +21,23 @@ export async function readCorruptArchiveBatchRefs(context: RefBackendContext, he
   }
   if (refs.size) {
     const changes = [...held].filter(([ref, tip]) => tracking.get(ref) !== tip).map(([ref, next]) => ({ ref, next }));
-    expandRefBatchExclusion(refs, await readUnpublishedRefBatches(context, { local: held, tracking, changes }));
+    appendArchiveHolds(refs, notices, await readUnpublishedRefBatches(context, { local: held, tracking, changes }));
   }
   return { refs, notices };
+}
+
+function appendArchiveHolds(refs: Set<string>, notices: PullNotice[], batches: Awaited<ReturnType<typeof readUnpublishedRefBatches>>): void {
+  for (const notice of [...notices]) {
+    if (notice.kind !== "namespace-corrupt") continue;
+    const affected = new Set([notice.ref]);
+    expandRefBatchExclusion(affected, batches);
+    for (const ref of affected) {
+      refs.add(ref);
+      if (!/^refs\/arc\/(?:history\/)?(?:work|cohort)\//u.test(ref)) continue;
+      notices.push({ kind: "namespace-corrupt", ref,
+        condition: `${ref} remains held until ${notice.ref} is repaired. ${notice.condition}`, remedy: notice.remedy });
+    }
+  }
 }
 
 async function hasCompetingHistory(context: RefBackendContext, held: ReadonlyMap<string, string>,
