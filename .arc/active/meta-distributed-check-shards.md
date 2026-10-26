@@ -5,20 +5,19 @@
 | `Planning` | `andrew`  | `plan/distributed-check-shards` | `Heavy`   | `P3`         |
 
 - **Cohort:** [none]
-- **Depends On:** [none]
+- **Depends On:** `machine-check-runner`
 
 - **Origin:** [internal]
 - **Design:** `draft-distributed-check-shards.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Shape the generic runner contract and captured-input boundary from the rough draft; settle its open
-  decisions before specification.
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
