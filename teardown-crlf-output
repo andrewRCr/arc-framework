@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "teardown-crlf-output",
+  "claimId": "e72e49542c0479909f430e7ea9132fb3",
+  "createdAt": "2026-10-26T21:59:19.115Z",
+  "updatedAt": "2026-10-26T21:59:19.115Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make the teardown E2E path assertion unwrap CRLF terminal output so long remote-runner paths remain comparable.",
+  "branch": "chore/teardown-crlf-output",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
