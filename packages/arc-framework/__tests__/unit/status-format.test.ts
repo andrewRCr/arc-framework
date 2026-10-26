@@ -589,6 +589,24 @@ it("renders retained-conflict notices and their remedies in human session entry"
   expect(value.actions).toContainEqual(remedy);
 });
 
+it.each(["unreachable", "incomplete"] as const)("renders %s pull failures and partial remedies in human session entry", status => {
+  const remedy = { text: "Repair the primary transport and retry." };
+  const partialRemedy = { text: "Repair the other remote's policy and retry." };
+  const value = describeStorePull({ status, condition: "Primary transport failed.", remedy,
+    ...(status === "unreachable" ? {} : { partial: { states: [], pulls: [{
+      status: "failed" as const, remote: "other", role: "state" as const, families: ["work-item" as const], notices: [],
+      failure: { code: "refused" as const, class: "terminal" as const, message: "Other policy failed.", condition: "Other policy failed.", remedy: partialRemedy },
+    }] } }) });
+  const text = buildSessionInitStatusSummary(makeSessionInitResult({ user: { ok: true, value } }));
+  expect(text).toContain("Primary transport failed.");
+  expect(text).toContain(remedy.text);
+  if (status === "incomplete") {
+    expect(text).toContain("Other policy failed.");
+    expect(text).toContain(partialRemedy.text);
+  }
+  expect(value.actions).toContainEqual(remedy);
+});
+
 it("renders the entering checkout's pause before work starts", () => {
   const result = makeSessionInitResult({ locusGuidance: { kind: "ready", identities: [], cleanup: [], diagnostics: [],
     pause: "Paused: awaiting review. Resume with arc resume current." } });

@@ -51,7 +51,7 @@ it("describes incomplete synchronization and retains its partial outcomes in the
     families: ["work-item" as const], notices: [], failure: { code: "refused" as const, class: "terminal" as const,
       condition: "Remote policy refusal.", message: "Remote policy refusal.", remedy } }] };
   const result = describeStorePull({ status: "incomplete", condition: "Remote policy refusal.", remedy, partial });
-  expect(result.summary).toBe("Remote policy refusal.");
+  expect(result.summary).toContain("Remote policy refusal. Repair the refused remote.");
   expect(result.actions).toContainEqual(remedy);
   expect(SessionInitUserValueSchema.parse(result)).toEqual(result);
 });

@@ -15,20 +15,30 @@ export type StoreSessionInitUserValue = PullResult & { summary: string; actions?
 export function describeStorePull(result: PullResult): StoreSessionInitUserValue {
   const actions = pullActions(result);
   const notices = [...pullResultNotices(result), ...(result.advisories ?? [])];
-  const summary = [pullSummary(result), ...notices.map(notice => `${notice.condition} ${notice.remedy.text}`)].join(" ");
+  const summary = [...new Set([pullSummary(result), ...partialFailureSummaries(result),
+    ...notices.map(notice => `${notice.condition} ${notice.remedy.text}`)])].join(" ");
   return { ...result, summary, ...(actions.length ? { actions } : {}) };
 }
 
 function pullSummary(result: PullResult): string {
   switch (result.status) {
     case "designation-needed": return `Remote ${result.remote} needs a store designation. ${result.remedy.text}`;
-    case "unreachable": case "incomplete": return result.condition;
+    case "unreachable": case "incomplete": return `${result.condition} ${result.remedy.text}`;
     case "no-identity": return result.remedy ? `No store identity is configured. ${result.remedy.text}`
       : "No store identity is configured. Run git config arc.identity <name> and retry.";
     case "no-remote": return "No state remote is configured.";
     case "pulled": return "Store state pulled.";
     case "noop": return "Store state is current.";
   }
+}
+
+function partialFailureSummaries(result: PullResult): string[] {
+  const partial = "partial" in result ? result.partial : undefined;
+  return [
+    ...(partial?.states.flatMap(state => "remedy" in state
+      ? [["condition" in state ? state.condition : "", state.remedy.text].filter(Boolean).join(" ")] : []) ?? []),
+    ...(partial?.pulls.flatMap(pull => pull.status === "failed" ? [`${pull.failure.condition} ${pull.failure.remedy.text}`] : []) ?? []),
+  ];
 }
 
 function pullActions(result: PullResult): z.infer<typeof SessionActionsSchema> {
