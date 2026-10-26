@@ -2,7 +2,8 @@
 import { expect } from "vitest";
 import { ConflictRecordSchema, RecordReferenceSchema, OwnerIdentitySchema, type RecordReference, type StoreRecord } from "../../../src/lib/store/index.js";
 import type { ConformanceFixture } from "./fixture-contract.js";
-import { assertion, seed, success, testProvenance, update, type SuiteContext } from "./suite-tools.js";
+import { MutationSchema } from "../../../src/lib/store/write.js";
+import { assertion, mutationOf, seed, success, testProvenance, update, type SuiteContext } from "./suite-tools.js";
 
 function metaRole(reference: RecordReference): RecordReference {
   return RecordReferenceSchema.parse({ ...reference, kind: "work-item/meta" });
@@ -81,10 +82,14 @@ export function registerPrimaryRoleAssertions(context: SuiteContext): void {
     }
     const unrelated = fixture.reference("personal/document", "untouched");
     for (const handles of [[promoted.reference, original.reference], [fixture.reference("work-item/meta"), fixture.reference("work-item/record")]]) {
-      expect(await fixture.store.batch({ writes: [
-        { ...put, reference: handles[0]! }, { ...put, reference: handles[1]! },
+      const writes = [
+        { ...mutationOf(put), reference: handles[0]! }, { ...mutationOf(put), reference: handles[1]! },
         { action: "put", reference: unrelated, expected: null, content: fixture.content(unrelated) },
-      ], provenance: testProvenance })).toMatchObject({ status: "refused", refusal: { code: "record-malformed" } });
+      ] as const;
+      expect(writes.every(write => MutationSchema.safeParse(write).success)).toBe(true);
+      expect(await fixture.store.batch({ writes: [...writes], provenance: testProvenance }))
+        .toMatchObject({ status: "refused", refusal: { code: "record-malformed",
+          condition: expect.stringMatching(/each (?:canonical )?record at most once/u) } });
       expect(await fixture.settle()).toBe(before);
       expect(await fixture.store.read({ reference: unrelated })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
       expect(await primaryCount(fixture, promoted.reference)).toBe(1);
