@@ -2,26 +2,15 @@
 import { MigrateReportSchema, type MigrateReport } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import { readSyncRefs } from "./sync-graph.js";
+import { readBatchObjects } from "./batch-read.js";
 import { writeRefBlob } from "./tree-write.js";
 import { requireLayoutTransaction } from "./migrate-layout-build.js";
-import { remoteCopyReport } from "./migrate-remote-copy.js";
 import type { RefChange } from "../../git/ref-transaction.js";
 
 const reportRef = "refs/arc/tmp/migrate/copied/report", pendingRoot = "refs/arc/tmp/migrate/copied/deleting/";
 
-/** Report actions and remedies once even when a leased round is retried. */
-export function appendCleanupReport(report: MigrateReport, addition: Pick<MigrateReport, "refs" | "notices">): void {
-  appendUnique(report.refs, addition.refs);
-  appendUnique(report.notices, addition.notices);
-}
-
-function appendUnique<T>(target: T[], addition: readonly T[]): void {
-  const known = new Set(target.map(row => JSON.stringify(row)));
-  for (const row of addition) {
-    const key = JSON.stringify(row);
-    if (!known.has(key)) { target.push(row); known.add(key); }
-  }
-}
+export { appendCleanupReport } from "./migrate-report.js";
+import { appendCleanupReport, remoteCopyReport } from "./migrate-report.js";
 
 /** Persist only actual report effects, atomically with their local journal transition. */
 export async function retainCleanupReport(context: RefBackendContext, report: MigrateReport, changes: RefChange[] = []): Promise<void> {
@@ -46,4 +35,13 @@ export async function settleCleanupDeletes(context: RefBackendContext, source: R
   const deleted = new Map([...absent].map(([ref, tip]) => ["refs/arc/" + ref.slice(pendingRoot.length), tip]));
   appendCleanupReport(report, { refs: remoteCopyReport(deleted, new Map(), []).refs.map(row => ({ ...row, action: "delete" })), notices: [] });
   await retainCleanupReport(context, report, [...absent].map(([ref, expected]) => ({ ref, expected, delete: true })));
+}
+
+/** Recover landed copy actions and advisory remedies across either side of the switch. */
+export async function readRemoteCopyReport(code: RefBackendContext): Promise<MigrateReport> {
+  const ref = reportRef, tip = (await readSyncRefs(code, ref)).get(ref);
+  if (!tip) return remoteCopyReport(new Map(), new Map(), []);
+  const object = (await readBatchObjects(code, [tip])).get(tip);
+  if (object?.type !== "blob") throw new Error("A forwarded remote move has no retained copy report");
+  return MigrateReportSchema.parse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(object.bytes)));
 }

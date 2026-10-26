@@ -7,12 +7,14 @@ import { migrationCodeContext, readMoveRecord, saveMoveRecord, removeMoveRecord,
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { resolveLeaveSource, leaveSourceInvalid, type LeaveSourceView } from "./leave-source-target.js";
 import { fetchMigrationRemote } from "./migrate-remote-fetch.js";
-import { checkCopyProject, copyProjectId, prepareRemoteReCopy, remoteCopyChanges, atomicMigrationPush, migrationPushLanded,
+import { checkCopyProject, copyProjectId, prepareRemoteReCopy, remoteCopyChanges, atomicMigrationPush, copyPushLanded,
   remoteCopyReport, retainCopiedTips, readRemoteCopyReport, clearRemoteGathering, clearUnrecordedGathering, registryHoldsMove } from "./migrate-remote-copy.js";
 import { FORWARDING_REF, readForwardingRecord } from "./forwarding-record.js";
 import { switchRefSource } from "./source-switch.js";
 import { readMigrationRemote } from "./migration-read.js";
 import { endRecordedSource } from "./leave-recorded.js";
+import { beginCopyJournal, confirmCopyJournal, copyJournalKey, recoverCopyJournal, releaseCopyJournal } from "./migrate-copy-journal.js";
+import { appendCleanupReport } from "./migrate-report.js";
 
 /** The caller holds the clone's move lock; a recorded departure resumes only its already landed copy. */
 export async function leaveRefSource(context: RefBackendContext, store: Store, input: Pick<StoreMigrateInput, "to" | "trial"> = {},
@@ -36,6 +38,7 @@ export async function leaveRefSource(context: RefBackendContext, store: Store, i
       report = await copyLastSourceView(code, view, readRemedy);
       await code.migrateStep?.("leave.record");
       resume = await saveMoveRecord(code, view.record, null);
+      await releaseCopyJournal(code);
       await code.migrateStep?.("leave.recorded");
     }
     await code.migrateStep?.("leave.switch");
@@ -57,18 +60,24 @@ async function copyLastSourceView(code: RefBackendContext, view: LeaveSourceView
     const destination = await readMigrationRemote(view.record.destination.name, remedy,
       () => fetchMigrationRemote(code, view.record.destination, true));
     await checkLeaveDestination(code, view, destination);
+    const key = copyJournalKey("leave-source", view.record.source, view.record.destination, view.record.forwardingTip);
+    const carried = await recoverCopyJournal(code, key, destination);
     const prepared = await prepareRemoteReCopy(code, view.incoming, destination);
     const changes = remoteCopyChanges(prepared.refs, destination).filter(row => row.next !== row.expected);
+    const report = carried ?? remoteCopyReport(new Map(), new Map(), []);
+    appendCleanupReport(report, remoteCopyReport(prepared.refs, destination, prepared.notices));
+    for (const ref of view.incoming.keys()) appendCleanupReport(report, { refs: [], notices: [{
+      condition: `The last view of ${view.record.source.fetchUrl} held ${ref}; leaving it does not delete or unpublish that state.` }] });
     await code.migrateStep?.("leave.copy");
+    await beginCopyJournal(code, key, changes, report);
     if (changes.length) {
       const copied = await atomicMigrationPush(code, view.record.destination.pushUrl, changes);
-      if (!await migrationPushLanded(code, view.record.destination.pushUrl, changes, copied, remedy)) continue;
+      if (!await copyPushLanded(code, view.record.destination.pushUrl, changes, copied, remedy)) continue;
     }
-    const report = remoteCopyReport(prepared.refs, destination, prepared.notices);
-    for (const ref of view.incoming.keys()) report.notices.push({
-      condition: `The last view of ${view.record.source.fetchUrl} held ${ref}; leaving it does not delete or unpublish that state.` });
+    appendCleanupReport(report, await confirmCopyJournal(code));
     await retainCopiedTips(code, view.incoming, view.heads, { registry: prepared.refs.get("refs/arc/project/registry"),
       report, destination, headBasis: prepared.refs });
+    await releaseCopyJournal(code);
     await code.migrateStep?.("leave.copied");
     return report;
   }

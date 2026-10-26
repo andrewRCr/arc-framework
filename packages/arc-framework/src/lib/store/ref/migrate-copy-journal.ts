@@ -1,0 +1,145 @@
+/** Retain copy reports across the gap between external publication and local settlement. */
+
+import { z } from "zod";
+import { canonicalize } from "../../kernel/canonical/canonical-json.js";
+import { MigrateReportSchema, type MigrateReport } from "../commands.js";
+import { CommitShaSchema } from "../links.js";
+import type { PushRefChange } from "../../git/push.js";
+import type { RefBackendContext } from "./context.js";
+import { readBatchObjects } from "./batch-read.js";
+import { readSyncRefs, syncRefIsAncestor } from "./sync-graph.js";
+import { writeRefBlob } from "./tree-write.js";
+import { requireLayoutTransaction } from "./migrate-layout-build.js";
+import { readMoveRecord, type MoveRemote } from "./migrate-record.js";
+import { MigrationRefusal } from "./migrate-refusal.js";
+import { appendCleanupReport } from "./migrate-report.js";
+import { retainCleanupReport, readRemoteCopyReport } from "./migrate-cleanup-report.js";
+
+const root = "refs/arc/tmp/migrate/pending-copy/", recordRef = root + "record";
+const ChangeSchema = z.strictObject({ ref: z.string().startsWith("refs/arc/"), next: CommitShaSchema.nullable(), expected: CommitShaSchema.nullable() });
+const JournalSchema = z.strictObject({ schemaVersion: z.literal(1), key: z.string().min(1), settled: MigrateReportSchema,
+  attempt: z.strictObject({ changes: z.array(ChangeSchema), report: MigrateReportSchema }).nullable() });
+type Journal = z.infer<typeof JournalSchema>;
+
+/** Bind pending reports to the original operation and captured transport targets. */
+export function copyJournalKey(kind: "remote" | "follow" | "leave-source", source: MoveRemote, destination: MoveRemote, generation?: string): string {
+  return canonicalize({ kind, source, destination, ...generation ? { generation } : {} });
+}
+
+async function readJournal(context: RefBackendContext): Promise<{ refs: Map<string, string>; record: Journal } | undefined> {
+  const refs = await readSyncRefs(context, root), tip = refs.get(recordRef);
+  if (!tip) return;
+  const object = (await readBatchObjects(context, [tip])).get(tip);
+  if (object?.type !== "blob") throw new Error("The pending migration copy report is unavailable");
+  return { refs, record: JournalSchema.parse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(object.bytes))) };
+}
+
+function requireKey(record: Journal, key: string): void {
+  if (record.key === key) return;
+  throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable",
+    condition: "An interrupted copy retains a report for another migration direction or follow answer.",
+    remedy: { text: "Retry the original migration target and publication answer to settle its copy before choosing another." } });
+}
+
+async function saveJournal(context: RefBackendContext, record: Journal, prior: ReadonlyMap<string, string>): Promise<void> {
+  const next = new Map([[recordRef, await writeRefBlob(context, JSON.stringify(JournalSchema.parse(record)))]]);
+  // These tips keep the proposed merge objects available even if a fresh entry clears its gathering refs.
+  for (const change of record.attempt?.changes ?? []) if (change.next) next.set(root + "tips/" + change.ref.slice("refs/arc/".length), change.next);
+  await requireLayoutTransaction(context, [...[...next].map(([ref, next]) => ({ ref, next, expected: prior.get(ref) ?? null })),
+    ...[...prior].filter(([ref]) => !next.has(ref)).map(([ref, expected]) => ({ ref, expected, delete: true as const }))]);
+}
+
+/** Persist the proposed report before any publication, keeping prior landed effects separate. */
+export async function beginCopyJournal(context: RefBackendContext, key: string, changes: readonly PushRefChange[], report: MigrateReport): Promise<void> {
+  const prior = await readJournal(context);
+  if (prior) {
+    requireKey(prior.record, key);
+    if (prior.record.attempt) throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable",
+      condition: "The interrupted copy still needs its destination result established.",
+      remedy: { text: "Retry the same migration to reconcile its retained copy before starting another attempt." } });
+  }
+  const settled = prior?.record.settled ?? await readRemoteCopyReport(context);
+  const record: Journal = { schemaVersion: 1, key, settled,
+    attempt: { changes: changes.map(change => ({ ref: change.ref, next: change.next, expected: change.expected ?? null })), report } };
+  await saveJournal(context, record, prior?.refs ?? new Map());
+}
+
+async function landedChange(context: RefBackendContext, change: z.infer<typeof ChangeSchema>, destination: ReadonlyMap<string, string>): Promise<boolean> {
+  if (change.next === null) return !destination.has(change.ref);
+  const paired = change.ref.replace(/^refs\/arc\/(work|cohort)\//u, "refs/arc/history/$1/");
+  const current = destination.get(change.ref) ?? (paired !== change.ref ? destination.get(paired) : undefined);
+  if (current === change.next) return true;
+  if (!current) return false;
+  const objects = await readBatchObjects(context, [change.next, current]);
+  return objects.get(change.next)?.type === "commit" && objects.get(current)?.type === "commit"
+    && await syncRefIsAncestor(context, change.next, current);
+}
+
+/** Reconcile an interrupted atomic copy against freshly fetched destination evidence before rebuilding it. */
+export async function recoverCopyJournal(context: RefBackendContext, key: string, destination: ReadonlyMap<string, string>): Promise<MigrateReport | undefined> {
+  const held = await readJournal(context);
+  if (!held) return;
+  requireKey(held.record, key);
+  const { record, refs } = held, attempt = record.attempt;
+  if (attempt) {
+    let landed = true;
+    for (const change of attempt.changes) if (!await landedChange(context, change, destination)) { landed = false; break; }
+    const unchanged = attempt.changes.every(change => (destination.get(change.ref) ?? null) === change.expected);
+    if (!landed && !unchanged) throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable",
+      condition: "Destination state changed after an interrupted copy, so its landed report cannot yet be established.",
+      remedy: { text: "Restore the interrupted copy's retained target tips at the destination, then retry the same migration; its pending evidence remains local." } });
+    if (landed) appendCleanupReport(record.settled, attempt.report);
+    record.attempt = null;
+    await saveJournal(context, record, refs);
+  }
+  await retainCleanupReport(context, record.settled);
+  return record.settled;
+}
+
+/** Whether a prior copy needs complete destination evidence before its lifecycle continuation. */
+export async function hasCopyJournal(context: RefBackendContext): Promise<boolean> {
+  return (await readSyncRefs(context, root)).has(recordRef);
+}
+
+/** Restore earlier landed effects to a cleanup report before testing its current lifecycle license. */
+export async function recoverCopyReport(context: RefBackendContext, key: string, destination: ReadonlyMap<string, string>, report: MigrateReport): Promise<void> {
+  const carried = await recoverCopyJournal(context, key, destination);
+  if (carried) { appendCleanupReport(report, carried); await releaseCopyJournal(context); }
+}
+
+/** Record confirmed publication before the enclosing move updates its report and comparison bases. */
+export async function confirmCopyJournal(context: RefBackendContext): Promise<MigrateReport> {
+  const held = await readJournal(context);
+  if (!held) throw new Error("A confirmed migration copy has no pending report");
+  if (held.record.attempt) appendCleanupReport(held.record.settled, held.record.attempt.report);
+  held.record.attempt = null;
+  await saveJournal(context, held.record, held.refs);
+  return held.record.settled;
+}
+
+/** Drop only the unlanded attempt after a definitive refusal or lost lease, preserving earlier settled reports. */
+export async function abandonCopyAttempt(context: RefBackendContext): Promise<void> {
+  const held = await readJournal(context);
+  if (!held) return;
+  held.record.attempt = null;
+  await saveJournal(context, held.record, held.refs);
+  if (!held.record.settled.refs.length && !held.record.settled.notices.length) await clearCopyJournal(context);
+}
+
+async function clearCopyJournal(context: RefBackendContext): Promise<void> {
+  const refs = await readSyncRefs(context, root);
+  if (refs.size) await requireLayoutTransaction(context, [...refs].map(([ref, expected]) => ({ ref, expected, delete: true as const })));
+}
+
+/** A recorded move now owns the settled report; unrecorded follow/departure entries keep it until their record lands. */
+export async function releaseCopyJournal(context: RefBackendContext): Promise<void> {
+  const move = await readMoveRecord(context);
+  if (move.status === "ok" && move.result !== null) await clearCopyJournal(context);
+}
+
+/** A nonpublishing follow cannot replace a pending publishing answer. */
+export async function requireNoPendingCopy(context: RefBackendContext): Promise<void> {
+  if (await readJournal(context)) throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable",
+    condition: "An interrupted publishing copy retains its original report.",
+    remedy: { text: "Retry the original push answer to settle that copy before changing the follow answer." } });
+}

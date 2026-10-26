@@ -1,5 +1,10 @@
 /** Prepare and atomically land one remote copy while retaining restart and deletion bases. */
 import { MigrateReportSchema, type MigrateReport } from "../commands.js";
+import { remoteCopyReport, appendCleanupReport } from "./migrate-report.js";
+export { remoteCopyReport } from "./migrate-report.js";
+import { readRemoteCopyReport } from "./migrate-cleanup-report.js";
+export { readRemoteCopyReport } from "./migrate-cleanup-report.js";
+import { abandonCopyAttempt, beginCopyJournal, confirmCopyJournal, copyJournalKey, recoverCopyJournal, releaseCopyJournal } from "./migrate-copy-journal.js";
 import type { Remedy } from "../refusal.js";
 import { RecordReferenceSchema } from "../identity.js";
 import { pushRefs, type PushOutcome, type PushRefChange } from "../../git/push.js";
@@ -29,35 +34,67 @@ export interface RemoteCopy { recorded?: RecordedRemote; ended?: "source-forward
 /** The caller holds only the move lock; all merge commits target temporary refs in the code repository. */
 export async function copyRemoteMove(code: RefBackendContext, transports: MoveTransports,
   local: ReadonlyMap<string, string>, trial: boolean, resume?: RecordedRemote): Promise<RemoteCopy> {
-  const { source, destination } = transports;
   let recorded = resume;
-  const firstRun = resume === undefined;
   for (;;) {
-    const basis = await readRemoteCopyBasis(code, source, destination, local, recorded);
-    const { incoming, held, observed } = basis;
-    if (basis.ended) return { recorded, ended: basis.ended, report: await readRemoteCopyReport(code), source: incoming, destination: held };
-    if (basis.ownForwarding && recorded) {
-      return { recorded, report: await readRemoteCopyReport(code), source: incoming, destination: held };
-    }
-    await requireMoveProject(code, incoming.get(registryRef), source.name);
-    await retainKnownCopyVersion(code, recorded, held);
-    await code.migrateStep?.("remote.build");
-    const prepared = await buildRemoteCopy(code, incoming, held);
-    const report = remoteCopyReport(prepared.refs, held, prepared.notices);
-    if (trial) { await clearMigrationRefs(code, copyRoot); return { report, source: incoming, destination: held }; }
-    recorded = await saveRemoteCopyRecord(code, { kind: "remote", source, destination, registryCommit: prepared.registry,
-      sourceLayout: transports.sourceLayout, destinationLayout: transports.destinationLayout }, recorded);
-    await retainDeletedRecord(code, held.get(FORWARDING_REF));
-    await code.migrateStep?.("remote.copy");
-    const changes = remoteCopyChanges(prepared.refs, held);
-    const pushed = await atomicMigrationPush(code, destination.pushUrl, changes);
-    const settled = await settleMigrationPush(code, destination.pushUrl, changes, pushed);
-    if (settled === "restart") continue;
-    if (settled === "refused") await refuseCopyPush(code, recorded, pushed, firstRun);
-    await retainCopiedTips(code, incoming, observed, { registry: prepared.registry, report, destination: held });
-    await code.migrateStep?.("remote.copied");
-    return { recorded, report, source: incoming, destination: held };
+    const round = await copyRemoteRound(code, transports, local, trial, recorded, resume === undefined);
+    if (!("restart" in round)) return round;
+    recorded = round.recorded;
   }
+}
+
+/** Acquire, build and settle one leased attempt; only a lost lease returns another round. */
+async function copyRemoteRound(code: RefBackendContext, transports: MoveTransports, local: ReadonlyMap<string, string>,
+  trial: boolean, prior: RecordedRemote | undefined, firstRun: boolean): Promise<RemoteCopy | { restart: true; recorded: RecordedRemote }> {
+  const { source, destination } = transports, journalKey = copyJournalKey("remote", source, destination);
+  let recorded = prior;
+  const basis = await readRemoteCopyBasis(code, source, destination, local, recorded);
+  const { incoming, held, observed } = basis;
+  const carried = trial ? undefined : await recoverCopyJournal(code, journalKey, held);
+  if (basis.ended) {
+    if (!trial) await releaseCopyJournal(code);
+    return { recorded, ended: basis.ended, report: carried ?? await readRemoteCopyReport(code), source: incoming, destination: held };
+  }
+  if (basis.ownForwarding && recorded) {
+    if (!trial) await releaseCopyJournal(code);
+    return { recorded, report: carried ?? await readRemoteCopyReport(code), source: incoming, destination: held };
+  }
+  await requireMoveProject(code, incoming.get(registryRef), source.name);
+  await retainKnownCopyVersion(code, recorded, held);
+  await code.migrateStep?.("remote.build");
+  const prepared = await buildRemoteCopy(code, incoming, held);
+  const report = carried ?? (!trial && recorded ? await readRemoteCopyReport(code) : remoteCopyReport(new Map(), new Map(), []));
+  appendCleanupReport(report, remoteCopyReport(prepared.refs, held, prepared.notices));
+  if (trial) { await clearMigrationRefs(code, copyRoot); return { report, source: incoming, destination: held }; }
+  recorded = await saveRemoteCopyRecord(code, { kind: "remote", source, destination, registryCommit: prepared.registry,
+    sourceLayout: transports.sourceLayout, destinationLayout: transports.destinationLayout }, recorded);
+  await retainDeletedRecord(code, held.get(FORWARDING_REF));
+  await code.migrateStep?.("remote.copy");
+  if (!await publishRemoteCopy(code, { recorded, report, incoming, observed, held,
+    changes: remoteCopyChanges(prepared.refs, held), firstRun })) return { restart: true, recorded };
+  await code.migrateStep?.("remote.copied");
+  return { recorded, report, source: incoming, destination: held };
+}
+
+/** Publish one prepared copy and hand its confirmed report to the recorded move. */
+async function publishRemoteCopy(code: RefBackendContext, copy: {
+  recorded: RecordedRemote; report: MigrateReport; incoming: Map<string, string>; observed: Map<string, string>;
+  held: Map<string, string>; changes: PushRefChange[]; firstRun: boolean;
+}): Promise<boolean> {
+  const { recorded, report, incoming, observed, held, changes, firstRun } = copy;
+  const { source, destination } = recorded.record;
+  const journalKey = copyJournalKey("remote", source, destination);
+  await beginCopyJournal(code, journalKey, changes, report);
+  const pushed = await atomicMigrationPush(code, destination.pushUrl, changes);
+  const settled = await settleMigrationPush(code, destination.pushUrl, changes, pushed);
+  if (settled === "restart") { await abandonCopyAttempt(code); return false; }
+  if (settled === "refused") {
+    if (pushed.status !== "unreachable") await abandonCopyAttempt(code);
+    await refuseCopyPush(code, recorded, pushed, firstRun);
+  }
+  appendCleanupReport(report, await confirmCopyJournal(code));
+  await retainCopiedTips(code, incoming, observed, { registry: recorded.record.registryCommit, report, destination: held });
+  await releaseCopyJournal(code);
+  return true;
 }
 
 async function refuseCopyPush(code: RefBackendContext, recorded: RecordedRemote, pushed: PushOutcome, firstRun: boolean): Promise<never> {
@@ -177,6 +214,18 @@ export async function migrationPushLanded(code: RefBackendContext, url: string, 
   return settled === "landed";
 }
 
+/** Discard definitively unlanded copy attempts while preserving uncertain publication for a fresh destination read. */
+export async function copyPushLanded(code: RefBackendContext, url: string, changes: readonly PushRefChange[], outcome: PushOutcome, remedy?: Remedy): Promise<boolean> {
+  try {
+    const landed = await migrationPushLanded(code, url, changes, outcome, remedy);
+    if (!landed) await abandonCopyAttempt(code);
+    return landed;
+  } catch (error) {
+    if (outcome.status !== "unreachable") await abandonCopyAttempt(code);
+    throw error;
+  }
+}
+
 async function leasesMoved(code: RefBackendContext, url: string, changes: readonly PushRefChange[], remedy?: Remedy): Promise<boolean> {
   const listed = await listRemoteRefs(code, url, ["refs/arc/*"]);
   if (listed.status === "unreachable") throw new MigrationRefusal({ code: "store", refusal: { code: "unreachable", class: "recoverable", cause: listed.cause,
@@ -240,25 +289,6 @@ export async function clearUnrecordedGathering(code: RefBackendContext): Promise
     const held = await readMoveRecord(code);
     if (held.status === "ok" && held.result === null) await clearRemoteGathering(code);
   } catch { /* Retain unproven recovery evidence and let the caller preserve the original failure. */ }
-}
-
-/** Describe the copied state, including identity scope and withdrawn destination controls. */
-export function remoteCopyReport(planned: ReadonlyMap<string, string>, destination: ReadonlyMap<string, string>, notices: MigrateReport["notices"]): MigrateReport {
-  const refs: MigrateReport["refs"] = [...planned].map(([ref]) => {
-    const person = /^refs\/arc\/user\/([^/]+)\//u.exec(ref)?.[1];
-    return { ref, ...person ? { scope: "identity" as const, person } : { scope: "project" as const }, action: destination.has(ref) ? "merge" : "copy" };
-  });
-  for (const ref of destination.keys()) if (!planned.has(ref)) refs.push({ ref, scope: "project", action: "delete" });
-  return { move: "remote", refs, refused: [], brokenChains: [], reviewMapping: [], differingNotes: [], notices };
-}
-
-/** Recover landed copy actions and advisory remedies across either side of the switch. */
-export async function readRemoteCopyReport(code: RefBackendContext): Promise<MigrateReport> {
-  const ref = copiedRoot + "report", tip = (await readSyncRefs(code, ref)).get(ref);
-  if (!tip) return remoteCopyReport(new Map(), new Map(), []);
-  const object = (await readBatchObjects(code, [tip])).get(tip);
-  if (object?.type !== "blob") throw new Error("A forwarded remote move has no retained copy report");
-  return MigrateReportSchema.parse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(object.bytes)));
 }
 
 /** Capture this clone's last comparison heads before a source listing. */

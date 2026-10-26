@@ -18,6 +18,7 @@ import { undoSwitch } from "./migrate-switch-undo.js";
 import { copyFollowState } from "./follow-copy.js";
 import { deleteFollowSource } from "./follow-delete.js";
 import { describeEndedFollow } from "./follow-report.js";
+import { releaseCopyJournal, requireNoPendingCopy } from "./migrate-copy-journal.js";
 
 type DecidedFollow = Extract<RefFollowJudgment, { status: "decided" }>;
 
@@ -37,12 +38,14 @@ export async function answerRefFollow(context: RefBackendContext, store: Store, 
     if (sourceRole !== "push" && sourceRole !== "read") throw new Error("A due follow's old remote carries neither push nor read");
     const record: FollowMoveRecord = { kind: "follow", source: judged.source, destination: candidate.remote,
       answer, sourceRole, forwarding: judged.record, forwardingTip: judged.forwardingTip, sourceLayout, destinationLayout };
+    if (answer !== "push") await requireNoPendingCopy(code);
     await clearRemoteGathering(code, true);
     if (answer === "push" && await copyFollowState(code, record) === null) {
       await dropStaleFollow(context, due); await clearRemoteGathering(code); return { status: "stale" };
     }
     await context.migrateStep?.("follow.record");
     const recorded = await saveMoveRecord(code, record, null);
+    await releaseCopyJournal(code);
     await context.migrateStep?.("follow.recorded");
     return await resumeRefFollow(context, store, recorded, true);
   } catch (error) {

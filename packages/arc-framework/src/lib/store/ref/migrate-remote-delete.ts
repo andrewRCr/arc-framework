@@ -9,7 +9,8 @@ import { MigrationRefusal } from "./migrate-refusal.js";
 import { finishEndedRemoteMove } from "./migrate-remote-end.js";
 import { FORWARDING_REF, readForwardingRecord } from "./forwarding-record.js";
 import { atomicMigrationPush, clearRemoteGathering, migrationPushLanded, prepareRemoteReCopy,
-  registryHoldsMove, remoteCopyChanges, remoteCopyReport, readRemoteCopyReport, retainRemoteCopiedState } from "./migrate-remote-copy.js";
+  copyPushLanded, registryHoldsMove, remoteCopyChanges, remoteCopyReport, readRemoteCopyReport, retainRemoteCopiedState } from "./migrate-remote-copy.js";
+import { beginCopyJournal, confirmCopyJournal, copyJournalKey, hasCopyJournal, recoverCopyReport, releaseCopyJournal } from "./migrate-copy-journal.js";
 
 /** Every round proves both move versions before any remote write; interruptions retain the move record. */
 export async function deleteRemoteSource(code: RefBackendContext, recorded: RecordedRemote): Promise<MigrateReport> {
@@ -17,7 +18,8 @@ export async function deleteRemoteSource(code: RefBackendContext, recorded: Reco
   try {
     for (;;) {
       await code.migrateStep?.("remote.read-destination");
-      const controls = await fetchMigrationRemote(code, recorded.record.destination, false);
+      const controls = await fetchMigrationRemote(code, recorded.record.destination, await hasCopyJournal(code));
+      await recoverCopyReport(code, copyJournalKey("remote", recorded.record.source, recorded.record.destination), controls, report);
       const currentDestination = await readDestinationLicense(code, recorded, controls);
       await code.migrateStep?.("remote.list-source");
       const source = await fetchMigrationRemote(code, recorded.record.source, true);
@@ -54,13 +56,18 @@ async function recopyDeleteRound(code: RefBackendContext, recorded: RecordedRemo
   await code.migrateStep?.("remote.recopy");
   const prepared = await prepareRemoteReCopy(code, ordinary, destination);
   const changes = remoteCopyChanges(prepared.refs, destination).filter(change => change.next !== change.expected);
+  const addition = { refs: remoteCopyReport(new Map(changes.flatMap(row => row.next ? [[row.ref, row.next] as const] : [])),
+    destination, []).refs.filter(row => changes.some(change => change.ref === row.ref)), notices: prepared.notices };
+  const proposed = { ...report, refs: [...report.refs], notices: [...report.notices] };
+  appendCleanupReport(proposed, addition);
+  await beginCopyJournal(code, copyJournalKey("remote", recorded.record.source, recorded.record.destination), changes, proposed);
   if (changes.length) {
     const copied = await atomicMigrationPush(code, recorded.record.destination.pushUrl, changes);
-    if (!await migrationPushLanded(code, recorded.record.destination.pushUrl, changes, copied)) return false;
+    if (!await copyPushLanded(code, recorded.record.destination.pushUrl, changes, copied)) return false;
   }
-  appendCleanupReport(report, { refs: remoteCopyReport(new Map(changes.flatMap(row => row.next ? [[row.ref, row.next] as const] : [])),
-    destination, []).refs.filter(row => changes.some(change => change.ref === row.ref)), notices: prepared.notices });
+  appendCleanupReport(report, await confirmCopyJournal(code));
   await retainRemoteCopiedState(code, ordinary, report);
+  await releaseCopyJournal(code);
   await code.migrateStep?.("remote.recopied");
   return true;
 }

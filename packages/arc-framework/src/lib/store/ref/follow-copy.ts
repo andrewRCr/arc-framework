@@ -8,7 +8,9 @@ import { fetchMigrationRemote } from "./migrate-remote-fetch.js";
 import { FORWARDING_REF, readForwardingRecord } from "./forwarding-record.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { captureMoveHeads, retainCopiedTips, prepareRemoteReCopy, remoteCopyChanges, remoteCopyReport,
-  atomicMigrationPush, migrationPushLanded, registryHoldsMove } from "./migrate-remote-copy.js";
+  atomicMigrationPush, copyPushLanded, readRemoteCopyReport, registryHoldsMove } from "./migrate-remote-copy.js";
+import { beginCopyJournal, confirmCopyJournal, copyJournalKey, recoverCopyJournal, releaseCopyJournal } from "./migrate-copy-journal.js";
+import { appendCleanupReport } from "./migrate-report.js";
 import { projectIdentityQueries, projectOwnerFromObjects } from "./project-identity.js";
 import { readBatchObjects } from "./batch-read.js";
 
@@ -32,15 +34,21 @@ async function copyLicensedFollowState(code: RefBackendContext, record: FollowMo
     await code.migrateStep?.("follow.fetch-destination");
     const destination = await readMigrationRemote(record.destination.name, followReadRemedy(record.destination.name, record.source.name, recorded), () => fetchMigrationRemote(code, record.destination, true));
     await requireFollowDestination(code, record, destination);
+    const key = copyJournalKey("follow", record.source, record.destination, record.forwardingTip);
+    const carried = await recoverCopyJournal(code, key, destination);
     const prepared = await prepareRemoteReCopy(code, source, destination);
     const changes = remoteCopyChanges(prepared.refs, destination).filter(row => row.next !== row.expected);
+    const report = carried ?? (recorded ? await readRemoteCopyReport(code) : remoteCopyReport(new Map(), new Map(), []));
+    appendCleanupReport(report, remoteCopyReport(prepared.refs, destination, prepared.notices));
     await code.migrateStep?.("follow.copy");
+    await beginCopyJournal(code, key, changes, report);
     if (changes.length) {
       const copied = await atomicMigrationPush(code, record.destination.pushUrl, changes);
-      if (!await migrationPushLanded(code, record.destination.pushUrl, changes, copied, retry)) continue;
+      if (!await copyPushLanded(code, record.destination.pushUrl, changes, copied, retry)) continue;
     }
-    const report = remoteCopyReport(prepared.refs, destination, prepared.notices);
+    appendCleanupReport(report, await confirmCopyJournal(code));
     await retainCopiedTips(code, source, heads, { registry: record.forwarding.registryCommit, report, destination, headBasis: prepared.refs });
+    await releaseCopyJournal(code);
     await code.migrateStep?.("follow.copied");
     return report;
   }

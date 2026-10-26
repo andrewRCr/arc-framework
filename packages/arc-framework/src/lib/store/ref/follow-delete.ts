@@ -10,7 +10,8 @@ import { readSyncRefs } from "./sync-graph.js";
 import { FORWARDING_REF, readForwardingRecord } from "./forwarding-record.js";
 import { requireFollowDestination } from "./follow-copy.js";
 import { prepareRemoteReCopy, remoteCopyChanges, atomicMigrationPush, migrationPushLanded,
-  remoteCopyReport, retainRemoteCopiedState } from "./migrate-remote-copy.js";
+  copyPushLanded, remoteCopyReport, retainRemoteCopiedState } from "./migrate-remote-copy.js";
+import { beginCopyJournal, confirmCopyJournal, copyJournalKey, recoverCopyReport, releaseCopyJournal } from "./migrate-copy-journal.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { withRefFetchKeepers } from "./fetch-seen.js";
 import { appendCopiedFollowRefs, appendFollowReadRefs } from "./follow-report.js";
@@ -21,6 +22,7 @@ export async function deleteFollowSource(code: RefBackendContext, recorded: Reco
     for (;;) {
       await code.migrateStep?.("follow.read-destination");
       const destination = await fetchMigrationRemote(code, recorded.record.destination, true);
+      await recoverCopyReport(code, copyJournalKey("follow", recorded.record.source, recorded.record.destination, recorded.record.forwardingTip), destination, report);
       if (await retainLaterFollow(code, recorded, destination, report)) return;
       await requireFollowDestination(code, recorded.record, destination);
       await code.migrateStep?.("follow.list-source");
@@ -56,13 +58,17 @@ async function recopyFollowRound(code: RefBackendContext, recorded: RecordedFoll
   await code.migrateStep?.("follow.recopy");
   const prepared = await prepareRemoteReCopy(code, ordinary, destination);
   const changes = remoteCopyChanges(prepared.refs, destination).filter(row => row.next !== row.expected);
+  const proposed = { ...report, refs: [...report.refs], notices: [...report.notices] };
+  appendCleanupReport(proposed, { refs: remoteCopyReport(new Map(changes.flatMap(row => row.next ? [[row.ref, row.next] as const] : [])),
+    destination, []).refs.filter(row => changes.some(change => change.ref === row.ref)), notices: prepared.notices });
+  await beginCopyJournal(code, copyJournalKey("follow", recorded.record.source, recorded.record.destination, recorded.record.forwardingTip), changes, proposed);
   if (changes.length) {
     const copied = await atomicMigrationPush(code, recorded.record.destination.pushUrl, changes);
-    if (!await migrationPushLanded(code, recorded.record.destination.pushUrl, changes, copied)) return false;
+    if (!await copyPushLanded(code, recorded.record.destination.pushUrl, changes, copied)) return false;
   }
-  appendCleanupReport(report, { refs: remoteCopyReport(new Map(changes.flatMap(row => row.next ? [[row.ref, row.next] as const] : [])),
-    destination, []).refs.filter(row => changes.some(change => change.ref === row.ref)), notices: prepared.notices });
+  appendCleanupReport(report, await confirmCopyJournal(code));
   await retainRemoteCopiedState(code, ordinary, report);
+  await releaseCopyJournal(code);
   await code.migrateStep?.("follow.recopied");
   return true;
 }
