@@ -39,17 +39,21 @@ function collectEntries(entries: readonly ManifestEntry[], prefix: string, tips:
 function manifestEntries(object: BatchObject | null | undefined, width: number): ManifestEntry[] | null {
   if (object?.type !== "tree") return null;
   const entries: ManifestEntry[] = [];
+  const names = new Set<string>();
   let cursor = 0;
   const bytes = object.bytes;
   const decoder = new TextDecoder("utf-8", { fatal: true });
   while (cursor < bytes.length) {
     const space = bytes.indexOf(32, cursor), nul = bytes.indexOf(0, space + 1);
     if (space < cursor || nul <= space + 1 || nul + 1 + width > bytes.length) return null;
-    const mode = decoder.decode(bytes.subarray(cursor, space));
+    let mode: string, name: string;
+    try {
+      mode = decoder.decode(bytes.subarray(cursor, space));
+      name = decoder.decode(bytes.subarray(space + 1, nul));
+    } catch { return null; }
     if (mode !== "40000" && mode !== "160000") return null;
-    let name: string;
-    try { name = decoder.decode(bytes.subarray(space + 1, nul)); } catch { return null; }
-    if (name.includes("/")) return null;
+    if (name.includes("/") || names.has(name)) return null;
+    names.add(name);
     entries.push({ mode, name, oid: Buffer.from(bytes.subarray(nul + 1, nul + 1 + width)).toString("hex") });
     cursor = nul + 1 + width;
   }
