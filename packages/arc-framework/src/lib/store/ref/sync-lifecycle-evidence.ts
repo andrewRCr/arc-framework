@@ -1,6 +1,8 @@
 /** Immutable lifecycle evidence scoped to one sync operation in one selected repository. */
 
 import { isArchiveRef, type ArchivedFolder } from "./archive-read.js";
+import { matchesFamilyRef } from "./codec.js";
+import { HistoryRefSchema } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 
 /** Raw commit facts remain owner-neutral until each caller interprets their provenance. */
@@ -23,8 +25,9 @@ export function withLifecycleEvidence(context: RefBackendContext): RefBackendCon
 export async function primeLifecycleLogs(context: RefBackendContext, snapshots: readonly ReadonlyMap<string, string>[]): Promise<void> {
   if (!context.lifecycleEvidence) return;
   const refs = snapshots.flatMap((snapshot) => [...snapshot]);
-  if (!refs.some(([ref]) => isArchiveRef(ref) || /^refs\/arc\/history\/(?:work|cohort)\//u.test(ref))) return;
-  const tips = refs.filter(([ref]) => /^refs\/arc\/(?:history\/)?(?:work|cohort)\//u.test(ref)).map(([, tip]) => tip);
+  if (!refs.some(([ref]) => isArchiveRef(ref) || HistoryRefSchema.safeParse(ref).success)) return;
+  const tips = refs.filter(([ref]) => matchesFamilyRef(ref, "work-item") || matchesFamilyRef(ref, "cohort")
+    || HistoryRefSchema.safeParse(ref).success).map(([, tip]) => tip);
   await acquireLifecycleLogs(context, tips, context.lifecycleEvidence.logs);
 }
 
