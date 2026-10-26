@@ -8,7 +8,7 @@ import { RecordReferenceSchema } from "../identity.js";
 import { readBatchObjects } from "./batch-read.js";
 import { projectIdentityQueries, projectOwnerFromObjects } from "./project-identity.js";
 import { readSyncRefs } from "./sync-graph.js";
-import { migrationCodeContext, saveMoveRecord, removeMoveRecord, type RecordedFollow, type FollowMoveRecord } from "./migrate-record.js";
+import { migrationCodeContext, saveMoveRecord, removeMoveRecord, readMoveReport, type RecordedFollow, type FollowMoveRecord } from "./migrate-record.js";
 import { readRefRepository } from "./repository.js";
 import { publisherLayout } from "./layout-state.js";
 import { sourceSwitchComplete, followSwitchUndo, switchRefSource } from "./source-switch.js";
@@ -19,12 +19,15 @@ import { copyFollowState } from "./follow-copy.js";
 import { deleteFollowSource } from "./follow-delete.js";
 import { describeEndedFollow } from "./follow-report.js";
 import { releaseCopyJournal, requireNoPendingCopy } from "./migrate-copy-journal.js";
+import { accountCopyJournal } from "./migrate-copy-account.js";
+import { handoffFollowCopy } from "./follow-copy-account.js";
+import { appendCleanupReport } from "./migrate-report.js";
 
 type DecidedFollow = Extract<RefFollowJudgment, { status: "decided" }>;
 
 /** A follow's answer is persisted before its physical switch can expose a new designation. */
 export async function answerRefFollow(context: RefBackendContext, store: Store, due: RefFollowDue, judged: DecidedFollow,
-  candidate: RefFollowCandidate, answer: "push" | "read" | "off"): Promise<StoreCommandResult<MigrateReport> | { status: "stale" }> {
+  candidate: RefFollowCandidate, answer: "push" | "read" | "off"): Promise<StoreCommandResult<MigrateReport> | { status: "stale"; report: MigrateReport }> {
   const conflict = followPublicationConflict(due, candidate, answer);
   if (conflict) return { status: "refused", refusal: conflict };
   const code = await migrationCodeContext(context);
@@ -38,13 +41,16 @@ export async function answerRefFollow(context: RefBackendContext, store: Store, 
     if (sourceRole !== "push" && sourceRole !== "read") throw new Error("A due follow's old remote carries neither push nor read");
     const record: FollowMoveRecord = { kind: "follow", source: judged.source, destination: candidate.remote,
       answer, sourceRole, forwarding: judged.record, forwardingTip: judged.forwardingTip, sourceLayout, destinationLayout };
-    if (answer !== "push") await requireNoPendingCopy(code);
+    const carried = await handoffFollowCopy(code, record);
+    if (answer !== "push" && !carried) await requireNoPendingCopy(code);
     await clearRemoteGathering(code, true);
     if (answer === "push" && await copyFollowState(code, record) === null) {
-      await dropStaleFollow(context, due); await clearRemoteGathering(code); return { status: "stale" };
+      const report = await readRemoteCopyReport(code);
+      await accountCopyJournal(code, report);
+      await dropStaleFollow(context, due); await clearRemoteGathering(code); return { status: "stale", report };
     }
     await context.migrateStep?.("follow.record");
-    const recorded = await saveMoveRecord(code, record, null);
+    const recorded = await saveMoveRecord(code, record, null, carried);
     await releaseCopyJournal(code);
     await context.migrateStep?.("follow.recorded");
     return await resumeRefFollow(context, store, recorded, true);
@@ -79,6 +85,9 @@ export async function resumeRefFollow(context: RefBackendContext, store: Store, 
       if (copiedState === null || copiedState === "moved") return await endRecordedFollow(context, store, code, recorded, copiedState ?? "stale");
     }
     const report = recorded.record.answer === "push" ? await readRemoteCopyReport(code) : remoteCopyReport(new Map(), new Map(), []);
+    const carried = await readMoveReport(code, recorded.tip);
+    if (carried) appendCleanupReport(report, carried);
+    await accountCopyJournal(code, report);
     await switchRefSource(context, store, recorded);
     if (recorded.record.answer === "push") await deleteFollowSource(code, recorded, report);
     await context.migrateStep?.("follow.finish");
@@ -91,6 +100,7 @@ export async function resumeRefFollow(context: RefBackendContext, store: Store, 
 /** End a recorded follow another move overtook, undoing a begun switch; a changed record stays due for the next run to judge. */
 async function endRecordedFollow(context: RefBackendContext, store: Store, code: RefBackendContext, recorded: RecordedFollow,
   cause: "stale" | "moved"): Promise<StoreCommandResult<MigrateReport>> {
+  await accountCopyJournal(code, await readRemoteCopyReport(code));
   const report = await describeEndedFollow(code, recorded);
   const undone = await undoSwitch(context, store, followSwitchUndo(recorded));
   if (cause === "stale") {

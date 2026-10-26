@@ -10,6 +10,7 @@ import { fetchMigrationRemote } from "./migrate-remote-fetch.js";
 import { clearRemoteGathering, readRemoteCopyReport, readCopiedRemoteRefs, readCopiedDeletedRecord } from "./migrate-remote-copy.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { withdrawRecordedSource } from "./leave-recorded-withdraw.js";
+import { accountCopyJournal } from "./migrate-copy-account.js";
 
 /** A responding destination, including an empty one, never licenses withdrawing its source's control; a begun switch finishes first. */
 export async function endRecordedSource(context: RefBackendContext, store: Store, code: RefBackendContext,
@@ -17,6 +18,7 @@ export async function endRecordedSource(context: RefBackendContext, store: Store
   if (recorded.record.kind !== "remote" && recorded.record.kind !== "follow") throw new Error("Expected a remote move or follow");
   try {
     const report = await readRemoteCopyReport(code);
+    await accountCopyJournal(code, report);
     const switched = await finishBegunSwitch(context, store, recorded);
     if (!await destinationAnswers(code, recorded)) await reportUnreadDestination(code, recorded, switched, report);
     report.notices.push({ condition: `The recorded cleanup ended without deleting state at ${recorded.record.source.fetchUrl}; its existing publications remain there.` });

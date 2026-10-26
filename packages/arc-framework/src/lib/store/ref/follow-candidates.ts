@@ -1,5 +1,5 @@
 /** Judge a follow against the departed remote's fresh record and isolated candidate registries. */
-import type { StoreCommandRefusal, StoreDesignationQuestion, StoreMigrateResult } from "../commands.js";
+import type { StoreCommandRefusal, StoreDesignationQuestion, StoreMigrateResult, MigrateReport } from "../commands.js";
 import type { Remedy } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefFollowDue } from "./follow-due.js";
@@ -17,11 +17,12 @@ import { readBatchObjects } from "./batch-read.js";
 import { projectIdentityQueries, projectOwnerFromObjects } from "./project-identity.js";
 import { fetchLayoutObjects } from "./migrate-layout-build.js";
 import { migrationReadFailure, readMigrationRemote } from "./migration-read.js";
+import { accountWithdrawnFollow } from "./follow-copy-account.js";
 
 /** A registry observation belonging to one exact candidate. */
 export interface RefFollowCandidate { remote: MoveRemote; registry: string }
 /** Keep accepted candidates available to an explicit answer even when several prevent an automatic question. */
-export type RefFollowJudgment = { status: "none" }
+export type RefFollowJudgment = { status: "none"; report?: MigrateReport }
   | { status: "refused"; refusal: StoreCommandRefusal }
   | { status: "decided"; source: MoveRemote; record: ForwardingRecord; forwardingTip: string; accepted: RefFollowCandidate[]; result: StoreMigrateResult };
 
@@ -37,7 +38,10 @@ export async function judgeRefFollow(context: RefBackendContext, due: RefFollowD
     readingSource = false;
     const forwarding = await readForwardingRecord(code, refs.get(FORWARDING_REF), source.name);
     if (forwarding.status === "refused") return forwarding;
-    if (!forwarding.result) { await dropStaleFollow(context, due); return { status: "none" }; }
+    if (!forwarding.result) {
+      const report = await accountWithdrawnFollow(code, source);
+      await dropStaleFollow(context, due); return { status: "none", ...report ? { report } : {} };
+    }
     const record = forwarding.result, forwardingTip = refs.get(FORWARDING_REF);
     if (!forwardingTip) throw new Error("A parsed forwarding record has no fetched tip");
     const candidates = await followCandidates(context, code, due);

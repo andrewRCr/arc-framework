@@ -15,6 +15,7 @@ import { readMigrationRemote } from "./migration-read.js";
 import { endRecordedSource } from "./leave-recorded.js";
 import { beginCopyJournal, confirmCopyJournal, copyJournalKey, recoverCopyJournal, releaseCopyJournal } from "./migrate-copy-journal.js";
 import { appendCleanupReport } from "./migrate-report.js";
+import { accountCopyJournal } from "./migrate-copy-account.js";
 
 /** The caller holds the clone's move lock; a recorded departure resumes only its already landed copy. */
 export async function leaveRefSource(context: RefBackendContext, store: Store, input: Pick<StoreMigrateInput, "to" | "trial"> = {},
@@ -31,7 +32,10 @@ export async function leaveRefSource(context: RefBackendContext, store: Store, i
     resume = held.result?.record.kind === "leave-source" ? { record: held.result.record, tip: held.result.tip } : undefined;
     checkDepartureResume(resume, input);
     let report: MigrateReport;
-    if (resume) report = await readRemoteCopyReport(code);
+    if (resume) {
+      report = await readRemoteCopyReport(code);
+      await accountCopyJournal(code, report);
+    }
     else {
       const view = await resolveLeaveSource(context, code, to);
       await clearRemoteGathering(code, true);

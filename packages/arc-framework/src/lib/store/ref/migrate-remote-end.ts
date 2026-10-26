@@ -6,6 +6,7 @@ import { removeMoveRecord, type RecordedRemote, type MoveRemote } from "./migrat
 import { commitMigrationRegistry } from "./migrate-registry.js";
 import { atomicMigrationPush, clearRemoteGathering, migrationPushLanded, readRemoteCopyVersion, registryHoldsMove, type RemoteCopy } from "./migrate-remote-copy.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
+import { accountCopyJournal } from "./migrate-copy-account.js";
 
 /** Where an overtaken move ended: before its switch, inside it and undone, or after it. */
 export type EndedSwitch = "before" | "during" | "after";
@@ -32,6 +33,7 @@ export async function endRemoteMove(code: RefBackendContext, recorded: RecordedR
 
 /** Drop an overtaken move's journal while reporting its remaining published refs before clearing temporary data. */
 export async function finishEndedRemoteMove(code: RefBackendContext, recorded: RecordedRemote, copy: RemoteCopy, ended: EndedSwitch): Promise<MigrateReport> {
+  await accountCopyJournal(code, copy.report);
   const report = describeEndedRemoteMove(recorded, copy, ended);
   await removeMoveRecord(code, recorded);
   await clearRemoteGathering(code);

@@ -2,7 +2,7 @@
 
 import type { Store } from "../contract.js";
 import { StoreMigrateInputSchema, StoreRemoteInputSchema, combineMigrateReports, type StoreMigrateInput, type StoreMigrateResult,
-  type StoreRemoteInput, type StoreRemoteResult, type MigrateReport } from "../commands.js";
+  type StoreRemoteInput, type StoreRemoteResult, type MigrateReport, type StoreCommandResult } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import { designatedStoreLayout, observeRefLayout } from "./layout-state.js";
 import { ambiguousDesignation, readRefDesignation, refDesignationStop, type RefDesignation } from "./designation.js";
@@ -42,8 +42,9 @@ export async function runRefMigrate(context: RefBackendContext, store: Store, in
     const layout = existing.result?.record.kind === "layout" ? { record: existing.result.record, tip: existing.result.tip } : undefined;
     const unsettled = parsed.data.to ? await unsettledLayout(context, layout !== undefined) : undefined;
     if (unsettled) return unsettled;
-    // A move ended after removing its record leaves gathering no later move may read as its own.
-    if (!existing.result && !parsed.data.trial) await clearRemoteGathering(code);
+    // A due follow can own a transferred report even after its journal retires.
+    // Other unrecorded entries discard gathering left by an ended move.
+    if (!existing.result && !parsed.data.trial && !await readRefFollowDue(context)) await clearRemoteGathering(code);
     if (parsed.data.to) return moveRefRemote(context, store, parsed.data.to, parsed.data.trial);
     if (layout) return moveRefLayout(context, store, layout.record.destination, layout.record.setting, layout);
     return reconcileNoTarget(context, store);
@@ -76,20 +77,29 @@ function configuredLayoutRefusal(designation: RefDesignation): Extract<StoreMigr
 
 /** With no record standing, follow a due move, then bring the clone into its designated layout. */
 async function reconcileNoTarget(context: RefBackendContext, store: Store): Promise<StoreMigrateResult> {
+  let carried: MigrateReport | undefined;
   const due = await readRefFollowDue(context);
   if (due) {
     const followed = await judgeRefFollow(context, due);
     if (followed.status === "refused") return followed;
     if (followed.status === "decided") return followed.result;
+    carried = followed.report;
   }
   const designation = await readRefDesignation(context);
   const layout = designatedStoreLayout(designation);
   if (layout === null) {
     const stop = configuredLayoutRefusal(designation);
     if (!stop) throw new Error("An ambiguous layout has no designation stop");
-    return stop;
+    return carryMigrationReport(stop, carried);
   }
-  return moveRefLayout(context, store, layout);
+  const moved = await moveRefLayout(context, store, layout);
+  return carryMigrationReport(moved, carried);
+}
+
+function carryMigrationReport(result: StoreCommandResult<MigrateReport>, carried?: MigrateReport): StoreCommandResult<MigrateReport> {
+  if (!carried) return result;
+  if (result.status === "ok") return { status: "ok", result: combineMigrateReports(carried, result.result) };
+  return result.refusal.code === "import-refused" ? result : { status: "refused", refusal: { ...result.refusal, report: carried } };
 }
 
 /** Apply a code remote's own setting in the order its layout switch requires. */
@@ -109,6 +119,10 @@ export async function runRefRemote(context: RefBackendContext, store: Store, inp
       completed = resumed.result;
     }
     const follow = await guardRefFollowSetting(context, store, setting.remote, setting.role);
+    if (follow?.status === "stale") {
+      completed = completed ? combineMigrateReports(completed, follow.report) : follow.report;
+      return applyRefRemoteSetting(context, store, setting, input.ownState);
+    }
     return follow ?? await applyRefRemoteSetting(context, store, setting, input.ownState);
   });
   if (!completed) return applied;
