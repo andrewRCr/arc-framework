@@ -2448,3 +2448,7 @@ operations and outcomes, and which test tier each conformance fixture runs in.
   including an already-expired code leg's timeout and any reported descendant warning. _Supersedes:_ D1, D4
   carried-code failure diagnostics. _Trigger:_ `spec-storage-ref-backend.md` § 2.2, 2.6 (A51).
   _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A30** — 2026-10-25 — design: both-published ends require retained evidence of each end. After forced tracking
+  replacement removes its last publication witness, `refEndPublished` permits withdrawal of the local end; surviving
+  evidence still requires the explicit clear/reopen/end repair. _Supersedes:_ D12 publication evidence for end
+  reconciliation. _Trigger:_ `spec-storage-ref-backend.md` § 2.6, 6.6 (A52). _Work:_ review-fix. _Revalidated:_ review-fix.
