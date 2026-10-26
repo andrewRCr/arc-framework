@@ -12,6 +12,22 @@ import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
 
+it("repairs competing publishers before retrying an unrecorded source departure", async () => {
+  const h = await switchFixture("code", "upstream");
+  await h.a.git(["push", h.destinationDirectory, "refs/arc/project/registry:refs/arc/project/registry"]);
+  await h.a.exec("git", ["remote", "add", "backup", h.origin]);
+  await h.a.exec("git", ["config", "remote.backup.arc-state", "push"]);
+  expect(await invokeStoreMigrate(["--leave-source", "--to", h.to], h.ports))
+    .toMatchObject({ status: "refused", refusal: { code: "role-conflict", class: "recoverable",
+      condition: expect.stringContaining("each carry push"),
+      remedy: { text: expect.stringContaining("arc store remote <name> off") } } });
+  expect((await invokeStoreRemote(["backup", "off"], { cwd: h.a.root, ports: h.ports })).result.status).toBe("ok");
+  const retried = await invokeStoreMigrate(["--leave-source", "--to", h.to], h.ports);
+  expect(retried, JSON.stringify(retried)).toMatchObject({ status: "ok" });
+  expect(success(await h.store.read({ reference: personal })).content).toBe("Shared state.\n");
+  expect(success(await h.store.push()).states).toEqual([]);
+}, 30_000);
+
 it.each(["backing", "upstream"] as const)("leaves a deleted %s for a demonstrated code home after refusing an empty receiver", async source => {
   const h = await switchFixture(source, "code");
   if (source === "upstream") {

@@ -1,7 +1,7 @@
 /** Select a source departure from local configuration and acquire only its retained local view. */
 import type { RefBackendContext } from "./context.js";
 import type { LeaveSourceMoveRecord } from "./migrate-record.js";
-import { readRefDesignation } from "./designation.js";
+import { ambiguousDesignation, readRefDesignation } from "./designation.js";
 import { captureMoveRemote, sharesMoveUrl, resolveBackingTarget } from "./migrate-remote-target.js";
 import { readRefRepository } from "./repository.js";
 import { fetchLayoutObjects } from "./migrate-layout-build.js";
@@ -19,7 +19,7 @@ export interface LeaveSourceView {
 
 /** No transport to the departed source occurs while selecting or acquiring this view. */
 export async function resolveLeaveSource(context: RefBackendContext, code: RefBackendContext, to?: string): Promise<LeaveSourceView> {
-  const designation = await readRefDesignation(context);
+  const designation = await unambiguousLeaveDesignation(context);
   const pushes = designation.codeRemotes.filter(remote => remote.name !== "backing" && remote.role === "push");
   const old = designation.backing ?? (pushes.length === 1 ? pushes[0] : undefined);
   if (!old) throw noSourceRemote(designation.codeRemotes.filter(remote => remote.name !== "backing" && remote.role === "read").map(remote => remote.name));
@@ -47,6 +47,13 @@ export async function resolveLeaveSource(context: RefBackendContext, code: RefBa
   return { incoming, local, heads, forwarding: forwarding.result, record: { kind: "leave-source", source, destination,
     sourceLayout: physical.repository?.gitDir ? "separate" : "default",
     destinationLayout: publisherLayout(destination, designation.codeRemote), ...forwardingTip ? { forwardingTip } : {} } };
+}
+
+async function unambiguousLeaveDesignation(context: RefBackendContext) {
+  const designation = await readRefDesignation(context);
+  if (designation.pushes.length > 1) throw new MigrationRefusal({ code: "role-conflict", class: "recoverable",
+    ...ambiguousDesignation(designation) });
+  return designation;
 }
 
 /** Invalid target choices retain all state and roles for a corrected request. */
