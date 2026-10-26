@@ -10,34 +10,12 @@ import type { InteractionContext } from "../command-input/interaction-context.js
 import type { RawGitExec } from "./exec.js";
 import { PUSH_GATE_ID_VARIABLE, type GitExec, type GitExecInput } from "./exec.js";
 import { normalizeGitRejection } from "./process-error.js";
+import { sanitizeGitRepositoryEnvironment } from "./repository-environment.mjs";
+
+export { GIT_REPOSITORY_LOCAL_ENVIRONMENT, sanitizeGitRepositoryEnvironment } from "./repository-environment.mjs";
 
 /** Captured-output ceiling retained by every Git process binding. */
 export const MAX_GIT_OUTPUT_BYTES = 64 * 1024 * 1024;
-
-/** Repository selectors removed before a cwd-scoped Git child is launched. */
-export const GIT_REPOSITORY_LOCAL_ENVIRONMENT: ReadonlySet<string> = new Set([
-  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-  "GIT_CONFIG",
-  "GIT_CONFIG_PARAMETERS",
-  "GIT_CONFIG_COUNT",
-  "GIT_OBJECT_DIRECTORY",
-  "GIT_DIR",
-  "GIT_WORK_TREE",
-  "GIT_IMPLICIT_WORK_TREE",
-  "GIT_GRAFT_FILE",
-  "GIT_INDEX_FILE",
-  "GIT_NO_REPLACE_OBJECTS",
-  "GIT_REPLACE_REF_BASE",
-  "GIT_PREFIX",
-  "GIT_SHALLOW_FILE",
-  "GIT_COMMON_DIR",
-]);
-
-/** Copy a supplied child environment without repository-local Git selectors. */
-export function sanitizeGitRepositoryEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  return Object.fromEntries(Object.entries(environment)
-    .filter(([variable]) => !GIT_REPOSITORY_LOCAL_ENVIRONMENT.has(variable.toUpperCase())));
-}
 
 function withoutPathspecEnvironment(base: NodeJS.ProcessEnv | undefined): NodeJS.ProcessEnv {
   const variables = new Set(["GIT_LITERAL_PATHSPECS", "GIT_GLOB_PATHSPECS", "GIT_NOGLOB_PATHSPECS", "GIT_ICASE_PATHSPECS"]);
@@ -68,9 +46,7 @@ function isLiteralOpenSshExecutable(executable: string): boolean {
  */
 export function environmentForGitCwd(cwd: string | undefined): NodeJS.ProcessEnv | undefined {
   if (cwd === undefined) return undefined;
-  return Object.fromEntries(
-    Object.entries(process.env).filter(([variable]) => !GIT_REPOSITORY_LOCAL_ENVIRONMENT.has(variable)),
-  );
+  return sanitizeGitRepositoryEnvironment(process.env);
 }
 
 function applyInteractionEnvironment(

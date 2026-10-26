@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { sanitizeGitRepositoryEnvironment } from "../../../src/lib/git/process-executor.js";
+import { environmentForGitCwd, sanitizeGitRepositoryEnvironment } from "../../../src/lib/git/process-executor.js";
 
 const selectors = [
   "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_CONFIG", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT",
@@ -28,5 +28,23 @@ describe("supplied Git child environment", () => {
     expect(sanitized).toEqual(retained);
     expect(supplied).toEqual({ ...retained, GIT_DIR: "/other" });
     expect(sanitized).not.toBe(supplied);
+  });
+});
+
+afterEach(() => { vi.unstubAllEnvs(); });
+
+describe("cwd Git child environment", () => {
+  it("removes portable selectors while retaining native no-cwd inheritance", () => {
+    vi.stubEnv("git_dir", "/other");
+    vi.stubEnv("GiT_WoRk_TrEe", "/other");
+    vi.stubEnv("ARC_REMOTE_CHECKS", "required");
+
+    const environment = environmentForGitCwd("/intended");
+
+    expect(environment?.git_dir).toBeUndefined();
+    expect(environment?.GiT_WoRk_TrEe).toBeUndefined();
+    expect(environment?.ARC_REMOTE_CHECKS).toBe("required");
+    expect(environmentForGitCwd(undefined)).toBeUndefined();
+    expect(process.env.git_dir).toBe("/other");
   });
 });

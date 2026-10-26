@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { sanitizeGitRepositoryEnvironment } from "./git/repository-environment.mjs";
 
 import type {
   CanonicalChange,
@@ -17,28 +18,8 @@ import type { RawGitExec, RawGitResult } from "./git/exec.js";
 export type { CanonicalChange, ChangePathFact, ChangePathSet, ChangeSet };
 export type ChangeStatus = ChangePathFact["status"];
 
-const GIT_REPOSITORY_LOCAL_ENVIRONMENT = new Set<string>([
-  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-  "GIT_CONFIG",
-  "GIT_CONFIG_PARAMETERS",
-  "GIT_CONFIG_COUNT",
-  "GIT_OBJECT_DIRECTORY",
-  "GIT_DIR",
-  "GIT_WORK_TREE",
-  "GIT_IMPLICIT_WORK_TREE",
-  "GIT_GRAFT_FILE",
-  "GIT_INDEX_FILE",
-  "GIT_NO_REPLACE_OBJECTS",
-  "GIT_REPLACE_REF_BASE",
-  "GIT_PREFIX",
-  "GIT_SHALLOW_FILE",
-  "GIT_COMMON_DIR",
-]);
-
 function environmentForRawGit(): NodeJS.ProcessEnv {
-  return Object.fromEntries(
-    Object.entries(process.env).filter(([variable]) => !GIT_REPOSITORY_LOCAL_ENVIRONMENT.has(variable)),
-  );
+  return sanitizeGitRepositoryEnvironment(process.env);
 }
 
 /** Stable union of every affected path, including both move and copy endpoints. */

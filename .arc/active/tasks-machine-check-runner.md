@@ -14,24 +14,21 @@ _Mode:_ `slice` — closes on native commands, runtime probes and CI playback sh
 _Exit criterion:_ A declared value/file check runs natively and in CI with frozen bytes and presence semantics; reserved
 selectors refuse with a successful repaired retry, while ordinary native checks retain their behavior.
 
-### `[ ]` **1.1 Share the native repository-local Git environment authority — D2, D8**
+### `[x]` **1.1 Share the native repository-local Git environment authority — D2, D8**
 
 - _Goal:_ Native children and portable declaration validation use one complete repository-selector policy, while
   engine-owned checked-index execution still selects its intended index.
-
-- _Note:_ See `notes-machine-check-runner.md` § Native integration constraints for existing raw-Git callers.
 
     - `[x]` **1.1.a Expose a reusable supplied-environment sanitizer**
         - Exported the shared readonly selector set and `sanitizeGitRepositoryEnvironment` from
           `src/lib/git/process-executor.ts`. Supplied environments lose all fifteen selectors and case variants without
           mutation; unrelated ambient, Git and adapter control variables remain available.
 
-    - `[ ]` **1.1.b Preserve native child and checked-index composition**
-        - Trace Git executor/importer callers and `checkEnvironment` in `src/lib/checks/process.ts`; apply intentional
-          `GIT_INDEX_FILE` only after sanitization and retain each caller's removal/interactive policy.
-        - Build `test-first` (one behavior at a time):
-            - Commands and runtime probes ignore conflicting second-repository selectors.
-            - Native staged/index-certifying checks still read the selected index, including linked worktrees.
+    - `[x]` **1.1.b Preserve native child and checked-index composition**
+        - Native cwd and raw-Git execution share the dependency-free selector sanitizer, re-exported by
+          `process-executor.ts`. Command and raw-output probe environments retain their policies; linked staged and
+          worktree requests keep their selected temporary index after ambient selector removal. Indexed Markdown
+          checker alignment follows native ESM dependencies through the same byte-matching boundary.
 
 ### `[ ]` **1.2 Validate runner eligibility and explicit environment declarations — D1, D2**
 

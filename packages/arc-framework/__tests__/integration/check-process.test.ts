@@ -84,3 +84,17 @@ it.each([
   expect(result.exitCode).toBe(exit);
   expect(result).not.toHaveProperty("notRunReason");
 });
+
+it.each([false, true])("scopes command and raw-output probe environments, rawStdout=%s", async rawStdout => {
+  vi.stubEnv("GIT_DIR", "/other");
+  vi.stubEnv("git_dir", "/other");
+  vi.stubEnv("GiT_WoRk_TrEe", "/other");
+  vi.stubEnv("ARC_REMOTE_CHECKS", "required");
+  const result = await runCheckProcess([process.execPath, "-e",
+    "process.stdout.write(JSON.stringify({selectors:Object.keys(process.env).filter(k=>['GIT_DIR','GIT_WORK_TREE'].includes(k.toUpperCase())),control:process.env.ARC_REMOTE_CHECKS})+'\\n')"],
+  await checkout(), undefined, { rawStdout });
+
+  expect(result).toMatchObject({ started: true, exitCode: 0 });
+  expect(JSON.parse(result.stdout)).toEqual({ selectors: [], control: "required" });
+  expect(result.stdout.endsWith("\n")).toBe(rawStdout);
+});

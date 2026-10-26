@@ -39,6 +39,22 @@ describe("staged Markdown gate", () => {
 });
 
 describe("staged Markdown checker alignment", () => {
+  it.each([false, true])("checks native ESM dependencies against indexed bytes, mismatch=%s", async mismatch => {
+    const entry = "packages/arc-framework/src/scripts/checker.ts";
+    const dependency = "packages/arc-framework/src/lib/helper.mjs";
+    const entryBytes = Buffer.from('import { value } from "../lib/helper.mjs";\nconsole.log(value);\n');
+    const dependencyBytes = Buffer.from("export const value = 1;\n");
+    const source = new Map([[entry, entryBytes], [dependency, dependencyBytes]]);
+    const options = { root: "/repo", entryPaths: [entry], readBlob: async (_root: string, path: string) => source.get(path) ?? null };
+
+    await expect(resolveIndexedMarkdownCheckerPaths(options)).resolves.toEqual([entry, dependency]);
+    const result = assertIndexedMarkdownCheckerAlignment({ ...options,
+      readFile: async path => path === `/repo/${entry}` ? entryBytes
+        : mismatch ? Buffer.from("export const value = 2;\n") : dependencyBytes });
+    if (mismatch) await expect(result).rejects.toThrow(`Indexed Markdown checker differs from executing worktree bytes: ${dependency}`);
+    else await expect(result).resolves.toBeUndefined();
+  });
+
   it.each(["mismatch", "missing", "read-failure"])("refuses fresh bulk alignment failures (%s)", async failure => {
     const path = "packages/arc-framework/src/checker.ts";
     const original = Buffer.from("export const value = 1;\n");
