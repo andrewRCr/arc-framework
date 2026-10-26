@@ -107,6 +107,42 @@ describe("automatic designation project check", () => {
   }, 10_000);
 
 
+  it.each((["automatic", "setting"] as const).flatMap(entry => (["initial", "post-fetch"] as const).map(phase => ({ entry, phase }))))(
+    "bounds the $entry designation's $phase reads by the same deadline", async ({ entry, phase }) => {
+    const h = await refSyncFixture(), clock = createRefClock(new Date(0), 0);
+    await putIdentity(h.a.store, localId);
+    await h.a.git(["push", "origin", "refs/arc/*:refs/arc/*"]);
+    await putIdentity(h.b.store, localId);
+    await h.b.exec("git", ["config", "--unset", "remote.origin.arc-state"]);
+    let afterFetch = false, armed = true, interrupted = false;
+    const ports = { ...h.b.ports, ...clock,
+      exec: async (...args: Parameters<typeof h.b.ports.exec>) => {
+        const result = await h.b.ports.exec(...args);
+        if (args[1].includes("fetch")) afterFetch = true;
+        return result;
+      },
+      rawExec: async (...args: Parameters<typeof h.b.ports.rawExec>) => {
+        if (armed && args[1]?.signal && args[0].includes("cat-file") && (phase === "initial" ? !afterFetch : afterFetch)) {
+          armed = false; interrupted = true; clock.advance(120_000);
+        }
+        return h.b.ports.rawExec(...args);
+      },
+    };
+    const store = createRefStore(ports);
+    const invoke = async () => entry === "automatic" ? store.pull()
+      : (await invokeStoreRemote(["origin", "push"], { cwd: h.b.root, ports })).result;
+    const result = await invoke();
+    expect(interrupted).toBe(true);
+    if (entry === "automatic") expect(result).toMatchObject({ status: "ok", result: { states: [], pulls: [expect.objectContaining({
+      role: "candidate", status: "failed", failure: expect.objectContaining({ code: "unreachable", cause: "timeout" }),
+    })] } });
+    else expect(result).toMatchObject({ status: "refused", refusal: { code: "store", refusal: { code: "unreachable", cause: "timeout" } } });
+    expect((await h.b.exec("git", ["config", "--list"])).stdout).not.toContain("remote.origin.arc-state");
+    expect((await h.b.git(["for-each-ref", "--format=%(refname)", "refs/arc/tmp/designate/"])).stdout).toBe("");
+    expect((await invoke()).status).toBe("ok");
+    expect((await h.b.exec("git", ["config", "remote.origin.arc-state"])).stdout.trim()).toBe("push");
+  });
+
   it("refuses a native per-ref fetch rejection and succeeds after its lock is removed", async () => {
     const h = await refSyncFixture();
     await putIdentity(h.a.store, localId);

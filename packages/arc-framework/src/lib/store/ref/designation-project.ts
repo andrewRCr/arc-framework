@@ -8,7 +8,6 @@ import type { PullOutcome } from "../sync.js";
 import type { Remedy, StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
-import { bindRefRepository } from "./repository-context.js";
 import { readRefRepository } from "./repository.js";
 import { refFetchArgs, refFetchTarget, refFetchNegotiation } from "./fetch-target.js";
 import { readBatchObjects } from "./batch-read.js";
@@ -16,6 +15,7 @@ import { projectIdentityQueries, projectOwnerFromObjects } from "./project-ident
 import { refFetchNeedsCompleteness, missingRefFetchObjects, RefFetchIncompleteError } from "./fetch-completeness.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { readForwardingRecord } from "./forwarding-record.js";
+import { refSyncCleanupContext, refSyncDeadlineExpired } from "./sync-deadline.js";
 import type { StoreCommandRefusal } from "../commands.js";
 
 type ProjectFailure = Extract<PullOutcome, { status: "failed" }>["failure"];
@@ -28,15 +28,13 @@ export type RefDesignationProjectCheck = { status: "ok" }
 /** Inspect an isolated candidate registry only when this store already owns a project ID. */
 export async function checkRefDesignationProject(context: RefBackendContext, remote: RefRemoteDesignation,
   designation: RefDesignation): Promise<RefDesignationProjectCheck> {
-  context = await readRefRepository(context);
-  const local = await projectIdAt(context, "refs/arc/project/registry");
-  if (local.status === "refused") return projectReadFailure(local.refusal.condition, local.refusal.remedy);
-  if (!local.result) return { status: "ok" };
-  const original = context.syncDeadline?.cleanup ?? context;
-  const cleanup = context.repository ? bindRefRepository(original, context.repository.commonDir, context.repository.gitDir) : original;
   const prefix = `refs/arc/tmp/designate/${remote.name}/`;
   const observed = new Map<string, string>();
   try {
+    context = await readRefRepository(context);
+    const local = await projectIdAt(context, "refs/arc/project/registry");
+    if (local.status === "refused") return projectReadFailure(local.refusal.condition, local.refusal.remedy);
+    if (!local.result) return { status: "ok" };
     const cleared = await clearProjectCheck(context, prefix);
     if (cleared) return cleared;
     const fetched = await fetchProjectCheck(context, remote, designation, prefix, observed);
@@ -50,7 +48,13 @@ export async function checkRefDesignationProject(context: RefBackendContext, rem
     if (forwarding.result) return { status: "control-refused", refusal: { code: "moved", class: "recoverable",
       condition: `State moved from remote ${remote.name}.`, remedy: { text: `Bring in the tracked pointer's change and run arc store migrate to follow. If this clone does not fetch ${remote.name}, first run arc store remote ${remote.name} read. To move state back, run arc store migrate --to ${remote.name} from its current home.` } } };
     return { status: "ok" };
+  } catch (error) {
+    if (!isGitProcessError(error) || error.kind !== "canceled" || !refSyncDeadlineExpired(context)) throw error;
+    return { status: "failed", failure: { code: "unreachable", class: "recoverable", cause: "timeout",
+      condition: [error.message, error.diagnosticStderr || error.stderr].filter(Boolean).join("\n"),
+      remedy: { text: `Retry the designation after the candidate check times out; no role was set on ${remote.name}.` } } };
   } finally {
+    const cleanup = refSyncCleanupContext(context);
     // Cleanup cannot replace the candidate decision; the next entry clears any retained temporary tips.
     for (const [ref, expected] of observed) {
       await updateRefTransaction(cleanup, [{ ref, delete: true, expected }], { cwd: cleanup.checkoutRoot }).catch(() => undefined);
