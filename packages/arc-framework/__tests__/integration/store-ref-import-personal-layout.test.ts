@@ -29,6 +29,17 @@ async function meta(h: Awaited<ReturnType<typeof importFixture>>, name: string, 
   await h.git("git", ["update-ref", "refs/heads/feat/alpha", head]);
 }
 
+it("imports a disk-only prototype-named personal file without changing its bytes", async () => {
+  const h = await importFixture();
+  const content = "A personal filename is literal.\n";
+  await put(h.root, "__proto__", content);
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  const store = createRefStore(h.ports);
+  const target = RecordReferenceSchema.parse({ kind: "personal/document", owner: { type: "person", name: "andrew" },
+    key: "scratch/__proto__" });
+  expect(success(await store.read({ reference: target })).content).toBe(content);
+}, 40_000);
+
 it("folds the owner's live session prose through the meta writer and retires obsolete handoff fields", async () => {
   const h = await importFixture();
   await meta(h, "alpha", makeMetaFixture("alpha", { owner: "andrew", branch: "feat/alpha", nextTask: "Task 1.1", lastCompleted: "Task 1.0", blockers: "Wait for the dependency." }));
