@@ -1,6 +1,6 @@
 /** Resolve checkout and common Git directories without starting a Git process. */
 
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
 
 /** Files needed to follow Git's directory markers. */
 export interface GitDirectoryFileAccess {
@@ -27,7 +27,21 @@ async function readMarkedGitDir(marker: string, fs: GitDirectoryFileAccess): Pro
   }
   const match = /^gitdir:\s*(.+)$/u.exec(content.trim());
   if (!match?.[1]) throw new Error(`Invalid Git directory marker ${marker}; repair it to contain gitdir: <path>`);
-  return resolve(dirname(marker), match[1]);
+  return resolveMarkerPath(dirname(marker), match[1], fs);
+}
+
+/** Preserve physical parent traversal before path normalization can erase a symlink component. */
+async function resolveMarkerPath(base: string, value: string, fs: GitDirectoryFileAccess): Promise<string> {
+  const root = isAbsolute(value) ? parse(value).root : "";
+  let coordinate = root || base;
+  let components: string[] = [];
+  for (const component of value.slice(root.length).split(sep === "\\" ? /[\\/]+/u : /\/+/u)) {
+    if (component === "..") {
+      coordinate = dirname(await fs.realpath(resolve(coordinate, ...components)));
+      components = [];
+    } else components.push(component);
+  }
+  return resolve(coordinate, ...components);
 }
 
 /** Follow a checkout's .git marker and its optional commondir marker. */
@@ -41,5 +55,5 @@ export async function readGitDirectories(checkoutRoot: string, fs: GitDirectoryF
     if (!hasCode(error, "ENOENT")) throw error;
     return { gitDir, commonDir: gitDir };
   }
-  return { gitDir, commonDir: resolve(await fs.realpath(gitDir), common) };
+  return { gitDir, commonDir: await resolveMarkerPath(await fs.realpath(gitDir), common, fs) };
 }

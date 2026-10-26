@@ -16,6 +16,35 @@ afterEach(async () => {
 });
 
 describe("Git directory marker compatibility", () => {
+  it.skipIf(process.platform === "win32").each(["gitfile", "commondir"])(
+    "interprets a symlink-parent pair inside the %s marker as Git does", async kind => {
+      const root = await mkdtemp(join(tmpdir(), "arc-git-marker-"));
+      roots.push(root);
+      const exec = makeGitExec(root), common = join(root, "physical", "common.git"), checkout = join(root, "checkout");
+      await mkdir(join(root, "physical"));
+      await exec("git", ["init", "--bare", common]);
+      await exec("git", [`--git-dir=${common}`, "config", "arc.marker-witness", "physical-common"]);
+      await mkdir(checkout);
+      if (kind === "gitfile") {
+        const child = join(root, "physical", "child");
+        await mkdir(child);
+        await symlink(child, join(root, "bridge"), "dir");
+        await writeFile(join(checkout, ".git"), "gitdir: ../bridge/../common.git\n");
+      } else {
+        const privateDir = join(root, "private");
+        await mkdir(privateDir);
+        await mkdir(join(common, "child"));
+        await symlink(join(common, "child"), join(privateDir, "bridge"), "dir");
+        await writeFile(join(privateDir, "HEAD"), "ref: refs/heads/main\n");
+        await writeFile(join(privateDir, "commondir"), "bridge/..\n");
+        await writeFile(join(checkout, ".git"), "gitdir: ../private\n");
+      }
+      expect((await exec("git", ["-C", checkout, "config", "arc.marker-witness"])).stdout.trim()).toBe("physical-common");
+      expect((await readGitDirectories(checkout, files)).commonDir).toBe(await resolveGitCommonDir(exec, checkout));
+      expect((await readGitDirectories(checkout, files)).commonDir).toBe(common);
+    }, 10_000,
+  );
+
   it.skipIf(process.platform === "win32").each(["directory", "gitfile"])(
     "resolves relative commondir through a symlinked %s against Git", async markerKind => {
       const root = await mkdtemp(join(tmpdir(), "arc-git-dir-"));
