@@ -1,8 +1,8 @@
 # Metadata: distributed-check-shards
 
-| **State**  | **Owner** | **Branch**                      | **Class** | **Priority** |
-| ---------- | --------- | ------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/distributed-check-shards` | `Heavy`   | `P3`         |
+| **State** | **Owner** | **Branch**                      | **Class** | **Priority** |
+| --------- | --------- | ------------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/distributed-check-shards` | `Heavy`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** `machine-check-runner`
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-distributed-check-shards.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Task 1.1.a — Compose canonical batch/shard coordinates and invocation records (line ~25)
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Wait for machine-check-runner to land; then re-ground its qualified exports and begin Task 1.1.a.
 
 - **PR URL:** [none]
 - **Completed:** [none]
