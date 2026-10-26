@@ -9,7 +9,7 @@ import { readRefRepository } from "./repository.js";
 import { publisherLayout } from "./layout-state.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { fetchLayoutObjects } from "./migrate-layout-build.js";
-import { copyRemoteMove, clearRemoteGathering, clearUnrecordedGathering, remoteCopyReport, readRemoteCopyReport, type RemoteCopy } from "./migrate-remote-copy.js";
+import { copyRemoteMove, clearRemoteGathering, clearUnrecordedGathering, remoteCopyReport, type RemoteCopy } from "./migrate-remote-copy.js";
 import { deleteRemoteSource } from "./migrate-remote-delete.js";
 import { forwardRemoteMove } from "./migrate-remote-forward.js";
 import { switchRemoteMove, remoteSwitchComplete, remoteSwitchUndo } from "./migrate-remote-switch.js";
@@ -17,6 +17,7 @@ import { switchBegun, undoSwitch } from "./migrate-switch-undo.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { describeEndedRemoteMove, endRemoteMove, type EndedSwitch } from "./migrate-remote-end.js";
 import { FORWARDING_REF } from "./forwarding-record.js";
+import { appendCleanupReport } from "./migrate-cleanup-report.js";
 
 /** Copy under the caller's move lock and retain the exact record until forwarding and switching finish. */
 export async function moveRefRemote(context: RefBackendContext, store: Store, to?: string, trial = false, resume?: RecordedRemote): Promise<StoreMigrateResult> {
@@ -37,7 +38,7 @@ async function performRemoteMove(context: RefBackendContext, code: RefBackendCon
   const local = await readSyncRefs(physical, "refs/arc/project/registry");
   await fetchLayoutObjects(code, physical.repository?.gitDir ?? physical.repository?.commonDir ?? "", local);
   const active = resume;
-  if (!trial && active && await remoteSwitchComplete(context, active)) return finishRemoteMove(code, active, await readRemoteCopyReport(code));
+  if (!trial && active && await remoteSwitchComplete(context, active)) return finishRemoteMove(code, active);
   return runRemoteMoveRounds(context, code, store, transports, local, trial, active);
 }
 
@@ -67,7 +68,7 @@ async function settleRemoteRound(context: RefBackendContext, code: RefBackendCon
   }
   if (await forwardRemoteMove(code, copied) === "restart") return { recorded };
   await switchRemoteMove(context, store, recorded);
-  return finishRemoteMove(code, recorded, copied.report);
+  return finishRemoteMove(code, recorded);
 }
 
 async function remoteMoveTrial(context: RefBackendContext, code: RefBackendContext, copy: RemoteCopy, recorded: boolean): Promise<StoreMigrateResult> {
@@ -118,11 +119,15 @@ function pointerFollowNotice(): { condition: string } {
 
 function trialRemoteReport(copy: RemoteCopy): MigrateReport {
   const source = new Map([...copy.source].filter(([ref]) => ref !== FORWARDING_REF));
-  const deletes = remoteCopyReport(source, new Map(), []).refs.map(row => ({ ...row, action: "delete" as const }));
-  return { ...copy.report, refs: [...copy.report.refs, ...deletes], notices: [...copy.report.notices, pointerFollowNotice()] };
+  const cleanup: MigrateReport["refs"] = remoteCopyReport(source, new Map(), []).refs.map(row => ({ ...row, action: "delete" }));
+  // Forwarding versions the source registry independently, so cleanup merges it into the destination's move version.
+  if (source.has("refs/arc/project/registry")) cleanup.unshift({ ref: "refs/arc/project/registry", scope: "project", action: "merge" });
+  const report = { ...copy.report, refs: [...copy.report.refs], notices: [...copy.report.notices, pointerFollowNotice()] };
+  appendCleanupReport(report, { refs: cleanup, notices: [] });
+  return report;
 }
 
-async function finishRemoteMove(code: RefBackendContext, recorded: RecordedRemote, copied: MigrateReport): Promise<StoreMigrateResult> {
+async function finishRemoteMove(code: RefBackendContext, recorded: RecordedRemote): Promise<StoreMigrateResult> {
   const deleted = await deleteRemoteSource(code, recorded);
-  return { status: "ok", result: { ...copied, refs: [...copied.refs, ...deleted.refs], notices: [...copied.notices, ...deleted.notices, pointerFollowNotice()] } };
+  return { status: "ok", result: { ...deleted, notices: [...deleted.notices, pointerFollowNotice()] } };
 }

@@ -1,4 +1,5 @@
 /** Clear a followed source in freshly licensed rounds after the explicit designation switch. */
+import { appendCleanupReport, retainCleanupDeleteBasis, settleCleanupDeletes } from "./migrate-cleanup-report.js";
 import type { MigrateReport } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import type { RecordedFollow } from "./migrate-record.js";
@@ -24,17 +25,19 @@ export async function deleteFollowSource(code: RefBackendContext, recorded: Reco
       await requireFollowDestination(code, recorded.record, destination);
       await code.migrateStep?.("follow.list-source");
       const source = await fetchMigrationRemote(code, recorded.record.source, true);
+      await settleCleanupDeletes(code, source, report);
       if (source.get(FORWARDING_REF) !== recorded.record.forwardingTip) {
         await retainChangedSourceFollow(code, recorded, { source, destination }, report); return;
       }
       const ordinary = new Map([...source].filter(([ref]) => ref !== FORWARDING_REF));
       if (!ordinary.size) return;
       if (!await recopyFollowRound(code, recorded, ordinary, destination, report)) continue;
+      await retainCleanupDeleteBasis(code, ordinary);
       await code.migrateStep?.("follow.delete");
       const deletes = [...ordinary].map(([ref, expected]) => ({ ref, next: null, expected }));
       const deleted = await atomicMigrationPush(code, recorded.record.source.pushUrl, deletes);
       if (!await migrationPushLanded(code, recorded.record.source.pushUrl, deletes, deleted)) continue;
-      report.refs.push(...remoteCopyReport(ordinary, new Map(), []).refs.map(row => ({ ...row, action: "delete" as const })));
+      await settleCleanupDeletes(code, new Map(), report);
       await code.migrateStep?.("follow.deleted");
     }
   } catch (error) { throw followCleanupFailure(error); }
@@ -57,8 +60,9 @@ async function recopyFollowRound(code: RefBackendContext, recorded: RecordedFoll
     const copied = await atomicMigrationPush(code, recorded.record.destination.pushUrl, changes);
     if (!await migrationPushLanded(code, recorded.record.destination.pushUrl, changes, copied)) return false;
   }
-  await retainRemoteCopiedState(code, ordinary);
-  report.notices.push(...prepared.notices);
+  appendCleanupReport(report, { refs: remoteCopyReport(new Map(changes.flatMap(row => row.next ? [[row.ref, row.next] as const] : [])),
+    destination, []).refs.filter(row => changes.some(change => change.ref === row.ref)), notices: prepared.notices });
+  await retainRemoteCopiedState(code, ordinary, report);
   await code.migrateStep?.("follow.recopied");
   return true;
 }

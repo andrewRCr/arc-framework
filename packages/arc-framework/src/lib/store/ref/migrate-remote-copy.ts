@@ -309,9 +309,11 @@ async function saveRemoteCopyRecord(code: RefBackendContext, record: RemoteMoveR
 }
 
 /** Advance the delete basis only after its re-copy landed, preserving switch heads and deleted controls. */
-export async function retainRemoteCopiedState(code: RefBackendContext, source: ReadonlyMap<string, string>): Promise<void> {
+export async function retainRemoteCopiedState(code: RefBackendContext, source: ReadonlyMap<string, string>, report: MigrateReport): Promise<void> {
   const root = copiedRoot + "state/", prior = await readSyncRefs(code, root);
+  const reportRef = copiedRoot + "report", expectedReport = (await readSyncRefs(code, reportRef)).get(reportRef) ?? null;
+  const reportTip = await writeRefBlob(code, JSON.stringify(MigrateReportSchema.parse(report)));
   const next = new Map([...source].filter(([ref]) => ref !== FORWARDING_REF).map(([ref, tip]) => [root + ref.slice("refs/arc/".length), tip]));
-  await requireLayoutTransaction(code, [...[...next].map(([ref, next]) => ({ ref, next, expected: prior.get(ref) ?? null })),
+  await requireLayoutTransaction(code, [{ ref: reportRef, next: reportTip, expected: expectedReport }, ...[...next].map(([ref, next]) => ({ ref, next, expected: prior.get(ref) ?? null })),
     ...[...prior].filter(([ref]) => !next.has(ref)).map(([ref, expected]) => ({ ref, expected, delete: true as const }))]);
 }
