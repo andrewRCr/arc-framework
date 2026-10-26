@@ -248,7 +248,7 @@ describe("Git descendant cancellation", () => {
 });
 
 describe("Git cancellation after direct-child exit", () => {
-  it.skipIf(process.platform === "win32").each(["plain", "stdin", "raw"])("ends a canceled %s call while an orphan still holds its output pipes", async variant => {
+  it.skipIf(process.platform === "win32").each(["plain", "stdin", "raw", "native raw"])("ends a canceled %s call while an orphan still holds its output pipes", async variant => {
     const root = await repository();
     const ready = join(root, "pipe-holder-ready"), release = join(root, "release-git");
     await writeFile(join(root, "pipe-holder.cjs"), [

@@ -269,7 +269,12 @@ export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
         stdio: ["pipe", "pipe", "pipe"],
       });
       let canceled = false;
-      const dispose = cancellation?.bindGitProcessCancellation(child, options?.signal, () => { canceled = true; }) ?? (() => undefined);
+      let descendantsUnconfirmed = false;
+      const dispose = cancellation?.bindGitProcessCancellation(child, options?.signal, () => { canceled = true; }, unconfirmed => {
+        descendantsUnconfirmed = unconfirmed;
+        child.stdout.destroy();
+        child.stderr.destroy();
+      }) ?? (() => undefined);
       const stdout: Buffer[] = [];
       const stderr: Buffer[] = [];
 
@@ -284,10 +289,8 @@ export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
         const stdoutBytes = Buffer.concat(stdout);
         const stderrBytes = Buffer.concat(stderr);
         if (canceled && failures !== undefined) {
-          reject(failures.normalizeGitRejection(
-            { isCanceled: true, stdout: stdoutBytes, stderr: stderrBytes },
-            { command: "git", args: effectiveArgs },
-          ));
+          reject(new failures.GitProcessError({ command: "git", args: effectiveArgs, kind: "canceled", isCanceled: true,
+            stdout: stdoutBytes.toString("utf8"), stderr: stderrBytes.toString("utf8"), descendantsUnconfirmed }));
           return;
         }
         if (code === 0) {
