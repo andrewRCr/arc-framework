@@ -9,7 +9,8 @@ import { ArchiveCommandInputSchema } from "../../src/handlers/lifecycle.js";
 import { scanCommanderSource } from "../../src/lib/command-input/source-scanner.js";
 import { runArchive, type ArchiveResult } from "../../src/lib/work-unit/verbs/archive.js";
 import type { ExecuteTransitionContext } from "../../src/lib/work-unit/lifecycle-executor.js";
-import { createRefStore, RecordReferenceSchema, type Store } from "../../src/lib/store/index.js";
+import { createRefStore, RecordReferenceSchema, runStoreMigrate, runStoreRemote, type Store } from "../../src/lib/store/index.js";
+import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { renderMetaFile } from "../../src/lib/store/kinds/meta/writers.js";
 
 const identity = RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } });
@@ -64,4 +65,45 @@ it.each(["project-check", "automatic-timeout"] as const)("keeps completion pendi
   expect(await archive(store, h.b.root)).toMatchObject({ status: "archived", destination: { sequence: "01" } });
   expect(success(await store.read({ reference: made.reference })).version).toBe(completed.version);
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/archive/2026-q4"])).stdout.trim()).toBe("refs/arc/archive/2026-q4");
+}, 30_000);
+
+it.each(["primary", "cohort-closeout"] as const)("completes local-only %s beside unfinished layout cleanup", async stage => {
+  const h = await refSyncFixture();
+  success(await h.a.store.write({ action: "put", reference: identity, expected: null, content: JSON.stringify({ projectId: project }), provenance }));
+  const group = success(await h.a.store.write({ action: "put", expected: null, provenance,
+    reference: RecordReferenceSchema.parse({ kind: "cohort/document", owner: { type: "cohort", name: "group" } }),
+    content: "# Cohort: group\n\n**Purpose:** Complete the local work.\n" }));
+  const seed = (name: string) => h.a.store.write({ action: "put", expected: null, placement: { kind: "active" }, provenance,
+    reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name } }),
+    content: renderMetaFile(name, { state: "Active", owner: "andrew", workClass: "Light", currentWorkflow: "process-task-loop", cohort: "group" }) });
+  const made = success(await seed("example"));
+  if (stage === "cohort-closeout") {
+    const sibling = success(await seed("sibling"));
+    expect(await archive(h.a.store, h.a.root)).toMatchObject({ status: "archived" });
+    expect(success(await h.a.store.read({ reference: group.reference })).placement?.kind).not.toBe("completed");
+    const current = success(await h.a.store.read({ reference: sibling.reference }));
+    success(await h.a.store.write({ action: "put", reference: current.reference, expected: current.version, provenance,
+      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+      content: renderMetaFile("sibling", { state: "Shipped", owner: "andrew", workClass: "Light", cohort: "group" }) }));
+  }
+  const remoteBefore = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
+  await expect(runStoreRemote({ ...h.a.ports, migrateStep: async step => {
+    if (step === "layout.delete") throw new Error("Paused source cleanup");
+  } }, { remote: "origin", role: "off" })).rejects.toThrow("Paused source cleanup");
+  const pushed = success(await h.a.store.push());
+  expect(pushed.states).toEqual(expect.arrayContaining([{ status: "no-remote" }, expect.objectContaining({ status: "move-unfinished" })]));
+  expect(pushed.publishes).toEqual([]);
+  expect(await archive(h.a.store, h.a.root)).toMatchObject({ status: "archived", cohortSwept: expect.stringContaining("cohort-group") });
+  const completed = success(await h.a.store.read({ reference: made.reference }));
+  const closed = success(await h.a.store.read({ reference: group.reference }));
+  expect(completed.placement).toMatchObject({ kind: "completed", sequence: "01" });
+  expect(closed.placement).toMatchObject({ kind: "completed", sequence: stage === "primary" ? "01" : "03", closeout: "a" });
+  expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/move"])).stdout.trim()).toBe("refs/arc/tmp/migrate/move");
+  expect(await archive(h.a.store, h.a.root)).toMatchObject({ status: "archived" });
+  expect(success(await h.a.store.read({ reference: made.reference })).version).toBe(completed.version);
+  expect(success(await h.a.store.read({ reference: group.reference })).version).toBe(closed.version);
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(remoteBefore);
+  expect(await runStoreMigrate(h.a.ports)).toMatchObject({ status: "ok" });
+  expect(await archive(h.a.store, h.a.root)).toMatchObject({ status: "archived" });
+  expect(success(await h.a.store.read({ reference: made.reference })).version).toBe(completed.version);
 }, 30_000);

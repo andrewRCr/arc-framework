@@ -122,11 +122,17 @@ function archivePublicationHold(name: string, result: PushResult): Extract<Archi
   if (state?.status === "no-identity") return persistedFailure(name, "Archive publication lacks its required identity.", state.remedy);
   for (const stopped of result.states) {
     if (stopped.status === "no-remote" || stopped.status === "no-identity") continue;
-    if (stopped.status === "move-unfinished" && result.publishes.some(publication => archiveFamilies(publication.families))) continue;
+    if (stopped.status === "move-unfinished" && allowsArchiveCleanupAdvisory(result)) continue;
     return persistedFailure(name, "condition" in stopped ? stopped.condition
       : "Archive publication requires the reported remote setting to be repaired.", stopped.remedy);
   }
   return undefined;
+}
+
+/** Cleanup is advisory when no remote is used or archive publication is reported separately. */
+function allowsArchiveCleanupAdvisory(result: PushResult): boolean {
+  return result.states.some(state => state.status === "no-remote")
+    || result.publishes.some(publication => archiveFamilies(publication.families));
 }
 
 function persistedFailure(name: string, reason: string, remedy?: Remedy, refusal?: StoreRefusal): Extract<ArchiveResult, { status: "rejected" }> {
