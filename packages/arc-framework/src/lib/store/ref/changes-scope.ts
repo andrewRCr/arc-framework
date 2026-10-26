@@ -17,8 +17,8 @@ export async function resolveChangeRestrictions(context: RefBackendContext, inte
   const references: RecordReference[] = [];
   for (const reference of requested) {
     if (reference.kind.startsWith("lineage/")) { references.push(reference); continue; }
-    let found = await resolveRefName(context, reference, interval.after);
-    if (found.status === "refused" && found.refusal.code === "not-found") found = await resolveRefName(context, reference, interval.before);
+    let found = await resolveRefName(context, reference, interval.after, false, true);
+    if (found.status === "refused" && found.refusal.code === "not-found") found = await resolveRefName(context, reference, interval.before, false, true);
     if (found.status === "refused") return found;
     references.push(found.result);
   }

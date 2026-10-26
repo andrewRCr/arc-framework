@@ -28,49 +28,49 @@ export async function readLookupTrees(context: RefBackendContext, identity: stri
 
 /** Resolve exactly the supplied tips without taking a second live namespace snapshot. */
 export async function readCapturedLookupTrees(context: RefBackendContext, all: ReadonlyMap<string, string>,
-  identity: string | null = null, revalidate = false): Promise<StoreResult<RefLookupCapture>> {
+  identity: string | null = null, revalidate = false, saved = false): Promise<StoreResult<RefLookupCapture>> {
   const tips = new Map([...all].filter(([ref]) => matchesFamilyRef(ref, "work-item") || matchesFamilyRef(ref, "cohort")
     || isArchiveRef(ref) || ref === "refs/arc/project/registry" || identity !== null && ref === `refs/arc/user/${identity}/claims`));
-  const signature = JSON.stringify([identity, [...tips].sort(([left], [right]) => left.localeCompare(right))]);
+  const signature = JSON.stringify([identity, saved, [...tips].sort(([left], [right]) => left.localeCompare(right))]);
   const prior = cache.get(context.checkoutRoot);
   if (prior?.signature === signature) {
     const acquisition = prior.capture.acquisition;
     if (!revalidate || !acquisition) return { status: "ok", result: prior.capture };
     const fresh = await revalidateLookupAcquisition(context, acquisition);
     if (fresh.unchanged) return { status: "ok", result: prior.capture };
-    return { status: "ok", result: decodeLookupCapture(context, tips, fresh.entries, fresh.objects, acquisition) };
+    return { status: "ok", result: decodeLookupCapture(context, tips, fresh.entries, fresh.objects, acquisition, saved) };
   }
-  const captured = await captureLookupTrees(context, tips);
+  const captured = await captureLookupTrees(context, tips, saved);
   if (captured.status === "ok" && captured.result.unreadable.size === 0) cache.set(context.checkoutRoot, { signature, capture: captured.result });
   return captured;
 }
 
-async function captureLookupTrees(context: RefBackendContext, tips: ReadonlyMap<string, string>): Promise<StoreResult<RefLookupCapture>> {
+async function captureLookupTrees(context: RefBackendContext, tips: ReadonlyMap<string, string>, saved: boolean): Promise<StoreResult<RefLookupCapture>> {
   const directories = new Map<string, readonly string[]>();
   const captured = tips.size > 0 ? await readRefTrees(context, tips, undefined, directories) : new Map<string, RefTreeEntry[]>();
   const payloads = claimPayloadPatterns(context);
   const queries = [...new Set([...captured.values()].flatMap((entries) => entries.filter(({ path }) =>
     /(?:^|\/)metadata-[^/]+\.json$/u.test(path) || payloads.some((pattern) => pattern.test(path))).map(({ oid }) => oid)))];
   const objects = await readBatchObjects(context, queries);
-  return { status: "ok", result: decodeLookupCapture(context, tips, captured, objects, { tips, entries: captured, directories, objects: queries, values: objects }) };
+  return { status: "ok", result: decodeLookupCapture(context, tips, captured, objects, { tips, entries: captured, directories, objects: queries, values: objects }, saved) };
 }
 
 function decodeLookupCapture(context: RefBackendContext, tips: ReadonlyMap<string, string>, captured: ReadonlyMap<string, RefTreeEntry[]>,
-  objects: ReadonlyMap<string, BatchObject | null>, acquisition: RefLookupAcquisition): RefLookupCapture {
+  objects: ReadonlyMap<string, BatchObject | null>, acquisition: RefLookupAcquisition, saved: boolean): RefLookupCapture {
   const trees = new Map<string, RefLookupTree>();
   const unreadable = new Map<string, StoreRefusal>();
   for (const [ref] of tips) {
     const entries = captured.get(ref);
-    if (!entries) { unreadable.set(ref, corruptRef(ref, true)); continue; }
+    if (!entries) { unreadable.set(ref, corruptRef(ref, true, saved)); continue; }
     if (isArchiveRef(ref)) continue;
     const path = lookupMetadataPath(context, ref);
     if (entries.every(({ path: stored }) => stored === path)) continue;
     const entry = entries.find(({ path: stored }) => stored === path);
     const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : null, ref);
-    if (!metadata) { unreadable.set(ref, corruptRef(ref)); continue; }
+    if (!metadata) { unreadable.set(ref, corruptRef(ref, false, saved)); continue; }
     trees.set(ref, { entries, metadata, objects });
   }
-  appendArchivedLookupTrees(trees, archiveStateFromCapture(tips, captured, objects), unreadable);
+  appendArchivedLookupTrees(trees, archiveStateFromCapture(tips, captured, objects, saved), unreadable);
   return { trees, unreadable, acquisition };
 }
 
