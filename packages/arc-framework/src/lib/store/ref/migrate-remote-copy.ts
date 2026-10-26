@@ -4,7 +4,7 @@ import { remoteCopyReport, appendCleanupReport } from "./migrate-report.js";
 export { remoteCopyReport } from "./migrate-report.js";
 import { readRemoteCopyReport } from "./migrate-cleanup-report.js";
 export { readRemoteCopyReport } from "./migrate-cleanup-report.js";
-import { abandonCopyAttempt, beginCopyJournal, confirmCopyJournal, copyJournalKey, recoverCopyJournal, releaseCopyJournal, retainCopyAccount } from "./migrate-copy-journal.js";
+import { abandonCopyAttempt, beginCopyJournal, confirmCopyJournal, copyJournalKey, readCopyJournal, recoverCopyJournal, releaseCopyJournal, retainCopyAccount } from "./migrate-copy-journal.js";
 import type { Remedy } from "../refusal.js";
 import { RecordReferenceSchema } from "../identity.js";
 import { pushRefs, type PushOutcome, type PushRefChange } from "../../git/push.js";
@@ -304,7 +304,10 @@ export async function prepareRemoteGathering(code: RefBackendContext, includeDel
 export async function clearUnrecordedGathering(code: RefBackendContext): Promise<void> {
   try {
     const held = await readMoveRecord(code);
-    if (held.status === "ok" && held.result === null) await prepareRemoteGathering(code);
+    if (held.status === "ok" && held.result === null) {
+      if (await readCopyJournal(code)) await clearRemoteGathering(code);
+      else await prepareRemoteGathering(code);
+    }
   } catch { /* Retain unproven recovery evidence and let the caller preserve the original failure. */ }
 }
 
