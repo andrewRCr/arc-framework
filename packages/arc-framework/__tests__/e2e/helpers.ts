@@ -427,7 +427,7 @@ function normalizeAnchoredOutput(value: string): string {
 
 /** Join clack box continuations so assertions inspect logical values independent of terminal width. */
 export function unwrapPresentationOutput(value: string): string {
-  return value.replace(/\s*│\n│\s*/gu, "");
+  return value.replace(/\s*│\r?\n│\s*/gu, "");
 }
 
 function parseJsonLines(value: string): unknown[] {
