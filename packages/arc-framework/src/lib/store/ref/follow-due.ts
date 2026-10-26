@@ -8,6 +8,9 @@ import { readRefDesignation, type RefDesignation, type RefRemoteDesignation } fr
 import { readRefRepository } from "./repository.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { judgeRefFollow, type RefFollowJudgment } from "./follow-candidates.js";
+import { captureMoveRemote } from "./migrate-remote-target.js";
+import { migrationCodeContext } from "./migrate-record.js";
+import { accountDisabledFollow } from "./follow-copy-account.js";
 
 /** One active fetched source whose tracking record keeps its follow due. */
 export interface RefFollowDue { remote: RefRemoteDesignation; designation: RefDesignation; trackingRef: string; tip: string }
@@ -32,9 +35,15 @@ export async function guardRefFollowSetting(context: RefBackendContext, store: S
   const due = await readRefFollowDue(context);
   if (!due) return null;
   const oldOff = remote === due.remote.name && role === "off";
-  if (oldOff && due.remote.repository === "code") return null;
+  if (oldOff && due.remote.repository === "code") {
+    const report = await accountOldSourceOff(context, due);
+    return report ? { status: "stale", report } : null;
+  }
   const judged = await judgeRefFollow(context, due);
-  if (oldOff && !hasFollowAnswer(judged, remote)) return turnOffDepartedBacking(context);
+  if (oldOff && !hasFollowAnswer(judged, remote)) {
+    const report = judged.status === "none" ? judged.report : await accountOldSourceOff(context, due);
+    return turnOffDepartedBacking(context, report);
+  }
   if (judged.status === "none") return judged.report ? { status: "stale", report: judged.report } : null;
   if (judged.status === "refused") return judged;
   if (judged.accepted.some(candidate => candidate.remote.name === remote)) return answerKnownFollow(context, store, due, judged, remote, role);
@@ -48,10 +57,15 @@ function hasFollowAnswer(judged: RefFollowJudgment, remote: string): boolean {
     !(judged.accepted.length === 1 && judged.result.status === "refused");
 }
 
-async function turnOffDepartedBacking(context: RefBackendContext): Promise<StoreRemoteResult> {
+async function accountOldSourceOff(context: RefBackendContext, due: RefFollowDue): Promise<MigrateReport | undefined> {
+  const code = await migrationCodeContext(context);
+  return accountDisabledFollow(code, await captureMoveRemote(context, code, due.remote));
+}
+
+async function turnOffDepartedBacking(context: RefBackendContext, report?: MigrateReport): Promise<StoreRemoteResult> {
   const physical = await readRefRepository(context);
   await physical.exec("git", ["config", "remote.backing.arc-state", "off"], { cwd: physical.checkoutRoot });
-  return { status: "ok", result: await remoteView(context) };
+  return { status: "ok", result: { ...await remoteView(context), ...report ? { report } : {} } };
 }
 
 async function answerKnownFollow(context: RefBackendContext, store: Store, due: RefFollowDue,

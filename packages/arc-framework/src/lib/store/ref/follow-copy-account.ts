@@ -15,7 +15,7 @@ export async function handoffFollowCopy(context: RefBackendContext, record: Foll
   const held = await readCopyJournal(context);
   if (!held) return;
   const nextKey = copyJournalKey("follow", record.source, record.destination, record.forwardingTip);
-  if (held.record.key === nextKey) return;
+  if (held.record.key === nextKey && record.answer === "push") return;
   const prior = copyAccountIdentity(held);
   if (prior.kind !== "follow" || !sameSource(prior.source, record.source)) { await requireNoPendingCopy(context); return; }
   const report = await readRemoteCopyReport(context);
@@ -34,4 +34,14 @@ export async function accountWithdrawnFollow(context: RefBackendContext, source:
   }
   const report = await readRemoteCopyReport(context);
   return report.refs.length || report.notices.length ? report : undefined;
+}
+
+/** Disabling this source ends only its own follow account; unrelated pending operations remain guarded. */
+export async function accountDisabledFollow(context: RefBackendContext, source: MoveRemote): Promise<MigrateReport | undefined> {
+  const held = await readCopyJournal(context);
+  if (held) {
+    const prior = copyAccountIdentity(held);
+    if (prior.kind !== "follow" || !sameSource(prior.source, source)) return;
+  }
+  return accountWithdrawnFollow(context, source);
 }
