@@ -45,7 +45,7 @@ async function ownerChangeWindow(context: RefBackendContext, input: ChangesInput
   const to = latestArchivedFolders(ends.after.filter(({ liveRef }) => liveRef === live))[0];
   const batches = ends.changed.get(live) ?? new Set<string>();
   if (noLifecycleChange(live, older, newer, ends)) return { status: "ok", result: null };
-  if (newer && !from) return newLiveWindow(context, input, live, newer, ends, current, evidence);
+  if (newer && !from) return newLiveWindow(context, input, live, newer, ends, evidence);
   const source = newer ?? current.get(history) ?? current.get(live);
   if (!source) return { status: "refused", refusal: missingChangeState({ ref: history, version: input.to }) };
   const index = await lifecycleBatchIndex(context, history, source, input, evidence);
@@ -61,8 +61,8 @@ async function ownerChangeWindow(context: RefBackendContext, input: ChangesInput
 }
 
 function newLiveWindow(context: RefBackendContext, input: ChangesInput, live: string, newer: string, ends: ChangeEnds,
-  current: ReadonlyMap<string, string>, evidence: StoreCreationReceiptReader): Promise<StoreResult<RefChangeWindow | null>> {
-  return ends.beforeOrigins.has(live) ? reopenedOriginWindow(context, input, live, newer, ends, current, evidence)
+  evidence: StoreCreationReceiptReader): Promise<StoreResult<RefChangeWindow | null>> {
+  return ends.beforeOrigins.has(live) ? reopenedOriginWindow(context, input, live, newer, ends, evidence)
     : Promise.resolve({ status: "ok", result: { ref: live, upper: newer, version: input.to } });
 }
 
@@ -72,16 +72,16 @@ function noLifecycleChange(live: string, older: string | undefined, newer: strin
 
 /** Join older registry batches to retained item ends, keeping registry revisions out of item ancestry bounds. */
 async function reopenedOriginWindow(context: RefBackendContext, input: ChangesInput, live: string, newer: string,
-  ends: ChangeEnds, current: ReadonlyMap<string, string>, evidence: StoreCreationReceiptReader): Promise<StoreResult<RefChangeWindow | null>> {
-  const history = live.replace("refs/arc/", "refs/arc/history/"), tip = current.get(history);
+  ends: ChangeEnds, evidence: StoreCreationReceiptReader): Promise<StoreResult<RefChangeWindow | null>> {
+  const history = live.replace("refs/arc/", "refs/arc/history/");
   const missing = (): StoreResult<never> => ({ status: "refused", refusal: missingChangeState({ ref: history, version: input.from }) });
-  if (!tip || !ends.beforeRegistry) return missing();
-  const index = await lifecycleBatchIndex(context, history, tip, { ...input, to: input.from }, evidence);
+  if (!ends.beforeRegistry) return missing();
+  const index = await lifecycleBatchIndex(context, history, newer, { ...input, to: input.from }, evidence);
   if (index.status === "refused") return index;
   const reference = RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } });
   const registry = await indexHistoryBatches(context, "refs/arc/project/registry", ends.beforeRegistry, reference, evidence, missingChangeState({ ref: "refs/arc/project/registry", version: input.from }));
   if (registry.status === "refused") return registry;
-  const retired = await readItemEndBatches(context, tip, historyOwner(history), "retirement");
+  const retired = await readItemEndBatches(context, newer, historyOwner(history), "retirement");
   const candidates = [...index.result].filter(([batch]) => retired.has(batch) && registry.result.has(batch)).map(([, commit]) => commit);
   let lower: string | undefined;
   for (const candidate of candidates) {
