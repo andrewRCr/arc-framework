@@ -64,8 +64,8 @@ async function incomingLineageHolds(context: RefBackendContext, held: ReadonlyMa
 async function incomingArchiveHolds(context: RefBackendContext, held: ReadonlyMap<string, string>,
   incoming: ReadonlyMap<string, string>): Promise<{ refs: Set<string>; notices: PullNotice[] }> {
   const refs = new Set<string>(), notices: PullNotice[] = [];
-  const items = new Set([...held.keys()].filter(ref => /^refs\/arc\/(?:history\/)?(?:work|cohort)\//u.test(ref))
-    .map(ref => ref.replace("refs/arc/history/", "refs/arc/")));
+  // History-only owners are already ended; history reconciliation checks the quarters a merge would change.
+  const items = new Set([...held.keys()].filter(ref => /^refs\/arc\/(?:work|cohort)\//u.test(ref)));
   if (!items.size) return { refs, notices };
   const quarters = new Map([...incoming].filter(([ref]) => isArchiveRef(ref)));
   const trees = await readRefTrees(context, quarters);
