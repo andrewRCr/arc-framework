@@ -4,7 +4,7 @@ import { remoteCopyReport, appendCleanupReport } from "./migrate-report.js";
 export { remoteCopyReport } from "./migrate-report.js";
 import { readRemoteCopyReport } from "./migrate-cleanup-report.js";
 export { readRemoteCopyReport } from "./migrate-cleanup-report.js";
-import { abandonCopyAttempt, beginCopyJournal, confirmCopyJournal, copyJournalKey, recoverCopyJournal, releaseCopyJournal } from "./migrate-copy-journal.js";
+import { abandonCopyAttempt, beginCopyJournal, confirmCopyJournal, copyJournalKey, recoverCopyJournal, releaseCopyJournal, retainCopyAccount } from "./migrate-copy-journal.js";
 import type { Remedy } from "../refusal.js";
 import { RecordReferenceSchema } from "../identity.js";
 import { pushRefs, type PushOutcome, type PushRefChange } from "../../git/push.js";
@@ -67,12 +67,20 @@ async function copyRemoteRound(code: RefBackendContext, transports: MoveTranspor
   if (trial) { await clearMigrationRefs(code, copyRoot); return { report, source: incoming, destination: held }; }
   recorded = await saveRemoteCopyRecord(code, { kind: "remote", source, destination, registryCommit: prepared.registry,
     sourceLayout: transports.sourceLayout, destinationLayout: transports.destinationLayout }, recorded);
+  if (!prior) await transferRemoteCopyAccount(code, journalKey, carried);
   await retainDeletedRecord(code, held.get(FORWARDING_REF));
   await code.migrateStep?.("remote.copy");
   if (!await publishRemoteCopy(code, { recorded, report, incoming, observed, held,
     changes: remoteCopyChanges(prepared.refs, held), firstRun })) return { restart: true, recorded };
   await code.migrateStep?.("remote.copied");
   return { recorded, report, source: incoming, destination: held };
+}
+
+/** Hand historical reporting to the accepted journal before clearing old copy comparisons. */
+async function transferRemoteCopyAccount(code: RefBackendContext, journalKey: string, carried?: MigrateReport): Promise<void> {
+  const retained = carried ?? await readRemoteCopyReport(code);
+  if (!carried && (retained.refs.length || retained.notices.length)) await retainCopyAccount(code, journalKey, retained);
+  await clearMigrationRefs(code, copiedRoot);
 }
 
 /** Publish one prepared copy and hand its confirmed report to the recorded move. */
@@ -283,11 +291,20 @@ export async function clearRemoteGathering(code: RefBackendContext, includeDelet
   if (includeDeletedRecord) await clearMigrationRefs(code, deletedRecordRef);
 }
 
+/** Clear comparison data before another operation, retaining its historical report until a new owner takes it. */
+export async function prepareRemoteGathering(code: RefBackendContext, includeDeletedRecord = false): Promise<void> {
+  await clearMigrationRefs(code, "refs/arc/tmp/migrate/remote/");
+  const copied = await readSyncRefs(code, copiedRoot);
+  await requireLayoutTransaction(code, [...copied].filter(([ref]) => ref !== copiedRoot + "report")
+    .map(([ref, expected]) => ({ ref, expected, delete: true as const })));
+  if (includeDeletedRecord) await clearMigrationRefs(code, deletedRecordRef);
+}
+
 /** Clean a failed attempt only after proving no record stands; cleanup never replaces its original failure. */
 export async function clearUnrecordedGathering(code: RefBackendContext): Promise<void> {
   try {
     const held = await readMoveRecord(code);
-    if (held.status === "ok" && held.result === null) await clearRemoteGathering(code);
+    if (held.status === "ok" && held.result === null) await prepareRemoteGathering(code);
   } catch { /* Retain unproven recovery evidence and let the caller preserve the original failure. */ }
 }
 

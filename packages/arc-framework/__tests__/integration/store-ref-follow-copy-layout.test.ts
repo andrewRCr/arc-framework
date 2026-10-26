@@ -1,5 +1,6 @@
 /** Historical copy evidence and reports survive ordinary layout changes and interrupted source-off settings. */
 import { expect, it } from "vitest";
+import { join } from "node:path";
 import { followAccountFixture, interruptFollowAccount, followAccountRemoteRefs, followAccountAdvisory } from "../helpers/store/follow-account.js";
 import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
@@ -103,7 +104,7 @@ it.each((["code", "backing"] as const).flatMap(source => (["confirmed", "unknown
   await checkAccount(f, MigrateReportSchema.parse("report" in result.result ? result.result.report : result.result), outcome);
 }, 30_000);
 
-it.each((["confirmed", "unknown"] as const).flatMap(outcome => (["remote", "migrate"] as const).map(continuation => ({ outcome, continuation })) ))(
+it.each((["confirmed", "unknown"] as const).flatMap(outcome => (["remote", "migrate", "trial", "leave"] as const).map(continuation => ({ outcome, continuation })) ))(
   "recovers $outcome history through $continuation when a withdrawn backing-off write is interrupted", async ({ outcome, continuation }) => {
   const f = await followAccountFixture("backing"); await interruptFollowAccount(f, outcome);
   await f.h.remote("git", ["update-ref", "-d", "refs/arc/project/moved"]);
@@ -113,12 +114,21 @@ it.each((["confirmed", "unknown"] as const).flatMap(outcome => (["remote", "migr
       return f.ports.exec!(command, args, options);
     },
   } })).rejects.toThrow("Interrupted backing off write");
-  if (continuation === "migrate") {
-    const result = await invokeStoreMigrate([], f.ports);
+  if (continuation === "migrate" || continuation === "leave") {
+    f.restoreReceiver();
+    const result = await invokeStoreMigrate(continuation === "leave" ? ["--leave-source", "--to", f.h.destinationDirectory] : [], f.ports);
     expect(result.status, JSON.stringify(result)).toBe("ok");
     if (result.status !== "ok") throw new Error("No-target recovery refused");
     await checkAccount(f, result.result, outcome);
   } else {
+    if (continuation === "trial") {
+      f.restoreReceiver();
+      await f.original.exec("git", [`--git-dir=${join(f.root, ".git/arc/store")}`, "remote", "set-url", "backing", f.h.destinationDirectory], { cwd: f.root });
+      const destination = join(f.root, "trial-destination.git");
+      await f.original.exec("git", ["init", "--bare", destination], { cwd: f.root });
+      const trial = await invokeStoreMigrate(["--to", destination, "--trial"], f.ports);
+      expect(trial, JSON.stringify(trial)).toMatchObject({ status: "ok" });
+    }
     const result = (await invokeStoreRemote(["backing", "off", "--json"], { cwd: f.root, ports: f.ports })).result;
     expect(result.status, JSON.stringify(result)).toBe("ok");
     if (result.status !== "ok") throw new Error("Backing off retry refused");

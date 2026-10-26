@@ -9,7 +9,7 @@ import { readRefRepository } from "./repository.js";
 import { publisherLayout } from "./layout-state.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { fetchLayoutObjects } from "./migrate-layout-build.js";
-import { copyRemoteMove, clearRemoteGathering, clearUnrecordedGathering, remoteCopyReport, type RemoteCopy } from "./migrate-remote-copy.js";
+import { copyRemoteMove, clearUnrecordedGathering, prepareRemoteGathering, remoteCopyReport, type RemoteCopy } from "./migrate-remote-copy.js";
 import { deleteRemoteSource } from "./migrate-remote-delete.js";
 import { forwardRemoteMove } from "./migrate-remote-forward.js";
 import { switchRemoteMove, remoteSwitchComplete, remoteSwitchUndo } from "./migrate-remote-switch.js";
@@ -72,7 +72,7 @@ async function settleRemoteRound(context: RefBackendContext, code: RefBackendCon
 }
 
 async function remoteMoveTrial(context: RefBackendContext, code: RefBackendContext, copy: RemoteCopy, recorded: boolean): Promise<StoreMigrateResult> {
-  if (!recorded) await clearRemoteGathering(code);
+  if (!recorded) await prepareRemoteGathering(code);
   if (copy.ended && copy.recorded) return { status: "ok", result: describeEndedRemoteMove(copy.recorded, copy, await trialEnd(context, copy.recorded), true) };
   return { status: "ok", result: trialRemoteReport(copy) };
 }

@@ -8,7 +8,7 @@ import { MigrationRefusal } from "./migrate-refusal.js";
 import { resolveLeaveSource, leaveSourceInvalid, type LeaveSourceView } from "./leave-source-target.js";
 import { fetchMigrationRemote } from "./migrate-remote-fetch.js";
 import { checkCopyProject, copyProjectId, prepareRemoteReCopy, remoteCopyChanges, atomicMigrationPush, copyPushLanded,
-  remoteCopyReport, retainCopiedTips, readRemoteCopyReport, clearRemoteGathering, clearUnrecordedGathering, registryHoldsMove } from "./migrate-remote-copy.js";
+  remoteCopyReport, retainCopiedTips, readRemoteCopyReport, clearRemoteGathering, clearUnrecordedGathering, prepareRemoteGathering, registryHoldsMove } from "./migrate-remote-copy.js";
 import { FORWARDING_REF, readForwardingRecord } from "./forwarding-record.js";
 import { switchRefSource } from "./source-switch.js";
 import { readMigrationRemote } from "./migration-read.js";
@@ -38,7 +38,7 @@ export async function leaveRefSource(context: RefBackendContext, store: Store, i
     }
     else {
       const view = await resolveLeaveSource(context, code, to);
-      await clearRemoteGathering(code, true);
+      await prepareRemoteGathering(code, true);
       report = await copyLastSourceView(code, view, readRemedy);
       await code.migrateStep?.("leave.record");
       resume = await saveMoveRecord(code, view.record, null);
