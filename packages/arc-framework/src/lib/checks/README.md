@@ -7,6 +7,8 @@ adapters live in [the check handlers](../../handlers/check/).
   scope, checked content, and input reach. `gates.ts` assigns gate membership and result kind.
 - `environment-declaration.ts` validates explicit value/file input names against portable naming and engine-owned
   execution channels, sharing the native Git repository-selector policy.
+- `environment-inputs.ts` freezes, identifies and rebinds explicit inputs for one dispatch and owns their cleanup;
+  `environment-file.ts` streams stable regular files into private copies with bounded memory and redacted refusals.
 - `tree.ts`, `matching.ts`, and `merged.ts` read Git content. `index-view.ts`, `divergence.ts`, and `fixers.ts` preserve
   the event's index view and distinguish checked content from worktree rewrites.
 - `key-resolver.ts`, `key.ts`, and `record.ts` publish disposable successful-execution shortcuts keyed by content

@@ -45,23 +45,22 @@ selectors refuse with a successful repaired retry, while ordinary native checks 
           inputs. Regenerated editor documents through `arc schema install`; cross-field and reserved-name rules remain
           enforced by the runtime schema, with repaired declarations accepted on retry.
 
-### `[ ]` **1.3 Capture, identify and rebind explicit values and files — D2**
+### `[x]` **1.3 Capture, identify and rebind explicit values and files — D2**
 
 - _Goal:_ One check attempt uses immutable explicit input bytes and presence semantics across every probe and batch,
   without exposing file contents or making host paths part of identity.
 
-    - `[ ]` **1.3.a Capture bounded, stable value and file inputs**
-        - Introduce injectable capture/identity/disposal helpers in `src/lib/checks/environment-inputs.ts`.
-        - Build `test-first` (one behavior at a time):
-            - Unset, empty scalar, empty file-path string, zero-byte file and nonempty file remain distinct.
-            - Relative paths resolve from check cwd; opened symlink targets must be regular files.
-            - Streamed copying/hashing rejects unreadable, nonregular or detected-changing files with a repaired retry.
+    - `[x]` **1.3.a Capture bounded, stable value and file inputs**
+        - Added injectable binding capture and bounded file copying/hashing with opened-handle stability checks.
+          Unset/empty/value/file states remain distinct; cwd-relative paths and explicit external symlinks resolve to
+          regular files. Unreadable, nonregular, changing or continuously growing inputs refuse with redacted retry
+          guidance and stable repaired inputs remain capturable.
 
-    - `[ ]` **1.3.b Bind captured inputs and dispose their owned storage**
-        - Build `test-first` (one behavior at a time):
-            - Absent inputs delete worker ambient values; literal values replay exactly; files rebind to owned copies.
-            - Later original-file edits cannot change execution, and identical bytes at another path keep identity.
-            - Partial capture cleans up; settled disposal is idempotent; diagnostics redact values/contents/host paths.
+    - `[x]` **1.3.b Bind captured inputs and dispose their owned storage**
+        - Added pure frozen-input replay with native environment-name semantics, immutable literals/file bytes and
+          location-independent content identity. Partial captures clean up only owned storage; settled disposal is
+          idempotent, while redacted cleanup failures remain retryable after repair. Valid own names survive capture
+          and replay without treating inherited object properties as caller inputs.
 
 ### `[ ]` **1.4 Bind native commands, runtime probes and scoped keys consistently — D2, D6, D8**
 
