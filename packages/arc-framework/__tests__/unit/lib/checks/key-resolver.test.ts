@@ -37,6 +37,13 @@ it("builds a stable key after all tree content is available", async () => {
   expect(await resolveCheckKey(boundary(), context)).toBe(first);
 });
 
+it("preserves captured environment identity through scoped key resolution", async () => {
+  const first = await resolveCheckKey(boundary(), { ...context, environmentIdentity: `sha256:${"a".repeat(64)}` });
+  const changed = await resolveCheckKey(boundary(), { ...context, environmentIdentity: `sha256:${"b".repeat(64)}` });
+  expect(first).toMatch(/^[a-f0-9]{64}$/u);
+  expect(changed).not.toBe(first);
+});
+
 it.each(["own", "global", "base", "parent", "malformed"])("leaves a %s read failure incomplete", async fault => {
   await expect(resolveCheckKey(boundary(fault), context)).resolves.toBeNull();
 });

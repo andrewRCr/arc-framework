@@ -15,6 +15,8 @@ export interface CheckKeyInput {
   globalInputs?: readonly TreePathChange[];
   globalRuntime?: readonly string[];
   runtime?: readonly string[];
+  /** Captured value/file content identity, independent of original and transport locations. */
+  environmentIdentity?: string;
   base?: readonly CheckPathContent[];
   merged?: readonly (readonly CheckPathContent[])[];
 }
@@ -27,13 +29,14 @@ export interface CheckKeyInput {
 export function checkContentKey(input: CheckKeyInput): string {
   const inputs = digestEntries(input.inputs);
   return createHash("sha256").update(JSON.stringify({
-    version: 2,
+    version: 3,
     id: input.id,
     declaration: input.declaration,
     inputs,
     globalInputs: digestEntries(input.globalInputs ?? []),
     globalRuntime: input.globalRuntime ?? [],
     runtime: input.runtime ?? [],
+    environment: input.environmentIdentity ?? null,
     paths: input.paths ?? [],
     base: input.base ?? null,
     merged: input.merged ?? [],

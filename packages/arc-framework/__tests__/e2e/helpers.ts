@@ -20,7 +20,7 @@ export { commitAll } from "../helpers/temp-repo.js";
 const execFileAsync = promisify(execFile);
 
 /** Compose the deterministic environment shared by built-CLI tests. */
-function builtCliEnvironment(overrides?: Record<string, string>): NodeJS.ProcessEnv {
+function builtCliEnvironment(overrides?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return {
     ...process.env,
     ARC_DISABLE_UPDATE_CHECKS: "1",
@@ -149,7 +149,7 @@ export async function git(cwd: string, args: string[]): Promise<string> {
 export async function runArc(
   args: string[],
   cwd: string,
-  options?: { timeout?: number; env?: Record<string, string> },
+  options?: { timeout?: number; env?: NodeJS.ProcessEnv },
 ): Promise<RunResult> {
   assertCliBuilt();
   // JSON contracts need a clean stdout channel. On Linux, `script` allocates a
@@ -199,7 +199,7 @@ export async function runArc(
 export async function runArcAnchored(
   args: string[],
   cwd: string,
-  options?: { timeout?: number; env?: Record<string, string> },
+  options?: { timeout?: number; env?: NodeJS.ProcessEnv },
 ): Promise<RunResult> {
   assertCliBuilt();
   const timeout = options?.timeout ?? 30_000;
@@ -227,7 +227,7 @@ export async function runArcAnchored(
 export async function runArcAnchoredSequence(
   argsList: readonly AnchoredSequenceEntry[],
   cwd: string,
-  options?: { timeout?: number; env?: Record<string, string>; anchorShellPath?: string },
+  options?: { timeout?: number; env?: NodeJS.ProcessEnv; anchorShellPath?: string },
 ): Promise<AnchoredSequenceResult> {
   assertCliBuilt();
   const timeout = options?.timeout ?? 30_000;
@@ -297,7 +297,7 @@ export async function runArcAnchoredSequence(
 export async function runArcNoTty(
   args: string[],
   cwd: string,
-  options?: { timeout?: number; env?: Record<string, string> },
+  options?: { timeout?: number; env?: NodeJS.ProcessEnv },
 ): Promise<RunResult> {
   assertCliBuilt();
   const timeout = options?.timeout ?? 30_000;
@@ -329,7 +329,7 @@ export async function runArcNoTty(
 export async function runArcWithStdoutPipe(
   args: string[],
   cwd: string,
-  options?: { timeout?: number; env?: Record<string, string> },
+  options?: { timeout?: number; env?: NodeJS.ProcessEnv },
 ): Promise<RunResult> {
   assertCliBuilt();
   const timeout = options?.timeout ?? 30_000;
@@ -367,7 +367,7 @@ export function runArcWithStdin(
   args: string[],
   cwd: string,
   stdin: string,
-  options?: { timeout?: number; env?: Record<string, string> },
+  options?: { timeout?: number; env?: NodeJS.ProcessEnv },
 ): Promise<RunResult> {
   assertCliBuilt();
   const timeout = options?.timeout ?? 30_000;

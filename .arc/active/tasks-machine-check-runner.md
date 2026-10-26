@@ -62,24 +62,25 @@ selectors refuse with a successful repaired retry, while ordinary native checks 
           idempotent, while redacted cleanup failures remain retryable after repair. Valid own names survive capture
           and replay without treating inherited object properties as caller inputs.
 
-### `[ ]` **1.4 Bind native commands, runtime probes and scoped keys consistently — D2, D6, D8**
+### `[x]` **1.4 Bind native commands, runtime probes and scoped keys consistently — D2, D6, D8**
 
 - _Goal:_ Native cache decisions, probes and commands describe the same captured explicit inputs, including when caching
   is disabled, and release their temporary files on every settled exit.
 
-    - `[ ]` **1.4.a Capture before native runtime qualification and reuse**
-        - Thread one binding scope through `executeSelectedCheck`, `CheckKeyIO` and native runtime/execute closures in
-          `src/handlers/check/run-cli.ts`; capture only at actual dispatch, not forecast/dry-run.
-        - Build `test-first` (one behavior at a time):
-            - Probe and all batches see the same frozen bytes despite edits between calls.
-            - Cache-disabled execution still captures; a cache hit disposes copies without running commands.
+    - `[x]` **1.4.a Capture before native runtime qualification and reuse**
+        - Native dispatch owns one binding scope before global/check runtime probes and pass lookup, including
+          cache-disabled execution. Probes and all batches receive frozen inputs through the native process policy;
+          cache hits, command failures and finalization exceptions dispose owned copies. Forecasts defer capture, and
+          shared engine-channel policy composes explicit inputs before Git/index/content/notice bindings.
 
-    - `[ ]` **1.4.b Include explicit input identities in native scoped keys**
-        - Extend `resolveCheckKey` / `checkContentKey` without replacing existing divergence and declared-input scope;
-          version disposable key data rather than reading old representations.
-        - Build `test-first` (one behavior at a time):
-            - Changed presence, scalar or file bytes invalidates reuse; transport/original paths do not.
-            - Empty maps retain native command/content/notice behavior; failures, exceptions and dry-run leak no copies.
+    - `[x]` **1.4.b Include explicit input identities in native scoped keys**
+        - Versioned disposable keys include the binding scope's content identity while preserving declared inputs,
+          divergence, historical scope and exact runtime outputs. Real CLI scenarios distinguish presence, literals and
+          equal-size file changes, reuse identical bytes at another path, and retain reuse across unrelated source
+          movement; native index, fixer, batching, notice and dry-run regressions retain their behavior.
+
+- _Outcome:_ TypeScript/JSDoc checks the shared dependency-free native ES module directly; readonly source annotations
+  keep its declaration and execution policy together without a companion declaration file.
 
 ### `[ ]` **1.5 Carry names-only forecasts into late native CI capture — D2, D9**
 

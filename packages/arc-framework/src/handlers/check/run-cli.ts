@@ -235,7 +235,7 @@ async function runDeclaredCliRequest(options: CheckScopeOptions, interaction: In
         readFile: path => readFile(path, "utf8"), writeFile: atomicWriteFile }),
       readDeclaration: repository => readTypedProjectFile(repository, "check-declaration", CheckDeclarationSchema),
       execute: runCheckProcess,
-      runtime: (command, cwd) => runCheckProcess(command, cwd, undefined, { rawStdout: true }),
+      runtime: (command, cwd, environment) => runCheckProcess(command, cwd, undefined, { rawStdout: true, environment }),
     }, { form, skip: hookSkip, hookFixesFail, baseBranch: (await readConfigSettings(root)).settings["branch.base"], scope: scopeRequest(input), force: input.force, dryRun: input.dryRun, serial: input.serial, ci: "ci" in input && input.ci === true, ...(form.kind === "pre-commit" && inheritedIndex !== undefined ? { indexFile: resolve(root, inheritedIndex) } : {}) });
   } catch (error) {
     outcome = { kind: "error", exitCode: 2, error: { kind: "refused", message: String(error) } };

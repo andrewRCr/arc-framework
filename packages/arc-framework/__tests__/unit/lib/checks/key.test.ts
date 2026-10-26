@@ -17,6 +17,13 @@ it("repeats the same key for the same resolved entry and input content", () => {
   expect(checkContentKey(first)).toBe(checkContentKey(second));
 });
 
+it("includes captured explicit input identity without replacing existing scoped content", () => {
+  const original = { ...input(), environmentIdentity: `sha256:${"a".repeat(64)}` };
+  const changed = { ...original, environmentIdentity: `sha256:${"b".repeat(64)}` };
+  expect(checkContentKey(changed)).not.toBe(checkContentKey(original));
+  expect(checkContentKey({ ...original })).toBe(checkContentKey(original));
+});
+
 it.each(["id", "declaration", "input path", "input blob", "input mode", "received paths"])("changes with %s", field => {
   const original = input();
   const changed = input();

@@ -1,18 +1,21 @@
 /** Check scheduling is observable through outcomes returned by the execution boundary. */
 import { afterEach, expect, it } from "vitest";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CheckDeclarationSchema } from "../../../../src/lib/checks/declaration.js";
 import { declaredChecksExitCode, runDeclaredRequest, type DeclaredCheckResult, type DeclaredCheckDependencies } from "../../../../src/handlers/check/run.js";
 import { readProjectedSelection } from "../../../../src/lib/checks/projected-selection.js";
-import { scriptGitExec, scriptRawGitExec } from "../../../helpers/git-exec-fake.js";
+import { makeGitProcessError, scriptGitExec, scriptRawGitExec } from "../../../helpers/git-exec-fake.js";
+import { createCheckPassStore } from "../../../../src/lib/checks/record.js";
+import { captureEnvironmentInputs } from "../../../../src/lib/checks/environment-inputs.js";
+import { nodeEnvironmentCaptureIO } from "../../../../src/lib/checks/environment-file.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 
-async function fixture(checks: Record<string, { fixes?: boolean; no_evidence_exit?: number; mode?: "files" | "selection"; root?: string; runtime_inputs?: string[][]; inputs?: string[]; gate?: "commit" | "push"; ci_only?: boolean }>, failSecondTreeWrite = false) {
+async function fixture(checks: Record<string, { fixes?: boolean; no_evidence_exit?: number; mode?: "files" | "selection"; root?: string; runtime_inputs?: string[][]; inputs?: string[]; gate?: "commit" | "push"; ci_only?: boolean; cache?: boolean; environment_inputs?: Record<string, "value" | "file"> }>, failSecondTreeWrite = false, globals: { global_runtime_inputs?: string[][] } = {}) {
   const root = await mkdtemp(join(tmpdir(), "arc-check-scheduling-"));
   roots.push(root);
   await mkdir(join(root, ".git"));
@@ -20,7 +23,7 @@ async function fixture(checks: Record<string, { fixes?: boolean; no_evidence_exi
   header.write("DIRC");
   header.writeUInt32BE(2, 4);
   await writeFile(join(root, ".git/index"), Buffer.concat([header, createHash("sha1").update(header).digest()]));
-  const definition = CheckDeclarationSchema.parse({ checks: Object.fromEntries(Object.entries(checks).map(([id, check]) =>
+  const definition = CheckDeclarationSchema.parse({ ...globals, checks: Object.fromEntries(Object.entries(checks).map(([id, check]) =>
     [id, { command: [id], cache: false, inputs: [], ...check }])) });
   const git = scriptGitExec([
     { match: ["rev-parse", "--verify", "--end-of-options", "HEAD^{commit}"], responses: [{ stdout: "a".repeat(40), stderr: "" }] },
@@ -52,6 +55,114 @@ async function fixture(checks: Record<string, { fixes?: boolean; no_evidence_exi
   };
   return { root, io, ids: Object.keys(checks) };
 }
+
+async function frozenInputFixture(root: string, io: DeclaredCheckDependencies, cwd = root) {
+  await mkdir(cwd, { recursive: true });
+  const original = join(cwd, "weights");
+  const owned = join(root, "owned-inputs");
+  await writeFile(original, "frozen");
+  io.captureEnvironment = (inputs, checkCwd) => captureEnvironmentInputs(inputs, checkCwd,
+    { environment: { WEIGHTS: "weights", MODE: "literal" },
+      io: { ...nodeEnvironmentCaptureIO, createDirectory: async () => { await mkdir(owned); return owned; } } });
+  return { original, owned };
+}
+
+it("shares frozen bytes across global/check probes and all path batches before reuse qualification", async () => {
+  const { root, io, ids } = await fixture({ lint: { mode: "files", root: "tools", inputs: ["**"], cache: true,
+    runtime_inputs: [["probe"]], environment_inputs: { WEIGHTS: "file" } } }, false, { global_runtime_inputs: [["global-probe"]] });
+  const { original, owned } = await frozenInputFixture(root, io, join(root, "tools"));
+  const paths = Array.from({ length: 100 }, (_, index) => `${"x".repeat(195)}${index}.ts`);
+  const raw = paths.map(path => `:000000 100644 ${"0".repeat(40)} ${"d".repeat(40)} A\0${path}\0`).join("");
+  const git = io.git;
+  io.git = async (file, args, options) => args[0] === "diff" ? { stdout: raw, stderr: "" } : git(file, args, options);
+  io.runtime = async (_command, _cwd, environment) => {
+    const bytes = environment?.WEIGHTS === undefined ? "missing" : await readFile(environment.WEIGHTS, "utf8");
+    await writeFile(original, "changed by probe");
+    return { exitCode: bytes === "frozen" ? 0 : 1, stdout: bytes };
+  };
+  io.execute = async (_command, _cwd, _content, policy) => {
+    const bytes = policy?.environment?.WEIGHTS === undefined ? "missing" : await readFile(policy.environment.WEIGHTS, "utf8");
+    await writeFile(original, "changed by batch");
+    return { started: true, exitCode: 0, output: bytes };
+  };
+  const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids } });
+  expect(result).toMatchObject({ kind: "result", exitCode: 0, result: { checks: [{ outcome: "passed", record: { status: "recorded" } }] } });
+  if (result.kind !== "result") throw new Error(result.error.message);
+  const batches = result.result.checks[0]?.output?.split("\n") ?? [];
+  expect(batches.length).toBeGreaterThan(1);
+  expect(batches.every(bytes => bytes === "frozen")).toBe(true);
+  await expect(readFile(join(owned, "0.input"))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("captures declared files even when caching is disabled and disposes the copies", async () => {
+  const { root, io, ids } = await fixture({ lint: { environment_inputs: { WEIGHTS: "file" } } });
+  const { owned } = await frozenInputFixture(root, io);
+  io.execute = async (_command, _cwd, _content, policy) => ({ started: true, exitCode: 0,
+    output: policy?.environment?.WEIGHTS === undefined ? "missing" : await readFile(policy.environment.WEIGHTS, "utf8") });
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
+    kind: "result", exitCode: 0, result: { checks: [{ outcome: "passed", output: "frozen", record: { status: "not-recordable" } }] },
+  });
+  await expect(readFile(join(owned, "0.input"))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("disposes captured files on a cache hit without executing the command again", async () => {
+  const { root, io, ids } = await fixture({ lint: { cache: true, runtime_inputs: [["probe"]], environment_inputs: { WEIGHTS: "file" } } });
+  const { owned } = await frozenInputFixture(root, io);
+  const records = join(root, ".git/passes");
+  await mkdir(records);
+  io.passes = createCheckPassStore({ directory: async () => records, readFile: path => readFile(path, "utf8"),
+    createFile: (path, content) => writeFile(path, content, { flag: "wx" }) });
+  io.runtime = async (_command, _cwd, environment) => ({ exitCode: environment?.WEIGHTS === undefined ? 1 : 0,
+    stdout: environment?.WEIGHTS === undefined ? "missing" : await readFile(environment.WEIGHTS, "utf8") });
+  io.execute = async (_command, _cwd, _content, policy) => {
+    await appendFile(join(root, "receipt"), "run\n");
+    return { started: true, exitCode: 0,
+      output: policy?.environment?.WEIGHTS === undefined ? "missing" : await readFile(policy.environment.WEIGHTS, "utf8") };
+  };
+  const request = { form: { kind: "run" as const, ids } };
+  await expect(runDeclaredRequest(root, io, request)).resolves.toMatchObject({ kind: "result", result: { checks: [{ outcome: "passed", output: "frozen" }] } });
+  await expect(runDeclaredRequest(root, io, request)).resolves.toMatchObject({ kind: "result", result: { checks: [{ outcome: "reused", output: "frozen" }] } });
+  expect(await readFile(join(root, "receipt"), "utf8")).toBe("run\n");
+  await expect(readFile(join(owned, "0.input"))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("disposes frozen inputs after a command exception while retaining unavailable execution", async () => {
+  const { root, io, ids } = await fixture({ lint: { environment_inputs: { WEIGHTS: "file" } } });
+  const { owned } = await frozenInputFixture(root, io);
+  io.execute = async () => { throw new Error("process boundary failed"); };
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
+    kind: "result", exitCode: 2, result: { checks: [{ outcome: "couldn't run" }] },
+  });
+  await expect(readFile(join(owned, "0.input"))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("disposes frozen inputs when fixer finalization throws without hiding the Git failure", async () => {
+  const { root, io, ids } = await fixture({ format: { fixes: true, environment_inputs: { WEIGHTS: "file" } } });
+  const { owned } = await frozenInputFixture(root, io);
+  const git = io.git;
+  io.git = async (file, args, options) => {
+    if (args[0] === "update-index") throw makeGitProcessError({ command: file, args, exitCode: 128, stderr: "index unavailable" });
+    return git(file, args, options);
+  };
+  io.execute = async (_command, _cwd, _content, policy) => {
+    const bytes = policy?.environment?.WEIGHTS === undefined ? "missing" : await readFile(policy.environment.WEIGHTS, "utf8");
+    await writeFile(join(root, "receipt"), bytes);
+    return { started: true, exitCode: 0, output: bytes };
+  };
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).rejects.toThrow("Could not resolve a fixer's rewrites");
+  expect(await readFile(join(root, "receipt"), "utf8")).toBe("frozen");
+  await expect(readFile(join(owned, "0.input"))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("forecasts explicit file inputs without trying to capture an unavailable execution-step file", async () => {
+  const { root, io, ids } = await fixture({ lint: { cache: true, environment_inputs: { WEIGHTS: "file" } } });
+  const { original, owned } = await frozenInputFixture(root, io);
+  await rm(original);
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids }, dryRun: true })).resolves.toMatchObject({
+    kind: "result", exitCode: 0, result: { checks: [{ outcome: "would run" }] },
+  });
+  await expect(readFile(join(owned, "0.input"))).rejects.toMatchObject({ code: "ENOENT" });
+});
 
 it("finishes fixers serially in declaration order before ordinary checks execute", async () => {
   const { root, io, ids } = await fixture({ ordinary: {}, "fixer-one": { fixes: true }, "fixer-two": { fixes: true }, other: {} });

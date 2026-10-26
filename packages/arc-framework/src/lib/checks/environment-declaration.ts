@@ -1,8 +1,7 @@
 /** Portable explicit child-environment bindings and reserved execution channels. */
 import { z } from "zod";
 import { GIT_REPOSITORY_LOCAL_ENVIRONMENT } from "../git/repository-environment.mjs";
-
-const ENGINE_CHANNELS = new Set(["ARC_CHECK_BASE", "ARC_CHECK_TREE", "ARC_CHECK_MERGED", "ARC_CHECK_NOTICE"]);
+import { CHECK_EXECUTION_ENVIRONMENT } from "./environment-policy.js";
 
 const InputNameSchema = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/u, {
   error: "environment_inputs requires portable environment names; remove or repair the binding and retry the check request.",
@@ -27,7 +26,7 @@ export const EnvironmentInputsSchema = z.intersection(z.record(InputNameSchema, 
       const portable = name.toUpperCase();
       if (names.has(portable)) context.addIssue({ code: "custom", path: [name],
         message: `environment_inputs has a portable duplicate ${name}; remove the duplicate binding and retry the check request.` });
-      if (ENGINE_CHANNELS.has(portable) || GIT_REPOSITORY_LOCAL_ENVIRONMENT.has(portable)) {
+    if (CHECK_EXECUTION_ENVIRONMENT.has(portable) || GIT_REPOSITORY_LOCAL_ENVIRONMENT.has(portable)) {
         context.addIssue({ code: "custom", path: [name],
           message: `environment_inputs binding ${name} overrides engine-owned execution or Git repository selection; remove this binding and retry the check request.` });
       }

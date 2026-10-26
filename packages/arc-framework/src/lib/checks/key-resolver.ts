@@ -6,7 +6,7 @@ import { matchTreeInputs, type TreeMatchIO } from "./matching.js";
 import type { TreeChange } from "./tree.js";
 /** Repository and runtime-fingerprint boundaries for key resolution. */
 export interface CheckKeyIO extends TreeMatchIO {
-  runtime(command: readonly string[], cwd: string): Promise<{ exitCode: number; stdout: string }>;
+  runtime(command: readonly string[], cwd: string, environment?: NodeJS.ProcessEnv): Promise<{ exitCode: number; stdout: string }>;
 }
 /** Request content and resolved declarations supplied to key construction. */
 export interface CheckKeyContext {
@@ -18,6 +18,8 @@ export interface CheckKeyContext {
   paths: string[];
   base?: string;
   merged?: readonly string[];
+  /** Frozen explicit inputs shared by runtime qualification and command execution. */
+  environmentIdentity?: string;
 }
 /**
  * Build a content key only when all requested dependencies can be read.
@@ -44,6 +46,7 @@ export async function resolveCheckKey(io: CheckKeyIO, context: CheckKeyContext):
     ? await Promise.all((context.merged ?? []).map(parent => historicalContent(io, context, parent))) : [];
   if (!merged.every(content => content !== null)) return null;
   return checkContentKey({ id, declaration: check, inputs: inputs.paths, globalInputs: global.paths, globalRuntime, runtime,
+    environmentIdentity: context.environmentIdentity,
     ...(check.mode === "files" ? { paths, base, merged } : {}) });
 }
 async function historicalContent(io: CheckKeyIO, context: CheckKeyContext, coordinate: string): Promise<CheckPathContent[] | null> {

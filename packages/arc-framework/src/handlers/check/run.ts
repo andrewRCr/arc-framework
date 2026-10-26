@@ -28,6 +28,7 @@ import { checkVerification } from "./report.js";
 import { checkRetryCommand } from "../../lib/checks/remedies.js";
 import { findUninstalledLockedPackages, installGapReason } from "../../lib/checks/install-gap.js";
 import { resolveCheckForecast, type CheckForecast } from "../../lib/checks/forecast.js";
+import { bindCapturedEnvironment, captureEnvironmentInputs, type CapturedEnvironmentInputs } from "../../lib/checks/environment-inputs.js";
 
 /** Whether a fresh pass was kept for later gates; a pass with no content key has nothing to keep. */
 export type DeclaredCheckRecord = CheckPassWrite | { status: "not-recordable" };
@@ -83,8 +84,9 @@ export interface DeclaredCheckDependencies extends CheckKeyIO {
   passes: CheckPassStore;
   reports?: CheckReportStore;
   now?(): number;
+  captureEnvironment?: typeof captureEnvironmentInputs;
   readDeclaration(root: string): Promise<TypedFileResult<CheckDeclaration>>;
-  execute(command: readonly string[], root: string, content?: CheckContentContext, policy?: { shell: boolean; indexFile?: string }): Promise<{ started: boolean; exitCode: number; output: string; notice?: string; notRunReason?: string }>;
+  execute(command: readonly string[], root: string, content?: CheckContentContext, policy?: { shell: boolean; indexFile?: string; environment?: NodeJS.ProcessEnv }): Promise<{ started: boolean; exitCode: number; output: string; notice?: string; notRunReason?: string }>;
 }
 
 /**
@@ -404,6 +406,7 @@ async function selectedFilePaths(io: DeclaredCheckDependencies, input: {
 }
 
 interface SelectedCheck {
+  environmentIdentity?: string;
   selectionTree: string;
   id: string;
   check: CheckDeclaration["checks"][string];
@@ -421,10 +424,33 @@ interface SelectedCheck {
 async function selectedCheckKey(selected: SelectedCheck, io: DeclaredCheckDependencies, tree = selected.tree) {
   const { id, check, root, paths, content, definition, divergent } = selected;
   return divergent.length > 0 ? null : resolveCheckKey(io, { id, check, root, tree, paths, definition,
-    base: content?.base, merged: content?.merged });
+    base: content?.base, merged: content?.merged, environmentIdentity: selected.environmentIdentity });
 }
 
 async function executeSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest): Promise<DeclaredCheckResult> {
+  if (Object.keys(selected.check.environment_inputs).length === 0) return executeNativeSelectedCheck(selected, io, request);
+  if (request.dryRun) return { id: selected.id, kind: selected.kind, outcome: "would run" };
+  const capture = await (io.captureEnvironment ?? captureEnvironmentInputs)(selected.check.environment_inputs, resolve(selected.root, selected.check.root));
+  const bound = bindNativeEnvironment(io, capture);
+  const executed = await executeNativeSelectedCheck({ ...selected, environmentIdentity: capture.identity }, bound, request).then(
+    result => ({ ok: true as const, result }), (error: unknown) => ({ ok: false as const, error }));
+  const cleaned = await capture.dispose().then(() => true, () => false);
+  if (!executed.ok) throw executed.error;
+  if (cleaned) return executed.result;
+  return { ...executed.result, notice: [executed.result.notice,
+    "frozen input cleanup failed; repair temporary storage access and retry cleanup"].filter(Boolean).join("; ") };
+}
+
+function bindNativeEnvironment(io: DeclaredCheckDependencies, capture: CapturedEnvironmentInputs): DeclaredCheckDependencies {
+  const environment = () => bindCapturedEnvironment(capture.bindings, process.env, io.platform);
+  return { ...io,
+    runtime: (command, cwd) => io.runtime(command, cwd, environment()),
+    execute: (command, cwd, content, policy) => io.execute(command, cwd, content,
+      { ...policy, shell: policy?.shell ?? false, environment: environment() }),
+  };
+}
+
+async function executeNativeSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest): Promise<DeclaredCheckResult> {
   const { id, check, root, paths, content, kind, indexViews } = selected;
   const key = await selectedCheckKey(selected, io);
   const pass = key === null || request.force ? null : await io.passes.get(key, id);
