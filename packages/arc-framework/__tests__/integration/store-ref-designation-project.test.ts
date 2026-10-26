@@ -143,6 +143,41 @@ describe("automatic designation project check", () => {
     expect((await h.b.exec("git", ["config", "remote.origin.arc-state"])).stdout.trim()).toBe("push");
   });
 
+  it.each(["cleanup", "role-write", "role-reread"] as const)("returns a typed automatic timeout during %s and allows retry", async phase => {
+    const h = await refSyncFixture(), clock = createRefClock(new Date(0), 0);
+    await putIdentity(h.a.store, localId);
+    await h.a.git(["push", "origin", "refs/arc/*:refs/arc/*"]);
+    await putIdentity(h.b.store, localId);
+    await h.b.exec("git", ["config", "--unset", "remote.origin.arc-state"]);
+    let armed = true, roleWritten = false;
+    const expire = () => { armed = false; clock.advance(120_000); };
+    const ports = { ...h.b.ports, ...clock,
+      execInput: async (...args: Parameters<typeof h.b.ports.execInput>) => {
+        const result = await h.b.ports.execInput(...args);
+        if (armed && phase === "cleanup" && args[0].includes("update-ref") && args[1].includes("delete refs/arc/tmp/designate/")) expire();
+        return result;
+      },
+      exec: async (...args: Parameters<typeof h.b.ports.exec>) => {
+        const writesRole = args[1].includes("config") && args[1].includes("remote.origin.arc-state") && args[1].includes("push");
+        if (armed && phase === "role-write" && writesRole) expire();
+        const result = await h.b.ports.exec(...args);
+        if (writesRole) roleWritten = true;
+        return result;
+      },
+      rawExec: async (...args: Parameters<typeof h.b.ports.rawExec>) => {
+        if (armed && phase === "role-reread" && roleWritten && args[0].includes("config")) expire();
+        return h.b.ports.rawExec(...args);
+      },
+    };
+    const store = createRefStore(ports);
+    const result = success(await store.pull());
+    expect(armed).toBe(false);
+    expect(result.pulls).toMatchObject([{ status: "failed", role: "candidate", failure: { code: "unreachable", cause: "timeout" } }]);
+    if (roleWritten) expect(JSON.stringify(result)).not.toContain("no role was set");
+    expect(success(await store.pull()).pulls).toMatchObject([{ status: "pulled", role: "state" }]);
+    expect((await h.b.exec("git", ["config", "remote.origin.arc-state"])).stdout.trim()).toBe("push");
+  });
+
   it("refuses a native per-ref fetch rejection and succeeds after its lock is removed", async () => {
     const h = await refSyncFixture();
     await putIdentity(h.a.store, localId);
