@@ -23,10 +23,12 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                   | —             |
 | `Planning` | decomposition-doctrine          | P1       | andrew | —                   | —             |
 | `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                   | —             |
-| `Planning` | lifecycle-slug-selection        | P1       | andrew | —                   | —             |
+| `Active`   | lifecycle-slug-selection        | P1       | andrew | —                   | —             |
 | `Planning` | review-checkout-lifecycle       | P1       | andrew | —                   | —             |
 | `Planning` | stub-mint-to-launch             | P1       | andrew | —                   | —             |
 | `Planning` | cli-output-contract             | P2       | andrew | —                   | —             |
+| `Planning` | machine-check-runner            | P2       | andrew | —                   | —             |
+| `Planning` | distributed-check-shards        | P3       | andrew | —                   | —             |
 
 ## Ready
 
