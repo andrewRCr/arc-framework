@@ -92,14 +92,14 @@ describe.each(["files", "reftable"] as const)("ref metadata (%s)", (format) => {
       references.map((reference) => expect.objectContaining({ reference })), diagnostics: [], missed: false } });
     for (const reference of references) expect(await f.store.read({ reference })).toMatchObject({ status: "ok", result: { reference } });
   });
-  it("canonicalizes metadata keys before applying a record's format annotation", async () => {
+  it("reads the exact escaped Unicode coordinate for a record's format annotation", async () => {
     const f = await createRefReadFixture(format);
     const pass = RecordReferenceSchema.parse({ owner, kind: "review/adversarial-pass", key: { activity: "café", number: 2 } });
     const registry = createKindRegistry(PRODUCTION_REGISTRATIONS);
     const store = createRefStore({ ...f.ports, registry: { ...registry,
       "review/adversarial-pass": { ...registry["review/adversarial-pass"], formatVersion: 2 },
     } });
-    const key = canonicalize({ kind: pass.kind, key: pass.key }).normalize("NFD");
+    const key = '{"key":{"activity":"caf\\u00e9","number":2},"kind":"review/adversarial-pass"}';
     await plantRef(f.root, ref, [{ path: `metadata-${uid}.json`, content: JSON.stringify({ ...metadata, formats: { [key]: 2 } }) },
       { path: `review/adversarial-pass-café-2-${uid}.json`, content: "{}" }]);
     expect(await store.read({ reference: pass })).toMatchObject({ status: "ok", result: { formatVersion: 2 } });
