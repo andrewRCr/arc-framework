@@ -10,7 +10,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runArc, createTempRepo, cleanupTempDir, git } from "./helpers.js";
+import { runArc, createTempRepo, cleanupTempDir, git, unwrapPresentationOutput } from "./helpers.js";
 
 async function prepareSelfTeardown(
   repo: string,
@@ -214,14 +214,14 @@ describe("arc teardown (CLI surface)", () => {
 
   it("reports outside husk replay as physical removal, not another deferred husk", async () => {
     tmpDir = await createTempRepo();
-    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
+    worktreeParent = await mkdtemp(join(tmpdir(), `arc-teardown-e2e-wt-${"long-".repeat(24)}`));
     const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
     const created = await runArc(["teardown", "demo"], worktree);
     expect(created.exitCode).toBe(0);
 
     const replay = await runArc(["teardown", "demo"], tmpDir);
     const output = replay.stdout + replay.stderr;
-    const unwrappedOutput = output.replace(/\s*│\n│\s*/gu, "");
+    const unwrappedOutput = unwrapPresentationOutput(output);
 
     expect(replay.exitCode).toBe(0);
     expect(unwrappedOutput).toContain(worktree);
