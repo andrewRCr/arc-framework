@@ -21,9 +21,10 @@ const JournalSchema = z.strictObject({ schemaVersion: z.literal(1), key: z.strin
   attempt: z.strictObject({ changes: z.array(ChangeSchema), report: MigrateReportSchema }).nullable() });
 type Journal = z.infer<typeof JournalSchema>;
 
-/** Bind pending reports to the original operation and captured transport targets. */
+/** Bind pending reports to the original operation and observed repositories while allowing push transport repair. */
 export function copyJournalKey(kind: "remote" | "follow" | "leave-source", source: MoveRemote, destination: MoveRemote, generation?: string): string {
-  return canonicalize({ kind, source, destination, ...generation ? { generation } : {} });
+  const observed = ({ name, repository, url, fetchUrl }: MoveRemote) => ({ name, repository, url, fetchUrl });
+  return canonicalize({ kind, source: observed(source), destination: observed(destination), ...generation ? { generation } : {} });
 }
 
 async function readJournal(context: RefBackendContext): Promise<{ refs: Map<string, string>; record: Journal } | undefined> {
@@ -124,6 +125,10 @@ export async function abandonCopyAttempt(context: RefBackendContext): Promise<vo
   held.record.attempt = null;
   await saveJournal(context, held.record, held.refs);
   if (!held.record.settled.refs.length && !held.record.settled.notices.length) await clearCopyJournal(context);
+  else {
+    await retainCleanupReport(context, held.record.settled);
+    await releaseCopyJournal(context);
+  }
 }
 
 async function clearCopyJournal(context: RefBackendContext): Promise<void> {

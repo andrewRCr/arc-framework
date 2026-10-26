@@ -21,6 +21,8 @@ it.each(["deleted", "refuses-copy"])("ends a move back before switching when its
     const hook = join(h.origin, "hooks", "pre-receive");
     await writeFile(hook, "#!/bin/sh\nexit 1\n"); await chmod(hook, 0o755);
     expect(await invokeStoreMigrate([], h.ports)).toMatchObject({ status: "refused", refusal: { code: "store", refusal: { code: "refused" } } });
+    expect.soft((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/pending-copy/"])).stdout).toBe("");
+    expect((await h.a.exec("git", ["show", "refs/arc/tmp/migrate/copied/report"])).stdout).toContain("refs/arc/project/registry");
   }
   const ended = await invokeStoreMigrate(["--leave-source"], h.ports);
   expect(ended).toMatchObject({ status: "ok", result: { notices: expect.arrayContaining([
