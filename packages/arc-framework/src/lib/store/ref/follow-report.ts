@@ -2,13 +2,16 @@
 
 import type { MigrateReport } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
-import type { MoveRemote, RecordedFollow } from "./migrate-record.js";
+import { readMoveReport, type MoveRemote, type RecordedFollow } from "./migrate-record.js";
 import { readCopiedRemoteRefs, readRemoteCopyReport } from "./migrate-remote-copy.js";
 import { readMigrationGathering } from "./migrate-remote-fetch.js";
+import { appendCleanupReport } from "./migrate-report.js";
 
 /** Keep the landed copy's actions and each remote's last acquired refs in an ended follow report. */
 export async function describeEndedFollow(code: RefBackendContext, recorded: RecordedFollow): Promise<MigrateReport> {
   const report = await readRemoteCopyReport(code);
+  const carried = await readMoveReport(code, recorded.tip);
+  if (carried) appendCleanupReport(report, carried);
   await appendCopiedFollowRefs(code, recorded, report);
   for (const remote of [recorded.record.source, recorded.record.destination]) {
     appendFollowReadRefs(report, remote, await readMigrationGathering(code, remote));

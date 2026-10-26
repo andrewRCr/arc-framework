@@ -2,7 +2,7 @@
 import type { Store } from "../contract.js";
 import type { MigrateReport, StoreCommandResult } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
-import { removeMoveRecord, type RecordedMove } from "./migrate-record.js";
+import { removeMoveRecord, readMoveReport, type RecordedMove } from "./migrate-record.js";
 import { switchRemoteMove } from "./migrate-remote-switch.js";
 import { switchRefSource } from "./source-switch.js";
 import { switchBegun } from "./migrate-switch-undo.js";
@@ -11,6 +11,7 @@ import { clearRemoteGathering, readRemoteCopyReport, readCopiedRemoteRefs, readC
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { withdrawRecordedSource } from "./leave-recorded-withdraw.js";
 import { accountCopyJournal } from "./migrate-copy-account.js";
+import { appendCleanupReport } from "./migrate-report.js";
 
 /** A responding destination, including an empty one, never licenses withdrawing its source's control; a begun switch finishes first. */
 export async function endRecordedSource(context: RefBackendContext, store: Store, code: RefBackendContext,
@@ -18,6 +19,8 @@ export async function endRecordedSource(context: RefBackendContext, store: Store
   if (recorded.record.kind !== "remote" && recorded.record.kind !== "follow") throw new Error("Expected a remote move or follow");
   try {
     const report = await readRemoteCopyReport(code);
+    const carried = await readMoveReport(code, recorded.tip);
+    if (carried) appendCleanupReport(report, carried);
     await accountCopyJournal(code, report);
     const switched = await finishBegunSwitch(context, store, recorded);
     if (!await destinationAnswers(code, recorded)) await reportUnreadDestination(code, recorded, switched, report);
