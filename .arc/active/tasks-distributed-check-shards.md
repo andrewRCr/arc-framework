@@ -1,0 +1,625 @@
+# Task List: Distributed Check Shards
+
+- **Design:** `spec-distributed-check-shards.md`
+
+---
+
+## **Phase 1:** Canonical shard plans and prepared identity
+
+_Purpose:_ Give the existing selected-check path a complete shard matrix, scoped prepared identity and native parent
+evidence before connecting them to runner execution.
+
+_Mode:_ `slice` through Phase 2 — closes on trustworthy routed shard execution through the public runner facade.
+
+_Design decisions:_ Consumer implementation starts after the runner foundation lands and its qualified exports are
+re-grounded. This plan consumes that source, binding, protocol and lifetime implementation; it creates no substitute.
+
+### `[ ]` **1.1 Expand complete, portably bounded batch/shard plans — D3**
+
+- _Goal:_ Every selected routed check has one deterministic, complete plan whose final commands fit every compatible
+  placement before preparation or reuse can begin.
+
+- _Note:_ Shared-handler implementation requires the landed, qualified runner foundation. Re-ground its actual
+  exports first; a missing prerequisite returns to its defining interface rather than a private replacement here.
+
+    - `[ ]` **1.1.a Compose canonical batch/shard coordinates and invocation records**
+        - Extend the expansion used by `resolveCheckForecast` in `src/lib/checks/forecast.ts`, using the landed
+          shared invocation DTOs. Keep stable coordinates separate from fresh wire correlation IDs.
+        - Build `test-first` (one behavior at a time):
+            - Every expected batch/shard pair occurs once in stable batch/index order, including identical commands.
+            - Project/withheld-path commands retain their required no-path invocation; selected-file behavior,
+              deletion/widening rules, literal path order, cwd and command-content policy remain unchanged.
+
+    - `[ ]` **1.1.b Budget the complete final command before partitioning paths**
+        - Consume the foundation's portable helpers in `src/lib/checks/batching.ts`. Include the final shard
+          argument in the fixed budget while retaining its native position after received paths.
+        - Build `test-first` (one behavior at a time):
+            - POSIX bytes and escaped Windows units both fit, including Unicode, quotes and multi-digit shard values.
+            - Fixed-only and single-path overflow refuse before launch with a shortening remedy; repaired input runs.
+            - Shell invocations use the foundation's single-command-string representation with native composition;
+              the adapter cannot change the path partition or secretly split an invocation.
+
+    - `[ ]` **1.1.c Keep native forecasts and routed plans consistent**
+        - Extend `__tests__/unit/lib/checks/forecast.test.ts` and `batching.test.ts`; preserve ordinary native
+          platform budgeting and CI shard counts while sharing final-argument expansion.
+        - Build `test-first` (one behavior at a time):
+            - The native forecast still describes its existing jobs, and routed planning emits the complete matrix.
+            - Invalid/escaping cwd and unsupported final commands fail through the foundation's actionable boundary.
+
+### `[ ]` **1.2 Bind complete prepared runtime coverage to a scoped parent key — D4, D5**
+
+- _Goal:_ A parent is reusable only for its full canonical matrix and applicable prepared inputs/runtimes, without
+  making unrelated repository state or attempt identities dependencies.
+
+    - `[ ]` **1.2.a Project prepared runtime observations onto canonical plan order**
+        - Consume `PreparedCheckExecution` from the landed foundation facade; use its validated source/probe/runtime
+          evidence rather than the caller's `CheckKeyIO.runtime`. Isolate the deterministic projection from I/O.
+        - Build `test-first` (one behavior at a time):
+            - Complete known coverage binds every expected invocation even when received observations are reordered.
+            - Unknown coverage disables whole-parent lookup/publication; malformed claimed coverage refuses instead
+              of silently downgrading. No caller-local fingerprint substitutes for missing execution evidence.
+
+    - `[ ]` **1.2.b Extend the shared scoped key with the canonical matrix and runtime vector**
+        - Use the foundation's scoped key material and `checkContentKey` in `src/lib/checks/key.ts`; preserve
+          declaration, raw-byte presentation, explicit environment and historical-content dependencies.
+        - Build `test-first` (one behavior at a time):
+            - Relevant content, bindings, matrix or applicable runtime changes miss; a complete identical plan hits.
+            - Unrelated source/projection changes, identical bytes at another host path, request/context IDs and
+              provider labels do not miss. Raw content-coordinate IDs are not unconditional dependencies.
+            - Divergent/unreadable scoped content remains unrecordable, and disposable key versioning needs no
+              migration reader or per-shard pass store.
+
+    - `[ ]` **1.2.c Preserve capture and execution requirements when reuse is unavailable**
+        - Extend the landed key-resolver/handler tests and process fixture; keep generic input capture in the
+          foundation rather than reproducing it in the consumer.
+        - Build `test-first` (one behavior at a time):
+            - `cache: false`, unknown runtime and forced fresh execution still use fixed source and explicit inputs.
+            - Captured value/file absence, emptiness and bytes stay identical across siblings after original edits.
+            - Incompatible known-runtime placement refuses before work; an explicit retry gets fresh qualification.
+
+### `[ ]` **1.3 Project shard coordinates through the shared native outcome reducer — D6**
+
+- _Goal:_ The parent preserves native verdict meaning and useful completed failures while identifying exactly which
+  expected pairs lack acceptable evidence.
+
+    - `[ ]` **1.3.a Associate validated terminal evidence with expected coordinates**
+        - Extend the foundation's shared result normalization/reduction and the selected-check result types. Keep
+          plan accounting in a cohesive check-library helper; no protocol or native test-output parser is added.
+        - Build `test-first` (one behavior at a time):
+            - Exactly the expected validated invocation set closes; missing, duplicate, conflicting, unknown or
+              wrong-context/source evidence cannot yield a parent pass.
+            - Independently valid failures survive later malformed/missing results, with incomplete pairs retained.
+
+    - `[ ]` **1.3.b Preserve native no-evidence, kill and full exit-status semantics**
+        - Reuse `normalizeCheckInvocationOutcome`/`reduceCheckInvocationOutcomes` after they land, retaining
+          `finalizeCheckRun` as pass authority and `declaredChecksExitCode` as the cross-check exit policy.
+        - Build `test-first` (one behavior at a time):
+            - Declared no-evidence retains precedence over special 137 handling; mixed useful/no-evidence results
+              remain distinct from an all-no-evidence check and from ordinary native failures.
+            - Exact 256/high-bit unsigned 32-bit failures remain failures beside unavailable or killed work, with
+              native notice interpretation preserved and no partial/per-shard publication.
+
+## **Phase 2:** Routed execution, diagnostics and lifetime closure
+
+_Purpose:_ Connect the canonical plan to the foundation's prepared execution facade and prove serial/group execution,
+reuse, failure and interruption through real protocol conversations.
+
+_Exit criterion:_ A routed declared check runs every expected pair through group or basic serial playback, publishes
+only a complete applicable parent pass, preserves completed failures beside missing work, and closes or retains its
+context/capture under the specified lifecycle. The unconfigured command remains native and unsharded.
+
+### `[ ]` **2.1 Execute the fixed plan through serial or optional group dispatch — D1, D2, D6**
+
+- _Goal:_ An eligible routed check executes its complete declared matrix through one prepared context, while the
+  native path retains its existing single command and configured failures remain visible.
+
+    - `[ ]` **2.1.a Connect the consumer at the selected-check dispatch boundary**
+        - Extend the landed foundation branch of `executeSelectedCheck` in `src/handlers/check/run.ts` using the
+          canonical plan. Keep configuration, eligibility, source/environment capture and the client in the foundation.
+        - Build `test-first` (one behavior at a time):
+            - No runner or an ineligible check stays native/unsharded without source preparation; an eligible
+              unsharded declaration still uses the foundation's ordinary path.
+            - The complete plan precedes prepare/key lookup; routed dry-run neither captures nor probes/spawns.
+            - Configured failure never causes a bypass, another capture implementation or implicit local fallback.
+
+    - `[ ]` **2.1.b Play back mandatory singles or submit the whole optional group**
+        - Consume the facade's capability and run methods. Preserve one context/source definition and one
+          outstanding execution request; the adapter owns concurrent placement and admission.
+        - Build `test-first` (one behavior at a time):
+            - A group-capable adapter receives the complete requested matrix once; a basic adapter receives the
+              same plan as ordered singles, never an unsharded substitute or changed path batches.
+            - Each planned ID executes at most once; ordinary failure continues serial work and collects started
+              group siblings, while unavailable/not-started work remains explicit.
+
+    - `[ ]` **2.1.c Prove the production entry with a real adapter conversation**
+        - Extend the foundation's process-backed runner fixtures and standalone local example for a tiny declared
+          check. Group faults use scripted peers through the same public wire, not injected final handler answers.
+        - Build `test-first` (one behavior at a time):
+            - The real selected-check path prepares, executes two or more pairs and produces one parent result.
+            - Group and basic playback preserve command/cwd/input meaning and produce equivalent parent evidence.
+
+    - `[ ]` **2.1.d Preserve native command-content and repository environment boundaries**
+        - Extend the same public process fixture with identical-argv project/files checks and runtime probes;
+          consume the foundation's shared reserved-name authority and captured bindings without a second filter.
+        - Build `test-first` (one behavior at a time):
+            - Files commands receive only their selected content coordinates; project commands and probes clear
+              them, including withheld-path files commands and absent optional coordinates.
+            - Poison caller/worker Git selectors with a second repository, object store and config. Commands and
+              probes still resolve captured code metadata; every reserved input name/case variant refuses replay.
+            - Removing the conflicting declaration permits a successful retry with ordinary value/file bindings,
+              relative/symlink regular files and captured absent/empty states, including with caching disabled.
+
+### `[ ]` **2.2 Retain attributable native failures and incomplete-work diagnostics — D6**
+
+- _Goal:_ Human and JSON results retain their parent outcome conventions while showing each pair's valid native
+  outcome, exit/notice and incomplete-work detail without treating progress or log persistence as authority.
+
+    - `[ ]` **2.2.a Keep independently observed outcomes through final-reply failures**
+        - Consume retained terminal evidence from the foundation facade as it arrives, rather than reconstructing
+          it only from a successful final reply. Extend handler integration cases for group and serial playback.
+        - Build `test-first` (one behavior at a time):
+            - A valid completed failure remains failed after output/transport/final-closure loss, with missing-work
+              diagnostics alongside it; the same loss without a completed failure reports incomplete execution.
+            - Adapter exit, human output and cancellation acknowledgement never substitute for terminal evidence.
+
+    - `[ ]` **2.2.b Render attributable invocation details without changing parent conventions**
+        - Extend `DeclaredCheckResult`, `renderDeclaredChecks` in `src/handlers/check/run-output.ts` and their
+          human/JSON tests; reuse existing report storage and the foundation's decoded output stream.
+        - Build `test-first` (one behavior at a time):
+            - Stable batch/shard coordinates, status, exact native exit/notice and incomplete reasons survive both
+              output formats, including a large failure code beside lost work.
+            - Missing required output remains substantive; best-effort display/report persistence failure alone
+              does not erase otherwise complete evidence or expose captured environment values in routine notices.
+
+### `[ ]` **2.3 Close reuse and completed execution before parent publication — D5, D8**
+
+- _Goal:_ Parent reuse/publication and capture disposal occur only after their required context/output closure,
+  while settled disposal/cache-storage warnings retain their advisory meaning.
+
+    - `[ ]` **2.3.a Complete the prepared cache-hit and successful-run paths**
+        - Keep lookup after prepared qualification and publication in `finalizeCheckRun` after the facade proves
+          complete outcomes, required output, settlement and normal closure.
+        - Build `test-first` (one behavior at a time):
+            - A complete hit runs no invocation and releases the context; a miss publishes at most one parent only
+              after required release/exit closure. No failed, incomplete or unknown-runtime parent publishes.
+            - Input/source validation and lifetime handling remain effective when recording is disabled.
+
+    - `[ ]` **2.3.b Preserve advisory persistence/disposal behavior after settlement**
+        - Extend process-backed handler cases around the existing pass/report abstractions and shared release path.
+        - Build `test-first` (one behavior at a time):
+            - Invalid/unavailable pass reads miss; failed pass writes, optional logs and leftover disposable
+              directories do not change a valid completed verdict.
+            - Required-output loss, unsettled children or abnormal conversation closure never masquerade as those
+              advisory failures; native controller-close failure remains substantive.
+
+### `[ ]` **2.4 Preserve settlement and recovery through refusal and interruption — D8**
+
+- _Goal:_ Every cancellation/refusal/transport-loss path either proves settlement and safe disposal or retains the
+  shared capture and actionable provider guidance without duplicate execution.
+
+    - `[ ]` **2.4.a Consume settled preparation refusal without inventing a context**
+        - Forward the foundation's interruption channel during preparation and consume its no-context terminal
+          arm. Do not add another signal handler, release handshake, recovery operation or job store.
+        - Build `test-first` (one behavior at a time):
+            - Unavailable preparation settles, replies and exits zero without a release request before disposal.
+            - Cancellation racing that reply tolerates an unnecessary/late acknowledgement; missing settlement or
+              abnormal exit retains uncertainty. Repair the cause and prove successful explicit retry.
+
+    - `[ ]` **2.4.b Retain group recovery across interruption and conversation loss**
+        - Exercise process peers during preparation before context grant and during execution after valid pre-work
+          recovery guidance. Provider recovery remains information for the operator, never automatically executed.
+        - Build `test-first` (one behavior at a time):
+            - Cancellation acceptance waits for actual settlement of all launched work; uncertain work retains
+              capture, plan/context diagnostics and guidance usable after adapter exit.
+            - Failed guidance delivery permits no consumer execution request; a second explicit interruption does
+              not prove remote work stopped. ARC never reconnects, replaces or retries automatically.
+            - An explicit repaired retry uses fresh attempt identities without changing equivalent content keys.
+
+### `[ ]` **2.5 Prove the public consumer lifecycle** — validate exit criterion at segment scope
+
+- _Goal:_ Executable production-entry scenarios prove the segment's complete public-consumer lifecycle and preserve
+  the unconfigured native default before native/provider breadth is added.
+
+    - Run process-backed selected-check scenarios using the standalone adapter and scripted peers: group/basic
+      equivalence, fixed inputs, known/unknown reuse, hit release, completed failure beside missing work,
+      no-context refusal/retry, cancellation and lost-conversation retention.
+    - Request `arc check segment` and record the executed scenarios, native parent results and observed resource
+      closure. A failed scenario needs separate corrective work, not edits hidden in this evidence sink.
+
+## **Phase 3:** Private native writers and unchanged CI playback
+
+_Purpose:_ Remove shared native cache/report writers and preserve existing forecast, late input delivery and
+cross-platform qualification routes before native group qualification.
+
+_Mode:_ `slice` through Phase 4 — closes on native tier coverage and completion with isolated writers.
+
+### `[ ]` **3.1 Isolate native cache and report writers while retaining controller ownership — D7**
+
+- _Goal:_ Concurrent execution views do not alias native mutable outputs, even with shared dependencies, and native
+  artifact ownership remains effective through controller closing.
+
+    - `[ ]` **3.1.a Put Vite's cache under the package execution view**
+        - Configure supported Vite `cacheDir` behavior at ignored `.test-cache/vite/` in the package's
+          `vitest.config.ts` and ignore rules. Keep the config's package-root semantics for every native project.
+        - Add a process-backed native fixture with distinct execution views sharing one dependency directory;
+          assert resolved cache/report writers differ while handed duration-input bytes remain fixed.
+        - Configuration uses test-after feedback; do not replace native cache formats or weaken controller leases.
+
+    - `[ ]` **3.1.b Keep CI duration collection aligned with the private cache path**
+        - Update `.github/workflows/ci.yml` and `__tests__/integration/duration-layout-workflow.test.ts` for each
+          landed tier's clear/upload paths; retain job placement, tier artifact names and native `results.json`.
+        - Verify `mergeDurationArtifacts` still finds and merges those documents recursively. Re-ground store
+          additions after the native reach implementation lands instead of creating a competing artifact format.
+
+    - `[ ]` **3.1.c Prove writers remain private through native completion and closing**
+        - Extend native controller fixtures around `withTestArtifactOwnership`/`withBuildArtifactOwnership` and
+          workspace-relative reporters; use the existing runtime-ownership and closing test seams.
+        - Build `test-first` (one behavior at a time):
+            - Shared dependencies cannot alias mutable result/cache/report writes across active views.
+            - Existing leases stay held through setup, execution and close; native closing errors still fail.
+            - Merged duration results remain valid after concurrent private writers finish.
+
+### `[ ]` **3.2 Preserve forecast and late-bound native CI shard inputs — D3, D9**
+
+- _Goal:_ Forecasts and native CI playback preserve declared shard placement and bind actual delivered inputs at
+  dispatch, without accidentally routing through a second capture path or freezing setup-time absence.
+
+    - `[ ]` **3.2.a Consume shared expansion and dispatch-time binding in CI playback**
+        - Reuse the landed foundation metadata/binding helper in `src/lib/ci-check-runner.ts`; extend its
+          integration tests around the consumer's final-argument expansion. No new CI schema or input binder is added.
+        - Build `test-first` (one behavior at a time):
+            - Setup forecasts contain names/kinds without payloads; playback receives the shared duration bytes
+              delivered later and preserves native job/shard arguments, cwd and report destinations.
+            - Forecast/declaration binding mismatch refuses with regeneration guidance, then succeeds after repair.
+
+    - `[ ]` **3.2.b Keep forecast/dry-run paths descriptive and side-effect bounded**
+        - Extend forecast and selected-check tests for both native playback and a configured routed check.
+        - Build `test-first` (one behavior at a time):
+            - Routed dry-run does not allocate capture/context, start a worker or probe a runtime; reuse remains
+              unknown when qualification would require preparation.
+            - Ordinary CI matrix size/placement and unconfigured native behavior remain unchanged by local routing.
+
+### `[ ]` **3.3 Exercise consumer portability and exact native Windows statuses — D3, D6, D7**
+
+- _Goal:_ Supported-platform feedback actually executes consumer budgeting/result/writer cases, and Windows status
+  preservation is demonstrated through the parent rather than inferred from Linux-injected numbers alone.
+
+    - `[ ]` **3.3.a Select and classify the consumer's portability surface**
+        - Extend `localVitestTierArguments` in `src/lib/local-vitest-runner.ts` and `isPortabilitySurfacePath` in
+          `src/lib/change-facts.ts`, after re-grounding foundation additions.
+        - Build `test-first` (one behavior at a time):
+            - Execution selectors include the consumer budget/reducer/process/writer cases; classifier coverage
+              includes their actual source/tests, including sequencer/writer changes where applicable.
+            - `portability-build-selection.test.ts`, change-facts and classifier integration tests catch omissions
+              without widening ordinary tier selection or changing CI placement.
+
+    - `[ ]` **3.3.b Exercise actual Windows process statuses through parent reduction**
+        - Add platform-aware process-backed cases for 256 and a high-bit DWORD outcome, retaining useful common
+          completed cases on other platforms. Reuse the foundation's native transport/status handling.
+        - Build `test-first` (one behavior at a time):
+            - Exact Windows status survives as a completed parent failure, including beside missing work; POSIX
+              signal handling and declared no-evidence precedence retain their existing meanings.
+            - Record a completed Windows run through the existing portability pair or a qualified Windows execution
+              environment. PR classification alone is insufficient; the pair is scheduled or explicitly dispatched.
+
+## **Phase 4:** Native membership and completion qualification
+
+_Purpose:_ Observe native discovery and actual partition assignments, then qualify each tier's selection, evidence
+and closing contract without introducing a second partitioner.
+
+_Exit criterion:_ Qualified unit, integration, store and E2E profiles show complete/disjoint native membership under
+fixed inputs, preserve their distinct empty/no-evidence/failure outcomes, and keep native writers and leases isolated
+through controller closing. Store qualification uses the landed native reach command.
+
+### `[ ]` **4.1 Observe native selection and actual shard assignments in a qualification harness — D7**
+
+- _Goal:_ Qualification can compare native unsharded selection with the actual executed shard assignments without
+  changing native membership or partitioning the same selection twice.
+
+    - `[ ]` **4.1.a Collect native membership identities and actual assignments**
+        - Use `discoverVitestSelection`, real controller fixtures and `HeavyFirstSequencer.shard` observation.
+          Keep any observer/report in the qualification harness/native helper, outside the generic check protocol.
+        - Build `test-first` (one behavior at a time):
+            - Identities include project and normalized package-relative module path; equal filenames in different
+              projects remain distinct and assignment observation matches actual native execution.
+            - Discovery is not pre-sharding: observed lists are never fed back into execution with sharding enabled.
+
+    - `[ ]` **4.1.b Compare complete union and pairwise disjointness over fixed inputs**
+        - Add a reusable qualification helper near existing native controller/sequencer tests, using captured
+          duration states, source/selection and compatible profiles supplied by the consumer path.
+        - Build `test-first` (one behavior at a time):
+            - Missing/duplicate membership and incompatible profiles fail qualification even when commands exit zero.
+            - Original source/branch/duration edits after capture cannot change any sibling's membership basis.
+            - Observations remain qualification artifacts, never per-test scheduling or completion grammar in ARC.
+
+### `[ ]` **4.2 Qualify ordinary native tiers, filters and duration-input states — D4, D7**
+
+- _Goal:_ Unit, integration and E2E retain their native selection and nonempty-completion requirements under the
+  declared matrix and applicable execution profiles.
+
+    - `[ ]` **4.2.a Qualify unit and unit-mocks membership together**
+        - Run native unsharded and declared-shard selection/execution through the harness, covering both named unit
+          projects and the partitioner's recorded/fallback duration paths.
+        - Cover full and filtered selections, stable ordering, deletions/widening where applicable, and captured
+          available/absent/empty duration states. Check exact membership, not only subprocess success.
+
+    - `[ ]` **4.2.b Qualify integration and E2E through their native controllers**
+        - Exercise each tier's actual setup/execution/closing path under its normal gate/CI selection rules;
+          retain runtime artifact ownership and private output locations.
+        - Verify complete/disjoint membership and fixed handed inputs; preserve unmatched-name, all-skipped and
+          ordinary empty-execution failures. Do not reinterpret an arbitrary nonzero exit or missing report.
+
+    - `[ ]` **4.2.c Prove controller failure and output-isolation boundaries**
+        - Extend native closing/runtime-ownership fixtures with applicable concurrent views and shared dependencies.
+        - Verify closing errors remain failures, writers/handed durations do not alias, and leases remain effective
+          until native close completes. Keep resource routing/admission active for heavy qualification runs.
+
+### `[ ]` **4.3 Qualify landed store reach no-ops and empty shares — D7**
+
+- _Goal:_ The landed store command uses the public runner with fixed selection inputs and retains its proved no-op
+  and empty-share successes without granting success to incomplete, unmatched or all-skipped native work.
+
+- _Note:_ Re-ground the landed reach implementation and foundation adoption first. This task completes any remaining
+  late-arriving store integration; copied/simulated source does not fulfill four-tier qualification.
+
+    - `[ ]` **4.3.a Complete native store declaration and catalogue adoption**
+        - Inspect the actual landed declaration, reach catalogue and input readers. The foundation adopts wrapper
+          consumers present at its retirement; complete remaining store adoption here if the native tier lands later.
+        - Use ordinary native argv with `runner: true` and explicit actual selectors, including `ARC_STORE_CHECK`,
+          `ARC_STORE_BURSTS` and the handed duration file when read. Keep their value/file and absent/empty semantics.
+        - Remove any obsolete retired-wrapper catalogue dependency; native full/reach selection must remain valid
+          with that executable absent. Prototype executable retirement and machine-setting migration remain outside
+          this task. Test-after declaration/catalogue changes through binding/forecast and native selection fixtures.
+
+    - `[ ]` **4.3.b Qualify full and selected native store membership**
+        - Use the landed store declaration, reach suite catalogue and native shard entry; cover deletions,
+          declaration widening, `ARC_STORE_CHECK` forms and `ARC_STORE_BURSTS` membership gates through captured inputs.
+        - Verify the unsharded union, exactly-once membership and actual compatible runtime profiles, including
+          fixed duration-input states and original-checkout/selector edits after capture.
+
+    - `[ ]` **4.3.c Preserve successful reach no-ops and empty native shares**
+        - Exercise the real reach controllers and their closing path with a validated no-affected-suite selection
+          and a small selection that assigns legitimate empty shares.
+        - Retain their native success/evidence meaning, alongside ordinary unmatched/all-skipped/incomplete and
+          controller-close failures. No new empty-share result file, exit code or output parser is introduced.
+
+### `[ ]` **4.4 Prove native membership, writers and completion** — validate exit criterion at segment scope
+
+- _Goal:_ Recorded native runs demonstrate the segment's four-tier membership/completion contract and isolation
+  through actual native controllers on the profiles claimed as qualified.
+
+    - Execute the recorded unsharded-versus-sharded cases for all four tiers, including filtered/duration states,
+      reach no-op/empty shares, ordinary nonpassing empty work, shared-dependency writer isolation and closing errors.
+    - Request `arc check segment`; record native membership and profile evidence, including the completed Windows
+      status case. Missing native/store/platform evidence remains incomplete rather than a fixture-only success.
+
+## **Phase 5:** Public adapter groups and external integration
+
+_Purpose:_ Extend the foundation-qualified external adapter through the same optional group contract and demonstrate
+generic local/remote execution under its existing placement and admission policy.
+
+_Mode:_ `slice` through Phase 6 — closes on independently qualified integration and measured end-to-end benefit.
+
+_Design decisions:_ External changes belong on their own branch in arc-offload. ARC consumes the public contract;
+the external adapter retains generic use outside ARC and native test tools.
+
+### `[ ]` **5.1 Extend the foundation-qualified external adapter with complete-plan grouping — D1, D8, D10**
+
+- _Goal:_ The existing external adapter accelerates the complete prepared plan while preserving each invocation's
+  evidence, resource accounting and settlement through the public protocol.
+
+- _Note:_ See `notes-distributed-check-shards.md` § Implementation starting points for the proposed external entry
+  and current transport actors. Re-ground the foundation-qualified adapter before extending it in its own repository.
+
+    - `[ ]` **5.1.a Schedule complete groups through the qualified adapter**
+        - Extend the foundation's planned `arc_offload/arc_adapter.py` and `tests/test_arc_adapter.py`, reusing its
+          fixed capture, explicit inputs, runtime qualification and recovery/lifetime primitives.
+        - Build `test-first` (one behavior at a time):
+            - Optional group capability accepts every expected ID once under the same prepared source/input basis;
+              local and remote placements cannot resnapshot the caller or substitute ambient duration inputs.
+            - Each placement satisfies its prepared runtime binding or refuses before affected work; unknown
+              coverage still executes without reuse. Existing generic single execution remains usable.
+            - No hidden rebatching, automatic retry or second ARC-specific adapter entry is introduced.
+
+    - `[ ]` **5.1.b Retain group evidence and resource ownership through failures**
+        - Extend the provider's fake-SSH/drop/stop fixtures around its qualified attempt accounting and pool permits.
+          Keep protocol framing and required-output drainage in the shared adapter implementation.
+        - Build `test-first` (one behavior at a time):
+            - Ordinary failure preserves completed outcomes and allows remaining planned work; terminal evidence
+              remains attributable through partial output, transport loss and cancellation.
+            - Release follows settlement/collection for every launched sibling; uncertain work retains the common
+              input and plan recovery guidance. Cancellation acknowledgement alone releases no permit or capture.
+            - Provider recovery can inspect/settle preparation and execution after conversation loss; failure to
+              flush guidance launches no work. Settled no-context refusal needs no release and repairs successfully.
+
+### `[ ]` **5.2 Qualify common-input local and remote groups under existing policy — D4, D6, D8, D10**
+
+- _Goal:_ Real local and remote placements satisfy the same public consumer contract and native compatibility
+  requirements while the existing pool remains the sole placement and resource-admission authority.
+
+    - `[ ]` **5.2.a Exercise the public contract on real local and remote placements**
+        - Run the independent fixture scenarios against the qualified personal adapter with a small frozen native
+          selection, then apply Phase 4's native membership checks on the profiles claimed as compatible.
+        - Record source/code coordinates, fixed selection/duration states, runtime coverage, actual assignments,
+          exact native failures and output/settlement closure. Edit originals after capture to expose live reads.
+        - Exercise group/basic playback, native failure beside incomplete work and repaired refusal/recovery. Public
+          fixtures cover known/unknown reuse and hit release; actual placements exercise their advertised coverage.
+          Honest unknown runtime qualifies execution without reuse, not a cache-hit or unexercised profile claim.
+
+    - `[ ]` **5.2.b Preserve provider policy and generic use**
+        - Use the live registry, measured selection and current routing mode; retain shared job/heavy-job admission,
+          memory ceilings and inherited caller CPU policy. Do not change the Owner's mode or assume host ordering.
+        - Extend existing policy/resource fixtures for grouped local/remote work, including required-remote refusal
+          and capacity loss. Confirm the adapter remains usable outside ARC and Vitest with generic commands.
+        - Keep provider configuration, inventory, fallback/admission and transport internals outside ARC declarations,
+          protocol semantics and native test grammar.
+
+### `[ ]` **5.3 Document declaration-driven shards through the public runner seam — D2, D9, D10**
+
+- _Goal:_ A team can declare native shards and use any conforming runner with clear defaults, failure/recovery
+  behavior and qualification limits, without adopting the personal provider's deployment settings.
+
+    - Extend the foundation's public runner documentation/examples in the package/root READMEs and installed quality
+      gate guidance. Edit shipped framework source before project sync; leave the deliberately deferred `docs/` site.
+    - Describe native single-command defaults, optional complete-group capability, basic serial playback, explicit
+      value/file inputs, native membership constraints, parent reuse and incomplete/recovery diagnostics.
+    - Show a provider-neutral example using the standalone adapter; distinguish measured profiles from unmeasured
+      deployments. Keep internal work-unit references out of shipped text and retain foundation-owned migration/ADR
+      closeout rather than duplicating them. Validate examples against executable fixtures with test-after feedback.
+
+## **Phase 6:** End-to-end latency and concurrent throughput
+
+_Purpose:_ Measure fresh complete gates with fixed inputs, including capture and queueing, so coverage and aggregate
+completion determine whether the distributed path improves the intended workload.
+
+_Exit criterion:_ Interleaved repeated native/distributed runs report idle-pool and five-or-six-gate median/range,
+coverage, aggregate completion and admission. Any claimed improvement exceeds observed variation, with no concurrent
+regression counted as completed qualification.
+
+### `[ ]` **6.1 Build a reproducible whole-gate comparison harness — D10**
+
+- _Goal:_ Comparisons measure fresh complete gates over equivalent inputs and retain enough observations to detect
+  coverage loss, preparation cost and aggregate regression rather than merely faster job submission.
+
+- _Note:_ See `notes-distributed-check-shards.md` § Implementation starting points for existing provider telemetry
+  and native test-cost limits; neither is already a complete gate benchmark.
+
+    - `[ ]` **6.1.a Fix equivalent native and distributed comparison requests**
+        - Add a bounded qualification harness using the production check/controller path and Phase 4 membership
+          observer; select one fixed source, native selection, duration definition and requested complete check set.
+        - Build `test-first` (one behavior at a time):
+            - In-memory native/unsharded and declaration-derived plans differ only in execution mode, with forced
+              fresh work. The harness changes no source/declaration or production sharding-toggle setting.
+            - Original-checkout edits and pass reuse cannot contaminate comparisons; failures or coverage mismatch
+              remain recorded unsuccessful runs rather than being dropped from the sample.
+
+    - `[ ]` **6.1.b Record complete timing, coverage and admission observations**
+        - Capture controller start through final collection, including capture/transport/preparation, runtime
+          qualification, admission/queueing and execution; reuse provider telemetry without making it pass authority.
+        - Build `test-first` (one behavior at a time):
+            - Aggregation preserves raw observations and reports per-gate median/range plus concurrent makespan and
+              aggregate completion; partial/failed runs cannot become completed-gate speedup samples.
+            - Native coverage and admission/resource observations accompany every comparison; report actual sample
+              counts and limits. Write live-run artifacts under `~/dev/` so interrupted runs remain inspectable.
+
+### `[ ]` **6.2 Qualify fresh idle-pool gate latency with equivalent coverage — D10**
+
+- _Goal:_ An idle-pool improvement claim rests on repeated complete capture-through-collection runs with equivalent
+  native coverage and a gain greater than observed run-to-run variation.
+
+    - Run repeated interleaved native baselines and distributed complete gates with an otherwise idle eligible pool;
+      record source/selection/duration/check-set identities, qualified profiles and fresh execution for every sample.
+    - Report raw timings, median/range, phase costs and exact native coverage. Include preparation and queueing rather
+      than comparing warmed remote execution with a fresh native gate.
+    - Treat speedup within observed variation as unestablished. Keep basic serial adapters correct without assigning
+      them an acceleration requirement or extrapolating measurements to unqualified deployments.
+
+### `[ ]` **6.3 Qualify five-or-six-gate aggregate completion and admission — D10**
+
+- _Goal:_ The intended concurrent workload completes equivalent useful gates without hiding an aggregate throughput
+  regression behind a single faster gate or bypassing shared resource admission.
+
+    - Repeat the interleaved baseline/distributed experiment with five or six concurrent gates. Record per-gate
+      median/range, complete-set makespan, aggregate completion, native coverage and observed queue/admission behavior.
+    - Keep controllers local under the host CPU-yielding policy and all heavy work pool-routed under the current mode,
+      registry and ceilings. Check/gate any separately launched memory-heavy local process under host policy; do not
+      defeat shared admission or the local serial guard to create benchmark concurrency.
+    - Retain all failures/incomplete runs and address a measured concurrent regression before claiming completed
+      qualification. Do not change shard counts, fairness, timeout policy or routing mode to conceal the result.
+
+### `[ ]` **6.4 Validate integrated execution and measured benefit** — validate exit criterion at segment scope
+
+- _Goal:_ The external integration and measured workloads demonstrate the stated public contract and useful gate
+  behavior, with explicit limits for profiles or deployments not actually exercised.
+
+    - Walk the public independent/external adapter scenarios and native profile evidence, then the repeated idle and
+      five-or-six-gate observations; verify equivalent coverage, full timing costs, aggregate completion and admission.
+    - Request `arc check segment`; record actual evidence and unresolved measurements. A concurrent regression or
+      missing required qualification keeps this exit criterion open and needs separate corrective work.
+
+## **Phase 7:** Verification
+
+_Purpose:_ Verify the complete implementation against its success criteria and required project checks.
+
+### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Goal:_ Every success criterion is backed by evidence at the final implementation head, with required checks and
+  integration readiness established through the work-unit verification workflow.
+
+## Success Criteria
+
+- `[ ]` Native/unconfigured checks retain their single command without source preparation; routed dry-run performs
+  no capture, adapter launch or runtime probe. Configured-runner failure never triggers an ARC bypass.
+
+- `[ ]` Complete canonical batch/shard plans precede prepare/reuse, retain command/cwd/selection semantics and fit
+  compatible POSIX/Windows final-argument limits. Oversize/escaping-cwd refusals succeed after explicit repair.
+
+- `[ ]` Group dispatch submits the complete plan once; mandatory serial playback executes the identical plan in order
+  and continues ordinary failures. Every expected pair executes at most once with distinct correlation identity.
+
+- `[ ]` Source bytes/coordinates, selection and explicit absent/empty/value/file bindings stay fixed across siblings,
+  probes and disabled-cache runs after original edits; relative/symlink file behavior follows the native boundary.
+
+- `[ ]` Identical-argv project/files commands and probes retain their distinct engine-owned content bindings. Poisoned
+  caller/worker Git selectors cannot redirect execution; every reserved name/case variant refuses explicit replay,
+  and removing the conflict restores successful captured-source execution with ordinary explicit inputs.
+
+- `[ ]` Parent reuse covers the complete scoped input/matrix/runtime vector. Relevant changes miss while unrelated
+  source/state, host paths, provider labels and attempt IDs do not. Unknown runtime executes without reuse;
+  malformed claimed coverage refuses, and changed known placement requires fresh qualification before work.
+
+- `[ ]` A complete hit launches no invocation and closes/releases its context. A successful miss publishes one parent
+  only after complete acceptable evidence, required output, settlement and normal closure; failed/incomplete/unknown
+  parents publish none. Disposable pass read/write failures retain their miss/advisory semantics.
+
+- `[ ]` Missing/duplicate/conflicting/unknown IDs, wrong source, cancellation, transport loss, killed work or required
+  output loss never pass. Valid native failures survive beside incomplete work, including exact unsigned 32-bit
+  statuses; no-evidence/137/notice precedence stays native and all-no-evidence work never gains a pass.
+
+- `[ ]` Human/JSON output retains parent conventions and attributable batch/shard outcomes, exact native statuses and
+  incomplete reasons. Progress, adapter exit and optional log persistence never substitute for terminal evidence.
+
+- `[ ]` Settled no-context preparation refusal drains and exits normally without release, including a cancellation
+  race and successful explicit retry after repair. Abnormal closure or absent settlement retains uncertainty.
+
+- `[ ]` Interruption waits for actual settlement; acknowledgement or second interruption is insufficient. Lost
+  preparation/execution conversations retain capture and usable pre-work recovery guidance by plan ID; failed
+  guidance writes launch no work. ARC performs no automatic recovery, replacement or retry.
+
+- `[ ]` Settled leftover-directory/log disposal is advisory, while missing required output, unsettled children and
+  native controller-close errors remain substantive. Capture and build/test ownership survive required closing.
+
+- `[ ]` Actual unit, integration, landed reach-store and E2E shard assignments have complete/disjoint native union
+  across qualified profiles, filters, deletion/widening and frozen available/absent/empty duration states. The landed
+  store declaration uses ordinary eligible argv and captured selector gates; its catalogue works without the retired
+  wrapper, including when native store adoption occurs after the foundation closes.
+
+- `[ ]` Actual reach no-affected-suite and empty-share successes retain native meaning, while ordinary unmatched,
+  all-skipped and empty-execution cases remain nonpassing through native controllers and closing.
+
+- `[ ]` Concurrent views sharing dependencies do not alias mutable native cache/report writers; private native
+  `results.json` artifacts merge correctly and existing artifact leases remain held through closing.
+
+- `[ ]` Forecasts describe binding names/kinds without payloads or setup-time capture. Native CI binds after artifact
+  delivery, mismatch/regeneration repairs successfully, and native placement/shards/artifact names remain intact
+  with the private clear/upload paths. Consumer portability selectors/classifiers cover the changed surface.
+
+- `[ ]` A completed native Windows run proves exact 256/high-bit parent failure handling; other supported-platform
+  budget/path/result cases execute through their selected portability routes rather than classification alone.
+
+- `[ ]` Independent public fixtures and real local/remote personal placements meet the same contract and qualified
+  native profiles. Generic external use, current registry/routing/admission, memory ceilings and caller CPU policy
+  remain effective without provider deployment settings or test grammar entering ARC.
+
+- `[ ]` Repeated fresh complete-gate comparisons report idle and five-or-six-gate median/range, raw samples, aggregate
+  completion, native coverage and admission including capture through collection. Claimed improvement exceeds
+  observed variation; any concurrent regression or missing required evidence remains unresolved qualification.
+
+- `[ ]` Public guidance/examples explain generic runner use, native defaults, evidence/recovery and qualification
+  limits, and match executable scenarios without depending on the personal provider.
+
+- `[ ]` All quality gates pass.
+
+- `[ ]` Ready for integration.
+
+---

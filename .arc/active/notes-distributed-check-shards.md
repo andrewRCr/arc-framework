@@ -31,6 +31,61 @@ The native reach-based store observations used source revision `82579e9f0ff38613
 `runReachCheck`, `runReachSuites` and `reach-check-shards.test.ts` are useful starting pointers for selection no-ops
 and empty-share behavior; inspect the landed implementation before native qualification.
 
+## Implementation starting points
+
+The runner foundation is an implementation prerequisite. Its task-generation session proposes the following
+package-relative seams; these are unshipped names to re-ground after landing, not an installed Node SDK:
+
+- `src/lib/checks/runner/contract.ts`: shared validated protocol DTOs.
+- `src/lib/checks/runner/execution.ts`: `prepareSelectedCheckExecution` and `PreparedCheckExecution`, accepting the
+  complete generic invocation plan and exposing source/runtime qualification, singles, optional groups,
+  cancellation, release and retained terminal outcomes.
+- `src/lib/checks/runner/session.ts`: `createCheckRunnerSession`, owning the adapter process and conversation.
+- `src/lib/checks/key-resolver.ts`: `resolveCheckKeyMaterial`, separating scoped captured-content/environment
+  material from runtime observation; `resolveCheckKey` remains the native wrapper.
+- `src/lib/checks/result.ts`: `normalizeCheckInvocationOutcome` and `reduceCheckInvocationOutcomes`, preserving
+  generic native/no-evidence/failure interpretation. The handler's `finalizeCheckRun` remains pass authority.
+- `__tests__/fixtures/checks/runner.ts`: `createRunnerCheckRepository` and `createScriptedRunnerFixture`, building
+  on the declared-check repository fixture. The standalone baseline is `examples/check-runner/local.mjs`.
+- In arc-offload, the proposed single-command baseline is `arc_offload/arc_adapter.py` with
+  `tests/test_arc_adapter.py`; the distributed consumer extends that qualified adapter rather than adding another.
+
+Current `resolveCheckForecast` in `src/lib/checks/forecast.ts` appends shard arguments after batching. Its
+`checkArgumentBatches`/`batchCheckPaths` inputs in `src/lib/checks/batching.ts` therefore need the complete final
+fixed argv before the shard matrix is formed. Preserve native platform budgeting outside routed execution.
+
+Current `executeSelectedCheck` in `src/handlers/check/run.ts` computes local runtime/key information before
+execution. The consumer instead uses the foundation's prepared source/probe material and projects its complete
+runtime coverage onto canonical batch/shard order. Keep attempt IDs distinct from those stable coordinates.
+
+`HeavyFirstSequencer.shard` is the native assignment observation point; `getRelevantTestSpecifications` does not
+pre-shard. The process-backed helpers in `__tests__/helpers/vitest-controller-fixture.ts` and
+`focused-vitest-fixture.ts` provide native controller seams. An observed assignment is qualification data, never a
+pre-partitioned execution input with sharding still enabled.
+
+Native store adoption is checked against the landed declaration and reach catalogue before qualification.
+The foundation retires wrapper consumers present at its adoption; any later store addition is aligned by this
+consumer without reopening prototype executable retirement or migrating machine settings. Capture the actual
+selection readers, including `ARC_STORE_CHECK` and `ARC_STORE_BURSTS`, and the handed duration file when read.
+Remove obsolete retired-wrapper catalogue dependencies and prove native full/reach selection with the wrapper absent.
+This division adds no storage-backend completion wait to the generic foundation.
+
+`localVitestTierArguments` in `src/lib/local-vitest-runner.ts` selects portability suites explicitly.
+`isPortabilitySurfacePath` in `src/lib/change-facts.ts` classifies their source changes; these are separate surfaces.
+The Windows/macOS portability pair in `.github/workflows/ci.yml` runs on its schedule or explicit dispatch, not
+automatically because a pull request receives a portability classification. Consumer selector/matcher additions
+must complement the landed foundation entries and actual platform qualification must name its completed run.
+
+The existing arc-offload `local_run`, `dispatch`, `snapshot`, `runner_environment` and `run_on` actors are in
+`arc_offload/cli.py`, `repository.py` and `execution.py`. Their legacy path snapshots per command, forwards selected
+environment strings and may retry after confirmed stop. The foundation's qualified adapter must already replace
+that path where it conflicts with fixed captures, explicit inputs, pre-work recovery or at-most-once execution.
+Group integration reuses its compliant primitives and the existing measured pool/admission; it adds no retry layer.
+
+`tests/test_cli.py` and `tests/fake_ssh.py` in arc-offload exercise six-client/fake-host contention and isolated
+registry histories. They are useful harness patterns, not throughput evidence. `src/lib/test-cost/run.ts` measures
+native test execution and is likewise not a complete capture-through-collection gate benchmark.
+
 ## Prior-art references
 
 - [Cargo runner configuration][cargo-runner]: executable/argument configuration.

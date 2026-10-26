@@ -483,8 +483,10 @@ small Linux materialization probes do not establish Windows, LFS, submodule or s
 ### Testing and rollout
 
 First consume the available foundation and qualify the independent adapter path, then integrate the personal
-adapter and native tiers. Preserve existing local/CI behavior throughout; no wrapper retirement or runner-setting
-migration is added here. Forced qualification must bypass successful-parent reuse so it observes actual execution.
+adapter and native tiers. Preserve existing local/CI behavior throughout. Align the landed store declaration and
+reach catalogue with the ordinary runner contract before native qualification, including when they land after initial
+declaration adoption. Deleting `scripts/check-runner.sh` or migrating machine runner settings is outside this
+consumer. Forced qualification must bypass successful-parent reuse so it observes actual execution.
 
 Unit checks cover deterministic planning, portable final-argument budgeting, runtime-vector/key projection and
 parent reduction. Integration checks use process-backed adapter fixtures for terminal evidence, source/input
