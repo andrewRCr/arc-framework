@@ -1,8 +1,8 @@
 # Metadata: machine-check-runner
 
-| **State**  | **Owner** | **Branch**                  | **Class** | **Priority** |
-| ---------- | --------- | --------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/machine-check-runner` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch**                  | **Class** | **Priority** |
+| --------- | --------- | --------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/machine-check-runner` | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-machine-check-runner.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Task 1.1.a — Expose a reusable supplied-environment sanitizer (line ~24 in tasks-machine-check-runner.md)
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Audit Task 1.1, then begin Task 1.1.a in a fresh implementation session.
 
 - **PR URL:** [none]
 - **Completed:** [none]
