@@ -14,12 +14,12 @@ import { readBatchObjects, readRefTips } from "./batch-read.js";
 import { checkRefKey } from "./path-admission.js";
 import { resolveReadReference } from "./read.js";
 import { resolveArchivedReferences } from "./archive-resolution.js";
-import { latestFolderPlacement } from "./archive-read.js";
 import type { ReadPlacement } from "../placement.js";
+import { readHistoricalGraph, unavailableRefHistory } from "./history-graph.js";
 import { readHistoryPaths } from "./history-paths.js";
 import { retiredHistoryHome } from "./retired-history.js";
-import { parseHistoryRows, orderHistoryCommits } from "./history-order.js";
-import { readHistorySnapshots } from "./history-snapshots.js";
+import { parseHistoryRows, orderHistoryCommits, type HistoryCommit } from "./history-order.js";
+import { readHistorySnapshots, type HistoricalSnapshot } from "./history-snapshots.js";
 
 /** A landed state paired with the commit that changed it. */
 export interface RefHistoryDetail { entry: HistoryEntry; revision: string }
@@ -53,36 +53,41 @@ export async function readCapturedRefHistory(context: RefBackendContext, request
   if (retired.status === "refused") return retired;
   const home = retired.result ?? expandStoredPath(reference, { registry: context.registry, history: archived.result.length > 0 });
   const tip = tips.get(home.ref);
-  return tip ? readRefHistory(context, reference, home, tip, evidence, latestFolderPlacement(archived.result, home.ref)) : { status: "ok", result: [] };
+  return tip ? readRefHistory(context, reference, home, tip, evidence) : { status: "ok", result: [] };
 }
 
-/** Read a record log against one exact tip, also usable by a locked stale-base lookup. */
+/** Read a record log using the immutable metadata landed in every historical commit. */
 async function readRefHistory(context: RefBackendContext, reference: RecordReference,
-  home: StoredRecordHome, tip: string, evidence = new StoreCreationReceiptReader(), ended?: ReadPlacement): Promise<StoreResult<HistoryEntry[]>> {
-  const history = await readRefHistoryDetails(context, reference, home, tip, evidence, ended);
+  home: StoredRecordHome, tip: string, evidence = new StoreCreationReceiptReader()): Promise<StoreResult<HistoryEntry[]>> {
+  const history = await readRefHistoryDetails(context, reference, home, tip, evidence);
   return history.status === "refused" ? history : { status: "ok", result: history.result.map(({ entry }) => entry) };
 }
 
 /**
- * Retain change-commit identities for merge bases and stored-side labels. An ended owner's tip state takes its latest
- * folder's placement, as its current version does; every earlier state keeps the placement it was written with.
+ * Retain change-commit identities for merge bases and stored-side labels. Stale-base comparisons may supply the
+ * captured endpoint's folder placement for its tip; ordinary history reads use landed metadata throughout.
  */
 export async function readRefHistoryDetails(context: RefBackendContext, reference: RecordReference,
   home: StoredRecordHome, tip: string, evidence = new StoreCreationReceiptReader(), ended?: ReadPlacement): Promise<StoreResult<RefHistoryDetail[]>> {
   const unhealthy = await checkRefTip(context, home.ref, tip, home.metadataPath);
   if (unhealthy) return { status: "refused", refusal: unhealthy };
   const paths = await readHistoryPaths(context, reference, home, tip);
-  const { stdout } = await context.exec("git", ["rev-list", "--full-history", "--parents", "--topo-order", tip, "--",
-    ...paths.map((path) => `:(literal)${path}`)], { cwd: context.checkoutRoot, objectAccess: "local-only" });
-  const rows = parseHistoryRows(stdout);
+  const graph = await readHistoricalGraph(context, ["rev-list", "--full-history", "--parents", "--topo-order", tip, "--",
+    ...paths.map((path) => `:(literal)${path}`)], unavailableRefHistory(reference, home.ref));
+  if (graph.status === "refused") return graph;
+  const rows = parseHistoryRows(graph.result);
   const revisions = [...new Set(rows.flatMap((row) => [row.revision, ...row.parents]))];
   const snapshots = await readHistorySnapshots(context, reference, home, revisions, paths, evidence, ended, tip);
   if (snapshots.status === "refused") return snapshots;
+  return { status: "ok", result: historyDetails(rows, snapshots.result) };
+}
+
+function historyDetails(rows: readonly HistoryCommit[], snapshots: ReadonlyMap<string, HistoricalSnapshot>): RefHistoryDetail[] {
   const entries: RefHistoryDetail[] = [];
   for (const row of orderHistoryCommits(rows).reverse()) {
-    const after = snapshots.result.get(row.revision);
+    const after = snapshots.get(row.revision);
     if (!after) throw new Error("A historical commit has no captured state");
-    const parent = row.parents[0] ? snapshots.result.get(row.parents[0])?.state : undefined;
+    const parent = row.parents[0] ? snapshots.get(row.parents[0])?.state : undefined;
     const before = row.parents.length > 1 ? entries.at(-1)?.entry ?? parent : parent;
     if (after.state.version === (before?.version ?? null)) continue;
     const selected = after.state.version === null ? before?.reference ?? after.state.reference : after.state.reference;
@@ -90,5 +95,5 @@ export async function readRefHistoryDetails(context: RefBackendContext, referenc
       entry: { ...after.state, reference: selected, provenance: parseStoreCommitProvenance(after.message, selected),
         ...(after.creationReceipt ? { creationReceipt: after.creationReceipt } : {}) } });
   }
-  return { status: "ok", result: entries.reverse() };
+  return entries.reverse();
 }

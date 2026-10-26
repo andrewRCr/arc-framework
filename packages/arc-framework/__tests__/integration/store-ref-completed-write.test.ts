@@ -10,12 +10,77 @@ import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { renderStoreCommitMessage } from "../../src/lib/store/commit-provenance.js";
 import { plantRef, removeLooseObject, type PlantTreeEntry } from "../helpers/store/ref-plant.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
-import { RecordReferenceSchema, sameOwner, type RecordReference } from "../../src/lib/store/index.js";
+import { RecordReferenceSchema, sameOwner, type RecordReference, type StoreRecord } from "../../src/lib/store/index.js";
+import type { WriteCheck } from "../../src/lib/store/write-check.js";
 
 const quarter = ArchiveQuarterSchema.parse("2026-q4");
 const later = ArchiveQuarterSchema.parse("2027-q1");
 
 describe("writes to completed ref records", () => {
+  it("keeps completed primary-role round trips readable in checks, results, history and later writes", async () => {
+    let checking = false;
+    const checked: StoreRecord[] = [];
+    const check: WriteCheck = async ({ reference, after }) => {
+      if (checking) checked.push(success(await after.read({ reference })));
+      return [];
+    };
+    const f = await createRefFixture({ "work-item/meta": { check }, "work-item/record": { check } });
+    const seeded = await seed(f, f.reference("work-item/record"));
+    success(await f.store.write({ ...update(f, seeded), placement: { kind: "completed", quarter } }));
+    let current = success(await f.store.read({ reference: seeded.reference }));
+    checking = true;
+    for (const kind of ["work-item/meta", "work-item/record", "work-item/meta"] as const) {
+      const reference = RecordReferenceSchema.parse({ ...current.reference, kind });
+      const written = success(await f.store.write({ ...update(f, current, f.content(reference)), reference }));
+      current = success(await f.store.read({ reference }));
+      expect(current.version).toBe(written.version);
+      expect(current.reference.kind).toBe(kind);
+      expect(current.placement).toMatchObject({ kind: "completed", quarter });
+      expect("sequence" in current.placement!).toBe(kind === "work-item/meta");
+      expect(checked.at(-1)?.placement).toEqual(current.placement);
+      expect(success(await f.store.history({ reference }))[0]?.reference.kind).toBe(kind);
+    }
+    success(await f.store.write(update(f, current)));
+    expect(success(await f.store.read({ reference: current.reference })).content).toBe(f.content(current.reference, "changed"));
+  });
+
+  it("replaces the primary role in every retained quarter without losing an independent end", async () => {
+    const f = await createRefFixture();
+    const { primary, firstRef, ref, metadataPath, firstEnd, batch } = await endTwice(f, "another quarter");
+    let current = success(await f.store.read({ reference: primary.reference }));
+    const git = makeGitExec(f.root);
+    for (const kind of ["work-item/record", "work-item/meta"] as const) {
+      const reference = RecordReferenceSchema.parse({ ...current.reference, kind });
+      success(await f.store.write({ ...update(f, current, f.content(reference)), reference }));
+      current = success(await f.store.read({ reference }));
+      for (const [quarterRef, endBatch] of [[firstRef, firstEnd], [ref, batch]] as const) {
+        const entries = (await entriesAt(f.root, quarterRef)).filter(entry => entry.path.endsWith(metadataPath));
+        expect(entries).toHaveLength(1);
+        expect(JSON.parse((await git("git", ["show", `${quarterRef}:${entries[0]!.path}`])).stdout))
+          .toMatchObject({ endBatch, primary: { role: kind } });
+      }
+      expect(success(await f.store.list({ family: "work-item", kind }))).toMatchObject({ status: "complete", diagnostics: [] });
+      expect(success(await f.store.history({ reference }))[0]?.reference.kind).toBe(kind);
+    }
+    success(await f.store.write(update(f, current)));
+  });
+
+  it("refuses a role replacement that would collapse independent same-quarter ends and admits explicit repair", async () => {
+    const f = await createRefFixture(), { primary } = await endTwice(f, "same quarter");
+    const current = success(await f.store.read({ reference: primary.reference })), before = await f.settle();
+    const reference = RecordReferenceSchema.parse({ ...current.reference, kind: "work-item/record" });
+    expect(await f.store.write({ ...update(f, current, f.content(reference)), reference })).toMatchObject({ status: "refused", refusal: {
+      code: "record-malformed", condition: expect.stringContaining("independent"), remedy: { text: expect.stringContaining("reopen") },
+    } });
+    expect(await f.settle()).toBe(before);
+    success(await f.store.write({ ...update(f, current, current.content), placement: { kind: "active" } }));
+    const reopened = success(await f.store.read({ reference: current.reference }));
+    success(await f.store.write({ ...update(f, reopened, f.content(reference)), reference }));
+    const replaced = success(await f.store.read({ reference }));
+    success(await f.store.write({ ...update(f, replaced, replaced.content), placement: { kind: "completed", quarter } }));
+    expect(success(await f.store.read({ reference })).placement).toEqual({ kind: "completed", quarter });
+  });
+
   it.each(["same quarter", "another quarter"] as const)("refuses to move two ended folders in %s, then admits a reopen and one end", async location => {
     const f = await createRefFixture();
     const { primary, firstRef, firstRoot, ref, nextRoot, metadataPath } = await endTwice(f, location);
@@ -336,11 +401,13 @@ describe("writes to completed ref records", () => {
     const { primary, history, metadataPath, nextQuarter, firstRef, firstRoot, ref, nextRoot } = await endTwice(f, "another quarter", "reversed");
     const read = success(await f.store.read({ reference: primary.reference }));
     expect(read.placement).toMatchObject({ kind: "completed", quarter: nextQuarter });
-    expect(success(await f.store.history({ reference: primary.reference }))[0]?.version).toBe(read.version);
+    const beforeHistory = success(await f.store.history({ reference: primary.reference }));
     const written = success(await f.store.write(update(f, read)));
     const after = success(await f.store.read({ reference: primary.reference }));
     expect(after).toMatchObject({ version: written.version, content: f.content(primary.reference, "changed"), placement: { quarter: nextQuarter } });
-    expect(success(await f.store.history({ reference: primary.reference }))[0]?.version).toBe(after.version);
+    const afterHistory = success(await f.store.history({ reference: primary.reference }));
+    expect(afterHistory[0]?.version).toBe(after.version);
+    expect(afterHistory.slice(1)).toEqual(beforeHistory);
     const git = makeGitExec(f.root);
     expect(JSON.parse((await git("git", ["show", `${history}:${metadataPath}`])).stdout)).toMatchObject({ primary: { placement: { kind: "completed", quarter: nextQuarter } } });
     for (const path of [`${firstRef}:${firstRoot}`, `${ref}:${nextRoot}`]) {

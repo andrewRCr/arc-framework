@@ -28,9 +28,9 @@ export function archivedFolderRoot(context: Pick<RefBackendContext, "registry">,
 
 /** Replace one owner's folder from its final group, preserving that folder's end and placement. */
 export async function refreshArchivedFolder(context: RefBackendContext, folder: ArchivedFolder, group: Pick<RefWriteGroup, "entries" | "metadata">,
-  entries: Map<string, RefTreeEntry>): Promise<void> {
+  entries: Map<string, RefTreeEntry>, target: CompletedFolderTarget = folderTarget(folder)): Promise<void> {
   removeArchivedFolder(entries, folder);
-  await writeArchivedFolder(context, folderTarget(folder), group, entries, folder.owner);
+  await writeArchivedFolder(context, target, group, entries, folder.owner);
 }
 
 /** Remove every entry of one folder from its quarter's entries. */

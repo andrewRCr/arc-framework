@@ -16,7 +16,8 @@ import { writeRefBlob, writeRefTree } from "./tree-write.js";
 import type { RefWriteTarget } from "./write-resolution.js";
 
 /** Mutable prepared tree with the original entries retained for no-op comparison. */
-export interface RefWriteGroup extends CapturedWriteGroup { original: Map<string, RefTreeEntry>; readPlacement?: ReadPlacement; viewRef?: string; retired?: true }
+export interface RefWriteGroup extends CapturedWriteGroup { original: Map<string, RefTreeEntry>; readPlacement?: ReadPlacement;
+  completedPlacements?: ReadonlyMap<string, ReadPlacement>; viewRef?: string; retired?: true }
 
 /** Construct each changed ref's write commit and optional conflict commit. */
 export async function prepareRefCommits(context: RefBackendContext, writes: readonly PreparedRefMutation[],

@@ -9,11 +9,12 @@ import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } f
 import { missingChangeState, type RefChangeInterval, type ChangeWindowReader, type CapturedChangeWindow } from "./changes-graph.js";
 import { parseRefMetadata, historicalMetadataFailure } from "./metadata.js";
 import { refPrototype } from "./read.js";
+import { readLineageOwners } from "./lineage-resolution.js";
 import { rootFamily } from "./codec.js";
 
 /** Endpoint folders, every owner whose end evidence changed inside the interval, and each origin whose lineage it wrote. */
 export interface ChangeEnds {
-  before: ArchivedFolder[]; after: ArchivedFolder[]; changed: Map<string, Set<string>>; origins: Set<string>;
+  before: ArchivedFolder[]; after: ArchivedFolder[]; changed: Map<string, Set<string>>; origins: Set<string>; beforeOrigins: Set<string>; beforeRegistry?: string;
 }
 
 /** Identify a work item or cohort's live lifecycle coordinate. */
@@ -21,7 +22,7 @@ export function isLifecycleRef(ref: string): boolean { return /^refs\/arc\/(?:wo
 
 /** Walk changed end refs and read endpoint folders only when a lifecycle window needs them. */
 export async function readChangeEnds(context: RefBackendContext, interval: RefChangeInterval, readWindow: ChangeWindowReader): Promise<StoreResult<ChangeEnds>> {
-  const result: ChangeEnds = { before: [], after: [], changed: new Map(), origins: new Set() };
+  const result: ChangeEnds = { before: [], after: [], changed: new Map(), origins: new Set(), beforeOrigins: new Set(), beforeRegistry: interval.before.get("refs/arc/project/registry") };
   const scanned = await scanEndRefs(context, interval, readWindow, result, restrictedOwners(context, interval));
   if (scanned.status === "refused") return scanned;
   const moved = [...new Set([...interval.before.keys(), ...interval.after.keys()])].some((ref) => isLifecycleRef(ref) && interval.before.get(ref) !== interval.after.get(ref));
@@ -58,6 +59,18 @@ async function readEndSnapshots(context: RefBackendContext, interval: RefChangeI
     const folders = endFolders(ref, entries, objects, owners);
     if (folders.status === "refused") return folders;
     (side === "before" ? result.before : result.after).push(...folders.result);
+  }
+  return captureRestoredOrigins(context, interval, result);
+}
+
+async function captureRestoredOrigins(context: RefBackendContext, interval: RefChangeInterval, result: ChangeEnds): Promise<StoreResult<undefined>> {
+  const { before, after } = interval;
+  const restored = [...after.keys()].some(ref => isLifecycleRef(ref) && !before.has(ref)
+    && !result.before.some(folder => folder.liveRef === ref));
+  if (restored && result.beforeRegistry) {
+    const lineage = await readLineageOwners(context, before, true);
+    if (lineage.status === "refused") return lineage;
+    for (const owner of lineage.result) if ("uid" in owner && owner.uid) result.beforeOrigins.add(`refs/arc/work/${owner.uid}`);
   }
   return { status: "ok", result: undefined };
 }

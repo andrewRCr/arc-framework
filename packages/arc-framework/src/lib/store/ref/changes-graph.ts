@@ -2,6 +2,7 @@
 import { StoreCreationReceiptReader } from "../commit-creation-receipt.js";
 import type { BatchCreationReceipt } from "../creation-receipt.js";
 import { captureCommitReceipts } from "./history-receipts.js";
+import { readHistoricalGraph } from "./history-graph.js";
 import { checkRefTip } from "./namespace-health.js";
 import { expandStoredPath } from "../stored-path.js";
 import { refPrototype } from "./read.js";
@@ -51,10 +52,11 @@ async function captureChangeWindow(context: RefBackendContext, window: RefChange
   if (headReceipts.status === "refused") return headReceipts;
   const unhealthy = await checkWindowTips(context, window);
   if (unhealthy) return { status: "refused", refusal: unhealthy };
-  const { stdout } = await context.exec("git", ["rev-list", "--full-history", "--parents", "--topo-order", window.upper,
+  const graph = await readHistoricalGraph(context, ["rev-list", "--full-history", "--parents", "--topo-order", window.upper,
     ...window.lower ? [`^${window.lower}`] : [], ...window.paths ? ["--", ...window.paths.map((path) => `:(literal)${path}`)] : []],
-  { cwd: context.checkoutRoot, objectAccess: "local-only" });
-  const rows = orderHistoryCommits(parseHistoryRows(stdout)).reverse();
+  missingChangeState(window));
+  if (graph.status === "refused") return graph;
+  const rows = orderHistoryCommits(parseHistoryRows(graph.result)).reverse();
   if (!rows.length) return { status: "ok", result: { window, rows, trees: new Map(), objects: heads, receipts: headReceipts.result } };
   const revisions = [...new Set([...rows.flatMap(({ revision, parents }) => [revision, ...parents]), ...window.lower ? [window.lower] : []])];
   const trees = await readRefTrees(context, new Map(revisions.map((revision) => [revision, revision])), window.paths);

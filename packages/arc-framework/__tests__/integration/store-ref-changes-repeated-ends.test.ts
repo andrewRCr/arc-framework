@@ -77,6 +77,12 @@ describe("changes over an item that ended more than once", () => {
     expect(versionsOf(success(await h.b.store.changes({ from: twice.afterRestore, to })), twice.reference)).toEqual([twice.revived, null]);
   });
 
+  it.each(["default", "separate"] as const)("excludes the retired owner's old writes when lineage alone precedes its restoration in %s", async layout => {
+    const h = await refSyncFixture(layout);
+    const twice = await endedTwice(h);
+    expect(versionsOf(success(await h.b.store.changes({ from: twice.betweenEnds, to: twice.afterRestore })), twice.reference)).toEqual([]);
+  });
+
   it("lists the writes and removal since a live ref came back beside lineage, when the item then ended again", async () => {
     const h = await refSyncFixture();
     const twice = await endedTwice(h);

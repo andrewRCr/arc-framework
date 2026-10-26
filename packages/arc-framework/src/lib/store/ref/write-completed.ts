@@ -20,6 +20,7 @@ import { corruptRef } from "./namespace-health.js";
 import { writeRefBlob } from "./tree-write.js";
 import { expandStoredPath } from "../stored-path.js";
 import { quarterCommitReference } from "./quarter-provenance.js";
+import { completedRoleReplacements, planCompletedRoleReplacements } from "./write-completed-role.js";
 
 /** The archives and prepared writes a moved cohort's closeout reads, as a closing cohort's does. */
 export interface CompletedMoveBasis { archives: readonly RefArchivePlan[]; writes: readonly PreparedRefMutation[] }
@@ -54,12 +55,13 @@ export async function planCompletedMoves(context: RefBackendContext, batch: Reso
     const quarter = completedMoveQuarter(batch, history);
     return quarter ? [{ history, quarter }] : [];
   });
-  if (!moves.length) return { status: "ok", result: undefined };
-  const captured = await completedQuarterTrees(context, [], batch, new Set(moves.map(({ quarter }) => `refs/arc/archive/${quarter}`)));
+  const replacements = completedRoleReplacements(batch, groups, new Set(moves.map(({ history }) => history)));
+  if (!moves.length && !replacements.length) return { status: "ok", result: undefined };
+  const captured = await completedQuarterTrees(context, [], batch, new Set([...moves.map(({ quarter }) => `refs/arc/archive/${quarter}`),
+    ...replacements.flatMap(({ folders }) => folders.map(({ ref }) => ref))]));
   if (captured.status === "refused") return captured;
   const quarters = captured.result;
-  for (const [ref, entries] of reopened ?? []) if (quarters.has(ref)) quarters.set(ref, new Map(entries));
-  for (const plan of basis.archives) if (quarters.has(plan.home.ref)) quarters.set(plan.home.ref, new Map(plan.entries));
+  reservePreparedQuarters(quarters, basis, reopened);
   for (const { history, quarter } of moves) {
     const group = groups.get(history);
     const owned = (batch.archived ?? []).filter(({ liveRef }) => liveRef.replace("refs/arc/", "refs/arc/history/") === history);
@@ -76,7 +78,13 @@ export async function planCompletedMoves(context: RefBackendContext, batch: Reso
     const home = expandStoredPath(ownerPrimaryReference(folder.owner, group.metadata), { registry: context.registry, placement });
     target.set(home.metadataPath, { path: home.metadataPath, mode: "100644", oid: "" });
   }
-  return { status: "ok", result: undefined };
+  return planCompletedRoleReplacements(context, replacements, quarters);
+}
+
+function reservePreparedQuarters(quarters: Map<string, Map<string, RefTreeEntry>>, basis: CompletedMoveBasis,
+  reopened?: ReadonlyMap<string, ReadonlyMap<string, RefTreeEntry>>): void {
+  for (const [ref, entries] of reopened ?? []) if (quarters.has(ref)) quarters.set(ref, new Map(entries));
+  for (const plan of basis.archives) if (quarters.has(plan.home.ref)) quarters.set(plan.home.ref, new Map(plan.entries));
 }
 
 /** Stamp writes that keep the item completed, preserving its original end batch. */
@@ -118,7 +126,11 @@ export async function refreshCompletedChanges(context: RefBackendContext, change
     if (!group) throw new Error("A completed write has no final history tree");
     const quarter = moves.get(history);
     if (quarter === undefined) {
-      for (const folder of owned) await refreshArchivedFolder(context, folder, group, quarterEntries(quarters, folder.ref));
+      for (const folder of owned) {
+        const placement = group.completedPlacements?.get(`${folder.ref}:${folder.root}`);
+        await refreshArchivedFolder(context, folder, group, quarterEntries(quarters, folder.ref),
+          placement ? { placement, endBatch: folder.metadata.endBatch } : undefined);
+      }
       continue;
     }
     await moveArchivedFolders(context, quarters, owned, group, quarter);
