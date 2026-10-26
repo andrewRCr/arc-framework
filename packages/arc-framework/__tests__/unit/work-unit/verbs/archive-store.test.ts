@@ -12,7 +12,7 @@ import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { createMemoryRemote } from "../../../helpers/store/sync.js";
 import { withCompetingBatch } from "../../../helpers/store/decompose-harness.js";
 import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
-import type { SyncState } from "../../../../src/lib/store/sync.js";
+import { PushResultSchema, type SyncState } from "../../../../src/lib/store/sync.js";
 function context(store: Store): ExecuteTransitionContext {
   const forbidden = async (): Promise<never> => { throw new Error("tracked artifact access"); };
   return { cwd: "/repo", store, indexFs: { readdir: forbidden, readFile: forbidden },
@@ -113,6 +113,40 @@ it.each(stoppingPublicationStates)("retains archive completion until publication
   expect(lifecycleSuccess(await h.store.read({ reference: meta.reference })).version).toBe(completed.version);
   expect([...remote.state.records.values()].find(record => record.reference.kind === "work-item/meta")?.placement)
     .toMatchObject({ kind: "completed" });
+});
+
+it.each(["candidate", "state"] as const)("retains failed %s guidance until its persisted archive actually publishes", async role => {
+  const h = createLifecycleHarness(), remote = createMemoryRemote(); h.store.context.publication.remote = remote;
+  const meta = await h.seedMeta("example"); let blocked = true;
+  const failure = { code: "unreachable", class: "recoverable", cause: "timeout", condition: "Candidate check timed out.", remedy: publicationRepair };
+  const stopped = PushResultSchema.parse({ states: [], pulls: [{ remote: "origin", role, status: "failed", families: ["work-item", "cohort"], failure, notices: [] }], publishes: [] });
+  const store: Store = new Proxy(h.store, { get(target, key) {
+    if (key === "push") return () => blocked ? Promise.resolve({ status: "ok", result: stopped }) : target.push();
+    const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  expect(await archive(store, "example")).toMatchObject({ status: "rejected", persisted: true,
+    reason: expect.stringContaining(failure.condition), remedy: { text: expect.stringContaining(publicationRepair.text), argv: ["arc", "archive", "example"] } });
+  const completed = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
+  expect(completed.placement?.kind).toBe("completed"); expect(remote.state.records.size).toBe(0);
+  blocked = false;
+  expect(await archive(store, "example")).toMatchObject({ status: "archived" });
+  expect(lifecycleSuccess(await h.store.read({ reference: meta.reference })).version).toBe(completed.version);
+  expect([...remote.state.records.values()].find(record => record.reference.kind === "work-item/meta")?.placement?.kind).toBe("completed");
+});
+
+it("completes an archive published beside an independent failed read source", async () => {
+  const h = createLifecycleHarness(), remote = createMemoryRemote(); h.store.context.publication.remote = remote;
+  await h.seedMeta("example");
+  const store: Store = new Proxy(h.store, { get(target, key) {
+    if (key === "push") return async () => {
+      const result = await target.push(); if (result.status === "refused") return result;
+      return { status: "ok", result: PushResultSchema.parse({ ...result.result, pulls: [{ remote: "upstream", role: "read", status: "failed", families: ["work-item", "cohort"], notices: [],
+        failure: { code: "unreachable", class: "recoverable", cause: "network", condition: "Read source unavailable.", remedy: publicationRepair } }] }) };
+    };
+    const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  expect(await archive(store, "example")).toMatchObject({ status: "archived" });
+  expect([...remote.state.records.values()].find(record => record.reference.kind === "work-item/meta")?.placement?.kind).toBe("completed");
 });
 
 it("completes an archive published successfully beside an unfinished-move advisory", async () => {

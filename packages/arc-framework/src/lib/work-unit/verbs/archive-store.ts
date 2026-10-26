@@ -115,6 +115,9 @@ async function publishArchive(store: Store, name: string): Promise<Extract<Archi
 function archiveFamilies(families: readonly string[]): boolean { return families.includes("work-item") || families.includes("cohort"); }
 
 function archivePublicationHold(name: string, result: PushResult): Extract<ArchiveResult, { status: "rejected" }> | undefined {
+  for (const pull of result.pulls) {
+    if (pull.status === "failed" && pull.role !== "read") return persistedFailure(name, pull.failure.condition, pull.failure.remedy);
+  }
   const state = result.states.find((entry) => entry.status === "no-identity" && archiveFamilies(entry.families));
   if (state?.status === "no-identity") return persistedFailure(name, "Archive publication lacks its required identity.", state.remedy);
   for (const stopped of result.states) {
