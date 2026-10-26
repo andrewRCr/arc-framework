@@ -31,7 +31,7 @@ export async function answerRefFollow(context: RefBackendContext, store: Store, 
     const physical = await readRefRepository(context);
     if (answer === "push") await requireFollowPublication(physical, judged.record.projectId);
     const sourceLayout = physical.repository?.gitDir ? "separate" : "default";
-    const ownCodePush = due.designation.pushes.find(row => row.repository === "code" && row.name === due.designation.codeRemote && row.name !== due.remote.name);
+    const ownCodePush = independentPublishers(due, candidate).find(row => row.repository === "code" && row.name === due.designation.codeRemote);
     const destinationLayout = publisherLayout(ownCodePush ?? (answer === "push" ? candidate.remote : undefined), due.designation.codeRemote);
     const sourceRole = due.remote.role;
     if (sourceRole !== "push" && sourceRole !== "read") throw new Error("A due follow's old remote carries neither push nor read");
@@ -54,12 +54,17 @@ export async function answerRefFollow(context: RefBackendContext, store: Store, 
 
 function followPublicationConflict(due: RefFollowDue, candidate: RefFollowCandidate, answer: "push" | "read" | "off"): StoreCommandRefusal | undefined {
   if (answer !== "push") return undefined;
-  const other = due.designation.pushes.find(remote => remote.name !== due.remote.name || remote.repository !== due.remote.repository);
+  const other = independentPublishers(due, candidate)[0];
   if (!other) return undefined;
   return { code: "role-conflict", class: "recoverable",
     condition: `${other.name} already carries push; answering push for ${candidate.remote.name} would add another state publisher.`,
     remedy: { text: `Choose read with arc store remote ${candidate.remote.name} read to follow while keeping the existing publisher.`,
       argv: ["arc", "store", "remote", candidate.remote.name, "read"] } };
+}
+
+function independentPublishers(due: RefFollowDue, candidate: RefFollowCandidate): RefFollowDue["designation"]["pushes"] {
+  return due.designation.pushes.filter(remote => (remote.name !== due.remote.name || remote.repository !== due.remote.repository)
+    && (remote.name !== candidate.remote.name || remote.repository !== candidate.remote.repository));
 }
 
 /** Resume from the retained answer rather than asking again after an interrupted switch. */

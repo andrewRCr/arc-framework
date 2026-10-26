@@ -5,6 +5,27 @@ import { followFixture } from "../helpers/store/follow.js";
 import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 import { success } from "../helpers/store/suite-tools.js";
 
+it.each(["push", "read", "off"] as const)("follows onto its existing destination publisher with answer %s", async role => {
+  const h = await followFixture(), follower = h.follower;
+  await writeFile(follower.config, "# Follow the read source onto the existing code publisher.\n");
+  await follower.exec("git", ["config", "remote.origin.arc-state", "read"]);
+  await follower.exec("git", ["remote", "add", "state-home", h.destinationDirectory]);
+  await follower.exec("git", ["config", "remote.state-home.arc-state", "push"]);
+  await follower.exec("git", ["config", "remote.pushdefault", "state-home"]);
+  const result = (await invokeStoreRemote(["state-home", role], { cwd: follower.root, ports: follower.ports })).result;
+  expect(result, JSON.stringify(result)).toMatchObject({ status: "ok", result: {
+    layout: role === "push" ? "default" : "separate", remotes: expect.arrayContaining([
+      expect.objectContaining({ name: "state-home", role }), expect.objectContaining({ name: "origin", role: "off" }),
+    ]),
+  } });
+  expect(success(await follower.store.read({ reference: follower.unpublished })).content).toBe("Unpublished follower data.\n");
+  expect(success(await follower.store.pull()).pulls.every(pull => pull.status !== "failed")).toBe(true);
+  const pushed = success(await follower.store.push());
+  expect(pushed.publishes.every(publication => publication.status !== "failed")).toBe(true);
+  if (role === "push") expect(pushed.states).toEqual([]);
+  else expect(pushed.states).toContainEqual({ status: "no-remote" });
+}, 30_000);
+
 it("refuses a follow's second publisher and can follow read while keeping the existing publisher", async () => {
   const h = await followFixture(), follower = h.follower, publisher = join(follower.root, "publisher.git");
   await writeFile(follower.config, "# Follow the code remote while retaining this clone's publisher.\n");
