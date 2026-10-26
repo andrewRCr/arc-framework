@@ -14,7 +14,8 @@ import { normalizeGitRejection } from "./process-error.js";
 /** Captured-output ceiling retained by every Git process binding. */
 export const MAX_GIT_OUTPUT_BYTES = 64 * 1024 * 1024;
 
-const GIT_REPOSITORY_LOCAL_ENVIRONMENT = new Set<string>([
+/** Repository selectors removed before a cwd-scoped Git child is launched. */
+export const GIT_REPOSITORY_LOCAL_ENVIRONMENT: ReadonlySet<string> = new Set([
   "GIT_ALTERNATE_OBJECT_DIRECTORIES",
   "GIT_CONFIG",
   "GIT_CONFIG_PARAMETERS",
@@ -31,6 +32,12 @@ const GIT_REPOSITORY_LOCAL_ENVIRONMENT = new Set<string>([
   "GIT_SHALLOW_FILE",
   "GIT_COMMON_DIR",
 ]);
+
+/** Copy a supplied child environment without repository-local Git selectors. */
+export function sanitizeGitRepositoryEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return Object.fromEntries(Object.entries(environment)
+    .filter(([variable]) => !GIT_REPOSITORY_LOCAL_ENVIRONMENT.has(variable.toUpperCase())));
+}
 
 function withoutPathspecEnvironment(base: NodeJS.ProcessEnv | undefined): NodeJS.ProcessEnv {
   const variables = new Set(["GIT_LITERAL_PATHSPECS", "GIT_GLOB_PATHSPECS", "GIT_NOGLOB_PATHSPECS", "GIT_ICASE_PATHSPECS"]);

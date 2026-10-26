@@ -21,13 +21,10 @@ selectors refuse with a successful repaired retry, while ordinary native checks 
 
 - _Note:_ See `notes-machine-check-runner.md` § Native integration constraints for existing raw-Git callers.
 
-    - `[ ]` **1.1.a Expose a reusable supplied-environment sanitizer**
-        - Extend `GIT_REPOSITORY_LOCAL_ENVIRONMENT` / `environmentForGitCwd` in
-          `packages/arc-framework/src/lib/git/process-executor.ts`; retain existing caller entry points.
-        - Build `test-first` (one behavior at a time):
-            - The fifteen native names and case variants cannot select another repository in a supplied child
-              environment.
-            - Unrelated ambient and control-plane variables retain their policy; the caller environment is not mutated.
+    - `[x]` **1.1.a Expose a reusable supplied-environment sanitizer**
+        - Exported the shared readonly selector set and `sanitizeGitRepositoryEnvironment` from
+          `src/lib/git/process-executor.ts`. Supplied environments lose all fifteen selectors and case variants without
+          mutation; unrelated ambient, Git and adapter control variables remain available.
 
     - `[ ]` **1.1.b Preserve native child and checked-index composition**
         - Trace Git executor/importer callers and `checkEnvironment` in `src/lib/checks/process.ts`; apply intentional
