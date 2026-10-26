@@ -7,8 +7,29 @@ import { RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { createRefStore } from "../../src/lib/store/create.js";
 import { createRefLockFactory } from "../../src/lib/store/default-ports.js";
 import { readGitDirectories } from "../../src/lib/git/directories.js";
+import { refSyncFixture } from "../helpers/store/ref-sync.js";
+import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 
 const primary = RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "alpha" } });
+
+it("refreshes designation before first placement after a concurrent public role setting", async () => {
+  const h = await refSyncFixture();
+  await h.a.exec("git", ["config", "remote.origin.arc-state", "off"]);
+  let first = true;
+  const store = createRefStore({ ...h.a.ports, lock: async (name, wait) => {
+    if (name === "layout" && first) {
+      first = false;
+      expect((await invokeStoreRemote(["origin", "push"], { cwd: h.a.root, ports: h.a.ports })).result.status).toBe("ok");
+    }
+    return h.a.ports.lock(name, wait);
+  } });
+  const written = success(await store.write({ action: "put", reference: primary, expected: null,
+    content: makeMetaFixture("alpha"), placement: { kind: "active" }, provenance }));
+  expect(first).toBe(false);
+  await expect(h.a.ports.fs.lstat(join(h.a.root, ".git", "arc", "store"))).rejects.toMatchObject({ code: "ENOENT" });
+  expect(success(await h.a.store.read({ reference: written.reference })).content).toBe(makeMetaFixture("alpha"));
+  expect(success(await h.a.store.push()).publishes).toContainEqual(expect.objectContaining({ status: "pushed" }));
+}, 30_000);
 const provenance = { verb: "test-write", lifecycleAction: "test" };
 
 describe("commit serialization with layout moves", () => {

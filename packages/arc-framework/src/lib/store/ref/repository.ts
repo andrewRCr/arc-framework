@@ -59,6 +59,7 @@ export async function writeRefRepository(context: RefBackendContext,
     const directory = join(location.commonDir, "arc", "store");
     if (await directoryExists(context, directory)) return bindRefRepository(context, location.commonDir, directory);
     if (await codeHoldsState(context, captured)) return selected;
+    if (designatedStoreLayout(await readRefDesignation(context, location.commonDir)) === "default") return selected;
     await createStoreDirectory(context, location.commonDir, directory);
     return bindRefRepository(context, location.commonDir, directory);
   } finally { await release(); }
