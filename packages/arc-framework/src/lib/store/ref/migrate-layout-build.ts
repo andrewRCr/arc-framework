@@ -75,10 +75,11 @@ export async function requireLayoutTransaction(context: RefBackendContext, chang
     remedy: { text: "Run arc store migrate with no target to finish any retained move, then retry the original command if needed.", argv: ["arc", "store", "migrate"] } });
 }
 
-/** Gathering refs never travel into the installed store, and preserve the move record, import keepers and publication proof until their own cleanup ends. */
+/** Layout gathering excludes durable copy accounts and reports still awaiting their continuation's owner. */
 export async function clearLayoutGathering(context: RefBackendContext, layoutOnly = false): Promise<void> {
   const held = await readSyncRefs(context, layoutOnly ? "refs/arc/tmp/migrate/layout/" : "refs/arc/tmp/migrate/");
-  await requireLayoutTransaction(context, [...held].filter(([ref]) => ref !== MOVE_REF && ref !== IMPORT_PUBLICATION_REF && !ref.startsWith(IMPORT_KEPT_PREFIX))
+  await requireLayoutTransaction(context, [...held].filter(([ref]) => ref !== MOVE_REF && ref !== IMPORT_PUBLICATION_REF && !ref.startsWith(IMPORT_KEPT_PREFIX)
+    && ref !== "refs/arc/tmp/migrate/copied/report" && !ref.startsWith("refs/arc/tmp/migrate/accounted-copy/") && !ref.startsWith("refs/arc/tmp/migrate/pending-copy/"))
     .map(([ref, expected]) => ({ ref, delete: true, expected })));
 }
 

@@ -11,11 +11,14 @@ import { readRefRepository } from "./repository.js";
 import { migrationCodeContext, saveMoveRecord, removeMoveRecord, readMoveRecord, readMoveReport, type RecordedLayout,
   type LayoutMoveRecord, type StoreLayout, type LayoutSetting, type RecordedMove } from "./migrate-record.js";
 import { buildLayoutMove, layoutRefs, fetchLayoutObjects, requireLayoutTransaction, clearLayoutGathering, type LayoutBuild } from "./migrate-layout-build.js";
+import { readRemoteCopyReport, clearRemoteGathering } from "./migrate-remote-copy.js";
+import { appendCleanupReport } from "./migrate-report.js";
 
 interface LayoutMoveState {
   context: RefBackendContext; code: RefBackendContext; record: LayoutMoveRecord;
   paths: { common: string; directory: string; build: string; aside: string };
   configuration?: LayoutSwitchConfiguration;
+  carried?: MigrateReport;
 }
 
 /** Copy and switch under the layout lock, or finish the exact direction an earlier run recorded. */
@@ -62,14 +65,18 @@ async function moveHeldLayout(context: RefBackendContext, store: Store, destinat
   const common = code.repository?.commonDir;
   if (!common) throw new Error("No physical code repository selected");
   const current = selected.repository?.gitDir ? "separate" : "default";
+  const carried = configuration ? undefined : await readRemoteCopyReport(code);
   if (!resume && current === destination) {
     if (setting) await setLayoutRole(code, setting);
     const removed = await cleanUnrecordedLayout(code, common, current);
-    return { status: "ok", result: layoutReport(removed, undefined, "delete") };
+    const report = layoutReport(removed, undefined, "delete");
+    if (carried) appendCleanupReport(report, carried);
+    await clearRemoteGathering(code);
+    return { status: "ok", result: report };
   }
   const record: LayoutMoveRecord = resume?.record ?? { kind: "layout", source: current, destination, ...setting ? { setting } : {} };
   const paths = { common, directory: join(common, "arc", "store"), build: join(common, "arc", "store-migrate-build"), aside: join(common, "arc", "store-migrate-old") };
-  const state = { context, code, record, paths, configuration };
+  const state = { context, code, record, paths, configuration, carried };
   const directoryPresent = await directoryExists(code, paths.directory);
   const switched = record.destination === "separate" ? directoryPresent : !directoryPresent;
   const completed = switched ? await finishSwitchedLayout(state, resume) : await buildAndSwitchLayout(state, store, resume);
@@ -93,6 +100,7 @@ async function buildAndSwitchLayout(state: LayoutMoveState, store: Store, resume
   if (state.configuration) { await state.configuration.prepareTarget(prepared.context); prepared.planned = await layoutRefs(prepared.context); }
   await context.migrateStep?.("layout.record");
   const report = layoutReport(prepared.source, prepared);
+  if (state.carried) appendCleanupReport(report, state.carried);
   const recorded = state.configuration ? resume : await saveMoveRecord(code, record, resume?.tip ?? null, report);
   if (!recorded) throw new Error("A containing move must retain its record");
   await switchLayout(state, prepared, recorded);
@@ -109,7 +117,9 @@ async function finishSwitchedLayout(state: LayoutMoveState, recorded?: RecordedL
   const kept = state.configuration ? null : await readMoveReport(code, recorded.tip);
   const refs = kept || !source ? new Map<string, string>() : await layoutRefs(source);
   if (record.destination === "separate" && (record.setting || state.configuration)) await applyLayoutDesignation(state);
-  return { recorded, report: kept ?? layoutReport(refs) };
+  const report = kept ?? layoutReport(refs);
+  if (state.carried) appendCleanupReport(report, state.carried);
+  return { recorded, report };
 }
 
 async function deleteLayoutSource(state: LayoutMoveState, recorded: RecordedLayout): Promise<void> {
@@ -121,7 +131,7 @@ async function deleteLayoutSource(state: LayoutMoveState, recorded: RecordedLayo
   await context.fs.removeDirectory(paths.build);
   await context.migrateStep?.("layout.deleted");
   await clearLayoutGathering(code, state.configuration !== undefined);
-  if (!state.configuration) await removeMoveRecord(code, recorded);
+  if (!state.configuration) { await clearRemoteGathering(code); await removeMoveRecord(code, recorded); }
 }
 
 async function switchLayout(state: LayoutMoveState, prepared: LayoutBuild, recorded: RecordedLayout): Promise<void> {

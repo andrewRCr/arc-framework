@@ -4,6 +4,25 @@ import { deletedFollowSource } from "../helpers/store/leave-source.js";
 import { lateFollowFixture } from "../helpers/store/follow.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { runArcNoTty } from "./helpers.js";
+import { rename } from "node:fs/promises";
+import { followAccountFixture, interruptFollowAccount } from "../helpers/store/follow-account.js";
+import { MigrateReportSchema } from "../../src/lib/store/index.js";
+
+it("keeps the real CLI's uncertain-copy inspection remedy usable after source off", async () => {
+  const f = await followAccountFixture(); await interruptFollowAccount(f, "unknown");
+  await rename(f.h.destinationDirectory, f.h.destinationDirectory + ".offline");
+  let output: Awaited<ReturnType<typeof runArcNoTty>>;
+  try { output = await runArcNoTty(["store", "remote", "origin", "off", "--json"], f.root); }
+  finally { await rename(f.h.destinationDirectory + ".offline", f.h.destinationDirectory); }
+  expect(output.exitCode, output.stdout + output.stderr).toBe(0);
+  const result = JSON.parse(output.stdout) as { result: { report: unknown } };
+  const report = MigrateReportSchema.parse(result.result.report);
+  const notice = report.notices.find(row => row.condition.includes("could not be established"));
+  const ref = /git show (\S+) /u.exec(notice?.remedy?.text ?? "")?.[1];
+  expect(ref).toBeDefined();
+  if (!ref) throw new Error("The command returned no inspection remedy");
+  await expect(f.original.exec("git", ["show", ref], { cwd: f.root })).resolves.toMatchObject({ stdout: expect.stringContaining('"attempt"') });
+}, 30_000);
 
 it("asks without a terminal and executes the explicit follow answer through the CLI", async () => {
   const h = await lateFollowFixture(), follower = h.follower;

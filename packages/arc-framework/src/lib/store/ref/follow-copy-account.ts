@@ -2,7 +2,7 @@
 import type { MigrateReport } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import type { FollowMoveRecord, MoveRemote } from "./migrate-record.js";
-import { copyJournalKey, readCopyJournal, requireNoPendingCopy } from "./migrate-copy-journal.js";
+import { copyJournalKey, readCopyJournal, requireNoPendingCopy, retainCopyAccount } from "./migrate-copy-journal.js";
 import { accountCopyJournal, copyAccountIdentity } from "./migrate-copy-account.js";
 import { readRemoteCopyReport } from "./migrate-cleanup-report.js";
 
@@ -13,8 +13,13 @@ function sameSource(left: Omit<MoveRemote, "pushUrl">, right: MoveRemote): boole
 /** Only a freshly accepted follow from the same observed source may take over its historical account. */
 export async function handoffFollowCopy(context: RefBackendContext, record: FollowMoveRecord): Promise<MigrateReport | undefined> {
   const held = await readCopyJournal(context);
-  if (!held) return;
   const nextKey = copyJournalKey("follow", record.source, record.destination, record.forwardingTip);
+  if (!held) {
+    const report = await readRemoteCopyReport(context);
+    if (!report.refs.length && !report.notices.length) return;
+    await retainCopyAccount(context, nextKey, report);
+    return report;
+  }
   if (held.record.key === nextKey && record.answer === "push") return;
   const prior = copyAccountIdentity(held);
   if (prior.kind !== "follow" || !sameSource(prior.source, record.source)) { await requireNoPendingCopy(context); return; }

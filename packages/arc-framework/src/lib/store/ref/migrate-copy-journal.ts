@@ -65,6 +65,11 @@ function requireKey(record: Journal, key: string): void {
     remedy: { text: "Retry the original migration target and publication answer to settle its copy before choosing another." } });
 }
 
+/** Keep an already accounted report until its freshly accepted continuation records a durable owner. */
+export async function retainCopyAccount(context: RefBackendContext, key: string, report: MigrateReport): Promise<void> {
+  await saveJournal(context, JournalSchema.parse({ schemaVersion: 1, key, settled: report, attempt: null }), new Map());
+}
+
 async function saveJournal(context: RefBackendContext, record: Journal, prior: ReadonlyMap<string, string>): Promise<void> {
   const next = new Map([[recordRef, await writeRefBlob(context, JSON.stringify(JournalSchema.parse(record)))]]);
   // These tips keep the proposed merge objects available even if a fresh entry clears its gathering refs.

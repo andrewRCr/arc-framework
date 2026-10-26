@@ -9,7 +9,8 @@ import { ambiguousDesignation, readRefDesignation, refDesignationStop, type RefD
 import { migrationCodeContext, readMoveRecord, type RecordedMove, type RecordedFollow } from "./migrate-record.js";
 import { moveRefRemote } from "./migrate-remote.js";
 import { layoutMoveLeftovers } from "./migrate-remote-switch.js";
-import { clearRemoteGathering } from "./migrate-remote-copy.js";
+import { clearRemoteGathering, readRemoteCopyReport } from "./migrate-remote-copy.js";
+import { appendCleanupReport } from "./migrate-report.js";
 import { moveRefLayout } from "./migrate-layout.js";
 import { AdvisoryLockTimeoutError } from "../../advisory-lock.js";
 import { applyRefRemoteSetting, remoteView } from "./remote-setting.js";
@@ -44,7 +45,10 @@ export async function runRefMigrate(context: RefBackendContext, store: Store, in
     if (unsettled) return unsettled;
     // A due follow can own a transferred report even after its journal retires.
     // Other unrecorded entries discard gathering left by an ended move.
-    if (!existing.result && !parsed.data.trial && !await readRefFollowDue(context)) await clearRemoteGathering(code);
+    if (!existing.result && !parsed.data.trial && !await readRefFollowDue(context)) {
+      const retained = await readRemoteCopyReport(code);
+      if (!retained.refs.length && !retained.notices.length) await clearRemoteGathering(code);
+    }
     if (parsed.data.to) return moveRefRemote(context, store, parsed.data.to, parsed.data.trial);
     if (layout) return moveRefLayout(context, store, layout.record.destination, layout.record.setting, layout);
     return reconcileNoTarget(context, store);
@@ -98,7 +102,7 @@ async function reconcileNoTarget(context: RefBackendContext, store: Store): Prom
 
 function carryMigrationReport(result: StoreCommandResult<MigrateReport>, carried?: MigrateReport): StoreCommandResult<MigrateReport> {
   if (!carried) return result;
-  if (result.status === "ok") return { status: "ok", result: combineMigrateReports(carried, result.result) };
+  if (result.status === "ok") return { status: "ok", result: combineHistoricalReports(carried, result.result) };
   return result.refusal.code === "import-refused" ? result : { status: "refused", refusal: { ...result.refusal, report: carried } };
 }
 
@@ -111,30 +115,42 @@ export async function runRefRemote(context: RefBackendContext, store: Store, inp
   const setting = { remote: input.remote, role: input.role };
   let completed: MigrateReport | undefined;
   const applied = await withMigrationLock(context, async () => {
-    const existing = await readMoveRecord(await migrationCodeContext(context));
+    const code = await migrationCodeContext(context), existing = await readMoveRecord(code);
     if (existing.status === "refused") return existing;
     if (existing.result) {
       const resumed = await finishRecordedMove(context, store, existing.result);
       if (resumed.status === "refused") return resumed;
       completed = resumed.result;
+    } else {
+      const retained = await readRemoteCopyReport(code);
+      if (retained.refs.length || retained.notices.length) completed = retained;
     }
     const follow = await guardRefFollowSetting(context, store, setting.remote, setting.role);
+    let result: StoreRemoteResult;
     if (follow?.status === "stale") {
-      completed = completed ? combineMigrateReports(completed, follow.report) : follow.report;
-      return applyRefRemoteSetting(context, store, setting, input.ownState);
-    }
-    return follow ?? await applyRefRemoteSetting(context, store, setting, input.ownState);
+      completed = completed ? combineHistoricalReports(completed, follow.report) : follow.report;
+      result = await applyRefRemoteSetting(context, store, setting, input.ownState);
+    } else result = follow ?? await applyRefRemoteSetting(context, store, setting, input.ownState);
+    if (result.status === "ok" && completed) await clearRemoteGathering(code);
+    return result;
   });
   if (!completed) return applied;
   if (applied.status !== "ok") return unappliedSetting(completed, applied);
-  applied.result.report = applied.result.report ? combineMigrateReports(completed, applied.result.report) : completed;
+  applied.result.report = applied.result.report ? combineHistoricalReports(completed, applied.result.report) : completed;
   return applied;
 }
 
 /** The finished move's record is already gone, so a setting that then refuses or asks keeps its own stop and carries the report. */
 function unappliedSetting(completed: MigrateReport, applied: Exclude<StoreRemoteResult, { status: "ok" }>): StoreRemoteResult {
-  if (applied.status === "confirmation-needed") return { ...applied, report: completed };
-  return { status: "refused", refusal: applied.refusal.code === "import-refused" ? applied.refusal : { ...applied.refusal, report: completed } };
+  if (applied.status === "confirmation-needed") return { ...applied, report: applied.report ? combineHistoricalReports(completed, applied.report) : completed };
+  return { status: "refused", refusal: applied.refusal.code === "import-refused" ? applied.refusal : { ...applied.refusal,
+    report: applied.refusal.report ? combineHistoricalReports(completed, applied.refusal.report) : completed } };
+}
+
+function combineHistoricalReports(first: MigrateReport, last: MigrateReport): MigrateReport {
+  const report = { ...combineMigrateReports(first, last), refs: [], notices: [] };
+  appendCleanupReport(report, first); appendCleanupReport(report, last);
+  return report;
 }
 
 async function resumeFollowRequest(context: RefBackendContext, store: Store, recorded: RecordedFollow, { to, trial }: StoreMigrateInput): Promise<import("../commands.js").StoreCommandResult<MigrateReport>> {
