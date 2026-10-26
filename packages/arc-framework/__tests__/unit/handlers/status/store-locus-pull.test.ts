@@ -40,7 +40,11 @@ it.each(["pulled", "incomplete"] as const)("renders every notice from a %s outco
   const pull: PullResult = status === "pulled" ? { status, notices }
     : { status, condition: "Backup refused state.", remedy: { text: "Repair backup." }, partial, notices: [notices[0]!] };
   const warnings = await pullStoreStatus({ sync: createStoreSyncPort({ pull: async () => pull }) });
-  if (status === "incomplete") expect(warnings[0]).toEqual({ code: "pull-incomplete", rendered: "Backup refused state. Repair backup." });
+  if (status === "incomplete") {
+    expect(warnings[0]?.code).toBe("pull-incomplete");
+    expect(warnings[0]?.rendered).toContain("Backup refused state.");
+    expect(warnings[0]?.rendered).toContain("Repair backup.");
+  }
   const rendered = warnings.filter(warning => warning.code === "pull-notice");
   expect(rendered).toHaveLength(notices.length);
   for (const notice of notices) {

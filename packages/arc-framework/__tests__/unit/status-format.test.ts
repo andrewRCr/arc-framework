@@ -17,6 +17,8 @@ import {
 } from "../../src/commands/status.js";
 import { LOAD_SET_MANIFEST_VERSION } from "../../src/lib/load-set/types.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
+import { describeStorePull } from "../../src/lib/session-init/store-user-pull.js";
 import type {
   Probe,
   SessionInitProbeResult,
@@ -573,6 +575,18 @@ it("renders a store designation and omits an empty user slot", () => {
     actions: [{ text: "arc store remote origin state", argv: ["arc", "store", "remote", "origin", "state"] }] };
   expect(buildSessionInitStatusSummary(makeSessionInitResult({ user: { ok: true, value } }))).toContain(value.summary);
   expect(buildSessionInitStatusSummary(makeSessionInitResult({ user: { ok: true, value: null } }))).not.toContain("User:");
+});
+
+it("renders retained-conflict notices and their remedies in human session entry", () => {
+  const conflict = RecordReferenceSchema.parse({ kind: "work-item/conflict-record",
+    owner: { type: "work-item", name: "example", uid: "11111111-1111-4111-8111-111111111111" }, key: "retained-conflict" });
+  const remedy = { text: "Resolve the retained alternatives, then retry.", argv: ["arc", "store", "resolve"] };
+  const value = describeStorePull({ status: "pulled", notices: [{ kind: "ended-with-conflicts", item: conflict.owner,
+    conflicts: [conflict], condition: "The ended item retains conflicting alternatives.", remedy }] });
+  const text = buildSessionInitStatusSummary(makeSessionInitResult({ user: { ok: true, value } }));
+  expect(text).toContain("The ended item retains conflicting alternatives.");
+  expect(text).toContain(remedy.text);
+  expect(value.actions).toContainEqual(remedy);
 });
 
 it("renders the entering checkout's pause before work starts", () => {

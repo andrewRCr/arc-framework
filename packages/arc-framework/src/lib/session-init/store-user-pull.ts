@@ -14,7 +14,8 @@ export type StoreSessionInitUserValue = PullResult & { summary: string; actions?
 /** Produce the shared orientation and typed action for a pull outcome. */
 export function describeStorePull(result: PullResult): StoreSessionInitUserValue {
   const actions = pullActions(result);
-  const summary = [pullSummary(result), ...(result.advisories ?? []).map(advisory => advisory.condition)].join(" ");
+  const notices = [...pullResultNotices(result), ...(result.advisories ?? [])];
+  const summary = [pullSummary(result), ...notices.map(notice => `${notice.condition} ${notice.remedy.text}`)].join(" ");
   return { ...result, summary, ...(actions.length ? { actions } : {}) };
 }
 

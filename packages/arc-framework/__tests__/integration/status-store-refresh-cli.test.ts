@@ -89,7 +89,8 @@ it("preserves incomplete pulls and retained-conflict notices in every registered
       expect.soft(result.exitCode, mode.join(" ")).toBe(0);
       const output = JSON.parse(result.stdout) as { warnings?: unknown };
       const warnings = JSON.stringify(output.warnings ?? []);
-      expect.soft(warnings, mode.join(" ")).toContain("Backup refused state. Repair backup.");
+      expect.soft(warnings, mode.join(" ")).toContain("Backup refused state.");
+      expect.soft(warnings, mode.join(" ")).toContain("Repair backup.");
       expect.soft(warnings, mode.join(" ")).toContain("Ended state retained.");
       expect.soft(warnings, mode.join(" ")).toContain("Inspect and discard the retained conflict.");
       expect.soft(warnings, mode.join(" ")).toContain("ordinary conflict view does not list");
