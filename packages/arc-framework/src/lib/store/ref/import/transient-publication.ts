@@ -34,7 +34,8 @@ export async function unpublishedImportClaims(context: RefBackendContext, identi
     .filter(([ref]) => identities.has(ref.split("/")[3] ?? "")));
   if (!Object.keys(required).length) return;
   const designation = await readRefDesignation(context), publisher = designation.pushes[0];
-  if (!publisher) return;
+  if (!publisher) return { condition: "The imported claims have no state publisher; origin's transient source remains retained.",
+    remedy: "Designate the intended remote with arc store remote <remote> push, publish the imported identities' claims, then rerun arc store migrate --import. Preserve the kept source tips until it finishes." };
   const physical = await readRefRepository(context), remote = await captureMoveRemote(context, context, publisher);
   const prefix = "refs/arc/tmp/migrate/import-published/";
   try {

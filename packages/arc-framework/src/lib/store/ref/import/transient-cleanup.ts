@@ -5,7 +5,7 @@ import { updateRefTransaction, type RefChange } from "../../../git/ref-transacti
 import { pushRefs } from "../../../git/push.js";
 import { classifyPushOutcome } from "../../../git/push-classification.js";
 import { readSyncRefs } from "../sync-graph.js";
-import { readRefDesignation, refDesignationStop } from "../designation.js";
+import { readRefDesignation } from "../designation.js";
 import { IMPORT_PUBLICATION_REF, unpublishedImportClaims } from "./transient-publication.js";
 import { listRemoteRefs } from "../remote-listing.js";
 
@@ -50,7 +50,7 @@ export async function retireImportLocals(context: RefBackendContext): Promise<St
 export async function retireImportRemote(context: RefBackendContext, report: MigrateReport): Promise<StoreMigrateResult | undefined> {
   const kept = await readSyncRefs(context, IMPORT_KEPT_PREFIX);
   if (!kept.size) return;
-  if (refDesignationStop(await readRefDesignation(context))?.status === "no-remote") {
+  if (!(await readRefDesignation(context)).pushes.length) {
     try { report.notices.push(...await retainedRemoteNotices(context, kept)); }
     catch (error) { return cleanupRefused(`Could not read origin's transient refs: ${error instanceof Error ? error.message : String(error)}`,
       "Preserve the kept tips. Restore access to origin, then rerun arc store migrate --import to list its retained transient refs and finish cleanup."); }

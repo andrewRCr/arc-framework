@@ -5,6 +5,23 @@ import { hashBlob, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
 import { serializeTransientIdentityRecord, TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
 import { runArcNoTty } from "./helpers.js";
 import { join } from "node:path";
+import { seedTransients, transientCommon, transientSourceRef } from "../helpers/store/import-transients.js";
+
+it("retains origin's transient authority when a read source is configured without a publisher", async () => {
+  const h = await importFixture("separate");
+  const base = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
+  const tip = await seedTransients(h, [{ ...transientCommon, kind: "groom", slug: "groom-beta", anchorStub: "beta", members: ["beta"],
+    openedBaseHead: base, protection: "partial", branch: null, state: "open", changeRequest: null }]);
+  await h.git("git", ["push", "origin", `${transientSourceRef}:${transientSourceRef}`]);
+  await h.git("git", ["config", "remote.origin.arc-state", "read"]);
+  const result = await runArcNoTty(["store", "migrate", "--import", "--json"], h.root);
+  expect(result.exitCode, JSON.stringify(result)).toBe(0);
+  expect.soft(JSON.parse(result.stdout)).toMatchObject({ status: "ok", result: { notices: expect.arrayContaining([
+    expect.objectContaining({ condition: `origin still holds ${transientSourceRef}; no state remote is designated.` })]) } });
+  expect.soft((await h.remote("git", ["for-each-ref", "--format=%(objectname)", transientSourceRef])).stdout.trim()).toBe(tip);
+  expect((await h.git("git", [`--git-dir=${join(h.root, ".git/arc/store")}`, "for-each-ref", "--format=%(refname)", "refs/arc/user/andrew/claims"])).stdout.trim())
+    .toBe("refs/arc/user/andrew/claims");
+}, 30_000);
 
 describe.each(["default", "separate"] as const)("CLI Errand import in %s", (layout) => {
   it("re-homes authority, retires the licensed refs, and can run again", async () => {
