@@ -7,6 +7,7 @@ import type { RefPushListing } from "./push-listing.js";
 import { refMovementFamilies, statePushFamilies } from "./push-families.js";
 import { checkSyncRefTip } from "./sync-tip.js";
 import { readUnpublishedRefBatches, expandRefBatchExclusion } from "./sync-batches.js";
+import { holdLifecycleRef } from "./sync-lifecycle-holds.js";
 
 /** Exclusions retain failure facts independently of the publishing loop's final measurements. */
 export interface RefPushExclusion {
@@ -18,7 +19,8 @@ export interface RefPushExclusion {
 export async function excludeBrokenPushRefs(context: RefBackendContext, listing: RefPushListing,
   notices: readonly PullNotice[] = []): Promise<RefPushExclusion> {
   const seeds = notices.filter((notice) => notice.kind === "namespace-corrupt" || notice.kind === "end-pending");
-  const excluded = new Set([...seeds.map(({ ref }) => ref), ...listing.pending]), families = new Set<FamilyId>();
+  const excluded = new Set(listing.pending), families = new Set<FamilyId>();
+  for (const { ref } of seeds) holdLifecycleRef(excluded, ref);
   const refusals: { condition: string; remedy: { text: string } }[] = [...seeds];
   for (const { ref, next } of listing.changes) {
     if (!next) continue;
