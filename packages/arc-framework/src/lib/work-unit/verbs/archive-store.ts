@@ -1,5 +1,6 @@
 /** Atomic work-unit and cohort closeout over backend-assigned archive coordinates. */
 import { posix } from "node:path";
+import type { PushResult } from "../../store/sync.js";
 import type { Store } from "../../store/contract.js";
 import { ArchiveQuarterSchema } from "../../kernel/index.js";
 import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
@@ -101,13 +102,26 @@ async function publishCohortCloseout(store: Store, name: string, cohorts: { writ
 async function publishArchive(store: Store, name: string): Promise<Extract<ArchiveResult, { status: "rejected" }> | undefined> {
   const synced = await store.push();
   if (synced.status === "refused") return reportFailure(name, synced.refusal);
-  const relevant = (families: readonly string[]) => families.includes("work-item") || families.includes("cohort");
-  const state = synced.result.states.find((entry) => entry.status === "no-identity" && relevant(entry.families));
-  if (state?.status === "no-identity") return persistedFailure(name, "Archive publication lacks its required identity.", state.remedy);
+  const held = archivePublicationHold(name, synced.result);
+  if (held) return held;
   for (const publication of synced.result.publishes) {
-    if (!relevant(publication.families)) continue;
+    if (!archiveFamilies(publication.families)) continue;
     if (publication.status === "failed") return persistedFailure(name, publication.failure.condition, publication.failure.remedy);
     if ("condition" in publication) return persistedFailure(name, publication.condition, publication.remedy);
+  }
+  return undefined;
+}
+
+function archiveFamilies(families: readonly string[]): boolean { return families.includes("work-item") || families.includes("cohort"); }
+
+function archivePublicationHold(name: string, result: PushResult): Extract<ArchiveResult, { status: "rejected" }> | undefined {
+  const state = result.states.find((entry) => entry.status === "no-identity" && archiveFamilies(entry.families));
+  if (state?.status === "no-identity") return persistedFailure(name, "Archive publication lacks its required identity.", state.remedy);
+  for (const stopped of result.states) {
+    if (stopped.status === "no-remote" || stopped.status === "no-identity") continue;
+    if (stopped.status === "move-unfinished" && result.publishes.some(publication => archiveFamilies(publication.families))) continue;
+    return persistedFailure(name, "condition" in stopped ? stopped.condition
+      : "Archive publication requires the reported remote setting to be repaired.", stopped.remedy);
   }
   return undefined;
 }

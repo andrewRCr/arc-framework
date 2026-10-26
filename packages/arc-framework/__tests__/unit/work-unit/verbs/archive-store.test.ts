@@ -12,6 +12,7 @@ import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { createMemoryRemote } from "../../../helpers/store/sync.js";
 import { withCompetingBatch } from "../../../helpers/store/decompose-harness.js";
 import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
+import type { SyncState } from "../../../../src/lib/store/sync.js";
 function context(store: Store): ExecuteTransitionContext {
   const forbidden = async (): Promise<never> => { throw new Error("tracked artifact access"); };
   return { cwd: "/repo", store, indexFs: { readdir: forbidden, readFile: forbidden },
@@ -85,6 +86,52 @@ describe("store archive", () => {
 function archive(store: Store, name: string) {
   return runArchive({ executor: context(store), fs: { readdir: async () => [] }, clock: () => new Date("2026-10-14T12:00:00Z") }, { name });
 }
+
+const publicationRepair = { text: "Repair the remote designation and retry publication." };
+const stoppingPublicationStates: SyncState[] = [
+  { status: "designation-ambiguous", remotes: ["origin", "backup"], remedy: publicationRepair },
+  { status: "move-incomplete", condition: "Store placement is incomplete.", remedy: publicationRepair },
+  { status: "move-unfinished", condition: "Remote move needs an answer.", remedy: publicationRepair },
+  { status: "moved", remote: "backup", remedy: publicationRepair },
+  { status: "designation-needed", remote: "origin", choices: ["push", "read", "off"], remedy: publicationRepair },
+];
+it.each(stoppingPublicationStates)("retains archive completion until publication recovers from $status", async state => {
+  const h = createLifecycleHarness(), remote = createMemoryRemote();
+  h.store.context.publication.remote = remote;
+  const meta = await h.seedMeta("example");
+  let blocked = true;
+  const store: Store = new Proxy(h.store, { get(target, key) {
+    if (key === "push") return () => blocked ? Promise.resolve({ status: "ok", result: { states: [state], pulls: [], publishes: [] } }) : target.push();
+    const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  expect(await archive(store, "example")).toMatchObject({ status: "rejected", persisted: true,
+    remedy: { text: expect.stringContaining(publicationRepair.text), argv: ["arc", "archive", "example"] } });
+  const completed = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
+  expect(completed.placement).toMatchObject({ kind: "completed" });
+  blocked = false;
+  expect(await archive(store, "example")).toMatchObject({ status: "archived" });
+  expect(lifecycleSuccess(await h.store.read({ reference: meta.reference })).version).toBe(completed.version);
+  expect([...remote.state.records.values()].find(record => record.reference.kind === "work-item/meta")?.placement)
+    .toMatchObject({ kind: "completed" });
+});
+
+it("completes an archive published successfully beside an unfinished-move advisory", async () => {
+  const h = createLifecycleHarness(), remote = createMemoryRemote();
+  h.store.context.publication.remote = remote;
+  await h.seedMeta("example");
+  const store: Store = new Proxy(h.store, { get(target, key) {
+    if (key === "push") return async () => {
+      const pushed = await target.push();
+      if (pushed.status === "refused") return pushed;
+      return { status: "ok", result: { ...pushed.result, states: [...pushed.result.states,
+        { status: "move-unfinished", condition: "The old source awaits cleanup.", remedy: publicationRepair }] } };
+    };
+    const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  expect(await archive(store, "example")).toMatchObject({ status: "archived" });
+  expect([...remote.state.records.values()].find(record => record.reference.kind === "work-item/meta")?.placement)
+    .toMatchObject({ kind: "completed" });
+});
 async function groupFixture(nested = false) {
   const h = createLifecycleHarness();
   const parent = nested ? await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "parent" })),
