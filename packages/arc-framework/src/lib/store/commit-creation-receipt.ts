@@ -15,8 +15,7 @@ export function appendStoreCreationReceipt(message: string, receipt?: BatchCreat
 /** Decode advertised evidence separately from permissive historical provenance parsing. */
 export function parseStoreCreationReceipt(message: string, reference: RecordReference,
   locus: string): StoreResult<BatchCreationReceipt | undefined> {
-  const boundary = message.indexOf("\n\n");
-  const lines = boundary < 0 ? [] : message.slice(boundary + 2).split("\n");
+  const lines = message.split("\n").slice(1);
   const advertised = lines.filter(line => line.startsWith(trailer));
   if (advertised.length === 0) return { status: "ok", result: undefined };
   const encoded = advertised[0];

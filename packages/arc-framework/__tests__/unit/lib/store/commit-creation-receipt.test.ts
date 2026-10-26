@@ -28,6 +28,15 @@ it("ignores subject text that spells a reserved trailer name", () => {
     .toEqual({ status: "ok", result: receipt });
 });
 
+it.each([false, true])("validates advertised receipt metadata without a subject separator (valid: %s)", valid => {
+  const payload = valid ? canonicalize(receipt) : "{";
+  const withoutSeparator = `${message}Arc-Creation-Receipt: ${payload}\n`.replace("\n\n", "\n");
+  expect(parseStoreCreationReceipt(withoutSeparator, reference, locus)).toMatchObject(valid
+    ? { status: "ok", result: receipt }
+    : { status: "refused", refusal: { code: "namespace-corrupt", namespace: locus,
+      remedy: { text: expect.stringContaining("authentic") } } });
+});
+
 it.each([
   ["invalid JSON", "{"],
   ["unsupported version", JSON.stringify({ ...receipt, schemaVersion: 2 })],
