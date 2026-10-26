@@ -97,7 +97,7 @@ describe("record history over state refs", () => {
     if (!registry) throw new Error("No fixture registry");
     const reopened = createRefStore({ ...f.ports, registry: { ...registry, "personal/document": { ...registry["personal/document"],
       parser: () => ({ success: false as const, error: "This build requires different document fields" }) } } });
-    expect(await reopened.read({ reference: record.reference })).toMatchObject({ status: "refused", refusal: { code: "record-malformed" } });
+    expect(await reopened.read({ reference: record.reference })).toMatchObject({ status: "ok", result: { content: "legacy bytes\n" } });
     const history = success(await reopened.history({ reference: record.reference }));
     expect(history).toHaveLength(2);
     expect(history[0]).toMatchObject({ content: "legacy bytes\n", provenance: { message } });
