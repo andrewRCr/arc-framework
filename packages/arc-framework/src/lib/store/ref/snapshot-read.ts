@@ -20,7 +20,7 @@ export async function readSnapshotRecord(context: RefBackendContext, input: Read
   if (invalid) return { status: "refused", refusal: invalid };
   const asOf = input.asOf;
   return restartOnVanishedStore(context, async (bound) => {
-    const loaded = await snapshotView(bound, asOf, { family: bound.registry[input.reference.kind].family, owner: input.reference.owner });
+    const loaded = await snapshotView(bound, asOf, { family: bound.registry[input.reference.kind].family, owner: input.reference.owner }, true);
     return loaded.status === "refused" ? loaded : loaded.result.read(input);
   });
 }
@@ -40,18 +40,27 @@ export async function listSnapshotRecords(context: RefBackendContext, input: Lis
   });
 }
 
-async function snapshotView(context: RefBackendContext, version: StateVersion, input: ListInput): Promise<StoreResult<StoreView>> {
+async function snapshotView(context: RefBackendContext, version: StateVersion, input: ListInput, pointRead = false): Promise<StoreResult<StoreView>> {
   const manifest = await readRefManifest(context, version);
   if (!manifest) return { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", stateVersion: version, historyRefs: [],
     condition: "The saved manifest is not available in this clone.", remedy: { text: "Rebuild the saved state from the current store and retry with its new state version." } } };
   const tips = selectSnapshotTips(manifest, input, await context.identity());
   const state = await captureRefViewState(context, tips);
   const unavailable = [...state.refs].filter(([, group]) => group.entries === undefined).map(([ref]) => ref);
-  if (unavailable.length) return { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", stateVersion: version,
+  if (unavailable.length && !pointRead) return unavailableSnapshot(version, unavailable);
+  const view = capturedRefView(context, () => Promise.resolve({ ...state, saved: true }));
+  return { status: "ok", result: unavailable.length ? { ...view, read: async request => {
+    const result = await view.read(request);
+    return result.status === "refused" && result.refusal.code === "namespace-corrupt" && unavailable.includes(result.refusal.namespace)
+      ? unavailableSnapshot(version, [result.refusal.namespace]) : result;
+  } } : view };
+}
+
+function unavailableSnapshot(version: StateVersion, unavailable: readonly string[]): StoreResult<never> {
+  return { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", stateVersion: version,
     historyRefs: unavailable.filter((ref) => /^refs\/arc\/(?:work|cohort)\//u.test(ref)).map((ref) => HistoryRefSchema.parse(ref.replace("refs/arc/", "refs/arc/history/"))),
     condition: `Saved state tips or their root trees are unavailable: ${unavailable.join(", ")}`,
     remedy: { text: "Pull the named history refs or restore the missing state objects, then retry this saved-state read." } } };
-  return { status: "ok", result: capturedRefView(context, () => Promise.resolve({ ...state, saved: true })) };
 }
 
 function selectSnapshotTips(manifest: ReadonlyMap<string, string>, input: ListInput, identity: string | null): Map<string, string> {

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
+import { expandStoredPath } from "../../src/lib/store/stored-path.js";
 import { RecordReferenceSchema, StateVersionSchema } from "../../src/lib/store/index.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { plantRef, removeLooseObject } from "../helpers/store/ref-plant.js";
@@ -116,6 +117,29 @@ describe("reads from saved ref manifests", () => {
     expect(success(await f.store.read({ reference: record.reference, asOf }))).toEqual(record);
     expect(success(await f.store.list({ family: "work-item", owner: record.reference.owner, asOf })))
       .toMatchObject({ status: "complete", records: [record], missed: false, asOf });
+  });
+
+  it.each(["live", "quarter"] as const)("resolves a saved exact name before an unrelated missing %s tip", async location => {
+    const f = await createRefFixture();
+    const other = await seed(f, f.reference("work-item/meta", "other"));
+    const quarter = ArchiveQuarterSchema.parse("2026-q4");
+    if (location === "quarter") success(await f.store.write({ ...update(f, other, other.content), placement: { kind: "completed", quarter } }));
+    const record = await seed(f, f.reference("work-item/meta"));
+    const asOf = await f.settle();
+    const ref = location === "quarter" ? `refs/arc/archive/${quarter}` : expandStoredPath(other.reference).ref;
+    const git = makeGitExec(f.root), tip = (await git("git", ["rev-parse", ref])).stdout.trim();
+    const bytes = (await f.ports.rawExec(["cat-file", "commit", tip])).stdout;
+    await removeLooseObject(f.root, tip);
+    const byName = RecordReferenceSchema.parse({ ...record.reference, owner: { type: "work-item", name: record.reference.owner.name } });
+    expect(success(await f.store.read({ reference: byName, asOf }))).toEqual(record);
+    expect(await f.store.list({ family: "work-item", asOf })).toMatchObject({ status: "refused", refusal: {
+      code: "state-unresolvable", stateVersion: asOf } });
+    const absent = RecordReferenceSchema.parse({ ...byName, owner: { type: "work-item", name: "absent" } });
+    expect(await f.store.read({ reference: absent, asOf })).toMatchObject({ status: "refused", refusal: {
+      code: "state-unresolvable", stateVersion: asOf } });
+    await f.ports.rawExec(["hash-object", "-t", "commit", "-w", "--stdin"], { input: bytes });
+    expect(success(await f.store.list({ family: "work-item", asOf }))).toMatchObject({ status: "complete", missed: false });
+    expect(await f.store.read({ reference: absent, asOf })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   });
 
   it("names the historical remedy for a saved name read through a damaged quarter folder", async () => {
