@@ -2,7 +2,7 @@
 
 import { RecordReferenceSchema, type OwnerIdentity } from "../identity.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
-import { expandStoredPath } from "../stored-path.js";
+import { expandStoredPath, holdsNoRecord } from "../stored-path.js";
 import { readBatchObjects, readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import { matchesFamilyRef, refOwner } from "./codec.js";
 import { parseRefMetadata, type RefMetadata } from "./metadata.js";
@@ -23,10 +23,13 @@ export async function readLiveRefOwners(context: RefBackendContext, tips: Readon
   const unreadable = new Map<string, StoreRefusal>();
   for (const [ref, tip] of refs) {
     const entries = trees.get(ref);
-    if (entries?.length === 0) continue;
+    const family = matchesFamilyRef(ref, "work-item") ? "work-item" : "cohort";
+    const shell = expandStoredPath(RecordReferenceSchema.parse({ kind: family === "work-item" ? "work-item/meta" : "cohort/document",
+      owner: { type: family, name: "unresolved", uid: ref.split("/").at(-1) } }), { registry: context.registry });
+    if (entries && holdsNoRecord(shell, entries.map(({ path }) => path))) continue;
     const metadata = parseRefMetadata(objects.get(query(ref, tip)), ref);
     if (!entries || !metadata) { unreadable.set(ref, corruptRef(ref, !entries, saved)); continue; }
-    const owner = refOwner(ref, matchesFamilyRef(ref, "work-item") ? "work-item" : "cohort", metadata);
+    const owner = refOwner(ref, family, metadata);
     const state: LiveRefOwner = { owner };
     owners.push(state);
     const primary = capturedPrimary(owner, metadata);

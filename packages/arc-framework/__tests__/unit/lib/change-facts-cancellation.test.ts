@@ -43,3 +43,29 @@ it("reports an unconfirmed descendant tree with the captured native raw output",
     stdout: stdout.toString("latin1"), stderr: stderr.toString("latin1"), descendantsUnconfirmed: true,
     message: expect.stringContaining("descendant") });
 });
+
+it.each([0, 128])("joins accepted native cancellation when the direct child closes independently with %s", async code => {
+  Object.defineProperty(process, "platform", { value: "darwin" });
+  const callbacks: (() => void)[] = [];
+  boundary.execFile.mockImplementation((_command, _args, _options, callback) => {
+    callbacks.push(() => callback(new Error("Process utility unavailable"), ""));
+    return { stdin: { end: () => undefined } };
+  });
+  const child = Object.assign(new EventEmitter(), { pid: 2_000_000_001,
+    stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), kill: () => true });
+  let ready!: () => void;
+  const started = new Promise<void>(resolve => { ready = resolve; });
+  boundary.spawn.mockImplementation(() => { queueMicrotask(ready); return child; });
+  const controller = new AbortController();
+  let settled = false;
+  const pending = createSpawnRawGitExec()(["fetch"], { signal: controller.signal })
+    .catch((error: unknown) => { settled = true; return error; });
+  await started;
+  child.stdout.write(Buffer.from([65, 0, 128, 255])); child.stderr.write("Native diagnostic");
+  controller.abort(); child.emit("close", code);
+  await new Promise<void>(done => setImmediate(done));
+  expect.soft(settled).toBe(false);
+  for (let i = 0; i < 3; i += 1) { callbacks.shift()?.(); await new Promise<void>(done => setImmediate(done)); }
+  expect(await pending).toMatchObject({ kind: "canceled", descendantsUnconfirmed: true,
+    stdout: Buffer.from([65, 0, 128, 255]).toString("latin1"), stderr: "Native diagnostic" });
+});

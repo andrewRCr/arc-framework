@@ -53,21 +53,24 @@ export async function runReachCheck(input: ReachCheckInput): Promise<void> {
 export async function runReachSuites(input: Pick<ReachCheckInput, "checkoutRoot" | "packageRoot" | "declaration"
   | "arguments" | "env">, suites: readonly string[]): Promise<void> {
   const discovered = await discoverReachSuites(input, suites);
-  const { shard } = discovered.controller.config;
-  if (shard !== undefined) {
-    const held = await shardReachSuites(discovered);
-    const { name } = input.declaration;
-    const total = discovered.specifications.length;
-    process.stdout.write(held.length === 0
-      ? `${name}: shard ${shard.index} of ${shard.count} holds none of the ${total} selected suites\n`
-      : `${name}: shard ${shard.index} of ${shard.count} runs ${held.length} of the ${total} selected suites\n`);
-    if (held.length === 0) {
-      await closeVitestController(discovered.controller);
-      return;
+  let executionOwnsController = false;
+  try {
+    const { shard } = discovered.controller.config;
+    if (shard !== undefined) {
+      const held = await shardReachSuites(discovered);
+      const { name } = input.declaration;
+      const total = discovered.specifications.length;
+      process.stdout.write(held.length === 0
+        ? `${name}: shard ${shard.index} of ${shard.count} holds none of the ${total} selected suites\n`
+        : `${name}: shard ${shard.index} of ${shard.count} runs ${held.length} of the ${total} selected suites\n`);
+      if (held.length === 0) return;
     }
+    executionOwnsController = true;
+    await executeVitestSelection(discovered, { cwd: input.packageRoot, env: input.env, tier: "store",
+      packageRoot: input.packageRoot });
+  } finally {
+    if (!executionOwnsController) await closeVitestController(discovered.controller);
   }
-  await executeVitestSelection(discovered, { cwd: input.packageRoot, env: input.env, tier: "store",
-    packageRoot: input.packageRoot });
 }
 
 /**

@@ -6,6 +6,7 @@ import { lifecycleBatches, readLifecycleFolders, refEndPublished, type RefEndPub
 import { commitWithdrawEnd, type WithdrawEnd } from "./sync-withdraw-commit.js";
 import { readLineageOwners } from "./lineage-resolution.js";
 import { readItemEndBatches } from "./sync-lifecycle-log.js";
+import { lifecycleRefHeld } from "./sync-lifecycle-holds.js";
 
 /** Withdraw one competing batch at a time, recapturing its effects before any further decision. */
 export async function withdrawUnpublishedRefEnds(context: RefBackendContext, held: ReadonlyMap<string, string>,
@@ -13,7 +14,7 @@ export async function withdrawUnpublishedRefEnds(context: RefBackendContext, hel
   published: RefEndPublished = refEndPublished(context, incoming), blocked: ReadonlySet<string> = new Set()): Promise<RefMergeResult> {
   const remote = await readLifecycleFolders(context, incoming);
   const lineage = await readLineageOwners(context, incoming);
-  for (const end of await ownEndCandidates(context, held)) {
+  for (const end of await ownEndCandidates(context, held, blocked)) {
     if (blocked.has(end.live) || blocked.has(end.history)) continue;
     if (await published(end.live, end.history, end.batch, end.owner)) continue;
     const batches = await lifecycleBatches(context, incoming.get(end.history), end.owner);
@@ -28,15 +29,17 @@ export async function withdrawUnpublishedRefEnds(context: RefBackendContext, hel
   return { status: "complete", changed: false, notices: [] };
 }
 
-async function ownEndCandidates(context: RefBackendContext, held: ReadonlyMap<string, string>): Promise<WithdrawEnd[]> {
+async function ownEndCandidates(context: RefBackendContext, held: ReadonlyMap<string, string>, blocked: ReadonlySet<string>): Promise<WithdrawEnd[]> {
   const candidates: WithdrawEnd[] = (await readLifecycleFolders(context, held)).flatMap((folder) => {
     const history = folder.liveRef.replace("refs/arc/", "refs/arc/history/");
-    return folder.metadata.endBatch && held.has(history) ? [{ owner: folder.owner, live: folder.liveRef, history, batch: folder.metadata.endBatch }] : [];
+    return !lifecycleRefHeld(blocked, history) && folder.metadata.endBatch && held.has(history)
+      ? [{ owner: folder.owner, live: folder.liveRef, history, batch: folder.metadata.endBatch }] : [];
   });
   const lineage = await readLineageOwners(context, held);
   if (lineage.status === "ok") for (const owner of lineage.result) {
     if (!("uid" in owner)) continue;
     const live = `refs/arc/work/${owner.uid}`, history = live.replace("refs/arc/", "refs/arc/history/");
+    if (lifecycleRefHeld(blocked, live)) continue;
     if (held.has(live) || !held.has(history)) continue;
     for (const batch of await readItemEndBatches(context, held.get(history), owner, "retirement")) candidates.push({ owner, live, history, batch });
   }

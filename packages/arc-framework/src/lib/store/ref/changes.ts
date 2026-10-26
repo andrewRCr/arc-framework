@@ -51,24 +51,27 @@ async function compareBoundWindows(context: RefBackendContext, input: ChangesInp
     windows.push(...lifecycle.result);
   }
   windows.sort((left, right) => left.ref < right.ref ? -1 : left.ref > right.ref ? 1 : 0);
-  const project = windows.some(({ ref }) => ref.startsWith("refs/arc/project/"))
+  const selected: RefChangeWindow[] = [];
+  for (const window of windows) {
+    const own = await restrictedChangeWindow(context, window, input.references);
+    if (own) selected.push(own);
+  }
+  const project = selected.some(({ ref }) => ref.startsWith("refs/arc/project/"))
     ? projectOwnerFromObjects(after, await readBatchObjects(context, projectIdentityQueries(after)), true) : { status: "ok" as const, result: null };
   if (project.status === "refused") return project;
-  return collectChangeEvents(context, input, windows, readWindow, project.result ?? undefined);
+  return collectChangeEvents(context, input, selected, readWindow, project.result ?? undefined);
 }
 
 async function collectChangeEvents(context: RefBackendContext, input: ChangesInput, windows: readonly RefChangeWindow[], readWindow: ChangeWindowReader,
   projectOwner?: OwnerIdentity): Promise<StoreResult<HistoryEntry[]>> {
   const events: RefChangeEvent[] = [];
-  for (const planned of windows) {
-    const window = await restrictedChangeWindow(context, planned, input.references);
-    if (!window) continue;
+  for (const window of windows) {
     const captured = await readWindow(window);
     if (captured.status === "refused") return captured;
     const references = changeWindowReferences(context, captured.result, projectOwner);
     if (references.status === "refused") return references;
     const selected = input.references ? references.result.filter((reference) => input.references?.some((requested) => matchesChangeRestriction(requested, reference))) : references.result;
-    const changes = changeWindowEvents(context, captured.result, selected, planned.placements);
+    const changes = changeWindowEvents(context, captured.result, selected, window.placements);
     if (changes.status === "refused") return changes;
     events.push(...changes.result);
   }

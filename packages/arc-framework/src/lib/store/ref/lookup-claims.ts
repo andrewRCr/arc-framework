@@ -49,6 +49,34 @@ function storedClaimId(context: Pick<RefBackendContext, "registry">, tree: RefLo
   return typeof fields === "object" && fields !== null && "claimId" in fields ? fields.claimId : undefined;
 }
 
+/** Required claim bytes cannot establish absence while the captured blob is unavailable. */
+export function claimPayloadRefusal(context: Pick<RefBackendContext, "registry">, claim: CheckoutClaim,
+  trees: ReadonlyMap<string, RefLookupTree>): StoreRefusal | undefined {
+  for (const [ref, tree] of trees) {
+    const reference = claimPayloadReference(context, claim, ref, tree);
+    if (!reference) continue;
+    const path = expandStoredPath(reference, { registry: context.registry }).path;
+    const entry = tree.entries.find(entry => entry.path === path);
+    if (!entry || tree.objects?.get(entry.oid)?.type === "blob") continue;
+    return { code: "state-unresolvable", class: "recoverable", reference, historyRefs: [],
+      condition: `The captured claim payload ${entry.oid} is unavailable locally.`,
+      remedy: { text: "Restore or fetch the missing claim payload, then repeat the lookup; its absence has not been established." } };
+  }
+  return undefined;
+}
+
+function claimPayloadReference(context: Pick<RefBackendContext, "registry">, claim: CheckoutClaim,
+  ref: string, tree: RefLookupTree): RecordReference | null {
+  if (claim.kind === "errand") {
+    const reference = lookupPrimary(context, ref, tree);
+    return reference?.kind === "work-item/record" && reference.owner.name === claim.slug ? reference : null;
+  }
+  if ((claim.kind === "groom" || claim.kind === "housekeep") && /^refs\/arc\/user\/[^/]+\/claims$/u.test(ref)) {
+    return RecordReferenceSchema.parse({ kind: `claims/${claim.kind}`, key: claim.slug, owner: { type: "person", name: ref.split("/")[3] } });
+  }
+  return null;
+}
+
 /** Identity-scoped claims require the caller's configured identity before scanning. */
 export function claimIdentityRefusal(input: LookupInput, identity: string | null): StoreRefusal | null {
   return identity === null && input.kind === "claim" && ["groom", "housekeep"].includes(input.claim.kind) ? {

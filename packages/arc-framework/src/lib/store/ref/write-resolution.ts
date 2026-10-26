@@ -176,9 +176,10 @@ function unreadableNewClaim(writes: readonly ResolvedMutation[], captured: LiveR
 
 /** Refuse identity-owned writes before selecting a repository or consulting Git. */
 export async function refWriteIdentityRefusal(context: RefBackendContext, writes: readonly Mutation[]): Promise<StoreRefusal | undefined> {
-  const personal = writes.find((write) => write.reference.owner.type === "person");
+  const personal = writes.flatMap(write => [write.reference, ...write.resolves ?? []])
+    .find(reference => reference.owner.type === "person");
   if (personal && await context.identity() === null) return {
-    code: "not-found", class: "recoverable", reference: personal.reference,
+    code: "not-found", class: "recoverable", reference: personal,
     condition: "No arc.identity is configured for person-owned state",
     remedy: { text: "Configure arc.identity, then retry the write." },
   };

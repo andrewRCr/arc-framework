@@ -274,18 +274,22 @@ export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
         descendantsUnconfirmed = unconfirmed;
         child.stdout.destroy();
         child.stderr.destroy();
-      }) ?? (() => undefined);
+      }) ?? (() => Promise.resolve());
       const stdout: Buffer[] = [];
       const stderr: Buffer[] = [];
 
       child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
       child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
-      child.on("error", (error) => {
-        dispose();
+      child.on("error", (error) => { void dispose().then(() => {
+        if (canceled && failures !== undefined) {
+          reject(new failures.GitProcessError({ command: "git", args: effectiveArgs, kind: "canceled", isCanceled: true,
+            stdout: Buffer.concat(stdout).toString("latin1"), stderr: Buffer.concat(stderr).toString("latin1"),
+            descendantsUnconfirmed, cause: error }));
+          return;
+        }
         reject(error);
-      });
-      child.on("close", (code) => {
-        dispose();
+      }).catch(reject); });
+      child.on("close", (code) => { void dispose().then(() => {
         const stdoutBytes = Buffer.concat(stdout);
         const stderrBytes = Buffer.concat(stderr);
         if (canceled && failures !== undefined) {
@@ -305,7 +309,7 @@ export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
             stderr: stderrBytes,
           },
         ));
-      });
+      }).catch(reject); });
       child.stdin.end(options?.input);
     });
   };

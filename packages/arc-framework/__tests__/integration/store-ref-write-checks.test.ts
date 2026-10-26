@@ -81,7 +81,9 @@ describe("registered ref write checks", () => {
         return [];
       },
     } } });
-    expect(await store.read({ reference: record.reference })).toMatchObject({ status: "refused", refusal: { code: "record-malformed" } });
+    const readable = success(await store.read({ reference: record.reference }));
+    expect(readable.content).toBe("legacy\n");
+    expect(Object.hasOwn(readable, "fields")).toBe(false);
     success(await store.write(update(f, record, "valid\n")));
     expect(success(await store.read({ reference: record.reference })).content).toBe("valid\n");
   });

@@ -11,7 +11,7 @@ import type { ListingDiagnostic } from "../read.js";
 /** A content defect whose diagnostic receives its stored path at the caller. */
 export interface ContentProblem { kind: ListingDiagnostic["kind"]; condition: string }
 /** Parsed content retains exact prose bytes and canonicalizes never-projected JSON. */
-export function readRefContent(kind: KindDefinition, bytes: Uint8Array): { content: string; fields?: unknown } | ContentProblem {
+export function readRefContent(kind: KindDefinition, bytes: Uint8Array, pointRead = false): { content: string; fields?: unknown } | ContentProblem {
   if (kind.projection !== "never" && bytes.byteLength > PROJECTED_RECORD_MAX_BYTES) {
     return { kind: "oversized", condition: `Projected records cannot exceed ${PROJECTED_RECORD_MAX_BYTES} UTF-8 bytes` };
   }
@@ -21,14 +21,17 @@ export function readRefContent(kind: KindDefinition, bytes: Uint8Array): { conte
     if (kind.projection === "never") content = canonicalize(JSON.parse(content));
   } catch (error) { return { kind: "malformed", condition: `Stored content is invalid: ${String(error)}` }; }
   const parsed = kind.parser?.(content);
-  if (parsed && !parsed.success) return { kind: "malformed", condition: parsed.error };
+  if (parsed && !parsed.success && !pointRead) return { kind: "malformed", condition: parsed.error };
   return { content, ...(parsed?.success ? { fields: parsed.data } : {}) };
 }
 
 /** Describe a record defect without losing its exact stored entry path. */
-export function recordDiagnostic(path: string, problem: ContentProblem): ListingDiagnostic {
+export function recordDiagnostic(path: string, problem: ContentProblem, saved = false): ListingDiagnostic {
   return { ...problem, key: path, remedy: { text: problem.kind === "unknown-format-version"
     ? "Return to the merge base or rebuild with support for this format version."
+    : saved && problem.kind === "unreadable"
+      ? `Restore or fetch the original missing objects for saved entry ${path}, then retry this saved state.`
+      : saved ? `Select a readable saved state or read current state after repairing ${path}; a forward repair cannot change the saved bytes.`
     : `Repair the stored entry at ${path}, then retry.` } };
 }
 

@@ -3,6 +3,8 @@ import type { RefBackendContext } from "../context.js";
 import { updateRefTransaction } from "../../../git/ref-transaction.js";
 import { readSyncRefs } from "../sync-graph.js";
 import { IMPORT_KEPT_PREFIX, importTransientDeletes } from "./transient-cleanup.js";
+import { readRefRepository } from "../repository.js";
+import { isStateRef } from "../manifest.js";
 
 /** Rebuild private gathering refs on a retry, or drop the same build for a trial. */
 export async function landImportRefs(context: RefBackendContext, refs: ReadonlyMap<string, string>, trial: boolean,
@@ -17,6 +19,11 @@ export async function landImportRefs(context: RefBackendContext, refs: ReadonlyM
   if (!trial) await context.migrateStep?.("import.land");
   const release = await context.lock("layout");
   try {
+    if (!trial) {
+      const current = await readRefRepository(context.repository?.source ?? context);
+      if (current.repository?.gitDir !== context.repository?.gitDir
+        || [...await readSyncRefs(current, "refs/arc/")].some(([ref]) => isStateRef(ref))) return false;
+    }
     const changes = [...gathered].map(([ref, expected]) => ({ ref, expected, delete: true as const }));
     const landed = await updateRefTransaction(context, trial ? changes : [
       ...[...refs].map(([ref, next]) => ({ ref, next, expected: null })), ...changes,

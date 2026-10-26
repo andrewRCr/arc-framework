@@ -17,6 +17,7 @@ import { corruptRef } from "./namespace-health.js";
 import { checkSyncRefTip } from "./sync-tip.js";
 import { readLifecycleFolders } from "./sync-lifecycle.js";
 import { planCompletedRoleReplacements, type CompletedRoleReplacement } from "./write-completed-role.js";
+import { readLifecycleLog } from "./sync-lifecycle-evidence.js";
 
 /** Stamp a history fast-forward only when its retained folders need a paired refresh. */
 export async function prepareSyncHistoryFastForward(context: RefBackendContext, ref: string, tip: string,
@@ -69,8 +70,11 @@ export async function readSyncHistoryQuarters(context: RefBackendContext, ref: s
   if (!first) return { status: "ok", result: { quarters: [] } };
   const latest = latestArchivedFolders(own.flatMap(({ folders }) => folders))[0]?.placement;
   const reference = ownerPrimaryReference(first.owner, first.metadata);
-  const { stdout } = await context.exec("git", ["log", "--format=%B%x00", ...new Set([...(tip ? [tip] : []), ...additionalTips])], { cwd: context.checkoutRoot, objectAccess: "local-only" });
-  const batches = new Set(stdout.split("\0").map((message) => parseStoreCommitProvenance(message.trimStart(), reference))
+  const messages: string[] = [];
+  for (const captured of new Set([...(tip ? [tip] : []), ...additionalTips])) {
+    for (const row of await readLifecycleLog(context, captured)) messages.push(row.message);
+  }
+  const batches = new Set(messages.map((message) => parseStoreCommitProvenance(message.trimStart(), reference))
     .flatMap((entry) => "batchId" in entry ? [entry.batchId] : []));
   return { status: "ok", result: { latest, quarters: own.flatMap(({ ref: quarter, entries, folders }) => {
     const tip = quarters.get(quarter);
@@ -86,9 +90,11 @@ export async function prepareSyncHistoryQuarters(context: RefBackendContext, qua
   if (!tree.metadata) throw new Error("A retained item merge has no group metadata");
   const group: CompletedRoleReplacement["group"] = { metadata: tree.metadata };
   const folders = quarters.flatMap(quarter => quarter.folders), role = tree.metadata.primary?.role;
-  if (role && folders.some(folder => folder.metadata.primary?.role !== role)) {
+  if (role) {
+    const preferredFolders = folders.some(folder => folder.metadata.primary?.role !== role)
+      ? await readLifecycleFolders(context, preferred) : [];
     const planned = planCompletedRoleReplacements(context, [{ group, role, folders }],
-      new Map(quarters.map(quarter => [quarter.ref, quarter.entries])), await readLifecycleFolders(context, preferred));
+      new Map(quarters.map(quarter => [quarter.ref, quarter.entries])), preferredFolders);
     if (planned.status === "refused") return planned;
   }
   for (const quarter of quarters) for (const folder of quarter.folders) {

@@ -12,7 +12,7 @@ import { expandStoredPath, holdsNoRecord, isManifestPath, type StoredRecordHome 
 import type { FamilyId } from "../catalog.js";
 import { FAMILY_REGISTRY } from "../registry.js";
 import { readBatchObjects, readRefTips, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
-import { decodeRecord, decodeReference, matchesFamilyRef, refOwner, rootFamily } from "./codec.js";
+import { decodeRecord, decodeReference, matchesFamilyRef, refOwner, rootFamily, type RefRecordDecodeOptions } from "./codec.js";
 import { canonicalPrimaryKind, parseRefMetadata, unparsedMetadata, type RefMetadata } from "./metadata.js";
 import type { RefBackendContext } from "./context.js";
 import { saveCapturedManifest } from "./manifest.js";
@@ -72,7 +72,7 @@ async function readBoundRecord(context: RefBackendContext, requested: RecordRefe
   if (owner.status === "refused") return owner;
   reference = RecordReferenceSchema.parse({ ...reference, owner: owner.result });
   const conflicts = await readOpenConflicts(context, reference, objects.get(conflictsQuery));
-  const record = decodeRecord(context, reference, object, metadata, home.path, conflicts);
+  const record = decodeRecord(context, reference, object, metadata, home.path, conflicts, undefined, { pointRead: true });
   return "reference" in record ? { status: "ok", result: record } : { status: "refused", refusal: {
     code: "record-malformed", class: "recoverable", reference, rule: record.condition,
     condition: record.condition, remedy: record.remedy } };
@@ -205,19 +205,19 @@ interface DecodedRecords { records: StoreRecord[]; diagnostics: ListingDiagnosti
 /** Decode one ref without observing live tips, with optional prepared metadata. */
 export function decodeCapturedRef(context: RefBackendContext, input: ListInput, ref: string,
   entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>, metadataOverride?: RefMetadata, projectOwner?: OwnerIdentity,
-  placement?: ReadPlacement, saved = false): DecodedRecords {
+  placement?: ReadPlacement, options: RefRecordDecodeOptions = {}): DecodedRecords {
   if (!entries) return unreadableRef(ref);
   const records: StoreRecord[] = [];
   const diagnostics: ListingDiagnostic[] = [];
   const prototype = refPrototype(context, ref, input.family);
   const home = expandStoredPath(prototype, { registry: context.registry });
   if (holdsNoRecord(home, entries.map(({ path }) => path))) return { records, diagnostics };
-  const metadata = metadataOverride ?? capturedMetadata(home, entries, objects, saved);
+  const metadata = metadataOverride ?? capturedMetadata(home, entries, objects, options.saved ?? false);
   if (!("formats" in metadata)) return metadata;
   const owner = projectOwner ?? refOwner(ref, input.family, metadata);
   for (const entry of entries) {
     if (entry.path === home.metadataPath || isManifestPath(home, entry.path)) continue;
-    const record = decodeCapturedEntry(context, input.family, owner, entry, objects.get(entry.oid), metadata, placement);
+    const record = decodeCapturedEntry(context, input.family, owner, entry, objects.get(entry.oid), metadata, placement, options);
     if (!record) continue;
     if ("reference" in record) records.push(record); else diagnostics.push(record);
   }
@@ -225,21 +225,22 @@ export function decodeCapturedRef(context: RefBackendContext, input: ListInput, 
 }
 
 function decodeCapturedEntry(context: RefBackendContext, family: FamilyId, owner: OwnerIdentity, entry: RefTreeEntry,
-  object: BatchObject | null | undefined, metadata: RefMetadata, placement?: ReadPlacement): StoreRecord | ListingDiagnostic | null {
-  if (entry.invalidName) return recordDiagnostic(entry.path, { kind: "malformed", condition: "The stored path is not valid UTF-8" });
+  object: BatchObject | null | undefined, metadata: RefMetadata, placement: ReadPlacement | undefined, options: RefRecordDecodeOptions): StoreRecord | ListingDiagnostic | null {
+  if (entry.invalidName) return recordDiagnostic(entry.path, { kind: "malformed", condition: "The stored path is not valid UTF-8" }, options.saved);
   const reference = decodeReference(context, owner, family, entry.path, metadata, object);
   if (!reference) return recordDiagnostic(entry.path, object?.type === "blob"
     ? { kind: "malformed", condition: "The stored path does not name an admitted record" }
-    : { kind: "unreadable", condition: "The stored blob is not available locally" });
-  if (!("owner" in reference)) return reference;
+    : { kind: "unreadable", condition: "The stored blob is not available locally" }, options.saved);
+  if (!("owner" in reference)) return options.saved
+    ? { ...reference, remedy: recordDiagnostic(reference.key, reference, true).remedy } : reference;
   if (context.registry[reference.kind].family !== family) return null;
   if (object?.type !== "blob") return recordDiagnostic(entry.path, {
     kind: "unreadable", condition: "The stored blob is not available locally",
-  });
-  const record = decodeRecord(context, reference, object, metadata, entry.path, [], placement);
+  }, options.saved);
+  const record = decodeRecord(context, reference, object, metadata, entry.path, [], placement, options);
   if ("reference" in record) {
     const invalid = checkProjectIdentity(reference, new TextDecoder().decode(object.bytes));
-    if (invalid) return recordDiagnostic(entry.path, { kind: "malformed", condition: invalid.condition });
+    if (invalid) return recordDiagnostic(entry.path, { kind: "malformed", condition: invalid.condition }, options.saved);
   }
   return record;
 }
@@ -254,7 +255,7 @@ function capturedMetadata(home: StoredRecordHome, entries: readonly RefTreeEntry
   if (foreign) return { records: [], diagnostics: entries.filter((candidate) => candidate !== foreign
     && !isManifestPath(home, candidate.path)).map((candidate) => recordDiagnostic(candidate.path, {
       kind: "key-mismatch", condition: "The metadata filename names a UID other than its ref's owner",
-    })) };
+    }, saved)) };
   return { records: [], unreadable: true,
     diagnostics: [{ kind: "unreadable", key: home.ref, ...unparsedMetadata(home.ref, saved) }] };
 }
@@ -328,7 +329,7 @@ export function readArchivedFolder(context: RefBackendContext, folder: ArchivedF
   const invalidKey = checkRefKey(reference, context.registry);
   if (invalidKey) return { status: "refused", refusal: invalidKey };
   const decoded = decodeCapturedRef(context, { family, kind: reference.kind, owner: reference.owner }, folder.liveRef,
-    folder.entries, objects, folder.metadata, undefined, folder.placement, saved);
+    folder.entries, objects, folder.metadata, undefined, folder.placement, { saved, pointRead: true });
   const record = decoded.records.find(record => sameReference(record.reference, reference));
   if (record) return { status: "ok", result: record };
   const path = expandStoredPath(reference, { registry: context.registry }).path;

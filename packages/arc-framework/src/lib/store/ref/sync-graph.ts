@@ -20,7 +20,7 @@ export async function readSyncRefs(context: RefBackendContext, prefix: string | 
 /** Distinguish ordinary non-ancestry from a failed graph read. */
 export async function syncRefIsAncestor(context: RefBackendContext, older: string, newer: string): Promise<boolean> {
   try {
-    await context.exec("git", ["merge-base", "--is-ancestor", older, newer], { cwd: context.checkoutRoot, objectAccess: "local-only" });
+    await context.exec("git", ["merge-base", "--is-ancestor", older, newer], { cwd: context.checkoutRoot, objectAccess: "local-only", diagnosticLocale: "stable" });
     return true;
   } catch (error) {
     if (isGitProcessError(error) && isCompletedGitFailure(error) && error.exitCode === 1) return false;
@@ -31,7 +31,7 @@ export async function syncRefIsAncestor(context: RefBackendContext, older: strin
 /** Return Git's merge base, keeping unrelated histories distinct from graph failures. */
 export async function syncRefMergeBase(context: RefBackendContext, local: string, incoming: string): Promise<string | null> {
   try {
-    const { stdout } = await context.exec("git", ["merge-base", local, incoming], { cwd: context.checkoutRoot, objectAccess: "local-only" });
+    const { stdout } = await context.exec("git", ["merge-base", local, incoming], { cwd: context.checkoutRoot, objectAccess: "local-only", diagnosticLocale: "stable" });
     return stdout.trim();
   } catch (error) {
     if (isGitProcessError(error) && isCompletedGitFailure(error) && error.exitCode === 1) return null;

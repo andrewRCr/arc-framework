@@ -13,7 +13,7 @@ import type { RefBackendContext } from "./context.js";
 import { readRefRepository } from "./repository.js";
 import { commitMigrationRegistry, requireMoveProject } from "./migrate-registry.js";
 import { prepareRefCopy } from "./migrate-copy.js";
-import { requireLayoutTransaction } from "./migrate-layout-build.js";
+import { fetchLayoutObjects, requireLayoutTransaction } from "./migrate-layout-build.js";
 import { clearMigrationRefs, fetchMigrationRemote } from "./migrate-remote-fetch.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { readForwardingRecord, FORWARDING_REF } from "./forwarding-record.js";
@@ -49,11 +49,10 @@ async function copyRemoteRound(code: RefBackendContext, transports: MoveTranspor
   let recorded = prior;
   const basis = await readRemoteCopyBasis(code, source, destination, local, recorded);
   const { incoming, held, observed } = basis;
-  const carried = trial ? undefined : await recoverCopyJournal(code, journalKey, held);
   if (basis.ended) {
-    if (!trial) await releaseCopyJournal(code);
-    return { recorded, ended: basis.ended, report: carried ?? await readRemoteCopyReport(code), source: incoming, destination: held };
+    return { recorded, ended: basis.ended, report: await readRemoteCopyReport(code), source: incoming, destination: held };
   }
+  const carried = trial ? undefined : await recoverCopyJournal(code, journalKey, held);
   if (basis.ownForwarding && recorded) {
     if (!trial) await releaseCopyJournal(code);
     return { recorded, report: carried ?? await readRemoteCopyReport(code), source: incoming, destination: held };
@@ -317,6 +316,7 @@ export async function captureMoveHeads(code: RefBackendContext, remote: MoveRemo
   for (const [root, kind] of [[`refs/arc-remotes/${remote.name}/`, "tracking"], [`refs/arc/tmp/seen/${remote.name}/`, "seen"]] as const) {
     for (const [ref, tip] of await readSyncRefs(physical, root)) captured.set(`${kind}/${ref.slice(root.length)}`, tip);
   }
+  await fetchLayoutObjects(code, physical.repository?.gitDir ?? physical.repository?.commonDir ?? physical.checkoutRoot, captured);
   return captured;
 }
 

@@ -97,7 +97,7 @@ export async function resolveCheckoutGitDir(exec: GitExec, cwd: string): Promise
 export type GitExecInput = (
   args: string[],
   input: string,
-  options?: Pick<GitExecOptions, "cwd" | "objectAccess" | "signal">,
+  options?: Pick<GitExecOptions, "cwd" | "objectAccess" | "signal" | "diagnosticLocale">,
 ) => Promise<string>;
 
 /** Result from a byte-preserving Git invocation. */

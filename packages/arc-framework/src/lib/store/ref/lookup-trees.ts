@@ -7,7 +7,7 @@ import type { RefLookupTree } from "./lookup.js";
 import { isArchiveRef } from "./archive-read.js";
 import { archiveStateFromCapture, captureArchivedFolders, selectEndedOwners } from "./ended-owners.js";
 import type { RefViewState } from "./view-state.js";
-import { expandStoredPath } from "../stored-path.js";
+import { expandStoredPath, holdsNoRecord, type StoredRecordHome } from "../stored-path.js";
 import { refPrototype } from "./read.js";
 import { viewRefFamily } from "./view-state.js";
 import { matchesFamilyRef } from "./codec.js";
@@ -41,7 +41,9 @@ export async function readCapturedLookupTrees(context: RefBackendContext, all: R
     return { status: "ok", result: decodeLookupCapture(context, tips, fresh.entries, fresh.objects, acquisition, saved) };
   }
   const captured = await captureLookupTrees(context, tips, saved);
-  if (captured.status === "ok" && captured.result.unreadable.size === 0) cache.set(context.checkoutRoot, { signature, capture: captured.result });
+  const acquisition = captured.status === "ok" ? captured.result.acquisition : undefined;
+  if (captured.status === "ok" && captured.result.unreadable.size === 0 && acquisition
+    && acquisition.objects.every(query => acquisition.values.get(query))) cache.set(context.checkoutRoot, { signature, capture: captured.result });
   return captured;
 }
 
@@ -63,9 +65,9 @@ function decodeLookupCapture(context: RefBackendContext, tips: ReadonlyMap<strin
     const entries = captured.get(ref);
     if (!entries) { unreadable.set(ref, corruptRef(ref, true, saved)); continue; }
     if (isArchiveRef(ref)) continue;
-    const path = lookupMetadataPath(context, ref);
-    if (entries.every(({ path: stored }) => stored === path)) continue;
-    const entry = entries.find(({ path: stored }) => stored === path);
+    const home = lookupRecordHome(context, ref);
+    if (holdsNoRecord(home, entries.map(({ path }) => path))) continue;
+    const entry = entries.find(({ path }) => path === home.metadataPath);
     const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : null, ref);
     if (!metadata) { unreadable.set(ref, corruptRef(ref, false, saved)); continue; }
     trees.set(ref, { entries, metadata, objects });
@@ -74,10 +76,10 @@ function decodeLookupCapture(context: RefBackendContext, tips: ReadonlyMap<strin
   return { trees, unreadable, acquisition };
 }
 
-function lookupMetadataPath(context: RefBackendContext, ref: string): string {
+function lookupRecordHome(context: RefBackendContext, ref: string): StoredRecordHome {
   const family = viewRefFamily(ref);
   if (!family) throw new Error("The lookup scan contains an unregistered ref family");
-  return expandStoredPath(refPrototype(context, ref, family), { registry: context.registry }).metadataPath;
+  return expandStoredPath(refPrototype(context, ref, family), { registry: context.registry });
 }
 
 /** Add each completed owner's latest folder without consulting current refs. */

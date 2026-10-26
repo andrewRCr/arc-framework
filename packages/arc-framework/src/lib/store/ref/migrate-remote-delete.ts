@@ -19,13 +19,13 @@ export async function deleteRemoteSource(code: RefBackendContext, recorded: Reco
     for (;;) {
       await code.migrateStep?.("remote.read-destination");
       const controls = await fetchMigrationRemote(code, recorded.record.destination, await hasCopyJournal(code));
-      await recoverCopyReport(code, copyJournalKey("remote", recorded.record.source, recorded.record.destination), controls, report);
       const currentDestination = await readDestinationLicense(code, recorded, controls);
       await code.migrateStep?.("remote.list-source");
       const source = await fetchMigrationRemote(code, recorded.record.source, true);
       await settleCleanupDeletes(code, source, report);
       const currentSource = await readSourceLicense(code, recorded, source);
       if (!currentDestination || !currentSource) return await finishEndedRemoteMove(code, recorded, { report, source, destination: controls }, "after");
+      await recoverCopyReport(code, copyJournalKey("remote", recorded.record.source, recorded.record.destination), controls, report);
       const ordinary = new Map([...source].filter(([ref]) => ref !== FORWARDING_REF));
       if (!ordinary.size) {
         await code.migrateStep?.("remote.finish");

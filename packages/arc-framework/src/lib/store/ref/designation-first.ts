@@ -8,7 +8,7 @@ import { checkRefDesignationProject, type RefDesignationProjectCheck } from "./d
 import { readRefRegistryPresence, type RefRegistryPresence } from "./designation-presence.js";
 import type { PullOutcome, SyncState } from "../sync.js";
 import { isGitProcessError } from "../../git/process-error.js";
-import { refSyncDeadlineExpired } from "./sync-deadline.js";
+import { RefSyncDeadlineError, refSyncDeadlineExpired } from "./sync-deadline.js";
 
 /** Configuration questions and candidate failures prevent state publication independently. */
 export interface RefDesignationResolution {
@@ -58,7 +58,7 @@ async function installFirstBacking(context: RefBackendContext): Promise<SyncStat
   try {
     // Another checkout may have designated a remote or placed state in the code repository since the store was placed.
     const current = await readRefDesignation(context);
-    if (current.backing || current.pushes.length) return null;
+    if (current.backing || current.remotes.some(({ role }) => role !== undefined)) return null;
     const selected = await readRefRepository(context);
     if (!selected.repository?.gitDir) return heldBeforeBacking();
     await selected.exec("git", ["remote", "add", "backing", pointer]);
@@ -111,17 +111,36 @@ async function automaticallyDesignate(context: RefBackendContext, remote: RefRem
   try {
     const check = await checkRefDesignationProject(context, remote, result.designation);
     if (check.status !== "ok") return { ...result, pulls: [automaticProjectFailure(remote.name, check)] };
-    const source = context.repository?.source ?? context;
-    await source.exec("git", ["config", `remote.${remote.name}.arc-state`, "push"]);
-    return { ...result, designation: await readRefDesignation(context) };
+    return await admitAutomaticDesignation(context, remote, result) ?? await resolveRefDesignation(context);
   } catch (error) {
-    if (!isGitProcessError(error) || error.kind !== "canceled" || !refSyncDeadlineExpired(context)) throw error;
+    if (!(error instanceof RefSyncDeadlineError)
+      && (!isGitProcessError(error) || error.kind !== "canceled" || !refSyncDeadlineExpired(context))) throw error;
     return { ...result, pulls: [automaticProjectFailure(remote.name, { status: "failed", failure: {
       code: "unreachable", class: "recoverable", cause: "timeout",
-      condition: [error.message, error.diagnosticStderr || error.stderr].filter(Boolean).join("\n"),
+      condition: error instanceof RefSyncDeadlineError ? error.message
+        : [error.message, error.diagnosticStderr || error.stderr].filter(Boolean).join("\n"),
       remedy: { text: `Retry the pull to check ${remote.name}'s current designation; its automatic role setting may already have completed.` },
     } })] };
   }
+}
+
+async function admitAutomaticDesignation(context: RefBackendContext, remote: RefRemoteDesignation,
+  result: RefDesignationResolution): Promise<RefDesignationResolution | null> {
+  const source = context.repository?.source ?? context;
+  const release = await source.lock("layout");
+  try {
+    const designation = await readRefDesignation(source);
+    const layout = await observeRefLayout(source, designation);
+    if (layout.incomplete || layout.unfinished) return { designation, pulls: [], states: [
+      ...layout.incomplete ? [layout.incomplete] : [], ...layout.unfinished ? [layout.unfinished] : [],
+    ] };
+    const physical = await readRefRepository(source);
+    if (designation.backing || physical.repository?.gitDir || designation.codeRemote !== remote.name
+      || designation.remotes.some(({ role }) => role !== undefined)
+      || designation.remotes.find(({ name }) => name === remote.name)?.url !== remote.url) return null;
+    await source.exec("git", ["config", `remote.${remote.name}.arc-state`, "push"]);
+    return { ...result, designation: await readRefDesignation(source) };
+  } finally { await release(); }
 }
 
 /**

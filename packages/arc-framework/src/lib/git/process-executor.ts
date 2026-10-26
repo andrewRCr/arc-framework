@@ -240,9 +240,12 @@ export function createExecaGitExecInput(
   const boundEnvironment = environment === undefined ? undefined : { ...environment };
   return async (args, input, options) => {
     const environment = environmentForGitCwd(options?.cwd, boundEnvironment);
-    const objectEnvironment = options?.objectAccess === "local-only"
-      ? { ...(environment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
+    const diagnosticEnvironment = options?.diagnosticLocale === "stable"
+      ? { ...(environment ?? process.env), LC_ALL: "C", LANG: "C" }
       : environment;
+    const objectEnvironment = options?.objectAccess === "local-only"
+      ? { ...(diagnosticEnvironment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
+      : diagnosticEnvironment;
     const env = applyInteractionEnvironment(objectEnvironment, interaction);
     const effectiveArgs = options?.objectAccess === "local-only"
       ? ["--no-lazy-fetch", ...args]

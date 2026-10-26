@@ -9,6 +9,7 @@ import { HistoryRefSchema, type HistoryRef } from "../refusal.js";
 import { readLineageOwners } from "./lineage-resolution.js";
 import { readItemEndBatches } from "./sync-lifecycle-log.js";
 import { readLifecycleLog } from "./sync-lifecycle-evidence.js";
+import { lifecycleRefHeld } from "./sync-lifecycle-holds.js";
 
 /** A record requiring a held item to incorporate its end before publication. */
 export interface PendingRefEnd { live: string; history: HistoryRef; owner: OwnerIdentity; ownReopen?: boolean }
@@ -70,9 +71,10 @@ export async function resolvePendingRefEnds(context: RefBackendContext, pending:
 /** A published live item with its folders removed reopens a held history unless its own end still stands. */
 export async function readPendingRefReopens(context: RefBackendContext, held: ReadonlyMap<string, string>,
   state: ReadonlyMap<string, string>, incoming: ReadonlyMap<string, string>,
-  published: RefEndPublished = refEndPublished(context, incoming)): Promise<Map<string, string>> {
+  published: RefEndPublished = refEndPublished(context, incoming), blocked: ReadonlySet<string> = new Set()): Promise<Map<string, string>> {
   const folders = await readLifecycleFolders(context, state), result = new Map<string, string>();
   for (const history of held.keys()) {
+    if (lifecycleRefHeld(blocked, history)) continue;
     if (!HistoryRefSchema.safeParse(history).success) continue;
     const live = history.replace("refs/arc/history/", "refs/arc/");
     if (incoming.has(live) && !folders.some((folder) => folder.liveRef === live)
@@ -111,9 +113,10 @@ export async function lifecycleBatches(context: RefBackendContext, tip: string |
 /** Test end records against histories held before this pull, independent of which merge brought them. */
 export async function readPendingRefEnds(context: RefBackendContext, held: ReadonlyMap<string, string>,
   state: ReadonlyMap<string, string>, incoming: ReadonlyMap<string, string>,
-  published: RefEndPublished = refEndPublished(context, incoming)): Promise<PendingRefEnd[]> {
+  published: RefEndPublished = refEndPublished(context, incoming), blocked: ReadonlySet<string> = new Set()): Promise<PendingRefEnd[]> {
   const pending = new Map<string, PendingRefEnd>();
   for (const folder of await readLifecycleFolders(context, state)) {
+    if (lifecycleRefHeld(blocked, folder.liveRef)) continue;
     const live = folder.liveRef, parsed = HistoryRefSchema.safeParse(live.replace("refs/arc/", "refs/arc/history/"));
     if (!parsed.success) continue;
     const history = parsed.data;
@@ -123,18 +126,21 @@ export async function readPendingRefEnds(context: RefBackendContext, held: Reado
       pending.set(live, { live, history, owner: folder.owner });
     }
   }
-  await addPendingLineageEnds(context, held, incoming, pending, published);
+  await addPendingLineageEnds(context, held, incoming, pending, published, blocked);
   return [...pending.values()];
 }
 
 async function addPendingLineageEnds(context: RefBackendContext, held: ReadonlyMap<string, string>,
-  incoming: ReadonlyMap<string, string>, pending: Map<string, PendingRefEnd>, published: RefEndPublished): Promise<void> {
+  incoming: ReadonlyMap<string, string>, pending: Map<string, PendingRefEnd>, published: RefEndPublished,
+  blocked: ReadonlySet<string>): Promise<void> {
   const lineage = await readLineageOwners(context, incoming);
+  if (lineage.status === "refused") return;
   const ownReopens = await readOwnRefReopens(context, held, incoming);
   const folders = await readLifecycleFolders(context, held);
-  if (lineage.status === "ok") for (const owner of lineage.result) {
+  for (const owner of lineage.result) {
     if (!("uid" in owner)) continue;
     const live = `refs/arc/work/${owner.uid}`;
+    if (lifecycleRefHeld(blocked, live)) continue;
     const parsed = HistoryRefSchema.safeParse(live.replace("refs/arc/", "refs/arc/history/"));
     if (!parsed.success) continue;
     const history = parsed.data;

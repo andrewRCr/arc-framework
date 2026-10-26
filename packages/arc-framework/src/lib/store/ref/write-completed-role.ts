@@ -1,4 +1,4 @@
-/** Plan readable archive coordinates when a completed item's primary changes role. */
+/** Plan distinct readable archive coordinates for every completed primary refresh. */
 import type { ReadPlacement } from "../placement.js";
 import type { StoreResult } from "../refusal.js";
 import { expandStoredPath } from "../stored-path.js";
@@ -10,7 +10,7 @@ import { nextArchiveSequence } from "./write-archive.js";
 import type { RefWriteGroup } from "./write-commits.js";
 import type { ResolvedBatch } from "./write-resolution.js";
 
-/** Every retained folder of one item whose final role differs from a captured role. */
+/** Every retained folder of one item whose completed primary will be refreshed. */
 export interface CompletedRoleReplacement {
   group: Pick<RefWriteGroup, "metadata" | "completedPlacements" | "readPlacement">;
   role: "work-item/meta" | "work-item/record"; folders: ArchivedFolder[];
@@ -28,7 +28,7 @@ export function completedRoleReplacements(batch: ResolvedBatch, groups: Readonly
     if (!replacement) { replacement = { group, role, folders: [] }; selected.set(history, replacement); }
     replacement.folders.push(folder);
   }
-  return [...selected.values()].filter(({ role, folders }) => folders.some(folder => folder.metadata.primary?.role !== role));
+  return [...selected.values()];
 }
 
 /** Reserve each folder independently and expose the final latest placement to write checks. */
@@ -46,8 +46,8 @@ export function planCompletedRoleReplacements(context: Pick<RefBackendContext, "
       const key = `${folder.ref}:${home.root}`;
       if (occupied.has(key) || home.root !== folder.root && [...target.keys()].some(path => path.startsWith(home.root))) {
         return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference,
-          rule: "store.ended-twice-placement", condition: "Replacing this primary role would collapse independent archived ends into one folder.",
-          remedy: { text: "Remove terminal lineage where present, then reopen the item to remove every archived folder, change its primary role, and end it once." } } };
+          rule: "store.ended-twice-placement", condition: "Refreshing this completed primary would collapse independent archived ends into one folder.",
+          remedy: { text: "Remove terminal lineage where present, then reopen the item to remove every archived folder, apply the intended edit, and end it once." } } };
       }
       occupied.add(key);
       placements.set(`${folder.ref}:${folder.root}`, placement);

@@ -45,6 +45,35 @@ function waitingForOutput(abort: () => void): EventEmitter {
 }
 
 describe("native Git batch reader failures", () => {
+  it("releases inherited stderr before awaiting the canceled child's close", async () => {
+    const platform = Object.getOwnPropertyDescriptor(process, "platform");
+    Object.defineProperty(process, "platform", { value: "darwin" });
+    const controller = new AbortController();
+    const readerChild = Object.assign(new EventEmitter(), {
+      pid: 2_000_000_004, stdout: new PassThrough(), stderr: new PassThrough(),
+      stdin: new Writable({ write(_chunk, _encoding, done) { done(); controller.abort(); } }),
+      kill: () => { readerChild.stdout.end(); return true; },
+    });
+    let closed = false;
+    const close = () => {
+      if (!closed && readerChild.stdout.destroyed && readerChild.stderr.destroyed) { closed = true; readerChild.emit("close", null, "SIGKILL"); }
+    };
+    readerChild.stdout.on("close", close); readerChild.stderr.on("close", close);
+    child.current = readerChild;
+    const scope = new GitBatchReadScope();
+    const pending = scope.run({ args: ["cat-file", "--batch"], cwd: "/repository", env: {}, maxBuffer: 1024,
+      input: Buffer.from("HEAD\n"), signal: controller.signal }).catch((error: unknown) => error);
+    try {
+      const outcome = await Promise.race([pending, new Promise<"still-open">(resolve => setTimeout(() => resolve("still-open"), 100))]);
+      expect(outcome).toMatchObject({ kind: "canceled", descendantsUnconfirmed: true });
+      expect(readerChild.stderr.destroyed).toBe(true);
+    } finally {
+      readerChild.stdout.destroy(); readerChild.stderr.destroy();
+      await pending; await scope.close();
+      if (platform) Object.defineProperty(globalThis.process, "platform", platform);
+    }
+  });
+
   it("reports a canceled read whose descendants the process utility could not confirm ended", async () => {
     const platform = Object.getOwnPropertyDescriptor(process, "platform");
     Object.defineProperty(process, "platform", { value: "darwin" });

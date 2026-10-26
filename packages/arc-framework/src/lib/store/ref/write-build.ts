@@ -13,7 +13,7 @@ import { writeRefBlob } from "./tree-write.js";
 import type { RefBackendContext } from "./context.js";
 import type { ResolvedBatch, ResolvedMutation } from "./write-resolution.js";
 import { refWriteTargets, mutationHome } from "./write-resolution.js";
-import { expandStoredPath } from "../stored-path.js";
+import { expandStoredPath, holdsNoRecord } from "../stored-path.js";
 import type { RecordReference } from "../identity.js";
 import { prepareCapturedWrites } from "./write-current.js";
 import { checkSerializationRules } from "../serialization.js";
@@ -236,7 +236,10 @@ async function readWriteGroups(context: RefBackendContext, resolved: ResolvedBat
     const tip = tips.get(home.ref);
     // A tip whose tree cannot be read names restoration; only a readable tree without usable metadata needs a forward repair.
     if (tip && !trees.has(home.ref)) return { status: "refused", refusal: corruptRef(home.ref, true) };
-    const metadata = capturedGroupMetadata(resolved, home.ref, reference, tip ? objects.get(metadataOids.get(home.ref) ?? "") ?? null : undefined);
+    const priorMetadata = tip ? objects.get(metadataOids.get(home.ref) ?? "") ?? null : undefined;
+    const metadata = capturedGroupMetadata(resolved, home.ref, reference, priorMetadata)
+      ?? (holdsNoRecord(home, (trees.get(home.ref) ?? []).map(({ path }) => path))
+        ? capturedGroupMetadata(resolved, home.ref, reference, undefined) : null);
     if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
       namespace: home.ref, ...metadataFailure(home.ref) } };
     const entries = new Map((trees.get(home.ref) ?? []).map((entry) => [entry.path, entry]));
@@ -250,7 +253,7 @@ async function readWriteGroups(context: RefBackendContext, resolved: ResolvedBat
  * so admission and results agree with what reads return.
  */
 function capturedGroupMetadata(resolved: ResolvedBatch, ref: string, reference: RecordReference, object: BatchObject | null | undefined): RefMetadata | null {
-  // Undefined means the ref has no tip yet; a captured tip without a readable metadata object passes null.
+  // A missing ref starts metadata afresh. A readable existing value keeps auxiliary identity and history facts.
   const metadata = object !== undefined ? parseRefMetadata(object, ref)
     : { formatVersion: 1 as const, formats: {}, ...(/^refs\/arc\/(?:work|cohort)\//u.test(ref) ? { slug: reference.owner.name } : {}) };
   const latest = latestFolderPlacement(resolved.archived ?? [], ref);

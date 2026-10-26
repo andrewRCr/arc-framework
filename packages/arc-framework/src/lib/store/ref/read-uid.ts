@@ -35,7 +35,7 @@ export async function readUidRefRecord(context: RefBackendContext, requested: Re
     const object = objects.get(recordQuery);
     if (object?.type !== "blob") return refRecordAbsence(context, reference, home, tip.oid);
     const conflicts = await readOpenConflicts(context, reference, objects.get(conflictsQuery));
-    const record = decodeRecord(context, reference, object, metadata, home.path, conflicts);
+    const record = decodeRecord(context, reference, object, metadata, home.path, conflicts, undefined, { pointRead: true });
     return "reference" in record ? { status: "ok", result: record } : { status: "refused", refusal: { code: "record-malformed", class: "recoverable",
       reference, rule: record.condition, condition: record.condition, remedy: record.remedy } };
   }

@@ -719,10 +719,13 @@ interface RefMetadata {
   probed on Git 2.55 in both ref formats, `for-each-ref` with `%(tree)` aborts the whole read on one such ref, while
   `%(objectname)` lists every ref, the files format's packed ones among them.
 - **A record absent from `formats` is at the initial format version** (`FormatVersionSchema`, `lib/store/identity.ts`).
-  Each key is canonical JSON of `{ kind, key? }`, omitting an absent key; a `lineage/transition` additionally includes
-  `ownerUid`, its resolved origin UID, because multiple singleton origins share the registry ref (A6). A read,
-  put, or removal uses that complete coordinate and leaves every other record's entry unchanged. This coordinate
-  also governs format selection in history, changes, merges, and import; an absent entry remains version 1.
+  `refFormatKey` encodes each key as stable ASCII JSON of `{ kind, key? }`, omitting an absent key, with object fields
+  in canonical order and every non-ASCII UTF-16 code unit escaped before the enclosing metadata is canonicalized (A53).
+  Exact admitted key and pass-activity spelling stays distinct; existing ASCII coordinates and malformed-input behavior
+  remain. A `lineage/transition` additionally includes `ownerUid`, its resolved origin UID, because multiple singleton
+  origins share the registry ref (A6). A read, put, or removal uses that complete coordinate and leaves every other
+  record's entry unchanged. This coordinate also governs format selection in history, changes, merges, and import; an
+  absent entry remains version 1.
 - **The registry's metadata names each lineage owner,** since a lineage record's path carries only its origin's UID
   (§ 3.2), and an origin ended outside the archive keeps no live ref whose metadata names it: a write of
   `lineage/<uid>.json` writes the owner's slug under that UID, its removal removes the entry, and a rename of an item
@@ -4724,6 +4727,10 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     the last such witness, the next pull may withdraw that end, report `end-withdrawn`, remove its local folder, keep it
     absent remotely, and publish and converge on the incoming end. Qualifies criterion 37 (§ 6.6, § 14.5) (A52).
 
+57. **Exact key spelling survives coordinate encoding.** In both layouts, distinct admitted Unicode ID keys and
+    pass activities remain independent through public writes, current and saved reads, merges, format changes and
+    removal. ASCII coordinates and malformed-input behavior remain unchanged (§ 3.3) (A53).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4920,5 +4927,8 @@ open:
 
 - **A52** — 2026-10-25 — design: forced tracking loss permits withdrawal. _Supersedes:_ §§ 6.6, 14.5; Non-Goals ¶1.
   _Trigger:_ standard-pass-2-fix-check-3/AGG-02 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A53** — 2026-10-26 — design: retain exact key coordinates. _Supersedes:_ § 3.3 formats.
+  _Trigger:_ standard-pass-4/AGG-02 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

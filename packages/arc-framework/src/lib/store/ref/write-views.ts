@@ -9,7 +9,7 @@ import type { ListingDiagnostic, ReadInput, StoreRecord, ListInput, ListingOutco
 import type { LookupInput, LookupResult } from "../lookup.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { RecordReferenceSchema, sameOwner, sameReference, type RecordReference, type OwnerIdentity } from "../identity.js";
-import { decodeCapturedRef, resolveCapturedOwner, refListingRefusal, readableRefListing, resolveReadReference, otherIdentityRef, listingIdentity, readArchivedFolder } from "./read.js";
+import { decodeCapturedRef, resolveCapturedOwner, refListingRefusal, readableRefListing, resolveReadReference, otherIdentityRef, listingIdentity, readArchivedFolder, refPrototype } from "./read.js";
 import { matchesFamilyRef, refOwner, decodeRecord } from "./codec.js";
 import { resolveCapturedReference, resolveCapturedListInput, listOwnerReference } from "./reference-resolution.js";
 import { claimIdentityRefusal } from "./lookup-claims.js";
@@ -83,7 +83,8 @@ function lookupViewTrees(context: RefBackendContext, state: RefViewState, identi
       && !(identity !== null && ref === `refs/arc/user/${identity}/claims`)) continue;
     const family = viewRefFamily(ref);
     const metadata = family ? viewRefMetadata(context, state, ref, family) : null;
-    if (group.entries?.length === 0) continue;
+    if (family && group.entries && holdsNoRecord(expandStoredPath(refPrototype(context, ref, family),
+      { registry: context.registry }), group.entries.map(({ path }) => path))) continue;
     if (!group.entries || !metadata) { unreadable.set(ref, corruptRef(ref, !group.entries, state.saved)); continue; }
     trees.set(ref, { entries: group.entries, metadata, objects: state.objects });
   }
@@ -109,7 +110,7 @@ async function listView(context: RefBackendContext, state: RefViewState, input: 
     input = admitted.result;
   }
   const groups = refs.map(([ref, group]) => decodeCapturedRef(context, input, ref, group.entries, state.objects, group.metadata, project?.owner,
-    group.readPlacement, state.saved));
+    group.readPlacement, { saved: state.saved }));
   const diagnostics = [...groups.flatMap(({ diagnostics }) => diagnostics), ...archived.diagnostics];
   mergeProjectDiagnostic(diagnostics, project?.diagnostic, state.saved);
   if (groups.length > 0 && !archived.records.length && groups.every(({ unreadable }) => unreadable)) return { status: "ok", result: { status: "unreadable",
@@ -164,7 +165,7 @@ async function readView(context: RefBackendContext, state: RefViewState, input: 
   if (owner.status === "refused") return owner;
   reference = RecordReferenceSchema.parse({ ...reference, owner: owner.result });
   const conflicts = viewOpenConflicts(context, state, home, reference);
-  const record = decodeRecord(context, reference, object, metadata, home.path, conflicts, group.readPlacement);
+  const record = decodeRecord(context, reference, object, metadata, home.path, conflicts, group.readPlacement, { saved: state.saved, pointRead: true });
   return "reference" in record ? { status: "ok", result: record } : { status: "refused", refusal: { code: "record-malformed", class: "recoverable",
     reference, rule: record.condition, condition: record.condition, remedy: record.remedy } };
 }
@@ -207,7 +208,7 @@ function viewOpenConflicts(context: RefBackendContext, state: RefViewState, home
   if (!group) throw new Error("A checked record has no captured ref group");
   const family = context.registry[reference.kind].family;
   const listed = decodeCapturedRef(context, { family }, home.ref, group.entries, state.objects, group.metadata,
-    reference.owner.type === "project" ? reference.owner : undefined, group.readPlacement, state.saved);
+    reference.owner.type === "project" ? reference.owner : undefined, group.readPlacement, { saved: state.saved, pointRead: true });
   return listed.records.find((record) => sameReference(record.reference, reference))?.conflicts ?? [];
 }
 

@@ -49,7 +49,14 @@ function checkRecord(context: RefBackendContext, reference: RecordReference, oid
   if (object?.type !== "blob") return { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", reference, historyRefs: [],
     condition: `The captured record blob ${oid} is unavailable.`,
     remedy: { text: "Restore or fetch the missing record objects, then retry the write." } } };
-  const content = new TextDecoder("utf-8", { fatal: true }).decode(object.bytes);
+  let content: string;
+  try { content = new TextDecoder("utf-8", { fatal: true }).decode(object.bytes); }
+  catch (error) {
+    if (!(error instanceof TypeError)) throw error;
+    return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference, rule: "store.utf8",
+      condition: `The captured record blob ${oid} is not valid UTF-8.`,
+      remedy: { text: "Restore the original record object or repair the stored record, then retry the write with its captured version." } } };
+  }
   const parsed = context.registry[reference.kind].parser?.(content);
   return { status: "ok", result: { content, ...(parsed?.success ? { fields: parsed.data } : {}) } };
 }

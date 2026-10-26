@@ -59,8 +59,10 @@ export async function plantRefFixtureFault(fixture: Pick<RefConformanceFixture, 
   if (kind === "unknown-format-version") {
     const metadata = JSON.parse((await git("git", ["show", `${parent}:${home.metadataPath}`])).stdout) as { formats: Record<string, number> };
     const { kind: id, key, owner } = current.result.reference;
-    metadata.formats[canonicalize({ kind: id, ...(key === undefined ? {} : { key }),
-      ...(id === "lineage/transition" && owner.type === "work-item" ? { ownerUid: owner.uid } : {}) })]
+    const coordinate = JSON.stringify({ ...(key === undefined ? {} : { key }), kind: id,
+      ...(id === "lineage/transition" && owner.type === "work-item" ? { ownerUid: owner.uid } : {}) })
+      .replace(/[\u0080-\u{10ffff}]/gu, point => point.split("").map(unit => `\\u${unit.charCodeAt(0).toString(16).padStart(4, "0")}`).join(""));
+    metadata.formats[coordinate]
       = (fixture.ports.registry?.[id] ?? KIND_REGISTRY[id]).formatVersion + 1;
     await plantRef(fixture.root, home.ref, entries.map((entry) => entry.path === home.metadataPath
       ? { path: home.metadataPath, content: canonicalize(metadata) } : entry), { parents: [parent], allowMissingObjects: true, gitDir: fixture.gitDir });

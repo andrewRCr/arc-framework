@@ -7,6 +7,7 @@ import type { createRefStore, RecordReference } from "../../src/lib/store/index.
 import { hostRemote, hostTransport, type HostCredentials, type HostGit } from "./ref-host-transport.js";
 import { randomUUID } from "node:crypto";
 import { RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { bootstrapHostRegistry } from "./ref-host-bootstrap.js";
 
 const exec = promisify(execFile);
 type Store = ReturnType<typeof createRefStore>;
@@ -142,6 +143,8 @@ export async function probeHostPolicy(input: { root: string; remote: string; evi
       reference: RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } }),
       content: JSON.stringify({ projectId: randomUUID() }) }));
     success(await store.write({ action: "put", reference, expected: null, content: "Policy baseline.\n", provenance }));
+    const multiRefBootstrap = separate && !input.atomic
+      ? await bootstrapHostRegistry({ git, store, path, remote, owned }) : undefined;
     const baseline = success(await store.push());
     assert(baseline.publishes.some(row => row.status === "pushed"), JSON.stringify(baseline));
     await capture();
@@ -179,7 +182,8 @@ export async function probeHostPolicy(input: { root: string; remote: string; evi
     assert.equal(after.get("refs/heads/main"), parent);
     assert.equal(after.get(personal), next);
     await capture();
-    return { status: "passed", detail: { remote, baseline, atomicRejection: { stdout: String(rejection.stdout), stderr: String(rejection.stderr) },
+    return { status: "passed", detail: { remote, baseline, ...multiRefBootstrap ? { multiRefBootstrap } : {},
+      atomicRejection: { stdout: String(rejection.stdout), stderr: String(rejection.stderr) },
       carried, stateOnly, protectedCodeUnchanged: true, statePublished: true } };
   } finally {
     if (separate) for (const [ref, tip] of owned) await git(`policy-cleanup-${ref.split("/").at(-1)}`, path,

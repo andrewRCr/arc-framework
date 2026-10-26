@@ -16,26 +16,38 @@ import { waitForPushRetry } from "./push-backoff.js";
 import { withRefSyncDeadline, refSyncDeadlineExpired, RefSyncDeadlineError, refSyncDeadlineRemedy } from "./sync-deadline.js";
 import { pullRefStore } from "./pull.js";
 import { refPushTarget } from "./fetch-target.js";
-import { recordPushTracking } from "./push-tracking.js";
+import { recordPushTracking, RefPushTrackingLockError } from "./push-tracking.js";
 import { capturePushListing, readPushHistoryRefs, pushListingIncludesTracking, type RefPushListing } from "./push-listing.js";
 import { excludeBrokenPushRefs, type RefPushExclusion } from "./push-exclusion.js";
 import { captureRefCarry, finishRefCarry, pushRefListingWithCarry, type RefCarryPublication } from "./push-carry.js";
 
 /** Reconcile first, then publish only a stable listing of this clone's changed refs. */
 export async function pushRefStore(context: RefBackendContext, input: PushInput = {}): Promise<StoreResult<PushResult>> {
-  try { return await withRefSyncDeadline(context, "push", async (scoped) => {
-    const carry = await captureRefCarry(scoped, input.carry);
-    const result = await publishRefStore(scoped, carry);
-    if (carry && result.status === "ok") result.result.carry = await finishRefCarry(carry);
-    return result;
-  }); }
+  try { return await withRefSyncDeadline(context, "push", (scoped) => publishWithCapturedCarry(scoped, input)); }
   catch (error) {
+    if (error instanceof RefPushTrackingLockError) return { status: "refused", refusal: { code: "lock-held", class: "recoverable",
+      lock: error.lock, condition: error.message,
+      remedy: { text: "Wait for the local Git writer to release its tracking lock, then retry the push to reconcile the receiver's accepted updates. If the lock is stale, remove it after confirming no writer is active." } } };
     if (error instanceof RefSyncDeadlineError) return { status: "refused", refusal: { code: "unreachable", class: "recoverable",
       cause: "timeout", condition: `${error.message} Unpublished writes remain local.`, remedy: refSyncDeadlineRemedy("push") } };
     if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire") throw error;
     return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lockPath,
       condition: `The lock remained held for ${error.waitedMs}ms.`,
       remedy: { text: "Wait for the holder to finish or release its lock, then retry the push." } } };
+  }
+}
+
+async function publishWithCapturedCarry(context: RefBackendContext, input: PushInput): Promise<StoreResult<PushResult>> {
+  try {
+    const carry = await captureRefCarry(context, input.carry);
+    const result = await publishRefStore(context, carry);
+    if (carry && result.status === "ok") result.result.carry = await finishRefCarry(carry);
+    return result;
+  } catch (error) {
+    if (!isGitProcessError(error) || error.kind !== "canceled" || !refSyncDeadlineExpired(context)) throw error;
+    return { status: "refused", refusal: { code: "unreachable", class: "recoverable", cause: "timeout",
+      condition: ["The push deadline expired.", error.message, error.diagnosticStderr || error.stderr].filter(Boolean).join("\n"),
+      remedy: { text: "Retry the push; the new attempt starts a fresh deadline and reconciles any publication the receiver accepted." } } };
   }
 }
 
@@ -88,15 +100,15 @@ async function publishRefAttempt(context: RefBackendContext, loop: PushLoop): Pr
   const unsettled = settlePushRejection(loop, designation, merged);
   if (unsettled) return failedStatePublication(context, result, pushOutcomeFailure(context, unsettled), loop);
   context = await writeRefRepository(context);
-  const refused = pulled.result.pulls.filter((pull) => pull.remote === remote.name && pull.role === "state")
-    .flatMap(({ notices }) => notices).filter((notice) => notice.kind === "history-diverged");
-  const captured = await capturePushListing(context, remote.name, await context.identity(), new Set(refused.map(({ ref }) => ref)));
+  const notices = pulled.result.pulls.filter((pull) => pull.remote === remote.name && pull.role === "state").flatMap(({ notices }) => notices);
+  const refused = notices.filter((notice) => notice.kind === "history-diverged");
+  const blocked = new Set(notices.filter((notice) => notice.kind === "namespace-corrupt" || notice.kind === "end-pending").map(({ ref }) => ref));
+  const captured = await capturePushListing(context, remote.name, await context.identity(), new Set(refused.map(({ ref }) => ref)), blocked);
   const divergence = refused.find((notice) => captured.changes.some(({ ref }) => ref === notice.ref));
   if (divergence?.kind === "history-diverged") return failedStatePublication(context, result, {
     code: "refused", class: "terminal", message: `Unpublished writes remain on ${divergence.ref}, whose remote history diverged.`,
     condition: divergence.condition, remedy: divergence.remedy,
   }, loop);
-  const notices = pulled.result.pulls.filter((pull) => pull.remote === remote.name && pull.role === "state").flatMap(({ notices }) => notices);
   const excluded = await excludeBrokenPushRefs(context, captured, notices), listing = excluded.listing;
   loop.refusals = excluded.failures;
   const target = await checkedPushTarget(context, remote, designation, listing, merged);

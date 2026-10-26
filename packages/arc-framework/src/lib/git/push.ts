@@ -63,7 +63,7 @@ export async function pushRefs(
 ): Promise<PushOutcome> {
   const leases = changes.flatMap(({ ref, expected }) => expected === undefined
     ? [] : [`--force-with-lease=${ref}:${expected ?? ""}`]);
-  const args = ["push", "--porcelain", ...(changes.length > 1 ? ["--atomic"] : []), ...leases, "--", remote,
+  const args = ["push", "--porcelain", "--no-follow-tags", ...(changes.length > 1 ? ["--atomic"] : []), ...leases, "--", remote,
     ...changes.map(({ ref, next }) => `${next ?? ""}:${ref}`)];
   try {
     const { stdout, stderr = "" } = await exec("git", args, {

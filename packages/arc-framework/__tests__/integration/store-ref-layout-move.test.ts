@@ -901,11 +901,16 @@ it("asks on a terminal after the layout move a setting finished first, the answe
   expect(exitCode).toBe(0);
 });
 
-it("refuses a malformed recorded layout report and resumes its unchanged move after repair", async () => {
+it.each([
+  { fault: "malformed", boundary: "layout.delete" },
+  { fault: "malformed", boundary: "layout.deleted" },
+  { fault: "missing", boundary: "layout.delete" },
+  { fault: "missing", boundary: "layout.deleted" },
+])("refuses a $fault recorded layout report at $boundary and resumes its unchanged move after repair", async ({ fault, boundary }) => {
   const h = await layoutFixture();
   await h.a.exec("git", ["config", "remote.origin.arc-state", "off"]);
   await expect(invokeStoreMigrate([], { ...h.a.ports, migrateStep: async step => {
-    if (step === "layout.delete") throw new Error("Paused recorded layout switch");
+    if (step === boundary) throw new Error("Paused recorded layout switch");
   } })).rejects.toThrow("Paused recorded layout switch");
   const move = "refs/arc/tmp/migrate/move";
   const tip = (await h.a.exec("git", ["rev-parse", move])).stdout.trim();
@@ -915,8 +920,9 @@ it("refuses a malformed recorded layout report and resumes its unchanged move af
     if (!match?.[1] || !match[2]) throw new Error("Expected the move's regular record and report blobs");
     return { path: match[2], mode: "100644", oid: match[1] };
   });
-  const broken = await plantRef(h.a.root, move, entries.map(entry => entry.path === "report.json"
-    ? { path: entry.path, content: "malformed report JSON" } : entry), { parents: [tip] });
+  const damaged = fault === "missing" ? entries.filter(entry => entry.path !== "report.json")
+    : entries.map(entry => entry.path === "report.json" ? { path: entry.path, content: "malformed report JSON" } : entry);
+  const broken = await plantRef(h.a.root, move, damaged, { parents: [tip] });
   const result = await invokeStoreMigrate([], h.a.ports);
   expect(result).toMatchObject({ status: "refused", refusal: { code: "move-record-malformed", class: "recoverable",
     condition: expect.stringContaining("report.json"), remedy: { argv: ["arc", "store", "migrate"] } } });

@@ -4,7 +4,7 @@ import type { FamilyId } from "../catalog.js";
 import type { PublishOutcome, PullNotice } from "../sync.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefPushListing } from "./push-listing.js";
-import { refMovementFamilies } from "./push-families.js";
+import { refMovementFamilies, statePushFamilies } from "./push-families.js";
 import { checkSyncRefTip } from "./sync-tip.js";
 import { readUnpublishedRefBatches, expandRefBatchExclusion } from "./sync-batches.js";
 
@@ -27,7 +27,13 @@ export async function excludeBrokenPushRefs(context: RefBackendContext, listing:
     excluded.add(ref); refusals.push(refusal);
   }
   if (!excluded.size) return { listing, failures: [] };
-  const commits = await readUnpublishedRefBatches(context, listing);
+  const batches = await readUnpublishedRefBatches(context, listing);
+  if (batches.status === "refused") return { listing: { ...listing, changes: [] }, failures: [{
+    families: statePushFamilies(await context.identity()), failure: { code: "refused", class: "terminal",
+      message: "The push retained all unpublished refs because atomic batch membership is unavailable.",
+      condition: batches.refusal.condition, remedy: batches.refusal.remedy },
+  }] };
+  const commits = batches.result;
   expandRefBatchExclusion(excluded, commits);
   for (const ref of excluded) for (const { revision, parent } of commits.get(ref) ?? []) {
     for (const family of await refMovementFamilies(context, ref, parent, revision)) families.add(family);

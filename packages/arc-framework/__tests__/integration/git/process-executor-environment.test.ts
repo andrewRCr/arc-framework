@@ -29,3 +29,12 @@ it("keeps concurrent principals in their own environment across all three native
   }));
   expect(process.env.ARC_EXECUTOR_PRINCIPAL).toBe(ambient);
 });
+
+it("applies stable diagnostics to one stdin-fed Git invocation without changing its bound locale", async () => {
+  const h = await refSyncFixture();
+  const fed = createExecaGitExecInput(undefined, undefined, { ...process.env, LC_ALL: "POSIX", LANG: "POSIX" });
+  const args = ["-c", 'alias.report-locale=!printf "%s:%s" "$LC_ALL" "$LANG"', "report-locale"];
+  expect(await fed(args, "", { cwd: h.a.root })).toBe("POSIX:POSIX");
+  expect(await fed(args, "", { cwd: h.a.root, diagnosticLocale: "stable" })).toBe("C:C");
+  expect(await fed(args, "", { cwd: h.a.root })).toBe("POSIX:POSIX");
+});

@@ -36,8 +36,9 @@ function object(value: unknown): Record<string, unknown> | undefined {
 function inverseValue(before: unknown, after: unknown, current: unknown, published?: unknown): unknown {
   if (equal(before, after)) return current;
   if (published !== undefined && equal(after, published)) return current;
-  const original = object(before), written = object(after), held = object(current), remote = object(published);
-  if (!original || !written || !held || original.kind !== written.kind) return equal(after, current) ? before : current;
+  const original = object(before), written = object(after) ?? (after === undefined ? {} : undefined);
+  const held = object(current), remote = object(published);
+  if (!original || !written || !held || after !== undefined && original.kind !== written.kind) return equal(after, current) ? before : current;
   const result = { ...held };
   for (const key of new Set([...Object.keys(original), ...Object.keys(written)])) {
     const value = inverseValue(original[key], written[key], held[key], remote?.[key]);
@@ -78,7 +79,7 @@ async function inverseEntry(context: RefBackendContext, step: WithdrawJournalSte
   if (text !== undefined && here) { entries.set(path, { ...here, oid: await writeRefBlob(context, text) }); return; }
   if (after && same(after, remote)) return;
   const metadata = /^metadata-[^/]+\.json$/u.test(path);
-  if (metadata && after && here && (step.lineageOnly || before)) {
+  if (metadata && here && (step.lineageOnly || before)) {
     entries.set(path, { ...here, oid: await inverseMetadata(context, [before, after, here, remote], objects, step.lineageOnly) });
     return;
   }

@@ -115,6 +115,10 @@ async function finishSwitchedLayout(state: LayoutMoveState, recorded?: RecordedL
   else if (await directoryExists(code, paths.aside)) source = bindRefRepository(context, paths.common, paths.aside);
   // The record keeps the report its build made, since the source may already be partly or wholly deleted.
   const kept = state.configuration ? null : await readMoveReport(code, recorded.tip);
+  if (!state.configuration && !kept) throw new MigrationRefusal({ code: "move-record-malformed", class: "recoverable",
+    condition: "The standalone layout move's recorded report.json is unavailable.",
+    remedy: { text: "Restore the original report.json beside the recorded move, then retry arc store migrate.",
+      argv: ["arc", "store", "migrate"] } });
   const refs = kept || !source ? new Map<string, string>() : await layoutRefs(source);
   if (record.destination === "separate" && (record.setting || state.configuration)) await applyLayoutDesignation(state);
   const report = kept ?? layoutReport(refs);

@@ -53,7 +53,7 @@ async function snapshotProcesses(): Promise<number[][] | null> {
 async function endDescendants(pid: number, active: () => boolean): Promise<boolean> {
   if (process.platform === "win32") return await runCancellationUtility("taskkill", ["/PID", String(pid), "/T", "/F"], 500) !== null;
   const rows = await snapshotProcesses();
-  if (!rows || !active()) return rows !== null;
+  if (!rows || !active() || !rows.some(([process]) => process === pid)) return false;
   const descendants = [pid];
   for (let index = 0; index < descendants.length; index += 1) {
     for (const [child, parent] of rows) {
@@ -64,26 +64,27 @@ async function endDescendants(pid: number, active: () => boolean): Promise<boole
   return true;
 }
 
-/** Bind abort to descendant-first termination, reporting an unconfirmed tree; dispose when the process settles. */
+/** Bind abort to descendant-first termination; await disposal to finish any accepted cancellation. */
 export function bindGitProcessCancellation(
   child: Pick<ChildProcess, "pid" | "kill">,
   signal: AbortSignal | undefined,
   markCanceled: () => void,
   finishCancellation: (descendantsUnconfirmed: boolean) => void = () => undefined,
-): () => void {
+): () => Promise<void> {
   let active = true;
+  let completion: Promise<void> | undefined;
   const abort = (): void => {
     markCanceled();
-    void (async () => {
-      const confirmed = child.pid === undefined || await endDescendants(child.pid, () => active);
-      if (!active) return;
+    completion = (async () => {
+      const confirmed = child.pid === undefined || await endDescendants(child.pid, () => active).catch(() => false);
       finishCancellation(!confirmed);
       child.kill("SIGKILL");
     })();
   };
   signal?.addEventListener("abort", abort, { once: true });
   if (signal?.aborted) abort();
-  return () => {
+  return async () => {
+    if (completion) await completion;
     active = false;
     signal?.removeEventListener("abort", abort);
   };
@@ -109,11 +110,15 @@ export async function runCancelableGitProcess<T>(
   });
   try {
     const result = await child;
+    await dispose();
     if (cancellation.requested) {
-      throw new GitProcessError({ ...invocation, kind: "canceled", isCanceled: true, descendantsUnconfirmed: cancellation.descendantsUnconfirmed });
+      const output = normalizeGitRejection(result, invocation);
+      throw new GitProcessError({ ...invocation, kind: "canceled", isCanceled: true,
+        stdout: output.stdout, stderr: output.stderr, descendantsUnconfirmed: cancellation.descendantsUnconfirmed });
     }
     return result;
   } catch (error) {
+    await dispose();
     if (!cancellation.requested) throw error;
     const failure = normalizeGitRejection(error, invocation);
     throw new GitProcessError({
@@ -121,6 +126,6 @@ export async function runCancelableGitProcess<T>(
       stdout: failure.stdout, stderr: failure.stderr, descendantsUnconfirmed: cancellation.descendantsUnconfirmed, cause: error,
     });
   } finally {
-    dispose();
+    await dispose();
   }
 }

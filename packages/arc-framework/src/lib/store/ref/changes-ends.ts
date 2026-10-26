@@ -11,10 +11,13 @@ import { parseRefMetadata, historicalMetadataFailure } from "./metadata.js";
 import { refPrototype } from "./read.js";
 import { readLineageOwners } from "./lineage-resolution.js";
 import { rootFamily } from "./codec.js";
+import { parseStoreCommitProvenance } from "../commit-provenance.js";
+import { changeCommitMessage } from "./changes-graph.js";
 
 /** Endpoint folders, every owner whose end evidence changed inside the interval, and each origin whose lineage it wrote. */
 export interface ChangeEnds {
   before: ArchivedFolder[]; after: ArchivedFolder[]; changed: Map<string, Set<string>>; origins: Set<string>; beforeOrigins: Set<string>; beforeRegistry?: string;
+  registryBatches: Set<string>;
 }
 
 /** Identify a work item or cohort's live lifecycle coordinate. */
@@ -22,7 +25,8 @@ export function isLifecycleRef(ref: string): boolean { return /^refs\/arc\/(?:wo
 
 /** Walk changed end refs and read endpoint folders only when a lifecycle window needs them. */
 export async function readChangeEnds(context: RefBackendContext, interval: RefChangeInterval, readWindow: ChangeWindowReader): Promise<StoreResult<ChangeEnds>> {
-  const result: ChangeEnds = { before: [], after: [], changed: new Map(), origins: new Set(), beforeOrigins: new Set(), beforeRegistry: interval.before.get("refs/arc/project/registry") };
+  const result: ChangeEnds = { before: [], after: [], changed: new Map(), origins: new Set(), beforeOrigins: new Set(),
+    registryBatches: new Set(), beforeRegistry: interval.before.get("refs/arc/project/registry") };
   const scanned = await scanEndRefs(context, interval, readWindow, result, restrictedOwners(context, interval));
   if (scanned.status === "refused") return scanned;
   const moved = [...new Set([...interval.before.keys(), ...interval.after.keys()])].some((ref) => isLifecycleRef(ref) && interval.before.get(ref) !== interval.after.get(ref));
@@ -67,7 +71,7 @@ async function captureRestoredOrigins(context: RefBackendContext, interval: RefC
   const { before, after } = interval;
   const restored = [...after.keys()].some(ref => isLifecycleRef(ref) && !before.has(ref)
     && !result.before.some(folder => folder.liveRef === ref));
-  if (restored && result.beforeRegistry) {
+  if ((restored || result.origins.size) && result.beforeRegistry) {
     const lineage = await readLineageOwners(context, before, true);
     if (lineage.status === "refused") return lineage;
     for (const owner of lineage.result) if ("uid" in owner && owner.uid) result.beforeOrigins.add(`refs/arc/work/${owner.uid}`);
@@ -96,6 +100,11 @@ function collectEndWindow(context: RefBackendContext, captured: CapturedChangeWi
       ? collectChangedFolders(result, captured.window.ref, entries, parent, captured.objects, owners)
       : collectChangedOrigins(context, result, entries, parent, captured.objects);
     if (collected.status === "refused") return collected;
+    if (captured.window.ref === "refs/arc/project/registry") {
+      const provenance = parseStoreCommitProvenance(changeCommitMessage(captured, row.revision),
+        refPrototype(context, captured.window.ref, "project-registry"));
+      if ("batchId" in provenance && provenance.batchId) result.registryBatches.add(provenance.batchId);
+    }
   }
   return { status: "ok", result: undefined };
 }
@@ -105,7 +114,8 @@ function collectChangedOrigins(context: RefBackendContext, result: ChangeEnds, e
   const current = lineageEndOwners(context, entries, objects), prior = lineageEndOwners(context, parent, objects);
   if (current.status === "refused") return current;
   if (prior.status === "refused") return prior;
-  for (const owner of current.result) if (!prior.result.has(owner)) result.origins.add(owner);
+  // An unchanged lineage path can stand through another restored lifetime, whose end advances only the registry anchor.
+  for (const owner of current.result) result.origins.add(owner);
   return { status: "ok", result: undefined };
 }
 

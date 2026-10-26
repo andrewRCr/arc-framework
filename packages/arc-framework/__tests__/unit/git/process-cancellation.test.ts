@@ -1,14 +1,16 @@
 /** Descendant termination when the platform's process utility fails, over a scripted child and utility. */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const utilities = vi.hoisted(() => ({ calls: [] as string[], failures: new Map<string, number>(), table: "", proc: true }));
+const utilities = vi.hoisted(() => ({ calls: [] as string[], failures: new Map<string, number>(), table: "", proc: true,
+  delayed: false, pending: [] as (() => void)[] }));
 vi.mock("node:child_process", async (original) => ({
   ...await original<typeof import("node:child_process")>(),
   execFile: vi.fn((command: string, _args: string[], _options: unknown, callback: (error: Error | null, stdout: string) => void) => {
     utilities.calls.push(command);
     const remaining = utilities.failures.get(command) ?? 0;
     utilities.failures.set(command, Math.max(0, remaining - 1));
-    setImmediate(() => remaining > 0 ? callback(new Error(`${command} failed`), "") : callback(null, command === "ps" ? utilities.table : "SUCCESS"));
+    const finish = () => remaining > 0 ? callback(new Error(`${command} failed`), "") : callback(null, command === "ps" ? utilities.table : "SUCCESS");
+    if (utilities.delayed) utilities.pending.push(finish); else setImmediate(finish);
     return { stdin: { end: () => undefined } };
   }),
 }));
@@ -26,6 +28,7 @@ afterEach(() => {
   utilities.calls.length = 0;
   utilities.failures.clear();
   utilities.proc = true;
+  utilities.delayed = false; utilities.pending.length = 0;
   vi.restoreAllMocks();
 });
 
@@ -44,6 +47,40 @@ async function cancel(): Promise<unknown> {
 }
 
 describe("Git descendant cancellation when the process utility fails", () => {
+  it.each((["success", "failure"] as const).flatMap(outcome => [false, true].flatMap(failedScan =>
+    [false, true].map(bytes => ({ outcome, failedScan, bytes })))))(
+    "finishes accepted cancellation after independent $outcome while a delayed scan fails: $failedScan, bytes: $bytes", async ({ outcome, failedScan, bytes }) => {
+      Object.defineProperty(process, "platform", { value: "darwin" });
+      utilities.delayed = true; utilities.failures.set("ps", failedScan ? 2 : 0);
+      utilities.table = `${gitPid} 1\n${descendant} ${gitPid}\n`;
+      const alive = new Set([descendant]);
+      vi.spyOn(process, "kill").mockImplementation(pid => { alive.delete(pid); return true; });
+      let resolve!: (value: { stdout: string | Buffer; stderr: string | Buffer }) => void, reject!: (error: unknown) => void;
+      const child = Object.assign(new Promise<{ stdout: string | Buffer; stderr: string | Buffer }>((yes, no) => { resolve = yes; reject = no; }),
+        { pid: gitPid, kill: () => true });
+      const controller = new AbortController();
+      let settled = false;
+      const pending = runCancelableGitProcess(() => child, controller.signal, { command: "git", args: ["fetch"] })
+        .catch((error: unknown) => { settled = true; return error; });
+      controller.abort();
+      const output = bytes ? { stdout: Buffer.from([65, 0, 128, 255]), stderr: Buffer.from([66, 255, 128]) }
+        : { stdout: "Completed text output", stderr: "Completed text diagnostic" };
+      if (outcome === "success") resolve(output); else reject(Object.assign(new Error("Independent failure"), output, { exitCode: 128 }));
+      await new Promise<void>(done => setImmediate(done));
+      expect.soft(settled).toBe(false);
+      for (let i = 0; i < 3; i += 1) { utilities.pending.shift()?.(); await new Promise<void>(done => setImmediate(done)); }
+      expect(await pending).toMatchObject({ kind: "canceled", descendantsUnconfirmed: failedScan,
+        stdout: typeof output.stdout === "string" ? output.stdout : output.stdout.toString("latin1"),
+        stderr: typeof output.stderr === "string" ? output.stderr : output.stderr.toString("latin1") });
+      if (!failedScan) expect([...alive]).toEqual([]);
+    });
+
+  it("reports uncertain ownership when the process table no longer contains the parent", async () => {
+    Object.defineProperty(process, "platform", { value: "darwin" });
+    utilities.table = "";
+    await expect(cancel()).resolves.toMatchObject({ kind: "canceled", descendantsUnconfirmed: true });
+  });
+
   it.each([
     { name: "a failing ps off Linux", os: "darwin", utility: "ps", proc: true },
     { name: "a failing taskkill on Windows", os: "win32", utility: "taskkill", proc: true },

@@ -18,12 +18,12 @@ export interface RefPushListing {
 
 /** Release and retake the whole lock set whenever the locked listing gains a ref. */
 export async function capturePushListing(context: RefBackendContext, remote: string, identity: string | null,
-  diverged: ReadonlySet<string> = new Set()): Promise<RefPushListing> {
+  diverged: ReadonlySet<string> = new Set(), blocked: ReadonlySet<string> = new Set()): Promise<RefPushListing> {
   for (;;) {
-    const initial = await readPushListing(context, remote, identity, diverged);
+    const initial = await readPushListing(context, remote, identity, { diverged, blocked });
     const locked = new Set([...initial.changes.map(({ ref }) => ref), ...initial.pending]);
     const result = await withRefLocks(context, locked, async () => {
-      const current = await readPushListing(context, remote, identity, diverged);
+      const current = await readPushListing(context, remote, identity, { diverged, blocked });
       return [...current.changes.map(({ ref }) => ref), ...current.pending].some((ref) => !locked.has(ref)) ? null : current;
     });
     if (result) return result;
@@ -32,7 +32,8 @@ export async function capturePushListing(context: RefBackendContext, remote: str
 
 /** Name pending history creates, updates, and deletes for the push loop's next fetch. */
 export async function readPushHistoryRefs(context: RefBackendContext, remote: string, identity: string | null): Promise<HistoryRef[]> {
-  const listing = await readPushListing(context, remote, identity);
+  // End eligibility filters live refs only; history selection acquires evidence before those decisions.
+  const listing = await readPushListing(context, remote, identity, { detectEnds: false });
   return listing.changes.flatMap(({ ref }) => {
     const history = HistoryRefSchema.safeParse(ref);
     return history.success ? [history.data] : [];
@@ -51,7 +52,9 @@ export async function pushListingIncludesTracking(context: RefBackendContext, li
 }
 
 async function readPushListing(context: RefBackendContext, remote: string, identity: string | null,
-  diverged: ReadonlySet<string> = new Set()): Promise<RefPushListing> {
+  { diverged = new Set(), blocked = new Set(), detectEnds = true }: {
+    diverged?: ReadonlySet<string>; blocked?: ReadonlySet<string>; detectEnds?: boolean;
+  } = {}): Promise<RefPushListing> {
   const prefix = `refs/arc-remotes/${remote}/`, seenPrefix = `refs/arc/tmp/seen/${remote}/`;
   const [allLocal, allTracking] = await Promise.all([readSyncRefs(context, "refs/arc/"), readSyncRefs(context, [seenPrefix, prefix])]);
   const local = new Map([...allLocal].filter(([ref]) => publishableRef(ref, identity)));
@@ -60,8 +63,8 @@ async function readPushListing(context: RefBackendContext, remote: string, ident
   const kept = new Map([...seen].filter(([ref]) => !tracking.has(ref)));
   const basis = new Map([...seen].filter(([ref]) => diverged.has(ref)));
   for (const [ref, tip] of tracking) basis.set(ref, tip);
-  const pending = [...local].some(([ref, tip]) => /^refs\/arc\/(work|cohort)\//u.test(ref) && tracking.get(ref) !== tip)
-    ? new Set((await readPendingRefEnds(context, local, local, tracking)).filter(({ ownReopen }) => !ownReopen).map(({ live }) => live)) : new Set<string>();
+  const pending = detectEnds && [...local].some(([ref, tip]) => /^refs\/arc\/(work|cohort)\//u.test(ref) && tracking.get(ref) !== tip)
+    ? new Set((await readPendingRefEnds(context, local, local, tracking, undefined, blocked)).filter(({ ownReopen }) => !ownReopen).map(({ live }) => live)) : new Set<string>();
   const changes: PushRefChange[] = [...local].filter(([ref, tip]) => !pending.has(ref) && basis.get(ref) !== tip).map(([ref, next]) => ({ ref, next }));
   for (const ref of tracking.keys()) {
     if (local.has(ref)) continue;

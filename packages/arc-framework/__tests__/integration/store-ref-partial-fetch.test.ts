@@ -71,8 +71,11 @@ describe("partial state fetch completeness", () => {
     const observations: { missing: string[]; refetches: number } = { missing: [], refetches: 0 };
     const store = createRefStore({ ...h.partial.ports, exec: async (command, args, options) => {
       const result = await h.partial.ports.exec(command, args, options);
-      if (args.includes("rev-list") && args.includes("--missing=print")) observations.missing.push(...result.stdout.split("\n").filter((line) => line.startsWith("?")).map((line) => line.slice(1)));
       if (args.includes("fetch") && args.includes("--refetch")) observations.refetches++;
+      return result;
+    }, execInput: async (args, input, options) => {
+      const result = await h.partial.ports.execInput(args, input, options);
+      if (args.includes("rev-list") && args.includes("--missing=print")) observations.missing.push(...result.split("\n").filter((line) => line.startsWith("?")).map((line) => line.slice(1)));
       return result;
     } });
     success(await store.pull());
@@ -118,6 +121,9 @@ describe("partial state fetch completeness", () => {
     const store = createRefStore({ ...h.b.ports, exec: async (command, args, options) => {
       if (args.includes("rev-list") && args.includes("--missing=print")) traversed = true;
       return h.b.ports.exec(command, args, options);
+    }, execInput: async (args, input, options) => {
+      if (args.includes("rev-list") && args.includes("--missing=print")) traversed = true;
+      return h.b.ports.execInput(args, input, options);
     } });
     expect(success(await store.pull()).pulls).toContainEqual(expect.objectContaining({ status: "pulled" }));
     expect(success(await store.read({ reference })).content).toBe(first);

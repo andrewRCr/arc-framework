@@ -4,10 +4,50 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { createStoreCommandPorts } from "../../src/commands/store-ports.js";
 import { createRefStore } from "../../src/lib/store/index.js";
-import { switchFixture, oppositeMoveFixture, personal, provenance } from "../helpers/store/remote-move.js";
+import { createRemoteMover, switchFixture, oppositeMoveFixture, personal, provenance } from "../helpers/store/remote-move.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { convergeFollowers } from "../helpers/store/follow.js";
+
+it("accounts an unconfirmed accepted re-copy when the destination moves onward before the original switch", async () => {
+  const h = await oppositeMoveFixture();
+  await expect(invokeStoreMigrate(["--to", h.to], { ...h.ports, migrateStep: async step => {
+    if (step === "remote.copied") throw new Error("Paused before original switch");
+  } })).rejects.toThrow("Paused before original switch");
+  let published = false;
+  await expect(invokeStoreMigrate([], { ...h.ports,
+    exec: async (command, args, options) => {
+      const result = await h.ports.exec(command, args, options);
+      if (args.includes("push") && args.includes(h.destinationDirectory)) published = true;
+      return result;
+    },
+    execInput: (args, input, options) => {
+      if (published && args.includes("update-ref")) throw new Error("Accepted re-copy before acknowledgment");
+      return h.ports.execInput(args, input, options);
+    },
+  })).rejects.toThrow("Accepted re-copy before acknowledgment");
+  const pending = "refs/arc/tmp/migrate/pending-copy/record";
+  const account = JSON.parse((await h.a.exec("git", ["show", pending])).stdout) as {
+    attempt: { changes: { ref: string; expected: string | null; next: string | null }[] };
+  };
+  expect(account.attempt.changes.some(row => row.expected !== null && row.next !== row.expected)).toBe(true);
+  const mover = await createRemoteMover(h, h.destinationDirectory, "onward-before-switch");
+  const onward = join(h.b.root, "onward-before-switch.git");
+  await h.b.exec("git", ["init", "--bare", onward]);
+  expect(await invokeStoreMigrate(["--to", onward], mover.ports)).toMatchObject({ status: "ok" });
+  const ended = await invokeStoreMigrate([], h.ports);
+  expect(ended.status, JSON.stringify(ended)).toBe("ok");
+  if (ended.status !== "ok") throw new Error("The overtaken pre-switch move did not end");
+  expect(ended.result.notices).toContainEqual(expect.objectContaining({ condition: expect.stringContaining("before its switch") }));
+  expect(ended.result.notices).toContainEqual(expect.objectContaining({ condition: expect.stringContaining("could not be established") }));
+  expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", pending, "refs/arc/tmp/migrate/move"])).stdout).toBe("");
+  const kept = (await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/accounted-copy/"])).stdout;
+  expect(kept).toContain("/record"); expect(kept).toContain("/tips/");
+  expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout)
+    .toBe("refs/arc/project/moved");
+  expect((await h.remote("git", ["grep", "-F", "Shared state.", "refs/arc/user/andrew/personal"])).stdout).toContain("Shared state.");
+  expect((await h.b.exec("git", [`--git-dir=${onward}`, "grep", "-F", "Shared state.", "refs/arc/user/andrew/personal"])).stdout).toContain("Shared state.");
+}, 60_000);
 
 async function competingFixture() {
   const h = await switchFixture();

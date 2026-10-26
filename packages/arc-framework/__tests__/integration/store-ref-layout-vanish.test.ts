@@ -115,3 +115,20 @@ it("restarts the remote view bound to the separate store a move into the default
   const viewed = await across(paused, runStoreRemote(paused.ports, {}), h.moveIn);
   expect(viewed).toMatchObject({ status: "ok", result: { layout: "default", remotes: expect.arrayContaining([expect.objectContaining({ name: "origin", role: "push" })]) } });
 }, 60_000);
+
+it("restarts a version whose native config read meets the separate store's removal", async () => {
+  const h = await separateFixture();
+  let paused = false, announce!: () => void, resume!: () => void;
+  const reached = new Promise<void>(resolve => { announce = resolve; });
+  const resumed = new Promise<void>(resolve => { resume = resolve; });
+  const store = createRefStore({ ...h.a.ports, fs: { ...h.a.ports.fs, readFile: async path => {
+    if (!paused && path === join(h.storeDirectory, "config")) { paused = true; announce(); await resumed; }
+    return h.a.ports.fs.readFile(path);
+  } } });
+  const operation = store.version().catch((error: unknown) => error);
+  try {
+    await Promise.race([reached, operation.then(() => { throw new Error("Version ended before reading the bound config"); })]);
+    await h.moveIn();
+  } finally { resume(); }
+  expect(await operation).toEqual(await h.a.store.version());
+}, 60_000);

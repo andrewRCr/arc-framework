@@ -14,7 +14,7 @@ export function archivedViewRecords(context: RefBackendContext, state: RefViewSt
   const { folders, diagnostics } = selectEndedOwners(state, captureArchivedFolders(state, input.family));
   for (const folder of folders) {
     const decoded = decodeCapturedRef(context, input, folder.liveRef, folder.entries,
-      state.objects, folder.metadata, undefined, folder.placement, state.saved);
+      state.objects, folder.metadata, undefined, folder.placement, { saved: state.saved });
     records.push(...decoded.records);
     diagnostics.push(...decoded.diagnostics.map((diagnostic) => ({ ...diagnostic, key: folder.root + diagnostic.key })));
   }

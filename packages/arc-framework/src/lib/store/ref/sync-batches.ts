@@ -6,13 +6,16 @@ import type { PushRefChange } from "../../git/push.js";
 import { refPrototype } from "./read.js";
 import { viewRefFamily } from "./view-state.js";
 import { RecordReferenceSchema } from "../identity.js";
+import type { StoreResult } from "../refusal.js";
+import { readHistoricalGraph } from "./history-graph.js";
+import { corruptRef } from "./namespace-health.js";
 
 /** One unpublished commit's batch identity and first-parent mutation basis. */
 export interface UnpublishedRefCommit { revision: string; parent: string | null; batch: string }
 
 /** Index every reachable unpublished commit, including merged branches of state history. */
 export async function readUnpublishedRefBatches(context: RefBackendContext, listing: { local: ReadonlyMap<string, string>; tracking: ReadonlyMap<string, string>;
-  changes: readonly PushRefChange[]; pending?: ReadonlySet<string>; kept?: ReadonlyMap<string, string> }): Promise<Map<string, UnpublishedRefCommit[]>> {
+  changes: readonly PushRefChange[]; pending?: ReadonlySet<string>; kept?: ReadonlyMap<string, string> }): Promise<StoreResult<Map<string, UnpublishedRefCommit[]>>> {
   const result = new Map<string, UnpublishedRefCommit[]>();
   const changed = new Map([...listing.changes.map(({ ref, next }) => [ref, next] as const),
     ...[...listing.pending ?? []].map((ref) => [ref, listing.local.get(ref)] as const)]);
@@ -24,9 +27,9 @@ export async function readUnpublishedRefBatches(context: RefBackendContext, list
     const reference = family ? refPrototype(context, ref, family)
       : RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } });
     const published = listing.tracking.get(ref) ?? listing.kept?.get(ref);
-    const { stdout } = await context.exec("git", ["log", "--format=%H %P%n%B%x00", tip, ...published ? [`^${published}`] : []],
-      { cwd: context.checkoutRoot, objectAccess: "local-only" });
-    const commits = stdout.split("\0").flatMap((block) => {
+    const graph = await readHistoricalGraph(context, ["log", "--format=%H %P%n%B%x00", tip, ...published ? [`^${published}`] : []], corruptRef(ref, true));
+    if (graph.status === "refused") return graph;
+    const commits = graph.result.split("\0").flatMap((block) => {
       const [header = "", ...message] = block.trimStart().split("\n"), [revision, parent] = header.split(" ");
       if (!revision) return [];
       const provenance = parseStoreCommitProvenance(message.join("\n"), reference);
@@ -34,7 +37,7 @@ export async function readUnpublishedRefBatches(context: RefBackendContext, list
     });
     result.set(ref, commits);
   }
-  return result;
+  return { status: "ok", result };
 }
 
 /** A batch touching any excluded ref excludes every other unpublished contribution to it. */

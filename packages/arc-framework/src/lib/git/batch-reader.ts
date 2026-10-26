@@ -106,18 +106,18 @@ class NativeBatchReader {
       // EOF may race the close event carrying Git's actual exit status.
       if (this.child.stdout.readableEnded) throw await this.finished ?? normalizeGitRejection(error, this.invocation);
       throw normalizeGitRejection(error, this.invocation);
-    } finally { dispose(); }
+    } finally { await dispose(); }
   }
 
   async close(force = false): Promise<void> {
     if (!this.stopped) {
       this.stopped = true;
-      if (force) { this.child.kill("SIGKILL"); this.child.stdout.destroy(); }
+      if (force) { this.child.kill("SIGKILL"); this.child.stdout.destroy(); this.child.stderr.destroy(); }
       else {
         this.child.stdin.end();
         try { await this.output.finish(); }
         catch (error) {
-          this.child.kill("SIGKILL"); this.child.stdout.destroy();
+          this.child.kill("SIGKILL"); this.child.stdout.destroy(); this.child.stderr.destroy();
           await this.finished;
           throw normalizeGitRejection(error, this.invocation);
         }

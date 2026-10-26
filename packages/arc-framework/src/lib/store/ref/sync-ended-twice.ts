@@ -6,13 +6,16 @@ import type { OwnerIdentity } from "../identity.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects } from "./batch-read.js";
 import { readLifecycleFolders, refEndPublished, type RefEndPublished } from "./sync-lifecycle.js";
+import { lifecycleRefHeld } from "./sync-lifecycle-holds.js";
 
 /** Inspect the final merged records, retaining publication as a separate requirement. */
 export async function observeSyncEndedTwice(context: RefBackendContext, state: ReadonlyMap<string, string>,
-  incoming: ReadonlyMap<string, string>, published: RefEndPublished = refEndPublished(context, incoming)): Promise<PullNotice[]> {
+  incoming: ReadonlyMap<string, string>, published: RefEndPublished = refEndPublished(context, incoming),
+  blocked: ReadonlySet<string> = new Set()): Promise<PullNotice[]> {
   const remote = await readLifecycleFolders(context, incoming);
   const grouped = new Map<string, Awaited<ReturnType<typeof readLifecycleFolders>>>();
   for (const folder of await readLifecycleFolders(context, state)) {
+    if (lifecycleRefHeld(blocked, folder.liveRef)) continue;
     const batch = folder.metadata.endBatch;
     const history = folder.liveRef.replace("refs/arc/", "refs/arc/history/");
     if (!batch || !remote.some((other) => other.liveRef === folder.liveRef && other.metadata.endBatch === batch)

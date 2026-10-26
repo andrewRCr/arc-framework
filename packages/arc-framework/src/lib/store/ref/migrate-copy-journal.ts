@@ -95,7 +95,9 @@ export async function beginCopyJournal(context: RefBackendContext, key: string, 
 
 async function landedChange(context: RefBackendContext, change: z.infer<typeof ChangeSchema>, destination: ReadonlyMap<string, string>): Promise<boolean> {
   if (change.next === null) return !destination.has(change.ref);
-  const paired = change.ref.replace(/^refs\/arc\/(work|cohort)\//u, "refs/arc/history/$1/");
+  const paired = /^refs\/arc\/history\/(work|cohort)\//u.test(change.ref)
+    ? change.ref.replace(/^refs\/arc\/history\/(work|cohort)\//u, "refs/arc/$1/")
+    : change.ref.replace(/^refs\/arc\/(work|cohort)\//u, "refs/arc/history/$1/");
   const current = destination.get(change.ref) ?? (paired !== change.ref ? destination.get(paired) : undefined);
   if (current === change.next) return true;
   if (!current) return false;

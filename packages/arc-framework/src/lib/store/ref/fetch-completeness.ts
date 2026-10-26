@@ -30,7 +30,7 @@ export async function refFetchNeedsCompleteness(context: RefBackendContext): Pro
 export async function missingRefFetchObjects(context: RefBackendContext, outcome: Extract<FetchOutcome, { status: "refs" }>): Promise<string[]> {
   const tips = [...new Set(outcome.refs.filter(({ flag, next }) => flag !== "!" && flag !== "-" && !/^0+$/u.test(next)).map(({ next }) => next))];
   if (!tips.length) return [];
-  const { stdout } = await context.exec("git", ["rev-list", "--objects", "--missing=print", ...tips],
+  const stdout = await context.execInput(["rev-list", "--objects", "--missing=print", "--stdin"], `${tips.join("\n")}\n`,
     { cwd: context.checkoutRoot, objectAccess: "local-only" });
   return [...new Set(stdout.split(/\r?\n/u).flatMap((line) => /^\?([0-9a-f]{40}|[0-9a-f]{64})$/u.exec(line)?.[1] ?? []))];
 }

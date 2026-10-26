@@ -7,6 +7,7 @@ import { type createRefStore, RecordReferenceSchema } from "../../src/lib/store/
 import { isGitProcessError } from "../../src/lib/git/process-error.js";
 import { probeReceiverLeaseRaces } from "./ref-host-lease-races.js";
 import { probeHostFork, probeHostPolicy, probeHostRoles, type HostSettings } from "./ref-host-access.js";
+import { bootstrapHostRegistry } from "./ref-host-bootstrap.js";
 
 type Git = (label: string, cwd: string, args: string[], trace?: boolean) => Promise<string>;
 type Probe = { status: "passed" | "unverified"; detail: unknown };
@@ -77,16 +78,8 @@ export async function probeBackend(input: { root: string; remote: string; eviden
       content: JSON.stringify({ projectId: randomUUID() }), provenance }));
     await write("First host value.\r\n");
     if (!input.atomic) {
-      const held = success(await first.push());
-      assert(held.publishes.some(row => row.status === "failed" && JSON.stringify(row).includes("atomic")), JSON.stringify(held));
       assert(![personal, registry].some(ref => before.has(ref)));
-      const after = await tips();
-      assert(!after.has(personal) && !after.has(registry));
-      const bootstrap = (await git("single-registry-source", a, ["rev-parse", registry])).trim();
-      await git("single-registry-bootstrap", a, ["push", "--porcelain", `--force-with-lease=${registry}:`, "--", remote, `${bootstrap}:${registry}`]);
-      owned.set(registry, bootstrap);
-      results.multiRefBootstrap = { status: "passed", detail: { limitation: "Receiver lacks atomic pushes; backend preserved all pending refs",
-        held, continuation: "Operator seeded the project registry with an exact single-ref lease for the remaining single-ref trials" } };
+      results.multiRefBootstrap = { status: "passed", detail: await bootstrapHostRegistry({ git, store: first, path: a, remote, owned }) };
     }
     const pushed = await publish();
     success(await second.pull());

@@ -74,6 +74,25 @@ it("refuses a code push that would activate another push hidden by an off backin
   expect((await runStoreRemote(h.a.ports, { remote: "origin", role: "push" })).status).toBe("ok");
 });
 
+it.each([
+  { remote: "origin", role: "off" }, { remote: "origin", role: "read" },
+  { remote: "observer", role: "off" }, { remote: "observer", role: "read" },
+] as const)("keeps backing as the publisher when an excluded upstream carries push and $remote becomes $role", async ({ remote, role }) => {
+  const h = await refSyncFixture("separate");
+  for (const name of ["upstream", "observer"]) await h.a.exec("git", ["remote", "add", name, h.origin]);
+  await h.a.exec("git", ["config", "remote.upstream.arc-state", "push"]);
+  const reference = RecordReferenceSchema.parse({ kind: "personal/inbox", owner: { type: "person", name: "andrew" } });
+  success(await h.a.store.write({ action: "put", reference, expected: null, content: "Retained local state.\n", provenance }));
+  for (let attempt = 0; attempt < 2; attempt++) {
+    expect(await runStoreRemote(h.a.ports, { remote, role })).toMatchObject({ status: "ok", result: { layout: "separate" } });
+    expect((await h.a.exec("git", ["config", `remote.${remote}.arc-state`])).stdout.trim()).toBe(role);
+    expect((await h.a.exec("git", ["config", "remote.upstream.arc-state"])).stdout.trim()).toBe("push");
+    expect((await h.a.git(["config", "remote.backing.arc-state"])).stdout.trim()).toBe("push");
+    expect(success(await h.a.store.read({ reference })).content).toBe("Retained local state.\n");
+  }
+  expect(success(await h.a.store.push()).publishes).toContainEqual(expect.objectContaining({ status: "pushed" }));
+});
+
 it("keeps another check's advanced temporary tip while refusing the project its own fetch observed", async () => {
   const h = await refSyncFixture(), foreign = await refSyncFixture();
   for (const [checkout, id] of [[h.a, localId], [foreign.a, foreignId]] as const) {

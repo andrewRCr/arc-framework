@@ -4,6 +4,9 @@ import { join } from "node:path";
 import { access, mkdir, rename, writeFile } from "node:fs/promises";
 import { importFixture } from "../helpers/store/import-fixture.js";
 import { ordinaryErrand, seedTransients, transientSourceRef, keptPrefix } from "../helpers/store/import-transients.js";
+import { createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { success } from "../helpers/store/suite-tools.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 describe("import publication", () => {
   it.each([false, true])("publishes every landed ref through the designated state remote without moving code (lineage: %s)", async (lineage) => {
@@ -160,6 +163,35 @@ describe("import landing in the default layout", () => {
   });
 
 });
+
+it.each(["default", "separate"] as const)("refuses a disjoint native writer before the %s import lands, then retries after resolution", async layout => {
+  const h = await importFixture(layout), store = createRefStore(h.ports);
+  const scope = layout === "separate" ? [`--git-dir=${join(h.root, ".git/arc/store")}`] : [];
+  const state = async () => (await h.git("git", [...scope, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"]))
+    .stdout.split("\n").filter(line => line && !line.startsWith("refs/arc/tmp/")).sort();
+  let concurrent: string[] | undefined;
+  h.ports.migrateStep = async step => {
+    if (step !== "import.land" || concurrent) return;
+    success(await store.write({ action: "put", expected: null, reference: RecordReferenceSchema.parse({
+      kind: "work-item/meta", owner: { type: "work-item", name: "concurrent" },
+    }), content: makeMetaFixture("concurrent"), placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "seed" } }));
+    concurrent = await state();
+  };
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "store", refusal: {
+    code: "version-conflict", class: "recoverable", remedy: { text: expect.stringMatching(/empty.*state/u) },
+  } } });
+  expect(concurrent?.length).toBeGreaterThan(0);
+  expect(await state()).toEqual(concurrent);
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
+  for (const line of concurrent ?? []) {
+    const [ref, tip] = line.split(" ");
+    await h.git("git", [...scope, "update-ref", "-d", ref!, tip!]);
+  }
+  h.ports.migrateStep = undefined;
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  expect(success(await store.read({ reference: RecordReferenceSchema.parse({ kind: "work-item/meta",
+    owner: { type: "work-item", name: "alpha" } }) })).content).toBe(makeMetaFixture("alpha", { owner: "andrew", branch: "feat/alpha" }));
+}, 40_000);
 
 it("keeps no-remote import tips while origin is unreadable and finishes after restoring its access", async () => {
   const h = await importFixture("separate");

@@ -3,15 +3,22 @@
 import { OwnerIdentitySchema, RecordReferenceSchema, type OwnerIdentity, type RecordReference } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
-import { readBatchObjects, readRefTips } from "./batch-read.js";
+import { readBatchObjects, readRefTips, readRefTrees } from "./batch-read.js";
 import { parseRefMetadata, unparsedMetadata } from "./metadata.js";
 import { readLiveRefOwners } from "./live-owners.js";
+import { expandStoredPath, holdsNoRecord } from "../stored-path.js";
+import { corruptRef } from "./namespace-health.js";
 
 /** Read the registry's UID-to-slug map from the caller's captured namespace; a saved namespace names historical repair. */
 export async function readLineageOwners(context: RefBackendContext, tips: ReadonlyMap<string, string>, saved = false): Promise<StoreResult<OwnerIdentity[]>> {
   const ref = "refs/arc/project/registry";
   const tip = tips.get(ref);
   if (!tip) return { status: "ok", result: [] };
+  const entries = (await readRefTrees(context, new Map([[ref, tip]]))).get(ref);
+  if (!entries) return { status: "refused", refusal: corruptRef(ref, true, saved) };
+  const home = expandStoredPath(RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } }),
+    { registry: context.registry });
+  if (holdsNoRecord(home, entries.map(({ path }) => path))) return { status: "ok", result: [] };
   const query = `${tip}:metadata-registry.json`;
   const objects = await readBatchObjects(context, [query]);
   const metadata = parseRefMetadata(objects.get(query), ref);

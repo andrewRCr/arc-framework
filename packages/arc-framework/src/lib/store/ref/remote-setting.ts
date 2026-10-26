@@ -58,9 +58,11 @@ async function applyCodeSetting(context: RefBackendContext, store: Store, design
     const refused = await checkRemoteProject(context, remote, designation);
     if (refused) return refused;
   }
-  const remotes = [...codeRemotes, ...setting.role !== "push" && designation.backing ? [designation.backing] : []]
-    .map((remote) => remote.name === setting.remote ? { ...remote, role: setting.role } : remote);
-  const next = { ...designation, backing: setting.role === "push" ? null : designation.backing, remotes, pushes: remotes.filter(({ role }) => role === "push") };
+  const backing = setting.role === "push" ? null : designation.backing;
+  const remotes = codeRemotes.map((remote) => remote.name === setting.remote ? { ...remote, role: setting.role } : remote)
+    .filter(({ name, role }) => !backing || name === designation.codeRemote || role === "read");
+  if (backing) remotes.push(backing);
+  const next = { ...designation, backing, remotes, pushes: remotes.filter(({ role }) => role === "push") };
   const moved = await moveDesignatedLayout(context, store, next, setting);
   if (moved.status === "ok" && setting.role === "push" && (await readRefDesignation(context)).backing) {
     await (await readRefRepository(context)).exec("git", ["remote", "remove", "backing"]);

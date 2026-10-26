@@ -46,9 +46,10 @@ export async function mapImportReview(context: RefBackendContext, source: Import
       report.notices.push({ condition: `Review mapping record ${JSON.stringify(record.reference)} has no valid reference.`, remedy });
       continue;
     }
-    if (parsed.data.owner.type !== "work-item" || !live.has(parsed.data.owner.uid ?? "")) {
+    if (context.registry[parsed.data.kind].family !== "review"
+      || parsed.data.owner.type !== "work-item" || !live.has(parsed.data.owner.uid ?? "")) {
       report.refused.push({ reference: parsed.data, rule: "review-mapping" });
-      report.notices.push({ condition: `Review mapping record ${JSON.stringify(record.reference)} names no supplied live work item.`, remedy });
+      report.notices.push({ condition: `Review mapping record ${JSON.stringify(record.reference)} is not a registered review record for a supplied live work item.`, remedy });
       continue;
     }
     const content = record.contents.at(-1);

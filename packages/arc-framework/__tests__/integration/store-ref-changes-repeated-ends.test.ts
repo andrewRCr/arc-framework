@@ -32,8 +32,17 @@ async function abandon(side: Side, reference: RecordReference): Promise<void> {
 }
 
 /** Write an item the side holds beside its lineage again, then remove it, which ends it a second time. */
-async function reviveAndEnd(side: Side, reference: RecordReference, live: string): Promise<string> {
-  success(await side.store.write({ action: "put", expected: null, reference, content: makeMetaFixture(reference.owner.name),
+async function reviveAndEnd(side: Side, reference: RecordReference, live: string, original: string): Promise<string> {
+  // Pulling an old mirror tip can leave a record-free shell after merging the retirement's deletion. Restore actual
+  // bytes as a descendant of that shell before editing, so the fixture does not rely on shell owner admission.
+  const parent = (await side.git(["rev-parse", live])).stdout.trim();
+  const tree = (await side.git(["rev-parse", `${original}^{tree}`])).stdout.trim();
+  const restored = (await side.ports.execInput([...side.gitDir ? [`--git-dir=${side.gitDir}`] : [],
+    "-c", "user.name=Mirror repair", "-c", "user.email=mirror@example.test", "commit-tree", tree, "-p", parent],
+  "Restore mirrored item content\n", { cwd: side.root })).trim();
+  await side.git(["update-ref", live, restored, parent]);
+  const current = success(await side.store.read({ reference }));
+  success(await side.store.write({ action: "put", expected: current.version, reference, content: makeMetaFixture(reference.owner.name),
     placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "activate" } }));
   const revived = success(await side.store.read({ reference }));
   success(await side.store.write({ action: "remove", reference, expected: revived.version, provenance }));
@@ -61,7 +70,7 @@ async function restoredOnce(h: Fixture): Promise<{ reference: RecordReference; l
 async function endedTwice(h: Fixture) {
   const restored = await restoredOnce(h);
   const registryBefore = (await h.b.git(["rev-parse", "refs/arc/project/registry"])).stdout.trim();
-  const revived = await reviveAndEnd(h.b, restored.reference, restored.live);
+  const revived = await reviveAndEnd(h.b, restored.reference, restored.live, restored.original);
   return { ...restored, revived, registryBefore };
 }
 
@@ -70,6 +79,22 @@ function versionsOf(entries: readonly { reference: RecordReference; version: str
 }
 
 describe("changes over an item that ended more than once", () => {
+  it.each((["default", "separate"] as const).flatMap(layout => [false, true].map(restricted => ({ layout, restricted }))))(
+    "discovers a whole restored lifetime between lineage-only endpoints in $layout (restricted=$restricted)", async ({ layout, restricted }) => {
+    const h = await refSyncFixture(layout), twice = await endedTwice(h);
+    const to = success(await h.b.store.version());
+    const registry = "refs/arc/project/registry", tip = (await h.b.git(["rev-parse", registry])).stdout.trim();
+    expect((await h.b.git(["rev-parse", `${tip}^{tree}`])).stdout)
+      .toBe((await h.b.git(["rev-parse", `${twice.registryBefore}^{tree}`])).stdout);
+    expect((await h.b.git(["for-each-ref", "--format=%(refname)", twice.live])).stdout).toBe("");
+    const changes = success(await h.b.store.changes({ from: twice.betweenEnds, to,
+      ...restricted ? { references: [twice.reference] } : {} }));
+    expect(versionsOf(changes, twice.reference)).toEqual([twice.revived, null]);
+    expect(changes.filter(entry => entry.reference.kind === "lineage/transition")).toEqual([]);
+    expect(success(await h.b.store.changes({ from: to, to,
+      ...restricted ? { references: [twice.reference] } : {} }))).toEqual([]);
+  });
+
   it.each((["default", "separate"] as const).flatMap(layout => (["absent", "stale"] as const).map(history => ({ layout, history }))))(
     "compares the restored endpoint with $history current history in $layout", async ({ layout, history }) => {
     const h = await refSyncFixture(layout), restored = await restoredOnce(h);
@@ -145,7 +170,7 @@ describe("changes over an item that ended more than once", () => {
     // The item comes back, is written, and ends again on the second clone while the first does not pull.
     await h.a.git(["push", h.remoteName, `${original}:${live}`]);
     success(await h.b.store.pull());
-    const revived = await reviveAndEnd(h.b, reference, live);
+    const revived = await reviveAndEnd(h.b, reference, live, original);
     success(await h.b.store.push()); success(await h.a.store.pull());
     const read = async (): Promise<(string | null)[]> =>
       versionsOf(success(await h.a.store.changes({ from: beforeEnds, to: success(await h.a.store.version()) })), reference);

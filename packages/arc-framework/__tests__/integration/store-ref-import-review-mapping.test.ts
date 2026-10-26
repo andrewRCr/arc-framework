@@ -522,3 +522,30 @@ it.each(["unknown-owner", "unparsable"] as const)("refuses a mapping record with
   broken = false;
   expect(await h.migrate()).toMatchObject({ status: "ok" });
 }, 40_000);
+
+it.each(["work-item/meta", "work-item/notes"] as const)("refuses mapped %s bytes and retains acquired records after mapping repair", async kind => {
+  const h = await importFixture();
+  const artifact = kind === "work-item/meta" ? "meta" : "notes";
+  const original = await readFile(join(h.root, `.arc/active/${artifact}-alpha.md`), "utf8");
+  let broken = true;
+  h.ports.reviewMapping = input => {
+    const valid = tableMapping(input);
+    const alpha = input.workItems.find(item => item.slug === "alpha")!;
+    const reference = RecordReferenceSchema.parse({ kind, owner: { type: "work-item", name: alpha.slug, uid: alpha.uid } });
+    return { ...valid, records: [...valid.records, ...broken ? [{ reference,
+      contents: [original + "\nMapped primary overwrite.\n"] }] : []] };
+  };
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused", report: {
+    refused: expect.arrayContaining([expect.objectContaining({ rule: "review-mapping", reference: expect.objectContaining({ kind }) })]),
+    notices: expect.arrayContaining([expect.objectContaining({ remedy: { text: expect.stringContaining("mapping") } })]),
+  } } });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
+  broken = false;
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  const store = createRefStore(h.ports);
+  for (const [recordKind, content] of [["work-item/meta", makeMetaFixture("alpha", { owner: "andrew", branch: "feat/alpha" })],
+    ["work-item/notes", "# Notes: Alpha\n\nSource observations.\n"]] as const) {
+    const reference = RecordReferenceSchema.parse({ kind: recordKind, owner: { type: "work-item", name: "alpha" } });
+    expect(success(await store.read({ reference })).content).toBe(content);
+  }
+}, 40_000);

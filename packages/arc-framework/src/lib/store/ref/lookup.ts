@@ -8,7 +8,7 @@ import type { RefBackendContext } from "./context.js";
 import type { RefMetadata } from "./metadata.js";
 import type { BatchObject, RefTreeEntry } from "./batch-read.js";
 import { lookupPrimary, preferredNameTrees } from "./lookup-primary.js";
-import { claimLookupCandidates, claimIdentityRefusal } from "./lookup-claims.js";
+import { claimLookupCandidates, claimIdentityRefusal, claimPayloadRefusal } from "./lookup-claims.js";
 import { readLookupTrees } from "./lookup-trees.js";
 import type { Slug } from "../../kernel/schema/slug.js";
 import type { ArchivedFolder } from "./archive-read.js";
@@ -30,6 +30,8 @@ export async function lookupRefRecord(context: RefBackendContext, input: LookupI
 /** Match the same lookup rules against a caller's captured or prepared tree set. */
 export function lookupCapturedRefTrees(context: Pick<RefBackendContext, "registry">, input: LookupInput,
   trees: ReadonlyMap<string, RefLookupTree>, unreadable: ReadonlyMap<string, StoreRefusal> = new Map()): StoreResult<LookupResult> {
+  const payload = input.kind === "claim" ? claimPayloadRefusal(context, input.claim, trees) : undefined;
+  if (payload) return { status: "refused", refusal: payload };
   const candidates = lookupCandidates(context, input, trees);
   const skipped = lookupSkippedRefusal(context, input, trees, unreadable, candidates.length > 0);
   if (skipped) return { status: "refused", refusal: skipped };

@@ -12,8 +12,9 @@ import { fetchRefHistories } from "./fetch.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { mergeRefSets, type RefMergeOptions, type RefMergeResult, type RefMergeRoute } from "./sync-merge.js";
 import { readPendingRefEnds, readPendingRefReopens, resolvePendingRefEnds, refEndPublished, type RefEndPublished } from "./sync-lifecycle.js";
-import { readCorruptArchiveBatchRefs } from "./sync-corrupt.js";
-import { withLifecycleEvidence, primeLifecycleLogs } from "./sync-lifecycle-evidence.js";
+import { readCorruptLifecycleBatchRefs } from "./sync-corrupt.js";
+import { withLifecycleEvidence } from "./sync-lifecycle-evidence.js";
+import { holdLifecycleRef, primeLifecycleHolds } from "./sync-lifecycle-holds.js";
 
 /** A failed supplemental fetch retains the shared merges already committed. */
 export type LifecyclePullResult = RefMergeResult | { status: "fetch-failed"; fetched: Extract<FetchOutcome, { status: "unreachable" }> };
@@ -50,35 +51,34 @@ export async function mergeCapturedRefState(context: RefBackendContext, incoming
   const previous = options.previous ?? new Map<string, string>();
   const published = refEndPublished(context, incoming, previous);
   let held = await captureMergeRefs(context, options);
-  const corrupt = await readCorruptArchiveBatchRefs(context, held, new Map([...previous, ...incoming]));
-  const blocked = blockedWithdrawalRefs([...corrupt.refs].filter(isItem));
+  const { blocked, unavailable, corrupt } = await captureLifecycleHolds(context, held, incoming, previous);
   const merging = (ref: string): boolean => !blocked.has(ref) && !isWithheld(ref, incoming, options.withheld);
   const shared = new Map([...incoming].filter(([ref]) => !isItem(ref) && merging(ref)));
   const first = await mergeRefSets(context, held, shared, options);
   if (first.status === "restart") return first;
   let state = await captureMergeRefs(context, options);
-  await primeLifecycleLogs(context, [held, state, incoming, previous]);
-  const completed = await readPendingArchiveHistories(context, held, state, incoming);
-  let pending = await readPendingRefEnds(context, held, state, incoming, published);
+  unavailable.push(...await primeLifecycleHolds(context, [held, state, incoming, previous], blocked));
+  const completed = await readPendingArchiveHistories(context, held, state, incoming, blocked);
+  let pending = await readPendingRefEnds(context, held, state, incoming, published, blocked);
   const required = new Map([...pending, ...completed].map((item) => [item.history, item]));
   const discovered = [...required.values()].filter(({ history }) => !requested.includes(history));
   const acquired = await acquireDiscoveredHistories(discovered.map(({ history }) => history), options);
   if (acquired.status === "fetch-failed") return acquired;
   first.notices.push(...acquired.notices);
-  await primeLifecycleLogs(context, [incoming]);
+  unavailable.push(...await primeLifecycleHolds(context, [incoming], blocked));
   const withdrawal = await withdrawEndBatches(context, held, state, incoming, options, published, blocked), withdrawn = withdrawal.result;
   if (withdrawn.status === "restart") return withdrawn;
   if (withdrawn.changed) {
     state = withdrawal.state; held = state;
-    await primeLifecycleLogs(context, [state]);
-    pending = await readPendingRefEnds(context, held, state, incoming, published);
+    unavailable.push(...await primeLifecycleHolds(context, [state], blocked));
+    pending = await readPendingRefEnds(context, held, state, incoming, published, blocked);
   }
   pending = await resolvePendingRefEnds(context, pending.filter(({ live, history }) => merging(live) && merging(history)), held, incoming);
   const histories = new Set<string>([...requested, ...discovered.map(({ history }) => history)]);
   const items = new Map([...incoming].filter(([ref]) => isItem(ref) && merging(ref)
     && !pending.some(({ live, history }) => ref === live || ref === history)
     && (!ref.startsWith("refs/arc/history/") || histories.has(ref))));
-  const notices: PullNotice[] = [...corrupt.notices, ...first.notices, ...withdrawn.notices];
+  const notices: PullNotice[] = [...unavailable, ...corrupt.notices, ...first.notices, ...withdrawn.notices];
   for (const { history, owner } of new Map([...pending, ...completed].map((item) => [item.history, item])).values()) {
     const tip = incoming.get(history);
     if (!merging(history)) continue;
@@ -88,18 +88,29 @@ export async function mergeCapturedRefState(context: RefBackendContext, incoming
       remedy: { text: `Have a clone holding ${history} push it back to the state remote, then pull again.` } });
   }
   const unblocked = (refs: ReadonlyMap<string, string>): Map<string, string> => new Map([...refs].filter(([ref]) => !isItem(ref) || merging(ref)));
-  const reopens = await readPendingRefReopens(context, unblocked(held), unblocked(state), unblocked(incoming), published);
+  const reopens = await readPendingRefReopens(context, unblocked(held), unblocked(state), unblocked(incoming), published, blocked);
   const routes = lifecycleRoutes(held, items, reopens);
   for (const { live, history } of pending) if (held.has(live) && incoming.has(history)) {
     routes.set(history, { ref: history, source: live });
   }
   const last = await mergeRefSets(context, state, items, { ...options, routes, incomingState: unblocked(incoming), priorState: unblocked(held) });
   if (last.status === "restart") return last;
-  const doubled = await observeSyncEndedTwice(context, unblocked(await captureMergeRefs(context, options)), unblocked(incoming), published);
+  const doubled = await observeSyncEndedTwice(context, unblocked(await captureMergeRefs(context, options)), unblocked(incoming), published, blocked);
   const doubledUids = new Set(doubled.flatMap((notice) => notice.kind === "ended-twice" && "uid" in notice.item ? [notice.item.uid] : []));
   const unambiguous = [...notices, ...last.notices].filter((notice) => notice.kind !== "end-pending"
     || !("uid" in notice.item) || !doubledUids.has(notice.item.uid));
   return { status: "complete", changed: first.changed || withdrawn.changed || last.changed, notices: [...unambiguous, ...doubled] };
+}
+
+async function captureLifecycleHolds(context: RefBackendContext, held: ReadonlyMap<string, string>,
+  incoming: ReadonlyMap<string, string>, previous: ReadonlyMap<string, string>): Promise<{
+    blocked: Set<string>; unavailable: PullNotice[]; corrupt: Awaited<ReturnType<typeof readCorruptLifecycleBatchRefs>>;
+  }> {
+  const blocked = new Set<string>();
+  const unavailable = await primeLifecycleHolds(context, [held, incoming, previous], blocked);
+  const corrupt = await readCorruptLifecycleBatchRefs(context, held, incoming, previous, blocked);
+  for (const ref of [...corrupt.refs].filter(isItem)) holdLifecycleRef(blocked, ref);
+  return { blocked, unavailable, corrupt };
 }
 
 async function acquireDiscoveredHistories(histories: readonly HistoryRef[], options: CapturedRefMergeOptions): Promise<
@@ -119,27 +130,14 @@ async function withdrawEndBatches(context: RefBackendContext, held: Map<string, 
     const result = await withdrawUnpublishedRefEnds(context, held, state, incoming, options, published, blocked);
     if (result.status === "restart") return { result, state };
     const before = blocked.size;
-    for (const notice of result.notices) if (notice.kind === "namespace-corrupt") blockWithdrawalRef(blocked, notice.ref);
+    for (const notice of result.notices) if (notice.kind === "namespace-corrupt") holdLifecycleRef(blocked, notice.ref);
     notices.push(...result.notices);
     if (!result.changed && before === blocked.size) return { result: { status: "complete", changed, notices }, state };
     if (result.changed) {
       changed = true; state = await captureMergeRefs(context, options); held = state;
-      await primeLifecycleLogs(context, [state]);
+      notices.push(...await primeLifecycleHolds(context, [state], blocked));
     }
   }
-}
-
-function blockWithdrawalRef(blocked: Set<string>, ref: string): void {
-  blocked.add(ref);
-  if (!isItem(ref)) return;
-  const live = ref.replace("refs/arc/history/", "refs/arc/");
-  blocked.add(live); blocked.add(live.replace("refs/arc/", "refs/arc/history/"));
-}
-
-function blockedWithdrawalRefs(refs: Iterable<string>): Set<string> {
-  const blocked = new Set<string>();
-  for (const ref of refs) blockWithdrawalRef(blocked, ref);
-  return blocked;
 }
 
 function isItem(ref: string): boolean { return /^refs\/arc\/(?:history\/)?(?:work|cohort)\//u.test(ref); }

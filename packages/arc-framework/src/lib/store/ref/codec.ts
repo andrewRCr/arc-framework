@@ -50,26 +50,29 @@ export function decodeReference(context: Pick<RefBackendContext, "registry">, ow
   return decoded && "owner" in decoded && storedKeyProblem(context, decoded, path) ? null : decoded;
 }
 
+/** Caller-owned decoding semantics for point reads and immutable saved state. */
+export interface RefRecordDecodeOptions { pointRead?: boolean; saved?: boolean }
+
 /** Turn a captured blob and owner metadata into the contract's logical record. */
 export function decodeRecord(context: RefBackendContext, reference: RecordReference, object: BatchObject, metadata: RefMetadata,
-  path: string, conflicts: RecordReference[] = [], placementOverride?: ReadPlacement): StoreRecord | ListingDiagnostic {
+  path: string, conflicts: RecordReference[] = [], placementOverride?: ReadPlacement, options: RefRecordDecodeOptions = {}): StoreRecord | ListingDiagnostic {
   const kind = context.registry[reference.kind];
   const primary = reference.kind === metadata.primary?.role || reference.kind === "cohort/document";
   const formatVersion = metadata.formats[refFormatKey(reference)] ?? 1;
   if (formatVersion > kind.formatVersion) return recordDiagnostic(path, { kind: "unknown-format-version",
-    condition: "Stored format version is newer than this build supports." });
-  const decoded = readRefContent(kind, object.bytes);
-  if ("condition" in decoded) return recordDiagnostic(path, decoded);
+    condition: "Stored format version is newer than this build supports." }, options.saved);
+  const decoded = readRefContent(kind, object.bytes, options.pointRead);
+  if ("condition" in decoded) return recordDiagnostic(path, decoded, options.saved);
   const formerNames = reference.owner.type === "work-item" && reference.owner.uid
     ? metadata.lineageFormerSlugs?.[reference.owner.uid] ?? [] : [];
   const mismatch = parsedOwnerProblem(reference, decoded.fields, formerNames);
-  if (mismatch) return recordDiagnostic(path, mismatch);
+  if (mismatch) return recordDiagnostic(path, mismatch, options.saved);
   const placement = placementOverride ?? metadata.primary?.placement ?? metadata.placement;
   const record = StoreRecordSchema.safeParse({ reference, ...decoded, formatVersion, conflicts,
     version: refRecordVersion(reference, object.oid, metadata, formatVersion),
     ...(placement ? { placement } : {}), ...(primary && metadata.primary?.links ? { links: metadata.primary.links } : {}),
   });
-  return record.success ? record.data : recordDiagnostic(path, { kind: "malformed", condition: record.error.message });
+  return record.success ? record.data : recordDiagnostic(path, { kind: "malformed", condition: record.error.message }, options.saved);
 }
 
 function escapeRegex(value: string): string { return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"); }

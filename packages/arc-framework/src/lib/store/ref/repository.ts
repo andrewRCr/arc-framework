@@ -1,5 +1,5 @@
 /** Lazy repository selection and atomic installation of the separate bare store. */
-import { join } from "node:path";
+import { join, relative, isAbsolute, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 import { readGitDirectories } from "../../git/directories.js";
 import { isGitProcessError } from "../../git/process-error.js";
@@ -18,13 +18,20 @@ export async function readRefRepository(context: RefBackendContext): Promise<Ref
   return bindRefRepository(context, commonDir, await directoryExists(context, directory) ? directory : null);
 }
 
-/** The separate store an operation bound is gone, as a move into the code repository's refs leaves it; given an error,
- * only a Git failure counts, so any other stays the caller's.
- */
+/** Whether an operation met the removal of its bound store, preserving failures attributable to other locations. */
 export async function storeDirectoryVanished(bound: RefBackendContext, error?: unknown): Promise<boolean> {
   const gitDir = bound.repository?.gitDir;
-  if (!gitDir || error !== undefined && !isGitProcessError(error)) return false;
+  if (!gitDir) return false;
+  if (error !== undefined && !(isGitProcessError(error)
+    ? error.args.includes(`--git-dir=${gitDir}`) : missingStorePath(error, gitDir))) return false;
   return !await directoryExists(bound, gitDir);
+}
+
+function missingStorePath(error: unknown, gitDir: string): boolean {
+  if (typeof error !== "object" || error === null || !("code" in error) || error.code !== "ENOENT"
+    || !("path" in error) || typeof error.path !== "string" || !isAbsolute(error.path)) return false;
+  const path = relative(gitDir, error.path);
+  return path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path);
 }
 
 /** Run an operation bound to the current layout, starting it again when the store directory it bound goes beneath it,

@@ -9,20 +9,34 @@ import { rootFamily } from "./codec.js";
 import { refKeyHome } from "./path-admission.js";
 import { readHistoryPaths } from "./history-paths.js";
 import type { RefChangeInterval, RefChangeWindow } from "./changes-graph.js";
+import { projectIdentityQueries, projectOwnerFromObjects, admitProjectReference } from "./project-identity.js";
+import { readBatchObjects } from "./batch-read.js";
 
 /** Bind owner names from the newer frame, then the older frame when absent. */
 export async function resolveChangeRestrictions(context: RefBackendContext, interval: RefChangeInterval): Promise<StoreResult<RecordReference[] | undefined>> {
   const requested = interval.input.references;
   if (!requested) return { status: "ok", result: undefined };
+  const project = await changeRestrictionProject(context, interval, requested);
+  if (project.status === "refused") return project;
   const references: RecordReference[] = [];
   for (const reference of requested) {
     if (reference.kind.startsWith("lineage/")) { references.push(reference); continue; }
     let found = await resolveRefName(context, reference, interval.after, false, true);
     if (found.status === "refused" && found.refusal.code === "not-found") found = await resolveRefName(context, reference, interval.before, false, true);
     if (found.status === "refused") return found;
+    if (project.result) {
+      found = admitProjectReference(found.result, project.result);
+      if (found.status === "refused") return found;
+    }
     references.push(found.result);
   }
   return resolveLineageRestrictions(context, interval, references);
+}
+
+async function changeRestrictionProject(context: RefBackendContext, interval: RefChangeInterval,
+  requested: readonly RecordReference[]): Promise<StoreResult<OwnerIdentity | undefined>> {
+  if (!requested.some(({ owner }) => owner.type === "project")) return { status: "ok", result: undefined };
+  return projectOwnerFromObjects(interval.after, await readBatchObjects(context, projectIdentityQueries(interval.after)), true);
 }
 
 async function resolveLineageRestrictions(context: RefBackendContext, interval: RefChangeInterval,

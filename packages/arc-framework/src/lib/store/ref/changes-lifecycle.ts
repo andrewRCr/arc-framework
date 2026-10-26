@@ -51,13 +51,35 @@ async function ownerChangeWindow(context: RefBackendContext, input: ChangesInput
   const index = await lifecycleBatchIndex(context, history, source, input, evidence);
   if (index.status === "refused") return index;
   if (!hasLifecycleBatches(live, ends, index.result, batches)) return { status: "refused", refusal: missingChangeState({ ref: history, version: input.to }) };
-  const lower = older ?? (from?.metadata.batch ? index.result.get(from.metadata.batch) : undefined);
+  const bound = await ownerWindowLower(context, input, { live, older, newer, from, to, source, index: index.result, ends }, evidence);
+  if (bound.status === "refused") return bound;
+  if (bound.result.unchanged) return { status: "ok", result: null };
+  const lower = bound.result.lower;
   const end = await endCommit(context, { newer, history, source, index: index.result, to, lower, version: input.to, current });
   if (end.status === "refused") return end;
   const upper = end.result;
   if (!upper) return { status: "refused", refusal: missingChangeState({ ref: history, version: input.to }) };
   const placements = boundPlacements([from, to], index.result, [upper, lower]);
   return { status: "ok", result: upper === lower ? null : { ref: newer ? live : history, upper, lower, version: input.to, placements } };
+}
+
+interface OwnerLowerBasis {
+  live: string; older: string | undefined; newer: string | undefined; from: ArchivedFolder | undefined; to: ArchivedFolder | undefined;
+  source: string; index: ReadonlyMap<string, string>; ends: ChangeEnds;
+}
+
+/** Standing lineage bounds a restored lifetime through prior retirement evidence and the interval's registry anchors. */
+async function ownerWindowLower(context: RefBackendContext, input: ChangesInput, basis: OwnerLowerBasis,
+  evidence: StoreCreationReceiptReader): Promise<StoreResult<{ lower: string | undefined; unchanged: boolean }>> {
+  const { live, older, newer, from, to, source, index, ends } = basis;
+  const lower = older ?? (from?.metadata.batch ? index.get(from.metadata.batch) : undefined);
+  if (older || from || !ends.beforeOrigins.has(live)) return { status: "ok", result: { lower, unchanged: false } };
+  const history = live.replace("refs/arc/", "refs/arc/history/");
+  const origin = await originEndBefore(context, input, history, source, index, ends.beforeRegistry, evidence);
+  if (origin.status === "refused") return origin;
+  const retired = !newer && !to ? await readItemEndBatches(context, source, historyOwner(history), "retirement") : undefined;
+  return { status: "ok", result: { lower: origin.result,
+    unchanged: retired !== undefined && ![...ends.registryBatches].some(batch => retired.has(batch)) } };
 }
 
 function newLiveWindow(context: RefBackendContext, input: ChangesInput, live: string, newer: string, ends: ChangeEnds,
@@ -78,17 +100,26 @@ async function reopenedOriginWindow(context: RefBackendContext, input: ChangesIn
   if (!ends.beforeRegistry) return missing();
   const index = await lifecycleBatchIndex(context, history, newer, { ...input, to: input.from }, evidence);
   if (index.status === "refused") return index;
+  const lower = await originEndBefore(context, input, history, newer, index.result, ends.beforeRegistry, evidence);
+  return lower.status === "refused" ? lower : { status: "ok", result: { ref: live, upper: newer, lower: lower.result, version: input.to } };
+}
+
+/** Bound a restored lifetime after the retirement the older registry actually recorded. */
+async function originEndBefore(context: RefBackendContext, input: ChangesInput, history: string, source: string,
+  index: ReadonlyMap<string, string>, beforeRegistry: string | undefined, evidence: StoreCreationReceiptReader): Promise<StoreResult<string>> {
+  const missing = (): StoreResult<never> => ({ status: "refused", refusal: missingChangeState({ ref: history, version: input.from }) });
+  if (!beforeRegistry) return missing();
   const reference = RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } });
-  const registry = await indexHistoryBatches(context, "refs/arc/project/registry", ends.beforeRegistry, reference, evidence, missingChangeState({ ref: "refs/arc/project/registry", version: input.from }));
+  const registry = await indexHistoryBatches(context, "refs/arc/project/registry", beforeRegistry, reference, evidence, missingChangeState({ ref: "refs/arc/project/registry", version: input.from }));
   if (registry.status === "refused") return registry;
-  const retired = await readItemEndBatches(context, newer, historyOwner(history), "retirement");
-  const candidates = [...index.result].filter(([batch]) => retired.has(batch) && registry.result.has(batch)).map(([, commit]) => commit);
+  const retired = await readItemEndBatches(context, source, historyOwner(history), "retirement");
+  const candidates = [...index].filter(([batch]) => retired.has(batch) && registry.result.has(batch)).map(([, commit]) => commit);
   let lower: string | undefined;
   for (const candidate of candidates) {
     if (!lower || await syncRefIsAncestor(context, lower, candidate)) lower = candidate;
     else if (!await syncRefIsAncestor(context, candidate, lower)) return missing();
   }
-  return lower ? { status: "ok", result: { ref: live, upper: newer, lower, version: input.to } } : missing();
+  return lower ? { status: "ok", result: lower } : missing();
 }
 
 /** A bound its version's latest folder wrote reads, as that version's read did, with the folder's placement. */
