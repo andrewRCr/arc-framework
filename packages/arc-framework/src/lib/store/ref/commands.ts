@@ -99,22 +99,22 @@ export async function runRefRemote(context: RefBackendContext, store: Store, inp
   if (!input.remote && !input.role) return { status: "ok", result: await remoteView(context) };
   if (!input.remote || !input.role) return invalidRemoteCommand("A remote setting requires both a remote and a role.");
   const setting = { remote: input.remote, role: input.role };
-  return withMigrationLock(context, async () => {
+  let completed: MigrateReport | undefined;
+  const applied = await withMigrationLock(context, async () => {
     const existing = await readMoveRecord(await migrationCodeContext(context));
     if (existing.status === "refused") return existing;
-    let completed: MigrateReport | undefined;
     if (existing.result) {
       const resumed = await finishRecordedMove(context, store, existing.result);
       if (resumed.status === "refused") return resumed;
       completed = resumed.result;
     }
     const follow = await guardRefFollowSetting(context, store, setting.remote, setting.role);
-    const applied = follow ?? await applyRefRemoteSetting(context, store, setting, input.ownState);
-    if (!completed) return applied;
-    if (applied.status !== "ok") return unappliedSetting(completed, applied);
-    applied.result.report = applied.result.report ? combineMigrateReports(completed, applied.result.report) : completed;
-    return applied;
+    return follow ?? await applyRefRemoteSetting(context, store, setting, input.ownState);
   });
+  if (!completed) return applied;
+  if (applied.status !== "ok") return unappliedSetting(completed, applied);
+  applied.result.report = applied.result.report ? combineMigrateReports(completed, applied.result.report) : completed;
+  return applied;
 }
 
 /** The finished move's record is already gone, so a setting that then refuses or asks keeps its own stop and carries the report. */

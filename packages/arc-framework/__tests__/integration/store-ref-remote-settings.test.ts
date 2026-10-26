@@ -9,11 +9,33 @@ import { createRefStore, runStoreRemote } from "../../src/lib/store/index.js";
 import { RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { refCarryFixture, carriedBranch, carriedDocument } from "../helpers/store/ref-carry.js";
+import { AdvisoryLockTimeoutError } from "../../src/lib/advisory-lock.js";
 
 const provenance = { verb: "start", lifecycleAction: "seed" };
 const localId = "34567890-1234-4234-8234-123456789abc";
 const foreignId = "45678901-1234-4234-8234-123456789abc";
 const identity = RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } });
+
+it("retains the finished move report when the following setting times out on its layout lock", async () => {
+  const h = await refCarryFixture("default");
+  await expect(runStoreRemote({ ...h.a.ports, migrateStep: async step => {
+    if (step === "layout.rename") throw new Error("Interrupted before switch");
+  } }, { remote: "origin", role: "off" })).rejects.toThrow("Interrupted before switch");
+  let layoutAcquisitions = 0;
+  const lockPath = join(h.a.root, ".git", "arc", "locks", "layout.lock");
+  const ports = { ...h.a.ports, lock: async (name: string, wait?: number) => {
+    if (name === "layout" && ++layoutAcquisitions === 2) throw new AdvisoryLockTimeoutError(lockPath, 20);
+    return h.a.ports.lock(name, wait);
+  } };
+  const result = (await invokeStoreRemote(["origin", "push"], { cwd: h.a.root, ports })).result;
+  expect(result).toMatchObject({ status: "refused", refusal: { code: "store",
+    refusal: { code: "lock-held", lock: lockPath }, report: { refs: expect.arrayContaining([
+      { ref: "refs/arc/user/andrew/personal", scope: "identity", person: "andrew", action: "copy" },
+    ]) } } });
+  expect(success(await h.a.store.read({ reference: carriedDocument })).content).toBe("Carried state.\n");
+  expect((await invokeStoreRemote(["origin", "push"], { cwd: h.a.root, ports: h.a.ports })).result)
+    .toMatchObject({ status: "ok", result: { layout: "default" } });
+}, 30_000);
 
 it.each(["default", "separate"] as const)("shows roles and the actual %s layout without changing configuration or state", async (layout) => {
   const h = await refSyncFixture(layout);
