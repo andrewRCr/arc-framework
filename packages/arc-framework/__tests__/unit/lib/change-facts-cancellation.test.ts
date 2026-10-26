@@ -34,10 +34,12 @@ it("reports an unconfirmed descendant tree with the captured native raw output",
   const controller = new AbortController();
   const pending = createSpawnRawGitExec()(["fetch"], { signal: controller.signal }).catch((error: unknown) => error);
   await ready;
-  child.stdout.write("captured output");
-  child.stderr.write("captured diagnostic");
+  const stdout = Buffer.concat([Buffer.from("captured output"), Buffer.from([0, 128, 255, 226, 130])]);
+  const stderr = Buffer.concat([Buffer.from("captured diagnostic"), Buffer.from([1, 255, 128, 240, 159])]);
+  child.stdout.write(stdout);
+  child.stderr.write(stderr);
   controller.abort();
   await expect(pending).resolves.toMatchObject({ kind: "canceled", isCanceled: true,
-    stdout: "captured output", stderr: "captured diagnostic", descendantsUnconfirmed: true,
+    stdout: stdout.toString("latin1"), stderr: stderr.toString("latin1"), descendantsUnconfirmed: true,
     message: expect.stringContaining("descendant") });
 });

@@ -290,7 +290,7 @@ export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
         const stderrBytes = Buffer.concat(stderr);
         if (canceled && failures !== undefined) {
           reject(new failures.GitProcessError({ command: "git", args: effectiveArgs, kind: "canceled", isCanceled: true,
-            stdout: stdoutBytes.toString("utf8"), stderr: stderrBytes.toString("utf8"), descendantsUnconfirmed }));
+            stdout: stdoutBytes.toString("latin1"), stderr: stderrBytes.toString("latin1"), descendantsUnconfirmed }));
           return;
         }
         if (code === 0) {
