@@ -39,7 +39,7 @@ function olderGitPorts(rejecting: "exec" | "rawExec"): RefStorePorts {
         if (path.replaceAll("\\", "/") === "/repository/.git") return { isDirectory: () => true } as Awaited<ReturnType<RefStorePorts["fs"]["lstat"]>>;
         throw missing(path);
       }, mkdir: unexpected, writeFile: unexpected, exclusiveCreate: unexpected, unlink: unexpected, rename: unexpected,
-      removeDirectory: unexpected },
+      realpath: unexpected, removeDirectory: unexpected },
     checkoutRoot: "/repository", identity: async () => null, backingRepository: unexpected, actor: unexpected,
     lock: async () => async () => {}, clock: () => new Date(0), sleep: { wait: unexpected, bound: unexpected },
     random: () => 0.5,

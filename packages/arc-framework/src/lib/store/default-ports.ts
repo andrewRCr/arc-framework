@@ -54,7 +54,7 @@ export function createDefaultStorePorts(input: { checkoutRoot: string; exec?: Gi
     fs: { readFile: (path) => fs.readFile(path, "utf8"), readBytes: (path) => fs.readFile(path), writeBytes: (path, content) => fs.writeFile(path, content),
       readdir: (path) => fs.readdir(path, { withFileTypes: true }), lstat: fs.lstat, mkdir: fs.mkdir,
       writeFile: atomicWriteFile, exclusiveCreate: atomicCreateFile,
-      unlink: fs.unlink, rename: fs.rename, removeDirectory: (path) => fs.rm(path, { recursive: true, force: true }) },
+      unlink: fs.unlink, realpath: fs.realpath, rename: fs.rename, removeDirectory: (path) => fs.rm(path, { recursive: true, force: true }) },
     locks: {
       tracked: (operation) => withTrackedWriteLock({ exec, checkoutRoot: input.checkoutRoot }, operation),
       notes: async (operation) => {

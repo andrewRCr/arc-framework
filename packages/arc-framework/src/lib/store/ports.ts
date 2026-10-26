@@ -62,6 +62,7 @@ export interface RefStoreSleep {
 
 /** Directory operations used to install a complete bare repository atomically. */
 export interface RefRepositoryFileAccess {
+  realpath(path: string): Promise<string>;
   rename(source: string, destination: string): Promise<void>;
   removeDirectory(path: string): Promise<void>;
 }

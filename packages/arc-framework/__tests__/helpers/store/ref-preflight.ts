@@ -8,7 +8,7 @@ export function createPreflightRefStore(registry: NonNullable<RefStorePorts["reg
   const ports: RefStorePorts = {
     exec: unexpected, execInput: unexpected, rawExec: unexpected,
     fs: { readFile: unexpected, readBytes: unexpected, writeBytes: unexpected, readdir: unexpected, lstat: unexpected, mkdir: unexpected,
-      writeFile: unexpected, exclusiveCreate: unexpected, unlink: unexpected, rename: unexpected, removeDirectory: unexpected },
+      writeFile: unexpected, exclusiveCreate: unexpected, unlink: unexpected, realpath: unexpected, rename: unexpected, removeDirectory: unexpected },
     checkoutRoot: "/no-repository", identity: unexpected, backingRepository: unexpected, actor: unexpected, lock: unexpected,
     clock: () => { throw new Error("Admission consulted the clock"); },
     sleep: { wait: unexpected, bound: unexpected }, random: () => { throw new Error("Admission drew randomness"); }, registry,

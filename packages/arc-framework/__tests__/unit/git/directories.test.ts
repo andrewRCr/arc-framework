@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, lstat, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, lstat, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { readGitDirectories } from "../../../src/lib/git/directories.js";
 
 const roots: string[] = [];
-const files = { lstat, readFile: (path: string) => readFile(path, "utf8") };
+const files = { lstat, realpath, readFile: (path: string) => readFile(path, "utf8") };
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
@@ -40,6 +40,18 @@ describe("filesystem Git directory discovery", () => {
     await mkdir(gitDir);
     await writeFile(join(path, ".git"), `gitdir: ${gitDir}\n`);
     expect(await readGitDirectories(path, files)).toEqual({ gitDir, commonDir: gitDir });
+  });
+
+  it.each(["directory", "gitfile"])("resolves relative commondir at the physical %s target", async kind => {
+    const path = await root(), checkout = join(path, "checkout"), commonDir = join(path, "repository", ".git");
+    const target = join(commonDir, "worktrees", "child"), marker = join(checkout, ".git");
+    await mkdir(checkout);
+    await mkdir(target, { recursive: true });
+    await writeFile(join(target, "commondir"), "../..\n");
+    const gitDir = kind === "directory" ? marker : join(path, "metadata-link");
+    await symlink(target, gitDir, "junction");
+    if (kind === "gitfile") await writeFile(marker, "gitdir: ../metadata-link\n");
+    expect(await readGitDirectories(checkout, files)).toEqual({ gitDir, commonDir });
   });
 
 

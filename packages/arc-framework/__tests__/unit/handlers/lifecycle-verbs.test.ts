@@ -167,6 +167,7 @@ vi.mock("../../../src/lib/work-unit/verbs/stub.js", () => ({ runStub: (...a: unk
 // Lifecycle handlers read templates and other files through `node:fs/promises`.
 const mockReadFile = vi.fn(async () => "{}");
 vi.mock("node:fs/promises", () => ({
+  realpath: vi.fn(async (path: string) => path),
   readFile: () => mockReadFile(),
   lstat: vi.fn(),
   writeFile: vi.fn(),

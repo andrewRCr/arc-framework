@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, lstat, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, lstat, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -11,7 +11,7 @@ import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 import { getOrCreateMachineId } from "../../../../src/lib/store/machine-id.js";
 
 const roots: string[] = [];
-const files = { lstat, readFile: (path: string) => readFile(path, "utf8") };
+const files = { lstat, realpath, readFile: (path: string) => readFile(path, "utf8") };
 const identity = "andrew";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 afterEach(async () => {

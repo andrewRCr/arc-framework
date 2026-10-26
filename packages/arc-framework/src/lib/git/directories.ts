@@ -6,6 +6,7 @@ import { dirname, join, resolve } from "node:path";
 export interface GitDirectoryFileAccess {
   lstat(path: string): Promise<{ isDirectory(): boolean }>;
   readFile(path: string): Promise<string>;
+  realpath(path: string): Promise<string>;
 }
 
 /** The checkout's private metadata directory and its repository-wide directory. */
@@ -33,11 +34,12 @@ async function readMarkedGitDir(marker: string, fs: GitDirectoryFileAccess): Pro
 export async function readGitDirectories(checkoutRoot: string, fs: GitDirectoryFileAccess): Promise<GitDirectories> {
   const marker = resolve(checkoutRoot, ".git");
   const gitDir = (await fs.lstat(marker)).isDirectory() ? marker : await readMarkedGitDir(marker, fs);
+  let common: string;
   try {
-    const common = (await fs.readFile(join(gitDir, "commondir"))).trim();
-    return { gitDir, commonDir: resolve(gitDir, common) };
+    common = (await fs.readFile(join(gitDir, "commondir"))).trim();
   } catch (error) {
     if (!hasCode(error, "ENOENT")) throw error;
     return { gitDir, commonDir: gitDir };
   }
+  return { gitDir, commonDir: resolve(await fs.realpath(gitDir), common) };
 }
