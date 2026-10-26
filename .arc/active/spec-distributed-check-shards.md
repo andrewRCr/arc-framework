@@ -1,0 +1,550 @@
+# Spec (`detailed` · `RFC`): Distributed Check Shards
+
+- **Origin:** [internal]
+- **Purpose:** Execute declared check shards through a provider-neutral runner while preserving native coverage,
+  trustworthy parent results and correctly scoped pass reuse. Reduce check wait time without weakening evidence or
+  exceeding the execution setup's existing resource admission.
+
+---
+
+## Introduction / Context
+
+A check declaration describes a command, its selected inputs and optional shard arguments. Running the entire check
+on one machine leaves a long check on the gate's critical path even when other execution capacity is idle. Several
+concurrent gates also compete for that capacity, so an isolated speedup does not establish useful overall behavior.
+
+`resolveCheckForecast` in `packages/arc-framework/src/lib/checks/forecast.ts` expands existing shard declarations
+for CI. `executeSelectedCheck` and `executeCheckBatches` in `src/handlers/check/run.ts` currently execute ordinary
+commands without expanding that shard metadata. The forecast appends shard arguments after computing file batches,
+which is insufficient when those final arguments can exceed a worker's command-line budget.
+
+This design adds the distributed consumer of a common runner foundation. The foundation is an unshipped
+prerequisite: its public execution contract must be available and qualified before this consumer's shared-handler
+implementation begins. Section 1 defines the required contract independently; no sibling planning document supplies
+missing behavior. Specification can proceed before that implementation is available.
+
+Source paths beginning with `src/` or `__tests__/` below are relative to `packages/arc-framework/`. Desired behavior
+is normative; statements naming current actors describe the starting implementation and require re-grounding before
+code changes.
+
+## Goals
+
+1. Execute one selected check's complete declared batch/shard plan against one common captured input basis.
+2. Keep project declarations and ARC independent of any execution provider, machine inventory or native test tool.
+3. Produce one correct parent verdict, preserving useful completed failures and explicit incomplete-work diagnostics.
+4. Reuse a successful parent only when its scoped inputs, complete plan and applicable execution runtimes match.
+5. Preserve native selection, partitioning, completion and artifact-ownership contracts for unit, integration,
+   store and E2E checks, including their different legitimate-empty and no-evidence outcomes.
+6. Qualify a public adapter independently, then qualify the personal arc-offload integration through the same seam.
+7. Measure end-to-end gate latency and aggregate completion under five or six concurrent gates, including preparation
+   and queueing costs rather than counting submitted jobs as performance evidence.
+
+## Non-Goals
+
+_Editable in place until activation, then frozen; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
+
+- Defining a second provider protocol, source-capture format, environment-binding schema or runner configuration tier.
+- Adding an ARC scheduler, machine registry, concurrency preference, fallback mode, automatic retry or fail-fast knob.
+- Freezing a whole gate, replacing native test partitioners, distributing individual test cases, or changing shard
+  counts outside project declarations.
+- Adding durable per-shard records, a shared result database, lifecycle evidence or storage synchronization.
+- Moving fixers, index-certifying checks, projected-state selections or local artifact-producing builds to runners.
+- Redesigning artifact leases, scheduler fairness, suite timeout policy, CI wall balancing or test-cost budgeting.
+- Requiring arc-offload, Bazel, REAPI, MCP, a CAS service or another team's infrastructure to use this feature.
+- Changing ordinary native execution into local sharding when no eligible configured runner is selected.
+
+## Proposed Design
+
+### 1. Foundation contract and implementation boundary
+
+The common runner foundation owns machine-local configuration, explicit check eligibility, captured source and
+environment inputs, preparation, runtime observation, portable argument-budget primitives, single execution and
+resource lifetime. This consumer owns shard expansion, group use, the runtime vector and parent key/reduction,
+per-invocation reporting, native writer isolation and distributed qualification. These remain one consumer concern:
+shard execution without complete parent accounting cannot deliver trustworthy check results.
+
+The required foundation contract is:
+
+| Surface       | Required behavior                                                                                      |
+| ------------- | ------------------------------------------------------------------------------------------------------ |
+| Configuration | A machine-local literal argv adapter setting, separate from project check commands.                    |
+| Eligibility   | Project opt-in; no implicit routing of fixers, index certifiers or projection checks.                  |
+| Capture       | One fixed source/selection definition, required code coordinates and explicit environment bindings.    |
+| Prepare       | Bind the complete invocation plan to a context, confirm source identity and describe runtime coverage. |
+| Run           | Execute one prepared invocation and return individually attributable terminal execution evidence.      |
+| Run group     | Optional execution of the complete requested invocation set under the same prepared input definition.  |
+| Cancel        | Request settlement; acknowledgement alone does not establish that children stopped.                    |
+| Release       | Dispose after execution settlement and required output collection, or after a reusable hit.            |
+
+The foundation launches one adapter subprocess per selected check. Its protocol uses JSON-RPC 2.0 envelopes over
+newline-delimited stdio, with stdout reserved for protocol messages and stderr for adapter diagnostics. Exact wire
+schemas and validation are foundation exports. This consumer uses those exports and does not implement a competing
+message parser or native-test result grammar.
+
+Preparation receives the fixed plan and returns a context/source binding, optional group capability and known or
+unknown runtime coverage. Execution references prepared invocation identities rather than accepting a replacement
+command or new source. Output notifications are separate from immutable terminal outcomes. A final execution reply
+confirms settlement and exact expected-ID closure, including required output drainage.
+
+Invocation records carry the engine-owned optional `commandContent` policy defined in section 4; source metadata
+alone does not determine child bindings. The foundation preserves native cwd-scoped Git execution, including its
+repository-local environment filter and reserved-input validation in section 4. It also supplies pre-work recovery
+guidance and separate normal closure paths for granted contexts and settled preparation refusals, as defined in
+section 8.
+
+Before implementation, verify that the landed foundation supplies these contracts, including shared dispatch-time
+environment capture for native CI playback. Missing behavior is a prerequisite gap to resolve at its defining
+interface, not permission to add a private adapter path here. No storage-cutover or whole configuration-program
+completion is required by this boundary.
+
+### 2. Routing and native defaults
+
+The prerequisite resolves machine-local `checks.runner` argv from `~/.arc/config.yml` and project eligibility from
+`runner: true`. This consumer uses that resolved decision; it adds no configuration reader, override hierarchy or
+provider executable to project declarations.
+
+Expand a declared shard plan during ordinary execution only when the selected check is eligible and a configured
+runner is selected. With no configured runner, or for a check left on the native path, retain its existing single
+native command. Shard metadata alone adds neither a source workspace nor local fan-out. Explicit environment-file
+bindings may still freeze a small input file under the foundation's native execution contract.
+
+A configured adapter that cannot start or obtain eligible capacity reports unavailable execution with an actionable
+remedy. ARC does not bypass it. The adapter owns local placement, fallback and admission; a local placement uses the
+same captured inputs as a remote placement. Required-remote policy remains effective.
+
+With group capability, submit the complete check plan once. Without it, send the same invocations serially through
+mandatory single execution within the prepared context. Serial playback remains sharded; never silently substitute
+the unsharded command. An eligible declaration without shards continues through the foundation's single-check path.
+
+Existing CI forecasting and native job playback remain distinct from this routing decision. Preserve CI's declared
+shard matrix even when its jobs use native execution rather than a configured adapter.
+
+### 3. Canonical invocation planning
+
+Reuse the existing declaration language and `resolveCheckForecast` expansion rather than creating another shard
+count, template syntax or per-suite distribution script. `shards.count` supplies the positive count;
+`shards.argument` expands `{index}` and `{count}` with one-based indices from 1 through that count. Preserve the
+command's literal argument values, explicit shell intent, selected-path order, check cwd and existing
+selection/deletion/widening rules.
+
+Build the full plan before preparation or pass lookup. Each record has a canonical local coordinate consisting of
+its file-batch ordinal and shard index/count, final argv, root-relative cwd and shell policy. Every expected pair
+also has a unique wire invocation ID, including when command text is identical. Wire IDs are correlation handles;
+the canonical coordinates and commands define reusable plan identity. Carry the selected engine-owned
+`commandContent` with each invocation rather than asking an adapter to infer it from argv or source coordinates.
+
+Use deterministic shard-index order and stable batch order. Planning, reporting and runtime-vector projection must
+agree on that order. A plan consists of every expected batch/shard pair, not only commands that a provider happened
+to start. No partial-parent reuse or independent shard pass publication is introduced.
+
+`batchCheckPaths` and `checkArgumentBudget` in `src/lib/checks/batching.ts` currently preserve path order and budget
+POSIX bytes or escaped Windows units. Consume the foundation's portable budgeting primitives and include final
+shard arguments before partitioning paths into batches. The complete plan must fit every supported compatible
+placement; use the most restrictive applicable budget rather than the caller's platform alone. Preserve one
+no-path invocation where the declaration's mode/path policy requires it.
+
+If a fixed command plus one path and its final shard argument cannot fit, refuse before launch with a shortening or
+configuration remedy. An adapter must not secretly split one expected invocation into unreported commands. Resolve
+cwd inside the captured source root; an escaping root requires an explicit eligibility/input-boundary remedy or an
+intentional native declaration, never implicit sibling-directory capture or bypass fallback.
+
+### 4. Common source, selection and external inputs
+
+Acquire one captured context per selected check. ARC fixes the request's source basis, selected paths, required code
+coordinates and explicit external inputs before any sibling runs. Index/commit-based requests must not acquire
+later live working-tree bytes. Working-tree capture is the fixed result of reading those inputs, without claiming
+an instantaneous filesystem-wide snapshot. Failed or inconsistent required reads refuse with a retry remedy.
+
+The foundation presents self-contained source files with actual captured byte presentation, behavior-relevant
+modes/links and required code-only Git coordinates. No pointer or object dependency may resolve only on the original
+host. Git tree identity alone is insufficient for filters, LFS or line-ending presentation. Unsupported source or
+platform cases must refuse explicitly rather than substitute other executable bytes.
+Export only required code-coordinate objects; do not copy the live Git object-store directory or all refs as a
+shortcut to preserving code metadata.
+
+The consumer uses that artifact and its lease rather than independently calling a provider snapshot operation.
+Editing the original checkout, branch or duration file after capture must not change any sibling. Do not transport
+live store refs, Git notes, personal state or the operational projection to make code execution work. Incidental
+pre-cutover tracked planning files are not lifecycle authority inside a workspace.
+
+Use the foundation's single typed environment declaration:
+
+```yaml
+environment_inputs:
+  ARC_STORE_CHECK: value
+  ARC_TEST_DURATION_FILE: file
+```
+
+These are project-native examples, not protocol-reserved test fields. Declare each name only where that check reads
+it. Capture once per selected check even when `cache: false`, and apply the same bindings to runtime probes and all
+invocations. The binding rules are:
+
+- Preserve absence by unsetting a worker's ambient value. Preserve a literal empty string as empty; it differs from
+  absence and an existing zero-byte file.
+- A `value` binding replays the captured literal selection value. Its name, presence and value enter scoped identity.
+- A nonempty `file` value resolves against the check cwd. Open the target, follow a symlink to a regular file,
+  confirm its type and freeze its bytes. Unreadable or nonregular targets refuse capture with a remedy.
+- Materialize file bytes and rebind their environment name to an execution-local path. Key on captured state/content,
+  not the original host pathname or materialization path.
+- Incompatible worker policy reports unavailable execution rather than overriding declared selection. Engine-owned
+  `ARC_CHECK_BASE`, `ARC_CHECK_TREE`, `ARC_CHECK_MERGED`, `ARC_CHECK_NOTICE` and the repository-local Git variables
+  below cannot be shadowed by replayed caller bindings.
+
+`checkEnvironment` in `src/lib/checks/process.ts` currently uses `environmentForGitCwd` in
+`src/lib/git/process-executor.ts` to remove repository-local Git overrides. Preserve that complete native boundary
+for routed commands and runtime probes. Reuse the foundation's shared native filter/name authority, which covers
+`GIT_ALTERNATE_OBJECT_DIRECTORIES`, `GIT_CONFIG`, `GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT`, `GIT_OBJECT_DIRECTORY`,
+`GIT_DIR`, `GIT_WORK_TREE`, `GIT_IMPLICIT_WORK_TREE`, `GIT_GRAFT_FILE`, `GIT_INDEX_FILE`, `GIT_NO_REPLACE_OBJECTS`,
+`GIT_REPLACE_REF_BASE`, `GIT_PREFIX`, `GIT_SHALLOW_FILE` and `GIT_COMMON_DIR`. Reject these names as explicit
+`environment_inputs`, including case variants, so replay cannot restore an override after ambient cleanup.
+
+Clear those caller- and worker-inherited overrides before applying engine-owned captured-context bindings. Git
+commands and probes must resolve the prepared source's code metadata rather than another repository selected by
+ambient state. Native execution retains its current cwd filter and local engine-owned checked-index exception;
+index-certifying checks remain ineligible for routing. Adapter control-plane configuration and unrelated ambient
+variables remain provider policy.
+
+Preserve the native distinction between source metadata and command-content exposure. A files check's invocations
+carry `commandContent: {tree, base?, merged?}` from the selected check context; a project check omits it. This field
+is engine-owned, not a declaration or caller binding. Validate supplied coordinates against the captured source's
+required code coordinates. Runtime probes always omit command content.
+
+For commands and probes, first clear `ARC_CHECK_BASE`, `ARC_CHECK_TREE` and `ARC_CHECK_MERGED` from ambient worker
+state. A command with content sets tree, sets base only when present, and sets merged to the space-joined nonempty
+list; otherwise the corresponding variable stays unset. A project command and every probe leave all three unset.
+Keep the worker-local notice channel fresh and best effort; routed execution must not inherit a caller's index path.
+The same argv can legitimately have different content policies, including a files check that withholds paths.
+
+Dependency preparation and generated test artifacts are allowed in isolated execution views. They must not replace
+the common captured membership inputs. Source identity validation covers the complete prepared input definition;
+it does not turn every transported file into a dependency of every check.
+
+### 5. Runtime qualification and the parent key
+
+`resolveCheckKey` in `src/lib/checks/key-resolver.ts` currently gathers runtime-probe output before execution.
+Routed reuse must describe actual prepared execution contexts rather than the caller's local runtime. Consume the
+foundation's known runtime binding and probe observations, indexed by prepared invocation ID.
+
+Project those observations onto the canonical invocation order. Reuse requires known applicable coverage for every
+expected invocation. If complete coverage cannot be established, the adapter reports unknown runtime and the whole
+parent executes without lookup/publication. It does not substitute a caller-local fingerprint or authorize partial
+hits. Malformed claimed known coverage, including missing/duplicate/unknown invocation identities, is a protocol
+failure, not an automatic downgrade to unknown. Source fidelity and native membership requirements still apply when
+reuse is disabled.
+
+Extend the common scoped single-check key with the complete canonical invocation matrix and applicable runtime
+vector. Retain declaration, selected-content, required check coordinates and explicit-input scope. Different runtime
+identities are permitted only within the native partition contract's compatibility requirements.
+
+Attempt-specific plan/context/request IDs, provider machine/queue labels and workspace locations do not enter the
+key. The canonical batch/shard coordinates do. Unrelated repository or stored-state edits must not invalidate a
+parent merely because the whole captured container has a new digest. A host pathname change for identical file
+bytes also must not invalidate a semantically identical pass.
+
+`commandContent` preserves execution bindings; it does not make its raw coordinate object IDs unconditional key
+inputs. Retain the existing declared-content and historical-content dependency semantics when qualifying reuse.
+
+Preparation can use an applicable binding instead of allocating an expensive worker solely for a cache lookup.
+If placement or fallback would change a known prepared binding, report unavailable before launching affected work.
+An explicit retry obtains a new context and qualification; this consumer adds no automatic retry or downgrade to
+unknown identity. Never launch a changed context under a stale known binding.
+
+A hit covers the entire plan, sends no execution request and releases its acquired context. A completed success
+publishes one parent through the existing disposable pass-store contract. `createCheckPassStore` and
+`checkRecordDirectory` in `src/lib/checks/record.ts` treat invalid/unavailable reads as misses and storage faults as
+best effort. Preserve those semantics; a failed cache write does not erase an otherwise valid check result.
+
+### 6. Execution, parent reduction and diagnostics
+
+Correlate protocol output and terminal outcomes by context and invocation IDs. Preserve each independently valid
+terminal outcome as it arrives; do not wait for a final group reply to learn that a check failed. Human output,
+adapter process exit or cancellation acknowledgement cannot substitute for terminal evidence and settlement.
+
+Unknown, duplicate, conflicting, wrong-context or missing IDs cannot close a plan successfully. Validate requested
+source binding before admitting a verdict. Preserve an independently valid completed failure even if another
+result or the final conversation is malformed or lost. Diagnostics identify every incomplete or unavailable pair.
+
+Normalize outcomes through the existing declared/native check contract. `finalizeCheckRun` in
+`src/handlers/check/run.ts` handles unavailable, killed, declared no-evidence, ordinary failure and success;
+declared no-evidence status retains precedence over its special kill-status treatment. An exit value alone must
+not discard the native notice or declared interpretation.
+
+Preserve completed native exit statuses as exact unsigned 32-bit integers, from 0 through 4294967295. Do not narrow
+them to eight bits or a signed representation. A valid larger nonzero Windows status remains a completed failure,
+including beside missing work, rather than becoming a malformed result or a truncated zero. Retain current POSIX
+signal normalization, declared no-evidence bounds and the existing special-status interpretations.
+
+A declared no-evidence result contributes no useful evidence, rather than becoming an ordinary failed command.
+Retain the existing batch contract: completed no-evidence results may coexist with useful acceptable results, but
+an entirely no-evidence check cannot pass. Native unmatched/all-skipped failure statuses are not reclassified by
+this rule.
+
+| Accepted invocation evidence                                                       | Parent result                                   | Reusable pass                       |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------- | ----------------------------------- |
+| Every expected invocation acceptable, with the native contract's required evidence | Passed                                          | Only with a complete applicable key |
+| Any independently valid completed native failure, including beside missing work    | Failed, retaining incomplete-work detail        | Never                               |
+| No completed failure, but required work missing, unavailable, cancelled or killed  | Couldn't run completely, with exact diagnostics | Never                               |
+| All invocations complete, but the native contract reports no useful evidence       | Existing native no-evidence/failure result      | Never                               |
+
+`executeCheckBatches` and `unavailableBatchResult` already preserve a completed batch failure beside a later reported
+not-run result. Preserve that behavior within a parent. `declaredChecksExitCode` separately orders results across
+different checks; do not replace that request-level behavior with the within-parent reducer.
+
+After an ordinary nonzero check exit, continue serial playback and collect the complete planned diagnostic set.
+Group submission likewise requests the whole matrix; ordinary failure does not trigger ARC cancellation or suppress
+remaining planned work. Already-started siblings finish. Explicit interruption or unavailable execution may leave
+not-executed dispositions; neither can produce a parent pass.
+
+Retain existing parent-level CLI and JSON outcomes while making each invocation's batch/shard coordinate, status,
+native exit/notice and relevant diagnostic available. Output remains attributable to its invocation. Progress and
+best-effort log text do not become completion authority or durable per-shard pass records.
+
+### 7. Native membership, completion and writable outputs
+
+Native tools own discovery and partitioning. For each qualified tier/profile, the union of native shard assignments
+must equal the native unsharded selection, and every selected member must occur exactly once. Use identical source,
+filters, projects, shard count and captured duration input. Incompatible execution profiles must not claim that a
+set of zero exits proves complete/disjoint membership.
+
+`HeavyFirstSequencer` and `assignDurationShards` in `__tests__/helpers/heavy-first-sequencer.ts` consume duration
+inputs and fallback weights. Keep those inputs frozen and separate from writable result caches. Native
+collection/sharding APIs supply qualification evidence; the generic check engine gains neither a test inventory nor
+a second scheduler.
+
+`discoverVitestSelection` and `checkVitestCompletion` in `src/lib/vitest-discovery.ts` and
+`src/lib/vitest-completion.ts` reject empty ordinary selections or runs without completed cases. Preserve standalone
+unmatched-name, all-skipped and empty-execution failure behavior. An arbitrary nonzero exit or missing report is
+never a successful empty share.
+
+A native command may explicitly support a proved selection no-op or an empty assigned share. Preserve those
+contracts, including the native reach-based store command's validated no-affected-suite and empty-share success.
+Their completed selection/partition evidence is useful even when no test case executes. Do not impose a universal
+tests-completed rule on all commands or invent a new generic empty-share status/report field. Qualification must
+exercise actual native controllers, including closing; a native controller-close failure remains a failure.
+
+Four-tier qualification requires that native reach-based store check to be available. Until then its native cases
+remain unfulfilled qualification, rather than simulated proof of shipping behavior.
+
+`createPool` in the installed Vitest runtime invokes the configured sequencer during execution;
+`getRelevantTestSpecifications` does not pre-shard. Do not feed a pre-sharded selection back into native execution
+with sharding still enabled. `HeavyFirstSequencer.shard` may expose its actual native assignment for qualification
+when needed; that does not authorize a second partition pass in the generic engine.
+
+Give concurrent invocations private writable execution views or serialize access to a shared writable view. Sharing
+immutable dependency data is allowed; distinct cwd paths alone do not isolate mutable writers aliased through a
+shared `node_modules` directory. In this repository, configure Vite's supported `cacheDir` at the package-local
+ignored `.test-cache/vite/`, add its ignore entry and update CI cache-clearing/upload paths. Keep workspace-relative
+reporters private too.
+
+`mergeDurationArtifacts` in `packages/arc-framework/__tests__/helpers/duration-artifacts.ts` finds native
+`results.json` files recursively. Preserve tier-named artifact directories and the native result format while
+moving writable caches. Preserve `withBuildArtifactOwnership` and `withTestArtifactOwnership` in
+`src/lib/build-ownership.ts` through native controller completion. Safe preparation reuse must not weaken those leases.
+
+### 8. Lifetime, interruption and recovery
+
+Use the foundation's single lifecycle. Capture once, prepare, optionally reuse or execute, settle, collect required
+output, then release a granted context. Release also occurs on cache hits and ordinary failures. Do not release a
+workspace or common capture while launched work may still use it.
+
+A preparation reply that reports unavailable with `settled: true` grants no context and is terminal. The adapter
+settles and cleans its preparation work, sends that reply and exits zero. ARC drains the reply/output, closes stdin
+and waits for exit zero before disposing its capture; it sends no release request without a context. Terminal
+settlement makes an overlapping cancellation acknowledgement unnecessary; accept a valid late acknowledgement if
+it arrives while draining. Missing settlement or abnormal closure retains uncertain-work handling.
+
+ARC generates a fresh attempt UUID as `planId`, excluded from reusable identity. Before returning ready, and before
+dispatching any preparation or execution work that may outlive the conversation, the adapter fully writes and
+flushes `check/recovery {planId, instructions}`. A failed write forbids dispatch. Provider-owned work must already
+be associated with that plan identity when launched. The documented instructions locate and inspect/settle the
+plan's preparation and execution work after the adapter exits. A settled no-work preparation refusal may omit it.
+
+ARC retains valid recovery guidance from ordered frames received before EOF, along with the plan/context, adapter
+identity and retained capture location. Guidance is operator-facing information; ARC does not execute it
+automatically. Consume the foundation's carrier and lifetime handling rather than adding a separate recovery
+protocol or ARC job record.
+
+Interruption requests cancellation and then waits for settlement. Lost transport after launch is uncertain
+execution, not proof of stopped children. Retain already-observed native failures, report remaining work as
+incomplete, preserve the capture needed by unsettled work and surface the provider's recovery diagnostic. Do not
+automatically launch a replacement, retry locally or convert transport loss into a passing result.
+
+Distinguish advisory disposal failure after settled, fully collected work from unsettled processes or lost required
+output. A leftover temporary directory alone does not erase a valid native result. Missing required evidence or a
+native controller-close failure retains substantive failure meaning. Best-effort log loss is diagnostic.
+
+### 9. Forecast and CI integration
+
+Preserve declaration-derived native CI shards and current job placement. Forecast/dry-run metadata describes
+environment-binding names and kinds, never freezes setup-job absence or embeds captured file payloads. Actual job
+dispatch captures after caller-owned preparation, including downloading the shared duration artifact.
+
+The foundation's `environmentInputs` forecast field carries the name-to-kind map. Require agreement with the
+selected declaration before binding; mismatch refuses with a regenerate-forecast remedy. A routed dry-run must not
+start the adapter, allocate a source workspace or probe its execution runtime. Report reuse as unknown when it
+requires preparation, rather than borrowing caller-local evidence.
+
+`runForecastCheck` in `src/lib/ci-check-runner.ts` currently calls `runCheckProcess` directly. Consume the
+foundation's shared dispatch-time binding helper and forecast metadata there rather than creating separate CI file
+semantics. Each job uses the handed shared duration bytes; one local distributed group instead uses its one
+per-check capture. Neither path may replace a later valid binding with earlier dry-run state.
+
+Keep existing artifact names, native formats and build preparation ownership. Change CI clear/upload locations only
+as required by the isolated native cache path in section 7. This feature does not redesign CI job balancing.
+
+### 10. Public and personal integration qualification
+
+Use a small independent adapter fixture to prove the public contract without importing arc-offload internals. Cover
+optional group submission and serial single playback over the same fixed plan, including an unknown-runtime run
+without reuse. The foundation's single-command fixture remains its own contract baseline.
+
+Include identical-argv project/files commands and runtime probes to prove the command-content binding distinction.
+Poison caller and worker Git selectors with a conflicting second repository, including worktree, object-directory
+and config overrides; commands and probes must still resolve the captured source. Reject every repository-local
+reserved name and case variant as an explicit input, with an actionable binding-removal remedy. Repair the
+declaration and prove successful captured-source execution while ordinary explicit value/file bindings still work.
+Exercise settled preparation refusal, cancellation racing that refusal, normal exit without a context/release and
+a successful explicit retry after repair. Cut transport during preparation before context grant and during grouped
+execution after pre-work recovery guidance; prove retained guidance locates the plan and its capture. A failed
+recovery-notification write must launch no work. Include completed exit statuses 256 and a high-bit Windows failure,
+preserving failure and exact diagnostics through parent reduction; qualify native Windows behavior on that platform.
+
+Then qualify arc-offload through that same public seam for local and remote placements. Required changes to that
+tool land in its own repository, preserve its use outside ARC/Vitest and receive no privileged ARC path. Its
+existing measured pool, registry, shared job/heavy-job admission, memory ceilings, caller CPU policy and the Owner's
+routing mode remain authoritative. Do not assume a fixed machine order or add those deployment settings to ARC.
+
+Measure the complete selected gate with fixed source, native selection, duration inputs and requested check set.
+Compare native unsharded execution with the declared shard plan using fresh runs. A qualification harness may vary
+its in-memory plan without editing the source or adding a production sharding-toggle setting.
+
+Interleave repeated baselines and distributed runs with an idle pool, then repeat under five or six concurrent
+gates. Include capture, transport, preparation, runtime qualification, admission/queueing, execution and collection.
+Report median/range, aggregate completion, native coverage and observed admission. Claim improvement only beyond
+observed run-to-run variation. A concurrent throughput regression remains unresolved work; an isolated faster gate
+does not conceal it. Serial basic adapters need no speedup claim, and unmeasured deployments gain none by implication.
+
+## Alternatives & Rationale
+
+- **Independent wrapper calls per shard:** reuse transport but allow separate live snapshots, local cwd execution
+  and duration paths to diverge. One common prepared context plus a complete plan supplies the missing guarantees.
+- **Raw argv prefix as the execution boundary:** useful inside an adapter, but cannot alone provide captured source,
+  applicable runtime identity, correlated outcomes and settlement. Consume the foundation's structured conversation.
+- **Require every adapter to schedule groups:** excludes simple local resource wrappers. Mandatory single execution
+  with serial playback preserves correctness; optional grouping supplies acceleration where supported.
+- **Unconditionally shard native local checks:** adds capture/preparation and fan-out to ordinary local behavior.
+  Retain native execution unless an eligible configured runner selects the distributed path.
+- **ARC-owned per-test scheduling or a full remote-execution service:** duplicates native partitioners and existing
+  infrastructure. Existing shard declarations, native APIs and a small provider seam suffice.
+- **Whole-root cache keys or per-shard records:** make unrelated changes invalidate scoped checks or add partial-pass
+  lifecycle complexity. Use one scoped parent record over the complete plan and actual applicable runtime vector.
+
+The source/runtime discipline borrows established action/input ideas without adopting their infrastructure. The
+native membership distinction follows native runner contracts rather than a generic test-count rule. Neither a
+captured root nor runtime fingerprints make undeclared ambient/network dependencies hermetic.
+
+## Cross-cutting Considerations
+
+### Compatibility, authority and storage
+
+Adapter configuration remains person/machine-local; source capture and ephemeral execution state do not sync through
+notes or the future operational store. Pass records remain disposable checkout-local shortcuts, separate from
+durable review/delivery evidence and lifecycle writes. Projection selection checks stay in their owning checkout.
+Code tests needing operational state create disposable fixtures through storage APIs instead of copying live state.
+
+Respect the storage program's serialized import/flip window and re-ground affected source as the ref backend and
+projection land. There is no store-wide version, work-unit branch identity or append-only-history assumption in
+execution identity. No cutover wait is otherwise required.
+
+The public adapter must preserve requested inputs and execution constraints; unknown runtime disables caching, and
+unsupported relocation refuses with a remedy. No new security service or network trust model is introduced. Shell
+intent remains explicit, and executable paths/configuration come from the existing foundation boundary.
+
+The shared `adr-039-use-provider-neutral-check-runners.md` remains Proposed until the foundation's implementation
+closeout reconciles the actual contract and approved learnings. This consumer contributes its execution requirements;
+it does not duplicate the record or mark the architecture Accepted merely because its own spec is finalized.
+
+### Architecture alignment and user-facing behavior
+
+This work serves PROJECT-PRD's **Operational friction down, judgment friction up** and **Configurable methodology,
+open ecosystem** principles: reduce machine-check waiting while preserving check meaning, review boundaries and
+replaceable execution tooling. It adds no autonomous application-code execution or team coordination methodology.
+
+It fits TECHNICAL-OVERVIEW's **§ 2 Architecture Components — CLI Package / Customization Surfaces** and
+**§ 3 Infrastructure / § 4 Testing Infrastructure**. Keep injectable logic in library modules and orchestration in
+handlers, using the existing TypeScript/Node, runtime-schema, Git, Vitest and CI surfaces. The protocol/source
+foundation is the declared unshipped prerequisite, not a new service or dependency implemented here.
+
+Native commands and gate deadlines remain recognizable. Routed checks gain attributable invocation diagnostics,
+correct parent reuse and explicit unavailable/recovery outcomes. The unconfigured path keeps its normal single
+command and cwd. Compatibility qualification covers supported OS argument/path rules and native execution profiles;
+small Linux materialization probes do not establish Windows, LFS, submodule or shallow-history support.
+
+### Testing and rollout
+
+First consume the available foundation and qualify the independent adapter path, then integrate the personal
+adapter and native tiers. Preserve existing local/CI behavior throughout; no wrapper retirement or runner-setting
+migration is added here. Forced qualification must bypass successful-parent reuse so it observes actual execution.
+
+Unit checks cover deterministic planning, portable final-argument budgeting, runtime-vector/key projection and
+parent reduction. Integration checks use process-backed adapter fixtures for terminal evidence, source/input
+fidelity, cancellation/settlement, output isolation and cache-hit release. Native tier qualification and measured
+pool runs supply coverage and performance evidence beyond fixtures. Tests must exercise successful recovery after
+repairing a refusal, not only the initial rejection.
+
+## Success Criteria
+
+1. **Routing/defaults:** Without an eligible configured runner, declared shards execute as the existing single
+   native command without source-workspace preparation. Group-capable adapters receive the whole plan; basic
+   adapters run the same plan serially. Configured-runner failure never triggers an ARC bypass.
+2. **Planning:** Every expected batch/shard pair has one distinct correlation identity and stable canonical
+   coordinate. Final argv fits supported Windows/POSIX limits, including shard arguments. Oversized commands and
+   escaping cwd refuse before launch with an actionable successful-retry path.
+3. **Common inputs:** Editing the original source, branch or duration file after capture does not change siblings.
+   Source bytes/required coordinates, selected paths, absent/empty/value/file bindings and relative/symlink file
+   behavior match the captured definition, including when caching is disabled. Identical-argv project/files checks
+   receive their distinct native coordinate policy; every probe clears those coordinates. Repository-local Git
+   overrides cannot redirect commands/probes away from captured code metadata, through ambient state or explicit
+   input replay; reserved bindings refuse with a successful repair/retry path.
+4. **Scoped reuse:** A complete parent hit launches no invocation and releases its context. Declared input,
+   environment state/content, matrix or applicable runtime changes miss; unrelated source/state, host pathname and
+   attempt/path changes do not miss. A valid unknown-runtime response executes without reuse; malformed claimed
+   coverage refuses. Failed or incomplete plans publish no parent record; cache storage failure alone does not
+   alter a valid verdict.
+5. **Outcome closure:** Missing, duplicate, unknown/conflicting IDs, wrong source, lost transport, cancellation,
+   killed work and required-output loss never pass. A valid completed native failure remains failed beside
+   incomplete work, with both diagnostics retained. This includes exact native statuses above 255 through the full
+   unsigned 32-bit range. Ordinary failure does not discard remaining planned results.
+6. **Native membership:** For unit, integration, store and E2E, native shard assignments have complete/disjoint
+   union against native unsharded selection under qualified profiles. Cover filters, deletion/widening and frozen
+   available/absent/empty duration states. Preserve proved store reach no-ops/empty shares and ordinary
+   unmatched-name, all-skipped and empty-execution failures; native closing errors remain failures.
+7. **Writers/lifetime:** Concurrent execution views do not alias mutable native cache/report writers, including
+   with shared dependencies. Native result artifacts still merge correctly. Existing build/test ownership holds
+   through closing; hit, success, failure and interruption release only after required settlement/collection.
+   Settled no-context preparation refuses and exits normally without release, including the cancellation race.
+   Uncertain work retains the capture and pre-work recovery guidance usable by plan ID; a failed guidance write
+   launches no work. Leftover-directory disposal alone is advisory.
+8. **Forecast/CI:** Forecast metadata preserves binding names/types without capturing setup-time absence or payloads.
+   Routed dry-run starts no execution context; mismatched forecast/declaration bindings require regeneration.
+   Playback binds after shared artifact delivery, preserves native placement/shard coverage and uses updated private
+   cache clear/upload paths with unchanged tier artifact names/native result format.
+9. **Provider independence:** An independent fixture and arc-offload both satisfy the public consumer contract.
+   Local/remote personal placements retain current resource/routing policy, and external changes remain usable
+   outside ARC/Vitest. No provider-specific executable, inventory, scheduling mode or test grammar enters ARC.
+10. **Measured benefit:** Repeated forced end-to-end comparisons report idle-pool and five-or-six-gate median/range,
+    aggregate completion, coverage and admission. Any claimed speedup exceeds observed variation and includes all
+    preparation/queue costs. An observed concurrent regression remains incomplete qualification to address; it is
+    disclosed as unresolved rather than counted as success.
+
+## Open Questions
+
+No unsettled consumer design remains. Concrete function/module names and fixture organization may follow the
+landed foundation; they must preserve the contracts above. A source-level mismatch that changes the prerequisite
+or consumer behavior returns to design before implementation rather than becoming an undocumented task decision.
+
+## Amendments
+
+None.
+
+---

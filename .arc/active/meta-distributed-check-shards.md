@@ -8,11 +8,11 @@
 - **Depends On:** `machine-check-runner`
 
 - **Origin:** [internal]
-- **Design:** `draft-distributed-check-shards.md`
+- **Design:** `spec-distributed-check-shards.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
