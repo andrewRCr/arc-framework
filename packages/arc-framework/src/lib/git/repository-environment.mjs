@@ -1,6 +1,9 @@
 /** Dependency-free Git repository scoping for native source entry points and bundled processes. */
 
-/** Repository selectors removed before a cwd-scoped Git child is launched. */
+/**
+ * Repository selectors removed before a cwd-scoped Git child is launched.
+ * @type {ReadonlySet<string>}
+ */
 export const GIT_REPOSITORY_LOCAL_ENVIRONMENT = new Set([
   "GIT_ALTERNATE_OBJECT_DIRECTORIES",
   "GIT_CONFIG",
