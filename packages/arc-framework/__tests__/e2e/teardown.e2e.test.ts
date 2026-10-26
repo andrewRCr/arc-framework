@@ -221,6 +221,7 @@ describe("arc teardown (CLI surface)", () => {
 
     const replay = await runArc(["teardown", "demo"], tmpDir);
     const output = replay.stdout + replay.stderr;
+    expect(output).not.toContain(worktree);
     const unwrappedOutput = unwrapPresentationOutput(output);
 
     expect(replay.exitCode).toBe(0);
