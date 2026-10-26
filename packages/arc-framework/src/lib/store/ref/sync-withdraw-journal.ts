@@ -34,7 +34,6 @@ export async function describeWithdrawJournal(context: RefBackendContext, held: 
   const descriptions: WithdrawJournalDescription[] = [];
   for (const [ref, tip] of held) {
     if (!isStateRef(ref)) continue;
-    if (/^refs\/arc\/(?:history\/)?work\//u.test(ref) && ref !== origin) continue;
     const { stdout } = await context.exec("git", ["log", "--first-parent", "--format=%H %P%n%B%x00", tip],
       { cwd: context.checkoutRoot, objectAccess: "local-only" });
     const rows = stdout.split("\0").flatMap((block) => {
@@ -44,6 +43,7 @@ export async function describeWithdrawJournal(context: RefBackendContext, held: 
     });
     const first = rows.at(-1), last = rows[0];
     if (!first || !last) continue;
+    if (/^refs\/arc\/(?:history\/)?work\//u.test(ref) && ref !== origin && !first.parents[0]) continue;
     descriptions.push({ ref, before: first.parents[0], after: last.commit });
   }
   return descriptions;

@@ -28,7 +28,7 @@ export async function commitWithdrawEnd(context: RefBackendContext, end: Withdra
   const reference = RecordReferenceSchema.parse({ owner: end.owner, kind: end.owner.type === "cohort" ? "cohort/document" : "work-item/meta" }), batches = new Set([end.batch]);
   const journal = await describeWithdrawJournal(context, held, batches, reference, end.history);
   const watched = new Set([end.live, end.history, ...journal.map(({ ref }) => ref),
-    ...journal.filter(({ ref }) => ref.startsWith("refs/arc/history/cohort/")).map(({ ref }) => ref.replace("refs/arc/history/", "refs/arc/")),
+    ...journal.filter(({ ref }) => /^refs\/arc\/history\/(?:work|cohort)\//u.test(ref)).map(({ ref }) => ref.replace("refs/arc/history/", "refs/arc/")),
     ...held.has("refs/arc/project/registry") ? ["refs/arc/project/registry"] : []]);
   const basis: WithdrawalBasis = { end, held, state, incoming, reference, batches, journal };
   return withRefLocks({ ...context, lock: options.lock }, [...watched].map((ref) => options.targetRef?.(ref) ?? ref), async () => {

@@ -16,7 +16,7 @@ export async function withdrawRefTargets(context: RefBackendContext, journal: re
   incoming: ReadonlyMap<string, string>, batches: ReadonlySet<string>): Promise<Map<string, string>> {
   const folders = await readLifecycleFolders(context, incoming), targets = new Map<string, string>();
   for (const step of journal) {
-    if (!step.ref.startsWith("refs/arc/history/cohort/")) continue;
+    if (!/^refs\/arc\/history\/(?:work|cohort)\//u.test(step.ref)) continue;
     const live = step.ref.replace("refs/arc/history/", "refs/arc/"), path = `metadata-${step.ref.split("/").at(-1)}.json`;
     const entry = step.after.get(path), objects = await readBatchObjects(context, entry ? [entry.oid] : []);
     const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : undefined);
