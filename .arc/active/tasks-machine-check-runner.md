@@ -30,26 +30,20 @@ selectors refuse with a successful repaired retry, while ordinary native checks 
           worktree requests keep their selected temporary index after ambient selector removal. Indexed Markdown
           checker alignment follows native ESM dependencies through the same byte-matching boundary.
 
-### `[ ]` **1.2 Validate runner eligibility and explicit environment declarations — D1, D2**
+### `[x]` **1.2 Validate runner eligibility and explicit environment declarations — D1, D2**
 
 - _Goal:_ Declarations express portable eligibility and explicit inputs without permitting bindings that override
   engine-derived execution channels or cwd-scoped Git selection.
 
-    - `[ ]` **1.2.a Validate eligibility and binding names in both declaration forms**
-        - Extend `CheckDeclarationSchema` and selection-input codec in `src/lib/checks/declaration.ts`; default
-          `runner` to false and `environment_inputs` to an empty map.
-        - Build `test-first` (one behavior at a time):
-            - Ordinary checks accept boolean eligibility and name-to-`value`/`file` maps.
-            - Opt-in with `fixes`, `reads_index` or selection mode refuses even without machine configuration.
-            - Invalid names/kinds, portable case duplicates and reserved ARC/Git names refuse with removal/retry
-              guidance.
+    - `[x]` **1.2.a Validate eligibility and binding names in both declaration forms**
+        - Ordinary and selection codecs preserve explicit value/file declarations with conservative defaults.
+          `EnvironmentInputsSchema` validates portable names, kinds, case duplicates and shared Git/ARC reservations;
+          owning-checkout runner opt-ins refuse with removal/retry guidance before machine configuration.
 
-    - `[ ]` **1.2.b Publish declaration metadata through existing schema generation**
-        - Update registry/codec coverage through `registerCheckDeclarationSchemas` and generated editor documents;
-          regenerate outputs through their owning generator, retaining runtime cross-field enforcement.
-        - Build `test-first` (one behavior at a time):
-            - Read/encode/decode and editor-schema installation preserve supported fields and defaults.
-            - Removing a rejected binding or opt-in permits a valid declaration on retry.
+    - `[x]` **1.2.b Publish declaration metadata through existing schema generation**
+        - Registry projections, typed reads, codecs and CLI-installed editor documents retain eligibility and explicit
+          inputs. Regenerated editor documents through `arc schema install`; cross-field and reserved-name rules remain
+          enforced by the runtime schema, with repaired declarations accepted on retry.
 
 ### `[ ]` **1.3 Capture, identify and rebind explicit values and files — D2**
 
