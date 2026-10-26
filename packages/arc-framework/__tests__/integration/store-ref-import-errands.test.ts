@@ -9,6 +9,7 @@ import { keptPrefix, ordinaryErrand as ordinary, seedTransients as seed, transie
   type TransientIdentityRecord } from "../helpers/store/import-transients.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { importComparisonFixture } from "../helpers/store/import-comparison.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { rejoinEntryList, splitEntryList } from "../../src/lib/store/concurrency/entries.js";
 import { ENTRY_CONFIGS } from "../../src/lib/store/kinds/entry-configs.js";
@@ -447,4 +448,31 @@ it("keeps the cleanup lease when origin cannot be read with no state remote, and
     expect.objectContaining({ condition: `origin still holds ${sourceRef}; no state remote is designated.` })]) } });
   expect((await h.git("git", ["for-each-ref", "--format=%(refname)", keptPrefix])).stdout).toBe("");
   expect((await h.remote("git", ["rev-parse", sourceRef])).stdout.trim()).toBe(tip);
+});
+
+it.each(["andrew", "none"] as const)("retains another identity's source until its replacement claims publish when importing as %s", async importing => {
+  const h = await importFixture();
+  const base = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
+  const groom: TransientIdentityRecord = { ...common, kind: "groom", slug: "groom-beta", anchorStub: "beta", members: ["beta"],
+    openedBaseHead: base, protection: "partial", branch: null, state: "open", changeRequest: null };
+  const other = "refs/arc/user/alex/errands", tip = await seed(h, [groom], "alex");
+  await h.git("git", ["push", "origin", `${other}:${other}`]);
+  if (importing === "none") await h.git("git", ["config", "--unset", "arc.identity"]);
+  const result = await h.migrate();
+  expect(result).toMatchObject({ status: "refused", refusal: { code: "move-unfinished", condition: expect.stringContaining("alex"),
+    remedy: { text: expect.stringContaining("alex") } } });
+  expect((await h.remote("git", ["rev-parse", other])).stdout.trim()).toBe(tip);
+  expect((await h.git("git", ["for-each-ref", "--format=%(objectname)", keptPrefix])).stdout.trim()).toBe(tip);
+  const requirements = "refs/arc/tmp/migrate/import-required";
+  const requiredTip = (await h.git("git", ["rev-parse", requirements])).stdout.trim();
+  await h.git("git", ["update-ref", "-d", requirements, requiredTip]);
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "move-unfinished",
+    condition: expect.stringContaining("publication"), remedy: { text: expect.stringContaining("Restore") } } });
+  expect((await h.remote("git", ["rev-parse", other])).stdout.trim()).toBe(tip);
+  await h.git("git", ["update-ref", requirements, requiredTip]);
+  const alex = createRefStore({ ...h.ports, identity: async () => SlugSchema.parse("alex") });
+  expect(success(await alex.push()).publishes.every(row => row.status !== "failed")).toBe(true);
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", other])).stdout).toBe("");
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", keptPrefix])).stdout).toBe("");
 });

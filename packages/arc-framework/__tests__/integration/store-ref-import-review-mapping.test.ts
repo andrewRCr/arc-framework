@@ -400,6 +400,9 @@ it("preserves a newer uncommitted Candidate separately from its committed histor
 it("supplies null current content for live work holding only a boundary", async () => {
   const h = await importFixture();
   await h.git("git", ["checkout", "feat/alpha"]);
+  const candidatePath = resolveCandidateRecordRelativePath("alpha");
+  const candidateContent = await readFile(join(h.root, candidatePath), "utf8");
+  const candidateCommit = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
   const reference = RecordReferenceSchema.parse({ kind: "review/integration-boundary", owner: { type: "work-item", name: "alpha" } });
   const boundary = resolveArcPath({ kind: "integration-boundary-record", slug: SlugSchema.parse("alpha") });
   await mkdir(dirname(join(h.root, boundary)), { recursive: true });
@@ -413,7 +416,47 @@ it("supplies null current content for live work holding only a boundary", async 
   expect(await h.migrate()).toMatchObject({ status: "ok" });
   const record = success(await createRefStore(h.ports).read({ reference: RecordReferenceSchema.parse({ ...reference, kind: "review/candidate" }) }));
   expect(JSON.parse(record.content)).toEqual([{ workItem: record.reference.owner.type === "work-item" ? record.reference.owner.uid : undefined,
-    versions: [], current: null, boundary: inRepoContent(reference) }]);
+    versions: [{ commit: candidateCommit, content: candidateContent }], current: null, boundary: inRepoContent(reference) }]);
+}, 40_000);
+
+it("requires mapping coverage for history-only Candidate sources and imports after repair", async () => {
+  const h = await importFixture();
+  await h.git("git", ["checkout", "feat/alpha"]);
+  const path = resolveCandidateRecordRelativePath("alpha"), content = await readFile(join(h.root, path), "utf8");
+  await h.git("git", ["rm", path]);
+  let omit = true;
+  h.ports.reviewMapping = input => {
+    const owner = input.workItems.find(item => item.slug === "alpha")!;
+    const mapped = RecordReferenceSchema.parse({ kind: "review/candidate", owner: { type: "work-item", name: owner.slug, uid: owner.uid } });
+    const coverage = listing(input, [mapped]);
+    return { records: [{ reference: mapped, contents: [JSON.stringify(input.candidates)] }],
+      listing: omit ? coverage.filter(item => !item.source.startsWith(`${path}@`)) : coverage };
+  };
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused", report: {
+    notices: expect.arrayContaining([expect.objectContaining({ condition: expect.stringContaining(`${path}@`) })]),
+  } } });
+  omit = false;
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  const reference = RecordReferenceSchema.parse({ kind: "review/candidate", owner: { type: "work-item", name: "alpha" } });
+  const candidates: ReviewMappingInput["candidates"] = JSON.parse(success(await createRefStore(h.ports).read({ reference })).content);
+  expect(candidates).toEqual([{ workItem: expect.any(String), current: null, boundary: null,
+    versions: [{ commit: expect.any(String), content }] }]);
+}, 40_000);
+
+it.each(["alpha", "archived"])("retains absent-current Candidate history for %s without landing a current Candidate", async name => {
+  const h = await importFixture("default", { completed: name === "archived" });
+  if (name === "alpha") await h.git("git", ["checkout", "feat/alpha"]);
+  const path = resolveCandidateRecordRelativePath(name), content = await readFile(join(h.root, path), "utf8");
+  await h.git("git", ["rm", path]);
+  await h.git("git", ["commit", "-m", "Remove current Candidate after retaining its history"]);
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  const store = createRefStore(h.ports);
+  const reference = RecordReferenceSchema.parse({ kind: "review/candidate", owner: { type: "work-item", name } });
+  expect(await store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  const history = success(await store.history({ reference }));
+  expect(history[0]?.content).toBeNull();
+  expect(history.flatMap(entry => entry.content === null ? [] : [JSON.parse(entry.content)]))
+    .toContainEqual(JSON.parse(content));
 }, 40_000);
 
 it("accounts for materialization folders once and refuses overlapping or noncanonical coverage through repair", async () => {

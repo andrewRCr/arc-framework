@@ -78,7 +78,8 @@ describe("parked work in the default layout", () => {
   }, 30_000);
 });
 
-it.each(["remote-only", "remote-ahead"] as const)("pins every parked record and Candidate version to %s work", async state => {
+it.each((["remote-only", "remote-ahead"] as const).flatMap(state => [{ state, absent: false }, { state, absent: true }]))(
+  "pins every parked record and Candidate version to $state work with absent current=$absent", async ({ state, absent }) => {
   const h = await importFixture(), facts = await park(h);
   await h.git("git", ["switch", "feat/alpha"]);
   await writeFile(join(h.root, ".arc/active/notes-alpha.md"), "# Notes: Alpha\n\nNewest remote observations.\n");
@@ -93,6 +94,10 @@ it.each(["remote-only", "remote-ahead"] as const)("pins every parked record and 
   await writeFile(candidatePath, serializeCandidateManagedRecord(current));
   await h.git("git", ["add", ".arc"]);
   await h.git("git", ["commit", "-m", "Advance preserved remote work"]);
+  if (absent) {
+    await h.git("git", ["rm", importCandidatePath("alpha")]);
+    await h.git("git", ["commit", "-m", "Remove the parked current Candidate after retaining its versions"]);
+  }
   const tip = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
   const asOf = StateVersionSchema.parse((await h.git("git", ["rev-parse", "HEAD^{tree}"])).stdout.trim());
   await h.git("git", ["switch", "main"]);
@@ -116,7 +121,8 @@ it.each(["remote-only", "remote-ahead"] as const)("pins every parked record and 
     expect(after.placement).toEqual({ kind: "active" });
   }
   const candidate = RecordReferenceSchema.parse({ ...reference, kind: "review/candidate" });
-  expect(JSON.parse(success(await store.read({ reference: candidate })).content)).toEqual(current);
+  if (absent) expect(await store.read({ reference: candidate })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  else expect(JSON.parse(success(await store.read({ reference: candidate })).content)).toEqual(current);
   const history = success(await store.history({ reference: candidate }));
   const ids = history.flatMap(record => record.content === null ? [] : [CandidateManagedRecordV1Schema.parse(JSON.parse(record.content)).attestation.candidateId]);
   expect([...new Set(ids)].sort()).toEqual([prior.attestation.candidateId, current.attestation.candidateId].sort());

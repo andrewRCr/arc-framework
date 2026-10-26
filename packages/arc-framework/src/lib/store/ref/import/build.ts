@@ -1,6 +1,6 @@
 /** Validate imported records and prepare isolated commit trees without running write checks. */
 import type { RefBackendContext } from "../context.js";
-import type { ImportRecord } from "./source.js";
+import type { ImportCandidateSource, ImportRecord } from "./source.js";
 import type { MigrateReport } from "../../commands.js";
 import { checkSerializationRules } from "../../serialization.js";
 import { checkRefKey, checkRefBatchPaths } from "../path-admission.js";
@@ -49,12 +49,19 @@ function prepareImportRecord(context: RefBackendContext, record: ImportRecord, r
     const revisions = prepareImportRevisions(context, record, record.mappedVersions.map(content => ({ content })), report);
     return revisions ? { ...current, mappedVersions: revisions.map(version => version.content) } : undefined;
   }
-  if (!record.versions) return current;
-  const versions = prepareImportRevisions(context, record, record.versions, report);
-  return versions ? { ...current, versions } : undefined;
+  return current;
 }
 
-function prepareImportRevisions<T extends { content: string }>(context: RefBackendContext, record: ImportRecord,
+/** Validate committed Candidate revisions without inventing a current Candidate file. */
+export function prepareImportCandidateSources(context: RefBackendContext, candidates: readonly ImportCandidateSource[],
+  report: MigrateReport): ImportCandidateSource[] {
+  return candidates.flatMap(candidate => {
+    const versions = prepareImportRevisions(context, { reference: candidate.reference, asFound: true }, candidate.versions, report);
+    return versions ? [{ ...candidate, versions }] : [];
+  });
+}
+
+function prepareImportRevisions<T extends { content: string }>(context: RefBackendContext, record: Omit<ImportRecord, "content">,
   revisions: readonly T[], report: MigrateReport): T[] | undefined {
   const versions: T[] = [];
   for (const version of revisions) {
@@ -81,8 +88,9 @@ function prepareImportContent(context: RefBackendContext, record: ImportRecord, 
 }
 
 /** Build one commit per imported owner, sharing the importing code head and batch provenance. */
-export async function buildImportCommits(context: RefBackendContext, records: readonly ImportRecord[], codeHead: string, batchId: string): Promise<Map<string, string>> {
-  const groups = await prepareImportGroups(context, records);
+export async function buildImportCommits(context: RefBackendContext, records: readonly ImportRecord[], codeHead: string, batchId: string,
+  candidates: readonly ImportCandidateSource[]): Promise<Map<string, string>> {
+  const groups = await prepareImportGroups(context, records, candidates);
   const identity = await context.identity();
   const actor = identity ? await context.actor(identity) : undefined;
   const refs = new Map<string, string>();

@@ -1,6 +1,6 @@
 /** Prepare each imported owner's flat retained tree before live or archive placement. */
 import type { RefBackendContext } from "../context.js";
-import type { ImportRecord } from "./source.js";
+import type { ImportCandidateSource, ImportRecord } from "./source.js";
 import type { RefMetadata } from "../metadata.js";
 import type { RefTreeEntry } from "../batch-read.js";
 import type { ReadPlacement, WritePlacement } from "../../placement.js";
@@ -13,11 +13,12 @@ import { mergeLineageAliases } from "../lineage-aliases.js";
 /** One owner's current files and the exact source archive coordinate, when completed. */
 export interface ImportGroup {
   reference: RecordReference; metadata: RefMetadata; entries: Map<string, RefTreeEntry>; metadataPath: string; placement?: ReadPlacement;
-  replays: ImportRecord[];
+  replays: { reference: RecordReference; contents: readonly string[] }[];
 }
 
 /** Group using live homes so multiple ended owners can later share one quarter without sharing metadata. */
-export async function prepareImportGroups(context: RefBackendContext, records: readonly ImportRecord[]): Promise<Map<string, ImportGroup>> {
+export async function prepareImportGroups(context: RefBackendContext, records: readonly ImportRecord[],
+  candidates: readonly ImportCandidateSource[]): Promise<Map<string, ImportGroup>> {
   const groups = new Map<string, ImportGroup>();
   for (const record of records) {
     const home = expandStoredPath(record.reference, { registry: context.registry });
@@ -30,6 +31,12 @@ export async function prepareImportGroups(context: RefBackendContext, records: r
     }
     group.entries.set(home.path, { path: home.path, mode: "100644", oid: await writeRefBlob(context, record.content) });
     applyImportMetadata(group, record, context);
+  }
+  for (const candidate of candidates) {
+    if (!candidate.versions.length) continue;
+    const group = groups.get(expandStoredPath(candidate.reference, { registry: context.registry }).ref);
+    if (!group) throw new Error("Candidate history has no imported owner");
+    group.replays.push({ reference: candidate.reference, contents: candidate.versions.map(version => version.content) });
   }
   const evidence = records.flatMap(({ reference, formerSlugs }) => reference.owner.type === "work-item"
     && reference.owner.uid && formerSlugs?.length ? [{ [reference.owner.uid]: formerSlugs }] : []);
@@ -48,7 +55,7 @@ function applyImportMetadata(group: ImportGroup, record: ImportRecord, context: 
     group.metadata.lineage = { ...group.metadata.lineage, [record.reference.owner.uid]: record.reference.owner.name };
   }
   if (record.formerSlugs && record.reference.kind !== "lineage/transition") group.metadata.formerSlugs = record.formerSlugs;
-  if (record.versions || record.mappedVersions) group.replays.push(record);
+  if (record.mappedVersions) group.replays.push({ reference: record.reference, contents: record.mappedVersions });
   if ((record.reference.kind === "work-item/meta" || record.reference.kind === "work-item/record") && record.placement) {
     group.metadata.primary = { role: record.reference.kind, placement: writePlacement(record.placement),
       ...(record.links ? { links: record.links } : {}) };

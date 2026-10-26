@@ -22,30 +22,35 @@ import { readImportParkedSources, isParkedSourceDiagnostic, type ParkedImportSou
 
 /** One imported content revision and its containing owner's lifecycle placement. */
 export interface ImportRecord { reference: RecordReference; content: string; placement?: StoreRecord["placement"]; asFound?: boolean;
-  versions?: { commit: string; content: string }[]; formerSlugs?: Slug[]; links?: Links; personalPath?: string; mappedVersions?: string[] }
+  formerSlugs?: Slug[]; links?: Links; personalPath?: string; mappedVersions?: string[] }
+/** Committed Candidate evidence is independent of whether a current source file exists. */
+export interface ImportCandidateSource { reference: RecordReference; current: string | null; versions: { commit: string; content: string }[] }
+/** Current files and independently acquired Candidate histories share the same imported owner identities. */
+export interface ImportSource { records: ImportRecord[]; candidates: ImportCandidateSource[] }
 /** All source content is acquired before a destination object or ref is published. */
-export async function readImportSource(context: RefBackendContext, report: MigrateReport, codeHead: string, transients: ImportTransientState): Promise<ImportRecord[]> {
+export async function readImportSource(context: RefBackendContext, report: MigrateReport, codeHead: string, transients: ImportTransientState): Promise<ImportSource> {
   const source = context.importSource;
   if (!source) throw new Error("The store composition point did not bind the import source");
   const result: ImportRecord[] = [];
+  const candidates: ImportCandidateSource[] = [];
   const owners = new Map<string, string>();
   const internal: InRepoContext = { ports: source.ports, registry: context.registry };
   const parked = await readImportParkedSources(context, internal, report, codeHead);
   const composition = await composedMetas(internal);
   const metas = await source.store.list({ family: "work-item", kind: "work-item/meta" });
-  if (metas.status !== "ok") { report.notices.push({ condition: metas.refusal.condition, remedy: metas.refusal.remedy }); return result; }
+  if (metas.status !== "ok") { report.notices.push({ condition: metas.refusal.condition, remedy: metas.refusal.remedy }); return { records: result, candidates }; }
   if (metas.result.status === "complete") {
     report.notices.push(...metas.result.diagnostics.filter(item => !isParkedSourceDiagnostic(item, parked.names))
       .map(({ condition, remedy }) => ({ condition, remedy })));
     for (const meta of metas.result.records.filter(meta => !parked.names.has(meta.reference.owner.name))) {
-      await appendWorkItem(context, report, result, owners, internal, composition, meta);
+      await appendWorkItem(context, report, result, owners, internal, composition, meta, candidates);
     }
   } else if (metas.result.status === "unreadable") report.notices.push({ condition: metas.result.condition, remedy: metas.result.remedy });
   for (const kind of Object.values(context.registry).filter((definition) => definition.family === "work-item"
     && definition.id !== "work-item/meta" && definition.inRepo.substrate === "tracked")) {
     await appendListing(context, report, result, owners, kind.id, undefined, undefined, parked.names);
   }
-  await appendParkedWork(context, report, result, owners, internal, composition, parked);
+  await appendParkedWork(context, report, result, owners, internal, composition, parked, candidates);
   const head = StateVersionSchema.parse((await source.ports.exec("git", ["rev-parse", `${codeHead}^{tree}`], { cwd: source.ports.checkoutRoot })).stdout.trim());
   await appendListing(context, report, result, owners, "cohort/document", undefined, head);
   await appendListing(context, report, result, owners, "project-inbox/inbox", undefined, head);
@@ -62,13 +67,15 @@ export async function readImportSource(context: RefBackendContext, report: Migra
     const person = /^refs\/arc\/user\/([^/]+)\//u.exec(ref)?.[1];
     report.refs.push({ ref, scope: person ? "identity" : "project", ...(person ? { person } : {}), action: "create" });
   }
-  return result;
+  return { records: result, candidates };
 }
 
 async function appendWorkItem(context: RefBackendContext, report: MigrateReport, result: ImportRecord[], owners: Map<string, string>,
-  internal: InRepoContext, composition: Awaited<ReturnType<typeof composedMetas>>, meta: StoreRecord, pinnedRevision?: string): Promise<void> {
+  internal: InRepoContext, composition: Awaited<ReturnType<typeof composedMetas>>, meta: StoreRecord,
+  candidates: ImportCandidateSource[], pinnedRevision?: string): Promise<void> {
   const source = internal.ports;
-  result.push(bindOwner(meta, owners));
+  const bound = bindOwner(meta, owners);
+  result.push(bound);
   const selected = pinnedRevision === undefined ? await composedMetaSource(internal, meta.reference.owner.name, composition) : undefined;
   const revision = pinnedRevision ?? selected?.revision;
   const asOf = revision === undefined ? undefined : StateVersionSchema.parse((await source.exec("git",
@@ -77,16 +84,17 @@ async function appendWorkItem(context: RefBackendContext, report: MigrateReport,
     await appendListing(context, report, result, owners, kind, meta.reference.owner, asOf);
   }
   const candidate = result.find(({ reference }) => reference.kind === "review/candidate" && reference.owner.name === meta.reference.owner.name);
-  if (candidate) {
-    candidate.versions = await readImportCandidateVersions(context, candidate.reference.owner.name, revision);
-    await inspectCandidateChain(context, candidate, revision, report);
-  }
+  const versions = await readImportCandidateVersions(context, meta.reference.owner.name, revision);
+  candidates.push({ reference: RecordReferenceSchema.parse({ kind: "review/candidate", owner: bound.reference.owner }),
+    current: candidate?.content ?? null, versions });
+  if (candidate) await inspectCandidateChain(context, candidate, revision, report);
 }
 
 async function appendParkedWork(context: RefBackendContext, report: MigrateReport, records: ImportRecord[], owners: Map<string, string>,
-  internal: InRepoContext, composition: Awaited<ReturnType<typeof composedMetas>>, parked: ParkedImportSources): Promise<void> {
+  internal: InRepoContext, composition: Awaited<ReturnType<typeof composedMetas>>, parked: ParkedImportSources,
+  candidates: ImportCandidateSource[]): Promise<void> {
   for (const { meta, revision, asOf } of parked.available) {
-    await appendWorkItem(context, report, records, owners, internal, composition, meta, revision);
+    await appendWorkItem(context, report, records, owners, internal, composition, meta, candidates, revision);
     for (const kind of Object.values(context.registry).filter(definition => definition.family === "work-item"
       && definition.id !== "work-item/meta" && definition.inRepo.substrate === "tracked")) {
       await appendListing(context, report, records, owners, kind.id, meta.reference.owner, asOf);

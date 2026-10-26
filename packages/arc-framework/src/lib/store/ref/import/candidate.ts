@@ -1,7 +1,7 @@
 /** Read the legacy Candidate path log and replay supplied revisions on retained owner history. */
 import { randomUUID } from "node:crypto";
 import type { RefBackendContext } from "../context.js";
-import type { ImportRecord } from "./source.js";
+import type { ImportCandidateSource } from "./source.js";
 import type { ImportGroup } from "./groups.js";
 import type { BatchInput } from "../../write.js";
 import { resolveCandidateRecordRelativePath } from "../../../work-unit/candidate-record-store.js";
@@ -15,14 +15,14 @@ import type { RefTreeEntry } from "../batch-read.js";
 
 /** Match the legacy chain reader's plain path history, bounded by the selected meta revision. */
 export async function readImportCandidateVersions(context: RefBackendContext, name: string,
-  revision: string | undefined): Promise<NonNullable<ImportRecord["versions"]>> {
+  revision: string | undefined): Promise<ImportCandidateSource["versions"]> {
   const source = context.importSource;
   if (!source) throw new Error("No import source bound");
   const path = resolveCandidateRecordRelativePath(name);
   const { stdout } = await source.ports.exec("git", ["log", revision ?? "HEAD", "--format=%H", "--", path], {
     cwd: source.ports.checkoutRoot, objectAccess: "local-only",
   });
-  const versions: NonNullable<ImportRecord["versions"]> = [];
+  const versions: ImportCandidateSource["versions"] = [];
   for (const commit of stdout.split(/\r?\n/u).filter(Boolean).reverse()) {
     const content = await readFileAt({ ports: source.ports, registry: context.registry }, path, commit);
     if (content !== null) versions.push({ commit, content });
@@ -39,7 +39,7 @@ export async function replayImportVersions(context: RefBackendContext, group: Im
   for (const record of group.replays) {
     const home = expandStoredPath(record.reference, { registry: context.registry });
     metadata.formats[refFormatKey(record.reference)] = context.registry[record.reference.kind].formatVersion;
-    for (const content of record.mappedVersions ?? record.versions?.map(version => version.content) ?? []) {
+    for (const content of record.contents) {
       entries.set(home.path, { path: home.path, mode: "100644", oid: await writeRefBlob(context, content) });
       entries.set(home.metadataPath, { path: home.metadataPath, mode: "100644", oid: await writeRefBlob(context, canonicalize(metadata)) });
       parent = await commitRefTree(context, entries.values(), parent, provenance, record.reference, randomUUID(), actor);

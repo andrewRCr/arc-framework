@@ -1,6 +1,6 @@
 /** Acquisition of the review mapping's opaque legacy source inputs, and landing of what it returns. */
 import type { RefBackendContext } from "../context.js";
-import type { ImportRecord } from "./source.js";
+import type { ImportSource } from "./source.js";
 import type { MigrateReport } from "../../commands.js";
 import { resolveCandidateRecordRelativePath } from "../../../work-unit/candidate-record-store.js";
 import { resolveArcPath } from "../../../layout/index.js";
@@ -11,24 +11,29 @@ import { importReviewWorkItems } from "./review-work-items.js";
 import { RecordReferenceSchema } from "../../identity.js";
 
 /** Replace live review bytes only after the mapping has accounted for the supplied sources. */
-export async function mapImportReview(context: RefBackendContext, records: ImportRecord[], report: MigrateReport, projectId: string): Promise<ImportRecord[]> {
+export async function mapImportReview(context: RefBackendContext, source: ImportSource, report: MigrateReport, projectId: string): Promise<ImportSource> {
+  const { records } = source;
   const gate = await readImportReviewGate(context, report);
   const workItems = await importReviewWorkItems(context, records, report);
-  if (!context.reviewMapping) { inspectUnmappedReviewGate(gate, report); return records; }
+  if (!context.reviewMapping) { inspectUnmappedReviewGate(gate, report); return source; }
   const live = new Set(workItems.filter(item => item.live).map(item => item.uid));
   const review = records.filter(record => (record.reference.kind === "review/candidate" || record.reference.kind === "review/integration-boundary")
     && record.reference.owner.type === "work-item" && live.has(record.reference.owner.uid ?? ""));
   const candidates = workItems.filter(item => item.live).flatMap(item => {
-    const candidate = review.find(record => record.reference.kind === "review/candidate" && record.reference.owner.type === "work-item" && record.reference.owner.uid === item.uid);
+    const candidate = source.candidates.find(record => record.reference.owner.type === "work-item" && record.reference.owner.uid === item.uid);
     const boundary = review.find(record => record.reference.kind === "review/integration-boundary" && record.reference.owner.type === "work-item" && record.reference.owner.uid === item.uid);
-    return candidate || boundary ? [{ workItem: item.uid, versions: candidate?.versions ?? [], current: candidate?.content ?? null, boundary: boundary?.content ?? null }] : [];
+    const current = candidate?.current ?? null, versions = candidate?.versions ?? [];
+    return current !== null || versions.length || boundary
+      ? [{ workItem: item.uid, versions, current, boundary: boundary?.content ?? null }] : [];
   });
   const mapped = context.reviewMapping({ projectId, gate, workItems, candidates });
   report.reviewMapping = mapped.listing;
-  const sources = [...gate.map(file => file.path), ...review.flatMap(record => record.reference.kind === "review/candidate"
-    ? [resolveCandidateRecordRelativePath(record.reference.owner.name),
-      ...(record.versions ?? []).map(version => `${resolveCandidateRecordRelativePath(record.reference.owner.name)}@${version.commit}`)]
-    : [resolveArcPath({ kind: "integration-boundary-record", slug: SlugSchema.parse(record.reference.owner.name) })])];
+  const sources = [...gate.map(file => file.path), ...source.candidates.filter(candidate => candidate.reference.owner.type === "work-item"
+    && live.has(candidate.reference.owner.uid ?? "")).flatMap(candidate => [
+    ...(candidate.current === null ? [] : [resolveCandidateRecordRelativePath(candidate.reference.owner.name)]),
+    ...candidate.versions.map(version => `${resolveCandidateRecordRelativePath(candidate.reference.owner.name)}@${version.commit}`),
+  ]), ...review.filter(record => record.reference.kind === "review/integration-boundary")
+    .map(record => resolveArcPath({ kind: "integration-boundary-record", slug: SlugSchema.parse(record.reference.owner.name) }))];
   report.notices.push(...inspectReviewCoverage(sources, mapped.listing));
   for (const item of mapped.listing.filter(item => item.outcome === "in-flight")) report.notices.push({
     condition: `Review source ${item.source} is in flight${item.reason ? `: ${item.reason}` : "."}`,
@@ -55,6 +60,7 @@ export async function mapImportReview(context: RefBackendContext, records: Impor
     }
     result.push({ reference: parsed.data, content, mappedVersions: record.contents });
   }
-  return result;
+  return { records: result, candidates: source.candidates.filter(candidate => candidate.reference.owner.type !== "work-item"
+    || !live.has(candidate.reference.owner.uid ?? "")) };
 }
 

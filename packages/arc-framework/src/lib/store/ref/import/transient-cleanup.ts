@@ -6,6 +6,7 @@ import { pushRefs } from "../../../git/push.js";
 import { classifyPushOutcome } from "../../../git/push-classification.js";
 import { readSyncRefs } from "../sync-graph.js";
 import { readRefDesignation, refDesignationStop } from "../designation.js";
+import { IMPORT_PUBLICATION_REF, unpublishedImportClaims } from "./transient-publication.js";
 import { listRemoteRefs } from "../remote-listing.js";
 
 /** Kept tips live in the code repository until all licensed cleanup finishes. */
@@ -56,15 +57,18 @@ export async function retireImportRemote(context: RefBackendContext, report: Mig
     return dropKeptTips(context, kept);
   }
   await context.migrateStep?.("import.transient.remote-delete");
-  let refused: string | undefined;
+  let refused: string | { condition: string; remedy: string } | undefined;
   try { refused = await retireOriginRefs(context, kept); }
   catch (error) { refused = `Could not retire origin's transient refs: ${error instanceof Error ? error.message : String(error)}`; }
-  return refused ? cleanupRefused(refused) : dropKeptTips(context, kept);
+  return refused ? typeof refused === "string" ? cleanupRefused(refused) : cleanupRefused(refused.condition, refused.remedy) : dropKeptTips(context, kept);
 }
 
 /** Delete each re-homed origin ref under its kept tip's lease, naming the first that cannot go. */
-async function retireOriginRefs(context: RefBackendContext, kept: ReadonlyMap<string, string>): Promise<string | undefined> {
+async function retireOriginRefs(context: RefBackendContext, kept: ReadonlyMap<string, string>): Promise<string | { condition: string; remedy: string } | undefined> {
   const remote = await originTips(context, [...kept.keys()].map(sourceRef));
+  const identities = new Set([...kept.keys()].map(sourceRef).filter(ref => remote.has(ref)).map(ref => ref.split("/")[3] ?? ""));
+  const unpublished = await unpublishedImportClaims(context, identities);
+  if (unpublished) return unpublished;
   for (const [ref, expected] of kept) {
     const source = sourceRef(ref), actual = remote.get(source);
     if (actual === undefined) continue;
@@ -79,7 +83,9 @@ async function retireOriginRefs(context: RefBackendContext, kept: ReadonlyMap<st
 /** The kept tips go last, so an interrupted cleanup still knows what it re-homed. */
 async function dropKeptTips(context: RefBackendContext, kept: ReadonlyMap<string, string>): Promise<StoreMigrateResult | undefined> {
   await context.migrateStep?.("import.transient.drop-kept");
-  const changes = [...kept].map(([ref, expected]) => ({ ref, expected, delete: true as const }));
+  const publication = (await readSyncRefs(context, IMPORT_PUBLICATION_REF)).get(IMPORT_PUBLICATION_REF);
+  const changes = [...kept, ...publication ? [[IMPORT_PUBLICATION_REF, publication] as const] : []]
+    .map(([ref, expected]) => ({ ref, expected, delete: true as const }));
   if ((await updateRefTransaction(context, changes, { cwd: context.checkoutRoot })).status !== "committed") {
     return cleanupRefused("The import's retained transient tips changed during cleanup.");
   }
