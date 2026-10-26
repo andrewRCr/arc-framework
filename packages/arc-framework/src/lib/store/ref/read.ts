@@ -3,10 +3,10 @@
 import { corruptRef } from "./namespace-health.js";
 import { restartOnVanishedStore } from "./repository.js";
 import type { ReadPlacement } from "../placement.js";
-import { archiveOwnerTrees, isArchiveRef } from "./archive-read.js";
+import { archiveOwnerTrees, isArchiveRef, type ArchivedFolder } from "./archive-read.js";
 import { archiveStateFromCapture, captureArchivedFolders, selectEndedOwners } from "./ended-owners.js";
 import type { ListInput, ListingOutcome, ListingDiagnostic, ReadInput, StoreRecord } from "../read.js";
-import { RecordReferenceSchema, OwnerIdentitySchema, sameOwner, type RecordReference, type OwnerIdentity, type StateVersion } from "../identity.js";
+import { RecordReferenceSchema, OwnerIdentitySchema, sameOwner, sameReference, type RecordReference, type OwnerIdentity, type StateVersion } from "../identity.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { expandStoredPath, holdsNoRecord, isManifestPath, type StoredRecordHome } from "../stored-path.js";
 import type { FamilyId } from "../catalog.js";
@@ -316,15 +316,31 @@ async function readArchivedRecord(context: RefBackendContext, reference: RecordR
     condition: diagnostic.condition, remedy: diagnostic.remedy } };
   const folder = ended.folders.find(({ owner }) => sameOwner(owner, reference.owner));
   if (!folder) return missing(reference);
+  return readArchivedFolder(context, folder, reference, objects);
+}
+
+/** Read one archived record while retaining its own decoding or unavailable-object refusal. */
+export function readArchivedFolder(context: RefBackendContext, folder: ArchivedFolder, reference: RecordReference,
+  objects: ReadonlyMap<string, BatchObject | null>, saved = false): StoreResult<StoreRecord> {
+  const family = context.registry[reference.kind].family;
+  reference = RecordReferenceSchema.parse({ ...reference, kind: canonicalPrimaryKind(reference.kind, folder.metadata), owner: folder.owner });
   // The owner is resolved only now, so its companion aliases are checked under the folder's slug, as a live read checks them.
-  const invalidKey = checkRefKey(RecordReferenceSchema.parse({ ...reference, owner: folder.owner }), context.registry);
+  const invalidKey = checkRefKey(reference, context.registry);
   if (invalidKey) return { status: "refused", refusal: invalidKey };
-  const kind = canonicalPrimaryKind(reference.kind, folder.metadata);
-  const decoded = decodeCapturedRef(context, { family, kind, owner: reference.owner }, folder.liveRef,
-    folder.entries, objects, folder.metadata, undefined, folder.placement);
-  const record = decoded.records.find((record) => record.reference.key === reference.key || JSON.stringify(record.reference.key) === JSON.stringify(reference.key));
+  const decoded = decodeCapturedRef(context, { family, kind: reference.kind, owner: reference.owner }, folder.liveRef,
+    folder.entries, objects, folder.metadata, undefined, folder.placement, saved);
+  const record = decoded.records.find(record => sameReference(record.reference, reference));
   if (record) return { status: "ok", result: record };
-  return missing(reference);
+  const path = expandStoredPath(reference, { registry: context.registry }).path;
+  const diagnostic = decoded.diagnostics.find(entry => entry.key === path);
+  if (diagnostic?.kind === "unreadable") return { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable",
+    reference, historyRefs: [], condition: diagnostic.condition, remedy: { text: saved
+      ? "Restore or fetch the missing record objects, then retry this saved-state read."
+      : "Restore or fetch the missing record objects, then retry the read." } } };
+  if (diagnostic) return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference,
+    rule: diagnostic.condition, condition: diagnostic.condition, remedy: diagnostic.remedy } };
+  return saved ? missing(reference, "The record is absent from this saved state.",
+    "Select a saved state containing this record, or use the current store state, then retry the saved-state read.") : missing(reference);
 }
 
 /** Ref-backed state cannot infer checkout ownership from stored record placement. */

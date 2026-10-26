@@ -8,14 +8,13 @@ import { captureRefPointViewState, captureRefViewState, overlayRefViewState, vie
 import type { ListingDiagnostic, ReadInput, StoreRecord, ListInput, ListingOutcome } from "../read.js";
 import type { LookupInput, LookupResult } from "../lookup.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
-import { RecordReferenceSchema, sameReference, type RecordReference, type OwnerIdentity } from "../identity.js";
-import { decodeCapturedRef, resolveCapturedOwner, refListingRefusal, readableRefListing, resolveReadReference, otherIdentityRef, listingIdentity } from "./read.js";
+import { RecordReferenceSchema, sameOwner, sameReference, type RecordReference, type OwnerIdentity } from "../identity.js";
+import { decodeCapturedRef, resolveCapturedOwner, refListingRefusal, readableRefListing, resolveReadReference, otherIdentityRef, listingIdentity, readArchivedFolder } from "./read.js";
 import { matchesFamilyRef, refOwner, decodeRecord } from "./codec.js";
 import { resolveCapturedReference, resolveCapturedListInput, listOwnerReference } from "./reference-resolution.js";
 import { claimIdentityRefusal } from "./lookup-claims.js";
 import { appendArchivedLookupTrees, type RefLookupCapture } from "./lookup-trees.js";
-import { archiveOwnerTrees, isArchiveRef } from "./archive-read.js";
-import type { RefTreeEntry } from "./batch-read.js";
+import { isArchiveRef } from "./archive-read.js";
 import { lookupCapturedRefTrees, type RefLookupTree } from "./lookup.js";
 import { expandStoredPath, holdsNoRecord, type StoredRecordHome } from "../stored-path.js";
 import { canonicalPrimaryKind, type RefMetadata } from "./metadata.js";
@@ -25,7 +24,7 @@ import { archivedViewRecords } from "./archive-view.js";
 import { checkRefKey } from "./path-admission.js";
 import { rootFamily } from "./path-decode.js";
 import { readCapturedRefHistory } from "./history.js";
-import { captureArchivedFolders } from "./ended-owners.js";
+import { captureArchivedFolders, selectEndedOwners } from "./ended-owners.js";
 
 /** Build lazy views which never recapture a live ref during a check. */
 export function createRefWriteViews(context: RefBackendContext, tips: ReadonlyMap<string, string>,
@@ -228,33 +227,16 @@ function archivedViewRead(context: RefBackendContext, state: RefViewState, refer
   if (!archivable(context, reference)) return missing(reference, state.saved);
   const unreadable = [...state.refs].find(([ref, captured]) => isArchiveRef(ref) && !captured.entries)?.[0];
   if (unreadable) return { status: "refused", refusal: corruptRef(unreadable, true, state.saved) };
-  const diagnostic = captureArchivedFolders(state, context.registry[reference.kind].family, [reference.owner]).diagnostics[0];
+  const ended = selectEndedOwners(state, captureArchivedFolders(state, context.registry[reference.kind].family, [reference.owner]));
+  const diagnostic = ended.diagnostics[0];
   if (diagnostic) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
     namespace: diagnostic.key.split(":")[0] ?? diagnostic.key, condition: diagnostic.condition, remedy: diagnostic.remedy } };
-  const record = archivedViewRecord(context, state, reference);
-  return record ? { status: "ok", result: record } : missing(reference, state.saved);
-}
-
-function archivedViewTrees(state: RefViewState): Map<string, readonly RefTreeEntry[]> {
-  return new Map([...state.refs].flatMap(([ref, group]) => isArchiveRef(ref) && group.entries ? [[ref, group.entries] as const] : []));
+  const folder = ended.folders.find(({ owner }) => sameOwner(owner, reference.owner));
+  return folder ? readArchivedFolder(context, folder, reference, state.objects, state.saved) : missing(reference, state.saved);
 }
 
 /** Only a work item or cohort with a UID can have ended into a quarter. */
 function archivable(context: RefBackendContext, reference: RecordReference): boolean {
   return reference.owner.type !== "person" && Boolean(reference.owner.uid)
     && ["work-item", "cohort"].includes(rootFamily(context.registry[reference.kind].family));
-}
-
-function archivedViewRecord(context: RefBackendContext, state: RefViewState, reference: RecordReference): StoreRecord | undefined {
-  const input: ListInput = { family: context.registry[reference.kind].family, owner: reference.owner,
-    ...(["work-item/meta", "work-item/record"].includes(reference.kind) ? {} : { kind: reference.kind }) };
-  const selected = archiveOwnerTrees(archivedViewTrees(state), [reference.owner]);
-  const refs = new Map(state.refs);
-  for (const [ref, group] of state.refs) {
-    if (!isArchiveRef(ref)) continue;
-    const entries = selected.get(ref);
-    if (entries) refs.set(ref, { ...group, entries });
-    else refs.delete(ref);
-  }
-  return archivedViewRecords(context, { ...state, refs }, input).records.find((record) => sameReference(record.reference, reference));
 }
