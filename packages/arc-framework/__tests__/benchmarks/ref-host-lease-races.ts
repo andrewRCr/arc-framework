@@ -5,10 +5,11 @@ import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isGitProcessError } from "../../src/lib/git/process-error.js";
 import type { HostGit } from "./ref-host-transport.js";
+import { quoteShellArgument } from "../../src/lib/release/commit-message-retry.js";
 
 interface RaceReceipt { advertised: string; expected: string; competitorTip: string; competitorExit: number; contenderTransmittedOld: boolean; finalTip?: string | null; carryAbsent?: boolean }
 export interface ReceiverRaceResult { status: "passed" | "unsupported" | "failed"; detail: RaceReceipt | string }
-interface RaceInput { root: string; remote: string; evidence: string; git: HostGit; atomic: boolean }
+interface RaceInput { root: string; remote: string; evidence: string; git: HostGit; atomic: boolean; nodeExecutable?: string }
 
 /** Verify update, delete, and atomic carry races, keeping their refs invocation-owned and deleting with exact leases. */
 export async function probeReceiverLeaseRaces(input: RaceInput): Promise<Record<string, ReceiverRaceResult>> {
@@ -40,8 +41,10 @@ async function receiverRace(input: RaceInput, state: RaceState): Promise<RaceRec
   const prefix = `refs/arc/host-races/${randomUUID()}`, ref = `${prefix}/subject`, carry = `${prefix}/carry`;
   const hooks = join(source, `hooks-${kind}`), receiptPath = join(evidence, `race-${kind}-hook.json`);
   await mkdir(hooks);
-  const hook = join(hooks, "pre-push");
-  await writeFile(hook, hookSource({ receiptPath, ref, old, winner, remote, competitor, evidence, kind }));
+  const hook = join(hooks, "pre-push"), script = join(hooks, "pre-push.mjs");
+  const shellPath = (path: string) => quoteShellArgument(process.platform === "win32" ? path.replaceAll("\\", "/") : path);
+  await writeFile(script, hookSource({ receiptPath, ref, old, winner, remote, competitor, evidence, kind }));
+  await writeFile(hook, `#!/bin/sh\nexec ${shellPath(input.nodeExecutable ?? process.execPath)} ${shellPath(script)} "$@"\n`);
   await chmod(hook, 0o700);
   const tips = async () => new Map((await git(`race-${kind}-tips`, source, ["ls-remote", "--refs", "--", remote, `${prefix}/*`]))
     .trim().split("\n").filter(Boolean).map(row => { const [tip = "", name = ""] = row.split(/\s+/u); return [name, tip]; }));
@@ -87,8 +90,7 @@ async function receiverRace(input: RaceInput, state: RaceState): Promise<RaceRec
 }
 
 function hookSource(input: { receiptPath: string; ref: string; old: string; winner: string; remote: string; competitor: string; evidence: string; kind: string }): string {
-  return `#!${process.execPath}
-import assert from "node:assert/strict";
+  return `import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 const input = ${JSON.stringify(input)};
