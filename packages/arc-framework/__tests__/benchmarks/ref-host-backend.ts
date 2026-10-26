@@ -5,6 +5,7 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { type createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { isGitProcessError } from "../../src/lib/git/process-error.js";
+import { probeReceiverLeaseRaces } from "./ref-host-lease-races.js";
 import { probeHostFork, probeHostPolicy, probeHostRoles, type HostSettings } from "./ref-host-access.js";
 
 type Git = (label: string, cwd: string, args: string[], trace?: boolean) => Promise<string>;
@@ -110,6 +111,10 @@ export async function probeBackend(input: { root: string; remote: string; eviden
     assert.match(deletion.output, /^!\t/mu);
     assert.equal((await tips()).get(personal), current);
     results.staleDeleteRefusal = { status: "passed", detail: deletion };
+    const races = await probeReceiverLeaseRaces({ root, remote, evidence, git, atomic: input.atomic });
+    for (const [kind, result] of Object.entries(races)) results[`receiver-${kind}-race`] = {
+      status: result.status === "passed" ? "passed" : "unverified", detail: result.detail,
+    };
     const replay = await expectFailure("history-replay", b, ["push", "--porcelain", "--", remote, `${personal}:${personal}`]);
     assert.match(replay.output, /^!\t/mu);
     results.historyReplayRefusal = { status: "passed", detail: replay };

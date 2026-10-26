@@ -1842,6 +1842,41 @@ fork permission were restored. Private provider forks remain identified in their
 separate cleanup. Every native source ref the kit created was removed with its exact lease; unrelated spike refs and
 protected `main` branches were preserved. No credential, private key, or profile was committed.
 
+### Receiver-side race follow-up (2026-10-25)
+
+The 2026-10-21 stale-lease cases checked already-stale client expectations. They did not establish a race after
+advertisement. The added coordinator admits the expected old tip through a native pre-push hook, waits for an
+independent competing Git process to publish its winner, then resumes the contender. Packet evidence must show the
+contender transmitting the originally advertised old tip. Each case independently inspects the receiver afterward;
+the atomic case also requires its absent companion ref to remain absent. Cleanup uses exact leases on invocation-owned
+synthetic refs and accepts an already absent ref without masking the probe's original failure.
+
+| Host             | Update race | Deletion race                   | Atomic carry race |
+| ---------------- | ----------- | ------------------------------- | ----------------- |
+| GitHub.com       | Passed      | Passed                          | Passed            |
+| GitLab.com       | Passed      | Passed                          | Passed            |
+| GHES 3.22.2      | Passed      | Passed                          | Passed            |
+| Bitbucket Cloud  | Passed      | Passed                          | Passed            |
+| GitLab CE 19.4.1 | Passed      | Passed                          | Passed            |
+| Gitea 1.27.3     | Passed      | Passed                          | Passed            |
+| Forgejo 16.0.5   | Passed      | Passed                          | Passed            |
+| Azure DevOps     | Passed      | Failed: stale deletion accepted | Unsupported       |
+
+Azure's deletion result was reproduced in a second owned-ref run. Both runs admitted the old tip, landed the competitor,
+and transmitted the stale old-to-zero command; Azure accepted it and the winner disappeared. The update race retained
+the competitor's winner. This adds a deletion-lease limitation to Azure's existing protocol and atomic-push limitations;
+its receiver remains unsuitable for the full backend capability set. No fallback was added. The native local receiver
+regression covers all three successful outcome classes using the same coordinator.
+
+The refreshed GitLab.com run used the existing authenticated login after its saved trial token expired; it changed no
+account selection or repository policy. All three loopback fixtures completed the same receiver races against their
+preserved repositories. Machine-local evidence is retained under
+`verification/prepublication/standard-pass-3/receiver-races/`; final runs are under `final/`, including `final/gitlab`,
+`final/gitlab-local`, `final/gitea`, `final/forgejo`, and `final/azure`. Each run records `source-digests.json` for the
+coordinator and transport. Per-case receipts retain advertised, expected, competing, and final tips. Numbered
+stdout/stderr logs retain the transmitted commands and receiver responses. An unsuccessful host run remains
+unsuccessful in the evidence.
+
 ## Final metadata batching
 
 The completed-record timing path still wrote retained-history and completed-folder metadata separately after the
