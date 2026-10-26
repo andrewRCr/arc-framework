@@ -15,10 +15,12 @@ import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import type { StoreResult } from "../refusal.js";
 import { corruptRef } from "./namespace-health.js";
 import { checkSyncRefTip } from "./sync-tip.js";
+import { readLifecycleFolders } from "./sync-lifecycle.js";
+import { planCompletedRoleReplacements, type CompletedRoleReplacement } from "./write-completed-role.js";
 
 /** Stamp a history fast-forward only when its retained folders need a paired refresh. */
 export async function prepareSyncHistoryFastForward(context: RefBackendContext, ref: string, tip: string,
-  quarters: readonly SyncHistoryQuarter[], batchId: string): Promise<StoreResult<SyncMergedTree | undefined>> {
+  quarters: readonly SyncHistoryQuarter[], batchId: string, preferred: ReadonlyMap<string, string>): Promise<StoreResult<SyncMergedTree | undefined>> {
   const folder = quarters[0]?.folders[0];
   if (!folder || !("uid" in folder.owner)) {
     const refusal = await checkSyncRefTip(context, ref, tip);
@@ -33,7 +35,8 @@ export async function prepareSyncHistoryFastForward(context: RefBackendContext, 
   const reference = ownerPrimaryReference(folder.owner, metadata);
   const tree: SyncMergedTree = { entries: new Map(entries.map((entry) => [entry.path, entry])), metadata, reference };
   const preview = quarters.map((quarter) => ({ ...quarter, entries: new Map(quarter.entries) }));
-  await prepareSyncHistoryQuarters(context, preview, tree);
+  const prepared = await prepareSyncHistoryQuarters(context, preview, tree, preferred);
+  if (prepared.status === "refused") return prepared;
   if (preview.every((quarter, index) => sameEntries(quarter.entries, quarters[index]?.entries))) return { status: "ok", result: undefined };
   metadata.batch = batchId;
   tree.entries.set(path, { path, mode: "100644", oid: await writeRefBlob(context, canonicalize(metadata)) });
@@ -78,11 +81,22 @@ export async function readSyncHistoryQuarters(context: RefBackendContext, ref: s
 }
 
 /** Compose each selected owner's new tree into its captured complete quarter entries. */
-export async function prepareSyncHistoryQuarters(context: RefBackendContext, quarters: readonly SyncHistoryQuarter[], tree: SyncMergedTree): Promise<void> {
+export async function prepareSyncHistoryQuarters(context: RefBackendContext, quarters: readonly SyncHistoryQuarter[], tree: SyncMergedTree,
+  preferred: ReadonlyMap<string, string>): Promise<StoreResult<undefined>> {
   if (!tree.metadata) throw new Error("A retained item merge has no group metadata");
-  for (const quarter of quarters) for (const folder of quarter.folders) {
-    await refreshArchivedFolder(context, folder, { entries: tree.entries, metadata: tree.metadata }, quarter.entries);
+  const group: CompletedRoleReplacement["group"] = { metadata: tree.metadata };
+  const folders = quarters.flatMap(quarter => quarter.folders), role = tree.metadata.primary?.role;
+  if (role && folders.some(folder => folder.metadata.primary?.role !== role)) {
+    const planned = planCompletedRoleReplacements(context, [{ group, role, folders }],
+      new Map(quarters.map(quarter => [quarter.ref, quarter.entries])), await readLifecycleFolders(context, preferred));
+    if (planned.status === "refused") return planned;
   }
+  for (const quarter of quarters) for (const folder of quarter.folders) {
+    const placement = group.completedPlacements?.get(`${folder.ref}:${folder.root}`) ?? folder.placement;
+    await refreshArchivedFolder(context, folder, { entries: tree.entries, metadata: tree.metadata }, quarter.entries,
+      { placement, endBatch: folder.metadata.endBatch });
+  }
+  return { status: "ok", result: undefined };
 }
 
 /** Verify captured quarter tips again under the same ordered locks as their history ref. */

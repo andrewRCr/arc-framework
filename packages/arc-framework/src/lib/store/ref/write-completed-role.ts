@@ -12,7 +12,8 @@ import type { ResolvedBatch } from "./write-resolution.js";
 
 /** Every retained folder of one item whose final role differs from a captured role. */
 export interface CompletedRoleReplacement {
-  group: RefWriteGroup; role: "work-item/meta" | "work-item/record"; folders: ArchivedFolder[];
+  group: Pick<RefWriteGroup, "metadata" | "completedPlacements" | "readPlacement">;
+  role: "work-item/meta" | "work-item/record"; folders: ArchivedFolder[];
 }
 
 /** Quarter transfers have their own plan; reopens remove their old folders altogether. */
@@ -32,14 +33,14 @@ export function completedRoleReplacements(batch: ResolvedBatch, groups: Readonly
 
 /** Reserve each folder independently and expose the final latest placement to write checks. */
 export function planCompletedRoleReplacements(context: Pick<RefBackendContext, "registry">, replacements: readonly CompletedRoleReplacement[],
-  quarters: ReadonlyMap<string, Map<string, RefTreeEntry>>): StoreResult<undefined> {
+  quarters: ReadonlyMap<string, Map<string, RefTreeEntry>>, preferred: readonly ArchivedFolder[] = []): StoreResult<undefined> {
   const occupied = new Set<string>();
   for (const { group, role, folders } of replacements) {
     const placements = new Map<string, ReadPlacement>(), planned: ArchivedFolder[] = [];
     for (const folder of folders) {
       const target = quarters.get(folder.ref);
       if (!target) throw new Error("A completed role replacement has no captured quarter");
-      const placement = replacementPlacement(folder, role, target);
+      const placement = replacementPlacement(preferredRoleFolder(folder, role, preferred) ?? folder, role, target);
       const reference = ownerPrimaryReference(folder.owner, group.metadata);
       const home = expandStoredPath(reference, { registry: context.registry, placement });
       const key = `${folder.ref}:${home.root}`;
@@ -57,6 +58,13 @@ export function planCompletedRoleReplacements(context: Pick<RefBackendContext, "
     group.readPlacement = latestArchivedFolders(planned)[0]?.placement;
   }
   return { status: "ok", result: undefined };
+}
+
+function preferredRoleFolder(folder: ArchivedFolder, role: CompletedRoleReplacement["role"],
+  preferred: readonly ArchivedFolder[]): ArchivedFolder | undefined {
+  return preferred.find(candidate => candidate.ref === folder.ref && candidate.liveRef === folder.liveRef
+    && candidate.metadata.primary?.role === role
+    && (candidate.metadata.endBatch ?? candidate.root) === (folder.metadata.endBatch ?? folder.root));
 }
 
 function replacementPlacement(folder: ArchivedFolder, role: CompletedRoleReplacement["role"],

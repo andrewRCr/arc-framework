@@ -26,6 +26,7 @@ export async function completeSyncPlacements(context: RefBackendContext, ref: st
   for (const side of completed) {
     const placement = side.metadata.primary?.placement ?? side.metadata.placement;
     const folder = folders.find((candidate) => candidate.liveRef === live && candidate.metadata.endBatch === side.metadata.endBatch
+      && candidate.metadata.primary?.role === side.metadata.primary?.role
       && candidate.placement.kind === "completed" && placement?.kind === "completed" && candidate.placement.quarter === placement.quarter);
     side.placement = folder?.placement ?? await historicalPlacement(context, live, side, captured);
     if (!side.placement) return false;
@@ -48,7 +49,8 @@ async function historicalPlacement(context: RefBackendContext, live: string, sid
   const family = live.includes("/cohort/") ? "cohort" : "work-item";
   for (const entries of trees.values()) {
     const folder = archivedFolders(family, quarter, entries, objects).folders
-      .find((folder) => folder.liveRef === live && folder.metadata.endBatch === side.metadata.endBatch);
+      .find((folder) => folder.liveRef === live && folder.metadata.endBatch === side.metadata.endBatch
+        && folder.metadata.primary?.role === side.metadata.primary?.role);
     if (folder) return folder.placement;
   }
   return undefined;

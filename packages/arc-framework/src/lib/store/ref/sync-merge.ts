@@ -61,8 +61,11 @@ export async function mergeRefSets(context: RefBackendContext, local: ReadonlyMa
       const built = await prepareSyncMerge(staged, ref, current, next, local, quarters, { currentSide: route?.currentSide,
         incoming: options.incomingState ?? incoming, priorState: options.priorState, batchId, reopening: route?.reopening, ended: captured.result.latest });
       if (built.status === "refused") return heldMerge(ref, built.refusal);
-      const { tree: prepared, parents } = built.result;
-      if (prepared?.metadata) await prepareSyncHistoryQuarters(staged, quarters, prepared);
+      const { tree: prepared, parents, placementState } = built.result;
+      if (prepared?.metadata) {
+        const refreshed = await prepareSyncHistoryQuarters(staged, quarters, prepared, placementState);
+        if (refreshed.status === "refused") return heldMerge(ref, refreshed.refusal);
+      }
       const applied = [...prepared?.notices ?? [], ...await observeSyncEndedConflicts(staged, ref, next, local, prepared)];
       let publishedTip = next;
       const refreshed: { ref: string; before: string; after: string }[] = [];
@@ -94,13 +97,15 @@ export async function mergeRefSets(context: RefBackendContext, local: ReadonlyMa
 /** Merge diverged tips, or stamp a fast-forward whose retained folders need a paired refresh. */
 async function prepareSyncMerge(context: RefBackendContext, ref: string, current: string | null, next: string,
   local: ReadonlyMap<string, string>, quarters: readonly SyncHistoryQuarter[], scope: SyncTreeMergeScope & { batchId: string }):
-  Promise<StoreResult<{ tree: SyncMergedTree | undefined; parents: string[] }>> {
+  Promise<StoreResult<{ tree: SyncMergedTree | undefined; parents: string[]; placementState: ReadonlyMap<string, string> }>> {
+  const incoming = scope.incoming ?? local;
   if (current && !await syncRefIsAncestor(context, current, next)) {
     const merged = await mergeSyncTree(context, ref, current, next, local, scope);
-    return merged.status === "refused" ? merged : { status: "ok", result: { tree: merged.result, parents: [current, next] } };
+    return merged.status === "refused" ? merged : { status: "ok", result: { tree: merged.result, parents: [current, next],
+      placementState: scope.currentSide === "local" ? local : incoming } };
   }
-  const prepared = await prepareSyncHistoryFastForward(context, ref, next, quarters, scope.batchId);
-  return prepared.status === "refused" ? prepared : { status: "ok", result: { tree: prepared.result, parents: [next] } };
+  const prepared = await prepareSyncHistoryFastForward(context, ref, next, quarters, scope.batchId, incoming);
+  return prepared.status === "refused" ? prepared : { status: "ok", result: { tree: prepared.result, parents: [next], placementState: incoming } };
 }
 
 function heldMerge(ref: string, refusal: StoreRefusal): RefMergeResult {
