@@ -19,7 +19,19 @@ import { refFormatKey } from "./format-key.js";
 export function matchesFamilyRef(ref: string, family: FamilyId): boolean {
   const placement = FAMILY_REGISTRY[rootFamily(family)].ref;
   if (!placement || !("pattern" in placement)) return false;
-  const expression = escapeRegex(placement.pattern).replace("<uid>", STORED_UID_SOURCE).replace("<id>", "[a-z0-9]+(?:-[a-z0-9]+)*");
+  return matchesRefPattern(ref, placement.pattern);
+}
+
+/** Match only a directory that can contain a registered live ref. */
+export function matchesFamilyRefDirectory(ref: string, family: FamilyId): boolean {
+  const placement = FAMILY_REGISTRY[rootFamily(family)].ref;
+  if (!placement || !("pattern" in placement)) return false;
+  const parts = placement.pattern.split("/"), depth = ref.split("/").length;
+  return depth < parts.length && matchesRefPattern(ref, parts.slice(0, depth).join("/"));
+}
+
+function matchesRefPattern(ref: string, pattern: string): boolean {
+  const expression = escapeRegex(pattern).replace("<uid>", STORED_UID_SOURCE).replace("<id>", "[a-z0-9]+(?:-[a-z0-9]+)*");
   return new RegExp(`^${expression}$`, "u").test(ref);
 }
 

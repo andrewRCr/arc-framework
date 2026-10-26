@@ -2,7 +2,7 @@
 
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, type BatchObject } from "./batch-read.js";
-import { buildRefManifest, isManifestRef, type ManifestEntry } from "./manifest.js";
+import { buildRefManifest, isManifestDirectory, isManifestRef, type ManifestEntry } from "./manifest.js";
 
 /** Return only complete canonical manifests; unavailable or other objects do not resolve. */
 export async function readRefManifest(context: RefBackendContext, version: string): Promise<ReadonlyMap<string, string> | null> {
@@ -25,7 +25,11 @@ function collectEntries(entries: readonly ManifestEntry[], prefix: string, tips:
   next: { oid: string; prefix: string }[]): boolean {
   for (const entry of entries) {
     const ref = prefix + entry.name;
-    if (entry.mode === "40000") { next.push({ oid: entry.oid, prefix: `${ref}/` }); continue; }
+    if (entry.mode === "40000") {
+      if (!isManifestDirectory(ref)) return false;
+      next.push({ oid: entry.oid, prefix: `${ref}/` });
+      continue;
+    }
     if (!isManifestRef(ref)) return false;
     tips.set(ref, entry.oid);
   }

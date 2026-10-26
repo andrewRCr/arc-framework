@@ -9,7 +9,7 @@ import { FAMILY_IDS } from "../catalog.js";
 import { StateVersionSchema, type StateVersion } from "../identity.js";
 import { isArchiveRef } from "./archive-read.js";
 import { HistoryRefSchema } from "../refusal.js";
-import { matchesFamilyRef } from "./codec.js";
+import { matchesFamilyRef, matchesFamilyRefDirectory } from "./codec.js";
 import { readRefTips } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
 
@@ -41,6 +41,11 @@ export async function readObjectFormat(context: RefBackendContext): Promise<Obje
 /** Select registered state refs while excluding history and machine-local/control refs. */
 export function isManifestRef(ref: string): boolean {
   return FAMILY_IDS.some((family) => matchesFamilyRef(ref, family)) || isArchiveRef(ref);
+}
+
+/** A directory prefix that can lead to a registered live ref or archive quarter. */
+export function isManifestDirectory(ref: string): boolean {
+  return ref === "refs/arc/archive" || FAMILY_IDS.some(family => matchesFamilyRefDirectory(ref, family));
 }
 
 /** A logical state ref: a registered live ref, or an item's retained history ref in exactly the history grammar. */
