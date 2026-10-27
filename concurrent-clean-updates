@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "concurrent-clean-updates",
+  "claimId": "8d7a67cf8df6fae5b9b37bf08495f0cc",
+  "createdAt": "2026-10-27T12:49:39.697Z",
+  "updatedAt": "2026-10-27T12:49:39.697Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make concurrent clean updates reliable and retain updater failure diagnostics",
+  "branch": "fix/concurrent-clean-updates",
+  "origin": "inbox",
+  "originEntry": "Make concurrent clean updates reliable and retain failure diagnostics",
+  "originEntrySourceDigest": "sha256:16a095fd2a825890d3cf240823bc27c21ee5807b73fb84a77f1e594c040f6262",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
