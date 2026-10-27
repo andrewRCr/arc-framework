@@ -130,7 +130,7 @@ the selected source basis with independent Git coordinates, and budget complete 
         - Bare and absolute executables remain literal; directory-bearing relative paths resolve from the machine
           file. Ordinary native checks return before home/file reads, and repaired or removed keys take effect on retry.
 
-### `[ ]` **2.2 Define the shared version-one protocol contracts — D5**
+### `[x]` **2.2 Define the shared version-one protocol contracts — D5**
 
 - _Goal:_ One shared validator defines exactly what a version-one conversation can claim, including opaque IDs,
   full-width native statuses, complete known-runtime coverage and both settlement arms.
@@ -140,15 +140,10 @@ the selected source basis with independent Git coordinates, and budget complete 
           outcomes and both settlement arms. Delimiter-free JSON-RPC decoding enforces versions, string IDs and
           result/error envelopes; native uint32 statuses and decoded 64 KiB chunks retain exact representations.
 
-    - `[ ]` **2.2.b Validate correlated coverage against a fixed plan**
-        - Build `test-first` (one behavior at a time):
-            - Unique planned IDs and exact per-invocation/per-probe known bindings accept exact stdout, including
-              whitespace.
-            - Missing/duplicate/unexpected claimed-known IDs fail protocol; explicit unknown remains executable without
-              reuse.
-            - Recovery, source confirmation, terminal outcome and settled-reply identities cannot refer to another
-              attempt.
-        - Keep correlation validation reusable by single-check and optional group consumers; add no installed Node SDK.
+    - `[x]` **2.2.b Validate correlated coverage against a fixed plan**
+        - Indexed plans and known runtime bindings require exact unique invocation/probe coverage, preserving stdout;
+          explicit unknown runtime remains executable without reuse. Recovery, source confirmation, RPC replies and
+          settlement reject mismatched identities; protocol faults retain observed immutable outcomes and block evidence.
 
 ### `[ ]` **2.3 Preserve selected source basis and verified HEAD evidence — D3**
 
