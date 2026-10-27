@@ -379,7 +379,7 @@ it.each([1, 255])("reports runner unavailability at exit %s with a retry, then p
   });
 });
 
-it("keeps a completed batch failure when a later batch cannot run", async () => {
+it.each(["not-run reason", "not started", "throws"])("keeps a completed batch failure when a later batch %s", async fault => {
   const { root, io, ids } = await fixture({ lint: { mode: "files", inputs: ["**"] } });
   const paths = Array.from({ length: 100 }, (_, index) => `${"x".repeat(195)}${index}.ts`);
   const raw = paths.map(path => `:000000 100644 ${"0".repeat(40)} ${"d".repeat(40)} A\0${path}\0`).join("");
@@ -387,10 +387,15 @@ it("keeps a completed batch failure when a later batch cannot run", async () => 
   io.git = async (file, args, options) => args[0] === "diff"
     ? { stdout: raw, stderr: "" } : git(file, args, options);
   let batch = 0;
-  io.execute = async () => ++batch === 1 ? { started: true, exitCode: 1, output: "lint violation" }
-    : { started: true, exitCode: 255, output: "ssh disconnected", notRunReason: "VM connection dropped" };
+  io.execute = async () => {
+    if (++batch === 1) return { started: true, exitCode: 1, output: "lint violation" };
+    if (fault === "throws") throw new Error("VM connection dropped");
+    return { started: fault !== "not started", exitCode: 255, output: "ssh disconnected",
+      ...(fault === "not-run reason" ? { notRunReason: "VM connection dropped" } : {}) };
+  };
   await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
-    kind: "result", exitCode: 1, result: { checks: [{ outcome: "failed", output: "lint violation\nssh disconnected" }] },
+    kind: "result", exitCode: 1, result: { checks: [{ outcome: "failed",
+      output: `lint violation\n${fault === "throws" ? "Error: VM connection dropped" : "ssh disconnected"}` }] },
   });
 });
 

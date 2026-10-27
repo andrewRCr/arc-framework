@@ -12,6 +12,25 @@ const directories: string[] = [];
 const example = fileURLToPath(new URL("../../examples/check-runner/local.mjs", import.meta.url));
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 
+it.runIf(process.platform === "linux")("keeps routed not-run evidence ahead of declared no-evidence status and recovers", async () => {
+  const machine = await createRunnerMachineHome(directories, [process.execPath, example]);
+  const program = "if(process.env.REPAIRED==='yes'){process.stdout.write('repaired')}else{require('node:fs').writeFileSync(process.env.ARC_CHECK_NOTICE,'not run: executor unavailable\\n');process.exit(5)}";
+  const root = await createDeclaredCheckRepository({ example: { runner: true, inputs: ["src/**"], no_evidence_exit: 5,
+    command: [process.execPath, "-e", program], environment_inputs: { REPAIRED: "value" } } });
+  directories.push(root);
+  const unavailable = await runArc(["check", "run", "example", "--json"], root,
+    { env: { ...machine.environment, REPAIRED: undefined } });
+  expect(unavailable.exitCode, unavailable.stdout + unavailable.stderr).toBe(2);
+  const check = JSON.parse(unavailable.stdout).result.checks[0] as { outcome: string };
+  expect(check).toMatchObject({ outcome: "couldn't run", reason: expect.stringContaining("executor unavailable"),
+    notice: "not run: executor unavailable" });
+  expect(check).not.toHaveProperty("record");
+  const repaired = await runArc(["check", "run", "example", "--json"], root,
+    { env: { ...machine.environment, REPAIRED: "yes" } });
+  expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
+  expect(JSON.parse(repaired.stdout).result.checks[0]).toMatchObject({ outcome: "passed", output: "repaired" });
+});
+
 it.runIf(process.platform === "linux")("prepares captured execution before a hit and runs only cache misses", async () => {
   const machine = await createRunnerMachineHome(directories, [process.execPath, example, "--known-node-runtime"]);
   const executions = join(machine.home, "executions");

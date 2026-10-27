@@ -32,7 +32,8 @@ import { bindCapturedEnvironment, captureEnvironmentInputs, type CapturedEnviron
 import { readMachineCheckRunner, type MachineCheckRunnerConfiguration } from "../../lib/checks/runner/machine-config.js";
 import { prepareSelectedCheckExecution, type PreparedCheckExecution, type CheckExecutionClosure, type RetainedCheckExecution } from "../../lib/checks/runner/execution.js";
 import { composePreparedCheckKey } from "../../lib/checks/runner/key.js";
-import type { TerminalOutcome } from "../../lib/checks/runner/contract.js";
+import { KILLED_EXIT_CODE, KILLED_REASON, normalizeCheckInvocationOutcome, reduceCheckInvocationOutcomes,
+  type CheckInvocationReduction, type NormalizedCheckInvocationOutcome } from "../../lib/checks/result.js";
 
 /** Whether a fresh pass was kept for later gates; a pass with no content key has nothing to keep. */
 export type DeclaredCheckRecord = CheckPassWrite | { status: "not-recordable" };
@@ -494,43 +495,30 @@ function retainedRunnerRemedy(retained: RetainedCheckExecution): string {
     "Repair the runner and retry with a fresh attempt."].join(" ");
 }
 
-interface RoutedSinglesResult { exitCode: number; incomplete?: string; notice?: string }
-interface RoutedOutcomeState { exitCode: number; examined: boolean; notices: Set<string>; incomplete: string[] }
-
-async function executeRoutedSingles(execution: PreparedCheckExecution, check: SelectedCheck["check"]): Promise<RoutedSinglesResult> {
-  const state: RoutedOutcomeState = { exitCode: 0, examined: false, notices: new Set(), incomplete: [] };
-  for (const invocation of execution.plan.invocations) {
-    const result = await execution.run(invocation.id);
-    observeRoutedOutcome(state, result.outcomes.get(invocation.id), check);
-    if (result.status === "incomplete") { state.incomplete.push(result.reason); break; }
-  }
-  return { exitCode: state.examined ? state.exitCode : check.no_evidence_exit ?? state.exitCode,
-    ...(state.incomplete.length === 0 ? {} : { incomplete: state.incomplete.join("; ") }),
-    ...(state.notices.size === 0 ? {} : { notice: [...state.notices].join("; ") }) };
-}
-
-function observeRoutedOutcome(state: RoutedOutcomeState, outcome: Readonly<TerminalOutcome> | undefined, check: SelectedCheck["check"]): void {
-  if (outcome?.status !== "completed") {
-    state.incomplete.push(outcome?.reason ?? "A planned invocation has no completed native result.");
-    return;
-  }
-  if (outcome.notice !== undefined) state.notices.add(outcome.notice);
-  if (outcome.exitCode === check.no_evidence_exit) return;
-  state.examined = true;
-  if (outcome.exitCode !== 0 && (state.exitCode === 0 || outcome.exitCode !== KILLED_EXIT_CODE)) state.exitCode = outcome.exitCode;
+async function executeRoutedSingles(execution: PreparedCheckExecution, check: SelectedCheck["check"]): Promise<CheckInvocationReduction> {
+  const outcomes: NormalizedCheckInvocationOutcome[] = [];
+  const incomplete: string[] = [];
+  try {
+    for (const invocation of execution.plan.invocations) {
+      const result = await execution.run(invocation.id);
+      outcomes.push(normalizeCheckInvocationOutcome(result.outcomes.get(invocation.id), check.no_evidence_exit));
+      if (result.status === "incomplete") { incomplete.push(result.reason); break; }
+    }
+  } catch (cause) { incomplete.push(String(cause)); }
+  return reduceCheckInvocationOutcomes(outcomes, check.no_evidence_exit, incomplete);
 }
 
 async function finalizeRoutedCheck(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
-  observed: { result: RoutedSinglesResult; closure: CheckExecutionClosure; output: string; key: string | null; startedAt: number }): Promise<DeclaredCheckResult> {
+  observed: { result: CheckInvocationReduction; closure: CheckExecutionClosure; output: string; key: string | null; startedAt: number }): Promise<DeclaredCheckResult> {
   const { result, closure, output, key, startedAt } = observed;
-  const incomplete = [result.incomplete, closure.status === "uncertain" ? closure.reason : undefined].filter(Boolean).join("; ") || undefined;
-  const nativeFailure = result.exitCode !== 0 && result.exitCode !== selected.check.no_evidence_exit && result.exitCode !== KILLED_EXIT_CODE;
+  const incomplete = [...result.incomplete, closure.status === "uncertain" ? closure.reason : undefined].filter(Boolean).join("; ") || undefined;
+  const nativeFailure = result.kind === "failure";
   const costMs = Math.max(0, (io.now ?? performance.now.bind(performance))() - startedAt);
   const measurement = await io.reports?.save(selected.id, output, costMs);
   const finalized = await finalizeCheckRun({ ...selected, routed: true }, io, request,
     { started: true, exitCode: result.exitCode, output,
       ...(!nativeFailure && incomplete !== undefined ? { notRunReason: incomplete } : {}) }, key);
-  const notice = [result.notice, closure.status === "closed" ? closure.cleanupWarning : undefined].filter(Boolean).join("; ");
+  const notice = [...result.notices, closure.status === "closed" ? closure.cleanupWarning : undefined].filter(Boolean).join("; ");
   return { ...finalized, costMs, ...(nativeFailure && incomplete !== undefined ? { reason: incomplete } : {}),
     ...(measurement === undefined ? {} : { logPath: measurement.logPath }), ...(notice ? { notice } : {}) };
 }
@@ -562,14 +550,6 @@ async function executeNativeSelectedCheck(selected: SelectedCheck, io: DeclaredC
     ...(result.notice === undefined ? {} : { notice: result.notice }),
     ...(measurement ? { logPath: measurement.logPath } : {}) };
 }
-
-/**
- * The exit status of a command killed by SIGKILL, as a shell or a runner relaying a remote kill reports it. The
- * system's out-of-memory killer is the usual sender, so the check did not finish rather than failed. A check that
- * declares 137 as its no-evidence status keeps that meaning.
- */
-const KILLED_EXIT_CODE = 137;
-const KILLED_REASON = "killed before it finished: SIGKILL, most often for lack of memory";
 
 async function finalizeCheckRun(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
   result: { started: boolean; exitCode: number; output: string; notRunReason?: string }, key: string | null): Promise<DeclaredCheckResult> {
@@ -630,34 +610,22 @@ async function executeCheckBatches(io: DeclaredCheckDependencies, input: {
 }) {
   const { command, paths, cwd, content, check, indexFile } = input;
   const outputs: string[] = [];
-  const notices = new Set<string>();
-  const ran = (result: { started: boolean; exitCode: number; notRunReason?: string }) => ({ ...result, output: outputs.join("\n"),
-    ...(notices.size > 0 ? { notice: [...notices].join("; ") } : {}) });
-  let exitCode = 0;
-  // A batch that found nothing to examine neither fails the check nor shows the others examined anything, so the
-  // check reports no evidence only when every batch did.
-  let examined = false;
+  const outcomes: NormalizedCheckInvocationOutcome[] = [];
   try {
     const batches = checkArgumentBatches(check, command, paths, io.platform);
     for (const batch of batches) {
       const result = await io.execute([...command, ...batch], cwd, content, { shell: check.shell, indexFile });
       if (result.output) outputs.push(result.output);
-      if (result.notice !== undefined) notices.add(result.notice);
-      if (!result.started || result.notRunReason !== undefined) return ran(unavailableBatchResult(exitCode, result));
-      if (result.exitCode === check.no_evidence_exit) continue;
-      examined = true;
-      // A kill never hides another batch's failure, which is a verdict where the kill is none.
-      if (result.exitCode !== 0 && (exitCode === 0 || result.exitCode !== KILLED_EXIT_CODE)) exitCode = result.exitCode;
+      outcomes.push(normalizeCheckInvocationOutcome(result.started ? { ...result, status: "completed" }
+        : { status: "unavailable", reason: result.notRunReason ?? "Check process did not start.", notice: result.notice }, check.no_evidence_exit));
+      if (!result.started || result.notRunReason !== undefined) break;
     }
   } catch (error) {
     outputs.push(String(error));
-    return ran({ started: false, exitCode: 1 });
+    outcomes.push(normalizeCheckInvocationOutcome({ status: "unavailable", reason: String(error) }, check.no_evidence_exit));
   }
-  return ran({ started: true, exitCode: examined ? exitCode : check.no_evidence_exit ?? exitCode });
-}
-
-/** A completed batch failure remains a verdict when a later runner reports no result. */
-function unavailableBatchResult(previousExit: number, result: { started: boolean; exitCode: number; notRunReason?: string }) {
-  return result.notRunReason !== undefined && previousExit !== 0 && previousExit !== KILLED_EXIT_CODE
-    ? { started: true, exitCode: previousExit } : result;
+  const evidence = reduceCheckInvocationOutcomes(outcomes, check.no_evidence_exit);
+  return { evidence, started: evidence.kind !== "unavailable", exitCode: evidence.exitCode, output: outputs.join("\n"),
+    ...(evidence.kind === "unavailable" ? { notRunReason: evidence.incomplete.join("; ") } : {}),
+    ...(evidence.notices.length === 0 ? {} : { notice: evidence.notices.join("; ") }) };
 }

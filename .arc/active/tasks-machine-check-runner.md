@@ -324,15 +324,10 @@ runs unknown runtime without reuse, preserves native outcomes, and closes or ret
 - _Goal:_ A check passes only after complete native-success evidence and normal closure; a known completed failure
   remains failed when another batch or transport is incomplete.
 
-    - `[ ]` **4.3.a Share invocation normalization and incomplete-result reduction**
-        - Add proposed `normalizeCheckInvocationOutcome` / `reduceCheckInvocationOutcomes` in `src/lib/checks/result.ts`
-          ; expose evidence for consumers and compose native `executeCheckBatches`.
-        - Build `test-first` (one behavior at a time):
-            - A completed native failure survives unavailable/throw/missing outcomes in later batches or protocol
-              closure.
-            - Missing work without a completed native failure yields couldn't-run detail; incomplete sets never pass.
-            - No-evidence, status `137`, full uint32 failures and valid native no-op/empty share keep native
-              precedence.
+    - `[x]` **4.3.a Share invocation normalization and incomplete-result reduction**
+        - Added shared native observation normalization and reduction in `src/lib/checks/result.ts`, retaining completed
+          failures beside missing work and preserving no-evidence, killed, uint32 and valid empty-share semantics. Native
+          batches and routed singles now share the same evidence model and notice precedence.
 
     - `[ ]` **4.3.b Keep final verdict and publication in the handler**
         - Extend `finalizeCheckRun` with structured evidence; retain native-only fixer/install-gap interpretation on the
