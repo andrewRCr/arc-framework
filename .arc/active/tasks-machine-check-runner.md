@@ -150,13 +150,10 @@ the selected source basis with independent Git coordinates, and budget complete 
 - _Goal:_ Routed capture can distinguish worktree, index and commit code and certify a real HEAD or verified unborn
   repository, instead of silently substituting live files or treating an unresolved read as unborn.
 
-    - `[ ]` **2.3.a Preserve selected source evidence in request resolution**
-        - Extend `ResolvedCheckRequest` / `checkedContent` in `src/lib/checks/resolve-request.ts` with selected basis
-          and required coordinates; preserve native behavior where routed capture is not requested.
-        - Build `test-first` (one behavior at a time):
-            - Worktree, staged/index and pre-push commit requests retain their own source basis and historical scope.
-            - Missing HEAD is accepted only after verified unborn evidence; revision/object failures produce retry
-              remedies.
+    - `[x]` **2.3.a Preserve selected source evidence in request resolution**
+        - Requests retain their worktree, selected-index or pushed-commit basis and logical HEAD evidence.
+          `readCheckHead` verifies unborn branches; `requireSourceCoordinates` refuses unavailable or invalid
+          coordinates with repair/retry/local remedies while native resolution retains its existing policy.
 
     - `[ ]` **2.3.b Acquire and recheck the routed source boundary**
         - Build `test-first` (one behavior at a time):

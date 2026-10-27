@@ -6,11 +6,17 @@ import { requestScope, type CheckRequest, type CheckScope } from "./request.js";
 import { readCheckMerges, type CheckMerge } from "./merged.js";
 import { readMergeCheckPaths } from "./merge.js";
 import { createWorktreeSnapshot, stagedIndexTree, stagedWorktreeTree, type WorktreeSnapshot } from "./tree.js";
+import { readCheckHead, type CheckHeadEvidence } from "./head.js";
+
+/** Selected code basis, retained separately from the materialized execution presentation. */
+export type CheckSourceSelection = ({ kind: "worktree" } | { kind: "index"; indexFile?: string }
+  | { kind: "commit"; commit: string }) & { head: CheckHeadEvidence };
 
 /** Coordinates retained by a resolved request. An unavailable automatic base is deliberately absent. */
 export interface ResolvedCheckRequest {
   scope: CheckScope;
   tree: string;
+  source: CheckSourceSelection;
   base?: string;
   merged?: string[];
   merges?: CheckMerge[];
@@ -82,7 +88,7 @@ export async function resolveCheckRequest(git: GitExec, root: string, request: C
   const { scope } = normalized;
   const headResolution = await resolveRequestHead(git, root, request);
   if (headResolution.status === "refused") return headResolution;
-  const { head } = headResolution;
+  const { head, evidence } = headResolution;
   const baseResolution = await resolveRequestBase(git, root, request, scope, head);
   if (baseResolution.status === "refused") return baseResolution;
   const { base } = baseResolution;
@@ -90,8 +96,8 @@ export async function resolveCheckRequest(git: GitExec, root: string, request: C
   const merged = merges.flatMap(merge => merge.merged);
   const remoteBase = scope.kind === "range" && merges.length > 0
     ? await revision(git, root, remoteBranchRef(request.baseBranch ?? "main", pushRemote(request))) : undefined;
-  const { tree, snapshot } = await checkedContent(git, root, request, scope, snapshotDirectory, head);
-  return attachMergeSelection(git, root, head, { scope, tree, ...(snapshotDirectory === undefined ? {} : { snapshotDirectory }), ...(snapshot ? { snapshot } : {}), ...(base === undefined ? {} : { base }), ...(merged.length ? { merged, merges } : {}), ...(remoteBase === undefined ? {} : { remoteBase }) });
+  const { tree, snapshot, source } = await checkedContent(git, root, request, scope, evidence, snapshotDirectory);
+  return attachMergeSelection(git, root, head, { scope, tree, source, ...(snapshotDirectory === undefined ? {} : { snapshotDirectory }), ...(snapshot ? { snapshot } : {}), ...(base === undefined ? {} : { base }), ...(merged.length ? { merged, merges } : {}), ...(remoteBase === undefined ? {} : { remoteBase }) });
 }
 
 async function resolveRequestBase(git: GitExec, root: string, request: CheckRequest, scope: CheckScope,
@@ -123,12 +129,13 @@ function normalizePathScope(root: string, scope: CheckScope): { status: "resolve
 }
 
 async function resolveRequestHead(git: GitExec, root: string, request: CheckRequest): Promise<
-  { status: "resolved"; head: string | undefined } | { status: "refused"; message: string }
+  { status: "resolved"; head: string | undefined; evidence: CheckHeadEvidence } | { status: "refused"; message: string }
 > {
-  const head = await revision(git, root, request.form.kind === "pre-push" ? request.form.tip : "HEAD");
+  const evidence = await readCheckHead(git, root, request.form.kind === "pre-push" ? request.form.tip : "HEAD");
+  const head = evidence.status === "known" ? evidence.commit : undefined;
   return request.form.kind === "pre-push" && head === undefined
     ? { status: "refused", message: `Could not resolve pushed tip ${request.form.tip}; repair the local ref and retry git push.` }
-    : { status: "resolved", head };
+    : { status: "resolved", head, evidence };
 }
 
 async function attachMergeSelection(
@@ -145,12 +152,17 @@ async function attachMergeSelection(
   }
 }
 
-async function checkedContent(git: GitExec, root: string, request: CheckRequest, scope: CheckScope, snapshotDirectory?: string, head?: string) {
-  if (request.form.kind === "pre-push" && head !== undefined) return { tree: (await git("git", ["rev-parse", "--verify", `${head}^{tree}`], { cwd: root })).stdout, snapshot: undefined };
+async function checkedContent(git: GitExec, root: string, request: CheckRequest, scope: CheckScope, evidence: CheckHeadEvidence, snapshotDirectory?: string) {
+  const head = evidence.status === "known" ? evidence.commit : undefined;
+  if (request.form.kind === "pre-push" && head !== undefined) return { tree: (await git("git", ["rev-parse", "--verify", `${head}^{tree}`], { cwd: root })).stdout, snapshot: undefined,
+    source: { kind: "commit", commit: head, head: evidence } satisfies CheckSourceSelection };
   const snapshot = scope.kind !== "staged" && snapshotDirectory !== undefined
     ? await createWorktreeSnapshot(git, root, snapshotDirectory) : undefined;
   const tree = scope.kind === "staged"
     ? await stagedIndexTree(git, root, request.indexFile)
     : snapshot?.tree ?? await stagedWorktreeTree(git, root);
-  return { tree, snapshot };
+  const source: CheckSourceSelection = scope.kind === "staged"
+    ? { kind: "index", ...(request.indexFile === undefined ? {} : { indexFile: request.indexFile }), head: evidence }
+    : { kind: "worktree", head: evidence };
+  return { tree, snapshot, source };
 }
