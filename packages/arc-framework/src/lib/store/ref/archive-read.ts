@@ -72,26 +72,47 @@ export function archivedFolders(family: FamilyId, ref: string, entries: readonly
   const quarter = ArchiveQuarterSchema.parse(ref.split("/").at(-1));
   diagnostics.push(...archiveRootDiagnostics(ref, entries, saved));
   for (const root of new Set(entries.map(({ path }) => path.slice(0, path.indexOf("/") + 1)).filter(Boolean))) {
-    const cohort = /^\d+[ab]_cohort-/u.test(root);
-    if (cohort !== (familyRoot === "cohort")) continue;
-    const members = entries.filter(({ path }) => path.startsWith(root));
-    const entry = members.find(({ path }) => isArchiveMetadataName(path.slice(root.length)));
-    const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : undefined);
-    const placement = folderPlacement(root, metadata, quarter, cohort);
-    if (!metadata?.slug || !entry || !placement) {
-      diagnostics.push({ kind: "unreadable", key: `${ref}:${root}`, ...unparsedMetadata(`${ref}:${root}`, saved) });
-      continue;
-    }
-    const uid = entry.path.slice(root.length + "metadata-".length, -".json".length);
-    const owner = OwnerIdentitySchema.safeParse({ type: familyRoot, name: metadata.slug, uid });
-    if (!owner.success) {
-      diagnostics.push(malformedFolderOwner(ref, entry.path, saved));
-      continue;
-    }
-    folders.push({ ref, root, owner: owner.data, metadata, placement,
-      liveRef: `refs/arc/${cohort ? "cohort" : "work"}/${uid}`, entries: members.map((member) => ({ ...member, path: member.path.slice(root.length) })) });
+    const decoded = decodeArchiveFolder({ family: familyRoot, ref, quarter, saved }, root, entries, objects);
+    if (!decoded) continue;
+    if ("kind" in decoded) diagnostics.push(decoded); else folders.push(decoded);
   }
   return { folders, diagnostics };
+}
+
+interface ArchiveFolderScope { family: "work-item" | "cohort"; ref: string; quarter: ReturnType<typeof ArchiveQuarterSchema.parse>; saved: boolean }
+
+function decodeArchiveFolder({ family, ref, quarter, saved }: ArchiveFolderScope, root: string,
+  entries: readonly RefTreeEntry[], objects: ReadonlyMap<string, BatchObject | null>): ArchivedFolder | ListingDiagnostic | undefined {
+  const members = entries.filter(({ path }) => path.startsWith(root));
+  const entry = members.find(({ path }) => isArchiveMetadataName(path.slice(root.length)));
+  const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : undefined);
+  const cohort = metadata?.primary === undefined && (metadata?.placement?.kind === "completed" || /^\d+[ab]_cohort-/u.test(root));
+  if (cohort !== (family === "cohort")) return;
+  const unreadable: ListingDiagnostic = { kind: "unreadable", key: `${ref}:${root}`, ...unparsedMetadata(`${ref}:${root}`, saved) };
+  if (!metadata?.slug || !entry) return unreadable;
+  const uid = entry.path.slice(root.length + "metadata-".length, -".json".length);
+  const owner = OwnerIdentitySchema.safeParse({ type: family, name: metadata.slug, uid });
+  if (!owner.success) return malformedFolderOwner(ref, entry.path, saved);
+  const mismatch = folderOwnerMismatch(ref, root, owner.data, metadata, cohort, saved);
+  if (mismatch) return mismatch;
+  const placement = folderPlacement(root, metadata, quarter, cohort);
+  if (!placement) return unreadable;
+  return { ref, root, owner: owner.data, metadata, placement,
+    liveRef: `refs/arc/${cohort ? "cohort" : "work"}/${uid}`, entries: members.map((member) => ({ ...member, path: member.path.slice(root.length) })) };
+}
+
+function folderOwnerMismatch(ref: string, root: string, owner: OwnerIdentity, metadata: RefMetadata,
+  cohort: boolean, saved: boolean): ListingDiagnostic | undefined {
+  const uid = "uid" in owner ? owner.uid ?? "" : "";
+  const matches = cohort ? new RegExp(`^\\d+[ab]_cohort-${owner.name}/$`, "u").test(root)
+    : metadata.primary?.role === "work-item/record" ? root === `${owner.name}-${uid.slice(0, 8)}/`
+      : new RegExp(`^\\d+_${owner.name}/$`, "u").test(root);
+  if (matches) return;
+  const key = `${ref}:${root}`;
+  return { kind: "key-mismatch", key, condition: `The archive folder ${key} disagrees with its metadata's role or owner coordinates.`,
+    remedy: saved ? historicalMetadataFailure(key).remedy : {
+      text: `Restore the folder name at ${key} from its owner's slug and UID suffix or cohort role, preserving its assigned quarter and sequence, in a new commit; then retry.`,
+    } };
 }
 
 function archiveRootDiagnostics(ref: string, entries: readonly RefTreeEntry[], saved: boolean): ListingDiagnostic[] {
