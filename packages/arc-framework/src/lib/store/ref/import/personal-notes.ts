@@ -2,8 +2,7 @@
 import type { RefBackendContext } from "../context.js";
 import { readBatchObjects, type BatchObject } from "../batch-read.js";
 import { notePathToCommit, NOTES_COMPACTION_SNAPSHOT_MESSAGE } from "../../../user-sync/notes-ref.js";
-import { isSafeManifestPath } from "../../../git/user-sync.js";
-import { readImportCodeTip } from "./branch-tip.js";
+import { parseImportNoteFiles } from "./personal-note-manifest.js";
 import { importPersonalExcluded } from "./personal-disk.js";
 
 interface NoteVersion { annotated: string; blob: string }
@@ -12,11 +11,10 @@ interface NoteChange { compacted: boolean; versions: NoteVersion[] }
 export interface ImportWorkspaceSnapshot { files: Record<string, string>; savedPaths: Set<string> }
 
 /** Read the ref's own complete history, batching note objects and compaction ordering evidence. */
-export async function readImportWorkspaces(context: RefBackendContext, person: string, live: ReadonlySet<string>): Promise<ImportWorkspaceSnapshot> {
+export async function readImportWorkspaces(context: RefBackendContext, live: ReadonlySet<string>, tip: string | null): Promise<ImportWorkspaceSnapshot> {
   const source = context.importSource;
   if (!source) throw new Error("No import source bound");
   if (!live.size) return { files: {}, savedPaths: new Set() };
-  const tip = await readImportCodeTip(source, `refs/notes/arc/user/${person}`);
   if (!tip) return { files: {}, savedPaths: new Set() };
   const { stdout } = await source.ports.exec("git", ["--no-replace-objects", "log", "--topo-order", "--format=%x1e%H%x00%s%x00",
     "--raw", "--diff-merges=first-parent", "-z", "--no-abbrev", "--root", "-M100%", "--diff-filter=AM", tip],
@@ -66,14 +64,7 @@ function committedAt(object: BatchObject | null | undefined): number {
 
 function manifestFiles(object: BatchObject | null | undefined): Record<string, string> {
   if (object?.type !== "blob") throw new Error("A saved workspace note is unreadable");
-  const value: unknown = JSON.parse(Buffer.from(object.bytes).toString("utf8"));
-  if (!value || typeof value !== "object" || !("files" in value) || !value.files || typeof value.files !== "object") throw new Error("A saved workspace note has no files manifest");
-  const files: Record<string, string> = {};
-  for (const [path, content] of Object.entries(value.files)) {
-    if (typeof content !== "string" || !isSafeManifestPath(path)) throw new Error("A saved workspace note has an invalid file entry");
-    files[path] = content;
-  }
-  return files;
+  return parseImportNoteFiles(new TextDecoder("utf-8", { fatal: true }).decode(object.bytes));
 }
 
 function takeWorkspaces(files: Record<string, string>, remaining: Set<string>, result: Record<string, string>): void {

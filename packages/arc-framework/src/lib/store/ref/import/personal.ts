@@ -3,7 +3,7 @@ import type { RefBackendContext } from "../context.js";
 import type { ImportRecord } from "./source.js";
 import type { MigrateReport } from "../../commands.js";
 import { readImportPersonalDisk, notesCanSaveFile, importPersonalExcluded, type ImportPersonalFile } from "./personal-disk.js";
-import { readRecentUserNotes } from "../../../user-sync/notes-ref.js";
+import { readImportNotesTip, readImportRecentNotes } from "./personal-recent-notes.js";
 import { mergeCrossWuFromNotes } from "../../../../commands/user/save-load.js";
 import { projectManifest } from "../../../user-sync/projection.js";
 import { personalFileReference } from "../../in-repo/personal-paths.js";
@@ -31,8 +31,9 @@ async function appendPerson(context: RefBackendContext, report: MigrateReport, r
   if (!source) throw new Error("No import source bound");
   const exec: typeof source.ports.exec = (command, args, options) => source.ports.exec(command, args,
     { ...options, cwd: source.ports.checkoutRoot, objectAccess: "local-only" });
-  const merged = mergeCrossWuFromNotes(await readRecentUserNotes(exec, person, undefined, context.clock()));
-  const workspaces = await readImportWorkspaces(context, person, live);
+  const tip = await readImportNotesTip(exec, person);
+  const merged = mergeCrossWuFromNotes(await readImportRecentNotes(context, tip));
+  const workspaces = await readImportWorkspaces(context, live, tip);
   const snapshot = projectManifest({ version: 2, files: { ...merged.files, ...workspaces.files } }).files;
   const byPath = new Map<string, ImportPersonalFile[]>();
   for (const file of copies) byPath.set(file.path, [...(byPath.get(file.path) ?? []), file]);
