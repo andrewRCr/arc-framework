@@ -1,11 +1,12 @@
 /** Concurrent editor-document publication through real filesystem operations. */
-import { readFile, readdir, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { open, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { withAdvisoryLock } from "../../../src/lib/advisory-lock.js";
 import { createGitExec } from "../../../src/lib/io-context.js";
 import { createKernelRegistry } from "../../../src/lib/kernel/index.js";
+import { ensureWorktreeMarkerIgnored } from "../../../src/lib/git/worktree-marker.js";
 import { resolveArcPath } from "../../../src/lib/layout/index.js";
 import {
   nodeEditorDocumentsFs, writeEditorDocuments, type EditorDocumentsResult,
@@ -69,5 +70,63 @@ describe("concurrent checkout editor documents", () => {
     expect(schema.properties).toMatchObject({ count: { type: "integer" } });
     expect(await readdir(join(root, directory))).toEqual(["editor.schema.json"]);
     expect((await exec("git", ["status", "--porcelain"], { cwd: root })).stdout).toBe("");
+  });
+
+  it.each([
+    { name: "another publisher in the same checkout", linked: false, marker: false },
+    { name: "another publisher in a linked worktree", linked: true, marker: false },
+    { name: "marker registration in the same checkout", linked: false, marker: true },
+    { name: "marker registration in a linked worktree", linked: true, marker: true },
+  ])("retains local ignore rules while racing $name", async ({ linked, marker }) => {
+    const contenderRoot = linked ? join(root, "linked") : root;
+    if (linked) {
+      await exec("git", ["-c", "core.hooksPath=/dev/null", "commit", "--allow-empty", "-m", "seed"], { cwd: root });
+      await exec("git", ["worktree", "add", "-b", "linked", contenderRoot], { cwd: root });
+    }
+    const directory = resolveArcPath({ kind: "editor-document-root" });
+    const markerPattern = ".arc/system/.internal/worktree-marker.json";
+    const exclude = resolve(root, (await exec("git", ["rev-parse", "--git-path", "info/exclude"], { cwd: root })).stdout);
+    const original = "# local excludes\nkeep-me\n";
+    await writeFile(exclude, original);
+    const contenderReached = signal();
+    const resumeContender = signal();
+    let contender: Promise<EditorDocumentsResult | undefined> | undefined;
+    const contenderFs = {
+      ...nodeEditorDocumentsFs,
+      withLock: <T>(path: string, operation: () => Promise<T>) => withAdvisoryLock(path, operation, {
+        onWait: contenderReached.resolve,
+      }),
+      writeFile: async (path: string, content: string) => {
+        if (path === exclude) {
+          contenderReached.resolve();
+          await resumeContender.promise;
+        }
+        await writeFile(path, content);
+      },
+    };
+    const firstFs = {
+      ...nodeEditorDocumentsFs,
+      writeFile: async (path: string, content: string) => {
+        if (path !== exclude) { await writeFile(path, content); return; }
+        const file = await open(path, "w");
+        try {
+          contender = marker
+            ? ensureWorktreeMarkerIgnored(contenderRoot, exec, contenderFs).then(() => undefined)
+            : writeEditorDocuments(contenderRoot, exec, contenderFs, registry());
+          await Promise.race([contenderReached.promise, contender]);
+          await file.writeFile(content);
+        } finally { await file.close(); }
+      },
+    };
+
+    const first = await writeEditorDocuments(root, exec, firstFs, registry()).finally(resumeContender.resolve);
+    expect(contender).toBeDefined();
+    const second = await contender;
+    expect(first).toEqual({ ok: true, documents: [`${directory}/editor.schema.json`] });
+    expect(second).toEqual(marker ? undefined : { ok: true, documents: [`${directory}/editor.schema.json`] });
+    expect(await readFile(exclude, "utf8")).toBe(`${original}${directory}/\n${marker ? `${markerPattern}\n` : ""}`);
+    expect((await exec("git", ["check-ignore", `${directory}/editor.schema.json`], { cwd: root })).stdout)
+      .toBe(`${directory}/editor.schema.json`);
+    if (marker) expect((await exec("git", ["check-ignore", markerPattern], { cwd: contenderRoot })).stdout).toBe(markerPattern);
   });
 });

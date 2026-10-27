@@ -12,7 +12,6 @@ import { createEditorDocumentSchemaRegistry } from "../../production-schema-regi
 
 export interface EditorDocumentsFs extends WorktreeMarkerIgnoreFs {
   rm(path: string, options: { recursive: boolean; force: boolean }): Promise<void>;
-  withLock<T>(path: string, operation: () => Promise<T>): Promise<T>;
 }
 export const nodeEditorDocumentsFs: EditorDocumentsFs = {
   readFile: (path) => readFile(path, "utf8"), writeFile,
