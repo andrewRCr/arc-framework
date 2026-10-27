@@ -249,6 +249,8 @@ describe("classify-change.sh portability", () => {
   it.each([
     "packages/arc-framework/src/lib/checks/runner/session-process.ts",
     "packages/arc-framework/src/lib/checks/result.ts",
+    "packages/arc-framework/src/lib/checks/file-coordinates.ts",
+    "packages/arc-framework/__tests__/integration/check-symlink-cwd.test.ts",
     "packages/arc-framework/__tests__/integration/check-runner-platform-status.test.ts",
     "packages/arc-framework/__tests__/e2e/check-runner-platform.e2e.test.ts",
     "packages/arc-framework/__tests__/fixtures/checks/prepared-execution.ts",

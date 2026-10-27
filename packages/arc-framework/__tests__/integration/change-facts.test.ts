@@ -73,6 +73,8 @@ describe("change-facts executable", () => {
   it.each([
     "packages/arc-framework/src/lib/checks/runner/planning.ts",
     "packages/arc-framework/src/handlers/check/run.ts",
+    "packages/arc-framework/src/lib/checks/forecast.ts",
+    "packages/arc-framework/__tests__/integration/check-symlink-cwd.test.ts",
     "packages/arc-framework/__tests__/unit/lib/checks/runner/source-platform-paths.test.ts",
     "packages/arc-framework/__tests__/integration/check-runner-platform-spelling.test.ts",
     "packages/arc-framework/__tests__/e2e/check-runner-platform.e2e.test.ts",

@@ -119,9 +119,10 @@ approval authority.
 
 ### Trend
 
-Once a lane has two or more looks, report the material trend across passes and rounds (for example `P1: 6 → R1: 2`),
-where findings originated, and how many fixes introduce new design. Give one reading with a one-line rationale and the
-decision it points to:
+Once a lane has two or more looks, report its material trend: the critical and major findings at each look, each
+complete pass followed by its fix checks (for example `Pass 1 of 3: 6 → 2`). Give one reading, and say in a sentence or
+two where the review stands and where what remains comes from. Origins, tags, and change signals inform the reading
+and stay out of the report. Each reading points to a decision:
 
 - **`baseline`** — the first look has no trend yet; decide the fixes and their check from that look's own signal. A
   report shows no Trend for it.
@@ -140,10 +141,10 @@ its others. Material findings that are siblings an earlier repair missed show th
 rule: apply § Shared causes to that rule before reading the trend as `converging`.
 
 Planning review derives the counts, origins, and tags from its pass record. In code review, keep the CLI's ordered
-material trend separate from advisory interpretation: read its per-round change signals beside earlier stored tags
-and current tags. A tag forecasts what the proposed repair implies; the signals describe what the performed round
-changed. Origin counts are the agent's reading of whether findings fall in an earlier fix range. Neither a falling
-count nor a tag alone settles the trend reading, convergence, or authorization.
+material trend separate from advisory interpretation: read the per-round change signals from `arc review lane read`
+beside the tags each round's fixes carried and the tags being proposed. A tag forecasts what the proposed repair
+implies; the signals describe what the performed round changed. Whether findings fall in an earlier fix range is the
+agent's own reading. Neither a falling count nor a tag alone settles the trend reading, convergence, or authorization.
 
 ---
 

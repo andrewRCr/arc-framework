@@ -15,7 +15,7 @@ it("selects the build and prebuilt recovery suites alongside existing portabilit
     "lib/checks/runner/contract-operations.test.ts", "lib/checks/result.test.ts",
     "check-runner-session.test.ts", "check-runner-conformance-wire.test.ts", "check-runner-conformance-groups.test.ts",
     "check-runner-execution-run.test.ts", "check-runner-platform-status.test.ts", "check-runner-platform-spelling.test.ts",
-    "check-runner-platform.e2e.test.ts"];
+    "check-runner-platform.e2e.test.ts", "check-symlink-cwd.test.ts"];
   try {
     const config = join(fixture.packageRoot, "vitest.config.mjs");
     await writeFile(config, (await readFile(config, "utf8")).replace('["tests/unit*.test.mjs"]', '["tests/**/*.test.ts"]'));
