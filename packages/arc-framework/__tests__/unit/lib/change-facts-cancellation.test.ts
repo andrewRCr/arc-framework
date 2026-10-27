@@ -69,3 +69,46 @@ it.each([0, 128])("joins accepted native cancellation when the direct child clos
   expect(await pending).toMatchObject({ kind: "canceled", descendantsUnconfirmed: true,
     stdout: Buffer.from([65, 0, 128, 255]).toString("latin1"), stderr: "Native diagnostic" });
 });
+
+it("owns a pending stdin error while native cancellation is joining its child", async () => {
+  Object.defineProperty(process, "platform", { value: "darwin" });
+  const child = Object.assign(new EventEmitter(), {
+    pid: 2_000_000_001, stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(),
+    kill: () => { child.emit("close", null); return true; },
+  });
+  let ready!: () => void;
+  const started = new Promise<void>(resolve => { ready = resolve; });
+  boundary.spawn.mockImplementation(() => { queueMicrotask(ready); return child; });
+  boundary.execFile.mockImplementation((_command, _args, _options, callback) => {
+    setImmediate(() => callback(new Error("Process utility unavailable"), ""));
+    return { stdin: { end: () => undefined } };
+  });
+  const controller = new AbortController();
+  const pending = createSpawnRawGitExec()(["hash-object", "--stdin"], {
+    input: Buffer.alloc(1024 * 1024, 65), signal: controller.signal,
+  }).catch((error: unknown) => error);
+  await started;
+  child.stdout.write(Buffer.from([65, 0, 128, 255])); child.stderr.write("Before input closed");
+  try {
+    controller.abort();
+    child.stdin.emit("error", Object.assign(new Error("write EPIPE"), { code: "EPIPE" }));
+    expect(await pending).toMatchObject({ kind: "canceled", isCanceled: true,
+      stdout: Buffer.from([65, 0, 128, 255]).toString("latin1"), stderr: "Before input closed" });
+  } finally { child.emit("close", null); await pending; }
+});
+
+it.each([0, 128])("settles stdin failure with captured output when native Git exits %s", async code => {
+  const child = Object.assign(new EventEmitter(), {
+    stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), kill: () => true,
+  });
+  boundary.spawn.mockReturnValue(child);
+  const pending = createSpawnRawGitExec()(["hash-object", "--stdin"], { input: Buffer.from("input") })
+    .catch((error: unknown) => error);
+  child.stdout.write(Buffer.from([65, 0, 128, 255])); child.stderr.write("Original Git diagnostic");
+  try {
+    child.stdin.emit("error", Object.assign(new Error("write EPIPE"), { code: "EPIPE" }));
+    child.emit("close", code);
+    expect(await pending).toMatchObject({ ...(code === 0 ? { code: "EPIPE" } : { exitCode: code }),
+      stdout: Buffer.from([65, 0, 128, 255]), stderr: Buffer.from("Original Git diagnostic") });
+  } finally { child.emit("close", code); await pending; }
+});

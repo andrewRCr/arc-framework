@@ -270,8 +270,10 @@ export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
       });
       let canceled = false;
       let descendantsUnconfirmed = false;
+      let stdinError: Error | undefined;
       const dispose = cancellation?.bindGitProcessCancellation(child, options?.signal, () => { canceled = true; }, unconfirmed => {
         descendantsUnconfirmed = unconfirmed;
+        child.stdin.destroy();
         child.stdout.destroy();
         child.stderr.destroy();
       }) ?? (() => Promise.resolve());
@@ -280,6 +282,7 @@ export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
 
       child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
       child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+      child.stdin.on("error", (error: Error) => { stdinError = error; });
       child.on("error", (error) => { void dispose().then(() => {
         if (canceled && failures !== undefined) {
           reject(new failures.GitProcessError({ command: "git", args: effectiveArgs, kind: "canceled", isCanceled: true,
@@ -295,6 +298,10 @@ export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
         if (canceled && failures !== undefined) {
           reject(new failures.GitProcessError({ command: "git", args: effectiveArgs, kind: "canceled", isCanceled: true,
             stdout: stdoutBytes.toString("latin1"), stderr: stderrBytes.toString("latin1"), descendantsUnconfirmed }));
+          return;
+        }
+        if (code === 0 && stdinError) {
+          reject(Object.assign(stdinError, { stdout: stdoutBytes, stderr: stderrBytes }));
           return;
         }
         if (code === 0) {
