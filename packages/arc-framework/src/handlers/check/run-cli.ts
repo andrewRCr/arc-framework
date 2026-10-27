@@ -24,7 +24,8 @@ import { isPushGateId, writePushGateRefusal, type PushGateRefusal } from "../../
 import { checkVerification } from "./report.js";
 import { renderDeclaredChecks } from "./run-output.js";
 import { readMachineCheckRunner } from "../../lib/checks/runner/machine-config.js";
-import { prepareSelectedCheckExecution } from "../../lib/checks/runner/execution.js";
+import { createCheckRunnerRequestControl, type CheckRunnerRequestControl } from "../../lib/checks/runner/request-control.js";
+import { retainedRunnerRemedy } from "./runner-recovery.js";
 
 import { CheckIncrementInputSchema, CheckPreCommitInputSchema, CheckPrePushInputSchema, CheckGateInputSchema, CheckRunInputSchema,
   CheckSegmentInputSchema, CheckNewHeadInputSchema, type CheckScopeOptions, type CheckIncrementOptions } from "./request-input.js";
@@ -110,15 +111,17 @@ export async function handleCheckNewHead(options: CheckIncrementOptions & { from
  * @returns Resolves after reporting the pushed range
  */
 export async function handleCheckPrePush(remote: string, url: string, options: CheckIncrementOptions, interaction: InteractionContext): Promise<void> {
+  const control = createCheckRunnerRequestControl();
   let outcome: RunDeclaredChecksResult;
   try {
     const chunks: Buffer[] = [];
     if (!process.stdin.isTTY) for await (const chunk of process.stdin as AsyncIterable<Buffer>) chunks.push(chunk);
     const event = readPushEvent(Buffer.concat(chunks).toString("utf8"), remote, url, process.env);
-    outcome = await runPushEvent(event, options, interaction);
+    outcome = await runPushEvent(event, options, interaction, control);
   } catch (error) {
     outcome = { kind: "error", exitCode: 2, error: { kind: "refused", message: String(error) } };
   }
+  outcome = await finishRunnerRequest(control, outcome);
   await recordPushGate(outcome, interaction);
   report(outcome, options.json === true);
 }
@@ -154,7 +157,7 @@ function pushGateRefusal(outcome: RunDeclaredChecksResult): PushGateRefusal {
   };
 }
 
-async function runPushEvent(event: PushEvent, options: CheckIncrementOptions, interaction: InteractionContext): Promise<RunDeclaredChecksResult> {
+async function runPushEvent(event: PushEvent, options: CheckIncrementOptions, interaction: InteractionContext, control: CheckRunnerRequestControl): Promise<RunDeclaredChecksResult> {
   const checks: Extract<RunDeclaredChecksResult, { kind: "result" }>["result"]["checks"] = [];
   const git = createGitExec(interaction.subprocess);
   const root = (await git("git", ["rev-parse", "--show-toplevel"], { cwd: process.cwd() })).stdout;
@@ -164,7 +167,7 @@ async function runPushEvent(event: PushEvent, options: CheckIncrementOptions, in
   for (const [index, ref] of event.refs.entries()) {
     if (pushRefs[index]?.outcome !== "checked") continue;
     const outcome = await runDeclaredCliRequest(options, interaction, { kind: "pre-push", ref: ref.localRef,
-      tip: ref.localOid ?? ref.localRef, old: ref.remoteOid, remote: event.remote, url: event.url });
+      tip: ref.localOid ?? ref.localRef, old: ref.remoteOid, remote: event.remote, url: event.url }, control);
     if (outcome.kind === "error") return { ...outcome, error: { ...outcome.error, message: `${ref.localRef}: ${outcome.error.message}` } };
     last = outcome.result;
     checks.push(...last.checks);
@@ -208,10 +211,18 @@ function parseRequestOptions(options: CheckScopeOptions, form: CheckForm) {
 }
 
 async function handleDeclaredRequest(options: CheckScopeOptions, interaction: InteractionContext, form: CheckForm, overrides: Partial<CheckHandlerDependencies> = {}): Promise<void> {
-  report(await runDeclaredCliRequest(options, interaction, form, overrides), options.json === true);
+  const control = createCheckRunnerRequestControl();
+  const outcome = await runDeclaredCliRequest(options, interaction, form, control, overrides);
+  report(await finishRunnerRequest(control, outcome), options.json === true);
 }
 
-async function runDeclaredCliRequest(options: CheckScopeOptions, interaction: InteractionContext, form: CheckForm, overrides: Partial<CheckHandlerDependencies> = {}): Promise<RunDeclaredChecksResult> {
+async function finishRunnerRequest(control: CheckRunnerRequestControl, outcome: RunDeclaredChecksResult): Promise<RunDeclaredChecksResult> {
+  const retained = await control.finish(outcome.kind === "error");
+  return outcome.kind === "error" && retained.length > 0 ? { ...outcome, error: { ...outcome.error,
+    message: [outcome.error.message, ...retained.map(retainedRunnerRemedy)].join("\n") } } : outcome;
+}
+
+async function runDeclaredCliRequest(options: CheckScopeOptions, interaction: InteractionContext, form: CheckForm, control: CheckRunnerRequestControl, overrides: Partial<CheckHandlerDependencies> = {}): Promise<RunDeclaredChecksResult> {
   const parsed = parseRequestOptions(options, form);
   if (!parsed.success) {
     return { kind: "error", exitCode: 2, error: { kind: "usage", code: "input.invalid", message: parsed.error.message } };
@@ -231,7 +242,8 @@ async function runDeclaredCliRequest(options: CheckScopeOptions, interaction: In
       rawGit: createExecaRawGitExec(root),
       availableParallelism,
       readRunnerConfiguration: readMachineCheckRunner,
-      prepareExecution: prepareSelectedCheckExecution,
+      prepareExecution: control.prepare,
+      interrupted: () => control.interrupted,
       git, gitInput: createExecaGitExecInput(undefined, interaction.subprocess),
       passes: createCheckPassStore({ directory: () => checkRecordDirectory(git, root),
         readFile: path => readFile(path, "utf8"), createFile: atomicCreateFile }),

@@ -67,6 +67,27 @@ async function frozenInputFixture(root: string, io: DeclaredCheckDependencies, c
   return { original, owned };
 }
 
+it("keeps completed evidence and refuses queued checks after request interruption", async () => {
+  const { root, io, ids } = await fixture({ first: {}, later: {}, last: {} });
+  let interrupted = false;
+  io.interrupted = () => interrupted;
+  io.execute = async command => {
+    await writeFile(join(root, `${command[0]}.started`), "started");
+    interrupted = true;
+    return { started: true, exitCode: 0, output: "completed before interruption" };
+  };
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids }, serial: true })).resolves.toMatchObject({
+    kind: "result", exitCode: 2, result: { checks: [
+      { id: "first", outcome: "passed", output: "completed before interruption" },
+      { id: "later", outcome: "couldn't run", reason: expect.stringContaining("interrupted before dispatch") },
+      { id: "last", outcome: "couldn't run", reason: expect.stringContaining("interrupted before dispatch") },
+    ] },
+  });
+  expect(await readFile(join(root, "first.started"), "utf8")).toBe("started");
+  await expect(readFile(join(root, "later.started"))).rejects.toMatchObject({ code: "ENOENT" });
+  await expect(readFile(join(root, "last.started"))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
 it("shares frozen bytes across global/check probes and all path batches before reuse qualification", async () => {
   const { root, io, ids } = await fixture({ lint: { mode: "files", root: "tools", inputs: ["**"], cache: true,
     runtime_inputs: [["probe"]], environment_inputs: { WEIGHTS: "file" } } }, false, { global_runtime_inputs: [["global-probe"]] });

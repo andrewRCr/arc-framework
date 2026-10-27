@@ -339,15 +339,11 @@ runs unknown runtime without reuse, preserves native outcomes, and closes or ret
 - _Goal:_ Every production exit either proves launched work and output settled before disposal or retains the capture
   with actionable provider recovery, without automatically replacing an ambiguous attempt.
 
-    - `[ ]` **4.4.a Wire interruption and exceptional exits through one lifetime owner**
-        - Compose CLI signal/exception/finally paths with the facade, preserving first cancel versus second local
-          termination.
-        - Build `test-first` (one behavior at a time):
-            - Cancel includes plan UUID before context and context once ready; acknowledgement alone never permits
-              disposal.
-            - Ordinary command failure drains already-started work; EOF and interruption cover preparation/remote
-              descendants.
-            - Cache hit, success, failure and settled interruption release exactly once after required settlement.
+    - `[x]` **4.4.a Wire interruption and exceptional exits through one lifetime owner**
+        - One request owner spans concurrent preparations and pre-push refs, sends correlated cancellation on first
+          interruption and local adapter termination on second, and waits for facade closure at exceptional exits.
+          Queued checks refuse dispatch after interruption; settled work releases captures, while uncertain work
+          retains its recovery coordinates.
 
     - `[ ]` **4.4.b Report and retain uncertain attempts with usable recovery**
         - Build `test-first` (one behavior at a time):

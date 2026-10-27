@@ -30,7 +30,8 @@ import { findUninstalledLockedPackages, installGapReason } from "../../lib/check
 import { resolveCheckForecast, type CheckForecast } from "../../lib/checks/forecast.js";
 import { bindCapturedEnvironment, captureEnvironmentInputs, type CapturedEnvironmentInputs } from "../../lib/checks/environment-inputs.js";
 import { readMachineCheckRunner, type MachineCheckRunnerConfiguration } from "../../lib/checks/runner/machine-config.js";
-import { prepareSelectedCheckExecution, type PreparedCheckExecution, type CheckExecutionClosure, type RetainedCheckExecution } from "../../lib/checks/runner/execution.js";
+import { prepareSelectedCheckExecution, type PreparedCheckExecution, type CheckExecutionClosure } from "../../lib/checks/runner/execution.js";
+import { retainedRunnerRemedy } from "./runner-recovery.js";
 import { composePreparedCheckKey } from "../../lib/checks/runner/key.js";
 import { normalizeCheckInvocationOutcome, reduceCheckInvocationOutcomes,
   type CheckInvocationReduction, type NormalizedCheckInvocationOutcome } from "../../lib/checks/result.js";
@@ -92,6 +93,7 @@ export interface DeclaredCheckDependencies extends CheckKeyIO {
   captureEnvironment?: typeof captureEnvironmentInputs;
   readRunnerConfiguration?: typeof readMachineCheckRunner;
   prepareExecution?: typeof prepareSelectedCheckExecution;
+  interrupted?(): boolean;
   readDeclaration(root: string): Promise<TypedFileResult<CheckDeclaration>>;
   execute(command: readonly string[], root: string, content?: CheckContentContext, policy?: { shell: boolean; indexFile?: string; environment?: NodeJS.ProcessEnv }): Promise<{ started: boolean; exitCode: number; output: string; notice?: string; notRunReason?: string }>;
 }
@@ -264,6 +266,7 @@ async function runRequestedCheck(context: RequestedCheck,
 ): Promise<DeclaredCheckResult> {
   const { id, check, kind } = context;
   if (isSkippedHookCheck(request, id)) return { id, kind, outcome: "skipped", reason: "ARC_SKIP" };
+  if (io.interrupted?.()) return { id, kind, outcome: "couldn't run", reason: "Check request was interrupted before dispatch; retry explicitly with a fresh request." };
   return check.mode === "selection" ? runProjectedCheck(context, io, request) : runGitCheck(context, io, request);
 }
 
@@ -484,15 +487,6 @@ async function executeRoutedSelectedCheck(selected: SelectedCheck, io: DeclaredC
     return await finalizeRoutedCheck(selected, io, request,
       { result, closure, output: Buffer.concat(outputs).toString("utf8"), key, startedAt });
   } finally { await close(); }
-}
-
-function retainedRunnerRemedy(retained: RetainedCheckExecution): string {
-  const context = retained.contextId === undefined ? "" : `, context ${JSON.stringify(retained.contextId)}`;
-  const inputs = retained.environmentFiles.length === 0 ? "" : `; explicit files ${retained.environmentFiles.map(path => JSON.stringify(path)).join(", ")}`;
-  return [`Inspect and settle plan ${retained.planId}${context}, adapter ${JSON.stringify(retained.adapter)}.`,
-    `Retained source ${JSON.stringify(retained.sourceRoot)}; manifest ${JSON.stringify(retained.manifest)}${inputs}.`,
-    retained.recovery ?? "Use the provider's attempt inspection procedure before removing retained inputs.",
-    "Repair the runner and retry with a fresh attempt."].join(" ");
 }
 
 async function executeRoutedSingles(execution: PreparedCheckExecution, check: SelectedCheck["check"]): Promise<CheckInvocationReduction> {

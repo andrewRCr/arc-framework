@@ -7,12 +7,13 @@ export type PreparedAdapterMode = "unknown" | "known" | "missing-runtime" | "sou
   | "environment" | "unavailable" | "disappeared" | "bad-source-claim" | "execute" | "group" | "wait-prepare" | "cancel-run" | "drift" | "cancel-ready"
   | "group-loss" | "group-malformed";
 
-export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string): string {
-  return `const mode=${JSON.stringify(mode)};const gate=${JSON.stringify(gate)};const gitNames=${JSON.stringify([...GIT_REPOSITORY_LOCAL_ENVIRONMENT])};` + `
+export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string, observations?: string): string {
+  return `const mode=${JSON.stringify(mode)};const gate=${JSON.stringify(gate)};const observations=${JSON.stringify(observations)};const gitNames=${JSON.stringify([...GIT_REPOSITORY_LOCAL_ENVIRONMENT])};` + `
     const fs=require('node:fs');
     const path=require('node:path');
     const lines=require('node:readline').createInterface({input:process.stdin});
     const send=message=>process.stdout.write(JSON.stringify(message)+'\\n');
+    const record=(name,value)=>{if(observations){const file=path.join(observations,name);fs.writeFileSync(file+'.tmp',JSON.stringify(value));fs.renameSync(file+'.tmp',file);}};
     let plan;
     let generation;
     let cancelled=false;
@@ -67,7 +68,8 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string):
       });
     });
     lines.on('close',()=>{for(const child of children)child.kill('SIGTERM');finishWaitingPreparation();});
-    process.on('exit',()=>{for(const child of children)child.kill('SIGTERM');});
+    process.on('exit',()=>{for(const child of children)child.kill('SIGTERM');record('closed',{pid:process.pid});});
+    if(mode==='wait-prepare'&&observations)process.on('SIGTERM',()=>process.exit(0));
     const qualify=async()=>{
       if(mode==='missing-runtime')return {kind:'known',bindings:[]};
       if(mode!=='known'&&mode!=='drift')return {kind:'unknown',reason:'Test placement has no reusable qualification.'};
@@ -86,6 +88,8 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string):
       const request=JSON.parse(line);
       if(request.method==='check/prepare'){
         plan=request.params;
+        record('source',plan.source);
+        record('preparing',{planId:plan.planId,source:plan.source,pid:process.pid});
         if(mode==='unavailable'){
           send({jsonrpc:'2.0',id:request.id,result:{status:'unavailable',planId:plan.planId,
             reason:'No compatible placement',remedy:'Repair adapter placement and retry.',settled:true}});
@@ -118,6 +122,7 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string):
         send({jsonrpc:'2.0',id:request.id,result:{contextId:request.params.contextId,released:true}});
       }else if(request.method==='check/cancel'){
         cancelled=true;
+        record('cancel',request.params);
         if(mode==='cancel-run')for(const child of children)child.kill('SIGTERM');
         send({jsonrpc:'2.0',id:request.id,result:{planId:request.params.planId,accepted:true}});
         if(mode==='cancel-ready'&&waitingPreparation){
@@ -149,7 +154,7 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string):
 }
 
 export async function selectedExecutionFixture(directories: string[], mode: PreparedAdapterMode = "unknown"):
-Promise<{ root: string; input: PrepareSelectedCheckExecutionInput; io: CheckExecutionIO; captures: string[] }> {
+Promise<{ root: string; stateRoot: string; input: PrepareSelectedCheckExecutionInput; io: CheckExecutionIO; captures: string[] }> {
   const fixture = await createRunnerCheckRepository(directories);
   return { ...fixture, input: { ...fixture.input, configuration: { ...fixture.input.configuration,
     argv: [process.execPath, "-e", preparedAdapterScript(mode)] } } };
