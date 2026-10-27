@@ -21,9 +21,9 @@ export function inspectReviewCoverage(sources: readonly string[], listing: Migra
 
 function coveredSources(sources: readonly string[], item: ReviewListing): string[] {
   if (sources.includes(item.source)) return [item.source];
-  if (!item.source.startsWith("arc/review-gate/") || !item.source.endsWith("/")
+  if (!item.source.startsWith("arc/review-gate/materializations/") || !item.source.endsWith("/")
     || item.source.includes("\\") || item.outcome !== "left-behind" || !item.reason?.trim()) return [];
   const segments = item.source.slice(0, -1).split("/");
-  if (segments.some(segment => !segment || segment === "." || segment === "..")) return [];
+  if (segments.length !== 4 || segments.some(segment => !segment || segment === "." || segment === "..")) return [];
   return sources.filter(source => source.startsWith(item.source));
 }
