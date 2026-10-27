@@ -76,7 +76,7 @@ it("reports failed removal as advisory after proven settlement and retains actio
   const result = await closing;
   expect(result.status).toBe("closed");
   if (result.status !== "closed") throw new Error("Expected closed resources");
-  expect(result.cleanupWarning).toContain(owner.root);
+  expect(result.cleanupWarning).toContain(JSON.stringify(owner.root));
   expect(result.cleanupWarning).not.toContain("private removal failure");
   await expect(access(owner.marker)).resolves.toBeUndefined();
 });
