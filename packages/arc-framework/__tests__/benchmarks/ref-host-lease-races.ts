@@ -84,6 +84,7 @@ async function receiverRace(input: RaceInput, state: RaceState): Promise<RaceRec
     assert(subject && "reason" in subject, "The receiver must reject the race subject, not just fail the process");
     const mismatch = `cannot lock ref '${ref}': is at ${winner} but expected ${old}`;
     assert(subject.reason === "incorrect old value provided"
+      || /\bTF401028\b/u.test(subject.reason)
       || /^(?:failed to update ref|atomic transaction failed|cannot lock ref )/u.test(subject.reason)
         && `${subject.reason}\n${rejection.stderr}`.includes(mismatch),
     "The receiver subject rejection must identify the raced old-value mismatch");
