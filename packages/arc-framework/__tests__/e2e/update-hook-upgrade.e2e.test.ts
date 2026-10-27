@@ -19,8 +19,12 @@ interface Config {
 }
 afterEach(async () => { await Promise.all(roots.splice(0).map(cleanupTempDir)); });
 
-async function installed(manager: Manager): Promise<{ root: string; path: string; config: Config }> {
-  const root = await createTempRepo("arc-update-hooks-");
+function summaryText(value: string): string {
+  return value.replace(/[│\s]/gu, "");
+}
+
+async function installed(manager: Manager, prefix = "arc-update-hooks-"): Promise<{ root: string; path: string; config: Config }> {
+  const root = await createTempRepo(prefix);
   roots.push(root);
   const path = join(root, manager === "lefthook" ? "lefthook.yml" : ".pre-commit-config.yaml");
   await writeFile(path, manager === "lefthook" ? "{}\n" : "repos: []\n");
@@ -52,13 +56,13 @@ it.each(managers)("upgrades generated %s entries and names the rewritten configu
     expect(hooks.find(hook => hook.id === "arc-commit-msg")).not.toHaveProperty("files");
     expect(hooks.find(hook => hook.id === "arc-pre-push")).toMatchObject({ always_run: true });
     expect(upgraded.default_install_hook_types).toEqual(["pre-commit", "commit-msg", "pre-push"]);
-    expect(update.stdout + update.stderr).toContain("Run pre-commit install");
+    expect(summaryText(update.stdout + update.stderr)).toContain(summaryText("Run pre-commit install"));
   }
-  expect(update.stdout + update.stderr).toContain(path);
+  expect(summaryText(update.stdout + update.stderr)).toContain(summaryText(path));
 }, 60_000);
 
 it.each(managers)("preserves a custom %s entry and reports it in the update summary", async manager => {
-  const { root, path, config } = await installed(manager);
+  const { root, path, config } = await installed(manager, "arc-update-hooks-unrecognized-generated-entry-warning-");
   if (manager === "lefthook") config["pre-push"]!.commands["arc-pre-push"]!.run = "personal-push-check";
   else config.repos!.flatMap(repo => repo.hooks).find(hook => hook.id === "arc-pre-push")!.entry = "personal-push-check";
   const content = "# Personal configuration\n" + yaml.dump(config);
@@ -66,8 +70,8 @@ it.each(managers)("preserves a custom %s entry and reports it in the update summ
   const update = await runArc(["update", "--quiet"], root);
   expect(update.exitCode, update.stdout + update.stderr).toBe(0);
   expect(await readFile(path, "utf8")).toBe(content);
-  expect(update.stdout + update.stderr).toContain(path);
-  expect(update.stdout + update.stderr).toContain("arc-pre-push is not a recognized generated entry");
+  expect(summaryText(update.stdout + update.stderr)).toContain(summaryText(path));
+  expect(summaryText(update.stdout + update.stderr)).toContain(summaryText("arc-pre-push is not a recognized generated entry"));
 }, 60_000);
 
 it.each(["husky", "no manager"])("leaves an install with %s unaffected by hook upgrades", async manager => {
@@ -84,8 +88,8 @@ it.each(["husky", "no manager"])("leaves an install with %s unaffected by hook u
   expect(existsSync(join(root, "lefthook.yml"))).toBe(false);
   expect(existsSync(join(root, ".pre-commit-config.yaml"))).toBe(false);
   if (manager === "husky") expect(await readFile(huskyPath, "utf8")).toBe(custom);
-  expect(update.stdout + update.stderr).not.toContain("Hook configurations upgraded");
-  expect(update.stdout + update.stderr).not.toContain("Hook upgrade warnings");
+  expect(summaryText(update.stdout + update.stderr)).not.toContain(summaryText("Hook configurations upgraded"));
+  expect(summaryText(update.stdout + update.stderr)).not.toContain(summaryText("Hook upgrade warnings"));
 }, 60_000);
 
 it.each(managers)("reports malformed %s configuration, completes file updates, and retries after repair", async manager => {
@@ -98,12 +102,12 @@ it.each(managers)("reports malformed %s configuration, completes file updates, a
   expect(update.exitCode, update.stdout + update.stderr).toBe(0);
   expect(await readFile(hookPath, "utf8")).toBe(hook);
   expect(await readFile(path, "utf8")).toBe("repos: [\n");
-  expect(update.stdout + update.stderr).toContain(path);
-  expect(update.stdout + update.stderr).toContain("repair the configuration and retry arc update");
+  expect(summaryText(update.stdout + update.stderr)).toContain(summaryText(path));
+  expect(summaryText(update.stdout + update.stderr)).toContain(summaryText("repair the configuration and retry arc update"));
   await writeFile(path, yaml.dump(config));
   const repaired = await runArc(["update", "--quiet"], root);
   expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
-  expect(repaired.stdout + repaired.stderr).not.toContain("Hook upgrade warnings");
+  expect(summaryText(repaired.stdout + repaired.stderr)).not.toContain(summaryText("Hook upgrade warnings"));
   expect(yaml.load(await readFile(path, "utf8"))).toEqual(config);
 }, 60_000);
 
@@ -161,10 +165,10 @@ it("preserves retired check sources and proposes inactive checks while upgrading
     expect(updatedManifest.files[source]).toBeUndefined();
     expect(updatedPristine[source]).toBeUndefined();
   }
-  const output = update.stdout + update.stderr;
-  for (const source of [...Object.keys(authored), quickPath]) expect(output).toContain(source);
-  for (const command of ["npm run lint", "npm run build", "npm run security", "npm test"]) expect(output).toContain(command);
-  expect(output).toContain("Inspect the security dashboard.");
-  expect(output).toContain(path);
+  const output = summaryText(update.stdout + update.stderr);
+  for (const source of [...Object.keys(authored), quickPath]) expect(output).toContain(summaryText(source));
+  for (const command of ["npm run lint", "npm run build", "npm run security", "npm test"]) expect(output).toContain(summaryText(command));
+  expect(output).toContain(summaryText("Inspect the security dashboard."));
+  expect(output).toContain(summaryText(path));
   expect((yaml.load(await readFile(path, "utf8")) as Config)["pre-push"]!.commands["arc-pre-push"]!.use_stdin).toBe(true);
 }, 60_000);
