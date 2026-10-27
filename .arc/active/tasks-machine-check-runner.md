@@ -385,30 +385,22 @@ _Mode:_ `slice` — closes on public standalone and external arc-offload adapter
 _Exit criterion:_ The shipped example and external adapter satisfy single-check source, result and lifetime contracts;
 admission/fallback remain provider-owned and cold/warm preparation costs are recorded honestly.
 
-### `[ ]` **5.1 Implement the external arc-offload adapter in its own repository — D10**
+### `[x]` **5.1 Implement the external arc-offload adapter in its own repository — D10**
 
 - _Goal:_ The personal pool can execute ARC's public captured-input plan through its ordinary registry/admission
   authority, with no privileged ARC integration or dependency in the installed framework.
 
-- **Additional Context:** `notes-machine-check-runner.md` § External adapter boundary; arc-offload's own `AGENTS.md`.
+    - `[x]` **5.1.a Consume public requests in the external repository**
+        - The independent Python executable verifies and delivers captured source/files, preserves literal execution
+          bindings, intersects provider routes before preparation and reports unknown runtime without reusable passes.
 
-    - `[ ]` **5.1.a Consume public requests in the external repository**
-        - Implement a proposed `arc_offload/arc_adapter.py` entry in the independent arc-offload repository, reading the
-          same wire protocol and retaining existing registry/mode ownership.
-        - Build `test-first` (one behavior at a time):
-            - Captured root/manifest/files are delivered and validated without recapturing the original checkout.
-            - Literal argv/cwd/shell, explicit bindings and native derived/Git/notice policy survive provider execution.
-            - Unknown runtime is honest and disables reuse; any claimed-known binding covers the actual prepared
-              executor.
+    - `[x]` **5.1.b Bind provider work to recovery before launch**
+        - Plan-owned journals and launch barriers cover upload, preparation and execution; retained permits, immutable
+          native outcomes and fresh inspect/settle close cancellation or loss without replacing an invocation.
 
-    - `[ ]` **5.1.b Bind provider work to recovery before launch**
-        - Integrate source delivery/dependency preparation with plan-UUID ownership before any may-outlive child.
-        - Build `test-first` (one behavior at a time):
-            - Flushed recovery instructions locate preparation as well as execution after adapter exit.
-            - Failed recovery write launches no child; EOF/cancel settles descendants and output before terminal
-              closure.
-            - Adapter mode never replaces a possibly-launched planned invocation via legacy retry; ordinary remote-check
-              retry/selection behavior outside this adapter remains governed by its own contract.
+- _Outcome:_ External arc-offload revision `a7b9602abc00a2e05587e57df4df8d20ce338d57` composes the public protocol with
+  its existing admission authority. Linux process-group compatibility and unknown runtime remain explicit; captured
+  bytes are disposable, cleanup warnings advisory and missing ownership or completion evidence uncertain.
 
 ### `[ ]` **5.2 Qualify external placement, recovery and at-most-once execution — D7, D10**
 
