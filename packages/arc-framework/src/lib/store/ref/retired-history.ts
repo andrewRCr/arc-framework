@@ -2,7 +2,7 @@
 
 import { OwnerIdentitySchema, sameOwner, type RecordReference } from "../identity.js";
 import { HistoryRefSchema, type StoreResult } from "../refusal.js";
-import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
+import { expandStoredPath, holdsNoRecord, type StoredRecordHome } from "../stored-path.js";
 import type { RefBackendContext } from "./context.js";
 import { rootFamily } from "./path-decode.js";
 import { readHistoricalGraph, unavailableRefHistory } from "./history-graph.js";
@@ -39,7 +39,8 @@ export async function retiredHistoryHome(context: RefBackendContext, reference: 
     return { status: "ok", result: expandStoredPath({ ...reference, owner }, { registry: context.registry, history: true }) };
   }
   const trees = await readRefTrees(context, new Map([[home.ref, tip]]));
-  if (queries.length === 0 && trees.get(home.ref)?.length === 0) return { status: "refused", refusal: {
+  const entries = trees.get(home.ref);
+  if (queries.length === 0 && entries && holdsNoRecord(home, entries.map(({ path }) => path))) return { status: "refused", refusal: {
     code: "not-found", class: "recoverable", reference, condition: "The ended origin's retained history contains no records.",
     remedy: { text: "Inspect its lineage for the terminal transition; pre-import records remain in code history." },
   } };

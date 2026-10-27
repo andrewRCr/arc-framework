@@ -2,6 +2,7 @@
 import type { StoreRefusal } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, readRefTrees } from "./batch-read.js";
+import { holdsNoRecord, type StoredRecordHome } from "../stored-path.js";
 import { parseRefMetadata, unparsedMetadata } from "./metadata.js";
 
 /** Keep unavailable objects distinct from a present tree with unusable metadata. */
@@ -13,12 +14,12 @@ export function corruptRef(ref: string, missingObjects = false, saved = false): 
 }
 
 /** Refuse an unreadable endpoint before Git's history walker can abort the operation. */
-export async function checkRefTip(context: RefBackendContext, ref: string, tip: string, metadataPath: string, saved = false): Promise<StoreRefusal | undefined> {
+export async function checkRefTip(context: RefBackendContext, ref: string, tip: string, home: StoredRecordHome, saved = false): Promise<StoreRefusal | undefined> {
   const trees = await readRefTrees(context, new Map([[ref, tip]]));
   const entries = trees.get(ref);
   if (!entries) return corruptRef(ref, true);
-  if (entries.every(({ path }) => path === metadataPath)) return undefined;
-  const entry = entries.find(({ path }) => path === metadataPath);
+  if (holdsNoRecord(home, entries.map(({ path }) => path))) return undefined;
+  const entry = entries.find(({ path }) => path === home.metadataPath);
   const objects = await readBatchObjects(context, entry ? [entry.oid] : []);
   return parseRefMetadata(entry ? objects.get(entry.oid) : null, ref) ? undefined : corruptRef(ref, false, saved);
 }

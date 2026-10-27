@@ -15,7 +15,7 @@ export async function checkSyncRefTip(context: RefBackendContext, ref: string, t
   const live = ref.replace("refs/arc/history/", "refs/arc/"), family = viewRefFamily(live);
   if (!family) return corruptRef(ref);
   const home = expandStoredPath(refPrototype(context, live, family), { registry: context.registry });
-  return checkRefTip(context, ref, tip, home.metadataPath);
+  return checkRefTip(context, ref, tip, home);
 }
 
 async function checkArchiveTip(context: RefBackendContext, ref: string, tip: string): Promise<StoreRefusal | undefined> {

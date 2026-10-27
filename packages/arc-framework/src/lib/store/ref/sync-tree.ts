@@ -7,7 +7,7 @@ import { viewRefFamily } from "./view-state.js";
 import { refPrototype } from "./read.js";
 import { refOwner } from "./codec.js";
 import { RecordReferenceSchema, type RecordReference } from "../identity.js";
-import { expandStoredPath } from "../stored-path.js";
+import { expandStoredPath, holdsNoRecord, type StoredRecordHome } from "../stored-path.js";
 import { corruptRef } from "./namespace-health.js";
 import type { StoreResult } from "../refusal.js";
 import { syncRefMergeBase } from "./sync-graph.js";
@@ -24,6 +24,7 @@ import { observeSyncChecks } from "./sync-checks.js";
 import type { PullNotice } from "../sync.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import { RefSyncLabelError } from "./sync-label.js";
+import { findRefPathCollision } from "./path-admission.js";
 
 /** One immutable side's raw entries and validated group metadata. */
 export interface SyncTreeSide { tip: string | null; entries: Map<string, RefTreeEntry>; metadata: RefMetadata; placement?: ReadPlacement }
@@ -68,7 +69,7 @@ async function mergeGroupTree(context: RefBackendContext, ref: string, local: st
   for (const key of ["base", "local", "incoming"]) {
     if (key === "base" && !base) { sides.push({ tip: null, entries: new Map(), metadata: { formatVersion: 1, formats: {} } }); continue; }
     const entries = trees.get(key);
-    const metadata = sideMetadata(entries, objects, home.metadataPath, live, retiredOwner?.name);
+    const metadata = sideMetadata(entries, objects, home, live, retiredOwner?.name);
     if (!entries || !metadata) return { status: "refused", refusal: corruptRef(ref, !entries) };
     sides.push({ tip: tips.get(key) ?? null, entries: new Map(entries.map((entry) => [entry.path, entry])), metadata });
   }
@@ -85,6 +86,10 @@ async function mergeGroupTree(context: RefBackendContext, ref: string, local: st
   const records = await reconcileSyncRecords(context, ref, previous, current, remote, objects, { entries, metadata }, conflicts, tipSets, currentSide);
   finishSyncMetadata(ref, metadata, current.metadata, scope);
   entries.set(home.metadataPath, { path: home.metadataPath, mode: "100644", oid: await writeRefBlob(context, canonicalize(metadata)) });
+  const collision = findRefPathCollision(entries.keys());
+  if (collision) throw new RefSyncLabelError(ref, { code: "namespace-corrupt", class: "terminal", namespace: ref,
+    condition: `The final merged namespace on ${ref} collides at ${collision.path} and ${collision.other}.`,
+    remedy: { text: "Rename or remove the colliding source entries in a new commit, then retry the pull." } });
   const notices = await observeSyncChecks(context, captured, ref, { entries, metadata, original: current.entries }, records);
   return { status: "ok", result: { kind: "record", entries, metadata, notices, reference: RecordReferenceSchema.parse({ ...prototype, owner: refOwner(live, family, metadata) }) } };
 }
@@ -125,7 +130,7 @@ function sameEntry(left: RefTreeEntry | undefined, right: RefTreeEntry | undefin
 }
 
 function sideMetadata(entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>,
-  path: string, ref: string, retiredName: RefMetadata["slug"]): RefMetadata | null {
-  return entries?.length === 0 && retiredName ? { formatVersion: 1, formats: {}, slug: retiredName }
-    : metadataAt(entries, objects, path, ref);
+  home: StoredRecordHome, ref: string, retiredName: RefMetadata["slug"]): RefMetadata | null {
+  return entries && retiredName && holdsNoRecord(home, entries.map(({ path }) => path)) ? { formatVersion: 1, formats: {}, slug: retiredName }
+    : metadataAt(entries, objects, home.metadataPath, ref);
 }

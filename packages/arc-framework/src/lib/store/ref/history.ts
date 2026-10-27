@@ -69,7 +69,7 @@ async function readRefHistory(context: RefBackendContext, reference: RecordRefer
  */
 export async function readRefHistoryDetails(context: RefBackendContext, reference: RecordReference,
   home: StoredRecordHome, tip: string, evidence = new StoreCreationReceiptReader(), ended?: ReadPlacement): Promise<StoreResult<RefHistoryDetail[]>> {
-  const unhealthy = await checkRefTip(context, home.ref, tip, home.metadataPath);
+  const unhealthy = await checkRefTip(context, home.ref, tip, home);
   if (unhealthy) return { status: "refused", refusal: unhealthy };
   const paths = await readHistoryPaths(context, reference, home, tip);
   const graph = await readHistoricalGraph(context, ["rev-list", "--full-history", "--parents", "--topo-order", tip, "--",
