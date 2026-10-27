@@ -161,7 +161,7 @@ async function readView(context: RefBackendContext, state: RefViewState, input: 
     condition: "The captured record blob is unavailable.", remedy: { text: state.saved
       ? "Restore or fetch the missing record objects, then retry this saved-state read."
       : "Restore or fetch the missing record objects, then retry the write." } } };
-  const owner = resolveCapturedOwner(context, reference, home, metadata, object);
+  const owner = resolveCapturedOwner(context, reference, home, metadata, object, state.saved);
   if (owner.status === "refused") return owner;
   reference = RecordReferenceSchema.parse({ ...reference, owner: owner.result });
   const conflicts = viewOpenConflicts(context, state, home, reference);

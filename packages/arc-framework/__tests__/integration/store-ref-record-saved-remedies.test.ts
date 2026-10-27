@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createRefFixture } from "../helpers/store/ref-fixture.js";
 import { capturedEntries } from "../helpers/store/ref-fixture-plant.js";
 import { plantRef } from "../helpers/store/ref-plant.js";
-import { seed, success } from "../helpers/store/suite-tools.js";
+import { seed, success, testProvenance } from "../helpers/store/suite-tools.js";
 import { RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
@@ -47,3 +47,29 @@ describe.each(["default", "separate"] as const)("saved record repair routes in %
     expect(await f.store.read({ reference, asOf: saved })).toEqual(refused);
   }, 60_000);
 });
+
+it.each((["default", "separate"] as const).flatMap(layout => (["content", "owner-map"] as const).map(fault => ({ layout, fault }))))(
+  "keeps saved lineage $fault remedies historical after current repair in $layout", async ({ layout, fault }) => {
+  const f = await createRefFixture({}, layout);
+  const reference = RecordReferenceSchema.parse({ kind: fault === "content" ? "lineage/conflict-record" : "lineage/transition",
+    owner: { type: "work-item", name: "saved-origin", uid: "abcdef12-1234-4234-8234-123456789abc" },
+    ...fault === "content" ? { key: "lineage-clash" } : {} });
+  const content = f.content(reference);
+  success(await f.store.write({ action: "put", reference, expected: null, content, provenance: testProvenance }));
+  const home = expandStoredPath(reference), entries = await capturedEntries(f, home.ref);
+  const args = f.gitDir ? [`--git-dir=${f.gitDir}`] : [];
+  const parent = (await f.ports.exec("git", [...args, "rev-parse", home.ref], { cwd: f.root })).stdout.trim();
+  const metadata = JSON.parse((await f.ports.exec("git", [...args, "show", `${parent}:${home.metadataPath}`], { cwd: f.root })).stdout) as { lineage?: Record<string, string> };
+  delete metadata.lineage;
+  const damaged = entries.map(entry => fault === "content" && entry.path === home.path ? { path: entry.path, content: "{ invalid" }
+    : fault === "owner-map" && entry.path === home.metadataPath ? { path: entry.path, content: canonicalize(metadata) } : entry);
+  const broken = await plantRef(f.root, home.ref, damaged, { parents: [parent], gitDir: f.gitDir });
+  const saved = await f.settle(), refused = await f.store.read({ reference, asOf: saved });
+  expect.soft(refused).toMatchObject({ status: "refused", refusal: { code: "record-malformed",
+    remedy: { text: expect.stringMatching(/readable saved state|current state|historical/iu) } } });
+  expect(await f.store.read({ reference })).toMatchObject({ status: "refused", refusal: { remedy: { text: expect.stringContaining("Repair") } } });
+  await plantRef(f.root, home.ref, entries, { parents: [broken.tip], gitDir: f.gitDir });
+  expect(success(await f.store.read({ reference })).content).toBe(content);
+  expect(await f.store.read({ reference, asOf: saved })).toEqual(refused);
+  expect(success(await f.store.read({ reference, asOf: await f.settle() })).content).toBe(content);
+}, 60_000);

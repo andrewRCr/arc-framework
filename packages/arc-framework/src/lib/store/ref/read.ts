@@ -116,7 +116,7 @@ function otherIdentityRefusal(reference: RecordReference, identity: string): Sto
 
 /** Decode and validate the requested owner against captured metadata and content. */
 export function resolveCapturedOwner(context: RefBackendContext, reference: RecordReference, home: StoredRecordHome,
-  metadata: RefMetadata, object: BatchObject): StoreResult<OwnerIdentity> {
+  metadata: RefMetadata, object: BatchObject, saved = false): StoreResult<OwnerIdentity> {
   const family = context.registry[reference.kind].family;
   if (reference.owner.type === "project") return { status: "ok", result: reference.owner };
   if (family !== "lineage") return { status: "ok", result: refOwner(home.ref, family, metadata) };
@@ -124,7 +124,9 @@ export function resolveCapturedOwner(context: RefBackendContext, reference: Reco
   if (!decoded || !("owner" in decoded)) return { status: "refused", refusal: {
     code: "record-malformed", class: "recoverable", reference, rule: "store.lineage-owner",
     condition: "The lineage record's owner cannot be decoded from its registry metadata or conflict target.",
-    remedy: { text: `Repair the stored entry at ${home.path} and its owner metadata, then retry.` },
+    remedy: { text: saved
+      ? "Read this record from a readable saved state or the current state; repairing current metadata does not change this saved entry."
+      : `Repair the stored entry at ${home.path} and its owner metadata, then retry.` },
   } };
   const requested = reference.owner;
   const matches = requested.type !== "person" && requested.uid !== undefined ? sameOwner(requested, decoded.owner)
