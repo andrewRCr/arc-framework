@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "inventory-setup-budget",
+  "claimId": "4d5f1f06fd3700f83e5183cfb50e2892",
+  "createdAt": "2026-10-27T17:00:35.351Z",
+  "updatedAt": "2026-10-27T17:00:35.351Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Measure and reduce repository command-input inventory setup cost across local and remote runners while preserving every inventory assertion.",
+  "branch": "chore/inventory-setup-budget",
+  "origin": "inbox",
+  "originEntry": "Calibrate the repository command-input inventory setup budget across runners",
+  "originEntrySourceDigest": "sha256:e7ec3b645c2657935fcb912afa63367056cb42010ceec562c2cfae8772a326e7",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
