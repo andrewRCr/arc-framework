@@ -1,16 +1,19 @@
 /** Concurrent genuine rename evidence remains attached to its generation through terminal synchronization. */
 import { expect, it } from "vitest";
-import { RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { LineageRecordSchema, writeLineageRecord } from "../../src/lib/store/kinds/lineage/index.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
+import { removeLooseObject } from "../helpers/store/ref-plant.js";
 
 const provenance = { verb: "start", lifecycleAction: "activate" };
 
-it.each((["default", "separate"] as const).flatMap(layout => (["rename", "archive"] as const).map(contribution => ({ layout, contribution }))))(
-  "preserves a sibling's later retirement when its $contribution batch is withdrawn in $layout", async ({ layout, contribution }) => {
+it.each((["default", "separate"] as const).flatMap(layout => (["rename", "archive"] as const).flatMap(contribution =>
+  [{ lateWrite: false, proofLoss: false }, { lateWrite: true, proofLoss: false }, { lateWrite: true, proofLoss: true }]
+    .map(scenario => ({ layout, contribution, ...scenario })))))(
+  "preserves a sibling's later retirement when its $contribution batch is withdrawn in $layout (late write: $lateWrite, proof loss: $proofLoss)", async ({ layout, contribution, lateWrite, proofLoss }) => {
   const h = await refSyncFixture(layout);
   success(await h.a.store.write({ action: "put", expected: null,
     reference: RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } }),
@@ -45,16 +48,58 @@ it.each((["default", "separate"] as const).flatMap(layout => (["rename", "archiv
     { action: "remove", reference: current.reference, expected: current.version },
   ], provenance: { verb: "abandon", lifecycleAction: "abandon" } }));
   expect(success(await h.a.store.lookup({ kind: "lineage", origin: "sibling-before" })).reference).toEqual(terminal);
+  const history = `refs/arc/history/work/${owner.uid}`;
+  const retirement = (await h.a.git(["rev-parse", history])).stdout.trim();
+  if (lateWrite) {
+    const late = success(await h.b.store.read({ reference: sibling.reference }));
+    success(await h.b.store.batch({ writes: [
+      { action: "put", reference: late.reference, expected: late.version, content: `${late.content}\nLate primary edit.\n`, placement: { kind: "active" } },
+      { action: "put", reference: RecordReferenceSchema.parse({ owner: late.reference.owner, kind: "work-item/companion", key: "late-only" }),
+        expected: null, content: "Retained late record.\n" },
+    ], provenance: { verb: "save", lifecycleAction: "save" } }));
+    success(await h.b.store.push()); success(await h.a.store.pull());
+    expect((await h.a.git(["for-each-ref", "--format=%(refname)", `refs/arc/work/${owner.uid}`])).stdout).toBe("");
+    expect((await h.a.git(["ls-tree", "-r", "--name-only", history])).stdout).toContain("conflicts/");
+  }
+  const retainedTree = (await h.a.git(["rev-parse", `${history}^{tree}`])).stdout;
   const competing = success(await h.b.store.read({ reference: ending.reference }));
   success(await h.b.store.write({ action: "put", reference: competing.reference, expected: competing.version, content: competing.content,
     placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
   success(await h.b.store.push());
+  if (proofLoss) {
+    const scope = h.a.gitDir ? [`--git-dir=${h.a.gitDir}`] : [];
+    const bytes = (await h.a.ports.rawExec([...scope, "cat-file", "commit", retirement], { objectAccess: "local-only" })).stdout;
+    const ownRefs = [history, `refs/arc/history/work/${"uid" in ending.reference.owner ? ending.reference.owner.uid : ""}`,
+      "refs/arc/archive/2027-q1"];
+    const affected = async () => (await h.a.git(["for-each-ref", "--format=%(refname) %(objectname)", ...ownRefs])).stdout;
+    const before = await affected();
+    let damaged = false;
+    const racing = createRefStore({ ...h.a.ports, lock: async (ref, wait) => {
+      const release = await h.a.ports.lock(ref, wait);
+      if (!damaged && ref === "refs/arc/archive/2027-q1") {
+        damaged = true; await removeLooseObject(h.a.root, retirement, h.a.gitDir);
+      }
+      return release;
+    } });
+    try {
+      const held = success(await racing.pull()).pulls.flatMap(({ notices }) => notices);
+      expect(damaged).toBe(true);
+      expect(held).toContainEqual(expect.objectContaining({ kind: "namespace-corrupt", ref: history,
+        remedy: { text: expect.stringMatching(/restore|fetch/iu) } }));
+      expect(held.some(({ kind }) => kind === "end-withdrawn")).toBe(false);
+      expect(await affected()).toBe(before);
+    } finally {
+      const restored = await h.a.ports.rawExec([...scope, "hash-object", "-t", "commit", "-w", "--stdin"],
+        { input: bytes, objectAccess: "local-only" });
+      expect(new TextDecoder().decode(restored.stdout).trim()).toBe(retirement);
+    }
+  }
   const pulled = success(await h.a.store.pull());
   expect(pulled.pulls.flatMap(({ notices }) => notices)).toContainEqual(expect.objectContaining({ kind: "end-withdrawn" }));
   expect(success(await h.a.store.read({ reference: terminal })).reference).toEqual(terminal);
   expect(await h.a.store.read({ reference: current.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   expect((await h.a.git(["for-each-ref", "--format=%(refname)", `refs/arc/work/${owner.uid}`])).stdout).toBe("");
-  expect((await h.a.git(["ls-tree", "-r", "--name-only", `refs/arc/history/work/${owner.uid}`])).stdout).toBe("");
+  expect((await h.a.git(["rev-parse", `${history}^{tree}`])).stdout).toBe(retainedTree);
   expect(success(await h.a.store.lookup({ kind: "lineage", origin: "sibling-before" })).reference).toEqual(terminal);
   const pushed = success(await h.a.store.push());
   expect(pushed.publishes.filter(({ status }) => status === "failed"), JSON.stringify(pushed)).toEqual([]);
@@ -122,6 +167,37 @@ async function lineageBesideLive(layout: "default" | "separate") {
   };
   return { ...h, made, lineage, uid: owner.uid, rename };
 }
+
+it.each(["default", "separate"] as const)("does not treat lineage beside an archive as a later retirement in %s", async layout => {
+  const h = await lineageBesideLive(layout);
+  const lineage = success(await h.a.store.read({ reference: h.lineage.reference }));
+  success(await h.a.store.write({ action: "put", expected: null,
+    reference: RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } }),
+    content: '{"projectId":"34567890-1234-4234-8234-123456789abc"}', provenance }));
+  const ending = success(await h.a.store.write({ action: "put", expected: null,
+    reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "competing" } }),
+    content: makeMetaFixture("competing", { owner: "andrew" }), placement: { kind: "active" }, provenance }));
+  success(await h.a.store.push()); success(await h.b.store.pull());
+  const sibling = success(await h.a.store.read({ reference: h.made.reference }));
+  const current = success(await h.a.store.read({ reference: ending.reference }));
+  success(await h.a.store.batch({ writes: [current, sibling].map(item => ({ action: "put" as const,
+    reference: item.reference, expected: item.version, content: item.content,
+    placement: { kind: "completed" as const, quarter: ArchiveQuarterSchema.parse("2027-q1") } })),
+  provenance: { verb: "archive", lifecycleAction: "archive" } }));
+  const competing = success(await h.b.store.read({ reference: ending.reference }));
+  success(await h.b.store.write({ action: "put", reference: competing.reference, expected: competing.version,
+    content: competing.content, placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+    provenance: { verb: "archive", lifecycleAction: "archive" } }));
+  success(await h.b.store.push());
+  const pulled = success(await h.a.store.pull());
+  expect(pulled.pulls.flatMap(({ notices }) => notices)).toContainEqual(expect.objectContaining({ kind: "end-withdrawn" }));
+  expect(success(await h.a.store.read({ reference: h.made.reference }))).toMatchObject({ content: sibling.content, placement: { kind: "active" } });
+  expect((await h.a.git(["for-each-ref", "--format=%(refname)", `refs/arc/work/${h.uid}`])).stdout).toBe(`refs/arc/work/${h.uid}`);
+  expect((await h.a.git(["for-each-ref", "--format=%(refname)", `refs/arc/history/work/${h.uid}`])).stdout).toBe("");
+  expect(success(await h.a.store.read({ reference: h.lineage.reference })).content).toBe(lineage.content);
+  const pushed = success(await h.a.store.push());
+  expect(pushed.publishes.filter(({ status }) => status === "failed"), JSON.stringify(pushed)).toEqual([]);
+}, 60_000);
 
 it.each(["default", "separate"] as const)("settles concurrent renames of a live item beside its lineage in %s", async layout => {
   const h = await lineageBesideLive(layout);
