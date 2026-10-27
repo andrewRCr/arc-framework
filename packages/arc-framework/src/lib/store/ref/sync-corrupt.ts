@@ -18,7 +18,7 @@ export async function readCorruptLifecycleBatchRefs(context: RefBackendContext, 
   incoming: ReadonlyMap<string, string>, previous: ReadonlyMap<string, string>,
   blocked: Set<string>): Promise<{ refs: Set<string>; notices: PullNotice[] }> {
   const tracking = new Map([...previous, ...incoming]);
-  const { refs, notices } = await incomingArchiveHolds(context, held, tracking);
+  const { refs, notices } = await incomingArchiveHolds(context, held, tracking, incoming);
   const lineage = await incomingLineageHolds(context, held, incoming);
   for (const ref of lineage.refs) refs.add(ref);
   notices.push(...lineage.notices);
@@ -62,10 +62,9 @@ async function incomingLineageHolds(context: RefBackendContext, held: ReadonlyMa
 }
 
 async function incomingArchiveHolds(context: RefBackendContext, held: ReadonlyMap<string, string>,
-  incoming: ReadonlyMap<string, string>): Promise<{ refs: Set<string>; notices: PullNotice[] }> {
+  incoming: ReadonlyMap<string, string>, fetched: ReadonlyMap<string, string>): Promise<{ refs: Set<string>; notices: PullNotice[] }> {
   const refs = new Set<string>(), notices: PullNotice[] = [];
-  // History-only owners are already ended; history reconciliation checks the quarters a merge would change.
-  const items = new Set([...held.keys()].filter(ref => /^refs\/arc\/(?:work|cohort)\//u.test(ref)));
+  const items = incomingArchiveCandidates(held, fetched);
   if (!items.size) return { refs, notices };
   const quarters = new Map([...incoming].filter(([ref]) => isArchiveRef(ref)));
   const trees = await readRefTrees(context, quarters);
@@ -82,6 +81,17 @@ async function incomingArchiveHolds(context: RefBackendContext, held: ReadonlyMa
     for (const notice of affected) { refs.add(notice.ref); refs.add(notice.ref.replace("refs/arc/", "refs/arc/history/")); }
   }
   return { refs, notices };
+}
+
+function incomingArchiveCandidates(held: ReadonlyMap<string, string>, incoming: ReadonlyMap<string, string>): Set<string> {
+  const items = new Set([...held.keys()].filter(ref => /^refs\/arc\/(?:work|cohort)\//u.test(ref)));
+  for (const ref of held.keys()) {
+    if (!/^refs\/arc\/history\/(?:work|cohort)\//u.test(ref)) continue;
+    const live = ref.replace("refs/arc/history/", "refs/arc/");
+    // An incoming live tip can reopen held history, so unreadable folders cannot establish its absence.
+    if (incoming.has(live)) items.add(live);
+  }
+  return items;
 }
 
 async function provedArchiveRepair(context: RefBackendContext, damaged: string, repair: string): Promise<boolean> {
