@@ -402,7 +402,7 @@ admission/fallback remain provider-owned and cold/warm preparation costs are rec
   its existing admission authority. Linux process-group compatibility and unknown runtime remain explicit; captured
   bytes are disposable, cleanup warnings advisory and missing ownership or completion evidence uncertain.
 
-### `[ ]` **5.2 Qualify external placement, recovery and at-most-once execution — D7, D10**
+### `[x]` **5.2 Qualify external placement, recovery and at-most-once execution — D7, D10**
 
 - _Goal:_ External qualification proves fixed inputs and settled ownership under real provider placement and failure,
   including permitted provider fallback while the host's required-remote reservation stays effective.
@@ -413,13 +413,10 @@ admission/fallback remain provider-owned and cold/warm preparation costs are rec
           Actual poisoned-worker tests preserve captured Git identity; prepared roots permit dependencies while later
           source, Git and explicit-file mutations refuse before another command. Runtime remains honestly unknown.
 
-    - `[ ]` **5.2.b Qualify live policy and uncertainty without changing owner settings**
-        - Record real remote success and unavailable placement under the active host policy; use isolated test
-          configuration to demonstrate provider-permitted local fallback, never flip the owner's live mode.
-        - Exercise transport loss before context and during execution, plan-ID inspect/settle, cancellation/output
-          draining, no-context refusal, and at-most-once execution; retain uncertain artifacts until proven settled.
-        - Run the external repository's required checks and ARC conformance; record separate repository
-          revisions/evidence.
+    - `[x]` **5.2.b Qualify live policy and uncertainty without changing owner settings**
+        - External revision `07f2bfe` preserves live policy across real remote success/unavailability and isolated local
+          fallback. Shared ARC recovery retains uncertain captures and native failure 7 without replay; UUID settlement,
+          queued/backpressured cancellation and drained release prove ownership. Classification uses repository profiles.
 
 ### `[ ]` **5.3 Publish the adapter guide and qualified standalone example — D10**
 
