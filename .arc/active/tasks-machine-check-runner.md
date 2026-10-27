@@ -222,14 +222,10 @@ lifetime.
 - _Goal:_ A single adapter conversation preserves byte ordering and protocol authority across preparation, lookup,
   execution and closure, with diagnostics isolated from terminal evidence.
 
-    - `[ ]` **3.1.a Implement process-backed framing and RPC correlation**
-        - Introduce `createCheckRunnerSession` in `src/lib/checks/runner/session.ts` with injectable process/streams;
-          use existing process dependencies, literal configured argv, repository cwd and no shell.
-        - Build `test-first` (one behavior at a time):
-            - Split/coalesced UTF-8 NDJSON frames, escaped newlines and binary output chunks retain exact stream
-              bytes/order.
-            - Malformed envelopes, batch arrays, unknown/conflicting replies and stdout contamination fail protocol.
-            - Adapter stderr remains best effort; required output delivery failure cannot claim `outputComplete`.
+    - `[x]` **3.1.a Implement process-backed framing and RPC correlation**
+        - Added injectable Execa transport with strict UTF-8 NDJSON/CRLF framing, unique correlated request IDs and
+          ordered required notification delivery. Protocol and required-pipe faults remain distinct from best-effort
+          stderr; process completion exposes observed start and exit status.
 
     - `[ ]` **3.1.b Enforce recovery-before-ready and ordered requests**
         - Build `test-first` (one behavior at a time):
