@@ -24,9 +24,7 @@ export interface CheckKeyContext {
 }
 
 /** Content dependencies without observations of an execution runtime. */
-export type CheckKeyMaterial = Omit<CheckKeyInput, "globalRuntime" | "runtime"> & {
-  readonly materializedInputs?: readonly CheckMaterializedPathContent[];
-};
+export type CheckKeyMaterial = Omit<CheckKeyInput, "globalRuntime" | "runtime" | "preparedRuntime">;
 
 /** Optional captured Git and presentation boundaries, excluding caller-local runtime execution. */
 export interface CheckKeyMaterialIO extends TreeMatchIO {

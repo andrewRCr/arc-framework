@@ -288,7 +288,7 @@ resources through errors, interruption and uncertain execution.
 _Exit criterion:_ The real CLI routes an eligible check through the standalone adapter, qualifies known runtime reuse or
 runs unknown runtime without reuse, preserves native outcomes, and closes or retains every resource correctly.
 
-### `[ ]` **4.1 Compose scoped content keys from prepared execution identity — D3, D6**
+### `[x]` **4.1 Compose scoped content keys from prepared execution identity — D3, D6**
 
 - _Goal:_ A pass describes scoped captured content and the actual prepared executor while unrelated source/store changes
   and transport handles cannot broaden its dependency set.
@@ -298,16 +298,10 @@ runs unknown runtime without reuse, preserves native outcomes, and closes or ret
           composition preserves runtime/history ordering. Captured Git creates its empty-tree object before preparation,
           so later scoped matching preserves the prepared context after caller removal.
 
-    - `[ ]` **4.1.b Compose prepared identities and qualify reuse**
-        - Build `test-first` (one behavior at a time):
-            - Changed relevant raw bytes, explicit binding identity, actual runtime or exact probe output invalidates
-              reuse.
-            - Unrelated files/projections/store versions, identical file bytes at new paths and queue/worker/plan IDs do
-              not.
-            - Unknown runtime and failed scoped reads perform no reusable lookup/publication; malformed known bindings
-              fail protocol.
-        - Keep the generic scoped/runtime pieces usable by a later matrix key consumer without defining shard aggregate
-          identity.
+    - `[x]` **4.1.b Compose prepared identities and qualify reuse**
+        - Versioned disposable keys to bind scoped raw presentation, captured explicit identity and each qualified
+          executor's exact probe output. Added generic prepared-runtime projection and guarded composition; real adapter
+          checks preserve keys across unrelated source, renamed handles and moved identical explicit files.
 
 ### `[ ]` **4.2 Select and prepare routed checks before reusable lookup — D1, D5, D6, D9**
 
