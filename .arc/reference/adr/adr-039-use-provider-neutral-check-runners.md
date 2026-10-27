@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -115,6 +115,33 @@ installation. The distributed consumer additionally qualifies common sibling inp
 Keep this ADR Proposed through implementation. At implementation closeout, reconcile approved changes and the
 contract's actual qualification evidence, then mark it Accepted. Architectural decisions settle before implementation;
 the delayed status change preserves room for documented implementation learnings rather than deferring design.
+
+**Qualification (2026-10-27):** `prepareSelectedCheckExecution` implements the version-one subprocess boundary;
+the package README publishes its wire and lifetime contract without requiring a private SDK. The packed standalone
+example and external arc-offload revision `29ac002` qualify that same boundary. Both advertise mandatory singles
+without grouped execution. Declaration-driven distributed orchestration and parent-result reduction remain unshipped
+consumers; declared CI shards retain native, workflow-owned playback.
+
+Qualification covers captured source/history and explicit bindings, refused preparation and repaired retry, native
+failure, cancellation/EOF, UUID settlement and actual mutable cache-file identities. Independent standalone writers
+overlap; external qualification also exercises serialized writer turns. Repository adoption uses ordinary commands
+with the live placement policy retained. `resolveArcRoot` distinguishes machine-only configuration from a project,
+including a real project at the configured home; identity and preference migration remain outside this reader.
+
+The external adapter reports unknown runtime. `composePreparedCheckKey` excludes unknown execution environments from
+reusable lookup and publication. The example defaults to unknown; `qualifyNodeRuntime` optionally qualifies its own
+Node executable, supported startup policy and exact probes, with revalidation before execution. This supplies no
+general dependency-environment qualification.
+
+Both concrete adapters are qualified on Linux with `/proc` identities and supervised process groups. Commands must
+keep descendants in those groups; independently detached sessions need stronger provider containment. External
+ownership records and minimal recovery packages remain machine-local after finished inputs are removed, outside the
+legacy pruner. They add no durable review, delivery or lifecycle authority.
+
+The standalone implementation is four JavaScript files totaling 510 lines. Reproducible fixture measurements in
+`notes-machine-check-runner.md` distinguish capture, preparation, execution and release, with their precision limits.
+Known hits still incur capture and preparation; unknown runtimes execute every selected request. These costs and the
+provider's recovery burden are accepted consequences of qualifying inputs and lifetime before reusable evidence.
 
 ---
 

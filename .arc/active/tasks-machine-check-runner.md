@@ -504,17 +504,14 @@ declarations; the old wrapper is retired, native/default operation is preserved 
           Isolated missing-key execution performs no routed capture, preparation or adapter spawn. Expected projection
           layouts qualify the pass/report seam; no landed store or production projection supplier is claimed.
 
-### `[ ]` **6.3 Reconcile approved implementation changes and accept ADR-039 — D10**
+### `[x]` **6.3 Reconcile approved implementation changes and accept ADR-039 — D10**
 
 - _Goal:_ ADR-039's Accepted status describes approved, qualified architecture rather than an implementation-driven
   rewrite of pre-commitment or a claim that optional consumers already shipped.
 
-    - Compare the completed contract, approved forward amendments and both adapters' qualification evidence with
-      `adr-039-use-provider-neutral-check-runners.md`; reconcile rationale, consequences and actual limitations.
-    - Keep unshipped optional consumers explicit and verify no durable review/delivery/lifecycle storage coupling was
-      added; surface any new architectural delta through approval rather than editing the target to fit the code.
-    - Mark the ADR Accepted only in this final implementation task's ordinary review and commit, after any approved
-      implementation-time updates; retain Proposed until then.
+- _Outcome:_ ADR-039 is Accepted with its original decision preserved and dated qualification for both adapters,
+  unknown-runtime behavior, Linux containment, recovery burden and measured costs. Distributed consumers remain
+  explicitly unshipped; configuration adoption adds no durable review, delivery or lifecycle storage coupling.
 
 ### `[ ]` **6.4 Exercise ordinary repository declarations — D1, D10** — validate exit criterion at segment scope
 
