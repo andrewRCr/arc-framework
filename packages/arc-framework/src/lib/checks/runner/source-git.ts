@@ -48,11 +48,18 @@ export async function addSourceGitMetadata(io: SourceMaterializationIO, callerRo
       `--object-format=${format}`, "--initial-branch=source"], options);
     // Scoped matching must not create its empty-tree object after the context is prepared.
     await io.gitRaw([...administration, "hash-object", "-t", "tree", "-w", "--stdin"], { ...options, input: Buffer.alloc(0) });
-    const pack = join(directory, "objects", "pack");
-    await io.source.mkdir(pack);
-    await io.gitRaw(["pack-objects", "--revs", join(pack, "pack")], {
+    // A basename pack is first written in the caller's object directory, then
+    // renamed. Stream instead so a capture on another filesystem stays owned
+    // by its destination and never needs a cross-device rename or pack buffer.
+    const transfer = join(directory, "pack-transfer");
+    const inputPack = join(transfer, "input.pack");
+    await io.source.mkdir(transfer);
+    await io.gitRaw(["pack-objects", "--revs", "--stdout"], {
       cwd: callerRoot, objectAccess: "local-only", input: Buffer.from(`${roots(coordinates).join("\n")}\n`),
+      outputFile: inputPack,
     });
+    await io.gitRaw([...administration, "index-pack", "--stdin"], { ...options, inputFile: inputPack });
+    await io.source.files.removeDirectory(transfer);
     if (coordinates.head !== undefined) {
       await io.git("git", [...administration, "-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", "HEAD", coordinates.head], options);
     }

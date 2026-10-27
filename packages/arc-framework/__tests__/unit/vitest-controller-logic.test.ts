@@ -83,6 +83,10 @@ it("retains each native portability boundary on the portability tier", () => {
   ]));
 });
 
+it.each(["raw-git-files.test.ts", "check-source-git.test.ts"])("selects actual raw-file portability cases: %s", path => {
+  expect(localVitestTierArguments("portability")).toContain(path);
+});
+
 type Completion = Parameters<typeof checkVitestCompletion>[0];
 function caseResult(state: TestResult["state"]): TestResult {
   if (state === "skipped") return { state, errors: undefined, note: undefined };

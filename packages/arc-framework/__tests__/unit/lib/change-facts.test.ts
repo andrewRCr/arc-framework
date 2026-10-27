@@ -30,6 +30,15 @@ describe("status portability surface", () => {
   });
 });
 
+describe("raw Git file portability surface", () => {
+  it.each([
+    "src/lib/git/process-executor.ts", "__tests__/integration/raw-git-files.test.ts",
+    "__tests__/integration/check-source-git.test.ts",
+  ])("targets raw file execution path %s", path => {
+    expect(isPortabilitySurfacePath(`packages/arc-framework/${path}`)).toBe(true);
+  });
+});
+
 describe("runner foundation portability surface", () => {
   it.each([
     "src/lib/checks/runner/planning.ts", "src/lib/checks/runner/source-cwd.ts",

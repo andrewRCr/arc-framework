@@ -1,6 +1,6 @@
 /** Relocated source Git metadata resolves code without original repository administration. */
 import { afterEach, expect, it } from "vitest";
-import { cp, lstat, mkdtemp, readFile, symlink, unlink, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdtemp, readFile, readdir, symlink, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createTempRepoCore, removeGitBackedDir, removeGitBackedDirs } from "../helpers/temp-repo.js";
@@ -77,6 +77,60 @@ it("retains HEAD, checked tree, base, merge and code history after original remo
       await expect(lstat(join(destination, ".git", "hooks", "pre-commit"))).rejects.toMatchObject({ code: "ENOENT" });
       expect(await readFile(join(destination, ".git", "config"), "utf8")).not.toMatch(/private-caller-helper|credential/iu);
       expect(await verifySourcePresentation({ root: destination, manifest, digest: frozen.digest, coordinates })).toEqual(frozen.manifest);
+    } finally { await frozen.remove(); }
+  } finally { await boundary.remove(); }
+});
+
+it.skipIf(process.platform !== "linux")("captures independent Git across filesystems without changing caller objects or index", async context => {
+  const root = await createTempRepoCore({ prefix: "arc-source-git-cross-fs-" });
+  directories.push(root);
+  const device = (await lstat(root)).dev;
+  const candidates = await Promise.all(["/dev/shm", "/tmp"].map(async directory => {
+    const info = await lstat(directory).catch(() => undefined);
+    return info?.isDirectory() && info.dev !== device ? directory : undefined;
+  }));
+  const captureBase = candidates.find(directory => directory !== undefined);
+  if (captureBase === undefined) {
+    context.skip(true, "Independent writable filesystem is unavailable for real cross-device Git capture");
+    return;
+  }
+  const crossIO: typeof io = { ...io, source: { ...io.source, files: { ...io.source.files,
+    createDirectory: () => mkdtemp(join(captureBase, "arc-source-git-cross-fs-capture-")),
+  } } };
+  await writeFile(join(root, "history.txt"), "historical only\n");
+  const ancestor = await commit(root, "ancestor");
+  await unlink(join(root, "history.txt"));
+  await writeFile(join(root, "data.bin"), "committed bytes\n");
+  const head = await commit(root, "head");
+  const binary = Buffer.from([0, 255, 13, 10, 65]);
+  await writeFile(join(root, "data.bin"), binary);
+  const request = await resolveCheckRequest(git, root, { form: { kind: "run", ids: ["check"] } });
+  if (request.status !== "resolved") throw new Error(request.message);
+  const boundary = await acquireSourceBoundary(io, root, request.request);
+  try {
+    const frozen = await freezeSelectedSource(crossIO, root, request.request, boundary);
+    try {
+      expect((await lstat(frozen.root)).dev).not.toBe(device);
+      const callerHead = await readFile(join(root, ".git", "HEAD"));
+      const callerIndex = await readFile(join(root, ".git", "index"));
+      const callerObjects = (await readdir(join(root, ".git", "objects"), { recursive: true })).sort();
+      const callerStatus = await io.gitRaw(["status", "--porcelain=v1", "-z"], { cwd: root });
+      await addSourceGitMetadata(crossIO, root, frozen);
+      await boundary.recheck();
+      expect(await readFile(join(root, ".git", "HEAD"))).toEqual(callerHead);
+      expect(await readFile(join(root, ".git", "index"))).toEqual(callerIndex);
+      expect((await readdir(join(root, ".git", "objects"), { recursive: true })).sort()).toEqual(callerObjects);
+      expect((await io.gitRaw(["status", "--porcelain=v1", "-z"], { cwd: root })).stdout).toEqual(callerStatus.stdout);
+      expect(await readFile(join(root, "data.bin"))).toEqual(binary);
+      await boundary.remove();
+      await removeGitBackedDir(root);
+      expect((await git("git", ["rev-parse", "HEAD"], { cwd: frozen.root })).stdout).toBe(head);
+      expect((await git("git", ["log", "--format=%H"], { cwd: frozen.root })).stdout.split("\n")).toEqual([head, ancestor]);
+      expect((await git("git", ["show", `${ancestor}:history.txt`], { cwd: frozen.root })).stdout).toBe("historical only");
+      expect(Buffer.from((await io.gitRaw(["show", `${frozen.manifest.coordinates.tree}:data.bin`], { cwd: frozen.root })).stdout)).toEqual(binary);
+      await git("git", ["fsck", "--connectivity-only", "--no-reflogs", "--no-dangling"], { cwd: frozen.root });
+      await expect(lstat(join(frozen.root, ".git", "objects", "info", "alternates"))).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(lstat(join(frozen.root, ".git", "pack-transfer"))).rejects.toMatchObject({ code: "ENOENT" });
     } finally { await frozen.remove(); }
   } finally { await boundary.remove(); }
 });

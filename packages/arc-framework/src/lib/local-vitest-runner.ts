@@ -199,6 +199,8 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "ref-tree-cas",
         "state-ref-race.e2e",
         "git-executor",
+        "raw-git-files.test.ts",
+        "check-source-git.test.ts",
         "delivery-transfer.e2e",
         "checks/runner/",
         "lib/checks/result.test.ts",

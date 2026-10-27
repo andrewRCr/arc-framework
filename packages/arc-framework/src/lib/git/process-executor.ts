@@ -5,6 +5,9 @@
  */
 
 import { execa } from "execa";
+import { open, type FileHandle } from "node:fs/promises";
+import type { Readable, Writable } from "node:stream";
+import { finished } from "node:stream/promises";
 
 import type { InteractionContext } from "../command-input/interaction-context.js";
 import type { RawGitExec } from "./exec.js";
@@ -170,7 +173,19 @@ export function createExecaRawGitExec(
     const effectiveArgs = options.objectAccess === "local-only"
       ? ["--no-lazy-fetch", ...args]
       : args;
+    if (options.input !== undefined && options.inputFile !== undefined) {
+      throw new Error("Raw Git input and inputFile cannot both be supplied.");
+    }
+    const handles: FileHandle[] = [];
+    const streams: Array<Readable | Writable> = [];
     try {
+      const input = options.inputFile === undefined ? undefined : await open(options.inputFile, "r");
+      if (input !== undefined) handles.push(input);
+      const output = options.outputFile === undefined ? undefined : await open(options.outputFile, "wx", 0o600);
+      if (output !== undefined) handles.push(output);
+      const inputStream: Readable | undefined = input?.createReadStream({ autoClose: false });
+      const outputStream: Writable | undefined = output?.createWriteStream({ autoClose: false });
+      streams.push(...[inputStream, outputStream].filter(stream => stream !== undefined));
       const result = await execa("git", effectiveArgs, {
         cwd: effectiveCwd,
         cancelSignal: options.signal,
@@ -179,13 +194,18 @@ export function createExecaRawGitExec(
         stripFinalNewline: false,
         extendEnv: false,
         maxBuffer,
-        ...(options.input === undefined
-          ? { stdin: "ignore" as const }
-          : { input: options.input }),
+        ...(outputStream === undefined ? {} : { stdout: outputStream, buffer: { stdout: false } }),
+        ...(inputStream !== undefined ? { stdin: inputStream }
+          : options.input === undefined ? { stdin: "ignore" as const } : { input: options.input }),
       });
-      return { stdout: result.stdout, stderr: result.stderr };
+      return { stdout: result.stdout ?? new Uint8Array(), stderr: result.stderr };
     } catch (error) {
       throw normalizeGitRejection(error, { command: "git", args: effectiveArgs });
+    } finally {
+      const closed = streams.map(stream => finished(stream, { cleanup: true }).catch(() => undefined));
+      streams.forEach(stream => { stream.destroy(); });
+      await Promise.all(closed);
+      await Promise.all(handles.map(handle => handle.close()));
     }
   };
 }
