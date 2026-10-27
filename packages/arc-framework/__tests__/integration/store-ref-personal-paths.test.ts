@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { RecordReferenceSchema, type KindId } from "../../src/lib/store/index.js";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 const provenance = { verb: "user", lifecycleAction: "save" };
 const person = { type: "person", name: "andrew" } as const;
@@ -19,6 +20,38 @@ const content = [
 const put = (value: ReturnType<typeof document>) => ({ action: "put" as const, reference: value, content: "New bytes.\n", expected: null });
 
 describe.each(["default", "separate"] as const)("personal storage spelling (%s)", layout => {
+  it.each(["write", "batch"] as const)("refuses a companion below its implicit metadata during %s and permits a valid key", async mode => {
+    const h = await refSyncFixture(layout), store = h.a.store;
+    const made = success(await store.write({ action: "put", expected: null,
+      reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "companion-owner" } }),
+      content: makeMetaFixture("companion-owner"), placement: { kind: "active" }, provenance }));
+    const owner = made.reference.owner;
+    if (owner.type !== "work-item" || !owner.uid) throw new Error("Expected allocated companion owner");
+    const companion = (key: string) => RecordReferenceSchema.parse({ kind: "work-item/companion", owner, key });
+    const invalid = put(companion(`metadata-${owner.uid}.json/child.md`)), sentinel = put(document("scratch/sentinel.md"));
+    const before = success(await store.version());
+    const result = mode === "write" ? await store.write({ ...invalid, provenance })
+      : await store.batch({ writes: [invalid, sentinel], provenance });
+    expect(result).toMatchObject({ status: "refused", refusal: { code: "unsupported" } });
+    expect(success(await store.version())).toBe(before);
+    expect(await store.read({ reference: sentinel.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    success(await store.write({ ...put(companion("scratch/child.md")), provenance }));
+    expect(success(await store.read({ reference: companion("scratch/child.md") })).content).toBe("New bytes.\n");
+  });
+
+  it.each(["write", "batch"] as const)("refuses an implicit metadata directory on the first %s and permits repair", async mode => {
+    const h = await refSyncFixture(layout), store = h.a.store;
+    const before = success(await store.version());
+    const invalid = put(document("metadata-andrew.json/child.md")), sentinel = put(document("scratch/sentinel.md"));
+    const result = mode === "write" ? await store.write({ ...invalid, provenance })
+      : await store.batch({ writes: [invalid, sentinel], provenance });
+    expect(result).toMatchObject({ status: "refused", refusal: { code: "unsupported" } });
+    expect(success(await store.version())).toBe(before);
+    expect(await store.read({ reference: sentinel.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    success(await store.write({ ...put(document("scratch/metadata-child.md")), provenance }));
+    expect(success(await store.read({ reference: document("scratch/metadata-child.md") })).content).toBe("New bytes.\n");
+  });
+
   it("keeps exact suffixed tree names and original logical keys through read, list, history, changes, and publication", async () => {
     const h = await refSyncFixture(layout), store = h.a.store;
     const before = success(await store.version());

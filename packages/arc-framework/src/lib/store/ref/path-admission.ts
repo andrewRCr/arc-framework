@@ -140,7 +140,8 @@ function malformedKeyProblem(reference: RecordReference, registry: RefBackendCon
 }
 
 function reservedPath(path: string, roots: readonly string[], metadata: string): boolean {
-  return path === metadata || roots.some((root) => path === root || path.startsWith(`${root}/`));
+  return path === metadata || path.startsWith(`${metadata}/`)
+    || roots.some((root) => path === root || path.startsWith(`${root}/`));
 }
 
 function hasControl(value: string): boolean {
