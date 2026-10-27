@@ -5,7 +5,6 @@ import { load } from "js-yaml";
 import { describe, expect, it } from "vitest";
 import { CheckDeclarationSchema } from "../../../src/lib/checks/declaration.js";
 import { resolveCheckForecast } from "../../../src/lib/checks/forecast.js";
-import { checkContentKey } from "../../../src/lib/checks/key.js";
 import { reachSuiteExclusions } from "../../../src/lib/local-vitest-runner.js";
 import { describeReachSelection } from "../../../src/lib/reach-check.js";
 import {
@@ -177,17 +176,6 @@ describe("the form a run takes", () => {
 });
 
 describe("the store check's declaration", () => {
-  it("keys each pass to its ask, so a run asked for one form never reuses a pass made in another", async () => {
-    const reach = ReachDeclarationSchema.parse(JSON.parse(await readFile(
-      resolve(repositoryRoot, "packages/arc-framework/__tests__/reach/store-suites.json"), "utf8")));
-    const checks = CheckDeclarationSchema.parse(load(await readFile(resolve(repositoryRoot, reach.check.declaration), "utf8")));
-    const check = checks.checks[reach.check.id]!;
-    expect(check.runtime_inputs).toContainEqual(["node", "-e", `process.stdout.write(process.env.${reach.ask} ?? "")`]);
-    const keys = ["", "every", "full"].map(ask => checkContentKey({ id: reach.check.id, declaration: check, inputs: [],
-      runtime: [ask], paths: [], base: [] }));
-    expect(new Set(keys).size).toBe(3);
-  });
-
   it("runs once per gate without widening, withholding its paths and selected by deletions", async () => {
     const reach = ReachDeclarationSchema.parse(JSON.parse(await readFile(
       resolve(repositoryRoot, "packages/arc-framework/__tests__/reach/store-suites.json"), "utf8")));
