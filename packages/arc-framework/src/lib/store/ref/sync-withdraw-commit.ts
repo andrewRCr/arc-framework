@@ -18,6 +18,7 @@ import { writeRefTree } from "./tree-write.js";
 import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
 import type { PullNotice } from "../sync.js";
 import { corruptRef } from "./namespace-health.js";
+import { isArchiveRef } from "./archive-read.js";
 
 /** One unpublished end whose record still stands beside another machine's published end. */
 export interface WithdrawEnd { owner: OwnerIdentity; live: string; history: string; batch: string }
@@ -29,7 +30,9 @@ export async function commitWithdrawEnd(context: RefBackendContext, end: Withdra
   const journal = await describeWithdrawJournal(context, held, batches, reference, end.history);
   const watched = new Set([end.live, end.history, ...journal.map(({ ref }) => ref),
     ...journal.filter(({ ref }) => /^refs\/arc\/history\/(?:work|cohort)\//u.test(ref)).map(({ ref }) => ref.replace("refs/arc/history/", "refs/arc/")),
-    ...held.has("refs/arc/project/registry") ? ["refs/arc/project/registry"] : []]);
+    ...held.has("refs/arc/project/registry") || state.has("refs/arc/project/registry") ? ["refs/arc/project/registry"] : [],
+    ...journal.some(({ ref }) => /^refs\/arc\/history\/(?:work|cohort)\//u.test(ref) && ref !== end.history)
+      ? [...state.keys()].filter(isArchiveRef) : []]);
   const basis: WithdrawalBasis = { end, held, state, incoming, reference, batches, journal };
   return withRefLocks({ ...context, lock: options.lock }, [...watched].map((ref) => options.targetRef?.(ref) ?? ref), async () => {
     const captured = await readSyncRefs(context, "refs/arc/");

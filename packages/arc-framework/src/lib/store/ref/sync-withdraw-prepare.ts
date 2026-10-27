@@ -8,7 +8,8 @@ import { materializeWithdrawJournal, UnavailableWithdrawJournal, type WithdrawJo
 import type { WithdrawEnd } from "./sync-withdraw-commit.js";
 import { withdrawRefTargets } from "./sync-withdraw-targets.js";
 import { inverseWithdrawStep } from "./sync-withdraw-inverse.js";
-import { laterSiblingRetirements } from "./sync-withdraw-retirements.js";
+import { laterSiblingEnds } from "./sync-withdraw-sibling-ends.js";
+import { preserveSiblingLineage } from "./sync-withdraw-preserved-lineage.js";
 
 /** Captured immutable coordinates used to validate and invert one competing end. */
 export interface WithdrawalBasis {
@@ -32,15 +33,17 @@ export async function prepareWithdrawEnd(context: RefBackendContext, basis: With
   const trees = await readWithdrawalTrees(context, basis.state, refs);
   const published = await readWithdrawalTrees(context, basis.incoming, refs);
   await requireWithdrawalBlobs(context, journal, trees, published);
-  const retired = await laterSiblingRetirements(context, basis, journal);
+  const retained = await laterSiblingEnds(context, basis, journal);
   const targets = await withdrawRefTargets(context, journal, basis.incoming, basis.batches);
-  for (const ref of retired) targets.delete(ref);
+  for (const ref of retained.keys()) targets.delete(ref);
   const prepared = new Map<string, Map<string, RefTreeEntry>>();
   for (const step of journal) {
     const current = prepared.get(step.ref) ?? new Map((trees.get(step.ref) ?? []).map((entry) => [entry.path, entry]));
     const remote = new Map((published.get(step.ref) ?? []).map((entry) => [entry.path, entry]));
-    prepared.set(step.ref, retired.has(step.ref) ? current : await inverseWithdrawStep(context, step, current, basis.batches, remote));
+    prepared.set(step.ref, retained.has(step.ref) ? current : await inverseWithdrawStep(context, step, current, basis.batches, remote));
   }
+  const registry = prepared.get("refs/arc/project/registry");
+  if (registry) await preserveSiblingLineage(context, [...retained.values()], trees.get("refs/arc/project/registry") ?? [], registry);
   return { targets, prepared };
 }
 
