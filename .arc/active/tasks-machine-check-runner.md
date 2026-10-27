@@ -268,14 +268,11 @@ lifetime.
 - _Goal:_ A team can implement the public contract using a small inspectable executable, and real process tests can
   drive settlement faults without depending on ARC-private imports.
 
-    - `[ ]` **3.4.a Implement mandatory singles in the standalone local example**
-        - Add `packages/arc-framework/examples/check-runner/local.mjs` using public messages and Node builtins; support
-          resource-controlled children, known/unknown runtime and honest `runGroup: false`.
-        - Build `test-first` (one behavior at a time):
-            - The actual executable verifies captured inputs, rebinds files and clears/sets derived/Git/notice channels.
-            - It flushes recovery before may-outlive work; failed recovery writes launch no such child.
-            - Child descendants and required output settle on cancel/EOF; its documented plan-ID procedure works after
-              exit.
+    - `[x]` **3.4.a Implement mandatory singles in the standalone local example**
+        - Added the builtin-only Linux example with mandatory singles, optional Node qualification, exact probe stdout
+          and native environment/notice policy. Supervised groups retain plan ownership before work, drain descendants
+          on cancel/EOF, and support documented inspection/settlement after frontend loss, including preparation.
+          Recovery delivery precedes dispatch; unsupported platforms and changed inputs/runtime refuse explicitly.
 
     - `[ ]` **3.4.b Provide reusable real-process conformance fixtures**
         - Extend `__tests__/fixtures/checks/repository.ts` with a proposed `fixtures/checks/runner.ts` helper and

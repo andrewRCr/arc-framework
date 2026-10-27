@@ -1,0 +1,128 @@
+/** Linux process-group supervision and plan-ID inspection, independent of ARC code. */
+import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { readdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
+import { constants } from "node:os";
+
+async function processState(pid) {
+  try {
+    const text = await readFile(`/proc/${pid}/stat`, "utf8");
+    const fields = text.slice(text.lastIndexOf(")") + 2).split(" ");
+    return { state: fields[0], group: Number(fields[2]), birth: fields[19] };
+  } catch (error) { if (error.code === "ENOENT" || error.code === "ESRCH") return undefined; throw error; }
+}
+
+export async function groupMembers(group, omit) {
+  const members = await Promise.all((await readdir("/proc")).filter(name => /^\d+$/u.test(name)).map(async name => {
+    const pid = Number(name);
+    if (pid === omit) return undefined;
+    const state = await processState(pid);
+    return state?.group === group && state.state !== "Z" && state.state !== "X" ? pid : undefined;
+  }));
+  return members.filter(pid => pid !== undefined);
+}
+
+export async function ownerRecord() { return { pid: process.pid, birth: (await processState(process.pid))?.birth }; }
+export async function ownerAlive(record) { return record.birth !== undefined && (await processState(record.pid))?.birth === record.birth; }
+
+export function signalGroup(pid, signal = "SIGTERM") {
+  try { process.kill(-pid, signal); }
+  catch (error) { if (error.code !== "ESRCH") throw error; }
+}
+
+/** Worker starts commands only after its ownership record and parent handshake. */
+export async function runWorker(directory, token) {
+  let stopped = false;
+  let started = false;
+  let finished = false;
+  const recordPath = join(directory, `${token}.json`);
+  const record = await ownerRecord();
+  let forced;
+  const stop = (signalled = false) => {
+    if (stopped) return;
+    stopped = true;
+    if (!signalled) signalGroup(process.pid);
+    forced = setTimeout(() => { signalGroup(process.pid, "SIGKILL"); }, 1000);
+  };
+  process.on("SIGTERM", () => { stop(true); });
+  process.on("disconnect", () => { if (!finished && started) stop(); else process.exitCode = 0; });
+  await writeFile(recordPath, JSON.stringify({ ...record, done: false }), { flag: "wx", mode: 0o600 });
+  process.send?.({ ready: true });
+  process.once("message", async request => {
+    if (stopped || !process.connected) return;
+    started = true;
+    const timer = setTimeout(() => { stop(); }, request.timeout);
+    let launchError = false;
+    const child = spawn(request.invocation.argv[0], request.invocation.argv.slice(1), {
+      cwd: request.cwd, env: request.environment, shell: request.invocation.shell, stdio: ["ignore", 1, 2],
+    });
+    child.on("error", () => { launchError = true; });
+    const status = await new Promise(resolve => { child.once("close", (code, signal) => { resolve({ code, signal }); }); });
+    while ((await groupMembers(process.pid, process.pid)).length !== 0) await delay(10);
+    clearTimeout(timer); clearTimeout(forced);
+    await writeFile(recordPath, JSON.stringify({ ...record, done: true }), { mode: 0o600 });
+    const outcome = stopped ? { status: "cancelled", reason: "Local process group cancellation settled" }
+      : launchError ? { status: "unavailable", reason: "Child executable could not start", remedy: "Repair the command or prepared environment and retry." }
+      : { status: "completed", exitCode: status.code ?? 128 + (constants.signals[status.signal] ?? 0) };
+    if (process.connected) await new Promise(resolve => { process.send(outcome, resolve); });
+    finished = true;
+    if (process.connected) process.disconnect();
+  });
+}
+
+export async function executeChild(executable, directory, invocation, cwd, environment, timeout, output, control) {
+  const token = randomUUID();
+  const worker = spawn(process.execPath, [executable, "--worker", directory, token], {
+    detached: true, stdio: ["ignore", "pipe", "pipe", "ipc"],
+  });
+  let outcome;
+  let started = false;
+  let launchError;
+  worker.on("error", error => { launchError = error; });
+  const closed = new Promise(resolve => { worker.once("close", (code, signal) => { resolve({ code, signal }); }); });
+  const active = { pid: worker.pid, stop: () => {
+    if (worker.pid !== undefined) signalGroup(worker.pid);
+  } };
+  control.active = active;
+  worker.on("message", message => {
+    if (message.ready) {
+      if (control.cancelled) active.stop();
+      else { started = true; worker.send({ invocation, cwd, environment, timeout }); }
+    } else outcome = message;
+  });
+  const pumps = ["stdout", "stderr"].map(async stream => {
+    for await (const bytes of worker[stream]) {
+      for (let offset = 0; offset < bytes.length; offset += 65536) await output(stream, bytes.subarray(offset, offset + 65536));
+    }
+  });
+  const status = await closed;
+  await Promise.all(pumps);
+  if (control.active === active) control.active = undefined;
+  if (worker.pid !== undefined) while ((await groupMembers(worker.pid)).length !== 0) await delay(10);
+  if (control.cancelled && started) return { status: "cancelled", reason: "Local process group cancellation settled" };
+  if (launchError !== undefined || !started || status.code !== 0 || outcome === undefined) throw new Error("Local supervisor did not complete its execution record");
+  return outcome;
+}
+
+export async function inspectAttempt(directory, settle = false) {
+  const owner = JSON.parse(await readFile(join(directory, "owner.json"), "utf8"));
+  if (settle) {
+    await writeFile(join(directory, "cancelled"), "cancel", { mode: 0o600 });
+    if (await ownerAlive(owner)) process.kill(owner.pid, "SIGTERM");
+  }
+  const files = (await readdir(directory)).filter(name => name !== "owner.json" && name.endsWith(".json"));
+  const workers = [];
+  for (const file of files) {
+    const record = JSON.parse(await readFile(join(directory, file), "utf8"));
+    let members = await groupMembers(record.pid);
+    if (settle && members.length !== 0 && await ownerAlive(record)) {
+      signalGroup(record.pid); await delay(1100);
+      if (await ownerAlive(record)) signalGroup(record.pid, "SIGKILL");
+      members = await groupMembers(record.pid);
+    }
+    workers.push({ pid: record.pid, members });
+  }
+  return { planId: owner.planId, status: await ownerAlive(owner) || workers.some(worker => worker.members.length) ? "active" : "settled", workers };
+}
