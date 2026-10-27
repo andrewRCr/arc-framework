@@ -513,17 +513,15 @@ declarations; the old wrapper is retired, native/default operation is preserved 
   unknown-runtime behavior, Linux containment, recovery burden and measured costs. Distributed consumers remain
   explicitly unshipped; configuration adoption adds no durable review, delivery or lifecycle storage coupling.
 
-### `[ ]` **6.4 Exercise ordinary repository declarations — D1, D10** — validate exit criterion at segment scope
+### `[x]` **6.4 Exercise ordinary repository declarations — D1, D10** — validate exit criterion at segment scope
 
 - _Goal:_ The repository adoption exit criterion is backed by ordinary declarations using the public runner path,
   preserved native boundaries and an ADR accepted from actual qualification evidence.
 
-    - Validate the full then-landed declaration/catalogue inventory and removal of wrapper references; exercise
-      configured and isolated-native production entry points, required-remote refusal/repair and unchanged native
-      CI/fixer/index behavior.
-    - Confirm public package inventory/documentation, recorded external revision/measurements and ADR closeout.
-    - Request `npx arc check segment`; record scenario results and regressions actually selected, keeping corrective
-      work in a revision parent ahead of this evidence sink.
+- _Outcome:_ Exhaustive inventory confirms nine ordinary checks and retired discovery, preserving native ownership,
+  CI-only selection and shard forecasts. Public package/docs, pinned cost evidence and the Accepted ADR match the
+  qualified boundary; configured/native requests, strict-policy refusal/repair and native CI/fixer/index fixtures
+  close Linux adoption. Native Windows/macOS execution at this implementation is not established.
 
 ## **Phase 7:** Verification
 
