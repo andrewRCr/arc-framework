@@ -44,8 +44,13 @@ function importBuffer(registry: Registry, records: ImportRecord[], draft: Import
     const restAt = start + section[0].length;
     const boundary = /^## /gmu.exec(visible.slice(restAt));
     const end = boundary === null ? original.length : restAt + boundary.index;
-    const entries = original.slice(start, end).split(/^---[ \t]*\r?$/gmu).flatMap(fragment =>
-      splitEntryList(`## ${bufferSection}\n${fragment}`, { shape: "heading", sections: [bufferSection] }).parts.filter(part => part.kind === "entry"));
+    const parts = splitBufferParts(original.slice(restAt, end));
+    if (parts.some(part => part.kind === "outside" && maskComments(part.bytes).trim().length > 0)) {
+      report.notices.push({ condition: `The inbound buffer for '${draft.reference.owner.name}' has unaccounted prose outside its routed entries.`,
+        remedy: { text: "Repair the buffer by placing pending prose in dated routed entries, or explicitly move it outside the buffer, then retry arc store migrate --import." } });
+      continue;
+    }
+    const entries = parts.filter(part => part.kind === "entry");
     const dated = entries.map(entry => ({ entry, date: routedDate(entry.bytes) }));
     if (dated.some(({ date }) => date === undefined)) {
       report.notices.push({ condition: `The inbound buffer for '${draft.reference.owner.name}' has an entry without a dated Routed from field.`,
@@ -57,6 +62,19 @@ function importBuffer(registry: Registry, records: ImportRecord[], draft: Import
     }
   }
   for (const { start, end } of removed.reverse()) draft.content = draft.content.slice(0, start) + draft.content.slice(end);
+}
+
+function splitBufferParts(content: string): ReturnType<typeof splitEntryList>["parts"] {
+  const framing = `## ${bufferSection}\n`, visible = maskComments(content);
+  const fragments: string[] = [];
+  let start = 0;
+  for (const separator of visible.matchAll(/^---[ \t]*\r?$/gmu)) {
+    fragments.push(content.slice(start, separator.index));
+    start = separator.index + separator[0].length;
+  }
+  fragments.push(content.slice(start));
+  return fragments.flatMap(fragment => splitEntryList(framing + fragment, { shape: "heading", sections: [bufferSection] }).parts
+    .map((part, index) => index === 0 && part.kind === "outside" ? { ...part, bytes: part.bytes.slice(framing.length) } : part));
 }
 
 function routedDate(raw: string): string | undefined {
