@@ -10,6 +10,9 @@ import type { RefWriteGroup } from "./write-commits.js";
 import type { RefTreeEntry } from "./batch-read.js";
 import type { RefMetadata } from "./metadata.js";
 import { writeRefBlob } from "./tree-write.js";
+import type { StoreResult } from "../refusal.js";
+import { archiveSourceMetadataRefusal } from "./archive-metadata-admission.js";
+import { archiveCopyNamespaceRefusal, archiveDestinationRefusal } from "./archive-destination-admission.js";
 
 /** Where an owner's completed folder is written and the end batch it keeps, when it has one. */
 export interface CompletedFolderTarget { placement: ReadPlacement; endBatch?: string | undefined }
@@ -28,9 +31,11 @@ export function archivedFolderRoot(context: Pick<RefBackendContext, "registry">,
 
 /** Replace one owner's folder from its final group, preserving that folder's end and placement. */
 export async function refreshArchivedFolder(context: RefBackendContext, folder: ArchivedFolder, group: Pick<RefWriteGroup, "entries" | "metadata">,
-  entries: Map<string, RefTreeEntry>, target: CompletedFolderTarget = folderTarget(folder)): Promise<void> {
+  entries: Map<string, RefTreeEntry>, target: CompletedFolderTarget = folderTarget(folder)): Promise<StoreResult<undefined>> {
+  const refusal = archiveFolderRefusal(context, target, group, entries, folder.owner, folder.root);
+  if (refusal) return { status: "refused", refusal };
   removeArchivedFolder(entries, folder);
-  await writeArchivedFolder(context, target, group, entries, folder.owner);
+  return writeArchivedFolder(context, target, group, entries, folder.owner);
 }
 
 /** Remove every entry of one folder from its quarter's entries. */
@@ -40,7 +45,9 @@ export function removeArchivedFolder(entries: Map<string, RefTreeEntry>, folder:
 
 /** Write an owner's folder from its final group at the root its target placement names. */
 export async function writeArchivedFolder(context: RefBackendContext, target: CompletedFolderTarget, group: Pick<RefWriteGroup, "entries" | "metadata">,
-  entries: Map<string, RefTreeEntry>, owner: OwnerIdentity): Promise<void> {
+  entries: Map<string, RefTreeEntry>, owner: OwnerIdentity): Promise<StoreResult<undefined>> {
+  const refusal = archiveFolderRefusal(context, target, group, entries, owner);
+  if (refusal) return { status: "refused", refusal };
   const home = expandStoredPath(ownerPrimaryReference(owner, group.metadata), { registry: context.registry });
   const metadata = completedFolderMetadata(target, group.metadata);
   const root = archivedFolderRoot(context, owner, group.metadata, target.placement);
@@ -49,6 +56,18 @@ export async function writeArchivedFolder(context: RefBackendContext, target: Co
     const path = root + entry.path;
     entries.set(path, { ...entry, path, ...(entry.path === home.metadataPath ? { oid: await writeRefBlob(context, canonicalize(metadata)) } : {}) });
   }
+  return { status: "ok", result: undefined };
+}
+
+function archiveFolderRefusal(context: RefBackendContext, target: CompletedFolderTarget,
+  group: Pick<RefWriteGroup, "entries" | "metadata">, entries: ReadonlyMap<string, RefTreeEntry>, owner: OwnerIdentity, ownedRoot?: string) {
+  const reference = ownerPrimaryReference(owner, group.metadata), home = expandStoredPath(reference, { registry: context.registry });
+  const root = archivedFolderRoot(context, owner, group.metadata, target.placement);
+  const destination = expandStoredPath(reference, { registry: context.registry, placement: target.placement });
+  return archiveSourceMetadataRefusal(context, reference, home.ref.replace("refs/arc/", "refs/arc/history/"), group.entries.values())
+    ?? archiveDestinationRefusal(reference, destination.ref, root, entries.values(), ownedRoot)
+    ?? archiveCopyNamespaceRefusal(reference, destination.ref, root, [...group.entries.values()].filter(entry =>
+      entry.path !== home.manifestPath.slice(0, -1) && !entry.path.startsWith(home.manifestPath)), entries.values(), ownedRoot);
 }
 
 /** The placement and end batch an existing folder keeps when it is refreshed. */

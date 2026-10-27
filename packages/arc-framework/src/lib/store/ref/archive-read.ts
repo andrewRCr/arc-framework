@@ -8,6 +8,7 @@ import type { ListingDiagnostic } from "../read.js";
 import { rootFamily } from "./path-decode.js";
 import { parseRefMetadata, historicalMetadataFailure, unparsedMetadata, type RefMetadata } from "./metadata.js";
 import type { RefTreeEntry, BatchObject } from "./batch-read.js";
+import { isOwnerMetadataName } from "./metadata-filename.js";
 
 /** One archived owner with paths relative to its retained live tree layout. */
 export interface ArchivedFolder {
@@ -15,10 +16,8 @@ export interface ArchivedFolder {
   entries: RefTreeEntry[]; liveRef: string;
 }
 
-const FOLDER_METADATA = /^metadata-[0-9a-f-]{36}\.json$/u;
-
 /** Recognize metadata candidates broadly enough to diagnose an invalid owner UID. */
-export function isArchiveMetadataName(name: string): boolean { return FOLDER_METADATA.test(name); }
+export const isArchiveMetadataName = isOwnerMetadataName;
 
 /** Identify one archive folder's metadata entry without admitting a nested path. */
 export function isArchiveMetadataPath(path: string): boolean {
@@ -84,7 +83,9 @@ interface ArchiveFolderScope { family: "work-item" | "cohort"; ref: string; quar
 function decodeArchiveFolder({ family, ref, quarter, saved }: ArchiveFolderScope, root: string,
   entries: readonly RefTreeEntry[], objects: ReadonlyMap<string, BatchObject | null>): ArchivedFolder | ListingDiagnostic | undefined {
   const members = entries.filter(({ path }) => path.startsWith(root));
-  const entry = members.find(({ path }) => isArchiveMetadataName(path.slice(root.length)));
+  const candidates = members.filter(({ path }) => isArchiveMetadataName(path.slice(root.length)));
+  if (candidates.length > 1) return ambiguousFolderMetadata(ref, root, candidates, saved);
+  const entry = candidates[0];
   const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : undefined);
   const cohort = metadata?.primary === undefined && (metadata?.placement?.kind === "completed" || /^\d+[ab]_cohort-/u.test(root));
   if (cohort !== (family === "cohort")) return;
@@ -99,6 +100,15 @@ function decodeArchiveFolder({ family, ref, quarter, saved }: ArchiveFolderScope
   if (!placement) return unreadable;
   return { ref, root, owner: owner.data, metadata, placement,
     liveRef: `refs/arc/${cohort ? "cohort" : "work"}/${uid}`, entries: members.map((member) => ({ ...member, path: member.path.slice(root.length) })) };
+}
+
+function ambiguousFolderMetadata(ref: string, root: string, candidates: readonly RefTreeEntry[], saved: boolean): ListingDiagnostic {
+  const key = `${ref}:${root}`;
+  return { kind: "malformed", key,
+    condition: `The archive folder ${key} has ambiguous owner metadata: ${candidates.map(({ path }) => path).join(", ")}.`,
+    remedy: saved ? { text: "This saved state contains ambiguous historical owner metadata; a forward repair cannot change an ancestor. "
+      + "Repair the current archive folder in a new commit, then select a saved state after repair and retry. Do not infer historical ownership." }
+      : { text: `Repair ${key} forward in a new commit: retain exactly one correct owner metadata file and rename or remove the other candidates; then retry.` } };
 }
 
 function folderOwnerMismatch(ref: string, root: string, owner: OwnerIdentity, metadata: RefMetadata,

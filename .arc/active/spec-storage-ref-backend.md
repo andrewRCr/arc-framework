@@ -447,7 +447,8 @@ valid, a paired spec's halves keeping `spec-prd` and `spec-rfc`.
 - **A verbatim key refuses** `unsupported` `unhomed-kind` where the decode would read its path back as another reference
   or as `key-mismatch` (§ 3.1) — at the root, a name `<key>-<slug>.md` whose key `SlugSchema` admits, a paired spec's
   half's name, or a kind's fixed form under another owner, since a name and the work-item family's forms store there —
-  and at the paths § 3.2 reserves on a work item's ref: at the metadata file, and at `review`, `state-<uid>`,
+  and at the paths § 3.2 reserves on a work item's ref: at any root filename matching
+  `^metadata-[0-9a-f-]{36}\.json$` or under that name (A57), and at `review`, `state-<uid>`,
   `conflicts`, or `receipts` or under any of them. So does a key whose path is a folder another record's path runs
   through, or runs through another record's path, and a segment Git refuses falls under § 5.6's `store.git-path`, as for
   a personal document.
@@ -668,12 +669,12 @@ export interface RefHome {
 - **A key that would land on another kind's path refuses** `unsupported` `unhomed-kind`, naming that kind, as the
   in-repo implementation refuses a conventional role's name: a companion keyed `meta`, `tasks`, `draft`, `spec`,
   `notes`, `errand`, `inbound`, or `cohort`, or keyed verbatim at a path the decode reads back as another reference or
-  as `key-mismatch`, at the metadata file, or at `review`, `state-<uid>`, `conflicts`, or `receipts` or under any of
-  them (§ 2.5), and a personal document at a path another personal kind, the ref's metadata file, or its anchor
-  manifest's `state-<person>` holds, or at `conflicts` or `receipts` or under either, whatever the ref holds yet. So
-  does any key whose path is a folder another record's path runs through, or runs through another record's path, naming
-  that record — a personal document keyed as a session context's folder — since a Git tree cannot hold one name as both
-  a file and a folder.
+  as `key-mismatch`, at any root filename matching `^metadata-[0-9a-f-]{36}\.json$` or under that name (A57), or at
+  `review`, `state-<uid>`, `conflicts`, or `receipts` or under any of them (§ 2.5), and a personal document at a path
+  another personal kind, the ref's metadata file, or its anchor manifest's `state-<person>` holds, or at `conflicts` or
+  `receipts` or under either, whatever the ref holds yet. So does any key whose path is a folder another record's path
+  runs through, or runs through another record's path, naming that record — a personal document keyed as a session
+  context's folder — since a Git tree cannot hold one name as both a file and a folder.
 - **Generic companion aliases use the resolved owner (A10).** Whether a verbatim root key aliases the generic
   `<key>-<slug>.md` form depends on the current owner's slug, so this decision follows owner binding, for an older UID
   name hint or a UID-less former name alike. Fixed record forms, reserved storage coordinates, malformed keys, and
@@ -700,6 +701,12 @@ export interface RefHome {
   under history, while its tree holds a record — an abandon's or decomposition's final commit and the import's origin
   refs hold none (§ 7.4, § 10.11); `metadata-registry.json` and `metadata-inbox.json` on the project's refs;
   `<person>/metadata-<person>.json` on a personal ref; and `metadata-claims-<person>.json` on a claims ref.
+- **Owner metadata names are reserved at the root (A57).** The pattern above reserves every matching name, even one
+  whose 36 lowercase hex-or-hyphen characters do not form a valid UID. A nested companion name, such as
+  `scratch/metadata-<uid>.json`, keeps its ordinary rules. Before copying retained records into an archive folder or
+  refreshing completed records, refuse a second reserved root entry with a forward rename-or-remove remedy. In an
+  externally written archive folder, multiple matching metadata candidates diagnose ambiguity before any candidate
+  is selected or parsed; current and saved reads, listings, lookup and synchronization must retain that diagnostic.
 - **A ref whose records carry an anchor holds its manifest** (§ 4.5) as a subtree at `state-<uid>/`, beside its metadata
   file and named as it is, with `state` for `metadata` and no extension.
 - **A quarter's ref holds one folder per ended item,** each holding that item's records at the paths above and its
@@ -3630,6 +3637,11 @@ files by those ranges, so no one file bounds a shard (A29) (A36).
 
 #### 14.3 Encoding, versions, and writes
 
+- **Reserved owner metadata (A57):** both layouts refuse matching root companion names, including malformed UID
+  spellings and a directory with such a name, while nested and nonreserved names retain their ordinary rules. Archive
+  and completed refresh refuse retained sources containing a second reserved root entry before changing any ref;
+  external archive folders with multiple candidates diagnose ambiguity through current, saved, list, lookup and sync
+  routes. A new source commit renaming or removing the extra entry permits the original operation to succeed.
 - **Stored paths:** every kind with a `RefHome` round-trips at its table path (§ 3.2), a paired spec's halves at the
   checkout's names; no two kinds' paths collide within a ref or across refs; each reserved key refuses — a personal
   document keyed exactly `conflicts` or `receipts`, or under `state-<person>/`, among them, while `scratch/conflicts`
@@ -4850,6 +4862,12 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     behavior before capture. The emitted native restoration and normal expected-version retirement retain both
     histories, the chosen lineage and its `retiredBranches`, then converge on one maximal end (§ 6.6, § 14.5) (A56).
 
+61. **Reserved archive metadata names preserve owner identity.** In both layouts, root companion keys matching
+    `^metadata-[0-9a-f-]{36}\.json$` refuse before archive or completed refresh can change refs. Nested and nonreserved
+    companion names retain their rules. Multiple external metadata candidates yield an explicit
+    current/saved/list/lookup/sync diagnostic and a forward repair route; corrected sources retry successfully
+    (§ 2.5, § 3.2, § 7.1, § 7.3) (A57).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -5060,3 +5078,6 @@ open:
 
 - **A56** — 2026-10-27 — design: restore terminal-only ends for repair. _Supersedes:_ § 6.6 generic end repair.
   _Trigger:_ F14 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A57** — 2026-10-27 — design: reserve owner metadata names. _Supersedes:_ §§ 2.5, 3.2.
+  _Trigger:_ standard-pass-7/AGG-13 review. _Work:_ review-fix. _Revalidated:_ review-fix.

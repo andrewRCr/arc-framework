@@ -7,11 +7,35 @@ import { IDENTITY_STATUS_FILENAME } from "../../user-surfaces.js";
 import type { RefBackendContext } from "./context.js";
 import type { StoreRefusal } from "../refusal.js";
 import { decodeStoredReference, fixedStoredPathKind } from "./path-decode.js";
+import { isOwnerMetadataName } from "./metadata-filename.js";
 
 type KeyContext = Pick<RefBackendContext, "registry">;
 
 /** A captured or proposed record path; undecodable stored entries still reserve their tree names. */
 export interface RefPathNeighbor { home: Pick<StoredRecordHome, "ref" | "path">; reference?: RecordReference }
+
+/** Two entries that cannot coexist in one Git tree, including duplicate full paths. */
+export interface RefPathCollision { path: string; other: string }
+
+/** Establish equality or a file/directory prefix overlap before entries are reduced into maps. */
+export function findRefPathCollision(paths: Iterable<string>): RefPathCollision | undefined {
+  const seen = new Set<string>(), descendants = new Map<string, string>();
+  for (const path of paths) {
+    if (seen.has(path)) return { path, other: path };
+    const child = descendants.get(path);
+    if (child !== undefined) return { path, other: child };
+    const parts = path.split("/");
+    parts.pop();
+    let prefix = "";
+    for (const part of parts) {
+      prefix = prefix ? `${prefix}/${part}` : part;
+      if (seen.has(prefix)) return { path, other: prefix };
+      descendants.set(prefix, path);
+    }
+    seen.add(path);
+  }
+  return undefined;
+}
 
 /** Refuse a path that would require one tree entry to be both a file and a folder or another record. */
 export function checkRefPathCollision(reference: RecordReference, home: RefPathNeighbor["home"], neighbors: readonly RefPathNeighbor[]): StoreRefusal | undefined {
@@ -19,16 +43,12 @@ export function checkRefPathCollision(reference: RecordReference, home: RefPathN
     if (neighbor.home.ref !== home.ref) continue;
     const other = neighbor.home.path;
     if (other === home.path && neighbor.reference && sameReference(reference, neighbor.reference)) continue;
-    if (pathsOverlap(home.path, other) || pathsOverlap(personalCollisionPath(reference, home.path), personalCollisionPath(reference, other))) {
+    if (findRefPathCollision([home.path, other]) || findRefPathCollision([personalCollisionPath(reference, home.path), personalCollisionPath(reference, other)])) {
       const record = neighbor.reference ? `${neighbor.reference.kind} ${JSON.stringify(neighbor.reference.key)}` : "stored entry";
       return unsupportedKey(reference, `The path ${home.path} collides with ${record} at ${other}`);
     }
   }
   return undefined;
-}
-
-function pathsOverlap(left: string, right: string): boolean {
-  return left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
 }
 
 function personalCollisionPath(reference: RecordReference, path: string): string {
@@ -107,6 +127,7 @@ function aliasProblem(context: KeyContext, reference: RecordReference, path: str
 }
 
 function companionProblem(context: KeyContext, key: string, path: string, home: StoredRecordHome): string | null {
+  if (isOwnerMetadataName(path.split("/")[0] ?? "")) return `The companion path belongs to reserved owner metadata storage at ${path}`;
   const reservedNames = Object.values(context.registry).flatMap((candidate) => {
     const prefix = candidate.id !== "work-item/companion" ? /^([a-z0-9-]+)-<slug>\.md$/u.exec(candidate.ref?.path ?? "")?.[1] : null;
     return prefix ? [{ prefix, kind: candidate.id }] : [];

@@ -17,6 +17,8 @@ import { corruptRef } from "./namespace-health.js";
 import { commitRefTree, type RefWriteGroup } from "./write-commits.js";
 import { archivedFolderRoot } from "./archive-refresh.js";
 import { quarterCommitReference } from "./quarter-provenance.js";
+import { archiveSourceMetadataRefusal } from "./archive-metadata-admission.js";
+import { archiveCopyNamespaceRefusal, archiveDestinationRefusal } from "./archive-destination-admission.js";
 
 /** One item's assigned destination, resolved from the locked quarter tree. */
 export interface RefArchivePlan {
@@ -64,9 +66,13 @@ export async function planRefArchives(context: RefBackendContext, writes: readon
     const quarterRef = `refs/arc/archive/${mutation.placement.quarter}`;
     const quarter = entries.get(quarterRef), group = groups.get(home.ref);
     if (!quarter || !group) throw new Error("An archive has no captured group or quarter");
+    const invalidMetadata = archiveSourceMetadataRefusal(context, mutation.reference, home.ref, group.entries.values());
+    if (invalidMetadata) return { status: "refused", refusal: invalidMetadata };
     const reserved = closeoutReservations(planning, quarterRef, quarter);
     const placement = archivePlacement(context, mutation.reference, mutation.placement, reserved, planning, parents.result);
     const destination = expandStoredPath(mutation.reference, { registry: context.registry, placement });
+    const occupied = archiveDestinationRefusal(mutation.reference, quarterRef, destination.root, reserved.values());
+    if (occupied) return { status: "refused", refusal: occupied };
     group.metadata.endBatch = batchId;
     group.metadata.batch = batchId;
     group.readPlacement = placement;
@@ -92,8 +98,8 @@ function archivePlacement(context: RefBackendContext, reference: RecordReference
 /** Replace ordinary live updates with one history move and one commit per touched quarter. */
 export async function archiveRefChanges(context: RefBackendContext, changes: readonly RefChange[], plans: readonly RefArchivePlan[],
   groups: ReadonlyMap<string, RefWriteGroup>, completed: ReadonlyMap<string, RefWriteGroup>, writes: readonly PreparedRefMutation[],
-  tips: ReadonlyMap<string, string>, provenance: BatchInput["provenance"], batchId: string, receipt: BatchCreationReceipt): Promise<RefChange[]> {
-  if (plans.length === 0) return [...changes];
+  tips: ReadonlyMap<string, string>, provenance: BatchInput["provenance"], batchId: string, receipt: BatchCreationReceipt): Promise<StoreResult<RefChange[]>> {
+  if (plans.length === 0) return { status: "ok", result: [...changes] };
   const result = changes.filter(({ ref }) => !plans.some(({ source }) => source === ref));
   const identity = await context.identity(), actor = identity === null ? undefined : await context.actor(identity);
   for (const plan of plans) {
@@ -102,7 +108,8 @@ export async function archiveRefChanges(context: RefBackendContext, changes: rea
     const group = writes.some((write) => write.home.ref === plan.source && write.conflicts.length > 0)
       ? completed.get(plan.source) : groups.get(plan.source);
     if (!group) throw new Error("An archive has no final item tree");
-    copyArchiveEntries(context, plan, group);
+    const copied = copyArchiveEntries(context, plan, group);
+    if (copied.status === "refused") return copied;
     result.push({ ref: plan.history, next: change.next, expected: tips.get(plan.history) ?? null });
     const prior = tips.get(plan.source);
     if (prior) result.push({ ref: plan.source, delete: true, expected: prior });
@@ -114,7 +121,7 @@ export async function archiveRefChanges(context: RefBackendContext, changes: rea
     const next = await commitRefTree(context, plan.entries.values(), parent, provenance, reference, batchId, actor, receipt);
     result.push({ ref, next, expected: parent ?? null });
   }
-  return result;
+  return { status: "ok", result };
 }
 
 async function readArchiveQuarters(context: RefBackendContext, selected: readonly ResolvedMutation[], tips: ReadonlyMap<string, string>,
@@ -131,14 +138,18 @@ async function readArchiveQuarters(context: RefBackendContext, selected: readonl
   return { status: "ok", result: entries };
 }
 
-function copyArchiveEntries(context: RefBackendContext, plan: RefArchivePlan, group: RefWriteGroup): void {
+function copyArchiveEntries(context: RefBackendContext, plan: RefArchivePlan, group: RefWriteGroup): StoreResult<undefined> {
   const live = expandStoredPath(plan.reference, { registry: context.registry });
   const folder = archivedFolderRoot(context, plan.reference.owner, group.metadata, plan.placement);
-  for (const entry of group.entries.values()) {
-    if (entry.path === live.manifestPath.slice(0, -1) || entry.path.startsWith(live.manifestPath)) continue;
+  const copied = [...group.entries.values()].filter(entry => entry.path !== live.manifestPath.slice(0, -1) && !entry.path.startsWith(live.manifestPath));
+  const refusal = archiveSourceMetadataRefusal(context, plan.reference, plan.source, group.entries.values())
+    ?? archiveCopyNamespaceRefusal(plan.reference, plan.home.ref, folder, copied, plan.entries.values(), undefined, plan.home.metadataPath);
+  if (refusal) return { status: "refused", refusal };
+  for (const entry of copied) {
     const path = folder + entry.path;
     plan.entries.set(path, { ...entry, path });
   }
+  return { status: "ok", result: undefined };
 }
 
 function archiveWrites<T extends ResolvedBatch["writes"][number]>(writes: readonly T[]): T[] {

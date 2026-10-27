@@ -95,13 +95,14 @@ export async function prepareSyncHistoryQuarters(context: RefBackendContext, qua
     const preferredFolders = folders.some(folder => folder.metadata.primary?.role !== role)
       ? await readLifecycleFolders(context, preferred) : [];
     const planned = planCompletedRoleReplacements(context, [{ group, role, folders }],
-      new Map(quarters.map(quarter => [quarter.ref, quarter.entries])), preferredFolders);
+      new Map(quarters.map(quarter => [quarter.ref, new Map(quarter.entries)])), preferredFolders);
     if (planned.status === "refused") return planned;
   }
   for (const quarter of quarters) for (const folder of quarter.folders) {
     const placement = group.completedPlacements?.get(`${folder.ref}:${folder.root}`) ?? folder.placement;
-    await refreshArchivedFolder(context, folder, { entries: tree.entries, metadata: tree.metadata }, quarter.entries,
+    const refreshed = await refreshArchivedFolder(context, folder, { entries: tree.entries, metadata: tree.metadata }, quarter.entries,
       { placement, endBatch: folder.metadata.endBatch });
+    if (refreshed.status === "refused") return refreshed;
   }
   return { status: "ok", result: undefined };
 }

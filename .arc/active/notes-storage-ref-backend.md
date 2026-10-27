@@ -3174,3 +3174,17 @@ plumbing and store writes suffice; no restoration API, publication-proof store, 
 check is needed. Criterion 60 and § 14.5 distinguish overlapping forced replacement from A52's before-capture loss of
 proof. This is a bounded medium-depth amendment within synchronization; the approved fix checks and sixth complete
 pass cover its implementation and contract together rather than adding another optional planning pass.
+
+## A57 — Reserve owner metadata names
+
+**Superseded allowance.** § 2.5 reserved only “at the metadata file” and § 3.2 likewise rejected a companion “at the
+metadata file”. A different owner's metadata-shaped filename could therefore enter a live tree and become a second
+owner candidate after copying into a numbered archive folder. The folder name does not universally encode its UID.
+
+**Decision.** Reserve root names matching `^metadata-[0-9a-f-]{36}\.json$`, including a directory with that name and
+malformed UID spellings inside the pattern. Nested names retain ordinary companion rules. Admission and archive
+metadata discovery share `isOwnerMetadataName`; multiple external candidates diagnose ambiguity before parsing or
+selection. `archiveSourceMetadataRefusal` checks retained sources before copying, including shared refresh paths.
+Repair is a forward source commit renaming or removing the extra entry, preserving actual owner metadata, followed by
+retry. No ownership encoding or stored index changes. The separately approved narrow namespace decision is a
+low-depth design amendment; criterion 61 and § 14.3 bind refusal, diagnosis and successful retry in both layouts.

@@ -17,7 +17,7 @@ import { expandStoredPath, holdsNoRecord } from "../stored-path.js";
 import type { RecordReference } from "../identity.js";
 import { prepareCapturedWrites } from "./write-current.js";
 import { checkSerializationRules } from "../serialization.js";
-import { checkRefPathCollision, type RefPathNeighbor } from "./path-admission.js";
+import { checkRefPathCollision, findRefPathCollision, type RefPathNeighbor } from "./path-admission.js";
 import { decodeStoredReference } from "./path-decode.js";
 import { familyOf } from "../catalog.js";
 import { refFormatKey } from "./format-key.js";
@@ -80,6 +80,8 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
   if (historyRefusal) return { status: "refused", refusal: historyRefusal };
   const completed = await prepareRefConflicts(context, prepared.result, groups, results);
   await stagePublicationMetadata(context, resolved, groups, completed);
+  const namespace = finalWriteNamespaceRefusal(context, resolved, groups, completed);
+  if (namespace) return { status: "refused", refusal: namespace };
   const step = await commitRefStep(context, async (physical): Promise<StoreResult<BatchResult> | "retry"> => {
     if (await refAdmissionBasisChanged(physical, tips)) return "retry";
     const proposedCreatedOwners = proposedRefCreatedOwners(resolved, prepared.result, completed);
@@ -90,7 +92,8 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
     const identity = await physical.identity(), actor = identity === null ? undefined : await physical.actor(identity);
     const committed = await prepareRefCommits(physical, prepared.result, refWriteTargets(context, resolved), groups, completed, tips, provenance, batchId, receipt, actor);
     const archived = await archiveRefChanges(physical, committed, archives.result, groups, completed, prepared.result, tips, provenance, batchId, receipt);
-    const reopened = await reopenRefChanges(physical, archived, reopens.result, resolved.writes, tips, provenance, batchId, receipt);
+    if (archived.status === "refused") return archived;
+    const reopened = await reopenRefChanges(physical, archived.result, reopens.result, resolved.writes, tips, provenance, batchId, receipt);
     const refreshed = await refreshCompletedChanges(physical, reopened, resolved, completed, provenance, batchId, receipt, actor);
     if (refreshed.status === "refused") return refreshed;
     const anchored = await anchorRefWriteManifest(physical, { changes: retirementRefChanges(refreshed.result, retirements.result, tips),
@@ -100,6 +103,22 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
     return publishRefBatchChanges(physical, changes, new Set(historyMoves.map(({ history }) => history)), { batchId, writes: results });
   });
   return step.status === "layout-changed" ? "layout-changed" : step.result;
+}
+
+function finalWriteNamespaceRefusal(context: RefBackendContext, resolved: ResolvedBatch,
+  groups: ReadonlyMap<string, RefWriteGroup>, completed: ReadonlyMap<string, RefWriteGroup>): StoreRefusal | undefined {
+  const targets = refWriteTargets(context, resolved);
+  for (const [ref, group] of [...groups, ...completed]) {
+    const target = targets.find(({ home }) => home.ref === ref);
+    if (!target) throw new Error("A prepared namespace has no write target");
+    const paths = new Set(group.entries.keys());
+    if (!group.retired) paths.add(target.home.metadataPath);
+    const collision = findRefPathCollision(paths);
+    if (collision) return { code: "namespace-corrupt", class: "terminal", namespace: ref,
+      condition: `The final write namespace on ${ref} collides at ${collision.path} and ${collision.other}.`,
+      remedy: { text: "Rename or remove the colliding retained source entries in a new commit, then retry the write." } };
+  }
+  return undefined;
 }
 
 async function bindLockedProjects(context: RefBackendContext, resolved: ResolvedBatch): Promise<StoreResult<ResolvedBatch>> {
