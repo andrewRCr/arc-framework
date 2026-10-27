@@ -27,10 +27,12 @@ export async function projectReviewLaneRead(input: Omit<Parameters<typeof derive
   const last = facts.materialTrend.filter(look => !look.provisional).at(-1);
   const lastLook = last === undefined ? null : { producerId: last.producerId,
     coverage: last.coverage === "complete" ? "complete" : "incremental", outcome: last.outcome };
-  // The same context, ceiling, and source selection the policy driver reads: it admits an incremental look only from
-  // a proven scope, a complete pass at the ceiling only with an override, and no look its sources refuse.
+  // The same sources, context, ceiling, and source selection the policy driver reads: it admits no look on a lane with
+  // no sources, an incremental look only from a proven scope, a complete pass at the ceiling only with an override,
+  // and no look its sources refuse.
   const { refusal } = selectReviewSources({ lane: "standard", sources: input.sources, nextPassContext: input.nextPassContext });
-  const nextLooks = { incremental: input.nextPassContext.incremental?.basis ?? null,
+  const nextLooks = input.sources.length === 0 ? { state: "disabled" } : { state: "enabled",
+    incremental: input.nextPassContext.incremental?.basis ?? null,
     completePass: input.nextPassContext.completePasses < input.ceiling ? "admitted" : "ceiling-decision",
     responseDue: input.nextPassContext.responseDue,
     refusal: refusal === null ? null : { code: refusal.code, message: refusal.message } };

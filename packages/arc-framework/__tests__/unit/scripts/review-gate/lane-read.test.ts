@@ -19,7 +19,7 @@ it("returns a Candidate's rejection reason and verification status from its lane
   expect(result).toMatchObject({ state: "ready", payload: { lineage: delta.lineage,
     rejections: [{ lane: "standard", findingId: "finding-1", locus: "src/example.ts:1",
       sourceVerification: "not-supported", reason: "The source check established this disposition." }],
-    facts: { completePasses: 1 }, nextLooks: { incremental: null, completePass: "admitted", responseDue: true, refusal: null } } });
+    facts: { completePasses: 1 }, nextLooks: { state: "enabled", incremental: null, completePass: "admitted", responseDue: true, refusal: null } } });
   expect({ progress, record }).toEqual(before);
 });
 
@@ -35,7 +35,7 @@ it("returns the shared facts and identifies the last clean fix check", async () 
     lastLook: { producerId: delta.operationId, coverage: "incremental", outcome: "clean" },
     facts: { completePasses: 1, ceiling: 4,
       fixChecksSinceLastComplete: [{ producerId: delta.operationId, outcome: "clean" }] },
-    nextLooks: { incremental: null, completePass: "admitted", responseDue: false, refusal: null },
+    nextLooks: { state: "enabled", incremental: null, completePass: "admitted", responseDue: false, refusal: null },
   } });
 });
 
@@ -66,6 +66,17 @@ it("admits no look after a material fix when the configured sources omit the loc
   expect((await read(["codex-pr"])).payload).toMatchObject({ nextLooks: { completePass: "admitted",
     refusal: { code: "material-fix-local-source-unconfigured" } } });
   expect((await read(["codex-pr", "delegated-agent"])).payload).toMatchObject({ nextLooks: { refusal: null } });
+});
+
+it("admits no look on a lane with no standard sources", async () => {
+  const fixture = await createLocalDeltaFixture("Light");
+  const delta = await fixture.moveHead(); await fixture.conclude(delta, "clean");
+  const owner = fixture.laneProgress();
+  if (owner?.kind !== "lane-progress") throw new Error("expected lane owner");
+  const result = await projectReviewLaneRead({ lineage: delta.lineage, progress: [owner], dispositions: [],
+    nextPassContext: { completePasses: 1, convergence: "converged", responseDue: false, incremental: null },
+    target: delta.target, sources: [], ceiling: 4, exec: async () => { throw new Error("Git unavailable"); } });
+  expect(result.state === "ready" && result.payload.nextLooks).toEqual({ state: "disabled" });
 });
 
 it("returns frontline rejections beside standard rejections in the Candidate lineage", async () => {
