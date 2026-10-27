@@ -181,13 +181,11 @@ the selected source basis with independent Git coordinates, and budget complete 
 - _Goal:_ Selected index/commit presentation and required Git code history survive relocation without the original
   gitdir, filters on the worker, private refs/configuration or a worker-dependent replacement view.
 
-    - `[ ]` **2.5.a Materialize the selected basis faithfully on the caller**
-        - Build `test-first` (one behavior at a time):
-            - Staged/commit code wins over conflicting later worktree bytes, with actual EOL/filter/LFS presentation
-              frozen.
-            - Required filters/tools/objects that cannot establish that view refuse; repaired presentation captures
-              successfully.
-            - Link/mode fidelity either survives supported platforms or gives a concrete keep-local remedy.
+    - `[x]` **2.5.a Materialize the selected basis faithfully on the caller**
+        - `freezeSelectedSource` uses a private index and selected attributes in the caller's Git context, preserving
+          worktree bytes directly and freezing selected EOL, smudge and real local-object LFS output. Selected entry
+          validation refuses lost link or executable fidelity; failed materialization cleans owned storage and supports
+          repaired filter/link retries with keep-local remedies.
 
     - `[ ]` **2.5.b Construct independent code-only Git metadata**
         - Build `test-first` (one behavior at a time):
