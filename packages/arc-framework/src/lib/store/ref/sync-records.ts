@@ -10,7 +10,8 @@ import { ConflictRecordValueSchema, type ConflictRecordValue, type ConflictRecor
 import { refRecordVersion } from "./record-version.js";
 import { refFormatKey } from "./format-key.js";
 import { expandStoredPath } from "../stored-path.js";
-import { RecordReferenceSchema, type RecordReference } from "../identity.js";
+import { RecordReferenceSchema, type RecordReference, type OwnerIdentity } from "../identity.js";
+import type { FamilyId } from "../catalog.js";
 import type { CapturedWriteGroup } from "./write-current.js";
 import { appendRefConflicts } from "./write-conflicts.js";
 import { mergeLineText, mergeEntryText, splitEntryList } from "../concurrency/index.js";
@@ -20,6 +21,7 @@ import type { ReadPlacement } from "../placement.js";
 import type { EntryConfig, KindDefinition } from "../registry.js";
 import type { SyncCheckRecord } from "./sync-checks.js";
 import { readSyncRecordLabel, readSyncRecordPlacement, RefSyncLabelError } from "./sync-label.js";
+import { fixedStoredPathKind } from "./path-decode.js";
 
 interface IndexedRecord { entry: RefTreeEntry; value: ConflictRecordValue; retained?: boolean }
 
@@ -27,6 +29,7 @@ interface SyncRecordSides { base: SyncTreeSide; local: SyncTreeSide; incoming: S
 interface RecordTriple { base: IndexedRecord | undefined; local: IndexedRecord | undefined; incoming: IndexedRecord | undefined }
 interface RecordChoice { selected: IndexedRecord | undefined; conflicts: ConflictRecord[]; retainMetadata?: boolean; followsIncoming?: boolean }
 interface PlannedRecord { records: RecordTriple; choice: RecordChoice }
+interface SyncRecordNamespace { family: FamilyId; owner: OwnerIdentity; metadata: RefMetadata }
 
 /** Reconcile semantic records while retaining opaque entries outside the registered record set. */
 export async function reconcileSyncRecords(context: RefBackendContext, ref: string, base: SyncTreeSide, local: SyncTreeSide,
@@ -177,11 +180,12 @@ async function indexRecordValues(context: RefBackendContext, ref: string, side: 
   const family = viewRefFamily(ref.replace("refs/arc/history/", "refs/arc/"));
   if (!family || side.entries.size === 0) return new Map();
   const owner = refOwner(ref, family, side.metadata), indexed = new Map<string, IndexedRecord>();
+  const namespace = { owner, family, metadata: side.metadata };
   for (const entry of side.entries.values()) {
+    if (entry.mode !== "100644") continue;
     const object = objects.get(entry.oid);
-    if (entry.mode !== "100644" || object?.type !== "blob") continue;
-    const reference = decodeReference(context, owner, family, entry.path, side.metadata, object);
-    if (!reference || !("owner" in reference)) continue;
+    const reference = readableSyncReference(context, ref, namespace, entry, object);
+    if (!reference || object?.type !== "blob") continue;
     const home = expandStoredPath(reference, { registry: context.registry });
     if (entry.path === home.metadataPath) continue;
     const formatVersion = side.metadata.formats[refFormatKey(reference)] ?? 1;
@@ -196,6 +200,19 @@ async function indexRecordValues(context: RefBackendContext, ref: string, side: 
     indexed.set(primary ? "primary" : refFormatKey(reference), { entry, value, retained });
   }
   return indexed;
+}
+
+function readableSyncReference(context: RefBackendContext, ref: string, namespace: SyncRecordNamespace,
+  entry: RefTreeEntry, object: BatchObject | null | undefined): RecordReference | undefined {
+  const { owner, family, metadata } = namespace;
+  const decoded = decodeReference(context, owner, family, entry.path, metadata, object?.type === "blob" ? object : undefined);
+  const reference = decoded && "owner" in decoded ? decoded : undefined;
+  if (object?.type !== "blob" && (reference || fixedStoredPathKind(context.registry, family, entry.path))) {
+    throw new RefSyncLabelError(ref, { code: "namespace-corrupt", class: "terminal", namespace: ref,
+      condition: `The stored record at ${ref}:${entry.path} requires blob ${entry.oid}, which is unavailable or has another object type.`,
+      remedy: { text: `Restore or fetch the original blob for ${ref}:${entry.path}, or repair the invalid entry forward in its source state, then retry the pull.` } });
+  }
+  return reference;
 }
 
 function same(left: IndexedRecord | undefined, right: IndexedRecord | undefined): boolean {
