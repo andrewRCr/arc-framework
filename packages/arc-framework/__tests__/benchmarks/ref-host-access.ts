@@ -7,7 +7,7 @@ import type { createRefStore, RecordReference } from "../../src/lib/store/index.
 import { hostRemote, hostTransport, type HostCredentials, type HostGit } from "./ref-host-transport.js";
 import { randomUUID } from "node:crypto";
 import { RecordReferenceSchema } from "../../src/lib/store/index.js";
-import { bootstrapHostRegistry } from "./ref-host-bootstrap.js";
+import { bootstrapHostRegistry, hostAtomicUnsupported } from "./ref-host-bootstrap.js";
 
 const exec = promisify(execFile);
 type Store = ReturnType<typeof createRefStore>;
@@ -116,9 +116,9 @@ export async function probeHostFork(input: { root: string; remote: string; setti
 
 /** Hold protected code back atomically, then prove the public backend can still publish state. */
 export async function probeHostPolicy(input: { root: string; remote: string; evidence: string; settings: HostSettings;
-  owned: Map<string, string>; atomic: boolean }): Promise<HostProbe> {
+  owned: Map<string, string>; atomic: boolean }, createTransport: typeof hostTransport = hostTransport): Promise<HostProbe> {
   const remote = input.settings.policy?.remote ?? input.remote;
-  const transport = hostTransport(remote, input.evidence, input.settings.policy?.owner ?? input.settings.owner);
+  const transport = createTransport(remote, input.evidence, input.settings.policy?.owner ?? input.settings.owner);
   const { git } = transport, path = join(input.root, "policy");
   const separate = remote !== input.remote;
   const personal = "refs/arc/user/andrew/personal", registry = "refs/arc/project/registry";
@@ -143,11 +143,14 @@ export async function probeHostPolicy(input: { root: string; remote: string; evi
       reference: RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } }),
       content: JSON.stringify({ projectId: randomUUID() }) }));
     success(await store.write({ action: "put", reference, expected: null, content: "Policy baseline.\n", provenance }));
-    const multiRefBootstrap = separate && !input.atomic
-      ? await bootstrapHostRegistry({ git, store, path, remote, owned }) : undefined;
-    const baseline = success(await store.push());
-    assert(baseline.publishes.some(row => row.status === "pushed"), JSON.stringify(baseline));
+    const trial = await store.push();
     await capture();
+    const atomic = separate ? !hostAtomicUnsupported(trial) : input.atomic;
+    const multiRefBootstrap = separate && !atomic
+      ? await bootstrapHostRegistry({ git, store, path, remote, owned, trial }) : undefined;
+    const baseline = success(multiRefBootstrap ? await store.push() : trial);
+    await capture();
+    assert(baseline.publishes.some(row => row.status === "pushed"), JSON.stringify(baseline));
     const original = await tips(), parent = original.get("refs/heads/main");
     assert(parent, "Policy fixture needs a seeded main branch");
     const read = success(await store.read({ reference }));
@@ -161,7 +164,7 @@ export async function probeHostPolicy(input: { root: string; remote: string; evi
       `--force-with-lease=refs/heads/main:${parent}`, "--", remote, `${next}:${personal}`, `${code}:refs/heads/main`]); }
     catch (error) { rejection = error; }
     assert(rejection && typeof rejection === "object" && "stdout" in rejection && "stderr" in rejection, "Expected protected-branch rejection");
-    if (input.atomic) assert.match(String(rejection.stdout), /^!\t/mu);
+    if (atomic) assert.match(String(rejection.stdout), /^!\t/mu);
     else {
       assert.match(String(rejection.stderr), /does not support.*atomic/iu);
       let single: unknown;
@@ -174,9 +177,11 @@ export async function probeHostPolicy(input: { root: string; remote: string; evi
     assert.equal(unchanged.get(personal), original.get(personal));
     assert.equal(unchanged.get("refs/heads/main"), parent);
     const carried = success(await store.push({ carry: { ref: "refs/heads/main", expect: parent as `${string}` } }));
+    await capture();
     assert.equal(carried.carry?.status, "refused", JSON.stringify(carried));
     // Production may retry the state leg after attributing the carried branch's rejection.
     const stateOnly = success(await store.push());
+    await capture();
     assert(stateOnly.publishes.every(row => row.status !== "failed"), JSON.stringify(stateOnly));
     const after = await tips();
     assert.equal(after.get("refs/heads/main"), parent);
