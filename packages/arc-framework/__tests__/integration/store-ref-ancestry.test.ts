@@ -52,6 +52,25 @@ async function applyRemedy(h: Awaited<ReturnType<typeof rewrittenFixture>>, text
   return output;
 }
 
+async function hideGraphObject(side: RefSyncFixture["b"], oid: string): Promise<() => Promise<void>> {
+  const path = join(side.gitDir ?? join(side.root, ".git"), "objects", oid.slice(0, 2), oid.slice(2));
+  const bytes = await readFile(path);
+  await rm(path);
+  const restore = () => writeFile(path, bytes);
+  onTestFinished(restore);
+  return restore;
+}
+
+async function repairMissingGraphRewrite(h: Awaited<ReturnType<typeof rewrittenFixture>>) {
+  const notices = success(await h.b.store.pull()).pulls.flatMap(row => row.notices);
+  expect(notices.some(row => row.kind === "namespace-corrupt")).toBe(false);
+  const notice = notices.find(row => row.kind === "history-diverged");
+  if (notice?.kind !== "history-diverged") throw new Error("Expected ordinary rewrite remedy after restoration");
+  await applyRemedy(h, notice.remedy.text, "Take theirs");
+  expect(success(await h.b.store.pull()).pulls.flatMap(row => row.notices)).toEqual([]);
+  expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Rewritten remote value.\n");
+}
+
 async function trackingLockStore(h: RefSyncFixture, tracking: string, afterFailure?: () => Promise<void>) {
   const format = (await h.b.git(["rev-parse", "--show-ref-format"])).stdout.trim();
   const lock = join(h.b.gitDir ?? join(h.b.root, ".git"), format === "reftable" ? "reftable/tables.list.lock" : `${tracking}.lock`);
@@ -437,6 +456,103 @@ describe.each(["default", "separate"] as const)("rewrite refusal in the %s layou
     expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Fourth published value.\n");
     expect(success(await store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
     expect(success(await h.b.store.read({ reference: h.other })).content).toBe(h.otherContent);
+  });
+
+  it("contains a missing rejected-update graph and resumes its explicit rewrite remedy", async () => {
+    const h = await rewrittenFixture(layout, true);
+    const remote = (await h.remote("git", ["rev-parse", h.ref])).stdout.trim();
+    let restore: (() => Promise<void>) | undefined;
+    const store = createRefStore({ ...h.b.ports, exec: async (command, args, options) => {
+      try { return await h.b.ports.exec(command, args, options); }
+      catch (error) {
+        if (!restore && args.includes("fetch")) restore = await hideGraphObject(h.b, remote);
+        throw error;
+      }
+    } });
+    try {
+      const pulled = success(await store.pull());
+      expect(pulled.pulls.flatMap(row => row.notices)).toContainEqual(expect.objectContaining({ kind: "namespace-corrupt", ref: h.ref }));
+      expect((await h.b.git(["rev-parse", h.tracking])).stdout.trim()).toBe(h.second);
+      expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Second published value.\n");
+      expect(success(await h.b.store.read({ reference: h.other })).content).toBe(h.otherContent);
+    } finally { await restore?.(); }
+    await repairMissingGraphRewrite(h);
+  });
+
+  it("contains a missing keeper-preparation graph through a later successful fetch", async () => {
+    const h = await rewrittenFixture(layout, true);
+    const remote = (await h.remote("git", ["rev-parse", h.ref])).stdout.trim();
+    await h.remote("git", ["update-ref", "-d", h.ref]); success(await h.b.store.pull());
+    await h.remote("git", ["update-ref", h.ref, remote]);
+    const broken = await keeperDeleteFault(h.b, h.tracking, "lock");
+    expect(await broken.store.pull()).toMatchObject({ status: "refused", refusal: { code: "lock-held" } });
+    await broken.release();
+    const independent = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("keeper-independent"),
+      reference: RecordReferenceSchema.parse({ owner: { type: "work-item", name: "keeper-independent" }, kind: "work-item/meta" }),
+      placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "start" } }));
+    if (independent.reference.owner.type !== "work-item" || !independent.reference.owner.uid) throw new Error("Expected minted independent work item");
+    const work = `refs/arc/work/${independent.reference.owner.uid}`;
+    await h.a.git(["push", h.remoteName, `${work}:${work}`]);
+    let restore: (() => Promise<void>) | undefined;
+    const store = createRefStore({ ...h.b.ports, exec: async (command, args, options) => {
+      if (!restore && args.includes("--is-ancestor") && args.at(-2) === h.second && args.at(-1) === remote) {
+        restore = await hideGraphObject(h.b, remote);
+      }
+      // The comparison has already confirmed the loss before fetch starts; restoration must not clear its hold.
+      if (args.includes("fetch")) await restore?.();
+      return h.b.ports.exec(command, args, options);
+    } });
+    try {
+      const pulled = success(await store.pull());
+      expect(pulled.pulls.flatMap(row => row.notices)).toContainEqual(expect.objectContaining({ kind: "namespace-corrupt", ref: h.ref }));
+      expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Second published value.\n");
+      expect((await h.b.git(["rev-parse", `refs/arc/tmp/seen/${h.remoteName}/user/andrew/personal`])).stdout.trim()).toBe(h.second);
+      expect(success(await h.b.store.read({ reference: independent.reference })).content).toBe(makeMetaFixture("keeper-independent"));
+    } finally { await restore?.(); }
+    await repairMissingGraphRewrite(h);
+  });
+
+  it("contains a missing acquired graph after a sibling advanced failed-fetch tracking", async () => {
+    const h = await rewrittenFixture(layout);
+    await h.remote("git", ["update-ref", h.ref, h.second, h.first]);
+    const before = success(await h.a.store.read({ reference: h.reference }));
+    success(await h.a.store.write({ action: "put", reference: h.reference, expected: before.version, content: "Third published value.\n", provenance }));
+    const independent = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("graph-independent"),
+      reference: RecordReferenceSchema.parse({ owner: { type: "work-item", name: "graph-independent" }, kind: "work-item/meta" }),
+      placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "start" } }));
+    if (independent.reference.owner.type !== "work-item" || !independent.reference.owner.uid) throw new Error("Expected minted independent work item");
+    const work = `refs/arc/work/${independent.reference.owner.uid}`;
+    success(await h.a.store.push());
+    const third = (await h.remote("git", ["rev-parse", h.ref])).stdout.trim();
+    let restore: (() => Promise<void>) | undefined;
+    const { store } = await trackingLockStore(h, `refs/arc-remotes/${h.remoteName}/project/inbox`, async () => {
+      const current = success(await h.a.store.read({ reference: h.reference }));
+      success(await h.a.store.write({ action: "put", reference: h.reference, expected: current.version, content: "Fourth published value.\n", provenance }));
+      await h.a.git(["push", h.remoteName, `${h.ref}:${h.ref}`]);
+      await h.b.git(["fetch", "--refmap=", "--no-tags", "--no-filter", "--negotiation-tip=refs/arc/*", h.remoteName,
+        `${h.ref}:${h.tracking}`, `${work}:refs/arc-remotes/${h.remoteName}/${work.slice("refs/arc/".length)}`]);
+      restore = await hideGraphObject(h.b, third);
+    });
+    try {
+      const pulled = success(await store.pull());
+      expect(pulled.pulls.flatMap(row => row.notices)).toContainEqual(expect.objectContaining({ kind: "namespace-corrupt", ref: h.ref }));
+      expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Second published value.\n");
+      expect((await h.b.git(["rev-parse", `refs/arc/tmp/seen/${h.remoteName}/user/andrew/personal`])).stdout.trim()).toBe(h.second);
+      expect(success(await h.b.store.read({ reference: independent.reference })).content).toBe(makeMetaFixture("graph-independent"));
+    } finally { await restore?.(); }
+    expect(success(await store.pull()).pulls.flatMap(row => row.notices)).toEqual([]);
+    expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Fourth published value.\n");
+    expect(success(await h.b.store.read({ reference: h.other })).content).toBe(h.otherContent);
+  });
+
+  it("propagates an unrelated fetched-graph executor error unchanged", async () => {
+    const h = await rewrittenFixture(layout, true), unrelated = new Error("Unrelated ancestry executor error");
+    const remote = (await h.remote("git", ["rev-parse", h.ref])).stdout.trim();
+    const store = createRefStore({ ...h.b.ports, exec: async (command, args, options) => {
+      if (args.includes("--is-ancestor") && args.at(-2) === h.second && args.at(-1) === remote) throw unrelated;
+      return h.b.ports.exec(command, args, options);
+    } });
+    await expect(store.pull()).rejects.toBe(unrelated);
   });
 
   it("refuses a Git lock already blocking keeper preparation and resumes after release", async () => {
