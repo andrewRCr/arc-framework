@@ -312,6 +312,7 @@ runs unknown runtime without reuse, preserves native outcomes, and closes or ret
         - Wired machine configuration and prepared execution into selected-check dispatch before reusable lookup. Hits
           close without execution; misses run fixed portable singles, and unknown runtime stays live without recording.
           Native fallback retains its cwd and bypasses adapter launch; ordinary checks do not expand declared shards.
+          Every check form classifies the adapter's engine-owned protocol stdin separately from terminal input.
 
     - `[x]` **4.2.b Preserve forecast, dry-run and repair routes**
         - Configured previews explain preparation-dependent reuse without probes or explicit-file capture. Preserved
