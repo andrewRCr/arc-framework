@@ -52,7 +52,7 @@ it("plans a linked cwd against captured physical paths and reads the intended fi
       const result = await runCheckProcess(invocation.argv, resolve(source.root, invocation.cwd), invocation.commandContent,
         { shell: invocation.shell, rawStdout: true });
       expect(result).toMatchObject({ started: true, exitCode: 0, stdout: "intended\n" });
-      expect(invocation.cwd).toBe("alias");
+      expect(invocation.cwd).toBe("packages/check");
       expect(invocation.argv).toEqual([process.execPath, "check.cjs", "file.txt"]);
       expect(invocation.commandContent?.tree).toBe(source.manifest.coordinates.tree);
     } finally { await source.remove(); }
