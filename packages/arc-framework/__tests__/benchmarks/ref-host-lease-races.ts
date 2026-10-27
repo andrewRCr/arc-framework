@@ -5,9 +5,10 @@ import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isGitProcessError } from "../../src/lib/git/process-error.js";
 import type { HostGit } from "./ref-host-transport.js";
+import { hostPushFailure, type HostPushFailure } from "./ref-host-evidence.js";
 import { quoteShellArgument } from "../../src/lib/release/commit-message-retry.js";
 
-interface RaceReceipt { advertised: string; expected: string; competitorTip: string; competitorExit: number; contenderTransmittedOld: boolean; finalTip?: string | null; carryAbsent?: boolean }
+interface RaceReceipt { advertised: string; expected: string; competitorTip: string; competitorExit: number; contenderTransmittedOld: boolean; finalTip?: string | null; carryAbsent?: boolean; rejection?: HostPushFailure; processFailure?: { kind: string; exitCode?: number; signal?: string; stdout: string; stderr: string } }
 export interface ReceiverRaceResult { status: "passed" | "unsupported" | "failed"; detail: RaceReceipt | string }
 interface RaceInput { root: string; remote: string; evidence: string; git: HostGit; atomic: boolean; nodeExecutable?: string }
 
@@ -71,9 +72,21 @@ async function receiverRace(input: RaceInput, state: RaceState): Promise<RaceRec
     receipt.contenderTransmittedOld = diagnostic.includes(`${old} ${next} ${ref}`);
     const after = await tips();
     receipt.finalTip = after.get(ref) ?? null; receipt.carryAbsent = !after.has(carry);
+    if (isGitProcessError(rejected)) receipt.processFailure = { kind: rejected.kind, exitCode: rejected.exitCode,
+      signal: rejected.signal, stdout: rejected.stdout, stderr: rejected.stderr };
     await writeFile(receiptPath, JSON.stringify(receipt, null, 2) + "\n");
     assert(receipt.contenderTransmittedOld, "Packet evidence must show the advertised old tip sent to the receiver");
-    assert(isGitProcessError(rejected) && rejected.kind === "nonzero-exit", "The completed contender must be rejected");
+    const rejection = hostPushFailure(rejected);
+    receipt.rejection = rejection;
+    await writeFile(receiptPath, JSON.stringify(receipt, null, 2) + "\n");
+    const subject = rejection.outcome.status === "refs"
+      ? rejection.outcome.refs.find(row => row.ref === ref && row.status === "remote-rejected") : undefined;
+    assert(subject && "reason" in subject, "The receiver must reject the race subject, not just fail the process");
+    const mismatch = `cannot lock ref '${ref}': is at ${winner} but expected ${old}`;
+    assert(subject.reason === "incorrect old value provided"
+      || /^(?:failed to update ref|atomic transaction failed|cannot lock ref )/u.test(subject.reason)
+        && `${subject.reason}\n${rejection.stderr}`.includes(mismatch),
+    "The receiver subject rejection must identify the raced old-value mismatch");
     assert.equal(after.get(ref), winner); assert.equal(after.has(carry), false, "The atomic companion must remain absent");
     return receipt;
   } finally {

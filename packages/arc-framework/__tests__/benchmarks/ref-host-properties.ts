@@ -8,10 +8,35 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { probeBackend } from "./ref-host-backend.js";
-import { hostRemote, hostTransport } from "./ref-host-transport.js";
+import { hostRemote, hostTransport, type HostGit } from "./ref-host-transport.js";
 import type { HostSettings } from "./ref-host-access.js";
-import { isGitProcessError } from "../../src/lib/git/process-error.js";
+import { hostPushFailure } from "./ref-host-evidence.js";
+
+/** Publish disposable protocol refs, continuing only after an observed atomic capability refusal. */
+export async function probeHostAtomicPush(input: { git: HostGit; source: string; remote: string; evidence: string;
+  seeded: string[]; old: Map<string, string>; oid: string; protocolOwned: Map<string, string> }): Promise<string | undefined> {
+  const { git, source, remote, evidence, seeded, old, oid, protocolOwned } = input;
+  let unsupported: string | undefined;
+  try {
+    await git("push", source, [
+      "push", "--porcelain", "--atomic", ...seeded.map((ref) => `--force-with-lease=${ref}:${old.get(ref) ?? ""}`),
+      "--", remote, ...seeded.map((ref) => `${oid}:${ref}`),
+    ], true);
+  } catch (error) {
+    const failure = hostPushFailure(error);
+    if (failure.outcome.status !== "atomic-unsupported") throw error;
+    unsupported = failure.stderr;
+    await writeFile(join(evidence, "push.stderr.log"), failure.stderr);
+    for (const ref of seeded) {
+      await git(`non-atomic-seed-${ref.at(-1)}`, source,
+        ["push", "--porcelain", `--force-with-lease=${ref}:`, "--", remote, `${oid}:${ref}`]);
+      protocolOwned.set(ref, oid);
+    }
+  }
+  return unsupported;
+}
 
 async function main(): Promise<void> {
   const [host, remote, output, settingsPath] = process.argv.slice(2);
@@ -47,22 +72,7 @@ async function main(): Promise<void> {
       "-c", "user.name=Host probe", "-c", "user.email=host-probe@example.invalid", "commit-tree", tree,
       ...(previous ? ["-p", previous] : []), "-m", "Host capability probe",
     ])).trim();
-    let unsupported: string | undefined;
-    try {
-      await git("push", source, [
-        "push", "--porcelain", "--atomic", ...seeded.map((ref) => `--force-with-lease=${ref}:${old.get(ref) ?? ""}`),
-        "--", remote, ...seeded.map((ref) => `${oid}:${ref}`),
-      ], true);
-    } catch (error) {
-      if (!isGitProcessError(error) || !error.stderr.includes("the receiving end does not support --atomic push")) throw error;
-      unsupported = error.stderr;
-      await writeFile(join(evidence, "push.stderr.log"), error.stderr);
-      for (const ref of seeded) {
-        await git(`non-atomic-seed-${ref.at(-1)}`, source,
-          ["push", "--porcelain", `--force-with-lease=${ref}:`, "--", remote, `${oid}:${ref}`]);
-        protocolOwned.set(ref, oid);
-      }
-    }
+    const unsupported = await probeHostAtomicPush({ git, source, remote, evidence, seeded, old, oid, protocolOwned });
     for (const ref of wanted) protocolOwned.set(ref, oid);
     await git("fetch", target, [
       "-c", "protocol.version=2", "fetch", "--no-tags", "--no-write-fetch-head", "--no-recurse-submodules",
@@ -98,4 +108,4 @@ async function main(): Promise<void> {
   }
 }
 
-await main();
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();

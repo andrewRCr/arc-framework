@@ -8,6 +8,7 @@ import { hostRemote, hostTransport, type HostCredentials, type HostGit } from ".
 import { randomUUID } from "node:crypto";
 import { RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { bootstrapHostRegistry, hostAtomicUnsupported } from "./ref-host-bootstrap.js";
+import { hostPushFailure, type HostPushFailure } from "./ref-host-evidence.js";
 
 const exec = promisify(execFile);
 type Store = ReturnType<typeof createRefStore>;
@@ -39,13 +40,13 @@ function success<T>(value: { status: "ok"; result: T } | { status: "refused"; re
 export async function probeHostRoles(input: {
   root: string; remote: string; evidence: string; settings: HostSettings; ownerGit: HostGit;
   reference: RecordReference; personalRef: string; ownerStore: Store; owned: Map<string, string>;
-}): Promise<Record<string, HostProbe>> {
+}, createTransport: typeof hostTransport = hostTransport): Promise<Record<string, HostProbe>> {
   const { root, remote, evidence, settings, ownerGit, reference, personalRef, ownerStore, owned } = input;
   if (!settings.member || !settings.roleControl) return {
     ordinaryWriter: { status: "unverified", detail: "Supply distinct member credentials and a provider role control" },
     readOnly: { status: "unverified", detail: "Supply distinct member credentials and a provider role control" },
   };
-  const member = hostTransport(remote, evidence, settings.member);
+  const member = createTransport(remote, evidence, settings.member);
   const path = join(root, "ordinary-member");
   const receipts: Record<string, unknown>[] = [];
   try {
@@ -77,6 +78,26 @@ export async function probeHostRoles(input: {
       provenance: { verb: "edit", lifecycleAction: "save" } }));
     const refused = success(await store.push());
     assert(refused.publishes.some(row => row.status === "failed"), JSON.stringify(refused));
+    const pendingTip = (await member.git("member-pending-tip", path, ["rev-parse", personalRef])).trim();
+    let permission: HostPushFailure | undefined, permissionIssue: string | undefined;
+    try {
+      await member.git("member-permission-rejection", path, ["push", "--porcelain", `--force-with-lease=${personalRef}:${writerTip}`,
+        "--", remote, `${pendingTip}:${personalRef}`]);
+      // A successful direct push is still invocation-owned, even though the role trial failed.
+      owned.set(personalRef, pendingTip);
+      permissionIssue = "The read-only identity unexpectedly published its pending state";
+    } catch (error) {
+      try {
+        permission = hostPushFailure(error);
+        const reports = permission.outcome.status === "refs" ? permission.outcome.refs : [];
+        const subject = reports.find(row => row.ref === personalRef && row.status === "remote-rejected");
+        const denial = /permission[^\n]*denied|not (?:allowed|permitted|authorized) to push|write access[^\n]*(?:denied|not granted)|protected branch|not have (?:write|push) (?:access|permission)|TF401027[^\n]*GenericContribute/iu;
+        const attributed = reports.length > 0 ? subject !== undefined : permission.exitCode === 128;
+        const receiverText = permission.stderr.split(/\r?\n/u).filter(line => line.startsWith("remote:")).join("\n");
+        assert(attributed && denial.test(`${receiverText}\n${subject && "reason" in subject ? subject.reason : ""}`),
+          "The failed publication did not establish an authenticated permission or policy denial for the subject");
+      } catch (error) { permissionIssue = error instanceof Error ? error.message : String(error); }
+    }
     const remoteTip = (await ownerGit("reader-remote-tip", root, ["ls-remote", "--refs", "--", remote, personalRef])).trim().split(/\s+/u)[0];
     assert.equal(remoteTip, writerTip);
     assert.equal(success(await store.read({ reference })).content, content);
@@ -88,7 +109,7 @@ export async function probeHostRoles(input: {
     success(await ownerStore.pull());
     assert.equal(success(await ownerStore.read({ reference })).content, content);
     return { ordinaryWriter: { status: "passed", detail: { receipts, published } },
-      readOnly: { status: "passed", detail: { pulled, refused, repaired, remoteTip } } };
+      readOnly: { status: permissionIssue ? "unverified" : "passed", detail: { pulled, refused, repaired, remoteTip, permission, permissionIssue } } };
   } finally { await control(settings.roleControl, "writer"); }
 }
 
@@ -174,16 +195,23 @@ export async function probeHostPolicy(input: { root: string; remote: string; evi
     try { await git("policy-atomic-rejection", path, ["push", "--porcelain", "--atomic", `--force-with-lease=${personal}:${original.get(personal)}`,
       `--force-with-lease=refs/heads/main:${parent}`, "--", remote, `${next}:${personal}`, `${code}:refs/heads/main`]); }
     catch (error) { rejection = error; }
-    assert(rejection && typeof rejection === "object" && "stdout" in rejection && "stderr" in rejection, "Expected protected-branch rejection");
-    if (atomic) assert.match(String(rejection.stdout), /^!\t/mu);
-    else {
-      assert.match(String(rejection.stderr), /does not support.*atomic/iu);
+    const atomicRejection = hostPushFailure(rejection);
+    let policyRejection = atomicRejection;
+    if (!atomic) {
+      assert.equal(atomicRejection.outcome.status, "atomic-unsupported", "Expected completed atomic capability refusal");
       let single: unknown;
       try { await git("policy-single-rejection", path, ["push", "--porcelain", `--force-with-lease=refs/heads/main:${parent}`,
         "--", remote, `${code}:refs/heads/main`]); } catch (error) { single = error; }
-      assert(single && typeof single === "object" && "stdout" in single);
-      assert.match(String(single.stdout), /^!\t/mu);
+      policyRejection = hostPushFailure(single);
     }
+    assert.equal(policyRejection.outcome.status, "refs", "Expected per-ref protected-branch rejection");
+    const protectedBranch = policyRejection.outcome.status === "refs"
+      ? policyRejection.outcome.refs.find(row => row.ref === "refs/heads/main" && row.status === "remote-rejected") : undefined;
+    const policyReason = /GH006|GH013|TF402455|protected(?: branch| main)|repository rule violations|(?:permission denied|not allowed|not permitted)[^\n]*(?:branch|refs\/heads\/main)/iu;
+    const receiverPolicyText = policyRejection.stderr.split(/\r?\n/u).filter(line => line.startsWith("remote:")).join("\n");
+    assert(protectedBranch && "reason" in protectedBranch && (policyReason.test(protectedBranch.reason)
+      || /hook declined/iu.test(protectedBranch.reason) && policyReason.test(receiverPolicyText)),
+    "Expected receiver policy rejection for refs/heads/main");
     const unchanged = await tips();
     assert.equal(unchanged.get(personal), original.get(personal));
     assert.equal(unchanged.get("refs/heads/main"), parent);
@@ -199,7 +227,7 @@ export async function probeHostPolicy(input: { root: string; remote: string; evi
     assert.equal(after.get(personal), next);
     await capture();
     return { status: "passed", detail: { remote, baseline, ...multiRefBootstrap ? { multiRefBootstrap } : {},
-      atomicRejection: { stdout: String(rejection.stdout), stderr: String(rejection.stderr) },
+      atomicRejection, policyRejection,
       carried, stateOnly, protectedCodeUnchanged: true, statePublished: true } };
   } finally {
     if (separate) for (const [ref, tip] of owned) await git(`policy-cleanup-${ref.split("/").at(-1)}`, path,

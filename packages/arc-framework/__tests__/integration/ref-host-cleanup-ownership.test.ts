@@ -18,7 +18,7 @@ async function fixture(atomic: boolean) {
   await f.exec("git", ["init", "--bare", "--initial-branch=main", remote]);
   await f.exec("git", ["push", remote, "HEAD:refs/heads/main"]);
   await f.exec("git", [`--git-dir=${remote}`, "config", "receive.advertiseAtomic", String(atomic)]);
-  await writeFile(join(remote, "hooks", "pre-receive"), '#!/bin/sh\nwhile read old new ref; do\nif test "$ref" = refs/heads/main; then exit 1; fi\ndone\n', { mode: 0o755 });
+  await writeFile(join(remote, "hooks", "pre-receive"), '#!/bin/sh\nwhile read old new ref; do\nif test "$ref" = refs/heads/main; then echo "Protected branch main" >&2; exit 1; fi\ndone\n', { mode: 0o755 });
   const main = (await f.exec("git", ["rev-parse", "HEAD"])).stdout.trim();
   const tree = (await f.exec("git", ["rev-parse", "HEAD^{tree}"])).stdout.trim();
   const foreign = (await f.exec("git", [`--git-dir=${remote}`, "-c", "user.name=Concurrent writer", "-c", "user.email=concurrent@example.test",

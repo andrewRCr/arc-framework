@@ -15,7 +15,7 @@ hostRemote(remote, host);
 const settings: HostSettings = settingsPath ? JSON.parse(await readFile(settingsPath, "utf8")) as HostSettings : {};
 const evidence = resolve(output);
 await mkdir(evidence, { recursive: true });
-const sourceDigests = Object.fromEntries(await Promise.all(["ref-host-races.ts", "ref-host-lease-races.ts", "ref-host-transport.ts", "ref-host-credential.mjs"]
+const sourceDigests = Object.fromEntries(await Promise.all(["ref-host-races.ts", "ref-host-lease-races.ts", "ref-host-evidence.ts", "ref-host-transport.ts", "ref-host-credential.mjs"]
   .map(async file => [file, createHash("sha256").update(await readFile(new URL(file, import.meta.url))).digest("hex")])));
 await writeFile(join(evidence, "source-digests.json"), JSON.stringify(sourceDigests, null, 2) + "\n");
 const root = await mkdtemp(join(tmpdir(), "arc-host-races-"));

@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { type createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
-import { isGitProcessError } from "../../src/lib/git/process-error.js";
+import { hostPushFailure } from "./ref-host-evidence.js";
 import { probeReceiverLeaseRaces } from "./ref-host-lease-races.js";
 import { probeHostFork, probeHostPolicy, probeHostRoles, type HostSettings } from "./ref-host-access.js";
 import { bootstrapHostRegistry } from "./ref-host-bootstrap.js";
@@ -63,12 +63,18 @@ export async function probeBackend(input: { root: string; remote: string; eviden
     assert(pushed.publishes.length > 0 && pushed.publishes.every(row => row.status !== "failed"), JSON.stringify(pushed));
     return pushed;
   };
-  const expectFailure = async (label: string, path: string, args: string[]) => {
+  const expectFailure = async (label: string, path: string, args: string[],
+    expected: { ref: string; reason: RegExp } | "atomic-unsupported", allowUnsupported = false) => {
     try { await git(label, path, args); } catch (error) {
-      assert(isGitProcessError(error) && error.kind === "nonzero-exit", "Expected receiver rejection, not a setup failure");
-      const output = "stdout" in error ? String(error.stdout) : "";
-      const diagnostic = "stderr" in error ? String(error.stderr) : "";
-      return { output, diagnostic };
+      const evidence = hostPushFailure(error), outcome = evidence.outcome;
+      if (expected === "atomic-unsupported" || allowUnsupported && outcome.status === "atomic-unsupported") {
+        assert.equal(outcome.status, "atomic-unsupported", "Expected completed atomic capability refusal");
+      } else {
+        const subject = outcome.status === "refs" ? outcome.refs.find(row => row.ref === expected.ref && row.status === "rejected") : undefined;
+        assert(subject && "reason" in subject && expected.reason.test(subject.reason),
+          `Expected client rejection for ${expected.ref} with the requested stale/history reason`);
+      }
+      return { ...evidence, output: evidence.stdout, diagnostic: evidence.stderr };
     }
     throw new Error(`${label} unexpectedly succeeded`);
   };
@@ -90,26 +96,23 @@ export async function probeBackend(input: { root: string; remote: string; eviden
     results.backendRoundtrip = { status: "passed", detail: pushed };
     const candidate = (await git("code-candidate", a, ["rev-parse", "refs/remotes/origin/main"])).trim();
     const failed = await expectFailure("stale-atomic", a, ["push", "--porcelain", "--atomic",
-      `--force-with-lease=${personal}:${old}`, `--force-with-lease=${code}:`, "--", remote, `${old}:${personal}`, `${candidate}:${code}`]);
+      `--force-with-lease=${personal}:${old}`, `--force-with-lease=${code}:`, "--", remote, `${old}:${personal}`, `${candidate}:${code}`], { ref: personal, reason: /^stale info$/u }, !input.atomic);
     if (input.atomic || failed.output.includes("!\t")) assert.match(failed.output, /^!\t/mu);
     else assert.match(failed.diagnostic, /does not support.*atomic/iu);
     assert.equal((await tips()).get(personal), current);
     assert.equal((await tips()).has(code), false);
-    results.atomicCarryRefusal = { status: "passed", detail: failed };
-    const single = await expectFailure("stale-single", a, ["push", "--porcelain", `--force-with-lease=${personal}:${old}`, "--", remote, `${old}:${personal}`]);
-    assert.match(single.output, /^!\t/mu);
+    results.atomicCarryRefusal = { status: "passed", detail: { scope: "Client stale-advertisement check; receiver races are recorded separately", ...failed } };
+    const single = await expectFailure("stale-single", a, ["push", "--porcelain", `--force-with-lease=${personal}:${old}`, "--", remote, `${old}:${personal}`], { ref: personal, reason: /^stale info$/u });
     assert.equal((await tips()).get(personal), current);
-    results.singleLeaseRefusal = { status: "passed", detail: single };
-    const deletion = await expectFailure("stale-delete", a, ["push", "--porcelain", `--force-with-lease=${personal}:${old}`, "--", remote, `:${personal}`]);
-    assert.match(deletion.output, /^!\t/mu);
+    results.singleLeaseRefusal = { status: "passed", detail: { scope: "Client stale-advertisement check", ...single } };
+    const deletion = await expectFailure("stale-delete", a, ["push", "--porcelain", `--force-with-lease=${personal}:${old}`, "--", remote, `:${personal}`], { ref: personal, reason: /^stale info$/u });
     assert.equal((await tips()).get(personal), current);
-    results.staleDeleteRefusal = { status: "passed", detail: deletion };
+    results.staleDeleteRefusal = { status: "passed", detail: { scope: "Client stale-advertisement check", ...deletion } };
     const races = await probeReceiverLeaseRaces({ root, remote, evidence, git, atomic: input.atomic });
     for (const [kind, result] of Object.entries(races)) results[`receiver-${kind}-race`] = {
       status: result.status === "passed" ? "passed" : "unverified", detail: result.detail,
     };
-    const replay = await expectFailure("history-replay", b, ["push", "--porcelain", "--", remote, `${personal}:${personal}`]);
-    assert.match(replay.output, /^!\t/mu);
+    const replay = await expectFailure("history-replay", b, ["push", "--porcelain", "--", remote, `${personal}:${personal}`], { ref: personal, reason: /^(?:fetch first|non-fast-forward|needs force)$/u });
     results.historyReplayRefusal = { status: "passed", detail: replay };
     success(await second.pull());
     assert.equal(success(await second.read({ reference })).content, "Second host value.\r\n");
@@ -144,7 +147,7 @@ export async function probeBackend(input: { root: string; remote: string; eviden
     const receiver = join(root, "no-atomic.git");
     await git("no-atomic-init", root, ["init", "--bare", receiver]);
     await git("no-atomic-config", receiver, ["config", "receive.advertiseAtomic", "false"]);
-    const unsupported = await expectFailure("no-atomic-refusal", a, ["push", "--porcelain", "--atomic", "--", receiver, `${personal}:${personal}`]);
+    const unsupported = await expectFailure("no-atomic-refusal", a, ["push", "--porcelain", "--atomic", "--", receiver, `${personal}:${personal}`], "atomic-unsupported");
     assert.match(unsupported.diagnostic, /does not support.*atomic/iu);
     assert.equal((await git("no-atomic-unchanged", receiver, ["for-each-ref", "--format=%(refname)"])).trim(), "");
     await git("no-atomic-single", a, ["push", "--porcelain", `--force-with-lease=${personal}:`, "--", receiver, `${personal}:${personal}`]);
