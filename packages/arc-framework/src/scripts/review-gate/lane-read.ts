@@ -2,6 +2,7 @@
 import { laneSubjectOwnerMatches, type LaneSubjectLineage } from "./core/lane-admission.js";
 import { currentApprovedDispositionNode, type ApprovedDispositionRecord } from "./core/advisory-records.js";
 import { deriveNextPassFacts } from "./policy/next-pass-facts.js";
+import { selectReviewSources } from "./policy/review-source-eligibility.js";
 
 
 import { ReviewLaneReadEnvelopeSchema, type ReviewLaneReadEnvelope } from "./lane-read-schema.js";
@@ -12,6 +13,7 @@ export async function projectReviewLaneRead(input: Omit<Parameters<typeof derive
   readonly lineage: LaneSubjectLineage;
   readonly inheritedLineages?: readonly LaneSubjectLineage[];
   readonly dispositions: readonly ApprovedDispositionRecord[];
+  readonly sources: readonly string[];
 }): Promise<ReviewLaneReadEnvelope> {
   const lineages = [input.lineage, ...(input.inheritedLineages ?? [])];
   const progress = input.progress.filter(owner => lineages.some(lineage => laneSubjectOwnerMatches(owner.lineage, lineage)));
@@ -25,11 +27,13 @@ export async function projectReviewLaneRead(input: Omit<Parameters<typeof derive
   const last = facts.materialTrend.filter(look => !look.provisional).at(-1);
   const lastLook = last === undefined ? null : { producerId: last.producerId,
     coverage: last.coverage === "complete" ? "complete" : "incremental", outcome: last.outcome };
-  // The same context and ceiling the policy driver reads: it admits an incremental look only from a proven
-  // scope, and a complete pass at the ceiling only with an override.
+  // The same context, ceiling, and source selection the policy driver reads: it admits an incremental look only from
+  // a proven scope, a complete pass at the ceiling only with an override, and no look its sources refuse.
+  const { refusal } = selectReviewSources({ lane: "standard", sources: input.sources, nextPassContext: input.nextPassContext });
   const nextLooks = { incremental: input.nextPassContext.incremental?.basis ?? null,
     completePass: input.nextPassContext.completePasses < input.ceiling ? "admitted" : "ceiling-decision",
-    responseDue: input.nextPassContext.responseDue };
+    responseDue: input.nextPassContext.responseDue,
+    refusal: refusal === null ? null : { code: refusal.code, message: refusal.message } };
   return ReviewLaneReadEnvelopeSchema.parse({ schemaVersion: 1, mode: "review-lane-read", state: "ready",
     nextAction: "none", diagnostics: [], payload: { lineage: input.lineage, rejections, facts, lastLook, nextLooks } });
 }

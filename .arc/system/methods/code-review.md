@@ -128,11 +128,11 @@ Owner-stop continuation; leave a recommendation and the selected continuation, w
 Run `arc review lane read -`, deriving the request from `arc review lane read --schema`. For a delivery member, supply
 its exact head as `memberHeadObjectId`; otherwise use the caller's Candidate or Errand subject. Follow a refusal's
 remedy. Recommend only stopping or a look `payload.nextLooks` admits: its `incremental` look when it names one, or a
-complete pass, which at `ceiling-decision` needs § Ceiling override. When `payload.lastLook` has `coverage: incremental`
-and `outcome: clean`, use `payload.facts` for advisory judgment: recommend another complete pass while the trend reads
-`discovering` or [review-model's re-inspection test][re-inspection] holds; otherwise recommend stopping. Prefer a
-different source for a successor pass. State the recommendation, its reasons, and what would change it. A complete
-pass never replaces a required fix check.
+complete pass, which at `ceiling-decision` needs § Ceiling override. A `refusal` there admits no look; surface its
+message. When `payload.lastLook` has `coverage: incremental` and `outcome: clean`, use `payload.facts` for advisory
+judgment: recommend another complete pass while the trend reads `discovering` or [review-model's re-inspection
+test][re-inspection] holds; otherwise recommend stopping. Prefer a different source for a successor pass. State the
+recommendation, its reasons, and what would change it. A complete pass never replaces a required fix check.
 
 Honor an existing decision for this exact successor across unchanged re-entry. Otherwise, when recommending stopping,
 use the [stop line][stop-line] before source dispatch. An unavailable stop is a disclosed limit, never a clean result
