@@ -30,7 +30,7 @@ it.each(["push", "lease-read"] as const)("retries the source departure after a f
   else { await writeFile(hook, "#!/bin/sh\nexit 1\n"); await chmod(hook, 0o755); }
   const ports = { ...follower.ports, exec: async (...args: Parameters<typeof follower.ports.exec>) => {
     const [command, gitArgs, options] = args;
-    return failed === "lease-read" && gitArgs[0] === "ls-remote" && gitArgs.includes(h.destinationDirectory)
+    return failed === "lease-read" && gitArgs[0] === "ls-remote" && gitArgs.includes("--refs") && gitArgs.includes(h.destinationDirectory)
       ? follower.ports.exec(command, gitArgs.map(arg => arg === h.destinationDirectory ? missing : arg), options)
       : follower.ports.exec(...args);
   } };

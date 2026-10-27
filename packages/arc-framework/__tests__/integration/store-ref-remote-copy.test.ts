@@ -212,7 +212,7 @@ it("reads a refusing receiver's leases passively within the network bound, refus
   await chmod(hook, 0o755);
   const probes: { args: string[]; options?: GitExecOptions }[] = [];
   const ports = { ...h.pause, exec: async (command: string, args: string[], options?: GitExecOptions) => {
-    if (args[0] !== "ls-remote" || !args.includes(h.destination)) return h.a.ports.exec(command, args, options);
+    if (args[0] !== "ls-remote" || !args.includes("--refs") || !args.includes(h.destination)) return h.a.ports.exec(command, args, options);
     probes.push({ args, options });
     return h.a.ports.exec(command, args.map(arg => arg === h.destination ? `${h.destination}.missing` : arg), options);
   } };

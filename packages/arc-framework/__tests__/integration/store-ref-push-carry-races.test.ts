@@ -58,7 +58,7 @@ describe("carried branch receiver races", () => {
     const { h, other } = await codeRaceFixture("leased");
     const store = createRefStore({ ...h.a.ports, exec: (command, args, options) => {
       const targetAt = args.indexOf("--") + 1;
-      return h.a.ports.exec(command, args.includes("ls-remote")
+      return h.a.ports.exec(command, args.includes("ls-remote") && args.includes("--refs")
         ? args.map((arg, index) => index === targetAt ? join(h.origin, "missing.git") : arg) : args, options);
     } });
     const result = PushResultSchema.parse(success(await store.push(PushInputSchema.parse({ carry: { ref: carriedBranch, expect: h.code.tip } }))));
@@ -94,7 +94,7 @@ describe("carried branch receiver races", () => {
     const store = createRefStore({ ...h.a.ports, exec: async (command, args, options) => {
       try {
         const result = await h.a.ports.exec(command, args, options);
-        if (args.includes("ls-remote")) observations.push(result.stdout);
+        if (args.includes("ls-remote") && args.includes("--refs")) observations.push(result.stdout);
         return result;
       } catch (error) {
         if (args.includes("push") && !observed) {
