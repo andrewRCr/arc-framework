@@ -135,14 +135,10 @@ the selected source basis with independent Git coordinates, and budget complete 
 - _Goal:_ One shared validator defines exactly what a version-one conversation can claim, including opaque IDs,
   full-width native statuses, complete known-runtime coverage and both settlement arms.
 
-    - `[ ]` **2.2.a Define envelopes and operation payload schemas**
-        - Add exported Zod wire DTOs in `src/lib/checks/runner/contract.ts`, split cohesive supporting modules if
-          needed.
-        - Build `test-first` (one behavior at a time):
-            - NDJSON JSON-RPC requests/replies/notifications enforce IDs, result-or-error, version and operation shape.
-            - Source manifests, captured bindings, probes, invocation argv/cwd/shell/`commandContent`, recovery UUIDs,
-              ready/unavailable preparation and optional groups validate without introducing test-framework fields.
-            - Bytes/digests/base64 chunks and native unsigned 32-bit statuses reject invalid representations.
+    - `[x]` **2.2.a Define envelopes and operation payload schemas**
+        - Shared strict DTOs cover source manifests, captured bindings, fixed commands/probes, preparation, recovery,
+          outcomes and both settlement arms. Delimiter-free JSON-RPC decoding enforces versions, string IDs and
+          result/error envelopes; native uint32 statuses and decoded 64 KiB chunks retain exact representations.
 
     - `[ ]` **2.2.b Validate correlated coverage against a fixed plan**
         - Build `test-first` (one behavior at a time):
