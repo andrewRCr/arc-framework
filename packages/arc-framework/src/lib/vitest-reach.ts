@@ -311,10 +311,12 @@ export function locateFromOwnPath(module: string, text: string): Array<{ line: n
 }
 
 /** The location a node names — the module's URL, directory, or file path, or a module resolution from it. */
-function ownLocationName(node: ts.Node): "url" | "dirname" | "filename" | "resolve" | undefined {
-  if (ts.isPropertyAccessExpression(node) && ts.isMetaProperty(node.expression)
-    && node.expression.keywordToken === ts.SyntaxKind.ImportKeyword) {
-    const name = node.name.text;
+function ownLocationName(node: ts.Node): "url" | "dirname" | "filename" | "resolve" | "computed" | undefined {
+  if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node))
+    && ts.isMetaProperty(node.expression) && node.expression.keywordToken === ts.SyntaxKind.ImportKeyword) {
+    const name = ts.isPropertyAccessExpression(node) ? node.name.text : literalText(node.argumentExpression);
+    // A dynamic key may read any location field; only a statically unrelated key can be ignored.
+    if (name === undefined) return "computed";
     return name === "url" || name === "dirname" || name === "filename" || name === "resolve" ? name : undefined;
   }
   if (!ts.isIdentifier(node) || (node.text !== "__dirname" && node.text !== "__filename")) return undefined;

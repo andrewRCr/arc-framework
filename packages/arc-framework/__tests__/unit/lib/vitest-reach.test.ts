@@ -243,3 +243,37 @@ describe("paths and locations", () => {
     ]);
   });
 });
+
+describe("computed module location reach", () => {
+  it("ignores statically unrelated metadata fields", () => {
+    const files = { ...repository, "pkg/helpers/only-one.ts":
+      'export const mode = import.meta["env"]; export const main = import.meta.main;' };
+    expect(select("reach", ["unrelated.txt"], files).suites).toEqual([]);
+  });
+
+  it.each([
+    'new URL("../located.json", import.meta["url"])',
+    'resolve(import.meta["dirname"], "../located.json")',
+    'join(import.meta[`dirname`], "../located.json")',
+  ])("selects a changed literal file from %s", expression => {
+    const files = { ...repository, "pkg/located.json": "{}", "pkg/helpers/only-one.ts": `export const p = ${expression};` };
+    expect(select("reach", ["pkg/located.json"], files).suites).toContain("pkg/tests/probe-one.test.ts");
+  });
+
+  it.each([
+    'new URL(name, import.meta["url"])',
+    'resolve(import.meta["dirname"], name)',
+    'import.meta["filename"]',
+    'import.meta["resolve"]("./data.json")',
+    'import.meta[field]',
+  ])("requires declared finds for unresolved %s and accepts repaired declaration", expression => {
+    const files = memoryFiles({ ...repository, "pkg/helpers/only-one.ts":
+      `const unrelated = import.meta["env"]; export const p = ${expression};` });
+    expect(() => selectReachSuites(declaration(), files, { form: "reach", changed: [], environment: {} }))
+      .toThrow(/builds a path from its own location/u);
+    const repaired = declaration({ locating: [...declaration().locating,
+      { module: "pkg/helpers/only-one.ts", finds: ["pkg/recipe.json"] }] });
+    expect(selectReachSuites(repaired, files, { form: "reach", changed: ["pkg/recipe.json"], environment: {} }).suites)
+      .toContain("pkg/tests/probe-one.test.ts");
+  });
+});
