@@ -71,6 +71,7 @@ export function decodeRecord(context: RefBackendContext, reference: RecordRefere
   const record = StoreRecordSchema.safeParse({ reference, ...decoded, formatVersion, conflicts,
     version: refRecordVersion(reference, object.oid, metadata, formatVersion),
     ...(placement ? { placement } : {}), ...(primary && metadata.primary?.links ? { links: metadata.primary.links } : {}),
+    ...(primary && reference.owner.type === "work-item" ? { aliases: metadata.formerSlugs ?? [] } : {}),
   });
   return record.success ? record.data : recordDiagnostic(path, { kind: "malformed", condition: record.error.message }, options.saved);
 }
