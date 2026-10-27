@@ -19,6 +19,7 @@ import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.
 import type { PullNotice } from "../sync.js";
 import { corruptRef } from "./namespace-health.js";
 import { isArchiveRef } from "./archive-read.js";
+import { RefSyncLabelError } from "./sync-label.js";
 
 /** One unpublished end whose record still stands beside another machine's published end. */
 export interface WithdrawEnd { owner: OwnerIdentity; live: string; history: string; batch: string }
@@ -44,6 +45,11 @@ export async function commitWithdrawEnd(context: RefBackendContext, end: Withdra
       const plan = await prepareWithdrawEnd(staged, basis);
       return await commitWithdrawal(staged, basis, plan, watched, options);
     } catch (error) {
+      if (error instanceof RefSyncLabelError) {
+        const ref = "namespace" in error.refusal ? error.refusal.namespace : end.history;
+        return { status: "complete", changed: false, notices: [...new Set([ref, end.live, end.history])].map((ref): PullNotice => ({ kind: "namespace-corrupt",
+          ref, condition: error.refusal.condition, remedy: error.refusal.remedy })) };
+      }
       if (!(error instanceof UnavailableWithdrawJournal)) throw error;
       return heldWithdrawal(error, end);
     }

@@ -10,6 +10,11 @@ import { isStateRef } from "./manifest.js";
 export interface WithdrawJournalStep {
   ref: string;
   lineageOnly?: string;
+  beforeTip?: string;
+  afterTip: string;
+  currentTip?: string;
+  publishedTip?: string;
+  ancestor: Map<string, RefTreeEntry>;
   before: Map<string, RefTreeEntry>;
   after: Map<string, RefTreeEntry>;
 }
@@ -57,7 +62,7 @@ export async function materializeWithdrawJournal(context: RefBackendContext,
   return descriptions.map(({ ref, before, after }) => {
     const afterTree = trees.get(after), beforeTree = before ? trees.get(before) : [];
     if (!afterTree || !beforeTree) throw new UnavailableWithdrawJournal(ref, "An unpublished lifecycle batch has an unavailable original tree.");
-    return { ref, before: new Map(beforeTree.map((entry) => [entry.path, entry])),
+    return { ref, beforeTip: before, afterTip: after, ancestor: new Map(), before: new Map(beforeTree.map((entry) => [entry.path, entry])),
       after: new Map(afterTree.map((entry) => [entry.path, entry])) };
   });
 }
