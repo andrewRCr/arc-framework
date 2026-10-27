@@ -176,7 +176,7 @@ the selected source basis with independent Git coordinates, and budget complete 
           refusal and repair paths. `indexSourcePresentation` retains catalog labels, stored names and scoped material
           independently from whole-artifact identity; unresolved entries remain unavailable.
 
-### `[ ]` **2.5 Materialize selected code and self-contained Git metadata — D3**
+### `[x]` **2.5 Materialize selected code and self-contained Git metadata — D3**
 
 - _Goal:_ Selected index/commit presentation and required Git code history survive relocation without the original
   gitdir, filters on the worker, private refs/configuration or a worker-dependent replacement view.
@@ -187,15 +187,11 @@ the selected source basis with independent Git coordinates, and budget complete 
           validation refuses lost link or executable fidelity; failed materialization cleans owned storage and supports
           repaired filter/link retries with keep-local remedies.
 
-    - `[ ]` **2.5.b Construct independent code-only Git metadata**
-        - Build `test-first` (one behavior at a time):
-            - HEAD/base/tree/merged objects and required code history resolve after the original repository is
-              unavailable.
-            - Linked worktrees, supported object formats and unborn repositories retain verified coordinates.
-            - No alternates, original gitdir, caller config/hooks/credentials/notes/store refs become dependencies or
-              copies.
-        - Validate coordinates/self-containment rather than pack names/timestamps; unsupported formats refuse and retry
-          safely.
+    - `[x]` **2.5.b Construct independent code-only Git metadata**
+        - `addSourceGitMetadata` packs the selected code closure, installs independent HEAD/index administration and
+          checks history connectivity in an empty hook context. Linked/unborn SHA-1 and SHA-256 captures survive original
+          removal; incomplete history and unsupported formats refuse with cleanup and repaired retries, without copying
+          caller configuration, hooks, private refs or dependent object stores.
 
 ### `[ ]` **2.6 Build complete invocations and portable final-argv batches — D4, D5**
 
