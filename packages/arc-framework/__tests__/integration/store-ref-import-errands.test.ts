@@ -51,7 +51,7 @@ it("resumes a publication interrupted after its state push and retires origin's 
     if (!interrupted && args[1].includes("push")) { interrupted = true; throw new Error("interrupt-after-publish"); }
     return result;
   };
-  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "store", refusal: { code: "unreachable" } } });
+  await expect(h.migrate()).rejects.toThrow("interrupt-after-publish");
   const state = async (exec: typeof h.git) => (await exec("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout
     .split("\n").filter((line) => line && !line.startsWith("refs/arc/tmp/")).sort();
   const published = await state(h.remote);

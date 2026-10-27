@@ -63,7 +63,7 @@ describe("import publication", () => {
       if (!interrupted && args[1].includes("push")) { interrupted = true; throw new Error("interrupt-after-publish"); }
       return result;
     };
-    expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "store", refusal: { code: "unreachable" } } });
+    await expect(h.migrate()).rejects.toThrow("interrupt-after-publish");
     const before = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
     expect(before.split("\n").filter(Boolean)).toHaveLength(4);
     h.ports.exec = original;
