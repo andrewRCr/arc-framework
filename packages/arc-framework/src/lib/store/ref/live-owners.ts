@@ -27,7 +27,7 @@ export async function readLiveRefOwners(context: RefBackendContext, tips: Readon
     const shell = expandStoredPath(RecordReferenceSchema.parse({ kind: family === "work-item" ? "work-item/meta" : "cohort/document",
       owner: { type: family, name: "unresolved", uid: ref.split("/").at(-1) } }), { registry: context.registry });
     const metadata = parseRefMetadata(objects.get(query(ref, tip)), ref);
-    if (entries && !metadata && holdsNoRecord(shell, entries.map(({ path }) => path))) continue;
+    if (entries && holdsNoRecord(shell, entries.map(({ path }) => path))) continue;
     if (!entries || !metadata) { unreadable.set(ref, corruptRef(ref, !entries, saved)); continue; }
     const owner = refOwner(ref, family, metadata);
     const state: LiveRefOwner = { owner };
