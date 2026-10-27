@@ -70,6 +70,8 @@ async function runRefFetch(context: RefBackendContext, args: string[], input: st
       diagnosticLocale: "stable", interaction: PASSIVE_REMOTE_INTERACTION, preserveOutput: true })), failed: false };
   } catch (error) {
     const failure = normalizeGitRejection(error, { command: "git", args });
+    if (failure.kind === "unexpected") throw error;
+    if (failure.kind === "spawn-failure") throw failure;
     const parsed = parseFetchPorcelain(failure);
     const outcome: FetchOutcome = parsed.status === "unreachable" && failure.kind === "canceled" && signal?.aborted
       ? { ...parsed, cause: "timeout" } : parsed;

@@ -57,7 +57,12 @@ async function runMigrationFetch(context: RefBackendContext, args: string[], inp
   let fetched: FetchOutcome, failed = false;
   try { fetched = parseFetchPorcelain(await context.exec("git", args, { cwd: context.checkoutRoot, input,
     diagnosticLocale: "stable", interaction: PASSIVE_REMOTE_INTERACTION, preserveOutput: true })); }
-  catch (error) { failed = true; fetched = parseFetchPorcelain(normalizeGitRejection(error, { command: "git", args })); }
+  catch (error) {
+    const failure = normalizeGitRejection(error, { command: "git", args });
+    if (failure.kind === "unexpected") throw error;
+    if (failure.kind === "spawn-failure") throw failure;
+    failed = true; fetched = parseFetchPorcelain(failure);
+  }
   if (fetched.status === "unreachable") throw new MigrationRefusal({ code: "store", refusal: { code: "unreachable", class: "recoverable", cause: fetched.cause,
     condition: fetched.stderr || `Could not fetch migration remote ${remote.name}.`, remedy: { text: `Repair access to ${remote.name} and retry arc store migrate.` } } });
   // Rows printed before a failure do not show what the gathering kept, so the read failed whatever they say.

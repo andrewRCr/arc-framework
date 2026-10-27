@@ -73,12 +73,14 @@ export async function pushRefs(
     return parsePushPorcelain(stdout, stderr, 0);
   } catch (error) {
     const failure = normalizeGitRejection(error, { command: "git", args });
+    if (failure.kind === "unexpected") throw error;
+    if (failure.kind === "spawn-failure") throw failure;
     if (failure.kind === "command-line-capacity") return { status: "not-started", reason: "command-line-capacity",
       message: failure.message, stdout: failure.stdout, stderr: failure.stderr };
     const cause = failure.kind === "canceled" && options.signal?.aborted ? "timeout" : classifyRemoteFailure(failure);
+    const stderr = failure.descendantsUnconfirmed ? [failure.message, failure.stderr].filter(Boolean).join("\n") : failure.stderr;
     if (!isCompletedGitFailure(failure)) {
-      return { status: "unreachable", cause, stdout: failure.stdout,
-        stderr: failure.descendantsUnconfirmed ? [failure.message, failure.stderr].filter(Boolean).join("\n") : failure.stderr };
+      return { status: "unreachable", cause, stdout: failure.stdout, stderr };
     }
     return parsePushPorcelain(failure.stdout, failure.stderr, failure.exitCode ?? 128, cause);
   }

@@ -114,7 +114,12 @@ async function runProjectFetch(context: RefBackendContext, args: string[], input
   let result: ProjectFetch;
   try { result = { rejected: false, fetched: parseFetchPorcelain(await context.exec("git", args, { cwd: context.checkoutRoot, input,
     diagnosticLocale: "stable", interaction: PASSIVE_REMOTE_INTERACTION, preserveOutput: true })) }; }
-  catch (error) { result = { rejected: true, fetched: parseFetchPorcelain(normalizeGitRejection(error, { command: "git", args })) }; }
+  catch (error) {
+    const failure = normalizeGitRejection(error, { command: "git", args });
+    if (failure.kind === "unexpected") throw error;
+    if (failure.kind === "spawn-failure") throw failure;
+    result = { rejected: true, fetched: parseFetchPorcelain(failure) };
+  }
   if (result.fetched.status === "refs") for (const row of result.fetched.refs) {
     if (row.flag === "!") continue;
     if (/^0+$/u.test(row.next)) observed.delete(row.ref);
