@@ -433,7 +433,7 @@ admission/fallback remain provider-owned and cold/warm preparation costs are rec
           known/unknown execution verify source, explicit bindings, probes and closure without source-package modules.
           A fresh packed-recipe installation receives the guidance; Framework rendering preserves project configuration.
 
-### `[ ]` **5.4 Measure cold, warm and reusable-hit execution costs — D10**
+### `[x]` **5.4 Measure cold, warm and reusable-hit execution costs — D10**
 
 - _Goal:_ Qualification makes actual setup and reusable-hit costs visible for both adapters and proves that native
   defaults incur no source-capture or adapter-preparation work.
@@ -443,14 +443,10 @@ admission/fallback remain provider-owned and cold/warm preparation costs are rec
           state and complete binary/history closure across filesystems without whole-pack buffering. Both Git bindings
           support file streams; real cross-device/default captures pass, and portable cases join platform qualification.
 
-    - `[ ]` **5.4.b Record actual adapter and native execution costs**
-        - Measure cold, warm and would-be-cache-hit runs for the standalone and external adapters, separating capture,
-          materialization/dependency preparation, probes, command time and release; record environment/runtime disposition.
-        - Count source-capture/preparation/spawn calls on the unconfigured route; measure declared-file capture separately
-          where applicable instead of presenting it as source-capture overhead.
-        - Record reproducible commands, fixture/revision, sample counts and observed costs in
-          `notes-machine-check-runner.md`; keep live registry/credentials/private inventory outside tracked evidence and
-          impose no invented performance threshold.
+    - `[x]` **5.4.b Record actual adapter and native execution costs**
+        - Added reproducible native/adapter benchmarks and recorded three samples per turn, source/fixture revisions,
+          phase/body costs and precision limits in `notes-machine-check-runner.md`. Eighteen contexts close normally;
+          known hits skip execution, unknown runtime never reuses/publishes, and native routed-work counters stay zero.
 
 ### `[ ]` **5.5 Exercise provider-neutral qualification — D10** — validate exit criterion at segment scope
 

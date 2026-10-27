@@ -163,6 +163,108 @@ discovery and machine configuration migration remain foundation responsibilities
 reopen. Re-ground actual landed source rather than copying the available prerequisite's schema or claiming its
 qualification early.
 
+## Execution cost measurements
+
+Measured with ARC `58944c71b450560612511de9867dcc0736ad63da` and external arc-offload `cc6c43e`. The reproducible
+drivers are `__tests__/benchmarks/check-runner.ts` and `check-runner-native.ts` in the CLI package. Their SHA-256
+digests are respectively `29593263154f158cc43d4d01bfc1f5c74035f9a7b9e4eb301c395e41400babbc` and
+`bb16b6beb6ad9f879b2f43b431f35426c20c990bc93cea1c8932b53e2f27bc23`. Raw observations stay in the identity's ignored
+internal directory; they contain literal machine paths and are not package content.
+
+The caller was WSL2/Linux x64, Node `v26.3.0`, Git `2.55.0`, under `nicecap` at niceness 15 with 18 available logical
+CPUs. Three independent fixture samples each ran cold, warm and hit-candidate turns. Cold starts a fresh committed
+fixture and context; OS, Git, npm and pool caches remain available. Warm forces another execution of the same fixture
+through a fresh context. The hit candidate uses ordinary lookup after those successful runs. No performance threshold
+was imposed. Integration and merge-gate workloads are excluded from these measurements.
+
+The builtin workload hashes fixed input 10,000 times, consumes a 64-byte explicit file and a fixed scalar, and requests
+an actual Node-version probe. Six committed files total 1,818 bytes locally and 1,730 bytes externally; the command's
+literal executable spelling accounts for the difference. JSON observations record every fixture file's byte digest.
+The standalone uses known Node runtime. External runtime remains unknown, and its isolated repository profile runs
+real `npm ci --ignore-scripts --no-audit --no-fund` against the empty dependency lock before every context. The active
+owner mode was `speed`, with no environment override; the isolated route forbids local placement. Live configuration,
+capacity and mode were left untouched.
+
+### Observed phase costs
+
+All values below are milliseconds, reported as the median of three samples per row. Capture includes explicit
+bindings, source presentation, independent Git metadata, planning and preverification. Preparation includes process
+startup, provider materialization/admission/transport/dependencies/probes and caller postverification. Run includes
+validation, required output and settlement; known-runtime requalification also occurs there. Close counts the first
+release, drained exit and input cleanup once. Total also includes selection and key/store/report work; stage medians
+are not additive estimates of total.
+
+| Adapter           | Turn                    | Capture | Preparation |   Run | Close |   Total | Total range     |
+| ----------------- | ----------------------- | ------: | ----------: | ----: | ----: | ------: | --------------- |
+| Standalone, known | Cold forced             |   113.4 |       682.9 | 767.9 |  12.5 | 1,639.6 | 1,524.1–1,687.1 |
+| Standalone, known | Warm forced             |   109.7 |       665.2 | 797.1 |  10.2 | 1,648.5 | 1,485.4–1,661.6 |
+| Standalone, known | Reused                  |   121.2 |       642.2 |   0.0 |  10.5 |   797.5 | 795.6–824.9     |
+| External, unknown | Cold forced             |   122.4 |     2,389.5 | 159.5 | 772.5 | 3,482.5 | 3,429.5–3,506.2 |
+| External, unknown | Warm forced             |   120.5 |     2,263.7 | 164.3 | 788.6 | 3,363.5 | 3,260.4–3,474.5 |
+| External, unknown | Hit candidate, executed |   107.4 |     2,257.0 | 163.2 | 814.8 | 3,370.4 | 3,369.4–3,372.1 |
+
+Ordinary workload diagnostics record monotonic inner-probe-child and dependency-body durations separately. Probe
+stdout remains the stable Node version, so timing variation cannot invalidate a reusable key. Receipt files are
+outside captured source, fixed by an explicit value per fixture, and are cleaned after settlement. A hit reads fresh
+local preparation receipts rather than timing data from cached command output.
+
+| Adapter    | Body                           |  Cold |  Warm | Hit candidate |
+| ---------- | ------------------------------ | ----: | ----: | ------------: |
+| Standalone | First probe's inner Node child |  24.0 |  23.4 |          23.2 |
+| External   | Probe's inner Node child       |  13.6 |  13.6 |          14.7 |
+| External   | npm dependency preparation     | 140.4 | 140.2 |         147.2 |
+
+Standalone live turns execute two probes, during preparation and prelaunch qualification; reused turns execute only
+the preparation probe. External turns execute one probe each. The standalone performs no dependency installation.
+Body timers exclude the outer probe process/supervisor. Public preparation timings do not identify pure copy time
+separately from admission, transport, verification and supervision; those costs remain in the measured aggregate
+rather than being assigned unsupported component values.
+
+Every one of the 18 contexts launched an adapter and closed normally. The nine known-runtime contexts executed six
+invocations, published six passes and performed three successful lookups with no invocation on each hit. All nine
+external contexts executed; runtime was unknown and lookup/publication counts were both zero.
+
+Three real eligible-but-unconfigured native requests had median total 44.5 ms, range 44.4–52.3 ms. Counters recorded
+zero routed preparation calls, source-capture directories, adapter spawns or empty-map explicit captures, alongside
+three ordinary command spawns. Independent declared-file capture used 64 KiB read buffers, verified copied bytes and
+cleanup, and measured these medians separately:
+
+| Declared file | Capture | Disposal |
+| ------------- | ------: | -------: |
+| 64 bytes      |  0.8 ms |   0.4 ms |
+| 1 MiB         |  3.2 ms |   0.6 ms |
+
+### Reproduction
+
+Run the committed drivers from the repository root, supplying output paths under an ignored local directory:
+
+```sh
+. ~/.memcap.sh
+nicecap node --import tsx packages/arc-framework/__tests__/benchmarks/check-runner-native.ts /path/under/repo/native.json
+nicecap node --import tsx packages/arc-framework/__tests__/benchmarks/check-runner.ts --samples 3 --output /path/under/repo/local.json
+nicecap node --import tsx packages/arc-framework/__tests__/benchmarks/check-runner.ts --samples 3 --output /path/under/repo/external.json --origin https://example.invalid/arc/check-runner-cost.git --runner '["/path/to/arc-check-runner","--config","/private/benchmark-registry.json"]'
+```
+
+For the external run, copy the current owner registry to a private test file and append this repository profile,
+substituting eligible runner IDs from that copy. Keep the owner mode unchanged. The preparation program is one literal
+line because provider configuration rejects newline-containing arguments:
+
+```json
+{
+  "id": "check-runner-benchmark",
+  "origins": ["https://example.invalid/arc/check-runner-cost.git"],
+  "prepare_commands": [["node", "-e", "const fs=require('node:fs'),path=require('node:path'),cp=require('node:child_process');const directory=process.env.CHECK_BENCH_DIR;if(!directory)process.exit(2);fs.mkdirSync(directory,{recursive:true,mode:0o700});const started=performance.now();const result=cp.spawnSync('npm',['ci','--ignore-scripts','--no-audit','--no-fund'],{stdio:'ignore'});fs.appendFileSync(path.join(directory,'events.jsonl'),JSON.stringify({phase:'dependency',elapsedMs:performance.now()-started})+'\\n');if(result.status!==0)process.exit(result.status??1);"]],
+  "build_commands": [],
+  "command_classes": [{"arguments": ["workload.cjs"], "class": "slot"}],
+  "command_routes": [{"argv_prefix": ["node"], "runners": ["ELIGIBLE_RUNNER"], "allow_local": false}]
+}
+```
+
+The drivers use actual declaration reading, machine-file parsing, Git, pass stores, child execution and the prepared
+facade. Unavailable or uncertain work stops sampling and retains its fixture for inspection; it is never replaced
+implicitly. These small fixture observations describe measured setup/reuse costs rather than full-project workload
+speed or billing.
+
 ## Reference Material
 
 - [Cargo runner configuration][cargo]
