@@ -57,6 +57,8 @@ export interface DeclaredCheckResult extends Partial<CheckForecast> {
   costMs?: number;
   lastCostMs?: number;
   remedy?: string;
+  /** Provider settlement and repair instructions remain visible in CI reports. */
+  remedyKind?: "runner";
   record?: DeclaredCheckRecord;
 }
 
@@ -485,7 +487,7 @@ async function executeRoutedSelectedCheck(selected: SelectedCheck, io: DeclaredC
     onDiagnostic: bytes => { outputs.push(Buffer.from(bytes)); } });
   if (prepared.status !== "ready") return { id, kind, outcome: "couldn't run", reason: `${configuration.file}: checks.runner: ${prepared.reason}`,
     ...(prepared.status === "unavailable" && prepared.cleanupWarning !== undefined ? { notice: prepared.cleanupWarning } : {}),
-    remedy: prepared.status === "unavailable" ? prepared.remedy : retainedRunnerRemedy(prepared.retained) };
+    remedy: prepared.status === "unavailable" ? prepared.remedy : retainedRunnerRemedy(prepared.retained), remedyKind: "runner" };
   const execution = prepared.execution;
   let closing: Promise<CheckExecutionClosure> | undefined;
   const close = () => closing ??= execution.close();
@@ -499,7 +501,7 @@ async function executeRoutedSelectedCheck(selected: SelectedCheck, io: DeclaredC
       const closure = await close();
       return closure.status === "closed" ? { id, kind, outcome: "reused", output: pass.output,
         ...(closure.cleanupWarning === undefined ? {} : { notice: closure.cleanupWarning }) }
-        : { id, kind, outcome: "couldn't run", reason: closure.reason, remedy: retainedRunnerRemedy(closure.retained) };
+        : { id, kind, outcome: "couldn't run", reason: closure.reason, remedy: retainedRunnerRemedy(closure.retained), remedyKind: "runner" };
     }
     const result = await executeRoutedSingles(execution, check);
     const closure = await close();
@@ -530,7 +532,7 @@ async function finalizeRoutedCheck(selected: SelectedCheck, io: DeclaredCheckDep
     { evidence: result, output, incompleteWork: closure.status === "uncertain" ? [closure.reason] : [] }, key);
   const notice = [...result.notices, closure.status === "closed" ? closure.cleanupWarning : undefined].filter(Boolean).join("; ");
   return { ...finalized, costMs,
-    ...(closure.status === "uncertain" ? { remedy: retainedRunnerRemedy(closure.retained) } : {}),
+    ...(closure.status === "uncertain" ? { remedy: retainedRunnerRemedy(closure.retained), remedyKind: "runner" as const } : {}),
     ...(measurement === undefined ? {} : { logPath: measurement.logPath }), ...(notice ? { notice } : {}) };
 }
 

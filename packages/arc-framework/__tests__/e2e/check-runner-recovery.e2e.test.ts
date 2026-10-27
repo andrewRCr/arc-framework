@@ -43,6 +43,15 @@ it("reports pre-context recovery after disconnect and permits an explicit fresh 
   await expect(access(preparation.source.root)).resolves.toBeUndefined();
   await expect(access(preparation.source.manifest)).resolves.toBeUndefined();
   await expect(access(receipt)).rejects.toMatchObject({ code: "ENOENT" });
+  const ci = await runArc(["check", "run", "example", "--ci"], root, { env: machine.environment });
+  await registerRunnerFixtureSources(directories, join(machine.home, "source"));
+  const ciPreparation = JSON.parse(await readFile(join(machine.home, "preparing"), "utf8")) as typeof preparation;
+  expect(ci.exitCode, ci.stdout + ci.stderr).toBe(2);
+  expect(ci.stdout).toContain(ciPreparation.planId);
+  expect(ci.stdout).toContain(JSON.stringify(ciPreparation.source.root));
+  expect(ci.stdout).toContain("Inspect and settle this test attempt by its plan UUID.");
+  await expect(access(ciPreparation.source.root)).resolves.toBeUndefined();
+  await expect(access(receipt)).rejects.toMatchObject({ code: "ENOENT" });
   await writeFile(adapter, preparedAdapterScript("execute", undefined, machine.home));
   const repaired = await runArc(["check", "run", "example", "--json"], root, { env: machine.environment });
   expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
