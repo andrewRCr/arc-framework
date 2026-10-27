@@ -28,7 +28,7 @@ interface ReportHeader {
   details: readonly string[];
 }
 
-/** The caller's reading of the review loop, over one series of critical and major counts per complete pass. */
+/** The caller's reading of the review loop, over one series of critical and major counts per complete pass, if any. */
 interface ReportTrend {
   reading: string;
   series: readonly string[];
@@ -102,11 +102,15 @@ function renderHeader({ title, details }: ReportHeader): string {
   return [`**${escapeReviewFindingDisplayText(title)}**`, ...details.map(escapeReviewFindingDisplayText)].join(" · ");
 }
 
-/** The reading leads, so where the review stands reads first; each complete pass's counts follow as a bullet. */
+/**
+ * The reading leads, so where the review stands reads first; each complete pass's counts follow as a bullet, or one
+ * line when no look found a critical or major finding.
+ */
 function renderTrend({ reading, series }: ReportTrend): string {
-  return [`**Trend:** ${escapeReviewFindingDisplayText(reading)}`,
-    ["Critical and major findings, each full pass then its fix checks:",
-      ...series.map(line => `- ${escapeReviewFindingDisplayText(line)}`)].join("\n")].join("\n\n");
+  const counts = series.length === 0 ? "No critical or major findings at any look."
+    : ["Critical and major findings, each full pass then its fix checks:",
+      ...series.map(line => `- ${escapeReviewFindingDisplayText(line)}`)].join("\n");
+  return [`**Trend:** ${escapeReviewFindingDisplayText(reading)}`, counts].join("\n\n");
 }
 
 /** One paragraph per descriptor field, so each scans on its own line once rendered. */

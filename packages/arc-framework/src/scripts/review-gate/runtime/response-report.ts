@@ -4,7 +4,7 @@ import type { ApprovedDispositionSet, ProposedDispositionSet } from "../core/dis
 import { renderDispositionEvidence, renderDispositionReport } from "../core/disposition-report.js";
 import type { NormalizedReviewFinding } from "../core/finding-records.js";
 import { validateReviewFixTags, validateReviewReportInput, type ReviewFixTags, type ReviewReportInput } from "../core/review-report-inputs.js";
-import { materialTrendEntries } from "../policy/next-pass-offer-text.js";
+import { criticalMajorSeries, trendLooks } from "../policy/next-pass-offer-text.js";
 import { projectProvisionalPassAssessment, type ProvisionalStandardPassFacts } from "./provisional-pass-assessment.js";
 import type { ReviewResult } from "../core/review-result.js";
 import type { RespondCommandDependencies } from "./respond-command.js";
@@ -46,11 +46,11 @@ function reportHeader(input: ProposedResponseReportInput): { title: string; deta
   return { title: input.assessment.positionText, details: unsupported === 0 ? details : [...details, `${unsupported} not supported`] };
 }
 
-/** The computed next step a fix creates beside the agent's recommendation for it, a decision apart from approval. */
+/** The looks a fix leaves the lane, then the agent's labelled recommendation, a decision apart from approval. */
 function reportDecisions(input: ProposedResponseReportInput): string[] {
   const next = input.assessment.nextActivityText;
   const recommendation = input.report.successorRecommendation;
-  return [next === null ? `Next: ${recommendation}` : `After the fix: ${next}. ${recommendation}`];
+  return [`${next === null ? "" : `After the fix: ${next}. `}Recommended: ${recommendation}`];
 }
 
 /** Ask for the set's approval, naming what it releases and never the next pass, which approval leaves open. */
@@ -68,34 +68,11 @@ function reportCloser(input: ProposedResponseReportInput): string {
   return `Approve: ${[actions.join(", "), ...fixSteps, ...settleSteps].join(" → ")}?`;
 }
 
-type LaneFacts = NonNullable<ProposedResponseReportInput["standardFacts"]>["facts"];
-
-/** One entry per look, in lane order; the current look's provisional count replaces its unapproved one. */
-function trendLooks(facts: LaneFacts) {
-  const looks = new Map<string, ReturnType<typeof materialTrendEntries>[number]>();
-  for (const entry of materialTrendEntries(facts)) looks.set(entry.producerId, entry);
-  return [...looks.values()];
-}
-
-/** Each complete pass with the fix checks after it, as one series of critical and major counts per look. */
-function trendSeries(facts: LaneFacts, looks: ReturnType<typeof trendLooks>): string[] {
-  const passes = new Map<number, string[]>();
-  for (const look of looks) {
-    const counts = passes.get(look.pass) ?? [];
-    counts.push(`${look.materialCount ?? "unknown"}${look.provisional ? " (this look)" : ""}`);
-    passes.set(look.pass, counts);
-  }
-  return [...passes].map(([pass, counts]) =>
-    `${pass === 0 ? "Before pass 1" : `Pass ${pass} of ${facts.ceiling}`}: ${counts.join(" → ")}`);
-}
-
 /** The agent's reading of a lane with two or more looks, over the series of its critical and major counts. */
 function reportTrend(input: ProposedResponseReportInput): { reading: string; series: string[] } | undefined {
   const facts = input.standardFacts?.facts;
-  if (facts === undefined) return undefined;
-  const looks = trendLooks(facts);
-  if (looks.length < 2) return undefined;
-  return { reading: `${input.report.reading.kind} — ${input.report.reading.rationale}`, series: trendSeries(facts, looks) };
+  if (facts === undefined || trendLooks(facts).length < 2) return undefined;
+  return { reading: `${input.report.reading.kind} — ${input.report.reading.rationale}`, series: criticalMajorSeries(facts) };
 }
 
 /** Render unstored report judgments beside the canonical proposal and computed lane trend. */

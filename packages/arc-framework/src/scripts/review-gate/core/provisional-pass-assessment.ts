@@ -11,10 +11,14 @@ export const ProvisionalFixConsequenceSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("no-fix") }),
   /** The fixed head closes the lane without another pass. */
   z.strictObject({ kind: z.literal("lane-closes") }),
-  /** The fixed head needs the lane's next pass, with the coverage it expects, or null where the lane selects it. */
+  /**
+   * The fixed head needs the lane's next pass, with the coverage it expects, or null where the lane selects it;
+   * `complete-or-incremental` admits either the configured source's complete pass or a fix check where its chain is
+   * proven.
+   */
   z.strictObject({
     kind: z.literal("next-pass"),
-    coverage: z.enum(["complete", "incremental-when-proven"]).nullable(),
+    coverage: z.enum(["complete", "incremental-when-proven", "complete-or-incremental"]).nullable(),
   }),
   /** The fixed head needs a pass beyond the configured ceiling. */
   z.strictObject({ kind: z.literal("ceiling-decision") }),
@@ -73,8 +77,10 @@ export const ProvisionalPassAssessmentSchema = z.strictObject({
       message: "a material fix needs another pass",
     });
   }
+  // A fix check spends no complete pass, so a next pass that admits one stays a next pass at the ceiling.
   const incremental = assessment.fixConsequence.kind === "next-pass"
-    && assessment.fixConsequence.coverage === "incremental-when-proven";
+    && (assessment.fixConsequence.coverage === "incremental-when-proven"
+      || assessment.fixConsequence.coverage === "complete-or-incremental");
   if (passFollows && !incremental && (consequence === "next-pass") !== (position === "below-ceiling")) {
     context.addIssue({
       code: "custom",

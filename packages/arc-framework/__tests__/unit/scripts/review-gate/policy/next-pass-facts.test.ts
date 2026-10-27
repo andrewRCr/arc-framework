@@ -170,7 +170,8 @@ it("reports the trend as each complete pass's critical and major counts, without
   }
 });
 
-it("marks a current fix check as this look, and labels a look before the first pass or without a count", async () => {
+it("marks a current fix check as this look, labels a look before the first pass or without a count, and collapses "
+  + "a lane with no critical or major finding to one line", async () => {
   const fixture = await laneWithDelta("findings");
   const producer = await fixture.resultReader.readResult(fixture.delta.operationId);
   const record = approvedRecord(producer, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);
@@ -195,6 +196,10 @@ it("marks a current fix check as this look, and labels a look before the first p
     materialCount: null, provisional: false };
   expect(render({ ...facts, materialTrend: [earlier, ...facts.materialTrend] }))
     .toContain(`${series}- Before pass 1: unknown\n- Pass 1 of 4: 0 → 1 (this look)\n\n`);
+  const quiet = render({ ...facts, materialTrend: facts.materialTrend.map(look => ({ ...look, materialCount: 0 })) });
+  expect(quiet).toContain("**Trend:** converging — One repair is left.\n\nNo critical or major findings at any look.\n\n"
+    + "**Decisions**");
+  expect(quiet).not.toContain(series);
 });
 
 it("places each trend look after the complete pass it follows, or before the first", () => {
