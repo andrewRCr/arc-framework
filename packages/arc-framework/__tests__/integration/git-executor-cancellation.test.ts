@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createExecaGitExec, createExecaGitExecInput, createExecaRawGitExec } from "../../src/lib/git/process-executor.js";
 import { createSpawnRawGitExec } from "../../src/lib/change-facts.js";
 import type { GitExecOptions } from "../../src/lib/git/exec.js";
+import { GitBatchReadScope } from "../../src/lib/git/batch-reader.js";
 
 const execFileAsync = promisify(execFile);
 const exec = createExecaGitExec();
@@ -140,6 +141,32 @@ async function expectEnded(pids: number[]): Promise<void> {
     await delay(5);
   }
   expect((await processes()).filter((row) => pids.includes(row.pid) && !row.command.includes("<defunct>"))).toEqual([]);
+}
+
+async function unsettledProcessUtility(root: string, inherited: boolean) {
+  await listProcessesCommand();
+  const directory = join(root, "unsettled-tools"), marker = join(root, "utility-pids"), recovered = join(root, "utility-recovered");
+  await mkdir(directory);
+  await writeFile(join(directory, "ps"), ["#!/bin/sh", `if [ -f '${recovered}' ]; then exit 0; fi`,
+    "trap '' TERM", "sleep 30 &", "holder=$!", `printf '%s %s\\n' "$$" "$holder" >> '${marker}'`,
+    inherited ? "exit 0" : 'wait "$holder"', ""].join("\n"));
+  await chmod(join(directory, "ps"), 0o755);
+  const previous = process.env.PATH ?? "";
+  vi.stubEnv("PATH", `${directory}${delimiter}${previous}`);
+  const pids = async () => readFile(marker, "utf8").then(value => value.trim().split(/\s+/u).map(Number), () => [] as number[]);
+  return { pids, restore: async () => {
+    await writeFile(recovered, "ready");
+    for (const pid of await pids()) { children.add(pid); kill(pid); }
+    vi.stubEnv("PATH", previous);
+  } };
+}
+
+async function settlesWithUnconfirmedDescendants(pending: Promise<unknown>, controller: AbortController): Promise<void> {
+  const started = performance.now();
+  controller.abort();
+  const outcome = await Promise.race([pending.catch((error: unknown) => error), delay(2_500).then(() => ({ kind: "still-running" }))]);
+  expect(outcome).toMatchObject({ kind: "canceled", isCanceled: true, descendantsUnconfirmed: true });
+  expect(performance.now() - started).toBeLessThan(2_500);
 }
 
 describe("Git descendant cancellation", () => {
@@ -286,6 +313,75 @@ describe("Git cancellation after direct-child exit", () => {
       controller.abort();
       for (const pid of children) kill(pid);
       await pending.catch(() => undefined);
+    }
+  }, 20_000);
+});
+
+describe("Git cancellation utility settlement", () => {
+  it.skipIf(process.platform === "win32").each(["plain", "stdin", "raw", "native raw"].flatMap(variant =>
+    [false, true].map(inherited => ({ variant, inherited }))))(
+    "settles $variant with inherited utility pipes=$inherited and permits a repaired operation", async ({ variant, inherited }) => {
+    const root = await repository(), ready = join(root, "orphan-ready"), release = join(root, "release-direct");
+    await writeFile(join(root, "hold-pipes.cjs"), [
+      'const { spawn } = require("node:child_process");', 'const { writeFileSync, existsSync } = require("node:fs");',
+      'const holder = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { detached: true, stdio: "inherit" });',
+      `writeFileSync(${JSON.stringify(ready)}, String(holder.pid));`, "holder.unref();",
+      `setInterval(() => { if (existsSync(${JSON.stringify(release)})) process.exit(0); }, 5);`,
+    ].join("\n"));
+    const utility = await unsettledProcessUtility(root, inherited), controller = new AbortController();
+    const marker = `--git-dir=${join(root, ".git")}`;
+    const pending = invoke(variant, [marker, "-c", "alias.hold-pipes=!node ./hold-pipes.cjs", "hold-pipes"], { cwd: root, signal: controller.signal });
+    void pending.catch(() => undefined);
+    try {
+      const direct = await waitForProcess(marker);
+      let holder = 0;
+      for (let attempt = 0; attempt < 300; attempt += 1) {
+        holder = await readFile(ready, "utf8").then(Number, () => 0);
+        if (holder > 0) break;
+        await delay(10);
+      }
+      expect(holder).toBeGreaterThan(0);
+      children.add(holder);
+      await writeFile(release, "exit");
+      await expectEnded([direct]);
+      await settlesWithUnconfirmedDescendants(pending, controller);
+      const pids = await utility.pids();
+      expect(pids.length).toBeGreaterThanOrEqual(2);
+      await expectEnded(pids.filter((_pid, index) => index % 2 === 0));
+      await utility.restore();
+      await invoke(variant, ["update-ref", "refs/heads/repaired-utility", "HEAD"], { cwd: root });
+      expect((await exec("git", ["rev-parse", "refs/heads/repaired-utility"], { cwd: root })).stdout)
+        .toBe((await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout);
+    } finally {
+      controller.abort();
+      await utility.restore();
+      for (const pid of children) kill(pid);
+      await pending.catch(() => undefined);
+    }
+  }, 20_000);
+
+  it.skipIf(process.platform === "win32").each([false, true])("reopens the same batch scope after utility pipes inherited=%s", async inherited => {
+    const root = await repository(), utility = await unsettledProcessUtility(root, inherited);
+    const raw = createExecaRawGitExec(root), scope = new GitBatchReadScope(), controller = new AbortController();
+    const pending = raw(["cat-file", "--batch"], { input: Buffer.from("HEAD\n"), objectAccess: "local-only", batchReader: scope, signal: controller.signal });
+    void pending.catch(() => undefined);
+    try {
+      await Promise.resolve();
+      controller.abort();
+      const outcome = await Promise.race([pending.catch((error: unknown) => error), delay(2_500).then(() => ({ kind: "still-running" }))]);
+      expect(outcome).toMatchObject({ kind: "canceled", isCanceled: true });
+      const pids = await utility.pids();
+      expect(pids.length).toBeGreaterThanOrEqual(2);
+      await expectEnded(pids.filter((_pid, index) => index % 2 === 0));
+      await utility.restore();
+      expect(new TextDecoder().decode((await raw(["cat-file", "--batch"], {
+        input: Buffer.from("HEAD\n"), objectAccess: "local-only", batchReader: scope,
+      })).stdout)).toContain(" commit ");
+    } finally {
+      controller.abort();
+      await utility.restore();
+      await pending.catch(() => undefined);
+      await scope.close();
     }
   }, 20_000);
 });

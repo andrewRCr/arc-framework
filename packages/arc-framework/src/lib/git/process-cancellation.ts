@@ -19,16 +19,34 @@ function kill(pid: number): boolean {
 
 function runUtilityOnce(command: string, args: string[], timeout: number): Promise<string | null> {
   return new Promise((resolve) => {
-    const child = execFile(command, args, { timeout }, (error, stdout) => {
-      resolve(error ? null : stdout);
-    });
-    child.stdin?.end();
+    let settled = false, child: ChildProcess | undefined;
+    const finish = (value: string | null): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadline);
+      resolve(value);
+    };
+    const deadline = setTimeout(() => { finish(null); disposeUtility(child); }, timeout);
+    try {
+      child = execFile(command, args, { timeout }, (error, stdout) => { finish(error ? null : stdout); });
+      child.stdin?.end();
+    } catch { finish(null); disposeUtility(child); }
   });
 }
 
+function disposeUtility(child: ChildProcess | undefined): void {
+  try { child?.kill("SIGKILL"); } catch { /* The attempt remains unconfirmed when its utility cannot be ended. */ }
+  child?.stdin?.destroy();
+  child?.stdout?.destroy();
+  child?.stderr?.destroy();
+  child?.unref();
+}
+
 /** Run a process utility, retrying once so a transient spawn or timeout failure does not leave the tree unconfirmed. */
-async function runCancellationUtility(command: string, args: string[], timeout: number): Promise<string | null> {
-  return await runUtilityOnce(command, args, timeout) ?? await runUtilityOnce(command, args, timeout);
+async function runCancellationUtility(command: string, args: string[], timeout: number, active: () => boolean): Promise<string | null> {
+  if (!active()) return null;
+  const result = await runUtilityOnce(command, args, timeout);
+  return result ?? (active() ? await runUtilityOnce(command, args, timeout) : null);
 }
 
 /** Linux's own process table, read when `ps` is absent or fails; null when it cannot be read either. */
@@ -44,16 +62,17 @@ async function readProcessTable(): Promise<number[][] | null> {
   return rows.flat();
 }
 
-async function snapshotProcesses(): Promise<number[][] | null> {
-  const snapshot = await runCancellationUtility("ps", ["-A", "-o", "pid=,ppid="], 250);
+async function snapshotProcesses(active: () => boolean): Promise<number[][] | null> {
+  const snapshot = await runCancellationUtility("ps", ["-A", "-o", "pid=,ppid="], 250, active);
+  if (!active()) return null;
   if (snapshot === null) return process.platform === "linux" ? readProcessTable() : null;
   return snapshot.trim().split("\n").map((line) => line.trim().split(/\s+/u).map(Number));
 }
 
 /** End the process's descendants, returning whether the platform's utility confirmed the tree. */
 async function endDescendants(pid: number, active: () => boolean): Promise<boolean> {
-  if (process.platform === "win32") return await runCancellationUtility("taskkill", ["/PID", String(pid), "/T", "/F"], 500) !== null;
-  const rows = await snapshotProcesses();
+  if (process.platform === "win32") return await runCancellationUtility("taskkill", ["/PID", String(pid), "/T", "/F"], 500, active) !== null;
+  const rows = await snapshotProcesses(active);
   if (!rows || !active() || !rows.some(([process]) => process === pid)) return false;
   const descendants = [pid];
   for (let index = 0; index < descendants.length; index += 1) {
@@ -62,7 +81,10 @@ async function endDescendants(pid: number, active: () => boolean): Promise<boole
     }
   }
   let confirmed = true;
-  for (const child of descendants.slice(1).reverse()) if (!kill(child)) confirmed = false;
+  for (const child of descendants.slice(1).reverse()) {
+    if (!active()) return false;
+    if (!kill(child)) confirmed = false;
+  }
   return confirmed;
 }
 
@@ -74,13 +96,16 @@ export function bindGitProcessCancellation(
   finishCancellation: (descendantsUnconfirmed: boolean) => void = () => undefined,
 ): () => Promise<void> {
   let active = true;
+  const isActive = (): boolean => active;
   let completion: Promise<void> | undefined;
   const abort = (): void => {
+    if (!active || completion) return;
     markCanceled();
     completion = (async () => {
       const confirmed = child.pid === undefined || await endDescendants(child.pid, () => active).catch(() => false);
+      if (!isActive()) return;
       finishCancellation(!confirmed);
-      child.kill("SIGKILL");
+      if (isActive()) child.kill("SIGKILL");
     })();
   };
   signal?.addEventListener("abort", abort, { once: true });

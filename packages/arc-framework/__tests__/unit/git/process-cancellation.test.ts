@@ -11,7 +11,8 @@ vi.mock("node:child_process", async (original) => ({
     utilities.failures.set(command, Math.max(0, remaining - 1));
     const finish = () => remaining > 0 ? callback(new Error(`${command} failed`), "") : callback(null, command === "ps" ? utilities.table : "SUCCESS");
     if (utilities.delayed) utilities.pending.push(finish); else setImmediate(finish);
-    return { stdin: { end: () => undefined } };
+    return { kill: () => true, unref: () => undefined, stdin: { end: () => undefined, destroy: () => undefined },
+      stdout: { destroy: () => undefined }, stderr: { destroy: () => undefined } };
   }),
 }));
 vi.mock("node:fs/promises", async (original) => {
@@ -30,6 +31,7 @@ afterEach(() => {
   utilities.proc = true;
   utilities.delayed = false; utilities.pending.length = 0;
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 /** A Git process that runs until its direct child is killed. */
@@ -47,6 +49,34 @@ async function cancel(): Promise<unknown> {
 }
 
 describe("Git descendant cancellation when the process utility fails", () => {
+  it.each(["darwin", "win32", "linux"])("settles withheld utility callbacks on %s and ignores their late process table", async os => {
+    Object.defineProperty(process, "platform", { value: os });
+    vi.useFakeTimers();
+    utilities.delayed = true; utilities.proc = false;
+    utilities.table = `${gitPid} 1\n${descendant} ${gitPid}\n`;
+    const alive = new Set([descendant]);
+    vi.spyOn(process, "kill").mockImplementation(pid => { alive.delete(pid); return true; });
+    const controller = new AbortController();
+    const pending = runCancelableGitProcess(() => runningGit(), controller.signal, { command: "git", args: ["fetch"] })
+      .catch((error: unknown) => error);
+    const observed = Promise.race([pending, new Promise(resolve => setTimeout(() => resolve({ kind: "still-running" }), 1_100))]);
+    try {
+      controller.abort();
+      await vi.advanceTimersByTimeAsync(1_100);
+      expect(await observed).toMatchObject({ kind: "canceled", isCanceled: true, descendantsUnconfirmed: true });
+      expect([...alive]).toEqual([descendant]);
+      for (const finish of utilities.pending.splice(0)) finish();
+      await vi.advanceTimersByTimeAsync(0);
+      expect([...alive]).toEqual([descendant]);
+    } finally {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        for (const finish of utilities.pending.splice(0)) finish();
+        await vi.advanceTimersByTimeAsync(1_100);
+      }
+      await pending;
+    }
+  });
+
   it("confirms descendants that exited after the process snapshot", async () => {
     Object.defineProperty(process, "platform", { value: "darwin" });
     utilities.table = `${gitPid} 1\n${descendant} ${gitPid}\n`;
