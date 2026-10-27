@@ -308,15 +308,10 @@ runs unknown runtime without reuse, preserves native outcomes, and closes or ret
 - _Goal:_ The real selected-check path qualifies routed execution before any applicable cache lookup, while native,
   forecast and dry-run retain their owning-checkout and no-side-effect contracts.
 
-    - `[ ]` **4.2.a Select the execution strategy before key resolution**
-        - Integrate the prepared facade at `executeSelectedCheck` and dependency creation in `runDeclaredCliRequest`;
-          keep protocol/capture/qualification in library modules.
-        - Build `test-first` (one behavior at a time):
-            - Eligible configured checks prepare then lookup; a hit releases without running and a miss runs planned
-              singles.
-            - Unconfigured checks retain cwd/native budgeting/unsharded behavior without source capture or adapter
-              spawn.
-            - Ineligible fixer/index/projection paths stay native; invalid opt-ins refuse before dispatch.
+    - `[x]` **4.2.a Select the execution strategy before key resolution**
+        - Wired machine configuration and prepared execution into selected-check dispatch before reusable lookup. Hits
+          close without execution; misses run fixed portable singles, and unknown runtime stays live without recording.
+          Native fallback retains its cwd and bypasses adapter launch; ordinary checks do not expand declared shards.
 
     - `[ ]` **4.2.b Preserve forecast, dry-run and repair routes**
         - Build `test-first` (one behavior at a time):

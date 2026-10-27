@@ -23,6 +23,8 @@ import { classifyPushRef, readPushEvent, type PushEvent } from "../../lib/checks
 import { isPushGateId, writePushGateRefusal, type PushGateRefusal } from "../../lib/checks/push-gate-record.js";
 import { checkVerification } from "./report.js";
 import { renderDeclaredChecks } from "./run-output.js";
+import { readMachineCheckRunner } from "../../lib/checks/runner/machine-config.js";
+import { prepareSelectedCheckExecution } from "../../lib/checks/runner/execution.js";
 
 import { CheckIncrementInputSchema, CheckPreCommitInputSchema, CheckPrePushInputSchema, CheckGateInputSchema, CheckRunInputSchema,
   CheckSegmentInputSchema, CheckNewHeadInputSchema, type CheckScopeOptions, type CheckIncrementOptions } from "./request-input.js";
@@ -228,6 +230,8 @@ async function runDeclaredCliRequest(options: CheckScopeOptions, interaction: In
       readProjectedSelection: overrides.readProjectedSelection ?? readProjectedSelection,
       rawGit: createExecaRawGitExec(root),
       availableParallelism,
+      readRunnerConfiguration: readMachineCheckRunner,
+      prepareExecution: prepareSelectedCheckExecution,
       git, gitInput: createExecaGitExecInput(undefined, interaction.subprocess),
       passes: createCheckPassStore({ directory: () => checkRecordDirectory(git, root),
         readFile: path => readFile(path, "utf8"), createFile: atomicCreateFile }),

@@ -25,3 +25,6 @@ native outcome while leaving remaining required work incomplete.
 `runner-protocol.ts` builds public-shaped plans and replies for schema and correlation cases. `runner-streams.ts` provides
 reactive process streams for deterministic unit-level transport faults without child processes or Git repositories.
 `source-manifest-vectors.ts` supplies independent canonical-manifest digest vectors.
+
+`runner-machine.ts` writes an isolated machine-home runner configuration for real CLI subprocesses, keeping machine
+settings and execution receipts outside the captured source repository.

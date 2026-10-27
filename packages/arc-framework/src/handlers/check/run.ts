@@ -18,7 +18,7 @@ import type { TypedFileResult } from "../../lib/config/typed-file-reader.js";
 import { matchTreeInputs } from "../../lib/checks/matching.js";
 import { resolveCheckRequest, type ResolvedCheckRequest } from "../../lib/checks/resolve-request.js";
 import { readRangeMergedInPaths } from "../../lib/checks/merged.js";
-import { resolveCheckKey, type CheckKeyIO } from "../../lib/checks/key-resolver.js";
+import { resolveCheckKey, resolveCheckKeyMaterial, type CheckKeyIO } from "../../lib/checks/key-resolver.js";
 import { CI_ONLY_UNSELECTED_REASON, resolveCheckSelection, selectCheckInputs, type CheckSelection } from "../../lib/checks/selection.js";
 import { isCheckHookForm, type CheckRequest } from "../../lib/checks/request.js";
 import { selectIncrementDeferredChecks, selectRequestChecks, checkResultKind, type CheckResultKind } from "../../lib/checks/gates.js";
@@ -29,6 +29,10 @@ import { checkRetryCommand } from "../../lib/checks/remedies.js";
 import { findUninstalledLockedPackages, installGapReason } from "../../lib/checks/install-gap.js";
 import { resolveCheckForecast, type CheckForecast } from "../../lib/checks/forecast.js";
 import { bindCapturedEnvironment, captureEnvironmentInputs, type CapturedEnvironmentInputs } from "../../lib/checks/environment-inputs.js";
+import { readMachineCheckRunner, type MachineCheckRunnerConfiguration } from "../../lib/checks/runner/machine-config.js";
+import { prepareSelectedCheckExecution, type PreparedCheckExecution, type CheckExecutionClosure } from "../../lib/checks/runner/execution.js";
+import { composePreparedCheckKey } from "../../lib/checks/runner/key.js";
+import type { TerminalOutcome } from "../../lib/checks/runner/contract.js";
 
 /** Whether a fresh pass was kept for later gates; a pass with no content key has nothing to keep. */
 export type DeclaredCheckRecord = CheckPassWrite | { status: "not-recordable" };
@@ -85,6 +89,8 @@ export interface DeclaredCheckDependencies extends CheckKeyIO {
   reports?: CheckReportStore;
   now?(): number;
   captureEnvironment?: typeof captureEnvironmentInputs;
+  readRunnerConfiguration?: typeof readMachineCheckRunner;
+  prepareExecution?: typeof prepareSelectedCheckExecution;
   readDeclaration(root: string): Promise<TypedFileResult<CheckDeclaration>>;
   execute(command: readonly string[], root: string, content?: CheckContentContext, policy?: { shell: boolean; indexFile?: string; environment?: NodeJS.ProcessEnv }): Promise<{ started: boolean; exitCode: number; output: string; notice?: string; notRunReason?: string }>;
 }
@@ -406,6 +412,7 @@ async function selectedFilePaths(io: DeclaredCheckDependencies, input: {
 }
 
 interface SelectedCheck {
+  routed?: boolean;
   environmentIdentity?: string;
   selectionTree: string;
   id: string;
@@ -428,6 +435,8 @@ async function selectedCheckKey(selected: SelectedCheck, io: DeclaredCheckDepend
 }
 
 async function executeSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest): Promise<DeclaredCheckResult> {
+  const runner = await (io.readRunnerConfiguration ?? readMachineCheckRunner)(selected.check);
+  if (runner !== undefined) return executeRoutedSelectedCheck(selected, io, request, runner);
   if (Object.keys(selected.check.environment_inputs).length === 0) return executeNativeSelectedCheck(selected, io, request);
   if (request.dryRun) return { id: selected.id, kind: selected.kind, outcome: "would run" };
   const capture = await (io.captureEnvironment ?? captureEnvironmentInputs)(selected.check.environment_inputs, resolve(selected.root, selected.check.root));
@@ -439,6 +448,80 @@ async function executeSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDe
   if (cleaned) return executed.result;
   return { ...executed.result, notice: [executed.result.notice,
     "frozen input cleanup failed; repair temporary storage access and retry cleanup"].filter(Boolean).join("; ") };
+}
+
+async function executeRoutedSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
+  configuration: MachineCheckRunnerConfiguration): Promise<DeclaredCheckResult> {
+  const { id, kind, check, root, tree, paths, definition, content } = selected;
+  if (request.dryRun) return { id, kind, outcome: "would run" };
+  const outputs: Buffer[] = [];
+  const startedAt = (io.now ?? performance.now.bind(performance))();
+  const prepared = await (io.prepareExecution ?? prepareSelectedCheckExecution)({ callerRoot: root,
+    request: selected.coordinates, check, paths, configuration, globalRuntimeInputs: definition.global_runtime_inputs,
+    onOutput: output => { outputs.push(Buffer.from(output.bytes)); },
+    onDiagnostic: bytes => { outputs.push(Buffer.from(bytes)); } });
+  if (prepared.status !== "ready") return { id, kind, outcome: "couldn't run", reason: prepared.reason,
+    ...(prepared.status === "unavailable" ? { remedy: prepared.remedy } : {}) };
+  const execution = prepared.execution;
+  let closing: Promise<CheckExecutionClosure> | undefined;
+  const close = () => closing ??= execution.close();
+  try {
+    const material = selected.divergent.length > 0 || execution.runtime === undefined ? null
+      : await resolveCheckKeyMaterial({ ...io, capturedSource: { root: execution.source.root, index: execution.sourceIndex } },
+        { id, check, root, tree, paths, definition, base: content?.base, merged: content?.merged });
+    const key = composePreparedCheckKey(material, execution);
+    const pass = key === null || request.force ? null : await io.passes.get(key, id);
+    if (pass !== null) {
+      const closure = await close();
+      return closure.status === "closed" ? { id, kind, outcome: "reused", output: pass.output }
+        : { id, kind, outcome: "couldn't run", reason: closure.reason };
+    }
+    const result = await executeRoutedSingles(execution, check);
+    const closure = await close();
+    return await finalizeRoutedCheck(selected, io, request,
+      { result, closure, output: Buffer.concat(outputs).toString("utf8"), key, startedAt });
+  } finally { await close(); }
+}
+
+interface RoutedSinglesResult { exitCode: number; incomplete?: string; notice?: string }
+interface RoutedOutcomeState { exitCode: number; examined: boolean; notices: Set<string>; incomplete: string[] }
+
+async function executeRoutedSingles(execution: PreparedCheckExecution, check: SelectedCheck["check"]): Promise<RoutedSinglesResult> {
+  const state: RoutedOutcomeState = { exitCode: 0, examined: false, notices: new Set(), incomplete: [] };
+  for (const invocation of execution.plan.invocations) {
+    const result = await execution.run(invocation.id);
+    observeRoutedOutcome(state, result.outcomes.get(invocation.id), check);
+    if (result.status === "incomplete") { state.incomplete.push(result.reason); break; }
+  }
+  return { exitCode: state.examined ? state.exitCode : check.no_evidence_exit ?? state.exitCode,
+    ...(state.incomplete.length === 0 ? {} : { incomplete: state.incomplete.join("; ") }),
+    ...(state.notices.size === 0 ? {} : { notice: [...state.notices].join("; ") }) };
+}
+
+function observeRoutedOutcome(state: RoutedOutcomeState, outcome: Readonly<TerminalOutcome> | undefined, check: SelectedCheck["check"]): void {
+  if (outcome?.status !== "completed") {
+    state.incomplete.push(outcome?.reason ?? "A planned invocation has no completed native result.");
+    return;
+  }
+  if (outcome.notice !== undefined) state.notices.add(outcome.notice);
+  if (outcome.exitCode === check.no_evidence_exit) return;
+  state.examined = true;
+  if (outcome.exitCode !== 0 && (state.exitCode === 0 || outcome.exitCode !== KILLED_EXIT_CODE)) state.exitCode = outcome.exitCode;
+}
+
+async function finalizeRoutedCheck(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
+  observed: { result: RoutedSinglesResult; closure: CheckExecutionClosure; output: string; key: string | null; startedAt: number }): Promise<DeclaredCheckResult> {
+  const { result, closure, output, key, startedAt } = observed;
+  const incomplete = [result.incomplete, closure.status === "uncertain" ? closure.reason : undefined].filter(Boolean).join("; ") || undefined;
+  const nativeFailure = result.exitCode !== 0 && result.exitCode !== selected.check.no_evidence_exit && result.exitCode !== KILLED_EXIT_CODE;
+  const costMs = Math.max(0, (io.now ?? performance.now.bind(performance))() - startedAt);
+  const measurement = await io.reports?.save(selected.id, output, costMs);
+  const finalized = await finalizeCheckRun({ ...selected, routed: true }, io, request,
+    { started: true, exitCode: result.exitCode, output,
+      ...(!nativeFailure && incomplete !== undefined ? { notRunReason: incomplete } : {}) }, key);
+  const notice = [result.notice, closure.status === "closed" ? closure.cleanupWarning : undefined].filter(Boolean).join("; ");
+  return { ...finalized, costMs, ...(nativeFailure && incomplete !== undefined ? { reason: incomplete } : {}),
+    ...(measurement === undefined ? {} : { logPath: measurement.logPath }), ...(notice ? { notice } : {}) };
 }
 
 function bindNativeEnvironment(io: DeclaredCheckDependencies, capture: CapturedEnvironmentInputs): DeclaredCheckDependencies {
@@ -489,7 +572,7 @@ async function finalizeCheckRun(selected: SelectedCheck, io: DeclaredCheckDepend
     return { id, kind, ...details, outcome: "couldn't run", reason: KILLED_REASON };
   }
   if (reason !== undefined) return { id, kind, ...details, outcome: "failed", reason };
-  const gap = await installGap(selected, result);
+  const gap = selected.routed ? undefined : await installGap(selected, result);
   if (gap !== undefined) return { id, kind, ...details, outcome: "couldn't run", reason: gap };
   if (result.exitCode === check.no_evidence_exit) return { id, kind, ...details, outcome: "no evidence" };
   if (result.exitCode !== 0) return { id, kind, ...details, outcome: "failed" };
