@@ -4,7 +4,7 @@ import { corruptRef } from "./namespace-health.js";
 import type { StoreView, WriteCheckInput } from "../write-check.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefWriteGroup } from "./write-commits.js";
-import { captureRefPointViewState, captureRefViewState, overlayRefViewState, viewRefFamily, viewRefMetadata, type RefViewState } from "./view-state.js";
+import { captureRefPointViewState, captureRefViewState, overlayRefViewState, viewRefFamily, viewRefMetadata, type RefViewState, type RefViewGroup } from "./view-state.js";
 import type { ListingDiagnostic, ReadInput, StoreRecord, ListInput, ListingOutcome } from "../read.js";
 import type { LookupInput, LookupResult } from "../lookup.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
@@ -154,6 +154,13 @@ async function readView(context: RefBackendContext, state: RefViewState, input: 
     reference = canonicalViewReference(context, reference, home.ref, metadata);
     home = expandStoredPath(reference, { registry: context.registry });
   }
+  const resolvedKeyProblem = checkRefKey(reference, context.registry);
+  if (resolvedKeyProblem) return { status: "refused", refusal: resolvedKeyProblem };
+  return readViewRecord(context, state, reference, home, metadata, group);
+}
+
+function readViewRecord(context: RefBackendContext, state: RefViewState, reference: RecordReference, home: StoredRecordHome,
+  metadata: RefMetadata, group: RefViewGroup): StoreResult<StoreRecord> {
   const entry = group.entries?.find(({ path }) => path === home.path);
   if (!entry) return missing(reference, state.saved);
   const object = state.objects.get(entry.oid);
