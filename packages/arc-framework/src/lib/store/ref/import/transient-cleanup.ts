@@ -9,6 +9,7 @@ import { readRefDesignation } from "../designation.js";
 import { IMPORT_PUBLICATION_REF, unpublishedImportClaims } from "./transient-publication.js";
 import { listRemoteRefs } from "../remote-listing.js";
 import { captureMoveRemote } from "../migrate-remote-target.js";
+import { selectLiteralTransport } from "../effective-transport.js";
 
 /** Kept tips live in the code repository until all licensed cleanup finishes. */
 export const IMPORT_KEPT_PREFIX = "refs/arc/tmp/migrate/import/kept/";
@@ -76,7 +77,7 @@ async function retireOriginRefs(context: RefBackendContext, kept: ReadonlyMap<st
     const source = sourceRef(ref), actual = remote.get(source);
     if (actual === undefined) continue;
     const pushed = actual === expected
-      ? classifyPushOutcome(await pushRefs(context.exec, origin.pushUrl, [{ ref: source, next: null, expected }], { cwd: context.checkoutRoot })) : undefined;
+      ? classifyPushOutcome(await pushRefs(context.exec, await selectLiteralTransport(context, origin.pushUrl, "push"), [{ ref: source, next: null, expected }], { cwd: context.checkoutRoot })) : undefined;
     if (!pushed || pushed.status === "lost-race") return `origin's ${source} advanced after the import read it.`;
     if (pushed.status !== "ok") return `Could not retire origin's ${source}: ${pushed.message}`;
   }
@@ -114,7 +115,7 @@ async function captureOrigin(context: RefBackendContext) {
 }
 
 async function originTips(context: RefBackendContext, endpoint: string, refs: string[]): Promise<Map<string, string>> {
-  const listed = await listRemoteRefs(context, endpoint, refs);
+  const listed = await listRemoteRefs(context, await selectLiteralTransport(context, endpoint, "fetch"), refs);
   if (listed.status === "unreachable") throw new Error(listed.condition);
   return listed.tips;
 }

@@ -59,8 +59,8 @@ async function restoreBacking(target: RefBackendContext, undo: SwitchUndo): Prom
   await withRefFetchKeepers(target, undo.source.name, async () => {
     if (undo.sourceRole === "push" && undo.source.name === undo.destination.name) {
       await installCopiedHeads(await migrationCodeContext(target), target, undo.source.name);
-      await configureBackingRemote(target, undo.source.url, undo.sourceRole);
-    } else await repointBackingRemote(target, undo.source.url, undo.sourceRole);
+      await configureBackingRemote(target, undo.source, undo.sourceRole);
+    } else await repointBackingRemote(target, undo.source, undo.sourceRole);
   });
 }
 

@@ -3,7 +3,7 @@ import type { Store } from "../contract.js";
 import type { MigrateReport, StoreMigrateResult } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefDesignation } from "./designation.js";
-import { captureMoveRemote, sharesMoveUrl, resolveBackingTarget } from "./migrate-remote-target.js";
+import { captureLiteralMoveRemote, captureMoveRemote, sharesMoveUrl, resolveBackingTarget } from "./migrate-remote-target.js";
 import { migrationCodeContext, type MoveRemote, type MoveTransports, type RecordedRemote } from "./migrate-record.js";
 import { readRefRepository } from "./repository.js";
 import { publisherLayout } from "./layout-state.js";
@@ -89,7 +89,7 @@ async function resolveMoveRemotes(context: RefBackendContext, code: RefBackendCo
   if (!to) throw new Error("An unrecorded remote move requires a destination");
   const target = resolveBackingTarget(to, to === "backing" ? await context.backingRepository() : null);
   const candidate = designation.codeRemotes.find(remote => remote.name !== "backing" && remote.name === to);
-  const destination: MoveRemote = candidate ? await captureMoveRemote(context, code, candidate) : { name: "backing", url: target, fetchUrl: target, pushUrl: target, repository: "backing" };
+  const destination: MoveRemote = candidate ? await captureMoveRemote(context, code, candidate) : await captureLiteralMoveRemote(code, target);
   const captured = await captureMoveRemote(context, code, source);
   if (sharesMoveUrl(captured, destination)) throw new MigrationRefusal({ code: "request-invalid", class: "terminal",
     condition: "The source and destination resolve to the same state remote.", remedy: { text: "Choose a different remote or run arc store migrate with no target to reconcile this clone's layout." } });

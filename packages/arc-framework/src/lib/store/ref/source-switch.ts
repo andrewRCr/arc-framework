@@ -11,7 +11,7 @@ import { readSyncRefs } from "./sync-graph.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import type { SwitchUndo } from "./migrate-switch-undo.js";
 import { withRefFetchKeepers } from "./fetch-seen.js";
-import { configureBackingRemote, repointBackingRemote } from "./backing-configuration.js";
+import { backingTransportsMatch, configureBackingRemote, repointBackingRemote } from "./backing-configuration.js";
 
 type RecordedSourceSwitch = RecordedFollow | RecordedLeaveSource;
 
@@ -24,6 +24,7 @@ export async function sourceSwitchComplete(context: RefBackendContext, recorded:
   const selected = designation.remotes.find(row => row.name === destination.name && row.repository === destination.repository && row.role === answer);
   if (!selected) return false;
   if (selected.url !== destination.url) return false;
+  if (destination.repository === "backing" && !await backingTransportsMatch(physical, destination)) return false;
   if (source.repository === "code" && designation.codeRemotes.find(row => row.name === source.name)?.role !== "off") return false;
   if (source.repository === "backing" && destination.repository === "code" && designation.backing) return false;
   // Between two backing repositories the old and new remote share a name, so only the recorded tip identifies the old observation.
@@ -60,8 +61,8 @@ async function prepareSourceTarget(code: RefBackendContext, target: RefBackendCo
   await withRefFetchKeepers(target, destination.name, async () => {
     if (answer === "push") await installCopiedHeads(code, target, destination.name);
     if (destination.repository === "backing") {
-      if (replacingBacking) await repointBackingRemote(target, destination.url, answer);
-      else await configureBackingRemote(target, destination.url, answer);
+      if (replacingBacking) await repointBackingRemote(target, destination, answer);
+      else await configureBackingRemote(target, destination, answer);
     }
   });
   if (replacingBacking) return;

@@ -2,7 +2,7 @@
 import type { RefBackendContext } from "./context.js";
 import type { LeaveSourceMoveRecord } from "./migrate-record.js";
 import { ambiguousDesignation, readRefDesignation } from "./designation.js";
-import { captureMoveRemote, sharesMoveUrl, resolveBackingTarget } from "./migrate-remote-target.js";
+import { captureLiteralMoveRemote, captureMoveRemote, sharesMoveUrl, resolveBackingTarget } from "./migrate-remote-target.js";
 import { readRefRepository } from "./repository.js";
 import { fetchLayoutObjects } from "./migrate-layout-build.js";
 import { publisherLayout } from "./layout-state.js";
@@ -33,7 +33,7 @@ export async function resolveLeaveSource(context: RefBackendContext, code: RefBa
     `${target} is neither a remote of the code repository nor the URL this checkout's storage.backing_repository names${pointer ? ` (${pointer})` : ""}.`,
     "Name a remote of the code repository with --to, or bring in the tracked pointer's change naming the state's new home, then retry arc store migrate --leave-source.");
   const destination = candidate ? await captureMoveRemote(context, code, candidate)
-    : { name: "backing", repository: "backing" as const, url: target, fetchUrl: target, pushUrl: target };
+    : await captureLiteralMoveRemote(code, target);
   if (sharesMoveUrl(destination, source)) throw leaveSourceInvalid("The destination URL is the old source's URL; choose a different remote with --to.");
   const physical = await readRefRepository(context), root = `refs/arc-remotes/${source.name}/`;
   const tracking = await readSyncRefs(physical, root), local = await readSyncRefs(physical, "refs/arc/project/registry");

@@ -12,7 +12,7 @@ import { readSyncRefs } from "./sync-graph.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import type { SwitchUndo } from "./migrate-switch-undo.js";
 import { withRefFetchKeepers } from "./fetch-seen.js";
-import { configureBackingRemote } from "./backing-configuration.js";
+import { backingTransportsMatch, configureBackingRemote } from "./backing-configuration.js";
 
 /** Derive completion from the installed layout and exact configured destination URLs. */
 export async function remoteSwitchComplete(context: RefBackendContext, recorded: RecordedRemote): Promise<boolean> {
@@ -24,6 +24,7 @@ export async function remoteSwitchComplete(context: RefBackendContext, recorded:
   const code = await migrationCodeContext(context);
   if (!await remoteLayoutCleanupComplete(code, sourceLayout, destinationLayout)) return false;
   if (current.url !== destination.url) return false;
+  if (destination.repository === "backing" && !await backingTransportsMatch(physical, destination)) return false;
   if (recorded.record.source.repository === "backing") return destination.repository === "backing" || designation.backing === null;
   return designation.codeRemotes.find(remote => remote.name === recorded.record.source.name)?.role === "off";
 }
@@ -39,7 +40,7 @@ export async function switchRemoteMove(context: RefBackendContext, store: Store,
   const configuration = {
     prepareTarget: async (target: RefBackendContext): Promise<void> => withRefFetchKeepers(target, destination.name, async () => {
       await installCopiedHeads(code, target, destination.name);
-      if (destination.repository === "backing") await configureBackingRemote(target, destination.url, "push");
+      if (destination.repository === "backing") await configureBackingRemote(target, destination, "push");
     }),
     applyDesignation: async (): Promise<void> => applyRemoteDesignation(context, code, recorded),
   };

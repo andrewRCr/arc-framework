@@ -4,7 +4,7 @@ import type { Remedy } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefFollowDue } from "./follow-due.js";
 import { migrationCodeContext, type MoveRemote } from "./migrate-record.js";
-import { captureMoveRemote } from "./migrate-remote-target.js";
+import { captureLiteralMoveRemote, captureMoveRemote, migrationTransportTarget } from "./migrate-remote-target.js";
 import { clearMigrationRefs, fetchMigrationRemote } from "./migrate-remote-fetch.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { FORWARDING_REF, readForwardingRecord, type ForwardingRecord } from "./forwarding-record.js";
@@ -63,12 +63,12 @@ export async function judgeRefFollow(context: RefBackendContext, due: RefFollowD
 
 async function followCandidates(context: RefBackendContext, code: RefBackendContext, due: RefFollowDue, exclude?: string): Promise<MoveRemote[]> {
   const pointer = await context.backingRepository();
-  if (pointer) return [{ name: "backing", repository: "backing", url: pointer, fetchUrl: pointer, pushUrl: pointer }];
+  if (pointer) return [await captureLiteralMoveRemote(code, pointer)];
   const candidates: MoveRemote[] = [];
   for (const remote of due.designation.codeRemotes) {
     if (remote.name === exclude || remote.name === "backing") continue;
     const captured = await captureMoveRemote(context, code, remote);
-    const presence = await readRefRegistryPresence(code, captured.fetchUrl);
+    const presence = await readRefRegistryPresence(code, await migrationTransportTarget(code, captured.fetchUrl, "fetch"));
     if (presence.status === "unreachable") throw migrationReadFailure(remote.name, presence.condition, presence.cause, followReadRemedy(remote.name, due.remote.name));
     if (presence.present) candidates.push(captured);
   }

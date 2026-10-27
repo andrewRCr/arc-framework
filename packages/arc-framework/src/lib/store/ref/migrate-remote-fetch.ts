@@ -12,6 +12,7 @@ import { refFetchArgs, refFetchNegotiation } from "./fetch-target.js";
 import { refFetchNeedsCompleteness, missingRefFetchObjects, RefFetchIncompleteError } from "./fetch-completeness.js";
 import { isStateRef } from "./manifest.js";
 import { FORWARDING_REF } from "./forwarding-record.js";
+import { migrationTransportTarget } from "./migrate-remote-target.js";
 
 /** Clear exactly one temporary acquisition namespace, preserving the move and copied tips. */
 export async function clearMigrationRefs(context: RefBackendContext, prefix: string): Promise<void> {
@@ -23,10 +24,11 @@ export async function clearMigrationRefs(context: RefBackendContext, prefix: str
 export async function fetchMigrationRemote(context: RefBackendContext, remote: MoveRemote, complete: boolean,
   options?: { prefix?: string; controls?: readonly ("registry" | "moved")[] }): Promise<Map<string, string>> {
   const prefix = options?.prefix ?? migrationGatheringPrefix(remote);
+  const target = await migrationTransportTarget(context, remote.fetchUrl, "fetch");
   await clearMigrationRefs(context, prefix);
   const patterns = complete ? ["work/*", "cohort/*", "archive/*", "project/*", "user/*", "history/work/*", "history/cohort/*"]
     : (options?.controls ?? ["registry", "moved"]).map(control => `project/${control}*`);
-  const args = refFetchArgs(remote.name, await refFetchNegotiation(context, await context.identity()), remote.fetchUrl);
+  const args = refFetchArgs(remote.name, await refFetchNegotiation(context, await context.identity()), target);
   const input = patterns.map(pattern => `+refs/arc/${pattern}:${prefix}${pattern}`).join("\n") + "\n";
   let fetched = await runMigrationFetch(context, args, input, remote);
   if (await refFetchNeedsCompleteness(context) && (await missingRefFetchObjects(context, fetched)).length) {

@@ -23,6 +23,7 @@ import { projectIdentityQueries, projectOwnerFromObjects } from "./project-ident
 import { readSyncRefs, syncRefIsAncestor } from "./sync-graph.js";
 import { listRemoteRefs } from "./remote-listing.js";
 import { saveMoveRecord, removeMoveRecord, readMoveRecord, type MoveRemote, type MoveTransports, type RecordedRemote, type RemoteMoveRecord } from "./migrate-record.js";
+import { migrationTransportTarget } from "./migrate-remote-target.js";
 
 const registryRef = "refs/arc/project/registry";
 const copyRoot = "refs/arc/tmp/migrate/remote/copy/";
@@ -203,7 +204,7 @@ export function remoteCopyChanges(planned: ReadonlyMap<string, string>, destinat
 
 /** Require an atomic receiver even for a registry-only move. */
 export async function atomicMigrationPush(code: RefBackendContext, url: string, changes: PushRefChange[]): Promise<PushOutcome> {
-  return pushRefs(code.exec, url, changes, { cwd: code.checkoutRoot, atomic: true });
+  return pushRefs(code.exec, await migrationTransportTarget(code, url, "push"), changes, { cwd: code.checkoutRoot, atomic: true });
 }
 
 /** A lost lease, or a receiver refusal whose leased refs have moved since, reruns the round rather than weakening its leases. */
@@ -235,7 +236,7 @@ export async function copyPushLanded(code: RefBackendContext, url: string, chang
 }
 
 async function leasesMoved(code: RefBackendContext, url: string, changes: readonly PushRefChange[], remedy?: Remedy): Promise<boolean> {
-  const listed = await listRemoteRefs(code, url, ["refs/arc/*"]);
+  const listed = await listRemoteRefs(code, await migrationTransportTarget(code, url, "fetch"), ["refs/arc/*"]);
   if (listed.status === "unreachable") throw new MigrationRefusal({ code: "store", refusal: { code: "unreachable", class: "recoverable", cause: listed.cause,
     condition: `Could not read ${url} after it refused the move's push: ${listed.condition}`,
     remedy: remedy ?? { text: "Restore access and run arc store migrate; the refused push changed nothing there.", argv: ["arc", "store", "migrate"] } } });
