@@ -389,6 +389,12 @@ ref commit's, which `history` and `changes` return as they are.
   through the branch name and to its Errand through the record that names the branch. A commit resolves to an Errand
   only from the flip, when captures begin and an Errand's close captures its landing commit (D15).
 
+**Forward amendment (A31).** A divergent archive-quarter merge whose selected, base, local and incoming folder
+inventories are valid and empty names the archive ref in its `sync` subject and omits `Arc-Owner`, since no record
+supplies an owner. It retains the fresh batch, actor, lifecycle merge action, complete-none creation receipt and
+local-first parents. Other record/history merges and paired quarter refreshes retain real record-owner provenance;
+missing or malformed inventories do not qualify.
+
 ### D4. Failures and outcomes
 
 Every failure meets the recovery-complete refusal rule in `DEV-RULES.PROJECT`: it says whether it is terminal or
@@ -2432,7 +2438,6 @@ operations and outcomes, and which test tier each conformance fixture runs in.
   in the same batch; ordinary retained records remain inaccessible and the owner stays retired. _Supersedes:_ D6.
   _Trigger:_ `spec-storage-ref-backend.md` § 2.6, 6.6 (A16). _Work:_ storage-ref-backend 13.5.R. _Revalidated:_ storage-ref-backend 13.5.R.
 
-
 - **A26** — 2026-10-25 — design: `HistoryRefSchema` admits only the lowercase owner UID forms that
   `StoredUidSchema` accepts; explicit history requests and stored paths use one grammar. _Supersedes:_ D4 history
   coordinates. _Trigger:_ `spec-storage-ref-backend.md` § 2.1, 2.6 (A41). _Work:_ review-fix.
@@ -2452,3 +2457,6 @@ operations and outcomes, and which test tier each conformance fixture runs in.
   replacement removes its last publication witness, `refEndPublished` permits withdrawal of the local end; surviving
   evidence still requires the explicit clear/reopen/end repair. _Supersedes:_ D12 publication evidence for end
   reconciliation. _Trigger:_ `spec-storage-ref-backend.md` § 2.6, 6.6 (A52). _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A31** — 2026-10-27 — design: name ownerless empty-quarter merges by ref. _Supersedes:_ D3 owner-bound subjects.
+  _Trigger:_ `spec-storage-ref-backend.md` A55 review. _Work:_ review-fix. _Revalidated:_ review-fix.

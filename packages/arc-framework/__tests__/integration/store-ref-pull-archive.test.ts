@@ -4,6 +4,7 @@ import { success } from "../helpers/store/suite-tools.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { RecordReferenceSchema, type RecordReference } from "../../src/lib/store/index.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
+import { parseStoreCreationReceipt } from "../../src/lib/store/commit-creation-receipt.js";
 
 const quarter = ArchiveQuarterSchema.parse("2026-q4"), archive = `refs/arc/archive/${quarter}`;
 const provenance = { verb: "archive", lifecycleAction: "archive" };
@@ -20,6 +21,49 @@ async function publish(client: Client, remote: string) {
 }
 
 describe.each(["default", "separate"] as const)("archive pull merging in the %s layout", (layout) => {
+  it.each(["new quarter", "existing quarter"])("merges divergent empty tips with truthful namespace provenance in a %s", async basis => {
+    const h = await refSyncFixture(layout);
+    const emptyQuarter = async (client: Client, name: string) => {
+      const closed = await close(client, name);
+      const current = success(await client.store.read({ reference: closed.reference }));
+      success(await client.store.write({ action: "put", reference: current.reference, expected: current.version,
+        content: makeMetaFixture(name), placement: { kind: "active" }, provenance: { verb: "reopen", lifecycleAction: "reopen" } }));
+      expect((await client.git(["ls-tree", "-r", "--name-only", archive])).stdout).toBe("");
+      return current.reference;
+    };
+    if (basis === "existing quarter") {
+      await emptyQuarter(h.a, "shared-empty");
+      success(await h.a.store.push()); success(await h.b.store.pull());
+    }
+    const reference = await emptyQuarter(h.a, "remote-empty");
+    await emptyQuarter(h.b, "local-empty");
+    const incoming = (await h.a.git(["rev-parse", archive])).stdout.trim();
+    const local = (await h.b.git(["rev-parse", archive])).stdout.trim();
+    success(await h.a.store.push());
+    const result = success(await h.b.store.pull());
+    expect(result.pulls.flatMap(({ notices }) => notices)).toEqual([]);
+    const merged = (await h.b.git(["rev-parse", archive])).stdout.trim();
+    expect(merged).not.toBe(local);
+    expect((await h.b.git(["show", "-s", "--format=%P", archive])).stdout.trim().split(" ")).toEqual([local, incoming]);
+    expect((await h.b.git(["ls-tree", "-r", "--name-only", archive])).stdout).toBe("");
+    const message = (await h.b.git(["show", "-s", "--format=%B", archive])).stdout;
+    expect(message.split("\n")[0]).toBe(`sync ${archive}`);
+    expect(message).not.toMatch(/^Arc-Owner:/mu);
+    expect(message).toMatch(/^Arc-Lifecycle-Action: merge$/mu);
+    expect(message).toMatch(/^Arc-Actor: andrew@/mu);
+    const batchId = /^Arc-Batch: (.+)$/mu.exec(message)?.[1];
+    expect(batchId).toMatch(/^[0-9a-f-]{36}$/u);
+    expect(success(parseStoreCreationReceipt(message, reference, archive)))
+      .toEqual({ schemaVersion: 1, batchId, createdOwners: [] });
+    for (const parent of [local, incoming]) {
+      expect((await h.b.git(["show", "-s", "--format=%B", parent])).stdout).not.toContain(`Arc-Batch: ${batchId}`);
+    }
+    const pushed = success(await h.b.store.push());
+    expect(pushed.publishes.filter(({ status }) => status === "failed"), JSON.stringify(pushed)).toEqual([]);
+    expect(success(await h.a.store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
+    expect((await h.a.git(["rev-parse", archive])).stdout.trim()).toBe(merged);
+  });
+
   it.each(["new quarter", "existing quarter"])("renumbers unpublished folders in local order after the remote in a %s", async (basis) => {
     const h = await refSyncFixture(layout);
     const published = basis === "existing quarter" ? await close(h.a, "published") : undefined;

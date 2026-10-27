@@ -7,10 +7,20 @@ import { StoredProvenanceSchema, type CallerProvenance, type StoredProvenance } 
 export function renderStoreCommitMessage(provenance: CallerProvenance, reference: RecordReference,
   batchId: string, actor?: string): string {
   const owner = reference.owner;
-  return `${encodeValue(provenance.verb)} ${owner.name}\n\n${[
+  return renderMessage(provenance, owner.name, batchId, actor, "uid" in owner ? owner.uid : undefined);
+}
+
+/** Name a validated empty-quarter merge by namespace rather than inventing an affected record owner. */
+export function renderEmptyArchiveMergeMessage(ref: string, batchId: string, actor?: string): string {
+  if (!/^refs\/arc\/archive\/\d{4}-q[1-4]$/u.test(ref)) throw new Error("An empty archive merge requires an archive-quarter ref");
+  return renderMessage({ verb: "sync", lifecycleAction: "merge" }, ref, batchId, actor);
+}
+
+function renderMessage(provenance: CallerProvenance, subject: string, batchId: string, actor?: string, ownerUid?: string): string {
+  return `${encodeValue(provenance.verb)} ${subject}\n\n${[
     `Arc-Lifecycle-Action: ${encodeValue(provenance.lifecycleAction)}`,
     ...(provenance.codeHead ? [`Arc-Code-Head: ${provenance.codeHead}`] : []),
-    ...("uid" in owner && owner.uid ? [`Arc-Owner: ${owner.uid}`] : []),
+    ...(ownerUid ? [`Arc-Owner: ${ownerUid}`] : []),
     `Arc-Batch: ${batchId}`,
     ...(actor ? [`Arc-Actor: ${actor}`] : []),
   ].join("\n")}\n`;

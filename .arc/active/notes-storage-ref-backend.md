@@ -46,6 +46,7 @@
     - [A32 — A no-target run returns the report of the move it finishes](#a32--a-no-target-run-returns-the-report-of-the-move-it-finishes)
     - [A33 — The store suites by wall time and shard](#a33--the-store-suites-by-wall-time-and-shard)
     - [A36 — The separate layout's whole run by item range](#a36--the-separate-layouts-whole-run-by-item-range)
+    - [A55 — Truthful provenance for an empty quarter](#a55--truthful-provenance-for-an-empty-quarter)
 - **Segment and fixture closures**
     - [Moving-remote segment closure](#moving-remote-segment-closure)
     - [Native inbox contention](#native-inbox-contention)
@@ -3143,3 +3144,15 @@ than a new task phase. Existing criteria and recorded verification remain histor
 transport capacity coverage. No new segment or Class ratchet is needed: the amendment composes bounded existing
 executor, publication, carry and migration seams at medium depth. Its shortened log summary preserves the approved
 scope; the body retains every mitigation and the residual deferral.
+
+## A55 — Truthful provenance for an empty quarter
+
+**Superseded text.** § 3.1 required “a subject naming the verb and the owner's slug” and “`Arc-Owner` with the owner's
+UID where it has one.” A validated divergent quarter whose complete inventories hold no folder has no affected owner.
+
+**Decision.** Give only that empty-quarter merge a namespace subject and omit `Arc-Owner`; preserve its fresh batch,
+actor, complete-none receipt and local-first parents. Ordinary record/history and paired quarter commits keep real
+owner references. `mergeArchiveTree`, `SyncMergedTree`, `commitSyncMerge` and `renderEmptyArchiveMergeMessage` carry
+this bounded exception without reading an ancestor as this batch's owner. Criterion 59 and both-layout empty-quarter
+regressions cover absent and shared-empty bases, publication and repeated pulls. This is medium-depth composition of
+existing merge and provenance behavior, with no new lifecycle segment or Class change.

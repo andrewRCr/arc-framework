@@ -2,7 +2,7 @@
 
 import { appendStoreCreationReceipt } from "../commit-creation-receipt.js";
 import { randomUUID } from "node:crypto";
-import { renderStoreCommitMessage } from "../commit-provenance.js";
+import { renderStoreCommitMessage, renderEmptyArchiveMergeMessage } from "../commit-provenance.js";
 import { readObjectFormat } from "./manifest.js";
 import { mergeSyncTree, type SyncMergedTree, type SyncTreeMergeScope } from "./sync-tree.js";
 import { writeRefTree } from "./tree-write.js";
@@ -86,7 +86,7 @@ async function mergeCapturedSyncRef(context: RefBackendContext, local: ReadonlyM
       incoming: options.incomingState ?? incoming, priorState: options.priorState, batchId, reopening: route?.reopening, ended: captured.result.latest });
     if (built.status === "refused") return heldMerge(ref, built.refusal);
     const { tree: prepared, parents, placementState } = built.result;
-    if (prepared?.metadata) {
+    if (prepared?.kind === "record" && prepared.metadata) {
       const refreshed = await prepareSyncHistoryQuarters(staged, quarters, prepared, placementState);
       if (refreshed.status === "refused") return heldMerge(ref, refreshed.refusal);
     }
@@ -98,7 +98,7 @@ async function mergeCapturedSyncRef(context: RefBackendContext, local: ReadonlyM
       publishedTip = tip;
       const changes: RefChange[] = [{ ref: target, next: tip, expected: local.get(ref) ?? null }];
       if (source !== ref && current) changes.push({ ref: sourceTarget, delete: true, expected: current });
-      if (prepared) for (const quarter of quarters) {
+      if (prepared?.kind === "record") for (const quarter of quarters) {
         const identity = await physical.identity(), actor = identity === null ? undefined : await physical.actor(identity);
         const next = await commitRefTree(physical, quarter.entries.values(), quarter.tip, { verb: "sync", lifecycleAction: "merge" }, prepared.reference, batchId, actor, { schemaVersion: 1, batchId, createdOwners: [] });
         changes.push({ ref: options.targetRef?.(quarter.ref) ?? quarter.ref, next, expected: quarter.tip });
@@ -134,8 +134,10 @@ function heldMerge(ref: string, refusal: StoreRefusal): RefMergeResult {
 async function commitSyncMerge(context: RefBackendContext, prepared: SyncMergedTree, parents: readonly string[], batchId: string): Promise<string> {
   const tree = await writeRefTree(context, prepared.entries.values());
   const identity = await context.identity(), actor = identity === null ? undefined : await context.actor(identity);
+  const message = prepared.kind === "empty-archive" ? renderEmptyArchiveMergeMessage(prepared.archiveRef, batchId, actor)
+    : renderStoreCommitMessage({ verb: "sync", lifecycleAction: "merge" }, prepared.reference, batchId, actor);
   const { stdout } = await context.exec("git", ["commit-tree", tree, ...parents.flatMap((parent) => ["-p", parent]), "-m",
-    appendStoreCreationReceipt(renderStoreCommitMessage({ verb: "sync", lifecycleAction: "merge" }, prepared.reference, batchId, actor),
+    appendStoreCreationReceipt(message,
       { schemaVersion: 1, batchId, createdOwners: [] })], { cwd: context.checkoutRoot });
   return stdout.trim();
 }

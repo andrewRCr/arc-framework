@@ -509,6 +509,10 @@ remove the last captured item tip or incoming archive folder proving the local e
 end be treated as unpublished and withdrawn for the incoming published end; surviving evidence keeps `ended-twice` and
 the explicit clear/reopen/end repair (§ 6.6).
 
+Empty-quarter merge provenance also amends D3 forward (A55): a valid divergent quarter merge with no owner in any
+captured folder inventory names its archive ref in the subject and omits `Arc-Owner`, preserving the fresh batch, actor
+and complete-none receipt (§ 3.1, § 6.4).
+
 The contract left open where the designation is kept; § 9.1 settles it in Git config.
 
 ### 3. Record encoding
@@ -574,6 +578,13 @@ pushes (§ 6.8), and the transient-identity refs the import deletes (§ 10.11).
   come from its tree, never its message. Every commit the backend makes, a merge's (§ 6.4) among them, carries
   `Arc-Actor` where the clone has an actor (§ 1.2), and commits are authored as the person (D12), with their name and
   email as the code repository resolves them (§ 9.7).
+
+**Empty-quarter merge provenance (A55).** When the selected, base, local and incoming folder inventories of a divergent
+archive-quarter merge are valid and empty, `mergeArchiveTree` returns a distinct namespace-subject result.
+`commitSyncMerge` must render `sync refs/arc/archive/<quarter>` with no `Arc-Owner`, retaining the fresh batch, actor,
+lifecycle merge action and complete-none creation receipt. No record changed, so no ancestor or invented owner supplies
+its subject. Its parents remain local first, incoming second. Ordinary record/history merges and paired quarter
+refreshes still require their real record reference; an unavailable or malformed inventory cannot select this exception.
 
 #### 3.2 Stored paths
 
@@ -1525,6 +1536,10 @@ large state may outlast any bound.
   never pulled — the restored ref refuses here, and merging both is the way out.
 
 #### 6.4 Merge after fetch
+
+A valid divergent archive quarter whose captured folder inventories are all empty still merges with both tips, including
+where the tips have no common ancestor. Its namespace provenance follows § 3.1; an empty tree is not corrupt merely
+because no record can name the merge (A55).
 
 - **Fast-forward where one tip descends from the other:** the local ref moves to the tracking tip, or waits to push.
 - **Otherwise a merge commit** with both tips as parents — this clone's tip first and the tracking tip second, as every
@@ -3817,6 +3832,9 @@ typed conflicts:
       create, a leased delete, and an update each read as a lost race and settle on the next attempt, and a hook that
       moves the ref and then declines, its text outside the retry set, reads as one too, while one that declines and
       moves nothing reads terminal `refused` with its text;
+    - valid divergent empty archive quarters, over absent and shared-empty bases in both layouts, merge with local-first
+      parents, a fresh complete-none receipt and truthful namespace provenance, publish, and stay healthy on repeated
+      pulls; ordinary reopen and nonempty quarter commits retain real owner provenance (A55);
     - a personal record one clone removed, merged with another clone's unchanged older copy, stays removed;
     - a merge whose result breaks a write check reports `rule-broken` and stores nothing of its own, a late write
       meeting an abandon reports `ended-with-conflicts` naming its conflict records, and two ends both published after a
@@ -4788,6 +4806,11 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     remedies, and let a combined carry take its independent code leg. A supported retry finishes without weakening
     leases or atomicity. Scalable native-Windows bulk push remains deferred as § 2.1 states (§ 6.2, § 11.3) (A54).
 
+59. **Empty quarters retain truthful merge provenance.** Both layouts reconcile valid divergent empty quarters over
+    absent and shared-empty bases, preserve local-first parents and a fresh complete-none receipt, use the archive ref
+    as the subject without `Arc-Owner`, then publish and repeatedly pull successfully. Ordinary owner-bearing quarter
+    and reopen provenance is preserved (§ 3.1, § 6.4, § 14.5) (A55).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4990,5 +5013,8 @@ open:
 
 - **A54** — 2026-10-26 — design: bound argv; defer bulk Windows push. _Supersedes:_ §§ 2.1, 6.2, 6.7–6.8, 10.2, 11.3.
   _Trigger:_ FC1/AGG-02 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A55** — 2026-10-27 — design: name empty-quarter merges by ref. _Supersedes:_ § 3.1 owner-bound provenance.
+  _Trigger:_ F5 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

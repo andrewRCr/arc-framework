@@ -42,9 +42,9 @@ export async function mergeArchiveTree(context: RefBackendContext, ref: string, 
     }
   }
   const subject = [...selected.values(), ...sides.base.values(), ...sides.local.values(), ...sides.incoming.values()][0];
-  if (!subject) return { status: "refused", refusal: corruptRef(ref) };
+  if (!subject) return { status: "ok", result: { kind: "empty-archive", entries, archiveRef: ref } };
   const reference = ownerPrimaryReference(subject.owner, subject.metadata);
-  return { status: "ok", result: { entries, reference } };
+  return { status: "ok", result: { kind: "record", entries, reference } };
 }
 
 function selectFolders(sides: ArchiveSides): Folders {

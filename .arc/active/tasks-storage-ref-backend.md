@@ -971,6 +971,8 @@ converge with no lost write.
 
     - _Amended in:_ 18.R2.h (A31)
 
+    - _Amended in:_ review-fix (A55)
+
     - `[x]` **9.2.a Fast-forwards and merge commits**
         - Pull merges captured ref sets under ref locks and the layout-guarded commit step, with local-first parents
           and per-ref batches. Kind-driven records and field-wise metadata preserve deletions, whole-record clashes,
@@ -2562,3 +2564,7 @@ in `notes-storage-ref-backend.md` (A25).
 - `[x]` In every full run the separate layout's whole suite spans files split by the default run's item ranges, together
   running every case of its registration once with each declared exclusion checked against the whole registration, and
   the store shards' CI-job rows come from a dispatched full run made after that split (§ 14.1, § 14.12) (A36)
+
+- `[x]` Both layouts reconcile valid divergent empty quarters over absent and shared-empty bases, with local-first
+  parents, truthful namespace provenance, a fresh complete-none receipt, successful publication and repeated pulls;
+  ordinary owner-bearing quarter/reopen provenance stays intact (§ 3.1, § 6.4, § 14.5) (A55)

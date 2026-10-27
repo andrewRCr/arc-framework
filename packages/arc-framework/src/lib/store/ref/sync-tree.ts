@@ -34,7 +34,13 @@ export interface SyncTreeMergeScope {
   reopening?: boolean; ended?: ReadPlacement | undefined;
 }
 /** Prepared entries retain untouched blob identities and the provenance's actual owner. */
-export interface SyncMergedTree { entries: Map<string, RefTreeEntry>; reference: RecordReference; metadata?: RefMetadata; notices?: PullNotice[] }
+export interface SyncRecordMergedTree {
+  kind: "record"; entries: Map<string, RefTreeEntry>; reference: RecordReference; metadata?: RefMetadata; notices?: PullNotice[];
+}
+/** Only a validated wholly empty archive inventory can merge without a record owner. */
+export type SyncMergedTree = SyncRecordMergedTree | {
+  kind: "empty-archive"; entries: Map<string, RefTreeEntry>; archiveRef: string; reference?: never; metadata?: never; notices?: never;
+};
 
 /** Merge independently changed tree entries and metadata over their captured common ancestor. */
 export async function mergeSyncTree(context: RefBackendContext, ref: string, local: string, incoming: string, tips: ReadonlyMap<string, string>, scope: SyncTreeMergeScope = {}): Promise<StoreResult<SyncMergedTree>> {
@@ -80,7 +86,7 @@ async function mergeGroupTree(context: RefBackendContext, ref: string, local: st
   finishSyncMetadata(ref, metadata, current.metadata, scope);
   entries.set(home.metadataPath, { path: home.metadataPath, mode: "100644", oid: await writeRefBlob(context, canonicalize(metadata)) });
   const notices = await observeSyncChecks(context, captured, ref, { entries, metadata, original: current.entries }, records);
-  return { status: "ok", result: { entries, metadata, notices, reference: RecordReferenceSchema.parse({ ...prototype, owner: refOwner(live, family, metadata) }) } };
+  return { status: "ok", result: { kind: "record", entries, metadata, notices, reference: RecordReferenceSchema.parse({ ...prototype, owner: refOwner(live, family, metadata) }) } };
 }
 
 /**
