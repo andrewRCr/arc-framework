@@ -10,6 +10,7 @@ import { isArchiveRef } from "./archive-read.js";
 import { resolveLineageReadReference, lineageOwnerCandidates } from "./lineage-resolution.js";
 import { matchesFamilyRef, rootFamily, refOwner } from "./codec.js";
 import { checkRefKey } from "./path-admission.js";
+import { captureLiveRefOwner } from "./live-owners.js";
 import { canonicalPrimaryKind } from "./metadata.js";
 
 /** A concrete owner needs no scan; names bind only within their declared owner namespace. */
@@ -17,7 +18,7 @@ export function resolveCapturedReference(context: Pick<RefBackendContext, "regis
   trees: ReadonlyMap<string, RefLookupTree>, unreadable: ReadonlyMap<string, StoreRefusal> = new Map(), requirePrimary = false): StoreResult<RecordReference> {
   const owner = reference.owner;
   if (owner.type === "person" || owner.type === "project" || owner.uid) return { status: "ok", result: reference };
-  if (reference.kind === "lineage/transition") return resolveCapturedLineage(reference, trees, unreadable);
+  if (reference.kind === "lineage/transition") return resolveCapturedLineage(context, reference, trees, unreadable);
   const family = owner.type === "cohort" ? "cohort" : "work-item";
   const own = new Map([...trees].filter(([ref, tree]) => matchesFamilyRef(tree.liveRef ?? ref, family)));
   const preferred = preferredNameTrees(context, own, owner.name, requirePrimary);
@@ -93,12 +94,12 @@ function bindListInput(input: ListInput, resolved: StoreResult<RecordReference>)
   return resolved.refusal.code === "not-found" ? { status: "ok", result: input } : resolved;
 }
 
-function resolveCapturedLineage(reference: RecordReference, trees: ReadonlyMap<string, RefLookupTree>, unreadable: ReadonlyMap<string, StoreRefusal>): StoreResult<RecordReference> {
-  const live = [...trees].flatMap(([ref, tree]) => matchesFamilyRef(ref, "work-item") ? [refOwner(ref, "work-item", tree.metadata)] : []);
+function resolveCapturedLineage(context: Pick<RefBackendContext, "registry">, reference: RecordReference, trees: ReadonlyMap<string, RefLookupTree>, unreadable: ReadonlyMap<string, StoreRefusal>): StoreResult<RecordReference> {
+  const live = [...trees].flatMap(([ref, tree]) => matchesFamilyRef(ref, "work-item") ? [captureLiveRefOwner(context, ref, "work-item", tree.entries, tree.metadata)] : []);
   const lineage = Object.entries(trees.get("refs/arc/project/registry")?.metadata.lineage ?? {})
     .map(([uid, name]) => OwnerIdentitySchema.parse({ type: "work-item", uid, name }));
   const skipped = [...unreadable].find(([ref]) => ref.startsWith("refs/arc/work/"))?.[1];
-  if (skipped && !live.some((owner) => owner.name === reference.owner.name)) return { status: "refused", refusal: skipped };
+  if (skipped && !live.some(({ owner }) => owner.name === reference.owner.name)) return { status: "refused", refusal: skipped };
   const registry = unreadable.get("refs/arc/project/registry");
   if (registry) return { status: "refused", refusal: registry };
   const candidates = lineageOwnerCandidates(reference, live, lineage);

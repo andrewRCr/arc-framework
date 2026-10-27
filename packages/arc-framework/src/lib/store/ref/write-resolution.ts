@@ -65,9 +65,14 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
     const target = retained.result.find((target) => sameReference(target.reference, reference));
     if (target) return { status: "ok" as const, result: target.reference.owner };
     const freshName = !("uid" in reference.owner && reference.owner.uid) && named.result.freshNames.has(writeOwnerNameKey(reference));
-    const candidates = freshName ? owners.filter(({ primary }) => primary !== undefined).map(({ owner }) => owner) : context.registry[reference.kind].family === "lineage"
-      ? lineageOwnerCandidates(reference, liveOwners, lineage.result) : [...liveOwners, ...recordFreeOwners, ...endedOwners];
-    return resolveOwner(reference, candidates, fresh);
+    const lineageName = !freshName && context.registry[reference.kind].family === "lineage";
+    const skipped = [...observed.result.unreadable].find(([ref]) => ref.startsWith("refs/arc/work/"))?.[1];
+    if (lineageName && reference.owner.type === "work-item" && !reference.owner.uid && skipped
+      && !owners.some(({ owner }) => owner.type === "work-item" && owner.name === reference.owner.name)) return { status: "refused" as const, refusal: skipped };
+    const candidates = freshName ? owners.filter(({ primary }) => primary !== undefined).map(({ owner }) => owner) : lineageName
+      ? lineageOwnerCandidates(reference, owners, lineage.result) : [...liveOwners, ...recordFreeOwners, ...endedOwners];
+    // Tier selection already authenticated a former name; its canonical current name need not match again.
+    return resolveOwner(reference, candidates, fresh, lineageName);
   };
 
   const renames = requestedRenames(writes);
@@ -88,11 +93,11 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
   return { status: "ok", result: { writes: resolved, freshOwners: [...fresh.values()], tips, archived: archived.result, retained: retained.result } };
 }
 
-function resolveOwner(reference: RecordReference, owners: readonly OwnerIdentity[], fresh: Map<string, OwnerIdentity>): StoreResult<OwnerIdentity> {
+function resolveOwner(reference: RecordReference, owners: readonly OwnerIdentity[], fresh: Map<string, OwnerIdentity>, preselected = false): StoreResult<OwnerIdentity> {
   const requested = reference.owner;
   if (requested.type === "person" || requested.type === "project") return { status: "ok", result: requested };
   const candidates = owners.filter((owner) => owner.type !== "person" && owner.type === requested.type
-    && (requested.uid ? owner.uid === requested.uid : owner.name === requested.name));
+    && (requested.uid ? owner.uid === requested.uid : preselected || owner.name === requested.name));
   if (requested.uid && candidates.length === 0 && reference.kind.startsWith("lineage/")) return { status: "ok", result: requested };
   if (requested.uid && candidates.length === 0) return { status: "refused", refusal: {
     code: "not-found", class: "recoverable", reference,

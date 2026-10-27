@@ -3,7 +3,7 @@ import { RecordReferenceSchema, sameReference, type RecordReference, type OwnerI
 import type { StoreResult, StoreRefusal } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { resolveRefName } from "./reference-resolution.js";
-import { readLiveRefOwners } from "./live-owners.js";
+import { readLiveRefOwners, type LiveRefOwnerEvidence } from "./live-owners.js";
 import { readLineageOwners, lineageOwnerCandidates } from "./lineage-resolution.js";
 import { rootFamily } from "./codec.js";
 import { refKeyHome } from "./path-admission.js";
@@ -41,33 +41,57 @@ async function changeRestrictionProject(context: RefBackendContext, interval: Re
 
 async function resolveLineageRestrictions(context: RefBackendContext, interval: RefChangeInterval,
   requested: RecordReference[]): Promise<StoreResult<RecordReference[] | undefined>> {
-  if (!requested.some((reference) => reference.kind === "lineage/transition" && reference.owner.type === "work-item" && !reference.owner.uid)) return { status: "ok", result: requested };
+  if (!requested.some(unresolvedLineageReference)) return { status: "ok", result: requested };
   const newer = await restrictionOwners(context, interval.after), older = await restrictionOwners(context, interval.before);
   if (newer.status === "refused") return newer;
   if (older.status === "refused") return older;
   const references: RecordReference[] = [];
   for (const reference of requested) {
-    if (reference.kind !== "lineage/transition" || reference.owner.type !== "work-item" || reference.owner.uid) { references.push(reference); continue; }
-    const skipped = [...newer.result.unreadable].find(([ref]) => ref.startsWith("refs/arc/work/"))?.[1];
-    if (skipped && !newer.result.live.some((owner) => owner.type === "work-item" && owner.name === reference.owner.name)) return { status: "refused", refusal: skipped };
-    const current = lineageOwnerCandidates(reference, newer.result.live, newer.result.lineage);
-    const candidates = current.length ? current : lineageOwnerCandidates(reference, older.result.live, older.result.lineage);
-    if (candidates.length > 1) return { status: "refused", refusal: { code: "ambiguous-match", class: "recoverable",
-      candidates: candidates.map((owner) => RecordReferenceSchema.parse({ ...reference, owner })), condition: "More than one compared lineage origin holds this name.",
-      remedy: { text: "Name the intended origin by UID, then retry the comparison." } } };
-    const owner = candidates[0];
-    if (!owner) return { status: "refused", refusal: { code: "not-found", class: "recoverable", reference,
-      condition: "Neither compared state holds this lineage origin.", remedy: { text: "Name the origin by UID or compare states that hold it, then retry." } } };
-    references.push(RecordReferenceSchema.parse({ ...reference, owner }));
+    if (!unresolvedLineageReference(reference)) { references.push(reference); continue; }
+    const resolved = resolveComparedLineageReference(reference, newer.result, older.result);
+    if (resolved.status === "refused") return resolved;
+    references.push(resolved.result);
   }
   return { status: "ok", result: references };
 }
 
-async function restrictionOwners(context: RefBackendContext, tips: ReadonlyMap<string, string>): Promise<StoreResult<{ live: OwnerIdentity[]; lineage: OwnerIdentity[]; unreadable: ReadonlyMap<string, StoreRefusal> }>> {
+function unresolvedLineageReference(reference: RecordReference): boolean {
+  return reference.kind === "lineage/transition" && reference.owner.type === "work-item" && !reference.owner.uid;
+}
+
+interface LineageRestrictionOwners {
+  live: readonly LiveRefOwnerEvidence[]; lineage: readonly OwnerIdentity[]; unreadable: ReadonlyMap<string, StoreRefusal>;
+}
+
+/** Keep each compared endpoint's complete authority evidence until its winning owner is established. */
+function resolveComparedLineageReference(reference: RecordReference, newer: LineageRestrictionOwners,
+  older: LineageRestrictionOwners): StoreResult<RecordReference> {
+  const skipped = unreadableLineageRestriction(reference, newer);
+  if (skipped) return { status: "refused", refusal: skipped };
+  const current = lineageOwnerCandidates(reference, newer.live, newer.lineage);
+  const skippedOlder = current.length ? undefined : unreadableLineageRestriction(reference, older);
+  if (skippedOlder) return { status: "refused", refusal: skippedOlder };
+  const candidates = current.length ? current : lineageOwnerCandidates(reference, older.live, older.lineage);
+  if (candidates.length > 1) return { status: "refused", refusal: { code: "ambiguous-match", class: "recoverable",
+    candidates: candidates.map((owner) => RecordReferenceSchema.parse({ ...reference, owner })), condition: "More than one compared lineage origin holds this name.",
+    remedy: { text: "Name the intended origin by UID, then retry the comparison." } } };
+  const owner = candidates[0];
+  if (!owner) return { status: "refused", refusal: { code: "not-found", class: "recoverable", reference,
+    condition: "Neither compared state holds this lineage origin.", remedy: { text: "Name the origin by UID or compare states that hold it, then retry." } } };
+  return { status: "ok", result: RecordReferenceSchema.parse({ ...reference, owner }) };
+}
+
+/** Unknown live current ownership blocks a lower tier in either compared capture. */
+function unreadableLineageRestriction(reference: RecordReference, captured: Pick<LineageRestrictionOwners, "live" | "unreadable">): StoreRefusal | undefined {
+  const skipped = [...captured.unreadable].find(([ref]) => ref.startsWith("refs/arc/work/"))?.[1];
+  return skipped && !captured.live.some(({ owner }) => owner.type === "work-item" && owner.name === reference.owner.name) ? skipped : undefined;
+}
+
+async function restrictionOwners(context: RefBackendContext, tips: ReadonlyMap<string, string>): Promise<StoreResult<LineageRestrictionOwners>> {
   const [live, lineage] = await Promise.all([readLiveRefOwners(context, tips, true), readLineageOwners(context, tips, true)]);
   if (live.status === "refused") return live;
   if (lineage.status === "refused") return lineage;
-  return { status: "ok", result: { live: live.result.owners.map(({ owner }) => owner), lineage: lineage.result, unreadable: live.result.unreadable } };
+  return { status: "ok", result: { live: live.result.owners, lineage: lineage.result, unreadable: live.result.unreadable } };
 }
 
 /** Whether a restriction needs logical work-item histories rather than only shared registry records. */

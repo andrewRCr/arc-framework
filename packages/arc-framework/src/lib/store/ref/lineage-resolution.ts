@@ -5,7 +5,7 @@ import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, readRefTips, readRefTrees } from "./batch-read.js";
 import { parseRefMetadata, unparsedMetadata } from "./metadata.js";
-import { readLiveRefOwners } from "./live-owners.js";
+import { readLiveRefOwners, type LiveRefOwnerEvidence } from "./live-owners.js";
 import { expandStoredPath, holdsNoRecord } from "../stored-path.js";
 import { corruptRef } from "./namespace-health.js";
 
@@ -26,14 +26,17 @@ export async function readLineageOwners(context: RefBackendContext, tips: Readon
   return { status: "ok", result: Object.entries(metadata.lineage ?? {}).map(([uid, name]) => OwnerIdentitySchema.parse({ type: "work-item", uid, name })) };
 }
 
-/** Select live origins first, falling back to registry history only when no live owner matches. */
-export function lineageOwnerCandidates(reference: RecordReference, live: readonly OwnerIdentity[], lineage: readonly OwnerIdentity[]): OwnerIdentity[] {
+/** Select live current names, then actual live primary former names, before registry current names. */
+export function lineageOwnerCandidates(reference: RecordReference, live: readonly LiveRefOwnerEvidence[], lineage: readonly OwnerIdentity[]): OwnerIdentity[] {
   const requested = reference.owner;
   if (requested.type !== "work-item") return [];
   const matches = (owner: OwnerIdentity) => owner.type === "work-item"
     && (requested.uid ? owner.uid === requested.uid : owner.name === requested.name);
-  const current = live.filter(matches);
-  return current.length > 0 ? current : lineage.filter(matches);
+  const current = live.filter(({ owner }) => matches(owner)).map(({ owner }) => owner);
+  if (current.length || requested.uid) return current.length ? current : lineage.filter(matches);
+  const former = live.filter(({ owner, primary, formerSlugs }) => owner.type === "work-item" && primary && formerSlugs.includes(requested.name))
+    .map(({ owner }) => owner);
+  return former.length ? former : lineage.filter(matches);
 }
 
 /** Resolve a transition by live ownership and then registry history; conflict paths need no owner UID. */
@@ -44,10 +47,9 @@ export async function resolveLineageReadReference(context: RefBackendContext, re
   if (live.status === "refused") return live;
   const lineage = await readLineageOwners(context, tips);
   if (lineage.status === "refused") return lineage;
-  const liveOwners = live.result.owners.map(({ owner }) => owner);
-  const candidates = lineageOwnerCandidates(reference, liveOwners, lineage.result);
+  const candidates = lineageOwnerCandidates(reference, live.result.owners, lineage.result);
   const skipped = [...live.result.unreadable].find(([ref]) => ref.startsWith("refs/arc/work/"))?.[1];
-  if (skipped && !liveOwners.some((owner) => owner.type === "work-item" && owner.name === reference.owner.name)) return { status: "refused", refusal: skipped };
+  if (skipped && !live.result.owners.some(({ owner }) => owner.type === "work-item" && owner.name === reference.owner.name)) return { status: "refused", refusal: skipped };
   if (candidates.length > 1) return { status: "refused", refusal: {
     code: "ambiguous-match", class: "recoverable", candidates: candidates.map((owner) => RecordReferenceSchema.parse({ ...reference, owner })),
     condition: "More than one lineage origin holds this name.", remedy: { text: "Name the intended origin by UID, then retry." },
