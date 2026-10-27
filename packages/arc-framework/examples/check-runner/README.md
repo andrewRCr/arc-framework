@@ -1,62 +1,85 @@
 # Standalone local check runner
 
-Run `node /absolute/path/to/local.mjs` as the configured adapter executable and arguments. It reads one JSON-RPC object
-per line on stdin and writes protocol messages on stdout. Commands receive the captured source and explicit bindings;
-the adapter does not read the original checkout to reconstruct them. It implements protocol version 1, mandatory singles
-and `runGroup: false`.
+This independent executable implements ARC check-runner protocol version 1 using Node builtins and four sibling
+modules. See the [public adapter guide][guide] for configuration, source-manifest encoding vectors, explicit inputs and
+the complete wire/lifetime contract. Implementations in other languages require no Node SDK or ARC-private imports.
 
-This example supports Linux with `/proc` and POSIX process groups. Other platforms receive a settled preparation refusal.
-Commands must keep their descendants in the supervised process group. Commands that create independent sessions require
-a provider with containment suitable for those commands. Use host admission in the launcher for heavy checks; children
-inherit its CPU priority, affinity and operating-system limits. The example runs one invocation at a time, applies a
-five-minute wall-time limit to each command or probe, and limits retained probe stdout to 1 MiB.
+## Configure and run
 
-Sequential commands share the captured view. Before another invocation, the example verifies the original source entry
-inventory, bytes, explicit files and Git administration. If an earlier command changes them, it refuses the later command
-with fresh-attempt guidance. Providers supporting writable concurrent work need independent views or equivalent isolation.
-Every planned command directory must exist within the captured source before the example grants a ready context.
+Set the flat machine-local key in `~/.arc/config.yml`:
 
-The implementation comprises four small modules: `local.mjs` owns the conversation, `local-inputs.mjs` verifies artifacts
-and binds child environments, `local-process.mjs` supervises descendants and recovery, and `local-runtime.mjs` qualifies
-the supported Node environment. All dependencies are Node builtins or these sibling files.
+```yaml
+checks.runner: ["node", "/absolute/path/to/examples/check-runner/local.mjs"]
+```
+
+Mark eligible repository checks with `runner: true` in `.arc/system/arc-checks.yml`, then run their ordinary ARC check
+commands. The example reads JSON-RPC objects one per line on stdin; stdout contains protocol only. It consumes ARC's
+captured root/files without recapturing the caller checkout. Singles are mandatory and supported; it advertises
+`runGroup: false`.
+
+This example requires Linux `/proc` and POSIX process groups. Other platforms receive a settled preparation refusal.
+Commands must keep descendants in their supervised group; commands creating independent sessions need stronger provider
+containment. For heavy checks, use launcher-owned admission and resource controls. Children inherit CPU priority,
+affinity and operating-system limits. The example installs no dependencies, runs serially, limits each command/probe to
+five minutes and retains at most 1 MiB of probe stdout.
+
+Sequential invocations share a captured view. Before each invocation, the example verifies original source inventory,
+bytes, explicit files and Git administration. A mutation, including a newly added source file, causes refusal before
+the next command. It does not reset the view or prepare mutable dependency installations. Providers needing such
+behavior must preserve fixed inputs and source absence through isolation or equivalent controls. Every planned command
+directory must exist inside the captured source before ready.
 
 ## Runtime qualification
 
-Default mode returns unknown runtime and permits live execution without reusable evidence. Add `--known-node-runtime`
-only for checks whose external runtime is this Node installation. It covers nonshell commands and probes whose executable
-is the adapter's own `process.execPath`; other executables, custom module paths and unsupported Node startup options remain
-unknown. It installs no dependencies. Package or other-tool environments need qualification appropriate to their provider.
+Default mode reports unknown runtime: compatible live execution remains possible, with reusable lookup/publication
+disabled. Add `--known-node-runtime` to the machine argv only when the check's external runtime is this Node
+installation. It covers nonshell commands/probes using the adapter's own `process.execPath`. Other tools, custom module
+paths and unsupported Node startup options remain unknown. Package/dependency environments need their provider's own
+qualification.
 
-Known mode hashes the Node executable and its platform, architecture, component versions and supported startup options.
-It runs the actual requested probes in their captured directories and environment, preserving exact UTF-8 stdout. Failed,
-oversized or undecodable probes make runtime unknown. Before executing a known invocation it repeats qualification and
-refuses changes; a new attempt must be requested explicitly. Invocation IDs, temporary locations and physical worker names
-do not enter the runtime digest.
+Known mode hashes Node's executable, platform, architecture, component versions and supported startup options. It runs
+actual requested probes with captured cwd/environment and exact UTF-8 stdout. Failed, oversized or undecodable probes
+make runtime unknown. It repeats qualification before known execution and refuses drift; retry requires a fresh
+attempt. Invocation IDs, temporary paths and worker labels are excluded from runtime identity.
 
-## Inspect and settle by plan UUID
+## Inspect, settle and retry
 
-The recovery notification includes the exact executable and state-root arguments for these commands:
+Recovery notifications give the exact executable/state-root arguments for:
 
 ```sh
 node /absolute/path/to/local.mjs --inspect PLAN_UUID --state-root /absolute/state/root
 node /absolute/path/to/local.mjs --settle PLAN_UUID --state-root /absolute/state/root
 ```
 
-The default state root is `arc-local-check-runner` under the operating system's temporary directory; set `--state-root`
-to choose another machine-local directory. Each attempt owns a private directory containing process ownership records,
-not check results or reusable passes. Normal release removes it. An unsuccessful conversation retains its records so the
-same commands work after the protocol process exits.
+The default state root is `arc-local-check-runner` under the operating system's temporary directory. Set `--state-root`
+to select another machine-local directory. Each attempt owns private process records. Normal release removes them;
+unsuccessful conversations retain recovery records usable after the protocol process exits.
 
-Each supervisor records its process identity before accepting work. Cancellation and stdin EOF stop the owned process
-groups; supervisors wait for descendants even when the original command has exited or descendants closed their output
-pipes. Termination escalates after one second when necessary. `--settle` requests cancellation and checks remaining owned
-groups. `--inspect` reports `settled` only when the protocol owner and execution groups have stopped. If it reports active
-work, keep the captured source and explicit files, settle the attempt and inspect again. Remove retained captures only
-after settlement. Records left after recovery can then be removed manually.
+Supervisors record process identity before accepting work. Cancel/EOF stops owned groups and waits for descendants,
+even after the original process exits or output pipes close. Termination escalates after one second. Inspect reports
+`settled` only after the protocol owner and execution groups stop. If work remains active, retain source and explicit
+files, settle and inspect again. Only then remove retained captures and leftover recovered records or retry explicitly.
+A cancellation acknowledgement alone is not settlement.
 
-Native failures are reported when known, while the outstanding request continues collecting output and settling its
-descendants. Later cancellation cannot replace that failure. Missing required output or terminal delivery keeps execution
-incomplete rather than producing a substitute successful outcome.
+Completed native failures are reported when known while remaining required output/descendants settle. Later
+cancellation cannot replace them. Missing required output or terminal delivery leaves execution incomplete.
+Cleanup-only warnings after proven settlement remain advisory. ARC owns pass lookup/publication; these local ownership
+records introduce no automatic reconnect, replacement execution or ARC job database.
 
-The example is a local provider implementation, separate from ARC's pass lookup and publication. Its process records do
-not add an ARC job database, automatic reconnect or replacement execution.
+## Implementation size
+
+The current example totals 510 lines and 29,507 bytes, including comments/blank lines and excluding READMEs:
+
+| Module              | Responsibility                                  | Lines | Bytes |
+| ------------------- | ----------------------------------------------- | ----: | ----: |
+| `local.mjs`         | Conversation and protocol ordering              |   161 | 9,739 |
+| `local-inputs.mjs`  | Source/files verification and child environment |   162 | 9,620 |
+| `local-process.mjs` | Descendant supervision and recovery             |   151 | 7,883 |
+| `local-runtime.mjs` | Supported Node runtime qualification            |    36 | 2,265 |
+
+These are implementation-size measurements, not preparation timings or a minimum adapter size. Remote transport,
+dependency preparation, provider admission and broader runtime qualification add their own implementation work.
+
+---
+
+[guide]: ../../README.md

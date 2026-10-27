@@ -423,13 +423,10 @@ admission/fallback remain provider-owned and cold/warm preparation costs are rec
 - _Goal:_ Teams can configure or implement an adapter in any language from shipped documentation and a runnable example,
   without ARC-private imports, personal runner installation or internal roadmap knowledge.
 
-    - `[ ]` **5.3.a Document the complete public contract and configuration**
-        - Create `packages/arc-framework/README.md` and the example directory README; document literal argv resolution,
-          eligibility, explicit values/files, manifest encoding vectors and all operations/outcome/lifetime rules.
-        - State the complete reserved Git/ARC policy, source/content-channel distinction, known/unknown runtime, uint32
-          statuses, no-context closure, recovery-before-work and provider-owned admission/fallback.
-        - Document inspect/settle/retry and each example limitation; measure implementation burden from the actual
-          example.
+    - `[x]` **5.3.a Document the complete public contract and configuration**
+        - Added package and example READMEs covering literal configuration, explicit inputs, exact manifest vectors,
+          complete wire/runtime/native-result and ownership contracts. Inspect/settle/retry guidance states the Linux
+          example's containment, runtime and resource limits; its four modules measure 510 lines and 29,507 bytes.
 
     - `[ ]` **5.3.b Ship the example and installed quality-gates guidance**
         - Add the example to `packages/arc-framework/package.json` 's package inventory; ensure executable support
