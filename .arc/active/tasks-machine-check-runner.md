@@ -350,7 +350,7 @@ runs unknown runtime without reuse, preserves native outcomes, and closes or ret
           recovery in text/JSON, including CI. Settled cleanup warnings remain advisory through refusal and reuse;
           provider inspection excludes dead owners. Real provider settlement permits capture removal before fresh retry.
 
-### `[ ]` **4.5 Wire foundation portability cases into actual execution — D4, D5, D8, D9**
+### `[x]` **4.5 Wire foundation portability cases into actual execution — D4, D5, D8, D9**
 
 - _Goal:_ The supported Windows route executes the foundation's process, plan and result cases, so a green portability
   run supplies the real platform evidence required by routed qualification.
@@ -361,18 +361,10 @@ runs unknown runtime without reuse, preserves native outcomes, and closes or ret
           spelling, preserve withheld/deleted paths, and refuse unmapped selections. Windows catalog backslashes refuse
           before lookup; POSIX literal filenames and compatible case/Unicode directory behavior remain covered.
 
-    - `[ ]` **4.5.b Select and classify the foundation's supported-platform cases**
-        - _Progress:_ Foundation suites and source classification join the existing portability route; supported
-          Windows/macOS execution has not yet been qualified.
-        - Extend `localVitestTierArguments` in `src/lib/local-vitest-runner.ts` and `isPortabilitySurfacePath` in
-          `src/lib/change-facts.ts` for the actual new foundation source/tests and executable case filenames.
-        - Build `test-first` (one behavior at a time):
-            - `portability-build-selection.test.ts` proves the production portability route executes the added cases;
-              change-facts and classifier integration tests detect omitted source/test paths.
-            - Existing native tier membership and CI job placement stay intact; a green job that selected no new
-              foundation case cannot count as qualification.
-        - Use the existing Windows/macOS pair's schedule or explicit `run_portability_pair` dispatch, or another
-          qualified real Windows execution environment; the closing verifier records a completed Windows run.
+    - `[x]` **4.5.b Select and classify the foundation's supported-platform cases**
+        - Production selection and source classification include foundation suites alongside native portability cases.
+          CI run `40554990722` at `fe64e7752` records completed Windows/macOS execution, including real child DWORD
+          statuses, captured path spelling, process-start/cleanup behavior and native directory-link receipts.
 
 ### `[ ]` **4.6 Exercise routed checks — D3, D5, D6, D7, D8, D9** — validate exit criterion at segment scope
 
