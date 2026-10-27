@@ -116,24 +116,19 @@ plans.
 _Exit criterion:_ The defining APIs validate the versioned wire contract, resolve only the machine runner key, capture
 the selected source basis with independent Git coordinates, and budget complete argv for both platforms.
 
-### `[ ]` **2.1 Read the narrowly scoped machine runner configuration — D1**
+### `[x]` **2.1 Read the narrowly scoped machine runner configuration — D1**
 
 - _Goal:_ Only selected eligible checks consult the machine's literal adapter argv, and malformed configuration gives a
   repairable refusal without changing global configuration ownership or invoking a local bypass.
 
-    - `[ ]` **2.1.a Parse only the flat machine runner key**
-        - Add a narrow reader under `src/lib/checks/runner/` using OS home, existing YAML and Zod dependencies.
-        - Build `test-first` (one behavior at a time):
-            - Missing file, empty document and missing key are unconfigured; unrelated mapping keys remain unowned.
-            - Null/scalar/empty argv, unreadable/nonmapping/malformed files and NUL-bearing strings refuse clearly.
-            - Literal empty arguments survive; executable must be nonempty; no shell/environment/tilde expansion occurs.
+    - `[x]` **2.1.a Parse only the flat machine runner key**
+        - The narrow reader uses OS home and YAML node kinds to distinguish empty documents from invalid scalars.
+          Literal argv preserves empty arguments and rejects invalid executable/NUL values; failures name the machine
+          file and field with removal/repair remedies, without exposing unrelated settings.
 
-    - `[ ]` **2.1.b Resolve executable locations independently of project precedence**
-        - Build `test-first` (one behavior at a time):
-            - Bare executable uses PATH, absolute path remains absolute and relative directory paths use config dir.
-            - A repaired file or removed key restores the supported route; native unrelated checks need no file read.
-        - Keep `resolveGitConfigOverride`, project configuration, identity settings and file writes outside this
-          reader.
+    - `[x]` **2.1.b Resolve executable locations independently of project precedence**
+        - Bare and absolute executables remain literal; directory-bearing relative paths resolve from the machine
+          file. Ordinary native checks return before home/file reads, and repaired or removed keys take effect on retry.
 
 ### `[ ]` **2.2 Define the shared version-one protocol contracts — D5**
 
