@@ -14,7 +14,17 @@ import { readLifecycleLog } from "./sync-lifecycle-evidence.js";
  */
 export async function readItemEndBatches(context: RefBackendContext, tip: string | undefined,
   owner: OwnerIdentity, kind: "all" | "retirement" = "all"): Promise<Set<string>> {
-  if (!tip || !("uid" in owner)) return new Set();
+  return new Set((await readItemEndCandidates(context, tip, owner, kind)).candidates.map(({ batch }) => batch));
+}
+
+/** One original end's commit and batch, before a consumer orders its ancestry or establishes publication. */
+export interface ItemEndCandidate { commit: string; batch: string }
+
+/** Preserve end coordinates and unavailable trees separately so callers can choose their own completeness policy. */
+export async function readItemEndCandidates(context: RefBackendContext, tip: string | undefined,
+  owner: OwnerIdentity, kind: "all" | "retirement" = "all"): Promise<{ candidates: ItemEndCandidate[]; unavailable: Set<string> }> {
+  const unavailable = new Set<string>();
+  if (!tip || !("uid" in owner)) return { candidates: [], unavailable };
   const reference = RecordReferenceSchema.parse({ owner, kind: owner.type === "cohort" ? "cohort/document" : "work-item/meta" });
   const withdrawn = new Set<string>();
   const commits = (await readLifecycleLog(context, tip)).flatMap(({ commit, message }) => {
@@ -26,15 +36,17 @@ export async function readItemEndBatches(context: RefBackendContext, tip: string
     }
     return commit && "batchId" in provenance && provenance.batchId ? [{ commit, batch: provenance.batchId }] : [];
   });
-  if (!commits.length) return new Set();
+  if (!commits.length) return { candidates: [], unavailable };
   const trees = await readRefTrees(context, new Map(commits.map(({ commit }) => [commit, commit])));
   const path = `metadata-${owner.uid}.json`;
   const metadata = [...trees.values()].flatMap((entries) => entries.filter((entry) => entry.path === path));
   const objects = await readBatchObjects(context, [...new Set(metadata.map(({ oid }) => oid))]);
-  return new Set(commits.filter(({ commit, batch }) => {
+  const candidates = commits.filter(({ commit, batch }) => {
     const entries = trees.get(commit);
-    if (!entries || withdrawn.has(batch)) return false;
+    if (!entries) { unavailable.add(commit); return false; }
+    if (withdrawn.has(batch)) return false;
     const entry = entries.find((entry) => entry.path === path);
     return entries.length === 0 || kind === "all" && parseRefMetadata(entry ? objects.get(entry.oid) : undefined)?.endBatch === batch;
-  }).map(({ batch }) => batch));
+  });
+  return { candidates, unavailable };
 }

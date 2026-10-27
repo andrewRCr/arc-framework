@@ -1501,6 +1501,14 @@ backend's, and identity scope is not private, so a held push only delays the sam
 other machines stale — and so do `session.init_pull.notes` and `session.init_load.notes`, since the projection makes
 loading automatic. No migration is written for them.
 
+**Forward amendment (A33).** A readable terminal lineage owner with no live ref or archive folder reports
+`ended-twice` when at least two ancestry-maximal nonwithdrawn retirement batches retain publication witnesses. Select
+that frontier before testing publication, so sequential restored lifetimes do not appear concurrent. A terminal-only
+repair keeps the chosen lineage and its retired branches, joins both histories, creates a restoration commit from an
+explicitly selected authentic same-owner tree descending from their joined tip, then atomically CAS-creates the live
+ref and deletes that history tip. Normal expected-version primary removal retires the same UID once and ordinary
+push/pull converges; no automatic restoration, archive fabrication, authority relaxation or new restore API is added.
+
 ### D13. The projection's caller-visible behavior
 
 The store is authoritative. A gitignored projection at `.arc/active/`, `.arc/backlog/`, `.arc/completed/`, and
@@ -2446,6 +2454,7 @@ operations and outcomes, and which test tier each conformance fixture runs in.
   in the same batch; ordinary retained records remain inaccessible and the owner stays retired. _Supersedes:_ D6.
   _Trigger:_ `spec-storage-ref-backend.md` § 2.6, 6.6 (A16). _Work:_ storage-ref-backend 13.5.R. _Revalidated:_ storage-ref-backend 13.5.R.
 
+
 - **A26** — 2026-10-25 — design: `HistoryRefSchema` admits only the lowercase owner UID forms that
   `StoredUidSchema` accepts; explicit history requests and stored paths use one grammar. _Supersedes:_ D4 history
   coordinates. _Trigger:_ `spec-storage-ref-backend.md` § 2.1, 2.6 (A41). _Work:_ review-fix.
@@ -2471,3 +2480,6 @@ operations and outcomes, and which test tier each conformance fixture runs in.
 
 - **A32** — 2026-10-27 — design: local push capacity refusal joins D1 and D4. _Supersedes:_ publication vocabulary.
   _Trigger:_ `spec-storage-ref-backend.md` A54 propagation. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A33** — 2026-10-27 — design: restore terminal-only ends before one repair end. _Supersedes:_ D12 generic end repair.
+  _Trigger:_ `spec-storage-ref-backend.md` A56 review. _Work:_ review-fix. _Revalidated:_ review-fix.

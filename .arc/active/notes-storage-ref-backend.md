@@ -47,6 +47,7 @@
     - [A33 — The store suites by wall time and shard](#a33--the-store-suites-by-wall-time-and-shard)
     - [A36 — The separate layout's whole run by item range](#a36--the-separate-layouts-whole-run-by-item-range)
     - [A55 — Truthful provenance for an empty quarter](#a55--truthful-provenance-for-an-empty-quarter)
+    - [A56 — Repair terminal-only ends](#a56--repair-terminal-only-ends)
 - **Segment and fixture closures**
     - [Moving-remote segment closure](#moving-remote-segment-closure)
     - [Native inbox contention](#native-inbox-contention)
@@ -3156,3 +3157,20 @@ owner references. `mergeArchiveTree`, `SyncMergedTree`, `commitSyncMerge` and `r
 this bounded exception without reading an ancestor as this batch's owner. Criterion 59 and both-layout empty-quarter
 regressions cover absent and shared-empty bases, publication and repeated pulls. This is medium-depth composition of
 existing merge and provenance behavior, with no new lifecycle segment or Class change.
+
+## A56 — Repair terminal-only ends
+
+**Superseded text.** § 6.6 required “remove its lineage record where it holds one” and “then reopen it, which removes
+every folder it holds, in every quarter's ref (§ 7.2), and end it once.” A terminal-only owner has no archived primary
+to carry retained branch authority and no folder the reopen path can select, so that route is unavailable.
+
+**Decision.** Select ancestry-maximal nonwithdrawn retirement commits before filtering publication. Require the
+existing incoming/previous witnesses for two distinct batches; local reachability alone proves no publication. A
+sequential restoration and end dominates old ends. Keep missing graph evidence held. The explicit repair keeps the
+chosen protected lineage, selects authentic same-owner primary/metadata/links, creates a descendant restoration from
+the joined history tip, atomically moves history to the absent live ref under exact expectations, then uses normal
+expected-version primary removal. The resulting end retains both ancestries and branch authority. Existing native Git
+plumbing and store writes suffice; no restoration API, publication-proof store, invented archive or relaxed lineage
+check is needed. Criterion 60 and § 14.5 distinguish overlapping forced replacement from A52's before-capture loss of
+proof. This is a bounded medium-depth amendment within synchronization; the approved fix checks and sixth complete
+pass cover its implementation and contract together rather than adding another optional planning pass.

@@ -9,7 +9,7 @@ export function bindRefRepository(context: RefBackendContext, commonDir: string,
   let person: Promise<string[]> | undefined;
   const argsFor = async (args: string[]): Promise<string[]> => [
     `--git-dir=${gitDir}`,
-    ...args[0] === "commit-tree" ? await (person ??= codePerson(source)) : [],
+    ...args[0] === "commit-tree" ? await (person ??= codeCommitIdentityArgs(source)) : [],
     ...args,
   ];
   return { ...source, repository,
@@ -19,7 +19,8 @@ export function bindRefRepository(context: RefBackendContext, commonDir: string,
   };
 }
 
-async function codePerson(context: RefBackendContext): Promise<string[]> {
+/** Render the checkout's resolved author and committer as native commit configuration for its separate state repository. */
+export async function codeCommitIdentityArgs(context: RefBackendContext): Promise<string[]> {
   const identities = await Promise.all(["GIT_AUTHOR_IDENT", "GIT_COMMITTER_IDENT"].map(async (variable) => {
     const { stdout } = await context.exec("git", ["var", variable], { cwd: context.checkoutRoot });
     const parsed = /^(.*) <([^<>]*)> -?\d+ [+-]\d{4}$/u.exec(stdout.trim());

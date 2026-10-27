@@ -515,6 +515,10 @@ remove the last captured item tip or incoming archive folder proving the local e
 end be treated as unpublished and withdrawn for the incoming published end; surviving evidence keeps `ended-twice` and
 the explicit clear/reopen/end repair (§ 6.6).
 
+Terminal-only end repair also qualifies D12 forward (A56): ancestry-maximal nonwithdrawn published retirement
+batches produce `ended-twice` without an archive folder; a native restoration descending from their joined history,
+followed by normal expected-version retirement, preserves protected lineage and branch authority (§ 6.6).
+
 Empty-quarter merge provenance also amends D3 forward (A55): a valid divergent quarter merge with no owner in any
 captured folder inventory names its archive ref in the subject and omits `Arc-Owner`, preserving the fresh batch, actor
 and complete-none receipt (§ 3.1, § 6.4).
@@ -1769,6 +1773,26 @@ withdrawn for the incoming published end, with `end-withdrawn` and removal of it
 survives, `ended-twice` and the explicit clear/reopen/end repair above still apply. `refEndPublished`
 (`lib/store/ref/sync-lifecycle.ts`) checks the end batch against incoming and previous live/history tips and incoming
 archive folders; the local folder alone does not establish publication. No additional publication-proof store is kept.
+
+**Terminal-only published ends (A56).** A readable terminal lineage owner may have no live ref or archive folder.
+`observeSyncEndedTwice` must also inspect its available retained history: `readItemEndCandidates` keeps each
+nonwithdrawn retirement commit and batch, and the terminal observer selects the ancestry-maximal commits before
+checking publication through `refEndPublished`'s existing incoming/previous witnesses. Two distinct published frontier
+batches produce `ended-twice`. A later retirement after restoration supersedes its earlier ends; sequential lifetimes
+therefore produce no duplicate notice, including while the later end is still unpublished. Held or unavailable graph
+facts remain unavailable rather than proving that no duplicate exists. No new publication-proof store is introduced.
+
+The generic clear-lineage/reopen/end remedy above applies where an archived primary can carry the retained branch
+authority. For terminal-only ends it cannot run: the primary is absent and lineage may hold protected `retiredBranches`.
+The terminal-only notice instead requires explicit native restoration. First retain and join both histories, then
+choose an authentic same-owner primary-and-metadata tree whose branch links preserve the chosen lineage's retired
+branch authority. Keep that lineage, including `retiredBranches`; create a new restoration commit from the chosen tree
+with the joined history tip as its parent; atomically CAS-create the UID's absent live ref and CAS-delete its history
+ref at that exact tip. Re-read the restored primary and remove it with its current expected version through the
+existing store write, retiring the same UID once. The new end descends from both old ends and ordinary push/pull
+converges. This is an operator-selected repair, never automatic restoration, a fake archive, a lineage-check relaxation
+or a new restore API. The notice names the selected store repository, exact history basis and transaction, leaving the
+authentic source-tree choice explicit (§ 14.5).
 
 #### 6.7 The push loop
 
@@ -3851,6 +3875,10 @@ typed conflicts:
       replacement of item-history tracking removes the last captured item tip or incoming archive-folder witness, the
       next pull may instead report `end-withdrawn`, remove the first folder locally, keep it absent remotely, and converge
       on the incoming published end. Both mirror-erasure families run in both layouts (§ 6.6, A52);
+    - terminal-only sibling retirements report `ended-twice` when both publication witnesses survive, including a
+      forced replacement overlapping after the previous-tip capture; replacement before capture keeps A52's withdrawal
+      behavior. The emitted native repair executes with retained branch authority, preserves both histories and the
+      chosen lineage, and converges after one new end. Sequential restored lifetimes report no duplicate (A56);
     - `maintain()` returns each never-retiring ref's commit count and disk usage — the person's `personal` and `claims`
       refs, `project/inbox`, and `project/registry` — and leaves out one the clone lacks;
     - `carry` over one atomic receiver and over ordered legs, a carried ref's own rejection, an ordered code leg to an
@@ -4817,6 +4845,11 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     as the subject without `Arc-Owner`, then publish and repeatedly pull successfully. Ordinary owner-bearing quarter
     and reopen provenance is preserved (§ 3.1, § 6.4, § 14.5) (A55).
 
+60. **Terminal-only double ends have a usable repair.** Both layouts report sibling retirement ends while both
+    publication witnesses survive, suppress sequential-lifetime false positives, and preserve A52's forced replacement
+    behavior before capture. The emitted native restoration and normal expected-version retirement retain both
+    histories, the chosen lineage and its `retiredBranches`, then converge on one maximal end (§ 6.6, § 14.5) (A56).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -5024,3 +5057,6 @@ open:
   _Trigger:_ F5 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---
+
+- **A56** — 2026-10-27 — design: restore terminal-only ends for repair. _Supersedes:_ § 6.6 generic end repair.
+  _Trigger:_ F14 review. _Work:_ review-fix. _Revalidated:_ review-fix.

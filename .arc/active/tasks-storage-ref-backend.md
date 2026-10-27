@@ -1126,6 +1126,8 @@ the withdrawal rule for two ends — the rules the model checks held.
 
     - _Amended in:_ review-fix (A52)
 
+    - _Amended in:_ review-fix (A56)
+
 - _Outcome:_ Losing unpublished end batches are inverted in one transaction, including earlier lineage, cohort closes,
   and selective inbox returns and receipts; surrounding writes and decomposition children remain. Published double ends
   persist as notices until their histories are reconciled, lineage cleared, and every archive folder reopened. Lineage
@@ -2568,3 +2570,7 @@ in `notes-storage-ref-backend.md` (A25).
 - `[x]` Both layouts reconcile valid divergent empty quarters over absent and shared-empty bases, with local-first
   parents, truthful namespace provenance, a fresh complete-none receipt, successful publication and repeated pulls;
   ordinary owner-bearing quarter/reopen provenance stays intact (§ 3.1, § 6.4, § 14.5) (A55)
+
+- `[x]` Both layouts report terminal-only sibling ends with surviving publication witnesses, distinguish sequential
+  lifetimes and forced replacement before versus after capture, and execute the emitted native restoration plus one
+  expected-version retirement while retaining both histories, lineage and branch authority (§ 6.6, § 14.5) (A56)

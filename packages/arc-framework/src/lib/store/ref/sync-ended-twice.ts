@@ -7,14 +7,16 @@ import type { RefBackendContext } from "./context.js";
 import { readBatchObjects } from "./batch-read.js";
 import { readLifecycleFolders, refEndPublished, type RefEndPublished } from "./sync-lifecycle.js";
 import { lifecycleRefHeld } from "./sync-lifecycle-holds.js";
+import { observeTerminalEndedTwice } from "./sync-terminal-ended-twice.js";
 
 /** Inspect the final merged records, retaining publication as a separate requirement. */
 export async function observeSyncEndedTwice(context: RefBackendContext, state: ReadonlyMap<string, string>,
   incoming: ReadonlyMap<string, string>, published: RefEndPublished = refEndPublished(context, incoming),
   blocked: ReadonlySet<string> = new Set()): Promise<PullNotice[]> {
   const remote = await readLifecycleFolders(context, incoming);
+  const current = await readLifecycleFolders(context, state);
   const grouped = new Map<string, Awaited<ReturnType<typeof readLifecycleFolders>>>();
-  for (const folder of await readLifecycleFolders(context, state)) {
+  for (const folder of current) {
     if (lifecycleRefHeld(blocked, folder.liveRef)) continue;
     const batch = folder.metadata.endBatch;
     const history = folder.liveRef.replace("refs/arc/", "refs/arc/history/");
@@ -35,7 +37,7 @@ export async function observeSyncEndedTwice(context: RefBackendContext, state: R
       condition: `The item holds independently published ends: ${ends.join("; ")}.`,
       remedy: { text: "If the retained histories diverged, merge both through a forced fetch of the tracking history and a pull by name first. Remove the item's lineage record where present, then reopen it to remove every archived folder, and end it once." } });
   }
-  return notices;
+  return [...notices, ...await observeTerminalEndedTwice(context, state, current, published, blocked)];
 }
 
 async function publishedTerminalLineage(context: RefBackendContext, state: ReadonlyMap<string, string>,
