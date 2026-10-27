@@ -2,12 +2,13 @@ import { createRefClock } from "../helpers/store/ref-clock.js";
 import { unconfirmedCancellation } from "../helpers/store/unconfirmed-cancellation.js";
 import { join } from "node:path";
 import { writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { refCarryFixture, carriedBranch, carriedDocument, carryProvenance } from "../helpers/store/ref-carry.js";
 import { plantRef } from "../helpers/store/ref-plant.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { createRefStore, PushInputSchema, PushResultSchema, RecordReferenceSchema } from "../../src/lib/store/index.js";
-import { isGitProcessError } from "../../src/lib/git/process-error.js";
+import { GitProcessError, isGitProcessError } from "../../src/lib/git/process-error.js";
 
 async function codeRaceFixture(mode: "leased" | "unleased", layout: "default" | "separate" = "default") {
   const h = await refCarryFixture(layout);
@@ -32,6 +33,41 @@ exit 0
 }
 
 describe("carried branch receiver races", () => {
+  it.each(([
+    { point: "listing", kind: "unexpected" }, { point: "listing", kind: "spawn-failure" },
+    { point: "config", kind: "unexpected" }, { point: "config", kind: "nonzero-exit" },
+    { point: "ancestry", kind: "unexpected" }, { point: "ancestry", kind: "nonzero-exit" },
+  ] as const))(
+    "propagates a local $kind from post-rejection $point observation and retries", async ({ point, kind }) => {
+    const { h, code, other } = await codeRaceFixture("unleased");
+    if (point === "ancestry") await h.a.exec("git", ["fetch", "origin", "refs/test/code-race:refs/test/known-code-race"]);
+    const cause = kind === "spawn-failure" ? Object.assign(new Error("spawn git ENOENT"), { code: "ENOENT" })
+      : kind === "nonzero-exit" ? Object.assign(new Error("Local Git observation failed"), { exitCode: 128 })
+      : new TypeError("The local receiver observer failed");
+    let broken = true, failure: GitProcessError | undefined;
+    const store = createRefStore({ ...h.a.ports, exec: async (command, args, options) => {
+      const selected = point === "listing" ? args.includes("ls-remote") && args.includes("--refs") && args.includes(carriedBranch)
+        : point === "config" ? args.includes("config") && args.includes("--get-regexp") : args.includes("merge-base") && args.includes(other.tip);
+      if (broken && selected && existsSync(join(h.origin, "code-moved"))) {
+        failure = new GitProcessError({ kind, command, args, cause,
+          ...kind === "nonzero-exit" ? { exitCode: 128, stderr: "fatal: local observer failure" } : {} });
+        throw failure;
+      }
+      return h.a.ports.exec(command, args, options);
+    } });
+    const observed: unknown = await store.push({ carry: { ref: carriedBranch } }).then(() => undefined, error => error);
+    expect(failure).toBeDefined();
+    expect(observed).toBe(failure);
+    expect(observed).toMatchObject({ kind, cause });
+    expect(success(await store.read({ reference: carriedDocument })).content).toBe("State after code race.\n");
+    expect((await h.remote("git", ["rev-parse", carriedBranch])).stdout.trim()).toBe(other.tip);
+    broken = false;
+    expect(success(await store.push({ carry: { ref: carriedBranch, expect: other.tip } })).carry)
+      .toEqual({ ref: carriedBranch, status: "pushed" });
+    expect((await h.remote("git", ["rev-parse", carriedBranch])).stdout.trim()).toBe(code.tip);
+    success(await h.b.store.pull());
+    expect(success(await h.b.store.read({ reference: carriedDocument })).content).toBe("State after code race.\n");
+  }, 60_000);
   it("preserves cancellation warnings from the receiver listing and retries after repair", async () => {
     const { h, code, other } = await codeRaceFixture("unleased"), clock = createRefClock(new Date(0), 0);
     let armed = true;

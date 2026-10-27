@@ -8,6 +8,7 @@ import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { switchFixture, projectId, identity, provenance } from "../helpers/store/remote-move.js";
 import { refCarryFixture, carriedBranch, carriedDocument } from "../helpers/store/ref-carry.js";
+import { GitProcessError } from "../../src/lib/git/process-error.js";
 
 const personal = (key: string) => RecordReferenceSchema.parse({ kind: "personal/document", key, owner: { type: "person", name: "andrew" } });
 
@@ -86,4 +87,37 @@ it.each((["code", "backing"] as const).flatMap(source => (["fetch", "push"] as c
   success(await createRefStore(injected.ports).push());
   expect((await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "grep", "-F", "Pending local state.", "refs/arc/user/andrew/personal"])).stdout)
     .toContain("Pending local state.");
+}, 60_000);
+
+it.each(["unexpected", "spawn-failure"] as const)(
+  "propagates a local %s receiver listing failure during automatic designation and retries", async kind => {
+  const h = await refSyncFixture(), pending = personal("listing-pending.md");
+  for (const client of [h.a, h.b]) success(await client.store.write({ action: "put", reference: identity, expected: null,
+    content: JSON.stringify({ projectId }), provenance }));
+  success(await h.a.store.push());
+  success(await h.b.store.write({ action: "put", reference: pending, expected: null, content: "Keep local listing work.\n", provenance }));
+  await h.b.exec("git", ["config", "--unset", "remote.origin.arc-state"]);
+  const cause = kind === "spawn-failure" ? Object.assign(new Error("spawn git ENOENT"), { code: "ENOENT" })
+    : new TypeError("The local listing executor is unavailable");
+  let broken = true, failure: GitProcessError | undefined;
+  const ports: RefStorePorts = { ...h.b.ports, exec: async (command, args, options) => {
+    if (broken && args.includes("ls-remote") && args.includes("--refs")) {
+      failure = new GitProcessError({ kind, command, args, cause });
+      throw failure;
+    }
+    return h.b.ports.exec(command, args, options);
+  } };
+  const store = createRefStore(ports);
+  const run = () => store.pull();
+  const observed: unknown = await run().then(() => undefined, error => error);
+  expect(failure).toBeDefined();
+  expect(observed).toBe(failure);
+  expect(observed).toMatchObject({ kind, cause });
+  expect((await h.b.exec("git", ["config", "--list"])).stdout).not.toContain("remote.origin.arc-state");
+  expect(success(await store.read({ reference: pending })).content).toBe("Keep local listing work.\n");
+  broken = false;
+  expect((await run()).status).toBe("ok");
+  success(await store.push());
+  success(await h.a.store.pull());
+  expect(success(await h.a.store.read({ reference: pending })).content).toBe("Keep local listing work.\n");
 }, 60_000);

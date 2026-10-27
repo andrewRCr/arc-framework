@@ -16,6 +16,7 @@ import { ENTRY_CONFIGS } from "../../src/lib/store/kinds/entry-configs.js";
 import { parseEntryList } from "../../src/lib/store/kinds/entry-list.js";
 import { PASSIVE_REMOTE_INTERACTION } from "../../src/lib/git/remote-ref-reader.js";
 import type { GitExecOptions } from "../../src/lib/git/exec.js";
+import { GitProcessError } from "../../src/lib/git/process-error.js";
 
 /** Prepare the empty separate store with a backing repository at origin's URL as its state remote. */
 async function designateBacking(h: Awaited<ReturnType<typeof importFixture>>): Promise<void> {
@@ -25,6 +26,78 @@ async function designateBacking(h: Awaited<ReturnType<typeof importFixture>>): P
   await h.git("git", [...scope, "config", "remote.backing.url", h.origin]);
   await h.git("git", [...scope, "config", "remote.backing.arc-state", "push"]);
 }
+
+it.each((["code", "backing", "none"] as const).flatMap(publisher =>
+  (publisher === "none" ? ["listing"] as const : ["listing", "delete"] as const).flatMap(operation =>
+    (["defect", "spawn", "plain cause"] as const).map(kind => ({ publisher, operation, kind })))))(
+  "preserves $publisher import cleanup evidence for a local $kind at $operation and retries", async ({ publisher, operation, kind }) => {
+  const h = await importFixture(publisher === "code" ? "default" : "separate");
+  if (publisher === "backing") await designateBacking(h);
+  const tip = await seed(h, [ordinary]);
+  await h.git("git", ["push", "origin", `${sourceRef}:${sourceRef}`]);
+  const original = h.ports.exec, cause = kind === "spawn" ? Object.assign(new Error("spawn git ENOENT"), { code: "ENOENT" })
+    : new Error("Original local cleanup diagnosis");
+  const required = "refs/arc/tmp/migrate/import-required";
+  let armed = false, broken = true, failure: Error | undefined, keptBefore = "", requiredBefore = "";
+  h.ports.migrateStep = async (step) => {
+    if (step === (publisher === "none" ? "import.transient.local-delete" : "import.transient.remote-delete")) {
+      keptBefore = (await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)", keptPrefix])).stdout;
+      requiredBefore = (await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)", required])).stdout;
+      armed = true;
+    }
+  };
+  h.ports.exec = async (command, args, options) => {
+    const selected = operation === "listing" ? args.includes("ls-remote") && args.includes("--refs") && args.includes(sourceRef)
+      : args.includes("push") && args.includes(`:${sourceRef}`);
+    if (armed && broken && selected) {
+      failure = kind === "spawn" ? new GitProcessError({ kind: "spawn-failure", command, args, cause })
+        : kind === "defect" ? new TypeError("Cannot initialize local cleanup", { cause }) : new Error("Local Git floor diagnosis", { cause });
+      throw failure;
+    }
+    return original(command, args, options);
+  };
+  const observed: unknown = await h.migrate().then(() => undefined, error => error);
+  expect(failure).toBeDefined();
+  expect(observed).toBe(failure);
+  expect(observed).toMatchObject({ cause });
+  expect(keptBefore).toContain(tip);
+  expect(requiredBefore).not.toBe("");
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)", keptPrefix])).stdout).toBe(keptBefore);
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)", required])).stdout).toBe(requiredBefore);
+  expect((await h.remote("git", ["rev-parse", sourceRef])).stdout.trim()).toBe(tip);
+  const scope = publisher === "code" ? [] : [`--git-dir=${join(h.root, ".git/arc/store")}`];
+  const landed = (await h.git("git", [...scope, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/work/"])).stdout;
+  expect(landed).not.toBe("");
+  broken = false;
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  expect((await h.git("git", [...scope, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/work/"])).stdout).toBe(landed);
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", keptPrefix, required])).stdout).toBe("");
+  expect((await h.remote("git", ["for-each-ref", "--format=%(objectname)", sourceRef])).stdout.trim()).toBe(publisher === "none" ? tip : "");
+}, 60_000);
+
+it.each(["default", "separate"] as const)("throws for malformed %s retained publication evidence and resumes after restoration", async layout => {
+  const h = await importFixture(layout);
+  if (layout === "separate") await designateBacking(h);
+  const tip = await seed(h, [ordinary]);
+  await h.git("git", ["push", "origin", `${sourceRef}:${sourceRef}`]);
+  const required = "refs/arc/tmp/migrate/import-required", wrong = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
+  let saved = "";
+  h.ports.migrateStep = async step => {
+    if (step === "import.transient.remote-delete") {
+      saved = (await h.git("git", ["rev-parse", required])).stdout.trim();
+      await h.git("git", ["update-ref", required, wrong, saved]);
+    }
+  };
+  await expect(h.migrate()).rejects.toThrow("publication requirements are unavailable");
+  expect((await h.git("git", ["rev-parse", required])).stdout.trim()).toBe(wrong);
+  expect((await h.git("git", ["for-each-ref", "--format=%(objectname)", keptPrefix])).stdout.trim()).toBe(tip);
+  expect((await h.remote("git", ["rev-parse", sourceRef])).stdout.trim()).toBe(tip);
+  await h.git("git", ["update-ref", required, saved, wrong]);
+  h.ports.migrateStep = async () => {};
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", keptPrefix, required])).stdout).toBe("");
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", sourceRef])).stdout).toBe("");
+}, 60_000);
 
 it("retains origin and the cleanup lease if publication is disabled after landing", async () => {
   const h = await importFixture();

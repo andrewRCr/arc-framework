@@ -10,6 +10,7 @@ import { IMPORT_PUBLICATION_REF, unpublishedImportClaims } from "./transient-pub
 import { listRemoteRefs } from "../remote-listing.js";
 import { captureMoveRemote } from "../migrate-remote-target.js";
 import { selectLiteralTransport } from "../effective-transport.js";
+import { MigrationRefusal } from "../migrate-refusal.js";
 
 /** Kept tips live in the code repository until all licensed cleanup finishes. */
 export const IMPORT_KEPT_PREFIX = "refs/arc/tmp/migrate/import/kept/";
@@ -54,14 +55,20 @@ export async function retireImportRemote(context: RefBackendContext, report: Mig
   if (!kept.size) return;
   if (!(await readRefDesignation(context)).pushes.length) {
     try { report.notices.push(...await retainedRemoteNotices(context, kept)); }
-    catch (error) { return cleanupRefused(`Could not read origin's transient refs: ${error instanceof Error ? error.message : String(error)}`,
-      "Preserve the kept tips. Restore access to origin, then rerun arc store migrate --import to list its retained transient refs and finish cleanup."); }
+    catch (error) {
+      if (!(error instanceof MigrationRefusal)) throw error;
+      return cleanupRefused(`Could not read origin's transient refs: ${error.message}`,
+        "Preserve the kept tips. Restore access to origin, then rerun arc store migrate --import to list its retained transient refs and finish cleanup.");
+    }
     return dropKeptTips(context, kept);
   }
   await context.migrateStep?.("import.transient.remote-delete");
   let refused: string | { condition: string; remedy: string } | undefined;
   try { refused = await retireOriginRefs(context, kept); }
-  catch (error) { refused = `Could not retire origin's transient refs: ${error instanceof Error ? error.message : String(error)}`; }
+  catch (error) {
+    if (!(error instanceof MigrationRefusal)) throw error;
+    refused = `Could not retire origin's transient refs: ${error.message}`;
+  }
   return refused ? typeof refused === "string" ? cleanupRefused(refused) : cleanupRefused(refused.condition, refused.remedy) : dropKeptTips(context, kept);
 }
 
@@ -116,14 +123,14 @@ async function captureOrigin(context: RefBackendContext) {
 
 async function originTips(context: RefBackendContext, endpoint: string, refs: string[]): Promise<Map<string, string>> {
   const listed = await listRemoteRefs(context, await selectLiteralTransport(context, endpoint, "fetch"), refs);
-  if (listed.status === "unreachable") throw new Error(listed.condition);
+  if (listed.status === "unreachable") throw new MigrationRefusal(cleanupRefused(listed.condition).refusal);
   return listed.tips;
 }
 
 function keptRef(ref: string): string { return `${IMPORT_KEPT_PREFIX}${ref.slice("refs/arc/".length)}`; }
 function sourceRef(ref: string): string { return `refs/arc/${ref.slice(IMPORT_KEPT_PREFIX.length)}`; }
 function cleanupRefused(condition: string,
-  text = "Preserve the kept tips. Reconcile the named transient refs with the imported records, then rerun arc store migrate --import."): StoreMigrateResult {
+  text = "Preserve the kept tips. Reconcile the named transient refs with the imported records, then rerun arc store migrate --import."): Extract<StoreMigrateResult, { status: "refused" }> {
   return { status: "refused", refusal: { code: "move-unfinished", class: "recoverable", condition,
     remedy: { text, argv: ["arc", "store", "migrate", "--import"] } } };
 }
