@@ -61,6 +61,11 @@ class RunnerSessionTransport implements CheckRunnerSession {
       });
     });
     process.stdout.on("end", () => { this.enqueue(() => { this.framer.finish(); }); });
+    process.stdout.on("close", () => {
+      this.enqueue(() => {
+        if (!process.stdout.readableEnded) throw sessionError("required protocol/output stream closed before EOF");
+      });
+    });
     process.stderr.on("data", (chunk: Uint8Array) => { this.deliverDiagnostic(chunk); });
     process.stderr.on("error", () => { /* Adapter diagnostics are best effort. */ });
     this.closed = process.completed.then(async exit => {

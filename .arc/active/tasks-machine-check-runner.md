@@ -237,12 +237,10 @@ lifetime.
 - _Goal:_ Every observed terminal outcome remains immutable, and disposal requires the settlement and process closure
   appropriate to whether preparation granted a context.
 
-    - `[ ]` **3.2.a Track per-invocation outcomes and required output closure**
-        - Build `test-first` (one behavior at a time):
-            - Exact requested-ID terminal coverage plus settled/output-complete reply closes an execution request.
-            - Missing/conflicting/unexpected outcomes, truncated output and later transport failure retain prior
-              outcomes.
-            - Statuses `256`, `4294967295` and high-bit DWORD values remain exact failures; zero alone succeeds.
+    - `[x]` **3.2.a Track per-invocation outcomes and required output closure**
+        - Verified exact terminal coverage, immutable prior outcomes and unsigned 32-bit statuses at the session
+          boundary. Required protocol streams now fail explicitly on premature close; drain-aware process fixtures
+          preserve the distinction between received terminal evidence and incomplete output or settlement.
 
     - `[ ]` **3.2.b Model context-owning and no-context normal closure**
         - Build `test-first` (one behavior at a time):

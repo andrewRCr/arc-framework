@@ -1,5 +1,6 @@
 /** Piped in-memory adapter boundary shared by conversation tests. */
 import { PassThrough } from "node:stream";
+import { finished } from "node:stream/promises";
 import { createCheckRunnerSession } from "../../../src/lib/checks/runner/session.js";
 import type { CheckRunnerProcessExit } from "../../../src/lib/checks/runner/session-process.js";
 import type { RunnerNotification, RunnerRequest } from "../../../src/lib/checks/runner/contract.js";
@@ -21,7 +22,13 @@ export function runnerStreamHarness(onNotification?: (notification: RunnerNotifi
     onDiagnostic,
   });
   return { stdin, stdout, stderr, requests, notifications, session,
-    async close() { stdout.end(); stderr.end(); finish({ started: true, exitCode: 0 }); await session.closed; },
+    async close() {
+      const drained = [stdout, stderr].map(stream => finished(stream, { cleanup: true }).catch(() => undefined));
+      stdout.end(); stderr.end();
+      await Promise.all(drained);
+      finish({ started: true, exitCode: 0 });
+      await session.closed;
+    },
   };
 }
 
