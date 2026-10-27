@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "test-reader-trace-analysis",
+  "claimId": "7583b2271f160b6aa30bac10534a8981",
+  "createdAt": "2026-10-27T18:54:06.842Z",
+  "updatedAt": "2026-10-27T18:54:06.842Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Record in the test-suite cost analysis how to trace which tests read a Markdown file, its blind spots, and the 2026-10-27 result",
+  "branch": "chore/test-reader-trace-analysis",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
