@@ -9,6 +9,25 @@ import { runArc } from "./helpers.js";
 const repositories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(repositories.splice(0)); });
 
+it("forecasts only environment names and kinds without capturing unavailable execution-step inputs", async () => {
+  const command = [process.execPath, "-e", "require('node:fs').writeFileSync('receipt.json','started')"];
+  const bindings = { CHECK_MODE: "value", CHECK_WEIGHTS: "file" } as const;
+  const root = await createDeclaredCheckRepository({
+    frozen: { gate: "merge", command, runtime_inputs: [command], runner: true, environment_inputs: bindings },
+    empty: { gate: "merge", command, mode: "files", inputs: ["other/**"], environment_inputs: bindings },
+  });
+  repositories.push(root);
+  const result = await runArc(["check", "gate", "merge", "--ci", "--dry-run", "--json"], root,
+    { env: { CHECK_MODE: "private-forecast-literal", CHECK_WEIGHTS: "private-unavailable-artifact.bin" } });
+  expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+  const checks = JSON.parse(result.stdout).result.checks;
+  expect(checks.map((check: { environmentInputs: unknown }) => check.environmentInputs)).toEqual([bindings, bindings]);
+  expect(checks).toMatchObject([{ outcome: "would run" }, { outcome: "not selected", batches: [] }]);
+  expect(result.stdout).not.toContain("private-forecast-literal");
+  expect(result.stdout).not.toContain("private-unavailable-artifact.bin");
+  await expect(readFile(join(root, "receipt.json"))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
 it("shares frozen file/value inputs through global/check probes and native command execution", async () => {
   const read = "const fs=require('node:fs');const value=fs.readFileSync(process.env.CHECK_WEIGHTS,'utf8');";
   const globalProbe = [process.execPath, "-e", read + "fs.writeFileSync('tools/weights','changed by global probe');process.stdout.write(value+process.env.CHECK_MODE)"];

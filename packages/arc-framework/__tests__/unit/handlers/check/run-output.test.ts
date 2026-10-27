@@ -2,6 +2,14 @@
 import { expect, it } from "vitest";
 import { renderDeclaredChecks, type DeclaredCheckEnvelope } from "../../../../src/handlers/check/run-output.js";
 
+it("shows a forecast's environment names and kinds in the human report", () => {
+  const result = renderDeclaredChecks({ kind: "result", exitCode: 0, result: {
+    status: "completed", checks: [{ id: "check", kind: "enforcement", outcome: "would run", batches: [["check"]],
+      environmentInputs: { CHECK_MODE: "value", CHECK_WEIGHTS: "file" } }],
+  } }, false);
+  expect(result).toContain("Environment inputs: CHECK_MODE (value), CHECK_WEIGHTS (file)");
+});
+
 it("labels a successful divergent run with its differing input paths", () => {
   const result = renderDeclaredChecks({ kind: "result", exitCode: 0, result: {
     status: "completed", checks: [{ id: "lint", kind: "enforcement", outcome: "passed", divergent: ["src/a.ts"] }],

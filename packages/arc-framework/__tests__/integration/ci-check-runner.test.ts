@@ -116,3 +116,26 @@ it("executes an explicitly mapped default-step check and propagates its failure"
   expect(await runCiCheckStep({ ...setup, declaration, forecast,
     plumbing: { broken: [{ job: "unit", step: "default" }] }, step: "default" })).toBe(1);
 });
+
+it.each(["changed", "added", "removed", "missing", "constructor"])("refuses %s selected input declarations until the forecast is regenerated", async change => {
+  const setup = await fixture();
+  const id = change === "constructor" ? "constructor" : "selected";
+  const original = CheckDeclarationSchema.parse({ checks: { [id]: {
+    command: [process.execPath, "probe.mjs", "repaired"], environment_inputs: { CHECK_MODE: "value" },
+  } } });
+  const currentInputs = change === "changed" ? { CHECK_MODE: "file" }
+    : change === "added" ? { CHECK_MODE: "value", CHECK_EXTRA: "file" } : {};
+  const declaration = CheckDeclarationSchema.parse({ checks: change === "missing" || change === "constructor" ? {} : {
+    [id]: { ...original.checks[id], environment_inputs: currentInputs },
+  } });
+  const forecast = { ...setup.forecast, checks: [{ id,
+    ...resolveCheckForecast(original.checks[id]!, setup.root, [], process.platform) }] };
+  const options = { ...setup, declaration, forecast, plumbing: { [id]: [{ job: "unit", step: "test" }] } };
+  await expect(runCiCheckStep(options)).rejects.toThrow(/regenerate.*arc check gate merge --ci --dry-run --json/iu);
+  expect(await output(setup.root)).toEqual([]);
+  const repaired = change === "missing" || change === "constructor" ? original : declaration;
+  const regenerated = { ...forecast, checks: [{ id,
+    ...resolveCheckForecast(repaired.checks[id]!, setup.root, [], process.platform) }] };
+  expect(await runCiCheckStep({ ...options, declaration: repaired, forecast: regenerated })).toBe(0);
+  expect(await output(setup.root)).toEqual([["repaired"]]);
+});

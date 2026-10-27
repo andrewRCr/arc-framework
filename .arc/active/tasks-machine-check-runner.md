@@ -87,12 +87,9 @@ selectors refuse with a successful repaired retry, while ordinary native checks 
 - _Goal:_ CI binds the environment delivered to its execution step, while forecasts carry only enough declaration
   metadata to detect stale input contracts without capturing secrets or premature absence.
 
-    - `[ ]` **1.5.a Carry names and kinds across forecast serialization**
-        - Extend `CheckForecast`, `resolveCheckForecast`, result text/JSON and `CiForecastEnvelopeSchema` with
-          `environmentInputs`; cover project/files and empty selections without exposing values, paths or digests.
-        - Build `test-first` (one behavior at a time):
-            - Round trips preserve only the declaration map; dry-run never opens declared files or captures absence.
-            - CI rejects changed/missing selected declarations or metadata disagreement with a regenerate remedy.
+    - `[x]` **1.5.a Carry names and kinds across forecast serialization**
+        - Forecasts copy names and kinds into text/JSON, including empty selections; CI decoding preserves the map.
+          Selected declaration drift refuses before execution with a regenerate remedy; repaired forecasts run normally.
 
     - `[ ]` **1.5.b Bind native CI playback after artifact delivery**
         - Integrate shared capture into `runCiCheckStep` / `runForecastCheck` in `src/lib/ci-check-runner.ts`, checking
