@@ -48,17 +48,19 @@ export function archiveOwnerTrees(trees: ReadonlyMap<string, readonly RefTreeEnt
       if (names.has(name)) owned.add(root);
     }
     const kept = new Set([...roots].filter((root) => owned.has(root) || !attributed.has(root)));
-    const own = entries.filter(({ path }) => kept.has(path.slice(0, path.indexOf("/") + 1)));
+    const own = entries.filter(({ path }) => !path.includes("/") || kept.has(path.slice(0, path.indexOf("/") + 1)));
     if (own.length) selected.set(ref, own);
   }
   return selected;
 }
 
-/** The first quarter holding a folder these owners' metadata files name, or that no metadata file names, whose metadata does not read. */
-export function unreadableOwnedFolder(trees: ReadonlyMap<string, readonly RefTreeEntry[]>, owners: readonly OwnerIdentity[],
-  objects: ReadonlyMap<string, BatchObject | null>): string | undefined {
-  return [...archiveOwnerTrees(trees, owners)].find(([ref, entries]) => (["work-item", "cohort"] as const)
-    .some((family) => archivedFolders(family, ref, entries, objects).diagnostics.some(({ kind }) => kind === "unreadable")))?.[0];
+/** The first diagnostic in an owned or unattributed archive namespace, retaining its exact path and repair. */
+export function firstOwnedArchiveDiagnostic(trees: ReadonlyMap<string, readonly RefTreeEntry[]>, owners: readonly OwnerIdentity[],
+  objects: ReadonlyMap<string, BatchObject | null>): { ref: string; diagnostic: ListingDiagnostic } | undefined {
+  for (const [ref, entries] of archiveOwnerTrees(trees, owners)) for (const family of ["work-item", "cohort"] as const) {
+    const diagnostic = archivedFolders(family, ref, entries, objects).diagnostics[0];
+    if (diagnostic) return { ref, diagnostic };
+  }
 }
 
 /** Decode folder metadata independently, retaining one diagnostic for each unreadable owner; a saved quarter names historical repair. */
@@ -68,6 +70,7 @@ export function archivedFolders(family: FamilyId, ref: string, entries: readonly
   const familyRoot = rootFamily(family);
   if (familyRoot !== "work-item" && familyRoot !== "cohort") return { folders, diagnostics };
   const quarter = ArchiveQuarterSchema.parse(ref.split("/").at(-1));
+  diagnostics.push(...archiveRootDiagnostics(ref, entries, saved));
   for (const root of new Set(entries.map(({ path }) => path.slice(0, path.indexOf("/") + 1)).filter(Boolean))) {
     const cohort = /^\d+[ab]_cohort-/u.test(root);
     if (cohort !== (familyRoot === "cohort")) continue;
@@ -89,6 +92,15 @@ export function archivedFolders(family: FamilyId, ref: string, entries: readonly
       liveRef: `refs/arc/${cohort ? "cohort" : "work"}/${uid}`, entries: members.map((member) => ({ ...member, path: member.path.slice(root.length) })) });
   }
   return { folders, diagnostics };
+}
+
+function archiveRootDiagnostics(ref: string, entries: readonly RefTreeEntry[], saved: boolean): ListingDiagnostic[] {
+  return entries.filter(({ path }) => !path.includes("/")).map(({ path }) => {
+    const key = `${ref}:${path}`;
+    return { kind: "malformed", key, condition: `The archive entry ${key} is outside an owner folder.`,
+      remedy: saved ? historicalMetadataFailure(key).remedy
+        : { text: `Restore ${key} to its correct archive owner folder or remove the stray entry in a new commit, then retry.` } };
+  });
 }
 
 function malformedFolderOwner(ref: string, path: string, saved: boolean): ListingDiagnostic {

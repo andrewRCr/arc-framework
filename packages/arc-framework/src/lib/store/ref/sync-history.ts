@@ -1,7 +1,7 @@
 /** Captured archive folders refreshed alongside a merge of their retained history ref. */
 
 import type { RefBackendContext } from "./context.js";
-import { archivedFolders, isArchiveRef, latestArchivedFolders, unreadableOwnedFolder, type ArchivedFolder } from "./archive-read.js";
+import { archivedFolders, isArchiveRef, latestArchivedFolders, firstOwnedArchiveDiagnostic, type ArchivedFolder } from "./archive-read.js";
 import type { ReadPlacement } from "../placement.js";
 import { readBatchObjects, readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import { parseStoreCommitProvenance } from "../commit-provenance.js";
@@ -62,8 +62,9 @@ export async function readSyncHistoryQuarters(context: RefBackendContext, ref: s
   if (unreadable) return { status: "refused", refusal: corruptRef(unreadable, true) };
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
   const family = ref.includes("/cohort/") ? "cohort" : "work-item", live = ref.replace("refs/arc/history/", "refs/arc/");
-  const broken = unreadableOwnedFolder(trees, [OwnerIdentitySchema.parse({ type: family, name: "unresolved", uid: live.split("/").at(-1) })], objects);
-  if (broken) return { status: "refused", refusal: corruptRef(broken) };
+  const broken = firstOwnedArchiveDiagnostic(trees, [OwnerIdentitySchema.parse({ type: family, name: "unresolved", uid: live.split("/").at(-1) })], objects);
+  if (broken) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: broken.ref,
+    condition: broken.diagnostic.condition, remedy: broken.diagnostic.remedy } };
   const own = [...trees].map(([quarter, entries]) => ({ ref: quarter, entries,
     folders: archivedFolders(family, quarter, entries, objects).folders.filter((folder) => folder.liveRef === live) })).filter(({ folders }) => folders.length);
   const first = own[0]?.folders[0];
