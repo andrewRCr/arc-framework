@@ -28,6 +28,103 @@ async function designateBacking(h: Awaited<ReturnType<typeof importFixture>>): P
 }
 
 it.each((["code", "backing", "none"] as const).flatMap(publisher =>
+  (publisher === "none" ? ["listing"] as const : ["listing", "delete"] as const).map(point => ({ publisher, point }))))(
+  "returns a recoverable $publisher cleanup stop for unrepresentable $point transport and retries", async ({ publisher, point }) => {
+  const h = await importFixture(publisher === "code" ? "default" : "separate");
+  if (publisher === "backing") await designateBacking(h);
+  const tip = await seed(h, [ordinary]);
+  await h.git("git", ["push", "origin", `${sourceRef}:${sourceRef}`]);
+  const required = "refs/arc/tmp/migrate/import-required", rewrite = "url.unreachable:.pushInsteadOf", original = h.ports.exec;
+  let armed = false, obstruct = true, changed = false, keptBefore = "", requiredBefore = "";
+  h.ports.migrateStep = async step => {
+    if (step !== (publisher === "none" ? "import.transient.local-delete" : "import.transient.remote-delete")) return;
+    keptBefore = (await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)", keptPrefix])).stdout;
+    requiredBefore = (await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)", required])).stdout;
+    armed = true;
+    if (obstruct && point === "listing") {
+      await h.git("git", ["remote", "add", "mirror", h.origin]);
+      await h.git("git", ["config", "remote.mirror.arc-state", "off"]);
+      await h.git("git", ["config", "remote.origin.pushurl", "mirror"]);
+      changed = true;
+    }
+  };
+  h.ports.exec = async (command, args, options) => {
+    if (armed && obstruct && !changed && point === "delete" && args.includes("remote") && args.includes("show") && args.includes("-n") && args.includes(h.origin)) {
+      await h.git("git", ["config", rewrite, h.origin]);
+      changed = true;
+    }
+    return original(command, args, options);
+  };
+  const observed = await h.migrate().then(result => ({ result }), (error: unknown) => ({ error }));
+  expect(changed).toBe(true);
+  expect(observed).toMatchObject({ result: { status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
+    condition: expect.stringContaining("recorded"), remedy: { argv: ["arc", "store", "migrate", "--import"] } } } });
+  expect(keptBefore).toContain(tip);
+  expect(requiredBefore).not.toBe("");
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)", keptPrefix])).stdout).toBe(keptBefore);
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)", required])).stdout).toBe(requiredBefore);
+  expect((await h.remote("git", ["rev-parse", sourceRef])).stdout.trim()).toBe(tip);
+  const scope = publisher === "code" ? [] : [`--git-dir=${join(h.root, ".git/arc/store")}`];
+  const landed = (await h.git("git", [...scope, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/work/"])).stdout;
+  expect(landed).not.toBe("");
+  obstruct = false;
+  await h.git("git", ["config", "--unset-all", point === "listing" ? "remote.origin.pushurl" : rewrite]);
+  const repaired = await h.migrate();
+  expect(repaired).toMatchObject({ status: "ok" });
+  if (publisher === "none" && repaired.status === "ok") expect(repaired.result.notices).toEqual(expect.arrayContaining([
+    expect.objectContaining({ condition: expect.stringContaining(sourceRef), remedy: expect.any(Object) }),
+  ]));
+  expect((await h.git("git", [...scope, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/work/"])).stdout).toBe(landed);
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", keptPrefix, required])).stdout).toBe("");
+  expect((await h.remote("git", ["for-each-ref", "--format=%(objectname)", sourceRef])).stdout.trim()).toBe(publisher === "none" ? tip : "");
+}, 60_000);
+
+it.each((["code", "backing", "none"] as const).flatMap(publisher =>
+  (["defect", "spawn", "floor"] as const).map(kind => ({ publisher, kind }))))(
+  "preserves a $publisher local $kind at transport selection and retries", async ({ publisher, kind }) => {
+  const h = await importFixture(publisher === "code" ? "default" : "separate");
+  if (publisher === "backing") await designateBacking(h);
+  const tip = await seed(h, [ordinary]);
+  await h.git("git", ["push", "origin", `${sourceRef}:${sourceRef}`]);
+  const required = "refs/arc/tmp/migrate/import-required", original = h.ports.exec;
+  const cause = kind === "spawn" ? Object.assign(new Error("spawn git ENOENT"), { code: "ENOENT" })
+    : kind === "floor" ? Object.assign(new Error("Local Git floor diagnosis"), { exitCode: 128 }) : new Error("Original selector diagnosis");
+  let armed = false, broken = true, failure: Error | undefined, keptBefore = "", requiredBefore = "";
+  h.ports.migrateStep = async step => {
+    if (step !== (publisher === "none" ? "import.transient.local-delete" : "import.transient.remote-delete")) return;
+    keptBefore = (await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)", keptPrefix])).stdout;
+    requiredBefore = (await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)", required])).stdout;
+    armed = true;
+  };
+  h.ports.exec = async (command, args, options) => {
+    if (armed && broken && args.includes("ls-remote") && args.includes("--get-url")) {
+      failure = kind === "defect" ? new TypeError("Cannot initialize local transport selector", { cause })
+        : new GitProcessError({ kind: kind === "spawn" ? "spawn-failure" : "nonzero-exit", command, args, cause,
+          ...kind === "floor" ? { exitCode: 128, stderr: "fatal: local selector failure" } : {} });
+      throw failure;
+    }
+    return original(command, args, options);
+  };
+  const observed: unknown = await h.migrate().then(() => undefined, (error: unknown) => error);
+  expect(failure).toBeDefined();
+  expect(observed).toBe(failure);
+  expect(observed).toMatchObject({ cause });
+  expect(keptBefore).toContain(tip);
+  expect(requiredBefore).not.toBe("");
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)", keptPrefix])).stdout).toBe(keptBefore);
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)", required])).stdout).toBe(requiredBefore);
+  expect((await h.remote("git", ["rev-parse", sourceRef])).stdout.trim()).toBe(tip);
+  const scope = publisher === "code" ? [] : [`--git-dir=${join(h.root, ".git/arc/store")}`];
+  const landed = (await h.git("git", [...scope, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/work/"])).stdout;
+  expect(landed).not.toBe("");
+  broken = false;
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  expect((await h.git("git", [...scope, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/work/"])).stdout).toBe(landed);
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", keptPrefix, required])).stdout).toBe("");
+  expect((await h.remote("git", ["for-each-ref", "--format=%(objectname)", sourceRef])).stdout.trim()).toBe(publisher === "none" ? tip : "");
+}, 60_000);
+
+it.each((["code", "backing", "none"] as const).flatMap(publisher =>
   (publisher === "none" ? ["listing"] as const : ["listing", "delete"] as const).flatMap(operation =>
     (["defect", "spawn", "plain cause"] as const).map(kind => ({ publisher, operation, kind })))))(
   "preserves $publisher import cleanup evidence for a local $kind at $operation and retries", async ({ publisher, operation, kind }) => {
