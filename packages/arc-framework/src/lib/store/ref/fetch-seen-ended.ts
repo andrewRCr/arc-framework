@@ -18,8 +18,9 @@ export async function releaseEndedRefKeepers(context: RefBackendContext, remote:
 async function releaseCapturedKeepers(context: RefBackendContext, remote: string,
   incoming: ReadonlyMap<string, string>, keepers: ReadonlyMap<string, string>, readOnly: boolean): Promise<void> {
   const prefix = `refs/arc/tmp/seen/${remote}/`;
-  const state = readOnly ? await capturedTracking(context, remote) : await readSyncRefs(context, "refs/arc/");
-  const proof = readOnly ? new Map([...incoming].filter(([ref, tip]) => state.get(ref) === tip)) : incoming;
+  const tracking = await capturedTracking(context, remote);
+  const state = readOnly ? tracking : await readSyncRefs(context, "refs/arc/");
+  const proof = new Map([...incoming].filter(([ref, tip]) => tracking.get(ref) === tip));
   const ended = new Set((await readLifecycleFolders(context, proof)).map(({ liveRef }) => liveRef));
   for (const ref of await publishedLineageRefs(context, proof)) ended.add(ref);
   for (const [ref, tip] of keepers) {
