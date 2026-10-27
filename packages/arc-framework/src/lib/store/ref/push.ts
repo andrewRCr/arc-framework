@@ -113,7 +113,9 @@ async function publishRefAttempt(context: RefBackendContext, loop: PushLoop): Pr
   loop.refusals = excluded.failures;
   const target = await checkedPushTarget(context, remote, designation, listing, merged);
   if (target === null) return "retry";
-  const outcome = await publishListing(context, remote.name, target, listing, loop);
+  const outcome = await publishListing(context, remote.name, target, listing, loop,
+    async () => await checkedPushTarget(context, remote, designation, listing, merged) === target);
+  if (outcome === "retry") return "retry";
   if (outcome.status === "lost-race") return "retry";
   if (outcome.status === "by-state") {
     loop.pending = { designation: JSON.stringify(designation), listing, outcome };
@@ -175,13 +177,15 @@ function pushOutcomeFailure(context: RefBackendContext, outcome: Exclude<PushCla
         ? "Enable atomic pushes on the receiver, then retry the push." : "Repair the reported receiver policy or hook and retry the push." } };
 }
 
-async function publishListing(context: RefBackendContext, remote: string, target: string, listing: RefPushListing, loop: PushLoop): Promise<PushClassification> {
+async function publishListing(context: RefBackendContext, remote: string, target: string, listing: RefPushListing, loop: PushLoop,
+  admitState: () => Promise<boolean>): Promise<PushClassification | "retry"> {
   if (listing.changes.length === 0) return { status: "ok", message: "" };
   const changes = listing.changes.map((change) => /^refs\/arc\/(?:history\/)?(?:work|cohort)\//u.test(change.ref)
     ? { ...change, expected: listing.tracking.get(change.ref) ?? null } : change);
   const started = context.clock().getTime();
-  const outcome = await pushRefListingWithCarry(context, remote, target, changes, loop.carry);
+  const outcome = await pushRefListingWithCarry(context, remote, target, changes, loop.carry, admitState);
   loop.lastPushMs = Math.max(0, context.clock().getTime() - started);
+  if (outcome === null) return "retry";
   await recordPushTracking(context, remote, listing, outcome);
   if (outcome.status === "refs") for (const row of outcome.refs) {
     if (row.status === "ok") for (const family of await refMovementFamilies(context, row.ref, listing.tracking.get(row.ref) ?? null,

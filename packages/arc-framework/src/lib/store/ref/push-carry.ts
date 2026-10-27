@@ -51,13 +51,17 @@ async function fullCarryRef(source: RefBackendContext, ref: string): Promise<str
 
 /** Join only the code repository's own state receiver; separate stores use an ordered code leg. */
 export async function pushRefListingWithCarry(context: RefBackendContext, remote: string, target: string,
-  changes: readonly PushRefChange[], carry: RefCarryPublication | undefined): Promise<PushOutcome> {
+  changes: readonly PushRefChange[], carry: RefCarryPublication | undefined,
+  admitState: () => Promise<boolean>): Promise<PushOutcome | null> {
   const together = carry && !carry.outcome && carry.remote === remote && !context.repository?.gitDir;
   if (carry && !carry.outcome && !together) await finishRefCarry(carry);
+  if (!await admitState()) return null;
   const outcome = await pushRefs(context.exec, target, [...changes, ...together ? [carry.change] : []],
     { cwd: context.checkoutRoot, signal: context.syncDeadline?.signal });
-  if (together && await settleCombinedCarry(carry, outcome)) return pushRefs(context.exec, target, changes,
-    { cwd: context.checkoutRoot, signal: context.syncDeadline?.signal });
+  if (together && await settleCombinedCarry(carry, outcome)) {
+    if (!await admitState()) return null;
+    return pushRefs(context.exec, target, changes, { cwd: context.checkoutRoot, signal: context.syncDeadline?.signal });
+  }
   return outcome;
 }
 
