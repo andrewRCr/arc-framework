@@ -145,7 +145,7 @@ the selected source basis with independent Git coordinates, and budget complete 
           explicit unknown runtime remains executable without reuse. Recovery, source confirmation, RPC replies and
           settlement reject mismatched identities; protocol faults retain observed immutable outcomes and block evidence.
 
-### `[ ]` **2.3 Preserve selected source basis and verified HEAD evidence — D3**
+### `[x]` **2.3 Preserve selected source basis and verified HEAD evidence — D3**
 
 - _Goal:_ Routed capture can distinguish worktree, index and commit code and certify a real HEAD or verified unborn
   repository, instead of silently substituting live files or treating an unresolved read as unborn.
@@ -155,11 +155,10 @@ the selected source basis with independent Git coordinates, and budget complete 
           `readCheckHead` verifies unborn branches; `requireSourceCoordinates` refuses unavailable or invalid
           coordinates with repair/retry/local remedies while native resolution retains its existing policy.
 
-    - `[ ]` **2.3.b Acquire and recheck the routed source boundary**
-        - Build `test-first` (one behavior at a time):
-            - Capture rejects detected path/coordinate changes and releases acquired temporary indexes on refusal.
-            - Root-relative cwd validates lexical and resolved links; escaping cwd refuses without sibling capture.
-        - Reuse `WorktreeSnapshot` for selected code coordinates where suitable, never as proof of raw execution bytes.
+    - `[x]` **2.3.b Acquire and recheck the routed source boundary**
+        - `acquireSourceBoundary` retains selected coordinates and raw path enumeration, rechecks their stability and
+          releases its private worktree index on refusal. Index/commit guards remain bound to selected code.
+          `resolveSourceCwd` checks lexical and resolved directory containment with actionable correction routes.
 
 ### `[ ]` **2.4 Capture raw source entries and canonical manifest identity — D3**
 
