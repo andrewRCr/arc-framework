@@ -93,8 +93,9 @@ workflow and method text. Request the tier locally only when a failure after the
 arc check run test:integration:content --range
 ```
 
-It runs the whole integration tier when the branch changes that Markdown, and is not selected otherwise. The tier holds
-the shared test slot for several minutes.
+It runs the whole integration tier when the branch changes that Markdown, and is not selected otherwise. Decision
+records and supplemental research and analysis select neither this run nor CI's, since no integration or E2E test
+reads them. The tier holds the shared test slot for several minutes.
 
 Report feedback failures and handle them under [DEV-RULES.ARC][dev-rules-arc] § Quality gate failure. Checks assigned
 to gates still have to pass by their declared deadlines.
