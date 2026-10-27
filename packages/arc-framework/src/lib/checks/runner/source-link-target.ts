@@ -1,20 +1,15 @@
 /** Inspect link targets component by component without opening external source content. */
-import { dirname, isAbsolute, parse, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, parse, resolve, sep } from "node:path";
 import type { SourcePresentationIO } from "./source-io.js";
 import type { BigIntStats } from "node:fs";
 import { SourceCaptureError } from "./source-error.js";
-import { decodeSourceText } from "./source-paths.js";
+import { decodeSourceText, sourcePathContains } from "./source-paths.js";
 
 /** Decode a literal link target without replacing invalid UTF-8 or dropping a leading BOM. */
 export function decodeSourceLinkTarget(bytes: Uint8Array): string {
   const target = decodeSourceText(bytes);
   if (target === "" || target.includes("\0")) throw new SourceCaptureError("Source link target is not representable");
   return target;
-}
-
-function inside(root: string, path: string): boolean {
-  const name = relative(root, path);
-  return !isAbsolute(name) && name !== ".." && !name.startsWith(`..${sep}`);
 }
 
 function components(target: string): string[] {
@@ -34,7 +29,7 @@ async function targetEntry(io: SourcePresentationIO, path: string): Promise<BigI
 
 function targetPath(root: string, cursor: string, component: string): string {
   const path = resolve(cursor, component);
-  if (!inside(root, path)) throw new SourceCaptureError("Source link escapes captured root");
+  if (!sourcePathContains(root, path)) throw new SourceCaptureError("Source link escapes captured root");
   return path;
 }
 
@@ -52,7 +47,7 @@ export async function assertSourceLinkTarget(io: SourcePresentationIO, root: str
   const visited = new Set<string>();
   let hops = 0;
   while (pending.length > 0) {
-    if (!inside(actualRoot, resolve(cursor, ...pending))) throw new SourceCaptureError("Source link escapes captured root");
+    if (!sourcePathContains(actualRoot, resolve(cursor, ...pending))) throw new SourceCaptureError("Source link escapes captured root");
     const state = JSON.stringify([cursor, pending]);
     if (visited.has(state)) return;
     visited.add(state);

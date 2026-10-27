@@ -8,12 +8,14 @@ import { resolveSourceCwd } from "./source-cwd.js";
 import { nodeSourcePresentationIO, type SourcePresentationIO } from "./source-io.js";
 import { SourceCaptureError, sourceCaptureFailure } from "./source-error.js";
 import { createSourceSpellingIndex } from "./source-spelling.js";
+import { identifySourceManifest } from "./source-manifest.js";
 
 /** Owned source presentation with its descriptor outside the project paths. */
 export interface FrozenSourcePresentation {
   readonly root: string;
   readonly manifestPath: string;
   readonly manifest: SourceManifest;
+  readonly digest: `sha256:${string}`;
   readonly codePaths: ReadonlyMap<string, string>;
   remove(): Promise<void>;
 }
@@ -48,9 +50,10 @@ export async function freezeSourcePresentation(root: string, paths: Uint8Array,
         : await freezeSourceFile(io, source, destination, path, before));
     }
     await spelling.recheck();
+    const identity = identifySourceManifest(manifest);
     const manifestPath = join(directory, "manifest.json");
-    await io.writeManifest(manifestPath, JSON.stringify(manifest));
-    return { root: capturedRoot, manifestPath, manifest, codePaths, remove };
+    await io.writeManifest(manifestPath, identity.encoding);
+    return { root: capturedRoot, manifestPath, manifest: identity.manifest, digest: identity.digest, codePaths, remove };
   } catch (cause) {
     await remove();
     throw sourceCaptureFailure(cause);

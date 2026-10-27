@@ -9,11 +9,39 @@ import { createExecaGitExec, createExecaRawGitExec } from "../../src/lib/git/pro
 import { resolveCheckRequest } from "../../src/lib/checks/resolve-request.js";
 import { acquireSourceBoundary } from "../../src/lib/checks/runner/source-boundary.js";
 import { freezeSourcePresentation } from "../../src/lib/checks/runner/source-presentation.js";
+import { verifySourcePresentation } from "../../src/lib/checks/runner/source-verify.js";
 
 const git = createExecaGitExec();
 const io = { git, gitRaw: createExecaRawGitExec() };
 const repositories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(repositories.splice(0)); });
+
+it("verifies a real selected capture, refuses altered artifact bytes and continues after repair", async () => {
+  const root = await createTempRepoCore({ prefix: "arc-source-verification-" });
+  repositories.push(root);
+  const content = Buffer.from([0, 255, 13, 10]);
+  await writeFile(join(root, "source.bin"), content);
+  await git("git", ["add", "source.bin"], { cwd: root });
+  await git("git", ["commit", "-m", "source"], { cwd: root });
+  const request = await resolveCheckRequest(git, root, { form: { kind: "run", ids: ["check"] } });
+  if (request.status !== "resolved") throw new Error(request.message);
+  const boundary = await acquireSourceBoundary(io, root, request.request);
+  try {
+    const frozen = await freezeSourcePresentation(root, boundary.pathListing, boundary.coordinates);
+    const source = { root: frozen.root, manifest: frozen.manifestPath, digest: frozen.digest,
+      coordinates: frozen.manifest.coordinates };
+    try {
+      await boundary.recheck();
+      await writeFile(join(root, "source.bin"), "later original bytes\n");
+      expect(await verifySourcePresentation(source)).toEqual(frozen.manifest);
+      await writeFile(join(frozen.root, "source.bin"), Buffer.from([1, 254, 13, 10]));
+      await expect(verifySourcePresentation(source)).rejects.toThrow(/bytes.*match.*repair.*retry/iu);
+      expect(await readFile(join(frozen.root, "source.bin"))).toEqual(Buffer.from([1, 254, 13, 10]));
+      await writeFile(join(frozen.root, "source.bin"), content);
+      expect(await verifySourcePresentation(source)).toEqual(frozen.manifest);
+    } finally { await frozen.remove(); }
+  } finally { await boundary.remove(); }
+});
 
 it("freezes dirty and admitted untracked raw bytes and executable modes while excluding deletions and ignored files", async () => {
   const root = await createTempRepoCore({ prefix: "arc-source-presentation-" });

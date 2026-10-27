@@ -160,7 +160,7 @@ the selected source basis with independent Git coordinates, and budget complete 
           releases its private worktree index on refusal. Index/commit guards remain bound to selected code.
           `resolveSourceCwd` checks lexical and resolved directory containment with actionable correction routes.
 
-### `[ ]` **2.4 Capture raw source entries and canonical manifest identity — D3**
+### `[x]` **2.4 Capture raw source entries and canonical manifest identity — D3**
 
 - _Goal:_ The captured manifest describes actual execution presentation and remains unchanged by later original edits,
   with portable identity independent of descriptor paths and generated Git administration details.
@@ -170,13 +170,11 @@ the selected source basis with independent Git coordinates, and budget complete 
           a private catalog-to-presentation map. Its separate descriptor and owned cleanup accompany refusal/retry/local
           remedies for invalid, changed or unsupported entries, including unresolved Windows link types.
 
-    - `[ ]` **2.4.b Canonicalize and validate public source identity**
-        - Build `test-first` (one behavior at a time):
-            - UTF-8 byte sorting and the specified JSON field/coordinate order produce stable cross-language digest
-              vectors.
-            - Byte counts/digests, unique paths, coordinates and link targets detect altered artifacts.
-            - Relocating identical capture leaves identity unchanged; whole-artifact digest remains separate from scoped
-              keys.
+    - `[x]` **2.4.b Canonicalize and validate public source identity**
+        - `identifySourceManifest` orders UTF-8 paths and public fields against independently generated digest vectors.
+          `verifySourcePresentation` validates descriptors, coordinates and captured entries after relocation, with
+          refusal and repair paths. `indexSourcePresentation` retains catalog labels, stored names and scoped material
+          independently from whole-artifact identity; unresolved entries remain unavailable.
 
 ### `[ ]` **2.5 Materialize selected code and self-contained Git metadata — D3**
 

@@ -5,8 +5,8 @@ import { EnvironmentFileCaptureError } from "../environment-file.js";
 export class SourceCaptureError extends Error {}
 
 /** Add repair guidance while retaining the original failure for diagnostics. */
-export function sourceCaptureFailure(cause: unknown): Error {
+export function sourceCaptureFailure(cause: unknown, action: "freeze" | "verify" = "freeze"): Error {
   const reason = cause instanceof SourceCaptureError || cause instanceof EnvironmentFileCaptureError
     ? cause.message : "a source filesystem operation failed";
-  return new Error(`Cannot freeze source presentation: ${reason}. Repair unsupported entries or concurrent changes and retry; keep the check local or declare an explicit input for external data.`, { cause });
+  return new Error(`Cannot ${action} source presentation: ${reason}. Repair unsupported entries or concurrent changes and retry; keep the check local or declare an explicit input for external data.`, { cause });
 }

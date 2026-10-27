@@ -1,6 +1,6 @@
 /** Filesystem boundaries for owned raw source presentation. */
 import type { BigIntStats } from "node:fs";
-import { chmod, lstat, mkdir, mkdtemp, readdir, readlink, realpath, stat, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readdir, readFile, readlink, realpath, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { nodeEnvironmentCaptureIO, type EnvironmentCaptureIO } from "../environment-file.js";
@@ -13,6 +13,7 @@ export interface SourcePresentationIO {
   stat(path: string): Promise<BigIntStats>;
   realpath(path: string): Promise<string>;
   readDirectory(path: string): Promise<Uint8Array[]>;
+  readManifest(path: string): Promise<Uint8Array>;
   readlink(path: string): Promise<Uint8Array>;
   symlink(target: string, path: string, type: "file" | "dir"): Promise<void>;
   mkdir(path: string): Promise<void>;
@@ -28,6 +29,7 @@ export const nodeSourcePresentationIO: SourcePresentationIO = {
   stat: path => stat(path, { bigint: true }),
   realpath,
   readDirectory: path => readdir(path, { encoding: "buffer" }),
+  readManifest: path => readFile(path),
   readlink: path => readlink(path, { encoding: "buffer" }),
   symlink,
   mkdir: async path => { await mkdir(path, { recursive: true }); },

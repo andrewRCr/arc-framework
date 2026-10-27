@@ -35,3 +35,17 @@ export async function freezeSourceLink(io: SourcePresentationIO, root: string, s
   }
   return { path, kind: "symlink", target };
 }
+
+/** Verify a captured literal link and its contained target chain without changing either. */
+export async function verifySourceLink(io: SourcePresentationIO, root: string, source: string,
+  entry: Extract<SourceManifestEntry, { kind: "symlink" }>): Promise<void> {
+  const before = await io.lstat(source);
+  if (!before.isSymbolicLink() || decodeSourceLinkTarget(await io.readlink(source)) !== entry.target) {
+    throw new SourceCaptureError("Source link kind or target no longer match the manifest");
+  }
+  await assertSourceLinkTarget(io, root, source, entry.target);
+  await linkType(io, source);
+  if (!sameLink(before, await io.lstat(source)) || decodeSourceLinkTarget(await io.readlink(source)) !== entry.target) {
+    throw new SourceCaptureError("Source link changed during verification");
+  }
+}

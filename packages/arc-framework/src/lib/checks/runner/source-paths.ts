@@ -1,11 +1,18 @@
 /** Decode literal NUL-framed source names without replacement or traversal normalization. */
 import { SourceEntryPathSchema } from "./contract-source.js";
 import { SourceCaptureError } from "./source-error.js";
+import { isAbsolute, relative, sep } from "node:path";
 
-/** Decode literal UTF-8 path text, preserving BOM characters and refusing replacement decoding. */
+/** Whether a native path is lexically the root itself or one of its descendants. */
+export function sourcePathContains(root: string, path: string): boolean {
+  const name = relative(root, path);
+  return !isAbsolute(name) && name !== ".." && !name.startsWith(`..${sep}`);
+}
+
+/** Decode literal source UTF-8 text, preserving BOM characters and refusing replacement decoding. */
 export function decodeSourceText(bytes: Uint8Array): string {
   try { return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes); }
-  catch { throw new SourceCaptureError("Source path or link target is not valid UTF-8"); }
+  catch { throw new SourceCaptureError("Source text is not valid UTF-8"); }
 }
 
 /** Decode byte-preserving Git paths, rejecting malformed framing, UTF-8 and duplicate names. */
