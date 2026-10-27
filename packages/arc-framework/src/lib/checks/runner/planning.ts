@@ -10,7 +10,7 @@ import { sourcePathContains } from "./source-paths.js";
 /** Native selection and captured source used to form one check's execution plan. */
 export interface PlanCheckExecutionInput {
   callerRoot: string;
-  source: Pick<FrozenSourcePresentation, "root" | "manifest">;
+  source: Pick<FrozenSourcePresentation, "root" | "manifest" | "codePaths">;
   check: CheckDeclaration["checks"][string];
   paths: readonly string[];
   globalRuntimeInputs?: readonly (readonly string[])[];
@@ -27,7 +27,7 @@ export async function planCheckExecution(input: PlanCheckExecutionInput): Promis
   const callerRoot = input.callerRoot;
   const sourceRoot = input.source.root;
   const command = typeof check.command === "string" ? [check.command] : [...check.command];
-  const paths = [...input.paths];
+  const paths = capturedFileArguments(input, check);
   const globalProbes = (input.globalRuntimeInputs ?? []).map(argv => [...argv]);
   const checkProbes = check.runtime_inputs.map(argv => [...argv]);
   const { tree, base, merged } = input.source.manifest.coordinates;
@@ -48,6 +48,15 @@ export async function planCheckExecution(input: PlanCheckExecutionInput): Promis
     global: Object.freeze(planProbes(globalProbes, "global-probe", ".")),
     check: Object.freeze(planProbes(checkProbes, "check-probe", cwd)),
   }) });
+}
+
+function capturedFileArguments(input: PlanCheckExecutionInput, check: PlanCheckExecutionInput["check"]): string[] {
+  if (check.mode !== "files" || !check.pass_paths) return [];
+  return input.paths.map(path => {
+    const stored = input.source.codePaths.get(path);
+    if (stored === undefined) throw new Error("Cannot establish captured source spelling for a selected path. Repair the selection and retry; keep the check local if the path is outside captured source.");
+    return stored;
+  });
 }
 
 function planProbes(commands: readonly string[][], group: string, cwd: string): Probe[] {

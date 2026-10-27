@@ -15,7 +15,7 @@ export async function resolveSourceCwd(root: string, checkRoot: string): Promise
   return (await resolveSourceDirectory(root, checkRoot)).cwd;
 }
 
-/** Establish physical file-argument coordinates without changing the authored contained cwd alias. */
+/** Establish physical file-argument coordinates and the captured directory's actual relative spelling. */
 export async function resolveSourceDirectory(root: string, checkRoot: string): Promise<SourceDirectoryGeometry> {
   try {
     const directory = resolve(root, checkRoot);
@@ -24,7 +24,7 @@ export async function resolveSourceDirectory(root: string, checkRoot: string): P
     if (!sourcePathContains(actualRoot, actualDirectory) || !(await stat(actualDirectory)).isDirectory()) {
       throw new Error("Resolved cwd is not a contained directory");
     }
-    return { root: actualRoot, directory: actualDirectory, cwd: relative(root, directory).split(sep).join("/") || "." };
+    return { root: actualRoot, directory: actualDirectory, cwd: relative(actualRoot, actualDirectory).split(sep).join("/") || "." };
   } catch (cause) {
     throw new Error("Cannot establish a contained directory for check.root. Repair the directory or link and retry; keep the check local or declare an explicit input boundary for external files.", { cause });
   }

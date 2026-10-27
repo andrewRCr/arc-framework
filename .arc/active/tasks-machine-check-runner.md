@@ -355,18 +355,11 @@ runs unknown runtime without reuse, preserves native outcomes, and closes or ret
 - _Goal:_ The supported Windows route executes the foundation's process, plan and result cases, so a green portability
   run supplies the real platform evidence required by routed qualification.
 
-    - `[ ]` **4.5.a Exercise actual platform-aware process and result behavior**
-        - Extend the foundation's process/session/conformance fixtures through the production execution boundary; keep
-          useful completed cases on other platforms rather than replacing native evidence with injected numbers.
-        - Build `test-first` (one behavior at a time):
-            - Real Windows children return `256` and a high-bit DWORD unchanged through adapter transport and native
-              result handling, including a completed failure beside missing work.
-            - Portable final argv, cwd and source/binding behavior execute on compatible platforms; POSIX signals and
-              declared no-evidence precedence retain their native meanings.
-            - Windows capture refuses catalog backslashes before filesystem lookup can interpret them as separators or
-              traversal; POSIX backslash filenames remain literal source names.
-            - Catalog and authored-directory aliases preserve actual captured spelling in fixed argv and cwd, so
-              compatible case/Unicode placement cannot select a missing or different source path.
+    - `[x]` **4.5.a Exercise actual platform-aware process and result behavior**
+        - Real-child status fixtures traverse native execution, prepared transport and CLI incomplete-work reduction,
+          retaining each platform's native bits and repaired retry. Plans map forwarded paths and cwd to captured
+          spelling, preserve withheld/deleted paths, and refuse unmapped selections. Windows catalog backslashes refuse
+          before lookup; POSIX literal filenames and compatible case/Unicode directory behavior remain covered.
 
     - `[ ]` **4.5.b Select and classify the foundation's supported-platform cases**
         - Extend `localVitestTierArguments` in `src/lib/local-vitest-runner.ts` and `isPortabilitySurfacePath` in

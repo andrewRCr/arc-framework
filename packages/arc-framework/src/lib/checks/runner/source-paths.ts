@@ -16,11 +16,14 @@ export function decodeSourceText(bytes: Uint8Array): string {
 }
 
 /** Decode byte-preserving Git paths, rejecting malformed framing, UTF-8 and duplicate names. */
-export function decodeSourcePaths(bytes: Uint8Array): string[] {
+export function decodeSourcePaths(bytes: Uint8Array, platform: NodeJS.Platform = process.platform): string[] {
   if (bytes.length === 0) return [];
   const text = decodeSourceText(bytes);
   const paths = text.split("\0");
   if (paths.pop() !== "" || paths.some(path => !SourceEntryPathSchema.safeParse(path).success)
     || new Set(paths).size !== paths.length) throw new SourceCaptureError("Source paths are not uniquely representable");
+  if (platform === "win32" && paths.some(path => path.includes("\\"))) {
+    throw new SourceCaptureError("Source catalog backslashes cannot be represented on Windows");
+  }
   return paths;
 }

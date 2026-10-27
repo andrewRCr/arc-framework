@@ -34,7 +34,7 @@ export async function freezeSourcePresentation(root: string, paths: Uint8Array,
     const codePaths = new Map<string, string>();
     const presentationPaths = new Set<string>();
     const spelling = createSourceSpellingIndex(io, root);
-    for (const codePath of decodeSourcePaths(paths)) {
+    for (const codePath of decodeSourcePaths(paths, io.platform)) {
       const path = await spelling.resolve(codePath);
       codePaths.set(codePath, path);
       if (presentationPaths.has(path)) continue;

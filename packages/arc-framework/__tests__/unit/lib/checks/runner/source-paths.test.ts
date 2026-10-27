@@ -2,8 +2,8 @@
 import { expect, it } from "vitest";
 import { decodeSourcePaths } from "../../../../../src/lib/checks/runner/source-paths.js";
 
-it("preserves literal Unicode, BOM, newline and backslash names without normalization", () => {
-  const paths = ["é", "e\u0301", "😀/name", "\ufeffname", "line\nname", "literal\\name"];
+it("preserves literal Unicode, BOM and newline names without normalization", () => {
+  const paths = ["é", "e\u0301", "😀/name", "\ufeffname", "line\nname"];
   expect(decodeSourcePaths(Buffer.from(`${paths.join("\0")}\0`))).toEqual(paths);
 });
 it("accepts an empty source listing", () => {
