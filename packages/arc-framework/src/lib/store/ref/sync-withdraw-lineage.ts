@@ -11,6 +11,7 @@ import { readBatchObjects, type BatchObject, type RefTreeEntry } from "./batch-r
 import { parseRefMetadata, type RefMetadata } from "./metadata.js";
 import { writeRefBlob } from "./tree-write.js";
 import type { WithdrawJournalStep } from "./sync-withdraw-journal.js";
+import { mergeLineageAliases } from "./lineage-aliases.js";
 
 /** Reconcile auxiliary lineage metadata for the lineage records the withdrawn batch wrote. */
 export async function repairWithdrawnLineage(context: RefBackendContext, step: WithdrawJournalStep,
@@ -23,6 +24,8 @@ export async function repairWithdrawnLineage(context: RefBackendContext, step: W
   const blobs = await readBatchObjects(context, [entry.oid, ...original ? [original.oid] : []]);
   const metadata = parseRefMetadata(blobs.get(entry.oid)), prior = original ? parseRefMetadata(blobs.get(original.oid)) : null;
   if (!metadata) throw new Error("An inverse registry has no usable metadata");
+  const aliases = mergeLineageAliases(metadata.lineageFormerSlugs, prior?.lineageFormerSlugs);
+  if (aliases) metadata.lineageFormerSlugs = aliases;
   // Other items' names stay as written: a rename changes only the name, never the record it names.
   for (const home of new Set([...step.before.keys(), ...step.after.keys()])) {
     if (!/^lineage\/[^/]+\.json$/u.test(home) || !writtenLineage(step, home)) continue;

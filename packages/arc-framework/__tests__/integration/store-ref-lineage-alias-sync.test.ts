@@ -5,8 +5,64 @@ import { LineageRecordSchema, writeLineageRecord } from "../../src/lib/store/kin
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 
 const provenance = { verb: "start", lifecycleAction: "activate" };
+
+it.each((["default", "separate"] as const).flatMap(layout => (["rename", "archive"] as const).map(contribution => ({ layout, contribution }))))(
+  "preserves a sibling's later retirement when its $contribution batch is withdrawn in $layout", async ({ layout, contribution }) => {
+  const h = await refSyncFixture(layout);
+  success(await h.a.store.write({ action: "put", expected: null,
+    reference: RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } }),
+    content: '{"projectId":"34567890-1234-4234-8234-123456789abc"}', provenance }));
+  const start = async (name: string) => success(await h.a.store.write({ action: "put", expected: null,
+    reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name } }),
+    content: makeMetaFixture(name, { owner: "andrew" }), placement: { kind: "active" }, provenance }));
+  const ending = await start("ending-item"), sibling = await start("sibling-before");
+  success(await h.a.store.push()); success(await h.b.store.pull());
+  const before = success(await h.a.store.read({ reference: sibling.reference }));
+  const item = success(await h.a.store.read({ reference: ending.reference }));
+  const renamed = contribution === "rename" ? RecordReferenceSchema.parse({ ...before.reference,
+    owner: { ...before.reference.owner, name: "sibling-after" } }) : before.reference;
+  success(await h.a.store.batch({ writes: [
+    { action: "put", reference: item.reference, expected: item.version, content: item.content,
+      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2027-q1") } },
+    { action: "put", reference: renamed, expected: before.version, content: makeMetaFixture(renamed.owner.name, { owner: "andrew" }),
+      placement: contribution === "rename" ? { kind: "active" } : { kind: "completed", quarter: ArchiveQuarterSchema.parse("2027-q1") } },
+  ], provenance: { verb: "archive", lifecycleAction: "archive" } }));
+  if (contribution === "archive") {
+    const closed = success(await h.a.store.read({ reference: renamed }));
+    success(await h.a.store.write({ action: "put", reference: closed.reference, expected: closed.version, content: closed.content,
+      placement: { kind: "active" }, provenance: { verb: "reopen", lifecycleAction: "reopen" } }));
+  }
+  const current = success(await h.a.store.read({ reference: renamed }));
+  const owner = current.reference.owner;
+  if (owner.type !== "work-item" || !owner.uid) throw new Error("Expected terminal sibling UID");
+  const terminal = RecordReferenceSchema.parse({ owner, kind: "lineage/transition" });
+  success(await h.a.store.batch({ writes: [
+    { action: "put", reference: terminal, expected: null, content: writeLineageRecord(LineageRecordSchema.parse({ schemaVersion: 2,
+      origin: { name: owner.name, uid: owner.uid }, kind: "abandon", successors: [], incoming: [] })) },
+    { action: "remove", reference: current.reference, expected: current.version },
+  ], provenance: { verb: "abandon", lifecycleAction: "abandon" } }));
+  expect(success(await h.a.store.lookup({ kind: "lineage", origin: "sibling-before" })).reference).toEqual(terminal);
+  const competing = success(await h.b.store.read({ reference: ending.reference }));
+  success(await h.b.store.write({ action: "put", reference: competing.reference, expected: competing.version, content: competing.content,
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
+  success(await h.b.store.push());
+  const pulled = success(await h.a.store.pull());
+  expect(pulled.pulls.flatMap(({ notices }) => notices)).toContainEqual(expect.objectContaining({ kind: "end-withdrawn" }));
+  expect(success(await h.a.store.read({ reference: terminal })).reference).toEqual(terminal);
+  expect(await h.a.store.read({ reference: current.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  expect((await h.a.git(["for-each-ref", "--format=%(refname)", `refs/arc/work/${owner.uid}`])).stdout).toBe("");
+  expect((await h.a.git(["ls-tree", "-r", "--name-only", `refs/arc/history/work/${owner.uid}`])).stdout).toBe("");
+  expect(success(await h.a.store.lookup({ kind: "lineage", origin: "sibling-before" })).reference).toEqual(terminal);
+  const pushed = success(await h.a.store.push());
+  expect(pushed.publishes.filter(({ status }) => status === "failed"), JSON.stringify(pushed)).toEqual([]);
+  success(await h.b.store.pull());
+  for (const store of [h.a.store, h.b.store]) {
+    expect(success(await store.lookup({ kind: "lineage", origin: "sibling-before" })).reference).toEqual(terminal);
+  }
+}, 60_000);
 
 it.each(["default", "separate"] as const)("unions independently authenticated former names of one terminal generation in %s", async layout => {
   const h = await refSyncFixture(layout);
