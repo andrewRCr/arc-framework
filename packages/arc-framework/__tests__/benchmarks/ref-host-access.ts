@@ -123,6 +123,12 @@ export async function probeHostPolicy(input: { root: string; remote: string; evi
   const separate = remote !== input.remote;
   const personal = "refs/arc/user/andrew/personal", registry = "refs/arc/project/registry";
   const owned = separate ? new Map<string, string>() : input.owned;
+  const candidates = new Map([...owned].map(([ref, tip]) => [ref, new Set([tip])]));
+  const remember = (ref: string, tip: string) => {
+    const known = candidates.get(ref) ?? new Set<string>();
+    known.add(tip);
+    candidates.set(ref, known);
+  };
   const tips = async () => new Map((await git("policy-remote-tips", path, ["ls-remote", "--refs", "--", remote])).trim()
     .split("\n").filter(Boolean).map(line => { const [oid = "", ref = ""] = line.split(/\s+/u); return [ref, oid]; }));
   await git("policy-clone", input.root, ["clone", "--no-checkout", "--", remote, path]);
@@ -135,7 +141,8 @@ export async function probeHostPolicy(input: { root: string; remote: string; evi
   const reference = RecordReferenceSchema.parse({ kind: "personal/document", owner: { type: "person", name: "andrew" }, key: "scratch/host-policy.md" });
   const provenance = { verb: "edit", lifecycleAction: "save" };
   const capture = async () => { for (const ref of [personal, registry]) {
-    const tip = (await tips()).get(ref); if (tip) owned.set(ref, tip);
+    const tip = (await tips()).get(ref);
+    if (tip && candidates.get(ref)?.has(tip)) owned.set(ref, tip);
   } };
   try {
     success(await store.pull());
@@ -143,6 +150,9 @@ export async function probeHostPolicy(input: { root: string; remote: string; evi
       reference: RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } }),
       content: JSON.stringify({ projectId: randomUUID() }) }));
     success(await store.write({ action: "put", reference, expected: null, content: "Policy baseline.\n", provenance }));
+    for (const ref of separate ? [personal, registry] : [personal]) {
+      remember(ref, (await git("policy-prepared-candidate", path, ["rev-parse", ref])).trim());
+    }
     const trial = await store.push();
     await capture();
     const atomic = separate ? !hostAtomicUnsupported(trial) : input.atomic;
@@ -156,6 +166,7 @@ export async function probeHostPolicy(input: { root: string; remote: string; evi
     const read = success(await store.read({ reference }));
     success(await store.write({ action: "put", reference, expected: read.version, content: "Pending under branch protection.\n", provenance }));
     const next = (await git("policy-local-state", path, ["rev-parse", personal])).trim();
+    remember(personal, next);
     const tree = (await git("policy-code-tree", path, ["rev-parse", `${parent}^{tree}`])).trim();
     const code = (await git("policy-code-commit", path, ["commit-tree", tree, "-p", parent, "-m", "Synthetic protected-branch probe"])).trim();
     await git("policy-local-main", path, ["update-ref", "refs/heads/main", code, parent]);

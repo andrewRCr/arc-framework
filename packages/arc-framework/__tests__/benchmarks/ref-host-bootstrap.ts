@@ -18,9 +18,6 @@ export async function bootstrapHostRegistry(input: { git: HostGit; store: Return
   const result = input.trial ?? await store.push();
   const registry = "refs/arc/project/registry", personal = "refs/arc/user/andrew/personal";
   const landed = (await git("single-registry-empty", path, ["ls-remote", "--refs", "--", remote, registry, personal])).trim();
-  for (const line of landed.split("\n").filter(Boolean)) {
-    const [tip, ref] = line.split(/\s+/u); if (tip && ref) owned.set(ref, tip);
-  }
   assert.equal(result.status, "ok", JSON.stringify(result));
   if (result.status !== "ok") throw new Error("The multi-ref bootstrap trial was refused before publication");
   const held = result.result;
