@@ -137,11 +137,12 @@ The report's header names the lane's position — standard `complete pass N of M
 frontline's recorded pass and ceiling — and the verified counts. Its Decisions block carries the step the fixed head
 needs beside your `successorRecommendation`, then open questions. The command states the step, so write the
 recommendation as the choice you recommend and why, in a sentence or two, without restating the fix, the step, or its
-authorization. Supply a clear recommendation from expected signal and cost, including at the ceiling. When a fix
-requires a fix check or complete pass, the recommendation covers that activity, as spend the approver may decline. Emit
-the composed report without adding a second header, Decisions block, or approval question. Once the lane has two or more
-looks, its Trend sets your reading over the CLI's counts at each look; it is advice, never admission or convergence
-evidence.
+authorization. Recommend the step or stopping, never a look the step does not name; where the step leaves the next look
+to review status at the fixed head, recommend it there from the lane read's `nextLooks`. Supply a clear recommendation
+from expected signal and cost, including at the ceiling. When a fix requires a fix check or complete pass, the
+recommendation covers that activity, as spend the approver may decline. Emit the composed report without adding a
+second header, Decisions block, or approval question. Once the lane has two or more looks, its Trend sets your reading
+over the CLI's counts at each look; it is advice, never admission or convergence evidence.
 
 A fix check verifies repairs and a complete pass looks for what remains undiscovered. Recommend the fix check on the
 approved fixes' merits, even when a complete pass follows. Converge the rounds before a successor complete pass;

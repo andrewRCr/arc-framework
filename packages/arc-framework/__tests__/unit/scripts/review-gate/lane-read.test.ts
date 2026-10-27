@@ -19,7 +19,7 @@ it("returns a Candidate's rejection reason and verification status from its lane
   expect(result).toMatchObject({ state: "ready", payload: { lineage: delta.lineage,
     rejections: [{ lane: "standard", findingId: "finding-1", locus: "src/example.ts:1",
       sourceVerification: "not-supported", reason: "The source check established this disposition." }],
-    facts: { completePasses: 1 } } });
+    facts: { completePasses: 1 }, nextLooks: { incremental: null, completePass: "admitted", responseDue: true } } });
   expect({ progress, record }).toEqual(before);
 });
 
@@ -35,7 +35,25 @@ it("returns the shared facts and identifies the last clean fix check", async () 
     lastLook: { producerId: delta.operationId, coverage: "incremental", outcome: "clean" },
     facts: { completePasses: 1, ceiling: 4,
       fixChecksSinceLastComplete: [{ producerId: delta.operationId, outcome: "clean" }] },
+    nextLooks: { incremental: null, completePass: "admitted", responseDue: false },
   } });
+});
+
+it("admits the proven incremental look at the ceiling, and a complete pass there only by override", async () => {
+  const fixture = await createLocalDeltaFixture("Light");
+  const delta = await fixture.moveHead(); await fixture.conclude(delta, "clean");
+  const owner = fixture.laneProgress();
+  if (owner?.kind !== "lane-progress") throw new Error("expected lane owner");
+  const producer = await fixture.resultReader.readResult(delta.operationId);
+  const scope = { schemaVersion: 1 as const, predecessorProducerId: producer.producerId,
+    predecessorHeadSha: producer.target.headSha, basisHeadSha: producer.target.headSha,
+    headSha: fixture.currentTarget().headSha, requiredFindings: [] };
+  const read = (completePasses: number) => projectReviewLaneRead({ lineage: delta.lineage, progress: [owner], dispositions: [],
+    nextPassContext: { completePasses, convergence: "unconverged", responseDue: false,
+      incremental: { basis: "fix-check", scope } }, target: delta.target, ceiling: 2,
+    exec: async () => { throw new Error("Git unavailable"); } });
+  expect((await read(1)).payload).toMatchObject({ nextLooks: { incremental: "fix-check", completePass: "admitted" } });
+  expect((await read(2)).payload).toMatchObject({ nextLooks: { incremental: "fix-check", completePass: "ceiling-decision" } });
 });
 
 it("returns frontline rejections beside standard rejections in the Candidate lineage", async () => {

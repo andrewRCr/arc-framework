@@ -25,6 +25,11 @@ export async function projectReviewLaneRead(input: Omit<Parameters<typeof derive
   const last = facts.materialTrend.filter(look => !look.provisional).at(-1);
   const lastLook = last === undefined ? null : { producerId: last.producerId,
     coverage: last.coverage === "complete" ? "complete" : "incremental", outcome: last.outcome };
+  // The same context and ceiling the policy driver reads: it admits an incremental look only from a proven
+  // scope, and a complete pass at the ceiling only with an override.
+  const nextLooks = { incremental: input.nextPassContext.incremental?.basis ?? null,
+    completePass: input.nextPassContext.completePasses < input.ceiling ? "admitted" : "ceiling-decision",
+    responseDue: input.nextPassContext.responseDue };
   return ReviewLaneReadEnvelopeSchema.parse({ schemaVersion: 1, mode: "review-lane-read", state: "ready",
-    nextAction: "none", diagnostics: [], payload: { lineage: input.lineage, rejections, facts, lastLook } });
+    nextAction: "none", diagnostics: [], payload: { lineage: input.lineage, rejections, facts, lastLook, nextLooks } });
 }
