@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { RefBackendContext } from "../context.js";
 import type { ImportRecord } from "./source.js";
 import type { MigrateReport } from "../../commands.js";
-import { readTransientIdentitySnapshot } from "../../../errand/identity-snapshot.js";
+import { readTransientIdentitySnapshotAtRef } from "../../../errand/identity-snapshot.js";
 import { serializeTransientIdentityRecord, type TransientIdentityRecord } from "../../../errand/identity-record.js";
 import { transientIO, transientKind, transientReference } from "../../in-repo/transient-common.js";
 import { RecordReferenceSchema, type RecordReference } from "../../identity.js";
@@ -23,7 +23,7 @@ export async function appendImportTransients(context: RefBackendContext, report:
   const source = context.importSource;
   if (!source) throw new Error("No import source bound");
   const configured = await source.ports.identity();
-  for (const identity of await heldIdentities(context, configured)) {
+  for (const { identity, tip } of await heldIdentities(context, configured)) {
     const person = SlugSchema.safeParse(identity);
     if (!person.success) {
       report.notices.push({ condition: `${errandsRef(identity)} names no valid identity, so its records cannot be re-homed.`,
@@ -31,31 +31,41 @@ export async function appendImportTransients(context: RefBackendContext, report:
       continue;
     }
     const io = await transientIO({ ports: { ...source.ports, identity: () => Promise.resolve(person.data) }, registry: context.registry });
-    if (io) await appendIdentityTransients(context, report, records, state, io);
+    if (io) await appendIdentityTransients(context, report, records, state, io, tip);
   }
 }
 
 /** The identities whose transient ref the code repository holds, the configured one first. */
-async function heldIdentities(context: RefBackendContext, configured: string | null): Promise<string[]> {
+async function heldIdentities(context: RefBackendContext, configured: string | null): Promise<{ identity: string; tip: string }[]> {
   const source = context.importSource;
   if (!source) return [];
-  const { stdout } = await source.ports.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/user/"],
+  const { stdout } = await source.ports.exec("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/user/"],
     { cwd: source.ports.checkoutRoot, objectAccess: "local-only" });
-  const held = stdout.split("\n").flatMap((ref) => /^refs\/arc\/user\/([^/]+)\/errands$/u.exec(ref.trim())?.[1] ?? []);
-  return [...new Set(held)].sort((left, right) => Number(right === configured) - Number(left === configured) || left.localeCompare(right));
+  const held = stdout.split("\n").flatMap((row) => {
+    const [ref = "", tip = ""] = row.trim().split(" ");
+    const identity = /^refs\/arc\/user\/([^/]+)\/errands$/u.exec(ref)?.[1];
+    if (!identity) return [];
+    if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(tip)) throw new Error(`Cannot capture ${ref}'s immutable source tip`);
+    return [{ identity, tip }];
+  });
+  return held.sort((left, right) => Number(right.identity === configured) - Number(left.identity === configured)
+    || left.identity.localeCompare(right.identity));
 }
 
 async function appendIdentityTransients(context: RefBackendContext, report: MigrateReport, records: ImportRecord[],
-  state: ImportTransientState, io: ErrandRecordIO): Promise<void> {
-  const snapshot = await readTransientIdentitySnapshot(io);
-  if (snapshot.kind === "absent") return;
+  state: ImportTransientState, io: ErrandRecordIO, tip: string): Promise<void> {
+  const snapshot = await readTransientIdentitySnapshotAtRef(io, tip);
   const remedy = { text: `Repair ${errandsRef(io.identity)}, then retry arc store migrate --import.` };
+  if (snapshot.kind === "absent") {
+    report.notices.push({ condition: `Cannot read captured ${errandsRef(io.identity)} at ${tip}.`, remedy });
+    return;
+  }
   if (snapshot.kind === "error") { report.notices.push({ condition: snapshot.message, remedy }); return; }
   if (snapshot.diagnostics.length) {
     report.notices.push(...snapshot.diagnostics.map((item) => ({ condition: `${item.key}: ${item.kind}`, remedy })));
     return;
   }
-  state.tips.set(errandsRef(io.identity), snapshot.tip);
+  state.tips.set(errandsRef(io.identity), tip);
   for (const [key, record] of snapshot.records) appendTransientRecord(context, report, records, state, io.identity, key, record);
 }
 
