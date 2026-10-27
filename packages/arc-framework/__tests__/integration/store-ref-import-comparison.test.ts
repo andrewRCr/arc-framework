@@ -11,6 +11,8 @@ import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { CandidateManagedRecordV1Schema } from "../../src/lib/work-unit/candidate-attestation.js";
 import { createKindRegistry } from "../../src/lib/store/registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
+import { plantRef } from "../helpers/store/ref-plant.js";
+import { expandStoredPath } from "../../src/lib/store/stored-path.js";
 
 describe("import comparison in the default layout", () => {
   const layout = "default";
@@ -85,5 +87,27 @@ describe("import comparison in the default layout", () => {
     const listed = success(await h.store.list({ family: "review", kind: "review/candidate" }));
     expect(listed).toMatchObject({ status: "complete", diagnostics: [expect.objectContaining({ kind: "malformed" })] });
     expect(await h.compare()).toEqual([]);
+    const reference = RecordReferenceSchema.parse({ kind: "review/candidate", owner: { type: "work-item", name: "alpha" } });
+    const retained = success(await h.store.read({ reference }));
+    const changed = JSON.parse(retained.content) as Record<string, unknown>;
+    changed.schemaVersion = 98;
+    const owner = retained.reference.owner;
+    if (owner.type !== "work-item") throw new Error("Expected work-item owner");
+    const ref = `refs/arc/work/${owner.uid}`;
+    const tip = (await h.target.git("git", ["rev-parse", ref])).stdout.trim();
+    const storedPath = expandStoredPath(retained.reference, { placement: retained.placement }).path;
+    const entries = (await h.target.git("git", ["ls-tree", "-rz", tip])).stdout.split("\0").filter(Boolean).map(row => {
+      const [header, key] = row.split("\t");
+      if (!key || !header) throw new Error("Expected tree entry");
+      const oid = header.split(" ")[2];
+      if (!oid) throw new Error("Expected blob id");
+      return key === storedPath ? { path: key, content: canonicalize(changed) } : { path: key, oid, mode: "100644" as const };
+    });
+    await plantRef(h.target.root, ref, entries, { parents: [tip] });
+    expect(success(await h.store.list({ family: "review", kind: "review/candidate" })))
+      .toMatchObject({ status: "complete", diagnostics: [expect.objectContaining({ kind: "malformed" })] });
+    expect(await h.compare()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ reference: expect.objectContaining({ kind: "review/candidate" }), field: "content" }),
+    ]));
   });
 });
