@@ -17,7 +17,7 @@ import { canonicalPrimaryKind, parseRefMetadata, unparsedMetadata, type RefMetad
 import type { RefBackendContext } from "./context.js";
 import { saveCapturedManifest } from "./manifest.js";
 import { recordDiagnostic } from "./content-read.js";
-import { readOpenConflicts, attachOpenConflicts } from "./conflicts-read.js";
+import { readOpenConflicts, attachOpenConflicts, conflictParentQuery } from "./conflicts-read.js";
 import { checkRefKey } from "./path-admission.js";
 import { projectIdentityQueries, projectOwnerFromObjects, admitProjectReference, projectListInput, projectListingBinding, checkProjectIdentity,
   capturedRegistry } from "./project-identity.js";
@@ -53,7 +53,8 @@ async function readBoundRecord(context: RefBackendContext, requested: RecordRefe
   const recordQuery = `${tip}:${home.path}`;
   const metadataQuery = `${tip}:${home.metadataPath}`;
   const conflictsQuery = `${tip}:${home.root}conflicts`;
-  const objects = await readBatchObjects(context, [...(tip ? [metadataQuery, recordQuery, conflictsQuery] : []),
+  const parentQuery = tip ? conflictParentQuery(tip, home.root) : "";
+  const objects = await readBatchObjects(context, [...(tip ? [metadataQuery, recordQuery, conflictsQuery, parentQuery] : []),
     ...(reference.owner.type === "project" ? projectIdentityQueries(tips) : [])]);
   const admitted = projectReadReference(reference, tips, objects);
   if (admitted.status === "refused") return admitted;
@@ -71,12 +72,12 @@ async function readBoundRecord(context: RefBackendContext, requested: RecordRefe
   const owner = resolveCapturedOwner(context, reference, home, metadata, object);
   if (owner.status === "refused") return owner;
   reference = RecordReferenceSchema.parse({ ...reference, owner: owner.result });
-  return readBoundContent(context, reference, home, { object, metadata, conflicts: objects.get(conflictsQuery), tip });
+  return readBoundContent(context, reference, home, { object, metadata, conflicts: objects.get(conflictsQuery), parent: objects.get(parentQuery) });
 }
 
 async function readBoundContent(context: RefBackendContext, reference: RecordReference, home: StoredRecordHome,
-  captured: { object: BatchObject; metadata: RefMetadata; conflicts: BatchObject | null | undefined; tip: string }): Promise<StoreResult<StoreRecord>> {
-  const conflicts = await readOpenConflicts(context, reference, captured.conflicts, { ...home, tip: captured.tip });
+  captured: { object: BatchObject; metadata: RefMetadata; conflicts: BatchObject | null | undefined; parent: BatchObject | null | undefined }): Promise<StoreResult<StoreRecord>> {
+  const conflicts = await readOpenConflicts(context, reference, captured.conflicts, { ...home, parent: captured.parent });
   if (conflicts.status === "refused") return conflicts;
   const record = decodeRecord(context, reference, captured.object, captured.metadata, home.path, conflicts.result, undefined, { pointRead: true });
   return "reference" in record ? { status: "ok", result: record } : { status: "refused", refusal: {
@@ -229,8 +230,8 @@ export function decodeCapturedRef(context: RefBackendContext, input: ListInput, 
     if (!record) continue;
     if ("reference" in record) records.push(record); else diagnostics.push(record);
   }
-  const attached = attachOpenConflicts(context, records, entries, objects, options.saved);
-  return { records: selectRecords(attached.records, input), diagnostics: [...diagnostics, ...attached.diagnostics], conflictRefusals: attached.conflictRefusals };
+  const attached = attachOpenConflicts(context, selectRecords(records, input), entries, objects, options.saved);
+  return { records: attached.records, diagnostics: [...diagnostics, ...attached.diagnostics], conflictRefusals: attached.conflictRefusals };
 }
 
 function decodeCapturedEntry(context: RefBackendContext, family: FamilyId, owner: OwnerIdentity, entry: RefTreeEntry,

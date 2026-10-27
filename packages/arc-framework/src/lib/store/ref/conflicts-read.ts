@@ -10,20 +10,21 @@ import { readBatchObjects, type BatchObject, type RefTreeEntry } from "./batch-r
 
 const strict = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
+/** The pinned parent tree that proves whether a conflict directory exists. */
+export function conflictParentQuery(tip: string, root: string): string {
+  return root ? `${tip}:${root.slice(0, -1)}` : `${tip}^{tree}`;
+}
+
 /**
  * Read the conflict blobs named by the tree captured with a direct record read. An entry whose name is not UTF-8 or
  * names no conflict key is skipped: the read has no diagnostics, and its family listing reports such an entry malformed.
  */
 export async function readOpenConflicts(context: RefBackendContext, target: RecordReference,
-  tree: BatchObject | null | undefined, basis: { tip: string; ref: string; root: string }): Promise<StoreResult<RecordReference[]>> {
+  tree: BatchObject | null | undefined, basis: { ref: string; root: string; parent: BatchObject | null | undefined }): Promise<StoreResult<RecordReference[]>> {
   const directory = `${basis.ref}:${basis.root}conflicts`;
   if (tree?.type !== "tree") {
     // A missing path query also means an existing directory's tree object is missing. Its pinned parent proves absence.
-    if (!tree) {
-      const query = basis.root ? `${basis.tip}:${basis.root.slice(0, -1)}` : `${basis.tip}^{tree}`;
-      const parent = (await readBatchObjects(context, [query])).get(query);
-      if (parent?.type === "tree" && !treeEntries(parent).some(({ name }) => name === "conflicts")) return { status: "ok", result: [] };
-    }
+    if (!tree && basis.parent?.type === "tree" && !treeEntries(basis.parent).some(({ name }) => name === "conflicts")) return { status: "ok", result: [] };
     return { status: "refused", refusal: unavailableConflictEvidence(target, directory) };
   }
   const entries = treeEntries(tree).flatMap(({ name, oid }) => name?.endsWith(".json")

@@ -8,7 +8,7 @@ import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, readRefTrees, type BatchObject } from "./batch-read.js";
 import { canonicalPrimaryKind, parseRefMetadata, type RefMetadata } from "./metadata.js";
 import { decodeRecord, refOwner, rootFamily } from "./codec.js";
-import { readOpenConflicts } from "./conflicts-read.js";
+import { conflictParentQuery, readOpenConflicts } from "./conflicts-read.js";
 import { checkRefKey } from "./path-admission.js";
 import { refRecordAbsence } from "./record-absence.js";
 
@@ -28,19 +28,20 @@ export async function readUidRefRecord(context: RefBackendContext, requested: Re
     const home = expandStoredPath(reference, { registry: context.registry });
     const recordQuery = `${tip.oid}:${home.path}`, pinnedMetadata = `${tip.oid}:${home.metadataPath}`;
     const conflictsQuery = `${tip.oid}:${home.root}conflicts`;
-    const objects = await readBatchObjects(context, [pinnedMetadata, recordQuery, conflictsQuery]);
+    const parentQuery = conflictParentQuery(tip.oid, home.root);
+    const objects = await readBatchObjects(context, [pinnedMetadata, recordQuery, conflictsQuery, parentQuery]);
     if (objects.get(pinnedMetadata)?.oid !== captured.get(metadataQuery)?.oid) continue;
     const invalid = checkRefKey(reference, context.registry);
     if (invalid) return { status: "refused", refusal: invalid };
     const object = objects.get(recordQuery);
     if (object?.type !== "blob") return refRecordAbsence(context, reference, home, tip.oid);
-    return readUidContent(context, reference, home, { object, metadata, conflicts: objects.get(conflictsQuery), tip: tip.oid });
+    return readUidContent(context, reference, home, { object, metadata, conflicts: objects.get(conflictsQuery), parent: objects.get(parentQuery) });
   }
 }
 
 async function readUidContent(context: RefBackendContext, reference: RecordReference, home: StoredRecordHome,
-  captured: { object: BatchObject; metadata: RefMetadata; conflicts: BatchObject | null | undefined; tip: string }): Promise<StoreResult<StoreRecord>> {
-  const conflicts = await readOpenConflicts(context, reference, captured.conflicts, { ...home, tip: captured.tip });
+  captured: { object: BatchObject; metadata: RefMetadata; conflicts: BatchObject | null | undefined; parent: BatchObject | null | undefined }): Promise<StoreResult<StoreRecord>> {
+  const conflicts = await readOpenConflicts(context, reference, captured.conflicts, { ...home, parent: captured.parent });
   if (conflicts.status === "refused") return conflicts;
   const record = decodeRecord(context, reference, captured.object, captured.metadata, home.path, conflicts.result, undefined, { pointRead: true });
   return "reference" in record ? { status: "ok", result: record } : { status: "refused", refusal: { code: "record-malformed", class: "recoverable",
