@@ -1,7 +1,7 @@
 /** Real selected checks qualify their configured executor before reusing a pass. */
 import { afterEach, expect, it } from "vitest";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDeclaredCheckRepository } from "../fixtures/checks/repository.js";
 import { createRunnerMachineHome } from "../fixtures/checks/runner-machine.js";
@@ -94,4 +94,106 @@ process.stdout.write('batch\\n');`);
   expect(batches.flatMap(batch => batch.args)).toEqual(paths);
   expect(new Set(batches.map(batch => batch.cwd)).size).toBe(1);
   expect(batches[0]?.cwd).not.toBe(root);
+}, 30_000);
+
+it.runIf(process.platform === "linux")("reports a protocol refusal without replacement execution and permits repaired retry", async () => {
+  const fault = fileURLToPath(new URL("../fixtures/checks/runner-bad-protocol.mjs", import.meta.url));
+  const machine = await createRunnerMachineHome(directories, [process.execPath, fault]);
+  const retained = join(machine.home, "retained-inputs");
+  const executed = join(machine.home, "executed");
+  const configuration = join(machine.home, ".arc/config.yml");
+  await writeFile(configuration, JSON.stringify({ "checks.runner": [process.execPath, fault, retained] }));
+  const command = `require('node:fs').appendFileSync(${JSON.stringify(executed)},'run\\n');process.stdout.write('repaired')`;
+  const root = await createDeclaredCheckRepository({ example: { runner: true, inputs: ["src/**"], command: [process.execPath, "-e", command] } });
+  directories.push(root);
+  for (const json of [true, false]) {
+    const result = await runArc(["check", "run", "example", ...(json ? ["--json"] : [])], root, { env: machine.environment });
+    // The fixture's closed process launches no children; its recorded captures can now be removed by test cleanup.
+    for (const line of (await readFile(retained, "utf8")).trim().split("\n")) {
+      const source = JSON.parse(line) as { manifest: string };
+      const directory = dirname(source.manifest);
+      expect(basename(directory)).toMatch(/^arc-check-source-/u);
+      directories.push(directory);
+    }
+    expect(result.exitCode, result.stdout + result.stderr).toBe(2);
+    if (json) {
+      const check = JSON.parse(result.stdout).result.checks[0] as { reason: string; remedy: string };
+      expect(check.reason).toContain(configuration);
+      expect(check.remedy).toMatch(/repair.*retry/iu);
+    } else expect(result.stdout + result.stderr).toMatch(/checks\.runner.*repair/isu);
+    await expect(readFile(executed, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  }
+  await writeFile(configuration, JSON.stringify({ "checks.runner": [process.execPath, example] }));
+  const repaired = await runArc(["check", "run", "example", "--json"], root, { env: machine.environment });
+  expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
+  expect(JSON.parse(repaired.stdout).result.checks[0]).toMatchObject({ outcome: "passed", output: "repaired" });
+  expect(await readFile(executed, "utf8")).toBe("run\n");
+}, 30_000);
+
+it.runIf(process.platform === "linux").each(["missing executable", "missing explicit file", "invalid machine config"])(
+  "reports %s with repair guidance and permits a fresh retry", async fault => {
+    const argv = [process.execPath, example];
+    const machine = await createRunnerMachineHome(directories, fault === "missing executable" ? ["missing-adapter-for-repair"] : argv);
+    const configuration = join(machine.home, ".arc/config.yml");
+    if (fault === "invalid machine config") await writeFile(configuration, "[]\n");
+    const file = join(machine.home, "explicit-file");
+    if (fault !== "missing explicit file") await writeFile(file, "repaired");
+    const root = await createDeclaredCheckRepository({ example: { runner: true, inputs: ["src/**"],
+      command: [process.execPath, "-e", "process.stdout.write(require('node:fs').readFileSync(process.env.FILE,'utf8'))"],
+      environment_inputs: { FILE: "file" } } });
+    directories.push(root);
+    const environment = { ...machine.environment, FILE: file };
+    for (const json of [true, false]) {
+      const result = await runArc(["check", "run", "example", ...(json ? ["--json"] : [])], root, { env: environment });
+      expect(result.exitCode, result.stdout + result.stderr).toBe(2);
+      if (json) {
+        const envelope = JSON.parse(result.stdout) as { error?: { message: string }; result?: { checks: Array<{ reason: string; remedy: string }> } };
+        const reason = envelope.error?.message ?? envelope.result?.checks[0]?.reason;
+        expect(reason).toContain(configuration);
+        expect(reason).toContain("checks.runner");
+        if (fault !== "invalid machine config") expect(envelope.result?.checks[0]?.remedy).toMatch(/repair.*retry/iu);
+      } else {
+        expect(result.stdout + result.stderr).toContain(configuration);
+        expect(result.stdout + result.stderr).toMatch(/checks\.runner.*repair/isu);
+      }
+    }
+    await writeFile(configuration, JSON.stringify({ "checks.runner": argv }));
+    await writeFile(file, "repaired");
+    const repaired = await runArc(["check", "run", "example", "--json"], root, { env: environment });
+    expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
+    expect(JSON.parse(repaired.stdout).result.checks[0]).toMatchObject({ outcome: "passed", output: "repaired" });
+  }, 30_000,
+);
+
+it("forecasts configured reuse as requiring preparation without probes or explicit-file capture", async () => {
+  const machine = await createRunnerMachineHome(directories, ["missing-adapter-for-dry-run"]);
+  const configuration = await readFile(join(machine.home, ".arc/config.yml"), "utf8");
+  await rm(join(machine.home, ".arc/config.yml"));
+  const probeReceipt = join(machine.home, "native-probes");
+  const probe = `require('node:fs').appendFileSync(${JSON.stringify(probeReceipt)},'probe\\n');process.stdout.write('same')`;
+  const root = await createDeclaredCheckRepository({ example: { runner: true, inputs: ["src/**"],
+    command: [process.execPath, "-e", "process.stdout.write('native pass')"], runtime_inputs: [[process.execPath, "-e", probe]],
+    environment_inputs: { PRIVATE_FILE: "file" } } });
+  directories.push(root);
+  const privateFile = join(root, "input.secret");
+  await appendFile(join(root, ".gitignore"), "*.secret\n");
+  await writeFile(privateFile, "secret bytes");
+  const environment = { ...machine.environment, PRIVATE_FILE: privateFile };
+  const run = async (dryRun: boolean, json = true) => runArc(["check", "run", "example",
+    ...(dryRun ? ["--dry-run"] : []), ...(json ? ["--json"] : [])], root, { env: environment });
+  expect(JSON.parse((await run(false)).stdout).result.checks[0].outcome).toBe("passed");
+  expect(JSON.parse((await run(false)).stdout).result.checks[0].outcome).toBe("reused");
+  const probesBefore = await readFile(probeReceipt, "utf8");
+  await writeFile(join(machine.home, ".arc/config.yml"), configuration);
+  await rm(privateFile);
+  const preview = await run(true);
+  expect(preview.exitCode, preview.stdout + preview.stderr).toBe(0);
+  const check = JSON.parse(preview.stdout).result.checks[0] as { reason?: string };
+  expect(check).toMatchObject({ outcome: "would run", environmentInputs: { PRIVATE_FILE: "file" } });
+  expect(check.reason).toMatch(/reuse.*requires.*preparation/iu);
+  const text = await run(true, false);
+  expect(text.exitCode, text.stdout + text.stderr).toBe(0);
+  expect(text.stdout).toMatch(/reuse.*requires.*preparation/iu);
+  expect(preview.stdout).not.toContain("secret bytes");
+  expect(await readFile(probeReceipt, "utf8")).toBe(probesBefore);
 }, 30_000);

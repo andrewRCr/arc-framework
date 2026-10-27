@@ -28,3 +28,6 @@ reactive process streams for deterministic unit-level transport faults without c
 
 `runner-machine.ts` writes an isolated machine-home runner configuration for real CLI subprocesses, keeping machine
 settings and execution receipts outside the captured source repository.
+
+`runner-bad-protocol.mjs` records captures and emits malformed wire output without starting provider children, allowing
+real CLI refusal tests to remove retained inputs after its process has closed.

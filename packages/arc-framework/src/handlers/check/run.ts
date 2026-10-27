@@ -30,7 +30,7 @@ import { findUninstalledLockedPackages, installGapReason } from "../../lib/check
 import { resolveCheckForecast, type CheckForecast } from "../../lib/checks/forecast.js";
 import { bindCapturedEnvironment, captureEnvironmentInputs, type CapturedEnvironmentInputs } from "../../lib/checks/environment-inputs.js";
 import { readMachineCheckRunner, type MachineCheckRunnerConfiguration } from "../../lib/checks/runner/machine-config.js";
-import { prepareSelectedCheckExecution, type PreparedCheckExecution, type CheckExecutionClosure } from "../../lib/checks/runner/execution.js";
+import { prepareSelectedCheckExecution, type PreparedCheckExecution, type CheckExecutionClosure, type RetainedCheckExecution } from "../../lib/checks/runner/execution.js";
 import { composePreparedCheckKey } from "../../lib/checks/runner/key.js";
 import type { TerminalOutcome } from "../../lib/checks/runner/contract.js";
 
@@ -289,7 +289,8 @@ async function runGitCheck(context: RequestedCheck, io: DeclaredCheckDependencie
   const divergent = await readCheckDivergence(io.git, root, tree, resolved.worktreeTree ?? tree, check.inputs, definition.global_inputs);
   const result = await executeSelectedCheck({ id, check: executed, root, tree, paths, kind, definition, indexViews, divergent, selectionTree, coordinates: resolved, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request);
   if (result.outcome === "failed" || result.outcome === "couldn't run") {
-    result.remedy = checkRetryCommand({ id, request, resolved, widenedFiles: usesWidenedFileRetry(check, selection, request) });
+    const retry = checkRetryCommand({ id, request, resolved, widenedFiles: usesWidenedFileRetry(check, selection, request) });
+    result.remedy = result.remedy === undefined ? retry : `${result.remedy} Then run ${retry}`;
   }
   if (mergedIn.length > 0) result.mergedIn = mergedIn;
   return { ...result, ...forecast };
@@ -453,15 +454,16 @@ async function executeSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDe
 async function executeRoutedSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
   configuration: MachineCheckRunnerConfiguration): Promise<DeclaredCheckResult> {
   const { id, kind, check, root, tree, paths, definition, content } = selected;
-  if (request.dryRun) return { id, kind, outcome: "would run" };
+  if (request.dryRun) return { id, kind, outcome: "would run",
+    reason: "Routed reuse requires preparation; this dry run does not prepare or probe the configured runner." };
   const outputs: Buffer[] = [];
   const startedAt = (io.now ?? performance.now.bind(performance))();
   const prepared = await (io.prepareExecution ?? prepareSelectedCheckExecution)({ callerRoot: root,
     request: selected.coordinates, check, paths, configuration, globalRuntimeInputs: definition.global_runtime_inputs,
     onOutput: output => { outputs.push(Buffer.from(output.bytes)); },
     onDiagnostic: bytes => { outputs.push(Buffer.from(bytes)); } });
-  if (prepared.status !== "ready") return { id, kind, outcome: "couldn't run", reason: prepared.reason,
-    ...(prepared.status === "unavailable" ? { remedy: prepared.remedy } : {}) };
+  if (prepared.status !== "ready") return { id, kind, outcome: "couldn't run", reason: `${configuration.file}: checks.runner: ${prepared.reason}`,
+    remedy: prepared.status === "unavailable" ? prepared.remedy : retainedRunnerRemedy(prepared.retained) };
   const execution = prepared.execution;
   let closing: Promise<CheckExecutionClosure> | undefined;
   const close = () => closing ??= execution.close();
@@ -481,6 +483,15 @@ async function executeRoutedSelectedCheck(selected: SelectedCheck, io: DeclaredC
     return await finalizeRoutedCheck(selected, io, request,
       { result, closure, output: Buffer.concat(outputs).toString("utf8"), key, startedAt });
   } finally { await close(); }
+}
+
+function retainedRunnerRemedy(retained: RetainedCheckExecution): string {
+  const context = retained.contextId === undefined ? "" : `, context ${JSON.stringify(retained.contextId)}`;
+  const inputs = retained.environmentFiles.length === 0 ? "" : `; explicit files ${retained.environmentFiles.map(path => JSON.stringify(path)).join(", ")}`;
+  return [`Inspect and settle plan ${retained.planId}${context}, adapter ${JSON.stringify(retained.adapter)}.`,
+    `Retained source ${JSON.stringify(retained.sourceRoot)}; manifest ${JSON.stringify(retained.manifest)}${inputs}.`,
+    retained.recovery ?? "Use the provider's attempt inspection procedure before removing retained inputs.",
+    "Repair the runner and retry with a fresh attempt."].join(" ");
 }
 
 interface RoutedSinglesResult { exitCode: number; incomplete?: string; notice?: string }

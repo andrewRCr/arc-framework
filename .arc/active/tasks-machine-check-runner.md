@@ -303,7 +303,7 @@ runs unknown runtime without reuse, preserves native outcomes, and closes or ret
           executor's exact probe output. Added generic prepared-runtime projection and guarded composition; real adapter
           checks preserve keys across unrelated source, renamed handles and moved identical explicit files.
 
-### `[ ]` **4.2 Select and prepare routed checks before reusable lookup — D1, D5, D6, D9**
+### `[x]` **4.2 Select and prepare routed checks before reusable lookup — D1, D5, D6, D9**
 
 - _Goal:_ The real selected-check path qualifies routed execution before any applicable cache lookup, while native,
   forecast and dry-run retain their owning-checkout and no-side-effect contracts.
@@ -313,14 +313,10 @@ runs unknown runtime without reuse, preserves native outcomes, and closes or ret
           close without execution; misses run fixed portable singles, and unknown runtime stays live without recording.
           Native fallback retains its cwd and bypasses adapter launch; ordinary checks do not expand declared shards.
 
-    - `[ ]` **4.2.b Preserve forecast, dry-run and repair routes**
-        - Build `test-first` (one behavior at a time):
-            - Configured forecast/dry-run may describe eligibility/config disposition/input names but never prepares or
-              probes.
-            - Caller-local cached passes cannot be presented as qualified routed reuse before preparation.
-            - Invalid config, missing executable and capture/protocol refusal yield text/JSON remedies; repair permits
-              fresh retry.
-        - Retain existing gate selection/deadlines and native CI playback rather than introducing CI adapter placement.
+    - `[x]` **4.2.b Preserve forecast, dry-run and repair routes**
+        - Configured previews explain preparation-dependent reuse without probes or explicit-file capture. Preserved
+          machine-file context, repair guidance and retained-attempt locations through text/JSON refusals and fresh
+          retries; native forecast and CI playback retain their existing execution path.
 
 ### `[ ]` **4.3 Reduce immutable invocation outcomes before pass publication — D6, D8, D9**
 
