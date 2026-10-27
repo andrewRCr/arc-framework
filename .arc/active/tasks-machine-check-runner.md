@@ -82,7 +82,7 @@ selectors refuse with a successful repaired retry, while ordinary native checks 
 - _Outcome:_ TypeScript/JSDoc checks the shared dependency-free native ES module directly; readonly source annotations
   keep its declaration and execution policy together without a companion declaration file.
 
-### `[ ]` **1.5 Carry names-only forecasts into late native CI capture — D2, D9**
+### `[x]` **1.5 Carry names-only forecasts into late native CI capture — D2, D9**
 
 - _Goal:_ CI binds the environment delivered to its execution step, while forecasts carry only enough declaration
   metadata to detect stale input contracts without capturing secrets or premature absence.
@@ -91,12 +91,10 @@ selectors refuse with a successful repaired retry, while ordinary native checks 
         - Forecasts copy names and kinds into text/JSON, including empty selections; CI decoding preserves the map.
           Selected declaration drift refuses before execution with a regenerate remedy; repaired forecasts run normally.
 
-    - `[ ]` **1.5.b Bind native CI playback after artifact delivery**
-        - Integrate shared capture into `runCiCheckStep` / `runForecastCheck` in `src/lib/ci-check-runner.ts`, checking
-          the producer in `scripts/run-ci-checks.mjs`; retain workflow args, shard playback and fixer/index cleanup.
-        - Build `test-first` (one behavior at a time):
-            - A file arriving after forecast is frozen at playback and shared by probes/commands where applicable.
-            - Mismatch repair/regeneration succeeds; missing/unreadable inputs refuse without local adapter dispatch.
+    - `[x]` **1.5.b Bind native CI playback after artifact delivery**
+        - Native CI captures once after delivery and rebinds every batch, preserving presence and fixed file bytes.
+          Invalid files refuse with repair/retry; empty batches skip capture, and command/preparation failures dispose
+          owned inputs while preserving native status, workflow arguments, shard playback and index/fixer handling.
 
 ### `[ ]` **1.6 Exercise captured native and CI inputs — D2, D9** — validate exit criterion at segment scope
 

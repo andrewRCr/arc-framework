@@ -10,6 +10,7 @@ import { createWorktreeSnapshot } from "./checks/tree.js";
 import { z } from "zod";
 import { CHECK_REQUEST_SCHEMA_VERSION } from "./checks/usage.js";
 import { EnvironmentInputsSchema } from "./checks/environment-declaration.js";
+import { bindCapturedEnvironment, captureEnvironmentInputs, type CapturedBinding } from "./checks/environment-inputs.js";
 
 const REGENERATE_FORECAST = "regenerate the forecast with arc check gate merge --ci --dry-run --json and retry the CI step.";
 
@@ -88,6 +89,19 @@ function validateEnvironmentDeclaration(declaration: CheckDeclaration, check: Ch
 }
 
 async function runForecastCheck(options: CiCheckStep, check: CheckForecast & { id: string }, batches: string[][]): Promise<number> {
+  if (batches.length === 0) return 0;
+  if (Object.keys(check.environmentInputs).length === 0) return runNativeForecastCheck(options, check, batches);
+  const capture = await captureEnvironmentInputs(check.environmentInputs, resolve(options.root, check.cwd));
+  const executed = await runNativeForecastCheck(options, check, batches, capture.bindings).then(
+    result => ({ ok: true as const, result }), (error: unknown) => ({ ok: false as const, error }));
+  const cleaned = await capture.dispose().then(() => true, () => false);
+  if (!executed.ok) throw executed.error;
+  if (!cleaned) process.stderr.write(`${check.id}: frozen input cleanup failed; repair temporary storage access and retry cleanup\n`);
+  return executed.result;
+}
+
+async function runNativeForecastCheck(options: CiCheckStep, check: CheckForecast & { id: string }, batches: string[][],
+  bindings?: Readonly<Record<string, CapturedBinding>>): Promise<number> {
   let exitCode = 0;
   let index: CheckIndexView | undefined;
   const before = check.fixes ? await createWorktreeSnapshot(gitExec, options.root) : undefined;
@@ -97,7 +111,8 @@ async function runForecastCheck(options: CiCheckStep, check: CheckForecast & { i
     }
     for (const batch of batches) {
       const result = await runCheckProcess([...batch, ...options.arguments ?? []], resolve(options.root, check.cwd),
-        check.mode === "files" ? options.forecast : undefined, { shell: check.shell, indexFile: index?.file });
+        check.mode === "files" ? options.forecast : undefined, { shell: check.shell, indexFile: index?.file,
+          ...(bindings === undefined ? {} : { environment: bindCapturedEnvironment(bindings, process.env) }) });
       if (result.output) process.stdout.write(`${check.id}: ${result.output}\n`);
       if (!result.started || result.exitCode !== 0) exitCode = 1;
     }
