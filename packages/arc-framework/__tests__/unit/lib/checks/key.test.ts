@@ -17,6 +17,11 @@ it("repeats the same key for the same resolved entry and input content", () => {
   expect(checkContentKey(first)).toBe(checkContentKey(second));
 });
 
+it("does not reuse passes formed with lexical file-argument coordinates", () => {
+  const lexicalDirectoryKey = "d9ff1fef0408fdb1846a8456c6211b5236fe151ccadb890dd2f7e75e2fe41a12";
+  expect(checkContentKey(input())).not.toBe(lexicalDirectoryKey);
+});
+
 it.each(["id", "declaration", "input path", "input blob", "input mode", "received paths"])("changes with %s", field => {
   const original = input();
   const changed = input();

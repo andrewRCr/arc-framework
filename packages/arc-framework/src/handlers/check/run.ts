@@ -7,6 +7,7 @@ import { readProjectedSelection, requestProjectedSelection, type ProjectedSelect
 import type { PushRefDisposition } from "../../lib/checks/push.js";
 import { resolve } from "node:path";
 import { checkArgumentBatches, checkFileArguments } from "../../lib/checks/batching.js";
+import { resolveCheckFileCoordinates, type CheckFileCoordinates } from "../../lib/checks/file-coordinates.js";
 import { readCheckDivergence } from "../../lib/checks/divergence.js";
 import { findPartiallyStagedChecks } from "../../lib/checks/partial-staging.js";
 import { commitRestageAllowed, restageCommitFixes } from "../../lib/checks/commit-fixes.js";
@@ -274,7 +275,7 @@ async function runGitCheck(context: RequestedCheck, io: DeclaredCheckDependencie
       ...(run.mergedIn === undefined ? {} : { mergedIn: run.mergedIn }) };
     ({ paths, mergedIn, check: executed } = run);
   }
-  if (request.dryRun) forecast = resolveCheckForecast(executed, root, paths, io.platform);
+  if (request.dryRun) forecast = await forecastSelectedCheck(executed, root, paths, io.platform);
   if (usesFormingWorktree(check, request)) {
     tree = resolved.tree = resolved.worktreeTree ?? tree;
   }
@@ -339,7 +340,23 @@ async function runProjectedCheck(context: RequestedCheck, io: DeclaredCheckDepen
   const result = await executeSelectedCheck({ ...context, tree: resolved.tree, paths,
     divergent: [], coordinates: resolved }, io, request);
   if (result.outcome === "failed" || result.outcome === "couldn't run") result.remedy = remedy;
-  return { ...result, ...(request.dryRun ? resolveCheckForecast(check, root, paths, io.platform) : {}) };
+  return { ...result, ...(request.dryRun ? await forecastSelectedCheck(check, root, paths, io.platform) : {}) };
+}
+
+async function forecastSelectedCheck(check: CheckDeclaration["checks"][string], root: string,
+  paths: string[], platform: NodeJS.Platform): Promise<CheckForecast> {
+  if (paths.length === 0 || !check.pass_paths) return resolveCheckForecast(check, root, paths, platform);
+  const coordinates = await nativeFileCoordinates(root, resolve(root, check.root));
+  return resolveCheckForecast(check, root, paths, platform, coordinates);
+}
+
+async function nativeFileCoordinates(root: string, cwd: string): Promise<CheckFileCoordinates> {
+  try {
+    return await resolveCheckFileCoordinates(root, cwd);
+  } catch {
+    // Preserve native spawn failures and dry-run descriptions for an unavailable working directory.
+    return { root, cwd };
+  }
 }
 
 const MERGED_IN_ONLY = "every changed file was merged in unchanged";
@@ -432,7 +449,8 @@ async function executeSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDe
   if (request.dryRun) return { id, kind, outcome: "would run" };
   const command = typeof check.command === "string" ? [check.command] : check.command;
   const cwd = resolve(root, check.root);
-  const argumentsFromRoot = checkFileArguments(root, cwd, paths, io.platform);
+  const coordinates = paths.length > 0 && check.pass_paths ? await nativeFileCoordinates(root, cwd) : { root, cwd };
+  const argumentsFromRoot = checkFileArguments(coordinates.root, coordinates.cwd, paths, io.platform);
   const indexFile = check.reads_index ? await indexViews.get() : undefined;
   const startedAt = (io.now ?? performance.now.bind(performance))();
   const result = await executeCheckBatches(io, { command, paths: argumentsFromRoot, cwd, content, check, indexFile });
