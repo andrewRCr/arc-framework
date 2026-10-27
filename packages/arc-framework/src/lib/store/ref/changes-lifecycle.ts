@@ -44,7 +44,7 @@ async function ownerChangeWindow(context: RefBackendContext, input: ChangesInput
   const from = latestArchivedFolders(ends.before.filter(({ liveRef }) => liveRef === live))[0];
   const to = latestArchivedFolders(ends.after.filter(({ liveRef }) => liveRef === live))[0];
   const batches = ends.changed.get(live) ?? new Set<string>();
-  if (noLifecycleChange(live, older, newer, ends)) return { status: "ok", result: null };
+  if (noLifecycleChange(live, older, newer, ends, current)) return { status: "ok", result: null };
   if (newer && !from) return newLiveWindow(context, input, live, newer, ends, evidence);
   const source = newer ?? current.get(history) ?? current.get(live);
   if (!source) return { status: "refused", refusal: missingChangeState({ ref: history, version: input.to }) };
@@ -88,8 +88,13 @@ function newLiveWindow(context: RefBackendContext, input: ChangesInput, live: st
     : Promise.resolve({ status: "ok", result: { ref: live, upper: newer, version: input.to } });
 }
 
-function noLifecycleChange(live: string, older: string | undefined, newer: string | undefined, ends: ChangeEnds): boolean {
-  return !older && !newer && !ends.changed.has(live) && !ends.origins.has(live);
+function noLifecycleChange(live: string, older: string | undefined, newer: string | undefined, ends: ChangeEnds,
+  current: ReadonlyMap<string, string>): boolean {
+  if (older || newer || ends.changed.has(live)) return false;
+  if (!ends.origins.has(live)) return true;
+  // Standing lineage reveals another lifetime only through the history this clone actually holds.
+  const history = live.replace("refs/arc/", "refs/arc/history/");
+  return ends.beforeOrigins.has(live) && !current.has(history) && !current.has(live);
 }
 
 /** Join older registry batches to retained item ends, keeping registry revisions out of item ancestry bounds. */
