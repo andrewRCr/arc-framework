@@ -3,7 +3,7 @@
   "slug": "trend-status-shape",
   "claimId": "6fc5f1e254161c1f5244373b9d3d044f",
   "createdAt": "2026-10-25T18:43:30.738Z",
-  "updatedAt": "2026-10-25T18:43:30.738Z",
+  "updatedAt": "2026-10-27T12:36:56.653Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Show a review's trend as where it stands: a status reading and per-pass critical/major series, without origins, round signals, or tag forecasts",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Show a review's trend as where it stands, not the facts behind its reading",
   "originEntrySourceDigest": "sha256:e3f5775f1e5b261ecad220303abcf6cfd386ca4ed49609265078728f23d7e1f4",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/trend-status-shape",
+    "headSha": "101b2f39e50800d35d5b07619da0050afb6a3df2"
+  }
 }
