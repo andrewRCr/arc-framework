@@ -8,6 +8,7 @@ import { readSyncRefs } from "../sync-graph.js";
 import { readRefDesignation } from "../designation.js";
 import { IMPORT_PUBLICATION_REF, unpublishedImportClaims } from "./transient-publication.js";
 import { listRemoteRefs } from "../remote-listing.js";
+import { captureMoveRemote } from "../migrate-remote-target.js";
 
 /** Kept tips live in the code repository until all licensed cleanup finishes. */
 export const IMPORT_KEPT_PREFIX = "refs/arc/tmp/migrate/import/kept/";
@@ -65,7 +66,9 @@ export async function retireImportRemote(context: RefBackendContext, report: Mig
 
 /** Delete each re-homed origin ref under its kept tip's lease, naming the first that cannot go. */
 async function retireOriginRefs(context: RefBackendContext, kept: ReadonlyMap<string, string>): Promise<string | { condition: string; remedy: string } | undefined> {
-  const remote = await originTips(context, [...kept.keys()].map(sourceRef));
+  const origin = await captureOrigin(context);
+  if (!origin) return;
+  const remote = await originTips(context, origin.pushUrl, [...kept.keys()].map(sourceRef));
   const identities = new Set([...kept.keys()].map(sourceRef).filter(ref => remote.has(ref)).map(ref => ref.split("/")[3] ?? ""));
   const unpublished = await unpublishedImportClaims(context, identities);
   if (unpublished) return unpublished;
@@ -73,7 +76,7 @@ async function retireOriginRefs(context: RefBackendContext, kept: ReadonlyMap<st
     const source = sourceRef(ref), actual = remote.get(source);
     if (actual === undefined) continue;
     const pushed = actual === expected
-      ? classifyPushOutcome(await pushRefs(context.exec, "origin", [{ ref: source, next: null, expected }], { cwd: context.checkoutRoot })) : undefined;
+      ? classifyPushOutcome(await pushRefs(context.exec, origin.pushUrl, [{ ref: source, next: null, expected }], { cwd: context.checkoutRoot })) : undefined;
     if (!pushed || pushed.status === "lost-race") return `origin's ${source} advanced after the import read it.`;
     if (pushed.status !== "ok") return `Could not retire origin's ${source}: ${pushed.message}`;
   }
@@ -92,16 +95,26 @@ async function dropKeptTips(context: RefBackendContext, kept: ReadonlyMap<string
 }
 
 async function retainedRemoteNotices(context: RefBackendContext, kept: ReadonlyMap<string, string>): Promise<MigrateReport["notices"]> {
+  const origin = await captureOrigin(context);
+  if (!origin) return [];
   const refs = [...kept.keys()].map(sourceRef);
-  const remote = await originTips(context, refs);
-  return refs.filter((ref) => remote.has(ref)).map((ref) => ({ condition: `origin still holds ${ref}; no state remote is designated.`,
-    remedy: { text: `After checking that the import is retained, delete ${ref} from origin with an explicit expected-tip lease.` } }));
+  const notices: MigrateReport["notices"] = [];
+  for (const endpoint of new Set([origin.fetchUrl, origin.pushUrl])) {
+    const remote = await originTips(context, endpoint, refs);
+    notices.push(...refs.filter(ref => remote.has(ref)).map(ref => ({ condition: `origin still holds ${ref}; no state remote is designated.`,
+      remedy: { text: `After checking that the import is retained, delete ${ref} from origin at ${endpoint} with an explicit expected-tip lease.` } })));
+  }
+  return notices;
 }
 
-async function originTips(context: RefBackendContext, refs: string[]): Promise<Map<string, string>> {
+async function captureOrigin(context: RefBackendContext) {
   const designation = await readRefDesignation(context);
-  if (!designation.codeRemotes.some(({ name }) => name === "origin")) return new Map();
-  const listed = await listRemoteRefs(context, "origin", refs);
+  const origin = designation.codeRemotes.find(({ name }) => name === "origin");
+  return origin ? captureMoveRemote(context, context, origin) : undefined;
+}
+
+async function originTips(context: RefBackendContext, endpoint: string, refs: string[]): Promise<Map<string, string>> {
+  const listed = await listRemoteRefs(context, endpoint, refs);
   if (listed.status === "unreachable") throw new Error(listed.condition);
   return listed.tips;
 }
