@@ -123,7 +123,8 @@ async function holdsFollowCommit(code: RefBackendContext, move: string, registry
     if (isGitProcessError(error) && isCompletedGitFailure(error) && error.exitCode === 1) return false;
     throw error;
   }
-  return syncRefIsAncestor(code, move, registry);
+  const type = (await code.exec("git", ["cat-file", "-t", move], { cwd: code.checkoutRoot, objectAccess: "local-only" })).stdout.trim();
+  return type === "commit" && syncRefIsAncestor(code, move, registry);
 }
 
 function followResult(due: RefFollowDue, accepted: RefFollowCandidate[], rejected: string[]): StoreMigrateResult {
