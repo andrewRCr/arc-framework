@@ -247,7 +247,7 @@ lifetime.
           observed exit zero. Optional cancel replies and settled cleanup warnings do not hold closure; incomplete
           work, malformed replies and abnormal exits remain uncertain, while never-started adapters are unavailable.
 
-### `[ ]` **3.3 Prepare captured execution through one injectable facade — D3, D5, D7**
+### `[x]` **3.3 Prepare captured execution through one injectable facade — D3, D5, D7**
 
 - _Goal:_ Consumers prepare one fixed input/runtime context through a reusable boundary and can observe complete
   outcomes and lifetime evidence without reimplementing source capture or provider policy.
@@ -257,13 +257,11 @@ lifetime.
           bindings, immutable native or consumer-built plans, fresh UUIDs and validated runtime readiness. One lifetime
           owner retains uncertain captures and recovery, disposes settled inputs, and reports failed local cleanup.
 
-    - `[ ]` **3.3.b Expose common run, optional group and lifetime operations**
-        - Build `test-first` (one behavior at a time):
-            - Consumers submit fixed singles or supported groups through one prepared context and see per-ID evidence.
-            - Cache-hit release, cancellation, normal close and retained uncertainty share one ownership implementation.
-            - Known placement/runtime drift refuses before launch and a fresh explicit retry gets a new plan UUID.
-        - Keep shard matrices, parent keys and diagnostic shard labels outside this foundation; add no durable job
-          store.
+    - `[x]` **3.3.b Expose common run, optional group and lifetime operations**
+        - Prepared singles/groups preserve per-ID outcomes and enforce fixed-plan dispatch. Attempt controls cover
+          capture, pending preparation and execution; cancellation retains outstanding work until settlement, while
+          termination retains uncertain captures and recovery. Drift refusal requires a fresh explicitly qualified
+          attempt; cache-hit and executed closure share the same lifetime owner.
 
 ### `[ ]` **3.4 Provide the standalone local adapter and process-backed fixtures — D5, D7, D10**
 

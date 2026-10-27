@@ -173,6 +173,7 @@ export function createExecaRawGitExec(
     try {
       const result = await execa("git", effectiveArgs, {
         cwd: effectiveCwd,
+        cancelSignal: options.signal,
         env,
         encoding: "buffer",
         stripFinalNewline: false,

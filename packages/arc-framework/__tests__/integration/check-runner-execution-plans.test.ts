@@ -24,7 +24,7 @@ it("forms the whole plan from captured selection and bindings, then preserves it
       producerPlan = { invocations: [0, 1].map(index => ({ id: `planned:${index}`, cwd: ".", shell: false,
         argv: [process.execPath, "-e", "process.exit(0)", ...context.paths, scalar.value],
         commandContent: { tree, ...(base === undefined ? {} : { base }), ...(merged.length === 0 ? {} : { merged }) } })),
-      probes: { global: [{ id: "provided-probe", argv: [process.execPath, "--version"], cwd: "." }], check: [] } };
+      probes: { global: [{ id: "provided-probe", argv: [process.execPath, "-e", `process.stdout.write(${JSON.stringify(" \nprovided-probe\r\n")})`], cwd: "." }], check: [] } };
       return producerPlan;
     }, onDiagnostic: () => { displayed = true; producerPlan?.invocations[0]?.argv.push("later producer mutation"); },
   }, fixture.io);

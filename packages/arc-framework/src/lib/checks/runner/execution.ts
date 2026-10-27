@@ -8,13 +8,15 @@ import type { SourcePresentationIndex } from "./source-scope.js";
 import type { SourceMaterializationIO } from "./source-materialize.js";
 import type { MachineCheckRunnerConfiguration } from "./machine-config.js";
 import type { KnownRunnerRuntime } from "./correlation.js";
-import type { PrepareParams, TerminalOutcome } from "./contract.js";
+import type { CancelResult, PrepareParams, SettledRunResult, TerminalOutcome } from "./contract.js";
 import type { CheckRunnerProcess, CheckRunnerProcessInput, CheckRunnerProcessExit } from "./session-process.js";
 import { randomUUID } from "node:crypto";
 import { createExecaGitExec, createExecaRawGitExec } from "../../git/process-executor.js";
 import { nodeSourcePresentationIO } from "./source-io.js";
 import { CapturedInputPreparationError, captureCheckExecutionInputs } from "./execution-inputs.js";
 import { prepareCapturedCheckExecution } from "./execution-prepare.js";
+import { createExecutionAttemptControl, type ExecutionAttemptControl } from "./execution-attempt.js";
+import { interruptibleCaptureIO } from "./execution-capture-io.js";
 
 /** Captured inputs available while a consumer forms its entire immutable execution plan. */
 export interface CapturedCheckPlanContext {
@@ -59,6 +61,11 @@ export type CheckExecutionClosure =
   | { readonly status: "closed"; readonly exit: CheckRunnerProcessExit; readonly cleanupWarning?: string }
   | { readonly status: "uncertain"; readonly reason: string; readonly retained: RetainedCheckExecution; readonly exit?: CheckRunnerProcessExit };
 
+/** Per-request terminal observations, retaining valid outcomes when required work is incomplete. */
+export type CheckExecutionRunResult =
+  | { readonly status: "settled"; readonly settlement: SettledRunResult; readonly outcomes: ReadonlyMap<string, Readonly<TerminalOutcome>> }
+  | { readonly status: "incomplete"; readonly reason: string; readonly outcomes: ReadonlyMap<string, Readonly<TerminalOutcome>> };
+
 /** One valid prepared context and its fixed inputs, qualification and lifetime owner. */
 export interface PreparedCheckExecution {
   readonly planId: string;
@@ -71,6 +78,10 @@ export interface PreparedCheckExecution {
   readonly runtime: KnownRunnerRuntime | undefined;
   readonly supportsRunGroup: boolean;
   readonly observedOutcomes: ReadonlyMap<string, Readonly<TerminalOutcome>>;
+  run(invocationId: string): Promise<CheckExecutionRunResult>;
+  runGroup(invocationIds: readonly string[]): Promise<CheckExecutionRunResult>;
+  cancel(): Promise<CancelResult | undefined>;
+  terminate(): void;
   close(): Promise<CheckExecutionClosure>;
 }
 
@@ -80,16 +91,32 @@ export type CheckExecutionPreparation =
   | { readonly status: "unavailable"; readonly reason: string; readonly remedy: string; readonly cleanupWarning?: string }
   | { readonly status: "uncertain"; readonly reason: string; readonly retained: RetainedCheckExecution };
 
+/** Preparation promise with interruption and inspection available before a context is granted. */
+export interface CheckExecutionAttempt extends Promise<CheckExecutionPreparation> {
+  readonly planId: string;
+  readonly retained: RetainedCheckExecution | undefined;
+  cancel(): Promise<CancelResult | undefined>;
+  terminate(): void;
+}
+
 /** Capture and prepare one selected check without giving callers provider-specific ownership work. */
-export async function prepareSelectedCheckExecution(input: PrepareSelectedCheckExecutionInput,
-  io: CheckExecutionIO = { git: createExecaGitExec(), gitRaw: createExecaRawGitExec(), source: nodeSourcePresentationIO }): Promise<CheckExecutionPreparation> {
-  const planId = randomUUID();
+export function prepareSelectedCheckExecution(input: PrepareSelectedCheckExecutionInput,
+  io: CheckExecutionIO = { git: createExecaGitExec(), gitRaw: createExecaRawGitExec(), source: nodeSourcePresentationIO }): CheckExecutionAttempt {
+  const control = createExecutionAttemptControl(randomUUID());
+  const preparation = prepareSelectedAttempt(input, io, control);
+  return Object.defineProperties(preparation, { planId: { value: control.planId },
+    retained: { get: () => control.retained }, cancel: { value: () => control.cancel() },
+    terminate: { value: () => { control.terminate(); } } }) as CheckExecutionAttempt;
+}
+
+async function prepareSelectedAttempt(input: PrepareSelectedCheckExecutionInput, io: CheckExecutionIO,
+  control: ExecutionAttemptControl): Promise<CheckExecutionPreparation> {
   const [executable, ...args] = input.configuration.argv;
   const selected = { ...input, configuration: { file: input.configuration.file, argv: [executable, ...args] as [string, ...string[]] } };
   let captured;
-  try { captured = await captureCheckExecutionInputs(selected, io); }
-  catch (cause) { return { status: "unavailable", reason: cause instanceof Error ? cause.message : "Selected inputs could not be captured.",
+  try { captured = await captureCheckExecutionInputs(selected, interruptibleCaptureIO(io, control.signal)); }
+  catch (cause) { return { status: "unavailable", reason: control.cancelled ? "Selected input capture was cancelled before runner preparation." : cause instanceof Error ? cause.message : "Selected inputs could not be captured.",
     remedy: "Repair the selected source or explicit inputs and retry; keep the check native if fixed inputs cannot be established.",
     ...(cause instanceof CapturedInputPreparationError && cause.cleanupWarning !== undefined ? { cleanupWarning: cause.cleanupWarning } : {}) }; }
-  return prepareCapturedCheckExecution(captured, selected, io, planId);
+  return prepareCapturedCheckExecution(captured, selected, io, control);
 }
