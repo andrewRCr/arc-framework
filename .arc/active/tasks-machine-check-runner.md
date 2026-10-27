@@ -198,14 +198,10 @@ the selected source basis with independent Git coordinates, and budget complete 
 - _Goal:_ Placement receives a complete immutable plan whose actual final argv fits both platform budgets and whose
   execution channels match native files/project/probe policy.
 
-    - `[ ]` **2.6.a Export portable final-argument batching primitives**
-        - Extend `checkArgumentBudget` / `batchCheckPaths` in `src/lib/checks/batching.ts`, retaining native budgeting.
-        - Build `test-first` (one behavior at a time):
-            - Complete fixed argv, including final consumer arguments, fits POSIX bytes and Windows escaped UTF-16
-              limits.
-            - Fixed-command overflow even with no paths, and a single oversized path, refuse with shortening remedies.
-            - Path order, literal quoting/Unicode and `pass_paths` behavior survive partitioning without implicit
-              shards.
+    - `[x]` **2.6.a Export portable final-argument batching primitives**
+        - `batchPortableCheckPaths` and `portableCheckArgumentBatches` budget complete fixed argv against both native
+          calculations. Shared partitioning preserves literal path order and withholding without expanding shards;
+          oversized commands or paths refuse with shortening remedies, including empty path sets and literal shell text.
 
     - `[ ]` **2.6.b Form invocation and probe plans with distinct content policy**
         - Build `test-first` (one behavior at a time):
