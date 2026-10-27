@@ -433,7 +433,11 @@ checks:
       - '!.arc/completed/**'
       - '!.arc/system/.internal/candidates/**'
     runtime_inputs:
-      - [node, -e, 'process.stdout.write(process.env.ARC_STORE_CHECK ?? "")']
+      - - node
+        - -e
+        - >-
+          process.stdout.write(JSON.stringify([process.env.ARC_STORE_CHECK ?? "",
+          process.env.ARC_STORE_BURSTS ?? ""]));
     shards:
       count: 4
       argument: --shard={index}/{count}
