@@ -407,16 +407,11 @@ admission/fallback remain provider-owned and cold/warm preparation costs are rec
 - _Goal:_ External qualification proves fixed inputs and settled ownership under real provider placement and failure,
   including permitted provider fallback while the host's required-remote reservation stays effective.
 
-    - `[ ]` **5.2.a Exercise external source, runtime and placement conformance**
-        - Extend proposed `tests/test_arc_adapter.py` with disposable Git/fake transport coverage and run the shared ARC
-          process-backed contract against this executable, rather than a separate provider-only result contract.
-        - Build `test-first` (one behavior at a time):
-            - Dirty/index/commit bytes, external declared files and conflicting worker Git selectors preserve captured
-              inputs.
-            - Unavailable placement and changed known runtime refuse before execution; repaired placement supports
-              explicit retry.
-            - Independent writable views or serialization prevent one invocation from changing another's captured
-              sources.
+    - `[x]` **5.2.a Exercise external source, runtime and placement conformance**
+        - External revision `3603230` passes shared ARC source/protocol scenarios on real remote placement, preserving
+          worktree/index/commit bytes, literal bindings, project/files/probe channels and explicit repaired retries.
+          Actual poisoned-worker tests preserve captured Git identity; prepared roots permit dependencies while later
+          source, Git and explicit-file mutations refuse before another command. Runtime remains honestly unknown.
 
     - `[ ]` **5.2.b Qualify live policy and uncertainty without changing owner settings**
         - Record real remote success and unavailable placement under the active host policy; use isolated test
