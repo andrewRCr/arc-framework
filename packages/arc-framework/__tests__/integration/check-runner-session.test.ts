@@ -43,14 +43,26 @@ it("launches literal argv in the repository cwd and drains protocol separately f
   } finally { session.terminate(); await session.closed; }
 });
 
-it("reports a never-started executable without inventing a process exit", async () => {
+it("reports a never-started process without inventing a process exit", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "arc-runner-missing-"));
   directories.push(cwd);
-  const session = createCheckRunnerSession({ argv: [join(cwd, "missing-adapter")], cwd, onNotification: () => undefined });
+  const session = createCheckRunnerSession({ argv: [process.execPath], cwd: join(cwd, "missing-directory"),
+    onNotification: () => undefined });
   const pending = session.request({ method: "check/prepare", params: makeRunnerProtocolPlan() });
   await expect(pending).rejects.toThrow(/runner.*retry/iu);
   await expect(session.closed).resolves.toEqual({ started: false });
   await expect(session.close()).resolves.toMatchObject({ status: "unavailable" });
+});
+
+it("retains the actual platform launcher outcome when an executable is missing", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "arc-runner-missing-command-"));
+  directories.push(cwd);
+  const session = createCheckRunnerSession({ argv: [join(cwd, "missing-adapter")], cwd, onNotification: () => undefined });
+  const pending = session.request({ method: "check/prepare", params: makeRunnerProtocolPlan() });
+  await expect(pending).rejects.toThrow(/runner.*retry/iu);
+  const started = process.platform === "win32";
+  await expect(session.closed).resolves.toEqual(started ? { started: true, exitCode: 1 } : { started: false });
+  await expect(session.close()).resolves.toMatchObject({ status: started ? "uncertain" : "unavailable" });
 });
 
 it("keeps a started adapter that disappears before preparation settlement uncertain", async () => {
