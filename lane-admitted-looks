@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "lane-admitted-looks",
+  "claimId": "821c503c4969d6e34c3d2d5e38e6e71e",
+  "createdAt": "2026-10-27T12:38:21.289Z",
+  "updatedAt": "2026-10-27T12:38:21.289Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Have arc review lane read report the next looks the lane admits, and have code review's successor decision read them before recommending one",
+  "branch": "chore/lane-admitted-looks",
+  "origin": "inbox",
+  "originEntry": "Read the looks a lane admits before recommending a successor",
+  "originEntrySourceDigest": "sha256:a17a9acb2b6aad1719a1818425dd6ee2fd5a90c6cc4373111113e4ce3743f12f",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
