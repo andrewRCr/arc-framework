@@ -448,17 +448,15 @@ admission/fallback remain provider-owned and cold/warm preparation costs are rec
           phase/body costs and precision limits in `notes-machine-check-runner.md`. Eighteen contexts close normally;
           known hits skip execution, unknown runtime never reuses/publishes, and native routed-work counters stay zero.
 
-### `[ ]` **5.5 Exercise provider-neutral qualification — D10** — validate exit criterion at segment scope
+### `[x]` **5.5 Exercise provider-neutral qualification — D10** — validate exit criterion at segment scope
 
 - _Goal:_ The same public seam is independently usable by the small shipped executable and the personal provider, with
   source, verdict, output, recovery and placement-policy evidence visible at qualification.
 
-    - Execute both real adapters through ARC with success, unavailable/repaired retry, known/unknown where supported,
-      fixed explicit/source inputs, cancel/EOF and retained-uncertainty recovery scenarios.
-    - Confirm the packaged example runs from installed inventory, record cold/warm/reuse costs and concurrent writer
-      isolation/serialization, and verify no ARC provider dependency or alternative evidence path was introduced.
-    - Request `npx arc check segment`; record evidence with external revision and supported platform coverage.
-    - Leave failed exit criteria to owning tasks or revision parents ahead of this verifier.
+- _Outcome:_ Shared ARC execution qualifies the packed standalone and external revision `cc6c43e` for fixed inputs,
+  repair, native failure, cancel/EOF and UUID settlement. Real cache-file identities prove independent writer views;
+  standalone writers overlap safely and external writers serialize. Packed known/unknown execution and recorded costs
+  close Linux adapter qualification; current streamed-pack native Windows/macOS execution is not yet established.
 
 ## **Phase 6:** Adopt ordinary declarations and close the architecture
 
