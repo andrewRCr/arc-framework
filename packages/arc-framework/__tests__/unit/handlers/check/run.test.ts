@@ -395,7 +395,8 @@ it.each(["not-run reason", "not started", "throws"])("keeps a completed batch fa
   };
   await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
     kind: "result", exitCode: 1, result: { checks: [{ outcome: "failed",
-      output: `lint violation\n${fault === "throws" ? "Error: VM connection dropped" : "ssh disconnected"}` }] },
+      output: `lint violation\n${fault === "throws" ? "Error: VM connection dropped" : "ssh disconnected"}`,
+      reason: expect.stringMatching(/VM connection dropped|did not start/u) }] },
   });
 });
 

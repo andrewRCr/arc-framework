@@ -319,7 +319,7 @@ runs unknown runtime without reuse, preserves native outcomes, and closes or ret
           machine-file context, repair guidance and retained-attempt locations through text/JSON refusals and fresh
           retries; native forecast and CI playback retain their existing execution path.
 
-### `[ ]` **4.3 Reduce immutable invocation outcomes before pass publication — D6, D8, D9**
+### `[x]` **4.3 Reduce immutable invocation outcomes before pass publication — D6, D8, D9**
 
 - _Goal:_ A check passes only after complete native-success evidence and normal closure; a known completed failure
   remains failed when another batch or transport is incomplete.
@@ -329,16 +329,10 @@ runs unknown runtime without reuse, preserves native outcomes, and closes or ret
           failures beside missing work and preserving no-evidence, killed, uint32 and valid empty-share semantics. Native
           batches and routed singles now share the same evidence model and notice precedence.
 
-    - `[ ]` **4.3.b Keep final verdict and publication in the handler**
-        - Extend `finalizeCheckRun` with structured evidence; retain native-only fixer/install-gap interpretation on the
-          native path instead of inspecting caller dependencies to reinterpret a remote executor.
-        - Build `test-first` (one behavior at a time):
-            - Full required success/output/settlement/closure permits ARC-owned publication through the existing pass
-              store.
-            - Wrong source, missing output, conflicting IDs or close failure cannot publish; prior failures stay
-              visible.
-            - Text/JSON reports distinguish incomplete work from failure; optional log/pass-store errors do not erase
-              valid results.
+    - `[x]` **4.3.b Keep final verdict and publication in the handler**
+        - `finalizeCheckRun` consumes structured invocation and closure evidence, preserving incomplete-work details
+          beside failures. Real adapter faults block publication for wrong source, incomplete output, conflicting context
+          and abnormal closure; native-only install interpretation and advisory report/pass-store failures retain scope.
 
 ### `[ ]` **4.4 Preserve cancellation, recovery and capture lifetime at CLI exits — D5, D7, D9**
 

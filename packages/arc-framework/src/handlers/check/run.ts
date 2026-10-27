@@ -32,7 +32,7 @@ import { bindCapturedEnvironment, captureEnvironmentInputs, type CapturedEnviron
 import { readMachineCheckRunner, type MachineCheckRunnerConfiguration } from "../../lib/checks/runner/machine-config.js";
 import { prepareSelectedCheckExecution, type PreparedCheckExecution, type CheckExecutionClosure, type RetainedCheckExecution } from "../../lib/checks/runner/execution.js";
 import { composePreparedCheckKey } from "../../lib/checks/runner/key.js";
-import { KILLED_EXIT_CODE, KILLED_REASON, normalizeCheckInvocationOutcome, reduceCheckInvocationOutcomes,
+import { normalizeCheckInvocationOutcome, reduceCheckInvocationOutcomes,
   type CheckInvocationReduction, type NormalizedCheckInvocationOutcome } from "../../lib/checks/result.js";
 
 /** Whether a fresh pass was kept for later gates; a pass with no content key has nothing to keep. */
@@ -511,15 +511,12 @@ async function executeRoutedSingles(execution: PreparedCheckExecution, check: Se
 async function finalizeRoutedCheck(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
   observed: { result: CheckInvocationReduction; closure: CheckExecutionClosure; output: string; key: string | null; startedAt: number }): Promise<DeclaredCheckResult> {
   const { result, closure, output, key, startedAt } = observed;
-  const incomplete = [...result.incomplete, closure.status === "uncertain" ? closure.reason : undefined].filter(Boolean).join("; ") || undefined;
-  const nativeFailure = result.kind === "failure";
   const costMs = Math.max(0, (io.now ?? performance.now.bind(performance))() - startedAt);
   const measurement = await io.reports?.save(selected.id, output, costMs);
   const finalized = await finalizeCheckRun({ ...selected, routed: true }, io, request,
-    { started: true, exitCode: result.exitCode, output,
-      ...(!nativeFailure && incomplete !== undefined ? { notRunReason: incomplete } : {}) }, key);
+    { evidence: result, output, incompleteWork: closure.status === "uncertain" ? [closure.reason] : [] }, key);
   const notice = [...result.notices, closure.status === "closed" ? closure.cleanupWarning : undefined].filter(Boolean).join("; ");
-  return { ...finalized, costMs, ...(nativeFailure && incomplete !== undefined ? { reason: incomplete } : {}),
+  return { ...finalized, costMs,
     ...(measurement === undefined ? {} : { logPath: measurement.logPath }), ...(notice ? { notice } : {}) };
 }
 
@@ -552,21 +549,22 @@ async function executeNativeSelectedCheck(selected: SelectedCheck, io: DeclaredC
 }
 
 async function finalizeCheckRun(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
-  result: { started: boolean; exitCode: number; output: string; notRunReason?: string }, key: string | null): Promise<DeclaredCheckResult> {
+  result: { evidence: CheckInvocationReduction; output: string; incompleteWork?: readonly string[] }, key: string | null): Promise<DeclaredCheckResult> {
   const { id, kind, check, coordinates } = selected;
   const { rewritten, reason } = await finishCheckRewrites(selected, io, request);
   const { divergent } = selected;
-  const details = { ...(divergent.length > 0 ? { divergent } : {}), ...(check.fixes ? { rewritten } : {}), output: result.output };
-  if (result.notRunReason !== undefined) return { id, kind, ...details, outcome: "couldn't run", reason: result.notRunReason };
-  if (!result.started) return { id, kind, ...details, outcome: "couldn't run" };
-  if (result.exitCode === KILLED_EXIT_CODE && check.no_evidence_exit !== KILLED_EXIT_CODE) {
-    return { id, kind, ...details, outcome: "couldn't run", reason: KILLED_REASON };
+  const evidence = result.evidence;
+  const incomplete = [...evidence.incomplete, ...(result.incompleteWork ?? [])].join("; ");
+  const details = { ...(divergent.length > 0 ? { divergent } : {}), ...(check.fixes ? { rewritten } : {}), output: result.output,
+    ...(incomplete ? { reason: incomplete } : {}) };
+  if (evidence.kind !== "failure" && (evidence.kind === "unavailable" || incomplete)) {
+    return { id, kind, ...details, outcome: "couldn't run", reason: incomplete || "A required invocation could not complete." };
   }
-  if (reason !== undefined) return { id, kind, ...details, outcome: "failed", reason };
-  const gap = selected.routed ? undefined : await installGap(selected, result);
+  if (reason !== undefined) return { id, kind, ...details, outcome: "failed", reason: [reason, incomplete].filter(Boolean).join("; ") };
+  const gap = selected.routed ? undefined : await installGap(selected, { exitCode: evidence.exitCode, output: result.output });
   if (gap !== undefined) return { id, kind, ...details, outcome: "couldn't run", reason: gap };
-  if (result.exitCode === check.no_evidence_exit) return { id, kind, ...details, outcome: "no evidence" };
-  if (result.exitCode !== 0) return { id, kind, ...details, outcome: "failed" };
+  if (evidence.kind === "no-evidence") return { id, kind, ...details, outcome: "no evidence" };
+  if (evidence.kind === "failure") return { id, kind, ...details, outcome: "failed" };
   const producedKey = rewritten.length > 0 ? await selectedCheckKey(selected, io, coordinates.tree) : key;
   const record: DeclaredCheckRecord = producedKey === null ? { status: "not-recordable" }
     : await io.passes.put({ schemaVersion: 1, id, key: producedKey, outcome: "passed", output: result.output });
@@ -625,7 +623,6 @@ async function executeCheckBatches(io: DeclaredCheckDependencies, input: {
     outcomes.push(normalizeCheckInvocationOutcome({ status: "unavailable", reason: String(error) }, check.no_evidence_exit));
   }
   const evidence = reduceCheckInvocationOutcomes(outcomes, check.no_evidence_exit);
-  return { evidence, started: evidence.kind !== "unavailable", exitCode: evidence.exitCode, output: outputs.join("\n"),
-    ...(evidence.kind === "unavailable" ? { notRunReason: evidence.incomplete.join("; ") } : {}),
+  return { evidence, output: outputs.join("\n"),
     ...(evidence.notices.length === 0 ? {} : { notice: evidence.notices.join("; ") }) };
 }

@@ -1,16 +1,116 @@
 /** Real selected checks qualify their configured executor before reusing a pass. */
 import { afterEach, expect, it } from "vitest";
 import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDeclaredCheckRepository } from "../fixtures/checks/repository.js";
-import { createRunnerMachineHome } from "../fixtures/checks/runner-machine.js";
+import { createRunnerMachineHome, registerRunnerFixtureSources } from "../fixtures/checks/runner-machine.js";
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { runArc } from "./helpers.js";
 
 const directories: string[] = [];
 const example = fileURLToPath(new URL("../../examples/check-runner/local.mjs", import.meta.url));
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
+
+it.runIf(process.platform === "linux").each(["bad-close", "wrong-source", "missing-output", "conflicting-context"])(
+  "withholds publication after %s and permits qualified retry", async fault => {
+  const proxy = fileURLToPath(new URL("../fixtures/checks/runner-proxy.mjs", import.meta.url));
+  const machine = await createRunnerMachineHome(directories, [process.execPath, proxy]);
+  const receipt = join(machine.home, "captures");
+  const configuration = join(machine.home, ".arc/config.yml");
+  await writeFile(configuration, JSON.stringify({ "checks.runner": [process.execPath, proxy, example, fault, receipt] }));
+  const root = await createDeclaredCheckRepository({ example: { runner: true, inputs: ["src/**"],
+    command: [process.execPath, "-e", "process.stdout.write('proof')"] } });
+  directories.push(root);
+  const result = await runArc(["check", "run", "example", "--json"], root, { env: machine.environment });
+  // The proxy waits for the actual provider and its launched children to close before reporting its injected failure.
+  await registerRunnerFixtureSources(directories, receipt);
+  expect(result.exitCode, result.stdout + result.stderr).toBe(2);
+  const check = JSON.parse(result.stdout).result.checks[0] as { outcome: string };
+  expect(check).toMatchObject({ outcome: "couldn't run" });
+  if (fault !== "wrong-source") expect(check).toMatchObject({ output: "proof" });
+  expect(check).not.toHaveProperty("record");
+  await writeFile(configuration, JSON.stringify({ "checks.runner": [process.execPath, example, "--known-node-runtime"] }));
+  const repaired = await runArc(["check", "run", "example", "--json"], root, { env: machine.environment });
+  expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
+  expect(JSON.parse(repaired.stdout).result.checks[0]).toMatchObject({ outcome: "passed", record: { status: "recorded" } });
+  const reused = await runArc(["check", "run", "example", "--json"], root, { env: machine.environment });
+  expect(JSON.parse(reused.stdout).result.checks[0]).toMatchObject({ outcome: "reused" });
+}, 30_000);
+
+it.runIf(process.platform === "linux")("keeps caller install-gap interpretation on native execution only", async () => {
+  const machine = await createRunnerMachineHome(directories, [process.execPath, example]);
+  const configuration = join(machine.home, ".arc/config.yml");
+  const configured = await readFile(configuration, "utf8");
+  await rm(configuration);
+  const name = `missing-check-${basename(machine.home).toLowerCase()}`;
+  const program = `try{require(${JSON.stringify(name)})}catch(error){console.error(error.message.split('\\n')[0]);process.exit(2)}`;
+  const root = await createDeclaredCheckRepository({ example: { runner: true, inputs: ["src/**"], command: [process.execPath, "-e", program] } });
+  directories.push(root);
+  await writeFile(join(root, "package-lock.json"), JSON.stringify({ lockfileVersion: 3,
+    packages: { "": {}, [`node_modules/${name}`]: { version: "1.0.0" } } }));
+  const native = await runArc(["check", "run", "example", "--json"], root, { env: machine.environment });
+  expect(native.exitCode, native.stdout + native.stderr).toBe(2);
+  expect(JSON.parse(native.stdout).result.checks[0]).toMatchObject({ outcome: "couldn't run", reason: expect.stringContaining("npm ci") });
+  await writeFile(configuration, configured);
+  const routed = await runArc(["check", "run", "example", "--json"], root, { env: machine.environment });
+  expect(routed.exitCode, routed.stdout + routed.stderr).toBe(1);
+  const check = JSON.parse(routed.stdout).result.checks[0] as { reason?: string };
+  expect(check).toMatchObject({ outcome: "failed", output: expect.stringContaining(name) });
+  expect(check.reason ?? "").not.toContain("npm ci");
+  expect(check).not.toHaveProperty("record");
+}, 30_000);
+
+it.runIf(process.platform === "linux")("keeps valid routed success when disposable reports and pass storage are unavailable", async () => {
+  const machine = await createRunnerMachineHome(directories, [process.execPath, example, "--known-node-runtime"]);
+  const root = await createDeclaredCheckRepository({ example: { runner: true, inputs: ["src/**"],
+    command: [process.execPath, "-e", "process.stdout.write('proof')"] } });
+  directories.push(root);
+  const storage = join(root, ".git/arc-checks");
+  await writeFile(storage, "not a directory");
+  const result = await runArc(["check", "run", "example", "--json"], root, { env: machine.environment });
+  expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+  const check = JSON.parse(result.stdout).result.checks[0] as { outcome: string; logPath?: string };
+  expect(check).toMatchObject({ outcome: "passed", output: "proof", record: { status: "unavailable" } });
+  expect(check.logPath).toBeUndefined();
+  const text = await runArc(["check", "run", "example"], root, { env: machine.environment });
+  expect(text.exitCode, text.stdout + text.stderr).toBe(0);
+  expect(text.stdout).toContain("could not record passes");
+  await rm(storage);
+  const repaired = await runArc(["check", "run", "example", "--json"], root, { env: machine.environment });
+  expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
+  expect(JSON.parse(repaired.stdout).result.checks[0]).toMatchObject({ outcome: "passed", record: { status: "recorded" } });
+  const reused = await runArc(["check", "run", "example", "--json"], root, { env: machine.environment });
+  expect(JSON.parse(reused.stdout).result.checks[0]).toMatchObject({ outcome: "reused" });
+}, 30_000);
+
+it.runIf(process.platform === "linux")("retains a completed native failure and incomplete detail after transport loss", async () => {
+  const proxy = fileURLToPath(new URL("../fixtures/checks/runner-proxy.mjs", import.meta.url));
+  const machine = await createRunnerMachineHome(directories, [process.execPath, proxy]);
+  const receipt = join(machine.home, "captures");
+  const configuration = join(machine.home, ".arc/config.yml");
+  await writeFile(configuration, JSON.stringify({ "checks.runner": [process.execPath, proxy, example, "failure-loss", receipt] }));
+  const root = await createDeclaredCheckRepository({ example: { runner: true, inputs: ["src/**"],
+    command: [process.execPath, "capture.cjs"] } }, { global_inputs: ["capture.cjs"] });
+  directories.push(root);
+  await writeFile(join(root, "capture.cjs"), "process.stdout.write('native failure');process.exit(7)");
+  for (const json of [true, false]) {
+    const result = await runArc(["check", "run", "example", ...(json ? ["--json"] : [])], root, { env: machine.environment });
+    await registerRunnerFixtureSources(directories, receipt);
+    expect(result.exitCode, result.stdout + result.stderr).toBe(1);
+    if (json) {
+      const check = JSON.parse(result.stdout).result.checks[0] as { outcome: string; reason?: string };
+      expect(check).toMatchObject({ outcome: "failed", output: "native failure" });
+      expect(check.reason).toMatch(/protocol|JSON|settle|closed/iu);
+      expect(check).not.toHaveProperty("record");
+    } else expect(result.stdout).toMatch(/example: failed.*(?:protocol|JSON|settle|closed)/isu);
+  }
+  await writeFile(configuration, JSON.stringify({ "checks.runner": [process.execPath, example, "--known-node-runtime"] }));
+  await writeFile(join(root, "capture.cjs"), "process.stdout.write('repaired')");
+  const repaired = await runArc(["check", "run", "example", "--json"], root, { env: machine.environment });
+  expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
+  expect(JSON.parse(repaired.stdout).result.checks[0]).toMatchObject({ outcome: "passed", output: "repaired", record: { status: "recorded" } });
+}, 30_000);
 
 it.runIf(process.platform === "linux")("keeps routed not-run evidence ahead of declared no-evidence status and recovers", async () => {
   const machine = await createRunnerMachineHome(directories, [process.execPath, example]);
@@ -128,12 +228,7 @@ it.runIf(process.platform === "linux")("reports a protocol refusal without repla
   for (const json of [true, false]) {
     const result = await runArc(["check", "run", "example", ...(json ? ["--json"] : [])], root, { env: machine.environment });
     // The fixture's closed process launches no children; its recorded captures can now be removed by test cleanup.
-    for (const line of (await readFile(retained, "utf8")).trim().split("\n")) {
-      const source = JSON.parse(line) as { manifest: string };
-      const directory = dirname(source.manifest);
-      expect(basename(directory)).toMatch(/^arc-check-source-/u);
-      directories.push(directory);
-    }
+    await registerRunnerFixtureSources(directories, retained);
     expect(result.exitCode, result.stdout + result.stderr).toBe(2);
     if (json) {
       const check = JSON.parse(result.stdout).result.checks[0] as { reason: string; remedy: string };

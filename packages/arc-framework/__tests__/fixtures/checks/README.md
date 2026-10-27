@@ -31,3 +31,8 @@ settings and execution receipts outside the captured source repository.
 
 `runner-bad-protocol.mjs` records captures and emits malformed wire output without starting provider children, allowing
 real CLI refusal tests to remove retained inputs after its process has closed.
+
+`runner-proxy.mjs` forwards the actual standalone adapter while injecting wrong source confirmation, incomplete output,
+conflicting context or frontend exit faults. It waits for provider closure; capture receipts permit safe test cleanup
+after the provider's children have settled. Its transport-loss mode forwards a real terminal outcome before corrupting
+settlement, retaining completed failure evidence for handler reduction.
