@@ -17,6 +17,7 @@ import { refRecordVersion } from "./record-version.js";
 import { refOwner } from "./codec.js";
 import { readStoredMergeLabel } from "./side-labels.js";
 import { corruptRef } from "./namespace-health.js";
+import { captureHistoricalNamespaces } from "./historical-namespace.js";
 
 /** An unreadable historical label refuses its ref without masking other reconciliation failures. */
 export class RefSyncLabelError extends Error {
@@ -71,20 +72,23 @@ async function captureSyncRecordHistory(context: RefBackendContext, reference: R
   const trees = revisions.length ? await readRefTrees(context, new Map(revisions.map((revision) => [revision, revision])), paths) : new Map<string, RefTreeEntry[]>();
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries: RefTreeEntry[]) =>
     entries.filter(({ path }) => path === home.metadataPath).map(({ oid }) => oid)))]);
+  const namespaces = await captureHistoricalNamespaces(context, home, trees, objects, false);
+  if (namespaces.unavailable.size) throw new RefSyncLabelError(ref, corruptRef(ref, true));
+  if (namespaces.corrupt.size) throw new RefSyncLabelError(ref);
   const states = new Map(revisions.map((revision) => [revision, {
-    ...versionAt(context, reference, ref, home.metadataPath, trees.get(revision), objects),
+    ...versionAt(context, reference, ref, home.metadataPath, trees.get(revision), objects, namespaces.recordFree.has(revision)),
     entries: trees.get(revision) ?? [],
   }]));
   return { rows, states };
 }
 
 function versionAt(context: RefBackendContext, reference: RecordReference, ref: string, metadataPath: string,
-  entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>): { version: string | null; metadata?: RefMetadata } {
+  entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>, recordFree: boolean): { version: string | null; metadata?: RefMetadata } {
   if (!entries) throw new RefSyncLabelError(ref, corruptRef(ref, true));
   const metadataEntry = entries.find(({ path }) => path === metadataPath);
   const metadata = parseRefMetadata(metadataEntry ? objects.get(metadataEntry.oid) : null, ref);
   if (!metadata) {
-    if (entries.every(({ path }) => path === metadataPath)) return { version: null };
+    if (recordFree) return { version: null };
     throw new RefSyncLabelError(ref);
   }
   const family = context.registry[reference.kind].family;
