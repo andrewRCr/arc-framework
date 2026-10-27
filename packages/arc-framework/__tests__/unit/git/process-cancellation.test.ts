@@ -47,6 +47,28 @@ async function cancel(): Promise<unknown> {
 }
 
 describe("Git descendant cancellation when the process utility fails", () => {
+  it("confirms descendants that exited after the process snapshot", async () => {
+    Object.defineProperty(process, "platform", { value: "darwin" });
+    utilities.table = `${gitPid} 1\n${descendant} ${gitPid}\n`;
+    vi.spyOn(process, "kill").mockImplementation(() => { throw Object.assign(new Error("already exited"), { code: "ESRCH" }); });
+    expect(await cancel()).toMatchObject({ kind: "canceled", descendantsUnconfirmed: false });
+  });
+
+  it("keeps a failed descendant signal unconfirmed while terminating the remaining descendants", async () => {
+    Object.defineProperty(process, "platform", { value: "darwin" });
+    const other = descendant + 1;
+    utilities.table = `${gitPid} 1\n${descendant} ${gitPid}\n${other} ${gitPid}\n`;
+    const alive = new Set([descendant, other]);
+    vi.spyOn(process, "kill").mockImplementation(pid => {
+      if (pid === other) throw Object.assign(new Error("signal refused"), { code: "EPERM" });
+      alive.delete(pid);
+      return true;
+    });
+    expect(await cancel()).toMatchObject({ kind: "canceled", descendantsUnconfirmed: true,
+      message: expect.stringContaining("descendant") });
+    expect([...alive]).toEqual([other]);
+  });
+
   it.each((["success", "failure"] as const).flatMap(outcome => [false, true].flatMap(failedScan =>
     [false, true].map(bytes => ({ outcome, failedScan, bytes })))))(
     "finishes accepted cancellation after independent $outcome while a delayed scan fails: $failedScan, bytes: $bytes", async ({ outcome, failedScan, bytes }) => {

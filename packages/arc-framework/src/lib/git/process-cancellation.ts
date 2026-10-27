@@ -12,8 +12,9 @@ export function assertGitNotCanceled(signal: AbortSignal | undefined, invocation
   }
 }
 
-function kill(pid: number): void {
-  try { process.kill(pid, "SIGKILL"); } catch { /* A process may have exited since the snapshot. */ }
+function kill(pid: number): boolean {
+  try { process.kill(pid, "SIGKILL"); return true; }
+  catch (error) { return typeof error === "object" && error !== null && "code" in error && error.code === "ESRCH"; }
 }
 
 function runUtilityOnce(command: string, args: string[], timeout: number): Promise<string | null> {
@@ -60,8 +61,9 @@ async function endDescendants(pid: number, active: () => boolean): Promise<boole
       if (parent === descendants[index] && child !== undefined && child > 0) descendants.push(child);
     }
   }
-  for (const child of descendants.slice(1).reverse()) kill(child);
-  return true;
+  let confirmed = true;
+  for (const child of descendants.slice(1).reverse()) if (!kill(child)) confirmed = false;
+  return confirmed;
 }
 
 /** Bind abort to descendant-first termination; await disposal to finish any accepted cancellation. */
