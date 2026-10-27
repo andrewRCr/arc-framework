@@ -7,7 +7,7 @@
  * Commander source scan — with a bounded, explicitly checked category for the dormant emitters.
  */
 
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { beforeAll, describe, expect, it } from "vitest";
@@ -17,6 +17,7 @@ import { loadRepositoryCommandInputSnapshot } from "../../src/lib/command-input/
 import { createStore } from "../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { createStoreSyncPort } from "../../src/lib/store/operational-sync.js";
+import { guidanceMarkdownFiles } from "../helpers/guidance-markdown.js";
 
 const REPOSITORY_SCAN_TIMEOUT_MS = 30_000;
 
@@ -99,14 +100,6 @@ function emittedInvocations(sourceText: string): DocumentedInvocation[] {
   visit(source);
   return invocations;
 }
-
-/** Guidance trees whose `arc …` blocks an operator is told to run verbatim. */
-const GUIDANCE_ROOTS = [
-  { label: "project", path: resolve(root, ".arc/system/workflows") },
-  { label: "project", path: resolve(root, ".arc/reference") },
-  { label: "package", path: resolve(root, "packages/arc-framework/arc/system/workflows") },
-  { label: "package", path: resolve(root, "packages/arc-framework/arc/reference") },
-] as const;
 
 /** One executable invocation a guidance document publishes, with the options it passes. */
 interface GuidanceInvocation extends DocumentedInvocation {
@@ -269,20 +262,14 @@ describe("documented command surface", () => {
     expect(resolveCommandPath(["missing", "my-work"], paths, operands)).toBeNull();
   });
 
-  it("passes `--json` only to commands that declare it, across every guidance tree", async () => {
+  it("passes `--json` only to commands that declare it, across all guidance", async () => {
     expect(declaresJson.has("review status")).toBe(false);
     expect(declaresJson.has("review resolve")).toBe(false);
     expect(declaresJson.has("status")).toBe(true);
 
-    const documents = await Promise.all(GUIDANCE_ROOTS.map(async ({ path }) => {
-      const entries = await readdir(path, { recursive: true });
-      const markdown = entries.filter((entry) => entry.endsWith(".md"));
-      return Promise.all(markdown.map(async (entry) => {
-        const file = resolve(path, entry);
-        return { file, invocations: guidanceInvocations(await readFile(file, "utf8")) };
-      }));
-    }));
-    const scanned = documents.flat();
+    const scanned = await Promise.all((await guidanceMarkdownFiles(root)).map(async (file) => (
+      { file, invocations: guidanceInvocations(await readFile(file, "utf8")) }
+    )));
 
     // The scan is derived, so an over-tight filter would pass by finding nothing. A command that
     // genuinely keeps the flag is the fixed point that proves the scan still sees `--json`.
