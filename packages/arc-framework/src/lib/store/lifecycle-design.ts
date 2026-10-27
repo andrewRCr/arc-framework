@@ -5,6 +5,7 @@ import type { Store } from "./contract.js";
 import type { StoreRecord } from "./read.js";
 import { workUnitArtifactName } from "./lifecycle-write.js";
 import { companionArtifactName } from "./companion-name.js";
+import { isSlugSafe } from "../kernel/schema/slug.js";
 
 /** Preferred design content and its decoded record, retaining acquisition diagnostics. */
 export interface LifecycleDesignResult {
@@ -40,7 +41,8 @@ function designArtifactName(slug: string, record: StoreRecord): string | null {
   if (kind === "work-item/spec" || kind === "work-item/draft") {
     return workUnitArtifactName(slug, kind === "work-item/spec" ? "spec" : "draft");
   }
-  return kind === "work-item/companion" && typeof key === "string" ? companionArtifactName(slug, key) : null;
+  return kind === "work-item/companion" && typeof key === "string"
+    ? isSlugSafe(key) ? companionArtifactName(slug, key) : key : null;
 }
 
 /** Read the preferred design without treating report paths as authority.
