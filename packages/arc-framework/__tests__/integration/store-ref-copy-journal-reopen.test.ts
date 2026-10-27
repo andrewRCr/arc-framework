@@ -6,11 +6,18 @@ import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
 
-it.each([false, true])("recovers an accepted copy whose archived item reopened before confirmation: %s", async reopen => {
+it.each([false, true].flatMap(reopen => [false, true].map(withPredecessor => ({ reopen, withPredecessor }))))(
+  "recovers an accepted archived copy (reopen=$reopen, predecessor=$withPredecessor)", async ({ reopen, withPredecessor }) => {
   const h = await switchFixture();
   const made = success(await h.store.write({ action: "put", expected: null,
     reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "copy-reopen" } }),
     content: makeMetaFixture("copy-reopen"), placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "activate" } }));
+  if (made.reference.owner.type !== "work-item" || !made.reference.owner.uid) throw new Error("Expected a work UID");
+  if (withPredecessor) {
+    success(await h.store.push());
+    const predecessor = `refs/arc/work/${made.reference.owner.uid}`;
+    await h.a.git(["push", "--atomic", h.destinationDirectory, "refs/arc/project/registry:refs/arc/project/registry", `${predecessor}:${predecessor}`]);
+  }
   const before = success(await h.store.read({ reference: made.reference }));
   success(await h.store.write({ action: "put", reference: before.reference, expected: before.version, content: before.content,
     placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
@@ -32,6 +39,7 @@ it.each([false, true])("recovers an accepted copy whose archived item reopened b
   const journal = "refs/arc/tmp/migrate/pending-copy/record";
   expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", journal])).stdout.trim()).toBe(journal);
   const held = JSON.parse((await h.a.exec("git", ["cat-file", "blob", journal])).stdout) as { attempt: { changes: { ref: string; next: string | null }[] } };
+  if (withPredecessor) expect(held.attempt.changes).toContainEqual(expect.objectContaining({ ref: live, next: null }));
   const proposed = held.attempt.changes.find(change => change.ref === history)?.next;
   expect(proposed).toEqual(expect.any(String));
   if (reopen) {

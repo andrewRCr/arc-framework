@@ -93,17 +93,20 @@ export async function beginCopyJournal(context: RefBackendContext, key: string, 
   await saveJournal(context, record, prior?.refs ?? new Map());
 }
 
-async function landedChange(context: RefBackendContext, change: z.infer<typeof ChangeSchema>, destination: ReadonlyMap<string, string>): Promise<boolean> {
-  if (change.next === null) return !destination.has(change.ref);
+async function landedChange(context: RefBackendContext, change: z.infer<typeof ChangeSchema>, destination: ReadonlyMap<string, string>,
+  proposed: ReadonlyMap<string, string | null>): Promise<boolean> {
+  if (change.next === null && !destination.has(change.ref)) return true;
   const paired = /^refs\/arc\/history\/(work|cohort)\//u.test(change.ref)
     ? change.ref.replace(/^refs\/arc\/history\/(work|cohort)\//u, "refs/arc/$1/")
     : change.ref.replace(/^refs\/arc\/(work|cohort)\//u, "refs/arc/history/$1/");
-  const current = destination.get(change.ref) ?? (paired !== change.ref ? destination.get(paired) : undefined);
-  if (current === change.next) return true;
-  if (!current) return false;
-  const objects = await readBatchObjects(context, [change.next, current]);
-  return objects.get(change.next)?.type === "commit" && objects.get(current)?.type === "commit"
-    && await syncRefIsAncestor(context, change.next, current);
+  // A later lifecycle move may recreate the deleted coordinate from the paired update in this same attempt.
+  const next = change.next ?? (paired !== change.ref ? proposed.get(paired) : undefined);
+  const current = destination.get(change.ref) ?? (change.next !== null && paired !== change.ref ? destination.get(paired) : undefined);
+  if (!next || !current) return false;
+  if (current === next) return true;
+  const objects = await readBatchObjects(context, [next, current]);
+  return objects.get(next)?.type === "commit" && objects.get(current)?.type === "commit"
+    && await syncRefIsAncestor(context, next, current);
 }
 
 /** Reconcile an interrupted atomic copy against freshly fetched destination evidence before rebuilding it. */
@@ -114,7 +117,8 @@ export async function recoverCopyJournal(context: RefBackendContext, key: string
   const { record, refs } = held, attempt = record.attempt;
   if (attempt) {
     let landed = true;
-    for (const change of attempt.changes) if (!await landedChange(context, change, destination)) { landed = false; break; }
+    const proposed = new Map(attempt.changes.map(({ ref, next }) => [ref, next]));
+    for (const change of attempt.changes) if (!await landedChange(context, change, destination, proposed)) { landed = false; break; }
     const unchanged = attempt.changes.every(change => (destination.get(change.ref) ?? null) === change.expected);
     if (!landed && !unchanged) throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable",
       condition: "Destination state changed after an interrupted copy, so its landed report cannot yet be established.",
