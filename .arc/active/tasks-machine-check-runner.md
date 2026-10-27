@@ -96,15 +96,14 @@ selectors refuse with a successful repaired retry, while ordinary native checks 
           Invalid files refuse with repair/retry; empty batches skip capture, and command/preparation failures dispose
           owned inputs while preserving native status, workflow arguments, shard playback and index/fixer handling.
 
-### `[ ]` **1.6 Exercise captured native and CI inputs — D2, D9** — validate exit criterion at segment scope
+### `[x]` **1.6 Exercise captured native and CI inputs — D2, D9** — validate exit criterion at segment scope
 
 - _Goal:_ Production native and CI entry points demonstrate the phase exit criterion using shared bindings and preserve
   existing native execution under conflicting ambient repository selectors.
-
-    - Run executable native/CI scenarios with a late-delivered file, mutations after capture, reserved-binding refusal
-      then repair, and native checked-index behavior; consume the tests added with their owning tasks.
-    - Request `npx arc check segment`; record scenario identities/results and broader feedback actually selected.
-    - Keep corrective implementation in its owning task or a revision parent ahead of this verifier.
+- _Outcome:_ `check-environment-inputs.e2e` and `ci-check-runner` scenarios passed for late delivery, frozen mutations,
+  presence, stale-forecast repair and cleanup. `check-index.e2e` and `check-git-environment.e2e` retained checked-index
+  ownership and independent Git behavior. A built-CLI scenario refused a reserved mixed-case binding before execution
+  (exit 2); removing it produced a passing native retry (exit 0) despite conflicting ambient Git selectors.
 
 ## **Phase 2:** Establish portable source and execution contracts
 
