@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "hosted-errand-fallback",
+  "claimId": "937c9b98fc33964195a4e8e12afd0679",
+  "createdAt": "2026-10-27T18:31:13.401Z",
+  "updatedAt": "2026-10-27T18:31:13.401Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Repair hosted Errand fallback admission after a safely unavailable earlier review source while preserving attempt history, source authority and existing review gates.",
+  "branch": "fix/hosted-errand-fallback",
+  "origin": "inbox",
+  "originEntry": "Fix hosted Errand fallback after a rate-limited review source",
+  "originEntrySourceDigest": "sha256:6b619a750e9606fb43a86b1966b901f2699d1740e7ad525e59f68cf7a29d5556",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
