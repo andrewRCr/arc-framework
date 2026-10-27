@@ -1,6 +1,6 @@
 /** Native checks and forecasts preserve selected files through directory links. */
 import { afterEach, expect, it, vi } from "vitest";
-import { mkdir, readFile, realpath, symlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { handleCheckRun } from "../../src/commands/check.js";
 import { createDeclaredCheckRepository } from "../fixtures/checks/repository.js";
@@ -12,7 +12,7 @@ const repositories: string[] = [];
 const context = makeInteractionContext({ noInput: true, machineReadable: true });
 const inspect = "const fs=require('node:fs');const paths=process.argv.slice(1);"
   + "const contents=paths.map(path=>fs.readFileSync(path,'utf8'));"
-  + "const receipt={paths,contents,cwd:fs.realpathSync(process.cwd())};fs.writeFileSync('receipt.json',JSON.stringify(receipt));"
+  + "const receipt={paths,contents};fs.writeFileSync('receipt.json',JSON.stringify(receipt));"
   + "console.log(JSON.stringify(receipt));process.exit(contents.some(content=>content.includes('BAD'))?1:0)";
 const command = [process.execPath, "-e", inspect];
 afterEach(async () => { vi.unstubAllEnvs(); await removeGitBackedDirs(repositories.splice(0)); });
@@ -39,13 +39,14 @@ it.each([
   const result = await runHandlerAt(root, () => handleCheckRun(["files"], { json: true }, context));
   const forecast = JSON.parse(dry.stdout).result.checks[0];
   const check = JSON.parse(result.stdout).result.checks[0];
+  // A fresh relative receipt must be found through the intended directory, regardless of its path spelling.
   const receipt = await readFile(join(directory, "receipt.json"), "utf8").then(text => JSON.parse(text)).catch(() => undefined);
   expect.soft(dry.exitCode, dry.stdout + dry.stderr).toBe(0);
   expect.soft(forecast).toMatchObject({ outcome: "would run", cwd: "alias", batches: [[...command, "file.txt"]] });
   expect.soft(before).toBeUndefined();
   expect.soft(result.exitCode, result.stdout + result.stderr).toBe(scenario.exitCode);
   expect.soft(check).toMatchObject({ outcome: scenario.outcome });
-  expect.soft(receipt).toEqual({ paths: ["file.txt"], contents: [scenario.content], cwd: await realpath(directory) });
+  expect.soft(receipt).toEqual({ paths: ["file.txt"], contents: [scenario.content] });
 });
 
 it("retains native missing-directory reporting and succeeds after repair", async () => {
