@@ -193,7 +193,7 @@ the selected source basis with independent Git coordinates, and budget complete 
           removal; incomplete history and unsupported formats refuse with cleanup and repaired retries, without copying
           caller configuration, hooks, private refs or dependent object stores.
 
-### `[ ]` **2.6 Build complete invocations and portable final-argv batches — D4, D5**
+### `[x]` **2.6 Build complete invocations and portable final-argv batches — D4, D5**
 
 - _Goal:_ Placement receives a complete immutable plan whose actual final argv fits both platform budgets and whose
   execution channels match native files/project/probe policy.
@@ -203,12 +203,11 @@ the selected source basis with independent Git coordinates, and budget complete 
           calculations. Shared partitioning preserves literal path order and withholding without expanding shards;
           oversized commands or paths refuse with shortening remedies, including empty path sets and literal shell text.
 
-    - `[ ]` **2.6.b Form invocation and probe plans with distinct content policy**
-        - Build `test-first` (one behavior at a time):
-            - Nonshell argv and explicit single-string shell commands retain their meaning and root-relative cwd.
-            - Files mode, including `pass_paths: false`, carries native `CheckContentContext`; project/probes omit it.
-            - Global probes use source root, check probes use check cwd, and invocation/probe IDs are unique.
-        - Supply complete plans to preparation; do not let placement rewrite path partitions or source coordinates.
+    - `[x]` **2.6.b Form invocation and probe plans with distinct content policy**
+        - `planCheckExecution` owns immutable argv, IDs and coordinates with root/check-scoped probes before placement.
+          Physical source/cwd geometry retains intended file arguments through directory links while transporting the
+          contained authored cwd. Files checks retain native content channels when paths are withheld; invalid plans
+          and probe overflow have refusal and repair paths.
 
 ## **Phase 3:** Implement the run-scoped adapter conversation
 
@@ -429,6 +428,8 @@ runs unknown runtime without reuse, preserves native outcomes, and closes or ret
               result handling, including a completed failure beside missing work.
             - Portable final argv, cwd and source/binding behavior execute on compatible platforms; POSIX signals and
               declared no-evidence precedence retain their native meanings.
+            - Windows capture refuses catalog backslashes before filesystem lookup can interpret them as separators or
+              traversal; POSIX backslash filenames remain literal source names.
 
     - `[ ]` **4.5.b Select and classify the foundation's supported-platform cases**
         - Extend `localVitestTierArguments` in `src/lib/local-vitest-runner.ts` and `isPortabilitySurfacePath` in
