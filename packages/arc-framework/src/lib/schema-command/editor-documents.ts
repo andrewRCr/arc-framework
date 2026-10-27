@@ -55,7 +55,10 @@ export async function writeEditorDocuments(
     content: `${JSON.stringify(foldKernelSchemaClosure(bundle, id), null, 2)}\n`,
   }));
   const absoluteDirectory = resolve(root, directory);
-  const lockPath = join(await resolveCheckoutGitDir(exec, root), "arc-editor-documents.lock");
+  let checkoutGitDir: string;
+  try { checkoutGitDir = await resolveCheckoutGitDir(exec, root); }
+  catch (error) { return { ok: false, target: "documents", path: absoluteDirectory, detail: detail(error) }; }
+  const lockPath = join(checkoutGitDir, "arc-editor-documents.lock");
   return fs.withLock(lockPath, async () => {
     try {
       await fs.rm(absoluteDirectory, { recursive: true, force: true });
