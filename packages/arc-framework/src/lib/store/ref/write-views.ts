@@ -35,14 +35,14 @@ export function createRefWriteViews(context: RefBackendContext, tips: ReadonlyMa
   const nextPoints = new Map<string, Promise<RefViewState>>();
   const before = (reference?: RecordReference) => {
     const key = pointViewKey(context, reference);
-    if (prior || key === undefined || !reference) return prior ??= captureRefViewState(context, tips);
+    if (key === undefined || !reference) return prior ??= captureRefViewState(context, tips);
     let point = priorPoints.get(key);
     if (!point) { point = captureRefPointViewState(context, tips, reference); priorPoints.set(key, point); }
     return point;
   };
   const after = (reference?: RecordReference) => {
     const key = pointViewKey(context, reference);
-    if (next || key === undefined) return next ??= before().then((state) => overlayRefViewState(context, state, groups));
+    if (key === undefined) return next ??= before().then((state) => overlayRefViewState(context, state, groups));
     let point = nextPoints.get(key);
     if (!point) { point = before(reference).then((state) => overlayRefViewState(context, state, groups)); nextPoints.set(key, point); }
     return point;
@@ -63,9 +63,9 @@ export function capturedRefView(context: RefBackendContext, load: (reference?: R
 function pointViewKey(context: RefBackendContext, reference?: RecordReference): string | undefined {
   if (!context.writeEvidence || !reference) return undefined;
   const owner = reference.owner;
-  if ((owner.type !== "work-item" && owner.type !== "cohort") || !owner.uid
-    || context.registry[reference.kind].family !== (owner.type === "work-item" ? "work-item" : "cohort")) return undefined;
-  return `${owner.type}:${owner.uid}`;
+  if (owner.type !== "person" && owner.type !== "project" && !owner.uid) return undefined;
+  // A scoped fallback contains only this subject and its siblings, so another subject needs its own cache entry.
+  return JSON.stringify(reference);
 }
 
 function lookupView(context: RefBackendContext, state: RefViewState, input: LookupInput, identity: string | null = null): StoreResult<LookupResult> {
@@ -172,7 +172,8 @@ function readViewRecord(context: RefBackendContext, state: RefViewState, referen
   if (owner.status === "refused") return owner;
   reference = RecordReferenceSchema.parse({ ...reference, owner: owner.result });
   const conflicts = viewOpenConflicts(context, state, home, reference);
-  const record = decodeRecord(context, reference, object, metadata, home.path, conflicts, group.readPlacement, { saved: state.saved, pointRead: true });
+  if (conflicts.status === "refused") return conflicts;
+  const record = decodeRecord(context, reference, object, metadata, home.path, conflicts.result, group.readPlacement, { saved: state.saved, pointRead: true });
   return "reference" in record ? { status: "ok", result: record } : { status: "refused", refusal: { code: "record-malformed", class: "recoverable",
     reference, rule: record.condition, condition: record.condition, remedy: record.remedy } };
 }
@@ -210,13 +211,19 @@ function viewProjectReference(state: RefViewState, reference: RecordReference): 
   return owner.status === "refused" ? owner : admitProjectReference(reference, owner.result);
 }
 
-function viewOpenConflicts(context: RefBackendContext, state: RefViewState, home: StoredRecordHome, reference: RecordReference): RecordReference[] {
+function viewOpenConflicts(context: RefBackendContext, state: RefViewState, home: StoredRecordHome, reference: RecordReference): StoreResult<RecordReference[]> {
   const group = state.refs.get(home.ref);
   if (!group) throw new Error("A checked record has no captured ref group");
   const family = context.registry[reference.kind].family;
   const listed = decodeCapturedRef(context, { family }, home.ref, group.entries, state.objects, group.metadata,
     reference.owner.type === "project" ? reference.owner : undefined, group.readPlacement, { saved: state.saved, pointRead: true });
-  return listed.records.find((record) => sameReference(record.reference, reference))?.conflicts ?? [];
+  const refusal = listed.conflictRefusals?.get(home.path);
+  if (refusal) return { status: "refused", refusal };
+  const record = listed.records.find((record) => sameReference(record.reference, reference));
+  if (record) return { status: "ok", result: record.conflicts };
+  const diagnostic = listed.diagnostics.find(({ key }) => key === home.path);
+  return diagnostic ? { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference,
+    rule: diagnostic.condition, condition: diagnostic.condition, remedy: diagnostic.remedy } } : missing(reference, state.saved);
 }
 
 function resolveViewOwner(context: RefBackendContext, state: RefViewState, reference: RecordReference): StoreResult<RecordReference> {

@@ -1,13 +1,13 @@
 /** Read records and families from immutable manifest tips, confined to this identity. */
 import { restartOnVanishedStore } from "./repository.js";
 import { checkRefKey } from "./path-admission.js";
-import type { StateVersion } from "../identity.js";
+import type { StateVersion, RecordReference } from "../identity.js";
 import type { ReadInput, ListInput, StoreRecord, ListingOutcome } from "../read.js";
 import { HistoryRefSchema, type StoreResult } from "../refusal.js";
 import type { StoreView } from "../write-check.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefManifest } from "./manifest-read.js";
-import { captureRefViewState } from "./view-state.js";
+import { captureRefPointViewState, captureRefViewState } from "./view-state.js";
 import { capturedRefView } from "./write-views.js";
 import { matchesFamilyRef, rootFamily } from "./codec.js";
 import { refListingRefusal } from "./read.js";
@@ -20,7 +20,7 @@ export async function readSnapshotRecord(context: RefBackendContext, input: Read
   if (invalid) return { status: "refused", refusal: invalid };
   const asOf = input.asOf;
   return restartOnVanishedStore(context, async (bound) => {
-    const loaded = await snapshotView(bound, asOf, { family: bound.registry[input.reference.kind].family, owner: input.reference.owner }, true);
+    const loaded = await snapshotView(bound, asOf, { family: bound.registry[input.reference.kind].family, owner: input.reference.owner }, input.reference);
     return loaded.status === "refused" ? loaded : loaded.result.read(input);
   });
 }
@@ -40,14 +40,16 @@ export async function listSnapshotRecords(context: RefBackendContext, input: Lis
   });
 }
 
-async function snapshotView(context: RefBackendContext, version: StateVersion, input: ListInput, pointRead = false): Promise<StoreResult<StoreView>> {
+async function snapshotView(context: RefBackendContext, version: StateVersion, input: ListInput, reference?: RecordReference): Promise<StoreResult<StoreView>> {
   const manifest = await readRefManifest(context, version);
   if (!manifest) return { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", stateVersion: version, historyRefs: [],
     condition: "The saved manifest is not available in this clone.", remedy: { text: "Rebuild the saved state from the current store and retry with its new state version." } } };
   const tips = selectSnapshotTips(manifest, input, await context.identity());
-  const state = await captureRefViewState(context, tips);
+  const owner = reference?.owner;
+  const known = owner && (owner.type === "person" || owner.type === "project" || owner.uid !== undefined);
+  const state = reference && known ? await captureRefPointViewState(context, tips, reference) : await captureRefViewState(context, tips);
   const unavailable = [...state.refs].filter(([, group]) => group.entries === undefined).map(([ref]) => ref);
-  if (unavailable.length && !pointRead) return unavailableSnapshot(version, unavailable);
+  if (unavailable.length && !reference) return unavailableSnapshot(version, unavailable);
   const view = capturedRefView(context, () => Promise.resolve({ ...state, saved: true }));
   return { status: "ok", result: unavailable.length ? { ...view, read: async request => {
     const result = await view.read(request);

@@ -5,7 +5,7 @@ import { expandStoredPath, holdsNoRecord, type StoredRecordHome } from "../store
 import type { StoreRecord } from "../read.js";
 import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
-import { readBatchObjects, readRefTrees } from "./batch-read.js";
+import { readBatchObjects, readRefTrees, type BatchObject } from "./batch-read.js";
 import { canonicalPrimaryKind, parseRefMetadata, type RefMetadata } from "./metadata.js";
 import { decodeRecord, refOwner, rootFamily } from "./codec.js";
 import { readOpenConflicts } from "./conflicts-read.js";
@@ -34,11 +34,17 @@ export async function readUidRefRecord(context: RefBackendContext, requested: Re
     if (invalid) return { status: "refused", refusal: invalid };
     const object = objects.get(recordQuery);
     if (object?.type !== "blob") return refRecordAbsence(context, reference, home, tip.oid);
-    const conflicts = await readOpenConflicts(context, reference, objects.get(conflictsQuery));
-    const record = decodeRecord(context, reference, object, metadata, home.path, conflicts, undefined, { pointRead: true });
-    return "reference" in record ? { status: "ok", result: record } : { status: "refused", refusal: { code: "record-malformed", class: "recoverable",
-      reference, rule: record.condition, condition: record.condition, remedy: record.remedy } };
+    return readUidContent(context, reference, home, { object, metadata, conflicts: objects.get(conflictsQuery), tip: tip.oid });
   }
+}
+
+async function readUidContent(context: RefBackendContext, reference: RecordReference, home: StoredRecordHome,
+  captured: { object: BatchObject; metadata: RefMetadata; conflicts: BatchObject | null | undefined; tip: string }): Promise<StoreResult<StoreRecord>> {
+  const conflicts = await readOpenConflicts(context, reference, captured.conflicts, { ...home, tip: captured.tip });
+  if (conflicts.status === "refused") return conflicts;
+  const record = decodeRecord(context, reference, captured.object, captured.metadata, home.path, conflicts.result, undefined, { pointRead: true });
+  return "reference" in record ? { status: "ok", result: record } : { status: "refused", refusal: { code: "record-malformed", class: "recoverable",
+    reference, rule: record.condition, condition: record.condition, remedy: record.remedy } };
 }
 
 function liveUidReference(context: RefBackendContext, reference: RecordReference): boolean {

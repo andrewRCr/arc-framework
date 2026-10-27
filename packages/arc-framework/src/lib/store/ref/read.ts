@@ -71,8 +71,14 @@ async function readBoundRecord(context: RefBackendContext, requested: RecordRefe
   const owner = resolveCapturedOwner(context, reference, home, metadata, object);
   if (owner.status === "refused") return owner;
   reference = RecordReferenceSchema.parse({ ...reference, owner: owner.result });
-  const conflicts = await readOpenConflicts(context, reference, objects.get(conflictsQuery));
-  const record = decodeRecord(context, reference, object, metadata, home.path, conflicts, undefined, { pointRead: true });
+  return readBoundContent(context, reference, home, { object, metadata, conflicts: objects.get(conflictsQuery), tip });
+}
+
+async function readBoundContent(context: RefBackendContext, reference: RecordReference, home: StoredRecordHome,
+  captured: { object: BatchObject; metadata: RefMetadata; conflicts: BatchObject | null | undefined; tip: string }): Promise<StoreResult<StoreRecord>> {
+  const conflicts = await readOpenConflicts(context, reference, captured.conflicts, { ...home, tip: captured.tip });
+  if (conflicts.status === "refused") return conflicts;
+  const record = decodeRecord(context, reference, captured.object, captured.metadata, home.path, conflicts.result, undefined, { pointRead: true });
   return "reference" in record ? { status: "ok", result: record } : { status: "refused", refusal: {
     code: "record-malformed", class: "recoverable", reference, rule: record.condition,
     condition: record.condition, remedy: record.remedy } };
@@ -202,7 +208,7 @@ function filterListingLocations(records: StoreRecord[], input: ListInput): Store
     && locations.includes(placement.kind === "backlog" ? placement.commitment : placement.kind));
 }
 
-interface DecodedRecords { records: StoreRecord[]; diagnostics: ListingDiagnostic[]; unreadable?: true }
+interface DecodedRecords { records: StoreRecord[]; diagnostics: ListingDiagnostic[]; unreadable?: true; conflictRefusals?: ReadonlyMap<string, StoreRefusal> }
 
 /** Decode one ref without observing live tips, with optional prepared metadata. */
 export function decodeCapturedRef(context: RefBackendContext, input: ListInput, ref: string,
@@ -223,7 +229,8 @@ export function decodeCapturedRef(context: RefBackendContext, input: ListInput, 
     if (!record) continue;
     if ("reference" in record) records.push(record); else diagnostics.push(record);
   }
-  return { records: selectRecords(attachOpenConflicts(records), input), diagnostics };
+  const attached = attachOpenConflicts(context, records, entries, objects, options.saved);
+  return { records: selectRecords(attached.records, input), diagnostics: [...diagnostics, ...attached.diagnostics], conflictRefusals: attached.conflictRefusals };
 }
 
 function decodeCapturedEntry(context: RefBackendContext, family: FamilyId, owner: OwnerIdentity, entry: RefTreeEntry,
@@ -332,6 +339,8 @@ export function readArchivedFolder(context: RefBackendContext, folder: ArchivedF
   if (invalidKey) return { status: "refused", refusal: invalidKey };
   const decoded = decodeCapturedRef(context, { family, kind: reference.kind, owner: reference.owner }, folder.liveRef,
     folder.entries, objects, folder.metadata, undefined, folder.placement, { saved, pointRead: true });
+  const conflictRefusal = decoded.conflictRefusals?.get(expandStoredPath(reference, { registry: context.registry }).path);
+  if (conflictRefusal) return { status: "refused", refusal: conflictRefusal };
   const record = decoded.records.find(record => sameReference(record.reference, reference));
   if (record) return { status: "ok", result: record };
   const path = expandStoredPath(reference, { registry: context.registry }).path;

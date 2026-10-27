@@ -2,9 +2,11 @@
 
 import { ConflictRecordSchema } from "../conflict.js";
 import { RecordReferenceSchema, sameReference, type RecordReference } from "../identity.js";
-import type { StoreRecord } from "../read.js";
+import type { StoreRecord, ListingDiagnostic } from "../read.js";
+import type { StoreResult, StoreRefusal } from "../refusal.js";
+import { expandStoredPath } from "../stored-path.js";
 import type { RefBackendContext } from "./context.js";
-import { readBatchObjects, type BatchObject } from "./batch-read.js";
+import { readBatchObjects, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 
 const strict = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
@@ -13,31 +15,70 @@ const strict = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
  * names no conflict key is skipped: the read has no diagnostics, and its family listing reports such an entry malformed.
  */
 export async function readOpenConflicts(context: RefBackendContext, target: RecordReference,
-  tree: BatchObject | null | undefined): Promise<RecordReference[]> {
-  if (tree?.type !== "tree") return [];
-  const entries = conflictTreeEntries(tree);
+  tree: BatchObject | null | undefined, basis: { tip: string; ref: string; root: string }): Promise<StoreResult<RecordReference[]>> {
+  const directory = `${basis.ref}:${basis.root}conflicts`;
+  if (tree?.type !== "tree") {
+    // A missing path query also means an existing directory's tree object is missing. Its pinned parent proves absence.
+    if (!tree) {
+      const query = basis.root ? `${basis.tip}:${basis.root.slice(0, -1)}` : `${basis.tip}^{tree}`;
+      const parent = (await readBatchObjects(context, [query])).get(query);
+      if (parent?.type === "tree" && !treeEntries(parent).some(({ name }) => name === "conflicts")) return { status: "ok", result: [] };
+    }
+    return { status: "refused", refusal: unavailableConflictEvidence(target, directory) };
+  }
+  const entries = treeEntries(tree).flatMap(({ name, oid }) => name?.endsWith(".json")
+    ? [{ key: name.slice(0, -5), oid, path: `${directory}/${name}` }] : []);
   const objects = await readBatchObjects(context, entries.map((entry) => entry.oid));
+  return establishConflicts(target, entries, objects);
+}
+
+interface ConflictEntry { key: string; oid: string; path: string }
+
+function establishConflicts(target: RecordReference, entries: readonly ConflictEntry[],
+  objects: ReadonlyMap<string, BatchObject | null>, saved = false): StoreResult<RecordReference[]> {
   const conflicts: RecordReference[] = [];
   for (const entry of entries) {
-    const object = objects.get(entry.oid);
-    if (object?.type !== "blob" || !namesTarget(object.bytes, target)) continue;
     const conflict = RecordReferenceSchema.safeParse({ owner: target.owner, kind: `${target.kind.split("/")[0]}/conflict-record`, key: entry.key });
-    if (conflict.success) conflicts.push(conflict.data);
+    if (!conflict.success) continue;
+    const object = objects.get(entry.oid);
+    if (object?.type !== "blob") return { status: "refused", refusal: unavailableConflictEvidence(target, entry.path, saved) };
+    const record = conflictTarget(object.bytes);
+    if (!record) return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference: target,
+      rule: "store.conflict-evidence", condition: `The sibling conflict at ${entry.path} cannot be decoded; its target and the record's conflict set cannot be established.`,
+      remedy: { text: saved ? "Restore the original conflict objects or select a readable saved state after repair; do not infer historical conflict evidence."
+        : "Repair the sibling conflict forward with its original supported payload, or rebuild with support for its format, then retry." } } };
+    if (matchesTarget(record, target)) conflicts.push(conflict.data);
   }
-  return conflicts;
+  return { status: "ok", result: conflicts };
 }
 
-/** Attach every target's open conflict references from the listing's already-read records. */
-export function attachOpenConflicts(records: readonly StoreRecord[]): StoreRecord[] {
-  const conflicts = records.filter((record) => record.reference.kind.endsWith("/conflict-record"))
-    .map((record) => ({ reference: record.reference, target: conflictTarget(new TextEncoder().encode(record.content)) }));
-  return records.map((record) => ({ ...record, conflicts: conflicts.filter((conflict) =>
-    conflict.target && matchesTarget(conflict.target, record.reference)).map((conflict) => conflict.reference) }));
+/** Attach raw sibling evidence even when a conflict record's format is newer than this build supports. */
+export function attachOpenConflicts(context: Pick<RefBackendContext, "registry">, records: readonly StoreRecord[],
+  entries: readonly RefTreeEntry[], objects: ReadonlyMap<string, BatchObject | null>, saved = false): {
+    records: StoreRecord[]; diagnostics: ListingDiagnostic[]; conflictRefusals: Map<string, StoreRefusal>;
+  } {
+  const attached: StoreRecord[] = [], diagnostics: ListingDiagnostic[] = [], conflictRefusals = new Map<string, StoreRefusal>();
+  for (const record of records) {
+    const home = expandStoredPath(record.reference, { registry: context.registry }), prefix = `${home.root}conflicts/`;
+    const siblings = entries.flatMap(({ path, oid, invalidName }) => {
+      const name = path.startsWith(prefix) ? path.slice(prefix.length) : "";
+      return !invalidName && name.endsWith(".json") && !name.includes("/") ? [{ path, oid, key: name.slice(0, -5) }] : [];
+    });
+    const conflicts = establishConflicts(record.reference, siblings, objects, saved);
+    if (conflicts.status === "ok") attached.push({ ...record, conflicts: conflicts.result });
+    else {
+      conflictRefusals.set(home.path, conflicts.refusal);
+      diagnostics.push({ kind: "unreadable", key: home.path, condition: conflicts.refusal.condition, remedy: conflicts.refusal.remedy });
+    }
+  }
+  return { records: attached, diagnostics, conflictRefusals };
 }
 
-function namesTarget(bytes: Uint8Array, target: RecordReference): boolean {
-  const record = conflictTarget(bytes);
-  return record !== null && matchesTarget(record, target);
+function unavailableConflictEvidence(reference: RecordReference, path: string, saved = false): StoreRefusal {
+  return { code: "state-unresolvable", class: "recoverable", reference, historyRefs: [],
+    condition: `The sibling conflict evidence at ${path} is unavailable; the record's conflict set cannot be established.`,
+    remedy: { text: saved ? "Restore or fetch the original missing conflict objects, then retry this saved-state read."
+      : "Restore or fetch the missing conflict objects, then retry the read or write with complete evidence." } };
 }
 
 /** Decode the target of a typed conflict independently of its containing path. */
@@ -48,8 +89,8 @@ export function conflictTarget(bytes: Uint8Array): RecordReference | null {
   return parsed.success ? parsed.data.record : null;
 }
 
-function conflictTreeEntries(tree: BatchObject): { key: string; oid: string }[] {
-  const entries: { key: string; oid: string }[] = [];
+function treeEntries(tree: BatchObject): { name: string | null; oid: string }[] {
+  const entries: { name: string | null; oid: string }[] = [];
   const oidBytes = tree.oid.length / 2;
   let cursor = 0;
   while (cursor < tree.bytes.length) {
@@ -57,8 +98,7 @@ function conflictTreeEntries(tree: BatchObject): { key: string; oid: string }[] 
     const end = tree.bytes.indexOf(0, space + 1);
     if (space < cursor || end < 0 || end + 1 + oidBytes > tree.bytes.length) throw new Error("Malformed conflict tree");
     const name = decodeName(tree.bytes.subarray(space + 1, end));
-    if (name?.endsWith(".json")) entries.push({ key: name.slice(0, -5),
-      oid: Buffer.from(tree.bytes.subarray(end + 1, end + 1 + oidBytes)).toString("hex") });
+    entries.push({ name, oid: Buffer.from(tree.bytes.subarray(end + 1, end + 1 + oidBytes)).toString("hex") });
     cursor = end + 1 + oidBytes;
   }
   return entries;
