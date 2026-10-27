@@ -25,9 +25,12 @@ async function readMarkedGitDir(marker: string, fs: GitDirectoryFileAccess): Pro
     if (hasCode(error, "EISDIR")) return marker;
     throw error;
   }
-  const match = /^gitdir:\s*(.+)$/u.exec(content.trim());
-  if (!match?.[1]) throw new Error(`Invalid Git directory marker ${marker}; repair it to contain gitdir: <path>`);
-  return resolveMarkerPath(dirname(marker), match[1], fs);
+  // Git removes only CR/LF terminators; every other byte after the exact prefix belongs to the path.
+  const value = content.replace(/[\r\n]+$/u, "");
+  if (!value.startsWith("gitdir: ") || value.length <= 8) {
+    throw new Error(`Invalid Git directory marker ${marker}; repair it to contain gitdir: <path>`);
+  }
+  return resolveMarkerPath(dirname(marker), value.slice(8), fs);
 }
 
 /** Preserve physical parent traversal before path normalization can erase a symlink component. */
@@ -50,7 +53,7 @@ export async function readGitDirectories(checkoutRoot: string, fs: GitDirectoryF
   const gitDir = (await fs.lstat(marker)).isDirectory() ? marker : await readMarkedGitDir(marker, fs);
   let common: string;
   try {
-    common = (await fs.readFile(join(gitDir, "commondir"))).trim();
+    common = (await fs.readFile(join(gitDir, "commondir"))).replace(/[\r\n]+$/u, "");
   } catch (error) {
     if (!hasCode(error, "ENOENT")) throw error;
     return { gitDir, commonDir: gitDir };

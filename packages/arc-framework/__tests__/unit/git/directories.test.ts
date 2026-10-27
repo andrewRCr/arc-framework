@@ -91,3 +91,29 @@ describe("filesystem Git directory discovery", () => {
   });
 
 });
+
+
+describe("significant whitespace in Git marker paths", () => {
+  it.skipIf(process.platform === "win32").each(["\n", "\r\n", ""])("preserves leading and trailing gitfile path bytes with ending %j", async eol => {
+    const path = await root(), gitDir = join(path, " separate \v\f\n\t");
+    await mkdir(gitDir);
+    await writeFile(join(path, ".git"), `gitdir:  separate \v\f\n\t${eol}`);
+    expect(await readGitDirectories(path, files)).toEqual({ gitDir, commonDir: gitDir });
+  });
+
+  it.skipIf(process.platform === "win32").each(["\n", "\r\n", ""])("preserves leading and trailing commondir path bytes with ending %j", async eol => {
+    const path = await root(), gitDir = join(path, ".git"), commonDir = join(gitDir, " common \v\f\n\t");
+    await mkdir(commonDir, { recursive: true });
+    await writeFile(join(gitDir, "commondir"), ` common \v\f\n\t${eol}`);
+    expect(await readGitDirectories(path, files)).toEqual({ gitDir, commonDir });
+  });
+
+  it("requires Git's exact marker prefix and accepts a repaired marker", async () => {
+    const path = await root(), gitDir = join(path, "separate.git"), marker = join(path, ".git");
+    await mkdir(gitDir);
+    await writeFile(marker, "gitdir:\tseparate.git\n");
+    await expect(readGitDirectories(path, files)).rejects.toThrow(/Invalid Git directory marker/u);
+    await writeFile(marker, "gitdir: separate.git\n");
+    expect(await readGitDirectories(path, files)).toEqual({ gitDir, commonDir: gitDir });
+  });
+});
