@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "integration-ci-only",
+  "claimId": "a45485ec36486891e9a16d49c59a07c1",
+  "createdAt": "2026-10-27T16:50:14.681Z",
+  "updatedAt": "2026-10-27T16:50:14.681Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Run the integration tier at the merge gate in CI only, and request local content integration runs only when wanted",
+  "branch": "chore/integration-ci-only",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
