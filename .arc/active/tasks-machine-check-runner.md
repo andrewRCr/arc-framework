@@ -476,14 +476,11 @@ declarations; the old wrapper is retired, native/default operation is preserved 
 - _Note:_ See `notes-machine-check-runner.md` § Repository adoption inventory and § Store prerequisite adoption; the
   nine current checks are a baseline inventory, not a retirement ceiling or a new backend completion wait.
 
-    - `[ ]` **6.1.a Re-ground and convert the full landed declaration surface**
-        - Inventory wrapper-prefixed declarations and their actual environment readers in the execution checkout;
-          replace prefixes with ordinary argv and `runner: true`, including `test:store` if it has landed.
-        - For landed store selection, declare `ARC_STORE_CHECK` and `ARC_STORE_BURSTS` as explicit `value` inputs;
-          retain the native reach command, mode, shard settings and applicable runtime probes.
-        - Preserve deadline/root/selection settings for all current declarations; keep provider controls outside
-          data-input maps and leave formatter/index/artifact-build declarations ineligible.
-        - Test-after the declaration edit with schema/read/forecast checks and selected configured/native runs.
+    - `[x]` **6.1.a Re-ground and convert the full landed declaration surface**
+        - Converted nine landed prefixes to ordinary argv and eligibility, preserving gates, roots, selectors, shards
+          and probes. Store is absent; existing readers need no new data bindings. Discovery separates machine-only
+          configuration from real home projects, with native portability selection covering both cases. Qualified
+          provider `29ac002` preserves captured workspace-bin modes during preparation.
 
     - `[ ]` **6.1.b Remove obsolete reach-catalogue references before deleting the wrapper**
         - When the store catalogue is present, remove its obsolete exact `scripts/check-runner.sh` widening entry and

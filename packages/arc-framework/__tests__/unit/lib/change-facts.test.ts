@@ -41,6 +41,7 @@ describe("raw Git file portability surface", () => {
 
 describe("runner foundation portability surface", () => {
   it.each([
+    "src/lib/paths.ts", "__tests__/unit/paths.test.ts", "__tests__/e2e/check-runner-home.e2e.test.ts",
     "src/lib/checks/runner/planning.ts", "src/lib/checks/runner/source-cwd.ts",
     "src/lib/checks/runner/source-paths.ts", "src/lib/checks/runner/session-process.ts",
     "src/lib/checks/runner/execution-run.ts", "src/lib/checks/process.ts", "src/lib/checks/result.ts",

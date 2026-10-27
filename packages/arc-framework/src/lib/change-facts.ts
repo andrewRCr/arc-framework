@@ -310,6 +310,8 @@ const PACKAGED_CONTENT_SENSITIVE_GLOBS = [
 const PLANNING_RECORD_GLOBS = [".arc/backlog/*", ".arc/completed/*"] as const;
 
 const PORTABILITY_SURFACE_GLOBS = [
+  "packages/arc-framework/src/lib/paths.ts",
+  "packages/arc-framework/__tests__/unit/paths.test.ts",
   "packages/arc-framework/src/lib/git/process-executor.ts",
   "packages/arc-framework/__tests__/integration/raw-git-files.test.ts",
   "packages/arc-framework/__tests__/integration/check-source-git.test.ts",

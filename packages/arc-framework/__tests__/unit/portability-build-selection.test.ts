@@ -7,7 +7,7 @@ import { makeVitestControllerFixture } from "../helpers/vitest-controller-fixtur
 
 it("selects the build and prebuilt recovery suites alongside existing portability cases", async () => {
   const fixture = await makeVitestControllerFixture();
-  const required = ["fs.test.ts", "build-context.test.ts", "build-cancellation.test.ts", "build-generation-lifetime.test.ts",
+  const required = ["paths.test.ts", "check-runner-home.e2e.test.ts", "fs.test.ts", "build-context.test.ts", "build-cancellation.test.ts", "build-generation-lifetime.test.ts",
     "build-coordinator.test.ts", "build-publication.test.ts",
     "build-inventory.test.ts", "build-ownership.test.ts", "ci-build-transfer.test.ts", "ci-build-recovery.test.ts",
     "lib/checks/runner/planning-spelling.test.ts", "lib/checks/runner/source-platform-paths.test.ts",
