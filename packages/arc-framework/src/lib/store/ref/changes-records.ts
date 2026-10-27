@@ -92,7 +92,8 @@ function recordWindowStates(context: RefBackendContext, captured: CapturedChange
   const home = { ...expandStoredPath(reference, { registry: context.registry }), ref: captured.window.ref };
   const states = new Map<string, HistoricalState>();
   for (const [revision, entries] of captured.trees) {
-    const state = historicalState(context, reference, home, entries, captured.objects, placements?.get(revision));
+    const state = historicalState(context, reference, home, entries, captured.objects, placements?.get(revision),
+      captured.recordFree.has(revision));
     if (state.status === "refused") return state;
     states.set(revision, state.result);
   }

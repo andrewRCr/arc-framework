@@ -16,6 +16,7 @@ import { refFormatKey } from "./format-key.js";
 import { refRecordVersion } from "./record-version.js";
 import { withCompletedPlacement } from "./archive-refresh.js";
 import type { ReadPlacement } from "../placement.js";
+import { captureHistoricalNamespaces } from "./historical-namespace.js";
 
 /** Exact state at a commit before attaching the commit's provenance. */
 export type HistoricalState = Pick<HistoryEntry, "reference" | "version" | "content">;
@@ -31,12 +32,18 @@ export async function readHistorySnapshots(context: RefBackendContext, reference
   const objects = await readBatchObjects(context, [...new Set([...revisions, ...[...trees.values()].flatMap((entries) => entries.map((entry) => entry.oid))])]);
   const receipts = captureCommitReceipts(objects, home.ref, evidence, reference);
   if (receipts.status === "refused") return receipts;
+  const namespaces = await captureHistoricalNamespaces(context, home, trees, objects, false);
+  const unavailable = [...namespaces.unavailable][0];
+  if (unavailable) return { status: "refused", refusal: unavailableHistory(reference, unavailable) };
+  if (namespaces.corrupt.size) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
+    namespace: home.ref, ...historicalMetadataFailure(home.ref) } };
   const snapshots = new Map<string, HistoricalSnapshot>();
   for (const revision of revisions) {
     const tree = trees.get(revision);
     const commit = objects.get(revision);
     if (!tree || commit?.type !== "commit") return { status: "refused", refusal: unavailableHistory(reference, revision) };
-    const state = historicalState(context, reference, home, tree, objects, revision === tip ? ended : undefined);
+    const state = historicalState(context, reference, home, tree, objects, revision === tip ? ended : undefined,
+      namespaces.recordFree.has(revision));
     if (state.status === "refused") return state;
     const creationReceipt = receipts.result.get(revision);
     snapshots.set(revision, { state: state.result, message: capturedCommitMessage(commit),
@@ -50,10 +57,11 @@ export async function readHistorySnapshots(context: RefBackendContext, reference
  * whose latest folder defined it takes that folder's placement, as read did.
  */
 export function historicalState(context: RefBackendContext, requested: RecordReference, home: StoredRecordHome,
-  tree: readonly RefTreeEntry[], objects: ReadonlyMap<string, BatchObject | null>, ended?: ReadPlacement): StoreResult<HistoricalState> {
+  tree: readonly RefTreeEntry[], objects: ReadonlyMap<string, BatchObject | null>, ended?: ReadPlacement,
+  recordFree = false): StoreResult<HistoricalState> {
   const metadataEntry = tree.find((entry) => entry.path === home.metadataPath);
   const metadata = stateMetadata(metadataEntry ? objects.get(metadataEntry.oid) : null, home.ref, ended);
-  if (!metadata && tree.every((entry) => entry.path === home.metadataPath)) return { status: "ok", result: { reference: requested, version: null, content: null } };
+  if (!metadata && recordFree) return { status: "ok", result: { reference: requested, version: null, content: null } };
   if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: home.ref, ...historicalMetadataFailure(home.ref) } };
   requested = historicalReference(context, requested, home, metadata);
   const path = expandStoredPath(requested, { registry: context.registry }).path;

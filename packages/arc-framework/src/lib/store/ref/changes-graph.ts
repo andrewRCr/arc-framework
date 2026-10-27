@@ -14,6 +14,8 @@ import { HistoryRefSchema, type StoreResult, type StoreRefusal } from "../refusa
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { parseHistoryRows, orderHistoryCommits, type HistoryCommit } from "./history-order.js";
+import { captureHistoricalNamespaces } from "./historical-namespace.js";
+import { historicalMetadataFailure } from "./metadata.js";
 
 /**
  * An exact upper commit with an optional older ancestry exclusion. `placements` names each bound an ended owner's latest
@@ -26,6 +28,7 @@ export interface RefChangeWindow {
 export interface CapturedChangeWindow {
   receipts: Map<string, BatchCreationReceipt | undefined>;
   window: RefChangeWindow; rows: HistoryCommit[]; trees: Map<string, RefTreeEntry[]>; objects: Map<string, BatchObject | null>;
+  recordFree: ReadonlySet<string>;
 }
 
 /** The exact saved-state comparison shared by end discovery and record selection. */
@@ -57,7 +60,7 @@ async function captureChangeWindow(context: RefBackendContext, window: RefChange
   missingChangeState(window));
   if (graph.status === "refused") return graph;
   const rows = orderHistoryCommits(parseHistoryRows(graph.result)).reverse();
-  if (!rows.length) return { status: "ok", result: { window, rows, trees: new Map(), objects: heads, receipts: headReceipts.result } };
+  if (!rows.length) return { status: "ok", result: { window, rows, trees: new Map(), objects: heads, receipts: headReceipts.result, recordFree: new Set() } };
   const revisions = [...new Set([...rows.flatMap(({ revision, parents }) => [revision, ...parents]), ...window.lower ? [window.lower] : []])];
   const trees = await readRefTrees(context, new Map(revisions.map((revision) => [revision, revision])), window.paths);
   if (revisions.some((revision) => !trees.has(revision))) return { status: "refused", refusal: missingChangeState(window) };
@@ -65,7 +68,20 @@ async function captureChangeWindow(context: RefBackendContext, window: RefChange
   if (revisions.some((revision) => objects.get(revision)?.type !== "commit")) return { status: "refused", refusal: missingChangeState(window) };
   const receipts = captureCommitReceipts(objects, window.ref, evidence);
   if (receipts.status === "refused") return receipts;
-  return { status: "ok", result: { window, rows, trees, objects, receipts: receipts.result } };
+  const namespaces = await changeNamespaceFacts(context, window, trees, objects);
+  return namespaces.status === "refused" ? namespaces : { status: "ok", result: { window, rows, trees, objects, receipts: receipts.result,
+    recordFree: namespaces.result } };
+}
+
+async function changeNamespaceFacts(context: RefBackendContext, window: RefChangeWindow,
+  trees: ReadonlyMap<string, readonly RefTreeEntry[]>, objects: ReadonlyMap<string, BatchObject | null>): Promise<StoreResult<ReadonlySet<string>>> {
+  const live = window.ref.replace("refs/arc/history/", "refs/arc/"), family = viewRefFamily(live);
+  const home = family ? { ...expandStoredPath(refPrototype(context, live, family), { registry: context.registry }), ref: window.ref } : undefined;
+  const namespaces = home ? await captureHistoricalNamespaces(context, home, trees, objects, window.paths === undefined) : undefined;
+  if (namespaces?.unavailable.size) return { status: "refused", refusal: missingChangeState(window) };
+  if (namespaces?.corrupt.size) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
+    namespace: window.ref, ...historicalMetadataFailure(window.ref) } };
+  return { status: "ok", result: namespaces?.recordFree ?? new Set() };
 }
 
 /** Name the retained history that can repair a missing item window. */
