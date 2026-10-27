@@ -120,9 +120,10 @@ approval authority.
 ### Trend
 
 Once a lane has two or more looks, report its material trend: the critical and major findings at each look, each
-complete pass followed by its fix checks (for example `Pass 1 of 3: 6 → 2`). Give one reading, and say in a sentence or
-two where the review stands and where what remains comes from. Origins, tags, and change signals inform the reading
-and stay out of the report. Each reading points to a decision:
+complete pass followed by its fix checks (for example `Pass 1 of 3: 6 → 2`), or one line when no look found a critical
+or major finding. Give one reading, and say in a sentence or two where the review stands and where what remains comes
+from. Origins, tags, and change signals inform the reading and stay out of the report. Each reading points to a
+decision:
 
 - **`baseline`** — the first look has no trend yet; decide the fixes and their check from that look's own signal. A
   report shows no Trend for it.
