@@ -52,7 +52,9 @@ function unchanged(before: BigIntStats, after: BigIntStats, bytes: number): bool
 
 interface OpenCaptureFiles { input: EnvironmentInputFile; output?: EnvironmentInputWriter }
 
-async function copyOpenedInput(io: EnvironmentCaptureIO, files: OpenCaptureFiles, destination: string) {
+async function copyOpenedInput(io: EnvironmentCaptureIO, files: OpenCaptureFiles, destination: string): Promise<{
+  path: string; bytes: number; digest: `sha256:${string}`;
+}> {
   const { input } = files;
   const before = await input.stat();
   if (!before.isFile()) throw new EnvironmentFileCaptureError("input must resolve to a regular file");
@@ -77,7 +79,7 @@ async function copyOpenedInput(io: EnvironmentCaptureIO, files: OpenCaptureFiles
 
 /** Copy and hash one regular file, closing both handles without replacing a capture failure with a close failure. */
 export async function captureEnvironmentFile(io: EnvironmentCaptureIO, source: string, destination: string): Promise<{
-  path: string; bytes: number; digest: string;
+  path: string; bytes: number; digest: `sha256:${string}`;
 }> {
   const files: OpenCaptureFiles = { input: await io.openInput(source) };
   const copied = await copyOpenedInput(io, files, destination).then(

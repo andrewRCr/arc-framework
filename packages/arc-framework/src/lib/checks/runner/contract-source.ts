@@ -12,16 +12,17 @@ const SourceTextSchema = z.string().min(1).refine(value => isWellFormedUnicode(v
 export const SourceRelativePathSchema = SourceTextSchema.refine(value => value.split("/")
   .every(component => component !== "" && component !== "." && component !== ".."));
 
-const EntryPathSchema = SourceRelativePathSchema.refine(value => !value.split("/").includes(".git"));
+/** Literal source-entry names outside generated Git administration. */
+export const SourceEntryPathSchema = SourceRelativePathSchema.refine(value => !value.split("/").includes(".git"));
 
 /** Code coordinates retained independently from raw materialized bytes. */
 export const SourceCoordinatesSchema = z.strictObject({
   tree: GitObjectIdSchema, head: GitObjectIdSchema.optional(), base: GitObjectIdSchema.optional(), merged: z.array(GitObjectIdSchema),
 });
 
-const FileEntrySchema = z.strictObject({ path: EntryPathSchema, kind: z.literal("file"), mode: z.int().min(0).max(0o7777),
+const FileEntrySchema = z.strictObject({ path: SourceEntryPathSchema, kind: z.literal("file"), mode: z.int().min(0).max(0o7777),
   digest: CanonicalDigestSchema, bytes: z.int().nonnegative() });
-const SymlinkEntrySchema = z.strictObject({ path: EntryPathSchema, kind: z.literal("symlink"), target: SourceTextSchema });
+const SymlinkEntrySchema = z.strictObject({ path: SourceEntryPathSchema, kind: z.literal("symlink"), target: SourceTextSchema });
 
 /** One literal source file or symbolic link, excluding generated Git metadata. */
 export const SourceManifestEntrySchema = z.discriminatedUnion("kind", [FileEntrySchema, SymlinkEntrySchema]);

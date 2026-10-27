@@ -165,14 +165,10 @@ the selected source basis with independent Git coordinates, and budget complete 
 - _Goal:_ The captured manifest describes actual execution presentation and remains unchanged by later original edits,
   with portable identity independent of descriptor paths and generated Git administration details.
 
-    - `[ ]` **2.4.a Freeze stable regular files and supported links**
-        - Add injectable `runner/source*.ts` capture helpers; stream raw bytes and hashes into owned storage.
-        - Build `test-first` (one behavior at a time):
-            - Dirty/deleted/nonignored-untracked worktree entries preserve actual bytes, executable modes and link
-              targets.
-            - Invalid UTF-8/path components, unsupported kinds/modes, escaping links and detected changes refuse with
-              remedies.
-            - Manifest descriptors stay outside source paths; failed capture removes only its own settled resources.
+    - `[x]` **2.4.a Freeze stable regular files and supported links**
+        - `freezeSourcePresentation` freezes streamed bytes, modes, stored names and contained literal links, retaining
+          a private catalog-to-presentation map. Its separate descriptor and owned cleanup accompany refusal/retry/local
+          remedies for invalid, changed or unsupported entries, including unresolved Windows link types.
 
     - `[ ]` **2.4.b Canonicalize and validate public source identity**
         - Build `test-first` (one behavior at a time):
