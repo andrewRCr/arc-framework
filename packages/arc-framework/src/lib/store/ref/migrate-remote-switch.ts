@@ -14,17 +14,25 @@ import type { SwitchUndo } from "./migrate-switch-undo.js";
 import { withRefFetchKeepers } from "./fetch-seen.js";
 import { backingTransportsMatch, configureBackingRemote } from "./backing-configuration.js";
 
+/** Activation licenses use of current comparison heads before outstanding source cleanup finishes. */
+export async function remoteReceiverActive(context: RefBackendContext, destination: MoveRemote,
+  layout: StoreLayout, role: "push" | "read" | "off"): Promise<boolean> {
+  const source = context.repository?.source ?? context;
+  const designation = await readRefDesignation(source), physical = await readRefRepository(source);
+  if (Boolean(physical.repository?.gitDir) !== (layout === "separate")) return false;
+  const current = designation.remotes.find(remote => remote.name === destination.name
+    && remote.repository === destination.repository && remote.role === role);
+  return current?.url === destination.url
+    && (destination.repository !== "backing" || await backingTransportsMatch(physical, destination));
+}
+
 /** Derive completion from the installed layout and exact configured destination URLs. */
 export async function remoteSwitchComplete(context: RefBackendContext, recorded: RecordedRemote): Promise<boolean> {
   const designation = await readRefDesignation(context), destination = recorded.record.destination;
-  const current = designation.remotes.find(remote => remote.name === destination.name && remote.repository === destination.repository && remote.role === "push");
-  if (!current) return false;
-  const physical = await readRefRepository(context), { sourceLayout, destinationLayout } = recorded.record;
-  if (Boolean(physical.repository?.gitDir) !== (destinationLayout === "separate")) return false;
+  const { sourceLayout, destinationLayout } = recorded.record;
+  if (!await remoteReceiverActive(context, destination, destinationLayout, "push")) return false;
   const code = await migrationCodeContext(context);
   if (!await remoteLayoutCleanupComplete(code, sourceLayout, destinationLayout)) return false;
-  if (current.url !== destination.url) return false;
-  if (destination.repository === "backing" && !await backingTransportsMatch(physical, destination)) return false;
   if (recorded.record.source.repository === "backing") return destination.repository === "backing" || designation.backing === null;
   return designation.codeRemotes.find(remote => remote.name === recorded.record.source.name)?.role === "off";
 }
@@ -39,6 +47,7 @@ export async function switchRemoteMove(context: RefBackendContext, store: Store,
   await writeMovePointer(context, movePointer(destination));
   const configuration = {
     prepareTarget: async (target: RefBackendContext): Promise<void> => withRefFetchKeepers(target, destination.name, async () => {
+      if (await remoteReceiverActive(context, destination, to, "push")) return;
       await installCopiedHeads(code, target, destination.name);
       if (destination.repository === "backing") await configureBackingRemote(target, destination, "push");
     }),

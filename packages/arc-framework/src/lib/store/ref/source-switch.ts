@@ -5,7 +5,7 @@ import { readRefDesignation } from "./designation.js";
 import { markSwitchBegun, migrationCodeContext, type RecordedFollow, type RecordedLeaveSource } from "./migrate-record.js";
 import { moveRefLayoutAsSwitch } from "./migrate-layout.js";
 import { requireLayoutTransaction } from "./migrate-layout-build.js";
-import { installCopiedHeads, remoteLayoutCleanupComplete, removeBacking } from "./migrate-remote-switch.js";
+import { installCopiedHeads, remoteLayoutCleanupComplete, remoteReceiverActive, removeBacking } from "./migrate-remote-switch.js";
 import { readRefRepository } from "./repository.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
@@ -59,6 +59,8 @@ async function prepareSourceTarget(code: RefBackendContext, target: RefBackendCo
   const answer = recorded.record.kind === "follow" ? recorded.record.answer : "push";
   const replacingBacking = answer !== "push" && source.repository === "backing" && destination.repository === "backing";
   await withRefFetchKeepers(target, destination.name, async () => {
+    const active = await remoteReceiverActive(code, destination, recorded.record.destinationLayout, answer);
+    if (active) return;
     if (answer === "push") await installCopiedHeads(code, target, destination.name);
     if (destination.repository === "backing") {
       if (replacingBacking) await repointBackingRemote(target, destination, answer);
