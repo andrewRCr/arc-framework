@@ -96,6 +96,15 @@ exercise cache/report independence. This adds no completion wait on storage or d
 
 ## External adapter boundary
 
+Owner coordination on 2026-10-26 confirmed installed arc-offload revision `a70242d` (external push still pending at
+that point). Its README § Command routing safeguards and `Repository.route_for(argv)` define literal-prefix,
+first-match repository command routes. The adapter must apply these routes to planned argv before preparation and
+runner-dependent runtime/cache qualification, retain the eligible placement through execution, and prevent pins or
+fallback from broadening eligibility. A grouped plan must satisfy every invocation's route; local placement requires
+every applicable rule to allow it and the active provider mode to permit it. Resolve routes before transport/shell
+wrapping rather than losing the original argv's restriction. These remain provider-owned policy, with no new ARC
+protocol/resource fields; live registry contents remain outside tracked evidence.
+
 Required arc-offload changes land in that independent repository under its own instructions and checks. Proposed files
 are `arc_offload/arc_adapter.py` and `tests/test_arc_adapter.py`; qualify the same public executable boundary from ARC
 and record the exact external revision with evidence. Keep registry, provider capacity, local admission, transport
