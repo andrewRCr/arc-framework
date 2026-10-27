@@ -200,6 +200,7 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "state-ref-race.e2e",
         "git-executor",
         "delivery-transfer.e2e",
+        "check-symlink-cwd.test.ts",
       ];
     case "portability-macos":
       return ["anchored-sequence", "git-identity", "locus-errand-roundtrip", "rename"];
