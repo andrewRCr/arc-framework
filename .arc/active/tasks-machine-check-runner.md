@@ -418,7 +418,7 @@ admission/fallback remain provider-owned and cold/warm preparation costs are rec
           fallback. Shared ARC recovery retains uncertain captures and native failure 7 without replay; UUID settlement,
           queued/backpressured cancellation and drained release prove ownership. Classification uses repository profiles.
 
-### `[ ]` **5.3 Publish the adapter guide and qualified standalone example — D10**
+### `[x]` **5.3 Publish the adapter guide and qualified standalone example — D10**
 
 - _Goal:_ Teams can configure or implement an adapter in any language from shipped documentation and a runnable example,
   without ARC-private imports, personal runner installation or internal roadmap knowledge.
@@ -428,13 +428,10 @@ admission/fallback remain provider-owned and cold/warm preparation costs are rec
           complete wire/runtime/native-result and ownership contracts. Inspect/settle/retry guidance states the Linux
           example's containment, runtime and resource limits; its four modules measure 510 lines and 29,507 bytes.
 
-    - `[ ]` **5.3.b Ship the example and installed quality-gates guidance**
-        - Add the example to `packages/arc-framework/package.json` 's package inventory; ensure executable support
-          files/READMEs are present in a package dry-run and runnable without source-package imports.
-        - Update package-source `arc/reference/strategies/arc/strategy-quality-gates.md`, render its Framework copy
-          through the project sync command and verify installation, preserving configurable project sections.
-        - Test-after the documentation/configuration edit with public-example conformance, package inventory and
-          installed-document checks; add no unnecessary CLI schema family, SDK, RPC dependency or docs-site changes.
+    - `[x]` **5.3.b Ship the example and installed quality-gates guidance**
+        - Package inventory includes the independent example and support files. Dry-run/archive checks and actual packed
+          known/unknown execution verify source, explicit bindings, probes and closure without source-package modules.
+          A fresh packed-recipe installation receives the guidance; Framework rendering preserves project configuration.
 
 ### `[ ]` **5.4 Measure cold, warm and reusable-hit execution costs — D10**
 
