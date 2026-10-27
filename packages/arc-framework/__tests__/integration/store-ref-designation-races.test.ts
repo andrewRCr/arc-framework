@@ -1,6 +1,6 @@
 /** First-designation acquisition preserves explicit answers completed while asynchronous work waits. */
 import { describe, expect, it } from "vitest";
-import { createRefStore, RecordReferenceSchema, runStoreRemote } from "../../src/lib/store/index.js";
+import { createRefStore, RecordReferenceSchema, runStoreRemote, runStoreMigrate } from "../../src/lib/store/index.js";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { access } from "node:fs/promises";
@@ -9,6 +9,33 @@ import { join } from "node:path";
 const identity = RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } });
 const content = '{"projectId":"34567890-1234-4234-8234-123456789abc"}';
 const provenance = { verb: "init", lifecycleAction: "seed" };
+
+it("reconciles the current designation when automatic acquisition completes before layout admission", async () => {
+  const h = await refSyncFixture();
+  for (const checkout of [h.a, h.b]) success(await checkout.store.write({ action: "put", reference: identity,
+    expected: null, content, provenance }));
+  success(await h.a.store.push());
+  await h.b.exec("git", ["config", "--unset", "remote.origin.arc-state"]);
+  let admitted = false;
+  const migrated = await runStoreMigrate({ ...h.b.ports, lock: async (key, ...args) => {
+    if (key === "layout" && !admitted) {
+      admitted = true;
+      success(await h.b.store.pull());
+      expect((await h.b.exec("git", ["config", "remote.origin.arc-state"])).stdout).toBe("push");
+    }
+    return h.b.ports.lock(key, ...args);
+  } }, {});
+  expect(admitted).toBe(true);
+  expect(migrated).toMatchObject({ status: "ok" });
+  expect(success(await h.b.store.read({ reference: identity })).content).toBe(content);
+  for (const name of ["store", "store-migrate-build", "store-migrate-old"]) {
+    await expect(access(join(h.b.root, ".git/arc", name))).rejects.toMatchObject({ code: "ENOENT" });
+  }
+  for (const result of [success(await h.b.store.pull()), success(await h.b.store.push())]) {
+    expect(result.states).toEqual([]);
+    expect(result.pulls.filter(({ status }) => status === "failed")).toEqual([]);
+  }
+}, 60_000);
 
 it("revalidates an explicit publisher after automatic designation completes during its preflight", async () => {
   const h = await refSyncFixture(), other = await refSyncFixture();

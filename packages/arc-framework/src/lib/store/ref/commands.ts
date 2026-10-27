@@ -100,7 +100,13 @@ async function reconcileNoTarget(context: RefBackendContext, store: Store): Prom
     if (!stop) throw new Error("An ambiguous layout has no designation stop");
     return carryMigrationReport(stop, carried);
   }
-  const moved = await moveRefLayout(context, store, layout);
+  const moved = await moveRefLayout(context, store, layout, undefined, undefined, async () => {
+    const fresh = await readRefDesignation(context), destination = designatedStoreLayout(fresh);
+    if (destination !== null) return { status: "ok", result: destination };
+    const stop = configuredLayoutRefusal(fresh);
+    if (!stop) throw new Error("An ambiguous layout has no designation stop");
+    return stop;
+  });
   return carryMigrationReport(moved, carried);
 }
 
