@@ -15,7 +15,7 @@ import { nodeEnvironmentCaptureIO } from "../../../../src/lib/checks/environment
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 
-async function fixture(checks: Record<string, { fixes?: boolean; no_evidence_exit?: number; mode?: "files" | "selection"; root?: string; runtime_inputs?: string[][]; inputs?: string[]; gate?: "commit" | "push"; ci_only?: boolean; cache?: boolean; environment_inputs?: Record<string, "value" | "file"> }>, failSecondTreeWrite = false, globals: { global_runtime_inputs?: string[][] } = {}) {
+async function fixture(checks: Record<string, { runner?: boolean; fixes?: boolean; no_evidence_exit?: number; mode?: "files" | "selection"; root?: string; runtime_inputs?: string[][]; inputs?: string[]; gate?: "commit" | "push"; ci_only?: boolean; cache?: boolean; environment_inputs?: Record<string, "value" | "file"> }>, failSecondTreeWrite = false, globals: { global_runtime_inputs?: string[][] } = {}) {
   const root = await mkdtemp(join(tmpdir(), "arc-check-scheduling-"));
   roots.push(root);
   await mkdir(join(root, ".git"));
@@ -86,6 +86,25 @@ it("keeps completed evidence and refuses queued checks after request interruptio
   expect(await readFile(join(root, "first.started"), "utf8")).toBe("started");
   await expect(readFile(join(root, "later.started"))).rejects.toMatchObject({ code: "ENOENT" });
   await expect(readFile(join(root, "last.started"))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("reports settled input cleanup trouble alongside unavailable preparation", async () => {
+  const { root, io, ids } = await fixture({ remote: { runner: true } });
+  const artifact = join(root, "settled-capture");
+  await writeFile(artifact, "settled input");
+  const cleanupWarning = `Remove the settled captured inputs manually: ${artifact}`;
+  io.readRunnerConfiguration = async () => ({ file: "machine.yml", argv: ["adapter"] });
+  io.prepareExecution = () => Object.assign(Promise.resolve({ status: "unavailable" as const,
+    reason: "Preparation was cancelled and settled", remedy: "Retry with a fresh attempt.", cleanupWarning }), {
+    planId: "726ea270-cdb4-49d0-8e30-de4ffb6d4566", retained: undefined,
+    cancel: async () => undefined, terminate: () => undefined,
+  });
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
+    kind: "result", exitCode: 2, result: { checks: [{ outcome: "couldn't run", notice: cleanupWarning,
+      reason: expect.stringContaining("cancelled and settled"), remedy: expect.stringContaining("fresh attempt") }] },
+  });
+  expect(await readFile(artifact, "utf8")).toBe("settled input");
+  await rm(artifact);
 });
 
 it("shares frozen bytes across global/check probes and all path batches before reuse qualification", async () => {

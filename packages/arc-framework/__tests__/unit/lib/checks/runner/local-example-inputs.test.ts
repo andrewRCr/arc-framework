@@ -29,3 +29,20 @@ it("refuses to associate work when Linux process identity cannot be observed", a
   const owner = module.ownerRecord as (read: (pid: number) => Promise<undefined>) => Promise<unknown>;
   await expect(owner(async () => undefined)).rejects.toThrow(/process identity.*proc.*retry/iu);
 });
+
+it.each([
+  { description: "running owner", observed: { birth: "same", state: "R" }, expected: true },
+  { description: "sleeping owner", observed: { birth: "same", state: "S" }, expected: true },
+  { description: "zombie owner", observed: { birth: "same", state: "Z" }, expected: false },
+  { description: "dead owner", observed: { birth: "same", state: "X" }, expected: false },
+  { description: "reused PID", observed: { birth: "another", state: "S" }, expected: false },
+  { description: "missing owner", observed: undefined, expected: false },
+])("reports $description accurately during retained attempt inspection", async ({ observed, expected }) => {
+  const module: unknown = await import(fileURLToPath(new URL("../../../../../examples/check-runner/local-process.mjs", import.meta.url)));
+  if (typeof module !== "object" || module === null || !("ownerAlive" in module) || typeof module.ownerAlive !== "function") {
+    throw new Error("Expected the independent example's process ownership predicate");
+  }
+  const ownerAlive = module.ownerAlive as (record: { pid: number; birth: string },
+    read: (pid: number) => Promise<{ birth: string; state: string } | undefined>) => Promise<boolean>;
+  expect(await ownerAlive({ pid: 123, birth: "same" }, async () => observed)).toBe(expected);
+});

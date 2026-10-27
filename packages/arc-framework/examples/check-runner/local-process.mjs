@@ -31,7 +31,10 @@ export async function ownerRecord(readProcess = processState) {
   if (state?.birth === undefined) throw new Error("Linux process identity is unavailable; provide readable /proc and retry");
   return { pid: process.pid, birth: state.birth };
 }
-export async function ownerAlive(record) { return record.birth !== undefined && (await processState(record.pid))?.birth === record.birth; }
+export async function ownerAlive(record, readProcess = processState) {
+  const state = await readProcess(record.pid);
+  return record.birth !== undefined && state?.birth === record.birth && state.state !== "Z" && state.state !== "X";
+}
 
 export function signalGroup(pid, signal = "SIGTERM") {
   try { process.kill(-pid, signal); }

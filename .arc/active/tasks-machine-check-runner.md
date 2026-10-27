@@ -334,7 +334,7 @@ runs unknown runtime without reuse, preserves native outcomes, and closes or ret
           beside failures. Real adapter faults block publication for wrong source, incomplete output, conflicting context
           and abnormal closure; native-only install interpretation and advisory report/pass-store failures retain scope.
 
-### `[ ]` **4.4 Preserve cancellation, recovery and capture lifetime at CLI exits — D5, D7, D9**
+### `[x]` **4.4 Preserve cancellation, recovery and capture lifetime at CLI exits — D5, D7, D9**
 
 - _Goal:_ Every production exit either proves launched work and output settled before disposal or retains the capture
   with actionable provider recovery, without automatically replacing an ambiguous attempt.
@@ -345,16 +345,10 @@ runs unknown runtime without reuse, preserves native outcomes, and closes or ret
           Queued checks refuse dispatch after interruption; settled work releases captures, while uncertain work
           retains its recovery coordinates.
 
-    - `[ ]` **4.4.b Report and retain uncertain attempts with usable recovery**
-        - Build `test-first` (one behavior at a time):
-            - Disconnect during preparation after recovery but before context retains UUID/instructions/artifact
-              location.
-            - Disconnect during execution retains observed outcomes and recovery; no automatic reconnect/relaunch
-              occurs.
-            - Cleanup-only warning after settlement remains advisory; real recovery can settle retained work before a
-              new retry.
-        - Use existing local reporting abstractions; keep storage projections/lifecycle refs and durable job records
-          untouched.
+    - `[x]` **4.4.b Report and retain uncertain attempts with usable recovery**
+        - Retained preparation, execution and cache-hit closures report plan/context, adapter, inputs and provider
+          recovery in text/JSON, including CI. Settled cleanup warnings remain advisory through refusal and reuse;
+          provider inspection excludes dead owners. Real provider settlement permits capture removal before fresh retry.
 
 ### `[ ]` **4.5 Wire foundation portability cases into actual execution — D4, D5, D8, D9**
 

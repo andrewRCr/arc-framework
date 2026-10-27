@@ -5,7 +5,7 @@ import { createRunnerCheckRepository } from "./runner.js";
 
 export type PreparedAdapterMode = "unknown" | "known" | "missing-runtime" | "source-bytes" | "manifest"
   | "environment" | "unavailable" | "disappeared" | "bad-source-claim" | "execute" | "group" | "wait-prepare" | "cancel-run" | "drift" | "cancel-ready"
-  | "group-loss" | "group-malformed";
+  | "group-loss" | "group-malformed" | "cleanup-warning";
 
 export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string, observations?: string): string {
   return `const mode=${JSON.stringify(mode)};const gate=${JSON.stringify(gate)};const observations=${JSON.stringify(observations)};const gitNames=${JSON.stringify([...GIT_REPOSITORY_LOCAL_ENVIRONMENT])};` + `
@@ -72,7 +72,7 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string, 
     if(mode==='wait-prepare'&&observations)process.on('SIGTERM',()=>process.exit(0));
     const qualify=async()=>{
       if(mode==='missing-runtime')return {kind:'known',bindings:[]};
-      if(mode!=='known'&&mode!=='drift')return {kind:'unknown',reason:'Test placement has no reusable qualification.'};
+      if(mode!=='known'&&mode!=='drift'&&mode!=='cleanup-warning')return {kind:'unknown',reason:'Test placement has no reusable qualification.'};
       generation=mode==='drift'?fs.readFileSync(gate,'utf8'):undefined;
       const probes=[...plan.probes.global,...plan.probes.check];
       const results=await Promise.all(probes.map(probe=>execute(probe,false)));
@@ -119,7 +119,13 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string, 
           capabilities:{runGroup:mode==='group'||mode==='group-loss'||mode==='group-malformed'},runtime}});
       }else if(request.method==='check/release'){
         if(mode==='cancel-ready'&&gate)fs.writeFileSync(gate,'released');
-        send({jsonrpc:'2.0',id:request.id,result:{contextId:request.params.contextId,released:true}});
+        const result={contextId:request.params.contextId,released:true};
+        if(mode==='cleanup-warning'){
+          const artifact=path.join(observations,'settled-resource');
+          fs.writeFileSync(artifact,'settled provider resource');
+          result.cleanupWarning='Remove settled provider resource manually: '+artifact;
+        }
+        send({jsonrpc:'2.0',id:request.id,result});
       }else if(request.method==='check/cancel'){
         cancelled=true;
         record('cancel',request.params);

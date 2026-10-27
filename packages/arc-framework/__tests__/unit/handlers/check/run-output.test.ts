@@ -166,6 +166,17 @@ it("leads with a no-evidence check and shows its output tail, but offers no retr
   expect(result).toContain("Checks: 1 no evidence, 1 passed.");
 });
 
+it("keeps provider recovery guidance visible in CI text output", () => {
+  const remedy = "Inspect and settle plan 726ea270-cdb4-49d0-8e30-de4ffb6d4566; retain /captured/source until settled.";
+  const result = renderDeclaredChecks({ kind: "result", exitCode: 2, result: {
+    status: "completed", ci: true, checks: [{ id: "remote", kind: "enforcement", outcome: "couldn't run",
+      reason: "Adapter closed without settlement", remedy }],
+  } }, false);
+  expect(result).toContain("remote: couldn't run (Adapter closed without settlement)");
+  expect(result).toContain(remedy);
+  expect(result).toContain("Checks: 1 couldn't run.");
+});
+
 it("counts the files a merge brought in unchanged between a failure's output and its retry", () => {
   const result = renderDeclaredChecks({ kind: "result", exitCode: 1, result: {
     status: "completed", checks: [{ id: "prose", kind: "enforcement", outcome: "failed", output: "docs/c.md:3: short line",

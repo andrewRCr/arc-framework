@@ -92,7 +92,7 @@ function renderCheck(check: DeclaredCheckResult, ci: boolean): string {
   const notice = check.notice === undefined ? "" : ` (${check.notice})`;
   const heading = `${check.id}: ${check.outcome}${kind}${check.reason === undefined ? "" : ` (${check.reason})`}${notice}${difference}${rewrites}${cost}${log}`;
   const tail = renderOutputTail(check);
-  return `${heading}${renderEnvironmentInputs(check)}${tail}${renderMergedIn(check)}${check.remedy && !ci ? `\nRetry: ${check.remedy}` : ""}`;
+  return `${heading}${renderEnvironmentInputs(check)}${tail}${renderMergedIn(check)}${check.remedy ? `\nRetry: ${check.remedy}` : ""}`;
 }
 
 function renderEnvironmentInputs(check: DeclaredCheckResult): string {

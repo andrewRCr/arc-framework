@@ -467,6 +467,7 @@ async function executeRoutedSelectedCheck(selected: SelectedCheck, io: DeclaredC
     onOutput: output => { outputs.push(Buffer.from(output.bytes)); },
     onDiagnostic: bytes => { outputs.push(Buffer.from(bytes)); } });
   if (prepared.status !== "ready") return { id, kind, outcome: "couldn't run", reason: `${configuration.file}: checks.runner: ${prepared.reason}`,
+    ...(prepared.status === "unavailable" && prepared.cleanupWarning !== undefined ? { notice: prepared.cleanupWarning } : {}),
     remedy: prepared.status === "unavailable" ? prepared.remedy : retainedRunnerRemedy(prepared.retained) };
   const execution = prepared.execution;
   let closing: Promise<CheckExecutionClosure> | undefined;
@@ -479,8 +480,9 @@ async function executeRoutedSelectedCheck(selected: SelectedCheck, io: DeclaredC
     const pass = key === null || request.force ? null : await io.passes.get(key, id);
     if (pass !== null) {
       const closure = await close();
-      return closure.status === "closed" ? { id, kind, outcome: "reused", output: pass.output }
-        : { id, kind, outcome: "couldn't run", reason: closure.reason };
+      return closure.status === "closed" ? { id, kind, outcome: "reused", output: pass.output,
+        ...(closure.cleanupWarning === undefined ? {} : { notice: closure.cleanupWarning }) }
+        : { id, kind, outcome: "couldn't run", reason: closure.reason, remedy: retainedRunnerRemedy(closure.retained) };
     }
     const result = await executeRoutedSingles(execution, check);
     const closure = await close();
@@ -511,6 +513,7 @@ async function finalizeRoutedCheck(selected: SelectedCheck, io: DeclaredCheckDep
     { evidence: result, output, incompleteWork: closure.status === "uncertain" ? [closure.reason] : [] }, key);
   const notice = [...result.notices, closure.status === "closed" ? closure.cleanupWarning : undefined].filter(Boolean).join("; ");
   return { ...finalized, costMs,
+    ...(closure.status === "uncertain" ? { remedy: retainedRunnerRemedy(closure.retained) } : {}),
     ...(measurement === undefined ? {} : { logPath: measurement.logPath }), ...(notice ? { notice } : {}) };
 }
 
