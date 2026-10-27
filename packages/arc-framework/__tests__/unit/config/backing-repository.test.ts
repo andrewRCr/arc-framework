@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { runConfigStatus } from "../../../src/commands/config/status.js";
 import { validateConfigFile } from "../../../src/commands/config/validate.js";
-import { ARC_CONFIG_FIELDS } from "../../../src/lib/config/schema.js";
+import { ArcConfigSchema, ARC_CONFIG_FIELDS } from "../../../src/lib/config/schema.js";
 import { readBackingRepository, writeBackingRepository } from "../../../src/lib/config/status-reader.js";
 
 const roots: string[] = [];
@@ -58,7 +58,7 @@ describe("backing repository configuration", () => {
     expect(result.exitCode).toBe(0);
   });
 
-  it("owns an unset repository URL policy with an empty sentinel and trimmed nonempty values", () => {
+  it("owns an unset repository URL policy with an empty sentinel and lossless valid values", () => {
     const descriptor = ARC_CONFIG_FIELDS.find(({ key }) => String(key) === "storage.backing_repository");
     expect(descriptor).toBeDefined();
     if (descriptor === undefined) throw new Error("backing repository descriptor missing");
@@ -66,7 +66,7 @@ describe("backing repository configuration", () => {
     expect(descriptor.quotedEmpty).toBe("unset");
     expect(descriptor.defaultValue).toBe("");
     expect(descriptor.schema.parse("")).toBe("");
-    expect(descriptor.schema.parse(" https://example.test/state.git ")).toBe("https://example.test/state.git");
+    expect(descriptor.schema.parse(" https://example.test/state.git ")).toBe(" https://example.test/state.git ");
     expect(descriptor.schema.safeParse(" \t ").success).toBe(false);
   });
 });
@@ -98,4 +98,42 @@ describe("the tracked backing pointer writer", () => {
     await expect(writeBackingRepository(root, "https://example.test/a\nstate.git")).rejects.toThrow(/one line/u);
     expect(await readFile(configPath, "utf8")).toBe('storage.backing_repository: ""\n');
   });
+});
+
+
+describe("backing pointers through the full authoring boundary", () => {
+  it.each(["   ", " \t "])("returns an ordinary schema and public validation error for %j", async value => {
+    expect(ArcConfigSchema.safeParse({ "storage.backing_repository": value }).success).toBe(false);
+    const { configPath } = await fixture(`storage.backing_repository: "${value}"\n`);
+    const result = await validateConfigFile({ readPath: configPath, displayPath: "arc-config.yml" });
+    expect(result.exitCode).toBe(2);
+    expect(result.errors).toBe(1);
+    expect(result.lines.join("\n")).toMatch(/ERROR storage\.backing_repository.*non-whitespace/u);
+  });
+
+  it("accepts padded pointers losslessly in the schema and public validator", async () => {
+    const value = " https://example.test/state.git ";
+    expect(ArcConfigSchema.parse({ "storage.backing_repository": value })).toEqual({ "storage.backing_repository": value });
+    const { root, configPath } = await fixture(`storage.backing_repository: "${value}"\n`);
+    const result = await validateConfigFile({ readPath: configPath, displayPath: "arc-config.yml" });
+    expect(result.errors).toBe(0);
+    expect(result.exitCode).toBe(0);
+    expect(await readBackingRepository(root)).toBe(value.trim());
+
+  });
+});
+
+
+it("normalizes padded pointer writes before persisting them", async () => {
+  const { root, configPath } = await fixture();
+  await writeBackingRepository(root, " https://example.test/state.git ");
+  expect(await readFile(configPath, "utf8")).toBe('storage.backing_repository: "https://example.test/state.git"\n');
+  expect(await readBackingRepository(root)).toBe("https://example.test/state.git");
+});
+
+it.each(["\n", "\r\n", "\u00a0"])("rejects a whitespace-only %j pointer through the leaf and full schema", value => {
+  const descriptor = ARC_CONFIG_FIELDS.find(({ key }) => key === "storage.backing_repository");
+  if (descriptor === undefined) throw new Error("missing backing descriptor");
+  expect(descriptor.schema.safeParse(value).success).toBe(false);
+  expect(ArcConfigSchema.safeParse({ "storage.backing_repository": value }).success).toBe(false);
 });

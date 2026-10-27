@@ -219,9 +219,10 @@ export const ARC_CONFIG_FIELDS = [
     "unset",
     "harness-directories",
   ),
+  // Catalog validation is lossless so its output agrees with the string-record intersection; pointer I/O trims.
   stringField(
     "storage.backing_repository",
-    z.union([z.literal(""), z.string().trim().min(1)]),
+    z.union([z.literal(""), z.string().regex(/\S/u)]),
     "",
     "unset",
     "repository-url",

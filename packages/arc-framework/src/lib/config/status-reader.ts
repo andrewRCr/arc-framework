@@ -76,13 +76,13 @@ export async function readBackingRepository(cwd: string): Promise<string | null>
     throw new Error(`Cannot read the backing pointer at ${path}. Restore a readable arc-config.yml, then retry the operation.`, { cause: error });
   }
   const value = parseArcConfig(content)["storage.backing_repository"] ?? "";
-  return getArcConfigField("storage.backing_repository").schema.parse(value) || null;
+  return getArcConfigField("storage.backing_repository").schema.parse(value).trim() || null;
 }
 
 /** Write the tracked backing pointer as the configuration reader decodes it, preserving unrelated text and line endings. */
 export async function writeBackingRepository(cwd: string, value: string | null): Promise<void> {
   const path = configSettingsPath(cwd), key = "storage.backing_repository";
-  const validated = getArcConfigField(key).schema.parse(value ?? "");
+  const validated = getArcConfigField(key).schema.parse(value ?? "").trim();
   // The reader strips one pair of surrounding quotes and unescapes nothing, so any one-line value round-trips quoted as is.
   if (/[\r\n]/u.test(validated)) throw new Error(`The backing pointer must fit on one line of arc-config.yml: ${JSON.stringify(validated)}`);
   let content = "";
