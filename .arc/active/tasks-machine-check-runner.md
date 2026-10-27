@@ -366,20 +366,14 @@ runs unknown runtime without reuse, preserves native outcomes, and closes or ret
           CI run `40554990722` at `fe64e7752` records completed Windows/macOS execution, including real child DWORD
           statuses, captured path spelling, process-start/cleanup behavior and native directory-link receipts.
 
-### `[ ]` **4.6 Exercise routed checks — D3, D5, D6, D7, D8, D9** — validate exit criterion at segment scope
+### `[x]` **4.6 Exercise routed checks — D3, D5, D6, D7, D8, D9** — validate exit criterion at segment scope
 
 - _Goal:_ Production CLI dispatch demonstrates prepared reuse, faithful inputs, native verdict reduction and both
   settlement arms together, rather than proving only isolated protocol helpers.
 
-    - Exercise actual built CLI plus standalone/scripted adapters for cache hit, known/unknown runtime, changed input,
-      project/files same argv, conflicting Git selectors, failure then transport loss, cancel/EOF and no-context
-      refusal.
-    - Include selected index/commit versus dirty live files, post-capture edits, scoped store/projection variation,
-      binary output, advisory cleanup and successful repaired retry through the same entry points.
-    - Run the status-preservation cases on real Windows as well as portable fixtures; distinguish executed platform
-      evidence from simulations, and complete supported CI qualification before work-unit verification.
-    - Request `npx arc check segment`; record actual scenarios and regression feedback, keeping corrections ahead of
-      this sink.
+- _Outcome:_ Built-CLI scenarios preserved index/commit bytes through live edits, mode/probe/Git bindings, scoped
+  reuse through personal-store changes and binary output. Existing CLI fault/recovery cases and hosted run
+  `40554990722` at `fe64e7752` cover settlement, repaired retry and actual Windows/macOS status preservation.
 
 ## **Phase 5:** Qualify public and external adapters
 
