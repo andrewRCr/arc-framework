@@ -39,7 +39,7 @@ function establishConflicts(target: RecordReference, entries: readonly ConflictE
   objects: ReadonlyMap<string, BatchObject | null>, saved = false): StoreResult<RecordReference[]> {
   const conflicts: RecordReference[] = [];
   for (const entry of entries) {
-    const conflict = RecordReferenceSchema.safeParse({ owner: target.owner, kind: `${target.kind.split("/")[0]}/conflict-record`, key: entry.key });
+    const conflict = conflictReference(target, entry.key);
     if (!conflict.success) continue;
     const object = objects.get(entry.oid);
     if (object?.type !== "blob") return { status: "refused", refusal: unavailableConflictEvidence(target, entry.path, saved) };
@@ -65,7 +65,10 @@ export function attachOpenConflicts(context: Pick<RefBackendContext, "registry">
       const name = path.startsWith(prefix) ? path.slice(prefix.length) : "";
       return !invalidName && name.endsWith(".json") && !name.includes("/") ? [{ path, oid, key: name.slice(0, -5) }] : [];
     });
-    const conflicts = establishConflicts(record.reference, siblings, objects, saved);
+    const malformed = malformedCapturedConflictPath(record.reference, home.root, entries);
+    const conflicts: StoreResult<RecordReference[]> = malformed
+      ? { status: "refused", refusal: unavailableConflictEvidence(record.reference, malformed, saved) }
+      : establishConflicts(record.reference, siblings, objects, saved);
     if (conflicts.status === "ok") attached.push({ ...record, conflicts: conflicts.result });
     else {
       conflictRefusals.set(home.path, conflicts.refusal);
@@ -73,6 +76,32 @@ export function attachOpenConflicts(context: Pick<RefBackendContext, "registry">
     }
   }
   return { records: attached, diagnostics, conflictRefusals };
+}
+
+function conflictReference(target: RecordReference, key: string) {
+  return RecordReferenceSchema.safeParse({ owner: target.owner, kind: `${target.kind.split("/")[0]}/conflict-record`, key });
+}
+
+function malformedCapturedConflictPath(target: RecordReference, root: string, entries: readonly RefTreeEntry[]): string | undefined {
+  const directory = `${root}conflicts`, prefix = `${directory}/`;
+  for (const entry of entries) {
+    if (entry.path === directory && entry.mode !== "040000") return directory;
+    if (!entry.path.startsWith(prefix)) continue;
+    const name = directConflictName(entry, prefix);
+    if (name?.endsWith(".json") && conflictReference(target, name.slice(0, -5)).success) return `${prefix}${name}`;
+  }
+  return undefined;
+}
+
+/** Nonempty directory rows are omitted from enumeration; a descendant still proves its direct slot is a tree. */
+function directConflictName(entry: RefTreeEntry, prefix: string): string | undefined {
+  if (entry.rawPath) {
+    const end = entry.rawPath.indexOf(47, prefix.length);
+    if (end < 0) return undefined;
+    try { return strict.decode(entry.rawPath.subarray(prefix.length, end)); } catch { return undefined; }
+  }
+  const nested = entry.path.slice(prefix.length), slash = nested.indexOf("/");
+  return slash < 0 ? undefined : nested.slice(0, slash);
 }
 
 function unavailableConflictEvidence(reference: RecordReference, path: string, saved = false): StoreRefusal {

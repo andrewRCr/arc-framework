@@ -46,6 +46,88 @@ const refs = async (f: RefConformanceFixture) => (await f.ports.exec("git", [...
   "refs/arc/work/", "refs/arc/cohort/", "refs/arc/archive/", "refs/arc/history/", "refs/arc/project/", "refs/arc/user/"])).stdout;
 
 describe.each(["default", "separate"] as const)("complete sibling conflict evidence in %s", layout => {
+  it("distinguishes an invalid UTF-8 slot name from invalid descendants under a valid conflict slot", async () => {
+    const f = await createRefFixture({}, layout), evidence = await subject(f, "personal/document");
+    const conflict = await addConflict(f, evidence), home = expandStoredPath(evidence.reference);
+    const conflictHome = expandStoredPath(conflict), original = await capturedEntries(f, home.ref);
+    const directory = `${home.root}conflicts`, kept = original.filter(entry => !entry.path.startsWith(`${directory}/`));
+    const blob = (await f.ports.rawExec([...scope(f), "hash-object", "-w", "--stdin"], { input: Buffer.from("Raw conflict descendant.\n") })).stdout;
+    const oid = new TextDecoder().decode(blob).trim();
+    const tree = async (name: Uint8Array, mode = "100644", target = oid) => new TextDecoder().decode((await f.ports.rawExec(
+      [...scope(f), "hash-object", "-w", "-t", "tree", "--stdin"], { input: Buffer.concat([
+        Buffer.from(`${mode} `), name, Buffer.from([0]), Buffer.from(target, "hex"),
+      ]) })).stdout).trim();
+    const nested = await tree(Buffer.from("nested"));
+    const badName = await tree(Buffer.concat([Buffer.from("external-"), Buffer.from([255]), Buffer.from(".json")]), "40000", nested);
+    const parent = (await f.ports.exec("git", [...scope(f), "rev-parse", home.ref])).stdout.trim();
+    const invalidSlot = await plantRef(f.root, home.ref, [...kept, { path: directory, mode: "040000", oid: badName }],
+      { parents: [parent], gitDir: f.gitDir });
+    const ignored = await f.settle();
+    for (const saved of [false, true]) expect(success(await f.store.read({ reference: evidence.reference, ...(saved ? { asOf: ignored } : {}) })))
+      .toMatchObject({ version: evidence.version, conflicts: [] });
+    const badChild = await tree(Buffer.concat([Buffer.from("nested-"), Buffer.from([255])]));
+    const malformed = await plantRef(f.root, home.ref, [...kept, { path: conflictHome.path, mode: "040000", oid: badChild }],
+      { parents: [invalidSlot.tip], gitDir: f.gitDir });
+    const refused = await f.settle();
+    for (const saved of [false, true]) expect(await f.store.read({ reference: evidence.reference, ...(saved ? { asOf: refused } : {}) }))
+      .toMatchObject({ status: "refused", refusal: { code: "state-unresolvable" } });
+    await plantRef(f.root, home.ref, original, { parents: [malformed.tip], gitDir: f.gitDir });
+    expect(success(await f.store.read({ reference: evidence.reference })).conflicts).toEqual([conflict]);
+    expect(success(await f.store.read({ reference: evidence.reference, asOf: ignored })).conflicts).toEqual([]);
+    expect(await f.store.read({ reference: evidence.reference, asOf: refused })).toMatchObject({ status: "refused" });
+  }, 60_000);
+
+  for (const scenario of scenarios) it.each(["directory-blob", "json-tree"] as const)(
+    `refuses malformed %s beside ${scenario.kind}, completed ${scenario.completed}, and follows forward repair`, async damage => {
+      let armed = false;
+      const checked: StoreResult<StoreRecord>[] = [];
+      const controlKind = scenario.kind === "lineage/transition" ? "personal/document" : "project-registry/counter";
+      const f = await createRefFixture({ [controlKind]: { check: async ({ before, after }: Parameters<WriteCheck>[0]) => {
+        if (!armed || !evidence) return [];
+        const results = [await before.read({ reference: evidence.reference }), await after.read({ reference: evidence.reference })];
+        checked.push(...results);
+        return results.some(result => result.status === "refused") ? [{ rule: "test.structural-conflict-evidence",
+          condition: "The registered rule cannot establish the conflict slots.", remedy: { text: "Repair the conflict slots, then retry." } }] : [];
+      } } }, layout);
+      const created = await subject(f, scenario.kind), conflict = await addConflict(f, created);
+      const evidence: StoreRecord = scenario.completed ? await complete(f, created) : success(await f.store.read({ reference: created.reference }));
+      const control = await seed(f, f.reference(controlKind, "structural-control"));
+      const healthy = await seed(f, f.reference("cohort/document", "structurally-unrelated"));
+      const home = expandStoredPath(evidence.reference, { placement: evidence.placement });
+      const conflictHome = expandStoredPath(conflict, { placement: evidence.placement });
+      const original = await capturedEntries(f, home.ref), directory = `${home.root}conflicts`;
+      const parent = (await f.ports.exec("git", [...scope(f), "rev-parse", home.ref])).stdout.trim();
+      const damaged = await plantRef(f.root, home.ref, [
+        ...original.filter(entry => entry.path !== directory && !entry.path.startsWith(`${directory}/`)),
+        { path: damage === "directory-blob" ? directory : `${conflictHome.path}/nested`, content: "A present unusable conflict slot.\n" },
+      ], { parents: [parent], gitDir: f.gitDir });
+      const asOf = await f.settle(), before = await refs(f);
+      const unavailable = { status: "refused", refusal: { code: "state-unresolvable",
+        condition: expect.stringMatching(/unavailable|cannot.*establish/iu), remedy: { text: expect.stringMatching(/restore|repair|fetch/iu) } } };
+      for (const saved of [false, true]) {
+        expect.soft(await f.store.read({ reference: evidence.reference, ...(saved ? { asOf } : {}) })).toMatchObject(unavailable);
+        expect.soft(await f.store.read({ reference: healthy.reference, ...(saved ? { asOf } : {}) })).toMatchObject({ status: "ok" });
+      }
+      const request = { writes: [mutationOf(update(f, control))], provenance: testProvenance,
+        observations: [{ reference: evidence.reference, expected: { version: evidence.version, conflicts: [] } }] };
+      expect.soft(await f.store.batch(request)).toMatchObject(unavailable);
+      armed = true;
+      expect.soft(await f.store.write(update(f, control))).toMatchObject({ status: "refused" });
+      expect.soft(checked).toHaveLength(2);
+      for (const result of checked) expect.soft(result).toMatchObject(unavailable);
+      expect.soft(await refs(f)).toBe(before);
+      await plantRef(f.root, home.ref, original, { parents: [damaged.tip], gitDir: f.gitDir, message: "Repair the conflict slots forward" });
+      const repaired = await f.settle();
+      for (const saved of [false, true]) expect(success(await f.store.read({ reference: evidence.reference, ...(saved ? { asOf: repaired } : {}) })))
+        .toMatchObject({ version: evidence.version, conflicts: [conflict] });
+      expect(await f.store.read({ reference: evidence.reference, asOf })).toMatchObject(unavailable);
+      checked.length = 0;
+      success(await f.store.batch({ ...request, observations: [{ reference: evidence.reference,
+        expected: { version: evidence.version, conflicts: [conflict] } }] }));
+      expect(checked).toHaveLength(2);
+      for (const result of checked) expect(result).toMatchObject({ status: "ok", result: { conflicts: [conflict] } });
+    }, 90_000);
+
   for (const scenario of scenarios) it.each(["blob", "tree"] as const)(`refuses unavailable %s beside ${scenario.kind}, completed ${scenario.completed}, and retries after exact restoration`, async damage => {
     let armed = false;
     const checked: StoreResult<StoreRecord>[] = [];

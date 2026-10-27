@@ -12,6 +12,8 @@ export interface RefTreeEntry {
   path: string; oid: string; mode: string;
   /** Git's name for it is not UTF-8: `path` decodes it with replacement, so it lists as malformed and no tree is rebuilt from it. */
   invalidName?: true;
+  /** Original bytes retained only when a decoded path cannot establish the names of its structural ancestors. */
+  rawPath?: Uint8Array;
 }
 /** One enumerated tree: its entries, and the ID of every tree the enumeration traversed, root first. */
 export interface ListedTree { entries: readonly RefTreeEntry[]; directories: readonly string[] }
@@ -243,7 +245,7 @@ function splitNul(bytes: Uint8Array): Uint8Array[] {
 }
 
 /** Decode one entry's name, so a name Git admits but UTF-8 cannot decode faults only its own entry. */
-function entryName(bytes: Uint8Array): Pick<RefTreeEntry, "path" | "invalidName"> {
+function entryName(bytes: Uint8Array): Pick<RefTreeEntry, "path" | "invalidName" | "rawPath"> {
   try { return { path: decoder.decode(bytes) }; }
-  catch { return { path: lossy.decode(bytes), invalidName: true }; }
+  catch { return { path: lossy.decode(bytes), invalidName: true, rawPath: Uint8Array.from(bytes) }; }
 }
