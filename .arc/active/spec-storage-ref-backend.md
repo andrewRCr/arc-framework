@@ -504,6 +504,12 @@ write or indexed batch operand; a valid operand reference is preserved (§ 2.1).
 Carried-code failures also amend D1 and D4 forward (A51): the unreachable arm of `CarryOutcomeSchema` requires a
 message, including an already-expired code leg's timeout and any reported descendant warning (§ 2.2).
 
+Local transport capacity also amends D1 and D4 forward (A54): `PublishFailureSchema` admits recoverable
+`command-line-capacity` for a native-Windows push that exceeds its process limit before launch, and
+`CarryRefusalSchema` admits that reason for the carried ref's own invocation. Pending state and exact leases remain
+available for retry from the complete clone on a transport that can carry the transaction; no receiver or hook is
+blamed and no atomic state transaction is split (§ 2.1, § 2.2, § 11.3).
+
 Publication evidence also qualifies D12 forward (A52): an explicit forced replacement of item-history tracking may
 remove the last captured item tip or incoming archive folder proving the local end was published. Only then may that
 end be treated as unpublished and withdrawn for the incoming published end; surviving evidence keeps `ended-twice` and

@@ -478,6 +478,14 @@ while the rest publish; the two are reported independently, so both can appear. 
   `PublishFailure` refusal (A7), naming the capability condition and the remedy to enable an atomic-capable receiver;
   pending local state remains available for retry after that remedy.
 
+**Forward amendment (A32) to D1 and D4.** `PublishFailureSchema` additionally admits recoverable
+`command-line-capacity` when a native-Windows push exceeds its process limit before launch. `CarryRefusalSchema`
+admits the same reason for the carried ref's own invocation. This local capacity refusal attributes no network,
+receiver or hook failure and retains pending state, exact leases and any earlier landed-copy accounting. Its remedy
+names retry from the complete retained clone on a transport that can carry the transaction; atomic state publication
+is never split to fit the command line. Scalable native-Windows bulk publication remains deferred in
+`spec-storage-ref-backend.md` § 2.1 (A54).
+
 No remote — as in local-only or ghost use — no identity, and being offline are states, not failures. Every publish the
 in-repo implementation makes — the notes save and push and the Errand push — rides a ref keyed by the identity, so with
 no identity its `sync` publishes nothing and reports `no-identity`, naming all three families they carry — personal
@@ -2460,3 +2468,6 @@ operations and outcomes, and which test tier each conformance fixture runs in.
 
 - **A31** — 2026-10-27 — design: name ownerless empty-quarter merges by ref. _Supersedes:_ D3 owner-bound subjects.
   _Trigger:_ `spec-storage-ref-backend.md` A55 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A32** — 2026-10-27 — design: local push capacity refusal joins D1 and D4. _Supersedes:_ publication vocabulary.
+  _Trigger:_ `spec-storage-ref-backend.md` A54 propagation. _Work:_ review-fix. _Revalidated:_ review-fix.
