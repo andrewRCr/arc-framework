@@ -16,6 +16,7 @@ and gitignored, while the normalized evidence below is the durable record.
 - [Warm-run measurement practice](#warm-run-measurement-practice)
 - [Method and its limits](#method-and-its-limits)
 - [Diagnosing a wall-clock change](#diagnosing-a-wall-clock-change)
+- [Tracing which tests read a file](#tracing-which-tests-read-a-file)
 - [Tier baselines](#tier-baselines)
 - [Post-cost baseline](#post-cost-baseline)
 - [Where the time concentrates](#where-the-time-concentrates)
@@ -268,6 +269,95 @@ start measured 143 ms for `--version` and about 400 ms for `status --json`.
 - **Span** — a run spends about 90 s on classification, shared setup, and build before its test shards start, then
   waits on the slowest of the four integration and four E2E shards. On 2026-10-20 no single file gated a shard, and
   the fastest and slowest shards of one run differed by 150–170 s.
+
+## Tracing which tests read a file
+
+Tests read ARC Markdown from disk, so no import graph shows which ones a Markdown change can break, and a content
+tier's inputs have to come from observation. A 2026-10-27 trace at `7fa6db8ce` recorded which tests read which `.arc/`
+files. The method below repeats it for any later selection question; the result is that day's observation.
+
+### Method
+
+Preload a tracer into every Node process a tier spawns, then run the tier's ordinary command through `nicecap`:
+
+```bash
+. ~/.memcap.sh && NODE_OPTIONS="--import <tracer.mjs>" TRACE_ROOT="$PWD/.arc/" TRACE_OUT=<log-dir> \
+  nicecap -n 19 -r 8 npm run -s test:integration
+```
+
+The tracer wraps the read, list, stat, open, and copy functions of `node:fs` and `node:fs/promises`, appends each
+distinct `<operation> <path>` under `TRACE_ROOT` to one log per process, and calls `syncBuiltinESMExports()` so ESM
+importers see the wrappers:
+
+```js
+import fs from "node:fs";
+import fsp from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
+import { resolve } from "node:path";
+
+const { TRACE_ROOT: root, TRACE_OUT: out, TRACE_STACK: stackMatch } = process.env;
+if (root && out) {
+  const log = `${out}/${process.pid}.log`;
+  const append = fs.appendFileSync.bind(fs);
+  const seen = new Set();
+  const note = (op, p) => {
+    try {
+      const s = typeof p === "string" ? p : p instanceof URL ? p.pathname : Buffer.isBuffer(p) ? p.toString() : null;
+      if (s === null) return;
+      const abs = resolve(s);
+      if (!abs.startsWith(root) || seen.has(`${op} ${abs}`)) return;
+      seen.add(`${op} ${abs}`);
+      append(log, `${op} ${abs}\n`);
+      if (stackMatch && abs.includes(stackMatch) && !seen.has("stack")) {
+        seen.add("stack");
+        const frames = (new Error().stack ?? "").split("\n").filter((l) => l.includes("__tests__") || l.includes("/src/"));
+        append(log, `STACK\n${frames.slice(0, 12).join("\n")}\n`);
+      }
+    } catch { /* tracing never fails the run */ }
+  };
+  const wrap = (obj, name, op) => {
+    const fn = obj[name];
+    if (typeof fn !== "function") return;
+    const wrapped = function (...args) { note(op, args[0]); return fn.apply(this, args); };
+    Object.assign(wrapped, fn);
+    obj[name] = wrapped;
+  };
+  const ops = { read: ["readFile", "createReadStream"], list: ["readdir", "opendir"], open: ["open"],
+    stat: ["stat", "lstat", "access", "realpath", "exists"], copy: ["copyFile", "cp"] };
+  for (const [op, names] of Object.entries(ops)) {
+    for (const name of names) { wrap(fs, name, op); wrap(fs, `${name}Sync`, op); wrap(fsp, name, op); }
+  }
+  syncBuiltinESMExports();
+}
+```
+
+Three details carry the method:
+
+- **Keep the wrapped function's properties.** Vite calls `fs.realpathSync.native`; a wrapper without
+  `Object.assign(wrapped, fn)` drops it and the run fails at startup.
+- **A process log does not name a test file.** Vitest reuses worker processes across files. Set `TRACE_STACK` to a
+  path substring, and each process records one stack for its first matching access; the `__tests__` frame names the
+  reading file and line.
+- **Match the trace to the declaration.** Diff the logged reads against the tracked files the tier's inputs select;
+  a selected file nothing reads marks an input the tier can drop, and a read file outside the inputs marks a gap.
+
+### Blind spots
+
+The tracer sees only Node `fs` calls under its root. It misses reads by shell scripts (`cat`, `grep`, `find`),
+reads of Git objects, and reads inside a temporary copy of the tree. Cover those by reading source: list the tests
+that run a script or a copy with the live repository as working directory, and read what each script reads. At the
+trace date, only `verify-integrity.test.ts` ran a script against the live repository; every other script and hook
+test built a temporary repository first.
+
+### Result at `7fa6db8ce`
+
+- **Integration** (4,280 cases): all 229 tracked Markdown files the content tier then selected were read. Decision
+  records and supplemental research and analysis were read only by two contract tests that walked every file under
+  `.arc/system` and `.arc/reference`, and neither asserted anything that depended on a record.
+- **E2E** (1,222 cases): three repository `.arc/` paths, none of them Markdown — its tests run against fixtures.
+
+The content tier's and CI's exclusion of those records rests on this result. A test that starts reading a record
+needs the exclusion revisited, and the parity test between the two lists will not notice.
 
 ## Tier baselines
 
