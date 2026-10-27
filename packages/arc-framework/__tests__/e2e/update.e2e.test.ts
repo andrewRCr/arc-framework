@@ -50,7 +50,7 @@ describe("update", () => {
       runArc(["update"], tmpDir),
     ]);
 
-    expect(updates.map((result) => result.exitCode)).toEqual([0, 0]);
+    expect(updates.map((result) => result.exitCode), JSON.stringify(updates, null, 2)).toEqual([0, 0]);
     const internalDir = join(tmpDir, ".arc", "system", ".internal");
     const manifest = JSON.parse(
       await readFile(join(internalDir, "manifest.json"), "utf8"),
