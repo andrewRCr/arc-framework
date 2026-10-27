@@ -7,7 +7,7 @@ import yaml from "js-yaml";
 import type { FileEntry, Manifest } from "../../src/lib/types.js";
 import { CheckDeclarationSchema } from "../../src/lib/checks/declaration.js";
 import { editorDocumentReference } from "../../src/lib/schema-command/editor-documents.js";
-import { cleanupTempDir, createTempRepo, runArc } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, runArc, unwrapPresentationOutput } from "./helpers.js";
 
 const roots: string[] = [];
 const managers = ["lefthook", "pre-commit"] as const;
@@ -20,7 +20,7 @@ interface Config {
 afterEach(async () => { await Promise.all(roots.splice(0).map(cleanupTempDir)); });
 
 function summaryText(value: string): string {
-  return value.replace(/[│\s]/gu, "");
+  return unwrapPresentationOutput(value).replace(/\s/gu, "");
 }
 
 async function installed(manager: Manager, prefix = "arc-update-hooks-"): Promise<{ root: string; path: string; config: Config }> {
@@ -61,16 +61,21 @@ it.each(managers)("upgrades generated %s entries and names the rewritten configu
   expect(summaryText(update.stdout + update.stderr)).toContain(summaryText(path));
 }, 60_000);
 
-it.each(managers)("preserves a custom %s entry and reports it in the update summary", async manager => {
-  const { root, path, config } = await installed(manager, "arc-update-hooks-unrecognized-generated-entry-warning-");
+it.each(managers.flatMap(manager => ["linux", "xterm-256color"].map(term => ({ manager, term }))))(
+  "preserves a custom $manager entry and reports its wrapped path under $term", async ({ manager, term }) => {
+  const { root, path, config } = await installed(manager,
+    `arc-update-hooks-${process.platform === "win32" ? "│" : "|│"}-${"long-".repeat(24)}`);
   if (manager === "lefthook") config["pre-push"]!.commands["arc-pre-push"]!.run = "personal-push-check";
   else config.repos!.flatMap(repo => repo.hooks).find(hook => hook.id === "arc-pre-push")!.entry = "personal-push-check";
   const content = "# Personal configuration\n" + yaml.dump(config);
   await writeFile(path, content);
-  const update = await runArc(["update", "--quiet"], root);
-  expect(update.exitCode, update.stdout + update.stderr).toBe(0);
+  const update = await runArc(["update", "--quiet"], root, { env: { TERM: term, CI: "true", FORCE_COLOR: "0", NO_COLOR: "1" } });
+  const output = update.stdout + update.stderr;
+  expect(update.exitCode, output).toBe(0);
+  expect(output).toMatch(process.platform !== "win32" && term === "linux" ? /\|\r?\n\|/u : /│\r?\n│/u);
+  expect(output).not.toContain(path);
   expect(await readFile(path, "utf8")).toBe(content);
-  expect(summaryText(update.stdout + update.stderr)).toContain(summaryText(path));
+  expect(summaryText(output)).toContain(path.replace(/\s/gu, ""));
   expect(summaryText(update.stdout + update.stderr)).toContain(summaryText("arc-pre-push is not a recognized generated entry"));
 }, 60_000);
 
