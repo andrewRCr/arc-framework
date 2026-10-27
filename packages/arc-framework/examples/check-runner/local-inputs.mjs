@@ -1,6 +1,7 @@
 /** Independent public artifact verification and child environment composition. */
 import { createHash } from "node:crypto";
-import { lstat, open, readFile, readlink, realpath } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { lstat, open, readFile, readdir, readlink, realpath } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 // The public repository-selector contract, implemented without ARC-private imports.
@@ -48,7 +49,7 @@ async function verifyFile(path, identity) {
   } finally { await file.close(); }
 }
 
-export async function verifyInputs(plan) {
+export async function verifyInputs(plan, expectedGit) {
   const source = plan.source;
   const root = await realpath(source.root);
   if (contained(root, resolve(source.manifest))) throw new Error("Source manifest must be outside captured project paths");
@@ -79,7 +80,50 @@ export async function verifyInputs(plan) {
     }
   }
   if (!(await lstat(resolve(root, ".git"))).isDirectory()) throw new Error("Independent source Git administration is unavailable");
+  await verifyInventory(root, manifest.entries);
+  const git = await administrationIdentity(resolve(root, ".git"));
+  if (expectedGit !== undefined && git !== expectedGit) throw new Error("Captured Git administration changed; retry with a fresh attempt");
   for (const binding of Object.values(plan.environment)) if (binding.kind === "file" && binding.state === "file") await verifyFile(binding.path, binding);
+  return git;
+}
+
+async function verifyInventory(root, entries) {
+  const files = new Set(entries.map(entry => entry.path));
+  const directories = new Set(["."]);
+  for (const entry of entries) {
+    const components = entry.path.split("/");
+    for (let count = 1; count < components.length; count++) directories.add(components.slice(0, count).join("/"));
+  }
+  const visit = async prefix => {
+    for (const name of await readdir(resolve(root, prefix))) {
+      const path = prefix === "." ? name : `${prefix}/${name}`;
+      if (path === ".git") continue;
+      if ((await lstat(resolve(root, path))).isDirectory()) {
+        if (!directories.has(path)) throw new Error("Unexpected directory changed the captured source; retry with a fresh attempt");
+        await visit(path);
+      } else if (!files.has(path)) throw new Error("Unexpected file changed the captured source; retry with a fresh attempt");
+    }
+  };
+  await visit(".");
+}
+
+async function administrationIdentity(root) {
+  const hash = createHash("sha256");
+  const visit = async path => {
+    const location = resolve(root, path);
+    const before = await lstat(location, { bigint: true });
+    if (!before.isDirectory() && !before.isFile()) throw new Error("Source Git administration contains unsupported linked or special entries");
+    hash.update(JSON.stringify({ path, mode: Number(before.mode & 0o7777n), directory: before.isDirectory(), bytes: before.isFile() ? String(before.size) : undefined }));
+    if (before.isDirectory()) {
+      const names = (await readdir(location)).sort((first, second) => Buffer.compare(Buffer.from(first), Buffer.from(second)));
+      for (const name of names) await visit(path === "." ? name : `${path}/${name}`);
+    } else for await (const bytes of createReadStream(location)) hash.update(bytes);
+    hash.update("\0");
+    const after = await lstat(location, { bigint: true });
+    if (["dev", "ino", "size", "mode", "mtimeNs", "ctimeNs"].some(key => before[key] !== after[key])) throw new Error("Source Git administration changed during verification");
+  };
+  await visit(".");
+  return hash.digest("hex");
 }
 
 export function childEnvironment(plan, invocation, notice) {

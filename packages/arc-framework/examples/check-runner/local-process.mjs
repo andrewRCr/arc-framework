@@ -6,6 +6,8 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { constants } from "node:os";
 
+export class IncompleteExecutionError extends Error {}
+
 async function processState(pid) {
   try {
     const text = await readFile(`/proc/${pid}/stat`, "utf8");
@@ -24,7 +26,11 @@ export async function groupMembers(group, omit) {
   return members.filter(pid => pid !== undefined);
 }
 
-export async function ownerRecord() { return { pid: process.pid, birth: (await processState(process.pid))?.birth }; }
+export async function ownerRecord(readProcess = processState) {
+  const state = await readProcess(process.pid);
+  if (state?.birth === undefined) throw new Error("Linux process identity is unavailable; provide readable /proc and retry");
+  return { pid: process.pid, birth: state.birth };
+}
 export async function ownerAlive(record) { return record.birth !== undefined && (await processState(record.pid))?.birth === record.birth; }
 
 export function signalGroup(pid, signal = "SIGTERM") {
@@ -60,19 +66,23 @@ export async function runWorker(directory, token) {
     });
     child.on("error", () => { launchError = true; });
     const status = await new Promise(resolve => { child.once("close", (code, signal) => { resolve({ code, signal }); }); });
+    const native = { status: "completed", exitCode: status.code ?? 128 + (constants.signals[status.signal] ?? 0) };
+    // A known native failure stays irrevocable while remaining descendants drain.
+    const failure = !stopped && !launchError && native.exitCode !== 0 ? native : undefined;
+    if (failure !== undefined && process.connected) await new Promise(resolve => { process.send({ nativeFailure: failure }, resolve); });
     while ((await groupMembers(process.pid, process.pid)).length !== 0) await delay(10);
     clearTimeout(timer); clearTimeout(forced);
     await writeFile(recordPath, JSON.stringify({ ...record, done: true }), { mode: 0o600 });
-    const outcome = stopped ? { status: "cancelled", reason: "Local process group cancellation settled" }
+    const outcome = failure ?? (stopped ? { status: "cancelled", reason: "Local process group cancellation settled" }
       : launchError ? { status: "unavailable", reason: "Child executable could not start", remedy: "Repair the command or prepared environment and retry." }
-      : { status: "completed", exitCode: status.code ?? 128 + (constants.signals[status.signal] ?? 0) };
+      : native);
     if (process.connected) await new Promise(resolve => { process.send(outcome, resolve); });
     finished = true;
     if (process.connected) process.disconnect();
   });
 }
 
-export async function executeChild(executable, directory, invocation, cwd, environment, timeout, output, control) {
+export async function executeChild(executable, directory, invocation, cwd, environment, timeout, output, control, observeFailure = async () => {}) {
   const token = randomUUID();
   const worker = spawn(process.execPath, [executable, "--worker", directory, token], {
     detached: true, stdio: ["ignore", "pipe", "pipe", "ipc"],
@@ -80,6 +90,9 @@ export async function executeChild(executable, directory, invocation, cwd, envir
   let outcome;
   let started = false;
   let launchError;
+  let failure;
+  let observationError;
+  let observations = Promise.resolve();
   worker.on("error", error => { launchError = error; });
   const closed = new Promise(resolve => { worker.once("close", (code, signal) => { resolve({ code, signal }); }); });
   const active = { pid: worker.pid, stop: () => {
@@ -90,6 +103,9 @@ export async function executeChild(executable, directory, invocation, cwd, envir
     if (message.ready) {
       if (control.cancelled) active.stop();
       else { started = true; worker.send({ invocation, cwd, environment, timeout }); }
+    } else if (message.nativeFailure !== undefined) {
+      failure = message.nativeFailure;
+      observations = observations.then(() => observeFailure(failure)).catch(error => { observationError = error; active.stop(); });
     } else outcome = message;
   });
   const pumps = ["stdout", "stderr"].map(async stream => {
@@ -97,16 +113,20 @@ export async function executeChild(executable, directory, invocation, cwd, envir
       for (let offset = 0; offset < bytes.length; offset += 65536) await output(stream, bytes.subarray(offset, offset + 65536));
     }
   });
+  const collection = Promise.all(pumps).then(() => ({ ok: true }), error => { active.stop(); return { ok: false, error }; });
   const status = await closed;
-  await Promise.all(pumps);
-  if (control.active === active) control.active = undefined;
+  const collected = await collection;
+  await observations;
   if (worker.pid !== undefined) while ((await groupMembers(worker.pid)).length !== 0) await delay(10);
-  if (control.cancelled && started) return { status: "cancelled", reason: "Local process group cancellation settled" };
+  if (control.active === active) control.active = undefined;
+  if (!collected.ok || observationError !== undefined) throw new IncompleteExecutionError("Required execution output or terminal reporting could not be collected");
+  if (control.cancelled && started) return failure ?? { status: "cancelled", reason: "Local process group cancellation settled" };
   if (launchError !== undefined || !started || status.code !== 0 || outcome === undefined) throw new Error("Local supervisor did not complete its execution record");
-  return outcome;
+  return failure ?? outcome;
 }
 
 export async function inspectAttempt(directory, settle = false) {
+  await ownerRecord();
   const owner = JSON.parse(await readFile(join(directory, "owner.json"), "utf8"));
   if (settle) {
     await writeFile(join(directory, "cancelled"), "cancel", { mode: 0o600 });

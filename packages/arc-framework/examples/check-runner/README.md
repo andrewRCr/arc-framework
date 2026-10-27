@@ -11,6 +11,11 @@ a provider with containment suitable for those commands. Use host admission in t
 inherit its CPU priority, affinity and operating-system limits. The example runs one invocation at a time, applies a
 five-minute wall-time limit to each command or probe, and limits retained probe stdout to 1 MiB.
 
+Sequential commands share the captured view. Before another invocation, the example verifies the original source entry
+inventory, bytes, explicit files and Git administration. If an earlier command changes them, it refuses the later command
+with fresh-attempt guidance. Providers supporting writable concurrent work need independent views or equivalent isolation.
+Every planned command directory must exist within the captured source before the example grants a ready context.
+
 The implementation comprises four small modules: `local.mjs` owns the conversation, `local-inputs.mjs` verifies artifacts
 and binds child environments, `local-process.mjs` supervises descendants and recovery, and `local-runtime.mjs` qualifies
 the supported Node environment. All dependencies are Node builtins or these sibling files.
@@ -48,6 +53,10 @@ pipes. Termination escalates after one second when necessary. `--settle` request
 groups. `--inspect` reports `settled` only when the protocol owner and execution groups have stopped. If it reports active
 work, keep the captured source and explicit files, settle the attempt and inspect again. Remove retained captures only
 after settlement. Records left after recovery can then be removed manually.
+
+Native failures are reported when known, while the outstanding request continues collecting output and settling its
+descendants. Later cancellation cannot replace that failure. Missing required output or terminal delivery keeps execution
+incomplete rather than producing a substitute successful outcome.
 
 The example is a local provider implementation, separate from ARC's pass lookup and publication. Its process records do
 not add an ARC job database, automatic reconnect or replacement execution.

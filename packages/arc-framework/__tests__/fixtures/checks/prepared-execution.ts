@@ -1,15 +1,11 @@
 /** Real selected repositories and standalone protocol fixtures for prepared execution tests. */
-import { writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { createTempRepoCore } from "../../helpers/temp-repo.js";
-import { createExecaGitExec, createExecaRawGitExec, GIT_REPOSITORY_LOCAL_ENVIRONMENT } from "../../../src/lib/git/process-executor.js";
-import { CheckDeclarationSchema } from "../../../src/lib/checks/declaration.js";
-import { resolveCheckRequest } from "../../../src/lib/checks/resolve-request.js";
-import { nodeSourcePresentationIO } from "../../../src/lib/checks/runner/source-io.js";
+import { GIT_REPOSITORY_LOCAL_ENVIRONMENT } from "../../../src/lib/git/process-executor.js";
 import type { PrepareSelectedCheckExecutionInput, CheckExecutionIO } from "../../../src/lib/checks/runner/execution.js";
+import { createRunnerCheckRepository } from "./runner.js";
 
 export type PreparedAdapterMode = "unknown" | "known" | "missing-runtime" | "source-bytes" | "manifest"
-  | "environment" | "unavailable" | "disappeared" | "bad-source-claim" | "execute" | "group" | "wait-prepare" | "cancel-run" | "drift" | "cancel-ready";
+  | "environment" | "unavailable" | "disappeared" | "bad-source-claim" | "execute" | "group" | "wait-prepare" | "cancel-run" | "drift" | "cancel-ready"
+  | "group-loss" | "group-malformed";
 
 export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string): string {
   return `const mode=${JSON.stringify(mode)};const gate=${JSON.stringify(gate)};const gitNames=${JSON.stringify([...GIT_REPOSITORY_LOCAL_ENVIRONMENT])};` + `
@@ -96,7 +92,9 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string):
           return;
         }
         const recovery={jsonrpc:'2.0',method:'check/recovery',params:{planId:plan.planId,
-          instructions:'Inspect and settle this test attempt by its plan UUID.'}};
+          instructions:mode==='group-loss'||mode==='group-malformed'
+            ?'For plan '+plan.planId+', wait for this scripted adapter process to exit. Its only launched child closes before transport ends; after process closure, remove retained captures manually.'
+            :'Inspect and settle this test attempt by its plan UUID.'}};
         if(mode==='disappeared'){
           process.stdout.write(JSON.stringify(recovery)+'\\n',()=>process.exit(0));
           return;
@@ -114,7 +112,7 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string):
         const runtime=await qualify();
         send({jsonrpc:'2.0',id:request.id,result:{status:'ready',planId:plan.planId,contextId:'prepared-context',
           sourceDigest:mode==='bad-source-claim'?'sha256:'+'c'.repeat(64):plan.source.digest,
-          capabilities:{runGroup:mode==='group'},runtime}});
+          capabilities:{runGroup:mode==='group'||mode==='group-loss'||mode==='group-malformed'},runtime}});
       }else if(request.method==='check/release'){
         if(mode==='cancel-ready'&&gate)fs.writeFileSync(gate,'released');
         send({jsonrpc:'2.0',id:request.id,result:{contextId:request.params.contextId,released:true}});
@@ -130,6 +128,11 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string):
         }
       }else if(request.method==='check/run'||request.method==='check/runGroup'){
         const ids=request.method==='check/run'?[request.params.invocationId]:request.params.invocationIds;
+        if(mode==='group-loss'||mode==='group-malformed'){
+          await execute(plan.invocations.find(invocation=>invocation.id===ids[0]));
+          process.stdout.write(mode==='group-malformed'?'not a JSON frame'+String.fromCharCode(10):'',()=>process.exit(mode==='group-malformed'?1:0));
+          return;
+        }
         if(mode==='drift'&&fs.readFileSync(gate,'utf8')!==generation){
           for(const id of ids)send({jsonrpc:'2.0',method:'check/outcome',params:{contextId:'prepared-context',invocationId:id,
             outcome:{status:'unavailable',reason:'Prepared runtime changed',remedy:'Retry explicitly with fresh preparation.'}}});
@@ -147,28 +150,7 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string):
 
 export async function selectedExecutionFixture(directories: string[], mode: PreparedAdapterMode = "unknown"):
 Promise<{ root: string; input: PrepareSelectedCheckExecutionInput; io: CheckExecutionIO; captures: string[] }> {
-  const root = await createTempRepoCore({ prefix: "arc-prepared-execution-" });
-  directories.push(root);
-  const git = createExecaGitExec();
-  await writeFile(join(root, "input.txt"), "captured source\r\n");
-  await writeFile(join(root, "check.cjs"), "process.exit(0);\n");
-  await writeFile(join(root, ".gitignore"), "*.secret\n");
-  await writeFile(join(root, "input.secret"), Buffer.from([0, 255, 13, 10]));
-  await git("git", ["add", "-A"], { cwd: root });
-  await git("git", ["commit", "-m", "check inputs"], { cwd: root });
-  const resolved = await resolveCheckRequest(git, root, { form: { kind: "run", ids: ["example"] } });
-  if (resolved.status !== "resolved") throw new Error(resolved.message);
-  const check = CheckDeclarationSchema.parse({ checks: { example: { runner: true, mode: "files",
-    command: [process.execPath, "check.cjs"], environment_inputs: { EXPLICIT_FILE: "file", SCALAR: "value" } } } }).checks.example!;
-  const captures: string[] = [];
-  const io = { git, gitRaw: createExecaRawGitExec(), source: { ...nodeSourcePresentationIO,
-    files: { ...nodeSourcePresentationIO.files, createDirectory: async () => {
-      const directory = await nodeSourcePresentationIO.files.createDirectory();
-      captures.push(directory); directories.push(directory);
-      return directory;
-    } } } };
-  return { root, captures, io, input: { callerRoot: root, request: resolved.request, check,
-    paths: ["input.txt"], configuration: { file: join(root, "machine.yml"), argv: [process.execPath, "-e", preparedAdapterScript(mode)] },
-    environment: { EXPLICIT_FILE: "input.secret", SCALAR: "literal\nvalue" },
-    globalRuntimeInputs: [[process.execPath, "-e", `process.stdout.write(${JSON.stringify(" \nglobal-probe:0\r\n")})`]] } };
+  const fixture = await createRunnerCheckRepository(directories);
+  return { ...fixture, input: { ...fixture.input, configuration: { ...fixture.input.configuration,
+    argv: [process.execPath, "-e", preparedAdapterScript(mode)] } } };
 }

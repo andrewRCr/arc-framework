@@ -30,13 +30,14 @@ async function bounded<T>(promise: Promise<T>): Promise<T> {
   })]); } finally { clearTimeout(timer); }
 }
 
-localIt.each(["cancel", "EOF", "provider-settle"] as const)("waits for descendants whose native parent exited before %s settlement", async interruption => {
+localIt.each(["cancel", "EOF", "provider-settle", "cancel-after-failure"] as const)("waits for descendants whose native parent exited before %s settlement", async interruption => {
   const fixture = await selectedExecutionFixture(directories);
   const stateRoot = join(fixture.root, "adapter.secret");
   const gate = join(fixture.root, "child-exit.secret");
   const parentFile = join(fixture.root, "parent.secret");
   const childFile = join(fixture.root, "descendant.secret");
-  const childScript = `${interruption === "provider-settle" ? "process.on('SIGTERM',()=>{});" : ""}
+  const explicit = interruption === "cancel" || interruption === "cancel-after-failure";
+  const childScript = `${interruption === "provider-settle" || interruption === "cancel-after-failure" ? "process.on('SIGTERM',()=>{});" : ""}
     const fs=require('node:fs');fs.writeFileSync(${JSON.stringify(childFile)},String(process.pid));
     const timer=setInterval(()=>{if(fs.existsSync(${JSON.stringify(gate)}))clearInterval(timer);},10);`;
   let port: CheckRunnerProcess | undefined;
@@ -45,6 +46,7 @@ localIt.each(["cancel", "EOF", "provider-settle"] as const)("waits for descendan
     buildPlan: () => ({ invocations: [{ id: "check", cwd: ".", shell: false, argv: [process.execPath, "-e", `
       require('node:fs').writeFileSync(${JSON.stringify(parentFile)},String(process.pid));
       require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(childScript)}],{stdio:'ignore'}).unref();
+      ${interruption === "cancel-after-failure" ? "process.exit(7);" : ""}
     `] }], probes: { global: [], check: [] } }),
   }, { ...fixture.io, launch: input => { port = startCheckRunnerProcess(input); return port; } });
   const prepared = await attempt;
@@ -59,10 +61,12 @@ localIt.each(["cancel", "EOF", "provider-settle"] as const)("waits for descendan
     childPid = Number(await readFile(childFile, "utf8"));
     const parentPid = Number(await readFile(parentFile, "utf8"));
     await expect.poll(() => alive(parentPid), { timeout: 5000 }).toBe(false);
+    if (interruption === "cancel-after-failure") await expect.poll(() => execution.observedOutcomes.get("check"), { timeout: 5000 })
+      .toEqual({ status: "completed", exitCode: 7 });
     expect(await alive(childPid)).toBe(true);
     expect(settled).toBe(false);
     await expect(access(execution.source.root)).resolves.toBeUndefined();
-    if (interruption === "cancel") await expect(execution.cancel()).resolves.toMatchObject({ accepted: true });
+    if (explicit) await expect(execution.cancel()).resolves.toMatchObject({ accepted: true });
     else if (interruption === "EOF") port?.stdin.end();
     else {
       const settled = await execFileAsync(process.execPath, [example, "--settle", attempt.planId, "--state-root", stateRoot]);
@@ -70,11 +74,12 @@ localIt.each(["cancel", "EOF", "provider-settle"] as const)("waits for descendan
     }
     const result = await bounded(request);
     expect(result.status).toBe("settled");
-    expect(result.outcomes.get("check")).toMatchObject({ status: "cancelled" });
+    expect(result.outcomes.get("check")).toMatchObject(interruption === "cancel-after-failure"
+      ? { status: "completed", exitCode: 7 } : { status: "cancelled" });
     expect(await alive(childPid)).toBe(false);
     const closure = await execution.close();
-    expect(closure.status).toBe(interruption === "cancel" ? "closed" : "uncertain");
-    if (interruption !== "cancel") {
+    expect(closure.status).toBe(explicit ? "closed" : "uncertain");
+    if (!explicit) {
       const inspected = await execFileAsync(process.execPath, [example, "--inspect", attempt.planId, "--state-root", stateRoot]);
       expect(JSON.parse(inspected.stdout)).toMatchObject({ planId: attempt.planId, status: "settled" });
       const repeated = await execFileAsync(process.execPath, [example, "--settle", attempt.planId, "--state-root", stateRoot]);

@@ -263,7 +263,7 @@ lifetime.
           termination retains uncertain captures and recovery. Drift refusal requires a fresh explicitly qualified
           attempt; cache-hit and executed closure share the same lifetime owner.
 
-### `[ ]` **3.4 Provide the standalone local adapter and process-backed fixtures — D5, D7, D10**
+### `[x]` **3.4 Provide the standalone local adapter and process-backed fixtures — D5, D7, D10**
 
 - _Goal:_ A team can implement the public contract using a small inspectable executable, and real process tests can
   drive settlement faults without depending on ARC-private imports.
@@ -274,15 +274,11 @@ lifetime.
           on cancel/EOF, and support documented inspection/settlement after frontend loss, including preparation.
           Recovery delivery precedes dispatch; unsupported platforms and changed inputs/runtime refuse explicitly.
 
-    - `[ ]` **3.4.b Provide reusable real-process conformance fixtures**
-        - Extend `__tests__/fixtures/checks/repository.ts` with a proposed `fixtures/checks/runner.ts` helper and
-          inventory README; use `createDeclaredCheckRepository` and retry-safe Git temp cleanup.
-        - Build `test-first` (one behavior at a time):
-            - The real example preserves source between sequential invocations by isolation/reset or actionable refusal.
-            - Scripted adapters exercise group-capable and malformed/lost-transport variants without duplicating
-              production logic.
-            - Real framed output, signals, clean unavailable preparation and post-context release satisfy shared
-              validators.
+    - `[x]` **3.4.b Provide reusable real-process conformance fixtures**
+        - Added `runner.ts` over the declared-repository producer with independent adapter state and retry-safe cleanup.
+          Shared scripted groups cover complete, malformed and lost conversations; actual binary frames, native signals
+          and both closure arms use the public validators. The example refuses changed source/Git/explicit inputs and
+          incompatible planned directories, retaining known failures while descendants settle or are cancelled.
 
 ## **Phase 4:** Compose routing, reusable evidence and native results
 

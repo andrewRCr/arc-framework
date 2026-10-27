@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { childDirectory, childEnvironment, readChildNotice, verifyInputs } from "./local-inputs.mjs";
-import { executeChild, inspectAttempt, ownerRecord, runWorker } from "./local-process.mjs";
+import { executeChild, IncompleteExecutionError, inspectAttempt, ownerRecord, runWorker } from "./local-process.mjs";
 import { qualifyNodeRuntime } from "./local-runtime.mjs";
 
 const executable = fileURLToPath(import.meta.url);
@@ -29,6 +29,7 @@ async function main() {
   let directory;
   let contextId;
   let runtime;
+  let administration;
   let busy;
   let ended = false;
   let failed = false;
@@ -81,10 +82,11 @@ async function main() {
       await mkdir(directory, { mode: 0o700 });
       acquired = true;
       await writeFile(join(directory, "owner.json"), JSON.stringify({ ...await ownerRecord(), planId: plan.planId }), { flag: "wx", mode: 0o600 });
-      await verifyInputs(plan);
+      administration = await verifyInputs(plan);
+      for (const invocation of plan.invocations) await childDirectory(plan.source.root, invocation.cwd);
       runtime = args.includes("--known-node-runtime") ? await qualifyNodeRuntime(plan, probe)
         : { kind: "unknown", reason: "This local example has no reusable runtime qualification." };
-      await verifyInputs(plan);
+      await verifyInputs(plan, administration);
       if (control.cancelled) throw new Error("Preparation was cancelled");
       contextId = randomUUID();
       await reply(request, { status: "ready", planId: plan.planId, contextId, sourceDigest: plan.source.digest,
@@ -102,10 +104,11 @@ async function main() {
     if (request.params.contextId !== contextId || invocation === undefined || used.has(id)) throw new Error("Invalid context or repeated/unplanned invocation");
     used.add(id);
     let outcome;
+    let reported;
     let noticeDirectory;
     try {
       if (control.cancelled) throw new Error("Attempt is cancelled; retry with a fresh attempt");
-      await verifyInputs(plan);
+      await verifyInputs(plan, administration);
       if (runtime.kind === "known" && JSON.stringify(await qualifyNodeRuntime(plan, probe)) !== JSON.stringify(runtime)) {
         throw new Error("Prepared Node runtime changed; retry explicitly with fresh qualification");
       }
@@ -113,15 +116,21 @@ async function main() {
       noticeDirectory = await mkdtemp(join(directory, "notice-")).catch(() => undefined);
       const notice = noticeDirectory === undefined ? undefined : join(noticeDirectory, "notice");
       outcome = await executeChild(executable, directory, invocation, cwd, childEnvironment(plan, invocation, notice), 300000,
-        (stream, bytes) => notify("check/output", { contextId, invocationId: id, stream, dataBase64: bytes.toString("base64") }), control);
-      if (outcome.status === "completed" && notice !== undefined) {
+        (stream, bytes) => notify("check/output", { contextId, invocationId: id, stream, dataBase64: bytes.toString("base64") }), control,
+        async failure => {
+          const observed = { ...failure, ...(notice === undefined ? {} : await readChildNotice(notice, failure.exitCode)) };
+          await notify("check/outcome", { contextId, invocationId: id, outcome: observed });
+          reported = observed;
+        });
+      if (reported !== undefined) outcome = reported;
+      else if (outcome.status === "completed" && notice !== undefined) {
         outcome = { ...outcome, ...await readChildNotice(notice, outcome.exitCode) };
       }
     } catch (error) {
-      if (control.active !== undefined) throw error;
+      if (control.active !== undefined || reported !== undefined || error instanceof IncompleteExecutionError) throw error;
       outcome = { status: "unavailable", reason: error.message, remedy: "Repair the captured inputs or local execution environment and retry explicitly." };
     } finally { if (noticeDirectory !== undefined && control.active === undefined) await rm(noticeDirectory, { recursive: true, force: true }).catch(() => undefined); }
-    await notify("check/outcome", { contextId, invocationId: id, outcome });
+    if (reported === undefined) await notify("check/outcome", { contextId, invocationId: id, outcome });
     await reply(request, { contextId, settled: true, outputComplete: true, invocationIds: [id] });
   };
   for await (const line of lines) {
