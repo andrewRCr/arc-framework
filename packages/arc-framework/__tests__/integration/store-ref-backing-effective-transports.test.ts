@@ -7,10 +7,43 @@ import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 import { RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { createRefStore } from "../../src/lib/store/create.js";
 import { success } from "../helpers/store/suite-tools.js";
 
 const record = "refs/arc/tmp/migrate/move";
 const stop = async (step: string): Promise<void> => { if (step === "backing.repointed") throw new Error("Paused after repoint"); };
+
+it.each([
+  { role: "push", pointer: true, spaced: false }, { role: "read", pointer: true, spaced: false },
+  { role: "off", pointer: true, spaced: false }, { role: "read", pointer: false, spaced: false },
+  { role: "off", pointer: false, spaced: false }, { role: "push", pointer: true, spaced: true },
+] as const)("keeps distinct backing transports for a role-only $role setting, pointer=$pointer, spaced=$spaced", async ({ role, pointer, spaced }) => {
+  const h = await refSyncFixture("separate"), publication = await refSyncFixture();
+  const rawUrl = spaced ? "backing raw alias " : h.origin;
+  if (spaced) {
+    await h.a.git(["config", "remote.backing.url", rawUrl]);
+    await h.a.git(["config", `url.${h.origin}.insteadOf`, rawUrl]);
+  }
+  await h.a.git(["config", "remote.backing.pushurl", publication.origin]);
+  let hasPointer = pointer;
+  const ports = { ...h.a.ports, backingRepository: async () => hasPointer ? rawUrl : null };
+  const store = createRefStore(ports);
+  const reference = RecordReferenceSchema.parse({ ...personal, key: "role-only-receiver.md" });
+  success(await store.write({ action: "put", reference, expected: null, content: "Preserved publication receiver.\n", provenance }));
+  const transports = () => h.a.git(["config", "--null", "--get-regexp", "^remote\\.backing\\.(url|pushurl|fetch|push)$"]);
+  const before = (await transports()).stdout;
+  const fetchTips = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
+  expect((await invokeStoreRemote(["backing", role, "--json"], { cwd: h.a.root, ports })).result.status).toBe("ok");
+  expect((await h.a.git(["config", "remote.backing.arc-state"])).stdout.trim()).toBe(role);
+  expect((await transports()).stdout).toBe(before);
+  expect(success(await store.read({ reference })).content).toBe("Preserved publication receiver.\n");
+  hasPointer = true;
+  expect((await invokeStoreRemote(["backing", "push", "--json"], { cwd: h.a.root, ports })).result.status).toBe("ok");
+  success(await store.push());
+  expect((await publication.remote("git", ["grep", "-F", "Preserved publication receiver.", "refs/arc/user/andrew/personal"])).stdout)
+    .toContain("Preserved publication receiver.");
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(fetchTips);
+}, 60_000);
 
 it.each(["literal", "source push URL", "rewrite carriage return"] as const)("refuses a line break in the %s transport before contact and resumes after repair", async damage => {
   const h = await switchFixture(damage === "source push URL" ? "backing" : "code", "backing");
@@ -125,6 +158,25 @@ it.each(["push", "read", "off"] as const)("repoints a direct backing setting wit
   expect((await invokeStoreRemote(["backing", role, "--json"], { cwd: h.a.root, ports })).result.status).toBe("ok");
   expect((await h.a.git(["config", "remote.backing.arc-state"])).stdout.trim()).toBe(role);
 });
+
+it.each(["read", "off"] as const)("restores a recorded follow's transports at an already-matching raw URL (%s)", async role => {
+  const h = await followFixture(undefined, "backing"), side = h.follower;
+  const before = (await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
+  const ports = { ...side.ports, migrateStep: async (step: string) => {
+    if (step === "follow.switch") {
+      await side.git(["config", "remote.backing.url", h.destinationDirectory]);
+      await side.git(["config", "remote.backing.pushurl", h.origin]);
+    }
+  } };
+  expect((await invokeStoreRemote(["backing", role, "--json"], { cwd: side.root, ports })).result.status).toBe("ok");
+  expect((await side.git(["remote", "get-url", "--push", "--all", "backing"])).stdout.trim()).toBe(h.destinationDirectory);
+  expect(success(await side.store.read({ reference: side.unpublished })).content).toBe("Unpublished follower data.\n");
+  expect((await invokeStoreRemote(["backing", "push", "--json"], { cwd: side.root, ports: side.ports })).result.status).toBe("ok");
+  success(await side.store.push());
+  expect((await side.exec("git", [`--git-dir=${h.destinationDirectory}`, "grep", "-F", "Unpublished follower data.", "refs/arc/user/andrew/personal"])).stdout)
+    .toContain("Unpublished follower data.");
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(before);
+}, 60_000);
 
 it.each([false, true])("restores distinct recorded source transports through an inverse rewrite (repair needed=%s)", async repairNeeded => {
   const h = await switchFixture("backing", "backing"), effective = `file://${h.origin}`, alias = "arc-source:";

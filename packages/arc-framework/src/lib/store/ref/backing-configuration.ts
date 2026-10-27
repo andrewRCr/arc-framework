@@ -33,7 +33,12 @@ export async function repointBackingRemote(target: RefBackendContext, destinatio
   const url = typeof destination === "string" ? destination : destination.url;
   const names = (await target.exec("git", ["remote"], { cwd: target.checkoutRoot })).stdout.split(/\r?\n/u);
   if (names.includes("backing")) {
-    const previous = (await target.exec("git", ["config", "--get", "remote.backing.url"], { cwd: target.checkoutRoot })).stdout.trim();
+    const previous = (await target.exec("git", ["config", "--null", "--get", "remote.backing.url"],
+      { cwd: target.checkoutRoot, preserveOutput: true })).stdout.split("\0")[0];
+    if (typeof destination === "string" && previous === url) {
+      await target.exec("git", ["config", "remote.backing.arc-state", role], { cwd: target.checkoutRoot });
+      return;
+    }
     if (previous !== url) {
       const heads = await readSyncRefs(target, ["refs/arc-remotes/backing/", "refs/arc/tmp/seen/backing/"]);
       await requireLayoutTransaction(target, [...heads].map(([ref, expected]) => ({ ref, expected, delete: true })));
