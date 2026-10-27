@@ -67,6 +67,10 @@ and pruning finds nothing to report.
 Keep commits atomic, and push coherent checkpoints regularly when authorized. Keep publication, review spending, and
 merge behind their existing approval boundaries.
 
+Authorized CI qualification and retries on [standard GitHub-hosted runners][standard-hosted-runners] in this public
+repository need no additional spending approval. Verify repository visibility and runner class before asserting a
+monetary cost; paid runner usage retains its spending approval.
+
 Plan broader regression feedback as the affected surface grows, independently of push timing. Use coherent segment or
 phase boundaries, elapsed work, suite cost, and known selection gaps to decide when a wider run is useful. Continue
 frequent automated feedback during deferred human review.
@@ -93,8 +97,9 @@ workflow and method text. Request the tier locally only when a failure after the
 arc check run test:integration:content --range
 ```
 
-It runs the whole integration tier when the branch changes that Markdown, and is not selected otherwise. The tier holds
-the shared test slot for several minutes.
+It runs the whole integration tier when the branch changes that Markdown, and is not selected otherwise. Decision
+records and supplemental research and analysis select neither this run nor CI's, since no integration or E2E test
+reads them. The tier holds the shared test slot for several minutes.
 
 Report feedback failures and handle them under [DEV-RULES.ARC][dev-rules-arc] § Quality gate failure. Checks assigned
 to gates still have to pass by their declared deadlines.
@@ -356,3 +361,4 @@ Strategy][adr-methodology] for decision criteria, the three-tier stability model
 [package-sync]: ../../reference/strategies/project/strategy-package-project-sync.md
 [workflow-authoring]: ../../reference/strategies/arc/strategy-workflow-authoring.md
 [dependency-dispositions]: ../../../SECURITY.md#dependency-dispositions
+[standard-hosted-runners]: https://docs.github.com/en/actions/reference/runners/github-hosted-runners

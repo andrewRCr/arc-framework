@@ -59,6 +59,11 @@ it.each([
   { change: "a backlog planning artifact", path: ".arc/backlog/planned/example/draft-example.md",
     outcome: "not selected" },
   { change: "personal notes", path: ".arc/user/someone/notes.md", outcome: "not selected" },
+  { change: "a decision record", path: ".arc/reference/adr/adr-099-example.md", outcome: "not selected" },
+  { change: "supplemental research", path: ".arc/reference/supplemental/research/research-example.md",
+    outcome: "not selected" },
+  { change: "supplemental analysis", path: ".arc/reference/supplemental/analysis/analysis-example.md",
+    outcome: "not selected" },
   { change: "source code", path: "src/a.ts", outcome: "not selected" },
 ])("selects the content integration tier for $change: $outcome", async ({ path, outcome }) => {
   const root = await createDeclaredCheckRepository({});

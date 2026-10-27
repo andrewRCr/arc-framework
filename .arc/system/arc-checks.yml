@@ -431,6 +431,10 @@ checks:
       - '!.arc/completed/**'
       - '!.arc/user/**'
       - '!.arc/system/.internal/candidates/**'
+      # Decision records and supplemental research and analysis, which no integration test reads.
+      - '!.arc/reference/adr/adr-*.md'
+      - '!.arc/reference/supplemental/research/research-*.md'
+      - '!.arc/reference/supplemental/analysis/analysis-*.md'
   test:arc-contracts:
     command:
       - bash

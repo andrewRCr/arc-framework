@@ -110,6 +110,22 @@ describe("integration target paths", () => {
   ])("does not target the planning record %s", (path) => {
     expect(isIntegrationTargetPath(path)).toBe(false);
   });
+
+  it.each([
+    ".arc/reference/adr/adr-099-example.md",
+    ".arc/reference/supplemental/research/research-example.md",
+    ".arc/reference/supplemental/analysis/analysis-example.md",
+  ])("does not target the reference record %s", (path) => {
+    expect(isIntegrationTargetPath(path)).toBe(false);
+  });
+
+  it.each([
+    ".arc/reference/adr/README.md",
+    ".arc/reference/supplemental/research/README.md",
+    ".arc/reference/strategies/project/strategy-example.md",
+  ])("still targets %s beside the reference records", (path) => {
+    expect(isIntegrationTargetPath(path)).toBe(true);
+  });
 });
 
 function raw(...fields: string[]): Uint8Array {

@@ -291,6 +291,16 @@ const CODE_SURFACE_GLOBS = [
 
 const GENUINE_DOCS_GLOBS = [".arc/*", "docs/*", "mkdocs.yml"] as const;
 
+/**
+ * Project decision records and supplemental research and analysis. They record what was decided or found, and no
+ * integration or E2E test reads them; the content integration tier's declared inputs leave out the same globs.
+ */
+export const REFERENCE_RECORD_GLOBS = [
+  ".arc/reference/adr/adr-*.md",
+  ".arc/reference/supplemental/research/research-*.md",
+  ".arc/reference/supplemental/analysis/analysis-*.md",
+] as const;
+
 const PACKAGED_CONTENT_SENSITIVE_GLOBS = [
   "packages/arc-framework/arc/system/.internal/*",
   "packages/arc-framework/arc/reference/templates/*",
@@ -391,13 +401,13 @@ export function isPortabilitySurfacePath(path: string): boolean {
 
 /**
  * Whether a path's content can change integration results on a change the CI weight classifies as light: packaged
- * Markdown the verified code tree records by shape alone, or project content outside the code surface and the
- * planning record.
+ * Markdown the verified code tree records by shape alone, or project content outside the code surface, the
+ * planning record, and the reference records.
  */
 export function isIntegrationTargetPath(path: string): boolean {
   if (isPackagedArcPath(path)) return !isPackagedContentSensitivePath(path);
   if (isCodeSurfacePath(path) || isPlanningArtifactPath(path)) return false;
-  return !matchesAny(path, PLANNING_RECORD_GLOBS);
+  return !matchesAny(path, PLANNING_RECORD_GLOBS) && !matchesAny(path, REFERENCE_RECORD_GLOBS);
 }
 
 /** Whether a path belongs to the formative planning-artifact lane. */
