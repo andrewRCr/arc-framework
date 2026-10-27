@@ -24,7 +24,7 @@ import { observeSyncChecks } from "./sync-checks.js";
 import type { PullNotice } from "../sync.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import { RefSyncLabelError } from "./sync-label.js";
-import { findRefPathCollision } from "./path-admission.js";
+import { findRefNamespaceCollision } from "./path-admission.js";
 
 /** One immutable side's raw entries and validated group metadata. */
 export interface SyncTreeSide { tip: string | null; entries: Map<string, RefTreeEntry>; metadata: RefMetadata; placement?: ReadPlacement }
@@ -65,11 +65,12 @@ async function mergeGroupTree(context: RefBackendContext, ref: string, local: st
   // Shared merges already supplied the registry labels needed by empty retired histories.
   const lineage = await readLineageOwners(context, captured);
   const retiredOwner = lineage.status === "ok" ? lineage.result.find((owner) => "uid" in owner && live === `refs/arc/work/${owner.uid}`) : undefined;
+  const emptyMetadata = emptySideMetadata(prototype, home, trees, objects, retiredOwner?.name, scope.currentSide);
   const sides: SyncTreeSide[] = [];
   for (const key of ["base", "local", "incoming"]) {
     if (key === "base" && !base) { sides.push({ tip: null, entries: new Map(), metadata: { formatVersion: 1, formats: {} } }); continue; }
     const entries = trees.get(key);
-    const metadata = sideMetadata(entries, objects, home, live, retiredOwner?.name);
+    const metadata = sideMetadata(entries, objects, home, live, emptyMetadata, retiredOwner?.name);
     if (!entries || !metadata) return { status: "refused", refusal: corruptRef(ref, !entries) };
     sides.push({ tip: tips.get(key) ?? null, entries: new Map(entries.map((entry) => [entry.path, entry])), metadata });
   }
@@ -86,7 +87,7 @@ async function mergeGroupTree(context: RefBackendContext, ref: string, local: st
   const records = await reconcileSyncRecords(context, ref, previous, current, remote, objects, { entries, metadata }, conflicts, tipSets, currentSide);
   finishSyncMetadata(ref, metadata, current.metadata, scope);
   entries.set(home.metadataPath, { path: home.metadataPath, mode: "100644", oid: await writeRefBlob(context, canonicalize(metadata)) });
-  const collision = findRefPathCollision(entries.keys());
+  const collision = findRefNamespaceCollision(ref, entries.keys());
   if (collision) throw new RefSyncLabelError(ref, { code: "namespace-corrupt", class: "terminal", namespace: ref,
     condition: `The final merged namespace on ${ref} collides at ${collision.path} and ${collision.other}.`,
     remedy: { text: "Rename or remove the colliding source entries in a new commit, then retry the pull." } });
@@ -129,8 +130,22 @@ function sameEntry(left: RefTreeEntry | undefined, right: RefTreeEntry | undefin
   return left?.oid === right?.oid && left?.mode === right?.mode;
 }
 
+/** Empty sides retain genuine identity evidence without borrowing any record's metadata. */
+function emptySideMetadata(prototype: RecordReference, home: StoredRecordHome,
+  trees: ReadonlyMap<string, readonly RefTreeEntry[]>, objects: ReadonlyMap<string, BatchObject | null>,
+  retiredName: RefMetadata["slug"], currentSide: SyncTreeMergeScope["currentSide"]): RefMetadata | null {
+  // Only this exact ref's captured metadata, or authenticated terminal lineage, can name a UID owner.
+  const preferredKey = currentSide === "local" ? "local" : "incoming";
+  const ownerName = retiredName ?? [preferredKey, preferredKey === "local" ? "incoming" : "local", "base"]
+    .map(key => metadataAt(trees.get(key), objects, home.metadataPath, home.ref)?.slug).find(name => name !== undefined);
+  const named = prototype.owner.type === "work-item" || prototype.owner.type === "cohort";
+  return named && !ownerName ? null : { formatVersion: 1, formats: {}, ...(named ? { slug: ownerName } : {}) };
+}
+
 function sideMetadata(entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>,
-  home: StoredRecordHome, ref: string, retiredName: RefMetadata["slug"]): RefMetadata | null {
-  return entries && retiredName && holdsNoRecord(home, entries.map(({ path }) => path)) ? { formatVersion: 1, formats: {}, slug: retiredName }
-    : metadataAt(entries, objects, home.metadataPath, ref);
+  home: StoredRecordHome, ref: string, emptyMetadata: RefMetadata | null, retiredName: RefMetadata["slug"]): RefMetadata | null {
+  const metadata = metadataAt(entries, objects, home.metadataPath, ref);
+  if (!entries || !holdsNoRecord(home, entries.map(({ path }) => path))) return metadata;
+  if (retiredName) return { formatVersion: 1, formats: {}, slug: retiredName };
+  return metadata ?? (emptyMetadata ? { ...emptyMetadata, formats: {} } : null);
 }

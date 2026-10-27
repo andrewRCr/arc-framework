@@ -5,10 +5,11 @@ import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import type { ResolvedMutation } from "./write-resolution.js";
 import { readRefHistoryDetails } from "./history.js";
-import { mergeEntryText, mergeLineText, splitEntryList } from "../concurrency/index.js";
+import { mergeEntryText, mergeLineText } from "../concurrency/index.js";
 import type { RecordReference, RecordVersion } from "../identity.js";
 import { checkSerializationRules } from "../serialization.js";
 import { readMergeLabels } from "./side-labels.js";
+import { entryIdProblem } from "../concurrency/entry-ids.js";
 import type { EntryConfig } from "../registry.js";
 import type { ReadPlacement } from "../placement.js";
 
@@ -49,13 +50,8 @@ export async function mergeRefMutation(context: RefBackendContext, write: Resolv
 
 function historicalEntryProblem(reference: RecordReference, content: string, version: RecordVersion | null,
   grammar: EntryConfig) {
-  const seen = new Set<string>();
-  for (const part of splitEntryList(content, grammar).parts) {
-    if (part.kind !== "entry") continue;
-    if (!part.id || seen.has(part.id)) return { code: "record-malformed" as const, class: "recoverable" as const,
-      reference, rule: "entry-id", condition: `Stored version ${version} has ${part.id ? `repeated entry ID ${part.id}` : "an entry without an ID"}.`,
-      remedy: { text: "Write the record over its current version with distinct entry IDs, then retry." } };
-    seen.add(part.id);
-  }
-  return undefined;
+  const problem = entryIdProblem(content, grammar);
+  return problem ? { code: "record-malformed" as const, class: "recoverable" as const,
+    reference, rule: "entry-id", condition: `Stored version ${version} has ${problem.kind === "duplicate" ? `repeated entry ID ${problem.id}` : "an entry without an ID"}.`,
+    remedy: { text: "Write the record over its current version with distinct entry IDs, then retry." } } : undefined;
 }

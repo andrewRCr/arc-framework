@@ -8,12 +8,14 @@ import { switchFixture } from "../helpers/store/remote-move.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 
 describe.each(["default", "separate"] as const)("final merged paths in %s", layout => {
-  it.each([false, true])("holds a file/directory collision with the incoming file=%s and retries after source repair", async incomingFile => {
+  it.each([false, true].flatMap(incomingFile => ["stored", "logical"].map(namespace => ({ incomingFile, namespace }))))(
+    "holds a $namespace file/directory collision with incoming file=$incomingFile and retries after repair", async ({ incomingFile, namespace }) => {
     const h = await refSyncFixture(layout), provenance = { verb: "edit", lifecycleAction: "save" };
     const document = (key: string) => RecordReferenceSchema.parse({ kind: "personal/document", key, owner: { type: "person", name: "andrew" } });
     success(await h.a.store.write({ action: "put", reference: document("base.md"), expected: null, content: "Common document.\n", provenance }));
     success(await h.a.store.push()); success(await h.b.store.pull());
-    const a = document(incomingFile ? "node" : "node.andrew/child.md"), b = document(incomingFile ? "node.andrew/child.md" : "node");
+    const child = namespace === "logical" ? "node/child.md" : "node.andrew/child.md";
+    const a = document(incomingFile ? "node" : child), b = document(incomingFile ? child : "node");
     success(await h.a.store.write({ action: "put", reference: a, expected: null, content: "Incoming side.\n", provenance }));
     success(await h.b.store.write({ action: "put", reference: b, expected: null, content: "Local side.\n", provenance }));
     const independent = RecordReferenceSchema.parse({ kind: "project-inbox/inbox", owner: { type: "project", name: "project" } });
@@ -58,11 +60,12 @@ describe.each(["default", "separate"] as const)("final merged paths in %s", layo
   });
 });
 
-it.each(["code", "backing"] as const)("refuses colliding private migration output from %s and retries after repair", async source => {
+it.each((["code", "backing"] as const).flatMap(source => ["stored", "logical"].map(namespace => ({ source, namespace }))))(
+  "refuses $namespace colliding private migration output from $source and retries after repair", async ({ source, namespace }) => {
   const h = await switchFixture(source, "backing"), provenance = { verb: "edit", lifecycleAction: "save" };
   const document = (key: string) => RecordReferenceSchema.parse({ kind: "personal/document", key, owner: { type: "person", name: "andrew" } });
   success(await h.b.store.pull());
-  const parent = document("collision"), child = document("collision.andrew/child.md"), ref = expandStoredPath(parent).ref;
+  const parent = document("collision"), child = document(namespace === "logical" ? "collision/child.md" : "collision.andrew/child.md"), ref = expandStoredPath(parent).ref;
   success(await h.b.store.write({ action: "put", reference: child, expected: null, content: "Destination child.\n", provenance }));
   await h.b.git(["push", "--atomic", h.destinationDirectory, "refs/arc/project/registry:refs/arc/project/registry", `${ref}:${ref}`]);
   success(await h.store.write({ action: "put", reference: parent, expected: null, content: "Source parent.\n", provenance }));

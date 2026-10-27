@@ -10,10 +10,10 @@ import { withdrawRefTargets } from "./sync-withdraw-targets.js";
 import { inverseWithdrawStep } from "./sync-withdraw-inverse.js";
 import { laterSiblingEnds } from "./sync-withdraw-sibling-ends.js";
 import { preserveSiblingLineage } from "./sync-withdraw-preserved-lineage.js";
-import { findRefPathCollision } from "./path-admission.js";
+import { findRefNamespaceCollision } from "./path-admission.js";
 import { RefSyncLabelError } from "./sync-label.js";
 import { syncRefMergeBase } from "./sync-graph.js";
-import { isCompletedGitFailure } from "../../git/process-error.js";
+import { isUnavailableGraphFailure } from "./history-graph.js";
 
 /** Captured immutable coordinates used to validate and invert one competing end. */
 export interface WithdrawalBasis {
@@ -50,7 +50,7 @@ export async function prepareWithdrawEnd(context: RefBackendContext, basis: With
   const registry = prepared.get("refs/arc/project/registry");
   if (registry) await preserveSiblingLineage(context, [...retained.values()], trees.get("refs/arc/project/registry") ?? [], registry);
   for (const [ref, entries] of prepared) {
-    const collision = findRefPathCollision(entries.keys());
+    const collision = findRefNamespaceCollision(ref, entries.keys());
     if (collision) throw new RefSyncLabelError(ref, { code: "namespace-corrupt", class: "terminal", namespace: ref,
       condition: `The withdrawn-end inverse on ${ref} collides at ${collision.path} and ${collision.other}.`,
       remedy: { text: "Repair the colliding retained source paths in a new commit, then retry the pull to withdraw the unpublished end." } });
@@ -67,7 +67,7 @@ async function readWithdrawalAncestors(context: RefBackendContext, journal: read
     let ancestor: string | null;
     try { ancestor = await syncRefMergeBase(context, step.beforeTip, step.publishedTip); }
     catch (error) {
-      if (!isCompletedGitFailure(error)) throw error;
+      if (!await isUnavailableGraphFailure(context, error)) throw error;
       throw new UnavailableWithdrawJournal(step.ref, "The original and published withdrawal ancestor cannot be read.");
     }
     if (!ancestor) continue;

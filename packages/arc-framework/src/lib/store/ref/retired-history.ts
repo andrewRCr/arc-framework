@@ -8,7 +8,8 @@ import { rootFamily } from "./path-decode.js";
 import { readHistoricalGraph, unavailableRefHistory } from "./history-graph.js";
 import { readLineageOwners } from "./lineage-resolution.js";
 import { readBatchObjects, readRefTrees } from "./batch-read.js";
-import { metadataFailure, parseRefMetadata } from "./metadata.js";
+import { historicalMetadataFailure, parseRefMetadata } from "./metadata.js";
+import { captureHistoricalNamespaces } from "./historical-namespace.js";
 
 /** An ended origin has no live tree; its lineage names the retained history that callers must fetch. */
 export async function retiredHistoryHome(context: RefBackendContext, reference: RecordReference,
@@ -38,11 +39,19 @@ export async function retiredHistoryHome(context: RefBackendContext, reference: 
     const owner = OwnerIdentitySchema.parse({ ...reference.owner, name: metadata.slug });
     return { status: "ok", result: expandStoredPath({ ...reference, owner }, { registry: context.registry, history: true }) };
   }
-  const trees = await readRefTrees(context, new Map([[home.ref, tip]]));
-  const entries = trees.get(home.ref);
-  if (queries.length === 0 && entries && holdsNoRecord(home, entries.map(({ path }) => path))) return { status: "refused", refusal: {
+  // Auxiliary metadata history cannot prove that records existed. Inspect every reachable namespace before absence.
+  const complete = await readHistoricalGraph(context, ["rev-list", tip], unavailableRefHistory(reference, home.ref));
+  if (complete.status === "refused") return complete;
+  const revisions = complete.result.trim().split("\n").filter(Boolean);
+  const trees = await readRefTrees(context, new Map(revisions.map(revision => [revision, revision])));
+  if (revisions.some(revision => !trees.has(revision))) return { status: "refused", refusal: unavailableRefHistory(reference, home.ref) };
+  const metadataObjects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap(entries =>
+    entries.filter(({ path }) => path === home.metadataPath).map(({ oid }) => oid)))]);
+  const namespaces = await captureHistoricalNamespaces(context, home, trees, metadataObjects, true);
+  if (namespaces.unavailable.size) return { status: "refused", refusal: unavailableRefHistory(reference, home.ref) };
+  if (!namespaces.corrupt.size && [...trees.values()].every(entries => holdsNoRecord(home, entries.map(({ path }) => path)))) return { status: "refused", refusal: {
     code: "not-found", class: "recoverable", reference, condition: "The ended origin's retained history contains no records.",
     remedy: { text: "Inspect its lineage for the terminal transition; pre-import records remain in code history." },
   } };
-  return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: home.ref, ...metadataFailure(home.ref) } };
+  return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: home.ref, ...historicalMetadataFailure(home.ref) } };
 }

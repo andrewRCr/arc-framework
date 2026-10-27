@@ -37,13 +37,21 @@ export function findRefPathCollision(paths: Iterable<string>): RefPathCollision 
   return undefined;
 }
 
+/** Check the stored tree and, for personal state, its identity-suffix-free logical namespace. */
+export function findRefNamespaceCollision(ref: string, paths: Iterable<string>): RefPathCollision | undefined {
+  const stored = [...paths], physical = findRefPathCollision(stored);
+  if (physical) return physical;
+  const person = /^refs\/arc\/user\/([^/]+)\/personal$/u.exec(ref)?.[1];
+  return person ? findRefPathCollision(stored.map(path => personalCollisionPath(person, path))) : undefined;
+}
+
 /** Refuse a path that would require one tree entry to be both a file and a folder or another record. */
 export function checkRefPathCollision(reference: RecordReference, home: RefPathNeighbor["home"], neighbors: readonly RefPathNeighbor[]): StoreRefusal | undefined {
   for (const neighbor of neighbors) {
     if (neighbor.home.ref !== home.ref) continue;
     const other = neighbor.home.path;
     if (other === home.path && neighbor.reference && sameReference(reference, neighbor.reference)) continue;
-    if (findRefPathCollision([home.path, other]) || findRefPathCollision([personalCollisionPath(reference, home.path), personalCollisionPath(reference, other)])) {
+    if (findRefNamespaceCollision(home.ref, [home.path, other])) {
       const record = neighbor.reference ? `${neighbor.reference.kind} ${JSON.stringify(neighbor.reference.key)}` : "stored entry";
       return unsupportedKey(reference, `The path ${home.path} collides with ${record} at ${other}`);
     }
@@ -51,9 +59,9 @@ export function checkRefPathCollision(reference: RecordReference, home: RefPathN
   return undefined;
 }
 
-function personalCollisionPath(reference: RecordReference, path: string): string {
-  const suffix = `.${reference.owner.name}`;
-  return reference.kind.startsWith("personal/") && path.endsWith(suffix) ? path.slice(0, -suffix.length) : path;
+function personalCollisionPath(person: string, path: string): string {
+  const suffix = `.${person}`;
+  return path.endsWith(suffix) ? path.slice(0, -suffix.length) : path;
 }
 
 /** Check proposed puts together; unresolved owner names remain separate until canonical resolution. */

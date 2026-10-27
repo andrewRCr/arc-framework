@@ -17,7 +17,7 @@ import { expandStoredPath, holdsNoRecord } from "../stored-path.js";
 import type { RecordReference } from "../identity.js";
 import { prepareCapturedWrites } from "./write-current.js";
 import { checkSerializationRules } from "../serialization.js";
-import { checkRefPathCollision, findRefPathCollision, type RefPathNeighbor } from "./path-admission.js";
+import { checkRefPathCollision, findRefNamespaceCollision, type RefPathNeighbor } from "./path-admission.js";
 import { decodeStoredReference } from "./path-decode.js";
 import { familyOf } from "../catalog.js";
 import { refFormatKey } from "./format-key.js";
@@ -113,7 +113,7 @@ function finalWriteNamespaceRefusal(context: RefBackendContext, resolved: Resolv
     if (!target) throw new Error("A prepared namespace has no write target");
     const paths = new Set(group.entries.keys());
     if (!group.retired) paths.add(target.home.metadataPath);
-    const collision = findRefPathCollision(paths);
+    const collision = findRefNamespaceCollision(ref, paths);
     if (collision) return { code: "namespace-corrupt", class: "terminal", namespace: ref,
       condition: `The final write namespace on ${ref} collides at ${collision.path} and ${collision.other}.`,
       remedy: { text: "Rename or remove the colliding retained source entries in a new commit, then retry the write." } };

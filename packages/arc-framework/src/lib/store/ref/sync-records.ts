@@ -14,15 +14,16 @@ import { RecordReferenceSchema, type RecordReference, type OwnerIdentity } from 
 import type { FamilyId } from "../catalog.js";
 import type { CapturedWriteGroup } from "./write-current.js";
 import { appendRefConflicts } from "./write-conflicts.js";
-import { mergeLineText, mergeEntryText, splitEntryList } from "../concurrency/index.js";
+import { mergeLineText, mergeEntryText } from "../concurrency/index.js";
+import { entryIdProblem } from "../concurrency/entry-ids.js";
 import { writeRefBlob } from "./tree-write.js";
 import type { RefMetadata } from "./metadata.js";
 import type { ReadPlacement } from "../placement.js";
-import type { EntryConfig, KindDefinition } from "../registry.js";
+import type { KindDefinition } from "../registry.js";
 import type { SyncCheckRecord } from "./sync-checks.js";
 import { readSyncRecordLabel, readSyncRecordPlacement, RefSyncLabelError } from "./sync-label.js";
 import { fixedStoredPathKind } from "./path-decode.js";
-import { findRefPathCollision } from "./path-admission.js";
+import { findRefNamespaceCollision } from "./path-admission.js";
 
 interface IndexedRecord { entry: RefTreeEntry; value: ConflictRecordValue; retained?: boolean }
 
@@ -63,7 +64,7 @@ function installSelectedRecords(context: RefBackendContext, ref: string, group: 
     ? [recordInstallation(context, ref, group, choice.selected, choice.retainMetadata ?? false)] : []);
   for (const { records } of choices) removeRecordPaths(group, records);
   const retained = new Set([...group.entries.keys(), ...opaque]);
-  const collision = findRefPathCollision([...retained, ...installations.map(({ entry }) => entry.path)]);
+  const collision = findRefNamespaceCollision(ref, [...retained, ...installations.map(({ entry }) => entry.path)]);
   if (collision) throw new RefSyncLabelError(ref, { code: "namespace-corrupt", class: "terminal", namespace: ref,
     condition: `Selected and retained entries on ${ref} collide at ${collision.path} and ${collision.other}.`,
     remedy: { text: "Give the colliding entries distinct stored paths in their source states, then retry the pull." } });
@@ -132,17 +133,7 @@ function wholeRecordRequired(definition: KindDefinition, { base, local, incoming
     || local.value.reference.kind !== incoming.value.reference.kind) return true;
   if (definition.merge !== "entry" || !definition.entry) return false;
   const grammar = definition.entry;
-  return [base, local, incoming].some((record) => record !== undefined && invalidEntryIds(record.value.content, grammar));
-}
-
-function invalidEntryIds(content: string, grammar: EntryConfig): boolean {
-  const seen = new Set<string>();
-  for (const part of splitEntryList(content, grammar).parts) {
-    if (part.kind !== "entry") continue;
-    if (!part.id || seen.has(part.id)) return true;
-    seen.add(part.id);
-  }
-  return false;
+  return [base, local, incoming].some((record) => record !== undefined && entryIdProblem(record.value.content, grammar) !== undefined);
 }
 
 async function mergeTextRecord(context: RefBackendContext, definition: KindDefinition,

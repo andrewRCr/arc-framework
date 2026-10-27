@@ -8,6 +8,7 @@ import { ConflictRecordSchema } from "../../src/lib/store/conflict.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { refSyncFixture, type RefSyncFixture } from "../helpers/store/ref-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 
 const ownQuarter = ArchiveQuarterSchema.parse("2027-q1"), remoteQuarter = ArchiveQuarterSchema.parse("2026-q4");
 const provenance = { verb: "archive", lifecycleAction: "archive" };
@@ -198,7 +199,7 @@ describe.each(["default", "separate"] as const)("whole withdrawal entry inverse 
       expect(success(await h.a.store.read({ reference })).content).toBe(before);
     });
 
-    it.each(["tree", "blob", "unrelated failure"] as const)("holds unavailable ancestor %s before any inverse write and retries after exact restoration", async damage => {
+    it.each(["tree", "blob", "commit", "unrelated failure", "completed failure", "readable diagnostic"] as const)("holds unavailable ancestor %s before any inverse write and retries after exact restoration", async damage => {
       const h = await refSyncFixture(layout);
       const made = success(await h.a.store.write({ action: "put", expected: null,
         reference: RecordReferenceSchema.parse({ owner: { type: "work-item", name: "ancestor-inverse" }, kind: "work-item/meta" }),
@@ -208,9 +209,10 @@ describe.each(["default", "separate"] as const)("whole withdrawal entry inverse 
       const home = expandStoredPath(reference, { registry: createKindRegistry(PRODUCTION_REGISTRATIONS) });
       success(await h.a.store.write({ action: "put", reference, expected: null, content: empty + old, provenance }));
       const common = (await h.a.git(["rev-parse", home.ref])).stdout.trim();
-      const oid = (await h.a.git(["rev-parse", damage === "tree" ? `${common}^{tree}` : `${common}:${home.path}`])).stdout.trim();
+      const oid = (await h.a.git(["rev-parse", damage === "commit" ? common : damage === "tree" ? `${common}^{tree}` : `${common}:${home.path}`])).stdout.trim();
       const gitScope = h.a.gitDir ? [`--git-dir=${h.a.gitDir}`] : [];
-      const type = damage === "tree" ? "tree" : "blob";
+      const type = damage === "commit" ? "commit" : damage === "tree" ? "tree" : "blob";
+      const unavailable = damage === "tree" || damage === "blob" || damage === "commit";
       const bytes = (await h.a.ports.rawExec([...gitScope, "cat-file", type, oid], { cwd: h.a.root, objectAccess: "local-only" })).stdout;
       success(await h.a.store.push()); success(await h.b.store.pull());
       const original = success(await h.a.store.read({ reference }));
@@ -230,11 +232,13 @@ describe.each(["default", "separate"] as const)("whole withdrawal entry inverse 
       const live = `refs/arc/work/${made.reference.owner.uid}`, locked = new Set<string>();
       const requiredLocks = [home.ref, live, live.replace("refs/arc/", "refs/arc/history/"), `refs/arc/archive/${ownQuarter}`, "refs/arc/project/registry"];
       let refs: string | undefined, objects: string | undefined, damaged = false;
-      const failure = new Error("Unrelated withdrawal graph executor failure");
+      const failure = damage === "unrelated failure" ? new Error("Unrelated withdrawal graph executor failure")
+        : makeGitProcessError({ command: "git", args: ["merge-base", before, incoming], exitCode: 128,
+          stderr: damage === "readable diagnostic" ? `fatal: Could not read ${common}\n` : "fatal: permission denied reading repository configuration\n" });
       const observing = createRefStore({ ...h.a.ports, lock: async (ref, wait) => {
         const release = await h.a.ports.lock(ref, wait);
         locked.add(ref);
-        if (!damaged && damage !== "unrelated failure" && requiredLocks.every(ref => locked.has(ref))) {
+        if (!damaged && unavailable && requiredLocks.every(ref => locked.has(ref))) {
           damaged = true;
           await removeLooseObject(h.a.root, oid, h.a.gitDir);
           refs = await stateRefs(h.a);
@@ -242,7 +246,7 @@ describe.each(["default", "separate"] as const)("whole withdrawal entry inverse 
         }
         return async () => { locked.delete(ref); await release(); };
       }, exec: async (command, args, options) => {
-        if (!damaged && damage === "unrelated failure" && args.includes("merge-base") && args.includes(before) && args.includes(incoming)) {
+        if (!damaged && !unavailable && args.includes("merge-base") && args.includes(before) && args.includes(incoming)) {
           damaged = true;
           refs = await stateRefs(h.a);
           objects = (await h.a.git(["count-objects", "-v"])).stdout;
@@ -250,7 +254,7 @@ describe.each(["default", "separate"] as const)("whole withdrawal entry inverse 
         }
         return h.a.ports.exec(command, args, options);
       } });
-      if (damage === "unrelated failure") await expect(observing.pull()).rejects.toBe(failure);
+      if (!unavailable) await expect(observing.pull()).rejects.toBe(failure);
       else {
         const notices = success(await observing.pull()).pulls.flatMap(({ notices }) => notices);
         expect(notices).toContainEqual(expect.objectContaining({ kind: "namespace-corrupt", ref: home.ref, remedy: { text: expect.stringMatching(/restore|fetch/iu) } }));
@@ -259,7 +263,7 @@ describe.each(["default", "separate"] as const)("whole withdrawal entry inverse 
       expect(damaged).toBe(true);
       expect(await stateRefs(h.a)).toBe(refs);
       expect((await h.a.git(["count-objects", "-v"])).stdout).toBe(objects);
-      if (damage !== "unrelated failure") await h.a.ports.rawExec([...gitScope, "hash-object", "-t", type, "-w", "--stdin"],
+      if (unavailable) await h.a.ports.rawExec([...gitScope, "hash-object", "-t", type, "-w", "--stdin"],
         { cwd: h.a.root, input: bytes, objectAccess: "local-only" });
       expect(success(await h.a.store.pull()).pulls.flatMap(({ notices }) => notices)).toContainEqual(expect.objectContaining({ kind: "end-withdrawn" }));
       const record = success(await h.a.store.read({ reference }));
