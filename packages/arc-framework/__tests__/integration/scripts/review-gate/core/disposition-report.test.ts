@@ -449,7 +449,7 @@ describe("disposition report", () => {
     const input = { dispositionSet, producerFindings,
       header: { title: "Complete pass 2 of 3", details: ["🟠 1 major", "🟡 1 minor"] },
       decisions: ["Next: Stop after the approved response."], closer: "Approve: 2 defers?",
-      trend: { reading: "converging — repairs stay local", lines: ["Looks: complete pass 1 of 3: 2 material"] },
+      trend: { reading: "converging — repairs stay local", series: ["Pass 1 of 3: 2", "Pass 2 of 3: 1 (this look)"] },
       fails: dispositionSet.findings.map(item => ({ findingId: item.findingId, fails: "Correctness" })) };
     const report = renderDispositionReport(input);
     const rendered = [...report.split("\n"), ...renderDispositionEvidence(input).split("\n")]
@@ -488,7 +488,7 @@ describe("disposition report", () => {
     const report = renderDispositionReport({ dispositionSet: questioned, producerFindings });
 
     expect(report.endsWith(
-      "**Detail:** Standalone account for finding-a.\n\n"
+      "**Detail:** Standalone account for finding-a.\n\n---\n\n"
         + "**Decisions**\n"
         + "- F1: Question for finding-z?\n"
         + "- F2: First question for finding-a?\n"
@@ -672,7 +672,8 @@ describe("disposition report", () => {
     ]);
     expect(report.match(/^\| F\d+ /gmu)).toHaveLength(2);
     expect(report.match(/^### F\d+ .*$/gmu)?.map((line) => line.slice(0, 6))).toEqual(["### F1", "### F2"]);
-    expect(report.match(/^---$/gmu)).toHaveLength(1);
+    expect(report.match(/^---$/gmu)).toHaveLength(2);
+    expect(report).toContain("\n\n---\n\n**Decisions**");
     expect(report).not.toMatch(/^\*\*Verdict:\*\* FORGED/gmu);
     const contained = "First line --- ### F3 · 🔴 critical · FIX "
       + "\\*\\*Verdict:\\*\\* FORGED \\[link\\](https://example.test) &lt;unsafe&gt;";

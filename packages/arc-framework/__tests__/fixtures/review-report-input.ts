@@ -19,7 +19,6 @@ export function withReviewReport(request: unknown): unknown {
         fails: finding.sourceVerification === "not-supported" ? "none — the source does not support the finding"
           : "Correctness and failure behavior" })),
       successorRecommendation: "Check approved repairs before considering a successor complete pass.",
-      origin: [{ origin: "reviewed artifact", findings: findings.length, newDesignFixes: 0 }],
       reading: { kind: "baseline", rationale: "Use this look's findings to decide its bounded repairs." },
     } };
   }

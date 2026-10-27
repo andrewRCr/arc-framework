@@ -9,25 +9,30 @@ function sizeText(size: Size | null): string {
 }
 function signalText(signal: boolean | null): string { return signal === null ? "unknown" : signal ? "yes" : "no"; }
 
-/** Name each ordered trend entry's lane position: its complete pass, or its fix-check round since one. */
-export function materialTrendEntries(facts: NextPassFacts): (NextPassFacts["materialTrend"][number] & { position: string })[] {
+/**
+ * Name each ordered trend entry's lane position, its complete pass or its fix-check round since one, and the complete
+ * pass it follows; a look before any complete pass follows pass 0.
+ */
+export function materialTrendEntries(
+  facts: NextPassFacts,
+): (NextPassFacts["materialTrend"][number] & { position: string; pass: number })[] {
   let completePass = 0;
   let round = 0;
-  const positions = new Map<string, string>();
+  const positions = new Map<string, { position: string; pass: number }>();
   return facts.materialTrend.map(look => {
-    let position = positions.get(look.producerId);
-    if (position === undefined) {
+    let placed = positions.get(look.producerId);
+    if (placed === undefined) {
       if (look.coverage === "complete") {
         completePass += 1;
         round = 0;
-        position = `complete pass ${completePass} of ${facts.ceiling}`;
+        placed = { position: `complete pass ${completePass} of ${facts.ceiling}`, pass: completePass };
       } else {
         round += 1;
-        position = `fix check, round ${round} since pass ${completePass}`;
+        placed = { position: `fix check, round ${round} since pass ${completePass}`, pass: completePass };
       }
-      positions.set(look.producerId, position);
+      positions.set(look.producerId, placed);
     }
-    return { ...look, position };
+    return { ...look, ...placed };
   });
 }
 

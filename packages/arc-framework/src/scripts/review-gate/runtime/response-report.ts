@@ -25,7 +25,6 @@ interface ProposedResponseReportInput {
   assessment: ReturnType<typeof projectProvisionalPassAssessment>;
   report: ReviewReportInput;
   standardFacts: ProvisionalStandardPassFacts | undefined;
-  readRecord(producerId: string): Promise<ApprovedDispositionRecord | null>;
 }
 
 const GRADE_SYMBOL = { critical: "🔴", major: "🟠", minor: "🟡" } as const;
@@ -69,56 +68,42 @@ function reportCloser(input: ProposedResponseReportInput): string {
   return `Approve: ${[actions.join(", "), ...fixSteps, ...settleSteps].join(" → ")}?`;
 }
 
+type LaneFacts = NonNullable<ProposedResponseReportInput["standardFacts"]>["facts"];
+
 /** One entry per look, in lane order; the current look's provisional count replaces its unapproved one. */
-function trendLooks(facts: NonNullable<ProposedResponseReportInput["standardFacts"]>["facts"]) {
+function trendLooks(facts: LaneFacts) {
   const looks = new Map<string, ReturnType<typeof materialTrendEntries>[number]>();
   for (const entry of materialTrendEntries(facts)) looks.set(entry.producerId, entry);
   return [...looks.values()];
 }
 
-/** A performed round's observed change signals, named only when one fired, beside the tags it forecast. */
-async function firedRoundSignals(input: ProposedResponseReportInput,
-  facts: NonNullable<ProposedResponseReportInput["standardFacts"]>["facts"]): Promise<string[]> {
-  const lines = await Promise.all(facts.fixRounds.map(async (round, index) => {
-    const fired = [round.outsideCitedLoci === true ? "changed paths outside the cited loci" : undefined,
-      round.addedFiles === true ? "added files" : undefined].filter(signal => signal !== undefined);
-    if (fired.length === 0) return undefined;
-    const record = await input.readRecord(round.producerId);
-    const tags = record?.approvedDispositionLineage.find(entry =>
-      entry.approvedDisposition.dispositionSet.dispositionSetId === round.dispositionSetId)?.advisoryFixTags;
-    const forecast = tags === undefined ? ""
-      : `; its tags forecast ${tags.filter(tag => tag.tag === "new-design").length} new design, `
-        + `${tags.filter(tag => tag.tag === "local-correction").length} local correction`;
-    return `Round ${index + 1} ${fired.join(" and ")}${forecast}.`;
-  }));
-  return lines.filter(line => line !== undefined);
+/** Each complete pass with the fix checks after it, as one series of critical and major counts per look. */
+function trendSeries(facts: LaneFacts, looks: ReturnType<typeof trendLooks>): string[] {
+  const passes = new Map<number, string[]>();
+  for (const look of looks) {
+    const counts = passes.get(look.pass) ?? [];
+    counts.push(`${look.materialCount ?? "unknown"}${look.provisional ? " (this look)" : ""}`);
+    passes.set(look.pass, counts);
+  }
+  return [...passes].map(([pass, counts]) =>
+    `${pass === 0 ? "Before pass 1" : `Pass ${pass} of ${facts.ceiling}`}: ${counts.join(" → ")}`);
 }
 
-/** The agent's reading of a lane with two or more looks, over its looks, origins, and fired round signals. */
-async function reportTrend(input: ProposedResponseReportInput): Promise<{ reading: string; lines: string[] } | undefined> {
+/** The agent's reading of a lane with two or more looks, over the series of its critical and major counts. */
+function reportTrend(input: ProposedResponseReportInput): { reading: string; series: string[] } | undefined {
   const facts = input.standardFacts?.facts;
   if (facts === undefined) return undefined;
   const looks = trendLooks(facts);
   if (looks.length < 2) return undefined;
-  const origins = input.report.origin.map(group =>
-    `${group.origin} ${plural(group.findings, "finding")}, ${plural(group.newDesignFixes, "new-design fix", "es")}`);
-  return {
-    reading: `${input.report.reading.kind} — ${input.report.reading.rationale}`,
-    lines: [
-      `Looks: ${looks.map(look => `${look.position}: ${look.materialCount ?? "unknown"} material`
-        + (look.provisional ? " (provisional)" : "")).join(" → ")}`,
-      ...(origins.length === 0 ? [] : [`Origins: ${origins.join("; ")}`]),
-      ...await firedRoundSignals(input, facts),
-    ],
-  };
+  return { reading: `${input.report.reading.kind} — ${input.report.reading.rationale}`, series: trendSeries(facts, looks) };
 }
 
 /** Render unstored report judgments beside the canonical proposal and computed lane trend. */
-export async function readProposedResponseReport(input: ProposedResponseReportInput): Promise<{
+export function readProposedResponseReport(input: ProposedResponseReportInput): {
   dispositionReportText: string; dispositionEvidenceText: string;
-}> {
+} {
   validateReviewReportInput(input.proposal.dispositionSet.findings, input.report);
-  const trend = await reportTrend(input);
+  const trend = reportTrend(input);
   const reportInput = { dispositionSet: input.proposal.dispositionSet, producerFindings: input.producerFindings,
     header: reportHeader(input), decisions: reportDecisions(input), closer: reportCloser(input), tags: input.report.tags,
     fails: input.report.fails, ...(trend === undefined ? {} : { trend }) };

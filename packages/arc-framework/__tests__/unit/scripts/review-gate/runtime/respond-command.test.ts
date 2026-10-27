@@ -284,6 +284,8 @@ describe("review response command", () => {
 
 **Detail:** The selected source supports this disposition.
 
+---
+
 **Decisions**
 - After the fix: fix check, round 1 since pass 1, where its chain is proven. Check approved repairs before considering a successor complete pass.
 
@@ -560,7 +562,8 @@ Approve: 2 fixes → focused verification → commit → push?`,
     }
     expect(report.match(/^### F\d+ .*$/gmu)).toEqual(["### F1 — Finding title"]);
     expect(report).not.toMatch(/^\*\*Verdict:\*\* FORGED/gmu);
-    expect(report).not.toMatch(/^---$/gmu);
+    expect(report.match(/^---$/gmu)).toHaveLength(1);
+    expect(report).toContain("\n\n---\n\n**Decisions**");
   });
 
   it("materializes a complete successor proposal beside only the expected authorized fix paths", async () => {

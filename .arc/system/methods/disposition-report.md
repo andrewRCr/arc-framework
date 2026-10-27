@@ -44,8 +44,12 @@ condition does not hold, and never render an element only to say it does not app
 
 **Detail:** <how the finding was verified>
 
-**Trend:** <reading> — <its rationale>                       [two or more looks]
-- <looks, origins, or a fired round signal>
+---                                                         [something follows the sections]
+
+**Trend:** <reading> — <where the review stands>            [two or more looks]
+
+Critical and major findings, each full pass then its fix checks:
+- <pass>: <its looks' counts>
 
 **Decisions**                                               [something left to decide]
 - <a decision with its recommendation>
@@ -81,12 +85,13 @@ confirmed at its reviewer's grade:
 Never add `Confirmed`, the finding's gating, or a note that a tag is advisory. Separate the fields with a blank line:
 Finding states what is wrong and why it matters, Action gives the response and its boundaries, and Detail says how the
 finding was verified — the source check, probe, or search behind the verdict. Separate adjacent sections with a blank
-line, `---`, and another blank line.
+line, `---`, and another blank line. Set the last section off the same way from what follows it.
 
 **Trend.** Render it only when the lane has two or more looks; a first look has no trend. Lead with the
-[review-model][review-model-trend] reading and its rationale, then give one bullet each for the looks and their
-material counts, the findings' origins and new-design fixes, and any performed fix round whose observed change signal
-fired.
+[review-model][review-model-trend] reading and, in a sentence or two, where the review stands: what the counts show and
+where what remains comes from. Then list the critical and major findings at each look, one bullet per complete pass
+followed by its fix checks, and mark the current look: `Pass 2 of 3: 2 → 1 (this look)`. Leave out minor findings,
+which the header counts for this look, and the origins, tags, and change signals behind the reading.
 
 **Decisions.** Render the block only when something is left to decide: the decision a fix creates about the next
 pass, an offer, or a finding's open question. Give each its recommendation.
@@ -131,6 +136,8 @@ extend a status or evidence line with fields its source supplies.
 
 **Detail:** A delimiter-only probe with left and right alignment returns the current side with no conflict. No other delimiter normalization exists in the reviewed code.
 
+---
+
 **Decisions**
 - After the fix: frontline pass 2 of 2. Recommended: the fix changes merge semantics, so check it before standard review.
 
@@ -169,9 +176,13 @@ A later round of a hosted review with two findings adds the table and the Trend,
 
 **Detail:** The flag was removed with the retry rewrite; the parser rejects it.
 
-**Trend:** converging — both findings sit in the round-one repair, and no new defect class appeared.
-- Looks: complete pass 1 of 3: 4 material → complete pass 2 of 3: 2 material → fix check, round 1 since pass 2: 1 material (provisional)
-- Origins: earlier fixes 2 findings, 0 new-design fixes
+---
+
+**Trend:** converging — one major finding is left, in the round-one repair, and no new defect class appeared.
+
+Critical and major findings, each full pass then its fix checks:
+- Pass 1 of 3: 4
+- Pass 2 of 3: 2 → 1 (this look)
 
 **Decisions**
 - After the fix: fix check, round 2 since pass 2, where its chain is proven. Recommended: the repair is local, and a fix check costs little.
