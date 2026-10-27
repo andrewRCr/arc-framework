@@ -489,25 +489,20 @@ declarations; the old wrapper is retired, native/default operation is preserved 
           global input, and found no dangling executable or catalogue consumer. Wrapper-absent typed forecasts retain
           CI shards; isolated missing-key execution remains native with no adapter or source preparation.
 
-### `[ ]` **6.2 Qualify the repository's configured and native check paths — D9, D10**
+### `[x]` **6.2 Qualify the repository's configured and native check paths — D9, D10**
 
 - _Goal:_ Repository declarations exercise the qualified configured route and the native default without changing gate
   semantics, CI ownership or projected-state/index/fixer boundaries.
 
-    - `[ ]` **6.2.a Qualify configured repository check execution**
-        - Run representative file/project checks and the declared gate through the external path under the active
-          policy; include landed store selection when present. Verify explicit selectors/files, actual runtime
-          disposition and complete outcomes.
-        - Exercise unavailable execution and successful repair/retry without ARC bypass, preserving failure versus
-          missing-result classification and machine-local disposable evidence.
+    - `[x]` **6.2.a Qualify configured repository check execution**
+        - Actual file/project declarations and the commit gate qualify external `29ac002` under the live policy.
+          Private required-remote unavailability remains “couldn't run” without fallback; an explicit fresh remote
+          retry settles with unknown runtime and no reusable-pass lookup or publication. Both captures are released.
 
-    - `[ ]` **6.2.b Qualify native and storage-independent composition**
-        - Exercise isolated unconfigured execution and native CI, fixer/index and projection selections; verify no
-          ordinary local shard expansion, source artifact or adapter spawn on these routes.
-        - Re-ground pass/report integration against landed backend/projection when available and exercise expected
-          projection-layout fixtures; unrelated store/projection changes must not affect declared cache scope.
-        - Keep real projection integration opportunistic while this work is open; no new storage wait or lifecycle
-          write.
+    - `[x]` **6.2.b Qualify native and storage-independent composition**
+        - Native CI, unsharded execution, fixer/index and projected-selection fixtures retain owning-checkout behavior.
+          Isolated missing-key execution performs no routed capture, preparation or adapter spawn. Expected projection
+          layouts qualify the pass/report seam; no landed store or production projection supplier is claimed.
 
 ### `[ ]` **6.3 Reconcile approved implementation changes and accept ADR-039 — D10**
 
