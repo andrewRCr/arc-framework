@@ -82,10 +82,9 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
   const common = remotePullScope(remote, families, notices);
   try {
     const prefix = `refs/arc-remotes/${remote.name}/`;
-    const previous = new Map([...(await readSyncRefs(context, prefix))].map(([ref, tip]) => [`refs/arc/${ref.slice(prefix.length)}`, tip]));
     const fetched = await fetchRefRemote(context, remote, designation, input.history, context.syncDeadline?.signal);
+    const { previous, tracking: fetchedTips, keepers } = fetched.observation;
     notices.push(...fetched.notices);
-    const fetchedTips = await readSyncRefs(refSyncCleanupContext(context), prefix);
     const followDue = fetchedTips.has(`${prefix}${FORWARDING_REF.slice("refs/arc/".length)}`);
     if (fetched.status === "unreachable") return failedRemotePull(context, common, fetched.cause, fetched.stderr || "The state fetch failed.", followDue);
     const forwarded = await readRemoteForwarding(context, common,
@@ -96,6 +95,8 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
     if (adopted.status === "refused") return adoptionFailure(common, adopted.refusal);
     observed.changed ||= adopted.result;
     const { incoming, refused } = fetchedSource(prefix, fetchedTips, fetched.notices);
+    const seenPrefix = `refs/arc/tmp/seen/${remote.name}/`;
+    const releasable = new Map([...keepers].filter(([ref]) => !refused.has(`refs/arc/${ref.slice(seenPrefix.length)}`)));
     captureFetchedHistories(incoming, input.history ?? [], remote.name, fetched);
     const withheld = withholdRefs(incoming, refused, previous);
     const merged = remote.role === "push" ? await mergePulledRefState(context, incoming, designation, remote, input.history ?? [], {
@@ -109,9 +110,9 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
     if (merged?.status === "fetch-failed") return failedRemotePull(context, common, merged.fetched.cause, merged.fetched.stderr || "The history fetch failed.", followDue);
     if (merged) {
       const applied = new Map([...incoming].filter(([ref]) => !isWithheld(ref, incoming, withheld)));
-      await releaseEndedRefKeepers(context, remote.name, applied);
+      await releaseEndedRefKeepers(context, remote.name, applied, releasable);
       onMerged?.(remote.name, applied);
-    } else await releaseEndedRefKeepers(context, remote.name, incoming, true);
+    } else await releaseEndedRefKeepers(context, remote.name, incoming, releasable, true);
     return { ...common, notices: uniqueNotices([...notices, ...merged?.notices ?? []]),
       status: observed.changed || merged?.changed ? "pulled" : "noop" };
   } catch (error) {

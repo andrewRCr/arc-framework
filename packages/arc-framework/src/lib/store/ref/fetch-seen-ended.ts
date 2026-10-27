@@ -10,20 +10,19 @@ import { decodeCapturedRef } from "./read.js";
 
 /** A read source needs fetched end proof and live absence; a merged source also needs applied local history. */
 export async function releaseEndedRefKeepers(context: RefBackendContext, remote: string,
-  incoming: ReadonlyMap<string, string>, readOnly = false): Promise<void> {
-  if (readOnly) await withRefFetchKeepers(context, remote, () => releaseCapturedKeepers(context, remote, incoming, true));
-  else await releaseCapturedKeepers(context, remote, incoming, false);
+  incoming: ReadonlyMap<string, string>, keepers: ReadonlyMap<string, string>, readOnly = false): Promise<void> {
+  if (!keepers.size) return;
+  await withRefFetchKeepers(context, remote, () => releaseCapturedKeepers(context, remote, incoming, keepers, readOnly));
 }
 
 async function releaseCapturedKeepers(context: RefBackendContext, remote: string,
-  incoming: ReadonlyMap<string, string>, readOnly: boolean): Promise<void> {
-  const prefix = `refs/arc/tmp/seen/${remote}/`, kept = await readSyncRefs(context, prefix);
-  if (!kept.size) return;
+  incoming: ReadonlyMap<string, string>, keepers: ReadonlyMap<string, string>, readOnly: boolean): Promise<void> {
+  const prefix = `refs/arc/tmp/seen/${remote}/`;
   const state = readOnly ? await capturedTracking(context, remote) : await readSyncRefs(context, "refs/arc/");
   const proof = readOnly ? new Map([...incoming].filter(([ref, tip]) => state.get(ref) === tip)) : incoming;
   const ended = new Set((await readLifecycleFolders(context, proof)).map(({ liveRef }) => liveRef));
   for (const ref of await publishedLineageRefs(context, proof)) ended.add(ref);
-  for (const [ref, tip] of kept) {
+  for (const [ref, tip] of keepers) {
     const live = `refs/arc/${ref.slice(prefix.length)}`, history = live.replace("refs/arc/", "refs/arc/history/");
     if (ended.has(live) && !state.has(live) && (readOnly || state.has(history))) {
       await updateRefTransaction(context, [{ ref, delete: true, expected: tip }], { cwd: context.checkoutRoot })

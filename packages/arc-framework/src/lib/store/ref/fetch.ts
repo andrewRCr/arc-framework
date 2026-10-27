@@ -4,7 +4,8 @@ import { refSyncCleanupContext } from "./sync-deadline.js";
 import type { PullNotice } from "../sync.js";
 import { refFetchArgs, refFetchNegotiation, refFetchTarget } from "./fetch-target.js";
 import { checkRefFetchUpdates } from "./fetch-check.js";
-import { readRefFetchBasis, finishRefFetchBasis, withRefFetchKeepers } from "./fetch-seen.js";
+import { readRefFetchBasis, finishRefFetchBasis, withRefFetchKeepers, type RefFetchBasis } from "./fetch-seen.js";
+import { readSyncRefs } from "./sync-graph.js";
 import type { HistoryRef } from "../refusal.js";
 import { parseFetchPorcelain, type FetchOutcome } from "../../git/fetch.js";
 import { normalizeGitRejection } from "../../git/process-error.js";
@@ -13,8 +14,12 @@ import type { RefBackendContext } from "./context.js";
 import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
 import { refFetchNeedsCompleteness, missingRefFetchObjects, combineRefFetchOutcomes, RefFetchIncompleteError } from "./fetch-completeness.js";
 
-/** Parsed Git acquisition with independently actionable tracking observations. */
-export type RefFetchOutcome = FetchOutcome & { notices: PullNotice[] };
+type RefFetchResult = FetchOutcome & { notices: PullNotice[] };
+/** Parsed Git acquisition with its coherent, invocation-owned comparison evidence. */
+export type RefFetchOutcome = RefFetchResult & {
+  /** Ephemeral evidence captured with this fetch's keeper lease, never a later sibling's listing. */
+  observation: { previous: ReadonlyMap<string, string>; tracking: ReadonlyMap<string, string>; keepers: ReadonlyMap<string, string> };
+};
 
 /** Fetch registered state and explicitly requested history without configured refmaps or code negotiation. */
 export async function fetchRefRemote(context: RefBackendContext, remote: RefRemoteDesignation,
@@ -36,12 +41,22 @@ export async function fetchRefHistories(context: RefBackendContext, remote: RefR
 async function fetchRefPatterns(context: RefBackendContext, remote: RefRemoteDesignation, designation: RefDesignation,
   patterns: readonly string[], identity: string | null, signal?: AbortSignal): Promise<RefFetchOutcome> {
   const negotiation = await refFetchNegotiation(context, identity);
-  return withRefFetchKeepers(context, remote.name, () => fetchKeptRefPatterns(context, remote, designation, patterns, negotiation, signal));
+  return withRefFetchKeepers(context, remote.name, async () => {
+    const tracking = `refs/arc-remotes/${remote.name}/`, seen = `refs/arc/tmp/seen/${remote.name}/`;
+    const previous = await readSyncRefs(context, tracking);
+    const basis = await readRefFetchBasis(context, remote.name, patterns);
+    const fetched = await fetchKeptRefPatterns(context, remote, designation, patterns, negotiation, basis, signal);
+    const tips = await readSyncRefs(refSyncCleanupContext(context), [tracking, seen]);
+    return { ...fetched, observation: {
+      previous: new Map([...previous].map(([ref, tip]) => [`refs/arc/${ref.slice(tracking.length)}`, tip])),
+      tracking: new Map([...tips].filter(([ref]) => ref.startsWith(tracking))),
+      keepers: new Map([...tips].filter(([ref]) => ref.startsWith(seen))),
+    } };
+  });
 }
 
 async function fetchKeptRefPatterns(context: RefBackendContext, remote: RefRemoteDesignation, designation: RefDesignation,
-  patterns: readonly string[], negotiation: readonly string[], signal?: AbortSignal): Promise<RefFetchOutcome> {
-  const basis = await readRefFetchBasis(context, remote.name, patterns);
+  patterns: readonly string[], negotiation: readonly string[], basis: RefFetchBasis, signal?: AbortSignal): Promise<RefFetchResult> {
   const target = await refFetchTarget(context, remote, designation);
   const args = refFetchArgs(remote.name, negotiation, target);
   const input = patterns.map((pattern) => `${pattern}:refs/arc-remotes/${remote.name}/${pattern.slice("refs/arc/".length)}\n`).join("");
