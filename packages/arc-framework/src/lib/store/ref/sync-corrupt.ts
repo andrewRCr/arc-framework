@@ -12,6 +12,9 @@ import { corruptRef } from "./namespace-health.js";
 import { readLineageOwners } from "./lineage-resolution.js";
 import { holdLifecycleRef, lifecycleRefHeld } from "./sync-lifecycle-holds.js";
 import { isUnavailableGraphFailure } from "./history-graph.js";
+import { HistoryRefSchema } from "../refusal.js";
+import { matchesFamilyRef } from "./codec.js";
+import { isStateRef } from "./manifest.js";
 
 /** Unreadable archive or lineage evidence holds potentially affected item refs until repair. */
 export async function readCorruptLifecycleBatchRefs(context: RefBackendContext, held: ReadonlyMap<string, string>,
@@ -31,7 +34,7 @@ export async function readCorruptLifecycleBatchRefs(context: RefBackendContext, 
     notices.push({ kind: "namespace-corrupt", ref, condition: refusal.condition, remedy: refusal.remedy });
   }
   if (refs.size) {
-    const changes = [...held].filter(([ref, tip]) => tracking.get(ref) !== tip).map(([ref, next]) => ({ ref, next }));
+    const changes = [...held].filter(([ref, tip]) => isStateRef(ref) && tracking.get(ref) !== tip).map(([ref, next]) => ({ ref, next }));
     const batches = await readUnpublishedRefBatches(context, { local: held, tracking, changes });
     if (batches.status === "ok") appendArchiveHolds(refs, notices, batches.result);
     else for (const { ref } of changes) {
@@ -49,8 +52,10 @@ async function incomingLineageHolds(context: RefBackendContext, held: ReadonlyMa
   const refs = new Set<string>(), notices: PullNotice[] = [];
   const lineage = await readLineageOwners(context, incoming);
   if (lineage.status === "ok") return { refs, notices };
-  const items = new Set([...held.keys()].filter(ref => /^refs\/arc\/(?:history\/)?work\//u.test(ref))
-    .map(ref => ref.replace("refs/arc/history/", "refs/arc/")));
+  const items = new Set([...held.keys()].flatMap(ref => {
+    const live = lifecycleItemRef(ref);
+    return live && matchesFamilyRef(live, "work-item") ? [live] : [];
+  }));
   for (const live of items) {
     if (incoming.has(live)) continue;
     refs.add(live); refs.add(live.replace("refs/arc/", "refs/arc/history/"));
@@ -84,12 +89,12 @@ async function incomingArchiveHolds(context: RefBackendContext, held: ReadonlyMa
 }
 
 function incomingArchiveCandidates(held: ReadonlyMap<string, string>, incoming: ReadonlyMap<string, string>): Set<string> {
-  const items = new Set([...held.keys()].filter(ref => /^refs\/arc\/(?:work|cohort)\//u.test(ref)));
+  const items = new Set<string>();
   for (const ref of held.keys()) {
-    if (!/^refs\/arc\/history\/(?:work|cohort)\//u.test(ref)) continue;
-    const live = ref.replace("refs/arc/history/", "refs/arc/");
+    const live = lifecycleItemRef(ref);
+    if (!live) continue;
     // An incoming live tip can reopen held history, so unreadable folders cannot establish its absence.
-    if (incoming.has(live)) items.add(live);
+    if (live === ref || incoming.has(live)) items.add(live);
   }
   return items;
 }
@@ -106,6 +111,7 @@ function incomingArchiveNotices(context: RefBackendContext, ref: string, entries
   objects: ReadonlyMap<string, BatchObject | null>, items: ReadonlySet<string>): Extract<PullNotice, { kind: "namespace-corrupt" }>[] {
   const notices: Extract<PullNotice, { kind: "namespace-corrupt" }>[] = [];
   for (const live of items) {
+    if (lifecycleItemRef(live) !== live) continue;
     const family = live.startsWith("refs/arc/cohort/") ? "cohort" : "work-item";
     const owner = refPrototype(context, live, family).owner;
     const own = entries ? archiveOwnerTrees(new Map([[ref, entries]]), [owner]).get(ref) : undefined;
@@ -125,8 +131,9 @@ function appendArchiveHolds(refs: Set<string>, notices: PullNotice[], batches: R
     const affected = new Set([notice.ref]);
     expandRefBatchExclusion(affected, batches);
     for (const ref of affected) {
+      if (!isStateRef(ref)) continue;
       refs.add(ref);
-      if (!/^refs\/arc\/(?:history\/)?(?:work|cohort)\//u.test(ref)) continue;
+      if (!lifecycleItemRef(ref)) continue;
       notices.push({ kind: "namespace-corrupt", ref,
         condition: `${ref} remains held until ${notice.ref} is repaired. ${notice.condition}`, remedy: notice.remedy });
     }
@@ -136,7 +143,7 @@ function appendArchiveHolds(refs: Set<string>, notices: PullNotice[], batches: R
 async function hasCompetingHistory(context: RefBackendContext, held: ReadonlyMap<string, string>,
   tracking: ReadonlyMap<string, string>, blocked: Set<string>, notices: PullNotice[]): Promise<boolean> {
   for (const [ref, tip] of held) {
-    if (!/^refs\/arc\/history\/(work|cohort)\//u.test(ref)) continue;
+    if (!HistoryRefSchema.safeParse(ref).success) continue;
     if (lifecycleRefHeld(blocked, ref)) continue;
     if (tracking.has(ref.replace("refs/arc/history/", "refs/arc/"))) return true;
     const published = tracking.get(ref);
@@ -151,6 +158,11 @@ async function hasCompetingHistory(context: RefBackendContext, held: ReadonlyMap
     }
   }
   return false;
+}
+
+function lifecycleItemRef(ref: string): string | undefined {
+  if (matchesFamilyRef(ref, "work-item") || matchesFamilyRef(ref, "cohort")) return ref;
+  return HistoryRefSchema.safeParse(ref).success ? ref.replace("refs/arc/history/", "refs/arc/") : undefined;
 }
 
 async function compareHeldHistory(context: RefBackendContext, held: string, published: string): Promise<"aligned" | "competing" | "unavailable"> {
