@@ -52,12 +52,16 @@ describe("proposed fix consequences", () => {
     { retrigger: "full-final", materialFix: true, local: true, coverage: "incremental-when-proven" },
     { retrigger: "full-final", materialFix: false, local: true, coverage: "complete" },
     { retrigger: "incremental", materialFix: true, local: true, coverage: "incremental-when-proven" },
-    { retrigger: "incremental", materialFix: false, local: true, coverage: "incremental-when-proven" },
+    { retrigger: "incremental", materialFix: false, local: true, coverage: "complete-or-incremental" },
     { retrigger: "full-final", materialFix: true, local: false, coverage: "complete" },
     { retrigger: "incremental", materialFix: false, local: false, coverage: "complete" },
   ] as const)("predicts Errand coverage for $retrigger, material=$materialFix, local=$local", row => {
     const { coverage, ...options } = row;
     expect(projectFixConsequence(input(options))).toEqual({ kind: "next-pass", coverage });
+  });
+  it("keeps the fix check beside a ceiling decision after an Errand's minor fixes at the ceiling", () => {
+    expect(projectFixConsequence(input({ retrigger: "incremental", materialFix: false, local: true, belowCeiling: false })))
+      .toEqual({ kind: "next-pass", coverage: "complete-or-incremental" });
   });
   it("requires a complete pass after minor fixes on a full-final delivery fix check", () => {
     expect(projectFixConsequence(input({ retrigger: "full-final", delivery: true, coverage: "incremental" })))

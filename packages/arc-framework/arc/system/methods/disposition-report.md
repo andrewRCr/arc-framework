@@ -48,11 +48,13 @@ condition does not hold, and never render an element only to say it does not app
 
 **Trend:** <reading> — <where the review stands>            [two or more looks]
 
-Critical and major findings, each full pass then its fix checks:
+Critical and major findings, each full pass then its fix checks:   [one found]
 - <pass>: <its looks' counts>
+No critical or major findings at any look.                  [none found]
 
 **Decisions**                                               [something left to decide]
-- <a decision with its recommendation>
+- After the fix: <the looks the lane admits>. Recommended: <the choice and why>   [a fix]
+- Recommended: <the choice and why>                         [no fix]
 - F{ordinal}: <open question>
 
 Approve: <what approval releases>?
@@ -90,11 +92,13 @@ line, `---`, and another blank line. Set the last section off the same way from 
 **Trend.** Render it only when the lane has two or more looks; a first look has no trend. Lead with the
 [review-model][review-model-trend] reading and, in a sentence or two, where the review stands: what the counts show and
 where what remains comes from. Then list the critical and major findings at each look, one bullet per complete pass
-followed by its fix checks, and mark the current look: `Pass 2 of 3: 2 → 1 (this look)`. Leave out minor findings,
-which the header counts for this look, and the origins, tags, and change signals behind the reading.
+followed by its fix checks, and mark the current look: `Pass 2 of 3: 2 → 1 (this look)`. When no look found a
+critical or major finding, the list is the single line `No critical or major findings at any look.` Leave out minor
+findings, which the header counts for this look, and the origins, tags, and change signals behind the reading.
 
 **Decisions.** Render the block only when something is left to decide: the decision a fix creates about the next
-pass, an offer, or a finding's open question. Give each its recommendation.
+pass, an offer, or a finding's open question. Give each its recommendation. A fix's decision names every look the lane
+admits after it, then the recommended choice under `Recommended:`, so a recommendation to stop never reads as the look.
 
 **Closing question.** End the report with one question that asks for approval of the complete set and names what that
 approval releases, and nothing more: the dispositions by action; for a fix, its verification scope, then the commit and

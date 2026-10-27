@@ -12,7 +12,7 @@ const repositories: string[] = [];
 const context = makeInteractionContext({ noInput: true, machineReadable: true });
 const inspect = "const fs=require('node:fs');const paths=process.argv.slice(1);"
   + "const contents=paths.map(path=>fs.readFileSync(path,'utf8'));"
-  + "const receipt={paths,contents,cwd:process.cwd()};fs.writeFileSync('receipt.json',JSON.stringify(receipt));"
+  + "const receipt={paths,contents,cwd:fs.realpathSync(process.cwd())};fs.writeFileSync('receipt.json',JSON.stringify(receipt));"
   + "console.log(JSON.stringify(receipt));process.exit(contents.some(content=>content.includes('BAD'))?1:0)";
 const command = [process.execPath, "-e", inspect];
 afterEach(async () => { vi.unstubAllEnvs(); await removeGitBackedDirs(repositories.splice(0)); });
