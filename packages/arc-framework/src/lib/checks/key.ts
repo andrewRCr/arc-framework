@@ -2,9 +2,13 @@
 import { createHash } from "node:crypto";
 import type { CheckDeclaration } from "./declaration.js";
 import type { TreePathChange } from "./tree.js";
+import type { SourceManifestEntry } from "./runner/contract-source.js";
 
 /** Declared historical input content, including absent received paths. */
 export interface CheckPathContent { path: string; content: { mode: string; blob: string } | null }
+
+/** A canonical dependency label and its captured materialized presentation. */
+export interface CheckMaterializedPathContent { readonly path: string; readonly entry: Readonly<SourceManifestEntry> }
 
 /** Resolved content participating in a check's execution identity. */
 export interface CheckKeyInput {

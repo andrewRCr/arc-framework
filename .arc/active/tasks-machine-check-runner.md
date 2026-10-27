@@ -293,13 +293,10 @@ runs unknown runtime without reuse, preserves native outcomes, and closes or ret
 - _Goal:_ A pass describes scoped captured content and the actual prepared executor while unrelated source/store changes
   and transport handles cannot broaden its dependency set.
 
-    - `[ ]` **4.1.a Separate scoped content material from runtime observation**
-        - Factor proposed `resolveCheckKeyMaterial` from `resolveCheckKey` in `src/lib/checks/key-resolver.ts`; keep
-          native `resolveCheckKey` as a composing entry and `checkContentKey` as hash authority.
-        - Build `test-first` (one behavior at a time):
-            - Declared inputs/global inputs/received paths/history and existing divergence refusals retain scope.
-            - Routed material reads scoped raw presentation from the captured view, never later live files or local
-              probes.
+    - `[x]` **4.1.a Separate scoped content material from runtime observation**
+        - Added probe-free `resolveCheckKeyMaterial` with captured Git and scoped raw presentation reads; native key
+          composition preserves runtime/history ordering. Captured Git creates its empty-tree object before preparation,
+          so later scoped matching preserves the prepared context after caller removal.
 
     - `[ ]` **4.1.b Compose prepared identities and qualify reuse**
         - Build `test-first` (one behavior at a time):

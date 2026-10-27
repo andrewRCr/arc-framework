@@ -46,6 +46,8 @@ export async function addSourceGitMetadata(io: SourceMaterializationIO, callerRo
     const administration = [`--git-dir=${directory}`, `--work-tree=${source.root}`, "-c", `core.hooksPath=${hooks}`];
     await io.git("git", [...administration, "-c", "init.defaultRefFormat=files", "init", "--quiet", "--template=",
       `--object-format=${format}`, "--initial-branch=source"], options);
+    // Scoped matching must not create its empty-tree object after the context is prepared.
+    await io.gitRaw([...administration, "hash-object", "-t", "tree", "-w", "--stdin"], { ...options, input: Buffer.alloc(0) });
     const pack = join(directory, "objects", "pack");
     await io.source.mkdir(pack);
     await io.gitRaw(["pack-objects", "--revs", join(pack, "pack")], {
