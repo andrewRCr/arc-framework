@@ -5,6 +5,7 @@ import { createRefFixture, type RefConformanceFixture } from "../helpers/store/r
 import { seed, success, update, mutationOf, testProvenance } from "../helpers/store/suite-tools.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { createRefStore } from "../../src/lib/store/create.js";
+import { parseCohortDocument } from "../../src/lib/store/kinds/cohort/parser.js";
 import { randomUUID } from "node:crypto";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { renderStoreCommitMessage } from "../../src/lib/store/commit-provenance.js";
@@ -17,6 +18,25 @@ const quarter = ArchiveQuarterSchema.parse("2026-q4");
 const later = ArchiveQuarterSchema.parse("2027-q1");
 
 describe("writes to completed ref records", () => {
+  it("does not lend an older retained ending to a cohort when the meta put names the latest quarter", async () => {
+    const f = await createRefFixture({ "cohort/document": { parser: parseCohortDocument } });
+    const { primary, firstRef, firstRoot, firstEnd, ref, nextRoot, metadataPath, nextQuarter, batch } = await endTwice(f, "another quarter");
+    const cohort = await seed(f, f.reference("cohort/document", "older-quarter"));
+    const member = success(await f.store.read({ reference: primary.reference }));
+    const content = JSON.stringify({ ...JSON.parse(member.content), cohort: cohort.reference.owner.name });
+    success(await f.store.batch({ writes: [mutationOf(update(f, member, content)),
+      mutationOf({ ...update(f, cohort, cohort.content), placement: { kind: "completed", quarter } })], provenance: testProvenance }));
+    expect(success(await f.store.read({ reference: cohort.reference })).placement)
+      .toEqual({ kind: "completed", quarter, sequence: "03", closeout: "a" });
+    expect(success(await f.store.read({ reference: primary.reference })).placement)
+      .toEqual({ kind: "completed", quarter: nextQuarter, sequence: "06" });
+    const git = makeGitExec(f.root);
+    for (const [quarterRef, root, endBatch] of [[firstRef, firstRoot, firstEnd], [ref, nextRoot, batch]]) {
+      expect(JSON.parse((await git("git", ["show", `${quarterRef}:${root}${metadataPath}`])).stdout)).toMatchObject({ endBatch });
+      expect((await git("git", ["show", `${quarterRef}:${root}meta-${primary.reference.owner.name}.md`], { preserveOutput: true })).stdout).toBe(content);
+    }
+  });
+
   it("keeps completed primary-role round trips readable in checks, results, history and later writes", async () => {
     let checking = false;
     const checked: StoreRecord[] = [];

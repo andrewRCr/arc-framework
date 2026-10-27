@@ -20,7 +20,7 @@ import { corruptRef } from "./namespace-health.js";
 import { writeRefBlob } from "./tree-write.js";
 import { expandStoredPath } from "../stored-path.js";
 import { quarterCommitReference } from "./quarter-provenance.js";
-import { completedRoleReplacements, planCompletedRoleReplacements } from "./write-completed-role.js";
+import { completedRoleReplacements, planCompletedRoleReplacements, type CompletedRoleReplacement } from "./write-completed-role.js";
 
 /** The archives and prepared writes a moved cohort's closeout reads, as a closing cohort's does. */
 export interface CompletedMoveBasis {
@@ -57,7 +57,7 @@ export async function planCompletedMoves(context: RefBackendContext, batch: Reso
     const quarter = completedMoveQuarter(batch, history);
     return quarter ? [{ history, quarter }] : [];
   });
-  const replacements = basis.cohorts ? completedRoleReplacements(batch, groups, new Set(moves.map(({ history }) => history))) : [];
+  const replacements = basis.cohorts ? [] : completedRoleReplacements(batch, groups, new Set(moves.map(({ history }) => history)));
   const selected = moves.filter(({ history }) => history.startsWith("refs/arc/history/cohort/") === basis.cohorts);
   if (!selected.length && !replacements.length) return { status: "ok", result: undefined };
   const captured = await completedQuarterTrees(context, [], batch, new Set([...moves.map(({ quarter }) => `refs/arc/archive/${quarter}`),
@@ -84,7 +84,19 @@ export async function planCompletedMoves(context: RefBackendContext, batch: Reso
     const write = basis.writes.find(write => write.home.ref === history && write.mutation.reference.kind === "work-item/meta");
     if (write) basis.planning.members.push({ write, placement });
   }
-  return planCompletedRoleReplacements(context, replacements, quarters);
+  const assigned = planCompletedRoleReplacements(context, replacements, quarters);
+  if (assigned.status === "refused") return assigned;
+  recordReplacementMembers(replacements, basis, groups);
+  return assigned;
+}
+
+function recordReplacementMembers(replacements: readonly CompletedRoleReplacement[], basis: CompletedMoveBasis,
+  groups: ReadonlyMap<string, RefWriteGroup>): void {
+  for (const { group } of replacements) {
+    const write = basis.writes.find(({ home, mutation }) => groups.get(home.ref) === group && mutation.action === "put"
+      && mutation.reference.kind === "work-item/meta" && mutation.placement?.kind === "completed");
+    if (write && group.readPlacement) basis.planning.members.push({ write, placement: group.readPlacement });
+  }
 }
 
 function reservePreparedQuarters(quarters: Map<string, Map<string, RefTreeEntry>>, basis: CompletedMoveBasis,

@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { expandStoredPath } from "../../src/lib/store/stored-path.js";
-import type { ReadPlacement, RecordReference, StoreRecord } from "../../src/lib/store/index.js";
+import { RecordReferenceSchema, type ReadPlacement, type RecordReference, type StoreRecord } from "../../src/lib/store/index.js";
 import { parseCohortDocument } from "../../src/lib/store/kinds/cohort/parser.js";
 import { createRefFixture } from "../helpers/store/ref-fixture.js";
 import { seed, success, update, mutationOf, testProvenance } from "../helpers/store/suite-tools.js";
@@ -11,6 +11,58 @@ import type { WriteCheck } from "../../src/lib/store/write-check.js";
 const target = ArchiveQuarterSchema.parse("2026-q4"), prior = ArchiveQuarterSchema.parse("2026-q3");
 
 describe.each(["default", "separate"] as const)("completed member closeouts in %s", layout => {
+  it.each((["promotion", "meta refresh"] as const).flatMap(memberChange => [false, true].flatMap(transferred =>
+    [false, true].map(cohortFirst => ({ memberChange, transferred, cohortFirst })))))(
+    "uses same-quarter $memberChange with transferred cohort=$transferred, cohort first=$cohortFirst", async ({ memberChange, transferred, cohortFirst }) => {
+    let armed = false, tracked: RecordReference[] = [];
+    const checked = new Map<string, ReadPlacement | undefined>();
+    const inspect: WriteCheck = async ({ after }) => {
+      if (armed) for (const reference of tracked) checked.set(reference.owner.name, success(await after.read({ reference })).placement);
+      return [];
+    };
+    const f = await createRefFixture({ "work-item/meta": { check: inspect },
+      "cohort/document": { check: inspect, parser: parseCohortDocument } }, layout);
+    const baseline = await seed(f, f.reference("work-item/meta", "unrelated"));
+    success(await f.store.write({ ...update(f, baseline, baseline.content), placement: { kind: "completed", quarter: target } }));
+    let cohort = await seed(f, f.reference("cohort/document", "closeout"));
+    if (transferred) {
+      success(await f.store.write({ ...update(f, cohort, cohort.content), placement: { kind: "completed", quarter: prior } }));
+      cohort = success(await f.store.read({ reference: cohort.reference }));
+    }
+    const original = await seed(f, f.reference(memberChange === "promotion" ? "work-item/record" : "work-item/meta", "member"));
+    success(await f.store.write({ ...update(f, original, original.content), placement: { kind: "completed", quarter: target } }));
+    const member = success(await f.store.read({ reference: original.reference }));
+    const reference = RecordReferenceSchema.parse({ ...member.reference, kind: "work-item/meta" });
+    const content = JSON.stringify({ ...JSON.parse(f.content(reference)), value: 2, cohort: `ancestor/${cohort.reference.owner.name}` });
+    const scope = f.gitDir ? [`--git-dir=${f.gitDir}`] : [];
+    const metadata = async (record: StoreRecord) => {
+      const home = expandStoredPath(record.reference, { history: true });
+      return JSON.parse((await f.ports.exec("git", [...scope, "show", `${home.ref}:${home.metadataPath}`], { cwd: f.root })).stdout) as { endBatch: string };
+    };
+    const ended = [member, ...transferred ? [cohort] : []];
+    const endBatches = new Map(await Promise.all(ended.map(async record => [record.reference.owner.name, (await metadata(record)).endBatch] as const)));
+    for (const stamp of endBatches.values()) expect(stamp).toMatch(/^[0-9a-f-]{36}$/u);
+    const priorCohort = expandStoredPath(cohort.reference, { placement: cohort.placement });
+    const memberWrite = mutationOf({ ...update(f, member, content), reference, placement: { kind: "completed", quarter: target } });
+    const cohortWrite = mutationOf({ ...update(f, cohort, cohort.content), placement: { kind: "completed", quarter: target } });
+    tracked = [reference, cohort.reference];
+    armed = true;
+    success(await f.store.batch({ writes: cohortFirst ? [cohortWrite, memberWrite] : [memberWrite, cohortWrite], provenance: testProvenance }));
+    const finalMember = success(await f.store.read({ reference })), finalCohort = success(await f.store.read({ reference: cohort.reference }));
+    expect(finalMember.placement).toEqual({ kind: "completed", quarter: target, sequence: "02" });
+    expect(finalCohort.placement).toEqual({ kind: "completed", quarter: target, sequence: "02", closeout: "a" });
+    expect(finalMember.content).toBe(content);
+    for (const record of [finalMember, finalCohort]) {
+      expect(checked.get(record.reference.owner.name)).toEqual(record.placement);
+      const home = expandStoredPath(record.reference, { placement: record.placement });
+      expect((await f.ports.exec("git", [...scope, "show", `${home.ref}:${home.path}`], { cwd: f.root, preserveOutput: true })).stdout).toBe(record.content);
+    }
+    for (const record of ended) expect((await metadata(record)).endBatch).toBe(endBatches.get(record.reference.owner.name));
+    if (transferred) expect((await f.ports.exec("git", [...scope, "ls-tree", "-r", "--name-only", `refs/arc/archive/${prior}`], { cwd: f.root })).stdout)
+      .not.toContain(priorCohort.metadataPath);
+    expect(success(await f.store.read({ reference: baseline.reference })).placement).toEqual({ kind: "completed", quarter: target, sequence: "01" });
+  }, 60_000);
+
   it.each((["transferred member", "both transferred", "mixed members"] as const).flatMap(scenario =>
     [false, true].map(cohortFirst => ({ scenario, cohortFirst }))))(
     "groups $scenario with its cohort, cohort first=$cohortFirst", async ({ scenario, cohortFirst }) => {
