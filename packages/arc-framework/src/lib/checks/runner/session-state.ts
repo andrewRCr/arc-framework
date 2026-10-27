@@ -1,7 +1,7 @@
 /** Attempt and context authority retained independently of transport diagnostics. */
 import type { CancelParams, RecoveryParams, RunParams, RunGroupParams, RunnerNotification, RunnerRequest, TerminalOutcome } from "./contract.js";
 import { RunnerExecution, indexRunnerPlan, validateRunnerPreparation, validateRunnerRecovery,
-  type PreparedRunnerContext, type RunnerPlanIndex, type RunnerResultByMethod } from "./correlation.js";
+  type KnownRunnerRuntime, type PreparedRunnerContext, type RunnerPlanIndex, type RunnerResultByMethod } from "./correlation.js";
 
 /** Ordered application state for one adapter process and its fixed attempt. */
 export class RunnerConversationState {
@@ -33,6 +33,9 @@ export class RunnerConversationState {
 
   /** Disposable cleanup trouble after the adapter proved context settlement. */
   get cleanupWarning(): string | undefined { return this.warning; }
+
+  /** Complete per-invocation qualification, absent for explicitly unknown runtime. */
+  get runtime(): KnownRunnerRuntime | undefined { return this.context?.runtime; }
 
   /** Validate an operation before its request can reach the adapter. */
   begin(request: RunnerRequest): void {

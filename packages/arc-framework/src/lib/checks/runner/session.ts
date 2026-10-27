@@ -1,6 +1,6 @@
 /** Ordered process-backed JSON-RPC transport for one check runner conversation. */
 import { RunnerRequestSchema, type RecoveryParams, type TerminalOutcome, type RunnerMessage, type RunnerNotification, type RunnerRequest } from "./contract.js";
-import { decodeRunnerReply, type RunnerResultByMethod } from "./correlation.js";
+import { decodeRunnerReply, type KnownRunnerRuntime, type RunnerResultByMethod } from "./correlation.js";
 import { startCheckRunnerProcess, type CheckRunnerProcess, type CheckRunnerProcessExit, type CheckRunnerProcessInput } from "./session-process.js";
 import { RunnerMessageFramer } from "./session-framing.js";
 import { RunnerConversationState } from "./session-state.js";
@@ -23,6 +23,7 @@ export interface CheckRunnerSession {
   readonly closed: Promise<CheckRunnerProcessExit>;
   readonly recovery: Readonly<RecoveryParams> | undefined;
   readonly observedOutcomes: ReadonlyMap<string, Readonly<TerminalOutcome>>;
+  readonly runtime: KnownRunnerRuntime | undefined;
   close(): Promise<CheckRunnerClosure>;
   closeInput(): void;
   terminate(): void;
@@ -87,6 +88,7 @@ class RunnerSessionTransport implements CheckRunnerSession {
   get failure(): Error | undefined { return this.protocolFailure; }
   get recovery(): Readonly<RecoveryParams> | undefined { return this.conversation.recovery; }
   get observedOutcomes(): ReadonlyMap<string, Readonly<TerminalOutcome>> { return this.conversation.observedOutcomes; }
+  get runtime(): KnownRunnerRuntime | undefined { return this.conversation.runtime; }
 
   async request<Operation extends CheckRunnerOperation>(operation: Operation): Promise<RunnerResultByMethod[Operation["method"]]> {
     if (this.protocolFailure !== undefined) throw this.protocolFailure;

@@ -252,14 +252,10 @@ lifetime.
 - _Goal:_ Consumers prepare one fixed input/runtime context through a reusable boundary and can observe complete
   outcomes and lifetime evidence without reimplementing source capture or provider policy.
 
-    - `[ ]` **3.3.a Assemble preparation from generic plans and owned inputs**
-        - Introduce `prepareSelectedCheckExecution` / `PreparedCheckExecution` in `src/lib/checks/runner/execution.ts`;
-          compose source, explicit bindings, complete plan, UUID and session behind injected filesystem/process ports.
-        - Build `test-first` (one behavior at a time):
-            - Source/manifest/coordinates and captured-file validation precede valid ready; mismatches never run.
-            - Known runtimes fully cover applicable invocations/probes; unknown keeps live execution without reusable
-              evidence.
-            - Preparation failure cleans only proven-settled inputs; consumer exceptions retain possibly-used resources.
+    - `[x]` **3.3.a Assemble preparation from generic plans and owned inputs**
+        - Added `prepareSelectedCheckExecution` and `PreparedCheckExecution`, composing selected source, frozen explicit
+          bindings, immutable native or consumer-built plans, fresh UUIDs and validated runtime readiness. One lifetime
+          owner retains uncertain captures and recovery, disposes settled inputs, and reports failed local cleanup.
 
     - `[ ]` **3.3.b Expose common run, optional group and lifetime operations**
         - Build `test-first` (one behavior at a time):
@@ -416,6 +412,8 @@ runs unknown runtime without reuse, preserves native outcomes, and closes or ret
               declared no-evidence precedence retain their native meanings.
             - Windows capture refuses catalog backslashes before filesystem lookup can interpret them as separators or
               traversal; POSIX backslash filenames remain literal source names.
+            - Catalog and authored-directory aliases preserve actual captured spelling in fixed argv and cwd, so
+              compatible case/Unicode placement cannot select a missing or different source path.
 
     - `[ ]` **4.5.b Select and classify the foundation's supported-platform cases**
         - Extend `localVitestTierArguments` in `src/lib/local-vitest-runner.ts` and `isPortabilitySurfacePath` in
