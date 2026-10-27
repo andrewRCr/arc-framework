@@ -5,7 +5,7 @@ import { requireLayoutTransaction } from "./migrate-layout-build.js";
 import type { RefBackendContext } from "./context.js";
 import type { MoveRemote } from "./migrate-record.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
-import { isGitProcessError } from "../../git/process-error.js";
+import { isCompletedGitFailure, isGitProcessError } from "../../git/process-error.js";
 import { effectiveTransportCandidates, readRemoteTransports, resolveLiteralTransport } from "./effective-transport.js";
 
 type BackingTarget = string | Pick<MoveRemote, "url" | "fetchUrl" | "pushUrl">;
@@ -55,7 +55,7 @@ export async function backingTransportsMatch(target: RefBackendContext, destinat
 
 async function clearBackingPushUrls(target: RefBackendContext): Promise<void> {
   try { await target.exec("git", ["config", "--unset-all", "remote.backing.pushurl"], { cwd: target.checkoutRoot }); }
-  catch (error) { if (!isGitProcessError(error) || error.kind !== "nonzero-exit" || error.exitCode !== 5) throw error; }
+  catch (error) { if (!isGitProcessError(error) || !isCompletedGitFailure(error) || error.exitCode !== 5) throw error; }
 }
 
 async function restoreBackingTransports(target: RefBackendContext, remote: Exclude<BackingTarget, string>): Promise<void> {

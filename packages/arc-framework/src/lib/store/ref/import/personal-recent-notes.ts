@@ -1,6 +1,6 @@
 /** Strict, pinned acquisition of the same recent note versions ordinary personal load considers. */
 import type { GitExec } from "../../../git/exec.js";
-import { isGitProcessError } from "../../../git/process-error.js";
+import { isCompletedGitFailure, isGitProcessError } from "../../../git/process-error.js";
 import { CROSS_WU_NOTE_WINDOW, CROSS_WU_NOTE_WINDOW_MS, NOTES_COMPACTION_SNAPSHOT_MESSAGE,
   notePathToCommit, type RecentNote } from "../../../user-sync/notes-ref.js";
 import type { RefBackendContext } from "../context.js";
@@ -8,15 +8,19 @@ import { parseImportNoteFiles } from "./personal-note-manifest.js";
 
 /** Capture a present ref's raw tip without confusing a missing commit object with an absent identity. */
 export async function readImportNotesTip(exec: GitExec, person: string): Promise<string | null> {
+  let rawTip: string;
   try {
     const { stdout } = await exec("git", ["--no-replace-objects", "rev-parse", "--verify", "--quiet", `refs/notes/arc/user/${person}`]);
-    const tip = stdout.trim();
-    if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(tip)) throw new Error("A personal notes ref has no readable object identity");
-    return tip;
+    rawTip = stdout.trim();
   } catch (error) {
-    if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1) return null;
+    if (isGitProcessError(error) && isCompletedGitFailure(error) && error.exitCode === 1) return null;
     throw error;
   }
+  if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(rawTip)) throw new Error("A personal notes ref has no readable object identity");
+  const { stdout } = await exec("git", ["--no-replace-objects", "rev-parse", "--verify", "--quiet", `${rawTip}^{commit}`]);
+  const tip = stdout.trim();
+  if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(tip)) throw new Error("A personal notes ref has no readable commit object identity");
+  return tip;
 }
 
 /** Fail on required acquisition errors while retaining load's count, age and compaction exclusions. */

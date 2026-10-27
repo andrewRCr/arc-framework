@@ -1,5 +1,5 @@
 /** Resolve recorded effective endpoints without applying Git's URL rewrites a second time. */
-import { isGitProcessError } from "../../git/process-error.js";
+import { isCompletedGitFailure, isGitProcessError } from "../../git/process-error.js";
 import type { RefBackendContext } from "./context.js";
 
 type TransportOperation = "fetch" | "push";
@@ -95,7 +95,7 @@ async function urlRewrites(context: RefBackendContext): Promise<{ base: string; 
 
 async function configOutput(context: RefBackendContext, args: string[]): Promise<string> {
   try { return (await context.exec("git", ["config", ...args], { cwd: context.checkoutRoot, objectAccess: "local-only", preserveOutput: true })).stdout; }
-  catch (error) { if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1) return ""; throw error; }
+  catch (error) { if (isGitProcessError(error) && isCompletedGitFailure(error) && error.exitCode === 1) return ""; throw error; }
 }
 
 function lines(value: string): string[] { return value.split(/\r?\n/u).filter(Boolean); }

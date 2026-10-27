@@ -1,6 +1,6 @@
 /** Resolve locally held code branches without fetching or hiding Git failures. */
 import type { RefStorePorts } from "../../ports.js";
-import { isGitProcessError } from "../../../git/process-error.js";
+import { isCompletedGitFailure, isGitProcessError } from "../../../git/process-error.js";
 
 type ImportSource = NonNullable<RefStorePorts["importSource"]>;
 /** A single tip containing all held branch work, or an explicit missing/diverged state. */
@@ -17,16 +17,22 @@ export async function resolveImportBranchTip(source: ImportSource, branch: strin
   return { status: "diverged" };
 }
 
-/** Resolve one exact code ref; only Git's not-found exit becomes absence. */
+/** Resolve raw identity before requiring its pinned commit; only an absent ref becomes absence. */
 export async function readImportCodeTip(source: ImportSource, ref: string): Promise<string | null> {
+  let rawTip: string;
+  const options = { cwd: source.ports.checkoutRoot, objectAccess: "local-only" as const };
   try {
-    const result = await source.ports.exec("git", ["--no-replace-objects", "rev-parse", "--verify", "--quiet", `${ref}^{commit}`],
-      { cwd: source.ports.checkoutRoot, objectAccess: "local-only" });
-    return result.stdout.trim() || null;
+    const result = await source.ports.exec("git", ["--no-replace-objects", "rev-parse", "--verify", "--quiet", ref], options);
+    rawTip = result.stdout.trim();
   } catch (error) {
-    if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1) return null;
+    if (isGitProcessError(error) && isCompletedGitFailure(error) && error.exitCode === 1) return null;
     throw error;
   }
+  if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(rawTip)) throw new Error(`Code ref ${ref} has no readable object identity`);
+  const result = await source.ports.exec("git", ["--no-replace-objects", "rev-parse", "--verify", "--quiet", `${rawTip}^{commit}`], options);
+  const tip = result.stdout.trim();
+  if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(tip)) throw new Error(`Code ref ${ref} has no readable commit object identity`);
+  return tip;
 }
 
 async function isCodeAncestor(source: ImportSource, older: string, newer: string): Promise<boolean> {
@@ -35,7 +41,7 @@ async function isCodeAncestor(source: ImportSource, older: string, newer: string
       { cwd: source.ports.checkoutRoot, objectAccess: "local-only" });
     return true;
   } catch (error) {
-    if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1) return false;
+    if (isGitProcessError(error) && isCompletedGitFailure(error) && error.exitCode === 1) return false;
     throw error;
   }
 }
