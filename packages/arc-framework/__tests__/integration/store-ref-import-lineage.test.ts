@@ -11,6 +11,9 @@ import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { importComparisonFixture } from "../helpers/store/import-comparison.js";
 import { importedLineageComparator } from "../helpers/store/import-lineage-comparison.js";
+import { createStore } from "../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
+import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { createRefSyncCheckout } from "../helpers/store/ref-sync.js";
 import { HistoryRefSchema } from "../../src/lib/store/refusal.js";
 import { writeFile } from "node:fs/promises";
@@ -198,8 +201,16 @@ it.each(["alpha", "archived"])("mints a terminal origin its own owner when it sh
   const h = await importFixture("default", { completed: true, lineage: true });
   const path = resolveArcPath({ kind: "transition-record", origin: SlugSchema.parse(name) });
   await writeFile(join(h.root, path), writeLineageRecord(LineageRecordSchema.parse({ schemaVersion: 2, origin: { name }, kind: "abandon", successors: [], incoming: [] })));
+  for (const [origin, successor] of [[`ancient-${name}`, `former-${name}`], [`former-${name}`, name]]) {
+    const renamePath = resolveArcPath({ kind: "transition-record", origin: SlugSchema.parse(origin) });
+    await writeFile(join(h.root, renamePath), writeLineageRecord(LineageRecordSchema.parse({ schemaVersion: 2,
+      origin: { name: origin }, kind: "rename", successors: [{ name: successor }], incoming: [] })));
+    await h.git("git", ["add", renamePath]);
+  }
   await h.git("git", ["add", path]);
   await h.git("git", ["commit", "-m", "Seed a terminal origin sharing a held slug"]);
+  const source = createStore({ ...createDefaultStorePorts({ checkoutRoot: h.root }), ...h.ports });
+  const expectedTerminal = success(await source.read({ reference: ref("lineage/transition", name) }));
   const migrated = await h.migrate();
   expect(migrated.status, JSON.stringify(migrated)).toBe("ok");
   const store = createRefStore(h.ports);
@@ -207,6 +218,18 @@ it.each(["alpha", "archived"])("mints a terminal origin its own owner when it sh
   const terminal = success(await store.lookup({ kind: "lineage", origin: SlugSchema.parse(name) }));
   const uid = (owner: typeof held.reference.owner) => owner.type === "work-item" ? owner.uid : "";
   expect(uid(terminal.reference.owner)).not.toBe(uid(held.reference.owner));
+  const actualTerminal = success(await store.read({ reference: terminal.reference }));
+  const normalized = await importedLineageComparator(store).normalize(expectedTerminal,
+    { ...actualTerminal, content: canonicalize(JSON.parse(actualTerminal.content)) });
+  expect(normalized.expected.content).toBe(normalized.actual.content);
+  for (const former of [`ancient-${name}`, `former-${name}`]) {
+    expect(success(await store.lookup({ kind: "lineage", origin: SlugSchema.parse(former) })).reference).toEqual(terminal.reference);
+    expect(await store.lookup({ kind: "slug", slug: SlugSchema.parse(former) }))
+      .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  }
+  const decomposition = LineageRecordSchema.parse(JSON.parse(success(await store.read({ reference: ref("lineage/transition", "cut-origin") })).content));
+  expect(decomposition.successors.find(successor => successor.name === name)?.uid).toBe(uid(held.reference.owner));
+  expect(success(await store.lookup({ kind: "slug", slug: SlugSchema.parse(name) })).reference).toEqual(held.reference);
   expect(success(await store.history({ reference: held.reference })).some(({ content }) => content !== null)).toBe(true);
   expect((await h.git("git", ["ls-tree", "-r", "--name-only", `refs/arc/history/work/${uid(terminal.reference.owner)}`])).stdout).toBe("");
 });

@@ -49,12 +49,13 @@ async function finalSourceSuccessor(name: string | undefined, source?: ReadOnlyS
   return name;
 }
 
-async function enrichReferences(value: unknown, store: Store): Promise<unknown> {
+async function enrichReferences(value: unknown, store: Store, origin = false): Promise<unknown> {
   if (Array.isArray(value)) return Promise.all(value.map((entry) => enrichReferences(entry, store)));
   if (typeof value !== "object" || value === null) return value;
   const record = value as Record<string, unknown>;
   if (typeof record.name === "string") {
-    let found = await store.lookup({ kind: "slug", slug: SlugSchema.parse(record.name) });
+    let found = origin ? await store.lookup({ kind: "lineage", origin: SlugSchema.parse(record.name) })
+      : await store.lookup({ kind: "slug", slug: SlugSchema.parse(record.name) });
     if (found.status === "refused" && found.refusal.code === "not-found") {
       found = await store.lookup({ kind: "lineage", origin: SlugSchema.parse(record.name) });
     }
@@ -65,5 +66,5 @@ async function enrichReferences(value: unknown, store: Store): Promise<unknown> 
     const owner = found.result.reference.owner;
     return owner.type === "work-item" ? { ...record, uid: owner.uid } : record;
   }
-  return Object.fromEntries(await Promise.all(Object.entries(record).map(async ([key, entry]) => [key, await enrichReferences(entry, store)])));
+  return Object.fromEntries(await Promise.all(Object.entries(record).map(async ([key, entry]) => [key, await enrichReferences(entry, store, key === "origin")])));
 }

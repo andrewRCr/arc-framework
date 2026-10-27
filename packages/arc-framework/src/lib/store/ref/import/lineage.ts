@@ -28,18 +28,18 @@ export async function appendImportLineage(context: RefBackendContext, report: Mi
   }
   const renames = new Map(transitions.filter(({ fields }) => fields.kind === "rename")
     .map(({ fields }) => [fields.origin.name, fields]));
-  for (const fields of renames.values()) importRename(records, fields, renames, owners, report);
+  for (const fields of renames.values()) importRename(records, fields, renames, owners, origins, report);
 }
 
 function importRename(records: ImportRecord[], fields: LineageRecord, renames: ReadonlyMap<string, LineageRecord>,
-  owners: ReadonlyMap<string, string>, report: MigrateReport): void {
+  owners: ReadonlyMap<string, string>, origins: ReadonlyMap<string, string>, report: MigrateReport): void {
   const visited = new Set<string>([fields.origin.name]);
   let name = fields.successors[0]?.name;
   while (name && renames.has(name) && !visited.has(name)) {
     visited.add(name);
     name = renames.get(name)?.successors[0]?.name;
   }
-  const uid = name && !visited.has(name) ? owners.get(`work-item:${name}`) : undefined;
+  const uid = name && !visited.has(name) ? origins.get(name) ?? owners.get(`work-item:${name}`) : undefined;
   const targets = uid ? records.filter(({ reference }) => reference.owner.type === "work-item" && reference.owner.uid === uid
     && (reference.kind === "work-item/meta" || reference.kind === "lineage/transition")) : [];
   if (!targets.length) {
