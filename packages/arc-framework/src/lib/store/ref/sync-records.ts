@@ -192,7 +192,7 @@ async function indexRecordValues(context: RefBackendContext, ref: string, side: 
       placement = await readSyncRecordPlacement(context, reference, ref, side.tip,
         refRecordVersion(reference, entry.oid, side.metadata, formatVersion), tipSets);
     }
-    const value = recordValue(reference, entry, object, side.metadata, formatVersion, primary, placement);
+    const value = recordValue(context.registry[reference.kind], reference, entry, object, side.metadata, formatVersion, primary, placement);
     indexed.set(primary ? "primary" : refFormatKey(reference), { entry, value, retained });
   }
   return indexed;
@@ -222,9 +222,10 @@ function retainPrimaryMetadata(metadata: RefMetadata, local: RefMetadata): void 
   }
 }
 
-function recordValue(reference: RecordReference, entry: RefTreeEntry, object: BatchObject, metadata: RefMetadata,
+function recordValue(kind: KindDefinition, reference: RecordReference, entry: RefTreeEntry, object: BatchObject, metadata: RefMetadata,
   formatVersion: number, primary: boolean, placement?: ReadPlacement): ConflictRecordValue {
-  return ConflictRecordValueSchema.parse({ reference, content: new TextDecoder("utf-8", { fatal: true }).decode(object.bytes),
+  return ConflictRecordValueSchema.parse({ reference, content: new TextDecoder("utf-8", { fatal: true,
+      ignoreBOM: kind.projection !== "never" }).decode(object.bytes),
       version: refRecordVersion(reference, entry.oid, metadata, formatVersion), formatVersion,
       ...(placement ?? metadata.primary?.placement ?? metadata.placement) ? { placement: placement ?? metadata.primary?.placement ?? metadata.placement } : {},
       ...primary && metadata.primary?.links ? { links: metadata.primary.links } : {} });

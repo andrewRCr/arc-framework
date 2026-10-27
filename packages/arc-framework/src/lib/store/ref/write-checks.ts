@@ -50,7 +50,8 @@ function checkRecord(context: RefBackendContext, reference: RecordReference, oid
     condition: `The captured record blob ${oid} is unavailable.`,
     remedy: { text: "Restore or fetch the missing record objects, then retry the write." } } };
   let content: string;
-  try { content = new TextDecoder("utf-8", { fatal: true }).decode(object.bytes); }
+  try { content = new TextDecoder("utf-8", { fatal: true,
+    ignoreBOM: context.registry[reference.kind].projection !== "never" }).decode(object.bytes); }
   catch (error) {
     if (!(error instanceof TypeError)) throw error;
     return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference, rule: "store.utf8",

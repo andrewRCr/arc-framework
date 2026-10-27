@@ -36,7 +36,8 @@ async function prepareAnchor(context: RefBackendContext, { mutation, home }: Pre
   const oldOid = group.original.get(home.path)?.oid;
   const prior = oldOid ? objects.get(oldOid) : null;
   const token = anchorValue(definition, mutation.content, field);
-  const previous = anchorValue(definition, prior?.type === "blob" ? new TextDecoder().decode(prior.bytes) : undefined, field);
+  const previous = anchorValue(definition, prior?.type === "blob"
+    ? new TextDecoder("utf-8", { ignoreBOM: definition.projection !== "never" }).decode(prior.bytes) : undefined, field);
   if (token === previous) return undefined;
   if (token !== null && token !== undefined && !await resolvesManifest(context, token)) {
     return { code: "state-unresolvable", class: "recoverable", reference: mutation.reference,

@@ -42,7 +42,7 @@ function content(entry: RefTreeEntry | undefined, objects: ReadonlyMap<string, B
   if (!entry) return "";
   const object = objects.get(entry.oid);
   if (object?.type !== "blob") throw new Error("A withdrawn entry document is unavailable");
-  return new TextDecoder("utf-8", { fatal: true }).decode(object.bytes);
+  return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(object.bytes);
 }
 function entryIds(content: string, grammar: EntryConfig): Set<string> {
   return new Set(splitEntryList(content, grammar).parts.flatMap((part) => part.kind === "entry" && part.id ? [part.id] : []));

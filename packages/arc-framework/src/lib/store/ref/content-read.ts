@@ -17,7 +17,7 @@ export function readRefContent(kind: KindDefinition, bytes: Uint8Array, pointRea
   }
   let content: string;
   try {
-    content = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    content = new TextDecoder("utf-8", { fatal: true, ignoreBOM: kind.projection !== "never" }).decode(bytes);
     if (kind.projection === "never") content = canonicalize(JSON.parse(content));
   } catch (error) { return { kind: "malformed", condition: `Stored content is invalid: ${String(error)}` }; }
   const parsed = kind.parser?.(content);
