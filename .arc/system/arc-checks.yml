@@ -401,6 +401,7 @@ checks:
       - test:integration
       - --
     gate: merge
+    ci_only: true
     inputs:
       - '**'
       - '!.arc/active/**'
