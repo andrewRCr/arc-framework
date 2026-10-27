@@ -27,7 +27,7 @@ export interface CheckKeyInput {
 export function checkContentKey(input: CheckKeyInput): string {
   const inputs = digestEntries(input.inputs);
   return createHash("sha256").update(JSON.stringify({
-    version: 2,
+    version: 4,
     id: input.id,
     declaration: input.declaration,
     inputs,
