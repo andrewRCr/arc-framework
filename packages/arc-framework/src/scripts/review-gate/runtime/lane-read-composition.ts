@@ -85,10 +85,11 @@ async function readResolvedLane(request: ReviewLaneReadRequest, input: LaneReadB
       store: operationStore, dispositionStore, repositoryId, headSha: coordinates.headSha, lineage, workUnitId });
   const target = repositoryId === null ? null : createReviewTarget({ schemaVersion: 2,
     semanticsVersion: "review-gate/v2", repositoryId, ...coordinates });
+  const sources = parseReviewSourceIds(settings["review.standard_sources"]);
   const nextPassContext = target === null ? { completePasses: 0, convergence: "none" as const, responseDue: false, incremental: null }
     : await readNextContext({ ...input, ...history, target, lineage, workUnitId, candidateReader,
-      sources: parseReviewSourceIds(settings["review.standard_sources"]), operationStore, dispositionStore, publisher });
-  return projectReviewLaneRead({ ...history, lineage, nextPassContext, target: coordinates,
+      sources, operationStore, dispositionStore, publisher });
+  return projectReviewLaneRead({ ...history, lineage, nextPassContext, target: coordinates, sources,
     ceiling: Number(settings["review.standard_max_passes"]), exec: createRawGitExec(input.cwd) });
 }
 
