@@ -36,7 +36,7 @@ it("launches literal argv in the repository cwd and drains protocol separately f
     expect(result.status).toBe("unavailable");
     if (result.status !== "unavailable") throw new Error("Expected settled refusal");
     expect(JSON.parse(result.reason)).toEqual({ cwd, args });
-    session.closeInput();
+    await expect(session.close()).resolves.toMatchObject({ status: "closed" });
     await expect(session.closed).resolves.toEqual({ started: true, exitCode: 0 });
     expect(Buffer.concat(diagnostics)).toEqual(Buffer.from([0, 255, 10]));
     expect(session.failure).toBeUndefined();
@@ -50,4 +50,16 @@ it("reports a never-started executable without inventing a process exit", async 
   const pending = session.request({ method: "check/prepare", params: makeRunnerProtocolPlan() });
   await expect(pending).rejects.toThrow(/runner.*retry/iu);
   await expect(session.closed).resolves.toEqual({ started: false });
+  await expect(session.close()).resolves.toMatchObject({ status: "unavailable" });
+});
+
+it("keeps a started adapter that disappears before preparation settlement uncertain", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "arc-runner-disappeared-"));
+  directories.push(cwd);
+  const session = createCheckRunnerSession({ argv: [process.execPath, "-e", "process.exit(0)"], cwd,
+    onNotification: () => undefined });
+  const preparing = session.request({ method: "check/prepare", params: makeRunnerProtocolPlan() });
+  await expect(preparing).rejects.toThrow(/runner.*retry/iu);
+  await expect(session.closed).resolves.toEqual({ started: true, exitCode: 0 });
+  await expect(session.close()).resolves.toMatchObject({ status: "uncertain" });
 });

@@ -12,12 +12,27 @@ export class RunnerConversationState {
   private execution: RunnerExecution | undefined;
   private readonly used = new Set<string>();
   private readonly outcomes = new Map<string, Readonly<TerminalOutcome>>();
+  private warning: string | undefined;
 
   /** Recovery retained before accepting any ready context. */
   get recovery(): Readonly<RecoveryParams> | undefined { return this.guidance; }
 
   /** Immutable terminal observations remain available after a transport fault. */
   get observedOutcomes(): ReadonlyMap<string, Readonly<TerminalOutcome>> { return new Map(this.outcomes); }
+
+  /** Context that can be released after preparation and execution have settled. */
+  get releaseContextId(): string | undefined { return this.phase === "ready" && this.execution === undefined ? this.context?.contextId : undefined; }
+
+  /** Terminal reply arm already observed before process closure. */
+  get closureKind(): "context" | "no-context" | undefined {
+    return this.phase === "released" ? "context" : this.phase === "unavailable" ? "no-context" : undefined;
+  }
+
+  /** Work or lifetime operations that still need their own terminal reply. */
+  get hasOutstandingWork(): boolean { return this.phase === "preparing" || this.phase === "releasing" || this.execution !== undefined; }
+
+  /** Disposable cleanup trouble after the adapter proved context settlement. */
+  get cleanupWarning(): string | undefined { return this.warning; }
 
   /** Validate an operation before its request can reach the adapter. */
   begin(request: RunnerRequest): void {
@@ -62,7 +77,10 @@ export class RunnerConversationState {
       if (this.execution === undefined) throw conversationError("settlement has no outstanding execution");
       this.execution.settle(result);
       this.execution = undefined;
-    } else if (request.method === "check/release") this.phase = "released";
+    } else if (request.method === "check/release" && "released" in result) {
+      this.phase = "released";
+      this.warning = result.cleanupWarning;
+    }
   }
 
   private startExecution(request: RunParams | RunGroupParams): void {

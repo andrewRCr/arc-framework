@@ -232,7 +232,7 @@ lifetime.
           groups, one outstanding execution and at-most-once invocation IDs. Cancellation can overlap preparation or
           execution without replacing settlement; immutable terminal observations survive protocol faults.
 
-### `[ ]` **3.2 Account for outcomes, settlement and both closure arms — D5, D7, D8**
+### `[x]` **3.2 Account for outcomes, settlement and both closure arms — D5, D7, D8**
 
 - _Goal:_ Every observed terminal outcome remains immutable, and disposal requires the settlement and process closure
   appropriate to whether preparation granted a context.
@@ -242,15 +242,10 @@ lifetime.
           boundary. Required protocol streams now fail explicitly on premature close; drain-aware process fixtures
           preserve the distinction between received terminal evidence and incomplete output or settlement.
 
-    - `[ ]` **3.2.b Model context-owning and no-context normal closure**
-        - Build `test-first` (one behavior at a time):
-            - Ready contexts close only after release reply, drained streams and exit zero; settled cleanup warnings are
-              advisory.
-            - Settled unavailable/cancelled preparation closes stdin and awaits drained exit zero without release.
-            - Pending/late cancel acknowledgement cannot hold completed preparation settlement; malformed closure stays
-              uncertain.
-            - Never-started adapter is unavailable; disappearance after start without normal settlement retains the
-              capture.
+    - `[x]` **3.2.b Model context-owning and no-context normal closure**
+        - Added idempotent session closure requiring release or settled no-context preparation, drained protocol and
+          observed exit zero. Optional cancel replies and settled cleanup warnings do not hold closure; incomplete
+          work, malformed replies and abnormal exits remain uncertain, while never-started adapters are unavailable.
 
 ### `[ ]` **3.3 Prepare captured execution through one injectable facade — D3, D5, D7**
 

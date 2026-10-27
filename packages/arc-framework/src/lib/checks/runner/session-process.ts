@@ -31,12 +31,17 @@ export function startCheckRunnerProcess(input: CheckRunnerProcessInput): CheckRu
   const subprocess = execa(executable, args, { cwd: input.cwd, shell: false,
     env: sanitizeGitRepositoryEnvironment(process.env), extendEnv: false,
     stdio: ["pipe", "pipe", "pipe"], buffer: false, encoding: "buffer", reject: false });
-  const completed = subprocess.then(result => ({
-    started: result.exitCode !== undefined || result.signal !== undefined,
-    ...(result.exitCode === undefined ? {} : { exitCode: result.exitCode }),
-    ...(result.signal === undefined ? {} : { signal: result.signal }),
-  }));
-  const { stdin, stdout, stderr } = subprocess.nodeChildProcess;
+  const native = subprocess.nodeChildProcess;
+  let started = native.pid !== undefined;
+  native.once("spawn", () => { started = true; });
+  const nativeClosed = new Promise<Pick<CheckRunnerProcessExit, "exitCode" | "signal">>(resolve => {
+    native.once("close", (code, signal) => {
+      resolve({ ...(code === null ? {} : { exitCode: code }), ...(signal === null ? {} : { signal }) });
+    });
+  });
+  // Early spawn failures can use synthetic streams without a native close event.
+  const completed = subprocess.then(async () => started ? { started: true, ...await nativeClosed } : { started: false });
+  const { stdin, stdout, stderr } = native;
   if (stdin === null || stdout === null || stderr === null) {
     subprocess.kill();
     throw new Error("Runner requires piped stdio; repair the runner launch and retry the check request.");

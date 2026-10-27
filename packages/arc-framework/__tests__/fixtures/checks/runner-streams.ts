@@ -22,11 +22,11 @@ export function runnerStreamHarness(onNotification?: (notification: RunnerNotifi
     onDiagnostic,
   });
   return { stdin, stdout, stderr, requests, notifications, session,
-    async close() {
+    async close(exit: CheckRunnerProcessExit = { started: true, exitCode: 0 }) {
       const drained = [stdout, stderr].map(stream => finished(stream, { cleanup: true }).catch(() => undefined));
       stdout.end(); stderr.end();
       await Promise.all(drained);
-      finish({ started: true, exitCode: 0 });
+      finish(exit);
       await session.closed;
     },
   };
