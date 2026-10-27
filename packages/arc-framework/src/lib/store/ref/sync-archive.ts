@@ -9,6 +9,7 @@ import type { RefBackendContext } from "./context.js";
 import { corruptRef } from "./namespace-health.js";
 import { syncRefMergeBase } from "./sync-graph.js";
 import type { SyncMergedTree } from "./sync-tree.js";
+import { findRefPathCollision } from "./path-admission.js";
 
 type Folders = Map<string, ArchivedFolder>;
 interface ArchiveSides { base: Folders; local: Folders; incoming: Folders }
@@ -34,13 +35,18 @@ export async function mergeArchiveTree(context: RefBackendContext, ref: string, 
     else sides.incoming = folders;
   }
   const selected = selectFolders(sides), roots = unpublishedRoots(sides, selected);
-  const entries = new Map<string, RefTreeEntry>();
+  const composed: RefTreeEntry[] = [];
   for (const [key, folder] of selected) {
     for (const entry of folder.entries) {
       const path = (roots.get(key) ?? folder.root) + entry.path;
-      entries.set(path, { ...entry, path });
+      composed.push({ ...entry, path });
     }
   }
+  const collision = findRefPathCollision(composed.map(({ path }) => path));
+  if (collision) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: ref,
+    condition: `The selected archive folders on ${ref} collide at ${collision.path} and ${collision.other}.`,
+    remedy: { text: "Repair the colliding folder paths in a new source commit, then retry the pull." } } };
+  const entries = new Map(composed.map(entry => [entry.path, entry]));
   const subject = [...selected.values(), ...sides.base.values(), ...sides.local.values(), ...sides.incoming.values()][0];
   if (!subject) return { status: "ok", result: { kind: "empty-archive", entries, archiveRef: ref } };
   const reference = ownerPrimaryReference(subject.owner, subject.metadata);

@@ -22,6 +22,7 @@ import type { EntryConfig, KindDefinition } from "../registry.js";
 import type { SyncCheckRecord } from "./sync-checks.js";
 import { readSyncRecordLabel, readSyncRecordPlacement, RefSyncLabelError } from "./sync-label.js";
 import { fixedStoredPathKind } from "./path-decode.js";
+import { findRefPathCollision } from "./path-admission.js";
 
 interface IndexedRecord { entry: RefTreeEntry; value: ConflictRecordValue; retained?: boolean }
 
@@ -51,27 +52,37 @@ export async function reconcileSyncRecords(context: RefBackendContext, ref: stri
     if (choice.retainMetadata && key === "primary") retainPrimaryMetadata(group.metadata, currentSide === "local" ? local.metadata : incoming.metadata);
     choices.push({ records, choice });
   }
-  installSelectedRecords(context, ref, group, choices);
+  installSelectedRecords(context, ref, group, choices, changedOpaquePaths(base, [[local, current], [incoming, remote]]));
   await appendRefConflicts(context, ref, group, conflicts);
   return choices.flatMap(({ records, choice }) => checkRecords(ref, group.metadata, records.local, choice.selected));
 }
 
 function installSelectedRecords(context: RefBackendContext, ref: string, group: CapturedWriteGroup,
-  choices: readonly PlannedRecord[]): void {
+  choices: readonly PlannedRecord[], opaque: ReadonlySet<string>): void {
   const installations = choices.flatMap(({ choice }) => choice.selected
     ? [recordInstallation(context, ref, group, choice.selected, choice.retainMetadata ?? false)] : []);
-  const homes = new Set<string>();
-  for (const { entry } of installations) {
-    if (homes.has(entry.path)) throw new RefSyncLabelError(ref, { code: "namespace-corrupt", class: "terminal", namespace: ref,
-      condition: `Two selected records on ${ref} resolve to the same stored path ${entry.path}.`,
-      remedy: { text: "Give the colliding records distinct stored paths in their source states, then retry the pull." } });
-    homes.add(entry.path);
-  }
   for (const { records } of choices) removeRecordPaths(group, records);
+  const retained = new Set([...group.entries.keys(), ...opaque]);
+  const collision = findRefPathCollision([...retained, ...installations.map(({ entry }) => entry.path)]);
+  if (collision) throw new RefSyncLabelError(ref, { code: "namespace-corrupt", class: "terminal", namespace: ref,
+    condition: `Selected and retained entries on ${ref} collide at ${collision.path} and ${collision.other}.`,
+    remedy: { text: "Give the colliding entries distinct stored paths in their source states, then retry the pull." } });
   for (const { reference, entry, formatVersion } of installations) {
     group.entries.set(entry.path, entry);
     group.metadata.formats[refFormatKey(reference)] = formatVersion;
   }
+}
+
+function changedOpaquePaths(base: SyncTreeSide, sides: readonly (readonly [SyncTreeSide, ReadonlyMap<string, IndexedRecord>])[]): Set<string> {
+  const paths = new Set<string>();
+  for (const [side, records] of sides) {
+    const indexed = new Set([...records.values()].map(({ entry }) => entry.path));
+    for (const entry of side.entries.values()) {
+      const prior = base.entries.get(entry.path);
+      if (!indexed.has(entry.path) && (prior?.oid !== entry.oid || prior.mode !== entry.mode)) paths.add(entry.path);
+    }
+  }
+  return paths;
 }
 
 async function chooseRecord(context: RefBackendContext, ref: string, sides: SyncRecordSides,
@@ -149,7 +160,8 @@ async function mergeTextRecord(context: RefBackendContext, definition: KindDefin
 function removeRecordPaths(group: CapturedWriteGroup, records: RecordTriple): void {
   for (const record of [records.base, records.local, records.incoming]) {
     if (!record) continue;
-    group.entries.delete(record.entry.path);
+    const held = group.entries.get(record.entry.path);
+    if (held?.oid === record.entry.oid && held.mode === record.entry.mode) group.entries.delete(record.entry.path);
     Reflect.deleteProperty(group.metadata.formats, refFormatKey(record.value.reference));
   }
 }

@@ -23,6 +23,7 @@ import { checkRefKey, checkRefBatchPaths } from "./path-admission.js";
 import { prepareRefPut } from "./prepare-content.js";
 import { retainedBasisChanged } from "./write-retained.js";
 import { checkRefWriterRules } from "./writer-admission.js";
+import { RefSyncLabelError } from "./sync-label.js";
 
 /** Describe invalid mutation content without changing any state. */
 function malformedMutation(reference: RecordReference, condition: string, rule = "store.mutation"): StoreRefusal {
@@ -65,11 +66,16 @@ export async function batchRefRecords(context: RefBackendContext, input: BatchIn
     const result = await executeRefBatch(context, { ...parsed, writes: prepared.result }, randomUUID());
     return result.status === "refused" ? result : { status: "ok", result: bindResultNameHints(parsed, result.result) };
   } catch (error) {
-    if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire") throw error;
-    return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lockPath,
-      condition: `The lock remained held for ${error.waitedMs}ms.`,
-      remedy: { text: "Wait for the holder to finish or release its lock, then retry the write." } } };
+    return refBatchFailure(error);
   }
+}
+
+function refBatchFailure(error: unknown): StoreResult<never> {
+  if (error instanceof RefSyncLabelError) return { status: "refused", refusal: error.refusal };
+  if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire") throw error;
+  return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lockPath,
+    condition: `The lock remained held for ${error.waitedMs}ms.`,
+    remedy: { text: "Wait for the holder to finish or release its lock, then retry the write." } } };
 }
 
 function parseBatchInput(input: BatchInput): StoreResult<BatchInput> {

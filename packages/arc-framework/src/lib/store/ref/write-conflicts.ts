@@ -12,6 +12,8 @@ import type { RefWriteGroup } from "./write-commits.js";
 import type { PreparedRefMutation } from "./write-merge.js";
 import { writeRefBlob } from "./tree-write.js";
 import { refFormatKey } from "./format-key.js";
+import { findRefPathCollision } from "./path-admission.js";
+import { RefSyncLabelError } from "./sync-label.js";
 
 /** Build final trees including fresh conflicts without changing the subject-only trees. */
 export async function prepareRefConflicts(context: RefBackendContext, writes: readonly PreparedRefMutation[],
@@ -38,6 +40,10 @@ export async function appendRefConflicts(context: RefBackendContext, ref: string
       kind: `${clash.record.kind.split("/")[0]}/conflict-record`, key: randomUUID() });
     const home = expandStoredPath(reference, { registry: context.registry, history: ref.startsWith("refs/arc/history/") });
     if (home.ref !== ref) throw new Error("A conflict record escaped its subject's ref");
+    const collision = findRefPathCollision([...group.entries.keys(), home.path]);
+    if (collision) throw new RefSyncLabelError(ref, { code: "namespace-corrupt", class: "terminal", namespace: ref,
+      condition: `The generated conflict path on ${ref} collides at ${collision.path} and ${collision.other}.`,
+      remedy: { text: "Rename or remove the colliding retained source entry in a new commit, then retry the write or pull." } });
     const content = canonicalize(ConflictRecordSchema.parse(clash));
     group.entries.set(home.path, { path: home.path, mode: "100644", oid: await writeRefBlob(context, content) });
     group.metadata.formats[refFormatKey(reference)] = context.registry[reference.kind].formatVersion;
