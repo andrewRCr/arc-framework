@@ -16,8 +16,8 @@ export interface RefTreeEntry {
 /** One enumerated tree: its entries, and the ID of every tree the enumeration traversed, root first. */
 export interface ListedTree { entries: readonly RefTreeEntry[]; directories: readonly string[] }
 interface EnumeratedTree { entries: RefTreeEntry[]; directories: string[] }
-const decoder = new TextDecoder("utf-8", { fatal: true });
-const lossy = new TextDecoder("utf-8");
+const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+const lossy = new TextDecoder("utf-8", { ignoreBOM: true });
 const encoder = new TextEncoder();
 
 /** Capture local ref tips without dereferencing their potentially missing objects. */

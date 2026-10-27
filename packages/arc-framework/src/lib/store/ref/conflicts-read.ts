@@ -6,7 +6,7 @@ import type { StoreRecord } from "../read.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, type BatchObject } from "./batch-read.js";
 
-const strict = new TextDecoder("utf-8", { fatal: true });
+const strict = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
 /**
  * Read the conflict blobs named by the tree captured with a direct record read. An entry whose name is not UTF-8 or

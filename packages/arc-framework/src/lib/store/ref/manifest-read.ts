@@ -42,7 +42,7 @@ function manifestEntries(object: BatchObject | null | undefined, width: number):
   const names = new Set<string>();
   let cursor = 0;
   const bytes = object.bytes;
-  const decoder = new TextDecoder("utf-8", { fatal: true });
+  const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
   while (cursor < bytes.length) {
     const space = bytes.indexOf(32, cursor), nul = bytes.indexOf(0, space + 1);
     if (space < cursor || nul <= space + 1 || nul + 1 + width > bytes.length) return null;

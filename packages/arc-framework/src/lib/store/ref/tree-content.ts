@@ -12,7 +12,7 @@ export function parseRefTreeObject(object: BatchObject | null | undefined): RefT
     while (cursor < object.bytes.length) {
       const space = object.bytes.indexOf(32, cursor), end = object.bytes.indexOf(0, space + 1);
       if (space < cursor || end <= space + 1 || end + 1 + width > object.bytes.length) return null;
-      const decoder = new TextDecoder("utf-8", { fatal: true });
+      const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
       const mode = decoder.decode(object.bytes.subarray(cursor, space)).padStart(6, "0");
       let path: string | undefined;
       try { path = decoder.decode(object.bytes.subarray(space + 1, end)); }
