@@ -32,12 +32,23 @@ describe("ref writer and placement admission", () => {
     expect(success(await fixture.store.read({ reference })).placement).toEqual({ kind: "active" });
   });
 
-  it("keeps placement available after primary removal for new companions", async () => {
-    const fixture = await createRefFixture();
+  it.each(["default", "separate"] as const)("keeps placement after primary removal for new companions in %s", async layout => {
+    const fixture = await createRefFixture({}, layout);
     const primary = await seed(fixture, fixture.reference("work-item/meta"));
     success(await fixture.store.write({ action: "remove", reference: primary.reference, expected: primary.version, provenance: testProvenance }));
     const reference = fixture.reference("work-item/task-list");
-    success(await fixture.store.write({ action: "put", reference, expected: null, content: fixture.content(reference), provenance: testProvenance }));
+    const written = success(await fixture.store.write({ action: "put", reference, expected: null, content: fixture.content(reference), provenance: testProvenance }));
+    expect(written.reference.owner).toEqual(primary.reference.owner);
+    expect(success(await fixture.store.read({ reference })).placement).toEqual({ kind: "active" });
+  });
+
+  it.each(["default", "separate"] as const)("keeps removed-primary placement for a UID companion write in %s", async layout => {
+    const fixture = await createRefFixture({}, layout);
+    const primary = await seed(fixture, fixture.reference("work-item/meta"));
+    success(await fixture.store.write({ action: "remove", reference: primary.reference, expected: primary.version, provenance: testProvenance }));
+    const reference = RecordReferenceSchema.parse({ ...fixture.reference("review/evidence"), owner: primary.reference.owner });
+    const written = success(await fixture.store.write({ action: "put", reference, expected: null, content: fixture.content(reference), provenance: testProvenance }));
+    expect(written.reference.owner).toEqual(primary.reference.owner);
     expect(success(await fixture.store.read({ reference })).placement).toEqual({ kind: "active" });
   });
 

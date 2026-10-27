@@ -10,8 +10,8 @@ import type { RefBackendContext } from "./context.js";
 import { corruptRef } from "./namespace-health.js";
 import type { LiveRefOwner } from "./namespace-admission.js";
 
-/** Readable owners and omitted live refs from one captured namespace. */
-export interface LiveRefOwners { owners: LiveRefOwner[]; unreadable: ReadonlyMap<string, StoreRefusal> }
+/** Logical owners, readable record-free metadata, and omitted refs from one captured namespace. */
+export interface LiveRefOwners { owners: LiveRefOwner[]; recordFree: LiveRefOwner[]; unreadable: ReadonlyMap<string, StoreRefusal> }
 
 /** Read owner names and primary presence from exactly the caller's captured tips; saved tips name historical repair. */
 export async function readLiveRefOwners(context: RefBackendContext, tips: ReadonlyMap<string, string>, saved = false): Promise<StoreResult<LiveRefOwners>> {
@@ -20,6 +20,7 @@ export async function readLiveRefOwners(context: RefBackendContext, tips: Readon
   const objects = await readBatchObjects(context, refs.map(([ref, tip]) => query(ref, tip)));
   const trees = refs.length > 0 ? await readRefTrees(context, new Map(refs)) : new Map<string, RefTreeEntry[]>();
   const owners: LiveRefOwner[] = [];
+  const recordFree: LiveRefOwner[] = [];
   const unreadable = new Map<string, StoreRefusal>();
   for (const [ref, tip] of refs) {
     const entries = trees.get(ref);
@@ -27,7 +28,10 @@ export async function readLiveRefOwners(context: RefBackendContext, tips: Readon
     const shell = expandStoredPath(RecordReferenceSchema.parse({ kind: family === "work-item" ? "work-item/meta" : "cohort/document",
       owner: { type: family, name: "unresolved", uid: ref.split("/").at(-1) } }), { registry: context.registry });
     const metadata = parseRefMetadata(objects.get(query(ref, tip)), ref);
-    if (entries && holdsNoRecord(shell, entries.map(({ path }) => path))) continue;
+    if (entries && holdsNoRecord(shell, entries.map(({ path }) => path))) {
+      recordFree.push(...capturedRecordFreeOwners(ref, family, metadata));
+      continue;
+    }
     if (!entries || !metadata) { unreadable.set(ref, corruptRef(ref, !entries, saved)); continue; }
     const owner = refOwner(ref, family, metadata);
     const state: LiveRefOwner = { owner };
@@ -37,7 +41,11 @@ export async function readLiveRefOwners(context: RefBackendContext, tips: Readon
     const home = expandStoredPath(primary.reference, { registry: context.registry });
     if (trees.get(ref)?.some((entry) => entry.path === home.path)) state.primary = primary;
   }
-  return { status: "ok", result: { owners, unreadable } };
+  return { status: "ok", result: { owners, recordFree, unreadable } };
+}
+
+function capturedRecordFreeOwners(ref: string, family: "work-item" | "cohort", metadata: RefMetadata | null): LiveRefOwner[] {
+  return metadata ? [{ owner: refOwner(ref, family, metadata) }] : [];
 }
 
 function capturedPrimary(owner: OwnerIdentity, metadata: RefMetadata): LiveRefOwner["primary"] {

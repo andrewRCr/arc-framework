@@ -60,12 +60,13 @@ export async function resolveRefWrites(context: RefBackendContext, writes: reado
   if (lineage.status === "refused") return lineage;
   const fresh = new Map<string, OwnerIdentity>();
   const liveOwners = owners.map(({ owner }) => owner);
+  const recordFreeOwners = observed.result.recordFree.map(({ owner }) => owner);
   const resolve = (reference: RecordReference) => {
     const target = retained.result.find((target) => sameReference(target.reference, reference));
     if (target) return { status: "ok" as const, result: target.reference.owner };
     const freshName = !("uid" in reference.owner && reference.owner.uid) && named.result.freshNames.has(writeOwnerNameKey(reference));
     const candidates = freshName ? owners.filter(({ primary }) => primary !== undefined).map(({ owner }) => owner) : context.registry[reference.kind].family === "lineage"
-      ? lineageOwnerCandidates(reference, liveOwners, lineage.result) : [...liveOwners, ...endedOwners];
+      ? lineageOwnerCandidates(reference, liveOwners, lineage.result) : [...liveOwners, ...recordFreeOwners, ...endedOwners];
     return resolveOwner(reference, candidates, fresh);
   };
 
