@@ -8,7 +8,6 @@ import { expandStoredPath } from "../stored-path.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefWriteGroup } from "./write-commits.js";
 import type { PreparedRefMutation } from "./write-merge.js";
-import type { RefArchivePlan } from "./write-archive.js";
 import { captureRefViewState, overlayRefViewState, viewRefMetadata, type RefViewState } from "./view-state.js";
 import { matchesFamilyRef, refOwner } from "./codec.js";
 import { captureArchivedFolders, selectEndedOwners } from "./ended-owners.js";
@@ -37,20 +36,22 @@ export async function preparedCohortParents(context: RefBackendContext, tips: Re
 
 /** Captured member assignments and parent facts used by one cohort close. */
 export interface CohortCoordinateBasis {
-  plans: readonly RefArchivePlan[]; writes: readonly PreparedRefMutation[]; parents: ReadonlySet<string>;
+  members: readonly PreparedMemberPlacement[]; parents: ReadonlySet<string>;
   fallback: ReturnType<typeof ArchiveSequenceSchema.parse>;
 }
+
+/** A member's prepared content and final placement, whether it ends live or transfers between quarters. */
+export interface PreparedMemberPlacement { write: PreparedRefMutation; placement: ReadPlacement }
 
 /** Borrow the highest same-quarter member number, otherwise allocate the quarter's next. */
 export function cohortClosePlacement(context: RefBackendContext, reference: RecordReference, quarter: ArchiveQuarter,
   basis: CohortCoordinateBasis): ReadPlacement {
   let highest: bigint | undefined;
-  for (const plan of basis.plans) {
-    if (plan.reference.kind !== "work-item/meta" || plan.placement.kind !== "completed" || plan.placement.quarter !== quarter || !("sequence" in plan.placement)) continue;
-    const write = basis.writes.find(({ home, mutation }) => home.ref === plan.source && mutation.reference.kind === "work-item/meta");
-    const parsed = write?.mutation.action === "put" ? context.registry["work-item/meta"].parser?.(write.mutation.content) : undefined;
+  for (const { write, placement } of basis.members) {
+    if (write.mutation.reference.kind !== "work-item/meta" || placement.kind !== "completed" || placement.quarter !== quarter || !("sequence" in placement)) continue;
+    const parsed = write.mutation.action === "put" ? context.registry["work-item/meta"].parser?.(write.mutation.content) : undefined;
     const cohort = parsed?.success ? stringField(parsed.data, "cohort") : undefined;
-    const sequence = BigInt(plan.placement.sequence);
+    const sequence = BigInt(placement.sequence);
     if (cohort?.split("/").includes(reference.owner.name) && (highest === undefined || sequence > highest)) highest = sequence;
   }
   return { kind: "completed", quarter, sequence: highest === undefined ? basis.fallback : ArchiveSequenceSchema.parse(String(highest).padStart(2, "0")),

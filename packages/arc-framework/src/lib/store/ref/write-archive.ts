@@ -4,7 +4,7 @@ import { ArchiveSequenceSchema } from "../../kernel/index.js";
 import type { RefChange } from "../../git/ref-transaction.js";
 import type { RecordReference } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
-import type { ReadPlacement } from "../placement.js";
+import type { ReadPlacement, WritePlacement } from "../placement.js";
 import type { BatchCreationReceipt } from "../creation-receipt.js";
 import type { BatchInput } from "../write.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
@@ -12,7 +12,7 @@ import { readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
 import type { ResolvedBatch, ResolvedMutation } from "./write-resolution.js";
 import type { PreparedRefMutation } from "./write-merge.js";
-import { preparedCohortParents, cohortClosePlacement } from "./cohort-coordinates.js";
+import { preparedCohortParents, cohortClosePlacement, type PreparedMemberPlacement } from "./cohort-coordinates.js";
 import { corruptRef } from "./namespace-health.js";
 import { commitRefTree, type RefWriteGroup } from "./write-commits.js";
 import { archivedFolderRoot } from "./archive-refresh.js";
@@ -24,6 +24,19 @@ export interface RefArchivePlan {
   placement: ReadPlacement; entries: Map<string, RefTreeEntry>;
 }
 
+/** Number reservations stay separate from quarter entries that publication will materialize. */
+export interface RefCloseoutPlanning {
+  members: PreparedMemberPlacement[]; reservations: Map<string, Map<string, RefTreeEntry>>;
+}
+
+/** Initialize a quarter's private reservations once from its captured and reopened contents. */
+export function closeoutReservations(planning: RefCloseoutPlanning, ref: string,
+  entries: ReadonlyMap<string, RefTreeEntry>): Map<string, RefTreeEntry> {
+  let reserved = planning.reservations.get(ref);
+  if (!reserved) { reserved = new Map(entries); planning.reservations.set(ref, reserved); }
+  return reserved;
+}
+
 /** Include every archive destination before the writer acquires its sorted ref locks. */
 export function archiveLockRefs(batch: ResolvedBatch): string[] {
   return archiveWrites(batch.writes).flatMap(({ mutation, home }) => mutation.action === "put" && mutation.placement?.kind === "completed"
@@ -33,7 +46,7 @@ export function archiveLockRefs(batch: ResolvedBatch): string[] {
 /** Assign folders from captured quarter tips and stamp the final item metadata before checks. */
 export async function planRefArchives(context: RefBackendContext, writes: readonly PreparedRefMutation[],
   groups: ReadonlyMap<string, RefWriteGroup>, tips: ReadonlyMap<string, string>, batchId: string,
-  sharedQuarters?: Map<string, Map<string, RefTreeEntry>>): Promise<StoreResult<RefArchivePlan[]>> {
+  sharedQuarters: Map<string, Map<string, RefTreeEntry>>, planning: RefCloseoutPlanning): Promise<StoreResult<RefArchivePlan[]>> {
   const selected = archiveWrites(writes);
   if (selected.length === 0) return { status: "ok", result: [] };
   const captured = await readArchiveQuarters(context, selected, tips, sharedQuarters);
@@ -45,24 +58,35 @@ export async function planRefArchives(context: RefBackendContext, writes: readon
   const plans: RefArchivePlan[] = [];
   const ordered = [...selected.filter(({ mutation }) => mutation.reference.kind !== "cohort/document"),
     ...selected.filter(({ mutation }) => mutation.reference.kind === "cohort/document")];
-  for (const { mutation, home } of ordered) {
+  for (const write of ordered) {
+    const { mutation, home } = write;
     if (mutation.action !== "put" || mutation.placement?.kind !== "completed") continue;
     const quarterRef = `refs/arc/archive/${mutation.placement.quarter}`;
     const quarter = entries.get(quarterRef), group = groups.get(home.ref);
     if (!quarter || !group) throw new Error("An archive has no captured group or quarter");
-    const placement: ReadPlacement = mutation.reference.kind === "cohort/document"
-      ? cohortClosePlacement(context, mutation.reference, mutation.placement.quarter, { plans, writes, parents: parents.result, fallback: nextArchiveSequence(quarter.values()) })
-      : mutation.reference.kind === "work-item/meta" ? { ...mutation.placement, sequence: nextArchiveSequence(quarter.values()) } : mutation.placement;
+    const reserved = closeoutReservations(planning, quarterRef, quarter);
+    const placement = archivePlacement(context, mutation.reference, mutation.placement, reserved, planning, parents.result);
     const destination = expandStoredPath(mutation.reference, { registry: context.registry, placement });
     group.metadata.endBatch = batchId;
     group.metadata.batch = batchId;
     group.readPlacement = placement;
     // Reserve the folder for any later archive in this same batch.
     quarter.set(destination.metadataPath, { path: destination.metadataPath, mode: "100644", oid: "" });
+    reserved.set(destination.metadataPath, { path: destination.metadataPath, mode: "100644", oid: "" });
+    if (mutation.reference.kind === "work-item/meta") planning.members.push({ write, placement });
     plans.push({ source: home.ref, history: home.ref.replace("refs/arc/", "refs/arc/history/"), reference: mutation.reference,
       home: destination, placement, entries: quarter });
   }
   return { status: "ok", result: plans };
+}
+
+function archivePlacement(context: RefBackendContext, reference: RecordReference,
+  requested: Extract<WritePlacement, { kind: "completed" }>, reserved: ReadonlyMap<string, RefTreeEntry>,
+  planning: RefCloseoutPlanning, parents: ReadonlySet<string>): ReadPlacement {
+  const fallback = nextArchiveSequence(reserved.values());
+  if (reference.kind === "cohort/document") return cohortClosePlacement(context, reference, requested.quarter,
+    { members: planning.members, parents, fallback });
+  return reference.kind === "work-item/meta" ? { ...requested, sequence: fallback } : requested;
 }
 
 /** Replace ordinary live updates with one history move and one commit per touched quarter. */

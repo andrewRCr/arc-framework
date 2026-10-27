@@ -14,7 +14,7 @@ import { ownerPrimaryReference, refreshArchivedFolder, removeArchivedFolder, wri
 import { latestArchivedFolders, latestFolderPlacement, type ArchivedFolder } from "./archive-read.js";
 import { readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import { commitRefTree, type RefWriteGroup } from "./write-commits.js";
-import { nextArchiveSequence, type RefArchivePlan } from "./write-archive.js";
+import { closeoutReservations, nextArchiveSequence, type RefArchivePlan, type RefCloseoutPlanning } from "./write-archive.js";
 import { cohortClosePlacement, preparedCohortParents } from "./cohort-coordinates.js";
 import { corruptRef } from "./namespace-health.js";
 import { writeRefBlob } from "./tree-write.js";
@@ -23,7 +23,9 @@ import { quarterCommitReference } from "./quarter-provenance.js";
 import { completedRoleReplacements, planCompletedRoleReplacements } from "./write-completed-role.js";
 
 /** The archives and prepared writes a moved cohort's closeout reads, as a closing cohort's does. */
-export interface CompletedMoveBasis { archives: readonly RefArchivePlan[]; writes: readonly PreparedRefMutation[] }
+export interface CompletedMoveBasis {
+  archives: readonly RefArchivePlan[]; writes: readonly PreparedRefMutation[]; planning: RefCloseoutPlanning; cohorts: boolean;
+}
 
 /** The other quarter a batch's completed primary put names for an ended owner, which moves its folder there. */
 export function completedMoveQuarter(batch: ResolvedBatch, history: string): ArchiveQuarter | undefined {
@@ -55,14 +57,16 @@ export async function planCompletedMoves(context: RefBackendContext, batch: Reso
     const quarter = completedMoveQuarter(batch, history);
     return quarter ? [{ history, quarter }] : [];
   });
-  const replacements = completedRoleReplacements(batch, groups, new Set(moves.map(({ history }) => history)));
-  if (!moves.length && !replacements.length) return { status: "ok", result: undefined };
+  const replacements = basis.cohorts ? completedRoleReplacements(batch, groups, new Set(moves.map(({ history }) => history))) : [];
+  const selected = moves.filter(({ history }) => history.startsWith("refs/arc/history/cohort/") === basis.cohorts);
+  if (!selected.length && !replacements.length) return { status: "ok", result: undefined };
   const captured = await completedQuarterTrees(context, [], batch, new Set([...moves.map(({ quarter }) => `refs/arc/archive/${quarter}`),
     ...replacements.flatMap(({ folders }) => folders.map(({ ref }) => ref))]));
   if (captured.status === "refused") return captured;
   const quarters = captured.result;
   reservePreparedQuarters(quarters, basis, reopened);
-  for (const { history, quarter } of moves) {
+  for (const [ref, entries] of quarters) quarters.set(ref, closeoutReservations(basis.planning, ref, entries));
+  for (const { history, quarter } of selected) {
     const group = groups.get(history);
     const owned = (batch.archived ?? []).filter(({ liveRef }) => liveRef.replace("refs/arc/", "refs/arc/history/") === history);
     const [folder] = latestArchivedFolders(owned);
@@ -77,6 +81,8 @@ export async function planCompletedMoves(context: RefBackendContext, batch: Reso
     group.readPlacement = placement;
     const home = expandStoredPath(ownerPrimaryReference(folder.owner, group.metadata), { registry: context.registry, placement });
     target.set(home.metadataPath, { path: home.metadataPath, mode: "100644", oid: "" });
+    const write = basis.writes.find(write => write.home.ref === history && write.mutation.reference.kind === "work-item/meta");
+    if (write) basis.planning.members.push({ write, placement });
   }
   return planCompletedRoleReplacements(context, replacements, quarters);
 }
@@ -169,7 +175,7 @@ async function movedPlacement(context: RefBackendContext, scope: MoveScope, fold
   if (reference.kind === "work-item/meta") return { kind: "completed", quarter, sequence: fallback };
   const parents = await preparedCohortParents(context, scope.batch.tips, scope.groups);
   if (parents.status === "refused") return parents.refusal;
-  return cohortClosePlacement(context, reference, quarter, { plans: scope.basis.archives, writes: scope.basis.writes, parents: parents.result, fallback });
+  return cohortClosePlacement(context, reference, quarter, { members: scope.basis.planning.members, parents: parents.result, fallback });
 }
 
 function quarterEntries(quarters: ReadonlyMap<string, Map<string, RefTreeEntry>>, ref: string): Map<string, RefTreeEntry> {
