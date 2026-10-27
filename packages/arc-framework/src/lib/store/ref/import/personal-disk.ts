@@ -6,6 +6,7 @@ import { scanRegisteredWorktrees } from "../../../git/worktree-roster.js";
 import { SlugSchema, type Slug } from "../../../kernel/schema/slug.js";
 import { IDENTITY_STATUS_FILENAME } from "../../../user-surfaces.js";
 import { isAllowedFile, MAX_FILE_SIZE } from "../../../git/user-sync.js";
+import { legacyRootSessionNotesName } from "./personal-layout.js";
 
 /** One materialization, retaining the original manifest path and physical origin. */
 export interface ImportPersonalFile { person: Slug; path: string; physicalPath: string; content: string; size: number }
@@ -20,7 +21,9 @@ export function importPersonalExcluded(path: string): boolean {
 /** Mirror the file-level exclusions of notes serialization without dropping disk-only files. */
 export function notesCanSaveFile(path: string, size: number): boolean {
   const segments = path.split("/"), name = segments.at(-1) ?? path;
-  return !segments.some(segment => segment.startsWith(".")) && name !== "README.md" && isAllowedFile(name) && size <= MAX_FILE_SIZE;
+  // Save/load explicitly excludes the legacy root file; workspace SESSION-NOTES remains saveable.
+  return path !== legacyRootSessionNotesName && !segments.some(segment => segment.startsWith("."))
+    && name !== "README.md" && isAllowedFile(name) && size <= MAX_FILE_SIZE;
 }
 
 /** Enumerate registered, present checkouts once; no configured-identity or primary-only selection. */
