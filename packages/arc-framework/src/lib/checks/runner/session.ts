@@ -1,8 +1,9 @@
 /** Ordered process-backed JSON-RPC transport for one check runner conversation. */
-import { RunnerRequestSchema, type RunnerMessage, type RunnerNotification, type RunnerRequest } from "./contract.js";
+import { RunnerRequestSchema, type RecoveryParams, type TerminalOutcome, type RunnerMessage, type RunnerNotification, type RunnerRequest } from "./contract.js";
 import { decodeRunnerReply, type RunnerResultByMethod } from "./correlation.js";
 import { startCheckRunnerProcess, type CheckRunnerProcess, type CheckRunnerProcessExit, type CheckRunnerProcessInput } from "./session-process.js";
 import { RunnerMessageFramer } from "./session-framing.js";
+import { RunnerConversationState } from "./session-state.js";
 
 /** One caller operation before the transport assigns its request identity. */
 export type CheckRunnerOperation = { [Method in RunnerRequest["method"]]:
@@ -20,6 +21,8 @@ export interface CheckRunnerSession {
   request<Operation extends CheckRunnerOperation>(operation: Operation): Promise<RunnerResultByMethod[Operation["method"]]>;
   readonly failure: Error | undefined;
   readonly closed: Promise<CheckRunnerProcessExit>;
+  readonly recovery: Readonly<RecoveryParams> | undefined;
+  readonly observedOutcomes: ReadonlyMap<string, Readonly<TerminalOutcome>>;
   closeInput(): void;
   terminate(): void;
 }
@@ -39,6 +42,7 @@ interface PendingRequest {
 class RunnerSessionTransport implements CheckRunnerSession {
   private readonly pending = new Map<string, PendingRequest>();
   private readonly framer = new RunnerMessageFramer();
+  private readonly conversation = new RunnerConversationState();
   private sequence = 0;
   private processing = Promise.resolve();
   private protocolFailure: Error | undefined;
@@ -69,6 +73,8 @@ class RunnerSessionTransport implements CheckRunnerSession {
   }
 
   get failure(): Error | undefined { return this.protocolFailure; }
+  get recovery(): Readonly<RecoveryParams> | undefined { return this.conversation.recovery; }
+  get observedOutcomes(): ReadonlyMap<string, Readonly<TerminalOutcome>> { return this.conversation.observedOutcomes; }
 
   async request<Operation extends CheckRunnerOperation>(operation: Operation): Promise<RunnerResultByMethod[Operation["method"]]> {
     if (this.protocolFailure !== undefined) throw this.protocolFailure;
@@ -76,6 +82,7 @@ class RunnerSessionTransport implements CheckRunnerSession {
     const parsed = RunnerRequestSchema.safeParse({ ...operation, jsonrpc: "2.0", id: `rpc:${this.sequence++}` });
     if (!parsed.success) throw sessionError("caller operation is invalid");
     const request = parsed.data;
+    this.conversation.begin(request);
     return new Promise<RunnerResultByMethod[Operation["method"]]>((resolve, reject) => {
       this.pending.set(request.id, { request, resolve: result => { resolve(result as RunnerResultByMethod[Operation["method"]]); }, reject });
       try {
@@ -105,6 +112,7 @@ class RunnerSessionTransport implements CheckRunnerSession {
   private async acceptMessage(message: RunnerMessage): Promise<void> {
     if ("method" in message) {
       if ("id" in message) throw sessionError("adapter sent an unsupported request");
+      this.conversation.notify(message);
       try { await this.options.onNotification(message); }
       catch { throw sessionError("required notification/output delivery failed"); }
       return;
@@ -112,6 +120,7 @@ class RunnerSessionTransport implements CheckRunnerSession {
     const pending = this.pending.get(message.id);
     if (pending === undefined) throw sessionError("received an unknown or duplicate reply identity");
     const result = decodeRunnerReply(pending.request, message);
+    this.conversation.reply(pending.request, result);
     this.pending.delete(message.id);
     pending.resolve(result);
   }

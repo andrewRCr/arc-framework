@@ -217,7 +217,7 @@ public messages and captured-input definition.
 _Mode:_ `slice` through Phase 4 — closes on a real configured check with sound reuse, native verdicts and settled
 lifetime.
 
-### `[ ]` **3.1 Transport and validate ordered JSON-RPC conversations — D5**
+### `[x]` **3.1 Transport and validate ordered JSON-RPC conversations — D5**
 
 - _Goal:_ A single adapter conversation preserves byte ordering and protocol authority across preparation, lookup,
   execution and closure, with diagnostics isolated from terminal evidence.
@@ -227,13 +227,10 @@ lifetime.
           ordered required notification delivery. Protocol and required-pipe faults remain distinct from best-effort
           stderr; process completion exposes observed start and exit status.
 
-    - `[ ]` **3.1.b Enforce recovery-before-ready and ordered requests**
-        - Build `test-first` (one behavior at a time):
-            - ARC retains a matching actionable `check/recovery` before accepting ready or dispatching execution.
-            - One execution request is outstanding; advertised group capability gates groups; singles remain mandatory.
-            - Each planned ID runs at most once; cancellation can overlap preparation/execution without replacing work.
-        - Expose retained terminal evidence and protocol failure separately rather than flattening them into console
-          output.
+    - `[x]` **3.1.b Enforce recovery-before-ready and ordered requests**
+        - Bound requests to one attempt/context, required retained recovery before ready, and enforced advertised
+          groups, one outstanding execution and at-most-once invocation IDs. Cancellation can overlap preparation or
+          execution without replacing settlement; immutable terminal observations survive protocol faults.
 
 ### `[ ]` **3.2 Account for outcomes, settlement and both closure arms — D5, D7, D8**
 

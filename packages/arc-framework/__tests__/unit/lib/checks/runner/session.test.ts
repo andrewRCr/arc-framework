@@ -1,57 +1,11 @@
 /** Stream-boundary tests for runner framing and request correlation. */
-import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
-import { createCheckRunnerSession } from "../../../../../src/lib/checks/runner/session.js";
-import type { CheckRunnerProcessExit } from "../../../../../src/lib/checks/runner/session-process.js";
-import type { RunnerNotification, RunnerRequest } from "../../../../../src/lib/checks/runner/contract.js";
 import { makeRunnerProtocolPlan, makeRunnerProtocolReady } from "../../../../fixtures/checks/runner-protocol.js";
-
-function harness(onNotification?: (notification: RunnerNotification) => void | Promise<void>,
-  onDiagnostic?: (bytes: Uint8Array) => void | Promise<void>) {
-  const stdin = new PassThrough();
-  const stdout = new PassThrough();
-  const stderr = new PassThrough();
-  let finish!: (exit: CheckRunnerProcessExit) => void;
-  const completed = new Promise<CheckRunnerProcessExit>(resolve => { finish = resolve; });
-  const requests: RunnerRequest[] = [];
-  stdin.on("data", (bytes: Buffer) => { requests.push(JSON.parse(bytes.toString("utf8")) as RunnerRequest); });
-  const notifications: RunnerNotification[] = [];
-  const session = createCheckRunnerSession({ argv: ["adapter"], cwd: "/repository",
-    launch: () => ({ stdin, stdout, stderr, completed, terminate: () => { finish({ started: true, signal: "SIGTERM" }); } }),
-    onNotification: onNotification ?? (notification => { notifications.push(notification); }),
-    onDiagnostic,
-  });
-  return { stdin, stdout, stderr, requests, notifications, session,
-    async close() { stdout.end(); stderr.end(); finish({ started: true, exitCode: 0 }); await session.closed; },
-  };
-}
-
-function reply(h: ReturnType<typeof harness>, result: unknown, id = h.requests.at(-1)?.id): void {
-  h.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", id, result })}\n`);
-}
-
-function recovery(h: ReturnType<typeof harness>): void {
-  h.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", method: "check/recovery", params: {
-    planId: makeRunnerProtocolPlan().planId, instructions: "Inspect and settle this attempt with adapter inspect." } })}\n`);
-}
-
-function completeRun(h: ReturnType<typeof harness>): void {
-  h.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", method: "check/outcome", params: {
-    contextId: "context", invocationId: "__proto__", outcome: { status: "completed", exitCode: 0 } } })}\n`);
-  reply(h, { contextId: "context", settled: true, outputComplete: true, invocationIds: ["__proto__"] });
-}
-
-async function prepare(h: ReturnType<typeof harness>): Promise<void> {
-  const plan = makeRunnerProtocolPlan();
-  const pending = h.session.request({ method: "check/prepare", params: plan });
-  recovery(h);
-  reply(h, makeRunnerProtocolReady(plan));
-  await pending;
-}
+import { runnerStreamHarness, reply, recovery, prepare, completeRun } from "../../../../fixtures/checks/runner-streams.js";
 
 describe("runner session byte framing", () => {
   it("preserves split UTF-8, escaped newlines and coalesced frames before a correlated reply", async () => {
-    const h = harness();
+    const h = runnerStreamHarness();
     const plan = makeRunnerProtocolPlan();
     const pending = h.session.request({ method: "check/prepare", params: plan });
     const recovery = { jsonrpc: "2.0", method: "check/recovery", params: { planId: plan.planId, instructions: "inspect ☃\nsettle 😀" } };
@@ -76,7 +30,7 @@ describe("runner session byte framing", () => {
     ["unknown notifications", '{"jsonrpc":"2.0","method":"other","params":{}}\n'],
     ["blank frames", "\n"],
   ])("rejects %s without exposing wire payloads", async (_name, line) => {
-    const h = harness();
+    const h = runnerStreamHarness();
     const pending = h.session.request({ method: "check/prepare", params: makeRunnerProtocolPlan() });
     h.stdout.write(line);
     await expect(pending).rejects.toThrow(/runner.*retry/iu);
@@ -85,7 +39,7 @@ describe("runner session byte framing", () => {
   });
 
   it("rejects malformed UTF-8 rather than accepting replacement characters", async () => {
-    const h = harness();
+    const h = runnerStreamHarness();
     const pending = h.session.request({ method: "check/prepare", params: makeRunnerProtocolPlan() });
     h.stdout.write(Buffer.from([0xC3, 0x28, 0x0A]));
     await expect(pending).rejects.toThrow(/runner.*retry/iu);
@@ -93,7 +47,7 @@ describe("runner session byte framing", () => {
   });
 
   it("requires the final frame delimiter and complete UTF-8 at EOF", async () => {
-    const h = harness();
+    const h = runnerStreamHarness();
     const plan = makeRunnerProtocolPlan();
     const pending = h.session.request({ method: "check/prepare", params: plan });
     h.stdout.end(JSON.stringify({ jsonrpc: "2.0", id: h.requests[0]?.id, result: makeRunnerProtocolReady(plan) }));
@@ -102,7 +56,7 @@ describe("runner session byte framing", () => {
   });
 
   it("rejects a second reply for an already answered request", async () => {
-    const h = harness();
+    const h = runnerStreamHarness();
     await prepare(h);
     reply(h, makeRunnerProtocolReady(makeRunnerProtocolPlan()));
     await h.close();
@@ -111,7 +65,7 @@ describe("runner session byte framing", () => {
   });
 
   it("accepts CRLF delimiters without changing escaped payload carriage returns", async () => {
-    const h = harness();
+    const h = runnerStreamHarness();
     const plan = makeRunnerProtocolPlan();
     const pending = h.session.request({ method: "check/prepare", params: plan });
     const recovery = { jsonrpc: "2.0", method: "check/recovery", params: { planId: plan.planId, instructions: "inspect\r\nsettle" } };
@@ -123,7 +77,7 @@ describe("runner session byte framing", () => {
   });
 
   it.each(["stdin", "stdout"] as const)("rejects required %s I/O failure even when a valid reply follows", async stream => {
-    const h = harness();
+    const h = runnerStreamHarness();
     const plan = makeRunnerProtocolPlan();
     const pending = h.session.request({ method: "check/prepare", params: plan });
     recovery(h);
@@ -135,7 +89,7 @@ describe("runner session byte framing", () => {
   });
 
   it("validates the result against the matched operation", async () => {
-    const h = harness();
+    const h = runnerStreamHarness();
     const pending = h.session.request({ method: "check/prepare", params: makeRunnerProtocolPlan() });
     reply(h, { planId: makeRunnerProtocolPlan().planId, accepted: true });
     await expect(pending).rejects.toThrow(/operation/iu);
@@ -143,7 +97,7 @@ describe("runner session byte framing", () => {
   });
 
   it("fails matched RPC errors while redacting provider error text", async () => {
-    const h = harness();
+    const h = runnerStreamHarness();
     const pending = h.session.request({ method: "check/prepare", params: makeRunnerProtocolPlan() });
     h.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", id: h.requests[0]?.id, error: { code: -32603, message: "private token" } })}\n`);
     await expect(pending).rejects.toThrow(/-32603/u);
@@ -155,7 +109,7 @@ describe("runner session byte framing", () => {
     const chunks: Buffer[] = [];
     let allowDelivery!: () => void;
     const blocked = new Promise<void>(resolve => { allowDelivery = resolve; });
-    const h = harness(async notification => {
+    const h = runnerStreamHarness(async notification => {
       if (notification.method !== "check/output") return;
       await blocked;
       chunks.push(Buffer.from(notification.params.dataBase64, "base64"));
@@ -179,7 +133,7 @@ describe("runner session byte framing", () => {
   });
 
   it("cannot accept outputComplete after required delivery fails", async () => {
-    const h = harness(notification => { if (notification.method === "check/output") throw new Error("private sink failure"); });
+    const h = runnerStreamHarness(notification => { if (notification.method === "check/output") throw new Error("private sink failure"); });
     await prepare(h);
     const pending = h.session.request({ method: "check/run", params: { contextId: "context", invocationId: "__proto__" } });
     h.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", method: "check/output", params: {
@@ -192,7 +146,7 @@ describe("runner session byte framing", () => {
 
   it("keeps adapter stderr and failed diagnostic display outside protocol authority", async () => {
     const diagnostics: Buffer[] = [];
-    const h = harness(undefined, async bytes => { diagnostics.push(Buffer.from(bytes)); throw new Error("display unavailable"); });
+    const h = runnerStreamHarness(undefined, async bytes => { diagnostics.push(Buffer.from(bytes)); throw new Error("display unavailable"); });
     h.stderr.write(Buffer.from([0, 255, 10]));
     h.stderr.emit("error", new Error("diagnostic read unavailable"));
     await prepare(h);
