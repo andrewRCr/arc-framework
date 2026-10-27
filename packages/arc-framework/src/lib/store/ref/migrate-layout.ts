@@ -23,9 +23,17 @@ interface LayoutMoveState {
 
 /** Copy and switch under the layout lock, or finish the exact direction an earlier run recorded. */
 export async function moveRefLayout(context: RefBackendContext, store: Store, destination: StoreLayout,
-  setting?: LayoutSetting, resume?: RecordedLayout): Promise<StoreCommandResult<MigrateReport>> {
+  setting?: LayoutSetting, resume?: RecordedLayout,
+  prepare?: () => Promise<StoreCommandResult<StoreLayout>>): Promise<StoreCommandResult<MigrateReport>> {
   const release = await context.lock("layout");
-  try { return await moveHeldLayout(context, store, destination, setting, resume); }
+  try {
+    if (prepare) {
+      const prepared = await prepare();
+      if (prepared.status === "refused") return prepared;
+      destination = prepared.result;
+    }
+    return await moveHeldLayout(context, store, destination, setting, resume);
+  }
   catch (error) {
     if (!(error instanceof MigrationRefusal)) throw error;
     await cleanRefusedUnrecordedLayout(context);
