@@ -362,6 +362,8 @@ runs unknown runtime without reuse, preserves native outcomes, and closes or ret
           before lookup; POSIX literal filenames and compatible case/Unicode directory behavior remain covered.
 
     - `[ ]` **4.5.b Select and classify the foundation's supported-platform cases**
+        - _Progress:_ Foundation suites and source classification join the existing portability route; supported
+          Windows/macOS execution has not yet been qualified.
         - Extend `localVitestTierArguments` in `src/lib/local-vitest-runner.ts` and `isPortabilitySurfacePath` in
           `src/lib/change-facts.ts` for the actual new foundation source/tests and executable case filenames.
         - Build `test-first` (one behavior at a time):

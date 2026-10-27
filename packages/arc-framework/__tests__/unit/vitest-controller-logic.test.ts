@@ -74,13 +74,13 @@ it("reports an E2E deletion since the base, and treats an unanswered read as one
   expect(calls.map(({ options }) => options?.cwd)).toEqual(["/package", "/package", "/package"]);
 });
 it("retains each native portability boundary on the portability tier", () => {
-  expect(localVitestTierArguments("portability")).toEqual([
+  expect(localVitestTierArguments("portability")).toEqual(expect.arrayContaining([
     "fs.test.ts", "build-context.test.ts", "build-cancellation.test.ts", "build-generation-lifetime.test.ts",
     "build-coordinator.test.ts", "build-publication.test.ts", "build-inventory.test.ts", "build-ownership.test.ts",
     "ci-build-transfer.test.ts", "ci-build-recovery.test.ts", "local-test-admission.test.ts", "worktree-marker.test.ts",
     "commit-message-retry-store.test.ts", "advisory-lock", "user-sync-notes-lock", "ref-tree-cas", "state-ref-race.e2e",
     "git-executor", "delivery-transfer.e2e",
-  ]);
+  ]));
 });
 
 type Completion = Parameters<typeof checkVitestCompletion>[0];

@@ -1,7 +1,7 @@
 /** The portability npm route executes installation, cancellation, and publication coverage. */
 import { execa } from "execa";
-import { readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { expect, it } from "vitest";
 import { makeVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
 
@@ -9,11 +9,18 @@ it("selects the build and prebuilt recovery suites alongside existing portabilit
   const fixture = await makeVitestControllerFixture();
   const required = ["fs.test.ts", "build-context.test.ts", "build-cancellation.test.ts", "build-generation-lifetime.test.ts",
     "build-coordinator.test.ts", "build-publication.test.ts",
-    "build-inventory.test.ts", "build-ownership.test.ts", "ci-build-transfer.test.ts", "ci-build-recovery.test.ts"];
+    "build-inventory.test.ts", "build-ownership.test.ts", "ci-build-transfer.test.ts", "ci-build-recovery.test.ts",
+    "lib/checks/runner/planning-spelling.test.ts", "lib/checks/runner/source-platform-paths.test.ts",
+    "lib/checks/runner/source-cwd.test.ts", "lib/checks/runner/session-outcomes.test.ts",
+    "lib/checks/runner/contract-operations.test.ts", "lib/checks/result.test.ts",
+    "check-runner-session.test.ts", "check-runner-conformance-wire.test.ts", "check-runner-conformance-groups.test.ts",
+    "check-runner-execution-run.test.ts", "check-runner-platform-status.test.ts", "check-runner-platform-spelling.test.ts",
+    "check-runner-platform.e2e.test.ts"];
   try {
     const config = join(fixture.packageRoot, "vitest.config.mjs");
-    await writeFile(config, (await readFile(config, "utf8")).replace('["tests/unit*.test.mjs"]', '["tests/*.test.ts"]'));
+    await writeFile(config, (await readFile(config, "utf8")).replace('["tests/unit*.test.mjs"]', '["tests/**/*.test.ts"]'));
     for (const file of required) {
+      await mkdir(dirname(join(fixture.packageRoot, "tests", file)), { recursive: true });
       await writeFile(join(fixture.packageRoot, "tests", file), `
 import { it } from "vitest";
 import { appendFileSync } from "node:fs";

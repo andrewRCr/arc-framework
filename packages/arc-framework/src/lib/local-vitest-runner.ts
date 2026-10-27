@@ -200,6 +200,15 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "state-ref-race.e2e",
         "git-executor",
         "delivery-transfer.e2e",
+        "checks/runner/",
+        "lib/checks/result.test.ts",
+        "check-runner-session.test.ts",
+        "check-runner-conformance-wire.test.ts",
+        "check-runner-conformance-groups.test.ts",
+        "check-runner-execution-run.test.ts",
+        "check-runner-platform-status.test.ts",
+        "check-runner-platform-spelling.test.ts",
+        "check-runner-platform.e2e.test.ts",
       ];
     case "portability-macos":
       return ["anchored-sequence", "git-identity", "locus-errand-roundtrip", "rename"];
