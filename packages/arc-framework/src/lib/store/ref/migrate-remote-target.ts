@@ -4,7 +4,7 @@ import type { RefRemoteDesignation } from "./designation.js";
 import type { MoveRemote } from "./migrate-record.js";
 import { readRefRepository } from "./repository.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
-import { EffectiveTransportError, readRemoteTransports, resolveLiteralTransport, selectLiteralTransport } from "./effective-transport.js";
+import { EffectiveTransportError, readNamedTransport, readRemoteTransports, resolveLiteralTransport, selectLiteralTransport } from "./effective-transport.js";
 
 /** The reserved backing target names only the tracked pointer; other targets keep caller-specific admission. */
 export function resolveBackingTarget(target: string, pointer: string | null): string {
@@ -23,6 +23,14 @@ export async function captureMoveRemote(context: RefBackendContext, code: RefBac
     condition: `Remote ${remote.name} has multiple effective push destinations; a state move needs one receiver.`,
     remedy: { text: `Configure one push URL for ${remote.name}, then retry the migration.` } });
   return { name: remote.name, repository: remote.repository, url: remote.url, fetchUrl: actual.fetchUrl, pushUrl: pushUrls[0] ?? "" };
+}
+
+/** Capture only a source's observation identity; disabling its reads requires no publication transport. */
+export async function captureObservedMoveRemote(context: RefBackendContext, code: RefBackendContext,
+  remote: RefRemoteDesignation): Promise<Omit<MoveRemote, "pushUrl">> {
+  const physical = remote.repository === "backing" ? await readRefRepository(context) : code;
+  const fetchUrl = (await readNamedTransport(physical, remote.name, "fetch").catch(migrationTransportRefusal))[0] ?? "";
+  return { name: remote.name, repository: remote.repository, url: remote.url, fetchUrl };
 }
 
 /** Resolve fresh raw aliases before they become recorded effective endpoints. */

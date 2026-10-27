@@ -6,7 +6,7 @@ import { copyJournalKey, readCopyJournal, requireNoPendingCopy, retainCopyAccoun
 import { accountCopyJournal, copyAccountIdentity } from "./migrate-copy-account.js";
 import { readRemoteCopyReport } from "./migrate-cleanup-report.js";
 
-function sameSource(left: Omit<MoveRemote, "pushUrl">, right: MoveRemote): boolean {
+function sameSource(left: Omit<MoveRemote, "pushUrl">, right: Omit<MoveRemote, "pushUrl">): boolean {
   return left.name === right.name && left.repository === right.repository && left.url === right.url && left.fetchUrl === right.fetchUrl;
 }
 
@@ -30,7 +30,7 @@ export async function handoffFollowCopy(context: RefBackendContext, record: Foll
 }
 
 /** A successful source read can retire its withdrawn follow's account without licensing a new publication. */
-export async function accountWithdrawnFollow(context: RefBackendContext, source: MoveRemote): Promise<MigrateReport | undefined> {
+export async function accountWithdrawnFollow(context: RefBackendContext, source: Omit<MoveRemote, "pushUrl">): Promise<MigrateReport | undefined> {
   const held = await readCopyJournal(context);
   if (held) {
     const prior = copyAccountIdentity(held);
@@ -42,7 +42,7 @@ export async function accountWithdrawnFollow(context: RefBackendContext, source:
 }
 
 /** Disabling this source ends only its own follow account; unrelated pending operations remain guarded. */
-export async function accountDisabledFollow(context: RefBackendContext, source: MoveRemote): Promise<MigrateReport | undefined> {
+export async function accountDisabledFollow(context: RefBackendContext, source: Omit<MoveRemote, "pushUrl">): Promise<MigrateReport | undefined> {
   const held = await readCopyJournal(context);
   if (held) {
     const prior = copyAccountIdentity(held);

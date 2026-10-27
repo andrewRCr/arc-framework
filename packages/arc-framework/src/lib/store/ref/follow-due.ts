@@ -8,7 +8,7 @@ import { readRefDesignation, type RefDesignation, type RefRemoteDesignation } fr
 import { readRefRepository } from "./repository.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { judgeRefFollow, type RefFollowJudgment } from "./follow-candidates.js";
-import { captureMoveRemote } from "./migrate-remote-target.js";
+import { captureObservedMoveRemote } from "./migrate-remote-target.js";
 import { migrationCodeContext } from "./migrate-record.js";
 import { accountDisabledFollow } from "./follow-copy-account.js";
 
@@ -59,7 +59,7 @@ function hasFollowAnswer(judged: RefFollowJudgment, remote: string): boolean {
 
 async function accountOldSourceOff(context: RefBackendContext, due: RefFollowDue): Promise<MigrateReport | undefined> {
   const code = await migrationCodeContext(context);
-  return accountDisabledFollow(code, await captureMoveRemote(context, code, due.remote));
+  return accountDisabledFollow(code, await captureObservedMoveRemote(context, code, due.remote));
 }
 
 async function turnOffDepartedBacking(context: RefBackendContext, report?: MigrateReport): Promise<StoreRemoteResult> {
