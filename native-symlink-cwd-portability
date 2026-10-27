@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "native-symlink-cwd-portability",
+  "claimId": "77ffa40b3e7f03693052834a062bdec7",
+  "createdAt": "2026-10-27T15:47:55.468Z",
+  "updatedAt": "2026-10-27T15:47:55.468Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make the native symlink-cwd integration receipt assertion portable across Windows junctions",
+  "branch": "chore/native-symlink-cwd-portability",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
