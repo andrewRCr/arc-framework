@@ -178,7 +178,7 @@ it("retains a source listing whose gathering transaction fails after its rows an
       if (!listing || !args.includes("fetch")) return h.ports.exec(command, args, options);
       listing = false;
       const fetched = await h.ports.exec(command, args, options);
-      const prefix = args.find(arg => arg.startsWith("+refs/arc/work/*:"))?.split(":")[1]?.slice(0, -"work/*".length);
+      const prefix = (options?.input?.split(/\r?\n/u) ?? []).find(arg => arg.startsWith("+refs/arc/work/*:"))?.split(":")[1]?.slice(0, -"work/*".length);
       if (!prefix) throw new Error("The source listing named no gathering prefix");
       const gathered = (await h.a.git(["for-each-ref", "--format=%(refname)", prefix])).stdout.split("\n").filter(Boolean);
       for (const ref of gathered) await h.a.git(["update-ref", "-d", ref]);

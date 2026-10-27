@@ -30,7 +30,7 @@ export async function followAccountFixture(source: "code" | "backing" = "code") 
   const check: WriteCheck = async () => armed ? [{ rule: "account-documents", ...followAccountAdvisory }] : [];
   const ports: RefStorePorts = { ...original, registry: { ...registry, "personal/document": { ...registry["personal/document"], check } },
     exec: async (command, args, options) => {
-      if (unreadable && args.includes("fetch") && args.includes(h.destinationDirectory) && args.some(arg => arg.includes("refs/arc/work/*:"))) {
+      if (unreadable && args.includes("fetch") && args.includes(h.destinationDirectory) && (options?.input?.split(/\r?\n/u) ?? []).some(arg => arg.includes("refs/arc/work/*:"))) {
         throw makeGitProcessError({ command, args, timedOut: true, stderr: "Original copy receiver is unreadable." });
       }
       return original.exec(command, args, options);

@@ -13,6 +13,7 @@ export async function withdrawRecordedSource(code: RefBackendContext, recorded: 
   catch (error) {
     if (!(error instanceof MigrationRefusal) || error.refusal.code !== "store") throw error;
     const refusal = error.refusal.refusal;
+    if (refusal.code === "command-line-capacity") throw error;
     throw new MigrationRefusal({ code: "store", refusal: { ...refusal, remedy: {
       text: `Make ${recorded.record.source.fetchUrl} readable and writable, then retry arc store migrate --leave-source. Where both remotes are gone for good, run git update-ref -d refs/arc/tmp/migrate/move in the code repository to end this record with nothing withdrawn, then leave the source to a restored home.` } } });
   }
@@ -35,7 +36,8 @@ async function withdrawRounds(code: RefBackendContext, recorded: RecordedRemote)
     await code.migrateStep?.("leave.withdraw");
     const changes = [{ ref: FORWARDING_REF, next: null, expected: tip }, { ref: "refs/arc/project/registry", next, expected: registry }];
     const pushed = await atomicMigrationPush(code, recorded.record.source.pushUrl, changes);
-    if (!await migrationPushLanded(code, recorded.record.source.pushUrl, changes, pushed)) continue;
+    if (!await migrationPushLanded(code, recorded.record.source.pushUrl, changes, pushed,
+      { text: "Retry arc store migrate --leave-source to withdraw this recorded source control.", argv: ["arc", "store", "migrate", "--leave-source"] })) continue;
     await code.migrateStep?.("leave.withdrawn");
     return true;
   }

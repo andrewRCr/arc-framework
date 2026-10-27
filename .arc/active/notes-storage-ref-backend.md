@@ -3121,3 +3121,25 @@ no additional publication-proof store is introduced.
 One preserves the registry and proves both folders survive until explicit repair; the other proves publication before
 full erasure, notices before and after registry repair, withdrawal only after forced history-tracking replacement, and
 the first folder's local and remote fate through publication and convergence.
+
+## A54 — Bound current transport failures while bulk Windows push is deferred
+
+**Superseded text.** § 6.2 required “Refspecs on the command line” and “the backend passes them on the command line in
+both layouts.” § 11.5 enumerated whole-push failures as “hook-declined”, “atomic-unsupported”, or “unreachable”; the
+first Non-Goal retained “No caller-visible behavior beyond what § 2 amends.” These obligations lacked a local native
+command-line capacity stop, and § 10.2's complete atomic copies had no distinct handling for a known nonstart.
+
+**Decision.** Feed refspecs through owned stdin while preserving captured output and existing invocation controls.
+Bound pushes at their final physical native-Windows argv, using the process ceiling and libuv's quoting rules, and
+report a typed local nonstart rather than a network or hook failure. Keep state pending and the transaction atomic;
+a combined nonstart leaves the independent code leg to settle itself. Migration continuations preserve their own
+retry routes and previously landed accounting. This is a bounded mitigation: scalable native-Windows initial
+publication and migration remain a CORE follow-up before first native-Windows adoption, Gate A at the latest.
+Another runtime can serve a configured complete clone, but paths, hooks and credentials prevent a universal remedy.
+
+**Footprint.** §§ 2.1–2.2, 6.2, 6.7–6.8, 10.2, 11.3, 11.5 and 14.10, the first Non-Goal's additive amendment, and new
+criterion 58 carry the contract. The review-fix increment supplies the implementation and full verification rather
+than a new task phase. Existing criteria and recorded verification remain historical; criterion 58 qualifies their
+transport capacity coverage. No new segment or Class ratchet is needed: the amendment composes bounded existing
+executor, publication, carry and migration seams at medium depth. Its shortened log summary preserves the approved
+scope; the body retains every mitigation and the residual deferral.

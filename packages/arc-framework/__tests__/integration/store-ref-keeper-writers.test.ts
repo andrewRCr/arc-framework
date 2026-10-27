@@ -19,7 +19,7 @@ function pausedTrackingPull(ports: RefStorePorts) {
   let armed = true, running: ReturnType<ReturnType<typeof createRefStore>["pull"]> | undefined;
   const store = createRefStore({ ...ports, exec: async (command, args, options) => {
     const result = await ports.exec(command, args, options);
-    if (armed && args.includes("fetch") && args.some((arg) => arg.includes(":refs/arc-remotes/backing/"))) {
+    if (armed && args.includes("fetch") && (options?.input?.split(/\r?\n/u) ?? []).some((arg) => arg.includes(":refs/arc-remotes/backing/"))) {
       armed = false; enter(); await paused;
     }
     return result;

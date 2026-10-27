@@ -64,6 +64,8 @@ export const refusalRecoveryTable: Record<RefusalCode, readonly RecoveryCase[]> 
     }[value],
   })),
   "retries-exhausted": [{ id: "retries-exhausted", class: "recoverable", produce: "Move the remote at every compare-and-swap retry.", repair: "Retry sync once the remote stops contending." }, transient("retries-exhausted")],
+  "command-line-capacity": [{ id: "command-line-capacity", class: "recoverable", produce: "Refuse the ref publisher before starting its native process.",
+    repair: "Resolve the local execution constraint and retry the same pending publication." }],
   unreachable: [{ id: "unreachable", class: "recoverable", produce: "Take the configured remote transport down.", repair: "Restore the remote and retry sync." }, transient("unreachable")],
   refused: [{ id: "refused", class: "terminal", produce: "Make the remote refuse with its policy message.", repair: "Change the server policy named by that message." }, transient("refused")],
 };

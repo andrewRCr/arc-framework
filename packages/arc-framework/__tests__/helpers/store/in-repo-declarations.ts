@@ -119,6 +119,7 @@ export const inRepoDeclarations: FixtureDeclarations = {
   syncRetryCount: 4, syncWaitedMs: 30,
   rejectingContentUnavailable: Object.fromEntries((Object.keys(KIND_REGISTRY) as KindId[]).filter((kind) => families.includes(KIND_REGISTRY[kind].family) && !["review/candidate", "review/integration-boundary", "lineage/transition", "work-item/record", "claims/groom", "claims/housekeep"].includes(kind)).map((kind) => [kind, KIND_REGISTRY[kind].inRepo.substrate === "personal" ? personalRaw : KIND_REGISTRY[kind].inRepo.substrate === "tracked" ? raw : unhomed])),
   refusalExclusions: {
+    "command-line-capacity": "The interim publishers do not emit the ref backend native command-line capacity outcome.",
     "state-unresolvable": "The interim backend has no ref-store anchors or ended-item history refs; its saved-state coverage uses unsupported:uncovered-state-version.",
     "namespace-corrupt": "Tracked and personal files have no shared namespace index; unreadable transient ref structure throws an operation error instead of this typed refusal.",
     "unsupported:held-here": "Tracked listing supports checkout held-here selection.",

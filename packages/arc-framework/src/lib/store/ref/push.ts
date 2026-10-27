@@ -163,6 +163,8 @@ function refusedStatePublishes(loop: PushLoop): PublishOutcome[] {
 }
 
 function pushOutcomeFailure(context: RefBackendContext, outcome: Exclude<PushClassification, { status: "ok" }>): StatePushFailure {
+  if (outcome.status === "not-started") return { code: "command-line-capacity", class: "recoverable", condition: outcome.message,
+    remedy: { text: "Keep this clone's complete pending state and retry the same atomic push with a transport that can carry its command line; native Windows bulk publication needs the transport capacity repair." } };
   return outcome.status === "unreachable"
     ? { code: "unreachable", class: "recoverable", cause: outcome.cause,
       condition: outcome.message || "The state push could not reach its receiver.",

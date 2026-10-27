@@ -43,15 +43,15 @@ async function fetchKeptRefPatterns(context: RefBackendContext, remote: RefRemot
   patterns: readonly string[], negotiation: readonly string[], signal?: AbortSignal): Promise<RefFetchOutcome> {
   const basis = await readRefFetchBasis(context, remote.name, patterns);
   const target = await refFetchTarget(context, remote, designation);
-  const args = refFetchArgs(remote.name, negotiation, target,
-    patterns.map((pattern) => `${pattern}:refs/arc-remotes/${remote.name}/${pattern.slice("refs/arc/".length)}`));
+  const args = refFetchArgs(remote.name, negotiation, target);
+  const input = patterns.map((pattern) => `${pattern}:refs/arc-remotes/${remote.name}/${pattern.slice("refs/arc/".length)}\n`).join("");
   try {
-    let fetched = await runRefFetch(context, args, signal);
+    let fetched = await runRefFetch(context, args, input, signal);
     const notices = await checkRefFetchUpdates(context, remote, designation, fetched.outcome, basis, fetched.failed);
     if (fetched.outcome.status === "refs" && await refFetchNeedsCompleteness(context)
       && (await missingRefFetchObjects(context, fetched.outcome)).length) {
       const at = args.indexOf("fetch");
-      const repaired = await runRefFetch(context, [...args.slice(0, at + 1), "--refetch", ...args.slice(at + 1)], signal);
+      const repaired = await runRefFetch(context, [...args.slice(0, at + 1), "--refetch", ...args.slice(at + 1)], input, signal);
       notices.push(...await checkRefFetchUpdates(context, remote, designation, repaired.outcome, basis, repaired.failed));
       const outcome = combineRefFetchOutcomes(fetched.outcome, repaired.outcome);
       if (outcome.status === "refs") {
@@ -64,9 +64,9 @@ async function fetchKeptRefPatterns(context: RefBackendContext, remote: RefRemot
   } finally { await finishRefFetchBasis(refSyncCleanupContext(context), remote.name, basis); }
 }
 
-async function runRefFetch(context: RefBackendContext, args: string[], signal?: AbortSignal): Promise<{ outcome: FetchOutcome; failed: boolean }> {
+async function runRefFetch(context: RefBackendContext, args: string[], input: string, signal?: AbortSignal): Promise<{ outcome: FetchOutcome; failed: boolean }> {
   try {
-    return { outcome: parseFetchPorcelain(await context.exec("git", args, { cwd: context.checkoutRoot, signal,
+    return { outcome: parseFetchPorcelain(await context.exec("git", args, { cwd: context.checkoutRoot, signal, input,
       diagnosticLocale: "stable", interaction: PASSIVE_REMOTE_INTERACTION, preserveOutput: true })), failed: false };
   } catch (error) {
     const failure = normalizeGitRejection(error, { command: "git", args });

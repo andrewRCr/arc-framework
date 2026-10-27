@@ -117,7 +117,7 @@ describe("Git process cancellation", () => {
   });
 });
 
-function invoke(variant: string, args: string[], options: GitExecOptions): Promise<unknown> {
+function invoke(variant: string, args: string[], options: Pick<GitExecOptions, "cwd" | "signal">): Promise<unknown> {
   if (variant === "plain") return exec("git", args, options);
   if (variant === "stdin") return createExecaGitExecInput()(args, "", options);
   return (variant === "raw" ? createExecaRawGitExec() : createSpawnRawGitExec())(args, options);

@@ -26,12 +26,12 @@ export async function fetchMigrationRemote(context: RefBackendContext, remote: M
   await clearMigrationRefs(context, prefix);
   const patterns = complete ? ["work/*", "cohort/*", "archive/*", "project/*", "user/*", "history/work/*", "history/cohort/*"]
     : (options?.controls ?? ["registry", "moved"]).map(control => `project/${control}*`);
-  const args = refFetchArgs(remote.name, await refFetchNegotiation(context, await context.identity()), remote.fetchUrl,
-    patterns.map(pattern => `+refs/arc/${pattern}:${prefix}${pattern}`));
-  let fetched = await runMigrationFetch(context, args, remote);
+  const args = refFetchArgs(remote.name, await refFetchNegotiation(context, await context.identity()), remote.fetchUrl);
+  const input = patterns.map(pattern => `+refs/arc/${pattern}:${prefix}${pattern}`).join("\n") + "\n";
+  let fetched = await runMigrationFetch(context, args, input, remote);
   if (await refFetchNeedsCompleteness(context) && (await missingRefFetchObjects(context, fetched)).length) {
     const at = args.indexOf("fetch");
-    fetched = await runMigrationFetch(context, [...args.slice(0, at + 1), "--refetch", ...args.slice(at + 1)], remote);
+    fetched = await runMigrationFetch(context, [...args.slice(0, at + 1), "--refetch", ...args.slice(at + 1)], input, remote);
     const missing = await missingRefFetchObjects(context, fetched);
     if (missing.length) throw new MigrationRefusal({ code: "store", refusal: new RefFetchIncompleteError(missing, []).failure });
   }
@@ -53,9 +53,9 @@ async function readGatheringRefs(context: RefBackendContext, prefix: string): Pr
     .filter(([ref]) => isStateRef(ref) || ref === FORWARDING_REF));
 }
 
-async function runMigrationFetch(context: RefBackendContext, args: string[], remote: MoveRemote): Promise<Extract<FetchOutcome, { status: "refs" }>> {
+async function runMigrationFetch(context: RefBackendContext, args: string[], input: string, remote: MoveRemote): Promise<Extract<FetchOutcome, { status: "refs" }>> {
   let fetched: FetchOutcome, failed = false;
-  try { fetched = parseFetchPorcelain(await context.exec("git", args, { cwd: context.checkoutRoot,
+  try { fetched = parseFetchPorcelain(await context.exec("git", args, { cwd: context.checkoutRoot, input,
     diagnosticLocale: "stable", interaction: PASSIVE_REMOTE_INTERACTION, preserveOutput: true })); }
   catch (error) { failed = true; fetched = parseFetchPorcelain(normalizeGitRejection(error, { command: "git", args })); }
   if (fetched.status === "unreachable") throw new MigrationRefusal({ code: "store", refusal: { code: "unreachable", class: "recoverable", cause: fetched.cause,

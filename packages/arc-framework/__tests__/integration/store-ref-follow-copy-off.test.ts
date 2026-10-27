@@ -16,7 +16,7 @@ it.each((["code", "backing"] as const).flatMap(source => (["forwarded", "withdra
   let setting = true;
   const ports: RefStorePorts = { ...f.ports, exec: async (command, args, options) => {
     if (args.includes("fetch") && (state === "unreadable" && args.includes(f.h.origin)
-      || setting && outcome === "unknown" && args.includes(f.h.destinationDirectory) && args.some(arg => arg.includes("refs/arc/work/*:")))) {
+      || setting && outcome === "unknown" && args.includes(f.h.destinationDirectory) && (options?.input?.split(/\r?\n/u) ?? []).some(arg => arg.includes("refs/arc/work/*:")))) {
       throw makeGitProcessError({ command, args, timedOut: true, stderr: "Historical receiver temporarily unreadable." });
     }
     return f.ports.exec!(command, args, options);

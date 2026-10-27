@@ -77,7 +77,7 @@ export const PublishOutcomeSchema = z.union([
 export type PublishOutcome = z.infer<typeof PublishOutcomeSchema>;
 /** A carried code ref's refusal is independent of state publication. */
 export const CarryRefusalSchema = z.enum([
-  "non-fast-forward", "fetch-first", "stale-info", "raced", "remote-rejected", "hook-declined", "no-push-destination",
+  "non-fast-forward", "fetch-first", "stale-info", "raced", "remote-rejected", "hook-declined", "no-push-destination", "command-line-capacity",
 ]);
 /** The closed carried-ref rejection vocabulary. */
 export type CarryRefusal = z.infer<typeof CarryRefusalSchema>;

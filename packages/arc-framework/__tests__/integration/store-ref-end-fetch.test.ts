@@ -71,7 +71,7 @@ describe.each(["default", "separate"] as const)("pending-end fetch repair in the
       "personal/document": { ...registry["personal/document"], check: async () => [{ rule: "personal.combined",
         condition: "Review the merged personal record.", remedy: { text: "Read and save the record." } }] },
     }, exec: async (command, args, options) => {
-      if (args.includes("fetch") && args.some((arg) => arg.startsWith(`${h.history}*:`))) {
+      if (args.includes("fetch") && (options?.input?.split(/\r?\n/u) ?? []).some((arg) => arg.startsWith(`${h.history}*:`))) {
         return h.b.ports.exec("git", ["fetch", `${h.origin}/missing-origin`], options);
       }
       return h.b.ports.exec(command, args, options);

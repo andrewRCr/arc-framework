@@ -119,6 +119,9 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
   Amended 2026-10-25 — unreachable carried-code outcomes include a required diagnostic message, including timeout
   before the code leg and any reported descendant warning (§ 2.1, A51) — approved review scope expansion.
 
+  Amended 2026-10-26 — publication may refuse locally before launch as recoverable `command-line-capacity`, and a
+  carried code ref may report that refusal independently (§ 2.1, A54) — approved transport mitigation.
+
   Amended 2026-10-25 — an explicit forced replacement of item-history tracking may remove the last publication
   witness, permitting withdrawal of that local end for the incoming published end (§ 6.6, A52) — code review.
 
@@ -234,6 +237,15 @@ For malformed `write` and `batch` admission, the `record-malformed` arm of `Loca
 `RecordReference`. Its condition identifies the write operand or the failing batch operand and index; otherwise it
 preserves the valid input reference. Neither backend fabricates an owner or normalizes an invalid reference (A50).
 
+A push whose final native-Windows command line exceeds its process limit does not start. `PublishFailureSchema`
+(`lib/store/refusal.ts`) adds `{ code: "command-line-capacity", class: "recoverable", condition, remedy }`, and
+`CarryRefusalSchema` (`lib/store/sync.ts`) adds the same reason. This is a local capacity refusal, with no network,
+receiver, or hook attribution; the condition identifies the unstarted invocation, and the remedy retains an actionable
+retry from the complete clone after its transport can carry the transaction (§ 11.3). Earlier migration legs may have
+landed and retain their accounting. Scalable native-Windows bulk push is deferred: it must support initial publication
+and migration before first native-Windows adoption, Gate A at the latest; this mitigation does not supply that
+capability or permanently exclude the platform (A54).
+
 `sync()` becomes `push()`, and `pull()` and `maintain()` join it:
 
 ```ts
@@ -333,7 +345,7 @@ type CarryOutcome =
   | { ref: string; status: "refused"; reason: CarryRefusal; message: string }
   | { ref: string; status: "unreachable"; cause: RemoteFailureReason; message: string };
 type CarryRefusal = "non-fast-forward" | "fetch-first" | "stale-info" | "raced" | "remote-rejected" | "hook-declined"
-  | "no-push-destination";
+  | "no-push-destination" | "command-line-capacity";   // Local pre-launch capacity refusal (A54).
 
 // An unreachable carry's required nonempty message preserves its concrete transport or timeout condition and any
 // reported descendant warning, including an already-expired code leg (A51).
@@ -1405,7 +1417,8 @@ large state may outlast any bound.
 
 - **Into a namespace of its own.** A fetch lands in `refs/arc-remotes/<remote>/…`, outside `refs/remotes/` (D10) and
   outside `refs/arc/`, so no push, manifest, or listing reads it: Git's remote-tracking convention one namespace over.
-- **Refspecs on the command line,** one wildcard each, so a fetch stays one round trip: `refs/arc/work/*`,
+- **Refspecs through owned stdin** (`fetch --stdin`), one newline-delimited wildcard each, so a fetch stays one round
+  trip without growing native argv with requested histories (A54): `refs/arc/work/*`,
   `refs/arc/cohort/*`, `refs/arc/archive/*`, `refs/arc/project/*`, and the person's own two refs as one-ref patterns,
   `refs/arc/user/<id>/personal*` and `refs/arc/user/<id>/claims*`, each mapped to
   `refs/arc-remotes/<remote>/<the same path below refs/arc/>`, with no `+`. The other refs there — `errands`,
@@ -1452,7 +1465,9 @@ large state may outlast any bound.
   — ride the namespace fetch, and those its merge finds (§ 6.4) take one more. A ref `history` names is asked of every
   remote the pull fetches (§ 9.6).
 - **No refspec joins the code remote's configuration** (D12). The separate layout's directory is ARC's own and may carry
-  its remote's refspecs in its configuration; the backend passes them on the command line in both layouts.
+  its remote's refspecs in its configuration; the backend supplies them through owned stdin in both layouts. The
+  captured-output executor retains complete porcelain and stderr, passive interaction and cancellation controls; its
+  owned input replaces ambient stdin, and a completeness retry receives the identical refspec payload (A54).
 
 #### 6.3 The ancestry check
 
@@ -1760,11 +1775,13 @@ archive folders; the local folder alone does not establish publication. No addit
    mid-transaction. First the loop reads the clone's designation again: where a move, a follow, or a setting switched
    its state remote since step 1 (§ 10.3), nothing pushes and the loop repeats from step 1, so a push composed before a
    switch never reaches the old remote after it, but for one already in flight (§ 10.6).
-5. **Classify** the outcome (§ 6.9). On each per-ref `ok` line the loop sets that ref's tracking ref to the pushed tip,
-   or deletes it for a pushed delete, where it still holds the tip step 3 read — in both layouts, and for a push by URL
-   (§ 9.7) — since Git moves a remote-tracking ref on push only through a configured fetch refspec, and the store
-   configures none (§ 6.2); so the next listing reads what this push published as published and an owed delete as paid,
-   as the reference backend resets its publication base after each publish (`finishPublish`,
+5. **Classify** the outcome (§ 6.9). A local `command-line-capacity` nonstart ends the state leg without backoff,
+   receiver observations, or an automatic smaller state push. Every pending state write and exact lease stays intact;
+   the family outcomes report the recoverable refusal (§ 2.1, A54). On each per-ref `ok` line the loop sets that ref's
+   tracking ref to the pushed tip, or deletes it for a pushed delete, where it still holds the tip step 3 read — in both
+   layouts, and for a push by URL (§ 9.7) — since Git moves a remote-tracking ref on push only through a configured
+   fetch refspec, and the store configures none (§ 6.2); so the next listing reads what this push published as published
+   and an owed delete as paid, as the reference backend resets its publication base after each publish (`finishPublish`,
    `__tests__/helpers/store/sync.ts`). A lost race sleeps and repeats from step 1, as does a refusal read by state,
    which the repeat's fetch settles as a lost race or as terminal; a terminal refusal ends the loop.
 
@@ -1815,6 +1832,10 @@ archive folders; the local folder alone does not establish publication. No addit
   `fetch first`, or `stale info`; a server refusal whose line names its own cause; a commit-time failure the loop
   attributes to it (§ 6.9); or a pre-push hook's refusal. The push repeats with state alone, as D12 has the state leg
   push alone when the code leg cannot, and `carry`'s outcome reports the refusal (§ 2.2).
+- **A combined capacity nonstart** settles neither leg: state reports `command-line-capacity` without retrying
+  alone, and the carried ref remains pending for its existing independent single code leg. Only that leg's own
+  capacity nonstart may give `carry` the same refusal reason. A code ref that fits may therefore publish while the
+  oversized state transaction remains local; no combined failure is attributed to the code ref itself (A54).
 - **An ordered code leg whose remote cannot be reached** — the code remote, or a fork member's fork, where state goes
   elsewhere — fails before any per-ref line. `carry` reports it `unreachable` with its cause, read by
   `classifyRemoteFailure` as a fetch's failure is (§ 11.5), and the state leg still pushes, since D12 keeps the legs
@@ -2508,6 +2529,15 @@ the in-repo implementation; everything at the destination is the verb's.
    after the copy would meet the new remote's older copy of the item as a reopen. A rerun before the switch carries the
    heads kept with the copy, never its own fetch's, which may name pushes the copy lacks; a rerun past the switch
    carries nothing again.
+
+A native-Windows push exceeding § 11.3's capacity limit refuses before that invocation starts, as recoverable
+`command-line-capacity`, with the exact move, follow, cleanup, or withdrawal retry route. It does not inspect remote
+leases as though a receiver raced and does not split an atomic copy. Its unlanded proposal is discarded, earlier
+landed-copy reports and source state remain retained, and any existing move record preserves restartability. A first
+copy's refusal names the explicit target retry; cleanup and withdrawal keep their own contextual continuations rather
+than replacing the capacity remedy with receiver repair. A supported retry from the complete retained clone can
+finish the operation; another runtime is not a universal route because repository paths, hooks and credentials may
+require configuration there (A54).
 
 #### 10.3 Order makes it restartable
 
@@ -3242,6 +3272,18 @@ the first failure without retrying". So the floor rises from 2.45 to 2.47 wherev
 every ref matching, or exit code 129, Git's usage error for an option it does not know, as `fetch --porcelain` is before
 2.41 — and below 2.47 the error names the version found and the floor. A command that succeeds spends nothing on it.
 
+**Native-Windows push capacity (A54).** `pushRefs` requests a pre-launch check from `createExecaGitExec` after every
+physical repository prefix and executor option is present, including `--git-dir`, `--no-lazy-fetch`, leases and
+`--atomic`. Count the native executable's passed argv spelling, each argument using libuv's Windows quoting and
+backslash rules, separators, and the terminating NUL in UTF-16 code units; the maximum is 32,767. Empty and quoted
+arguments, trailing backslashes, spaces, quotes, and non-BMP characters therefore count as serialized. This models the
+native Git executable path, not arbitrary shell or shebang transformations. The guard runs inside the cancellation
+start boundary, so an already-aborted call remains canceled, and over-capacity calls create no child. Their typed
+`GitProcessError.kind` is `command-line-capacity`, with empty stdout/stderr and a separate local diagnostic; it is
+neither a remote failure nor an old-Git usage error. Exact leases, absence expectations, unleased fast-forwards and
+one atomic state transaction are preserved. Fetch uses § 6.2's owned stdin. Bulk publication/migration scalability
+remains deferred under § 2.1; detecting its limit is only the interim recovery behavior.
+
 #### 11.4 The machine-local locks
 
 D11's machine-local lock is the advisory lock the notes and worktree-operation locks use (`acquireAdvisoryLock`,
@@ -3292,8 +3334,9 @@ worktree of the clone serializes on it, in either layout.
 The push helper runs `git push --porcelain` under `LC_ALL=C` with explicit `<oid>:<ref>` pairs, `--atomic`, and leases,
 and turns its per-ref lines and exit code into typed outcomes by § 6.9's rules: each ref `ok`, `rejected` with Git's
 reason, `remote-rejected` with the server's message, or `atomic-collateral`; and the whole push `hook-declined`,
-`atomic-unsupported`, or `unreachable` with its cause, as `PublishFailureSchema`'s `unreachable` carries one
-(`RemoteFailureReasonSchema`, `lib/kernel/schema/vocabulary.ts`). A push the deadline aborts (§ 6.1) is `unreachable`
+`atomic-unsupported`, local `not-started` with reason `command-line-capacity` (§ 11.3, A54), or `unreachable` with its
+cause, as `PublishFailureSchema`'s `unreachable` carries one (`RemoteFailureReasonSchema`,
+`lib/kernel/schema/vocabulary.ts`). A push the deadline aborts (§ 6.1) is `unreachable`
 with cause `timeout`, read from the executor's `canceled` failure while the deadline's signal has fired, as
 `boundedFetch` reads its own (`lib/git/exec.ts`), never from text. Its typed outcome is its only classification: it
 reads the porcelain stdout, where `--porcelain` moves a lost lease's `stale info`, and leaves the seam's expected
@@ -4134,6 +4177,14 @@ The portability lane's cross-platform pair (`portability-cross-platform`, `.gith
 schedule and dispatch, covers `--git-dir` with Windows paths, reftable on NTFS, and process-start cost. One dispatched
 run passes before this change lands, and it times the operations of § 11.7 against their budget.
 
+Transport verification (A54) exercises exact stdin-fed history fetches and their completeness retries under a
+constrained argv boundary in both layouts. Native Windows verifies command-line serialization at its limit and that
+oversized pushes start no child, preserve pending refs and earlier copy accounting, and report local capacity with
+usable contextual remedies. Both layouts cover state-only and combined carry nonstarts, the independent code leg,
+first copy, cleanup, follow and withdrawal; after capacity repair a supported retry finishes with the same leases and
+atomicity. Unit boundary cases include quoting, UTF-16, physical repository prefixes and cancellation precedence.
+These checks establish the mitigation, not scalable native-Windows bulk publication.
+
 #### 14.11 Which suites survive the cutover
 
 A suite that runs the shared conformance suite, or tests a consumer through the contract, survives; one that targets the
@@ -4731,6 +4782,12 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     pass activities remain independent through public writes, current and saved reads, merges, format changes and
     removal. ASCII coordinates and malformed-input behavior remain unchanged (§ 3.3) (A53).
 
+58. **Transport capacity stops preserve retryable state.** Both layouts fetch large exact history selections through
+    owned stdin, including completeness retries. Native-Windows oversized pushes stop before launch with recoverable
+    `command-line-capacity`, retain exact pending state and prior landed-copy accounting, preserve contextual migrate
+    remedies, and let a combined carry take its independent code leg. A supported retry finishes without weakening
+    leases or atomicity. Scalable native-Windows bulk push remains deferred as § 2.1 states (§ 6.2, § 11.3) (A54).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -4930,5 +4987,8 @@ open:
 
 - **A53** — 2026-10-26 — design: retain exact key coordinates. _Supersedes:_ § 3.3 formats.
   _Trigger:_ standard-pass-4/AGG-02 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A54** — 2026-10-26 — design: bound argv; defer bulk Windows push. _Supersedes:_ §§ 2.1, 6.2, 6.7–6.8, 10.2, 11.3.
+  _Trigger:_ FC1/AGG-02 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

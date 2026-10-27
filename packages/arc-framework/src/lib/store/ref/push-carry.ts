@@ -62,6 +62,7 @@ export async function pushRefListingWithCarry(context: RefBackendContext, remote
 }
 
 async function settleCombinedCarry(carry: RefCarryPublication, outcome: PushOutcome): Promise<boolean> {
+  if (outcome.status === "not-started") return false;
   if (outcome.status === "atomic-unsupported") { await finishRefCarry(carry); return true; }
   const ambiguous = outcome.status === "refs" && outcome.refs.some((row) => "reason" in row && row.reason === "atomic transaction failed");
   if (ambiguous) {
@@ -98,6 +99,7 @@ async function ownCarryOutcome(carry: RefCarryPublication, outcome: PushOutcome)
 }
 
 function classifyRefCarry(ref: string, outcome: PushOutcome): CarryOutcome | undefined {
+  if (outcome.status === "not-started") return { ref, status: "refused", reason: "command-line-capacity", message: outcome.message };
   const evidence = [outcome.stdout, outcome.stderr].filter(Boolean).join("\n");
   if (outcome.status === "unreachable") return { ref, status: "unreachable", cause: outcome.cause,
     message: evidence || `The carried code ref ${ref} could not reach its receiver (${outcome.cause}).` };

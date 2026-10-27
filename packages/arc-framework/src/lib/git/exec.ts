@@ -44,6 +44,10 @@ export interface GitExecOptions {
   diagnosticLocale?: "stable";
   /** Forbid Git from lazily fetching missing objects during passive inspection. */
   objectAccess?: "local-only";
+  /** Invocation-owned stdin, independent of the ambient-stdin interaction policy. */
+  input?: string;
+  /** Check the final native Windows push argv before launching its process. */
+  checkNativeWindowsArgv?: boolean;
   /** Preserve captured stdout exactly instead of trimming trailing whitespace. */
   preserveOutput?: boolean;
   /**
@@ -90,7 +94,7 @@ export async function resolveCheckoutGitDir(exec: GitExec, cwd: string): Promise
  * A git invocation that pipes `input` to the subprocess stdin and resolves with
  * its stdout. The stdin-fed counterpart to {@link GitExec}, for plumbing that
  * reads its payload from stdin (`hash-object --stdin`, `mktree`) — which
- * captured-output {@link GitExec} cannot provide. Production wires an
+ * captured-output {@link GitExec} also supports through its owned-input option. Production wires an
  * execa stdin adapter without shell interpolation. Callers may pin the
  * repository when the ambient process directory is unavailable or unsafe.
  */

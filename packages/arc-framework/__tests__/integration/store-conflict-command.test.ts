@@ -89,7 +89,7 @@ describe.each(["default", "separate"] as const)("exact conflict command in %s", 
     fetches = 0;
     const named: string[] = [];
     const repaired = { ...h.a.ports, exec: async (...args: Parameters<typeof h.a.ports.exec>) => {
-      if (args[1].includes("fetch")) { fetches++; named.push(...args[1].filter((arg) => arg.startsWith("refs/arc/history/"))); }
+      if (args[1].includes("fetch")) { fetches++; named.push(...(args[2]?.input?.split(/\r?\n/u) ?? []).filter((arg) => arg.startsWith("refs/arc/history/"))); }
       return h.a.ports.exec(...args);
     } };
     expect(success(await runStoreConflict(repaired, input(reference)))).toMatchObject({ status: "present", reference });

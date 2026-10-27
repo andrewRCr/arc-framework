@@ -116,7 +116,7 @@ describe("own unpublished lifecycle in the default layout", () => {
       expect((await h.a.git(["ls-tree", "-r", "--name-only", h.history])).stdout).toContain("conflicts/");
       const before = (await h.b.git(["rev-parse", h.history])).stdout;
       const guarded = createRefStore({ ...h.b.ports, exec: async (command, args, options) => args.includes("fetch")
-        && args.some((arg) => arg.startsWith(`${h.history}*:`))
+        && (options?.input?.split(/\r?\n/u) ?? []).some((arg) => arg.startsWith(`${h.history}*:`))
         ? h.b.ports.exec("git", ["fetch", `${h.origin}/missing-origin`], options) : h.b.ports.exec(command, args, options) });
       const pull = success(await guarded.pull());
       expect(pull.pulls.every(({ status }) => status !== "failed")).toBe(true);

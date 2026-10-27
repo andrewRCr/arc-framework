@@ -392,7 +392,7 @@ it("preserves the foreign-project decision when the observed candidate ref canno
   const ports = immediateRefWrites(h.b.ports);
   const store = createRefStore({ ...ports, exec: async (command, args, options) => {
     const result = await ports.exec(command, args, options);
-    if (armed && args.includes("fetch") && args.some(arg => arg.includes(":refs/arc/tmp/designate/origin/"))) {
+    if (armed && args.includes("fetch") && (options?.input?.split(/\r?\n/u) ?? []).some(arg => arg.includes(":refs/arc/tmp/designate/origin/"))) {
       armed = false;
       await mkdir(dirname(lock), { recursive: true });
       await writeFile(lock, "Held after candidate fetch\n");

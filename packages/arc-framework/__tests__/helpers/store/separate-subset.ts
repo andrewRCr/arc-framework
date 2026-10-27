@@ -57,6 +57,7 @@ export const separatePerChangeSubset: NonNullable<ConformanceRuns["subset"]> = {
     "work-item: reopen-read:work-item/meta",
   ],
   14: [
+    "command-line-capacity",
     "unreachable",
     "refused",
     "retries-exhausted",

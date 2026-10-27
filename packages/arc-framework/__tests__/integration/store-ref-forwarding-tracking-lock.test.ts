@@ -35,7 +35,7 @@ it.each(["files", "reftable"] as const)("refuses a forwarding tracking lock and 
     execInput: (args, input, options) => ports.execInput(args.map(arg =>
       arg.replace(/^(reftable\.lockTimeout|core\.filesRefLockTimeout)=5000$/u, "$1=0")), input, options),
     exec: async (command, args, options) => {
-    if (armed && args.includes("fetch") && args.some(arg => arg.includes(":refs/arc-remotes/origin/"))) {
+    if (armed && args.includes("fetch") && (options?.input?.split(/\r?\n/u) ?? []).some(arg => arg.includes(":refs/arc-remotes/origin/"))) {
       armed = false;
       await mkdir(dirname(lock), { recursive: true });
       await writeFile(lock, "Held native tracking lock\n");

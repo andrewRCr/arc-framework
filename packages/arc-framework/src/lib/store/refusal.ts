@@ -40,6 +40,7 @@ export const PublishFailureSchema = z.discriminatedUnion("code", [
   z.strictObject({ code: z.literal("retries-exhausted"), ...recoverable, retryCount: z.number().int().nonnegative(), waitedMs: z.number().nonnegative() }),
   z.strictObject({ code: z.literal("unreachable"), ...recoverable, cause: RemoteFailureReasonSchema }),
   z.strictObject({ code: z.literal("refused"), ...terminal, message: z.string().min(1) }),
+  z.strictObject({ code: z.literal("command-line-capacity"), ...recoverable }),
 ]);
 /** A local refusal, including the interim backend's narrowly assigned unsupported cases. */
 export const LocalRefusalSchema = z.discriminatedUnion("code", [

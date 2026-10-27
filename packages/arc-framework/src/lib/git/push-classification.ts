@@ -8,6 +8,7 @@ export interface PushRejectionCause { ref: string; disposition: "lost-race" | "b
 /** An unrecognized server refusal needs a fresh state observation before it becomes terminal. */
 export type PushClassification = { message: string } & (
   | { status: "ok" }
+  | { status: "not-started"; reason: "command-line-capacity" }
   | { status: "lost-race" | "by-state"; causes: PushRejectionCause[] }
   | { status: "refused"; reason: "rejected" | "hook-declined" | "atomic-unsupported"; causes: PushRejectionCause[] }
   | { status: "unreachable"; cause: RemoteFailureReason }
@@ -15,6 +16,7 @@ export type PushClassification = { message: string } & (
 
 /** Classify parsed push evidence without guessing whether unknown server text describes a race. */
 export function classifyPushOutcome(outcome: PushOutcome): PushClassification {
+  if (outcome.status === "not-started") return { status: "not-started", reason: outcome.reason, message: outcome.message };
   const message = [outcome.stdout, outcome.stderr].filter(Boolean).join("\n");
   if (outcome.status === "unreachable") return { status: "unreachable", cause: outcome.cause, message };
   if (outcome.status !== "refs") return { status: "refused", reason: outcome.status, causes: [], message };

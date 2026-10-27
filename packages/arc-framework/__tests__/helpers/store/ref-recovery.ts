@@ -1,6 +1,7 @@
 /** Real stored-state refusals and forward repairs for ref conformance fixtures. */
 import { randomUUID } from "node:crypto";
-import { RecordReferenceSchema, StateVersionSchema } from "../../../src/lib/store/index.js";
+import { GitProcessError } from "../../../src/lib/git/process-error.js";
+import { createRefStore, RecordReferenceSchema, StateVersionSchema } from "../../../src/lib/store/index.js";
 import { expandStoredPath } from "../../../src/lib/store/stored-path.js";
 import { seed, success, update, testProvenance } from "./suite-tools.js";
 import type { RecoveryCaseId, RecoveryOperation } from "./fixture-contract.js";
@@ -57,6 +58,18 @@ export function createRefRecovery(fixture: RefConformanceFixture) {
       let reference = RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, uid: randomUUID() } });
       repairs.set(id, async () => { reference = record.reference; });
       return { run: () => fixture.store.read({ reference }) };
+    }
+    if (id === "command-line-capacity") {
+      fixture.remote(true);
+      await seed(fixture, fixture.reference("work-item/meta"));
+      let blocked = true;
+      const store = createRefStore({ ...fixture.ports, exec: (command, args, options) => {
+        if (blocked && options?.checkNativeWindowsArgv) throw new GitProcessError({ kind: "command-line-capacity",
+          command, args, commandLine: { units: 40_000, limit: 32_767 } });
+        return fixture.ports.exec(command, args, options);
+      } });
+      repairs.set(id, async () => { blocked = false; });
+      return { run: () => store.push() };
     }
     if (id === "unreachable" || id === "refused" || id === "retries-exhausted") {
       fixture.remote(true);

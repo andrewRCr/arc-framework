@@ -74,7 +74,7 @@ it("returns the backing setting's retry route when its copy read fails after pro
   try {
     const refused = (await invokeStoreRemote(["backing", "push", "--json"], { cwd: h.a.root, ports: { ...base,
       exec: async (command, args, options) => {
-        if (armed && args.includes("fetch") && args.includes(destination.origin) && args.some(arg => arg.includes(":refs/arc/tmp/migrate/remote/"))) {
+        if (armed && args.includes("fetch") && args.includes(destination.origin) && (options?.input?.split(/\r?\n/u) ?? []).some(arg => arg.includes(":refs/arc/tmp/migrate/remote/"))) {
           armed = false; await rename(destination.origin, offline);
         }
         return h.a.ports.exec(command, args, options);

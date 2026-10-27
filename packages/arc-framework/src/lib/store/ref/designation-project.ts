@@ -92,9 +92,9 @@ async function clearProjectCheck(context: RefBackendContext, prefix: string): Pr
 async function fetchProjectCheck(context: RefBackendContext, remote: RefRemoteDesignation, designation: RefDesignation,
   prefix: string, observed: Map<string, string>): Promise<{ status: "ok"; registry?: string; moved?: string } | { status: "failed"; failure: ProjectFailure }> {
   const target = remote.repository === "backing" && designation.backing?.url !== remote.url ? remote.url : await refFetchTarget(context, remote, designation);
-  const args = refFetchArgs(remote.name, await refFetchNegotiation(context, await context.identity()), target,
-    [`+refs/arc/project/registry*:${prefix}registry*`, `+refs/arc/project/moved*:${prefix}moved*`]);
-  const completed = await completeProjectFetch(context, args, await runProjectFetch(context, args, observed), observed);
+  const args = refFetchArgs(remote.name, await refFetchNegotiation(context, await context.identity()), target);
+  const input = [`+refs/arc/project/registry*:${prefix}registry*`, `+refs/arc/project/moved*:${prefix}moved*`].join("\n") + "\n";
+  const completed = await completeProjectFetch(context, args, input, await runProjectFetch(context, args, input, observed), observed);
   if ("failure" in completed) return completed;
   const { fetched, rejected } = completed;
   if (fetched.status === "unreachable") return { status: "failed", failure: { code: "unreachable", class: "recoverable",
@@ -110,9 +110,9 @@ async function fetchProjectCheck(context: RefBackendContext, remote: RefRemoteDe
 
 interface ProjectFetch { fetched: FetchOutcome; rejected: boolean }
 
-async function runProjectFetch(context: RefBackendContext, args: string[], observed: Map<string, string>): Promise<ProjectFetch> {
+async function runProjectFetch(context: RefBackendContext, args: string[], input: string, observed: Map<string, string>): Promise<ProjectFetch> {
   let result: ProjectFetch;
-  try { result = { rejected: false, fetched: parseFetchPorcelain(await context.exec("git", args, { cwd: context.checkoutRoot,
+  try { result = { rejected: false, fetched: parseFetchPorcelain(await context.exec("git", args, { cwd: context.checkoutRoot, input,
     diagnosticLocale: "stable", interaction: PASSIVE_REMOTE_INTERACTION, preserveOutput: true })) }; }
   catch (error) { result = { rejected: true, fetched: parseFetchPorcelain(normalizeGitRejection(error, { command: "git", args })) }; }
   if (result.fetched.status === "refs") for (const row of result.fetched.refs) {
@@ -123,12 +123,12 @@ async function runProjectFetch(context: RefBackendContext, args: string[], obser
   return result;
 }
 
-async function completeProjectFetch(context: RefBackendContext, args: string[], first: ProjectFetch, observed: Map<string, string>):
+async function completeProjectFetch(context: RefBackendContext, args: string[], input: string, first: ProjectFetch, observed: Map<string, string>):
 Promise<ProjectFetch | { status: "failed"; failure: ProjectFailure }> {
   if (first.rejected || first.fetched.status !== "refs" || first.fetched.refs.some(({ flag }) => flag === "!")
     || !await refFetchNeedsCompleteness(context) || !(await missingRefFetchObjects(context, first.fetched)).length) return first;
   const at = args.indexOf("fetch");
-  const retry = await runProjectFetch(context, [...args.slice(0, at + 1), "--refetch", ...args.slice(at + 1)], observed);
+  const retry = await runProjectFetch(context, [...args.slice(0, at + 1), "--refetch", ...args.slice(at + 1)], input, observed);
   if (retry.rejected || retry.fetched.status !== "refs") return retry;
   const missing = await missingRefFetchObjects(context, retry.fetched);
   return missing.length ? { status: "failed", failure: new RefFetchIncompleteError(missing, []).failure } : retry;

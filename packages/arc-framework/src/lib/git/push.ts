@@ -19,6 +19,7 @@ export type PushOutcome = PushEvidence & (
   | { status: "refs"; refs: PushRefOutcome[] }
   | { status: "hook-declined" | "atomic-unsupported" }
   | { status: "unreachable"; cause: RemoteFailureReason }
+  | { status: "not-started"; reason: "command-line-capacity"; message: string }
 );
 
 /** Interpret porcelain rows and whole-push failures without discarding their diagnostics. */
@@ -59,19 +60,21 @@ export interface PushRefChange { ref: string; next: string | null; expected?: st
 /** Push explicit ref changes, preserving per-ref porcelain and whole-push failures. */
 export async function pushRefs(
   exec: GitExec, remote: string, changes: readonly PushRefChange[],
-  options: Pick<GitExecOptions, "cwd" | "signal"> = {},
+  options: Pick<GitExecOptions, "cwd" | "signal"> & { atomic?: boolean } = {},
 ): Promise<PushOutcome> {
   const leases = changes.flatMap(({ ref, expected }) => expected === undefined
     ? [] : [`--force-with-lease=${ref}:${expected ?? ""}`]);
-  const args = ["push", "--porcelain", "--no-follow-tags", ...(changes.length > 1 ? ["--atomic"] : []), ...leases, "--", remote,
+  const args = ["push", "--porcelain", "--no-follow-tags", ...(options.atomic || changes.length > 1 ? ["--atomic"] : []), ...leases, "--", remote,
     ...changes.map(({ ref, next }) => `${next ?? ""}:${ref}`)];
   try {
     const { stdout, stderr = "" } = await exec("git", args, {
-      ...options, diagnosticLocale: "stable", interaction: PASSIVE_REMOTE_INTERACTION, preserveOutput: true,
+      cwd: options.cwd, signal: options.signal, checkNativeWindowsArgv: true, diagnosticLocale: "stable", interaction: PASSIVE_REMOTE_INTERACTION, preserveOutput: true,
     });
     return parsePushPorcelain(stdout, stderr, 0);
   } catch (error) {
     const failure = normalizeGitRejection(error, { command: "git", args });
+    if (failure.kind === "command-line-capacity") return { status: "not-started", reason: "command-line-capacity",
+      message: failure.message, stdout: failure.stdout, stderr: failure.stderr };
     const cause = failure.kind === "canceled" && options.signal?.aborted ? "timeout" : classifyRemoteFailure(failure);
     if (!isCompletedGitFailure(failure)) {
       return { status: "unreachable", cause, stdout: failure.stdout,

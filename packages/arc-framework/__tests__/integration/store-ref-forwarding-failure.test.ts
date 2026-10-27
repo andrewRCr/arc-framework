@@ -25,7 +25,7 @@ it.each(["default", "separate"] as const)("does not recommend following a forwar
   let expire = true;
   const store = createRefStore({ ...h.b.ports, ...clock, exec: async (command, args, options) => {
     const result = await h.b.ports.exec(command, args, options);
-    if (expire && args.includes("fetch") && args.some(arg => arg.includes(`:refs/arc-remotes/${h.remoteName}/`))) {
+    if (expire && args.includes("fetch") && (options?.input?.split(/\r?\n/u) ?? []).some(arg => arg.includes(`:refs/arc-remotes/${h.remoteName}/`))) {
       expire = false;
       clock.advance(119_000);
       for (let reading = 0; reading < 2_000; reading += 1) clock.clock();

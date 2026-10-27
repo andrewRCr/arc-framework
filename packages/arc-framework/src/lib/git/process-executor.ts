@@ -10,6 +10,7 @@ import type { InteractionContext } from "../command-input/interaction-context.js
 import type { RawGitExec } from "./exec.js";
 import { PUSH_GATE_ID_VARIABLE, type GitExec, type GitExecInput } from "./exec.js";
 import { runCancelableGitProcess } from "./process-cancellation.js";
+import { assertNativeGitCommandLineCapacity } from "./command-line-capacity.js";
 import { normalizeGitRejection } from "./process-error.js";
 
 /** Captured-output ceiling retained by every Git process binding. */
@@ -145,15 +146,19 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES, environment
       ? ["--no-lazy-fetch", ...args]
       : args;
     try {
-      const result = await runCancelableGitProcess((cancelSignal) => execa(command, effectiveArgs, {
-        cwd: options?.cwd,
-        env,
-        extendEnv: env === undefined,
-        cancelSignal,
-        maxBuffer,
-        stripFinalNewline: false,
-        ...(options?.interaction?.ambientStdin === "closed" ? { stdin: "ignore" as const } : {}),
-      }), options?.signal, { command, args: effectiveArgs });
+      const result = await runCancelableGitProcess((cancelSignal) => {
+        if (options?.checkNativeWindowsArgv) assertNativeGitCommandLineCapacity(command, effectiveArgs);
+        return execa(command, effectiveArgs, {
+          cwd: options?.cwd,
+          env,
+          extendEnv: env === undefined,
+          cancelSignal,
+          maxBuffer,
+          stripFinalNewline: false,
+          ...(options?.input !== undefined ? { input: options.input }
+            : options?.interaction?.ambientStdin === "closed" ? { stdin: "ignore" as const } : {}),
+        });
+      }, options?.signal, { command, args: effectiveArgs });
       return {
         stdout: options?.preserveOutput === true ? result.stdout : result.stdout.trimEnd(),
         stderr: result.stderr,

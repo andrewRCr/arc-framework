@@ -58,7 +58,7 @@ describe("completed-item reconciliation in the default layout", () => {
     const history = (await h.a.git(["rev-parse", h.history])).stdout;
     const folder = (await h.a.git(["show", `${h.archive}:${h.folder}${h.metadataPath}`])).stdout;
     const failing = createRefStore({ ...h.a.ports, exec: (command, args, options) => args.includes("fetch")
-      && args.some((arg) => arg.startsWith(`${h.history}*:`))
+      && (options?.input?.split(/\r?\n/u) ?? []).some((arg) => arg.startsWith(`${h.history}*:`))
       ? h.a.ports.exec("git", ["fetch", `${h.origin}/missing-origin`], options) : h.a.ports.exec(command, args, options) });
     expect(success(await failing.pull()).pulls).toContainEqual(expect.objectContaining({ status: "failed",
       failure: expect.objectContaining({ code: "unreachable", cause: "error" }) }));

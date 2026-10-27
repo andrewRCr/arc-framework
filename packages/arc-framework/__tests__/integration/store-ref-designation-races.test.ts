@@ -18,7 +18,7 @@ describe.each(["off", "read"] as const)("explicit %s during first designation", 
     let answered = false;
     const store = createRefStore({ ...h.b.ports, exec: async (command, args, options) => {
       const result = await h.b.ports.exec(command, args, options);
-      if (!answered && args.includes("fetch") && args.some(arg => arg.includes(":refs/arc/tmp/designate/"))) {
+      if (!answered && args.includes("fetch") && (options?.input?.split(/\r?\n/u) ?? []).some(arg => arg.includes(":refs/arc/tmp/designate/"))) {
         answered = true;
         expect(await runStoreRemote(h.b.ports, { remote: "origin", role })).toMatchObject({ status: "ok" });
       }

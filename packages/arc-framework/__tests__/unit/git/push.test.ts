@@ -62,3 +62,11 @@ it("preserves unconfirmed descendant termination beside a canceled push's captur
   expect(result.stderr).toContain(failure.stderr);
   expect(result.stderr).toContain("descendant processes not confirmed ended");
 });
+
+it("keeps a known local nonstart out of remote and hook classifications", async () => {
+  const changes = [{ ref: "refs/arc/work/one", next: "a".repeat(40), expected: null }];
+  const failure = new GitProcessError({ kind: "command-line-capacity", command: "git", args: ["push"], commandLine: { units: 40_000, limit: 32_767 } });
+  const outcome = await pushRefs(async () => { throw failure; }, "origin", changes);
+  expect(outcome).toMatchObject({ status: "not-started", reason: "command-line-capacity", stdout: "", stderr: "",
+    message: expect.stringMatching(/40000.*32767/u) });
+});

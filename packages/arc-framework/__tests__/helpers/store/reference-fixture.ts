@@ -26,6 +26,7 @@ export const referenceDeclarations: FixtureDeclarations = {
     8: "Memory state versions cover every record in the namespace.",
   } }])),
   refusalExclusions: {
+    "command-line-capacity": "Memory publication launches no native Git process.",
     "checkout-not-writable": "A memory namespace has no checkout write authority.",
     "unsupported:cross-substrate-batch": "Every memory batch uses one atomic substrate.",
     "unsupported:uncovered-state-version": "Memory snapshots cover every family.",

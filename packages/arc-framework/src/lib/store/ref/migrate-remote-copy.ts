@@ -108,7 +108,8 @@ async function refuseCopyPush(code: RefBackendContext, recorded: RecordedRemote,
   const removed = firstRun && pushed.status !== "unreachable";
   if (removed) { await removeMoveRecord(code, recorded); await clearRemoteGathering(code, true); }
   const destination = recorded.record.destination, target = destination.repository === "backing" ? destination.url : destination.name;
-  const retry = removed ? { text: `Enable atomic pushes and repair the receiver's hook or permissions, then retry arc store migrate --to ${target}.`,
+  const retry = removed ? { text: pushed.status === "not-started" ? `Retry arc store migrate --to ${target} after resolving local transport capacity.`
+    : `Enable atomic pushes and repair the receiver's hook or permissions, then retry arc store migrate --to ${target}.`,
     argv: ["arc", "store", "migrate", "--to", target] } : undefined;
   throw new MigrationRefusal(migrationPushRefusal(pushed, retry));
 }
@@ -202,7 +203,7 @@ export function remoteCopyChanges(planned: ReadonlyMap<string, string>, destinat
 
 /** Require an atomic receiver even for a registry-only move. */
 export async function atomicMigrationPush(code: RefBackendContext, url: string, changes: PushRefChange[]): Promise<PushOutcome> {
-  return pushRefs(async (command, args, options) => code.exec(command, args.includes("--atomic") ? args : [args[0] ?? "push", "--atomic", ...args.slice(1)], options), url, changes, { cwd: code.checkoutRoot });
+  return pushRefs(code.exec, url, changes, { cwd: code.checkoutRoot, atomic: true });
 }
 
 /** A lost lease, or a receiver refusal whose leased refs have moved since, reruns the round rather than weakening its leases. */
@@ -243,6 +244,10 @@ async function leasesMoved(code: RefBackendContext, url: string, changes: readon
 
 /** Preserve transport and definitive receiver refusals with the caller's restart route. */
 export function migrationPushRefusal(outcome: PushOutcome, remedy?: Remedy): Extract<import("../commands.js").StoreCommandRefusal, { code: "store" }> {
+  if (outcome.status === "not-started") return { code: "store", refusal: { code: "command-line-capacity", class: "recoverable",
+    condition: outcome.message, remedy: { text: "Keep the complete clone and retained copy accounting. Resolve local command-line capacity before retrying this exact atomic transaction; a configured runtime with sufficient capacity may admit it. "
+      + (remedy?.text ?? "Retry arc store migrate with no target to continue the recorded operation."),
+      argv: remedy?.argv ?? ["arc", "store", "migrate"] } } };
   const condition = outcome.stderr || outcome.stdout || "The destination refused the atomic state copy.";
   return { code: "store", refusal: outcome.status === "unreachable" ? { code: "unreachable", class: "recoverable", cause: outcome.cause, condition,
     remedy: remedy ?? { text: "Restore access and run arc store migrate; the recorded copy may have landed.", argv: ["arc", "store", "migrate"] } } : { code: "refused", class: "terminal", message: condition, condition,

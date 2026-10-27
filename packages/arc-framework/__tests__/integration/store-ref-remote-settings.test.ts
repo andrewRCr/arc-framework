@@ -105,7 +105,7 @@ it("keeps another check's advanced temporary tip while refusing the project its 
   let armed = true;
   const result = await runStoreRemote({ ...h.a.ports, exec: async (command, args, options) => {
     const fetched = await h.a.ports.exec(command, args, options);
-    if (armed && args.includes("fetch") && args.some((arg) => arg.includes("refs/arc/tmp/designate/"))) {
+    if (armed && args.includes("fetch") && (options?.input?.split(/\r?\n/u) ?? []).some((arg) => arg.includes("refs/arc/tmp/designate/"))) {
       armed = false;
       await h.a.git(["update-ref", temporary, localTip]);
     }
@@ -345,7 +345,7 @@ it("keeps concurrent project checks independent while a completed fetch is await
   const continued = new Promise<void>((resolve) => { resume = resolve; });
   const store = createRefStore({ ...h.a.ports, exec: async (command, args, options) => {
     const result = await h.a.ports.exec(command, args, options);
-    if (armed && args.includes("fetch") && args.some((arg) => arg.includes("refs/arc/tmp/designate/"))) {
+    if (armed && args.includes("fetch") && (options?.input?.split(/\r?\n/u) ?? []).some((arg) => arg.includes("refs/arc/tmp/designate/"))) {
       armed = false; announce(); await continued;
     }
     return result;
