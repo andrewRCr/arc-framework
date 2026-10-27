@@ -468,13 +468,10 @@ _Mode:_ `slice` — closes on ordinary repository checks using the qualified run
 _Exit criterion:_ All then-landed prototype-prefixed checks use ordinary commands with correct eligibility/input
 declarations; the old wrapper is retired, native/default operation is preserved and ADR-039 reflects qualified behavior.
 
-### `[ ]` **6.1 Replace prototype prefixes and retire all landed wrapper dependencies — D1, D2, D10**
+### `[x]` **6.1 Replace prototype prefixes and retire all landed wrapper dependencies — D1, D2, D10**
 
 - _Goal:_ Every then-landed wrapper consumer uses the qualified ordinary route without dangling command or catalogue
   dependencies, while the owner's placement reservation remains effective.
-
-- _Note:_ See `notes-machine-check-runner.md` § Repository adoption inventory and § Store prerequisite adoption; the
-  nine current checks are a baseline inventory, not a retirement ceiling or a new backend completion wait.
 
     - `[x]` **6.1.a Re-ground and convert the full landed declaration surface**
         - Converted nine landed prefixes to ordinary argv and eligibility, preserving gates, roots, selectors, shards
@@ -482,20 +479,15 @@ declarations; the old wrapper is retired, native/default operation is preserved 
           configuration from real home projects, with native portability selection covering both cases. Qualified
           provider `29ac002` preserves captured workspace-bin modes during preparation.
 
-    - `[ ]` **6.1.b Remove obsolete reach-catalogue references before deleting the wrapper**
-        - When the store catalogue is present, remove its obsolete exact `scripts/check-runner.sh` widening entry and
-          re-ground remaining execution/selection dependencies against native reach behavior.
-        - Add a wrapper-absent regression using the real reach selector: full, affected and valid no-op selections
-          remain reachable, and both store selectors preserve captured absence/value semantics.
-        - When the store prerequisite is absent, finish the available foundation adoption without waiting for it; the
-          later native-store consumer owns that profile's remaining ordinary-command/input/catalogue alignment.
+    - `[x]` **6.1.b Remove obsolete reach-catalogue references before deleting the wrapper**
+        - Fresh main and the execution checkout contain no store declaration, reach catalogue or store environment
+          readers. No catalogue dependency remains to remove; foundation adoption takes the specified absent-prerequisite
+          path without inventing reach coverage or waiting for storage.
 
-    - `[ ]` **6.1.c Retire discovery after policy-preserving configuration**
-        - Configure the qualified external executable through the narrow machine key, preserving unrelated keys and live
-          required-remote policy; verify the new route before deleting `scripts/check-runner.sh`.
-        - Remove the wrapper's `global_inputs` and documentation dependencies, then search all then-present command and
-          data consumers to prove no dangling executable or exact catalogue path remains.
-        - Verify missing-key native execution in isolated configuration, never by disabling the owner's live policy.
+    - `[x]` **6.1.c Retire discovery after policy-preserving configuration**
+        - Retained the qualified machine argv and live placement policy, removed the prototype executable and its
+          global input, and found no dangling executable or catalogue consumer. Wrapper-absent typed forecasts retain
+          CI shards; isolated missing-key execution remains native with no adapter or source preparation.
 
 ### `[ ]` **6.2 Qualify the repository's configured and native check paths — D9, D10**
 
