@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1.a — Expose a reusable supplied-environment sanitizer (line ~24 in tasks-machine-check-runner.md)
+- **Last Completed:** Task 6.4 — Exercise ordinary repository declarations
+- **Next Task:** Task 7.1 — Complete verification (line ~528 in `tasks-machine-check-runner.md`)
 - **Blockers:** [none]
 
-- **Next Action:** Audit Task 1.1, then begin Task 1.1.a in a fresh implementation session.
+- **Next Action:** Start Task 7.1 in a fresh session; load `verify-work-unit.md` and follow verification.
 
 - **PR URL:** [none]
 - **Completed:** [none]
