@@ -84,25 +84,28 @@ files under `packages/arc-framework/__tests__/e2e/`, its runner script, or check
 whole suite. Source-only changes select no local E2E tests. When changing code an E2E test drives, run it explicitly
 with `npm run test:file -- <repository-relative-e2e-test>`.
 
-Integration tests read ARC Markdown from disk, which no import graph shows, so `test:changed` never reaches them.
-Before a branch's first push, request content integration feedback over the whole branch:
+Integration tests read ARC Markdown from disk, which no import graph shows, so `test:changed` never reaches them. CI
+runs the whole integration tier on every pull request that changes code or ARC Markdown, and that run is the routine
+integration feedback. The commit gate's `test:arc-contracts` already runs the integration files that pin shipped
+workflow and method text. Request the tier locally only when a failure after the push would cost more than the run:
 
 ```bash
 arc check run test:integration:content --range
 ```
 
 It runs the whole integration tier when the branch changes that Markdown, and is not selected otherwise. The tier holds
-the shared test slot for several minutes; weigh that cost when choosing earlier or repeated checkpoint runs.
+the shared test slot for several minutes.
 
 Report feedback failures and handle them under [DEV-RULES.ARC][dev-rules-arc] § Quality gate failure. Checks assigned
 to gates still have to pass by their declared deadlines.
 
 ### Hosted CI before verification attests
 
-The local merge gate skips the `ci_only` checks, `test:e2e` among them, and a feature-branch push starts no CI. Once
-the merge gate passes, dispatch CI at the pushed verified head (`gh workflow run ci.yml --ref <branch>`). Work-unit
-verification attests only on a passing run whose `headSha` is that head, recorded by run id in the verification commit
-body. Dispatch again after any later code change; planning-only commits need no new run.
+The local merge gate skips the `ci_only` checks, `test:integration` and `test:e2e` among them, and a feature-branch push
+starts no CI. Once the merge gate passes, dispatch CI at the pushed verified head
+(`gh workflow run ci.yml --ref <branch>`). Work-unit verification attests only on a passing run whose `headSha` is that
+head, recorded by run id in the verification commit body. Dispatch again after any later code change; planning-only
+commits need no new run.
 
 ### Test execution
 
