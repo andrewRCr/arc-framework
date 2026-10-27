@@ -8,6 +8,7 @@ import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { plantRef } from "../helpers/store/ref-plant.js";
+import { capturedEntries } from "../helpers/store/ref-fixture-plant.js";
 
 describe.each(["default", "separate"] as const)("sync record acquisition in %s", layout => {
   it.each(["base", "local", "incoming"] as const)("holds a missing %s blob and resumes after restoration", async damage => {
@@ -61,6 +62,46 @@ describe.each(["default", "separate"] as const)("sync record acquisition in %s",
     success(await store.push());
     success(await h.a.store.pull());
     expect(success(await h.a.store.read({ reference: first })).content).toBe(damage === "incoming" ? "one\nmiddle\nTHREE\n" : "ONE\nmiddle\nthree\n");
+  }, 60_000);
+
+  it("retains an unavailable opaque entry while merging and publishing healthy managed records", async () => {
+    const h = await refSyncFixture(layout), provenance = { verb: "edit", lifecycleAction: "save" };
+    const owner = success(await h.a.store.write({ action: "put", expected: null,
+      reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "opaque-entry" } }),
+      content: makeMetaFixture("opaque-entry"), placement: { kind: "active" },
+      provenance: { verb: "start", lifecycleAction: "activate" } }));
+    const first = RecordReferenceSchema.parse({ kind: "work-item/companion", key: "first", owner: owner.reference.owner });
+    const second = RecordReferenceSchema.parse({ ...first, key: "second" });
+    for (const reference of [first, second]) success(await h.a.store.write({ action: "put", reference, expected: null,
+      content: "Base content.\n", provenance }));
+    const home = expandStoredPath(first), opaque = "review/future-protocol.bin";
+    const parent = (await h.a.git(["rev-parse", home.ref])).stdout.trim();
+    const planted = await plantRef(h.a.root, home.ref, [...await capturedEntries(h.a, home.ref),
+      { path: opaque, content: "Opaque future protocol.\n" }], { parents: [parent], gitDir: h.a.gitDir });
+    const oid = planted.blobs.get(opaque);
+    if (!oid) throw new Error("Expected the opaque fixture blob");
+    success(await h.a.store.push()); success(await h.b.store.pull());
+    for (const [client, reference, content] of [[h.a, first, "Incoming first.\n"], [h.b, second, "Local second.\n"]] as const) {
+      const prior = success(await client.store.read({ reference }));
+      success(await client.store.write({ action: "put", reference, expected: prior.version, content, provenance }));
+    }
+    success(await h.a.store.push());
+    const object = join(h.b.root, ".git", ...layout === "separate" ? ["arc", "store"] : [], "objects", oid.slice(0, 2), oid.slice(2));
+    let saved: Buffer | undefined;
+    const store = createRefStore({ ...h.b.ports, exec: async (command, args, options) => {
+      const result = await h.b.ports.exec(command, args, options);
+      if (!saved && args.includes("fetch")) { saved = await readFile(object); await unlink(object); }
+      return result;
+    } });
+    try {
+      expect(success(await store.pull()).pulls.flatMap(outcome => outcome.notices)).toEqual([]);
+      expect(success(await store.read({ reference: first })).content).toBe("Incoming first.\n");
+      expect(success(await store.read({ reference: second })).content).toBe("Local second.\n");
+      expect((await h.b.git(["rev-parse", `${home.ref}:${opaque}`])).stdout.trim()).toBe(oid);
+    } finally { if (saved) await writeFile(object, saved, { mode: 0o444 }); }
+    success(await h.b.store.push()); success(await h.a.store.pull());
+    expect((await h.a.git(["show", `${home.ref}:${opaque}`])).stdout).toBe("Opaque future protocol.");
+    expect(success(await h.a.store.read({ reference: second })).content).toBe("Local second.\n");
   }, 60_000);
 
   it("holds a regular record entry naming a commit and resumes after a forward tree repair", async () => {
