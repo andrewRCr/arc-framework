@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "routed-capture-profile",
+  "claimId": "687aeb9a9c99440bf76c827d874d1d4c",
+  "createdAt": "2026-10-28T18:14:54.065Z",
+  "updatedAt": "2026-10-28T18:14:54.065Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Profile ARC's per-check source capture for routed checks and fix self-evident costs in place",
+  "branch": "chore/routed-capture-profile",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
