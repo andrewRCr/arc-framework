@@ -208,6 +208,37 @@
 - _Captured during:_ `storage-projection`'s draft refresh, disposing of the held `.arc/system/.internal/` capture,
   2026-10-13.
 
+### `[ ]` **Preserve the machine-local check runner in the global configuration model**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-28).
+
+- _Shapes:_ Approach's global configuration tier; Scope's global reader/writer; precedence boundary and companion
+  ADR.
+
+- _Observation:_ The runner design accepted on 2026-10-26 places `checks.runner` in `~/.arc/config.yml` as a literal
+  executable/argument array. Projects declare `runner: true` eligibility and keep their ordinary check commands.
+  `machine-check-runner` introduces only this reader ahead of the broader configuration work; identity bootstrap and
+  existing preference resolution remain with their current owners. The configuration draft's identity-only global
+  tier must incorporate this setting rather than reject, discard or relocate it when the global substrate expands.
+
+- _Approach:_ Adopt the same global home and argv setting, retaining its person/machine-local scope. Runner command
+  configuration does not sync through user notes or the store. Missing configuration preserves native execution;
+  malformed configuration and a broken configured executable remain visible problems. Runner placement and fallback
+  policy belong to the configured adapter. The implementation handoff is independent of the cohort's broader
+  migration and the storage cutover; no new prerequisite edge was agreed.
+
+- _Additional evidence:_ Adoption exposed `resolveArcRoot` treating the machine-only `.arc/config.yml` directory as
+  a project marker, breaking outside-project commands below home. The discovery correction distinguishes machine
+  settings from project `system/` content and covers a real project installed at the configured home. Preserve that
+  distinction when evolving global configuration or considering the draft's project-config rename/hoist; global
+  settings alone must not establish a project root. This adds no broader resolver or migration requirement here.
+
+- _Files:_ `draft-machine-check-runner.md`, `adr-039-use-provider-neutral-check-runners.md` (Proposed), and
+  `draft-config-storage-architecture.md`.
+
+- _Captured during:_ `machine-check-runner` and `distributed-check-shards` co-design, 2026-10-26. The approved runner
+  design and shared ADR hold the decision; this capture is the handoff for the configuration owner's planning pass.
+
 ## Problem / Motivation
 
 Per-developer settings (`arc.identity`, `arc.role`, `arc.commitInterlock`, `arc.pushInterlock`, `arc.syncInterlock`,
