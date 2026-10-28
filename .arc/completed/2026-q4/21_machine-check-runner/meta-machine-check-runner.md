@@ -1,8 +1,8 @@
 # Metadata: machine-check-runner
 
-| **State**     | **Owner** | **Branch**                  | **Class** | **Priority** |
-| ------------- | --------- | --------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/machine-check-runner` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -13,15 +13,15 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:ad2cac54a4fabec5d960d8a5363a4771eab210ef10cf12c7ba50e0e205e96700`
 
-- **Current Workflow:** `integrate-work-unit`
+- **Current Workflow:** [none]
 - **Last Completed:** Task 7.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** —
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/1159>
+- **Completed:** 2026-10-28
 
 ## Release Notes Entry
 
