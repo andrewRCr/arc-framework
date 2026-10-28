@@ -4,21 +4,12 @@ import type { Reporter } from "vitest/reporters";
 import type { TestModule, TestSpecification, Vitest } from "vitest/node";
 import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { z } from "zod";
+import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { nativeObservationPrefix, type NativeMember, type NativeShardObservation, type NativeDurationInput } from "./native-shard-evidence.js";
+export { readNativeShardObservations, type NativeMember, type NativeShardObservation } from "./native-shard-evidence.js";
 import { HeavyFirstSequencer } from "./heavy-first-sequencer.js";
 
-const member = z.object({ project: z.string(), file: z.string() });
-const observation = z.object({
-  cycle: z.int().positive(),
-  shard: z.object({ index: z.int().positive(), count: z.int().positive() }).optional(),
-  selected: z.array(member), assigned: z.array(member), ordered: z.array(member),
-  queued: z.array(member), ended: z.array(member),
-  shardCalls: z.int().nonnegative(), sortCalls: z.int().nonnegative(),
-});
-
-export type NativeMember = z.infer<typeof member>;
-export type NativeShardObservation = z.infer<typeof observation>;
-const prefix = "ARC_NATIVE_SHARD_OBSERVATION ";
 const packageRoot = fileURLToPath(new URL("../..", import.meta.url));
 const recordings = new WeakMap<Vitest, { cycles: number; current?: NativeShardObservation }>();
 
@@ -62,7 +53,9 @@ class MembershipReporter implements Reporter {
   onTestRunStart(specifications: readonly TestSpecification[]): void {
     const state = recordings.get(this.controller)!;
     const shard = this.controller.config.shard;
-    state.current = { cycle: ++state.cycles, ...(shard === undefined ? {} : { shard: { ...shard } }),
+    state.current = { cycle: ++state.cycles,
+      runtime: { node: process.version, vitest: this.controller.version, platform: process.platform, arch: process.arch },
+      duration: observedDuration(), ...(shard === undefined ? {} : { shard: { ...shard } }),
       selected: specifications.map(identity), assigned: [], ordered: [], queued: [], ended: [], shardCalls: 0, sortCalls: 0 };
   }
 
@@ -71,7 +64,7 @@ class MembershipReporter implements Reporter {
   onTestModuleEnd(module: TestModule): void { current(this.controller).ended.push(identity(module)); }
 
   onTestRunEnd(): void {
-    process.stdout.write(`\n${prefix}${JSON.stringify(current(this.controller))}\n`);
+    process.stdout.write(`\n${nativeObservationPrefix}${JSON.stringify(current(this.controller))}\n`);
   }
 }
 
@@ -84,8 +77,9 @@ export function observeNativeShards(base: ViteUserConfig): ViteUserConfig {
     reporters: [...reporters, new MembershipReporter()] } };
 }
 
-/** Read only the qualification reporter's structured observations from native stdout. */
-export function readNativeShardObservations(stdout: string): NativeShardObservation[] {
-  return stdout.split(/\r?\n/u).filter(line => line.startsWith(prefix))
-    .map(line => observation.parse(JSON.parse(line.slice(prefix.length))));
+function observedDuration(): NativeDurationInput {
+  const path = process.env.ARC_TEST_DURATION_FILE;
+  if (path === undefined || path === "") return { kind: "file", state: path === undefined ? "unset" : "empty" };
+  const bytes = readFileSync(path);
+  return { kind: "file", state: "file", digest: `sha256:${createHash("sha256").update(bytes).digest("hex")}`, bytes: bytes.length };
 }

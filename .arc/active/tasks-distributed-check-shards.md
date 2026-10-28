@@ -246,7 +246,7 @@ _Exit criterion:_ Qualified unit, integration and store profiles show complete/d
 fixed inputs, preserve their distinct empty/no-evidence/failure outcomes, and keep native writers and leases isolated
 through controller closing. Store qualification uses the native reach command landed by `storage-ref-backend`.
 
-### `[ ]` **4.1 Observe native selection and actual shard assignments in a qualification harness — D7**
+### `[x]` **4.1 Observe native selection and actual shard assignments in a qualification harness — D7**
 
 - _Goal:_ Qualification can compare native unsharded selection with the actual executed shard assignments without
   changing native membership or partitioning the same selection twice.
@@ -256,13 +256,10 @@ through controller closing. Store qualification uses the native reach command la
           queue/end events with project/package-relative identities. Real pre-parsed controllers preserve equal
           filenames across projects and distinguish unassigned module presence from actual execution.
 
-    - `[ ]` **4.1.b Compare complete union and pairwise disjointness over fixed inputs**
-        - Add a reusable qualification helper near existing native controller/sequencer tests, using captured
-          duration states, source/selection and compatible profiles supplied by the consumer path.
-        - Build `test-first` (one behavior at a time):
-            - Missing/duplicate membership and incompatible profiles fail qualification even when commands exit zero.
-            - Original source/branch/duration edits after capture cannot change any sibling's membership basis.
-            - Observations remain qualification artifacts, never per-test scheduling or completion grammar in ARC.
+    - `[x]` **4.1.b Compare complete union and pairwise disjointness over fixed inputs**
+        - The qualification helper rejects incomplete/duplicate membership, incompatible profiles, divergent input
+          bases and incomplete worker observations. Native controllers retain exact assignments from the consumer's
+          captured source and duration file after caller branch, test-file and duration edits.
 
 ### `[ ]` **4.2 Qualify ordinary native tiers, filters and duration-input states — D4, D7**
 

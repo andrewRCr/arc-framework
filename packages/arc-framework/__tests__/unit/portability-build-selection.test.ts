@@ -22,7 +22,8 @@ it("selects the build and prebuilt recovery suites alongside existing portabilit
     "ci-check-runner.test.ts", "heavy-first-sequencer.test.ts", "duration-artifacts.test.ts",
     "duration-layout-workflow.test.ts", "vitest-discovery.test.ts", "vitest-completion.test.ts",
     "vitest-mixed-shard.test.ts", "vitest-native-writers.test.ts", "vitest-native-closing.test.ts",
-    "vitest-runtime-ownership.test.ts", "vitest-shard-observation.test.ts"];
+    "vitest-runtime-ownership.test.ts", "vitest-shard-observation.test.ts",
+    "vitest-shard-captured-inputs.test.ts", "vitest-shard-qualification.test.ts"];
   try {
     const config = join(fixture.packageRoot, "vitest.config.mjs");
     await writeFile(config, (await readFile(config, "utf8")).replace('["tests/unit*.test.mjs"]', '["tests/**/*.test.ts"]'));
