@@ -90,8 +90,10 @@ class RunnerRequestControl implements CheckRunnerRequestControl {
       process.stderr.write("Stopping local adapters; retained inputs may require provider recovery. Interrupt again to exit without waiting.\n");
       for (const owned of this.active) owned.attempt.terminate();
     } else {
-      const plans = [...this.active].flatMap(owned => owned.attempt.retained === undefined ? [] : [owned.attempt.retained.planId]);
-      process.stderr.write(`Exiting without settlement; inspect and settle retained plans before retrying: ${plans.join(", ") || "none recorded"}.\n`);
+      // Uncertain closures already left the active set; their recovery would otherwise print only after exit.
+      const plans = new Set([...this.retained.map(retained => retained.planId),
+        ...[...this.active].flatMap(owned => owned.attempt.retained === undefined ? [] : [owned.attempt.retained.planId])]);
+      process.stderr.write(`Exiting without settlement; inspect and settle retained plans before retrying: ${[...plans].join(", ") || "none recorded"}.\n`);
       this.detach();
       process.kill(process.pid, signal);
     }

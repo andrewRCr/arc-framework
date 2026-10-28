@@ -36,6 +36,11 @@ export async function ownerAlive(record, readProcess = processState) {
   return record.birth !== undefined && state?.birth === record.birth && state.state !== "Z" && state.state !== "X";
 }
 
+function timeoutOutcome(timeout) {
+  return { status: "unavailable", reason: `Command exceeded this example's ${timeout / 1000}-second limit and was stopped`,
+    remedy: "Shorten the command, or run it under a provider with a longer limit, and retry." };
+}
+
 export function signalGroup(pid, signal = "SIGTERM") {
   try { process.kill(-pid, signal); }
   catch (error) { if (error.code !== "ESRCH") throw error; }
@@ -77,8 +82,7 @@ export async function runWorker(directory, token) {
     while ((await groupMembers(process.pid, process.pid)).length !== 0) await delay(10);
     clearTimeout(timer); clearTimeout(forced);
     await writeFile(recordPath, JSON.stringify({ ...record, done: true }), { mode: 0o600 });
-    const outcome = failure ?? (timedOut ? { status: "unavailable", reason: `Command exceeded this example's ${request.timeout / 1000}-second limit and was stopped`,
-      remedy: "Shorten the command, or run it under a provider with a longer limit, and retry." }
+    const outcome = failure ?? (timedOut ? timeoutOutcome(request.timeout)
       : stopped ? { status: "cancelled", reason: "Local process group cancellation settled" }
       : launchError ? { status: "unavailable", reason: "Child executable could not start", remedy: "Repair the command or prepared environment and retry." }
       : native);
@@ -97,6 +101,8 @@ export async function executeChild(executable, directory, invocation, cwd, envir
   let started = false;
   let launchError;
   let failure;
+  let timedOut = false;
+  let deadline;
   let observationError;
   let observations = Promise.resolve();
   worker.on("error", error => { launchError = error; });
@@ -108,7 +114,12 @@ export async function executeChild(executable, directory, invocation, cwd, envir
   worker.on("message", message => {
     if (message.ready) {
       if (control.cancelled) active.stop();
-      else { started = true; worker.send({ invocation, cwd, environment, timeout }); }
+      else {
+        started = true;
+        // A command that ignores SIGTERM takes the worker down with its group, so the limit is also tracked here.
+        deadline = setTimeout(() => { timedOut = true; }, timeout);
+        worker.send({ invocation, cwd, environment, timeout });
+      }
     } else if (message.nativeFailure !== undefined) {
       failure = message.nativeFailure;
       observations = observations.then(() => observeFailure(failure)).catch(error => { observationError = error; active.stop(); });
@@ -121,12 +132,14 @@ export async function executeChild(executable, directory, invocation, cwd, envir
   });
   const collection = Promise.all(pumps).then(() => ({ ok: true }), error => { active.stop(); return { ok: false, error }; });
   const status = await closed;
+  clearTimeout(deadline);
   const collected = await collection;
   await observations;
   if (worker.pid !== undefined) while ((await groupMembers(worker.pid)).length !== 0) await delay(10);
   if (control.active === active) control.active = undefined;
   if (!collected.ok || observationError !== undefined) throw new IncompleteExecutionError("Required execution output or terminal reporting could not be collected");
   if (control.cancelled && started) return failure ?? { status: "cancelled", reason: "Local process group cancellation settled" };
+  if (timedOut && outcome === undefined && failure === undefined) return timeoutOutcome(timeout);
   if (launchError !== undefined || !started || status.code !== 0 || outcome === undefined) throw new Error("Local supervisor did not complete its execution record");
   return failure ?? outcome;
 }
@@ -145,7 +158,10 @@ export async function inspectAttempt(directory, settle = false) {
   const workers = [];
   for (const file of files) {
     const record = JSON.parse(await readFile(join(directory, file), "utf8"));
-    let members = await groupMembers(record.pid);
+    const leader = await processState(record.pid);
+    // A drained group, or a leader PID now held by a later process, can only match an unrelated reused group.
+    const reused = record.done === true || (leader !== undefined && leader.birth !== record.birth);
+    let members = reused ? [] : await groupMembers(record.pid);
     // A group ID cannot be reused while members remain, even after its worker has exited.
     if (settle && members.length !== 0) {
       signalGroup(record.pid); await delay(1100);

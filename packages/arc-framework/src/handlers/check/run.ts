@@ -163,6 +163,7 @@ export async function runDeclaredRequest(
 }
 
 const PUSH_GATE_DEFERRED = "runs at the push gate";
+const INTERRUPTED_WHILE_RUNNING = "Check request was interrupted while this check ran; retry explicitly with a fresh request.";
 
 /**
  * Name each push-gate check an increment leaves unrun, so its report shows the push gate went untested.
@@ -463,9 +464,9 @@ async function executeSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDe
   const runner = await (io.readRunnerConfiguration ?? readMachineCheckRunner)(selected.check);
   if (runner !== undefined) {
     // The runner plans its own portable invocations, so native batches and shards would misdescribe a routed dry run.
+    // CI forecasts keep them: CI steps play declared batches back natively.
     const routed: Partial<CheckForecast> = { ...forecast };
-    delete routed.batches;
-    delete routed.shards;
+    if (!request.ci) { delete routed.batches; delete routed.shards; }
     return { ...await executeRoutedSelectedCheck(selected, io, request, runner), ...routed };
   }
   return { ...await executeNativeInputsCheck(selected, io, request), ...forecast };
@@ -588,6 +589,9 @@ async function executeNativeSelectedCheck(selected: SelectedCheck, io: DeclaredC
   const result = await executeCheckBatches(io, { command, paths: argumentsFromRoot, cwd, content, check, indexFile });
   const costMs = Math.max(0, (io.now ?? performance.now.bind(performance))() - startedAt);
   const measurement = await io.reports?.save(id, result.output, costMs);
+  // An interrupted run neither restages a fixer's partial rewrites nor publishes evidence.
+  if (result.interrupted) return { id, kind, outcome: "couldn't run", reason: INTERRUPTED_WHILE_RUNNING, output: result.output, costMs,
+    ...(measurement ? { logPath: measurement.logPath } : {}) };
   return { ...await finalizeCheckRun(selected, io, request, result, key), costMs,
     ...(result.notice === undefined ? {} : { notice: result.notice }),
     ...(measurement ? { logPath: measurement.logPath } : {}) };
@@ -654,16 +658,14 @@ async function executeCheckBatches(io: DeclaredCheckDependencies, input: {
   const { command, paths, cwd, content, check, indexFile } = input;
   const outputs: string[] = [];
   const outcomes: NormalizedCheckInvocationOutcome[] = [];
+  let interrupted = false;
   try {
     const batches = checkArgumentBatches(check, command, paths, io.platform);
     for (const batch of batches) {
       const result = await io.execute([...command, ...batch], cwd, content, { shell: check.shell, indexFile });
       if (result.output) outputs.push(result.output);
       // A terminal interrupt also reaches native children, so their status no longer describes a complete run.
-      if (io.interrupted?.()) {
-        outcomes.push({ kind: "unavailable", reason: "Check request was interrupted while this check ran; retry explicitly with a fresh request." });
-        break;
-      }
+      if (io.interrupted?.()) { interrupted = true; break; }
       outcomes.push(normalizeCheckInvocationOutcome(result.started ? { ...result, status: "completed" }
         : { status: "unavailable", reason: result.notRunReason ?? "Check process did not start.", notice: result.notice }, check.no_evidence_exit));
       if (!result.started || result.notRunReason !== undefined) break;
@@ -673,6 +675,6 @@ async function executeCheckBatches(io: DeclaredCheckDependencies, input: {
     outcomes.push(normalizeCheckInvocationOutcome({ status: "unavailable", reason: String(error) }, check.no_evidence_exit));
   }
   const evidence = reduceCheckInvocationOutcomes(outcomes, check.no_evidence_exit);
-  return { evidence, output: outputs.join("\n"),
+  return { evidence, interrupted, output: outputs.join("\n"),
     ...(evidence.notices.length === 0 ? {} : { notice: evidence.notices.join("; ") }) };
 }

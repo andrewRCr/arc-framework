@@ -18,6 +18,7 @@ export async function prepareCapturedCheckExecution(inputs: CapturedCheckExecuti
   input: PrepareSelectedCheckExecutionInput, io: CheckExecutionIO, control: ExecutionAttemptControl): Promise<CheckExecutionPreparation> {
   const planId = control.planId;
   let session: CheckRunnerSession | undefined;
+  let launching = false;
   let lifetime: ExecutionLifetime | undefined;
   let contextId: string | undefined;
   control.bindCaptured(() => retainedExecution(inputs, input, planId, contextId, session));
@@ -28,6 +29,7 @@ export async function prepareCapturedCheckExecution(inputs: CapturedCheckExecuti
     await verifySourcePresentation(params.source, io.source);
     await verifyCapturedEnvironment(params.environment, io.source);
     control.signal.throwIfAborted();
+    launching = true;
     session = createCheckRunnerSession({ argv: input.configuration.argv, cwd: input.callerRoot, launch: io.launch,
       onDiagnostic: input.onDiagnostic, onNotification: notification => {
         if (notification.method === "check/output") displayOutput(input, notification.params);
@@ -54,16 +56,16 @@ export async function prepareCapturedCheckExecution(inputs: CapturedCheckExecuti
     return { status: "unavailable", origin: "runner", reason: result.reason, remedy: result.remedy,
       ...(closure.cleanupWarning === undefined ? {} : { cleanupWarning: closure.cleanupWarning }) };
   } catch (cause) {
-    return failedPreparation({ cause, lifetime, session, control, dispose,
+    return failedPreparation({ cause, lifetime, session, launching, control, dispose,
       retained: () => retainedExecution(inputs, input, planId, contextId, session) });
   }
 }
 
 /** Settle a preparation that threw; only an uncertain adapter lifetime keeps the captured inputs. */
 async function failedPreparation(failure: { cause: unknown; lifetime: ExecutionLifetime | undefined;
-  session: CheckRunnerSession | undefined; control: ExecutionAttemptControl; dispose: () => Promise<void>;
+  session: CheckRunnerSession | undefined; launching: boolean; control: ExecutionAttemptControl; dispose: () => Promise<void>;
   retained: () => RetainedCheckExecution }): Promise<CheckExecutionPreparation> {
-  const { cause, lifetime, session, control, dispose } = failure;
+  const { cause, lifetime, session, launching, control, dispose } = failure;
   const closure = lifetime === undefined ? undefined : await lifetime.close();
   if (closure?.status === "uncertain") return closure;
   const locations = failure.retained();
@@ -72,7 +74,7 @@ async function failedPreparation(failure: { cause: unknown; lifetime: ExecutionL
     : closure?.cleanupWarning;
   const reason = control.cancelled ? "Runner preparation was cancelled and settled."
     : closure?.status === "closed" && closure.unstarted !== undefined ? closure.unstarted : preparationFailure(cause);
-  return { status: "unavailable", origin: session === undefined ? "inputs" : "runner", reason, remedy: "Repair the runner or captured inputs and retry with a fresh attempt; keep the check native if preparation cannot be honored.",
+  return { status: "unavailable", origin: launching ? "runner" : "inputs", reason, remedy: "Repair the runner or captured inputs and retry with a fresh attempt; keep the check native if preparation cannot be honored.",
     ...(cleanupWarning === undefined ? {} : { cleanupWarning }) };
 }
 

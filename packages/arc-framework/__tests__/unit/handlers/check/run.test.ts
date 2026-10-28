@@ -92,7 +92,7 @@ it("keeps completed evidence, publishes no pass for a check the interruption rea
   await expect(readFile(join(root, "last.started"))).rejects.toMatchObject({ code: "ENOENT" });
 });
 
-it("forecasts a routed dry run without the native batches and shards the runner never executes", async () => {
+it("forecasts a routed local dry run without the native batches and shards the runner never executes", async () => {
   const { root, io, ids } = await fixture({ remote: { runner: true, shards: { count: 2, argument: "--shard={index}" } }, local: {} });
   io.readRunnerConfiguration = async check => check.runner ? { file: "machine.yml", argv: ["adapter"] } : undefined;
   const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids }, dryRun: true });
@@ -102,6 +102,32 @@ it("forecasts a routed dry run without the native batches and shards the runner 
   expect(remote).not.toHaveProperty("batches");
   expect(remote).not.toHaveProperty("shards");
   expect(local).toMatchObject({ outcome: "would run", batches: [["local"]] });
+  // CI steps play the forecast back natively, so a CI forecast keeps every declared batch and shard.
+  const ci = await runDeclaredRequest(root, io, { form: { kind: "run", ids }, dryRun: true, ci: true });
+  if (ci.kind !== "result") throw new Error(ci.error.message);
+  expect(ci.result.checks.find(check => check.id === "remote")).toMatchObject({ batches: [["remote"]],
+    shards: [{ index: 1, batches: [["remote", "--shard=1"]] }, { index: 2, batches: [["remote", "--shard=2"]] }] });
+});
+
+it("leaves an interrupted fixer's rewrites unfinished and dispatches no later routed check", async () => {
+  const { root, io, ids } = await fixture({ format: { fixes: true }, remote: { runner: true } });
+  let interrupted = false;
+  const published: string[] = [];
+  let prepared = false;
+  io.interrupted = () => interrupted;
+  io.passes = { get: async () => null, put: async record => { published.push(record.id); return { status: "recorded" }; } };
+  io.readRunnerConfiguration = async check => check.runner ? { file: "machine.yml", argv: ["adapter"] } : undefined;
+  io.prepareExecution = () => { prepared = true; throw new Error("routed check must not be dispatched"); };
+  io.execute = async () => { interrupted = true; return { started: true, exitCode: 0, output: "partially formatted" }; };
+  const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids }, serial: true });
+  if (result.kind !== "result") throw new Error(result.error.message);
+  const [format, remote] = ["format", "remote"].map(id => result.result.checks.find(check => check.id === id));
+  expect(format).toMatchObject({ outcome: "couldn't run", reason: expect.stringContaining("interrupted while this check ran"),
+    output: "partially formatted" });
+  expect(format).not.toHaveProperty("rewritten");
+  expect(remote).toMatchObject({ outcome: "couldn't run", reason: expect.stringContaining("interrupted before dispatch") });
+  expect(prepared).toBe(false);
+  expect(published).toEqual([]);
 });
 
 it("reports an interrupted request's unselected checks by their selection rather than as unrun", async () => {

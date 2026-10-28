@@ -22,6 +22,7 @@ it.each(["capture-plan", "preflight"] as const)("reports failed local cleanup af
     ...(fault === "capture-plan" ? { buildPlan: () => { throw new Error("private plan-builder failure"); } } : {}) }, { ...fixture.io, source });
   expect(result.status).toBe("unavailable");
   if (result.status !== "unavailable") throw new Error("Expected prelaunch refusal");
+  expect(result.origin).toBe("inputs");
   await expect(access(marker)).rejects.toThrow();
   expect(result.cleanupWarning).toMatch(/remove.*manually/iu);
   expect(result.cleanupWarning).not.toContain("private cleanup failure");
@@ -35,4 +36,13 @@ it.each(["capture-plan", "preflight"] as const)("reports failed local cleanup af
   expect(repaired.status).toBe("ready");
   if (repaired.status !== "ready") throw new Error(repaired.reason);
   await repaired.execution.close();
+});
+
+it("attributes a synchronous launch refusal to the runner and releases the capture no process owns", async () => {
+  const fixture = await selectedExecutionFixture(directories);
+  const result = await prepareSelectedCheckExecution(fixture.input, { ...fixture.io, launch: () => {
+    throw new Error("Runner requires piped stdio; repair the runner launch and retry the check request.");
+  } });
+  expect(result).toMatchObject({ status: "unavailable", origin: "runner", reason: expect.stringContaining("piped stdio") });
+  for (const directory of fixture.captures) await expect(access(directory)).rejects.toThrow();
 });

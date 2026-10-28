@@ -1,12 +1,22 @@
 /** The independent example keeps native notice interpretation bounded to the initial file bytes. */
-import { afterEach, expect, it } from "vitest";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { afterEach, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const directories: string[] = [];
-afterEach(async () => { await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true }))); });
+afterEach(async () => {
+  vi.unstubAllEnvs();
+  await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true })));
+});
+
+async function exampleExport(module: string, name: string): Promise<unknown> {
+  const loaded: unknown = await import(fileURLToPath(new URL(`../../../../../examples/check-runner/${module}`, import.meta.url)));
+  if (typeof loaded !== "object" || loaded === null || !(name in loaded)) throw new Error(`Expected the independent example's ${name}`);
+  return Reflect.get(loaded, name);
+}
 
 it("ignores a late not-run marker beyond the native notice-read boundary", async () => {
   const module: unknown = await import(fileURLToPath(new URL("../../../../../examples/check-runner/local-inputs.mjs", import.meta.url)));
@@ -45,4 +55,34 @@ it.each([
   const ownerAlive = module.ownerAlive as (record: { pid: number; birth: string },
     read: (pid: number) => Promise<{ birth: string; state: string } | undefined>) => Promise<boolean>;
   expect(await ownerAlive({ pid: 123, birth: "same" }, async () => observed)).toBe(expected);
+});
+
+it.runIf(process.platform !== "win32")("refuses a source link into the Git administration that capture replaces", async () => {
+  const verifyInputs = await exampleExport("local-inputs.mjs", "verifyInputs") as (plan: unknown) => Promise<string>;
+  const directory = await mkdtemp(join(tmpdir(), "arc-example-link-"));
+  directories.push(directory);
+  const root = join(directory, "root");
+  await mkdir(join(root, ".git"), { recursive: true });
+  await writeFile(join(root, ".git", "config"), "generated metadata");
+  await symlink(".git/config", join(root, "link"));
+  const coordinates = { tree: "a".repeat(40), merged: [] };
+  const encoding = JSON.stringify({ version: 1, coordinates, entries: [{ path: "link", kind: "symlink", target: ".git/config" }] });
+  const manifest = join(directory, "manifest.json");
+  await writeFile(manifest, encoding);
+  const digest = `sha256:${createHash("sha256").update(encoding).digest("hex")}`;
+  await expect(verifyInputs({ source: { root, manifest, digest, coordinates }, environment: {} }))
+    .rejects.toThrow("Source symbolic link targets Git administration");
+});
+
+it("keeps a probe's leading byte order mark in known runtime qualification", async () => {
+  vi.stubEnv("NODE_OPTIONS", "");
+  vi.stubEnv("NODE_PATH", "");
+  const qualify = await exampleExport("local-runtime.mjs", "qualifyNodeRuntime") as (plan: unknown,
+    execute: () => Promise<unknown>) => Promise<{ kind: string; bindings?: { probes: { stdout: string }[] }[] }>;
+  const plan = { environment: {}, invocations: [{ id: "check", cwd: ".", shell: false, argv: [process.execPath, "check.js"] }],
+    probes: { global: [{ id: "probe", argv: [process.execPath, "-v"] }], check: [] } };
+  const runtime = await qualify(plan, async () => ({ outcome: { status: "completed", exitCode: 0 },
+    stdout: Buffer.from("\uFEFFversion"), overflow: false }));
+  expect(runtime).toMatchObject({ kind: "known" });
+  expect(runtime.bindings?.[0]?.probes[0]?.stdout).toBe("\uFEFFversion");
 });

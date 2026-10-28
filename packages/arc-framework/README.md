@@ -411,8 +411,8 @@ reusable passes. Supervisors record identity before accepting work, stop process
 descendants even after the original process exits or closes pipes. Termination escalates after one second. Inspect must
 report settled before retained captures are removed; recovered leftover records may then be removed manually.
 
-Measured from the four shipped `.mjs` files, the example comprises 557 lines and 32,382 bytes: conversation 175 lines /
-10,541 bytes; input verification/environment 188 / 11,113; process/recovery 158 / 8,446; runtime qualification 36 /
+Measured from the four shipped `.mjs` files, the example comprises 573 lines and 33,097 bytes: conversation 175 lines /
+10,541 bytes; input verification/environment 188 / 11,113; process/recovery 174 / 9,161; runtime qualification 36 /
 2,282. These counts include comments and blank lines, exclude this guide, and describe implementation size rather than
 runtime cost or a minimum adapter size. Deployment, remote transport and provider-specific dependency qualification are
 additional implementation responsibilities for providers that need them.

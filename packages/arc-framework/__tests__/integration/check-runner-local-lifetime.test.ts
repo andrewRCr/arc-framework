@@ -1,6 +1,7 @@
 /** Real detached descendants and failed protocol delivery exercise the standalone owner's lifetime. */
 import { afterEach, expect, it } from "vitest";
-import { readFile, writeFile, access } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, access } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { execFile, spawn } from "node:child_process";
@@ -119,4 +120,19 @@ localIt("launches no preparation child when the recovery output pipe refuses del
     await bounded(closed);
     await captured.dispose();
   }
+});
+
+localIt.each(["stops on SIGTERM", "ignores SIGTERM"])("names the command limit when a command that %s exceeds it", async behavior => {
+  const loaded: unknown = await import(fileURLToPath(new URL("../../examples/check-runner/local-process.mjs", import.meta.url)));
+  if (typeof loaded !== "object" || loaded === null || !("executeChild" in loaded) || typeof loaded.executeChild !== "function") {
+    throw new Error("Expected the independent example's supervised execution");
+  }
+  const executeChild = loaded.executeChild as (...args: unknown[]) => Promise<unknown>;
+  const directory = await mkdtemp(join(tmpdir(), "arc-example-timeout-"));
+  directories.push(directory);
+  const program = `${behavior === "ignores SIGTERM" ? "process.on('SIGTERM',()=>{});" : ""}setInterval(()=>{},1000)`;
+  const outcome = await bounded(executeChild(example, directory, { argv: [process.execPath, "-e", program], shell: false },
+    directory, { PATH: process.env.PATH }, 300, async () => undefined, { cancelled: false, active: undefined }));
+  expect(outcome).toEqual({ status: "unavailable", reason: "Command exceeded this example's 0.3-second limit and was stopped",
+    remedy: "Shorten the command, or run it under a provider with a longer limit, and retry." });
 });
