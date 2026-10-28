@@ -28,8 +28,10 @@ try { await runReachSuites(input, ["packages/arc-framework/tests/integration-sel
 catch (error) { console.error(error); process.exitCode = 1; }
 finally { process.exit(process.exitCode || 0); }
 `);
+    // The fixture builds its own runtime; CI's prebuilt-only switch governs the checkout's artifacts.
     const run = () => execa(process.execPath, ["--import", "tsx", script], { cwd: fixture.packageRoot,
-      env: { ...process.env, FORCE_COLOR: undefined, CI: "1", ARC_TEST_DURATION_FILE: duration },
+      env: { ...process.env, FORCE_COLOR: undefined, CI: "1", ARC_E2E_SKIP_BUILD: "",
+        ARC_TEST_DURATION_FILE: duration },
       reject: false, timeout: 30_000 });
     const failed = await run();
     expect(failed.exitCode).toBe(1);
