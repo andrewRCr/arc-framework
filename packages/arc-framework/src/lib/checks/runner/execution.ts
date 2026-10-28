@@ -121,7 +121,8 @@ async function prepareSelectedAttempt(input: PrepareSelectedCheckExecutionInput,
   let captured;
   try { captured = await captureCheckExecutionInputs(selected, interruptibleCaptureIO(io, control.signal)); }
   catch (cause) { return { status: "unavailable", origin: "inputs", reason: control.cancelled ? "Selected input capture was cancelled before runner preparation." : cause instanceof Error ? cause.message : "Selected inputs could not be captured.",
-    remedy: "Repair the selected source or explicit inputs and retry; keep the check native if fixed inputs cannot be established.",
+    remedy: control.cancelled ? "Retry the check with a fresh attempt when ready."
+      : "Repair the selected source or explicit inputs and retry; keep the check native if fixed inputs cannot be established.",
     ...(cause instanceof CapturedInputPreparationError && cause.cleanupWarning !== undefined ? { cleanupWarning: cause.cleanupWarning } : {}) }; }
   return prepareCapturedCheckExecution(captured, selected, io, control);
 }
