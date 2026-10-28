@@ -1,8 +1,10 @@
 /** Independent public artifact verification and child environment composition. */
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { lstat, open, readFile, readdir, readlink, realpath } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { promisify } from "node:util";
 
 // The public repository-selector contract, implemented without ARC-private imports.
 const gitNames = ["GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_CONFIG", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT",
@@ -133,6 +135,10 @@ async function verifyInventory(root, entries) {
   await visit(".");
 }
 
+// Git reads every top-level file and these directories as repository state. Git commands may still refresh the index's
+// stat cache or add logs, locks and tool directories, so the index counts by its staged entries alone.
+const gitStateDirectories = new Set(["hooks", "info", "objects", "refs"]);
+
 async function administrationIdentity(root) {
   const hash = createHash("sha256");
   const visit = async path => {
@@ -148,7 +154,15 @@ async function administrationIdentity(root) {
     const after = await lstat(location, { bigint: true });
     if (["dev", "ino", "size", "mode", "mtimeNs", "ctimeNs"].some(key => before[key] !== after[key])) throw new Error("Source Git administration changed during verification");
   };
-  await visit(".");
+  const names = (await readdir(root)).sort((first, second) => Buffer.compare(Buffer.from(first), Buffer.from(second)));
+  for (const name of names) {
+    const directory = (await lstat(resolve(root, name))).isDirectory();
+    if (directory ? gitStateDirectories.has(name) : name !== "index" && !name.endsWith(".lock")) await visit(name);
+  }
+  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !gitNames.includes(name.toUpperCase())));
+  const { stdout } = await promisify(execFile)("git", [`--git-dir=${root}`, "ls-files", "--stage", "-z"],
+    { cwd: root, env: { ...env, GIT_OPTIONAL_LOCKS: "0" }, encoding: "buffer", maxBuffer: 64 * 1024 * 1024 });
+  hash.update(stdout);
   return hash.digest("hex");
 }
 

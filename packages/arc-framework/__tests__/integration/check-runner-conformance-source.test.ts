@@ -60,6 +60,26 @@ it.runIf(process.platform === "linux")("executes the captured source after the c
   } finally { await prepared.execution.close(); }
 });
 
+it.runIf(process.platform === "linux")("lets a command refresh Git's index stat cache and add tool state before another planned command", async () => {
+  const fixture = await createRunnerCheckRepository(directories);
+  const refresh = `
+    const { execFileSync } = require('node:child_process');
+    const { mkdirSync } = require('node:fs');
+    execFileSync('git', ['status', '--porcelain']);
+    execFileSync('git', ['diff', '--name-only', '--', 'input.txt']);
+    mkdirSync(execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim() + '/arc/test-suite', { recursive: true });
+  `;
+  const prepared = await prepareSelectedCheckExecution({ ...fixture.input,
+    buildPlan: () => ({ invocations: [{ id: "status", cwd: ".", shell: false, argv: [process.execPath, "-e", refresh] },
+      { id: "after", cwd: ".", shell: false, argv: [process.execPath, "-e", "process.exit(0)"] }], probes: { global: [], check: [] } }),
+  }, fixture.io);
+  if (prepared.status !== "ready") throw new Error(prepared.reason);
+  try {
+    expect((await prepared.execution.run("status")).outcomes.get("status")).toEqual({ status: "completed", exitCode: 0 });
+    expect((await prepared.execution.run("after")).outcomes.get("after")).toEqual({ status: "completed", exitCode: 0 });
+  } finally { await prepared.execution.close(); }
+});
+
 it.runIf(process.platform === "linux").each(["source", "new file", "Git index", "explicit file"])(
   "refuses %s mutation before another planned command and permits a fresh repaired attempt", async mutation => {
     const fixture = await createRunnerCheckRepository(directories);

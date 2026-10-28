@@ -24,10 +24,12 @@ affinity and operating-system limits. The example installs no dependencies, runs
 five minutes and retains at most 1 MiB of probe stdout.
 
 Sequential invocations share a captured view. Before each invocation, the example verifies original source inventory,
-bytes, explicit files and Git administration. A mutation, including a newly added source file, causes refusal before
-the next command. It does not reset the view or prepare mutable dependency installations. Providers needing such
-behavior must preserve fixed inputs and source absence through isolation or equivalent controls. Every planned command
-directory must exist inside the captured source before ready.
+bytes, explicit files and Git's repository state: top-level files such as `HEAD` and `config`, `refs`, `objects`,
+`hooks`, `info` and the index's staged entries. A mutation, including a newly added source file, causes refusal
+before the next command. Git commands may refresh the index's stat cache or add logs, locks and tool directories. The
+example does not reset the view or prepare mutable dependency installations. Providers needing such behavior must
+preserve fixed inputs and source absence through isolation or equivalent controls. Every planned command directory
+must exist inside the captured source before ready.
 
 ## Runtime qualification
 

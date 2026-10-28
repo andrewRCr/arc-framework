@@ -394,9 +394,9 @@ The example supports Linux `/proc` and POSIX process groups. Unsupported platfor
 Commands must keep descendants in the supervised group; independent sessions need stronger provider containment. Heavy
 checks need launcher-owned admission/resource controls; children inherit CPU priority, affinity and OS limits. The
 example runs singles serially, advertises `runGroup:false`, imposes five minutes per command/probe and caps retained
-probe stdout at 1 MiB. It installs no dependencies. It verifies original source inventory, explicit files and Git
-administration before each invocation, refusing mutations rather than resetting the view. All planned command
-directories must already exist.
+probe stdout at 1 MiB. It installs no dependencies. It verifies original source inventory, explicit files and Git's
+repository state before each invocation, refusing mutations rather than resetting the view; a refreshed index stat cache
+or new Git logs, locks and tool directories are not mutations. All planned command directories must already exist.
 
 Default runtime is unknown. `--known-node-runtime` covers only the example's Node executable and supported Node startup
 policy; other tools, custom module paths and unsupported options remain unknown. It hashes the executable/platform/
