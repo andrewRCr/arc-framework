@@ -220,6 +220,11 @@ _Mode:_ `slice` through Phase 4 — closes on native tier coverage and completio
           sequencer/writer/completion cases. Library/script classification covers their source, fixtures and tests;
           the actual expanded tier exercises those boundaries without changing ordinary tiers or CI placement.
 
+    - `[x]` **3.3.R Correct Windows qualification fixture paths**
+        - Budget fixtures retain costly literal Unicode, whitespace and shell metacharacters in Windows-valid
+          filenames. Native cache assertions compare canonical private package roots, preserving isolation across
+          Windows short/expanded temp-path spellings.
+
     - `[ ]` **3.3.b Exercise Windows process statuses through parent reduction on the portability pair**
         - `__tests__/e2e/check-runner-platform.e2e.test.ts` already retains 256 and high-bit statuses beside
           incomplete work for one invocation; extend it to a shard-expanded parent rather than adding a parallel

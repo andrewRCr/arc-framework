@@ -77,10 +77,11 @@ it("finishes a separate-copy writer during another copy's closing and merges nat
     const download = join(firstFixture.root, "duration-download");
     const cacheRoots = await Promise.all(fixtures.map(async (fixture, index) => {
       const cache = join(fixture.packageRoot, "node_modules/.vite/vitest");
-      expect(await realpath(cache)).toBe(cache);
+      const physical = await realpath(cache);
+      expect(physical).toBe(join(await realpath(fixture.packageRoot), "node_modules/.vite/vitest"));
       expect(JSON.parse(await readFile(fixture.report, "utf8"))).toMatchObject({ success: true, numPassedTests: 1 });
       await cp(cache, join(download, `duration-results-integration-${index + 1}`), { recursive: true });
-      return await realpath(cache);
+      return physical;
     }));
     expect(new Set(cacheRoots).size).toBe(2);
     await writeFile(gate, "release");

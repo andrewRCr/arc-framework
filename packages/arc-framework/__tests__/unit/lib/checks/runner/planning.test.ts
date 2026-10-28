@@ -180,7 +180,7 @@ it("expands an opted-in matrix in batch/shard order with stable coordinates and 
 });
 
 it("reserves the final multi-digit shard argument before partitioning literal paths", async () => {
-  const paths = Array.from({ length: 20 }, (_, index) => `packages/check/${index}/${'é"&'.repeat(50)}`);
+  const paths = Array.from({ length: 20 }, (_, index) => `packages/check/${index}/${"é & &".repeat(30)}`);
   const input = await fixture(undefined, paths);
   const check = CheckDeclarationSchema.parse({ checks: { example: { command: ["check"], mode: "files",
     runner: true, shards: { count: 12, argument: `${"x".repeat(7400)}--shard={index}/{count}`, routed: true } } } }).checks.example!;
