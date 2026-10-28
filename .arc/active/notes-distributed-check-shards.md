@@ -84,9 +84,10 @@ must complement the landed foundation entries and actual platform qualification 
 
 The qualified adapter replaces arc-offload's legacy `snapshot`/`deliver`/`run_on` path for ARC plans and reuses its
 placement, admission and transport primitives. Each plan gets a fresh copy of the captured root and full dependency
-preparation (`npm ci`, setup, `build:fast`), runs its invocations serially under one job permit, and on remote
-runners takes the worktree's checkout lock exclusively. Group integration reuses its compliant primitives and the
-existing measured pool/admission; it adds no retry layer.
+preparation (`npm ci`, setup, `build:fast`) and runs its invocations serially under one job permit. On a remote
+runner it runs from its own uploaded stage, holding the checkout tree lock only in shared mode (`lib/remote-worker.sh`),
+and the stage is removed once the plan's closure is proved and recorded. Group integration reuses its compliant
+primitives and the existing measured pool/admission; it adds no retry layer.
 
 `tests/test_cli.py` and `tests/fake_ssh.py` in arc-offload exercise six-client/fake-host contention and isolated
 registry histories. They are useful harness patterns, not throughput evidence. `src/lib/test-cost/run.ts` measures
@@ -122,6 +123,101 @@ first command (66 journals), including copy, dependency preparation and verifica
 recorded. Remote runners admit one heavy job per machine, and same-worktree captured plans serialize on the checkout
 lock. The measurement covers real remote preparation cost, native shard execution splits for unit, integration and
 store, and whether same-worktree plans can overlap, before Phase 5's tasks are rewritten.
+
+### A6 — group execution across runners
+
+Measured on 2026-10-28 on an otherwise idle m4-mini through the legacy warm path (execution seconds):
+
+| Suite                                        | Unsharded | Four shards           | Shard sum | Slowest shard |
+| -------------------------------------------- | --------: | --------------------- | --------: | ------------: |
+| store (`storage-ref-backend` at `3d0d4dcad`) |     1,396 | 266 / 393 / 358 / 278 |     1,295 |           393 |
+| `test:integration`                           |       436 | 143 / 98 / 104 / 145  |       490 |           145 |
+
+Integration sharding costs about 12% more work. Store's cost was not measurable: its shards summed 7% under the
+unsharded run, inside the 6–8% run-to-run variance. On fallback duration estimates the slowest shard ran 1.19–1.21×
+its suite's mean.
+
+Two store shards run concurrently on m4-mini from separate checkouts took 483 s against 504 s back to back. Each
+took 1.8× its solo time, CPU busy rose from about 66% to 88–90%, and the slowest timing-sensitive store case doubled
+from 2.0 s to 4.0 s. The idle CPU in a solo run is not spare capacity, so one heavy job per machine stays and a
+group's parallelism is bounded by free heavy-capable machines. Two jobs sharing one checkout also serialize inside
+the repository, first on the heavy-test slot in `src/lib/local-test-admission.ts`, then on the checkout artifact
+lease in `src/lib/build-ownership.ts`; private prepared copies are what let siblings overlap.
+
+Per plan, dependency preparation took 4.4–5.5 s and a 182 MB upload 2.6 s on an idle runner; the adapter's local
+materialization and verification about 4.7 s; ARC capture about 8 s after a repository repack, about 10 s from CLI
+start to adapter start. Capture and local materialization happen once per check, so a group pays them once; upload
+and preparation repeat per placement. Sharing an installation across views would save about 5 s per placement and
+bring back the cache relocation A5 deferred, so each placement keeps a private copy. § Proposed Design 9 changes CI
+clear/upload locations only as the native cache path requires; with no relocation, Success Criterion 8's and the
+task list's private clear/upload clauses are met by the unchanged paths.
+
+With m2-mini and m5-air about 1.45× and 1.3× slower than m4-mini on store, a four-shard store group is modelled at
+about 7.5 minutes on four free heavy machines and 10–11 minutes on three, against 23 minutes unsharded on m4-mini;
+integration at 3–4 minutes against 7.5. These come from shard times, not end-to-end runs; Phase 6 measures them.
+
+Locally routed groups use the native partitioner's fallback estimates. No developer machine holds a current duration
+file, and collecting one would be test-cost budgeting, which the Non-Goals exclude. Ordering siblings by expected
+duration recovers part of the imbalance.
+
+Superseded § Proposed Design 7 ¶7, in its A5 form:
+
+> Give concurrent invocations private writable execution views or serialize access to a shared writable view.
+> Sharing immutable dependency data is allowed; distinct cwd paths alone do not isolate mutable writers aliased
+> through a shared `node_modules` directory. Where execution views share a dependency installation, give each view
+> a private Vite `cacheDir` and private workspace-relative reporters; a private copy per view needs no relocation
+> (A5). A private writable path must lie under a root the adapter's preparation established, because adapters refuse
+> an invocation after an earlier one created an unprepared path. The external adapter's group design decides whether
+> views share installations.
+
+Superseded § Open Questions ¶1:
+
+> Open, pending measurement (A5): how the external adapter executes a complete group. It advertises no group
+> capability, prepares dependencies in a fresh copy for every plan and serializes plans from one worktree on each
+> runner, while each machine admits one heavy job. Measured per-plan preparation cost and native shard execution
+> splits decide fan-out of one context across placements, per-placement preparation and whether views share
+> installations, sibling placement and checkout locking, and admission under five or six concurrent gates. A forward
+> amendment settles that design before Phase 5 begins.
+
+### A7 — routed shard opt-in
+
+`test:unit` declares two shards for CI and routes on the push gate. Its unsharded run takes about 40 s on m4-mini,
+so expanding it on the routed path would pay upload and preparation per placement for no useful gain. Store and
+integration, at 23 and 7.5 minutes unsharded, opt in. The flag sits beside `runner: true` as declaration
+eligibility. It sets no count, placement or concurrency preference, so the Non-Goals on concurrency preferences and
+shard counts outside declarations do not apply.
+
+Superseded § Proposed Design 2 ¶2, first sentence:
+
+> Expand a declared shard plan during ordinary execution only when the selected check is eligible and a configured
+> runner is selected.
+
+### A8 — named workload and bounded slowdown
+
+Goal 7 and Success Criterion 10 required five or six concurrent gates with no concurrent regression. Push gates hold
+nothing worth sharding, five or six concurrent store merge gates is not a load one developer produces, and a fixed
+sharded plan always carries its measured overhead on a saturated pool, so the criterion was either unattainable or
+uninformative. The named workload, two concurrent forced merge gates that each select store plus one push gate, is
+the realistic contended case. It depends on store landing, already recorded as a dependency.
+
+The baseline is the same gates routed unsharded, which is today's behavior under a configured runner; both forms pay
+capture, so the comparison isolates sharding. Fully native local runs stay reported as context. The 10% bound sits
+above the 6–8% run-to-run variance, below which nothing is measurable, and above store's unmeasurable overhead.
+Integration's 12% does not enter the workload, since `test:integration` runs only in CI or on explicit request. A
+slowdown beyond the bound means fan-out costs every concurrent session more than run-to-run noise.
+
+Goal 7 and Success Criterion 10 remain in the spec unedited. Superseded § Proposed Design 10 ¶4, second sentence:
+
+> Compare native unsharded execution with the declared shard plan using fresh runs.
+
+Superseded § Proposed Design 10 ¶5:
+
+> Interleave repeated baselines and distributed runs with an idle pool, then repeat under five or six concurrent
+> gates. Include capture, transport, preparation, runtime qualification, admission/queueing, execution and
+> collection. Report median/range, aggregate completion, native coverage and observed admission. Claim improvement
+> only beyond observed run-to-run variation. A concurrent throughput regression remains unresolved work; an isolated
+> faster gate does not conceal it. Serial basic adapters need no speedup claim, and unmeasured deployments gain none
+> by implication.
 
 ## Prior-art references
 

@@ -50,6 +50,16 @@ re-grounded. This plan consumes that source, binding, protocol and lifetime impl
             - The native forecast still describes its existing jobs, and routed planning emits the complete matrix.
             - Invalid/escaping cwd and unsupported final commands fail through the foundation's actionable boundary.
 
+    - `[ ]` **1.1.d Expand routed shards only for checks that opt in**
+        - Add an optional `routed` boolean, default false, to the `shards` object in `src/lib/checks/declaration.ts`.
+          Routed planning expands only declarations that set it; others keep the foundation's unsharded plan. CI
+          forecasting and native playback ignore the field.
+        - Build `test-first` (one behavior at a time):
+            - An opted-in routed check emits its complete matrix; an opted-out check with shards emits the
+              foundation's unsharded plan, never a partial or substituted matrix.
+            - `resolveCheckForecast` produces identical CI jobs with and without the opt-in; unknown `shards` keys
+              still refuse.
+
 ### `[ ]` **1.2 Bind complete prepared runtime coverage to a scoped parent key — D4, D5**
 
 - _Goal:_ A parent is reusable only for its full canonical matrix and applicable prepared inputs/runtimes, without
@@ -247,19 +257,18 @@ _Mode:_ `slice` through Phase 4 — closes on native tier coverage and completio
 - _Goal:_ Concurrent execution views do not alias native mutable outputs, even with shared dependencies, and native
   artifact ownership remains effective through controller closing.
 
-    - `[ ]` **3.1.a Place native cache writers privately per execution view**
-        - Follow the external group design's view-sharing decision. With shared dependency installations, configure
-          Vite `cacheDir` per view under an adapter-prepared root in the package's `vitest.config.ts` and ignore
-          rules; with a private copy per view, keep the default location. Keep package-root semantics per project.
-        - Add a process-backed native fixture with distinct execution views sharing one dependency directory;
-          assert resolved cache/report writers differ while handed duration-input bytes remain fixed, and a later
-          invocation in the same view passes the adapter's per-invocation source verification.
+    - `[ ]` **3.1.a Keep native cache writers at their default locations in each prepared copy**
+        - Each placement prepares a private copy and runs further siblings serially in it, so no views share an
+          installation. Keep the default Vite `cacheDir` and workspace-relative reporters in the package's
+          `vitest.config.ts`, and confirm they lie under roots the adapter's preparation establishes.
+        - Add a process-backed native fixture running two invocations serially in one prepared copy; assert the
+          second passes the adapter's per-invocation source verification and handed duration-input bytes stay fixed.
         - Configuration uses test-after feedback; do not replace native cache formats or weaken controller leases.
 
     - `[ ]` **3.1.b Keep CI duration collection aligned with the native cache path**
-        - When 3.1.a relocates the cache, update `.github/workflows/ci.yml` and
-          `__tests__/integration/duration-layout-workflow.test.ts` for each landed tier's clear/upload paths;
-          otherwise confirm them unchanged. Retain job placement, tier artifact names and native `results.json`.
+        - With the cache location unchanged, confirm `.github/workflows/ci.yml` clear/upload paths and
+          `__tests__/integration/duration-layout-workflow.test.ts` need no change. Retain job placement, tier
+          artifact names and native `results.json`.
         - Verify `mergeDurationArtifacts` still finds and merges those documents recursively. Re-ground store
           additions after the native reach implementation lands instead of creating a competing artifact format.
 
@@ -267,9 +276,10 @@ _Mode:_ `slice` through Phase 4 — closes on native tier coverage and completio
         - Extend native controller fixtures around `withTestArtifactOwnership`/`withBuildArtifactOwnership` and
           workspace-relative reporters; use the existing runtime-ownership and closing test seams.
         - Build `test-first` (one behavior at a time):
-            - Shared dependencies cannot alias mutable result/cache/report writes across active views.
+            - Two store or integration controllers sharing one checkout and its dependencies serialize on the
+              artifact lease, so their mutable result/cache/report writes never overlap.
             - Existing leases stay held through setup, execution and close; native closing errors still fail.
-            - Merged duration results remain valid after concurrent private writers finish.
+            - Merged duration results remain valid after serial and separate-copy writers finish.
 
 ### `[ ]` **3.2 Preserve forecast and late-bound native CI shard inputs — D3, D9**
 
@@ -357,6 +367,8 @@ through controller closing. Store qualification uses the native reach command la
           available/absent/empty duration states. Check exact membership, not only subprocess success.
 
     - `[ ]` **4.2.b Qualify integration through its native controller**
+        - Set `shards.routed: true` on `test:integration` in `.arc/system/arc-checks.yml`; `test:unit` stays
+          opted out and routes one unsharded command.
         - Exercise the tier's actual setup/execution/closing path under its normal gate/CI selection rules;
           retain runtime artifact ownership and private output locations.
         - Verify complete/disjoint membership and fixed handed inputs; preserve unmatched-name, all-skipped and
@@ -379,8 +391,9 @@ through controller closing. Store qualification uses the native reach command la
     - `[ ]` **4.3.a Complete native store declaration and catalogue adoption**
         - Inspect the actual landed declaration, reach catalogue and input readers. The foundation adopts wrapper
           consumers present at its retirement; complete remaining store adoption here if the native tier lands later.
-        - Use ordinary native argv with `runner: true` and explicit actual selectors, including `ARC_STORE_CHECK`,
-          `ARC_STORE_BURSTS` and the handed duration file when read. Keep their value/file and absent/empty semantics.
+        - Use ordinary native argv with `runner: true`, `shards.routed: true` and explicit actual selectors,
+          including `ARC_STORE_CHECK`, `ARC_STORE_BURSTS` and the handed duration file when read. Keep their
+          value/file and absent/empty semantics.
         - Remove any obsolete retired-wrapper catalogue dependency; native full/reach selection must remain valid
           with that executable absent. Prototype executable retirement and machine-setting migration remain outside
           this task. Test-after declaration/catalogue changes through binding/forecast and native selection fixtures.
@@ -429,10 +442,17 @@ the external adapter retains generic use outside ARC and native test tools.
 
     - `[ ]` **5.1.a Schedule complete groups through the qualified adapter**
         - Extend `arc_offload/arc_adapter.py` and `tests/test_arc_adapter.py`, reusing its fixed capture, explicit
-          inputs, runtime qualification and recovery/lifetime primitives.
+          inputs, runtime qualification and recovery/lifetime primitives. Advertise group capability; verify and
+          materialize the captured plan once locally and upload it to each placement that takes a sibling, where
+          that placement prepares its own private copy.
+        - Place siblings through the existing pool admission: estimated finish, one heavy job per machine and
+          memory tokens, longest expected sibling first, with availability order where no record exists. A
+          placement's further siblings run serially in its prepared copy.
         - Build `test-first` (one behavior at a time):
             - Optional group capability accepts every expected ID once under the same prepared source/input basis;
               local and remote placements cannot resnapshot the caller or substitute ambient duration inputs.
+            - With fewer free heavy placements than siblings, no machine runs two heavy siblings at once; the rest
+              wait and run serially in an already prepared copy instead of a second upload to that placement.
             - Each placement satisfies its prepared runtime binding or refuses before affected work; unknown
               coverage still executes without reuse. Existing generic single execution remains usable.
             - No hidden rebatching, automatic retry or second ARC-specific adapter entry is introduced.
@@ -461,6 +481,8 @@ the external adapter retains generic use outside ARC and native test tools.
         - Exercise group/basic playback, native failure beside incomplete work and repaired refusal/recovery. Public
           fixtures cover known/unknown reuse and hit release; actual placements exercise their advertised coverage.
           Honest unknown runtime qualifies execution without reuse, not a cache-hit or unexercised profile claim.
+        - Run a four-shard store group on the pool as it stands; record each sibling's placement and admission
+          wait, and whether a machine ran two siblings serially because heavy capacity was short.
 
     - `[ ]` **5.2.b Preserve provider policy and generic use**
         - Use the live registry, measured selection and current routing mode; retain shared job/heavy-job admission,
@@ -488,9 +510,9 @@ the external adapter retains generic use outside ARC and native test tools.
 _Purpose:_ Measure fresh complete gates with fixed inputs, including capture and queueing, so coverage and aggregate
 completion determine whether the distributed path improves the intended workload.
 
-_Exit criterion:_ Interleaved repeated native/distributed runs report idle-pool and five-or-six-gate median/range,
-coverage, aggregate completion and admission. Any claimed improvement exceeds observed variation, with no concurrent
-regression counted as completed qualification.
+_Exit criterion:_ Interleaved repeated routed-unsharded and distributed runs report idle-pool and named-workload
+median/range, coverage, aggregate completion and admission. Any claimed idle-pool improvement exceeds observed
+variation, and a named-workload slowdown above 10% keeps qualification open.
 
 ### `[ ]` **6.1 Build a reproducible whole-gate comparison harness — D10**
 
@@ -504,8 +526,9 @@ regression counted as completed qualification.
         - Add a bounded qualification harness using the production check/controller path and Phase 4 membership
           observer; select one fixed source, native selection, duration definition and requested complete check set.
         - Build `test-first` (one behavior at a time):
-            - In-memory native/unsharded and declaration-derived plans differ only in execution mode, with forced
-              fresh work. The harness changes no source/declaration or production sharding-toggle setting.
+            - Routed unsharded and declaration-derived plans differ only in shard expansion, with forced fresh work;
+              fully native local runs are recorded as context. The harness changes no source/declaration or
+              production sharding-toggle setting.
             - Original-checkout edits and pass reuse cannot contaminate comparisons; failures or coverage mismatch
               remain recorded unsuccessful runs rather than being dropped from the sample.
 
@@ -523,25 +546,27 @@ regression counted as completed qualification.
 - _Goal:_ An idle-pool improvement claim rests on repeated complete capture-through-collection runs with equivalent
   native coverage and a gain greater than observed run-to-run variation.
 
-    - Run repeated interleaved native baselines and distributed complete gates with an otherwise idle eligible pool;
+    - Run repeated interleaved routed-unsharded baselines and distributed complete gates with an otherwise idle pool;
       record source/selection/duration/check-set identities, qualified profiles and fresh execution for every sample.
     - Report raw timings, median/range, phase costs and exact native coverage. Include preparation and queueing rather
       than comparing warmed remote execution with a fresh native gate.
     - Treat speedup within observed variation as unestablished. Keep basic serial adapters correct without assigning
       them an acceleration requirement or extrapolating measurements to unqualified deployments.
 
-### `[ ]` **6.3 Qualify five-or-six-gate aggregate completion and admission — D10**
+### `[ ]` **6.3 Qualify named-workload aggregate completion and admission — D10**
 
 - _Goal:_ The intended concurrent workload completes equivalent useful gates without hiding an aggregate throughput
   regression behind a single faster gate or bypassing shared resource admission.
 
-    - Repeat the interleaved baseline/distributed experiment with five or six concurrent gates. Record per-gate
-      median/range, complete-set makespan, aggregate completion, native coverage and observed queue/admission behavior.
+    - Repeat the interleaved baseline/distributed experiment under the named workload: two concurrent forced merge
+      gates that each select store, plus one concurrent push gate, recording the routing mode in force. Record
+      per-gate median/range, complete-set makespan, aggregate completion, native coverage and queue/admission behavior.
     - Keep controllers local under the host CPU-yielding policy and all heavy work pool-routed under the current mode,
       registry and ceilings. Check/gate any separately launched memory-heavy local process under host policy; do not
       defeat shared admission or the local serial guard to create benchmark concurrency.
-    - Retain all failures/incomplete runs and address a measured concurrent regression before claiming completed
-      qualification. Do not change shard counts, fairness, timeout policy or routing mode to conceal the result.
+    - Retain all failures/incomplete runs. Report the aggregate slowdown or gain against the routed-unsharded
+      baseline with its measured size, and address a slowdown above 10% before claiming completed qualification. Do
+      not change shard counts, fairness, timeout policy or routing mode to conceal the result.
 
 ### `[ ]` **6.4 Validate integrated execution and measured benefit** — validate exit criterion at segment scope
 
@@ -549,7 +574,7 @@ regression counted as completed qualification.
   behavior, with explicit limits for profiles or deployments not actually exercised.
 
     - Walk the public independent/external adapter scenarios and native profile evidence, then the repeated idle and
-      five-or-six-gate observations; verify equivalent coverage, full timing costs, aggregate completion and admission.
+      named-workload observations; verify equivalent coverage, full timing costs, aggregate completion and admission.
     - Request `arc check segment`; record actual evidence and unresolved measurements. A concurrent regression or
       missing required qualification keeps this exit criterion open and needs separate corrective work.
 
@@ -642,6 +667,17 @@ _Purpose:_ Verify the complete implementation against its success criteria and r
 - `[ ]` A completed Windows/macOS portability-pair run executes the consumer's fixture-backed 256/high-bit parent
   reduction cases; other supported-platform budget/path/result cases execute through their selected portability
   routes rather than classification alone.
+
+- `[ ]` The external adapter runs a complete group from one local materialization uploaded to each placement that
+  takes a sibling. Each placement prepares a private copy, existing admission keeps at most one heavy sibling per
+  machine, and a placement's further siblings run serially in its prepared copy.
+
+- `[ ]` Only checks whose declaration sets `shards.routed: true` expand on the routed path. An opted-out check with
+  shards routes one unsharded command, and CI's declared matrix and forecast are unchanged.
+
+- `[ ]` Repeated forced comparisons against the same gates routed unsharded show an idle-pool per-gate gain beyond
+  observed variation. Under two concurrent store-selecting merge gates plus one push gate, aggregate completion is at
+  most 10% slower than that baseline and is reported with its measured size.
 
 - `[ ]` All quality gates pass.
 

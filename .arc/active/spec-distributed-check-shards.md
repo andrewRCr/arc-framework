@@ -37,6 +37,9 @@ code changes.
 6. Qualify a public adapter independently, then qualify the personal arc-offload integration through the same seam.
 7. Measure end-to-end gate latency and aggregate completion under five or six concurrent gates, including preparation
    and queueing costs rather than counting submitted jobs as performance evidence.
+8. Judge concurrent benefit on a named realistic workload instead of Goal 7's five or six gates (A8): two concurrent
+   merge gates that each select store plus one push gate, against the same gates routed unsharded, with any aggregate
+   slowdown bounded and disclosed.
 
 ## Non-Goals
 
@@ -108,10 +111,12 @@ The prerequisite resolves machine-local `checks.runner` argv from `~/.arc/config
 `runner: true`. This consumer uses that resolved decision; it adds no configuration reader, override hierarchy or
 provider executable to project declarations.
 
-Expand a declared shard plan during ordinary execution only when the selected check is eligible and a configured
-runner is selected. With no configured runner, or for a check left on the native path, retain its existing single
-native command. Shard metadata alone adds neither a source workspace nor local fan-out. Explicit environment-file
-bindings may still freeze a small input file under the foundation's native execution contract.
+Expand a declared shard plan during ordinary execution only when the selected check is eligible, its declaration
+opts in with `shards.routed: true`, and a configured runner is selected (A7). An eligible check without that opt-in
+routes its single unsharded command through the foundation's path; the opt-in leaves CI's declared matrix unchanged.
+With no configured runner, or for a check left on the native path, retain its existing single native command. Shard
+metadata alone adds neither a source workspace nor local fan-out. Explicit environment-file bindings may still freeze
+a small input file under the foundation's native execution contract.
 
 A configured adapter that cannot start or obtain eligible capacity reports unavailable execution with an actionable
 remedy. ARC does not bypass it. The adapter owns local placement, fallback and admission; a local placement uses the
@@ -119,7 +124,8 @@ same captured inputs as a remote placement. Required-remote policy remains effec
 
 With group capability, submit the complete check plan once. Without it, send the same invocations serially through
 mandatory single execution within the prepared context. Serial playback remains sharded; never silently substitute
-the unsharded command. An eligible declaration without shards continues through the foundation's single-check path.
+the unsharded command. An eligible declaration without shards or without the routed opt-in continues through the
+foundation's single-check path.
 
 Existing CI forecasting and native job playback remain distinct from this routing decision. Preserve CI's declared
 shard matrix even when its jobs use native execution rather than a configured adapter.
@@ -128,9 +134,10 @@ shard matrix even when its jobs use native execution rather than a configured ad
 
 Reuse the existing declaration language and `resolveCheckForecast` expansion rather than creating another shard
 count, template syntax or per-suite distribution script. `shards.count` supplies the positive count;
-`shards.argument` expands `{index}` and `{count}` with one-based indices from 1 through that count. Preserve the
-command's literal argument values, explicit shell intent, selected-path order, check cwd and existing
-selection/deletion/widening rules.
+`shards.argument` expands `{index}` and `{count}` with one-based indices from 1 through that count. The boolean
+`shards.routed` only admits the declared matrix to routed expansion; it adds no count, template or placement setting
+(A7). Preserve the command's literal argument values, explicit shell intent, selected-path order, check cwd and
+existing selection/deletion/widening rules.
 
 Build the full plan before preparation or pass lookup. Each record has a canonical local coordinate consisting of
 its file-batch ordinal and shard index/count, final argv, root-relative cwd and shell policy. Every expected pair
@@ -340,11 +347,13 @@ when needed; that does not authorize a second partition pass in the generic engi
 
 Give concurrent invocations private writable execution views or serialize access to a shared writable view. Sharing
 immutable dependency data is allowed; distinct cwd paths alone do not isolate mutable writers aliased through a
-shared `node_modules` directory. Where execution views share a dependency installation, give each view a private
-Vite `cacheDir` and private workspace-relative reporters; a private copy per view needs no relocation (A5). A private
-writable path must lie under a root the adapter's preparation established, because adapters refuse an invocation
-after an earlier one created an unprepared path. The external adapter's group design decides whether views share
-installations.
+shared `node_modules` directory, so an adapter that shares one installation across views runs them serially. A
+private copy per view needs no relocation (A5): native writers keep their default Vite `cacheDir` and
+workspace-relative reporter locations, which must lie under a root the adapter's preparation established, because
+adapters refuse an invocation after an earlier one created an unprepared path. The external adapter gives each
+placement its own prepared copy and runs that placement's further siblings serially in it (A6). Store and integration
+controllers sharing one checkout also queue on the checkout artifact lease, which `withTestArtifactOwnership` holds
+for any selection beyond the unit projects.
 
 `mergeDurationArtifacts` in `packages/arc-framework/__tests__/helpers/duration-artifacts.ts` finds native
 `results.json` files recursively. Preserve tier-named artifact directories and the native result format while
@@ -425,15 +434,28 @@ tool land in its own repository, preserve its use outside ARC/Vitest and receive
 existing measured pool, registry, shared job/heavy-job admission, memory ceilings, caller CPU policy and the Owner's
 routing mode remain authoritative. Do not assume a fixed machine order or add those deployment settings to ARC.
 
-Measure the complete selected gate with fixed source, native selection, duration inputs and requested check set.
-Compare native unsharded execution with the declared shard plan using fresh runs. A qualification harness may vary
-its in-memory plan without editing the source or adding a production sharding-toggle setting.
+The external adapter advertises group capability (A6). It verifies and materializes a check's captured plan once
+locally, then uploads it to each placement that takes a sibling, where that placement prepares its own private copy. The
+pool's existing admission places every sibling by estimated finish, one heavy job per machine and memory tokens,
+longest expected sibling first, falling back to availability order where it holds no record for a command. A
+placement that takes a further sibling runs it after its first, in the same prepared copy. Fan-out is therefore
+bounded by free heavy capacity: with fewer heavy-capable placements free than siblings, a placement runs more than
+one sibling serially, which is expected rather than a defect. Locally routed groups bind no duration file unless the
+declaration names one; the native partitioner's fallback estimates then apply, and nothing here collects durations.
 
-Interleave repeated baselines and distributed runs with an idle pool, then repeat under five or six concurrent
-gates. Include capture, transport, preparation, runtime qualification, admission/queueing, execution and collection.
-Report median/range, aggregate completion, native coverage and observed admission. Claim improvement only beyond
-observed run-to-run variation. A concurrent throughput regression remains unresolved work; an isolated faster gate
-does not conceal it. Serial basic adapters need no speedup claim, and unmeasured deployments gain none by implication.
+Measure the complete selected gate with fixed source, native selection, duration inputs and requested check set.
+Compare the same gate routed unsharded with the declared shard plan using fresh runs, and report fully native local
+runs as context (A8). A qualification harness may vary its in-memory plan without editing the source or adding a
+production sharding-toggle setting.
+
+Interleave repeated baselines and distributed runs with an idle pool, then repeat under the named workload: two
+concurrent forced merge gates that each select store, plus one concurrent push gate, under the routing mode in force,
+which the record names (A8). Include capture, transport, preparation, runtime qualification, admission/queueing,
+execution and collection. Report median/range, aggregate completion, native coverage and observed admission. Claim
+idle-pool improvement only beyond observed run-to-run variation. Under the named workload, aggregate completion may
+be at most 10% slower than the baseline, reported with its measured size; a larger regression remains unresolved
+work, and an isolated faster gate does not conceal it. Serial basic adapters need no speedup claim, and unmeasured
+deployments gain none by implication.
 
 ## Alternatives & Rationale
 
@@ -551,15 +573,16 @@ repairing a refusal, not only the initial rejection.
     disclosed as unresolved rather than counted as success.
 11. **Routed native membership (A3):** Criterion 6 applies to unit, integration and store. E2E stays native and
     CI-only, keeps its existing shard membership validation and carries no routed qualification.
+12. **Group execution (A6):** The external adapter runs a complete group from one local materialization uploaded to
+    each placement that takes a sibling. Each placement prepares a private copy; existing admission places siblings,
+    at most one heavy sibling per machine, and a placement's further siblings run serially in its prepared copy.
+13. **Routed shard opt-in (A7):** Only checks whose declaration sets `shards.routed: true` expand on the routed path.
+    An opted-out check with shards routes one unsharded command, and CI's declared matrix and forecast are unchanged.
+14. **Named-workload benefit (A8):** Repeated forced comparisons against the same gates routed unsharded show an
+    idle-pool per-gate gain beyond observed variation. Under two concurrent store-selecting merge gates plus one push
+    gate, aggregate completion is at most 10% slower than that baseline and is reported with its measured size.
 
 ## Open Questions
-
-Open, pending measurement (A5): how the external adapter executes a complete group. It advertises no group
-capability, prepares dependencies in a fresh copy for every plan and serializes plans from one worktree on each
-runner, while each machine admits one heavy job. Measured per-plan preparation cost and native shard execution splits
-decide fan-out of one context across placements, per-placement preparation and whether views share installations,
-sibling placement and checkout locking, and admission under five or six concurrent gates. A forward amendment settles
-that design before Phase 5 begins.
 
 Concrete function/module names and fixture organization may follow the landed foundation; they must preserve the
 contracts above. A source-level mismatch that changes the prerequisite or consumer behavior returns to design before
@@ -577,5 +600,11 @@ implementation rather than becoming an undocumented task decision.
   _Supersedes:_ § Proposed Design 10 ¶2. _Trigger:_ door. _Work:_ 3.3.b. _Revalidated:_ pending → 4.4.
 - **A5** — 2026-10-28 — design: cache placement and the external group design reopen pending measurement.
   _Supersedes:_ § Proposed Design 7 ¶7, § Open Questions ¶1. _Trigger:_ door. _Work:_ 3.1. _Revalidated:_ pending → 4.4.
+- **A6** — 2026-10-28 — spec-depth: groups spread one plan across runners, one heavy sibling per machine. _Supersedes:_
+  § Proposed Design 7 ¶7, § Open Questions ¶1. _Trigger:_ door. _Work:_ 3.1, 5.1, 5.2. _Revalidated:_ pending → 6.4.
+- **A7** — 2026-10-28 — design: routed shard expansion becomes a per-check declaration opt-in. _Supersedes:_ § Proposed
+  Design 2 ¶2. _Trigger:_ door. _Work:_ 1.1, 4.2, 4.3. _Revalidated:_ pending → 2.5.
+- **A8** — 2026-10-28 — design: concurrent benefit uses a named workload and a bounded slowdown. _Supersedes:_ § Goals
+  7, § Proposed Design 10 ¶4–5, § Success Criteria 10. _Trigger:_ door. _Work:_ 6.1–6.3. _Revalidated:_ pending → 6.4.
 
 ---
