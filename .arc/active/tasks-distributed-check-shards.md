@@ -19,20 +19,24 @@ re-grounded. This plan consumes that source, binding, protocol and lifetime impl
 - _Goal:_ Every selected routed check has one deterministic, complete plan whose final commands fit every compatible
   placement before preparation or reuse can begin.
 
-- _Note:_ Shared-handler implementation requires the landed, qualified runner foundation. Re-ground its actual
-  exports first; a missing prerequisite returns to its defining interface rather than a private replacement here.
+- _Note:_ The foundation's `buildPlan` seam in `src/lib/checks/runner/execution.ts` receives captured source,
+  bindings and paths before preparation; `planCheckExecution` in `src/lib/checks/runner/planning.ts` forms the
+  unsharded batch plan with captured path spelling and probes. A missing prerequisite returns to its defining
+  interface rather than a private replacement here.
 
     - `[ ]` **1.1.a Compose canonical batch/shard coordinates and invocation records**
         - Extend the expansion used by `resolveCheckForecast` in `src/lib/checks/forecast.ts`, using the landed
-          shared invocation DTOs. Keep stable coordinates separate from fresh wire correlation IDs.
+          shared invocation DTOs. Build the routed plan for the `buildPlan` seam, reusing `planCheckExecution`'s
+          captured path spelling and probes. Keep stable coordinates separate from fresh wire correlation IDs.
         - Build `test-first` (one behavior at a time):
             - Every expected batch/shard pair occurs once in stable batch/index order, including identical commands.
             - Project/withheld-path commands retain their required no-path invocation; selected-file behavior,
               deletion/widening rules, literal path order, cwd and command-content policy remain unchanged.
 
     - `[ ]` **1.1.b Budget the complete final command before partitioning paths**
-        - Consume the foundation's portable helpers in `src/lib/checks/batching.ts`. Include the final shard
-          argument in the fixed budget while retaining its native position after received paths.
+        - Consume `batchPortableCheckPaths` in `src/lib/checks/batching.ts`, which sizes trailing arguments placed
+          in its command but takes no suffix. Include the final shard argument in the fixed budget while retaining
+          its native position after received paths.
         - Build `test-first` (one behavior at a time):
             - POSIX bytes and escaped Windows units both fit, including Unicode, quotes and multi-digit shard values.
             - Fixed-only and single-path overflow refuse before launch with a shortening remedy; repaired input runs.
@@ -51,17 +55,20 @@ re-grounded. This plan consumes that source, binding, protocol and lifetime impl
 - _Goal:_ A parent is reusable only for its full canonical matrix and applicable prepared inputs/runtimes, without
   making unrelated repository state or attempt identities dependencies.
 
-    - `[ ]` **1.2.a Project prepared runtime observations onto canonical plan order**
-        - Consume `PreparedCheckExecution` from the landed foundation facade; use its validated source/probe/runtime
-          evidence rather than the caller's `CheckKeyIO.runtime`. Isolate the deterministic projection from I/O.
+    - `[ ]` **1.2.a Verify the prepared runtime projection over the shard matrix**
+        - `composePreparedCheckKey` in `src/lib/checks/runner/key.ts` already projects known runtime per invocation
+          in plan order from `PreparedCheckExecution`. Extend its tests over a shard-expanded plan; add projection
+          code only where the matrix exposes a gap. No caller `CheckKeyIO.runtime` substitutes for prepared evidence.
         - Build `test-first` (one behavior at a time):
             - Complete known coverage binds every expected invocation even when received observations are reordered.
             - Unknown coverage disables whole-parent lookup/publication; malformed claimed coverage refuses instead
               of silently downgrading. No caller-local fingerprint substitutes for missing execution evidence.
 
-    - `[ ]` **1.2.b Extend the shared scoped key with the canonical matrix and runtime vector**
-        - Use the foundation's scoped key material and `checkContentKey` in `src/lib/checks/key.ts`; preserve
-          declaration, raw-byte presentation, explicit environment and historical-content dependencies.
+    - `[ ]` **1.2.b Confirm or extend the scoped key's matrix coverage**
+        - The landed `checkContentKey` in `src/lib/checks/key.ts` hashes the declaration (including `shards`),
+          received paths and the plan-ordered runtime vector, not invocation argv. Establish whether those inputs
+          determine the canonical matrix; add explicit coordinates and a key version only where they do not.
+          Preserve declaration, raw-byte presentation, explicit environment and historical-content dependencies.
         - Build `test-first` (one behavior at a time):
             - Relevant content, bindings, matrix or applicable runtime changes miss; a complete identical plan hits.
             - Unrelated source/projection changes, identical bytes at another host path, request/context IDs and
@@ -91,8 +98,8 @@ re-grounded. This plan consumes that source, binding, protocol and lifetime impl
             - Independently valid failures survive later malformed/missing results, with incomplete pairs retained.
 
     - `[ ]` **1.3.b Preserve native no-evidence, kill and full exit-status semantics**
-        - Reuse `normalizeCheckInvocationOutcome`/`reduceCheckInvocationOutcomes` after they land, retaining
-          `finalizeCheckRun` as pass authority and `declaredChecksExitCode` as the cross-check exit policy.
+        - Reuse `normalizeCheckInvocationOutcome`/`reduceCheckInvocationOutcomes` in `src/lib/checks/result.ts`,
+          retaining `finalizeCheckRun` as pass authority and `declaredChecksExitCode` as the cross-check exit policy.
         - Build `test-first` (one behavior at a time):
             - Declared no-evidence retains precedence over special 137 handling; mixed useful/no-evidence results
               remain distinct from an all-no-evidence check and from ordinary native failures.
@@ -114,8 +121,8 @@ context/capture under the specified lifecycle. The unconfigured command remains 
   native path retains its existing single command and configured failures remain visible.
 
     - `[ ]` **2.1.a Connect the consumer at the selected-check dispatch boundary**
-        - Extend the landed foundation branch of `executeSelectedCheck` in `src/handlers/check/run.ts` using the
-          canonical plan. Keep configuration, eligibility, source/environment capture and the client in the foundation.
+        - Extend `executeRoutedSelectedCheck` in `src/handlers/check/run.ts`, supplying the canonical plan through
+          `buildPlan`. Keep configuration, eligibility, source/environment capture and the client in the foundation.
         - Build `test-first` (one behavior at a time):
             - No runner or an ineligible check stays native/unsharded without source preparation; an eligible
               unsharded declaration still uses the foundation's ordinary path.
@@ -123,8 +130,9 @@ context/capture under the specified lifecycle. The unconfigured command remains 
             - Configured failure never causes a bypass, another capture implementation or implicit local fallback.
 
     - `[ ]` **2.1.b Play back mandatory singles or submit the whole optional group**
-        - Consume the facade's capability and run methods. Preserve one context/source definition and one
-          outstanding execution request; the adapter owns concurrent placement and admission.
+        - Consume `supportsRunGroup`, `run` and `runGroup` on `PreparedCheckExecution`, replacing the foundation-plan
+          loop in `executeRoutedSingles`. Preserve one context/source definition and one outstanding execution
+          request; the adapter owns concurrent placement and admission.
         - Build `test-first` (one behavior at a time):
             - A group-capable adapter receives the complete requested matrix once; a basic adapter receives the
               same plan as ordered singles, never an unsharded substitute or changed path batches.
@@ -132,7 +140,8 @@ context/capture under the specified lifecycle. The unconfigured command remains 
               group siblings, while unavailable/not-started work remains explicit.
 
     - `[ ]` **2.1.c Prove the production entry with a real adapter conversation**
-        - Extend the foundation's process-backed runner fixtures and standalone local example for a tiny declared
+        - Extend the process-backed fixtures in `__tests__/fixtures/checks/prepared-execution.ts` (including its
+          group modes) and `runner.ts`, and the standalone example in `examples/check-runner/`, for a tiny declared
           check. Group faults use scripted peers through the same public wire, not injected final handler answers.
         - Build `test-first` (one behavior at a time):
             - The real selected-check path prepares, executes two or more pairs and produces one parent result.
@@ -238,16 +247,19 @@ _Mode:_ `slice` through Phase 4 — closes on native tier coverage and completio
 - _Goal:_ Concurrent execution views do not alias native mutable outputs, even with shared dependencies, and native
   artifact ownership remains effective through controller closing.
 
-    - `[ ]` **3.1.a Put Vite's cache under the package execution view**
-        - Configure supported Vite `cacheDir` behavior at ignored `.test-cache/vite/` in the package's
-          `vitest.config.ts` and ignore rules. Keep the config's package-root semantics for every native project.
+    - `[ ]` **3.1.a Place native cache writers privately per execution view**
+        - Follow the external group design's view-sharing decision. With shared dependency installations, configure
+          Vite `cacheDir` per view under an adapter-prepared root in the package's `vitest.config.ts` and ignore
+          rules; with a private copy per view, keep the default location. Keep package-root semantics per project.
         - Add a process-backed native fixture with distinct execution views sharing one dependency directory;
-          assert resolved cache/report writers differ while handed duration-input bytes remain fixed.
+          assert resolved cache/report writers differ while handed duration-input bytes remain fixed, and a later
+          invocation in the same view passes the adapter's per-invocation source verification.
         - Configuration uses test-after feedback; do not replace native cache formats or weaken controller leases.
 
-    - `[ ]` **3.1.b Keep CI duration collection aligned with the private cache path**
-        - Update `.github/workflows/ci.yml` and `__tests__/integration/duration-layout-workflow.test.ts` for each
-          landed tier's clear/upload paths; retain job placement, tier artifact names and native `results.json`.
+    - `[ ]` **3.1.b Keep CI duration collection aligned with the native cache path**
+        - When 3.1.a relocates the cache, update `.github/workflows/ci.yml` and
+          `__tests__/integration/duration-layout-workflow.test.ts` for each landed tier's clear/upload paths;
+          otherwise confirm them unchanged. Retain job placement, tier artifact names and native `results.json`.
         - Verify `mergeDurationArtifacts` still finds and merges those documents recursively. Re-ground store
           additions after the native reach implementation lands instead of creating a competing artifact format.
 
@@ -293,23 +305,24 @@ _Mode:_ `slice` through Phase 4 — closes on native tier coverage and completio
             - `portability-build-selection.test.ts`, change-facts and classifier integration tests catch omissions
               without widening ordinary tier selection or changing CI placement.
 
-    - `[ ]` **3.3.b Exercise actual Windows process statuses through parent reduction**
-        - Add platform-aware process-backed cases for 256 and a high-bit DWORD outcome, retaining useful common
-          completed cases on other platforms. Reuse the foundation's native transport/status handling.
+    - `[ ]` **3.3.b Exercise Windows process statuses through parent reduction on the portability pair**
+        - Add platform-aware cases on the Node scripted adapter fixture for 256 and a high-bit DWORD outcome,
+          retaining useful common completed cases on other platforms. No adapter routes checks on Windows; reuse the
+          foundation's native transport/status handling.
         - Build `test-first` (one behavior at a time):
             - Exact Windows status survives as a completed parent failure, including beside missing work; POSIX
               signal handling and declared no-evidence precedence retain their existing meanings.
-            - Record a completed Windows run through the existing portability pair or a qualified Windows execution
-              environment. PR classification alone is insufficient; the pair is scheduled or explicitly dispatched.
+            - Record a completed run of these cases on the Windows/macOS portability pair. PR classification alone
+              is insufficient; the pair is scheduled or explicitly dispatched.
 
 ## **Phase 4:** Native membership and completion qualification
 
 _Purpose:_ Observe native discovery and actual partition assignments, then qualify each tier's selection, evidence
 and closing contract without introducing a second partitioner.
 
-_Exit criterion:_ Qualified unit, integration, store and E2E profiles show complete/disjoint native membership under
+_Exit criterion:_ Qualified unit, integration and store profiles show complete/disjoint native membership under
 fixed inputs, preserve their distinct empty/no-evidence/failure outcomes, and keep native writers and leases isolated
-through controller closing. Store qualification uses the landed native reach command.
+through controller closing. Store qualification uses the native reach command landed by `storage-ref-backend`.
 
 ### `[ ]` **4.1 Observe native selection and actual shard assignments in a qualification harness — D7**
 
@@ -334,7 +347,7 @@ through controller closing. Store qualification uses the landed native reach com
 
 ### `[ ]` **4.2 Qualify ordinary native tiers, filters and duration-input states — D4, D7**
 
-- _Goal:_ Unit, integration and E2E retain their native selection and nonempty-completion requirements under the
+- _Goal:_ Unit and integration retain their native selection and nonempty-completion requirements under the
   declared matrix and applicable execution profiles.
 
     - `[ ]` **4.2.a Qualify unit and unit-mocks membership together**
@@ -343,8 +356,8 @@ through controller closing. Store qualification uses the landed native reach com
         - Cover full and filtered selections, stable ordering, deletions/widening where applicable, and captured
           available/absent/empty duration states. Check exact membership, not only subprocess success.
 
-    - `[ ]` **4.2.b Qualify integration and E2E through their native controllers**
-        - Exercise each tier's actual setup/execution/closing path under its normal gate/CI selection rules;
+    - `[ ]` **4.2.b Qualify integration through its native controller**
+        - Exercise the tier's actual setup/execution/closing path under its normal gate/CI selection rules;
           retain runtime artifact ownership and private output locations.
         - Verify complete/disjoint membership and fixed handed inputs; preserve unmatched-name, all-skipped and
           ordinary empty-execution failures. Do not reinterpret an arbitrary nonzero exit or missing report.
@@ -359,8 +372,9 @@ through controller closing. Store qualification uses the landed native reach com
 - _Goal:_ The landed store command uses the public runner with fixed selection inputs and retains its proved no-op
   and empty-share successes without granting success to incomplete, unmatched or all-skipped native work.
 
-- _Note:_ Re-ground the landed reach implementation and foundation adoption first. This task completes any remaining
-  late-arriving store integration; copied/simulated source does not fulfill four-tier qualification.
+- _Note:_ The store check lands with `storage-ref-backend`. Re-ground its landed reach implementation first,
+  converting any remaining wrapper prefix or probe-supplied selectors to `runner: true` and `environment_inputs`;
+  copied/simulated source does not fulfill store qualification.
 
     - `[ ]` **4.3.a Complete native store declaration and catalogue adoption**
         - Inspect the actual landed declaration, reach catalogue and input readers. The foundation adopts wrapper
@@ -385,13 +399,15 @@ through controller closing. Store qualification uses the landed native reach com
 
 ### `[ ]` **4.4 Prove native membership, writers and completion** — validate exit criterion at segment scope
 
-- _Goal:_ Recorded native runs demonstrate the segment's four-tier membership/completion contract and isolation
-  through actual native controllers on the profiles claimed as qualified.
+- _Goal:_ Recorded native runs demonstrate the segment's unit, integration and store membership/completion contract
+  and isolation through actual native controllers on the profiles claimed as qualified.
 
-    - Execute the recorded unsharded-versus-sharded cases for all four tiers, including filtered/duration states,
-      reach no-op/empty shares, ordinary nonpassing empty work, shared-dependency writer isolation and closing errors.
-    - Request `arc check segment`; record native membership and profile evidence, including the completed Windows
-      status case. Missing native/store/platform evidence remains incomplete rather than a fixture-only success.
+    - Execute the recorded unsharded-versus-sharded cases for unit, integration and store, including
+      filtered/duration states, reach no-op/empty shares, ordinary nonpassing empty work, shared-dependency writer
+      isolation and closing errors.
+    - Request `arc check segment`; record native membership and profile evidence, including the completed
+      portability-pair status case. Missing native/store/platform evidence remains incomplete rather than a
+      fixture-only success.
 
 ## **Phase 5:** Public adapter groups and external integration
 
@@ -412,8 +428,8 @@ the external adapter retains generic use outside ARC and native test tools.
   and current transport actors. Re-ground the foundation-qualified adapter before extending it in its own repository.
 
     - `[ ]` **5.1.a Schedule complete groups through the qualified adapter**
-        - Extend the foundation's planned `arc_offload/arc_adapter.py` and `tests/test_arc_adapter.py`, reusing its
-          fixed capture, explicit inputs, runtime qualification and recovery/lifetime primitives.
+        - Extend `arc_offload/arc_adapter.py` and `tests/test_arc_adapter.py`, reusing its fixed capture, explicit
+          inputs, runtime qualification and recovery/lifetime primitives.
         - Build `test-first` (one behavior at a time):
             - Optional group capability accepts every expected ID once under the same prepared source/input basis;
               local and remote placements cannot resnapshot the caller or substitute ambient duration inputs.
@@ -617,6 +633,15 @@ _Purpose:_ Verify the complete implementation against its success criteria and r
 
 - `[ ]` Public guidance/examples explain generic runner use, native defaults, evidence/recovery and qualification
   limits, and match executable scenarios without depending on the personal provider.
+
+- `[ ]` Actual unit, integration and landed reach-store shard assignments have complete/disjoint native union across
+  qualified profiles, filters, deletion/widening and frozen available/absent/empty duration states. E2E stays native
+  and CI-only with its existing membership validation. The store declaration uses ordinary eligible argv and captured
+  selector gates and works without the retired wrapper.
+
+- `[ ]` A completed Windows/macOS portability-pair run executes the consumer's fixture-backed 256/high-bit parent
+  reduction cases; other supported-platform budget/path/result cases execute through their selected portability
+  routes rather than classification alone.
 
 - `[ ]` All quality gates pass.
 

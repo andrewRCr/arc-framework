@@ -18,10 +18,9 @@ for CI. `executeSelectedCheck` and `executeCheckBatches` in `src/handlers/check/
 commands without expanding that shard metadata. The forecast appends shard arguments after computing file batches,
 which is insufficient when those final arguments can exceed a worker's command-line budget.
 
-This design adds the distributed consumer of a common runner foundation. The foundation is an unshipped
-prerequisite: its public execution contract must be available and qualified before this consumer's shared-handler
-implementation begins. Section 1 defines the required contract independently; no sibling planning document supplies
-missing behavior. Specification can proceed before that implementation is available.
+This design adds the distributed consumer of a common runner foundation. The foundation has landed and is qualified
+on Linux through a standalone example and the external arc-offload adapter (A1). Section 1 defines the contract this
+consumer requires; no sibling planning document supplies missing behavior.
 
 Source paths beginning with `src/` or `__tests__/` below are relative to `packages/arc-framework/`. Desired behavior
 is normative; statements naming current actors describe the starting implementation and require re-grounding before
@@ -52,6 +51,9 @@ _Editable in place until activation, then frozen; changes after that append: `Am
 - Redesigning artifact leases, scheduler fairness, suite timeout policy, CI wall balancing or test-cost budgeting.
 - Requiring arc-offload, Bazel, REAPI, MCP, a CAS service or another team's infrastructure to use this feature.
 - Changing ordinary native execution into local sharding when no eligible configured runner is selected.
+- Amended 2026-10-28 — Routed E2E execution and routed E2E membership qualification are out of scope; E2E stays
+  native and CI-only and keeps its existing shard membership validation (A3) — the reground found `test:e2e` neither
+  routed nor locally gated.
 
 ## Proposed Design
 
@@ -92,10 +94,13 @@ repository-local environment filter and reserved-input validation in section 4. 
 guidance and separate normal closure paths for granted contexts and settled preparation refusals, as defined in
 section 8.
 
-Before implementation, verify that the landed foundation supplies these contracts, including shared dispatch-time
-environment capture for native CI playback. Missing behavior is a prerequisite gap to resolve at its defining
-interface, not permission to add a private adapter path here. No storage-cutover or whole configuration-program
-completion is required by this boundary.
+The landed foundation supplies these contracts (A1). `prepareSelectedCheckExecution` returns a prepared execution
+whose `close()` performs release; a `buildPlan` seam receives captured inputs before preparation; `runGroup` dispatch,
+plan-ordered runtime projection, shared outcome normalization/reduction and the native/CI environment capture helpers
+are exported. Its routed handler still plays the foundation's own unsharded plan as serial singles. This consumer
+supplies the shard plan through that seam and adds group dispatch. Missing behavior is a prerequisite gap to resolve
+at its defining interface, not permission to add a private adapter path here. No storage-cutover or whole
+configuration-program completion is required by this boundary.
 
 ### 2. Routing and native defaults
 
@@ -234,7 +239,9 @@ reuse is disabled.
 
 Extend the common scoped single-check key with the complete canonical invocation matrix and applicable runtime
 vector. Retain declaration, selected-content, required check coordinates and explicit-input scope. Different runtime
-identities are permitted only within the native partition contract's compatibility requirements.
+identities are permitted only within the native partition contract's compatibility requirements. The landed key
+already binds the declaration, including `shards`, the received paths and the plan-ordered runtime vector, but not
+invocation argv. Add explicit matrix coordinates only where those inputs do not determine the canonical matrix (A1).
 
 Attempt-specific plan/context/request IDs, provider machine/queue labels and workspace locations do not enter the
 key. The canonical batch/shard coordinates do. Unrelated repository or stored-state edits must not invalidate a
@@ -322,8 +329,9 @@ Their completed selection/partition evidence is useful even when no test case ex
 tests-completed rule on all commands or invent a new generic empty-share status/report field. Qualification must
 exercise actual native controllers, including closing; a native controller-close failure remains a failure.
 
-Four-tier qualification requires that native reach-based store check to be available. Until then its native cases
-remain unfulfilled qualification, rather than simulated proof of shipping behavior.
+Routed qualification covers the unit, integration and store tiers; E2E stays native and CI-only (A3). Store
+qualification requires the native reach-based store check, which lands with `storage-ref-backend` (A2). Until then its
+native cases remain unfulfilled qualification, rather than simulated proof of shipping behavior.
 
 `createPool` in the installed Vitest runtime invokes the configured sequencer during execution;
 `getRelevantTestSpecifications` does not pre-shard. Do not feed a pre-sharded selection back into native execution
@@ -332,9 +340,11 @@ when needed; that does not authorize a second partition pass in the generic engi
 
 Give concurrent invocations private writable execution views or serialize access to a shared writable view. Sharing
 immutable dependency data is allowed; distinct cwd paths alone do not isolate mutable writers aliased through a
-shared `node_modules` directory. In this repository, configure Vite's supported `cacheDir` at the package-local
-ignored `.test-cache/vite/`, add its ignore entry and update CI cache-clearing/upload paths. Keep workspace-relative
-reporters private too.
+shared `node_modules` directory. Where execution views share a dependency installation, give each view a private
+Vite `cacheDir` and private workspace-relative reporters; a private copy per view needs no relocation (A5). A private
+writable path must lie under a root the adapter's preparation established, because adapters refuse an invocation
+after an earlier one created an unprepared path. The external adapter's group design decides whether views share
+installations.
 
 `mergeDurationArtifacts` in `packages/arc-framework/__tests__/helpers/duration-artifacts.ts` finds native
 `results.json` files recursively. Preserve tier-named artifact directories and the native result format while
@@ -407,7 +417,8 @@ Exercise settled preparation refusal, cancellation racing that refusal, normal e
 a successful explicit retry after repair. Cut transport during preparation before context grant and during grouped
 execution after pre-work recovery guidance; prove retained guidance locates the plan and its capture. A failed
 recovery-notification write must launch no work. Include completed exit statuses 256 and a high-bit Windows failure,
-preserving failure and exact diagnostics through parent reduction; qualify native Windows behavior on that platform.
+preserving failure and exact diagnostics through parent reduction. No adapter routes checks on Windows (A4), so the
+scheduled or dispatched Windows/macOS portability pair runs these fixture-backed consumer cases there.
 
 Then qualify arc-offload through that same public seam for local and remote placements. Required changes to that
 tool land in its own repository, preserve its use outside ARC/Vitest and receive no privileged ARC path. Its
@@ -460,9 +471,9 @@ The public adapter must preserve requested inputs and execution constraints; unk
 unsupported relocation refuses with a remedy. No new security service or network trust model is introduced. Shell
 intent remains explicit, and executable paths/configuration come from the existing foundation boundary.
 
-The shared `adr-039-use-provider-neutral-check-runners.md` remains Proposed until the foundation's implementation
-closeout reconciles the actual contract and approved learnings. This consumer contributes its execution requirements;
-it does not duplicate the record or mark the architecture Accepted merely because its own spec is finalized.
+The shared `adr-039-use-provider-neutral-check-runners.md` was Accepted at the foundation's closeout (A1). This
+consumer contributes its execution requirements; a change to that architecture lands as a forward amendment to the
+record rather than a duplicate.
 
 ### Architecture alignment and user-facing behavior
 
@@ -473,7 +484,7 @@ replaceable execution tooling. It adds no autonomous application-code execution 
 It fits TECHNICAL-OVERVIEW's **§ 2 Architecture Components — CLI Package / Customization Surfaces** and
 **§ 3 Infrastructure / § 4 Testing Infrastructure**. Keep injectable logic in library modules and orchestration in
 handlers, using the existing TypeScript/Node, runtime-schema, Git, Vitest and CI surfaces. The protocol/source
-foundation is the declared unshipped prerequisite, not a new service or dependency implemented here.
+foundation is a landed prerequisite (A1), not a new service or dependency implemented here.
 
 Native commands and gate deadlines remain recognizable. Routed checks gain attributable invocation diagnostics,
 correct parent reuse and explicit unavailable/recovery outcomes. The unconfigured path keeps its normal single
@@ -485,8 +496,8 @@ small Linux materialization probes do not establish Windows, LFS, submodule or s
 First consume the available foundation and qualify the independent adapter path, then integrate the personal
 adapter and native tiers. Preserve existing local/CI behavior throughout. Align the landed store declaration and
 reach catalogue with the ordinary runner contract before native qualification, including when they land after initial
-declaration adoption. Deleting `scripts/check-runner.sh` or migrating machine runner settings is outside this
-consumer. Forced qualification must bypass successful-parent reuse so it observes actual execution.
+declaration adoption. The foundation retired `scripts/check-runner.sh` (A1); migrating machine runner settings is
+outside this consumer. Forced qualification must bypass successful-parent reuse so it observes actual execution.
 
 Unit checks cover deterministic planning, portable final-argument budgeting, runtime-vector/key projection and
 parent reduction. Integration checks use process-backed adapter fixtures for terminal evidence, source/input
@@ -538,15 +549,33 @@ repairing a refusal, not only the initial rejection.
     aggregate completion, coverage and admission. Any claimed speedup exceeds observed variation and includes all
     preparation/queue costs. An observed concurrent regression remains incomplete qualification to address; it is
     disclosed as unresolved rather than counted as success.
+11. **Routed native membership (A3):** Criterion 6 applies to unit, integration and store. E2E stays native and
+    CI-only, keeps its existing shard membership validation and carries no routed qualification.
 
 ## Open Questions
 
-No unsettled consumer design remains. Concrete function/module names and fixture organization may follow the
-landed foundation; they must preserve the contracts above. A source-level mismatch that changes the prerequisite
-or consumer behavior returns to design before implementation rather than becoming an undocumented task decision.
+Open, pending measurement (A5): how the external adapter executes a complete group. It advertises no group
+capability, prepares dependencies in a fresh copy for every plan and serializes plans from one worktree on each
+runner, while each machine admits one heavy job. Measured per-plan preparation cost and native shard execution splits
+decide fan-out of one context across placements, per-placement preparation and whether views share installations,
+sibling placement and checkout locking, and admission under five or six concurrent gates. A forward amendment settles
+that design before Phase 5 begins.
+
+Concrete function/module names and fixture organization may follow the landed foundation; they must preserve the
+contracts above. A source-level mismatch that changes the prerequisite or consumer behavior returns to design before
+implementation rather than becoming an undocumented task decision.
 
 ## Amendments
 
-None.
+- **A1** — 2026-10-28 — spec-depth: re-ground against the landed foundation's seams, ADR acceptance and retired
+  wrapper. _Supersedes:_ none. _Trigger:_ door. _Work:_ 1.1–2.1. _Revalidated:_ pending → 2.5.
+- **A2** — 2026-10-28 — design: store qualification waits on `storage-ref-backend`, recorded as a dependency.
+  _Supersedes:_ § Proposed Design 7 ¶5. _Trigger:_ door. _Work:_ 4.3. _Revalidated:_ pending → 4.4.
+- **A3** — 2026-10-28 — design: routed membership qualification covers unit, integration and store; E2E stays native.
+  _Supersedes:_ § Success Criteria 6 (tier list). _Trigger:_ door. _Work:_ 4.2, 4.4. _Revalidated:_ pending → 4.4.
+- **A4** — 2026-10-28 — spec-depth: Windows status evidence comes from fixture-backed cases on the portability pair.
+  _Supersedes:_ § Proposed Design 10 ¶2. _Trigger:_ door. _Work:_ 3.3.b. _Revalidated:_ pending → 4.4.
+- **A5** — 2026-10-28 — design: cache placement and the external group design reopen pending measurement.
+  _Supersedes:_ § Proposed Design 7 ¶7, § Open Questions ¶1. _Trigger:_ door. _Work:_ 3.1. _Revalidated:_ pending → 4.4.
 
 ---

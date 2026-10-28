@@ -5,7 +5,7 @@
 | `Active`  | `andrew`  | `feat/distributed-check-shards` | `Heavy`   | `P3`         |
 
 - **Cohort:** [none]
-- **Depends On:** `machine-check-runner`
+- **Depends On:** `machine-check-runner`, `storage-ref-backend`
 
 - **Origin:** [internal]
 - **Design:** `spec-distributed-check-shards.md`

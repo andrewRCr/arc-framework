@@ -33,22 +33,28 @@ and empty-share behavior; inspect the landed implementation before native qualif
 
 ## Implementation starting points
 
-The runner foundation is an implementation prerequisite. Its task-generation session proposes the following
-package-relative seams; these are unshipped names to re-ground after landing, not an installed Node SDK:
+The runner foundation has landed. Its package-relative seams:
 
-- `src/lib/checks/runner/contract.ts`: shared validated protocol DTOs.
-- `src/lib/checks/runner/execution.ts`: `prepareSelectedCheckExecution` and `PreparedCheckExecution`, accepting the
-  complete generic invocation plan and exposing source/runtime qualification, singles, optional groups,
-  cancellation, release and retained terminal outcomes.
-- `src/lib/checks/runner/session.ts`: `createCheckRunnerSession`, owning the adapter process and conversation.
-- `src/lib/checks/key-resolver.ts`: `resolveCheckKeyMaterial`, separating scoped captured-content/environment
-  material from runtime observation; `resolveCheckKey` remains the native wrapper.
-- `src/lib/checks/result.ts`: `normalizeCheckInvocationOutcome` and `reduceCheckInvocationOutcomes`, preserving
-  generic native/no-evidence/failure interpretation. The handler's `finalizeCheckRun` remains pass authority.
-- `__tests__/fixtures/checks/runner.ts`: `createRunnerCheckRepository` and `createScriptedRunnerFixture`, building
-  on the declared-check repository fixture. The standalone baseline is `examples/check-runner/local.mjs`.
-- In arc-offload, the proposed single-command baseline is `arc_offload/arc_adapter.py` with
-  `tests/test_arc_adapter.py`; the distributed consumer extends that qualified adapter rather than adding another.
+- `src/lib/checks/runner/contract*.ts`: validated protocol DTOs; `contract-operations.ts` carries the unsigned
+  32-bit exit range.
+- `src/lib/checks/runner/execution.ts`: `prepareSelectedCheckExecution`, the `buildPlan` seam and
+  `PreparedCheckExecution` (`run`, `runGroup`, `supportsRunGroup`, `observedOutcomes`, `cancel`, `terminate` and
+  `close`, which performs release). `execution-run.ts` dispatches singles and groups.
+- `src/lib/checks/runner/planning.ts`: `planCheckExecution`, the unsharded batch plan with captured path spelling.
+- `src/lib/checks/runner/key.ts`: `composePreparedCheckKey`, projecting known runtime per invocation in plan order.
+- `src/lib/checks/key-resolver.ts`: `resolveCheckKeyMaterial`, the runtime-free key material; `resolveCheckKey`
+  remains the native wrapper.
+- `src/lib/checks/result.ts`: `normalizeCheckInvocationOutcome` and `reduceCheckInvocationOutcomes`. The handler's
+  `finalizeCheckRun` remains pass authority.
+- `src/handlers/check/run.ts`: `executeRoutedSelectedCheck` and `executeRoutedSingles`, the routed branch this
+  consumer extends.
+- `__tests__/fixtures/checks/prepared-execution.ts` (scripted adapters, including group modes) and `runner.ts`
+  (`createRunnerCheckRepository`, `LOCAL_RUNNER_EXAMPLE`). The standalone example is `examples/check-runner/`.
+- In arc-offload, `arc_offload/arc_adapter.py` (entry `arc-check-runner`) with `tests/test_arc_adapter.py`; it
+  advertises `runGroup: false` and unknown runtime. The distributed consumer extends it rather than adding another.
+
+The 2026-10-28 reground fact sheet, with source loci for every claim, is
+`.arc/user/andrew/.internal/distributed-check-shards-recon/reground-2026-10-28.md` in this checkout.
 
 Current `resolveCheckForecast` in `src/lib/checks/forecast.ts` appends shard arguments after batching. Its
 `checkArgumentBatches`/`batchCheckPaths` inputs in `src/lib/checks/batching.ts` therefore need the complete final
@@ -64,9 +70,9 @@ pre-shard. The process-backed helpers in `__tests__/helpers/vitest-controller-fi
 pre-partitioned execution input with sharding still enabled.
 
 Native store adoption is checked against the landed declaration and reach catalogue before qualification.
-The foundation retires wrapper consumers present at its adoption; any later store addition is aligned by this
-consumer without reopening prototype executable retirement or migrating machine settings. Capture the actual
-selection readers, including `ARC_STORE_CHECK` and `ARC_STORE_BURSTS`, and the handed duration file when read.
+The foundation retired the wrapper consumers present at its adoption; this consumer aligns the store addition from
+`storage-ref-backend` without reopening prototype executable retirement or migrating machine settings. Capture the
+actual selection readers, including `ARC_STORE_CHECK` and `ARC_STORE_BURSTS`, and the handed duration file when read.
 Remove obsolete retired-wrapper catalogue dependencies and prove native full/reach selection with the wrapper absent.
 This division adds no storage-backend completion wait to the generic foundation.
 
@@ -76,15 +82,46 @@ The Windows/macOS portability pair in `.github/workflows/ci.yml` runs on its sch
 automatically because a pull request receives a portability classification. Consumer selector/matcher additions
 must complement the landed foundation entries and actual platform qualification must name its completed run.
 
-The existing arc-offload `local_run`, `dispatch`, `snapshot`, `runner_environment` and `run_on` actors are in
-`arc_offload/cli.py`, `repository.py` and `execution.py`. Their legacy path snapshots per command, forwards selected
-environment strings and may retry after confirmed stop. The foundation's qualified adapter must already replace
-that path where it conflicts with fixed captures, explicit inputs, pre-work recovery or at-most-once execution.
-Group integration reuses its compliant primitives and the existing measured pool/admission; it adds no retry layer.
+The qualified adapter replaces arc-offload's legacy `snapshot`/`deliver`/`run_on` path for ARC plans and reuses its
+placement, admission and transport primitives. Each plan gets a fresh copy of the captured root and full dependency
+preparation (`npm ci`, setup, `build:fast`), runs its invocations serially under one job permit, and on remote
+runners takes the worktree's checkout lock exclusively. Group integration reuses its compliant primitives and the
+existing measured pool/admission; it adds no retry layer.
 
 `tests/test_cli.py` and `tests/fake_ssh.py` in arc-offload exercise six-client/fake-host contention and isolated
 registry histories. They are useful harness patterns, not throughput evidence. `src/lib/test-cost/run.ts` measures
 native test execution and is likewise not a complete capture-through-collection gate benchmark.
+
+## Amendment reasoning
+
+### A2 — store dependency
+
+The store check is absent from `main`. It exists on `storage-ref-backend` as `test:store` (merge gate, four shards),
+still invoking the retired wrapper and supplying `ARC_STORE_CHECK` / `ARC_STORE_BURSTS` through a runtime probe.
+Its suite has grown toward twenty minutes, which makes it the clearest sharding beneficiary, so store qualification
+stays in scope and this work unit records the dependency rather than carving store out.
+
+### A3 — E2E leaves routed qualification
+
+Superseded success criterion 6 read: "For unit, integration, store and E2E, native shard assignments have
+complete/disjoint union against native unsharded selection under qualified profiles." `test:e2e` declares four shards
+but no `runner: true` and is `ci_only`, so no routed E2E execution exists to qualify; this was a planning gap rather
+than drift. CI keeps native E2E membership validation (`validateE2EShardMembership`). Forecast changes still reach
+E2E CI playback and stay covered by the forecast/CI criteria.
+
+### A5 — cache placement and the external group design
+
+Both adapters verify the captured root before each invocation and refuse one after an earlier invocation created a
+path outside the roots established during preparation; the standalone example refuses any new path. A relocated
+`.test-cache/vite/` would trip that check on serial playback. The aliasing it guards against does not arise while
+each plan has a private copy, but returns if the adapter shares dependency installations across views to avoid
+repeated preparation. Placement is therefore decided with the external group design.
+
+That design is reopened pending measurement. Locally placed plans spend a median of about 24 s from adapter start to
+first command (66 journals), including copy, dependency preparation and verification; remote preparation was not
+recorded. Remote runners admit one heavy job per machine, and same-worktree captured plans serialize on the checkout
+lock. The measurement covers real remote preparation cost, native shard execution splits for unit, integration and
+store, and whether same-worktree plans can overlap, before Phase 5's tasks are rewritten.
 
 ## Prior-art references
 
