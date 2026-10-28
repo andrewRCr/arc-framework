@@ -135,6 +135,32 @@ it.each(["fetch", "push"] as const)("leaves comparison evidence unchanged after 
   expect((await replacement.remote("git", ["for-each-ref", "--format=%(refname)", h.ref])).stdout).toBe("");
 }, 60_000);
 
+it.each(["default", "separate"] as const)("retains an accepted push after current publication transport becomes invalid (%s)", async layout => {
+  const h = await pendingPersonal(layout);
+  let comparison = "", accepted = false;
+  const comparisonRefs = async () => (await h.a.git(["for-each-ref", "--format=%(refname) %(objectname)",
+    "refs/arc-remotes/", "refs/arc/tmp/seen/"])).stdout;
+  const result = success(await afterAccepted(h.a.ports, async () => {
+    accepted = true;
+    expect((await h.remote("git", ["rev-parse", h.ref])).stdout.trim()).toBe(h.accepted);
+    comparison = await comparisonRefs();
+    // Only finalization sees this real Git configuration; capture and the receiver's push already succeeded.
+    await h.a.git(["config", `remote.${h.remoteName}.pushurl`, "invalid\npush-only"]);
+    expect((await h.a.git(["config", `remote.${h.remoteName}.url`])).stdout.trim()).toBe(h.origin);
+    expect((await h.a.git(["remote", "get-url", "--push", h.remoteName])).stdout.trim()).toBe("invalid\npush-only");
+  }).push());
+  expect(accepted).toBe(true);
+  expect(result.publishes).toContainEqual(expect.objectContaining({ status: "pushed", families: ["personal"] }));
+  expect(await comparisonRefs()).toBe(comparison);
+  expect(await tip(h.a, h.tracking)).toBe(h.before);
+  expect((await h.remote("git", ["rev-parse", h.ref])).stdout.trim()).toBe(h.accepted);
+  await h.a.git(["config", "--unset-all", `remote.${h.remoteName}.pushurl`]);
+  const resumed = success(await h.a.store.push());
+  expect(resumed.publishes.every(row => row.status !== "failed")).toBe(true);
+  expect(await tip(h.a, h.tracking)).toBe(h.accepted);
+  expect((await h.remote("git", ["rev-parse", h.ref])).stdout.trim()).toBe(h.accepted);
+}, 60_000);
+
 it("does not recreate comparison refs in the old physical store after an admitted layout move", async () => {
   const h = await pendingPersonal("default");
   const result = success(await afterAccepted(h.a.ports, async () => {

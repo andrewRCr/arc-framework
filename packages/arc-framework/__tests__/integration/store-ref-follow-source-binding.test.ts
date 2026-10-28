@@ -10,6 +10,18 @@ import type { RefStorePorts } from "../../src/lib/store/ports.js";
 const moved = "refs/arc/project/moved", recordRef = "refs/arc/tmp/migrate/move";
 type GitSide = { git: (args: string[]) => Promise<{ stdout: string }> };
 const tip = async (side: GitSide, ref: string) => (await side.git(["for-each-ref", "--format=%(objectname)", ref])).stdout.trim();
+const comparisonRefs = async (side: GitSide) => (await side.git(["for-each-ref", "--format=%(refname) %(objectname)",
+  "refs/arc-remotes/", "refs/arc/tmp/seen/"])).stdout;
+const invalidFetchRewrite = "url.invalid\rfetch.insteadOf";
+
+/** Git accepts this applicable rewrite while preserving the configured source's raw identity. */
+async function invalidateCurrentFetch(side: GitSide, raw: string) {
+  await side.git(["config", invalidFetchRewrite, raw]);
+  expect((await side.git(["config", "remote.backing.url"])).stdout.trim()).toBe(raw);
+  expect((await side.git(["config", "--null", "--get-regexp", "^url\\..*\\.insteadof$"])).stdout)
+    .toContain(`url.invalid\rfetch.insteadof\n${raw}\0`);
+  expect((await side.git(["remote", "get-url", "backing"])).stdout.trim()).toBe("invalid\rfetch");
+}
 
 /** Preserve the genuine public migration's exact tree and standalone-root shape, changing only its actor. */
 async function replacementForwarding(side: GitSide, existing: string, actor = "Later forwarding publisher") {
@@ -84,6 +96,24 @@ it.each(["read", "off", "invalid-push-only"] as const)("clears exact stale sourc
   expect(await tip(f.side, f.tracking)).toBe("");
 }, 60_000);
 
+it("ends a completed stale-follow read while invalid current fetch transport leaves comparison evidence unchanged", async () => {
+  const f = await staleFixture();
+  let comparison = "";
+  const ended = await judgeWithdrawal(f, async () => {
+    comparison = await comparisonRefs(f.side);
+    await invalidateCurrentFetch(f.side, f.h.origin);
+  });
+  expect(ended.status, JSON.stringify(ended)).toBe("ok");
+  expect(await comparisonRefs(f.side)).toBe(comparison);
+  expect(await tip(f.side, f.tracking)).toBe(f.original);
+  expect((await f.h.remote("git", ["for-each-ref", "--format=%(refname)", moved])).stdout).toBe("");
+  expect((await f.side.exec("git", ["for-each-ref", "--format=%(refname)", recordRef])).stdout).toBe("");
+  await f.side.git(["config", "--unset-all", invalidFetchRewrite]);
+  const resumed = await invokeStoreMigrate([], f.side.ports);
+  expect(resumed.status, JSON.stringify(resumed)).toBe("ok");
+  expect(await tip(f.side, f.tracking)).toBe("");
+}, 60_000);
+
 it.each(["judgment", "answer-copy"] as const)("preserves the replacement source's equal tip through the public %s withdrawal command", async route => {
   // The code-source answer path deliberately retains origin push, so its subsequent ordinary backing setting refuses.
   const h = await followFixture(undefined, route === "judgment" ? "backing" : "code"), side = h.follower;
@@ -137,6 +167,38 @@ async function recordedCleanup() {
   await mover.exec("git", ["init", "--bare", onward]);
   return { h, side, mover, onward };
 }
+
+it("retains a completed later-follow report while invalid current fetch transport leaves comparison evidence unchanged", async () => {
+  const f = await recordedCleanup();
+  expect((await invokeStoreMigrate(["--to", f.onward], f.mover.ports)).status).toBe("ok");
+  const forwarding = (await f.side.exec("git", [`--git-dir=${f.h.destinationDirectory}`, "rev-parse", moved])).stdout.trim();
+  const sourceBefore = (await f.h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout;
+  const tracking = "refs/arc-remotes/backing/project/moved", before = await tip(f.side, tracking);
+  expect(before).not.toBe(forwarding);
+  let observed = false, comparison = "";
+  const ended = await invokeStoreMigrate([], { ...f.side.ports, exec: async (command, args, options) => {
+    const result = await f.side.ports.exec(command, args, options);
+    if (!observed && args.includes("fetch") && args.includes(f.h.destinationDirectory)
+      && options?.input?.includes("refs/arc/tmp/migrate/remote/")) {
+      observed = true;
+      comparison = await comparisonRefs(f.side);
+      await invalidateCurrentFetch(f.side, f.h.destinationDirectory);
+    }
+    return result;
+  } });
+  expect(observed).toBe(true);
+  expect(ended.status, JSON.stringify(ended)).toBe("ok");
+  if (ended.status !== "ok") throw new Error("Expected the completed later-move report");
+  expect(ended.result.notices).toContainEqual(expect.objectContaining({ condition: expect.stringContaining("later move") }));
+  expect(ended.result.notices.some(row => row.condition.includes(moved) && row.condition.includes(f.h.destinationDirectory))).toBe(true);
+  expect(await comparisonRefs(f.side)).toBe(comparison);
+  expect(await tip(f.side, tracking)).toBe(before);
+  expect((await f.h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(sourceBefore);
+  expect((await f.side.exec("git", ["for-each-ref", "--format=%(refname)", recordRef])).stdout).toBe("");
+  await f.side.git(["config", "--unset-all", invalidFetchRewrite]);
+  expect((await f.side.store.pull()).status).toBe("ok");
+  expect(await tip(f.side, tracking)).toBe(forwarding);
+}, 60_000);
 
 it.each(["same-source-newer", "replacement-newer", "replacement-absent", "push-only-change"] as const)(
   "keeps current comparison evidence after an isolated later-forwarding read (%s)", async change => {

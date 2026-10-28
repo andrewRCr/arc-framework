@@ -1,7 +1,7 @@
 /** Transient authority for deferred writes to a source-specific comparison namespace. */
 import type { RefBackendContext } from "./context.js";
 import { readRefDesignation, type RefRemoteDesignation } from "./designation.js";
-import { readNamedTransport, readRemoteTransports, resolveLiteralTransport } from "./effective-transport.js";
+import { EffectiveTransportError, readNamedTransport, readRemoteTransports, resolveLiteralTransport } from "./effective-transport.js";
 import { withRefFetchKeepers } from "./fetch-seen.js";
 import { readRefRepository } from "./repository.js";
 import { readSyncRefs } from "./sync-graph.js";
@@ -36,7 +36,13 @@ export async function withComparisonWitness<T>(context: RefBackendContext, witne
   return withComparisonScope(context, witness.source.name, async physical => {
     const coordinate = physical.repository;
     if (coordinate?.commonDir !== witness.commonDir || coordinate.gitDir !== witness.gitDir) return { status: "unbound" };
-    const actual = await readComparisonSource(physical, witness.source, witness.source.pushUrls !== undefined);
+    let actual: ComparisonSource | null;
+    try { actual = await readComparisonSource(physical, witness.source, witness.source.pushUrls !== undefined); }
+    catch (error) {
+      // Invalid current transport cannot authorize a comparison write or revoke completed remote work.
+      if (error instanceof EffectiveTransportError) return { status: "unbound" };
+      throw error;
+    }
     if (!actual || !sameComparisonSource(actual, witness.source)) return { status: "unbound" };
     return { status: "bound", result: await operation(physical) };
   });
