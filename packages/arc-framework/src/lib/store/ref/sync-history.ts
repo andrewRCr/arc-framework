@@ -23,7 +23,7 @@ import { readLifecycleLog } from "./sync-lifecycle-evidence.js";
 /** Stamp a history fast-forward only when its retained folders need a paired refresh. */
 export async function prepareSyncHistoryFastForward(context: RefBackendContext, ref: string, tip: string,
   quarters: readonly SyncHistoryQuarter[], batchId: string, preferred: ReadonlyMap<string, string>): Promise<StoreResult<SyncRecordMergedTree | undefined>> {
-  const folder = quarters[0]?.folders[0];
+  const folder = latestArchivedFolders(quarters.flatMap(quarter => quarter.folders))[0];
   if (!folder || !("uid" in folder.owner)) {
     const refusal = await checkSyncRefTip(context, ref, tip);
     return refusal ? { status: "refused", refusal } : { status: "ok", result: undefined };
@@ -51,11 +51,9 @@ export async function prepareSyncHistoryFastForward(context: RefBackendContext, 
   return { status: "ok", result: tree };
 }
 
-/** Captured matching folders can name a new record-free group without decoding or reviving their old records. */
+/** Captured matching folders can name a new record-free group without reviving their old records or formats. */
 function emptyHistoryMetadata(folder: ArchivedFolder): RefMetadata {
-  return { formatVersion: 1, slug: folder.owner.name, formats: {},
-    ...(folder.metadata.primary ? { primary: { ...folder.metadata.primary } } : {}),
-    ...(folder.metadata.placement ? { placement: { ...folder.metadata.placement } } : {}) };
+  return { formatVersion: 1, slug: folder.owner.name, formats: {} };
 }
 
 /** One complete quarter snapshot and the owner's folders whose batches its history contains. */
@@ -103,8 +101,10 @@ export async function readSyncHistoryQuarters(context: RefBackendContext, ref: s
 export async function prepareSyncHistoryQuarters(context: RefBackendContext, quarters: readonly SyncHistoryQuarter[], tree: SyncRecordMergedTree,
   preferred: ReadonlyMap<string, string>): Promise<StoreResult<undefined>> {
   if (!tree.metadata) throw new Error("A retained item merge has no group metadata");
+  const folders = quarters.flatMap(quarter => quarter.folders);
+  await completeEmptyHistoryControls(context, tree, folders);
   const group: CompletedRoleReplacement["group"] = { metadata: tree.metadata };
-  const folders = quarters.flatMap(quarter => quarter.folders), role = tree.metadata.primary?.role;
+  const role = tree.metadata.primary?.role;
   if (role) {
     const preferredFolders = folders.some(folder => folder.metadata.primary?.role !== role)
       ? await readLifecycleFolders(context, preferred) : [];
@@ -119,6 +119,19 @@ export async function prepareSyncHistoryQuarters(context: RefBackendContext, qua
     if (refreshed.status === "refused") return refreshed;
   }
   return { status: "ok", result: undefined };
+}
+
+/** Only batch-eligible folders supply missing lifecycle controls; source metadata keeps every explicit field. */
+async function completeEmptyHistoryControls(context: RefBackendContext, tree: SyncRecordMergedTree,
+  folders: readonly ArchivedFolder[]): Promise<void> {
+  const folder = latestArchivedFolders(folders)[0], metadata = tree.metadata;
+  if (!folder || !metadata) return;
+  const home = expandStoredPath(tree.reference, { registry: context.registry });
+  if (!holdsNoRecord(home, tree.entries.keys())) return;
+  if (!metadata.primary && folder.metadata.primary) metadata.primary = { ...folder.metadata.primary };
+  if (!metadata.placement && folder.metadata.placement) metadata.placement = { ...folder.metadata.placement };
+  tree.reference = ownerPrimaryReference(folder.owner, metadata);
+  tree.entries.set(home.metadataPath, { path: home.metadataPath, mode: "100644", oid: await writeRefBlob(context, canonicalize(metadata)) });
 }
 
 /** Verify captured quarter tips again under the same ordered locks as their history ref. */
