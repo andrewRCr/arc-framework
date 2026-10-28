@@ -26,6 +26,7 @@ import {
   resolveMissingBaselines,
   missingBaselineError,
   refuseUnsafePlanWrites,
+  writeManifest,
 } from "../lib/manifest/index.js";
 import { writeArcGitignoreBlock, ensureDir } from "../lib/template/index.js";
 import { getFrameworkVersion } from "../lib/version.js";
@@ -280,7 +281,7 @@ export async function runReconfigure(
     install_config: buildInstallConfig(newInstallConfig),
     files: applyResult.newManifestFiles,
   };
-  await atomicWriteJson(manifestPath, newManifest);
+  await writeManifest(manifestPath, newManifest);
   await atomicWriteJson(pristineStorePath, applyResult.newPristineStore);
 
   return {

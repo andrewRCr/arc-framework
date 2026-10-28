@@ -7,6 +7,7 @@
 export {
   validateManifest,
   readManifest,
+  writeManifest,
   type ValidationResult,
 } from "./store.js";
 
