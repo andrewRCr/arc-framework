@@ -525,79 +525,86 @@ declarations; the old wrapper is retired, native/default operation is preserved 
 
 ## **Phase 7:** Verification
 
-### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ Required gates and supported-platform CI pass at the verified head, and each success criterion has evidence
   before integration readiness is reported.
+- _Quality gates:_ Merge gate at `e903a4538` passed 18 checks, with the four CI-only tiers deferred to hosted CI. CI
+  run `40618244008` at that head passed all 22 jobs, including Windows/macOS portability, integration and E2E. CI run
+  `40620951599` at the verified head `89402c34b` passed every Linux tier.
+- _Success criteria:_ 21 criteria: all met, walked over chunked scopes A–E plus seam (15,278 lines, 209 files). The
+  walk added a routed probe test under conflicting repository selectors (`89402c34b`); the merge gate then re-ran 11
+  affected checks and reused 7. The independent companion was declined: chunked independent code review against the spec
+  and two fix checks already covered the code. Five non-essential follow-ups were captured outside this work unit.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Machine configuration tests prove literal argv/path resolution and eligibility; a real CLI check succeeds after
+- `[x]` Machine configuration tests prove literal argv/path resolution and eligibility; a real CLI check succeeds after
   invalid configuration or missing-executable repair, without a configured-runner local bypass.
 
-- `[ ]` Native/default and native CI scenarios retain cwd, unsharded command, fixer/index and workflow-owned shard
+- `[x]` Native/default and native CI scenarios retain cwd, unsharded command, fixer/index and workflow-owned shard
   behavior; spies show no source capture/adapter preparation on unconfigured or dry-run routes (Tasks 1.6, 4.2, 6.2).
 
-- `[ ]` Environment capture scenarios distinguish absence, empty strings, zero-byte and nonempty files; one frozen
+- `[x]` Environment capture scenarios distinguish absence, empty strings, zero-byte and nonempty files; one frozen
   binding reaches commands/probes/batches, moving identical bytes preserves identity, and routine output is redacted.
 
-- `[ ]` Forecast/CI round trips expose only `environmentInputs` names/kinds, capture after artifact delivery, refuse
+- `[x]` Forecast/CI round trips expose only `environmentInputs` names/kinds, capture after artifact delivery, refuse
   declaration mismatch and succeed after regeneration (Tasks 1.5–1.6).
 
-- `[ ]` Reserved ARC/Git bindings and case variants refuse with removal/retry guidance; a repaired check's commands and
+- `[x]` Reserved ARC/Git bindings and case variants refuse with removal/retry guidance; a repaired check's commands and
   probes still select captured Git under conflicting second-repository selectors, with native index behavior intact.
 
-- `[ ]` Disposable-repository scenarios prove worktree dirty/untracked bytes and index/commit-selected presentation,
+- `[x]` Disposable-repository scenarios prove worktree dirty/untracked bytes and index/commit-selected presentation,
   fixed bytes after original edits, code-only self-contained Git, public manifest vectors and safe cwd/link boundaries.
 
-- `[ ]` Filter/LFS/EOL, object-format, mode/link and changing-input scenarios establish fidelity or actionable refusal,
+- `[x]` Filter/LFS/EOL, object-format, mode/link and changing-input scenarios establish fidelity or actionable refusal,
   with successful continuation after repair where supported; no worker filter or live-checkout substitution occurs.
 
-- `[ ]` Routed plan tests budget complete fixed argv plus paths against both platforms, preserving literal argv,
+- `[x]` Routed plan tests budget complete fixed argv plus paths against both platforms, preserving literal argv,
   explicit shell policy, path order, cwd and distinct files/project/probe derived-coordinate policy (Tasks 2.6,
   4.5–4.6).
 
-- `[ ]` Prepared-runtime reuse scenarios invalidate relevant source/value/file/runtime/probe changes, ignore unrelated
+- `[x]` Prepared-runtime reuse scenarios invalidate relevant source/value/file/runtime/probe changes, ignore unrelated
   content/store/path/worker changes, reject malformed known coverage and run unknown runtime without lookup/publication.
 
-- `[ ]` Cache-hit production scenarios prepare and qualify first, run no check command, then release/drain/exit normally
+- `[x]` Cache-hit production scenarios prepare and qualify first, run no check command, then release/drain/exit normally
   before disposal; no caller-runtime observation substitutes for applicable executor evidence (Tasks 4.1–4.6).
 
-- `[ ]` Wire/process scenarios prove binary output order, correlated IDs, mandatory singles/optional groups and exact
+- `[x]` Wire/process scenarios prove binary output order, correlated IDs, mandatory singles/optional groups and exact
   immutable outcomes; actual portability selection/classification reaches foundation cases, and a completed real Windows
   run preserves `256` and high-bit uint32 failures without truncation (Tasks 4.5–4.6).
 
-- `[ ]` Native verdict scenarios preserve no-evidence/killed/no-op/controller-close meanings and a completed failure
+- `[x]` Native verdict scenarios preserve no-evidence/killed/no-op/controller-close meanings and a completed failure
   beside later missing work; wrong-source/incomplete/output-loss/conflicting/abnormal-close paths publish no pass.
 
-- `[ ]` Context-owning success, failure and settled interruption close required work/output, release and exit before
+- `[x]` Context-owning success, failure and settled interruption close required work/output, release and exit before
   disposal; cleanup-only warnings and optional report/pass-store errors do not erase valid completed results.
 
-- `[ ]` Settled unavailable/cancelled preparation drains/closes/exits without release; racing cancel acknowledgements do
+- `[x]` Settled unavailable/cancelled preparation drains/closes/exits without release; racing cancel acknowledgements do
   not hold closure, while acknowledgement alone or abnormal adapter exit never proves settlement (Tasks 3.2, 4.6).
 
-- `[ ]` Pre-context and execution transport-loss scenarios retain capture plus usable plan-UUID recovery instructions;
+- `[x]` Pre-context and execution transport-loss scenarios retain capture plus usable plan-UUID recovery instructions;
   failed recovery writes dispatch no may-outlive work, and inspect/settle precedes fresh explicit retry without
   duplicates.
 
-- `[ ]` Both actual adapters pass the public single-check conformance path, preserve/isolate writable inputs and record
+- `[x]` Both actual adapters pass the public single-check conformance path, preserve/isolate writable inputs and record
   cold/warm/would-be-hit component costs; external unavailable and permitted fallback respect provider-owned policy.
 
-- `[ ]` Package inventory contains the runnable independent example and complete contract/configuration guidance;
+- `[x]` Package inventory contains the runnable independent example and complete contract/configuration guidance;
   installed quality-gates guidance resolves without internal artifact links or an ARC runtime dependency on arc-offload.
 
-- `[ ]` At retirement, every then-landed wrapper consumer uses ordinary commands/eligibility and actual explicit inputs,
+- `[x]` At retirement, every then-landed wrapper consumer uses ordinary commands/eligibility and actual explicit inputs,
   all executable/catalogue wrapper dependencies are removed, and required-remote policy remains effective. When store
   has landed, real wrapper-absent reach selection and captured `ARC_STORE_CHECK` and `ARC_STORE_BURSTS` qualify; its later
   arrival introduces no new foundation completion wait.
 
-- `[ ]` Final implementation closeout accepts ADR-039 after approved updates and qualification, states optional consumer
+- `[x]` Final implementation closeout accepts ADR-039 after approved updates and qualification, states optional consumer
   status honestly and adds no durable lifecycle/review/delivery state or storage-cutover prerequisite.
 
-- `[ ]` All quality gates pass.
+- `[x]` All quality gates pass.
 
-- `[ ]` Ready for integration.
+- `[x]` Ready for integration.
 
 ---

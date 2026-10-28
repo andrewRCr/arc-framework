@@ -1,5 +1,19 @@
 # Machine Check Runner Notes
 
+## Contents
+
+- [Implementation map](#implementation-map)
+    - [Native integration constraints](#native-integration-constraints)
+    - [Lifecycle scenario assignment](#lifecycle-scenario-assignment)
+    - [Qualification evidence](#qualification-evidence)
+- [External adapter boundary](#external-adapter-boundary)
+- [Repository adoption inventory](#repository-adoption-inventory)
+- [Store prerequisite adoption](#store-prerequisite-adoption)
+- [Execution cost measurements](#execution-cost-measurements)
+    - [Observed phase costs](#observed-phase-costs)
+    - [Reproduction](#reproduction)
+- [Reference Material](#reference-material)
+
 ## Implementation map
 
 Paths beginning `src/`, `__tests__/` or `examples/` below and in `tasks-machine-check-runner.md` are relative to
@@ -30,6 +44,9 @@ protocol. Later consumers extend this substrate instead of recapturing source, r
 console text.
 
 ### Native integration constraints
+
+These constraints record the native code as found at planning, which routed execution had to extend without changing
+native behavior.
 
 `executeSelectedCheck` currently calls `selectedCheckKey` and pass lookup before dry-run/batch execution.
 `runDeclaredCliRequest` supplies `runCheckProcess` for execution and a separate raw-stdout runtime closure. Capture and
@@ -96,14 +113,14 @@ exercise cache/report independence. This adds no completion wait on storage or d
 
 ## External adapter boundary
 
-Owner coordination on 2026-10-26 confirmed installed arc-offload revision `a70242d` (external push still pending at
-that point). Its README § Command routing safeguards and `Repository.route_for(argv)` define literal-prefix,
-first-match repository command routes. The adapter must apply these routes to planned argv before preparation and
-runner-dependent runtime/cache qualification, retain the eligible placement through execution, and prevent pins or
-fallback from broadening eligibility. A grouped plan must satisfy every invocation's route; local placement requires
-every applicable rule to allow it and the active provider mode to permit it. Resolve routes before transport/shell
-wrapping rather than losing the original argv's restriction. These remain provider-owned policy, with no new ARC
-protocol/resource fields; live registry contents remain outside tracked evidence.
+Installed arc-offload revision `a70242d` carries the provider's command-routing policy. Its README § Command routing
+safeguards and `Repository.route_for(argv)` define literal-prefix, first-match repository command routes. The adapter
+must apply these routes to planned argv before preparation and runner-dependent runtime/cache qualification, retain
+the eligible placement through execution, and prevent pins or fallback from broadening eligibility. A grouped plan must
+satisfy every invocation's route; local placement requires every applicable rule to allow it and the active provider
+mode to permit it. Resolve routes before transport/shell wrapping rather than losing the original argv's restriction.
+These remain provider-owned policy, with no new ARC protocol/resource fields; live registry contents remain outside
+tracked evidence.
 
 Required arc-offload changes land in that independent repository under its own instructions and checks. Proposed files
 are `arc_offload/arc_adapter.py` and `tests/test_arc_adapter.py`; qualify the same public executable boundary from ARC
@@ -130,8 +147,9 @@ required-remote mode. Record timings/revisions/results without credentials, live
 
 ## Repository adoption inventory
 
-The current `checks` in `.arc/system/arc-checks.yml` contain nine command prefixes using `scripts/check-runner.sh`. This
-is the baseline inventory; retirement re-grounds all then-landed command and data consumers:
+Before adoption, the `checks` in `.arc/system/arc-checks.yml` carried nine command prefixes using the prototype
+`scripts/check-runner.sh` wrapper. This baseline inventory was re-grounded at retirement against every then-landed
+command and data consumer:
 
 | Check                      | Ordinary executable / script                  | Current placement detail to preserve            |
 | -------------------------- | --------------------------------------------- | ----------------------------------------------- |
@@ -145,7 +163,7 @@ is the baseline inventory; retirement re-grounds all then-landed command and dat
 | `test:arc-contracts`       | `npm run -s test:arc-contracts`               | Commit gate                                     |
 | `test:e2e:local`           | `node --import tsx scripts/run-local-e2e.mjs` | Files mode, deletion selection, no cache        |
 
-The wrapper also appears in `global_inputs`; remove that dependency when retiring the executable. Preserve ordinary
+The wrapper also appeared in `global_inputs`; that dependency was removed with the executable. Preserve ordinary
 native unsharded execution and CI's existing forecast playback. During adoption, inventory actual selection/data readers
 in the command stack and declare their supported environment inputs; provider mode/registry/admission variables are
 control-plane configuration, not a new framework selector hierarchy. Keep builds, formatters, index-certifying checks
@@ -161,9 +179,9 @@ eligibility changes placement, not native selection meaning.
 
 The available `__tests__/reach/store-suites.json` names `scripts/check-runner.sh` as an exact widening path.
 `selectReachSuites` always calls `ReachGraph.pathSet` and `throwProblems`; `requireFile` rejects a missing exact path in
-full and reach modes. Removing only the command prefix is insufficient. Before wrapper deletion, Task 6.1 updates every
-then-landed consumer and removes obsolete exact catalogue references, with real wrapper-absent reach selection
-regression coverage.
+full and reach modes. Removing only the command prefix is insufficient for a consumer carrying that catalogue. At wrapper
+retirement (Task 6.1), the base and execution checkout contained no store declaration, reach catalogue or store
+environment reader, so no catalogue reference needed removal.
 
 This adds no foundation wait on the backend. When store is present at retirement, the foundation adopts it with the
 other landed consumers. If it arrives afterward, the native-store consumer aligns that later profile's ordinary command,
