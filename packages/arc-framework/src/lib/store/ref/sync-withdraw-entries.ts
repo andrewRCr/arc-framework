@@ -2,20 +2,16 @@
 
 import { mergeEntryText } from "../concurrency/index.js";
 import { entryIdProblem } from "../concurrency/entry-ids.js";
-import { expandStoredPath } from "../stored-path.js";
 import type { RefBackendContext } from "./context.js";
 import type { BatchObject, RefTreeEntry } from "./batch-read.js";
-import { refPrototype } from "./read.js";
-import { viewRefFamily } from "./view-state.js";
-import { decodeReference, refOwner } from "./codec.js";
-import { parseRefMetadata, type RefMetadata } from "./metadata.js";
+import type { RefMetadata } from "./metadata.js";
 import type { EntryConfig } from "../registry.js";
-import type { RecordReference } from "../identity.js";
 import type { WithdrawJournalStep } from "./sync-withdraw-journal.js";
 import { readStoredMergeLabel } from "./side-labels.js";
 import { ConflictRecordValueSchema, type ConflictRecordValue, type ConflictRecord, type SideLabel } from "../conflict.js";
 import { refRecordVersion } from "./record-version.js";
 import { refFormatKey } from "./format-key.js";
+import { withdrawRecordDefinition, withdrawRecordMetadata, type WithdrawRecordDefinition, type WithdrawRecordFormat } from "./sync-withdraw-records.js";
 import { RefSyncLabelError } from "./sync-label.js";
 import { corruptRef } from "./namespace-health.js";
 import { writeRefBlob } from "./tree-write.js";
@@ -26,29 +22,12 @@ import type { SyncTreeSide } from "./sync-tree.js";
 /** Applied absence is distinct from an inapplicable entry inverse and from present empty bytes. */
 export interface WithdrawEntryResult {
   selected?: RefTreeEntry; conflicts: ConflictRecord[];
-  retainedFormat: { metadataPath: string; key: string; version?: number };
+  retainedFormat: WithdrawRecordFormat;
 }
-interface EntryDefinition { grammar: EntryConfig; reference: RecordReference; metadataPath: string }
+interface EntryDefinition extends WithdrawRecordDefinition { grammar: EntryConfig }
 interface EntryDocument { entry: RefTreeEntry; content: string; metadata: RefMetadata; formatVersion: number; invalidIds: boolean }
 interface EntryStage { selected?: EntryDocument; conflicts: ConflictRecord[] }
 type EntrySource = "ancestor" | "before" | "after" | "current" | "published";
-
-/** Detect logical entry changes without decoding untouched payloads or reading their labels. */
-export function entryFormatChanged(context: RefBackendContext, step: WithdrawJournalStep, path: string,
-  currentEntries: ReadonlyMap<string, RefTreeEntry>, publishedEntries: ReadonlyMap<string, RefTreeEntry>,
-  objects: ReadonlyMap<string, BatchObject | null>): boolean {
-  if (!step.before.has(path) || !step.after.has(path)) return false;
-  const live = step.ref.replace("refs/arc/history/", "refs/arc/"), family = viewRefFamily(live);
-  if (!family) return false;
-  const home = expandStoredPath(refPrototype(context, live, family), { registry: context.registry });
-  const before = step.before.get(home.metadataPath), after = step.after.get(home.metadataPath);
-  if (before?.oid === after?.oid && before?.mode === after?.mode) return false;
-  const definition = [step.after, step.before, currentEntries, publishedEntries]
-    .map(entries => entryDefinition(context, step.ref, path, entries, objects)).find(value => value !== undefined);
-  if (!definition) return false;
-  return entryMetadata(step.ref, definition, step.before, objects).formatVersion
-    !== entryMetadata(step.ref, definition, step.after, objects).formatVersion;
-}
 
 /** First preserve pre-batch and published changes, then replay the surrounding local changes. */
 export async function inverseEntryDocument(context: RefBackendContext, step: WithdrawJournalStep, path: string,
@@ -56,9 +35,10 @@ export async function inverseEntryDocument(context: RefBackendContext, step: Wit
   objects: ReadonlyMap<string, BatchObject | null>): Promise<WithdrawEntryResult | undefined> {
   // A whole-document removal or later recreation keeps the existing generic inverse policy.
   if (!currentEntries.has(path) || !step.after.has(path)) return undefined;
-  const definition = [step.after, step.before, currentEntries, publishedEntries]
-    .map(entries => entryDefinition(context, step.ref, path, entries, objects)).find(value => value !== undefined);
-  if (!definition) return undefined;
+  const record = withdrawRecordDefinition(context, step.ref, path, [step.after, step.before, currentEntries, publishedEntries, step.ancestor], objects);
+  const grammar = record && context.registry[record.reference.kind].entry;
+  if (!record || !grammar) return undefined;
+  const definition: EntryDefinition = { ...record, grammar };
   const originals: readonly (readonly [EntrySource, ReadonlyMap<string, RefTreeEntry>])[] = [
     ["ancestor", step.ancestor], ["before", step.before], ["after", step.after], ["current", currentEntries], ["published", publishedEntries],
   ];
@@ -72,7 +52,7 @@ export async function inverseEntryDocument(context: RefBackendContext, step: Wit
   const inverse = await mergeDocumentStage(context, step.ref, definition, after, current, without.selected, currentLabel,
     sameDocument(without.selected, published) ? publishedLabel : beforeLabel);
   return { selected: inverse.selected?.entry,
-    retainedFormat: { metadataPath: definition.metadataPath, key: refFormatKey(definition.reference), version: inverse.selected?.formatVersion },
+    retainedFormat: { path, selected: inverse.selected?.entry, metadataPath: definition.metadataPath, key: refFormatKey(definition.reference), version: inverse.selected?.formatVersion },
     conflicts: [...without.conflicts, ...inverse.conflicts] };
 }
 
@@ -114,38 +94,17 @@ async function conflictValue(context: RefBackendContext, ref: string, definition
     ...placement ? { placement } : {} });
 }
 
-function entryDefinition(context: RefBackendContext, ref: string, path: string,
-  entries: ReadonlyMap<string, RefTreeEntry>, objects: ReadonlyMap<string, BatchObject | null>): EntryDefinition | undefined {
-  const live = ref.replace("refs/arc/history/", "refs/arc/"), family = viewRefFamily(live);
-  if (!family) return undefined;
-  const prototype = refPrototype(context, live, family), home = expandStoredPath(prototype, { registry: context.registry });
-  const metadataEntry = entries.get(home.metadataPath), metadata = parseRefMetadata(metadataEntry ? objects.get(metadataEntry.oid) : undefined);
-  if (!metadata) return undefined;
-  const reference = decodeReference(context, refOwner(live, family, metadata), family, path, metadata);
-  if (!reference || !("owner" in reference)) return undefined;
-  const grammar = context.registry[reference.kind].entry;
-  return grammar ? { reference, grammar, metadataPath: home.metadataPath } : undefined;
-}
-
 function entryDocument(ref: string, definition: EntryDefinition, path: string, entries: ReadonlyMap<string, RefTreeEntry>,
   objects: ReadonlyMap<string, BatchObject | null>, source: EntrySource): EntryDocument | undefined {
   const entry = entries.get(path);
   if (!entry) return undefined;
-  const { metadata, formatVersion } = entryMetadata(ref, definition, entries, objects);
+  const { metadata, formatVersion } = withdrawRecordMetadata(ref, definition, entries, objects);
   const object = objects.get(entry.oid);
   if (object?.type !== "blob") throw new RefSyncLabelError(ref, corruptRef(ref, true));
   const content = decodeEntryBytes(ref, entry, object.bytes, source);
   return { entry, content, metadata, formatVersion,
     invalidIds: entryIdProblem(content, definition.grammar) !== undefined };
 }
-
-function entryMetadata(ref: string, definition: EntryDefinition, entries: ReadonlyMap<string, RefTreeEntry>,
-  objects: ReadonlyMap<string, BatchObject | null>): { metadata: RefMetadata; formatVersion: number } {
-  const stored = entries.get(definition.metadataPath), metadata = parseRefMetadata(stored ? objects.get(stored.oid) : undefined);
-  if (!metadata) throw new RefSyncLabelError(ref, corruptRef(ref, false, true));
-  return { metadata, formatVersion: metadata.formats[refFormatKey(definition.reference)] ?? 1 };
-}
-
 
 /** Invalid stored UTF-8 is required namespace evidence, never a normalized text alternative. */
 function decodeEntryBytes(ref: string, entry: RefTreeEntry, bytes: Uint8Array, source: EntrySource): string {
