@@ -30,6 +30,14 @@ export const ReviewCeilingOverrideSchema = z.strictObject({
 }).superRefine(validateCeilingReference).readonly();
 export type ReviewCeilingOverride = z.infer<typeof ReviewCeilingOverrideSchema>;
 
+/** Remove a finished pass's ceiling authority when composing a fresh successor, preserving unspent grants. */
+export function omitSpentReviewCeilingOverride<Request extends {
+  completedPasses: number; ceilingOverride?: { nextPass: number };
+}>(request: Request): Request {
+  return request.ceilingOverride !== undefined && request.ceilingOverride.nextPass <= request.completedPasses
+    ? { ...request, ceilingOverride: undefined } : request;
+}
+
 /** Project a full ceiling grant into a relay judgment while retaining its exact authority reference. */
 export function projectReviewCeilingJudgment(ceiling: ReviewCeilingOverride): Omit<ReviewCeilingOverride, "target" | "lane"> {
   return { exhaustedPassCount: ceiling.exhaustedPassCount, nextPass: ceiling.nextPass,

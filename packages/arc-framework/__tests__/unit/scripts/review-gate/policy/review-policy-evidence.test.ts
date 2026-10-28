@@ -29,6 +29,7 @@ import { bindReviewSourceReference } from
   "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import {
   readIncrementalPredecessorResponseEvidence,
+  bindReviewPolicyContinuationEvidence,
   resolveEvidenceBoundReviewPolicy,
   resolveEvidenceBoundReviewPolicyContinuation,
 } from
@@ -627,6 +628,47 @@ describe("evidence-bound review policy", () => {
     await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
       terminalResponsePerformed: true,
     }, evidence)).resolves.toMatchObject({ state: "ready", payload: { pass: 2 } });
+  });
+
+  it.each([false, true])("drops a spent override before a post-fix check (native=%s)", async native => {
+    const original = findingsHostedResult(["major"]);
+    const result = { ...original, admission: { ...original.admission, logicalPass: 3 } };
+    const record = approvedRecord(result, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);
+    const request = { ...findingsRequest(result), completedPasses: 3,
+      ceilingOverride: { target: policyTarget, lane: "standard" as const, exhaustedPassCount: 2, nextPass: 3 } };
+    const evidence = { ...dependencies(result, record), sources: ["codex-pr", "delegated-agent"],
+      selectionSources: ["delegated-agent"], maxPasses: 2,
+      ...(native ? { stateOffBranch: true as const } : {}),
+      readResponsePerformance: async () => performedFix(result, record),
+      nextPassContext: { completePasses: 3, convergence: "unconverged" as const, responseDue: false,
+        incremental: { basis: "fix-check" as const, scope: { schemaVersion: 1 as const,
+          predecessorProducerId: result.producerId, predecessorHeadSha: result.target.headSha,
+          basisHeadSha: result.target.headSha, headSha: result.target.headSha,
+          requiredFindings: [{ producerId: result.producerId, findingId: "finding-1", locus: "src/example.ts:7" }] } } } };
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: true }, evidence))
+      .resolves.toMatchObject({ state: "ready", nextAction: "local-prepare", payload: { pass: 4, ceilingOverrideApplied: false } });
+  });
+
+  it("retains an unspent conditional authorization on the fresh fix-check route", async () => {
+    const native = true;
+    const original = findingsHostedResult(["major"]);
+    const result = { ...original, admission: { ...original.admission, logicalPass: 3 } };
+    const record = approvedRecord(result, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);
+    const request = { ...findingsRequest(result), completedPasses: 3,
+      ceilingOverride: { target: policyTarget, lane: "standard" as const, exhaustedPassCount: 3, nextPass: 4, conditionalPassAuthorizationId: digest("unspent-conditional") } };
+    const evidence = { ...dependencies(result, record), sources: ["codex-pr", "delegated-agent"],
+      selectionSources: ["delegated-agent"], maxPasses: 2,
+      ...(native ? { stateOffBranch: true as const } : {}),
+      readResponsePerformance: async () => performedFix(result, record),
+      nextPassContext: { completePasses: 3, convergence: "unconverged" as const, responseDue: false,
+        incremental: { basis: "fix-check" as const, scope: { schemaVersion: 1 as const,
+          predecessorProducerId: result.producerId, predecessorHeadSha: result.target.headSha,
+          basisHeadSha: result.target.headSha, headSha: result.target.headSha,
+          requiredFindings: [{ producerId: result.producerId, findingId: "finding-1", locus: "src/example.ts:7" }] } } } };
+    const bound = await bindReviewPolicyContinuationEvidence(request, { terminalResponsePerformed: true }, evidence);
+    expect(bound.ceilingOverride).toEqual(request.ceilingOverride);
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: true }, evidence))
+      .resolves.toMatchObject({ state: "ready", nextAction: "local-prepare", payload: { pass: 4, ceilingOverrideApplied: false } });
   });
 
   it("applies a ceiling override only after the terminal response opens the fresh pass", async () => {

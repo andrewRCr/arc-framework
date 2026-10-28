@@ -1,5 +1,6 @@
 /** Compose stored pass judgments and the existing per-call lane invocation before pure policy runs. */
 import { requireNativeReviewDecisionReferences } from "./review-grant-references.js";
+import { omitSpentReviewCeilingOverride } from "./review-ceiling-override.js";
 import type { NativeOwnerAcceptedReviewTerminus } from "./review-terminus.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
@@ -49,12 +50,15 @@ export function applyPrePublicationExtraPassJudgment<Request extends ReviewPolic
   const boundElsewhere = lane === "frontline" && input.frontlineCeilingHeadSha !== undefined
     && input.frontlineCeilingHeadSha !== policyTarget.headSha;
   const additional = lane === "standard" ? judgment?.additionalPassAuthorization : undefined;
-  return { ...request,
+  const applied = { ...request,
     ...(ceiling === undefined || boundElsewhere ? {} : { ceilingOverride: { ...ceiling, target: policyTarget, lane } }),
     ...(additional === undefined || request.completedPasses > additional.completedPasses ? {} : {
       additionalPassAuthorization: { precedingProducerId: additional.precedingProducerId, completedPasses: additional.completedPasses,
         nextPass: additional.nextPass, target: { ...policyTarget, headSha: additional.headSha }, lane: "standard" as const },
     }) };
+  const terminal = request.attempts.at(-1);
+  return terminal?.outcome === "clean" || terminal?.outcome === "findings"
+    ? applied : omitSpentReviewCeilingOverride(applied);
 }
 
 function bindLaneExtraPassJudgment(judgment: ReviewLaneJudgment | undefined, target: ReviewPolicyTarget, lane: ReviewLane):

@@ -17,3 +17,12 @@ it.each(["ceilingOverride", "additionalPassAuthorization"] as const)("refuses an
   expect(applyPrePublicationExtraPassJudgment(request, { ...input, judgment: { [field]: value } }))
     .toHaveProperty(`${field}.target`, target);
 });
+
+it("does not restore a spent override after composing the fresh successor", () => {
+  const target = { repository: "owner/repo", pullRequest: null, headSha: "a".repeat(40) };
+  const request = ReviewPolicyCommandRequestSchema.parse({ schemaVersion: 1, target, lane: "standard", completedPasses: 3,
+    attempts: [], standardReview: { obligation: "required", reasons: ["sensitive-change-set"], rubricVersion: "standard-review/v1",
+      rubricDigest: canonicalDigest({ rubric: true }), retrigger: "full-final", count: 1 } });
+  expect(applyPrePublicationExtraPassJudgment(request, { native: false, lane: "standard", policyTarget: target,
+    judgment: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } } }).ceilingOverride).toBeUndefined();
+});

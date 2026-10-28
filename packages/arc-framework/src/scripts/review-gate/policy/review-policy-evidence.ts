@@ -37,6 +37,7 @@ import {
 import { projectReviewPolicyCommandRequest } from "./review-policy-command-projection.js";
 import { requireDriverAdmission } from "./review-execution-admission.js";
 import { reconcileReviewFallbackAttempts, reconcileReviewSourceInvocation } from "./review-policy-fallbacks.js";
+import { omitSpentReviewCeilingOverride } from "./review-ceiling-override.js";
 
 /** Trusted inputs needed to bind one command request to immutable producer evidence. */
 export interface EvidenceBoundReviewPolicyDependencies {
@@ -555,7 +556,7 @@ export async function bindReviewPolicyContinuationEvidence(
     },
   };
   const producer = terminalOperationId === undefined ? undefined : await resultReader.readResult(terminalOperationId);
-  const terminalRequest = producer === undefined ? request : ReviewPolicyBoundRequestSchema.parse({
+  const terminalRequest = producer === undefined ? omitSpentReviewCeilingOverride(request) : ReviewPolicyBoundRequestSchema.parse({
     ...request,
     scopeSelection: { mode: producer.admission.scopeMode, target: request.target },
     ceilingOverride: undefined,
@@ -592,7 +593,7 @@ export async function bindReviewPolicyContinuationEvidence(
     additionalPassAuthorization: request.additionalPassAuthorization,
   };
   return ReviewPolicyRequestSchema.parse({
-    ...request,
+    ...omitSpentReviewCeilingOverride(request),
     attempts: [],
     sources: dependencies.sources,
     maxPasses: dependencies.maxPasses,

@@ -1275,11 +1275,10 @@ this phase puts publication's claim and reopen's boundary write in their transit
   an additional-pass decision retains its exact verified predecessor across successor scope changes, in both storage
   arms, without changing decision records, pass counts, source eligibility, or one-pass authority (A18).
 
-    - `[ ]` **6.R.a Drop spent ceiling authority from the post-fix route**
-        - Build `test-first`: reproduce public pre-publication re-entry after a completed overridden pass and a
-          performed fix, then remove only the spent override from the fresh successor route. Preserve terminal replay,
-          valid unconsumed conditional authority and its exact retries; native composition retains the stored key
-          without recreating a decision. Prove the incremental repair check runs without granting a complete pass.
+    - `[x]` **6.R.a Drop spent ceiling authority from the post-fix route**
+        - Fresh continuation and pre-publication relay omit finished-pass ceiling authority while terminal replay and
+          unspent conditional authority retain their bindings. Public re-entry after a performed fix admits the
+          incremental check in both storage arms, preserving native grant records without granting a complete pass.
     - `[ ]` **6.R.b Preserve the verified predecessor across scope changes**
         - Build `test-first`: admit a clean whole-target predecessor's authorized chunked complete successor and the
           reverse transition through public composition over both storage arms. Bind predecessor validation to the
