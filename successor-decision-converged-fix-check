@@ -3,7 +3,7 @@
   "slug": "successor-decision-converged-fix-check",
   "claimId": "85cd1016d7b22f788d2e22fd3f8842cd",
   "createdAt": "2026-10-28T13:10:15.972Z",
-  "updatedAt": "2026-10-28T13:10:15.972Z",
+  "updatedAt": "2026-10-28T13:55:33.315Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "successor-decision-converged-fix-check",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Run the successor decision after any fix check that converges with no material fix",
   "originEntrySourceDigest": "sha256:facd6c779532eefcb3af8a0f57153950d2762a57c255128103ad3bb3d8ea9fb7",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/successor-decision-converged-fix-check",
+    "headSha": "c45c5377deaacac281ff1801863babfd8eaab4bb"
+  }
 }
