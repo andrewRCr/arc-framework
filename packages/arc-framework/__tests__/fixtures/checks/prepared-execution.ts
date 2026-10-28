@@ -6,7 +6,8 @@ import { createRunnerCheckRepository } from "./runner.js";
 export type PreparedAdapterMode = "unknown" | "known" | "missing-runtime" | "source-bytes" | "manifest"
   | "environment" | "unavailable" | "disappeared" | "bad-source-claim" | "execute" | "group" | "wait-prepare" | "cancel-run" | "drift" | "cancel-ready"
   | "group-loss" | "group-malformed" | "cleanup-warning"
-  | "group-known" | "group-known-close-gate" | "group-known-loss" | "group-known-bad-output" | "group-known-bad-exit";
+  | "group-known" | "group-known-close-gate" | "group-known-loss" | "group-known-bad-output" | "group-known-bad-exit"
+  | "group-cancel" | "cancel-refusal" | "unavailable-unsettled" | "unavailable-bad-exit";
 
 export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string, observations?: string): string {
   return `const mode=${JSON.stringify(mode)};const gate=${JSON.stringify(gate)};const observations=${JSON.stringify(observations)};const gitNames=${JSON.stringify([...GIT_REPOSITORY_LOCAL_ENVIRONMENT])};` + `
@@ -61,7 +62,7 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string, 
       });
       child.on('close',(code,signal)=>{
         children.delete(child);
-        const outcome=cancelled&&mode==='cancel-run'?{status:'cancelled',reason:'Child cancellation settled'}
+        const outcome=cancelled&&(mode==='cancel-run'||mode==='group-cancel')?{status:'cancelled',reason:'Child cancellation settled'}
           :launchError?{status:'unavailable',reason:'Child executable could not start',remedy:'Repair the command and retry.'}
           :{status:'completed',exitCode:code===null?128+require('node:os').constants.signals[signal]:code};
         if(report)send({jsonrpc:'2.0',method:'check/outcome',params:{contextId:'prepared-context',invocationId:invocation.id,outcome}});
@@ -92,9 +93,11 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string, 
         plan=request.params;
         record('source',plan.source);
         record('preparing',{planId:plan.planId,source:plan.source,pid:process.pid});
-        if(mode==='unavailable'){
+        if(['unavailable','unavailable-unsettled','unavailable-bad-exit'].includes(mode)){
           send({jsonrpc:'2.0',id:request.id,result:{status:'unavailable',planId:plan.planId,
-            reason:'No compatible placement',remedy:'Repair adapter placement and retry.',settled:true}});
+            reason:'No compatible placement',remedy:'Repair adapter placement and retry.',
+            ...(mode==='unavailable-unsettled'?{}:{settled:true})}});
+          if(mode==='unavailable-bad-exit')process.stdout.write('',()=>process.exit(1));
           return;
         }
         const recovery={jsonrpc:'2.0',method:'check/recovery',params:{planId:plan.planId,
@@ -106,8 +109,9 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string, 
           return;
         }
         await new Promise((resolve,reject)=>process.stdout.write(JSON.stringify(recovery)+'\\n',error=>error?reject(error):resolve()));
-        if(mode==='wait-prepare'||mode==='cancel-ready'){
+        if(mode==='wait-prepare'||mode==='cancel-ready'||mode==='cancel-refusal'){
           waitingPreparation=request;
+          record('waiting',{planId:plan.planId});
           if(mode==='wait-prepare')preparationTimer=setInterval(()=>{if(gate&&fs.existsSync(gate))finishWaitingPreparation();},10);
           process.stderr.write('waiting for cancellation\\n');
           return;
@@ -136,7 +140,13 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string, 
       }else if(request.method==='check/cancel'){
         cancelled=true;
         record('cancel',request.params);
-        if(mode==='cancel-run')for(const child of children)child.kill('SIGTERM');
+        if(mode==='cancel-run'||mode==='group-cancel')for(const child of children)child.kill('SIGTERM');
+        if(mode==='cancel-refusal'&&waitingPreparation){
+          const preparing=waitingPreparation;
+          waitingPreparation=undefined;
+          send({jsonrpc:'2.0',id:preparing.id,result:{status:'unavailable',planId:plan.planId,
+            reason:'Preparation cancelled and settled',remedy:'Retry with fresh preparation.',settled:true}});
+        }
         send({jsonrpc:'2.0',id:request.id,result:{planId:request.params.planId,accepted:true}});
         if(mode==='cancel-ready'&&waitingPreparation){
           const preparing=waitingPreparation;

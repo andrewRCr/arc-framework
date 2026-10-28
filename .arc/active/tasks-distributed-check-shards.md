@@ -136,29 +136,20 @@ context/capture under the specified lifecycle. The unconfigured command remains 
           native success and recover after repair. Settled disposal warnings remain advisory during execution and
           reuse, while lost required output and abnormal provider exit prevent publication.
 
-### `[ ]` **2.4 Preserve settlement and recovery through refusal and interruption — D8**
+### `[x]` **2.4 Preserve settlement and recovery through refusal and interruption — D8**
 
 - _Goal:_ Every cancellation/refusal/transport-loss path either proves settlement and safe disposal or retains the
   shared capture and actionable provider guidance without duplicate execution.
 
-    - `[ ]` **2.4.a Consume settled preparation refusal without inventing a context**
-        - The foundation's request-wide interruption (`src/lib/checks/runner/request-control.ts`) and no-context
-          terminal arm already serve its unsharded plan; consume them unchanged for a shard-expanded plan. Do not
-          add another signal handler, release handshake, recovery operation or job store.
-        - Build `test-first` (one behavior at a time):
-            - Unavailable preparation settles, replies and exits zero without a release request before disposal.
-            - Cancellation racing that reply tolerates an unnecessary/late acknowledgement; missing settlement or
-              abnormal exit retains uncertainty. Repair the cause and prove successful explicit retry.
+    - `[x]` **2.4.a Consume settled preparation refusal without inventing a context**
+        - Complete shard plans consume settled refusal without release, including refusal before a late cancel
+          acknowledgment. Missing settlement and abnormal exit retain captures and plan diagnostics; repaired
+          declarations execute through fresh attempts without an engine fallback.
 
-    - `[ ]` **2.4.b Retain group recovery across interruption and conversation loss**
-        - Exercise process peers during preparation before context grant and during execution after valid pre-work
-          recovery guidance. Provider recovery remains information for the operator, never automatically executed.
-        - Build `test-first` (one behavior at a time):
-            - Cancellation acceptance waits for actual settlement of all launched work; uncertain work retains
-              capture, plan/context diagnostics and guidance usable after adapter exit.
-            - Failed guidance delivery permits no consumer execution request; a second explicit interruption does
-              not prove remote work stopped. ARC never reconnects, replaces or retries automatically.
-            - An explicit repaired retry uses fresh attempt identities without changing equivalent content keys.
+    - `[x]` **2.4.b Retain group recovery across interruption and conversation loss**
+        - Actual grouped resistant children retain source through cancel acknowledgment and drain before release.
+          Sharded pre-context loss, repeated interrupts and standalone descendant inspection/settlement preserve
+          recovery ownership without duplicate execution. Refused recovery delivery launches no preparation probe.
 
 ### `[ ]` **2.5 Prove the public consumer lifecycle** — validate exit criterion at segment scope
 

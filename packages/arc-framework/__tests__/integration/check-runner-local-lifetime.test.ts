@@ -99,8 +99,10 @@ localIt("launches no preparation child when the recovery output pipe refuses del
   const fixture = await selectedExecutionFixture(directories);
   const marker = join(fixture.root, "probe-started.secret");
   const captured = await captureCheckExecutionInputs({ ...fixture.input,
+    check: { ...fixture.input.check, shards: { count: 3, argument: "--shard={index}/{count}", routed: true } },
     globalRuntimeInputs: [[process.execPath, "-e", `require('node:fs').writeFileSync(${JSON.stringify(marker)},'started')`]],
   }, fixture.io);
+  expect(captured.plan.invocations).toHaveLength(3);
   const child = spawn(process.execPath, [example, "--known-node-runtime", "--state-root", join(fixture.root, "adapter.secret")],
     { cwd: fixture.root, stdio: ["pipe", "pipe", "pipe"] });
   const closed = new Promise<number | null>(resolve => { child.once("close", code => { resolve(code); }); });
