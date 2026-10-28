@@ -166,6 +166,7 @@ it.each(["no machine runner", "no project opt-in"])("retains native cwd with %s"
   const machine = await createRunnerMachineHome(directories, [join("/", "missing-adapter")]);
   if (condition === "no machine runner") await rm(join(machine.home, ".arc/config.yml"));
   const root = await createDeclaredCheckRepository({ example: { runner: condition === "no machine runner", cache: false,
+    shards: { count: 2, argument: "--shard={index}/{count}", routed: true },
     inputs: ["src/**"], command: [process.execPath, "capture.cjs"] } });
   directories.push(root);
   const result = await runArc(["check", "run", "example", "--json"], root, { env: machine.environment });

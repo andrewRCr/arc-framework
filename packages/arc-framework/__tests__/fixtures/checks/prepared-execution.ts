@@ -86,6 +86,7 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string, 
     };
     const handle=async line=>{
       const request=JSON.parse(line);
+      if(observations)fs.appendFileSync(path.join(observations,'requests'),JSON.stringify(request)+'\\n');
       if(request.method==='check/prepare'){
         plan=request.params;
         record('source',plan.source);

@@ -32,10 +32,12 @@ import { resolveCheckForecast, type CheckForecast } from "../../lib/checks/forec
 import type { CheckContentContext } from "../../lib/checks/environment-policy.js";
 import { bindCapturedEnvironment, captureEnvironmentInputs, type CapturedEnvironmentInputs } from "../../lib/checks/environment-inputs.js";
 import { readMachineCheckRunner, type MachineCheckRunnerConfiguration } from "../../lib/checks/runner/machine-config.js";
-import { prepareSelectedCheckExecution, type PreparedCheckExecution, type CheckExecutionClosure,
+import { prepareSelectedCheckExecution, type CheckExecutionClosure,
   type CheckExecutionPreparation } from "../../lib/checks/runner/execution.js";
+import { planCheckExecution } from "../../lib/checks/runner/planning.js";
+import { executePreparedCheckPlan } from "../../lib/checks/runner/dispatch.js";
 import { retainedRunnerRemedy } from "./runner-recovery.js";
-import { displayRunnerOutcome, runnerDisplayText } from "../../lib/checks/display-text.js";
+import { runnerDisplayText } from "../../lib/checks/display-text.js";
 import type { CheckInvocationDetail } from "../../lib/checks/runner/parent.js";
 import { composePreparedCheckKey } from "../../lib/checks/runner/key.js";
 import { normalizeCheckInvocationOutcome, reduceCheckInvocationOutcomes,
@@ -504,6 +506,8 @@ async function executeRoutedSelectedCheck(selected: SelectedCheck, io: DeclaredC
   const startedAt = (io.now ?? performance.now.bind(performance))();
   const prepared = await (io.prepareExecution ?? prepareSelectedCheckExecution)({ callerRoot: root,
     request: selected.coordinates, check, paths, configuration, globalRuntimeInputs: definition.global_runtime_inputs,
+    buildPlan: context => planCheckExecution({ callerRoot: root, check, source: context.source, paths: context.paths,
+      globalRuntimeInputs: definition.global_runtime_inputs }),
     onOutput: output => { outputs.push(Buffer.from(output.bytes)); },
     onDiagnostic: bytes => { outputs.push(Buffer.from(bytes)); } });
   if (prepared.status !== "ready") {
@@ -525,10 +529,10 @@ async function executeRoutedSelectedCheck(selected: SelectedCheck, io: DeclaredC
         : { id, kind, outcome: "couldn't run", reason: closure.reason, remedy: retainedRunnerRemedy(closure.retained), remedyKind: "runner",
           ...await routedDiagnosticOutput(io, id, outputs, startedAt) };
     }
-    const result = await executeRoutedSingles(execution, check);
+    const { evidence: result, invocations } = await executePreparedCheckPlan(execution, check);
     const closure = await close();
     return await finalizeRoutedCheck(selected, io, request,
-      { result, closure, output: Buffer.concat(outputs).toString("utf8"), key, startedAt });
+      { result, invocations, closure, output: Buffer.concat(outputs).toString("utf8"), key, startedAt });
   } finally { await close(); }
 }
 
@@ -558,21 +562,8 @@ function unpreparedRoutedCheck(selected: SelectedCheck, configuration: MachineCh
     ...diagnostics };
 }
 
-async function executeRoutedSingles(execution: PreparedCheckExecution, check: SelectedCheck["check"]): Promise<CheckInvocationReduction> {
-  const outcomes: NormalizedCheckInvocationOutcome[] = [];
-  const incomplete: string[] = [];
-  try {
-    for (const invocation of execution.plan.invocations) {
-      const result = await execution.run(invocation.id);
-      outcomes.push(normalizeCheckInvocationOutcome(displayRunnerOutcome(result.outcomes.get(invocation.id)), check.no_evidence_exit));
-      if (result.status === "incomplete") { incomplete.push(result.reason); break; }
-    }
-  } catch (cause) { incomplete.push(String(cause)); }
-  return reduceCheckInvocationOutcomes(outcomes, check.no_evidence_exit, incomplete);
-}
-
 async function finalizeRoutedCheck(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
-  observed: { result: CheckInvocationReduction; closure: CheckExecutionClosure; output: string; key: string | null; startedAt: number }): Promise<DeclaredCheckResult> {
+  observed: { result: CheckInvocationReduction; invocations: readonly CheckInvocationDetail[]; closure: CheckExecutionClosure; output: string; key: string | null; startedAt: number }): Promise<DeclaredCheckResult> {
   const { result, closure, output, key, startedAt } = observed;
   const costMs = Math.max(0, (io.now ?? performance.now.bind(performance))() - startedAt);
   const measurement = await io.reports?.save(selected.id, output, costMs);
@@ -582,7 +573,7 @@ async function finalizeRoutedCheck(selected: SelectedCheck, io: DeclaredCheckDep
     ? runnerDisplayText(closure.cleanupWarning) : undefined].filter(Boolean).join("; ");
   const remedy = closure.status === "uncertain" ? retainedRunnerRemedy(closure.retained)
     : finalized.outcome === "couldn't run" && result.remedies.length > 0 ? result.remedies.join(" ") : undefined;
-  return { ...finalized, costMs,
+  return { ...finalized, invocations: observed.invocations, costMs,
     ...(remedy === undefined ? {} : { remedy, remedyKind: "runner" as const }),
     ...(measurement === undefined ? {} : { logPath: measurement.logPath }), ...(notice ? { notice } : {}) };
 }

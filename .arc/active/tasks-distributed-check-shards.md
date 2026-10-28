@@ -84,49 +84,27 @@ _Exit criterion:_ A routed declared check runs every expected pair through group
 only a complete applicable parent pass, preserves completed failures beside missing work, and closes or retains its
 context/capture under the specified lifecycle. The unconfigured command remains native and unsharded.
 
-### `[ ]` **2.1 Execute the fixed plan through serial or optional group dispatch — D1, D2, D6**
+### `[x]` **2.1 Execute the fixed plan through serial or optional group dispatch — D1, D2, D6**
 
 - _Goal:_ An eligible routed check executes its complete declared matrix through one prepared context, while the
   native path retains its existing single command and configured failures remain visible.
 
-    - `[ ]` **2.1.a Connect the consumer at the selected-check dispatch boundary**
-        - Extend `executeRoutedSelectedCheck` in `src/handlers/check/run.ts`, supplying the canonical plan through
-          `buildPlan`. Keep configuration, eligibility, source/environment capture and the client in the foundation.
-        - Build `test-first` (one behavior at a time):
-            - No runner or an ineligible check stays native/unsharded without source preparation; an eligible
-              unsharded declaration still uses the foundation's ordinary path.
-            - The complete plan precedes prepare/key lookup; routed dry-run neither captures nor probes/spawns.
-            - Configured failure never causes a bypass, another capture implementation or implicit local fallback.
+    - `[x]` **2.1.a Connect the consumer at the selected-check dispatch boundary**
+        - The selected-check handler supplies captured planning through `buildPlan`. Native and opted-out routed
+          checks retain their ordinary path; opted-in dry runs cannot capture, prepare or probe execution.
 
-    - `[ ]` **2.1.b Play back mandatory singles or submit the whole optional group**
-        - Consume `supportsRunGroup`, `run` and `runGroup` on `PreparedCheckExecution`, replacing the foundation-plan
-          loop in `executeRoutedSingles`. Preserve one context/source definition and one outstanding execution
-          request; the adapter owns concurrent placement and admission.
-        - Build `test-first` (one behavior at a time):
-            - A group-capable adapter receives the complete requested matrix once; a basic adapter receives the
-              same plan as ordered singles, never an unsharded substitute or changed path batches.
-            - Each planned ID executes at most once; ordinary failure continues serial work and collects started
-              group siblings, while unavailable/not-started work remains explicit.
+    - `[x]` **2.1.b Play back mandatory singles or submit the whole optional group**
+        - `executePreparedCheckPlan` submits an opted-in matrix once when grouping is advertised, otherwise runs
+          ordered singles. Ordinary failures collect the remaining work; complete-plan reduction retains missing pairs.
 
-    - `[ ]` **2.1.c Prove the production entry with a real adapter conversation**
-        - Extend the process-backed fixtures in `__tests__/fixtures/checks/prepared-execution.ts` (including its
-          group modes) and `runner.ts`, and the standalone example in `packages/arc-framework/examples/check-runner/`,
-          for a tiny declared check. The example stays a basic adapter; group coverage and group faults use the
-          scripted process peers through the same public wire, not injected final handler answers.
-        - Build `test-first` (one behavior at a time):
-            - The real selected-check path prepares, executes two or more pairs and produces one parent result.
-            - Group and basic playback preserve command/cwd/input meaning and produce equivalent parent evidence.
+    - `[x]` **2.1.c Prove the production entry with a real adapter conversation**
+        - Built-CLI scenarios execute three siblings through independent group/basic peers, retaining ordinary
+          failures, exactly-once identities and closed captures. The standalone basic example executes real pairs.
 
-    - `[ ]` **2.1.d Preserve native command-content and repository environment boundaries**
-        - Extend the same public process fixture with identical-argv project/files checks and runtime probes;
-          consume the foundation's shared reserved-name authority and captured bindings without a second filter.
-        - Build `test-first` (one behavior at a time):
-            - Files commands receive only their selected content coordinates; project commands and probes clear
-              them, including withheld-path files commands and absent optional coordinates.
-            - Poison caller/worker Git selectors with a second repository, object store and config. Commands and
-              probes still resolve captured code metadata; every reserved input name/case variant refuses replay.
-            - Removing the conflicting declaration permits a successful retry with ordinary value/file bindings,
-              relative/symlink regular files and captured absent/empty states, including with caching disabled.
+    - `[x]` **2.1.d Preserve native command-content and repository environment boundaries**
+        - Standalone selected-check scenarios preserve identical-argv files/project/probe policy, explicit empty
+          values and symlink-file bytes despite caller/worker selectors targeting another repository. Opted-in
+          declarations refuse all reserved names/case variants; a real refused declaration succeeds after repair.
 
 ### `[ ]` **2.2 Retain attributable native failures and incomplete-work diagnostics — D6**
 
