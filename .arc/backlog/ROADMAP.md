@@ -27,7 +27,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning` | review-checkout-lifecycle       | P1       | andrew | —                   | —             |
 | `Planning` | stub-mint-to-launch             | P1       | andrew | —                   | —             |
 | `Planning` | cli-output-contract             | P2       | andrew | —                   | —             |
-| `Active`   | distributed-check-shards        | P3       | andrew | —                   | —             |
+| `Active`   | distributed-check-shards        | P3       | andrew | storage-ref-backend | —             |
 
 ## Ready
 
@@ -108,16 +108,17 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 1
 
-| Work unit                     | Priority | Owner  | Depends on                                                                                                     | Cohort                     |
-| ----------------------------- | -------- | ------ | -------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| review-activity-contracts     | P1       | andrew | review-source-authority                                                                                        | review-protocol-alignment  |
-| storage-cutover               | P1       | andrew | storage-ref-backend, storage-projection, seam-delivery-review, lifecycle-slug-selection, cohort-identity-verbs | state-storage              |
-| unit-scoped-review            | P2       | andrew | commit-increments                                                                                              | approval-flow-refinement   |
-| documentation-surface-routing | P3       | andrew | handoff-optimization                                                                                           | agent-context-optimization |
-| instruction-optimization      | P3       | andrew | composable-workflows                                                                                           | agent-context-optimization |
-| workflow-template-loads       | P3       | andrew | composable-workflows                                                                                           | principle-anchored-core    |
-| docs-content-sweep            | P3       | andrew | docs-site-refresh                                                                                              | release-readiness          |
-| comprehension-preservation    | P3       | andrew | execution-delegation-doctrine                                                                                  | —                          |
+| Work unit                             | Priority | Owner  | Depends on                                                                                                     | Cohort                     |
+| ------------------------------------- | -------- | ------ | -------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| review-activity-contracts             | P1       | andrew | review-source-authority                                                                                        | review-protocol-alignment  |
+| storage-cutover                       | P1       | andrew | storage-ref-backend, storage-projection, seam-delivery-review, lifecycle-slug-selection, cohort-identity-verbs | state-storage              |
+| storage-native-windows-bulk-transport | P1       | andrew | storage-ref-backend                                                                                            | —                          |
+| unit-scoped-review                    | P2       | andrew | commit-increments                                                                                              | approval-flow-refinement   |
+| documentation-surface-routing         | P3       | andrew | handoff-optimization                                                                                           | agent-context-optimization |
+| instruction-optimization              | P3       | andrew | composable-workflows                                                                                           | agent-context-optimization |
+| workflow-template-loads               | P3       | andrew | composable-workflows                                                                                           | principle-anchored-core    |
+| docs-content-sweep                    | P3       | andrew | docs-site-refresh                                                                                              | release-readiness          |
+| comprehension-preservation            | P3       | andrew | execution-delegation-doctrine                                                                                  | —                          |
 
 ### Depth 2
 

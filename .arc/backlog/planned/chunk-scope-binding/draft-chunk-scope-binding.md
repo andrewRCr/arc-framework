@@ -84,6 +84,49 @@
 
 - _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24.
 
+### `[ ]` **Qualify finding labels by look, and carry the report's numbering back to the aggregate**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-28).
+
+- _Shapes:_ the entry "Keep one finding identity from a chunked aggregate to the commit body".
+
+- _Observation:_ two more instances from `storage-ref-backend`. A disposition report numbers findings F1…Fn per look,
+  so a trend rationale citing pass-1 findings by their labels rendered beside this look's own F2 and F8 (caught before
+  approval). And the CLI put a carried-forward finding first, so report numbers differ from the aggregate's from F8 on,
+  while commit footers cite report numbers.
+
+- _Approach:_ label a reference to an earlier look by that look, and have the respond result carry the map from report
+  label to finding.
+
+- _Evidence:_ `fix-check-1/disposition-report-1.txt` against `-2.txt`, and `standard-pass-2/f-map.json`,
+  under `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/` in that work unit's
+  checkout (checkout-local).
+
+- _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24 (Owner-approved).
+
+### `[ ]` **Scope resolved-finding context for chunked reviews**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-28).
+
+- _Shapes:_ the per-chunk review source's reviewer instructions: what prior-finding context each chunk, seam and
+  aggregate review carries.
+
+- _Observation:_ Native fourth-pass reviewer instructions included 242 resolved-finding locus/title pointers in
+  every scope, including chunks with no relation to most pointers. The instructions totaled 66,516 characters and
+  were repeated across 61 fresh chunk, seam and aggregate contexts. No controlled evidence establishes that this
+  caused missed findings; it is a measurable recurring context cost and a potential attention/anchoring issue.
+
+- _Approach:_ Assess whether prior-finding guidance can be scoped without losing exact source binding,
+  complete coverage or needed regression context.
+
+- _Files:_ `packages/arc-framework/src/scripts/review-gate/local-prepare.ts`; `standard-pass-4/progress.json`
+  records the context disclosure and exact review inputs, in `storage-ref-backend`'s private verification
+  directory (checkout-local).
+
+- _Scope:_ Native review context composition; deferred design work.
+
+- _Captured during:_ storage-ref-backend fourth complete review, 2026-10-26; Owner requested capture.
+
 ---
 
 ## Grooming status (continuity)
