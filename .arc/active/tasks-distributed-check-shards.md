@@ -173,21 +173,15 @@ _Mode:_ `slice` through Phase 4 — closes on native tier coverage and completio
 - _Goal:_ Concurrent execution views do not alias native mutable outputs, even with shared dependencies, and native
   artifact ownership remains effective through controller closing.
 
-    - `[ ]` **3.1.a Keep native cache writers at their default locations in each prepared copy**
-        - Each placement prepares a private copy and runs further siblings serially in it, so no views share an
-          installation. Keep the default Vite `cacheDir` and workspace-relative reporters in the package's
-          `vitest.config.ts`, and confirm they lie under roots the adapter's preparation establishes.
-        - Confirm the resolved cache and report locations, including Vite's results under
-          `node_modules/.vite/vitest`, by configuration and path inspection. The proof that a second sibling in one
-          prepared copy passes per-invocation verification runs in the external adapter against a real tier (5.1.a).
-        - Configuration uses test-after feedback; do not replace native cache formats or weaken controller leases.
+    - `[x]` **3.1.a Keep native cache writers at their default locations in each prepared copy**
+        - Retained native defaults: project-root `node_modules/.vite/vitest/<project hash>/results.json` and
+          package-relative CI JSON reports. The adapter materializes a private execution root, installs/builds,
+          then freezes generated roots before dispatch; package dependency roots are present in preparation.
+          Real-tier sibling acceptance remains the external adapter proof in 5.1.a.
 
-    - `[ ]` **3.1.b Keep CI duration collection aligned with the native cache path**
-        - With the cache location unchanged, confirm `.github/workflows/ci.yml` clear/upload paths and
-          `__tests__/integration/duration-layout-workflow.test.ts` need no change. Retain job placement, tier
-          artifact names and native `results.json`.
-        - Verify `mergeDurationArtifacts` still finds and merges those documents recursively. Re-ground store
-          additions after the native reach implementation lands instead of creating a competing artifact format.
+    - `[x]` **3.1.b Keep CI duration collection aligned with the native cache path**
+        - CI clear/upload paths already match native caches. Retained tier-labelled shard artifacts and recursive
+          `mergeDurationArtifacts` discovery of hashed native result documents, with no format or placement change.
 
     - `[ ]` **3.1.c Prove writers remain private through native completion and closing**
         - Extend native controller fixtures around `withTestArtifactOwnership`/`withBuildArtifactOwnership` and
