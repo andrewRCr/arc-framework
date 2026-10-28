@@ -154,11 +154,13 @@ it("validates each parent once per pass and refuses one that leaves the source b
   expect(resolutions).toBe(2);
 });
 
-it("reports unavailable source storage with repair and retry guidance", async () => {
+it.each(["EACCES", "ENOENT"])("reports unavailable source storage (%s) as a filesystem failure with repair and retry guidance", async code => {
   const { root, io, owned } = await fixture();
   const createDirectory = io.files.createDirectory;
-  io.files.createDirectory = async () => { throw new Error("storage unavailable"); };
-  await expect(freezeSourcePresentation(root, Buffer.from("source.txt\0"), coordinates, io)).rejects.toThrow(/repair.*retry.*local/iu);
+  io.files.createDirectory = async () => { throw Object.assign(new Error("storage unavailable"), { code }); };
+  const refused = freezeSourcePresentation(root, Buffer.from("source.txt\0"), coordinates, io);
+  await expect(refused).rejects.toThrow(/source filesystem operation failed.*repair.*retry.*local/iu);
+  await expect(refused).rejects.not.toThrow(/absent/iu);
   expect(owned).toEqual([]);
   io.files.createDirectory = createDirectory;
   const retry = await freezeSourcePresentation(root, Buffer.from("source.txt\0"), coordinates, io);

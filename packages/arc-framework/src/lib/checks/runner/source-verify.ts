@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import { createSourceSpellingIndex } from "./source-spelling.js";
 import { verifySourceFile } from "./source-file.js";
 import { verifySourceLink } from "./source-link.js";
-import { SourceCaptureError, sourceCaptureFailure } from "./source-error.js";
+import { SourceCaptureError, sourceCaptureFailure, sourceEntry } from "./source-error.js";
 import { decodeSourceText, sourcePathContains } from "./source-paths.js";
 import { identifySourceManifest } from "./source-manifest.js";
 
@@ -50,12 +50,14 @@ export async function verifySourcePresentation(source: PrepareParams["source"],
     confirmIdentity(descriptor.data, manifest, text);
     const spelling = createSourceSpellingIndex(io, source.root);
     for (const entry of manifest.entries) {
-      if (await spelling.resolve(entry.path) !== entry.path) throw new SourceCaptureError("Source path spelling no longer matches the manifest");
+      if (await sourceEntry("verify", () => spelling.resolve(entry.path)) !== entry.path) {
+        throw new SourceCaptureError("Source path spelling no longer matches the manifest");
+      }
       const path = join(source.root, entry.path);
-      if (entry.kind === "file") await verifySourceFile(io, path, entry);
-      else await verifySourceLink(io, source.root, path, entry);
+      await sourceEntry("verify", () => entry.kind === "file"
+        ? verifySourceFile(io, path, entry) : verifySourceLink(io, source.root, path, entry));
     }
-    await spelling.recheck();
+    await sourceEntry("verify", () => spelling.recheck());
     return manifest;
   } catch (cause) { throw sourceCaptureFailure(cause, "verify"); }
 }

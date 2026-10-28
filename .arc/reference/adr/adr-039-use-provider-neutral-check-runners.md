@@ -143,9 +143,8 @@ The standalone implementation is four JavaScript files totaling 510 lines. Repro
 Known hits still incur capture and preparation; unknown runtimes execute every selected request. These costs and the
 provider's recovery burden are accepted consequences of qualifying inputs and lifetime before reusable evidence.
 
-**Correction (2026-10-27):** The 510-line figure above predates three later fixes to the standalone example; at
-verification its four files total 573 lines (33,083 bytes). The package and example READMEs state a bound instead of
-an exact count.
+**Correction (2026-10-27):** The 510-line figure above predates later review fixes to the standalone example, whose
+four files now stay under 600 lines. The package and example READMEs state that bound instead of an exact count.
 
 ---
 

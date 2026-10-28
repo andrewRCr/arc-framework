@@ -60,34 +60,41 @@ it.runIf(process.platform === "linux")("executes the captured source after the c
   } finally { await prepared.execution.close(); }
 });
 
-it.runIf(process.platform === "linux")("lets a command refresh Git's index stat cache and add tool state before another planned command", async () => {
-  const fixture = await createRunnerCheckRepository(directories);
-  const refresh = `
-    const { execFileSync } = require('node:child_process');
-    const { mkdirSync } = require('node:fs');
-    execFileSync('git', ['status', '--porcelain']);
-    execFileSync('git', ['diff', '--name-only', '--', 'input.txt']);
-    mkdirSync(execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim() + '/arc/test-suite', { recursive: true });
-  `;
-  const prepared = await prepareSelectedCheckExecution({ ...fixture.input,
-    buildPlan: () => ({ invocations: [{ id: "status", cwd: ".", shell: false, argv: [process.execPath, "-e", refresh] },
-      { id: "after", cwd: ".", shell: false, argv: [process.execPath, "-e", "process.exit(0)"] }], probes: { global: [], check: [] } }),
-  }, fixture.io);
-  if (prepared.status !== "ready") throw new Error(prepared.reason);
-  try {
-    expect((await prepared.execution.run("status")).outcomes.get("status")).toEqual({ status: "completed", exitCode: 0 });
-    expect((await prepared.execution.run("after")).outcomes.get("after")).toEqual({ status: "completed", exitCode: 0 });
-  } finally { await prepared.execution.close(); }
-});
+it.runIf(process.platform === "linux").each([["an ordinary", []], ["a split", ["-c", "core.splitIndex=true"]]])(
+  "lets a command refresh %s index's stat cache and add tool state before another planned command", async (_index, options) => {
+    const fixture = await createRunnerCheckRepository(directories);
+    const refresh = `
+      const { execFileSync } = require('node:child_process');
+      const { mkdirSync } = require('node:fs');
+      const options = ${JSON.stringify(options)};
+      execFileSync('git', [...options, 'status', '--porcelain']);
+      execFileSync('git', [...options, 'diff', '--name-only', '--', 'input.txt']);
+      mkdirSync(execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim() + '/arc/test-suite', { recursive: true });
+    `;
+    const prepared = await prepareSelectedCheckExecution({ ...fixture.input,
+      buildPlan: () => ({ invocations: [{ id: "status", cwd: ".", shell: false, argv: [process.execPath, "-e", refresh] },
+        { id: "after", cwd: ".", shell: false, argv: [process.execPath, "-e", "process.exit(0)"] }], probes: { global: [], check: [] } }),
+    }, fixture.io);
+    if (prepared.status !== "ready") throw new Error(prepared.reason);
+    try {
+      expect((await prepared.execution.run("status")).outcomes.get("status")).toEqual({ status: "completed", exitCode: 0 });
+      expect((await prepared.execution.run("after")).outcomes.get("after")).toEqual({ status: "completed", exitCode: 0 });
+    } finally { await prepared.execution.close(); }
+  });
 
-it.runIf(process.platform === "linux").each(["source", "new file", "Git index", "explicit file"])(
-  "refuses %s mutation before another planned command and permits a fresh repaired attempt", async mutation => {
+const git = "const git = (...args) => require('node:child_process').execFileSync('git', args, { encoding: 'utf8' }).trim();";
+
+it.runIf(process.platform === "linux").each([
+  ["source", "require('node:fs').writeFileSync('input.txt','changed')"],
+  ["new file", "require('node:fs').writeFileSync('generated.secret','new')"],
+  ["Git index", `${git} git('read-tree', '--empty')`],
+  ["Git ref", `${git} git('update-ref', 'refs/tags/probe', git('rev-parse', ':input.txt'))`],
+  ["Git config", `${git} git('config', 'core.probe', '1')`],
+  ["explicit file", "require('node:fs').writeFileSync(process.env.EXPLICIT_FILE,'changed')"],
+])(
+  "refuses %s mutation before another planned command and permits a fresh repaired attempt", async (_mutation, mutate) => {
     const fixture = await createRunnerCheckRepository(directories);
     const marker = join(fixture.stateRoot, "second-started");
-    const mutate = mutation === "source" ? "require('node:fs').writeFileSync('input.txt','changed')"
-      : mutation === "new file" ? "require('node:fs').writeFileSync('generated.secret','new')"
-      : mutation === "Git index" ? "require('node:child_process').execFileSync('git',['read-tree','--empty'])"
-      : "require('node:fs').writeFileSync(process.env.EXPLICIT_FILE,'changed')";
     const reader = { id: "reader", cwd: ".", shell: false as const,
       argv: [process.execPath, "-e", `require('node:fs').writeFileSync(${JSON.stringify(marker)},'started')`] as [string, ...string[]] };
     const attempt = prepareSelectedCheckExecution({ ...fixture.input,

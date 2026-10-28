@@ -17,8 +17,17 @@ class SourceCaptureFailure extends Error {}
 export function sourceCaptureFailure(cause: unknown, action: "freeze" | "verify" = "freeze"): Error {
   if (cause instanceof SourceCaptureFailure) return cause;
   const reason = cause instanceof SourceCaptureError || cause instanceof EnvironmentFileCaptureError ? cause.message
-    : absent(cause) ? ABSENT_ENTRY[action] : "a source filesystem operation failed";
+    : "a source filesystem operation failed";
   return new SourceCaptureFailure(`Cannot ${action} source presentation: ${reason}. Repair unsupported entries or concurrent changes and retry; keep the check local or declare an explicit input for external data.`, { cause });
+}
+
+/** Run one operation on a selected or captured entry path, naming a missing entry rather than a generic failure. */
+export async function sourceEntry<T>(action: "freeze" | "verify", operation: () => Promise<T>): Promise<T> {
+  try { return await operation(); }
+  catch (cause) {
+    if (!absent(cause)) throw cause;
+    throw new SourceCaptureError(ABSENT_ENTRY[action], { cause });
+  }
 }
 
 function absent(cause: unknown): boolean {

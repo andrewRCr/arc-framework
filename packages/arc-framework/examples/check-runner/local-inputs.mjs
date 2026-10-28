@@ -136,8 +136,10 @@ async function verifyInventory(root, entries) {
 }
 
 // Git reads every top-level file and these directories as repository state. Git commands may still refresh the index's
-// stat cache or add logs, locks and tool directories, so the index counts by its staged entries alone.
+// stat cache, which a split index also writes to sharedindex files, or add logs, locks and tool directories, so the
+// index counts by its staged entries alone.
 const gitStateDirectories = new Set(["hooks", "info", "objects", "refs"]);
+const indexFile = name => name === "index" || name.startsWith("sharedindex.");
 
 async function administrationIdentity(root) {
   const hash = createHash("sha256");
@@ -157,7 +159,7 @@ async function administrationIdentity(root) {
   const names = (await readdir(root)).sort((first, second) => Buffer.compare(Buffer.from(first), Buffer.from(second)));
   for (const name of names) {
     const directory = (await lstat(resolve(root, name))).isDirectory();
-    if (directory ? gitStateDirectories.has(name) : name !== "index" && !name.endsWith(".lock")) await visit(name);
+    if (directory ? gitStateDirectories.has(name) : !indexFile(name) && !name.endsWith(".lock")) await visit(name);
   }
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !gitNames.includes(name.toUpperCase())));
   const { stdout } = await promisify(execFile)("git", [`--git-dir=${root}`, "ls-files", "--stage", "-z"],

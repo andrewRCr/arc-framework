@@ -5,7 +5,7 @@ import { decodeSourcePaths } from "./source-paths.js";
 import { freezeSourceFile } from "./source-file.js";
 import { freezeSourceLink } from "./source-link.js";
 import { nodeSourcePresentationIO, type SourcePresentationIO } from "./source-io.js";
-import { sourceCaptureFailure } from "./source-error.js";
+import { sourceCaptureFailure, sourceEntry } from "./source-error.js";
 import { createSourceSpellingIndex } from "./source-spelling.js";
 import { identifySourceManifest } from "./source-manifest.js";
 
@@ -34,19 +34,21 @@ export async function freezeSourcePresentation(root: string, paths: Uint8Array,
     const presentationPaths = new Set<string>();
     const spelling = createSourceSpellingIndex(io, root);
     for (const codePath of decodeSourcePaths(paths, io.platform)) {
-      const path = await spelling.resolve(codePath);
+      const path = await sourceEntry("freeze", () => spelling.resolve(codePath));
       codePaths.set(codePath, path);
       if (presentationPaths.has(path)) continue;
       presentationPaths.add(path);
       const source = resolve(root, path);
       const destination = join(capturedRoot, path);
       await io.mkdir(dirname(destination));
-      const before = await io.lstat(source);
-      manifest.entries.push(before.isSymbolicLink()
-        ? await freezeSourceLink(io, root, source, destination, path, before)
-        : await freezeSourceFile(io, source, destination, path, before));
+      manifest.entries.push(await sourceEntry("freeze", async () => {
+        const before = await io.lstat(source);
+        return before.isSymbolicLink()
+          ? await freezeSourceLink(io, root, source, destination, path, before)
+          : await freezeSourceFile(io, source, destination, path, before);
+      }));
     }
-    await spelling.recheck();
+    await sourceEntry("freeze", () => spelling.recheck());
     const identity = identifySourceManifest(manifest);
     const manifestPath = join(directory, "manifest.json");
     await io.writeManifest(manifestPath, identity.encoding);
