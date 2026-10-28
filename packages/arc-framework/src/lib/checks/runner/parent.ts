@@ -10,6 +10,8 @@ import { normalizeCheckInvocationOutcome, reduceCheckInvocationOutcomes,
 export interface CheckInvocationDetail extends CheckInvocationCoordinate {
   readonly invocationId: string;
   readonly outcome: NormalizedCheckInvocationOutcome;
+  /** Collected display bytes, which never substitute for native terminal evidence. */
+  readonly output?: string;
 }
 
 /** Parent evidence and the complete expected matrix, including unexecuted pairs. */

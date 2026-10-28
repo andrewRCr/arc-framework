@@ -106,27 +106,20 @@ context/capture under the specified lifecycle. The unconfigured command remains 
           values and symlink-file bytes despite caller/worker selectors targeting another repository. Opted-in
           declarations refuse all reserved names/case variants; a real refused declaration succeeds after repair.
 
-### `[ ]` **2.2 Retain attributable native failures and incomplete-work diagnostics — D6**
+### `[x]` **2.2 Retain attributable native failures and incomplete-work diagnostics — D6**
 
 - _Goal:_ Human and JSON results retain their parent outcome conventions while showing each pair's valid native
   outcome, exit/notice and incomplete-work detail without treating progress or log persistence as authority.
 
-    - `[ ]` **2.2.a Keep independently observed outcomes through final-reply failures**
-        - Consume retained terminal evidence from the foundation facade as it arrives, rather than reconstructing
-          it only from a successful final reply. Extend handler integration cases for group and serial playback.
-        - Build `test-first` (one behavior at a time):
-            - A valid completed failure remains failed after output/transport/final-closure loss, with missing-work
-              diagnostics alongside it; the same loss without a completed failure reports incomplete execution.
-            - Adapter exit, human output and cancellation acknowledgement never substitute for terminal evidence.
+    - `[x]` **2.2.a Keep independently observed outcomes through final-reply failures**
+        - Production group-loss/malformed-closure scenarios retain the completed native result and identify every
+          missing sibling, with failure taking precedence over incomplete work. Logs, clean process exit and partial
+          success cannot close the missing matrix; captures retain actionable settlement guidance.
 
-    - `[ ]` **2.2.b Render attributable invocation details without changing parent conventions**
-        - Extend `DeclaredCheckResult`, `renderDeclaredChecks` in `src/handlers/check/run-output.ts` and their
-          human/JSON tests; reuse existing report storage and the foundation's decoded output stream.
-        - Build `test-first` (one behavior at a time):
-            - Stable batch/shard coordinates, status, exact native exit/notice and incomplete reasons survive both
-              output formats, including a large failure code beside lost work.
-            - Missing required output remains substantive; best-effort display/report persistence failure alone
-              does not erase otherwise complete evidence or expose captured environment values in routine notices.
+    - `[x]` **2.2.b Render attributable invocation details without changing parent conventions**
+        - Human/JSON results retain canonical coordinates, native statuses/notices and incomplete reasons. Display
+          collection decodes each invocation/stream independently; full reports label each pair and preserve adapter
+          diagnostics. Optional report failure preserves complete evidence without printing captured bindings.
 
 ### `[ ]` **2.3 Close reuse and completed execution before parent publication — D5, D8**
 

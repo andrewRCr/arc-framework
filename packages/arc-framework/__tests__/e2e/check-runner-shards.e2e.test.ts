@@ -1,6 +1,6 @@
 /** Production selected checks execute complete shard matrices through the public adapter contract. */
 import { afterEach, expect, it } from "vitest";
-import { access } from "node:fs/promises";
+import { access, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createShardedCheckFixture, readShardedCheckRequests } from "../helpers/sharded-check-fixture.js";
 import { registerRunnerFixtureSources } from "../fixtures/checks/runner-machine.js";
@@ -54,4 +54,22 @@ it.each([undefined, false])("keeps opted-out routed declarations unsharded (%s)"
   expect(check.invocations[0]).not.toHaveProperty("shard");
   expect((await readShardedCheckRequests(fixture.home)).map(request => request.method))
     .toEqual(["check/prepare", "check/run", "check/release"]);
+});
+
+it("keeps complete group evidence when optional reports cannot be saved, without exposing bindings", async () => {
+  const secret = "private-captured-input";
+  const fixture = await createShardedCheckFixture(directories, { mode: "group",
+    program: "process.stdout.write('useful\\n')", check: { environment_inputs: { PRIVATE_TOKEN: "value" } },
+  });
+  await writeFile(fixture.adapter, "process.stderr.write('adapter diagnostic\\n');\n" + await readFile(fixture.adapter, "utf8"));
+  await writeFile(join(fixture.root, ".git/arc-checks"), "unavailable report directory");
+  const result = await runArc(["check", "run", "example", "--json"], fixture.root, {
+    env: { ...fixture.environment, PRIVATE_TOKEN: secret },
+  });
+  expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+  const check = JSON.parse(result.stdout).result.checks[0];
+  expect(check).toMatchObject({ outcome: "passed", runnerOutput: "adapter diagnostic\n" });
+  expect(check.logPath).toBeUndefined();
+  expect(check.invocations.map((detail: { output: string }) => detail.output)).toEqual(Array(3).fill("useful\n"));
+  expect(result.stdout + result.stderr).not.toContain(secret);
 });
