@@ -1836,9 +1836,8 @@ async function prepareResponseProposal(
     const proposal = prepareDispositionProposal(request, source);
     const { assessment: provisionalPassAssessment, standardFacts } = await readResponsePassAssessment(source.result, proposal, dependencies);
     const release = await proposedApprovalRelease(source, proposal, supersession, dependencies);
-    const report = await readProposedResponseReport({ proposal, release, producerFindings: source.findings,
-      assessment: provisionalPassAssessment, report: request.report, standardFacts,
-      readRecord: dependencies.dispositionStore.readDispositionRecord.bind(dependencies.dispositionStore) });
+    const report = readProposedResponseReport({ proposal, release, producerFindings: source.findings,
+      assessment: provisionalPassAssessment, report: request.report, standardFacts });
     return RespondEnvelopeSchema.parse({
       schemaVersion: 1,
       mode: "review-respond",

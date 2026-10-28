@@ -3777,8 +3777,9 @@ async function executeDefaultHostedRequest(
         }, {
           sourceId: request.provider, nextAction: "hosted-request",
         }, {
+          // Unavailable attempts retain the configured order even when the next provider selects a suffix.
           sources: latestAttempt?.terminalProducer === true
-            ? [latestAttempt.sourceId, ...sources.filter(source => source !== latestAttempt.sourceId)] : sources,
+            ? [latestAttempt.sourceId, ...sources.filter(source => source !== latestAttempt.sourceId)] : policy.sources,
           selectionSources: sources,
           configuredSources: policy.sources,
           maxPasses: policy.maxPasses,

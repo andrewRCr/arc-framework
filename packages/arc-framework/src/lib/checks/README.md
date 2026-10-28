@@ -5,12 +5,22 @@ adapters live in [the check handlers](../../handlers/check/).
 
 - `declaration.ts` defines the typed configuration; `request.ts`, `resolve-request.ts`, and `selection.ts` establish
   scope, checked content, and input reach. `gates.ts` assigns gate membership and result kind.
+- `environment-declaration.ts` validates explicit value/file input names against portable naming and the engine-owned
+  execution channels in `environment-policy.ts`, sharing the native Git repository-selector policy.
+- `environment-inputs.ts` freezes, identifies and rebinds explicit inputs for one dispatch and owns their cleanup;
+  `environment-file.ts` streams stable regular files into private copies with bounded memory and redacted refusals.
 - `tree.ts`, `matching.ts`, and `merged.ts` read Git content. `index-view.ts`, `divergence.ts`, and `fixers.ts` preserve
   the event's index view and distinguish checked content from worktree rewrites.
 - `key-resolver.ts`, `key.ts`, and `record.ts` publish disposable successful-execution shortcuts keyed by content
-  and runtime fingerprints. Unavailable observations never authorize reuse.
+  and runtime fingerprints. Routed keys also bind the frozen explicit-input identity, the captured presentation of
+  declared dependencies and the prepared executor's qualified runtime. Unavailable observations never authorize reuse.
+- `result.ts` normalizes terminal observations from native processes and runners and reduces each check's invocations
+  to one verdict; incomplete, unavailable or interrupted work never reduces to a pass.
 - `batching.ts` bounds literal argument lists. `forecast.ts` describes native invocations and shard expansions;
   `reports.ts` retains full logs and measured costs, and `remedies.ts` names work-preserving retries.
+- `runner/` routes eligible checks through the machine-configured adapter. It captures fixed source and explicit
+  inputs, plans portable invocations, holds one JSON-RPC conversation per check and owns the capture until the adapter
+  proves settlement. The [package guide](../../../README.md) documents the public protocol.
 - `install-gap.ts` reads a failure naming a package the npm lockfile declares within the importer's reach, but no
   install there holds, as a check that could not run, and names `npm ci` as the repair.
 

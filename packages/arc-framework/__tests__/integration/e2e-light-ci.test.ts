@@ -48,7 +48,10 @@ describe("light PR content selection for E2E", () => {
   ] as const)("uses the authored classifier and job conditions for %s", async (_name, path, verified, expected) => {
     const root = await createTempRepo();
     roots.push(root);
-    for (const input of ["scripts/classify-change.sh", "packages/arc-framework/src/lib/change-facts.ts"]) {
+    for (const input of [
+      "scripts/classify-change.sh", "packages/arc-framework/src/lib/change-facts.ts",
+      "packages/arc-framework/src/lib/git/repository-environment.mjs",
+    ]) {
       await write(root, input, await readFile(join(repositoryRoot, input), "utf8"));
     }
     await write(root, "package.json", '{"type":"module"}\n');
@@ -65,8 +68,8 @@ describe("light PR content selection for E2E", () => {
     await write(root, path, `${content}\n<!-- changed content -->\n`);
     const head = await commit(root, "content change");
     const currentTree = await runScript(join(root, "scripts/classify-change.sh"), ["tree-hash", head], { cwd: root });
-    expect(previousTree.exitCode).toBe(0);
-    expect(currentTree.exitCode).toBe(0);
+    expect(previousTree.exitCode, previousTree.stdout + previousTree.stderr).toBe(0);
+    expect(currentTree.exitCode, currentTree.stdout + currentTree.stderr).toBe(0);
     expect(currentTree.stdout).toBe(previousTree.stdout);
 
     const workflow = load(await readFile(join(repositoryRoot, ".github/workflows/ci.yml"), "utf8")) as Workflow;

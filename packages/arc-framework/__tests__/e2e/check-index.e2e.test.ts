@@ -1,6 +1,7 @@
 /** Declared index readers see the request's checked content through an absolute index path. */
 import { afterEach, expect, it } from "vitest";
-import { mkdir, readFile, writeFile, utimes } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile, utimes } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -12,6 +13,34 @@ const repositories: string[] = [];
 const git = promisify(execFile);
 const script = "const fs=require('node:fs');const tree=require('node:child_process').execFileSync('git',['write-tree'],{encoding:'utf8'}).trim();fs.writeFileSync('receipt.json',JSON.stringify({tree,index:process.env.GIT_INDEX_FILE}))";
 afterEach(async () => { await removeGitBackedDirs(repositories.splice(0)); });
+
+it.each([false, true])("preserves a linked worktree's checked index after removing ambient selectors, staged=%s", async staged => {
+  const primary = await createDeclaredCheckRepository({ index: {
+    command: [process.execPath, "-e", script], mode: "files", inputs: ["src/a.ts"], reads_index: true, cache: false,
+  } });
+  repositories.push(primary);
+  const root = await mkdtemp(join(tmpdir(), "arc-checked-linked-"));
+  repositories.unshift(root);
+  await git("git", ["worktree", "add", "-b", "linked-index", root, "HEAD"], { cwd: primary });
+  await writeFile(join(root, "src/a.ts"), "staged linked bytes\n");
+  await git("git", ["add", "src/a.ts"], { cwd: root });
+  await writeFile(join(root, "src/a.ts"), "later worktree bytes\n");
+  const linkedIndexPath = (await git("git", ["rev-parse", "--path-format=absolute", "--git-path", "index"], { cwd: root })).stdout.trim();
+  const ownIndex = await readFile(linkedIndexPath);
+  const result = await runArc(["check", "run", "index", ...(staged ? ["--staged"] : []), "--json"], root, { env: {
+    GIT_DIR: "/conflicting/repository", GIT_WORK_TREE: "/conflicting/worktree", GIT_INDEX_FILE: "/conflicting/index",
+  } });
+
+  expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+  const observed: { tree: string; index: string } = JSON.parse(await readFile(join(root, "receipt.json"), "utf8"));
+  expect(observed.tree).toBe(JSON.parse(result.stdout).result.tree);
+  expect(observed).toMatchObject({ index: expect.any(String) });
+  expect(isAbsolute(observed.index)).toBe(true);
+  expect(observed.index).not.toBe(linkedIndexPath);
+  await expect(readFile(observed.index)).rejects.toMatchObject({ code: "ENOENT" });
+  expect(await readFile(linkedIndexPath)).toEqual(ownIndex);
+  expect(await readFile(join(root, "src/a.ts"), "utf8")).toBe("later worktree bytes\n");
+});
 
 it("gives a worktree request an absolute temporary index equal to its checked tree", async () => {
   const root = await createDeclaredCheckRepository({ index: {

@@ -31,26 +31,44 @@ export function checkArgumentBudget(platform: NodeJS.Platform): number {
  * @param paths - Received paths relative to the check's working directory
  * @param platform - Operating-system identifier
  * @returns Ordered path batches
- * @throws When the fixed command and a single path cannot fit in one batch
+ * @throws When the fixed command alone, or with any single path, exceeds the platform's argument budget
  */
 export function batchCheckPaths(command: readonly string[], paths: readonly string[], platform: NodeJS.Platform): string[][] {
-  const budget = checkArgumentBudget(platform);
-  const fixed = command.reduce((size, argument, index) => size + argumentUnits(argument, platform, index === 0), platform === "win32" ? 2 : 0);
+  return batchPaths(command, paths, [platform]);
+}
+
+/**
+ * Partition complete fixed argv and ordered paths so every batch fits both supported command-line models.
+ * @param command - Complete fixed argv
+ * @param paths - Received paths in their declared order
+ * @param shell - Treat the first member as literal shell text rather than an executable pathname
+ * @returns Ordered path batches
+ * @throws When the fixed command alone, or with any single path, exceeds either platform's argument budget
+ */
+export function batchPortableCheckPaths(command: readonly string[], paths: readonly string[], shell = false): string[][] {
+  return batchPaths(command, paths, ["linux", "win32"], shell);
+}
+
+function batchPaths(command: readonly string[], paths: readonly string[], platforms: readonly NodeJS.Platform[], shell = false): string[][] {
+  const costs = platforms.map(platform => {
+    const fixed = command.reduce((size, argument, index) => size + argumentUnits(argument, platform, index === 0 && !shell), platform === "win32" ? 2 : 0);
+    return { platform, fixed, budget: checkArgumentBudget(platform), size: fixed, pathUnits: 0 };
+  });
+  if (costs.some(cost => cost.fixed > cost.budget)) throw new Error("Fixed command exceeds the argument budget; shorten the command and retry.");
   const batches: string[][] = [];
   let batch: string[] = [];
-  let size = fixed;
   for (const path of paths) {
-    const units = argumentUnits(path, platform);
-    if (fixed + units > budget) {
+    for (const cost of costs) cost.pathUnits = argumentUnits(path, cost.platform);
+    if (costs.some(cost => cost.fixed + cost.pathUnits > cost.budget)) {
       throw new Error("Command and path exceed the argument budget; shorten the command or path and retry.");
     }
-    if (batch.length > 0 && size + units > budget) {
+    if (batch.length > 0 && costs.some(cost => cost.size + cost.pathUnits > cost.budget)) {
       batches.push(batch);
       batch = [];
-      size = fixed;
+      for (const cost of costs) cost.size = cost.fixed;
     }
     batch.push(path);
-    size += units;
+    for (const cost of costs) cost.size += cost.pathUnits;
   }
   if (batch.length > 0) batches.push(batch);
   return batches;
@@ -68,6 +86,14 @@ export function batchCheckPaths(command: readonly string[], paths: readonly stri
 export function checkArgumentBatches(check: CheckDeclaration["checks"][string], command: readonly string[],
   paths: readonly string[], platform: NodeJS.Platform): string[][] {
   return check.mode !== "project" && check.pass_paths ? batchCheckPaths(command, paths, platform) : [[]];
+}
+
+/** Apply declared path policy while validating complete fixed argv against both platform budgets. */
+export function portableCheckArgumentBatches(check: CheckDeclaration["checks"][string], command: readonly string[],
+  paths: readonly string[]): string[][] {
+  const received = check.mode !== "project" && check.pass_paths;
+  const batches = batchPortableCheckPaths(command, received ? paths : [], check.shell);
+  return received ? batches : [[]];
 }
 
 function argumentUnits(value: string, platform: NodeJS.Platform, program = false): number {

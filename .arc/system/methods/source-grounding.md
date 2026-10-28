@@ -73,7 +73,9 @@ sweep's reach comes from source — the importers and callers of the symbols it 
 scope or file list, which is itself a claim under check. Where the design or a proposed repair removes or changes an
 invariant — a required field, a file's presence, an enum value — inventory that invariant's readers in source and check
 each against the change. A claim that a list is complete or that a composed outcome set covers every case belongs to
-this sweep.
+this sweep. So does a claim that a state is never re-entered or a path never taken: enumerate every path that could
+reach it — reopen, restore, retry, and remedy paths especially — and check each, since finding no counterexample does
+not ground it.
 
 **Reach.** Ground at source everything the artifact claims exists outside itself: code behavior, external tools,
 configuration, and what shipped rules and methods require. Re-ground inherited claims at source rather than citing

@@ -96,8 +96,8 @@ governing caller. The command resolves the durable producer, applies the input p
 `severityGatingPolicy`; its exact canonical finding gates and `policyVersion` are part of the approval binding.
 
 Supply the separate `report` beside `proposal`: one `tags` entry per fix (`new-design` or `local-correction`),
-one `fails` anchor per finding, the `successorRecommendation`, origin counts, and one of
-[review-model's trend readings][trend-reading] with its rationale. Key tags and anchors by finding identity. Lift a
+one `fails` anchor per finding, the `successorRecommendation`, and one of [review-model's trend readings][trend-reading]
+with its rationale, which says where the review stands. Key tags and anchors by finding identity. Lift a
 local reviewer's `Fails:` line from its referenced report; for a hosted source, supply the rubric anchor while
 verifying it. Use the supplied rubric's item name alone, or `none` with a short reason; the anchor closes the
 finding's status line. These judgments are advisory and outside the canonical set's identity. The approved call
@@ -135,17 +135,20 @@ fix-round signals. Producer-native labels, capture ordinals, and references rema
 
 The report's header names the lane's position — standard `complete pass N of M` or `fix check, round N since pass M`, or
 frontline's recorded pass and ceiling — and the verified counts. Its Decisions block carries the step the fixed head
-needs beside your `successorRecommendation`, then open questions. The command states the step, so write the
-recommendation as the choice you recommend and why, in a sentence or two, without restating the fix, the step, or its
-authorization. Supply a clear recommendation from expected signal and cost, including at the ceiling. When a fix
+needs, naming each look it admits, then your `successorRecommendation` under `Recommended:`, then open questions. The
+command states the step and the label, so write the recommendation as the choice you recommend and why, in a sentence or
+two, without a label or restating the fix, the step, or its authorization. Recommend the step or stopping, never a look
+the step does not name. Where the step leaves the next look to review status at the fixed head, recommend provisionally,
+say that the fixed head decides, and recheck the recommendation against that head's lane read `nextLooks` before any
+look is dispatched. Supply a clear recommendation from expected signal and cost, including at the ceiling. When a fix
 requires a fix check or complete pass, the recommendation covers that activity, as spend the approver may decline. Emit
 the composed report without adding a second header, Decisions block, or approval question. Once the lane has two or more
-looks, its Trend combines the CLI's looks with your origin counts and reading; it is advice, never admission or
-convergence evidence.
+looks, its Trend sets your reading over the CLI's counts at each look; it is advice, never admission or convergence
+evidence.
 
 A fix check verifies repairs and a complete pass looks for what remains undiscovered. Recommend the fix check on the
 approved fixes' merits, even when a complete pass follows. Converge the rounds before a successor complete pass;
-`full-final` stays open after a clean fix check, while incremental closure requires the policy's proved chain.
+`full-final` stays open after a converged fix check, while incremental closure requires the policy's proved chain.
 Disposition approval and each next activity's authorization remain distinct, even when one reply grants both. A decline
 leaves the approved set unchanged; the governing caller honors the Owner's stop at the new head (an Errand's
 Owner-directed review stop or a work unit's Owner-accepted terminus), confirmed there once before any pass is

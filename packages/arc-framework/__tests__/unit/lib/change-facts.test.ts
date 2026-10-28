@@ -30,6 +30,42 @@ describe("status portability surface", () => {
   });
 });
 
+describe("raw Git file portability surface", () => {
+  it.each([
+    "src/lib/git/process-executor.ts", "__tests__/integration/raw-git-files.test.ts",
+    "__tests__/integration/check-source-git.test.ts",
+  ])("targets raw file execution path %s", path => {
+    expect(isPortabilitySurfacePath(`packages/arc-framework/${path}`)).toBe(true);
+  });
+});
+
+describe("runner foundation portability surface", () => {
+  it.each([
+    "src/lib/paths.ts", "__tests__/unit/paths.test.ts", "__tests__/e2e/check-runner-home.e2e.test.ts",
+    "src/lib/git/repository-environment.mjs", "__tests__/unit/git/repository-environment.test.ts",
+    "src/lib/checks/runner/planning.ts", "src/lib/checks/runner/source-cwd.ts",
+    "src/lib/checks/runner/source-paths.ts", "src/lib/checks/runner/session-process.ts",
+    "src/lib/checks/runner/execution-run.ts", "src/lib/checks/process.ts", "src/lib/checks/result.ts",
+    "src/lib/checks/batching.ts", "src/lib/checks/environment-inputs.ts", "src/lib/checks/environment-file.ts",
+    "src/lib/checks/file-coordinates.ts", "src/lib/checks/forecast.ts",
+    "src/lib/checks/runner/frozen-file.ts", "src/lib/ci-check-runner.ts",
+    "src/handlers/check/run.ts", "src/handlers/check/run-cli.ts", "src/handlers/check/run-output.ts",
+    "__tests__/unit/lib/checks/runner/planning-spelling.test.ts",
+    "__tests__/unit/lib/checks/runner/source-platform-paths.test.ts",
+    "__tests__/unit/lib/checks/runner/source-cwd.test.ts", "__tests__/unit/lib/checks/runner/session-outcomes.test.ts",
+    "__tests__/unit/lib/checks/result.test.ts", "__tests__/integration/check-runner-session.test.ts",
+    "__tests__/integration/check-symlink-cwd.test.ts",
+    "__tests__/integration/check-runner-conformance-wire.test.ts", "__tests__/integration/check-runner-conformance-groups.test.ts",
+    "__tests__/integration/check-runner-platform-status.test.ts", "__tests__/integration/check-runner-platform-spelling.test.ts",
+    "__tests__/e2e/check-runner-platform.e2e.test.ts", "__tests__/fixtures/checks/prepared-execution.ts",
+    "__tests__/fixtures/checks/runner-protocol.ts", "__tests__/fixtures/checks/runner.ts",
+    "__tests__/fixtures/checks/runner-machine.ts", "__tests__/fixtures/checks/repository.ts",
+    "examples/check-runner/local.mjs", "examples/check-runner/local-process.mjs",
+  ])("targets runner foundation path %s", path => {
+    expect(isPortabilitySurfacePath(`packages/arc-framework/${path}`)).toBe(true);
+  });
+});
+
 describe("retired unmanaged content", () => {
   it("does not select code or sensitive-content gates for inert residue", () => {
     expect(isCodeSurfacePath(".arc/system/extensions/inert.md")).toBe(false);
@@ -75,6 +111,22 @@ describe("integration target paths", () => {
     ".arc/system/.internal/transitions/example.json",
   ])("does not target the planning record %s", (path) => {
     expect(isIntegrationTargetPath(path)).toBe(false);
+  });
+
+  it.each([
+    ".arc/reference/adr/adr-099-example.md",
+    ".arc/reference/supplemental/research/research-example.md",
+    ".arc/reference/supplemental/analysis/analysis-example.md",
+  ])("does not target the reference record %s", (path) => {
+    expect(isIntegrationTargetPath(path)).toBe(false);
+  });
+
+  it.each([
+    ".arc/reference/adr/README.md",
+    ".arc/reference/supplemental/research/README.md",
+    ".arc/reference/strategies/project/strategy-example.md",
+  ])("still targets %s beside the reference records", (path) => {
+    expect(isIntegrationTargetPath(path)).toBe(true);
   });
 });
 

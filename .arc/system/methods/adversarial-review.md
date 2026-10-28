@@ -281,9 +281,9 @@ finding's status line ends with the supplied rubric item it fails, in the rubric
 source-verified reason; the primary verifies it with the finding. Write each Finding as what is wrong and why it
 matters, and each Detail as how the primary verified it.
 
-Once the loop has two or more looks, render the material trend, origins, and new-design counts after the finding
-sections, led by one [trend reading][review-model-trend] and its rationale; planning counts come from the pass record,
-including each fix-check round.
+Once the loop has two or more looks, render the Trend after the finding sections: one
+[trend reading][review-model-trend] saying where the review stands, then the critical and major findings at each look.
+Planning counts come from the pass record, including each fix-check round.
 
 Put each decision in the Decisions block — the decision a fix creates about the next round or pass, and open questions,
 each with its recommendation — then end with the one question asking for complete-set approval, as `Approve: 2 fixes,

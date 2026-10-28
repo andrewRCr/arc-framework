@@ -11,6 +11,7 @@ import { resolveCheckForecast } from "../../src/lib/checks/forecast.js";
 import { selectChangedInputs } from "../../src/lib/checks/matching.js";
 import { selectRequestChecks } from "../../src/lib/checks/gates.js";
 import { CheckPlumbingSchema, validateCheckPlumbing } from "../../src/lib/ci-check-plumbing.js";
+import { REFERENCE_RECORD_GLOBS } from "../../src/lib/change-facts.js";
 
 it("accepts the actual workflow and map against every merge-gate declaration entry", async () => {
   const root = resolve(import.meta.dirname, "../../../..");
@@ -87,4 +88,15 @@ it.each([
         : { status: "not selected", reason: "inputs unchanged" });
     }
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+it("leaves the same reference records out of the content tier and the CI integration trigger", async () => {
+  const sourceRoot = resolve(import.meta.dirname, "../../../..");
+  const declaration = CheckDeclarationSchema.parse(load(await readFile(
+    resolve(sourceRoot, ".arc/system/arc-checks.yml"), "utf8",
+  )));
+  const excluded = declaration.checks["test:integration:content"]!.inputs
+    .filter((input) => input.startsWith("!.arc/reference/"))
+    .map((input) => input.slice(1));
+  expect(excluded).toEqual([...REFERENCE_RECORD_GLOBS]);
 });

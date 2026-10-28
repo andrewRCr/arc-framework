@@ -79,8 +79,10 @@ The command's `payload.dispositionReportText` is exactly these bytes:
 
 **Detail:** The reviewer alleges this branch enters a failing path, but source verification shows it is unreachable, so no execution failure occurs.
 
+---
+
 **Decisions**
-- Next: Do not request another standard pass from this unsupported finding; request a named next pass only if it identifies a new expected signal worth the reviewer cost.
+- Recommended: Do not request another standard pass from this unsupported finding; request a named next pass only if it identifies a new expected signal worth the reviewer cost.
 - F1: Should the reviewer clarify the cited execution path?
 
 Approve: 1 reject?
