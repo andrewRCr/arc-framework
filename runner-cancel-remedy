@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "runner-cancel-remedy",
+  "claimId": "b00d17697356a26104c03f2c63018191",
+  "createdAt": "2026-10-28T22:15:55.532Z",
+  "updatedAt": "2026-10-28T22:15:55.532Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Offer a fresh-attempt retry after user cancellation without implying that runner inputs need repair.",
+  "branch": "chore/runner-cancel-remedy",
+  "origin": "inbox",
+  "originEntry": "Word the runner remedy for a user cancellation without \"repair\"",
+  "originEntrySourceDigest": "sha256:939335d00b8f961f3a021fb3d941b4d3346675bc221e11138a8e36d627086e05",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
