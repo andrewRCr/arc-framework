@@ -266,11 +266,10 @@ through controller closing. Store qualification uses the native reach command la
 - _Goal:_ Unit and integration retain their native selection and nonempty-completion requirements under the
   declared matrix and applicable execution profiles.
 
-    - `[ ]` **4.2.a Qualify unit and unit-mocks membership together**
-        - Run native unsharded and declared-shard selection/execution through the harness, covering both named unit
-          projects and the partitioner's recorded/fallback duration paths.
-        - Cover full and filtered selections, stable ordering, deletions/widening where applicable, and captured
-          available/absent/empty duration states. Check exact membership, not only subprocess success.
+    - `[x]` **4.2.a Qualify unit and unit-mocks membership together**
+        - The configured runner qualifies full and filtered native unit projects from one consumer capture, with
+          recorded/fallback durations and unset, empty-value and zero-byte-file inputs. Native fixtures verify
+          deletion/widening, exact membership and recorded ordering; profile evidence is in the notes.
 
     - `[ ]` **4.2.b Qualify integration through its native controller**
         - Set `shards.routed: true` on `test:integration` in `.arc/system/arc-checks.yml` and declare

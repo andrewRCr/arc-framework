@@ -108,6 +108,31 @@ legacy samples.
 registry histories. They are useful harness patterns, not throughput evidence. `src/lib/test-cost/run.ts` measures
 native test execution and is likewise not a complete capture-through-collection gate benchmark.
 
+## Native qualification evidence
+
+`qualify-native-check.ts` reads the actual declaration and machine runner, captures once through
+`prepareSelectedCheckExecution`, then executes the unsharded baseline and declared matrix through the public facade.
+It preserves npm prefixes, configured pool admission, native setup/closing and private adapter preparation. Its
+in-memory unit clone enables the qualification matrix; the shipping unit declaration stays opted out. Native
+observations and the parent/closure results are retained together, without cache reuse.
+
+The first unit qualification records live under the gitignored identity directory
+`.arc/user/andrew/.internal/distributed-check-shards-qualification/`:
+
+- `unit-full-unset.json`: Linux arm64, Node 26.3.0, Vitest 4.1.11; 1,321 selected modules (1,280 `unit`, 41
+  `unit-mocks`), assigned 659/662 with exact complete/disjoint union and successful parent/closure.
+- `unit-full-available.json`: Linux x64 with the same Node/Vitest versions and the same 1,321-member union, assigned
+  661/660. One captured 11,761-byte native duration file supplies 66 selected recorded durations plus fallback weights.
+- `unit-filtered-unset.json`, `unit-filtered-empty.json`, `unit-filtered-empty-file.json`: actual named unit and
+  unit-mocks filters retain two members, assigned one per shard. Empty environment input and an available zero-byte
+  file remain distinct observed states; the latter ran on Linux x64, the empty-value case on Linux arm64.
+
+Each record binds its captured source/selection/environment basis and actual native runtime observations. These
+records qualify those native cases and profiles; they are not an exact-head work-unit verification or a performance
+comparison. Native fixtures additionally cover deletion/widening, fixed input replay and recorded ordering. The
+Windows/macOS process-status qualification remains the completed CI record in Task 3.3.b.2 of
+`tasks-distributed-check-shards.md`.
+
 ## Amendment reasoning
 
 ### A2 — store dependency
