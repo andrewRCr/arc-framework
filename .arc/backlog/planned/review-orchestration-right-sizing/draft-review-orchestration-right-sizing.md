@@ -965,6 +965,64 @@
 - _Routing update (2026-10-19):_ PR1037 already shipped the urgent verification safeguards. Route only the remaining
   shared-contract and evidence-reuse design, retaining historical incident detail as history.
 
+### `[ ]` **Size every whole-target review read before it runs, and reopen the effort-bound decision on recurrence**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ the draft's "Bound adversarial review effort and detect verification scale before the first pass" entry —
+  its settled scope decision ("mechanical enforcement is not needed on this evidence; reconsider it if recurrence
+  establishes a pattern") and its remaining shared pre-review attention contract.
+
+- _Observation:_ `storage-ref-backend`'s verification (53k changed lines, no Delivery Plan) met three gaps in that
+  contract. `verify-work-unit` Step 1 runs code review's author check over `git diff {parent}...HEAD` before Step 2
+  invokes `arc review changeset resolve`, so the first whole-target read is unsized. Of the seam-locus post-mortem's
+  seven guards, the in-pass effort circuit breaker never landed and progress-as-remaining-work landed only through the
+  report-incomplete rule, so the session set its effort budget by hand. And the resolver measures and recommends chunks
+  but derives none: drawing them took an ad hoc import-graph script, where direct-import majority misplaced tests
+  (nearly every test imports the contract) and phase-tagged `Context:` footers placed tests most reliably.
+
+- _Observation:_ pre-publication repeats the pattern. `prepare-work-unit` sends the first `arc review pre-publication`
+  call before the chunk gate runs, and that call settled `storage-ref-backend`'s Candidate boundary at whole-target
+  scope with a hosted reservation; the chunked call that followed refused, offering only re-entry, which publishes. The
+  command could refuse to settle a hosted reservation for a target the chunk gate would flag, or let a later call
+  replace its own unconsumed judgment; the workflow reorder ships as its own Errand (PR #1119). Evidence:
+  `envelope-1.json`, `envelope-2.json`, and both `boundary-*.json` under
+  `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/`.
+
+- _Verb gap (2026-10-24):_ the workflow reorder landed (Errand `prepublication-chunk-gate-order`), but no command
+  returns pre-publication's exact target before its first call, so `prepare-work-unit` spells out its three parts:
+  `branch.base`, the sole merge base of `refs/heads/<branch.base>` and `HEAD`, and `HEAD` (`observeTarget` in
+  `policy/pre-publication-composition.ts`). A sizing read that composes it belongs with the command side above.
+
+- _Recurrence:_ seam-locus Pass 5 overran without an effort bound; this verification avoided that only by setting one by
+  hand. Weigh that against the settled scope decision rather than reading the decision as closing the question.
+
+- _Evidence:_ `process-lessons.md`, `review-partition.py`, and `review-partition.md` under
+  `.arc/user/andrew/storage-ref-backend/` in that work unit's checkout. They are checkout-local and leave at its
+  teardown.
+
+- _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-22.
+
+### `[ ]` **Give a chunked-scale disposition report a grouped view for approval**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ § Scope: a ceremony reduction that keeps the exact-head lock — approving a chunked-scale disposition set.
+
+- _Observation:_ `storage-ref-backend`'s chunked standard pass attested 81 findings, and `arc review respond -` rendered
+  a 64,416-character, 1,061-line disposition report that `review-triage` has the approver read in full, with no summary
+  in its place. The table at the top is the only overview, similar fixes cannot be grouped, and changing one disposition
+  means re-proposing and re-reading the whole set.
+
+- _Approach:_ at chunked scale, approve through a grouped view, per chunk or per fix area, with per-group dispositions,
+  while the bound canonical set stays whole.
+
+- _Evidence:_ `standard-pass-1/disposition-report-1.md` under
+  `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/` in that work unit's checkout
+  (checkout-local; it leaves at teardown).
+
+- _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24.
+
 ---
 
 ## Problem / Motivation

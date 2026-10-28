@@ -41,3 +41,32 @@ export {
   type RenderContext,
   type ApplyResult,
 } from "./apply.js";
+
+export {
+  resolveMissingBaselines,
+  missingBaselineError,
+  type BaselineReads,
+  type MissingBaselineResolution,
+} from "./baseline.js";
+
+export {
+  plannedWritePaths,
+  findUncommittedPaths,
+  uncommittedChangesError,
+} from "./uncommitted.js";
+
+export {
+  findOccupiedPaths,
+  occupiedPathsError,
+  type FirstWrite,
+} from "./occupied.js";
+
+export {
+  findSymlinkedWritePaths,
+  symlinkedWritePathsError,
+} from "./symlinked.js";
+
+export {
+  refuseUnsafePlanWrites,
+  type PlanWriteCheck,
+} from "./preflight.js";

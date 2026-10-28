@@ -110,13 +110,18 @@ export interface RawGitResult {
   stderr?: Uint8Array;
 }
 
-/** Narrow Git boundary for commands whose NUL-framed output must remain bytes. */
+/** Byte-preserving Git boundary. Optional files use caller-owned input and exclusive
+ * output streams; outputFile returns empty stdout instead of buffering artifact bytes.
+ * input and inputFile are mutually exclusive; the executor closes its opened handles.
+ */
 export type RawGitExec = (
   args: string[],
   options?: {
     signal?: AbortSignal;
     cwd?: string;
     input?: Uint8Array;
+    inputFile?: string;
+    outputFile?: string;
     objectAccess?: "local-only";
     indexFile?: string;
     removeEnvironment?: readonly string[];
@@ -437,13 +442,14 @@ export async function gitMergeFile(
   other: string,
 ): Promise<MergeResult> {
   try {
+    // The merged text becomes the file, so its trailing newlines and whitespace must survive
     const { stdout } = await exec("git", [
       "merge-file",
       "-p",
       current,
       base,
       other,
-    ]);
+    ], { preserveOutput: true });
     return { content: stdout, hasConflicts: false };
   } catch (err: unknown) {
     const error = normalizeGitRejection(err, {

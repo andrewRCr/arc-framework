@@ -27,7 +27,7 @@ import {
   INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME,
 } from "../lib/constants.js";
 import {
-  requireArcProjectRoot, requireGitRepo, resolveIdentityWithPrompt,
+  requireArcProjectRoot, requireSetupGitRepo, resolveIdentityWithPrompt,
   isHandledError,
 } from "./shared.js";
 
@@ -49,7 +49,7 @@ export async function handleInit(
   // --- Fresh init path ---
   p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Initialization`);
 
-  if (!(await requireGitRepo(io.exec))) return;
+  if (!(await requireSetupGitRepo(io.exec, "init"))) return;
 
   p.log.message("Setting up ARC for your project...");
 
@@ -162,7 +162,7 @@ async function handleReconfigure(
 ): Promise<void> {
   p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Reconfigure${opts.dryRun ? " (dry run)" : ""}`);
 
-  if (!(await requireGitRepo(io.exec))) return;
+  if (!(await requireSetupGitRepo(io.exec, "init"))) return;
   const cwd = requireArcProjectRoot(startDir);
   if (!cwd) return;
 

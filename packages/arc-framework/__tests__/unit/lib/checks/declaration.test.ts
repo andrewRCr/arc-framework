@@ -68,7 +68,7 @@ describe("check declaration fields", () => {
       global_inputs: [], global_runtime_inputs: [], commit_fixes: "restage",
       checks: { test: { command: ["npm", "test"], mode: "project", pass_paths: true, inputs: ["**"], runtime_inputs: [],
         root: ".", widen: true, cache: true, shell: false, fixes: false, ci_only: false, reads_index: false,
-        select_deletions: false } },
+        select_deletions: false, runner: false, environment_inputs: {} } },
     });
   });
   it.each(["commit", "push", "merge"])("accepts the %s gate and fail-on-fixes policy", (gate) => {

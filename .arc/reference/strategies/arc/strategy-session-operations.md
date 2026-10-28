@@ -856,9 +856,10 @@ workspace root, cross-WU scope.
   No `WU_Target`. May carry an optional `_Remind:_` descriptor (see **Reminder flag** below), or — when
   retained at a drain — a `_Hold:_` descriptor (see **Retain flag** below).
 - **`## Work Unit`** — spec-worthy entries that need draft-doc / PRD treatment before scheduling. Each
-  carries a `WU_Target:` line (`<slug>`, `<slug> (planned|provisional)`, or `TBD`) naming a candidate
-  for the drain's routing gate to check. Existence alone does not establish a home; the concern must shape a
-  decision in that work unit's actual design.
+  carries a top-level ``- _WU_Target:_ `<value>` `` bullet (`<slug>`, `<slug> (planned|provisional)`, or `TBD`)
+  naming a candidate for the drain's routing gate to check; an unindented target line that is not a list item names
+  nothing. Existence alone does not establish a home; the concern must shape a decision in that work unit's actual
+  design.
 
 **Reminder flag.** A `## Errand` entry may carry an optional `_Remind:_` descriptor — a low-friction
 "don't let me forget" switch set at capture time, named for its effect rather than an urgency reading.

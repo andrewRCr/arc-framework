@@ -1,12 +1,11 @@
 /** Lifecycle checkout claim operations bound to one operational context. */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { SlugSchema } from "../kernel/index.js";
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import type { Store } from "../store/contract.js";
 import type { GitExec } from "../git/exec.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
-import { createWorktreeMarkerGeneration, decodeWorktreeMarkerOwnership, ensureWorktreeMarkerIgnored,
+import { createWorktreeMarkerGeneration, decodeWorktreeMarkerOwnership, ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs,
   readWorktreeMarkerGeneration, replaceWorktreeMarkerGeneration, resolveWorktreeMarkerPath } from "../git/worktree-marker.js";
 import type { LocusPorts } from "../work-unit/locus-ports.js";
 
@@ -61,7 +60,7 @@ export function createLocusPorts(input: { cwd: string; exec: GitExec; store: Sto
       return matches[0]?.path ?? null;
     },
     writeAnchoredMarker: async (cwd, marker, options) => {
-      await ensureWorktreeMarkerIgnored(cwd, exec, { mkdir: async (path, options) => { await mkdir(path, options); }, readFile: path => readFile(path, "utf8"), writeFile });
+      await ensureWorktreeMarkerIgnored(cwd, exec, nodeWorktreeMarkerIgnoreFs);
       return options?.expected === undefined ? createWorktreeMarkerGeneration(cwd, marker)
         : replaceWorktreeMarkerGeneration(cwd, options.expected, marker);
     },

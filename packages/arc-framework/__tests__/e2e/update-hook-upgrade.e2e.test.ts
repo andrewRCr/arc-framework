@@ -7,7 +7,7 @@ import yaml from "js-yaml";
 import type { FileEntry, Manifest } from "../../src/lib/types.js";
 import { CheckDeclarationSchema } from "../../src/lib/checks/declaration.js";
 import { editorDocumentReference } from "../../src/lib/schema-command/editor-documents.js";
-import { cleanupTempDir, createTempRepo, runArc, unwrapPresentationOutput } from "./helpers.js";
+import { cleanupTempDir, commitAll, createTempRepo, runArc, unwrapPresentationOutput } from "./helpers.js";
 
 const roots: string[] = [];
 const managers = ["lefthook", "pre-commit"] as const;
@@ -46,6 +46,7 @@ it.each(managers)("upgrades generated %s entries and names the rewritten configu
     }
   }
   await writeFile(path, yaml.dump(config));
+  await commitAll(root);
   const update = await runArc(["update", "--quiet"], root);
   expect(update.exitCode, update.stdout + update.stderr).toBe(0);
   const upgraded = yaml.load(await readFile(path, "utf8")) as Config;
@@ -69,6 +70,7 @@ it.each(managers.flatMap(manager => ["linux", "xterm-256color"].map(term => ({ m
   else config.repos!.flatMap(repo => repo.hooks).find(hook => hook.id === "arc-pre-push")!.entry = "personal-push-check";
   const content = "# Personal configuration\n" + yaml.dump(config);
   await writeFile(path, content);
+  await commitAll(root);
   const update = await runArc(["update", "--quiet"], root, { env: { TERM: term, CI: "true", FORCE_COLOR: "0", NO_COLOR: "1" } });
   const output = update.stdout + update.stderr;
   expect(update.exitCode, output).toBe(0);
@@ -88,6 +90,7 @@ it.each(["husky", "no manager"])("leaves an install with %s unaffected by hook u
   const huskyPath = join(root, ".husky/pre-push");
   const custom = "#!/bin/sh\npersonal-push-check\n";
   if (manager === "husky") await writeFile(huskyPath, custom);
+  await commitAll(root);
   const update = await runArc(["update", "--quiet"], root);
   expect(update.exitCode, update.stdout + update.stderr).toBe(0);
   expect(existsSync(join(root, "lefthook.yml"))).toBe(false);
@@ -103,6 +106,7 @@ it.each(managers)("reports malformed %s configuration, completes file updates, a
   const hook = await readFile(hookPath, "utf8");
   await writeFile(hookPath, "obsolete framework hook\n");
   await writeFile(path, "repos: [\n");
+  await commitAll(root);
   const update = await runArc(["update", "--quiet"], root);
   expect(update.exitCode, update.stdout + update.stderr).toBe(0);
   expect(await readFile(hookPath, "utf8")).toBe(hook);
@@ -110,6 +114,7 @@ it.each(managers)("reports malformed %s configuration, completes file updates, a
   expect(summaryText(update.stdout + update.stderr)).toContain(summaryText(path));
   expect(summaryText(update.stdout + update.stderr)).toContain(summaryText("repair the configuration and retry arc update"));
   await writeFile(path, yaml.dump(config));
+  await commitAll(root);
   const repaired = await runArc(["update", "--quiet"], root);
   expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
   expect(summaryText(repaired.stdout + repaired.stderr)).not.toContain(summaryText("Hook upgrade warnings"));
@@ -146,6 +151,7 @@ it("preserves retired check sources and proposes inactive checks while upgrading
   delete config["pre-push"]!.commands["arc-pre-push"]!.use_stdin;
   await writeFile(path, yaml.dump(config));
 
+  await commitAll(root);
   const update = await runArc(["update", "--quiet"], root);
   expect(update.exitCode, update.stdout + update.stderr).toBe(0);
   const declarationPath = join(arcDir, "system/arc-checks.yml");

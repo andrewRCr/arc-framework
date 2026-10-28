@@ -2,9 +2,20 @@
 import { createHash } from "node:crypto";
 import type { CheckDeclaration } from "./declaration.js";
 import type { TreePathChange } from "./tree.js";
+import type { SourceManifestEntry } from "./runner/contract-source.js";
 
 /** Declared historical input content, including absent received paths. */
 export interface CheckPathContent { path: string; content: { mode: string; blob: string } | null }
+
+/** A canonical dependency label and its captured materialized presentation. */
+export interface CheckMaterializedPathContent { readonly path: string; readonly entry: Readonly<SourceManifestEntry> }
+
+/** Execution-relevant qualification in fixed invocation order, without transport identifiers. */
+export interface CheckRuntimeIdentity {
+  readonly identity: string;
+  readonly globalRuntime: readonly string[];
+  readonly runtime: readonly string[];
+}
 
 /** Resolved content participating in a check's execution identity. */
 export interface CheckKeyInput {
@@ -15,6 +26,12 @@ export interface CheckKeyInput {
   globalInputs?: readonly TreePathChange[];
   globalRuntime?: readonly string[];
   runtime?: readonly string[];
+  /** Captured value/file content identity, independent of original and transport locations. */
+  environmentIdentity?: string;
+  /** Actual raw presentation for only the declared own and global dependencies. */
+  materializedInputs?: readonly CheckMaterializedPathContent[];
+  /** Qualified executors and exact applicable probe output for the complete check plan. */
+  preparedRuntime?: readonly CheckRuntimeIdentity[];
   base?: readonly CheckPathContent[];
   merged?: readonly (readonly CheckPathContent[])[];
 }
@@ -27,13 +44,20 @@ export interface CheckKeyInput {
 export function checkContentKey(input: CheckKeyInput): string {
   const inputs = digestEntries(input.inputs);
   return createHash("sha256").update(JSON.stringify({
-    version: 2,
+    version: 5,
     id: input.id,
     declaration: input.declaration,
     inputs,
     globalInputs: digestEntries(input.globalInputs ?? []),
     globalRuntime: input.globalRuntime ?? [],
     runtime: input.runtime ?? [],
+    environment: input.environmentIdentity ?? null,
+    materializedInputs: input.materializedInputs === undefined ? null : [...input.materializedInputs]
+      .sort((first, second) => first.path < second.path ? -1 : first.path > second.path ? 1 : 0)
+      .map(({ path, entry }) => ({ path, entry: entry.kind === "file"
+        ? { path: entry.path, kind: entry.kind, mode: entry.mode, bytes: entry.bytes, digest: entry.digest }
+        : { path: entry.path, kind: entry.kind, target: entry.target } })),
+    preparedRuntime: input.preparedRuntime?.map(({ identity, globalRuntime, runtime }) => ({ identity, globalRuntime, runtime })) ?? null,
     paths: input.paths ?? [],
     base: input.base ?? null,
     merged: input.merged ?? [],

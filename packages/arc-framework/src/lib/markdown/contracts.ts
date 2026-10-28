@@ -52,6 +52,7 @@ export interface CreateMarkdownDiagnosticOptions {
   readonly code: `markdown.${Lowercase<string>}`;
   readonly message: string;
   readonly remedyPath?: string;
+  readonly formatter?: "tables" | "prose";
 }
 
 /** Inputs for adapting an operation loader failure to the shared CLI boundary. */
@@ -144,7 +145,7 @@ function diagnosticRemedy(options: CreateMarkdownDiagnosticOptions, path: Manage
     case "markdown.wrong-direction":
       return options.remedyPath === undefined
         ? undefined
-        : { command: `npm run format:tables -- ${shellQuote(validateMarkdownPath(options.remedyPath))}` };
+        : { command: `npm run format:${options.formatter ?? "tables"} -- ${shellQuote(validateMarkdownPath(options.remedyPath))}` };
     case "markdown.framework-projection":
       return options.remedyPath === undefined
         ? undefined
@@ -173,6 +174,7 @@ export function createMarkdownDiagnostic(options: CreateMarkdownDiagnosticOption
 export function createMarkdownRouteDiagnostic(
   operation: MarkdownOperation,
   identity: MarkdownPathIdentity,
+  formatter?: "tables" | "prose",
 ): MarkdownDiagnostic | undefined {
   switch (identity.kind) {
     case "rendered-framework":
@@ -182,6 +184,7 @@ export function createMarkdownRouteDiagnostic(
         code: "markdown.wrong-direction",
         message: "Rendered Framework Markdown must be changed through its package source",
         remedyPath: identity.counterpart,
+        ...(formatter === undefined ? {} : { formatter }),
       });
     case "derived-readiness":
       return createMarkdownDiagnostic({

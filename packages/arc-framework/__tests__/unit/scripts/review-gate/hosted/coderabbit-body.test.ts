@@ -11,6 +11,18 @@ const boldBadgeReviewBodyUrl = new URL(
   "../../../../fixtures/coderabbit-hosted/bold-badge-review-body.txt",
   import.meta.url,
 );
+const iconBadgeThreadCommentUrl = new URL(
+  "../../../../fixtures/coderabbit-hosted/icon-badge-thread-comment.txt",
+  import.meta.url,
+);
+const colonCountReviewBodyUrl = new URL(
+  "../../../../fixtures/coderabbit-hosted/colon-count-review-body.txt",
+  import.meta.url,
+);
+const dotBadgeThreadCommentUrl = new URL(
+  "../../../../fixtures/coderabbit-hosted/dot-badge-thread-comment.txt",
+  import.meta.url,
+);
 
 const badgeEmphasis = [
   ["italic", (label: string) => `_${label}_`],
@@ -133,6 +145,16 @@ describe("CodeRabbit inline thread labels", () => {
         `${badges}\r\n\r\n<details>\n<summary>🔎 Supported by static analysis</summary>\n\n**Script output**\n\n`
           + "<details>\n<summary>Nested</summary>\nMore.\n</details>\n</details>\n\n**Reject a stale scope replay.**\n",
         "**Reject a stale scope replay.**",
+      ],
+      [
+        "a title after the provider's generated-content marker",
+        `<!-- coderabbit-ai-generated:v1 -->\n\n${badges}\n\n**Match the file on a path boundary.**\n\nDetails.`,
+        "**Match the file on a path boundary.**",
+      ],
+      [
+        "a title after a marker that follows the badge line",
+        `${badges}\n\n<!-- cr-indicator-types:potential_issue -->\n\n**Match the file on a path boundary.**\n`,
+        "**Match the file on a path boundary.**",
       ],
       [
         "a severity line that carries its own text",
@@ -283,6 +305,224 @@ describe("CodeRabbit bold-badge review body", () => {
         locus: "packages/arc-framework/src/scripts/review-gate/status-errand.ts:413-418",
         sourceLabel: "**Inject the raw Git executor into the contribution proof.**",
       })],
+    });
+  });
+});
+
+describe("CodeRabbit review-body section headers", () => {
+  const nitpickHeader = "<summary>🧹 Nitpick comments: 1</summary>";
+
+  async function colonCountReview(body = (text: string) => text): Promise<HostedGitHubReview> {
+    return {
+      id: "PRR_COLON",
+      url: "https://github.com/owner/repo/pull/42#pullrequestreview-colon",
+      actorIdentity: "136622811",
+      state: "commented",
+      headSha: "a".repeat(40),
+      submittedAt: "2026-10-23T20:17:48.000Z",
+      body: body(await readFile(colonCountReviewBodyUrl, "utf8")),
+    };
+  }
+
+  it("parses the grouped nitpick from a review CodeRabbit posted with colon counts", async () => {
+    expect(parseCodeRabbitReviewBody(await colonCountReview())).toEqual({
+      kind: "parsed",
+      actionableCount: null,
+      supplementalCounts: { nitpick: 1, "outside-diff": 0 },
+      findings: [expect.objectContaining({
+        findingId: "PRR_COLON:db6b75842d7626a57adad521",
+        severity: "minor",
+        nit: true,
+        locus: "packages/arc-framework/__tests__/integration/pre-commit-installed-validators.test.ts:121-123",
+        sourceLabel: "**Assert the complete cohort-consistency and ROADMAP notices.**",
+      })],
+    });
+  });
+
+  it("reads a section header that opens with an icon image", async () => {
+    const icon = "<picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/"
+      + "review-comment-icons-v1/broom.svg\" width=\"16\" height=\"16\" align=\"absmiddle\" alt=\"\"></picture>";
+    const review = await colonCountReview((body) =>
+      body.replace(nitpickHeader, `<summary>${icon} Nitpick comments: 1</summary>`));
+
+    expect(parseCodeRabbitReviewBody(review)).toMatchObject({
+      kind: "parsed",
+      supplementalCounts: { nitpick: 1 },
+      findings: [{ fingerprint: "db6b75842d7626a57adad521" }],
+    });
+  });
+
+  it("fails closed when a finding marker sits in a section whose header it does not recognize", async () => {
+    const review = await colonCountReview((body) =>
+      body.replace(nitpickHeader, "<summary>♻️ Duplicate comments: 1</summary>"));
+
+    expect(parseCodeRabbitReviewBody(review)).toEqual({
+      kind: "malformed",
+      reason: "provider-supplemental-marker-unattributed: "
+        + "{\"markers\":1,\"fingerprint\":\"db6b75842d7626a57adad521\"}",
+    });
+  });
+
+  it("ignores a finding marker quoted in fenced code outside every section", () => {
+    const review: HostedGitHubReview = {
+      id: "PRR_FENCED",
+      url: "https://github.com/owner/repo/pull/42#pullrequestreview-fenced",
+      actorIdentity: "136622811",
+      state: "commented",
+      headSha: "a".repeat(40),
+      submittedAt: "2026-10-23T20:17:48.000Z",
+      body: "**Actionable comments posted: 1**\n\n```md\n<!-- cr-comment:v1:aaaaaaaaaaaaaaaaaaaaaaaa -->\n```\n",
+    };
+
+    expect(parseCodeRabbitReviewBody(review)).toMatchObject({ kind: "parsed", actionableCount: 1, findings: [] });
+  });
+});
+
+function iconBadge(grade: string): string {
+  return `<picture><img src="https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/${
+    grade.toLowerCase()}-16.svg" width="16" height="16" align="absmiddle" alt=""></picture> ${grade}`;
+}
+
+describe("CodeRabbit icon-image badges", () => {
+  it("reads the grade and label from an inline thread CodeRabbit posted with an icon badge", async () => {
+    const comment: HostedGitHubThreadComment = {
+      id: "4365700538",
+      reviewId: "PRR_ICON",
+      replyToReviewId: null,
+      actorIdentity: "136622811",
+      body: await readFile(iconBadgeThreadCommentUrl, "utf8"),
+      url: "https://github.com/owner/repo/pull/42#discussion_r4365700538",
+      path: "packages/arc-framework/src/commands/update.ts",
+      line: 393,
+      headSha: "a".repeat(40),
+    };
+
+    expect(finding("PRRT_ICON", comment)).toMatchObject({
+      severity: "major",
+      sourceLabel: "**Check generated skill files before writing.**",
+    });
+  });
+
+  it.each(badgeEmphasis)("reads no grade from an %s icon without a grade label", (_form, emphasize) => {
+    const body = `${emphasize(iconBadge("Major").replace(/ Major$/u, " boundary drift"))}\n\nDetails.`;
+    const comment: HostedGitHubThreadComment = {
+      id: "123",
+      reviewId: "PRR_1",
+      replyToReviewId: null,
+      actorIdentity: "136622811",
+      body,
+      url: "https://github.com/owner/repo/pull/42#discussion_r1",
+      path: "src/a.ts",
+      line: 7,
+      headSha: "a".repeat(40),
+    };
+
+    expect(finding("PRRT_1", comment)).toBeNull();
+  });
+
+  it.each(badgeEmphasis)("parses a grouped nitpick whose %s severity badge is an icon", (_form, emphasize) => {
+    const review: HostedGitHubReview = {
+      id: "PRR_GROUPED",
+      url: "https://github.com/owner/repo/pull/42#pullrequestreview-grouped",
+      actorIdentity: "136622811",
+      state: "approved",
+      headSha: "a".repeat(40),
+      submittedAt: "2026-10-23T12:05:00.000Z",
+      body: `<details>
+<summary>🧹 Nitpick comments (1)</summary><blockquote>
+<details>
+<summary>src/a.ts (1)</summary><blockquote>
+
+\`7\`: ${badgeLine(emphasize, "📐 Maintainability & Code Quality", iconBadge("Trivial"), "⚡ Quick win")}
+
+**Keep the mode explicit.**
+
+Details.
+
+<!-- cr-comment:v1:aaaaaaaaaaaaaaaaaaaaaaaa -->
+
+</blockquote></details>
+</blockquote></details>`,
+    };
+
+    expect(parseCodeRabbitReviewBody(review)).toMatchObject({
+      kind: "parsed",
+      findings: [{ severity: "minor", nit: true, locus: "src/a.ts:7", sourceLabel: "**Keep the mode explicit.**" }],
+    });
+  });
+});
+
+describe("CodeRabbit dot-separated badges", () => {
+  it("reads the grade and label from an inline thread CodeRabbit posted with dot-separated badges", async () => {
+    const comment: HostedGitHubThreadComment = {
+      id: "4367592734",
+      reviewId: "PRR_DOT",
+      replyToReviewId: null,
+      actorIdentity: "136622811",
+      body: await readFile(dotBadgeThreadCommentUrl, "utf8"),
+      url: "https://github.com/owner/repo/pull/42#discussion_r4367592734",
+      path: "packages/arc-framework/src/commands/init.ts",
+      line: 250,
+      headSha: "a".repeat(40),
+    };
+
+    expect(finding("PRRT_DOT", comment)).toMatchObject({
+      severity: "major",
+      sourceLabel: "**Preflight the generated state files.**",
+    });
+  });
+
+  it.each(badgeEmphasis)("keeps a long %s icon-badge line ending in prose as the label, promptly", (_form, emphasize) => {
+    const line = `${Array.from({ length: 25 }, () => emphasize(iconBadge("Minor"))).join(" · ")} and more prose`;
+    const comment: HostedGitHubThreadComment = {
+      id: "123",
+      reviewId: "PRR_1",
+      replyToReviewId: null,
+      actorIdentity: "136622811",
+      body: `${line}\n\n**Next title.**`,
+      url: "https://github.com/owner/repo/pull/42#discussion_r1",
+      path: "src/a.ts",
+      line: 7,
+      headSha: "a".repeat(40),
+    };
+
+    const started = performance.now();
+    const labelled = finding("PRRT_1", comment);
+
+    expect(performance.now() - started).toBeLessThan(1000);
+    expect(labelled).toMatchObject({ severity: "minor", sourceLabelTruncated: true });
+    expect(labelled?.sourceLabel?.startsWith(emphasize(iconBadge("Minor")))).toBe(true);
+  });
+
+  it.each(badgeEmphasis)("parses a grouped nitpick whose %s badges are dot-separated", (_form, emphasize) => {
+    const badges = [iconBadge("Trivial"), "Maintainability & Code Quality", "Quick win"].map(emphasize).join(" · ");
+    const review: HostedGitHubReview = {
+      id: "PRR_GROUPED",
+      url: "https://github.com/owner/repo/pull/42#pullrequestreview-grouped",
+      actorIdentity: "136622811",
+      state: "approved",
+      headSha: "a".repeat(40),
+      submittedAt: "2026-10-24T12:05:00.000Z",
+      body: `<details>
+<summary>🧹 Nitpick comments: 1</summary><blockquote>
+<details>
+<summary>src/a.ts (1)</summary><blockquote>
+
+\`7-9\`: ${badges}
+
+**Keep the mode explicit.**
+
+\`2\`: ${emphasize("required")}
+
+<!-- cr-comment:v1:aaaaaaaaaaaaaaaaaaaaaaaa -->
+
+</blockquote></details>
+</blockquote></details>`,
+    };
+
+    expect(parseCodeRabbitReviewBody(review)).toMatchObject({
+      kind: "parsed",
+      findings: [{ severity: "minor", nit: true, locus: "src/a.ts:7-9", sourceLabel: "**Keep the mode explicit.**" }],
     });
   });
 });

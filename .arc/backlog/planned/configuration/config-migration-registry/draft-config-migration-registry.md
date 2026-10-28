@@ -9,6 +9,51 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration._
+
+### `[ ]` **The trigger has fired: plan the registry before CineXplorer's first update**
+
+- _Routed from:_ `adopter-install-authority` draft-design, the `arc update` audit against scaffold-tool practice,
+  2026-10-23.
+
+- _Shapes:_ § Deferral rationale + trigger (the second migration exists); § Scope (whether non-config install
+  migrations join the registry).
+
+- _Observation:_ `src/commands/update.ts` now carries two inline `arc-config.yml` migrators:
+  `migrateUserSyncPush`, which renames `user.sync_push` to `user.notes_push`, and
+  `ensureChangesetAdvisoryThresholds`, which rewrites the stored baseline of `arc-config.yml` before the merge so the
+  changeset thresholds land. Beside them, `bootstrapRetiredChecks` (`lib/checks/bootstrap.ts`) migrates retiring
+  check surfaces into a proposed declaration. Each dispatches and version-gates itself.
+
+- _Needed by:_ CineXplorer's first `arc update` onto a prerelease, right after `storage-cutover`. Priority raised to
+  `P1` with this routing.
+
+- _Approach:_ build the registry and register the live migrators, deciding whether install migrations such as
+  `bootstrapRetiredChecks` share it. `migrateUserSyncPush` handles notes-keyed configuration the cutover retires, so
+  confirm at planning which migrators remain live after the flip.
+
+### `[ ]` **Count a deliberate takeover of a project-edited file as an install migration**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ its inbound entry "The trigger has fired: plan the registry before CineXplorer's first update", whose
+  approach leaves open "whether install migrations such as `bootstrapRetiredChecks` share it".
+
+- _Observation:_ `adopter-install-authority` makes `buildChangePlan` (`lib/manifest/plan.ts`) hold a file at its
+  recorded class when a new claim gives ARC more ownership of it — Scaffolded to Configurable or Framework, Configurable
+  to Framework — unless the file still matches its recorded `pristine_hash`, and report that taking it over needs a
+  migration (`draft-adopter-install-authority.md` D8). That migration must decide what happens to the project's edits: a
+  second install-migration case beside `bootstrapRetiredChecks`.
+
+- _Approach:_ weigh the takeover case when deciding whether install migrations share the registry; the likeliest first
+  one is a method `composable-workflows` makes fixed.
+
+- _Captured during:_ `adopter-install-authority` draft-design close, 2026-10-23.
+
+---
+
 ## Problem / Motivation
 
 As ARC evolves, config-schema changes need to migrate adopter `arc-config.yml` files during `arc update`. There

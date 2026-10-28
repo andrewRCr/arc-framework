@@ -5,6 +5,8 @@ import { URL } from "node:url";
 
 const [file, authority, operation] = process.argv.slice(2);
 if (operation === "get") {
+  if (file === undefined) throw new Error("Credential profile path is required");
+  /** @type {string} */
   const input = await new Promise((resolve, reject) => {
     let content = "";
     process.stdin.setEncoding("utf8");
@@ -16,7 +18,7 @@ if (operation === "get") {
     const split = line.indexOf("=");
     return [line.slice(0, split), line.slice(split + 1)];
   }));
-  if (fields.get("host") !== authority || !["https", "http"].includes(fields.get("protocol"))) process.exit(1);
+  if (fields.get("host") !== authority || !["https", "http"].includes(fields.get("protocol") ?? "")) process.exit(1);
   if ((await stat(file)).mode & 0o077) throw new Error("Credential profile must be private");
   const profile = JSON.parse(await readFile(file, "utf8"));
   const hostname = new URL(`${fields.get("protocol")}://${authority}`).hostname;

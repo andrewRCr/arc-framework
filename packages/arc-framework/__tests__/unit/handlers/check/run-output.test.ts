@@ -2,6 +2,14 @@
 import { expect, it } from "vitest";
 import { renderDeclaredChecks, type DeclaredCheckEnvelope } from "../../../../src/handlers/check/run-output.js";
 
+it("shows a forecast's environment names and kinds in the human report", () => {
+  const result = renderDeclaredChecks({ kind: "result", exitCode: 0, result: {
+    status: "completed", checks: [{ id: "check", kind: "enforcement", outcome: "would run", batches: [["check"]],
+      environmentInputs: { CHECK_MODE: "value", CHECK_WEIGHTS: "file" } }],
+  } }, false);
+  expect(result).toContain("Environment inputs: CHECK_MODE (value), CHECK_WEIGHTS (file)");
+});
+
 it("labels a successful divergent run with its differing input paths", () => {
   const result = renderDeclaredChecks({ kind: "result", exitCode: 0, result: {
     status: "completed", checks: [{ id: "lint", kind: "enforcement", outcome: "passed", divergent: ["src/a.ts"] }],
@@ -156,6 +164,19 @@ it("leads with a no-evidence check and shows its output tail, but offers no retr
   expect(result).toContain("No unit tests reach the changed files.");
   expect(result).not.toContain("Retry:");
   expect(result).toContain("Checks: 1 no evidence, 1 passed.");
+});
+
+it("keeps provider recovery guidance visible in CI text output", () => {
+  const remedy = "Inspect and settle plan 726ea270-cdb4-49d0-8e30-de4ffb6d4566; retain /captured/source until settled.";
+  const result = renderDeclaredChecks({ kind: "result", exitCode: 2, result: {
+    status: "completed", ci: true, checks: [{ id: "remote", kind: "enforcement", outcome: "couldn't run",
+      reason: "Adapter closed without settlement", remedy, remedyKind: "runner" },
+    { id: "native", kind: "enforcement", outcome: "failed", remedy: "arc check run native --all" }],
+  } }, false);
+  expect(result).toContain("remote: couldn't run (Adapter closed without settlement)");
+  expect(result).toContain(remedy);
+  expect(result).not.toContain("arc check run native --all");
+  expect(result).toContain("Checks: 1 failed, 1 couldn't run.");
 });
 
 it("counts the files a merge brought in unchanged between a failure's output and its retry", () => {

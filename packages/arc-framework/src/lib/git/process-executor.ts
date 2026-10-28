@@ -5,6 +5,9 @@
  */
 
 import { execa } from "execa";
+import { open, type FileHandle } from "node:fs/promises";
+import type { Readable, Writable } from "node:stream";
+import { finished } from "node:stream/promises";
 
 import type { InteractionContext } from "../command-input/interaction-context.js";
 import type { RawGitExec } from "./exec.js";
@@ -12,27 +15,12 @@ import { PUSH_GATE_ID_VARIABLE, type GitExec, type GitExecInput } from "./exec.j
 import { runCancelableGitProcess } from "./process-cancellation.js";
 import { assertNativeGitCommandLineCapacity } from "./command-line-capacity.js";
 import { normalizeGitRejection } from "./process-error.js";
+import { sanitizeGitRepositoryEnvironment } from "./repository-environment.mjs";
+
+export { GIT_REPOSITORY_LOCAL_ENVIRONMENT, sanitizeGitRepositoryEnvironment } from "./repository-environment.mjs";
 
 /** Captured-output ceiling retained by every Git process binding. */
 export const MAX_GIT_OUTPUT_BYTES = 64 * 1024 * 1024;
-
-const GIT_REPOSITORY_LOCAL_ENVIRONMENT = new Set<string>([
-  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-  "GIT_CONFIG",
-  "GIT_CONFIG_PARAMETERS",
-  "GIT_CONFIG_COUNT",
-  "GIT_OBJECT_DIRECTORY",
-  "GIT_DIR",
-  "GIT_WORK_TREE",
-  "GIT_IMPLICIT_WORK_TREE",
-  "GIT_GRAFT_FILE",
-  "GIT_INDEX_FILE",
-  "GIT_NO_REPLACE_OBJECTS",
-  "GIT_REPLACE_REF_BASE",
-  "GIT_PREFIX",
-  "GIT_SHALLOW_FILE",
-  "GIT_COMMON_DIR",
-]);
 
 function withoutPathspecEnvironment(base: NodeJS.ProcessEnv | undefined): NodeJS.ProcessEnv {
   const variables = new Set(["GIT_LITERAL_PATHSPECS", "GIT_GLOB_PATHSPECS", "GIT_NOGLOB_PATHSPECS", "GIT_ICASE_PATHSPECS"]);
@@ -64,9 +52,7 @@ function isLiteralOpenSshExecutable(executable: string): boolean {
  */
 export function environmentForGitCwd(cwd: string | undefined, environment?: NodeJS.ProcessEnv): NodeJS.ProcessEnv | undefined {
   if (cwd === undefined) return environment;
-  return Object.fromEntries(
-    Object.entries(environment ?? process.env).filter(([variable]) => !GIT_REPOSITORY_LOCAL_ENVIRONMENT.has(variable)),
-  );
+  return sanitizeGitRepositoryEnvironment(environment ?? process.env);
 }
 
 function applyInteractionEnvironment(
@@ -202,11 +188,24 @@ export function createExecaRawGitExec(
     const effectiveArgs = options.objectAccess === "local-only"
       ? ["--no-lazy-fetch", ...args]
       : args;
+    if (options.input !== undefined && options.inputFile !== undefined) {
+      throw new Error("Raw Git input and inputFile cannot both be supplied.");
+    }
+    const handles: FileHandle[] = [];
+    const streams: Array<Readable | Writable> = [];
     try {
-      if (options.batchReader && options.objectAccess === "local-only" && options.input !== undefined && args.at(-2) === "cat-file" && args.at(-1) === "--batch") {
+      if (options.batchReader && options.objectAccess === "local-only" && options.input !== undefined
+        && options.outputFile === undefined && args.at(-2) === "cat-file" && args.at(-1) === "--batch") {
         return await options.batchReader.run({ args: effectiveArgs, cwd: effectiveCwd, env, maxBuffer,
           input: options.input, signal: options.signal, onStart });
       }
+      const input = options.inputFile === undefined ? undefined : await open(options.inputFile, "r");
+      if (input !== undefined) handles.push(input);
+      const output = options.outputFile === undefined ? undefined : await open(options.outputFile, "wx", 0o600);
+      if (output !== undefined) handles.push(output);
+      const inputStream: Readable | undefined = input?.createReadStream({ autoClose: false });
+      const outputStream: Writable | undefined = output?.createWriteStream({ autoClose: false });
+      streams.push(...[inputStream, outputStream].filter(stream => stream !== undefined));
       const result = await runCancelableGitProcess((cancelSignal) => {
         onStart?.();
         return execa("git", effectiveArgs, {
@@ -217,14 +216,19 @@ export function createExecaRawGitExec(
           stripFinalNewline: false,
           extendEnv: false,
           maxBuffer,
-          ...(options.input === undefined
-            ? { stdin: "ignore" as const }
-            : { input: options.input }),
+          ...(outputStream === undefined ? {} : { stdout: outputStream, buffer: { stdout: false } }),
+          ...(inputStream !== undefined ? { stdin: inputStream }
+            : options.input === undefined ? { stdin: "ignore" as const } : { input: options.input }),
         });
       }, options.signal, { command: "git", args: effectiveArgs });
-      return { stdout: result.stdout, stderr: result.stderr };
+      return { stdout: result.stdout ?? new Uint8Array(), stderr: result.stderr };
     } catch (error) {
       throw normalizeGitRejection(error, { command: "git", args: effectiveArgs });
+    } finally {
+      const closed = streams.map(stream => finished(stream, { cleanup: true }).catch(() => undefined));
+      streams.forEach(stream => { stream.destroy(); });
+      await Promise.all(closed);
+      await Promise.all(handles.map(handle => handle.close()));
     }
   };
 }

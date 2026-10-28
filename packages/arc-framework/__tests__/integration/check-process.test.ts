@@ -1,9 +1,11 @@
 /** Declared check commands report a short notice through a file the process boundary names and removes. */
+import { execFileSync } from "node:child_process";
 import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { runCheckProcess } from "../../src/lib/checks/process.js";
+import { bindCapturedEnvironment, captureEnvironmentInputs } from "../../src/lib/checks/environment-inputs.js";
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -84,3 +86,48 @@ it.each([
   expect(result.exitCode).toBe(exit);
   expect(result).not.toHaveProperty("notRunReason");
 });
+
+it.each([false, true])("scopes command and raw-output probe environments, rawStdout=%s", async rawStdout => {
+  vi.stubEnv("GIT_DIR", "/other");
+  vi.stubEnv("git_dir", "/other");
+  vi.stubEnv("GiT_WoRk_TrEe", "/other");
+  vi.stubEnv("ARC_REMOTE_CHECKS", "required");
+  const result = await runCheckProcess([process.execPath, "-e",
+    "process.stdout.write(JSON.stringify({selectors:Object.keys(process.env).filter(k=>['GIT_DIR','GIT_WORK_TREE'].includes(k.toUpperCase())),control:process.env.ARC_REMOTE_CHECKS})+'\\n')"],
+  await checkout(), undefined, { rawStdout });
+
+  expect(result).toMatchObject({ started: true, exitCode: 0 });
+  expect(JSON.parse(result.stdout)).toEqual({ selectors: [], control: "required" });
+  expect(result.stdout.endsWith("\n")).toBe(rawStdout);
+});
+
+it.each([false, true])("replays supplied frozen inputs before engine channels, filesMode=%s", async filesMode => {
+  const root = await checkout();
+  await writeFile(join(root, "input"), "captured bytes");
+  const capture = await captureEnvironmentInputs({ MODE: "value", DATA: "file", ABSENT: "value" }, root,
+    { environment: { MODE: "literal value", DATA: "input" } });
+  try {
+    const environment = bindCapturedEnvironment(capture.bindings, { ...process.env, MODE: "ambient", ABSENT: "ambient",
+      GIT_DIR: "/wrong/repository", GIT_INDEX_FILE: "/wrong/index", ARC_CHECK_TREE: "wrong", ARC_CHECK_BASE: "wrong",
+      ARC_CHECK_MERGED: "wrong", ARC_CHECK_NOTICE: "/wrong/notice", arc_check_tree: "wrong" });
+    const program = "process.stdout.write(JSON.stringify({mode:process.env.MODE,data:require('node:fs').readFileSync(process.env.DATA,'utf8'),absent:process.env.ABSENT,git:process.env.GIT_DIR,index:process.env.GIT_INDEX_FILE,tree:process.env.ARC_CHECK_TREE,base:process.env.ARC_CHECK_BASE,merged:process.env.ARC_CHECK_MERGED,mixed:process.env.arc_check_tree,noticeReplaced:process.env.ARC_CHECK_NOTICE!=='/wrong/notice'}))";
+    const result = await runCheckProcess([process.execPath, "-e", program], root,
+      filesMode ? { tree: "checked", base: "base", merged: ["parent"] } : undefined,
+      { environment, rawStdout: true, ...(filesMode ? { indexFile: "/selected/index" } : {}) });
+    expect(result).toMatchObject({ started: true, exitCode: 0 });
+    expect(JSON.parse(result.stdout)).toEqual({ mode: "literal value", data: "captured bytes", noticeReplaced: true,
+      ...(filesMode ? { tree: "checked", base: "base", merged: "parent", index: "/selected/index" } : {}) });
+  } finally { await capture.dispose(); }
+});
+
+it.runIf(process.platform !== "win32")("refuses a writer-less FIFO input promptly and captures its repaired regular file", async () => {
+  const root = await checkout();
+  execFileSync("mkfifo", [join(root, "pipe.secret")]);
+  const refused = captureEnvironmentInputs({ INPUT: "file" }, root, { environment: { INPUT: "pipe.secret" } });
+  await expect(refused).rejects.toThrow(/environment_inputs binding INPUT:.*regular file.*retry/u);
+  await expect(refused).rejects.not.toThrow("pipe.secret");
+  await writeFile(join(root, "repaired"), "usable");
+  const repaired = await captureEnvironmentInputs({ INPUT: "file" }, root, { environment: { INPUT: "repaired" } });
+  try { expect(repaired.bindings.INPUT).toMatchObject({ state: "file", bytes: 6 }); }
+  finally { await repaired.dispose(); }
+}, 2000);

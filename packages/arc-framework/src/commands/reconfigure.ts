@@ -23,6 +23,9 @@ import {
   readManifest,
   buildChangePlan,
   applyChangePlan,
+  resolveMissingBaselines,
+  missingBaselineError,
+  refuseUnsafePlanWrites,
 } from "../lib/manifest/index.js";
 import { writeArcGitignoreBlock, ensureDir } from "../lib/template/index.js";
 import { getFrameworkVersion } from "../lib/version.js";
@@ -186,6 +189,20 @@ export async function runReconfigure(
   } catch {
     // Missing pristine store — proceed with empty
   }
+  const renderCtx = { templateDir, tokens, config, configKeyOverrides };
+  // Refuse before any preview, prompt, or write over a symbolic link on a path it writes, over uncommitted changes to
+  // the files it writes, or over files already at the paths it adds, then where merging a customized file with no
+  // baseline would drop its upstream changes
+  const initialPlan = buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles);
+  await refuseUnsafePlanWrites({
+    plan: initialPlan, cwd, arcDir, manifestPath, renderCtx, exec: io.exec, readFile: io.readFile,
+    command: "reconfigure",
+  });
+  const missing = await resolveMissingBaselines(initialPlan, manifest, arcDir, { readFile: io.readFile }, renderCtx);
+  if (missing.edits.length > 0) {
+    throw missingBaselineError(missing.edits, "reconfigure");
+  }
+  Object.assign(pristineStore, missing.recovered);
 
   // Build change plan (pure computation — old manifest vs new file list)
   const plan = buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles);
@@ -214,6 +231,10 @@ export async function runReconfigure(
     // Replace plan removals with only the files to actually delete
     plan.removals = applied.toRemove;
     keptByUser = applied.toKeep.map((r) => r.outputPath);
+    // A file chosen for deletion may be one the plan would have kept, so check the chosen plan before any write
+    await refuseUnsafePlanWrites({
+      plan, cwd, arcDir, manifestPath, renderCtx, exec: io.exec, readFile: io.readFile, command: "reconfigure",
+    });
   }
 
   const checkBootstrap = await bootstrapRetiredChecks(arcDir, originalRemovals, io);
@@ -226,7 +247,7 @@ export async function runReconfigure(
     manifest,
     mergeFn,
     { readFile: io.readFile, writeFile: io.writeFile, mkdir: io.mkdir },
-    { templateDir, tokens, config, configKeyOverrides },
+    renderCtx,
   );
 
   // Regenerate skills

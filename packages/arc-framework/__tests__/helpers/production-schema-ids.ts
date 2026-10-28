@@ -103,6 +103,8 @@ export const PRODUCTION_SCHEMA_IDS = [
   "review-lifecycle-tail-proof",
   "review-local-attest-envelope",
   "review-local-attest-request",
+  "review-local-cancel-envelope",
+  "review-local-cancel-request",
   "review-local-prepare-envelope",
   "review-local-prepare-request",
   "review-local-resume-envelope",

@@ -309,6 +309,14 @@ describe("repository command-input inventory", () => {
     expect(command?.action?.interactionContext).toBe(true);
   });
 
+  it("classifies runner protocol stdin independently of terminal input for every check form", () => {
+    const runnerSites = inventory.entries
+      .filter(entry => entry.siteId === "interaction.lib-checks-runner-session-process.ts-subprocess-execa-1")
+      .map(entry => ({ command: entry.commandPath, stdin: entry.subprocess, noInput: entry.noInput }));
+    expect(runnerSites).toEqual(["check gate", "check increment", "check new-head", "check pre-commit", "check pre-push",
+      "check run", "check segment"].map(command => ({ command, stdin: "explicit-stdin", noInput: "same" })));
+  });
+
   it("assigns the byte-preserving raw Git boundary to its command families", () => {
     const rawGitCommands = inventory.entries
       .filter((entry) => entry.siteId === "interaction.lib-git-process-executor.ts-subprocess-execa-2")

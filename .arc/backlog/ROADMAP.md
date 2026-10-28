@@ -17,13 +17,17 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | ---------- | ------------------------------- | -------- | ------ | ------------------- | ------------- |
 | `Planning` | storage-projection              | P1       | andrew | storage-ref-backend | state-storage |
 | `Active`   | storage-ref-backend             | P1       | andrew | —                   | state-storage |
+| `Planning` | cohort-identity-verbs           | P1       | andrew | storage-ref-backend | storage-seam  |
 | `Active`   | seam-delivery-review            | P1       | andrew | —                   | storage-seam  |
+| `Planning` | adopter-install-authority       | P1       | andrew | storage-cutover     | —             |
 | `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                   | —             |
 | `Planning` | decomposition-doctrine          | P1       | andrew | —                   | —             |
 | `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                   | —             |
+| `Active`   | lifecycle-slug-selection        | P1       | andrew | —                   | —             |
 | `Planning` | review-checkout-lifecycle       | P1       | andrew | —                   | —             |
 | `Planning` | stub-mint-to-launch             | P1       | andrew | —                   | —             |
 | `Planning` | cli-output-contract             | P2       | andrew | —                   | —             |
+| `Active`   | distributed-check-shards        | P3       | andrew | storage-ref-backend | —             |
 
 ## Ready
 
@@ -33,12 +37,12 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | errand-autonomous-advance           | P1       | andrew | —          | approval-flow-refinement   |
 | interlock-release-refinement        | P1       | andrew | —          | approval-flow-refinement   |
 | lifecycle-advancement-provenance    | P1       | andrew | —          | approval-flow-refinement   |
+| config-migration-registry           | P1       | andrew | —          | configuration              |
 | host-policy-evidence                | P1       | andrew | —          | review-protocol-alignment  |
 | review-evaluator-isolation          | P1       | andrew | —          | review-protocol-alignment  |
 | review-source-authority             | P1       | andrew | —          | review-protocol-alignment  |
 | cross-worktree-git-state-safety     | P1       | andrew | —          | —                          |
 | delivery-intent-integrity           | P1       | andrew | —          | —                          |
-| lifecycle-slug-selection            | P1       | andrew | —          | —                          |
 | locus-claim-revalidation            | P1       | andrew | —          | —                          |
 | recovery-hardening                  | P1       | andrew | —          | —                          |
 | recurring-errand-pr-resolution      | P1       | andrew | —          | —                          |
@@ -62,6 +66,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | package-project-development-sync    | P2       | andrew | —          | —                          |
 | planning-lane-relief                | P2       | andrew | —          | —                          |
 | review-orchestration-right-sizing   | P2       | andrew | —          | —                          |
+| test-suite-contention-hardening     | P2       | andrew | —          | —                          |
 | workflow-eval-harness               | P2       | andrew | —          | —                          |
 | handoff-optimization                | P3       | andrew | —          | agent-context-optimization |
 | ci-cross-platform-hardening         | P3       | andrew | —          | architecture-remediation   |
@@ -69,7 +74,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | oversized-function-remediation      | P3       | andrew | —          | architecture-remediation   |
 | sync-handler-decomposition          | P3       | andrew | —          | architecture-remediation   |
 | user-sync-module-split              | P3       | andrew | —          | architecture-remediation   |
-| config-migration-registry           | P3       | andrew | —          | configuration              |
 | config-storage-architecture         | P3       | andrew | —          | configuration              |
 | customization-arch-realign          | P3       | andrew | —          | configuration              |
 | task-list-conventions               | P3       | andrew | —          | doc-conventions            |
@@ -104,42 +108,41 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 1
 
-| Work unit                     | Priority | Owner  | Depends on                    | Cohort                     |
-| ----------------------------- | -------- | ------ | ----------------------------- | -------------------------- |
-| review-activity-contracts     | P1       | andrew | review-source-authority       | review-protocol-alignment  |
-| cohort-identity-verbs         | P1       | andrew | storage-ref-backend           | storage-seam               |
-| unit-scoped-review            | P2       | andrew | commit-increments             | approval-flow-refinement   |
-| documentation-surface-routing | P3       | andrew | handoff-optimization          | agent-context-optimization |
-| instruction-optimization      | P3       | andrew | composable-workflows          | agent-context-optimization |
-| workflow-template-loads       | P3       | andrew | composable-workflows          | principle-anchored-core    |
-| docs-content-sweep            | P3       | andrew | docs-site-refresh             | release-readiness          |
-| comprehension-preservation    | P3       | andrew | execution-delegation-doctrine | —                          |
+| Work unit                     | Priority | Owner  | Depends on                                                                                                     | Cohort                     |
+| ----------------------------- | -------- | ------ | -------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| review-activity-contracts     | P1       | andrew | review-source-authority                                                                                        | review-protocol-alignment  |
+| storage-cutover               | P1       | andrew | storage-ref-backend, storage-projection, seam-delivery-review, lifecycle-slug-selection, cohort-identity-verbs | state-storage              |
+| unit-scoped-review            | P2       | andrew | commit-increments                                                                                              | approval-flow-refinement   |
+| documentation-surface-routing | P3       | andrew | handoff-optimization                                                                                           | agent-context-optimization |
+| instruction-optimization      | P3       | andrew | composable-workflows                                                                                           | agent-context-optimization |
+| workflow-template-loads       | P3       | andrew | composable-workflows                                                                                           | principle-anchored-core    |
+| docs-content-sweep            | P3       | andrew | docs-site-refresh                                                                                              | release-readiness          |
+| comprehension-preservation    | P3       | andrew | execution-delegation-doctrine                                                                                  | —                          |
 
 ### Depth 2
 
-| Work unit                | Priority | Owner  | Depends on                                                                                                     | Cohort                    |
-| ------------------------ | -------- | ------ | -------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| review-request-contracts | P1       | andrew | review-activity-contracts                                                                                      | review-protocol-alignment |
-| storage-cutover          | P1       | andrew | storage-ref-backend, storage-projection, seam-delivery-review, lifecycle-slug-selection, cohort-identity-verbs | state-storage             |
-| wu5-public-release       | P3       | andrew | docs-content-sweep                                                                                             | release-readiness         |
+| Work unit                       | Priority | Owner  | Depends on                | Cohort                    |
+| ------------------------------- | -------- | ------ | ------------------------- | ------------------------- |
+| review-request-contracts        | P1       | andrew | review-activity-contracts | review-protocol-alignment |
+| delivery-correction-convergence | P1       | andrew | storage-cutover           | —                         |
+| delivery-observe-attest         | P1       | andrew | storage-cutover           | —                         |
+| work-item-relations             | P1       | andrew | storage-cutover           | —                         |
+| wu-lifecycle-state-model        | P1       | andrew | storage-cutover           | —                         |
+| naming-conventions              | P2       | andrew | storage-cutover           | doc-conventions           |
+| errand-promotion-concurrency    | P2       | andrew | storage-cutover           | —                         |
+| framework-core-from-package     | P2       | andrew | storage-cutover           | —                         |
+| ghost-mode                      | P2       | andrew | storage-cutover           | —                         |
+| goal-aware-direction            | P2       | andrew | storage-cutover           | —                         |
+| history-policy                  | P2       | andrew | storage-cutover           | —                         |
+| operational-state-docs          | P2       | andrew | storage-cutover           | —                         |
+| wu5-public-release              | P3       | andrew | docs-content-sweep        | release-readiness         |
+| shared-inbox-model              | P3       | andrew | storage-cutover           | —                         |
 
 ### Depth 3
 
-| Work unit                       | Priority | Owner  | Depends on               | Cohort           |
-| ------------------------------- | -------- | ------ | ------------------------ | ---------------- |
-| delivery-correction-convergence | P1       | andrew | storage-cutover          | —                |
-| delivery-observe-attest         | P1       | andrew | storage-cutover          | —                |
-| work-item-relations             | P1       | andrew | storage-cutover          | —                |
-| wu-lifecycle-state-model        | P1       | andrew | storage-cutover          | —                |
-| delivery-review-cardinality     | P2       | andrew | review-request-contracts | chunked-delivery |
-| naming-conventions              | P2       | andrew | storage-cutover          | doc-conventions  |
-| errand-promotion-concurrency    | P2       | andrew | storage-cutover          | —                |
-| framework-core-from-package     | P2       | andrew | storage-cutover          | —                |
-| ghost-mode                      | P2       | andrew | storage-cutover          | —                |
-| goal-aware-direction            | P2       | andrew | storage-cutover          | —                |
-| history-policy                  | P2       | andrew | storage-cutover          | —                |
-| operational-state-docs          | P2       | andrew | storage-cutover          | —                |
-| shared-inbox-model              | P3       | andrew | storage-cutover          | —                |
+| Work unit                   | Priority | Owner  | Depends on               | Cohort           |
+| --------------------------- | -------- | ------ | ------------------------ | ---------------- |
+| delivery-review-cardinality | P2       | andrew | review-request-contracts | chunked-delivery |
 
 ---
 

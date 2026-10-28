@@ -3,6 +3,8 @@
 import { isDeepStrictEqual } from "node:util";
 
 import { z } from "zod";
+import { ReviewCommandModeSchema, type ReviewCommandMode } from "./review-command-mode.js";
+import { ReviewCommandDiagnosticSchema } from "./review-command-diagnostic.js";
 import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
@@ -53,26 +55,7 @@ const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/
 const DurableReferenceSchema = z.string().trim().min(1);
 const PersistedVersionSchema = z.number().int().positive();
 
-export const ReviewCommandModeSchema = z.enum([
-  "review-readiness",
-  "review-lane-read",
-  "review-resolve",
-  "review-frontline-resolve",
-  "review-chunking-resolve",
-  "review-planning-grooming-resolve",
-  "review-frontline-run",
-  "review-local-prepare",
-  "review-local-attest",
-  "review-respond",
-  "review-reduce",
-  "review-local-resume",
-  "review-hosted-request",
-  "review-hosted-await",
-  "review-hosted-settle",
-  "review-terminus-accept",
-  "review-pre-publication",
-]);
-export type ReviewCommandMode = z.infer<typeof ReviewCommandModeSchema>;
+export { ReviewCommandModeSchema, type ReviewCommandMode } from "./review-command-mode.js";
 
 export {
   ReviewCommandErrorCodeSchema,
@@ -83,24 +66,7 @@ export type { ReviewCommandErrorCode, ReviewPrePublicationRefusalCode } from "./
 
 export { prePublicationRemedy, prePublicationTargetRemedy } from "./pre-publication-remedy.js";
 
-const RepositoryPreconditionDiagnosticSchema = z.strictObject({
-  code: z.literal("repository-precondition"),
-  message: z.string().trim().min(1),
-  precondition: z.enum([
-    "repository-born",
-    "base-resolved",
-    "clean-worktree",
-    "commit-head",
-  ]),
-});
-const GeneralReviewCommandDiagnosticSchema = z.strictObject({
-  code: z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u),
-  message: z.string().trim().min(1),
-});
-export const ReviewCommandDiagnosticSchema = z.union([
-  RepositoryPreconditionDiagnosticSchema,
-  GeneralReviewCommandDiagnosticSchema,
-]);
+export { ReviewCommandDiagnosticSchema } from "./review-command-diagnostic.js";
 
 const HeaderShape = {
   schemaVersion: z.literal(1),

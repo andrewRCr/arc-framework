@@ -73,5 +73,9 @@ export const checkInputPolicyDeclarations: readonly CommandInputDeclaration[] = 
     declareInteractionSite({ file: "lib/checks/process.ts", kind: "subprocess", callee: "execa", occurrence: 1 },
       { acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
         automation: { noInput: "same", flags: [], acceptedSyntax: [] }, mutationBoundary: "declared check execution", subprocess: "close-stdin" }),
+    declareInteractionSite({ file: "lib/checks/runner/session-process.ts", kind: "subprocess", callee: "execa", occurrence: 1 },
+      { acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
+        automation: { noInput: "same", flags: [], acceptedSyntax: [] },
+        mutationBoundary: "prepared check runner protocol", subprocess: "explicit-stdin" }),
   ],
 }));

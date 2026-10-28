@@ -212,7 +212,7 @@ checkCmd
 
 checkCmd
   .command("increment")
-  .description("Run commit checks, early push file feedback, and changed projected selection feedback")
+  .description("Run commit checks, early push file feedback, and changed projected selection feedback; list other push checks as left to the push gate")
   .option("--json", "Emit a versioned JSON envelope")
   .option("--force", "Run selected checks without reusing passes")
   .option("--dry-run", "Forecast checks without executing them")
@@ -286,6 +286,13 @@ storeCmd.command("remote").argument("[remote]", "Remote name").argument("[role]"
     async (context, remote: string | undefined, role: string | undefined, options: import("./commands/store-remote.js").StoreRemoteOptions) => {
       await (await import("./commands/store-remote.js")).handleStoreRemote(remote, role, options, context);
     }));
+
+program
+  .command("hook-validate-frontmatter", { hidden: true })
+  .argument("[paths...]", "Staged paths to validate")
+  .action(async (paths: string[]) => {
+    (await import("./scripts/validate-frontmatter.js")).runValidateFrontmatterCommand(paths);
+  });
 
 function isDashPrefixedCheckSourceEscaped(
   rawArgs: readonly string[],
@@ -389,7 +396,7 @@ program
   )
   .option(
     "--from <pointer-or-blurb>",
-    "Seed input — issue ref → Origin; documents and descriptions pass through for assessment",
+    "Seed a new work unit started with --here — issue ref → Origin; documents and descriptions pass through for assessment",
   )
   .option(
     "--class <value>",
@@ -827,7 +834,7 @@ errand
 errand
   .command("open <slug>")
   .description("Open an errand in the free primary or a provisioned transient worktree")
-  .option("--type <type>", "Errand branch nature-type: fix, chore, refactor, or hotfix (default: chore)")
+  .option("--type <type>", "Errand branch nature-type: fix, chore, refactor, or hotfix (default: chore; full protection only)")
   .option("--intent <text>", "Free-text statement of the errand's concern (default: the slug)")
   .option("--from-inbox <entry-title>", "Adopt an inbox capture as the errand concern")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
@@ -1302,9 +1309,13 @@ program
   .command("update")
   .description("Update ARC framework files to the latest version")
   .option("-q, --quiet", "Suppress changelog output")
+  .option(
+    "--keep-local-without-baseline",
+    "Keep customized files that have no merge baseline as they are, skipping their upstream changes",
+  )
   .action(withInteractionContext(
     {},
-    async (context, opts: { quiet?: boolean }) => {
+    async (context, opts: { quiet?: boolean; keepLocalWithoutBaseline?: boolean }) => {
       await (await import("./handlers/installation.js")).handleUpdate(opts, context);
     },
   ));
@@ -2348,6 +2359,22 @@ localReviewCmd
       return;
     }
     await (await import("./handlers/review.js")).handleReviewLocalAttest(input ?? "", {}, context);
+  }));
+
+localReviewCmd
+  .command("cancel")
+  .description("Cancel a pending local review dispatch without settling its review obligation")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-local-cancel-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewLocalCancel(input ?? "", {}, context);
   }));
 
 localReviewCmd

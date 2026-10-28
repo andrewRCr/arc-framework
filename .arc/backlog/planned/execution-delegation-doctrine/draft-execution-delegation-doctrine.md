@@ -159,6 +159,28 @@ members consume.
 - _Captured during:_ `WORKING-MEMORY` prune, 2026-07-25 — the entry was a pointer to a file that already holds the
   content, so it paid per-session rent for an indirection.
 
+### `[ ]` **Fix the operational definitions in the brief when a fan-out applies one rule**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ its derivation-delegation shape (read-only consult) and the brief that shape hands an agent.
+
+- _Observation:_ `storage-ref-backend` fanned one restart rule out to two read-only agents. Each defined its own
+  counting vocabulary, so "strict" meant different things in the two reports: any leftover difference in one, leftovers
+  the rerun reads in the other. Merged as written, the Owner would have approved two inconsistent readings; recounting
+  both under one definition cost a pass. The primary's verification against source caught it, so the cost was a pass,
+  not a defect.
+
+- _Approach:_ when several agents apply one rule, the brief states the rule's operational terms (there: what counts as
+  "read", whether configurations collapse) and each agent reports against them. Weigh the placement against the
+  always-loaded cost: the case arises only at fan-out time.
+
+- _Evidence:_ `restart-sets-*.md` § 0 and § 1.3 under
+  `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/selection/` in that work unit's checkout;
+  checkout-local, leaving at its teardown.
+
+- _Captured during:_ `storage-ref-backend` verification (process lessons), 2026-10-22.
+
 ---
 
 ## Problem / Motivation

@@ -11,6 +11,8 @@ import { selectNoInputInvocations } from "../helpers/no-input-invocations.js";
 import { NO_INPUT_MATRIX } from "../fixtures/command-input/no-input-matrix.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcNoTty, runArcWithStdin } from "./helpers.js";
 
+const STUB_CLASS_CASE_TIMEOUT_MS = 30_000;
+
 describe("command-input no-input matrix", () => {
   const repositories: string[] = [];
   const spawnedWorktrees: Array<{ repository: string; path: string }> = [];
@@ -118,6 +120,29 @@ describe("command-input no-input matrix", () => {
     expect(result.stderr).toContain("error: missing required input: --idempotency-action <action>");
   });
 
+  it("refuses a planned stub without Class and succeeds after an explicit Class", async () => {
+    if (initializedTemplate === undefined) throw new Error("Missing initialized matrix template");
+    const cwd = await copyPreparedRepository(initializedTemplate, initializedShape);
+    repositories.push(cwd);
+    const args = ["--no-input", "stub", "class-required", "--commitment", "planned", "--priority", "P2"];
+    const meta = join(cwd, ".arc", "backlog", "planned", "class-required", "meta-class-required.md");
+    const before = await git(cwd, ["status", "--porcelain=v1"]);
+    const refsBefore = await git(cwd, ["show-ref"]);
+
+    const refused = await runArcNoTty(args, cwd, { timeout: 10_000, env: { CI: "false" } });
+    expect(refused.exitCode, JSON.stringify(refused)).toBe(1);
+    const output = `${refused.stdout}\n${refused.stderr}`.replace(/\s+/gu, " ");
+    expect(output).toContain("--class");
+    expect(output).toContain("--commitment provisional");
+    expect(await git(cwd, ["status", "--porcelain=v1"])).toBe(before);
+    expect(await git(cwd, ["show-ref"])).toBe(refsBefore);
+    await expect(readFile(meta, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+
+    const repaired = await runArcNoTty([...args, "--class", "Light"], cwd, { timeout: 10_000, env: { CI: "false" } });
+    expect(repaired.exitCode, JSON.stringify(repaired)).toBe(0);
+    expect(await readFile(meta, "utf8")).toContain("`Light`");
+  }, STUB_CLASS_CASE_TIMEOUT_MS);
+
   it.each(NO_INPUT_MATRIX)("terminates $commandPath [$promptSite; upstream: $upstreamRefusalFor] for each distinct unavailable-interaction context", async (entry) => {
     const invoke = async (
       run: (cwd: string) => ReturnType<typeof runArcNoTty>,
@@ -148,6 +173,7 @@ describe("command-input no-input matrix", () => {
             commitment,
             "--priority",
             "P2",
+            ...(commitment === "planned" ? ["--class", "Light"] : []),
           ],
           cwd,
           { timeout: 10_000, env: { CI: "false" } },

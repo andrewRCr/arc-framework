@@ -532,7 +532,10 @@ async function typescriptFiles(root: string): Promise<readonly string[]> {
  * @returns Relative module specifiers in source order.
  */
 export function importedModuleSpecifiers(sourceText: string, fileName: string): readonly string[] {
-  const file = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  return moduleSpecifiers(sourceFile({ file: fileName, sourceText }));
+}
+
+function moduleSpecifiers(file: ts.SourceFile): readonly string[] {
   const specifiers: Array<{ readonly position: number; readonly value: string }> = [];
   const visit = (node: ts.Node): void => {
     if (
@@ -571,6 +574,7 @@ function cliReachableTypescriptFiles(
   sourceRoot: string,
   cliFile: string,
   sourceFiles: Readonly<Record<string, string>>,
+  parse: (file: string) => ts.SourceFile,
 ): readonly string[] {
   const byPath = new Map(Object.keys(sourceFiles).map((file) => [resolve(sourceRoot, file), file]));
   const pending = [resolve(cliFile)];
@@ -580,9 +584,8 @@ function cliReachableTypescriptFiles(
     if (file === undefined || reachable.has(file)) continue;
     reachable.add(file);
     const relativeFile = relative(sourceRoot, file).replaceAll("\\", "/");
-    const sourceText = sourceFiles[relativeFile];
-    if (sourceText === undefined) continue;
-    for (const specifier of importedModuleSpecifiers(sourceText, file)) {
+    if (sourceFiles[relativeFile] === undefined) continue;
+    for (const specifier of moduleSpecifiers(parse(relativeFile))) {
       const base = resolve(file, "..", specifier.replace(/\.js$/u, ""));
       const target = byPath.get(`${base}.ts`) ?? byPath.get(resolve(base, "index.ts"));
       if (target !== undefined) {
@@ -618,8 +621,18 @@ export async function loadCommandInputSourceSnapshot(options: {
   const cliText = sourceFiles[cliPath];
   if (cliText === undefined) throw new Error(`CLI source is outside the source snapshot: ${cliFile}`);
   const commands = scanCommanderSource({ file: cliPath, sourceText: cliText }).commands;
-  const files = cliReachableTypescriptFiles(sourceRoot, cliFile, sourceFiles);
-  const promptIndex = buildPromptSourceIndex(Object.fromEntries(files.map((file) => [file, sourceFiles[file] ?? ""])));
+  // Parsing dominates the scan; the reachability walk and the prompt index share one tree per module.
+  const parsed = new Map<string, ts.SourceFile>();
+  const parse = (file: string): ts.SourceFile => {
+    const tree = sourceFile({ file, sourceText: sourceFiles[file] ?? "" });
+    parsed.set(file, tree);
+    return tree;
+  };
+  const files = cliReachableTypescriptFiles(sourceRoot, cliFile, sourceFiles, parse);
+  const promptIndex = buildPromptSourceIndex(
+    Object.fromEntries(files.map((file) => [file, sourceFiles[file] ?? ""])),
+    parsed,
+  );
   const interactions = files.flatMap((file) => scanInteractionSource({
     file,
     sourceText: sourceFiles[file] ?? "",

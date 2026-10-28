@@ -554,7 +554,8 @@ describe("shared code-review workflow contracts", () => {
     expect(triage).toContain(
       "When a fix requires a fix check or complete pass, the recommendation covers that activity",
     );
-    expect(triage).toContain("Its Decisions block carries the step the fixed head needs beside your `successorRecommendation`");
+    expect(triage).toContain("Its Decisions block carries the step the fixed head needs, naming each look it admits, then "
+      + "your `successorRecommendation` under `Recommended:`");
     expect(triage).toContain("as spend the approver may decline");
     expect(triage).toContain("confirmed there once before any pass is dispatched");
 

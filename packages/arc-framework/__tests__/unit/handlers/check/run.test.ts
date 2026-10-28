@@ -1,18 +1,22 @@
 /** Check scheduling is observable through outcomes returned by the execution boundary. */
 import { afterEach, expect, it } from "vitest";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CheckDeclarationSchema } from "../../../../src/lib/checks/declaration.js";
 import { declaredChecksExitCode, runDeclaredRequest, type DeclaredCheckResult, type DeclaredCheckDependencies } from "../../../../src/handlers/check/run.js";
 import { readProjectedSelection } from "../../../../src/lib/checks/projected-selection.js";
-import { scriptGitExec, scriptRawGitExec } from "../../../helpers/git-exec-fake.js";
+import { makeGitProcessError, scriptGitExec, scriptRawGitExec } from "../../../helpers/git-exec-fake.js";
+import { createCheckPassStore } from "../../../../src/lib/checks/record.js";
+import { captureEnvironmentInputs } from "../../../../src/lib/checks/environment-inputs.js";
+import { nodeEnvironmentCaptureIO } from "../../../../src/lib/checks/environment-file.js";
+import type { PreparedCheckExecution } from "../../../../src/lib/checks/runner/execution.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 
-async function fixture(checks: Record<string, { fixes?: boolean; no_evidence_exit?: number; mode?: "files" | "selection"; root?: string; runtime_inputs?: string[][]; inputs?: string[] }>, failSecondTreeWrite = false) {
+async function fixture(checks: Record<string, { runner?: boolean; fixes?: boolean; no_evidence_exit?: number; mode?: "files" | "selection"; root?: string; runtime_inputs?: string[][]; inputs?: string[]; gate?: "commit" | "push"; ci_only?: boolean; cache?: boolean; environment_inputs?: Record<string, "value" | "file">; shards?: { count: number; argument: string } }>, failSecondTreeWrite = false, globals: { global_runtime_inputs?: string[][] } = {}) {
   const root = await mkdtemp(join(tmpdir(), "arc-check-scheduling-"));
   roots.push(root);
   await mkdir(join(root, ".git"));
@@ -20,7 +24,7 @@ async function fixture(checks: Record<string, { fixes?: boolean; no_evidence_exi
   header.write("DIRC");
   header.writeUInt32BE(2, 4);
   await writeFile(join(root, ".git/index"), Buffer.concat([header, createHash("sha1").update(header).digest()]));
-  const definition = CheckDeclarationSchema.parse({ checks: Object.fromEntries(Object.entries(checks).map(([id, check]) =>
+  const definition = CheckDeclarationSchema.parse({ ...globals, checks: Object.fromEntries(Object.entries(checks).map(([id, check]) =>
     [id, { command: [id], cache: false, inputs: [], ...check }])) });
   const git = scriptGitExec([
     { match: ["rev-parse", "--verify", "--end-of-options", "HEAD^{commit}"], responses: [{ stdout: "a".repeat(40), stderr: "" }] },
@@ -52,6 +56,283 @@ async function fixture(checks: Record<string, { fixes?: boolean; no_evidence_exi
   };
   return { root, io, ids: Object.keys(checks) };
 }
+
+async function frozenInputFixture(root: string, io: DeclaredCheckDependencies, cwd = root) {
+  await mkdir(cwd, { recursive: true });
+  const original = join(cwd, "weights");
+  const owned = join(root, "owned-inputs");
+  await writeFile(original, "frozen");
+  io.captureEnvironment = (inputs, checkCwd) => captureEnvironmentInputs(inputs, checkCwd,
+    { environment: { WEIGHTS: "weights", MODE: "literal" },
+      io: { ...nodeEnvironmentCaptureIO, createDirectory: async () => { await mkdir(owned); return owned; } } });
+  return { original, owned };
+}
+
+it("keeps completed evidence, publishes no pass for a check the interruption reached and refuses queued checks", async () => {
+  const { root, io, ids } = await fixture({ first: {}, later: {}, last: {} });
+  let interrupted = false;
+  io.interrupted = () => interrupted;
+  io.execute = async command => {
+    await writeFile(join(root, `${command[0]}.started`), "started");
+    // A terminal interrupt reaches the running native child too, which may still exit zero.
+    if (command[0] === "later") interrupted = true;
+    return { started: true, exitCode: 0, output: "exited zero" };
+  };
+  const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids }, serial: true });
+  expect(result).toMatchObject({
+    kind: "result", exitCode: 2, result: { checks: [
+      { id: "first", outcome: "passed", output: "exited zero" },
+      { id: "later", outcome: "couldn't run", reason: expect.stringContaining("interrupted while this check ran") },
+      { id: "last", outcome: "couldn't run", reason: expect.stringContaining("interrupted before dispatch") },
+    ] },
+  });
+  if (result.kind !== "result") throw new Error(result.error.message);
+  expect(result.result.checks.filter(check => check.outcome === "passed").map(check => check.id)).toEqual(["first"]);
+  expect(await readFile(join(root, "later.started"), "utf8")).toBe("started");
+  await expect(readFile(join(root, "last.started"))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("forecasts a routed local dry run without the native batches and shards the runner never executes", async () => {
+  const { root, io, ids } = await fixture({ remote: { runner: true, shards: { count: 2, argument: "--shard={index}" } }, local: {} });
+  io.readRunnerConfiguration = async check => check.runner ? { file: "machine.yml", argv: ["adapter"] } : undefined;
+  const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids }, dryRun: true });
+  if (result.kind !== "result") throw new Error(result.error.message);
+  const [local, remote] = ["local", "remote"].map(id => result.result.checks.find(check => check.id === id));
+  expect(remote).toMatchObject({ outcome: "would run", cwd: ".", reason: expect.stringContaining("does not prepare") });
+  expect(remote).not.toHaveProperty("batches");
+  expect(remote).not.toHaveProperty("shards");
+  expect(local).toMatchObject({ outcome: "would run", batches: [["local"]] });
+  // CI steps play the forecast back natively, so a CI forecast keeps every declared batch and shard.
+  const ci = await runDeclaredRequest(root, io, { form: { kind: "run", ids }, dryRun: true, ci: true });
+  if (ci.kind !== "result") throw new Error(ci.error.message);
+  expect(ci.result.checks.find(check => check.id === "remote")).toMatchObject({ batches: [["remote"]],
+    shards: [{ index: 1, batches: [["remote", "--shard=1"]] }, { index: 2, batches: [["remote", "--shard=2"]] }] });
+});
+
+it("leaves an interrupted fixer's rewrites unfinished and dispatches no later routed check", async () => {
+  const { root, io, ids } = await fixture({ format: { fixes: true }, remote: { runner: true } });
+  let interrupted = false;
+  const published: string[] = [];
+  let prepared = false;
+  io.interrupted = () => interrupted;
+  io.passes = { get: async () => null, put: async record => { published.push(record.id); return { status: "recorded" }; } };
+  io.readRunnerConfiguration = async check => check.runner ? { file: "machine.yml", argv: ["adapter"] } : undefined;
+  io.prepareExecution = () => { prepared = true; throw new Error("routed check must not be dispatched"); };
+  io.execute = async () => { interrupted = true; return { started: true, exitCode: 0, output: "partially formatted" }; };
+  const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids }, serial: true });
+  if (result.kind !== "result") throw new Error(result.error.message);
+  const [format, remote] = ["format", "remote"].map(id => result.result.checks.find(check => check.id === id));
+  expect(format).toMatchObject({ outcome: "couldn't run", reason: expect.stringContaining("interrupted while this check ran"),
+    output: "partially formatted" });
+  expect(format).not.toHaveProperty("rewritten");
+  expect(remote).toMatchObject({ outcome: "couldn't run", reason: expect.stringContaining("interrupted before dispatch") });
+  expect(prepared).toBe(false);
+  expect(published).toEqual([]);
+});
+
+it("reports an interrupted request's unselected checks by their selection rather than as unrun", async () => {
+  const { root, io, ids } = await fixture({ selected: { mode: "selection" }, ordinary: {} });
+  io.readProjectedSelection = () => Promise.resolve({ status: "ok", paths: [] });
+  io.interrupted = () => true;
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids }, serial: true })).resolves.toMatchObject({
+    kind: "result", exitCode: 2, result: { checks: [
+      { id: "selected", outcome: "not selected", reason: "no files to check" },
+      { id: "ordinary", outcome: "couldn't run", reason: expect.stringContaining("interrupted before dispatch") },
+    ] },
+  });
+});
+
+it("reports a native explicit-input capture failure as that check's result and still runs its siblings", async () => {
+  const { root, io, ids } = await fixture({ inputs: { environment_inputs: { WEIGHTS: "file" } }, other: {} });
+  io.captureEnvironment = async () => { throw new Error("WEIGHTS is not a readable regular file; repair the file input and retry."); };
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids }, serial: true })).resolves.toMatchObject({
+    kind: "result", exitCode: 2, result: { checks: [
+      { id: "inputs", outcome: "couldn't run", reason: expect.stringContaining("repair the file input") },
+      { id: "other", outcome: "passed" },
+    ] },
+  });
+});
+
+it("carries the runner's remedy for an invocation it reports it could not run", async () => {
+  const { root, io, ids } = await fixture({ remote: { runner: true } });
+  io.readRunnerConfiguration = async () => ({ file: "machine.yml", argv: ["adapter"] });
+  const unavailable = { status: "unavailable" as const, reason: "No compatible placement", remedy: "Free a provider worker and retry." };
+  const execution: Partial<PreparedCheckExecution> = { contextId: "context", runtime: undefined, supportsRunGroup: false,
+    plan: { invocations: [{ id: "only", cwd: ".", shell: false, argv: ["remote"] }], probes: { global: [], check: [] } },
+    run: async id => ({ status: "settled", outcomes: new Map([[id, unavailable]]),
+      settlement: { contextId: "context", settled: true, outputComplete: true, invocationIds: [id] } }),
+    close: async () => ({ status: "closed", exit: { started: true, exitCode: 0 } }) };
+  io.prepareExecution = () => Object.assign(Promise.resolve({ status: "ready" as const, execution: execution as PreparedCheckExecution }), {
+    planId: "726ea270-cdb4-49d0-8e30-de4ffb6d4566", retained: undefined, cancel: async () => undefined, terminate: () => undefined,
+  });
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
+    kind: "result", exitCode: 2, result: { checks: [{ outcome: "couldn't run", reason: expect.stringContaining("No compatible placement"),
+      remedy: expect.stringMatching(/^Free a provider worker and retry\. Then run /u), remedyKind: "runner" }] },
+  });
+});
+
+it.each([
+  { name: "completed notice", outcome: { status: "completed" as const, exitCode: 1, notice: `checked\r\u001b[2Kall ${"x".repeat(300)}` },
+    expected: { outcome: "failed", notice: `checked; [2Kall ${"x".repeat(184)}; cleanup; [Kretry later` } },
+  { name: "unavailable reason and remedy", outcome: { status: "unavailable" as const, reason: "busy\u001b[1A\rpassed", remedy: "Free\u0007a worker.\n" },
+    expected: { outcome: "couldn't run", reason: expect.stringContaining("busy [1A; passed"), remedy: expect.stringMatching(/^Free a worker\. Then run /u) } },
+])("renders an adapter's $name as one control-free bounded line", async ({ outcome, expected }) => {
+  const { root, io, ids } = await fixture({ remote: { runner: true } });
+  io.readRunnerConfiguration = async () => ({ file: "machine.yml", argv: ["adapter"] });
+  const execution: Partial<PreparedCheckExecution> = { contextId: "context", runtime: undefined, supportsRunGroup: false,
+    plan: { invocations: [{ id: "only", cwd: ".", shell: false, argv: ["remote"] }], probes: { global: [], check: [] } },
+    run: async id => ({ status: "settled", outcomes: new Map([[id, outcome]]),
+      settlement: { contextId: "context", settled: true, outputComplete: true, invocationIds: [id] } }),
+    close: async () => ({ status: "closed", exit: { started: true, exitCode: 0 }, cleanupWarning: "cleanup\r\u001b[Kretry later" }) };
+  io.prepareExecution = () => Object.assign(Promise.resolve({ status: "ready" as const, execution: execution as PreparedCheckExecution }), {
+    planId: "726ea270-cdb4-49d0-8e30-de4ffb6d4566", retained: undefined, cancel: async () => undefined, terminate: () => undefined,
+  });
+  const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids } });
+  if (result.kind !== "result") throw new Error(result.error.message);
+  const [check] = result.result.checks;
+  expect(check).toMatchObject(expected);
+  expect(check?.notice).toContain("cleanup; [Kretry later");
+  expect(JSON.stringify([check?.notice, check?.reason, check?.remedy])).not.toMatch(/\\r|\\u001b|\\u0007/u);
+});
+
+it("reports settled input cleanup trouble alongside unavailable preparation", async () => {
+  const { root, io, ids } = await fixture({ remote: { runner: true } });
+  const artifact = join(root, "settled-capture");
+  await writeFile(artifact, "settled input");
+  const cleanupWarning = `Remove the settled captured inputs manually: ${artifact}`;
+  io.readRunnerConfiguration = async () => ({ file: "machine.yml", argv: ["adapter"] });
+  io.prepareExecution = () => Object.assign(Promise.resolve({ status: "unavailable" as const, origin: "runner" as const,
+    reason: "Preparation was cancelled and settled", remedy: "Retry with a fresh attempt.", cleanupWarning }), {
+    planId: "726ea270-cdb4-49d0-8e30-de4ffb6d4566", retained: undefined,
+    cancel: async () => undefined, terminate: () => undefined,
+  });
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
+    kind: "result", exitCode: 2, result: { checks: [{ outcome: "couldn't run", notice: cleanupWarning,
+      reason: expect.stringContaining("cancelled and settled"), remedy: expect.stringContaining("fresh attempt") }] },
+  });
+  expect(await readFile(artifact, "utf8")).toBe("settled input");
+  await rm(artifact);
+});
+
+it.each(["unavailable", "uncertain"] as const)("keeps the adapter's diagnostics and a log for %s preparation", async status => {
+  const { root, io, ids } = await fixture({ remote: { runner: true } });
+  const saved: string[] = [];
+  io.reports = { save: async (_id, output) => { saved.push(output); return { schemaVersion: 1, id: "remote", logPath: "/logs/remote.log", costMs: 0 }; },
+    latest: async () => undefined };
+  io.readRunnerConfiguration = async () => ({ file: "machine.yml", argv: ["adapter"] });
+  const retained = { planId: "726ea270-cdb4-49d0-8e30-de4ffb6d4566", adapter: ["adapter"], sourceRoot: "/captured/source",
+    manifest: "/captured/manifest", environmentFiles: [] };
+  io.prepareExecution = input => {
+    void input.onDiagnostic?.(Buffer.from("adapter: worker pool quota exhausted\n"));
+    return Object.assign(Promise.resolve(status === "unavailable"
+      ? { status, origin: "runner" as const, reason: "Runner protocol closed before replying", remedy: "Repair the runner and retry." }
+      : { status, reason: "Runner did not prove settlement", retained }), {
+      planId: retained.planId, retained: undefined, cancel: async () => undefined, terminate: () => undefined,
+    });
+  };
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
+    kind: "result", exitCode: 2, result: { checks: [{ outcome: "couldn't run", output: "adapter: worker pool quota exhausted\n",
+      logPath: "/logs/remote.log" }] },
+  });
+  expect(saved).toEqual(["adapter: worker pool quota exhausted\n"]);
+});
+
+it("shares frozen bytes across global/check probes and all path batches before reuse qualification", async () => {
+  const { root, io, ids } = await fixture({ lint: { mode: "files", root: "tools", inputs: ["**"], cache: true,
+    runtime_inputs: [["probe"]], environment_inputs: { WEIGHTS: "file" } } }, false, { global_runtime_inputs: [["global-probe"]] });
+  const { original, owned } = await frozenInputFixture(root, io, join(root, "tools"));
+  const paths = Array.from({ length: 100 }, (_, index) => `${"x".repeat(195)}${index}.ts`);
+  const raw = paths.map(path => `:000000 100644 ${"0".repeat(40)} ${"d".repeat(40)} A\0${path}\0`).join("");
+  const git = io.git;
+  io.git = async (file, args, options) => args[0] === "diff" ? { stdout: raw, stderr: "" } : git(file, args, options);
+  io.runtime = async (_command, _cwd, environment) => {
+    const bytes = environment?.WEIGHTS === undefined ? "missing" : await readFile(environment.WEIGHTS, "utf8");
+    await writeFile(original, "changed by probe");
+    return { exitCode: bytes === "frozen" ? 0 : 1, stdout: bytes };
+  };
+  io.execute = async (_command, _cwd, _content, policy) => {
+    const bytes = policy?.environment?.WEIGHTS === undefined ? "missing" : await readFile(policy.environment.WEIGHTS, "utf8");
+    await writeFile(original, "changed by batch");
+    return { started: true, exitCode: 0, output: bytes };
+  };
+  const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids } });
+  expect(result).toMatchObject({ kind: "result", exitCode: 0, result: { checks: [{ outcome: "passed", record: { status: "recorded" } }] } });
+  if (result.kind !== "result") throw new Error(result.error.message);
+  const batches = result.result.checks[0]?.output?.split("\n") ?? [];
+  expect(batches.length).toBeGreaterThan(1);
+  expect(batches.every(bytes => bytes === "frozen")).toBe(true);
+  await expect(readFile(join(owned, "0.input"))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("captures declared files even when caching is disabled and disposes the copies", async () => {
+  const { root, io, ids } = await fixture({ lint: { environment_inputs: { WEIGHTS: "file" } } });
+  const { owned } = await frozenInputFixture(root, io);
+  io.execute = async (_command, _cwd, _content, policy) => ({ started: true, exitCode: 0,
+    output: policy?.environment?.WEIGHTS === undefined ? "missing" : await readFile(policy.environment.WEIGHTS, "utf8") });
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
+    kind: "result", exitCode: 0, result: { checks: [{ outcome: "passed", output: "frozen", record: { status: "not-recordable" } }] },
+  });
+  await expect(readFile(join(owned, "0.input"))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("disposes captured files on a cache hit without executing the command again", async () => {
+  const { root, io, ids } = await fixture({ lint: { cache: true, runtime_inputs: [["probe"]], environment_inputs: { WEIGHTS: "file" } } });
+  const { owned } = await frozenInputFixture(root, io);
+  const records = join(root, ".git/passes");
+  await mkdir(records);
+  io.passes = createCheckPassStore({ directory: async () => records, readFile: path => readFile(path, "utf8"),
+    createFile: (path, content) => writeFile(path, content, { flag: "wx" }) });
+  io.runtime = async (_command, _cwd, environment) => ({ exitCode: environment?.WEIGHTS === undefined ? 1 : 0,
+    stdout: environment?.WEIGHTS === undefined ? "missing" : await readFile(environment.WEIGHTS, "utf8") });
+  io.execute = async (_command, _cwd, _content, policy) => {
+    await appendFile(join(root, "receipt"), "run\n");
+    return { started: true, exitCode: 0,
+      output: policy?.environment?.WEIGHTS === undefined ? "missing" : await readFile(policy.environment.WEIGHTS, "utf8") };
+  };
+  const request = { form: { kind: "run" as const, ids } };
+  await expect(runDeclaredRequest(root, io, request)).resolves.toMatchObject({ kind: "result", result: { checks: [{ outcome: "passed", output: "frozen" }] } });
+  await expect(runDeclaredRequest(root, io, request)).resolves.toMatchObject({ kind: "result", result: { checks: [{ outcome: "reused", output: "frozen" }] } });
+  expect(await readFile(join(root, "receipt"), "utf8")).toBe("run\n");
+  await expect(readFile(join(owned, "0.input"))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("disposes frozen inputs after a command exception while retaining unavailable execution", async () => {
+  const { root, io, ids } = await fixture({ lint: { environment_inputs: { WEIGHTS: "file" } } });
+  const { owned } = await frozenInputFixture(root, io);
+  io.execute = async () => { throw new Error("process boundary failed"); };
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
+    kind: "result", exitCode: 2, result: { checks: [{ outcome: "couldn't run" }] },
+  });
+  await expect(readFile(join(owned, "0.input"))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("disposes frozen inputs when fixer finalization throws without hiding the Git failure", async () => {
+  const { root, io, ids } = await fixture({ format: { fixes: true, environment_inputs: { WEIGHTS: "file" } } });
+  const { owned } = await frozenInputFixture(root, io);
+  const git = io.git;
+  io.git = async (file, args, options) => {
+    if (args[0] === "update-index") throw makeGitProcessError({ command: file, args, exitCode: 128, stderr: "index unavailable" });
+    return git(file, args, options);
+  };
+  io.execute = async (_command, _cwd, _content, policy) => {
+    const bytes = policy?.environment?.WEIGHTS === undefined ? "missing" : await readFile(policy.environment.WEIGHTS, "utf8");
+    await writeFile(join(root, "receipt"), bytes);
+    return { started: true, exitCode: 0, output: bytes };
+  };
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).rejects.toThrow("Could not resolve a fixer's rewrites");
+  expect(await readFile(join(root, "receipt"), "utf8")).toBe("frozen");
+  await expect(readFile(join(owned, "0.input"))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("forecasts explicit file inputs without trying to capture an unavailable execution-step file", async () => {
+  const { root, io, ids } = await fixture({ lint: { cache: true, environment_inputs: { WEIGHTS: "file" } } });
+  const { original, owned } = await frozenInputFixture(root, io);
+  await rm(original);
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids }, dryRun: true })).resolves.toMatchObject({
+    kind: "result", exitCode: 0, result: { checks: [{ outcome: "would run" }] },
+  });
+  await expect(readFile(join(owned, "0.input"))).rejects.toMatchObject({ code: "ENOENT" });
+});
 
 it("finishes fixers serially in declaration order before ordinary checks execute", async () => {
   const { root, io, ids } = await fixture({ ordinary: {}, "fixer-one": { fixes: true }, "fixer-two": { fixes: true }, other: {} });
@@ -102,6 +383,36 @@ it("carries the notice a check's command reports into that check's result", asyn
   if (result.kind !== "result") throw new Error(result.error.message);
   expect(result.result.checks.find(check => check.id === "lint")).toMatchObject({ outcome: "passed", notice: "ran on build-vm" });
   expect(result.result.checks.find(check => check.id === "other")).not.toHaveProperty("notice");
+});
+
+it("names each push check an increment leaves unrun, in declaration order, without running it", async () => {
+  const { root, io } = await fixture({ whole: { gate: "push" }, commit: { gate: "commit" }, ci: { gate: "push", ci_only: true } });
+  const ran: string[] = [];
+  const execute = io.execute;
+  io.execute = async (command, ...rest) => { ran.push(command[0]!); return execute(command, ...rest); };
+  const result = await runDeclaredRequest(root, io, { form: { kind: "increment" } });
+  if (result.kind !== "result") throw new Error(result.error.message);
+  expect(result.exitCode).toBe(0);
+  expect(result.result.checks).toMatchObject([
+    { id: "whole", kind: "feedback", outcome: "not selected", reason: "runs at the push gate" },
+    { id: "commit", kind: "enforcement" },
+    { id: "ci", kind: "feedback", outcome: "not selected", reason: "CI-only check requires --ci" },
+  ]);
+  expect(result.result.verification).toContain("whole not selected");
+  expect(ran).not.toContain("whole");
+  expect(ran).not.toContain("ci");
+  const inCi = await runDeclaredRequest(root, io, { form: { kind: "increment" }, ci: true });
+  if (inCi.kind !== "result") throw new Error(inCi.error.message);
+  expect(inCi.result.checks.find(check => check.id === "ci")).toMatchObject({ reason: "runs at the push gate" });
+});
+
+it("reports a push check an increment leaves unrun when nothing else is selected, and none for a segment", async () => {
+  const { root, io } = await fixture({ whole: { gate: "push" } });
+  await expect(runDeclaredRequest(root, io, { form: { kind: "increment" } })).resolves.toMatchObject({ kind: "result",
+    exitCode: 0, result: { status: "completed", checks: [{ id: "whole", outcome: "not selected", reason: "runs at the push gate" }] } });
+  const segment = await runDeclaredRequest(root, io, { form: { kind: "segment" } });
+  if (segment.kind !== "result") throw new Error(segment.error.message);
+  expect(segment.result.checks.map(check => check.reason)).not.toContain("runs at the push gate");
 });
 
 it("reports a check's declared no-evidence status as its own non-passing outcome, without a pass or retry", async () => {
@@ -238,7 +549,7 @@ it.each([1, 255])("reports runner unavailability at exit %s with a retry, then p
   });
 });
 
-it("keeps a completed batch failure when a later batch cannot run", async () => {
+it.each(["not-run reason", "not started", "throws"])("keeps a completed batch failure when a later batch %s", async fault => {
   const { root, io, ids } = await fixture({ lint: { mode: "files", inputs: ["**"] } });
   const paths = Array.from({ length: 100 }, (_, index) => `${"x".repeat(195)}${index}.ts`);
   const raw = paths.map(path => `:000000 100644 ${"0".repeat(40)} ${"d".repeat(40)} A\0${path}\0`).join("");
@@ -246,11 +557,42 @@ it("keeps a completed batch failure when a later batch cannot run", async () => 
   io.git = async (file, args, options) => args[0] === "diff"
     ? { stdout: raw, stderr: "" } : git(file, args, options);
   let batch = 0;
-  io.execute = async () => ++batch === 1 ? { started: true, exitCode: 1, output: "lint violation" }
-    : { started: true, exitCode: 255, output: "ssh disconnected", notRunReason: "VM connection dropped" };
+  io.execute = async () => {
+    if (++batch === 1) return { started: true, exitCode: 1, output: "lint violation" };
+    if (fault === "throws") throw new Error("VM connection dropped");
+    return { started: fault !== "not started", exitCode: 255, output: "ssh disconnected",
+      ...(fault === "not-run reason" ? { notRunReason: "VM connection dropped" } : {}) };
+  };
   await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
-    kind: "result", exitCode: 1, result: { checks: [{ outcome: "failed", output: "lint violation\nssh disconnected" }] },
+    kind: "result", exitCode: 1, result: { checks: [{ outcome: "failed",
+      output: `lint violation\n${fault === "throws" ? "Error: VM connection dropped" : "ssh disconnected"}`,
+      reason: expect.stringMatching(/VM connection dropped|did not start/u) }] },
   });
+});
+
+it("keeps a completed batch failure when the request is interrupted during a later batch", async () => {
+  const { root, io, ids } = await fixture({ lint: { mode: "files", inputs: ["**"] } });
+  const paths = Array.from({ length: 100 }, (_, index) => `${"x".repeat(195)}${index}.ts`);
+  const raw = paths.map(path => `:000000 100644 ${"0".repeat(40)} ${"d".repeat(40)} A\0${path}\0`).join("");
+  const git = io.git;
+  io.git = async (file, args, options) => args[0] === "diff"
+    ? { stdout: raw, stderr: "" } : git(file, args, options);
+  const published: string[] = [];
+  io.passes = { get: async () => null, put: async record => { published.push(record.id); return { status: "recorded" }; } };
+  let interrupted = false;
+  io.interrupted = () => interrupted;
+  let batch = 0;
+  io.execute = async () => {
+    if (++batch === 1) return { started: true, exitCode: 1, output: "lint violation" };
+    interrupted = true;
+    return { started: true, exitCode: 0, output: "exited zero" };
+  };
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
+    kind: "result", exitCode: 1, result: { checks: [{ outcome: "failed", output: "lint violation\nexited zero",
+      reason: expect.stringContaining("interrupted while this check ran") }] },
+  });
+  expect(batch).toBe(2);
+  expect(published).toEqual([]);
 });
 
 

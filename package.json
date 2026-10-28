@@ -18,6 +18,7 @@
     "lint:md:fix": "node --import tsx packages/arc-framework/src/scripts/fix-markdown.ts",
     "lint:md:fix:file": "node --import tsx packages/arc-framework/src/scripts/fix-markdown.ts --files",
     "format:tables": "node --import tsx packages/arc-framework/src/scripts/format-tables.ts",
+    "format:prose": "node --import tsx packages/arc-framework/src/scripts/format-prose.ts",
     "render:framework": "node --import tsx packages/arc-framework/src/scripts/render-framework.ts",
     "audit:tables": "node --import tsx packages/arc-framework/src/scripts/audit-tables.ts",
     "audit:emphasis": "node --import tsx packages/arc-framework/src/scripts/audit-emphasis.ts",

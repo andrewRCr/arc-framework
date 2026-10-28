@@ -10,7 +10,8 @@ function selected({ own, widened = false, widen = true, ciOnly = false, request 
 }) {
   const check = CheckDeclarationSchema.parse({ checks: { lint: { command: ["lint"], mode: "files", widen, ci_only: ciOnly } } }).checks.lint!;
   return selectCheckInputs({ id: "lint", check, request,
-    resolved: { scope: { kind: all ? "all" : "changed" }, tree: "c".repeat(40), base: "a".repeat(40) },
+    resolved: { scope: { kind: all ? "all" : "changed" }, tree: "c".repeat(40), base: "a".repeat(40),
+      source: { kind: "worktree", head: { status: "known", commit: "a".repeat(40) } } },
     selection: { widened, own: new Map([["lint", own === "changed" ? { status: "selected", paths: [changedPath] }
       : own === "unchanged" ? { status: "not selected", reason: "inputs unchanged" } : { status: "unresolved" }]]) },
   });
@@ -50,7 +51,8 @@ it("keeps selection inputs outside Git coverage and widening", async () => {
   const io = { git, gitInput: async () => "c".repeat(40) };
   const ordinary = { command: ["lint"], mode: "files", inputs: ["src/**"] };
   const request: CheckRequest = { form: { kind: "increment" } };
-  const resolved = { scope: { kind: "changed" as const }, base: "a".repeat(40), tree: "b".repeat(40) };
+  const resolved = { scope: { kind: "changed" as const }, base: "a".repeat(40), tree: "b".repeat(40),
+    source: { kind: "worktree" as const, head: { status: "known" as const, commit: "a".repeat(40) } } };
   const baseline = await resolveCheckSelection(io, "/repo", CheckDeclarationSchema.parse({ checks: { ordinary } }),
     request, resolved, "checks.yml");
   const extended = await resolveCheckSelection(io, "/repo", CheckDeclarationSchema.parse({ checks: {

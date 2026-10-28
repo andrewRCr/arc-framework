@@ -235,4 +235,25 @@ and its checks, then enforcement at each ceremony — decided after the cutover.
 
 - _Captured during:_ `seam-decomposition` draft-design close, 2026-10-16.
 
+### `[ ]` **Decide whether typed relations bind their endpoint by UID**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ the record format and gate model (§ Decisions, § Open questions).
+
+- _Observation:_ `lifecycle-slug-selection` leaves UID-bearing dependency edges to this work unit: its draft's rejected
+  re-key alternative cites storage contract D2 ("machine records reference each other by UID") as owned here, and its
+  Non-Goals exclude "UID-bearing dependency edges or typed relations (`work-item-relations`)". This draft never mentions
+  UIDs, identity, or how an edge's endpoint binds to a record. A `Depends On` edge that stores a slug is looked up again
+  at every reconcile against whoever holds the slug then, so under slug reuse and clashes made on two machines its
+  meaning shifts as holders complete, close, or rename. `lifecycle-slug-selection` works around this by classifying
+  against the standing holder and confirming discharge by reference, and accepts the narrow windows left.
+
+- _Approach:_ decide whether a typed edge binds its endpoint by UID, resolved once when the edge is written, and how
+  that meets rename, slug reuse, decomposition's lineage settling (`decomposeSlugSettlementWrites`), and status's
+  dependency view. Binding by UID would retire the windows `lifecycle-slug-selection` accepts.
+
+- _Captured during:_ `lifecycle-slug-selection` create-spec, re-entered discovery over its dependency reconcile,
+  2026-10-23.
+
 ---

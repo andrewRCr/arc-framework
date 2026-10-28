@@ -252,9 +252,8 @@ checks:
     mode: files
     root: packages/arc-framework
   typecheck:
+    runner: true
     command:
-      - bash
-      - scripts/check-runner.sh
       - npm
       - run
       - -s
@@ -264,9 +263,8 @@ checks:
       - packages/arc-framework/src/**/*.ts
       - packages/arc-framework/__tests__/**/*.ts
   typecheck:test:
+    runner: true
     command:
-      - bash
-      - scripts/check-runner.sh
       - npm
       - run
       - -s
@@ -276,9 +274,8 @@ checks:
       - packages/arc-framework/src/**/*.ts
       - packages/arc-framework/__tests__/**/*.ts
   lint:ts:
+    runner: true
     command:
-      - bash
-      - scripts/check-runner.sh
       - npm
       - run
       - -s
@@ -354,9 +351,8 @@ checks:
       - packages/arc-framework/tsup*.ts
       - packages/arc-framework/build-compiler.config.ts
   test:changed:
+    runner: true
     command:
-      - bash
-      - ../../scripts/check-runner.sh
       - npm
       - run
       - -s
@@ -371,9 +367,8 @@ checks:
       - '!packages/arc-framework/__tests__/integration/**/*.test.ts'
       - '!packages/arc-framework/__tests__/e2e/**/*.e2e.test.ts'
   test:unit:
+    runner: true
     command:
-      - bash
-      - scripts/check-runner.sh
       - npm
       - run
       - -s
@@ -392,15 +387,15 @@ checks:
       count: 2
       argument: --shard={index}/{count}
   test:integration:
+    runner: true
     command:
-      - bash
-      - scripts/check-runner.sh
       - npm
       - run
       - -s
       - test:integration
       - --
     gate: merge
+    ci_only: true
     inputs:
       - '**'
       - '!.arc/active/**'
@@ -414,9 +409,8 @@ checks:
   # as its data file declares them, and runs in full when asked, given no base, or changed itself. CI divides the
   # selection among shards balanced by the integration durations; a local run stays one.
   test:store:
+    runner: true
     command:
-      - bash
-      - scripts/check-runner.sh
       - node
       - --import
       - tsx
@@ -443,9 +437,8 @@ checks:
       argument: --shard={index}/{count}
   # Integration tests read ARC Markdown from disk, which no import graph shows, so test:changed never reaches them.
   test:integration:content:
+    runner: true
     command:
-      - bash
-      - scripts/check-runner.sh
       - npm
       - run
       - -s
@@ -461,10 +454,13 @@ checks:
       - '!.arc/completed/**'
       - '!.arc/user/**'
       - '!.arc/system/.internal/candidates/**'
+      # Decision records and supplemental research and analysis, which no integration test reads.
+      - '!.arc/reference/adr/adr-*.md'
+      - '!.arc/reference/supplemental/research/research-*.md'
+      - '!.arc/reference/supplemental/analysis/analysis-*.md'
   test:arc-contracts:
+    runner: true
     command:
-      - bash
-      - scripts/check-runner.sh
       - npm
       - run
       - -s
@@ -523,9 +519,8 @@ checks:
       - '!.arc/completed/**'
       - '!.arc/system/.internal/candidates/**'
   test:e2e:local:
+    runner: true
     command:
-      - bash
-      - scripts/check-runner.sh
       - node
       - --import
       - tsx
@@ -541,7 +536,6 @@ global_inputs:
   - .npmrc
   - scripts/check-install-policy.mjs
   - package.json
-  - scripts/check-runner.sh
   - package-lock.json
   - packages/arc-framework/package.json
   - .editorconfig

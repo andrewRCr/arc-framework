@@ -7,7 +7,7 @@ import { z } from "zod";
 const step = z.object({ id: z.string().optional(), name: z.string().optional(), if: z.string().optional(),
   uses: z.string().optional(), run: z.string().optional(), env: z.record(z.string(), z.string()).optional(),
   with: z.record(z.string(), z.unknown()).optional() });
-const job = z.object({ if: z.string().optional(), needs: z.union([z.string(), z.array(z.string())]).optional(),
+const job = z.object({ name: z.string().optional(), if: z.string().optional(), needs: z.union([z.string(), z.array(z.string())]).optional(),
   strategy: z.object({ matrix: z.record(z.string(), z.unknown()) }).optional(), steps: z.array(step) });
 async function workflow() {
   return z.object({ on: z.object({ workflow_dispatch: z.object({ inputs: z.record(z.string(), z.unknown()) }) }),
@@ -27,6 +27,37 @@ it("uses only the adopted literal matrices and admits scheduled writer runs", as
     expect(adopted?.if).toContain("github.event_name == 'schedule'");
     expect(value.jobs[`trial-${tier}`]).toBeUndefined();
   }
+});
+
+it("runs every unit shard on the Node floor and rolling LTS", async () => {
+  const unit = (await workflow()).jobs.unit;
+  const nodes = z.array(z.object({ label: z.string(), version: z.string() })).parse(unit?.strategy?.matrix.node);
+  expect(nodes.map(({ version }) => version).sort()).toEqual(["24", "lts/*"]);
+  expect(new Set(nodes.map(({ label }) => label)).size).toBe(nodes.length);
+  for (const { label } of nodes) expect(label).toMatch(/^[a-z0-9-]+$/u);
+  expect(unit?.name).toContain("${{ matrix.node.label }}");
+  expect(unit?.name).toContain("${{ matrix.shard }}");
+  const setup = unit?.steps.find(({ uses }) => uses?.startsWith("actions/setup-node@"));
+  expect(setup?.with?.["node-version"]).toBe("${{ matrix.node.version }}");
+  expect(unit?.steps.find(({ name }) => name === "Run balanced shard")?.if).toBeUndefined();
+});
+
+it("keys unit dependencies by the resolved Node runtime before restoring them", async () => {
+  const steps = (await workflow()).jobs.unit?.steps ?? [];
+  const setup = steps.findIndex(({ uses }) => uses?.startsWith("actions/setup-node@"));
+  const cache = steps.findIndex(({ id }) => id === "nm-cache");
+  expect(steps[setup]?.id).toBe("node");
+  expect(cache).toBeGreaterThan(setup);
+  expect(steps[cache]?.with?.key).toContain("${{ steps.node.outputs.node-version }}");
+});
+
+it("takes unit timing and budget observations only from the rolling LTS", async () => {
+  const steps = (await workflow()).jobs.unit?.steps ?? [];
+  const writer = steps.find(({ name }) => name === "Upload native durations");
+  expect(writer?.if).toContain("matrix.node.version == 'lts/*'");
+  expect(writer?.with?.name).toBe("duration-results-unit-${{ matrix.shard }}");
+  expect(steps.find(({ name }) => name === "Report test budget")?.if)
+    .toBe("${{ matrix.node.version == 'lts/*' }}");
 });
 
 it("hands the same setup artifact to every adopted job and clears native results before execution", async () => {
@@ -90,5 +121,5 @@ it("merges and saves only after all writer shards succeeded and gives unit repor
   expect(merger?.steps.find((entry) => entry.name === "Save duration cache")?.with?.key)
     .toContain("${{ github.run_id }}");
   expect(value.jobs.unit?.steps.find((entry) => entry.name === "Upload unit test report")?.with?.name)
-    .toBe("unit-test-report-${{ matrix.shard }}");
+    .toBe("unit-test-report-${{ matrix.node.label }}-${{ matrix.shard }}");
 });

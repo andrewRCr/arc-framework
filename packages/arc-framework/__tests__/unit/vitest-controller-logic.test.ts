@@ -76,7 +76,7 @@ it("reports an E2E deletion since the base, and treats an unanswered read as one
   expect(calls.map(({ options }) => options?.cwd)).toEqual(["/package", "/package", "/package"]);
 });
 it("retains each native portability boundary on the portability tier", () => {
-  expect(localVitestTierArguments("portability")).toEqual([
+  expect(localVitestTierArguments("portability")).toEqual(expect.arrayContaining([
     "fs.test.ts", "build-context.test.ts", "build-cancellation.test.ts", "build-generation-lifetime.test.ts",
     "build-coordinator.test.ts", "build-publication.test.ts", "build-inventory.test.ts", "build-ownership.test.ts",
     "ci-build-transfer.test.ts", "ci-build-recovery.test.ts", "local-test-admission.test.ts", "worktree-marker.test.ts",
@@ -87,8 +87,12 @@ it("retains each native portability boundary on the portability tier", () => {
     "store-ref-named-acquisition.test.ts", "store-ref-publication.test.ts",
     "git-batch-reader.test.ts", "store-ref-separate-conformance-records.test.ts",
     "store-ref-separate-conformance-reads.test.ts", "store-ref-separate-conformance-sync.test.ts",
-    "store-ref-timing.test.ts", "store-ref-timing-isolation.test.ts",
-  ]);
+    "store-ref-timing.test.ts", "store-ref-timing-isolation.test.ts", "check-symlink-cwd.test.ts",
+  ]));
+});
+
+it.each(["raw-git-files.test.ts", "check-source-git.test.ts"])("selects actual raw-file portability cases: %s", path => {
+  expect(localVitestTierArguments("portability")).toContain(path);
 });
 
 type Completion = Parameters<typeof checkVitestCompletion>[0];

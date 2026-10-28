@@ -598,7 +598,7 @@ async function readGitNote(
  * Recurses into subdirectories — entries use relative paths (e.g., `drafts/idea.md`).
  * Skips dot-directories (infrastructure, not user content).
  */
-async function readUserDir(dirPath: string): Promise<DirEntry[]> {
+export async function readUserDir(dirPath: string): Promise<DirEntry[]> {
   const entries: DirEntry[] = [];
   const visited = new Set<string>();
 

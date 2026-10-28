@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { guidanceMarkdownFiles } from "../helpers/guidance-markdown.js";
 import { softWrappedProse } from "../helpers/soft-wrapped-prose.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
@@ -38,13 +39,8 @@ describe("PR lifecycle and review contracts", () => {
   });
 
   it("removes the legacy hook from live product surfaces", async () => {
-    const files = [
-      ...await markdownFiles(packageArc),
-      ...await markdownFiles(resolve(projectArc, "system")),
-      ...await markdownFiles(resolve(projectArc, "reference")),
-    ];
     const matches: string[] = [];
-    for (const file of files) {
+    for (const file of await guidanceMarkdownFiles(root)) {
       if ((await readFile(file, "utf8")).includes("pre-pr-review")) matches.push(file);
     }
     expect(matches).toEqual([]);

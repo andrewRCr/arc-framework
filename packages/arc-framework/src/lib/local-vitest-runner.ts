@@ -4,10 +4,11 @@ import { parseCLI, type TestSpecification } from "vitest/node";
 
 import type { GitExec } from "./git/exec.js";
 import type { LocalHeavyTestTier } from "./local-test-admission.js";
-import { discoverVitestSelection } from "./vitest-discovery.js";
+import { discoverVitestSelection, EmptyVitestSelectionError } from "./vitest-discovery.js";
 import { executeVitestSelection } from "./vitest-execution.js";
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { checkVitestCompletion } from "./vitest-completion.js";
+import { resolve, sep } from "node:path";
 
 /**
  * Integration suites that read this repository's own tracked content rather than temporary fixtures, so a
@@ -67,8 +68,32 @@ export async function runLocalVitestTier(
     ...await localVitestTierRunArguments(packageRoot, tier, process.env),
     ...forwardedArguments,
   ]);
-  const selection = await discoverVitestSelection(filter, options);
-  await executeVitestSelection(selection, { cwd: process.cwd(), env: process.env, tier, packageRoot });
+  const guardPath = unitChangeGuard(tier, options.related);
+  const originalCoverage = new Set<string>();
+  const selection = await discoverVitestSelection(filter, options, guardPath === undefined ? undefined
+    : async (specifications, controller) => {
+      for (const specification of specifications) originalCoverage.add(specification.taskId);
+      const guard = await controller.globTestSpecifications([guardPath]);
+      return [...specifications, ...guard.filter(({ taskId, moduleId }) =>
+        resolve(moduleId) === guardPath && !originalCoverage.has(taskId))];
+    });
+  await executeVitestSelection(selection, { cwd: process.cwd(), env: process.env, tier, packageRoot }, () => {
+    if (guardPath === undefined) return;
+    if (!selection.specifications.some(({ taskId }) => originalCoverage.has(taskId))) {
+      throw new EmptyVitestSelectionError();
+    }
+    checkVitestCompletion({ unhandledErrors: selection.controller.state.getUnhandledErrors(),
+      testModules: selection.controller.state.getTestModules()
+        .filter((module) => originalCoverage.has(module.toTestSpecification().taskId)),
+    }, selection.controller.logger);
+  });
+}
+
+function unitChangeGuard(tier: LocalHeavyTestTier, related: string | string[] | undefined): string | undefined {
+  if (tier !== "changed" || !Array.isArray(related)) return undefined;
+  const unitDirectory = resolve(import.meta.dirname, "../../__tests__/unit");
+  return related.some((path) => resolve(path).startsWith(`${unitDirectory}${sep}`))
+    ? resolve(unitDirectory, "isolated-mock-files.guard.test.ts") : undefined;
 }
 
 /**
@@ -216,6 +241,8 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
       return ["--project", "e2e"];
     case "portability":
       return [
+        "unit/paths.test.ts",
+        "check-runner-home.e2e.test.ts",
         "fs.test.ts",
         "build-context.test.ts",
         "build-cancellation.test.ts",
@@ -234,6 +261,8 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "ref-tree-cas",
         "state-ref-race.e2e",
         "git-executor",
+        "raw-git-files.test.ts",
+        "check-source-git.test.ts",
         "delivery-transfer.e2e",
         "store-ref-bursts.test.ts",
         "store-ref-directory.test.ts",
@@ -248,6 +277,16 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "store-ref-separate-conformance-sync.test.ts",
         "store-ref-timing.test.ts",
         "store-ref-timing-isolation.test.ts",
+        "checks/runner/",
+        "lib/checks/result.test.ts",
+        "check-runner-session.test.ts",
+        "check-runner-conformance-wire.test.ts",
+        "check-runner-conformance-groups.test.ts",
+        "check-runner-execution-run.test.ts",
+        "check-runner-platform-status.test.ts",
+        "check-runner-platform-spelling.test.ts",
+        "check-runner-platform.e2e.test.ts",
+        "check-symlink-cwd.test.ts",
       ];
     case "portability-macos":
       return ["anchored-sequence", "git-identity", "locus-errand-roundtrip", "rename"];

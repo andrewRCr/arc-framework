@@ -71,7 +71,6 @@
     "packages/arc-framework/package.json",
     "packages/arc-framework/tsconfig*.json",
     "vitest.config.ts",
-    "scripts/check-runner.sh",
     {
       "closureOf": [
         "packages/arc-framework/vitest.config.ts",
