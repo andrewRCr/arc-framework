@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "release-amend-message",
+  "claimId": "d1b5fe87a7047940d9c96263a12ab34e",
+  "createdAt": "2026-10-28T21:33:44.559Z",
+  "updatedAt": "2026-10-28T21:33:44.559Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Reuse the existing commit message for editor-free amendments while retaining new-message validation.",
+  "branch": "chore/release-amend-message",
+  "origin": "inbox",
+  "originEntry": "Let `arc release commit --amend --no-edit` reuse the commit's own message",
+  "originEntrySourceDigest": "sha256:a7249e6fbffa3d4e99169b38a78eb6a569d87da09015b017cfacfb053a2ddf6f",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
