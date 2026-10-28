@@ -197,15 +197,10 @@ _Mode:_ `slice` through Phase 4 — closes on native tier coverage and completio
 - _Goal:_ Forecasts and native CI playback preserve declared shard placement and bind actual delivered inputs at
   dispatch, without accidentally routing through a second capture path or freezing setup-time absence.
 
-    - `[ ]` **3.2.a Consume shared expansion and dispatch-time binding in CI playback**
-        - Reuse the landed foundation metadata/binding helper in `src/lib/ci-check-runner.ts`; extend its
-          integration tests around the consumer's final-argument expansion. Its binding and mismatch refusal already
-          exist; extend their tests to shard-expanded jobs rather than rewiring them. No new CI schema or input binder
-          is added.
-        - Build `test-first` (one behavior at a time):
-            - Setup forecasts contain names/kinds without payloads; playback receives the shared duration bytes
-              delivered later and preserves native job/shard arguments, cwd and report destinations.
-            - Forecast/declaration binding mismatch refuses with regeneration guidance, then succeeds after repair.
+    - `[x]` **3.2.a Consume shared expansion and dispatch-time binding in CI playback**
+        - Native CI playback consumes shared forecast batches and captures delivered inputs once per selected
+          check, including shard-expanded jobs. Process cases preserve final shard/report arguments and cwd;
+          declaration mismatches refuse with regeneration guidance and execute after repair.
 
     - `[ ]` **3.2.b Keep forecast/dry-run paths descriptive and side-effect bounded**
         - Extend forecast and selected-check tests for both native playback and a configured routed check. The

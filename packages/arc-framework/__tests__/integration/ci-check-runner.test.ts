@@ -124,6 +124,7 @@ it.each(["changed", "added", "removed", "missing", "constructor"])("refuses %s s
   const id = change === "constructor" ? "constructor" : "selected";
   const original = CheckDeclarationSchema.parse({ checks: { [id]: {
     command: [process.execPath, "probe.mjs", "repaired"], environment_inputs: { CHECK_MODE: "value" },
+    shards: { count: 2, argument: "--shard={index}/{count}", routed: true },
   } } });
   const currentInputs = change === "changed" ? { CHECK_MODE: "file" }
     : change === "added" ? { CHECK_MODE: "value", CHECK_EXTRA: "file" } : {};
@@ -132,17 +133,18 @@ it.each(["changed", "added", "removed", "missing", "constructor"])("refuses %s s
   } });
   const forecast = { ...setup.forecast, checks: [{ id,
     ...resolveCheckForecast(original.checks[id]!, setup.root, [], process.platform) }] };
-  const options = { ...setup, declaration, forecast, plumbing: { [id]: [{ job: "unit", step: "test" }] } };
+  const options = { ...setup, declaration, forecast, shard: 2,
+    plumbing: { [id]: [{ job: "unit", step: "test" }] } };
   await expect(runCiCheckStep(options)).rejects.toThrow(/regenerate.*arc check gate merge --ci --dry-run --json/iu);
   expect(await output(setup.root)).toEqual([]);
   const repaired = change === "missing" || change === "constructor" ? original : declaration;
   const regenerated = { ...forecast, checks: [{ id,
     ...resolveCheckForecast(repaired.checks[id]!, setup.root, [], process.platform) }] };
   expect(await runCiCheckStep({ ...options, declaration: repaired, forecast: regenerated })).toBe(0);
-  expect(await output(setup.root)).toEqual([["repaired"]]);
+  expect(await output(setup.root)).toEqual([["repaired", "--shard=2/2"]]);
 });
 
-it("captures delivered CI artifacts once for all native batches after forecasting", async () => {
+it.each([undefined, 2])("captures delivered CI artifacts once for all native batches in shard %s after forecasting", async shard => {
   const setup = await fixture();
   const cwd = join(setup.root, "nested");
   await mkdir(cwd);
@@ -154,6 +156,7 @@ it("captures delivered CI artifacts once for all native batches after forecastin
     + 'fs.writeFileSync("private-input","changed by a batch");\n');
   const declaration = CheckDeclarationSchema.parse({ checks: { other: {
     command: [process.execPath, "../capture.mjs"], root: "nested", mode: "files", runner: true,
+    shards: { count: 2, argument: "--shard={index}/{count}", routed: true },
     environment_inputs: { CHECK_WEIGHTS: "file", CHECK_MODE: "value", CHECK_EMPTY_VALUE: "value",
       CHECK_EMPTY_FILE: "file", CHECK_ABSENT: "value" },
   } } });
@@ -166,20 +169,28 @@ it("captures delivered CI artifacts once for all native batches after forecastin
   const forecast = { ...setup.forecast, checks: [{ id: "other",
     ...resolveCheckForecast(declaration.checks.other!, setup.root, paths, process.platform) }] };
   expect(forecast.checks[0]!.batches.length).toBeGreaterThan(1);
+  expect(forecast.checks[0]!.environmentInputs).toEqual(declaration.checks.other!.environment_inputs);
+  expect(JSON.stringify(forecast)).not.toContain("private-input");
+  expect(JSON.stringify(forecast)).not.toContain("before delivery");
   await writeFile(join(cwd, "private-input"), "delivered bytes");
   vi.stubEnv("CHECK_MODE", "execution step");
-  expect(await runCiCheckStep({ ...setup, declaration, forecast, step: "default" })).toBe(0);
+  const workflowArguments = ["--reporter=json", "--outputFile=native-report.json"];
+  expect(await runCiCheckStep({ ...setup, declaration, forecast, shard, arguments: workflowArguments,
+    plumbing: { other: [{ job: "unit", step: "test" }] } })).toBe(0);
+  const batches = shard === undefined ? forecast.checks[0]!.batches : forecast.checks[0]!.shards![shard - 1]!.batches;
   const records = (await readFile(join(cwd, "output.jsonl"), "utf8")).trim().split("\n")
     .map(line => JSON.parse(line) as { path: string; bytes: string; mode: string; emptyValue: string;
       emptyFile: string; absent: boolean; args: string[] });
-  expect(records).toHaveLength(forecast.checks[0]!.batches.length);
+  expect(records).toHaveLength(batches.length);
   expect(new Set(records.map(record => record.path)).size).toBe(1);
   expect(records[0]!.path).not.toBe("private-input");
   for (const record of records) {
     expect(record).toMatchObject({ bytes: "delivered bytes", mode: "execution step", emptyValue: "", emptyFile: "", absent: false });
     await expect(readFile(record.path)).rejects.toMatchObject({ code: "ENOENT" });
   }
-  expect(records.flatMap(record => record.args)).toEqual(paths.map(path => path.slice("nested/".length)));
+  expect(records.map(record => record.args)).toEqual(batches.map(batch => [...batch.slice(2), ...workflowArguments]));
+  expect(records.flatMap(record => record.args.slice(0, shard === undefined ? -2 : -3)))
+    .toEqual(paths.map(path => path.slice("nested/".length)));
   expect(await readFile(join(cwd, "private-input"), "utf8")).toBe("changed by a batch");
 });
 
