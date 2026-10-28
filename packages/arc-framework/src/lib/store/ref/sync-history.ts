@@ -9,7 +9,8 @@ import { OwnerIdentitySchema } from "../identity.js";
 import type { SyncRecordMergedTree } from "./sync-tree.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { ownerPrimaryReference, refreshArchivedFolder } from "./archive-refresh.js";
-import { parseRefMetadata } from "./metadata.js";
+import { parseRefMetadata, type RefMetadata } from "./metadata.js";
+import { expandStoredPath, holdsNoRecord } from "../stored-path.js";
 import { writeRefBlob } from "./tree-write.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import type { StoreResult } from "../refusal.js";
@@ -29,12 +30,18 @@ export async function prepareSyncHistoryFastForward(context: RefBackendContext, 
   }
   const path = `metadata-${folder.owner.uid}.json`;
   const entries = (await readRefTrees(context, new Map([[ref, tip]]))).get(ref);
-  const entry = entries?.find((entry) => entry.path === path);
+  if (!entries) return { status: "refused", refusal: corruptRef(ref, true) };
+  const home = expandStoredPath(ownerPrimaryReference(folder.owner, folder.metadata), { registry: context.registry });
+  const recordFree = holdsNoRecord(home, entries.map(({ path }) => path));
+  const entry = entries.find((entry) => entry.path === path);
   const objects = await readBatchObjects(context, entry ? [entry.oid] : []);
-  const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : undefined, ref);
-  if (!entries || !metadata) return { status: "refused", refusal: corruptRef(ref) };
+  const sourceMetadata = parseRefMetadata(entry ? objects.get(entry.oid) : undefined, ref);
+  const metadata = sourceMetadata ?? (recordFree ? emptyHistoryMetadata(folder) : null);
+  if (!metadata) return { status: "refused", refusal: corruptRef(ref) };
   const reference = ownerPrimaryReference(folder.owner, metadata);
   const tree: SyncRecordMergedTree = { kind: "record", entries: new Map(entries.map((entry) => [entry.path, entry])), metadata, reference };
+  // A new empty group keeps only authenticated owner/lifecycle controls, never the folder's old record formats or values.
+  if (!sourceMetadata) tree.entries.set(path, { path, mode: "100644", oid: await writeRefBlob(context, canonicalize(metadata)) });
   const preview = quarters.map((quarter) => ({ ...quarter, entries: new Map(quarter.entries) }));
   const prepared = await prepareSyncHistoryQuarters(context, preview, tree, preferred);
   if (prepared.status === "refused") return prepared;
@@ -42,6 +49,13 @@ export async function prepareSyncHistoryFastForward(context: RefBackendContext, 
   metadata.batch = batchId;
   tree.entries.set(path, { path, mode: "100644", oid: await writeRefBlob(context, canonicalize(metadata)) });
   return { status: "ok", result: tree };
+}
+
+/** Captured matching folders can name a new record-free group without decoding or reviving their old records. */
+function emptyHistoryMetadata(folder: ArchivedFolder): RefMetadata {
+  return { formatVersion: 1, slug: folder.owner.name, formats: {},
+    ...(folder.metadata.primary ? { primary: { ...folder.metadata.primary } } : {}),
+    ...(folder.metadata.placement ? { placement: { ...folder.metadata.placement } } : {}) };
 }
 
 /** One complete quarter snapshot and the owner's folders whose batches its history contains. */
