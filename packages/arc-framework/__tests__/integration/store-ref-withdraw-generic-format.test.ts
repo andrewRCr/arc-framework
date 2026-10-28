@@ -56,13 +56,14 @@ async function setup(layout: "default" | "separate") {
   return { h, a, b, primary, reference, untouched, home };
 }
 
-async function publishedEnd(f: Awaited<ReturnType<typeof setup>>, content?: string) {
+async function publishedEnd(f: Awaited<ReturnType<typeof setup>>, content?: string, companion?: RecordReference) {
   const primary = success(await f.b.read({ reference: f.primary.reference }));
   const record = content === undefined ? undefined : success(await f.b.read({ reference: f.reference }));
   success(await f.b.batch({ writes: [
     { action: "put", reference: primary.reference, expected: primary.version, content: primary.content,
       placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } },
     ...record && content !== undefined ? [{ action: "put" as const, reference: record.reference, expected: record.version, content }] : [],
+    ...companion ? [{ action: "put" as const, reference: companion, expected: null, content: "End-only metadata coordinate.\n" }] : [],
   ], provenance }));
   success(await f.b.push());
 }
@@ -234,7 +235,7 @@ it.each(["default", "separate"] as const)("restores an unprotected lineage's for
 }, 90_000);
 
 describe.each(["default", "separate"] as const)("structural withdrawal metadata in %s", layout => {
-  it.each(["whole metadata", "nested field"] as const)("restores Planning placement when %s matches unchanged published state", async match => {
+  it.each(["whole metadata", "nested field", "published companion sibling"] as const)("restores Planning placement with %s publication evidence", async match => {
     const f = await setup(layout), { h, a, b, primary } = f;
     const reference = RecordReferenceSchema.parse({ kind: "work-item/meta", owner: f.reference.owner });
     const common = success(await a.read({ reference }));
@@ -254,18 +255,29 @@ describe.each(["default", "separate"] as const)("structural withdrawal metadata 
       { action: "put", reference: primary.reference, expected: primary.version, content: primary.content,
         placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2027-q1") } },
       { action: "put", reference, expected: before.version, content: common.content, placement: { kind: "active" } },
-      ...match === "nested field" ? [{ action: "put" as const, reference: extra, expected: null, content: "End-only metadata coordinate.\n" }] : [],
+      ...match !== "whole metadata" ? [{ action: "put" as const, reference: extra, expected: null, content: "End-only metadata coordinate.\n" }] : [],
     ], provenance }));
     const endMetadata = (await h.a.git(["rev-parse", `${home.ref}:${home.metadataPath}`])).stdout.trim();
     if (match === "whole metadata") expect(endMetadata).toBe(commonMetadata);
     else expect(endMetadata).not.toBe(commonMetadata);
-    await publishedEnd(f);
+    await publishedEnd(f, undefined, match === "published companion sibling" ? extra : undefined);
     const publishedMetadata = (await h.b.git(["rev-parse", `${home.ref}:${home.metadataPath}`])).stdout.trim();
-    expect(publishedMetadata).toBe(commonMetadata);
+    const publishedCompanion = match === "published companion sibling" ? success(await b.read({ reference: extra })) : undefined;
+    if (publishedCompanion) {
+      expect(publishedMetadata).toBe(endMetadata);
+      expect(publishedMetadata).not.toBe(commonMetadata);
+      const commonValue = JSON.parse((await h.a.git(["show", commonMetadata])).stdout) as { formats: Record<string, number> };
+      const publishedValue = JSON.parse((await h.b.git(["show", publishedMetadata])).stdout) as { formats: Record<string, number> };
+      const coordinate = storedFormatKey(publishedValue.formats, extra);
+      expect(publishedValue).toEqual({ ...commonValue,
+        formats: { ...commonValue.formats, [coordinate]: registry["work-item/companion"].formatVersion } });
+    } else expect(publishedMetadata).toBe(commonMetadata);
     expect(beforeMetadata).not.toBe(endMetadata);
     expect(success(await b.read({ reference }))).toMatchObject({ version: common.version, placement: common.placement });
     const withdrawn = await withdrawal(f);
     expect((await h.a.git(["rev-parse", `${withdrawn.commit}:${home.path}`])).stdout.trim()).toBe(beforeBlob);
+    if (publishedCompanion) expect(success(await a.read({ reference: extra }))).toMatchObject({ content: publishedCompanion.content,
+      formatVersion: publishedCompanion.formatVersion, version: publishedCompanion.version });
     const capturedBasis = JSON.stringify({ layout, match, commonMetadata, beforeMetadata, endMetadata, publishedMetadata });
     expect(withdrawn.metadata.primary?.placement, capturedBasis).toEqual(before.placement);
     expect(success(await a.read({ reference }))).toMatchObject({ content: before.content, placement: before.placement, version: before.version });

@@ -46,10 +46,13 @@ function object(value: unknown): Record<string, unknown> | undefined {
 }
 function inverseValue(before: unknown, after: unknown, current: unknown, published: unknown, ancestor: unknown): unknown {
   if (equal(before, after)) return current;
-  if (published !== undefined && independentlyPublished(after, published, ancestor, equal)) return current;
   const original = object(before), written = object(after) ?? (after === undefined ? {} : undefined);
   const held = object(current), remote = object(published), common = object(ancestor);
-  if (!original || !written || !held || after !== undefined && original.kind !== written.kind) return equal(after, current) ? before : current;
+  if (!original || !written || !held || after !== undefined && original.kind !== written.kind) {
+    if (published !== undefined && independentlyPublished(after, published, ancestor, equal)) return current;
+    return equal(after, current) ? before : current;
+  }
+  // Publication protects each composed field, never unrelated children of its containing object.
   const result = { ...held };
   for (const key of new Set([...Object.keys(original), ...Object.keys(written)])) {
     const value = inverseValue(original[key], written[key], held[key], remote?.[key], common?.[key]);
