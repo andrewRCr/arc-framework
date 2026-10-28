@@ -3,7 +3,7 @@
   "slug": "manifest-canonical-order",
   "claimId": "550fa350c422d23d4d2b3fc2b3a28d4b",
   "createdAt": "2026-10-28T22:07:54.255Z",
-  "updatedAt": "2026-10-28T22:07:54.255Z",
+  "updatedAt": "2026-10-28T23:28:38.272Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Write the install manifest's files in one canonical order so a no-op update leaves it clean",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Write the install manifest's files in one order, so an update that changes nothing leaves it clean",
   "originEntrySourceDigest": "sha256:531ff9b71519ea6bec9e4a7dc83c04123d6b717771aa27f8b998d05bbef461be",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/manifest-canonical-order",
+    "headSha": "cc9614b471a84fabefa73ffc4b8a654b1cac2004"
+  }
 }
