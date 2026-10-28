@@ -6,7 +6,7 @@ import { parseMetaRecord } from "../../../active/meta-reader.js";
 import { TransientIdentityRecordSchema } from "../../../errand/identity-record.js";
 import { ERRAND_BRANCH_TYPES } from "../../../errand/branch-type.js";
 import { LinksSchema, type CommitCapture } from "../../links.js";
-import { computeDefaultCaptureSet } from "../../../git/default-capture-set.js";
+import { computeCopyKeys } from "../../../git/copy-key.js";
 import { importTaskCaptures } from "./code-captures.js";
 import { readImportCodeTip, resolveImportBranchTip } from "./branch-tip.js";
 
@@ -16,13 +16,13 @@ interface BranchSource { record: ImportRecord; branch: string; tip: string }
 export async function prepareImportCodeLinks(context: RefBackendContext, records: ImportRecord[], report: MigrateReport): Promise<void> {
   const source = context.importSource;
   if (!source) throw new Error("No import source bound");
-  const bases = (await Promise.all([`refs/heads/${source.baseBranch}`, `refs/remotes/origin/${source.baseBranch}`]
-    .map(ref => readImportCodeTip(source, ref)))).filter((tip): tip is string => tip !== null);
+  const bases = [...new Set((await Promise.all([`refs/heads/${source.baseBranch}`, `refs/remotes/origin/${source.baseBranch}`]
+    .map(ref => readImportCodeTip(source, ref)))).filter((tip): tip is string => tip !== null))];
   const branches = await readBranchSources(context, records, report);
   report.refused.sort((left, right) => refusalPriority(left.rule) - refusalPriority(right.rule));
   if (!bases.length) { await reportMissingBase(source, report); return; }
   await importTaskCaptures(context, records, [...bases, ...branches.filter(item => item.record.reference.kind === "work-item/meta").map(item => item.tip)], report);
-  for (const branch of branches) await importBranchLink(context, branch, report);
+  for (const branch of branches) await importBranchLink(context, branch, bases);
 }
 
 async function readBranchSources(context: RefBackendContext, records: readonly ImportRecord[], report: MigrateReport): Promise<BranchSource[]> {
@@ -54,26 +54,36 @@ export function reportBranchRefusal(record: ImportRecord, branch: string, status
 }
 
 async function reportMissingBase(source: NonNullable<RefBackendContext["importSource"]>, report: MigrateReport): Promise<void> {
-  const result = await computeDefaultCaptureSet({ exec: source.ports.exec, execRaw: source.ports.rawExec, cwd: source.ports.checkoutRoot,
-    baseBranch: source.baseBranch, repository: source.ports.checkoutRoot, tips: ["HEAD"], refresh: false });
-  report.notices.push(result.status === "refused" ? { condition: result.reason, remedy: { text: result.remedy } }
-    : { condition: "The configured base changed while the import was acquiring code refs.",
-      remedy: { text: "Quiesce code refs and retry arc store migrate --import." } });
+  const { stdout } = await source.ports.exec("git", ["remote"], { cwd: source.ports.checkoutRoot, objectAccess: "local-only" });
+  const remedy = stdout.split(/\s+/u).includes("origin")
+    ? `git fetch origin +refs/heads/${source.baseBranch}:refs/remotes/origin/${source.baseBranch}`
+    : `git branch ${source.baseBranch} <commit>`;
+  report.notices.push({ condition: `No base ref resolves for ${source.baseBranch}.`, remedy: { text: remedy } });
 }
 
-async function importBranchLink(context: RefBackendContext, { record, branch, tip }: BranchSource, report: MigrateReport): Promise<void> {
+async function importBranchLink(context: RefBackendContext, { record, branch, tip }: BranchSource, bases: readonly string[]): Promise<void> {
   const source = context.importSource;
   if (!source) throw new Error("No import source bound");
-  let excluded: CommitCapture[] = [];
-  if (record.reference.kind === "work-item/meta") {
-    const result = await computeDefaultCaptureSet({ exec: source.ports.exec, execRaw: source.ports.rawExec, cwd: source.ports.checkoutRoot,
-      baseBranch: source.baseBranch, repository: source.ports.checkoutRoot, tips: [tip], refresh: false,
-      captures: Object.values(record.links?.taskCaptures ?? {}).flat() });
-    if (result.status === "refused") report.notices.push({ condition: result.reason, remedy: { text: result.remedy } });
-    else excluded = result.commits.map(({ sha, copyKey }) => ({ repository: source.ports.checkoutRoot, sha, ...(copyKey ? { copyKey } : {}) }));
-  }
+  const excluded = record.reference.kind === "work-item/meta"
+    ? await importBranchExclusions(source, tip, bases, Object.values(record.links?.taskCaptures ?? {}).flat()) : [];
   record.links = { ...record.links, branches: [{ repository: source.ports.checkoutRoot, ref: branch,
     linkedAs: createdBranch(record, branch) ? "created" : "adopted", excluded }] };
+}
+
+async function importBranchExclusions(source: NonNullable<RefBackendContext["importSource"]>, tip: string,
+  bases: readonly string[], captures: readonly CommitCapture[]): Promise<CommitCapture[]> {
+  const repository = source.ports.checkoutRoot;
+  const walk = await source.ports.exec("git", ["--no-replace-objects", "rev-list", "--no-merges", tip, "--not", ...bases],
+    { cwd: repository, objectAccess: "local-only" });
+  const stored = captures.filter(capture => capture.repository === repository);
+  const capturedShas = new Set(stored.map(capture => capture.sha));
+  const capturedKeys = new Set(stored.flatMap(capture => capture.copyKey === undefined ? [] : [capture.copyKey]));
+  const candidates = [...new Set(walk.stdout.trim().split(/\s+/u).filter(Boolean))].filter(sha => !capturedShas.has(sha));
+  const keys = await computeCopyKeys({ cwd: repository, commits: candidates, execRaw: source.ports.rawExec });
+  return candidates.flatMap(sha => {
+    const copyKey = keys.get(sha)?.copyKey;
+    return copyKey !== undefined && capturedKeys.has(copyKey) ? [] : [{ repository, sha, ...(copyKey === undefined ? {} : { copyKey }) }];
+  });
 }
 
 function sourceBranch(record: ImportRecord): string | null {
