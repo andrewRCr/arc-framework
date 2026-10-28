@@ -89,6 +89,14 @@ runner it runs from its own uploaded stage, holding the checkout tree lock only 
 and the stage is removed once the plan's closure is proved and recorded. Group integration reuses its compliant
 primitives and the existing measured pool/admission; it adds no retry layer.
 
+Preserve arc-offload's memory controls when extending groups. `2dc4ef1` adds `arc_placement.plan_cost`, charging
+the heaviest invocation's memory-token share through `execution.request_for(..., token_cost=...)`; a group's
+placement must retain its heaviest member's charge. `1578aee` adds one `MemoryStallWindow` around each command's
+`journal.run` launch in `arc_adapter.run()`, with `stall_explains_failure` converting failed commands to
+`notRunReason` after at least 10% fully stalled time. Keep that window and terminal conversion per command.
+`test_arc_adapter.py` covers sustained-stall failure, lightly stalled failure and successful stalled execution.
+These changes preserve the adapter protocol; re-ground them from `1578aee` or a later main before restructuring.
+
 `PlanRecord` in `arc_offload/arc_record.py` records each routed plan in `remote-check history`
 (`context.execution_source == "captured_plan"`). It carries caller-observed verification, placement, admission,
 preparation, execution and transfer seconds, and writes a timing sample only when every invocation exited 0. A
