@@ -36,6 +36,7 @@ import { prepareSelectedCheckExecution, type PreparedCheckExecution, type CheckE
   type CheckExecutionPreparation } from "../../lib/checks/runner/execution.js";
 import { retainedRunnerRemedy } from "./runner-recovery.js";
 import { displayRunnerOutcome, runnerDisplayText } from "../../lib/checks/display-text.js";
+import type { CheckInvocationDetail } from "../../lib/checks/runner/parent.js";
 import { composePreparedCheckKey } from "../../lib/checks/runner/key.js";
 import { normalizeCheckInvocationOutcome, reduceCheckInvocationOutcomes,
   type CheckInvocationReduction, type NormalizedCheckInvocationOutcome } from "../../lib/checks/result.js";
@@ -49,6 +50,8 @@ export interface DeclaredCheckResult extends Partial<CheckForecast> {
   kind: CheckResultKind;
   outcome: "passed" | "failed" | "no evidence" | "couldn't run" | "not selected" | "reused" | "would run" | "skipped";
   output?: string;
+  /** Complete routed pair accounting, including missing native evidence. */
+  invocations?: readonly CheckInvocationDetail[];
   reason?: string;
   /** One line the check's command reported about its run, such as where it ran. */
   notice?: string;

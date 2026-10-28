@@ -60,27 +60,20 @@ re-grounded. This plan consumes that source, binding, protocol and lifetime impl
 - _Outcome:_ Prepared matrix identity supplements scoped content rather than hashing the whole captured container;
   runtime coverage and fixed-input lifetime remain owned by the shared foundation.
 
-### `[ ]` **1.3 Project shard coordinates through the shared native outcome reducer — D6**
+### `[x]` **1.3 Project shard coordinates through the shared native outcome reducer — D6**
 
 - _Goal:_ The parent preserves native verdict meaning and useful completed failures while identifying exactly which
   expected pairs lack acceptable evidence.
 
-    - `[ ]` **1.3.a Associate validated terminal evidence with expected coordinates**
-        - Extend the foundation's shared result normalization/reduction and the selected-check result types. Keep
-          plan accounting in a cohesive check-library helper; no protocol or native test-output parser is added.
-        - Build `test-first` (one behavior at a time):
-            - Exactly the expected validated invocation set closes; missing, duplicate, conflicting, unknown or
-              wrong-context/source evidence cannot yield a parent pass.
-            - Independently valid failures survive later malformed/missing results, with incomplete pairs retained.
+    - `[x]` **1.3.a Associate validated terminal evidence with expected coordinates**
+        - `reduceCheckPlanOutcomes` accounts for every planned pair using facade-validated observations. Missing
+          pairs are explicit; correlation faults and lost final closure prevent success without discarding valid
+          failures. Preparation owns frozen local coordinates alongside the validated wire plan; selected-check
+          results can carry the complete coordinate/evidence projection.
 
-    - `[ ]` **1.3.b Preserve native no-evidence, kill and full exit-status semantics**
-        - Reuse `normalizeCheckInvocationOutcome`/`reduceCheckInvocationOutcomes` in `src/lib/checks/result.ts`,
-          retaining `finalizeCheckRun` as pass authority and `declaredChecksExitCode` as the cross-check exit policy.
-        - Build `test-first` (one behavior at a time):
-            - Declared no-evidence retains precedence over special 137 handling; mixed useful/no-evidence results
-              remain distinct from an all-no-evidence check and from ordinary native failures.
-            - Exact 256/high-bit unsigned 32-bit failures remain failures beside unavailable or killed work, with
-              native notice interpretation preserved and no partial/per-shard publication.
+    - `[x]` **1.3.b Preserve native no-evidence, kill and full exit-status semantics**
+        - Parent projection composes the shared normalizer/reducer, preserving declared no-evidence precedence,
+          mixed/all-no-evidence outcomes, notices, killed work and exact 256/high-bit/maximum unsigned statuses.
 
 ## **Phase 2:** Routed execution, diagnostics and lifetime closure
 
