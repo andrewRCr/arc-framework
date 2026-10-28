@@ -210,7 +210,7 @@ _Mode:_ `slice` through Phase 4 — closes on native tier coverage and completio
 - _Outcome:_ Forecasts preserve the native CI matrix and defer explicit-input capture until actual dispatch.
   Configured routed previews omit native argv and require preparation for reuse rather than borrowing a local hit.
 
-### `[ ]` **3.3 Exercise consumer portability and exact native Windows statuses — D3, D6, D7**
+### `[x]` **3.3 Exercise consumer portability and exact native Windows statuses — D3, D6, D7**
 
 - _Goal:_ Supported-platform feedback actually executes consumer budgeting/result/writer cases, and Windows status
   preservation is demonstrated through the parent rather than inferred from Linux-injected numbers alone.
@@ -225,24 +225,17 @@ _Mode:_ `slice` through Phase 4 — closes on native tier coverage and completio
           filenames. Native cache assertions compare canonical private package roots, preserving isolation across
           Windows short/expanded temp-path spellings.
 
-    - `[ ]` **3.3.b Exercise Windows process statuses through parent reduction on the portability pair**
-        - `__tests__/e2e/check-runner-platform.e2e.test.ts` already retains 256 and high-bit statuses beside
-          incomplete work for one invocation; extend it to a shard-expanded parent rather than adding a parallel
-          fixture. No adapter routes checks on Windows; reuse the foundation's native transport/status handling.
-        - Build `test-first` (one behavior at a time):
-            - Exact Windows status survives as a completed parent failure, including beside missing work; POSIX
-              signal handling and declared no-evidence precedence retain their existing meanings.
-            - Record a completed run of these cases on the Windows/macOS portability pair. PR classification alone
-              is insufficient; the pair is scheduled or explicitly dispatched.
+    - `[x]` **3.3.b Exercise Windows process statuses through parent reduction on the portability pair**
 
         - `[x]` **3.3.b.1 Exercise actual native statuses in complete and interrupted shard parents**
             - Existing process cases execute complete/interrupted three-shard groups and repaired serial playback,
               asserting each native status and missing sibling. Actual status 137 retains declared no-evidence
               precedence; platform-native results are exercised through the public parent and transport.
 
-        - `[ ]` **3.3.b.2 Record the Windows/macOS portability qualification**
-            - Push the qualified checkpoint, explicitly dispatch the existing portability pair and retain the
-              completed run's exact head and native status evidence.
+        - `[x]` **3.3.b.2 Record the Windows/macOS portability qualification**
+            - Hosted run `40781020166` at `a84c27919f9d07a20d74a140bda1e4ebff855c8a` exercised the complete
+              Windows/macOS portability pair. Actual Windows 256/high-bit/maximum unsigned statuses survived
+              complete and interrupted shard parents; native status 137 retained declared no-evidence precedence.
 
 ## **Phase 4:** Native membership and completion qualification
 
