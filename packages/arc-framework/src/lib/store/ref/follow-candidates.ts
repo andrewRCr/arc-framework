@@ -11,8 +11,10 @@ import { FORWARDING_REF, readForwardingRecord, type ForwardingRecord } from "./f
 import { readRefRegistryPresence } from "./designation-presence.js";
 import { readRefRepository } from "./repository.js";
 import { updateRefTransaction } from "../../git/ref-transaction.js";
+import { captureComparisonWitness, sameComparisonSource, withComparisonWitness,
+  type ComparisonSource, type ComparisonWitness } from "./comparison-witness.js";
 import { isCompletedGitFailure, isGitProcessError } from "../../git/process-error.js";
-import { syncRefIsAncestor } from "./sync-graph.js";
+import { readSyncRefs, syncRefIsAncestor } from "./sync-graph.js";
 import { readBatchObjects } from "./batch-read.js";
 import { projectIdentityQueries, projectOwnerFromObjects } from "./project-identity.js";
 import { fetchLayoutObjects } from "./migrate-layout-build.js";
@@ -24,7 +26,8 @@ export interface RefFollowCandidate { remote: MoveRemote; registry: string }
 /** Keep accepted candidates available to an explicit answer even when several prevent an automatic question. */
 export type RefFollowJudgment = { status: "none"; report?: MigrateReport }
   | { status: "refused"; refusal: StoreCommandRefusal }
-  | { status: "decided"; source: MoveRemote; record: ForwardingRecord; forwardingTip: string; accepted: RefFollowCandidate[]; result: StoreMigrateResult };
+  | { status: "decided"; source: MoveRemote; witness: ComparisonWitness | null; record: ForwardingRecord; forwardingTip: string;
+    accepted: RefFollowCandidate[]; result: StoreMigrateResult };
 
 /** No designation, pointer, stored record, or remote state changes while candidates are judged. */
 export async function judgeRefFollow(context: RefBackendContext, due: RefFollowDue): Promise<RefFollowJudgment> {
@@ -32,6 +35,7 @@ export async function judgeRefFollow(context: RefBackendContext, due: RefFollowD
   let readingSource = false;
   try {
     const source = await captureMoveRemote(context, code, due.remote);
+    const witness = await captureComparisonWitness(context, source);
     readingSource = true;
     const refs = await readMigrationRemote(source.name, followReadRemedy(source.name, due.remote.name),
       () => fetchMigrationRemote(code, source, false, { prefix: "refs/arc/tmp/follow/source/", controls: ["moved"] }));
@@ -40,7 +44,7 @@ export async function judgeRefFollow(context: RefBackendContext, due: RefFollowD
     if (forwarding.status === "refused") return forwarding;
     if (!forwarding.result) {
       const report = await accountWithdrawnFollow(code, source);
-      await dropStaleFollow(context, due); return { status: "none", ...report ? { report } : {} };
+      await dropStaleFollow(context, { ...due, source, witness }); return { status: "none", ...report ? { report } : {} };
     }
     const record = forwarding.result, forwardingTip = refs.get(FORWARDING_REF);
     if (!forwardingTip) throw new Error("A parsed forwarding record has no fetched tip");
@@ -51,7 +55,7 @@ export async function judgeRefFollow(context: RefBackendContext, due: RefFollowD
       if (judged.accepted) accepted.push({ remote, registry: judged.registry });
       else rejected.push(`${remote.name} (${remote.fetchUrl}): ${judged.reason}`);
     }
-    return { status: "decided", source, record, forwardingTip, accepted, result: followResult(due, accepted, rejected) };
+    return { status: "decided", source, witness, record, forwardingTip, accepted, result: followResult(due, accepted, rejected) };
   } catch (error) {
     if (!(error instanceof MigrationRefusal)) throw error;
     if (readingSource && error.refusal.code === "store" && error.refusal.refusal.code === "unreachable") {
@@ -155,12 +159,19 @@ function backingPublicationConflict(due: RefFollowDue, candidate: RefFollowCandi
 }
 
 /** Clear only the tracking observation proved obsolete by a successful fresh source read. */
-export async function dropStaleFollow(context: RefBackendContext, due: Pick<RefFollowDue, "trackingRef" | "tip">): Promise<void> {
-  const physical = await readRefRepository(context);
-  const dropped = await updateRefTransaction(physical, [{ ref: due.trackingRef, delete: true, expected: due.tip }], { cwd: physical.checkoutRoot });
-  if (dropped.status !== "committed") throw new MigrationRefusal({ code: "follow-refused", class: "recoverable",
-    condition: "The departed remote's tracking record changed while the stale follow was being cleared.",
-    remedy: { text: "Retry arc store migrate to judge the current record.", argv: ["arc", "store", "migrate"] } });
+export async function dropStaleFollow(context: RefBackendContext,
+  due: Pick<RefFollowDue, "trackingRef" | "tip"> & { source: ComparisonSource; witness: ComparisonWitness | null }):
+Promise<"applied" | "already-absent" | "superseded" | "unbound"> {
+  if (!due.witness || !sameComparisonSource(due.source, due.witness.source)) return "unbound";
+  const dropped = await withComparisonWitness(context, due.witness, async physical => {
+    const current = (await readSyncRefs(physical, due.trackingRef)).get(due.trackingRef);
+    if (!current) return "already-absent" as const;
+    if (current !== due.tip) return "superseded" as const;
+    const outcome = await updateRefTransaction(physical, [{ ref: due.trackingRef, delete: true, expected: due.tip }], { cwd: physical.checkoutRoot });
+    if (outcome.status === "committed") return "applied" as const;
+    return outcome.refs[0]?.actual === null ? "already-absent" as const : "superseded" as const;
+  });
+  return dropped.status === "bound" ? dropped.result : "unbound";
 }
 
 /** A follow can retry its judgment or stop fetching the actual departed source. */

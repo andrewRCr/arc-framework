@@ -4,8 +4,7 @@ import type { MigrateReport } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import type { RecordedFollow } from "./migrate-record.js";
 import { fetchMigrationRemote } from "./migrate-remote-fetch.js";
-import { readRefRepository } from "./repository.js";
-import { fetchLayoutObjects, requireLayoutTransaction } from "./migrate-layout-build.js";
+import { fetchLayoutObjects } from "./migrate-layout-build.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { FORWARDING_REF, readForwardingRecord } from "./forwarding-record.js";
 import { requireFollowDestination } from "./follow-copy.js";
@@ -13,17 +12,19 @@ import { prepareRemoteReCopy, remoteCopyChanges, atomicMigrationPush, migrationP
   copyPushLanded, remoteCopyReport, retainRemoteCopiedState } from "./migrate-remote-copy.js";
 import { beginCopyJournal, confirmCopyJournal, copyJournalKey, recoverCopyReport, releaseCopyJournal } from "./migrate-copy-journal.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
-import { withRefFetchKeepers } from "./fetch-seen.js";
 import { appendCopiedFollowRefs, appendFollowReadRefs } from "./follow-report.js";
+import { updateRefTransaction } from "../../git/ref-transaction.js";
+import { captureComparisonWitness, withComparisonWitness, type ComparisonWitness } from "./comparison-witness.js";
 
 /** A delete never starts until both remotes and the complete re-copy have been observed in this round. */
 export async function deleteFollowSource(code: RefBackendContext, recorded: RecordedFollow, report: MigrateReport): Promise<void> {
   try {
     for (;;) {
       await code.migrateStep?.("follow.read-destination");
+      const witness = await captureDestinationWitness(code, recorded);
       const destination = await fetchMigrationRemote(code, recorded.record.destination, true);
       await recoverCopyReport(code, copyJournalKey("follow", recorded.record.source, recorded.record.destination, recorded.record.forwardingTip), destination, report);
-      if (await retainLaterFollow(code, recorded, destination, report)) return;
+      if (await retainLaterFollow(code, recorded, destination, report, witness)) return;
       await requireFollowDestination(code, recorded.record, destination);
       await code.migrateStep?.("follow.list-source");
       const source = await fetchMigrationRemote(code, recorded.record.source, true);
@@ -73,16 +74,22 @@ async function recopyFollowRound(code: RefBackendContext, recorded: RecordedFoll
   return true;
 }
 
-async function retainLaterFollow(code: RefBackendContext, recorded: RecordedFollow, destination: ReadonlyMap<string, string>, report: MigrateReport): Promise<boolean> {
+async function captureDestinationWitness(code: RefBackendContext, recorded: RecordedFollow): Promise<ComparisonWitness | null> {
+  return captureComparisonWitness(code, recorded.record.destination, `refs/arc-remotes/${recorded.record.destination.name}/project/moved`);
+}
+
+async function retainLaterFollow(code: RefBackendContext, recorded: RecordedFollow, destination: ReadonlyMap<string, string>,
+  report: MigrateReport, witness: ComparisonWitness | null): Promise<boolean> {
   const tip = destination.get(FORWARDING_REF);
   if (!tip) return false;
   const moved = await readForwardingRecord(code, tip, recorded.record.destination.name);
   if (moved.status === "refused") throw new MigrationRefusal(moved.refusal);
-  const physical = await readRefRepository(code.repository?.source ?? code);
-  await withRefFetchKeepers(physical, recorded.record.destination.name, async () => {
+  await withComparisonWitness(code, witness, async physical => {
+    if (!witness?.ref || witness.expected === undefined) return;
+    const current = (await readSyncRefs(physical, witness.ref)).get(witness.ref) ?? null;
+    if (current === tip || current !== witness.expected) return;
     await fetchLayoutObjects(physical, code.repository?.commonDir ?? code.checkoutRoot, new Map([[FORWARDING_REF, tip]]));
-    const ref = `refs/arc-remotes/${recorded.record.destination.name}/project/moved`, expected = (await readSyncRefs(physical, ref)).get(ref) ?? null;
-    await requireLayoutTransaction(physical, [{ ref, next: tip, expected }]);
+    await updateRefTransaction(physical, [{ ref: witness.ref, next: tip, expected: witness.expected }], { cwd: physical.checkoutRoot });
   });
   await appendCopiedFollowRefs(code, recorded, report);
   appendFollowReadRefs(report, recorded.record.destination, destination);
@@ -95,9 +102,10 @@ async function retainChangedSourceFollow(code: RefBackendContext, recorded: Reco
   observed: { source: ReadonlyMap<string, string>; destination: ReadonlyMap<string, string> }, report: MigrateReport): Promise<void> {
   appendFollowReadRefs(report, recorded.record.source, observed.source);
   appendFollowReadRefs(report, recorded.record.destination, observed.destination);
+  const witness = await captureDestinationWitness(code, recorded);
   const current = await fetchMigrationRemote(code, recorded.record.destination, false);
   appendFollowReadRefs(report, recorded.record.destination, current);
-  if (await retainLaterFollow(code, recorded, current, report)) return;
+  if (await retainLaterFollow(code, recorded, current, report, witness)) return;
   report.notices.push({ condition: "The old source's forwarding record changed or was withdrawn; this follow ended cleanup without further source deletes.",
     remedy: { text: "Review the state's current home and bring in its tracked pointer, then run arc store migrate if another follow is due.", argv: ["arc", "store", "migrate"] } });
 }

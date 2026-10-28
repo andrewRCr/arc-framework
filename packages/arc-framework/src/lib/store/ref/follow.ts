@@ -22,6 +22,7 @@ import { releaseCopyJournal, requireNoPendingCopy } from "./migrate-copy-journal
 import { accountCopyJournal } from "./migrate-copy-account.js";
 import { handoffFollowCopy } from "./follow-copy-account.js";
 import { appendCleanupReport } from "./migrate-report.js";
+import { captureComparisonWitness, type ComparisonWitness } from "./comparison-witness.js";
 
 type DecidedFollow = Extract<RefFollowJudgment, { status: "decided" }>;
 
@@ -47,7 +48,8 @@ export async function answerRefFollow(context: RefBackendContext, store: Store, 
     if (answer === "push" && await copyFollowState(code, record) === null) {
       const report = await readRemoteCopyReport(code);
       await accountCopyJournal(code, report);
-      await dropStaleFollow(context, due); await clearRemoteGathering(code); return { status: "stale", report };
+      await dropStaleFollow(context, { ...due, source: judged.source, witness: judged.witness });
+      await clearRemoteGathering(code); return { status: "stale", report };
     }
     await context.migrateStep?.("follow.record");
     const recorded = await saveMoveRecord(code, record, null, carried);
@@ -81,8 +83,9 @@ export async function resumeRefFollow(context: RefBackendContext, store: Store, 
   try {
     const code = await migrationCodeContext(context);
     if (!copied && recorded.record.answer === "push" && !await sourceSwitchComplete(context, recorded)) {
+      const witness = await captureComparisonWitness(context, recorded.record.source);
       const copiedState = await copyFollowState(code, recorded.record, true);
-      if (copiedState === null || copiedState === "moved") return await endRecordedFollow(context, store, code, recorded, copiedState ?? "stale");
+      if (copiedState === null || copiedState === "moved") return await endRecordedFollow(context, store, code, recorded, copiedState ?? "stale", witness);
     }
     const report = recorded.record.answer === "push" ? await readRemoteCopyReport(code) : remoteCopyReport(new Map(), new Map(), []);
     const carried = await readMoveReport(code, recorded.tip);
@@ -99,14 +102,13 @@ export async function resumeRefFollow(context: RefBackendContext, store: Store, 
 
 /** End a recorded follow another move overtook, undoing a begun switch; a changed record stays due for the next run to judge. */
 async function endRecordedFollow(context: RefBackendContext, store: Store, code: RefBackendContext, recorded: RecordedFollow,
-  cause: "stale" | "moved"): Promise<StoreCommandResult<MigrateReport>> {
+  cause: "stale" | "moved", witness: ComparisonWitness | null): Promise<StoreCommandResult<MigrateReport>> {
   await accountCopyJournal(code, await readRemoteCopyReport(code));
   const report = await describeEndedFollow(code, recorded);
   const undone = await undoSwitch(context, store, followSwitchUndo(recorded));
   if (cause === "stale") {
-    const physical = await readRefRepository(context), trackingRef = `refs/arc-remotes/${recorded.record.source.name}/project/moved`;
-    const tip = (await readSyncRefs(physical, trackingRef)).get(trackingRef);
-    if (tip) await dropStaleFollow(context, { trackingRef, tip });
+    const trackingRef = `refs/arc-remotes/${recorded.record.source.name}/project/moved`;
+    await dropStaleFollow(context, { trackingRef, tip: recorded.record.forwardingTip, source: recorded.record.source, witness });
   }
   report.notices.push(endedFollowNotice(cause, undone));
   await removeMoveRecord(code, recorded); await clearRemoteGathering(code);

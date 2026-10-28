@@ -16,10 +16,11 @@ import { waitForPushRetry } from "./push-backoff.js";
 import { withRefSyncDeadline, refSyncDeadlineExpired, RefSyncDeadlineError, refSyncDeadlineRemedy } from "./sync-deadline.js";
 import { pullRefStore } from "./pull.js";
 import { refPushTarget } from "./fetch-target.js";
-import { recordPushTracking, RefPushTrackingLockError } from "./push-tracking.js";
+import { recordPushTracking, RefPushTrackingDeadlineError, RefPushTrackingLockError } from "./push-tracking.js";
 import { capturePushListing, readPushHistoryRefs, pushListingIncludesTracking, type RefPushListing } from "./push-listing.js";
 import { excludeBrokenPushRefs, type RefPushExclusion } from "./push-exclusion.js";
 import { captureRefCarry, finishRefCarry, pushRefListingWithCarry, type RefCarryPublication } from "./push-carry.js";
+import { captureComparisonWitness, sameComparisonSource, type ComparisonWitness } from "./comparison-witness.js";
 
 /** Reconcile first, then publish only a stable listing of this clone's changed refs. */
 export async function pushRefStore(context: RefBackendContext, input: PushInput = {}): Promise<StoreResult<PushResult>> {
@@ -28,6 +29,8 @@ export async function pushRefStore(context: RefBackendContext, input: PushInput 
     if (error instanceof RefPushTrackingLockError) return { status: "refused", refusal: { code: "lock-held", class: "recoverable",
       lock: error.lock, condition: error.message,
       remedy: { text: "Wait for the local Git writer to release its tracking lock, then retry the push to reconcile the receiver's accepted updates. If the lock is stale, remove it after confirming no writer is active." } } };
+    if (error instanceof RefPushTrackingDeadlineError) return { status: "refused", refusal: { code: "unreachable", class: "recoverable",
+      cause: "timeout", condition: error.message, remedy: refSyncDeadlineRemedy("push") } };
     if (error instanceof RefSyncDeadlineError) return { status: "refused", refusal: { code: "unreachable", class: "recoverable",
       cause: "timeout", condition: `${error.message} Unpublished writes remain local.`, remedy: refSyncDeadlineRemedy("push") } };
     if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire") throw error;
@@ -113,7 +116,7 @@ async function publishRefAttempt(context: RefBackendContext, loop: PushLoop): Pr
   loop.refusals = excluded.failures;
   const target = await checkedPushTarget(context, remote, designation, listing, merged);
   if (target === null) return "retry";
-  const outcome = await publishListing(context, remote.name, target, listing, loop,
+  const outcome = await publishListing(context, remote, target, listing, loop,
     async () => await checkedPushTarget(context, remote, designation, listing, merged) === target);
   if (outcome === "retry") return "retry";
   if (outcome.status === "lost-race") return "retry";
@@ -177,19 +180,30 @@ function pushOutcomeFailure(context: RefBackendContext, outcome: Exclude<PushCla
         ? "Enable atomic pushes on the receiver, then retry the push." : "Repair the reported receiver policy or hook and retry the push." } };
 }
 
-async function publishListing(context: RefBackendContext, remote: string, target: string, listing: RefPushListing, loop: PushLoop,
+async function publishListing(context: RefBackendContext, remote: RefRemoteDesignation, target: string, listing: RefPushListing, loop: PushLoop,
   admitState: () => Promise<boolean>): Promise<PushClassification | "retry"> {
   if (listing.changes.length === 0) return { status: "ok", message: "" };
+  const families = new Map<string, FamilyId[]>();
+  for (const change of listing.changes) families.set(change.ref,
+    await refMovementFamilies(context, change.ref, listing.tracking.get(change.ref) ?? null, change.next));
   const changes = listing.changes.map((change) => /^refs\/arc\/(?:history\/)?(?:work|cohort)\//u.test(change.ref)
     ? { ...change, expected: listing.tracking.get(change.ref) ?? null } : change);
+  let witness: ComparisonWitness | null = null;
+  const admit = async () => {
+    if (!await admitState()) return false;
+    const captured = await captureComparisonWitness(context, remote, undefined, true, target);
+    if (!captured || captured.commonDir !== context.repository?.commonDir || captured.gitDir !== context.repository.gitDir) return false;
+    if (witness && !sameComparisonSource(witness.source, captured.source)) return false;
+    witness = captured;
+    return admitState();
+  };
   const started = context.clock().getTime();
-  const outcome = await pushRefListingWithCarry(context, remote, target, changes, loop.carry, admitState);
+  const outcome = await pushRefListingWithCarry(context, remote.name, target, changes, loop.carry, admit);
   loop.lastPushMs = Math.max(0, context.clock().getTime() - started);
   if (outcome === null) return "retry";
-  await recordPushTracking(context, remote, listing, outcome);
+  await recordPushTracking(context, remote.name, listing, outcome, witness);
   if (outcome.status === "refs") for (const row of outcome.refs) {
-    if (row.status === "ok") for (const family of await refMovementFamilies(context, row.ref, listing.tracking.get(row.ref) ?? null,
-      listing.changes.find((change) => change.ref === row.ref)?.next ?? null)) loop.pushed.add(family);
+    if (row.status === "ok") for (const family of families.get(row.ref) ?? []) loop.pushed.add(family);
   }
   return classifyPushOutcome(outcome);
 }
