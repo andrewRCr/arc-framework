@@ -488,8 +488,10 @@ the external adapter retains generic use outside ARC and native test tools.
             - A refusal after backend start remains a failure or uncertain outcome, never a silent re-run.
 
     - `[ ]` **5.1.d Record sibling timings and report each sibling's placement**
-        - Record each completed sibling in the provider's history under its own argv key, and report each sibling's
-          placement and admission wait in its invocation output, so ordering, 5.2.a and Phase 6 have a source.
+        - Extend the provider's routed-plan record (`PlanRecord` in `arc_offload/arc_record.py`) per sibling:
+          sample each completed sibling under its own argv key with its placement, admission wait and phase timings,
+          and report each sibling's placement and admission wait in its invocation output, so ordering, 5.2.a and
+          Phase 6 have a source. Add no second recording path.
         - Build `test-first` (one behavior at a time):
             - A later group places siblings in descending recorded duration; with no record, availability order
               applies.

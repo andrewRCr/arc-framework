@@ -89,6 +89,13 @@ runner it runs from its own uploaded stage, holding the checkout tree lock only 
 and the stage is removed once the plan's closure is proved and recorded. Group integration reuses its compliant
 primitives and the existing measured pool/admission; it adds no retry layer.
 
+`PlanRecord` in `arc_offload/arc_record.py` records each routed plan in `remote-check history`
+(`context.execution_source == "captured_plan"`). It carries caller-observed verification, placement, admission,
+preparation, execution and transfer seconds, and writes a timing sample only when every invocation exited 0. A
+single-argv plan samples under the same key as a legacy run of that command, so a mixed estimate understates routed
+cost: one routed `typecheck` on m4-mini took 13.5 s preparation and 9.4 s transfer, against about 2 s and 0.6 s in
+legacy samples.
+
 `tests/test_cli.py` and `tests/fake_ssh.py` in arc-offload exercise six-client/fake-host contention and isolated
 registry histories. They are useful harness patterns, not throughput evidence. `src/lib/test-cost/run.ts` measures
 native test execution and is likewise not a complete capture-through-collection gate benchmark.
@@ -156,8 +163,14 @@ An independent review of the amended plan found the adapter built for one placem
 one journal `remote`, one stage per plan ID, backend frames forwarded with their own context identity, a non-waiting
 launch on runners with a wake probe, and no timing history on the routed path (`History.record` runs only in the
 legacy `run_on`). Group placement bookkeeping, multi-placement recovery, pre-launch fallback and sibling timing
-records are therefore new adapter work (5.1.b–5.1.d). The duration file becomes a declared input, because the
-adapter passes undeclared ambient variables to every placement uncaptured.
+records are therefore new adapter work (5.1.b–5.1.d). Whole-plan recording has since landed in `PlanRecord`, so
+5.1.d extends it per sibling. The duration file becomes a declared input, because the adapter passes undeclared
+ambient variables to every placement uncaptured.
+
+That first routed record also puts per-placement cost above the hand timings: 13.5 s preparation and 9.4 s transfer
+for one `typecheck` on m4-mini, against 4.4–5.5 s preparation and a 2.6 s upload measured by hand. A shard group pays
+that once per placement, in parallel. On store's modelled 7.5–11 minutes it is minor; on integration's 3–4 minutes
+it is noticeable. Phase 6 measures it.
 
 With m2-mini and m5-air about 1.45× and 1.3× slower than m4-mini on store, a four-shard store group is modelled at
 about 7.5 minutes on four free heavy machines and 10–11 minutes on three, against 23 minutes unsharded on m4-mini;
