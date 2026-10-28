@@ -168,7 +168,7 @@ cross-platform qualification routes before native group qualification.
 
 _Mode:_ `slice` through Phase 4 — closes on native tier coverage and completion with isolated writers.
 
-### `[ ]` **3.1 Isolate native cache and report writers while retaining controller ownership — D7**
+### `[x]` **3.1 Isolate native cache and report writers while retaining controller ownership — D7**
 
 - _Goal:_ Concurrent execution views do not alias native mutable outputs, even with shared dependencies, and native
   artifact ownership remains effective through controller closing.
@@ -183,14 +183,14 @@ _Mode:_ `slice` through Phase 4 — closes on native tier coverage and completio
         - CI clear/upload paths already match native caches. Retained tier-labelled shard artifacts and recursive
           `mergeDurationArtifacts` discovery of hashed native result documents, with no format or placement change.
 
-    - `[ ]` **3.1.c Prove writers remain private through native completion and closing**
-        - Extend native controller fixtures around `withTestArtifactOwnership`/`withBuildArtifactOwnership` and
-          workspace-relative reporters; use the existing runtime-ownership and closing test seams.
-        - Build `test-first` (one behavior at a time):
-            - Two store or integration controllers sharing one checkout and its dependencies serialize on the
-              artifact lease, so their mutable result/cache/report writes never overlap.
-            - Existing leases stay held through setup, execution and close; native closing errors still fail.
-            - Merged duration results remain valid after serial and separate-copy writers finish.
+    - `[x]` **3.1.c Prove writers remain private through native completion and closing**
+        - Real integration controllers wait behind the checkout lease through asynchronous native closing.
+          Separate copies finish independently with physically private default caches and package-relative JSON
+          reports; serial and separate-copy native duration outputs merge with complete membership.
+
+- _Outcome:_ Native writer qualification composes existing controller/build ownership through closing. Fixtures
+  retain shared immutable dependencies while giving Vite mutable roots private ancestors; existing teardown and
+  worker-cleanup failures still fail after passing cases.
 
 ### `[ ]` **3.2 Preserve forecast and late-bound native CI shard inputs — D3, D9**
 
