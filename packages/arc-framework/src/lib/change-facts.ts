@@ -2,9 +2,10 @@
 
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { open, readFile, type FileHandle } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { sanitizeGitRepositoryEnvironment } from "./git/repository-environment.mjs";
 
 import type {
   CanonicalChange,
@@ -17,28 +18,8 @@ import type { RawGitExec, RawGitResult } from "./git/exec.js";
 export type { CanonicalChange, ChangePathFact, ChangePathSet, ChangeSet };
 export type ChangeStatus = ChangePathFact["status"];
 
-const GIT_REPOSITORY_LOCAL_ENVIRONMENT = new Set<string>([
-  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-  "GIT_CONFIG",
-  "GIT_CONFIG_PARAMETERS",
-  "GIT_CONFIG_COUNT",
-  "GIT_OBJECT_DIRECTORY",
-  "GIT_DIR",
-  "GIT_WORK_TREE",
-  "GIT_IMPLICIT_WORK_TREE",
-  "GIT_GRAFT_FILE",
-  "GIT_INDEX_FILE",
-  "GIT_NO_REPLACE_OBJECTS",
-  "GIT_REPLACE_REF_BASE",
-  "GIT_PREFIX",
-  "GIT_SHALLOW_FILE",
-  "GIT_COMMON_DIR",
-]);
-
 function environmentForRawGit(): NodeJS.ProcessEnv {
-  return Object.fromEntries(
-    Object.entries(process.env).filter(([variable]) => !GIT_REPOSITORY_LOCAL_ENVIRONMENT.has(variable)),
-  );
+  return sanitizeGitRepositoryEnvironment(process.env);
 }
 
 /** Stable union of every affected path, including both move and copy endpoints. */
@@ -247,46 +228,47 @@ export async function resolveChangeSet(
  * @returns A raw Git executor
  */
 export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
-  return (args, options) =>
-    new Promise<RawGitResult>((resolveResult, reject) => {
-      const effectiveArgs = options?.objectAccess === "local-only"
-        ? ["--no-lazy-fetch", ...args]
-        : args;
-      const effectiveCwd = options?.cwd ?? cwd;
-      const environment = Object.fromEntries(Object.entries(environmentForRawGit())
-        .filter(([name]) => !options?.removeEnvironment?.includes(name)));
-      const env = options?.objectAccess === "local-only"
-        ? { ...environment, GIT_NO_LAZY_FETCH: "1" }
-        : environment;
-      const child = spawn("git", effectiveArgs, {
-        cwd: effectiveCwd,
-        env,
-        stdio: ["pipe", "pipe", "pipe"],
+  return async (args, options) => {
+    if (options?.input !== undefined && options.inputFile !== undefined) {
+      throw new Error("Raw Git input and inputFile cannot both be supplied.");
+    }
+    const handles: FileHandle[] = [];
+    try {
+      const input = options?.inputFile === undefined ? undefined : await open(options.inputFile, "r");
+      if (input !== undefined) handles.push(input);
+      const output = options?.outputFile === undefined ? undefined : await open(options.outputFile, "wx", 0o600);
+      if (output !== undefined) handles.push(output);
+      return await new Promise<RawGitResult>((resolveResult, reject) => {
+        const effectiveArgs = options?.objectAccess === "local-only" ? ["--no-lazy-fetch", ...args] : args;
+        const effectiveCwd = options?.cwd ?? cwd;
+        const environment = Object.fromEntries(Object.entries(environmentForRawGit())
+          .filter(([name]) => !options?.removeEnvironment?.includes(name)));
+        const env = options?.objectAccess === "local-only" ? { ...environment, GIT_NO_LAZY_FETCH: "1" } : environment;
+        const child = spawn("git", effectiveArgs, {
+          cwd: effectiveCwd, env, signal: options?.signal,
+          stdio: [input?.fd ?? "pipe", output?.fd ?? "pipe", "pipe"],
+        });
+        const stdout: Buffer[] = [], stderr: Buffer[] = [];
+        let failure: Error | undefined;
+        child.stdout?.on("data", (chunk: Buffer) => stdout.push(chunk));
+        child.stderr?.on("data", (chunk: Buffer) => stderr.push(chunk));
+        child.on("error", error => { failure = error; });
+        child.stdin?.on("error", error => { failure ??= error; });
+        child.on("close", (code, signal) => {
+          const stdoutBytes = Buffer.concat(stdout), stderrBytes = Buffer.concat(stderr);
+          if (failure !== undefined) { reject(failure); return; }
+          if (code === 0) { resolveResult({ stdout: stdoutBytes, stderr: stderrBytes }); return; }
+          reject(Object.assign(new Error(`git ${effectiveArgs[0] ?? "command"} failed with exit code ${code ?? "unknown"}`), {
+            ...(code === null ? {} : { exitCode: code }), ...(signal === null ? {} : { signal }),
+            stdout: stdoutBytes, stderr: stderrBytes,
+          }));
+        });
+        child.stdin?.end(options?.input);
       });
-      const stdout: Buffer[] = [];
-      const stderr: Buffer[] = [];
-
-      child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
-      child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
-      child.on("error", reject);
-      child.on("close", (code) => {
-        const stdoutBytes = Buffer.concat(stdout);
-        const stderrBytes = Buffer.concat(stderr);
-        if (code === 0) {
-          resolveResult({ stdout: stdoutBytes, stderr: stderrBytes });
-          return;
-        }
-        reject(Object.assign(
-          new Error(`git ${effectiveArgs[0] ?? "command"} failed with exit code ${code ?? "unknown"}`),
-          {
-            ...(code === null ? {} : { exitCode: code }),
-            stdout: stdoutBytes,
-            stderr: stderrBytes,
-          },
-        ));
-      });
-      child.stdin.end(options?.input);
-    });
+    } finally {
+      await Promise.all(handles.map(handle => handle.close()));
+    }
+  };
 }
 
 const CODE_SURFACE_GLOBS = [
@@ -328,6 +310,29 @@ const PACKAGED_CONTENT_SENSITIVE_GLOBS = [
 const PLANNING_RECORD_GLOBS = [".arc/backlog/*", ".arc/completed/*"] as const;
 
 const PORTABILITY_SURFACE_GLOBS = [
+  "packages/arc-framework/src/lib/paths.ts",
+  "packages/arc-framework/__tests__/unit/paths.test.ts",
+  "packages/arc-framework/src/lib/git/process-executor.ts",
+  "packages/arc-framework/src/lib/git/repository-environment.mjs",
+  "packages/arc-framework/__tests__/unit/git/repository-environment.test.ts",
+  "packages/arc-framework/__tests__/integration/raw-git-files.test.ts",
+  "packages/arc-framework/__tests__/integration/check-source-git.test.ts",
+  "packages/arc-framework/src/lib/checks/runner/*",
+  "packages/arc-framework/src/lib/checks/environment-*.ts",
+  "packages/arc-framework/src/lib/checks/process.ts",
+  "packages/arc-framework/src/lib/checks/result.ts",
+  "packages/arc-framework/src/lib/checks/batching.ts",
+  "packages/arc-framework/src/lib/checks/file-coordinates.ts",
+  "packages/arc-framework/src/lib/checks/forecast.ts",
+  "packages/arc-framework/src/lib/ci-check-runner.ts",
+  "packages/arc-framework/src/handlers/check/run*.ts",
+  "packages/arc-framework/__tests__/unit/lib/checks/runner/*",
+  "packages/arc-framework/__tests__/unit/lib/checks/result.test.ts",
+  "packages/arc-framework/__tests__/integration/check-runner-*.test.ts",
+  "packages/arc-framework/__tests__/integration/check-symlink-cwd.test.ts",
+  "packages/arc-framework/__tests__/e2e/check-runner*.e2e.test.ts",
+  "packages/arc-framework/__tests__/fixtures/checks/*",
+  "packages/arc-framework/examples/check-runner/*",
   "packages/arc-framework/src/lib/fs.ts",
   "packages/arc-framework/src/lib/kernel/fs-retry.ts",
   "packages/arc-framework/src/lib/local-test-admission.ts",

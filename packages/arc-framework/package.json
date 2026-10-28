@@ -78,6 +78,7 @@
   "files": [
     "bin",
     "dist",
+    "examples",
     "arc",
     "templates",
     "init-recipe.json",

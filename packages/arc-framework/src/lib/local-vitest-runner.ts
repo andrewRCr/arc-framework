@@ -181,6 +181,8 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
       return ["--project", "e2e"];
     case "portability":
       return [
+        "unit/paths.test.ts",
+        "check-runner-home.e2e.test.ts",
         "fs.test.ts",
         "build-context.test.ts",
         "build-cancellation.test.ts",
@@ -199,7 +201,18 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "ref-tree-cas",
         "state-ref-race.e2e",
         "git-executor",
+        "raw-git-files.test.ts",
+        "check-source-git.test.ts",
         "delivery-transfer.e2e",
+        "checks/runner/",
+        "lib/checks/result.test.ts",
+        "check-runner-session.test.ts",
+        "check-runner-conformance-wire.test.ts",
+        "check-runner-conformance-groups.test.ts",
+        "check-runner-execution-run.test.ts",
+        "check-runner-platform-status.test.ts",
+        "check-runner-platform-spelling.test.ts",
+        "check-runner-platform.e2e.test.ts",
         "check-symlink-cwd.test.ts",
       ];
     case "portability-macos":

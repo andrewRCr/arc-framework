@@ -19,6 +19,8 @@
     // root, which no .gitignore covers.
     "tsBuildInfoFile": "node_modules/.cache/tsc/src.tsbuildinfo",
     "strict": true,
+    "allowJs": true,
+    "checkJs": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,

@@ -19,6 +19,23 @@ afterEach(() => {
 });
 
 describe("captured command output", () => {
+  it("cancels an active byte-preserving process through its supplied cancellation boundary", async () => {
+    const controller = new AbortController();
+    let running!: () => void;
+    const started = new Promise<void>(resolve => { running = resolve; });
+    execaMock.mockImplementation((_command, _args, options: { cancelSignal?: AbortSignal }) => new Promise((resolve, reject) => {
+      running();
+      if (options.cancelSignal === undefined) { resolve({ stdout: Buffer.from("uncancelled"), stderr: Buffer.alloc(0) }); return; }
+      options.cancelSignal.addEventListener("abort", () => {
+        reject(Object.assign(new Error("The operation was canceled"), { isCanceled: true, name: "AbortError" }));
+      }, { once: true });
+    }));
+    const pending = createExecaRawGitExec()(["--version"], { signal: controller.signal });
+    await started;
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ kind: "canceled", isCanceled: true });
+  });
+
   it("preserves stdout whitespace when the caller requests exact output", async () => {
     execaMock.mockResolvedValue({ stdout: "command\\ \t\n", stderr: "" });
     await expect(createExecaGitExec()("git", ["var", "GIT_EDITOR"], { preserveOutput: true }))

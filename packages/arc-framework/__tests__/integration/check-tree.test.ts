@@ -6,6 +6,7 @@ import { createTempRepoCore, removeGitBackedDirs } from "../helpers/temp-repo.js
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { refreshFixerContent } from "../../src/lib/checks/fixers.js";
 import { createWorktreeSnapshot, readTreeChange, stagedWorktreeTree } from "../../src/lib/checks/tree.js";
+import { readCheckHead } from "../../src/lib/checks/head.js";
 
 const git = createExecaGitExec();
 const repositories: string[] = [];
@@ -104,7 +105,8 @@ it("reports a fixer's same-size rewrite that keeps the snapshot's cached stat", 
   await utimes(path, mtime, mtime);
   const snapshot = await createWorktreeSnapshot(git, cwd);
   try {
-    const coordinates = { scope: { kind: "all" as const }, tree: snapshot.tree, snapshot, worktreeTree: snapshot.tree };
+    const coordinates = { scope: { kind: "all" as const }, tree: snapshot.tree, snapshot, worktreeTree: snapshot.tree,
+      source: { kind: "worktree" as const, head: await readCheckHead(git, cwd) } };
     await writeFile(path, "edit\n");
     await utimes(path, mtime, mtime);
     expect(await refreshFixerContent(git, cwd, coordinates)).toEqual(["unstaged.txt"]);

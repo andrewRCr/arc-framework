@@ -1,6 +1,7 @@
 /** Resolve native invocation plans without running declared checks. */
 import { relative, resolve, sep } from "node:path";
 import type { CheckDeclaration } from "./declaration.js";
+import type { EnvironmentInputDeclarations } from "./environment-declaration.js";
 import { checkArgumentBatches, checkFileArguments } from "./batching.js";
 import type { CheckFileCoordinates } from "./file-coordinates.js";
 
@@ -11,6 +12,7 @@ export interface CheckForecast {
   shell: boolean;
   fixes: boolean;
   ciOnly: boolean;
+  environmentInputs: EnvironmentInputDeclarations;
   batches: string[][];
   shards?: Array<{ index: number; batches: string[][] }>;
 }
@@ -32,7 +34,7 @@ export function resolveCheckForecast(check: CheckDeclaration["checks"][string], 
   const batches = checkArgumentBatches(check, command, received, platform).map(batch => [...command, ...batch]);
   const shards = check.shards;
   return { cwd: relative(root, cwd).split(sep).join("/") || ".", mode: check.mode, shell: check.shell,
-    fixes: check.fixes, ciOnly: check.ci_only, batches,
+    fixes: check.fixes, ciOnly: check.ci_only, environmentInputs: { ...check.environment_inputs }, batches,
     ...(shards ? { shards: Array.from({ length: shards.count }, (_, offset) => {
       const index = offset + 1;
       const argument = shards.argument.replaceAll("{index}", String(index)).replaceAll("{count}", String(shards.count));

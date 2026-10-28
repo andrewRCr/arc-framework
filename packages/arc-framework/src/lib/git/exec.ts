@@ -105,10 +105,13 @@ export interface RawGitResult {
   stderr?: Uint8Array;
 }
 
-/** Narrow Git boundary for commands whose NUL-framed output must remain bytes. */
+/** Byte-preserving Git boundary. Optional files use caller-owned input and exclusive
+ * output streams; outputFile returns empty stdout instead of buffering artifact bytes.
+ * input and inputFile are mutually exclusive; the executor closes its opened handles.
+ */
 export type RawGitExec = (
   args: string[],
-  options?: { cwd?: string; input?: Uint8Array; objectAccess?: "local-only"; indexFile?: string; removeEnvironment?: readonly string[] },
+  options?: { cwd?: string; input?: Uint8Array; inputFile?: string; outputFile?: string; objectAccess?: "local-only"; indexFile?: string; removeEnvironment?: readonly string[]; signal?: AbortSignal },
 ) => Promise<RawGitResult>;
 
 /** One Git index transaction staged through the repository's index lock. */

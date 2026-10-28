@@ -29,6 +29,9 @@ describe("review-gate package boundary", () => {
       const packs = JSON.parse(stdout) as Array<{ files: Array<{ path: string }> }>;
       const paths = packs[0]?.files.map(({ path }) => path) ?? [];
       expect(paths).toContain("arc/system/workflows/arc/supplemental/run-errand.md");
+      for (const file of ["README.md", "local.mjs", "local-inputs.mjs", "local-process.mjs", "local-runtime.mjs"]) {
+        expect(paths).toContain(`examples/check-runner/${file}`);
+      }
       expect(paths.some((path) => path.includes("src/scripts/review-gate"))).toBe(false);
       expect(paths.some((path) => path.startsWith(".github/"))).toBe(false);
       expect(paths.some((path) => path.includes("coordinate-pr-review"))).toBe(false);
