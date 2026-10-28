@@ -26,7 +26,7 @@ export async function qualifyNodeRuntime(plan, execute) {
     for (const probe of probes) {
       const result = await execute(probe);
       if (result.outcome.status !== "completed" || result.outcome.exitCode !== 0 || result.overflow) return unknown("A requested runtime probe failed or exceeded this example's 1 MiB stdout limit.");
-      const stdout = new TextDecoder("utf-8", { fatal: true }).decode(result.stdout);
+      const stdout = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(result.stdout);
       results.push({ id: probe.id, stdout });
     }
     if (await fingerprint() !== identity) return unknown("The Node installation changed during qualification; retry after it is stable.");

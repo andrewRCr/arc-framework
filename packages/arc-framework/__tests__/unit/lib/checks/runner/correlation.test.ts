@@ -134,7 +134,7 @@ it.each(["wrong context", "unplanned ID", "duplicate IDs", "unsupported group"])
     : { contextId: kind === "wrong context" ? "other-context" : context.contextId,
       invocationId: kind === "unplanned ID" ? "unplanned" : id };
   expect(() => new RunnerExecution(kind === "unsupported group" ? { ...context, supportsRunGroup: false } : context, request))
-    .toThrow(/runner protocol.*retry/iu);
+    .toThrow(/^Check execution request .*; correct the request and retry with a fresh attempt\.$/u);
 });
 
 it.each(["output context", "output invocation", "outcome context", "outcome invocation"])("refuses mismatched %s", kind => {

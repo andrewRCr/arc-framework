@@ -16,7 +16,7 @@ export function composePreparedCheckKey(material: CheckKeyMaterial | null, execu
 }
 
 /** Project qualified executors in plan order while omitting invocation and probe transport IDs. */
-export function preparedRuntimeIdentity(plan: CheckExecutionPlan, runtime: KnownRunnerRuntime): readonly CheckRuntimeIdentity[] {
+function preparedRuntimeIdentity(plan: CheckExecutionPlan, runtime: KnownRunnerRuntime): readonly CheckRuntimeIdentity[] {
   return plan.invocations.map(invocation => {
     const binding = requiredQualification(runtime, invocation.id);
     return { identity: binding.identity,

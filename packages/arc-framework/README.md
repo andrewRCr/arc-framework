@@ -202,7 +202,8 @@ queue policy, worker labels and arbitrary storage versions must not broaden that
 
 Start one adapter subprocess per selected routed check and keep one conversation through preparation, cache lookup,
 execution and release. Exchange UTF-8 newline-delimited JSON-RPC 2.0 objects on stdin/stdout. Embedded newlines are
-JSON escapes. Stdout is protocol only; stderr is adapter diagnostics. RPC batch arrays are unsupported.
+JSON escapes; ARC refuses an adapter line longer than 128 MiB. Stdout is protocol only; stderr is adapter diagnostics.
+RPC batch arrays are unsupported.
 
 ARC assigns unique nonempty string RPC request IDs. Replies echo an outstanding ID and carry exactly one `result` or
 `error`; notifications omit the RPC ID. Errors have integer `code`, nonblank `message` and optional `data`. Standard
@@ -363,7 +364,12 @@ settlement/normal closure is uncertain even if no check outcome arrived. Never-s
 
 Cancellation acknowledges receipt only. Before context, use plan UUID; after ready, include context. The outstanding
 prepare/run request must still settle. Stdin EOF has the same descendant/output settlement obligation. A second
-explicit interruption may terminate the local adapter, but does not prove remote work stopped.
+explicit interruption may terminate the local adapter, but does not prove remote work stopped. A third stops ARC
+without waiting and names the retained plans.
+
+On POSIX, ARC starts the adapter in its own session and process group, so a terminal interrupt reaches ARC alone and
+becomes cancellation. On Windows the adapter shares ARC's console and also receives Ctrl+C; it must not exit before the
+outstanding request settles.
 
 After transport loss, retain source and explicit files plus UUID/context, adapter location and recovery instructions.
 Inspect and settle provider ownership before removal or fresh retry. ARC does not reconnect automatically, race local
@@ -398,15 +404,16 @@ node /absolute/path/to/local.mjs --inspect PLAN_UUID --state-root /absolute/stat
 node /absolute/path/to/local.mjs --settle PLAN_UUID --state-root /absolute/state/root
 ```
 
-Recovery notifications provide the exact command. The default state root is `arc-local-check-runner` under OS temporary
-storage; `--state-root` chooses another machine-local directory. Private attempt records identify ownership, not
+Recovery notifications provide the exact command. The default state root is `~/.cache/arc-local-check-runner`;
+`--state-root` chooses another absolute directory. Preparation refuses a root that is not a directory owned by the
+current user and writable by no one else. Private attempt records identify ownership, not
 reusable passes. Supervisors record identity before accepting work, stop process groups on cancel/EOF and await
 descendants even after the original process exits or closes pipes. Termination escalates after one second. Inspect must
 report settled before retained captures are removed; recovered leftover records may then be removed manually.
 
-Measured from the four shipped `.mjs` files, the example comprises 510 lines and 29,507 bytes: conversation 161 lines /
-9,739 bytes; input verification/environment 162 / 9,620; process/recovery 151 / 7,883; runtime qualification 36 /
-2,265. These counts include comments and blank lines, exclude this guide, and describe implementation size rather than
+Measured from the four shipped `.mjs` files, the example comprises 557 lines and 32,382 bytes: conversation 175 lines /
+10,541 bytes; input verification/environment 188 / 11,113; process/recovery 158 / 8,446; runtime qualification 36 /
+2,282. These counts include comments and blank lines, exclude this guide, and describe implementation size rather than
 runtime cost or a minimum adapter size. Deployment, remote transport and provider-specific dependency qualification are
 additional implementation responsibilities for providers that need them.
 

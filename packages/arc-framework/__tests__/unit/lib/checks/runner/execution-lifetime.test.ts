@@ -15,7 +15,7 @@ async function ownedResource(h: ReturnType<typeof runnerStreamHarness>, failedRe
   directories.push(root);
   const marker = join(root, "owned-input");
   await writeFile(marker, "retained input");
-  const retained = () => ({ planId: makeRunnerProtocolPlan().planId, contextId: "context", adapter: "adapter",
+  const retained = () => ({ planId: makeRunnerProtocolPlan().planId, contextId: "context", adapter: ["adapter"],
     sourceRoot: root, manifest: join(root, "descriptor"), environmentFiles: [], recovery: h.session.recovery?.instructions });
   const lifetime = createExecutionLifetime({ session: h.session, retained, dispose: async () => {
     if (failedRemoval) throw new Error("private removal failure");

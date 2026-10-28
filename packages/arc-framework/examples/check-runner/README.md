@@ -1,6 +1,6 @@
 # Standalone local check runner
 
-This independent executable implements ARC check-runner protocol version 1 using Node builtins and four sibling
+This independent executable implements ARC check-runner protocol version 1 using Node builtins and three sibling
 modules. See the [public adapter guide][guide] for configuration, source-manifest encoding vectors, explicit inputs and
 the complete wire/lifetime contract. Implementations in other languages require no Node SDK or ARC-private imports.
 
@@ -51,9 +51,10 @@ node /absolute/path/to/local.mjs --inspect PLAN_UUID --state-root /absolute/stat
 node /absolute/path/to/local.mjs --settle PLAN_UUID --state-root /absolute/state/root
 ```
 
-The default state root is `arc-local-check-runner` under the operating system's temporary directory. Set `--state-root`
-to select another machine-local directory. Each attempt owns private process records. Normal release removes them;
-unsuccessful conversations retain recovery records usable after the protocol process exits.
+The default state root is `~/.cache/arc-local-check-runner`; `--state-root` selects another absolute directory.
+Settlement signals the process groups that attempt records name, so preparation refuses a root that is not a directory
+owned by the current user and writable by no one else. Each attempt owns private process records. Normal release
+removes them; unsuccessful conversations retain recovery records usable after the protocol process exits.
 
 Supervisors record process identity before accepting work. Cancel/EOF stops owned groups and waits for descendants,
 even after the original process exits or output pipes close. Termination escalates after one second. Inspect reports
@@ -68,14 +69,14 @@ records introduce no automatic reconnect, replacement execution or ARC job datab
 
 ## Implementation size
 
-The current example totals 510 lines and 29,507 bytes, including comments/blank lines and excluding READMEs:
+The current example totals 557 lines and 32,382 bytes, including comments/blank lines and excluding READMEs:
 
-| Module              | Responsibility                                  | Lines | Bytes |
-| ------------------- | ----------------------------------------------- | ----: | ----: |
-| `local.mjs`         | Conversation and protocol ordering              |   161 | 9,739 |
-| `local-inputs.mjs`  | Source/files verification and child environment |   162 | 9,620 |
-| `local-process.mjs` | Descendant supervision and recovery             |   151 | 7,883 |
-| `local-runtime.mjs` | Supported Node runtime qualification            |    36 | 2,265 |
+| Module              | Responsibility                                  | Lines |  Bytes |
+| ------------------- | ----------------------------------------------- | ----: | -----: |
+| `local.mjs`         | Conversation and protocol ordering              |   175 | 10,541 |
+| `local-inputs.mjs`  | Source/files verification and child environment |   188 | 11,113 |
+| `local-process.mjs` | Descendant supervision and recovery             |   158 |  8,446 |
+| `local-runtime.mjs` | Supported Node runtime qualification            |    36 |  2,282 |
 
 These are implementation-size measurements, not preparation timings or a minimum adapter size. Remote transport,
 dependency preparation, provider admission and broader runtime qualification add their own implementation work.

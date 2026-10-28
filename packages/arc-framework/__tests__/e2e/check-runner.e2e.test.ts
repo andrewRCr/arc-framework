@@ -263,9 +263,18 @@ it.runIf(process.platform === "linux").each(["missing executable", "missing expl
       if (json) {
         const envelope = JSON.parse(result.stdout) as { error?: { message: string }; result?: { checks: Array<{ reason: string; remedy: string }> } };
         const reason = envelope.error?.message ?? envelope.result?.checks[0]?.reason;
-        expect(reason).toContain(configuration);
-        expect(reason).toContain("checks.runner");
+        if (fault === "missing explicit file") {
+          // A caller-side capture fault names the binding, not the machine configuration.
+          expect(reason).toMatch(/environment_inputs binding FILE.*repair the file input/u);
+          expect(reason).not.toContain(configuration);
+        } else {
+          expect(reason).toContain(configuration);
+          expect(reason).toContain("checks.runner");
+        }
+        if (fault === "missing executable") expect(reason).toMatch(/did not start/u);
         if (fault !== "invalid machine config") expect(envelope.result?.checks[0]?.remedy).toMatch(/repair.*retry/iu);
+      } else if (fault === "missing explicit file") {
+        expect(result.stdout + result.stderr).toMatch(/environment_inputs binding FILE.*repair/isu);
       } else {
         expect(result.stdout + result.stderr).toContain(configuration);
         expect(result.stdout + result.stderr).toMatch(/checks\.runner.*repair/isu);

@@ -1,6 +1,6 @@
 /** Attempt and context authority retained independently of transport diagnostics. */
 import type { CancelParams, RecoveryParams, RunParams, RunGroupParams, RunnerNotification, RunnerRequest, TerminalOutcome } from "./contract.js";
-import { RunnerExecution, indexRunnerPlan, validateRunnerPreparation, validateRunnerRecovery,
+import { RunnerExecution, callerRequestError, indexRunnerPlan, validateRunnerPreparation, validateRunnerRecovery,
   type KnownRunnerRuntime, type PreparedRunnerContext, type RunnerPlanIndex, type RunnerResultByMethod } from "./correlation.js";
 
 /** Ordered application state for one adapter process and its fixed attempt. */
@@ -40,17 +40,17 @@ export class RunnerConversationState {
   /** Validate an operation before its request can reach the adapter. */
   begin(request: RunnerRequest): void {
     if (request.method === "check/prepare") {
-      if (this.phase !== "new") throw conversationError("preparation was already requested");
+      if (this.phase !== "new") throw callerRequestError("preparation was already requested");
       const plan = indexRunnerPlan(request.params);
       this.plan = plan;
       this.phase = "preparing";
       return;
     }
-    if (this.phase === "new") throw conversationError("requires preparation as its first request");
+    if (this.phase === "new") throw callerRequestError("requires preparation as its first request");
     if (request.method === "check/cancel") { this.cancel(request.params); return; }
-    if (this.phase !== "ready" || this.context === undefined) throw conversationError("requires a ready context");
-    if (request.params.contextId !== this.context.contextId) throw conversationError("operation belongs to another context");
-    if (this.execution !== undefined) throw conversationError("already has an outstanding execution request");
+    if (this.phase !== "ready" || this.context === undefined) throw callerRequestError("requires a ready context");
+    if (request.params.contextId !== this.context.contextId) throw callerRequestError("operation belongs to another context");
+    if (this.execution !== undefined) throw callerRequestError("already has an outstanding execution request");
     if (request.method === "check/release") { this.phase = "releasing"; return; }
     this.startExecution(request.params);
   }
@@ -87,18 +87,18 @@ export class RunnerConversationState {
   }
 
   private startExecution(request: RunParams | RunGroupParams): void {
-    if (this.context === undefined) throw conversationError("requires a ready context");
+    if (this.context === undefined) throw callerRequestError("requires a ready context");
     const execution = new RunnerExecution(this.context, request);
     const ids = "invocationIds" in request ? request.invocationIds : [request.invocationId];
-    if (ids.some(id => this.used.has(id))) throw conversationError("invocation was already requested for execution");
+    if (ids.some(id => this.used.has(id))) throw callerRequestError("invocation was already requested for execution");
     this.execution = execution;
     for (const id of ids) this.used.add(id);
   }
 
   private cancel(request: CancelParams): void {
-    if (this.plan === undefined || request.planId !== this.plan.planId) throw conversationError("cancellation belongs to another attempt");
-    if (request.contextId !== undefined && request.contextId !== this.context?.contextId) throw conversationError("cancellation belongs to another context");
-    if (this.phase !== "preparing" && this.phase !== "ready") throw conversationError("cancellation is outside an active attempt");
+    if (this.plan === undefined || request.planId !== this.plan.planId) throw callerRequestError("cancellation belongs to another attempt");
+    if (request.contextId !== undefined && request.contextId !== this.context?.contextId) throw callerRequestError("cancellation belongs to another context");
+    if (this.phase !== "preparing" && this.phase !== "ready") throw callerRequestError("cancellation is outside an active attempt");
   }
 }
 

@@ -181,7 +181,7 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
       return ["--project", "e2e"];
     case "portability":
       return [
-        "paths.test.ts",
+        "unit/paths.test.ts",
         "check-runner-home.e2e.test.ts",
         "fs.test.ts",
         "build-context.test.ts",

@@ -2,9 +2,9 @@
 /** Standalone NDJSON adapter with serial Linux process-group supervision. */
 import { createInterface } from "node:readline";
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { lstat, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { childDirectory, childEnvironment, readChildNotice, verifyInputs } from "./local-inputs.mjs";
 import { executeChild, IncompleteExecutionError, inspectAttempt, ownerRecord, runWorker } from "./local-process.mjs";
@@ -15,12 +15,26 @@ const args = process.argv.slice(2);
 if (args[0] === "--worker") await runWorker(args[1], args[2]);
 else await main();
 
+// Attempt records direct which process groups --settle signals, so only this user may write them.
+async function ownedStateRoot(stateRoot, create) {
+  if (!isAbsolute(stateRoot)) throw new Error("--state-root must name an absolute directory");
+  if (create) await mkdir(stateRoot, { recursive: true, mode: 0o700 });
+  let stat;
+  try { stat = await lstat(stateRoot); }
+  catch (error) { if (!create && error.code === "ENOENT") return false; throw error; }
+  if (!stat.isDirectory() || stat.uid !== process.getuid() || (stat.mode & 0o022) !== 0) {
+    throw new Error(`State root ${JSON.stringify(stateRoot)} must be a directory owned by this user and writable by no one else`);
+  }
+  return true;
+}
+
 async function main() {
   const stateOption = args.indexOf("--state-root");
-  const stateRoot = resolve(stateOption < 0 ? join(tmpdir(), "arc-local-check-runner") : args[stateOption + 1]);
+  const stateRoot = stateOption < 0 ? join(homedir(), ".cache", "arc-local-check-runner") : args[stateOption + 1] ?? "";
   if (args[0] === "--inspect" || args[0] === "--settle") {
     if (!/^[0-9a-f-]{36}$/u.test(args[1] ?? "")) throw new Error("Supply the caller's plan UUID");
-    const result = await inspectAttempt(join(stateRoot, args[1]), args[0] === "--settle");
+    const result = await ownedStateRoot(stateRoot, false) ? await inspectAttempt(join(stateRoot, args[1]), args[0] === "--settle")
+      : { planId: args[1], status: "settled", workers: [] };
     process.stdout.write(`${JSON.stringify(result)}\n`);
     process.exitCode = result.status === "settled" ? 0 : 1;
     return;
@@ -78,7 +92,7 @@ async function main() {
       await notify("check/recovery", { planId: plan.planId, instructions:
         `Inspect with ${JSON.stringify(process.execPath)} ${JSON.stringify(executable)} --inspect ${plan.planId} --state-root ${JSON.stringify(stateRoot)}; `
         + `settle with the same command using --settle. Inspect must report settled before removing retained captures.` });
-      await mkdir(stateRoot, { recursive: true, mode: 0o700 });
+      await ownedStateRoot(stateRoot, true);
       await mkdir(directory, { mode: 0o700 });
       acquired = true;
       await writeFile(join(directory, "owner.json"), JSON.stringify({ ...await ownerRecord(), planId: plan.planId }), { flag: "wx", mode: 0o600 });

@@ -47,7 +47,7 @@ describe("runner and environment declarations", () => {
     } } });
     expect(result.success).toBe(false);
     if (result.success) throw new Error("Expected name refusal");
-    expect(result.error.message).toMatch(/environment_inputs.*(?:remove|repair).*retry/su);
+    expect(result.error.issues.map(issue => issue.message)).toContainEqual(expect.stringMatching(/environment_inputs.*(?:remove|repair).*retry/su));
   });
 
   it.each(["path", "VALUE", null, 3])("refuses unsupported kind %j with a repair route", kind => {
@@ -56,7 +56,7 @@ describe("runner and environment declarations", () => {
     } } });
     expect(result.success).toBe(false);
     if (result.success) throw new Error("Expected kind refusal");
-    expect(result.error.message).toMatch(/environment_inputs.*(?:remove|repair).*retry/su);
+    expect(result.error.issues.map(issue => issue.message)).toContainEqual(expect.stringMatching(/environment_inputs.*(?:remove|repair).*retry/su));
   });
 
   it("refuses portable case duplicates and accepts repair in either declaration form", () => {

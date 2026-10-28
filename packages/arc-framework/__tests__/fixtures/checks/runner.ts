@@ -12,7 +12,8 @@ import type { PrepareSelectedCheckExecutionInput, CheckExecutionIO } from "../..
 
 export const LOCAL_RUNNER_EXAMPLE = fileURLToPath(new URL("../../../examples/check-runner/local.mjs", import.meta.url));
 
-export async function createRunnerCheckRepository(directories: string[]): Promise<{
+/** Commit a declared runner repository, after optional additional source, and resolve its check request. */
+export async function createRunnerCheckRepository(directories: string[], addSource?: (root: string) => Promise<void>): Promise<{
   root: string; stateRoot: string; input: PrepareSelectedCheckExecutionInput; io: CheckExecutionIO; captures: string[];
 }> {
   const checks = { example: { runner: true, mode: "files", command: [process.execPath, "check.cjs"],
@@ -27,6 +28,7 @@ export async function createRunnerCheckRepository(directories: string[]): Promis
     writeFile(join(root, "check.cjs"), "process.exit(0);\n"),
     writeFile(join(root, "input.secret"), Buffer.from([0, 255, 13, 10])),
   ]);
+  await addSource?.(root);
   const git = createExecaGitExec();
   await git("git", ["add", "-A"], { cwd: root });
   await git("git", ["commit", "-m", "runner inputs"], { cwd: root });

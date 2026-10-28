@@ -36,3 +36,10 @@ real CLI refusal tests to remove retained inputs after its process has closed.
 conflicting context or frontend exit faults. It waits for provider closure; capture receipts permit safe test cleanup
 after the provider's children have settled. Its transport-loss mode forwards a real terminal outcome before corrupting
 settlement, retaining completed failure evidence for handler reduction.
+
+`runner-disconnect.mjs` forwards the actual standalone adapter and exits its frontend right after relaying a nonzero
+completed outcome, while the provider still owns descendants. It records the prepared plan, context, source and provider
+process so recovery tests can inspect and settle the retained attempt.
+
+`runner-cli.ts` starts the built CLI's routed `check run` as the leader of its own POSIX process group, so tests can
+deliver terminal-style interrupts to the whole group, and polls adapter observation files with a bounded wait.

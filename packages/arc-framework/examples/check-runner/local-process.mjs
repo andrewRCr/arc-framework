@@ -2,7 +2,7 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { constants } from "node:os";
 
@@ -44,6 +44,7 @@ export function signalGroup(pid, signal = "SIGTERM") {
 /** Worker starts commands only after its ownership record and parent handshake. */
 export async function runWorker(directory, token) {
   let stopped = false;
+  let timedOut = false;
   let started = false;
   let finished = false;
   const recordPath = join(directory, `${token}.json`);
@@ -62,7 +63,7 @@ export async function runWorker(directory, token) {
   process.once("message", async request => {
     if (stopped || !process.connected) return;
     started = true;
-    const timer = setTimeout(() => { stop(); }, request.timeout);
+    const timer = setTimeout(() => { timedOut = !stopped; stop(); }, request.timeout);
     let launchError = false;
     const child = spawn(request.invocation.argv[0], request.invocation.argv.slice(1), {
       cwd: request.cwd, env: request.environment, shell: request.invocation.shell, stdio: ["ignore", 1, 2],
@@ -76,7 +77,9 @@ export async function runWorker(directory, token) {
     while ((await groupMembers(process.pid, process.pid)).length !== 0) await delay(10);
     clearTimeout(timer); clearTimeout(forced);
     await writeFile(recordPath, JSON.stringify({ ...record, done: true }), { mode: 0o600 });
-    const outcome = failure ?? (stopped ? { status: "cancelled", reason: "Local process group cancellation settled" }
+    const outcome = failure ?? (timedOut ? { status: "unavailable", reason: `Command exceeded this example's ${request.timeout / 1000}-second limit and was stopped`,
+      remedy: "Shorten the command, or run it under a provider with a longer limit, and retry." }
+      : stopped ? { status: "cancelled", reason: "Local process group cancellation settled" }
       : launchError ? { status: "unavailable", reason: "Child executable could not start", remedy: "Repair the command or prepared environment and retry." }
       : native);
     if (process.connected) await new Promise(resolve => { process.send(outcome, resolve); });
@@ -130,19 +133,23 @@ export async function executeChild(executable, directory, invocation, cwd, envir
 
 export async function inspectAttempt(directory, settle = false) {
   await ownerRecord();
-  const owner = JSON.parse(await readFile(join(directory, "owner.json"), "utf8"));
-  if (settle) {
-    await writeFile(join(directory, "cancelled"), "cancel", { mode: 0o600 });
-    if (await ownerAlive(owner)) process.kill(owner.pid, "SIGTERM");
+  let owner;
+  try { owner = JSON.parse(await readFile(join(directory, "owner.json"), "utf8")); }
+  catch (error) {
+    // Recovery is announced before the owner record exists, and no work starts without one.
+    if (error.code === "ENOENT") return { planId: basename(directory), status: "settled", workers: [] };
+    throw error;
   }
+  if (settle && await ownerAlive(owner)) process.kill(owner.pid, "SIGTERM");
   const files = (await readdir(directory)).filter(name => name !== "owner.json" && name.endsWith(".json"));
   const workers = [];
   for (const file of files) {
     const record = JSON.parse(await readFile(join(directory, file), "utf8"));
     let members = await groupMembers(record.pid);
-    if (settle && members.length !== 0 && await ownerAlive(record)) {
+    // A group ID cannot be reused while members remain, even after its worker has exited.
+    if (settle && members.length !== 0) {
       signalGroup(record.pid); await delay(1100);
-      if (await ownerAlive(record)) signalGroup(record.pid, "SIGKILL");
+      if ((await groupMembers(record.pid)).length !== 0) { signalGroup(record.pid, "SIGKILL"); await delay(100); }
       members = await groupMembers(record.pid);
     }
     workers.push({ pid: record.pid, members });

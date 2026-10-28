@@ -44,23 +44,36 @@ export async function prepareCapturedCheckExecution(inputs: CapturedCheckExecuti
       const manifest = await verifySourcePresentation(params.source, io.source);
       await verifyCapturedEnvironment(params.environment, io.source);
       control.signal.throwIfAborted();
+      // A protocol failure during re-verification revokes the granted context before callers can use it.
+      if (session.failure !== undefined) throw session.failure;
       const execution = preparedExecution(inputs, params, result, session, lifetime, manifest, control);
       return { status: "ready", execution };
     }
     const closure = await lifetime.close();
     if (closure.status === "uncertain") return closure;
-    return { status: "unavailable", reason: result.reason, remedy: result.remedy,
+    return { status: "unavailable", origin: "runner", reason: result.reason, remedy: result.remedy,
       ...(closure.cleanupWarning === undefined ? {} : { cleanupWarning: closure.cleanupWarning }) };
   } catch (cause) {
-    const closure = lifetime === undefined ? undefined : await lifetime.close();
-    if (closure?.status === "uncertain") return closure;
-    const locations = retainedExecution(inputs, input, planId, contextId, session);
-    const cleanupWarning = session === undefined
-      ? await disposeSettledExecutionInputs(dispose, [locations.sourceRoot, locations.manifest, ...locations.environmentFiles])
-      : closure?.cleanupWarning;
-    return { status: "unavailable", reason: control.cancelled ? "Runner preparation was cancelled and settled." : preparationFailure(cause), remedy: "Repair the runner or captured inputs and retry with a fresh attempt; keep the check native if preparation cannot be honored.",
-      ...(cleanupWarning === undefined ? {} : { cleanupWarning }) };
+    return failedPreparation({ cause, lifetime, session, control, dispose,
+      retained: () => retainedExecution(inputs, input, planId, contextId, session) });
   }
+}
+
+/** Settle a preparation that threw; only an uncertain adapter lifetime keeps the captured inputs. */
+async function failedPreparation(failure: { cause: unknown; lifetime: ExecutionLifetime | undefined;
+  session: CheckRunnerSession | undefined; control: ExecutionAttemptControl; dispose: () => Promise<void>;
+  retained: () => RetainedCheckExecution }): Promise<CheckExecutionPreparation> {
+  const { cause, lifetime, session, control, dispose } = failure;
+  const closure = lifetime === undefined ? undefined : await lifetime.close();
+  if (closure?.status === "uncertain") return closure;
+  const locations = failure.retained();
+  const cleanupWarning = session === undefined
+    ? await disposeSettledExecutionInputs(dispose, [locations.sourceRoot, locations.manifest, ...locations.environmentFiles])
+    : closure?.cleanupWarning;
+  const reason = control.cancelled ? "Runner preparation was cancelled and settled."
+    : closure?.status === "closed" && closure.unstarted !== undefined ? closure.unstarted : preparationFailure(cause);
+  return { status: "unavailable", origin: session === undefined ? "inputs" : "runner", reason, remedy: "Repair the runner or captured inputs and retry with a fresh attempt; keep the check native if preparation cannot be honored.",
+    ...(cleanupWarning === undefined ? {} : { cleanupWarning }) };
 }
 
 function fixedPreparation(inputs: CapturedCheckExecutionInputs, planId: string): PrepareParams {
@@ -104,7 +117,7 @@ function preparedExecution(inputs: CapturedCheckExecutionInputs, params: Prepare
 
 function retainedExecution(inputs: CapturedCheckExecutionInputs, input: PrepareSelectedCheckExecutionInput,
   planId: string, contextId: string | undefined, session?: CheckRunnerSession): RetainedCheckExecution {
-  return { planId, ...(contextId === undefined ? {} : { contextId }), adapter: input.configuration.argv[0],
+  return { planId, ...(contextId === undefined ? {} : { contextId }), adapter: input.configuration.argv,
     sourceRoot: inputs.source.root, manifest: inputs.source.manifestPath,
     environmentFiles: Object.values(inputs.environment.bindings).flatMap(binding => binding.kind === "file" && binding.state === "file" ? [binding.path] : []),
     ...(session?.recovery === undefined ? {} : { recovery: session.recovery.instructions }) };

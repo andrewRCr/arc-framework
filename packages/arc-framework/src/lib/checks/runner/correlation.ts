@@ -112,12 +112,12 @@ export class RunnerExecution {
   private state: "open" | "settled" | "failed" = "open";
 
   constructor(context: PreparedRunnerContext, request: RunParams | RunGroupParams) {
-    if (request.contextId !== context.contextId) throw protocolError("execution belongs to another context");
+    if (request.contextId !== context.contextId) throw callerRequestError("execution belongs to another context");
     const group = "invocationIds" in request;
-    if (group && !context.supportsRunGroup) throw protocolError("group execution was not advertised");
+    if (group && !context.supportsRunGroup) throw callerRequestError("group execution was not advertised");
     const ids = group ? request.invocationIds : [request.invocationId];
     if (new Set(ids).size !== ids.length || ids.some(id => !context.plan.invocations.has(id))) {
-      throw protocolError("execution contains duplicate or unplanned invocation IDs");
+      throw callerRequestError("execution contains duplicate or unplanned invocation IDs");
     }
     this.contextId = context.contextId;
     this.ids = new Set(ids);
@@ -171,6 +171,11 @@ function requiredValue<T>(indexed: ReadonlyMap<string, T>, id: string): T {
   const value = indexed.get(id);
   if (value === undefined) throw protocolError("has missing indexed coverage");
   return value;
+}
+
+/** Refuse a consumer's own malformed execution request without blaming the runner. */
+export function callerRequestError(detail: string): Error {
+  return new Error(`Check execution request ${detail}; correct the request and retry with a fresh attempt.`);
 }
 
 function protocolError(detail: string): Error {

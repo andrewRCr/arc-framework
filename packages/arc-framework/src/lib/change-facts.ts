@@ -313,6 +313,8 @@ const PORTABILITY_SURFACE_GLOBS = [
   "packages/arc-framework/src/lib/paths.ts",
   "packages/arc-framework/__tests__/unit/paths.test.ts",
   "packages/arc-framework/src/lib/git/process-executor.ts",
+  "packages/arc-framework/src/lib/git/repository-environment.mjs",
+  "packages/arc-framework/__tests__/unit/git/repository-environment.test.ts",
   "packages/arc-framework/__tests__/integration/raw-git-files.test.ts",
   "packages/arc-framework/__tests__/integration/check-source-git.test.ts",
   "packages/arc-framework/src/lib/checks/runner/*",

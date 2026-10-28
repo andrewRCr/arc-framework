@@ -1,7 +1,7 @@
 /** Captured bindings and fixed child invocations shared by runner operations. */
 import { z } from "zod";
 import type { CapturedBinding } from "../environment-inputs.js";
-import type { CheckContentContext } from "../../../handlers/check/run.js";
+import type { CheckContentContext } from "../environment-policy.js";
 import { EnvironmentInputsSchema } from "../environment-declaration.js";
 import { CanonicalDigestSchema } from "../../kernel/schema/vocabulary.js";
 import { isWellFormedUnicode } from "../../kernel/canonical/unicode.js";

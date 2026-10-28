@@ -1,5 +1,5 @@
 /** Inspect link targets component by component without opening external source content. */
-import { dirname, isAbsolute, parse, resolve, sep } from "node:path";
+import { dirname, isAbsolute, parse, relative, resolve, sep } from "node:path";
 import type { SourcePresentationIO } from "./source-io.js";
 import type { BigIntStats } from "node:fs";
 import { SourceCaptureError } from "./source-error.js";
@@ -30,6 +30,10 @@ async function targetEntry(io: SourcePresentationIO, path: string): Promise<BigI
 function targetPath(root: string, cursor: string, component: string): string {
   const path = resolve(cursor, component);
   if (!sourcePathContains(root, path)) throw new SourceCaptureError("Source link escapes captured root");
+  // Captured source replaces repository administration with generated code-only metadata.
+  if (relative(root, path).split(sep)[0]?.toLowerCase() === ".git") {
+    throw new SourceCaptureError("Source link targets repository administration that captured source replaces");
+  }
   return path;
 }
 

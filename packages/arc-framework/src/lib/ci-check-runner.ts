@@ -33,7 +33,10 @@ const CiForecastEnvelopeSchema = z.object({
  */
 export function parseCiCheckForecast(envelope: unknown): CiCheckForecast {
   const parsed = CiForecastEnvelopeSchema.safeParse(envelope);
-  if (!parsed.success) throw new Error(`Invalid CI check forecast; ${REGENERATE_FORECAST}`, { cause: parsed.error });
+  if (!parsed.success) {
+    const fields = [...new Set(parsed.error.issues.map(issue => issue.path.map(String).join(".") || "<root>"))].join(", ");
+    throw new Error(`Invalid CI check forecast at ${fields}; ${REGENERATE_FORECAST}`, { cause: parsed.error });
+  }
   return parsed.data.result;
 }
 
@@ -94,9 +97,9 @@ async function runForecastCheck(options: CiCheckStep, check: CheckForecast & { i
   const capture = await captureEnvironmentInputs(check.environmentInputs, resolve(options.root, check.cwd));
   const executed = await runNativeForecastCheck(options, check, batches, capture.bindings).then(
     result => ({ ok: true as const, result }), (error: unknown) => ({ ok: false as const, error }));
-  const cleaned = await capture.dispose().then(() => true, () => false);
+  const cleanup = await capture.dispose().then(() => undefined, (error: unknown) => error instanceof Error ? error.message : String(error));
   if (!executed.ok) throw executed.error;
-  if (!cleaned) process.stderr.write(`${check.id}: frozen input cleanup failed; repair temporary storage access and retry cleanup\n`);
+  if (cleanup !== undefined) process.stderr.write(`${check.id}: ${cleanup}\n`);
   return executed.result;
 }
 

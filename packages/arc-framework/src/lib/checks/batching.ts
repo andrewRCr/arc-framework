@@ -31,15 +31,19 @@ export function checkArgumentBudget(platform: NodeJS.Platform): number {
  * @param paths - Received paths relative to the check's working directory
  * @param platform - Operating-system identifier
  * @returns Ordered path batches
- * @throws When the fixed command and a single path cannot fit in one batch
+ * @throws When the fixed command alone, or with any single path, exceeds the platform's argument budget
  */
 export function batchCheckPaths(command: readonly string[], paths: readonly string[], platform: NodeJS.Platform): string[][] {
   return batchPaths(command, paths, [platform]);
 }
 
 /**
- * Partition complete fixed argv and ordered paths before placement on either supported command-line model.
- * @param shell Treat the first member as literal shell text rather than an executable pathname.
+ * Partition complete fixed argv and ordered paths so every batch fits both supported command-line models.
+ * @param command - Complete fixed argv
+ * @param paths - Received paths in their declared order
+ * @param shell - Treat the first member as literal shell text rather than an executable pathname
+ * @returns Ordered path batches
+ * @throws When the fixed command alone, or with any single path, exceeds either platform's argument budget
  */
 export function batchPortableCheckPaths(command: readonly string[], paths: readonly string[], shell = false): string[][] {
   return batchPaths(command, paths, ["linux", "win32"], shell);

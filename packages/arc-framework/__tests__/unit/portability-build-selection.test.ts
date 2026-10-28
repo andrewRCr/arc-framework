@@ -7,7 +7,7 @@ import { makeVitestControllerFixture } from "../helpers/vitest-controller-fixtur
 
 it("selects the build and prebuilt recovery suites alongside existing portability cases", async () => {
   const fixture = await makeVitestControllerFixture();
-  const required = ["paths.test.ts", "check-runner-home.e2e.test.ts", "fs.test.ts", "build-context.test.ts", "build-cancellation.test.ts", "build-generation-lifetime.test.ts",
+  const required = ["unit/paths.test.ts", "check-runner-home.e2e.test.ts", "fs.test.ts", "build-context.test.ts", "build-cancellation.test.ts", "build-generation-lifetime.test.ts",
     "build-coordinator.test.ts", "build-publication.test.ts",
     "build-inventory.test.ts", "build-ownership.test.ts", "ci-build-transfer.test.ts", "ci-build-recovery.test.ts",
     "lib/checks/runner/planning-spelling.test.ts", "lib/checks/runner/source-platform-paths.test.ts",
@@ -19,7 +19,8 @@ it("selects the build and prebuilt recovery suites alongside existing portabilit
   try {
     const config = join(fixture.packageRoot, "vitest.config.mjs");
     await writeFile(config, (await readFile(config, "utf8")).replace('["tests/unit*.test.mjs"]', '["tests/**/*.test.ts"]'));
-    for (const file of required) {
+    // Similarly named suites outside the portability surface must stay unselected.
+    for (const file of [...required, "unit/build-publication-paths.test.ts", "lib/store/lifecycle-paths.test.ts"]) {
       await mkdir(dirname(join(fixture.packageRoot, "tests", file)), { recursive: true });
       await writeFile(join(fixture.packageRoot, "tests", file), `
 import { it } from "vitest";

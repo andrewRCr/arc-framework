@@ -21,6 +21,14 @@ it.each(sourceManifestVectors)("encodes $name with canonical field order and UTF
   assertSchemaAccepts(SourceManifestSchema, identity.manifest);
 });
 
+it("publishes the guide's encoding vectors and digests exactly as the fixture computes them", async () => {
+  const guide = await readFile(new URL("../../../../../README.md", import.meta.url), "utf8");
+  const section = guide.slice(guide.indexOf("### Exact cross-language encoding vectors"));
+  const published = [...section.matchAll(/\*\*([\w-]+)\*\*\r?\n\r?\n```json\r?\n([^\r\n]*)\r?\n```\r?\n\r?\nDigest: `(sha256:[0-9a-f]{64})`\./gu)]
+    .map(([, name, encoding, digest]) => ({ name, encoding, digest }));
+  expect(published).toEqual(sourceManifestVectors.map(({ name, encoding, digest }) => ({ name, encoding, digest })));
+});
+
 it("writes canonical stored-name order and retains identity across storage locations", async () => {
   const root = await mkdtemp(join(tmpdir(), "arc-source-canonical-"));
   directories.push(root);

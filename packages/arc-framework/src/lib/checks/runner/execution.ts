@@ -49,7 +49,8 @@ export interface CheckExecutionIO extends SourceMaterializationIO {
 export interface RetainedCheckExecution {
   readonly planId: string;
   readonly contextId?: string;
-  readonly adapter: string;
+  /** The configured adapter's complete literal argv. */
+  readonly adapter: readonly string[];
   readonly sourceRoot: string;
   readonly manifest: string;
   readonly environmentFiles: readonly string[];
@@ -58,7 +59,9 @@ export interface RetainedCheckExecution {
 
 /** Disposal proof or the retained resources whose settlement still needs inspection. */
 export type CheckExecutionClosure =
-  | { readonly status: "closed"; readonly exit: CheckRunnerProcessExit; readonly cleanupWarning?: string }
+  | { readonly status: "closed"; readonly exit: CheckRunnerProcessExit; readonly cleanupWarning?: string;
+    /** Why the adapter never started, when no process could own the inputs. */
+    readonly unstarted?: string }
   | { readonly status: "uncertain"; readonly reason: string; readonly retained: RetainedCheckExecution; readonly exit?: CheckRunnerProcessExit };
 
 /** Per-request terminal observations, retaining valid outcomes when required work is incomplete. */
@@ -88,7 +91,9 @@ export interface PreparedCheckExecution {
 /** Preparation never grants execution authority after unavailability or uncertain lifetime. */
 export type CheckExecutionPreparation =
   | { readonly status: "ready"; readonly execution: PreparedCheckExecution }
-  | { readonly status: "unavailable"; readonly reason: string; readonly remedy: string; readonly cleanupWarning?: string }
+  | { readonly status: "unavailable"; readonly reason: string; readonly remedy: string; readonly cleanupWarning?: string;
+    /** Whether the caller's inputs or the configured runner refused before a context existed. */
+    readonly origin: "inputs" | "runner" }
   | { readonly status: "uncertain"; readonly reason: string; readonly retained: RetainedCheckExecution };
 
 /** Preparation promise with interruption and inspection available before a context is granted. */
@@ -115,7 +120,7 @@ async function prepareSelectedAttempt(input: PrepareSelectedCheckExecutionInput,
   const selected = { ...input, configuration: { file: input.configuration.file, argv: [executable, ...args] as [string, ...string[]] } };
   let captured;
   try { captured = await captureCheckExecutionInputs(selected, interruptibleCaptureIO(io, control.signal)); }
-  catch (cause) { return { status: "unavailable", reason: control.cancelled ? "Selected input capture was cancelled before runner preparation." : cause instanceof Error ? cause.message : "Selected inputs could not be captured.",
+  catch (cause) { return { status: "unavailable", origin: "inputs", reason: control.cancelled ? "Selected input capture was cancelled before runner preparation." : cause instanceof Error ? cause.message : "Selected inputs could not be captured.",
     remedy: "Repair the selected source or explicit inputs and retry; keep the check native if fixed inputs cannot be established.",
     ...(cause instanceof CapturedInputPreparationError && cause.cleanupWarning !== undefined ? { cleanupWarning: cause.cleanupWarning } : {}) }; }
   return prepareCapturedCheckExecution(captured, selected, io, control);

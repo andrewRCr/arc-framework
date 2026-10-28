@@ -26,7 +26,7 @@ it("round-trips the producer's environment names and kinds through serialized CI
 it.each([undefined, { CHECK_MODE: "private-invalid-kind" }])("requires current declaration metadata with a regenerate remedy: %j", metadata => {
   const source = envelope();
   source.result.checks[0].environmentInputs = metadata;
-  expect(() => parseCiCheckForecast(source)).toThrow(/regenerate.*arc check gate merge --ci --dry-run --json/iu);
+  expect(() => parseCiCheckForecast(source)).toThrow(/at result\.checks\.0\.environmentInputs.*regenerate.*arc check gate merge --ci --dry-run --json/iu);
   try { parseCiCheckForecast(source); } catch (error) {
     expect(String(error)).not.toContain("private-invalid-kind");
   }

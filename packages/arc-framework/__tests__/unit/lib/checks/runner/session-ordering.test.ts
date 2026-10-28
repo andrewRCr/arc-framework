@@ -81,7 +81,7 @@ it("declines an unadvertised group while keeping mandatory single execution avai
   reply(h, { ...makeRunnerProtocolReady(plan), capabilities: { runGroup: false } });
   await preparing;
   const group = h.session.request({ method: "check/runGroup", params: { contextId: "context", invocationIds: ["__proto__"] } });
-  const refusal = expect(group).rejects.toThrow(/advertised/iu);
+  const refusal = expect(group).rejects.toThrow(/^Check execution request group execution was not advertised; correct the request/u);
   const single = h.session.request({ method: "check/run", params: { contextId: "context", invocationId: "__proto__" } });
   completeRun(h);
   await single;
@@ -93,7 +93,7 @@ it.each(["unknown", "constructor"])("rejects unplanned or wrong-context executio
   const h = runnerStreamHarness();
   await prepare(h);
   const pending = h.session.request({ method: "check/run", params: { contextId: id === "unknown" ? "context" : "other", invocationId: id } });
-  const refusal = expect(pending).rejects.toThrow(/unplanned|another context/iu);
+  const refusal = expect(pending).rejects.toThrow(/^Check execution request .*(unplanned|another context).*; correct the request/u);
   await h.close();
   await refusal;
 });

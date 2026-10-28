@@ -16,6 +16,31 @@ function contained(root, path) {
   return suffix !== ".." && !suffix.startsWith(`..${sep}`) && !isAbsolute(suffix);
 }
 
+// Follow a link target component by component: contained dangling and cyclic targets are accepted, while
+// escapes and the generated Git administration that replaced the repository's own are refused.
+async function assertLinkContained(root, link, target) {
+  let cursor = await realpath(dirname(link));
+  let pending = target.split("/");
+  const visited = new Set();
+  for (let hops = 0; pending.length > 0;) {
+    if (!contained(root, resolve(cursor, ...pending))) throw new Error("Source symbolic link escapes its root");
+    const state = JSON.stringify([cursor, pending]);
+    if (visited.has(state)) return;
+    visited.add(state);
+    const path = resolve(cursor, pending.shift());
+    if (!contained(root, path)) throw new Error("Source symbolic link escapes its root");
+    if (relative(root, path).split(sep)[0].toLowerCase() === ".git") throw new Error("Source symbolic link targets Git administration");
+    const stat = await lstat(path).catch(error => { if (error.code === "ENOENT" || error.code === "ENOTDIR") return undefined; throw error; });
+    if (stat === undefined) return;
+    if (stat.isSymbolicLink()) {
+      const next = await readlink(path);
+      if (++hops > 256 || next === "" || isAbsolute(next)) throw new Error("Source symbolic link chain cannot be followed within its root");
+      pending = [...next.split("/"), ...pending];
+      cursor = dirname(path);
+    } else cursor = path;
+  }
+}
+
 export async function childDirectory(root, cwd) {
   if (typeof cwd !== "string" || (cwd !== "." && (isAbsolute(cwd) || cwd.split("/").some(part => !part || part === "." || part === "..")))) {
     throw new Error("Invocation cwd must be a contained slash-relative directory");
@@ -76,7 +101,8 @@ export async function verifyInputs(plan, expectedGit) {
     if (entry.kind === "file") await verifyFile(path, entry);
     else {
       if (entry.kind !== "symlink" || !(await lstat(path)).isSymbolicLink() || await readlink(path) !== entry.target
-        || !contained(root, await realpath(path))) throw new Error("Source symbolic link changed or escapes its root");
+        || entry.target === "" || isAbsolute(entry.target)) throw new Error("Source symbolic link changed or escapes its root");
+      await assertLinkContained(root, path, entry.target);
     }
   }
   if (!(await lstat(resolve(root, ".git"))).isDirectory()) throw new Error("Independent source Git administration is unavailable");

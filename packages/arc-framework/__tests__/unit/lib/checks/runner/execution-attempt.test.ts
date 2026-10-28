@@ -17,7 +17,7 @@ it("delivers cancellation with current attempt/context coordinates and keeps ret
   await prepare(h);
   const plan = makeRunnerProtocolPlan();
   const control = createExecutionAttemptControl(plan.planId);
-  control.bindCaptured(() => ({ planId: plan.planId, contextId: "context", adapter: "adapter", sourceRoot: plan.source.root,
+  control.bindCaptured(() => ({ planId: plan.planId, contextId: "context", adapter: ["adapter"], sourceRoot: plan.source.root,
     manifest: plan.source.manifest, environmentFiles: [], recovery: h.session.recovery?.instructions }));
   control.attachSession(h.session);
   h.stdin.on("data", (bytes: Buffer) => {

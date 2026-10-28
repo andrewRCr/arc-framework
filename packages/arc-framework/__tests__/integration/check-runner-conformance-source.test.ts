@@ -1,6 +1,6 @@
 /** Sequential commands cannot silently consume a previous command's mutations of fixed inputs. */
 import { afterEach, expect, it } from "vitest";
-import { access } from "node:fs/promises";
+import { access, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { createRunnerCheckRepository } from "../fixtures/checks/runner.js";
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
@@ -25,6 +25,21 @@ it.runIf(process.platform === "linux")("refuses an unavailable planned cwd befor
   try {
     expect((await repaired.execution.run("check")).outcomes.get("check")).toEqual({ status: "completed", exitCode: 0 });
   } finally { await repaired.execution.close(); }
+});
+
+it.runIf(process.platform === "linux")("accepts contained dangling and cyclic source links that capture certifies", async () => {
+  const fixture = await createRunnerCheckRepository(directories, async root => {
+    await Promise.all([symlink("absent.secret", join(root, "dangling")),
+      symlink("loop-b", join(root, "loop-a")), symlink("loop-a", join(root, "loop-b"))]);
+  });
+  const prepared = await prepareSelectedCheckExecution({ ...fixture.input,
+    buildPlan: () => ({ invocations: [{ id: "check", cwd: ".", shell: false,
+      argv: [process.execPath, "-e", "process.exit(0)"] }], probes: { global: [], check: [] } }),
+  }, fixture.io);
+  if (prepared.status !== "ready") throw new Error(prepared.reason);
+  try {
+    expect((await prepared.execution.run("check")).outcomes.get("check")).toEqual({ status: "completed", exitCode: 0 });
+  } finally { await prepared.execution.close(); }
 });
 
 it.runIf(process.platform === "linux")("executes the captured source after the caller repository is removed", async () => {

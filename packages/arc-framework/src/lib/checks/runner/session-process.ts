@@ -28,7 +28,8 @@ export interface CheckRunnerProcessInput {
 /** Start an adapter with the existing native process dependency. */
 export function startCheckRunnerProcess(input: CheckRunnerProcessInput): CheckRunnerProcess {
   const [executable, ...args] = input.argv;
-  const subprocess = execa(executable, args, { cwd: input.cwd, shell: false,
+  // On POSIX a separate process group keeps terminal interrupts with ARC, which turns them into cancellation.
+  const subprocess = execa(executable, args, { cwd: input.cwd, shell: false, detached: process.platform !== "win32",
     env: sanitizeGitRepositoryEnvironment(process.env), extendEnv: false,
     stdio: ["pipe", "pipe", "pipe"], buffer: false, encoding: "buffer", reject: false });
   const native = subprocess.nodeChildProcess;

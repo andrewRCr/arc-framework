@@ -45,6 +45,9 @@ export const nodeEnvironmentCaptureIO: EnvironmentCaptureIO = {
 /** Safe, path-free explanation for an explicit file that cannot be frozen. */
 export class EnvironmentFileCaptureError extends Error {}
 
+/** Private temporary storage for a frozen copy could not be created or written. */
+export class EnvironmentStorageError extends Error {}
+
 function unchanged(before: BigIntStats, after: BigIntStats, bytes: number): boolean {
   return after.isFile() && before.dev === after.dev && before.ino === after.ino && before.size === after.size
     && before.mtimeNs === after.mtimeNs && before.ctimeNs === after.ctimeNs && after.size === BigInt(bytes);
@@ -59,7 +62,9 @@ async function copyOpenedInput(io: EnvironmentCaptureIO, files: OpenCaptureFiles
   const before = await input.stat();
   if (!before.isFile()) throw new EnvironmentFileCaptureError("input must resolve to a regular file");
   if (before.size > BigInt(Number.MAX_SAFE_INTEGER)) throw new EnvironmentFileCaptureError("input is too large to describe exactly");
-  const output = await io.openOutput(destination);
+  const output = await io.openOutput(destination).catch((cause: unknown) => {
+    throw new EnvironmentStorageError("temporary storage could not hold a frozen copy", { cause });
+  });
   files.output = output;
   const buffer = Buffer.alloc(64 * 1024);
   const hash = createHash("sha256");

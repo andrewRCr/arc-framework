@@ -1,6 +1,7 @@
 /** Selected Git code is materialized with caller-side attributes before freezing. */
 import { afterEach, expect, it } from "vitest";
-import { join } from "node:path";
+import { join, relative } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { chmod, copyFile, lstat, mkdtemp, readFile, readlink, symlink, writeFile } from "node:fs/promises";
 import { createTempRepoCore, removeGitBackedDirs } from "../helpers/temp-repo.js";
@@ -119,8 +120,29 @@ it("refuses flattened selected links and preserves links and executable modes af
     try {
       expect((await lstat(join(frozen.root, "link"))).isSymbolicLink()).toBe(true);
       expect(await readlink(join(frozen.root, "link"))).toBe("script");
-      expect((await lstat(join(frozen.root, "script"))).mode & 0o111).toBe(0o111);
+      expect((await lstat(join(frozen.root, "script"))).mode & 0o100).toBe(0o100);
     } finally { await frozen.remove(); }
+    // Git sets execute bits through the caller's umask; only the owner bit marks an executable entry.
+    const umask = process.umask(0o077);
+    try {
+      const restricted = await freezeSelectedSource(io, root, request.request, boundary);
+      try { expect((await lstat(join(restricted.root, "script"))).mode & 0o777).toBe(0o700); }
+      finally { await restricted.remove(); }
+    } finally { process.umask(umask); }
+  } finally { await boundary.remove(); }
+});
+
+it("keeps the specific presentation refusal through selected-source capture", async () => {
+  const root = await createTempRepoCore({ prefix: "arc-source-selected-escape-" });
+  const outside = await mkdtemp(join(tmpdir(), "arc-source-selected-outside-"));
+  repositories.push(root, outside);
+  await writeFile(join(outside, "data.txt"), "sibling input\n");
+  await symlink(relative(root, join(outside, "data.txt")), join(root, "link"), "file");
+  const request = await resolveCheckRequest(git, root, { form: { kind: "run", ids: ["check"] } });
+  if (request.status !== "resolved") throw new Error(request.message);
+  const boundary = await acquireSourceBoundary(io, root, request.request);
+  try {
+    await expect(freezeSelectedSource(io, root, request.request, boundary)).rejects.toThrow(/^Cannot freeze source presentation: Source link escapes captured root\./u);
   } finally { await boundary.remove(); }
 });
 

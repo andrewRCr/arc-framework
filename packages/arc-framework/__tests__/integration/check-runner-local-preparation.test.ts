@@ -1,11 +1,13 @@
 /** A real preparing probe retains plan ownership before a context or conversation can survive. */
 import { afterEach, expect, it } from "vitest";
-import { access, readFile, writeFile } from "node:fs/promises";
+import { access, chmod, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { randomUUID } from "node:crypto";
 import { selectedExecutionFixture } from "../fixtures/checks/prepared-execution.js";
+import { createRunnerCheckRepository } from "../fixtures/checks/runner.js";
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { prepareSelectedCheckExecution } from "../../src/lib/checks/runner/execution.js";
 
@@ -69,3 +71,24 @@ localIt.each(["cancel", "lost frontend"] as const)("settles or retains preparati
     if (probePid !== undefined) await expect.poll(() => alive(probePid!), { timeout: 5000 }).toBe(false);
   }
 }, 15000);
+
+localIt("refuses a state root others can write, prepares after repair and settles an unrecorded plan", async () => {
+  const fixture = await createRunnerCheckRepository(directories);
+  const prepare = (stateRoot: string) => prepareSelectedCheckExecution({ ...fixture.input, configuration: {
+    ...fixture.input.configuration, argv: [process.execPath, example, "--state-root", stateRoot] } }, fixture.io);
+  await chmod(fixture.stateRoot, 0o777);
+  for (const [stateRoot, reason] of [[fixture.stateRoot, "writable by no one else"], ["relative-state", "absolute directory"]] as const) {
+    const refused = await prepare(stateRoot);
+    if (refused.status === "ready") await refused.execution.close();
+    expect(refused).toMatchObject({ status: "unavailable", reason: expect.stringContaining(reason) });
+  }
+  await chmod(fixture.stateRoot, 0o700);
+  const repaired = await prepare(fixture.stateRoot);
+  if (repaired.status !== "ready") throw new Error(repaired.reason);
+  await expect(repaired.execution.close()).resolves.toMatchObject({ status: "closed" });
+  const unrecorded = randomUUID();
+  for (const operation of ["--inspect", "--settle"]) {
+    const result = await execFileAsync(process.execPath, [example, operation, unrecorded, "--state-root", fixture.stateRoot]);
+    expect(JSON.parse(result.stdout)).toEqual({ planId: unrecorded, status: "settled", workers: [] });
+  }
+});

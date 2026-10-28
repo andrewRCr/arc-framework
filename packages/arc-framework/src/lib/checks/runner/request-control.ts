@@ -80,15 +80,20 @@ class RunnerRequestControl implements CheckRunnerRequestControl {
 
   private cancel(owned: OwnedAttempt): void { void owned.attempt.cancel().catch(() => undefined); }
 
-  private readonly onSignal = () => {
+  private readonly onSignal = (signal: NodeJS.Signals) => {
     this.interruptedValue = true;
     this.interrupts++;
     if (this.interrupts === 1) {
       process.stderr.write("Stopping checks; waiting for runner settlement. Interrupt again to stop local adapters.\n");
       for (const owned of this.active) this.cancel(owned);
     } else if (this.interrupts === 2) {
-      process.stderr.write("Stopping local adapters; retained inputs may require provider recovery.\n");
+      process.stderr.write("Stopping local adapters; retained inputs may require provider recovery. Interrupt again to exit without waiting.\n");
       for (const owned of this.active) owned.attempt.terminate();
+    } else {
+      const plans = [...this.active].flatMap(owned => owned.attempt.retained === undefined ? [] : [owned.attempt.retained.planId]);
+      process.stderr.write(`Exiting without settlement; inspect and settle retained plans before retrying: ${plans.join(", ") || "none recorded"}.\n`);
+      this.detach();
+      process.kill(process.pid, signal);
     }
   };
 

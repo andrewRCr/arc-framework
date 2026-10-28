@@ -29,9 +29,11 @@ import { checkVerification } from "./report.js";
 import { checkRetryCommand } from "../../lib/checks/remedies.js";
 import { findUninstalledLockedPackages, installGapReason } from "../../lib/checks/install-gap.js";
 import { resolveCheckForecast, type CheckForecast } from "../../lib/checks/forecast.js";
+import type { CheckContentContext } from "../../lib/checks/environment-policy.js";
 import { bindCapturedEnvironment, captureEnvironmentInputs, type CapturedEnvironmentInputs } from "../../lib/checks/environment-inputs.js";
 import { readMachineCheckRunner, type MachineCheckRunnerConfiguration } from "../../lib/checks/runner/machine-config.js";
-import { prepareSelectedCheckExecution, type PreparedCheckExecution, type CheckExecutionClosure } from "../../lib/checks/runner/execution.js";
+import { prepareSelectedCheckExecution, type PreparedCheckExecution, type CheckExecutionClosure,
+  type CheckExecutionPreparation } from "../../lib/checks/runner/execution.js";
 import { retainedRunnerRemedy } from "./runner-recovery.js";
 import { composePreparedCheckKey } from "../../lib/checks/runner/key.js";
 import { normalizeCheckInvocationOutcome, reduceCheckInvocationOutcomes,
@@ -80,9 +82,6 @@ export function declaredChecksExitCode(checks: readonly DeclaredCheckResult[]): 
   if (checks.some(check => check.outcome === "couldn't run")) return 2;
   return checks.some(check => check.outcome === "failed" || check.outcome === "no evidence") ? 1 : 0;
 }
-
-/** Checked content exposed only to file checks. */
-export interface CheckContentContext { base?: string; tree: string; merged?: readonly string[] }
 
 /** Repository and command boundaries injected into check orchestration. */
 export interface DeclaredCheckDependencies extends CheckKeyIO {
@@ -269,7 +268,6 @@ async function runRequestedCheck(context: RequestedCheck,
 ): Promise<DeclaredCheckResult> {
   const { id, check, kind } = context;
   if (isSkippedHookCheck(request, id)) return { id, kind, outcome: "skipped", reason: "ARC_SKIP" };
-  if (io.interrupted?.()) return { id, kind, outcome: "couldn't run", reason: "Check request was interrupted before dispatch; retry explicitly with a fresh request." };
   return check.mode === "selection" ? runProjectedCheck(context, io, request) : runGitCheck(context, io, request);
 }
 
@@ -294,13 +292,13 @@ async function runGitCheck(context: RequestedCheck, io: DeclaredCheckDependencie
     tree = resolved.tree = resolved.worktreeTree ?? tree;
   }
   const divergent = await readCheckDivergence(io.git, root, tree, resolved.worktreeTree ?? tree, check.inputs, definition.global_inputs);
-  const result = await executeSelectedCheck({ id, check: executed, root, tree, paths, kind, definition, indexViews, divergent, selectionTree, coordinates: resolved, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request);
+  const result = await executeSelectedCheck({ id, check: executed, root, tree, paths, kind, definition, indexViews, divergent, selectionTree, coordinates: resolved, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request, forecast);
   if (result.outcome === "failed" || result.outcome === "couldn't run") {
     const retry = checkRetryCommand({ id, request, resolved, widenedFiles: usesWidenedFileRetry(check, selection, request) });
     result.remedy = result.remedy === undefined ? retry : `${result.remedy} Then run ${retry}`;
   }
   if (mergedIn.length > 0) result.mergedIn = mergedIn;
-  return { ...result, ...forecast };
+  return result;
 }
 
 type FilesRun = { status: "run"; paths: string[]; mergedIn: string[]; check: CheckDeclaration["checks"][string] }
@@ -353,9 +351,9 @@ async function runProjectedCheck(context: RequestedCheck, io: DeclaredCheckDepen
   const paths = [...selected.paths];
   if (paths.length === 0) return { id, kind, ...forecast, outcome: "not selected", reason: "no files to check" };
   const result = await executeSelectedCheck({ ...context, tree: resolved.tree, paths,
-    divergent: [], coordinates: resolved }, io, request);
+    divergent: [], coordinates: resolved }, io, request, request.dryRun ? await forecastSelectedCheck(check, root, paths, io.platform) : {});
   if (result.outcome === "failed" || result.outcome === "couldn't run") result.remedy = remedy;
-  return { ...result, ...(request.dryRun ? await forecastSelectedCheck(check, root, paths, io.platform) : {}) };
+  return result;
 }
 
 async function forecastSelectedCheck(check: CheckDeclaration["checks"][string], root: string,
@@ -458,20 +456,38 @@ async function selectedCheckKey(selected: SelectedCheck, io: DeclaredCheckDepend
     base: content?.base, merged: content?.merged, environmentIdentity: selected.environmentIdentity });
 }
 
-async function executeSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest): Promise<DeclaredCheckResult> {
+async function executeSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
+  forecast: Partial<CheckForecast>): Promise<DeclaredCheckResult> {
+  const { id, kind } = selected;
+  if (io.interrupted?.()) return { id, kind, ...forecast, outcome: "couldn't run", reason: "Check request was interrupted before dispatch; retry explicitly with a fresh request." };
   const runner = await (io.readRunnerConfiguration ?? readMachineCheckRunner)(selected.check);
-  if (runner !== undefined) return executeRoutedSelectedCheck(selected, io, request, runner);
+  if (runner !== undefined) {
+    // The runner plans its own portable invocations, so native batches and shards would misdescribe a routed dry run.
+    const routed: Partial<CheckForecast> = { ...forecast };
+    delete routed.batches;
+    delete routed.shards;
+    return { ...await executeRoutedSelectedCheck(selected, io, request, runner), ...routed };
+  }
+  return { ...await executeNativeInputsCheck(selected, io, request), ...forecast };
+}
+
+async function executeNativeInputsCheck(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest): Promise<DeclaredCheckResult> {
+  const { id, kind } = selected;
   if (Object.keys(selected.check.environment_inputs).length === 0) return executeNativeSelectedCheck(selected, io, request);
-  if (request.dryRun) return { id: selected.id, kind: selected.kind, outcome: "would run" };
-  const capture = await (io.captureEnvironment ?? captureEnvironmentInputs)(selected.check.environment_inputs, resolve(selected.root, selected.check.root));
+  if (request.dryRun) return { id, kind, outcome: "would run" };
+  let capture: CapturedEnvironmentInputs;
+  try {
+    capture = await (io.captureEnvironment ?? captureEnvironmentInputs)(selected.check.environment_inputs, resolve(selected.root, selected.check.root));
+  } catch (error) {
+    return { id, kind, outcome: "couldn't run", reason: error instanceof Error ? error.message : String(error) };
+  }
   const bound = bindNativeEnvironment(io, capture);
   const executed = await executeNativeSelectedCheck({ ...selected, environmentIdentity: capture.identity }, bound, request).then(
     result => ({ ok: true as const, result }), (error: unknown) => ({ ok: false as const, error }));
-  const cleaned = await capture.dispose().then(() => true, () => false);
+  const cleanup = await capture.dispose().then(() => undefined, (error: unknown) => error instanceof Error ? error.message : String(error));
   if (!executed.ok) throw executed.error;
-  if (cleaned) return executed.result;
-  return { ...executed.result, notice: [executed.result.notice,
-    "frozen input cleanup failed; repair temporary storage access and retry cleanup"].filter(Boolean).join("; ") };
+  if (cleanup === undefined) return executed.result;
+  return { ...executed.result, notice: [executed.result.notice, cleanup].filter(Boolean).join("; ") };
 }
 
 async function executeRoutedSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
@@ -485,9 +501,7 @@ async function executeRoutedSelectedCheck(selected: SelectedCheck, io: DeclaredC
     request: selected.coordinates, check, paths, configuration, globalRuntimeInputs: definition.global_runtime_inputs,
     onOutput: output => { outputs.push(Buffer.from(output.bytes)); },
     onDiagnostic: bytes => { outputs.push(Buffer.from(bytes)); } });
-  if (prepared.status !== "ready") return { id, kind, outcome: "couldn't run", reason: `${configuration.file}: checks.runner: ${prepared.reason}`,
-    ...(prepared.status === "unavailable" && prepared.cleanupWarning !== undefined ? { notice: prepared.cleanupWarning } : {}),
-    remedy: prepared.status === "unavailable" ? prepared.remedy : retainedRunnerRemedy(prepared.retained), remedyKind: "runner" };
+  if (prepared.status !== "ready") return unpreparedRoutedCheck(selected, configuration, prepared);
   const execution = prepared.execution;
   let closing: Promise<CheckExecutionClosure> | undefined;
   const close = () => closing ??= execution.close();
@@ -508,6 +522,18 @@ async function executeRoutedSelectedCheck(selected: SelectedCheck, io: DeclaredC
     return await finalizeRoutedCheck(selected, io, request,
       { result, closure, output: Buffer.concat(outputs).toString("utf8"), key, startedAt });
   } finally { await close(); }
+}
+
+/** Attribute a refused or uncertain preparation to the caller's inputs or the configured runner. */
+function unpreparedRoutedCheck(selected: SelectedCheck, configuration: MachineCheckRunnerConfiguration,
+  prepared: Exclude<CheckExecutionPreparation, { status: "ready" }>): DeclaredCheckResult {
+  const { id, kind } = selected;
+  const runnerReason = `${configuration.file}: checks.runner: ${prepared.reason}`;
+  if (prepared.status === "uncertain") {
+    return { id, kind, outcome: "couldn't run", reason: runnerReason, remedy: retainedRunnerRemedy(prepared.retained), remedyKind: "runner" };
+  }
+  return { id, kind, outcome: "couldn't run", reason: prepared.origin === "inputs" ? prepared.reason : runnerReason,
+    ...(prepared.cleanupWarning === undefined ? {} : { notice: prepared.cleanupWarning }), remedy: prepared.remedy, remedyKind: "runner" };
 }
 
 async function executeRoutedSingles(execution: PreparedCheckExecution, check: SelectedCheck["check"]): Promise<CheckInvocationReduction> {
@@ -531,8 +557,10 @@ async function finalizeRoutedCheck(selected: SelectedCheck, io: DeclaredCheckDep
   const finalized = await finalizeCheckRun({ ...selected, routed: true }, io, request,
     { evidence: result, output, incompleteWork: closure.status === "uncertain" ? [closure.reason] : [] }, key);
   const notice = [...result.notices, closure.status === "closed" ? closure.cleanupWarning : undefined].filter(Boolean).join("; ");
+  const remedy = closure.status === "uncertain" ? retainedRunnerRemedy(closure.retained)
+    : finalized.outcome === "couldn't run" && result.remedies.length > 0 ? result.remedies.join(" ") : undefined;
   return { ...finalized, costMs,
-    ...(closure.status === "uncertain" ? { remedy: retainedRunnerRemedy(closure.retained), remedyKind: "runner" as const } : {}),
+    ...(remedy === undefined ? {} : { remedy, remedyKind: "runner" as const }),
     ...(measurement === undefined ? {} : { logPath: measurement.logPath }), ...(notice ? { notice } : {}) };
 }
 
@@ -631,6 +659,11 @@ async function executeCheckBatches(io: DeclaredCheckDependencies, input: {
     for (const batch of batches) {
       const result = await io.execute([...command, ...batch], cwd, content, { shell: check.shell, indexFile });
       if (result.output) outputs.push(result.output);
+      // A terminal interrupt also reaches native children, so their status no longer describes a complete run.
+      if (io.interrupted?.()) {
+        outcomes.push({ kind: "unavailable", reason: "Check request was interrupted while this check ran; retry explicitly with a fresh request." });
+        break;
+      }
       outcomes.push(normalizeCheckInvocationOutcome(result.started ? { ...result, status: "completed" }
         : { status: "unavailable", reason: result.notRunReason ?? "Check process did not start.", notice: result.notice }, check.no_evidence_exit));
       if (!result.started || result.notRunReason !== undefined) break;

@@ -32,7 +32,8 @@ async function closeCapturedExecution(input: ExecutionLifetimeInput): Promise<Ch
   const retained = input.retained();
   const removalWarning = await disposeSettledExecutionInputs(input.dispose, [retained.sourceRoot, retained.manifest, ...retained.environmentFiles]);
   const cleanupWarning = [closure.status === "closed" ? closure.cleanupWarning : undefined, removalWarning].filter(Boolean).join("; ") || undefined;
-  return { status: "closed", exit: closure.exit, ...(cleanupWarning === undefined ? {} : { cleanupWarning }) };
+  return { status: "closed", exit: closure.exit, ...(cleanupWarning === undefined ? {} : { cleanupWarning }),
+    ...(closure.status === "unavailable" ? { unstarted: closure.reason } : {}) };
 }
 
 /** Remove inputs whose use is already settled, retaining actionable locations when local removal fails. */

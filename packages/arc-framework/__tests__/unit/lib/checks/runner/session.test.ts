@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { makeRunnerProtocolPlan, makeRunnerProtocolReady } from "../../../../fixtures/checks/runner-protocol.js";
 import { runnerStreamHarness, reply, recovery, prepare, completeRun } from "../../../../fixtures/checks/runner-streams.js";
+import { RunnerMessageFramer } from "../../../../../src/lib/checks/runner/session-framing.js";
 
 describe("runner session byte framing", () => {
   it("preserves split UTF-8, escaped newlines and coalesced frames before a correlated reply", async () => {
@@ -19,6 +20,17 @@ describe("runner session byte framing", () => {
     expect(h.notifications).toEqual([recovery]);
     await h.close();
     expect(h.session.failure).toBeUndefined();
+  });
+
+  it("frames lines within its bound and refuses an unterminated line that outgrows it", async () => {
+    const framer = new RunnerMessageFramer(128);
+    const messages: unknown[] = [];
+    const consume = async (message: unknown) => { messages.push(message); };
+    const message = { jsonrpc: "2.0", method: "check/recovery", params: { planId: makeRunnerProtocolPlan().planId, instructions: "inspect" } };
+    await framer.accept(Buffer.from(`${JSON.stringify(message)}\n`), consume);
+    expect(messages).toEqual([message]);
+    await framer.accept(Buffer.alloc(100, 0x20), consume);
+    await expect(framer.accept(Buffer.alloc(29, 0x20), consume)).rejects.toThrow("longer than 128 bytes; repair the runner");
   });
 
   it.each([

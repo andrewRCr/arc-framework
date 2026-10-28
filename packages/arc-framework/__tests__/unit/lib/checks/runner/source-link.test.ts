@@ -44,6 +44,16 @@ it.each(["relative escape", "absolute target", "linked dangling prefix", "linked
     try { expect(await readFile(join(retry.root, "link"), "utf8")).toBe("contained bytes"); } finally { await retry.remove(); }
   });
 
+it.each([".git/config", "nested/../.GIT/HEAD"])("refuses link %s into replaced repository administration", async target => {
+  const { root, io, owned } = await fixture();
+  await mkdir(join(root, ".git")); await writeFile(join(root, ".git", "config"), "[core]\n");
+  await mkdir(join(root, "nested"));
+  await symlink(target, join(root, "link"), "file");
+  await expect(freezeSourcePresentation(root, Buffer.from("link\0"), coordinates, io))
+    .rejects.toThrow(/link.*repository administration.*repair.*retry.*local.*explicit/iu);
+  for (const directory of owned) await expect(access(directory)).rejects.toMatchObject({ code: "ENOENT" });
+});
+
 it("refuses an unresolved Windows link type with a concrete local remedy", async () => {
   const { root, io, owned } = await fixture();
   await symlink("missing", join(root, "link"), "file");

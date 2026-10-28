@@ -11,11 +11,12 @@ import { makeGitProcessError, scriptGitExec, scriptRawGitExec } from "../../../h
 import { createCheckPassStore } from "../../../../src/lib/checks/record.js";
 import { captureEnvironmentInputs } from "../../../../src/lib/checks/environment-inputs.js";
 import { nodeEnvironmentCaptureIO } from "../../../../src/lib/checks/environment-file.js";
+import type { PreparedCheckExecution } from "../../../../src/lib/checks/runner/execution.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 
-async function fixture(checks: Record<string, { runner?: boolean; fixes?: boolean; no_evidence_exit?: number; mode?: "files" | "selection"; root?: string; runtime_inputs?: string[][]; inputs?: string[]; gate?: "commit" | "push"; ci_only?: boolean; cache?: boolean; environment_inputs?: Record<string, "value" | "file"> }>, failSecondTreeWrite = false, globals: { global_runtime_inputs?: string[][] } = {}) {
+async function fixture(checks: Record<string, { runner?: boolean; fixes?: boolean; no_evidence_exit?: number; mode?: "files" | "selection"; root?: string; runtime_inputs?: string[][]; inputs?: string[]; gate?: "commit" | "push"; ci_only?: boolean; cache?: boolean; environment_inputs?: Record<string, "value" | "file">; shards?: { count: number; argument: string } }>, failSecondTreeWrite = false, globals: { global_runtime_inputs?: string[][] } = {}) {
   const root = await mkdtemp(join(tmpdir(), "arc-check-scheduling-"));
   roots.push(root);
   await mkdir(join(root, ".git"));
@@ -67,25 +68,81 @@ async function frozenInputFixture(root: string, io: DeclaredCheckDependencies, c
   return { original, owned };
 }
 
-it("keeps completed evidence and refuses queued checks after request interruption", async () => {
+it("keeps completed evidence, publishes no pass for a check the interruption reached and refuses queued checks", async () => {
   const { root, io, ids } = await fixture({ first: {}, later: {}, last: {} });
   let interrupted = false;
   io.interrupted = () => interrupted;
   io.execute = async command => {
     await writeFile(join(root, `${command[0]}.started`), "started");
-    interrupted = true;
-    return { started: true, exitCode: 0, output: "completed before interruption" };
+    // A terminal interrupt reaches the running native child too, which may still exit zero.
+    if (command[0] === "later") interrupted = true;
+    return { started: true, exitCode: 0, output: "exited zero" };
   };
-  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids }, serial: true })).resolves.toMatchObject({
+  const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids }, serial: true });
+  expect(result).toMatchObject({
     kind: "result", exitCode: 2, result: { checks: [
-      { id: "first", outcome: "passed", output: "completed before interruption" },
-      { id: "later", outcome: "couldn't run", reason: expect.stringContaining("interrupted before dispatch") },
+      { id: "first", outcome: "passed", output: "exited zero" },
+      { id: "later", outcome: "couldn't run", reason: expect.stringContaining("interrupted while this check ran") },
       { id: "last", outcome: "couldn't run", reason: expect.stringContaining("interrupted before dispatch") },
     ] },
   });
-  expect(await readFile(join(root, "first.started"), "utf8")).toBe("started");
-  await expect(readFile(join(root, "later.started"))).rejects.toMatchObject({ code: "ENOENT" });
+  if (result.kind !== "result") throw new Error(result.error.message);
+  expect(result.result.checks.filter(check => check.outcome === "passed").map(check => check.id)).toEqual(["first"]);
+  expect(await readFile(join(root, "later.started"), "utf8")).toBe("started");
   await expect(readFile(join(root, "last.started"))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("forecasts a routed dry run without the native batches and shards the runner never executes", async () => {
+  const { root, io, ids } = await fixture({ remote: { runner: true, shards: { count: 2, argument: "--shard={index}" } }, local: {} });
+  io.readRunnerConfiguration = async check => check.runner ? { file: "machine.yml", argv: ["adapter"] } : undefined;
+  const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids }, dryRun: true });
+  if (result.kind !== "result") throw new Error(result.error.message);
+  const [local, remote] = ["local", "remote"].map(id => result.result.checks.find(check => check.id === id));
+  expect(remote).toMatchObject({ outcome: "would run", cwd: ".", reason: expect.stringContaining("does not prepare") });
+  expect(remote).not.toHaveProperty("batches");
+  expect(remote).not.toHaveProperty("shards");
+  expect(local).toMatchObject({ outcome: "would run", batches: [["local"]] });
+});
+
+it("reports an interrupted request's unselected checks by their selection rather than as unrun", async () => {
+  const { root, io, ids } = await fixture({ selected: { mode: "selection" }, ordinary: {} });
+  io.readProjectedSelection = () => Promise.resolve({ status: "ok", paths: [] });
+  io.interrupted = () => true;
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids }, serial: true })).resolves.toMatchObject({
+    kind: "result", exitCode: 2, result: { checks: [
+      { id: "selected", outcome: "not selected", reason: "no files to check" },
+      { id: "ordinary", outcome: "couldn't run", reason: expect.stringContaining("interrupted before dispatch") },
+    ] },
+  });
+});
+
+it("reports a native explicit-input capture failure as that check's result and still runs its siblings", async () => {
+  const { root, io, ids } = await fixture({ inputs: { environment_inputs: { WEIGHTS: "file" } }, other: {} });
+  io.captureEnvironment = async () => { throw new Error("WEIGHTS is not a readable regular file; repair the file input and retry."); };
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids }, serial: true })).resolves.toMatchObject({
+    kind: "result", exitCode: 2, result: { checks: [
+      { id: "inputs", outcome: "couldn't run", reason: expect.stringContaining("repair the file input") },
+      { id: "other", outcome: "passed" },
+    ] },
+  });
+});
+
+it("carries the runner's remedy for an invocation it reports it could not run", async () => {
+  const { root, io, ids } = await fixture({ remote: { runner: true } });
+  io.readRunnerConfiguration = async () => ({ file: "machine.yml", argv: ["adapter"] });
+  const unavailable = { status: "unavailable" as const, reason: "No compatible placement", remedy: "Free a provider worker and retry." };
+  const execution: Partial<PreparedCheckExecution> = { contextId: "context", runtime: undefined, supportsRunGroup: false,
+    plan: { invocations: [{ id: "only", cwd: ".", shell: false, argv: ["remote"] }], probes: { global: [], check: [] } },
+    run: async id => ({ status: "settled", outcomes: new Map([[id, unavailable]]),
+      settlement: { contextId: "context", settled: true, outputComplete: true, invocationIds: [id] } }),
+    close: async () => ({ status: "closed", exit: { started: true, exitCode: 0 } }) };
+  io.prepareExecution = () => Object.assign(Promise.resolve({ status: "ready" as const, execution: execution as PreparedCheckExecution }), {
+    planId: "726ea270-cdb4-49d0-8e30-de4ffb6d4566", retained: undefined, cancel: async () => undefined, terminate: () => undefined,
+  });
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
+    kind: "result", exitCode: 2, result: { checks: [{ outcome: "couldn't run", reason: expect.stringContaining("No compatible placement"),
+      remedy: expect.stringMatching(/^Free a provider worker and retry\. Then run /u), remedyKind: "runner" }] },
+  });
 });
 
 it("reports settled input cleanup trouble alongside unavailable preparation", async () => {
@@ -94,7 +151,7 @@ it("reports settled input cleanup trouble alongside unavailable preparation", as
   await writeFile(artifact, "settled input");
   const cleanupWarning = `Remove the settled captured inputs manually: ${artifact}`;
   io.readRunnerConfiguration = async () => ({ file: "machine.yml", argv: ["adapter"] });
-  io.prepareExecution = () => Object.assign(Promise.resolve({ status: "unavailable" as const,
+  io.prepareExecution = () => Object.assign(Promise.resolve({ status: "unavailable" as const, origin: "runner" as const,
     reason: "Preparation was cancelled and settled", remedy: "Retry with a fresh attempt.", cleanupWarning }), {
     planId: "726ea270-cdb4-49d0-8e30-de4ffb6d4566", retained: undefined,
     cancel: async () => undefined, terminate: () => undefined,

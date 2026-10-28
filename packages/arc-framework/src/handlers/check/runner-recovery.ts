@@ -5,7 +5,7 @@ import type { RetainedCheckExecution } from "../../lib/checks/runner/execution.j
 export function retainedRunnerRemedy(retained: RetainedCheckExecution): string {
   const context = retained.contextId === undefined ? "" : `, context ${JSON.stringify(retained.contextId)}`;
   const inputs = retained.environmentFiles.length === 0 ? "" : `; explicit files ${retained.environmentFiles.map(path => JSON.stringify(path)).join(", ")}`;
-  return [`Inspect and settle plan ${retained.planId}${context}, adapter ${JSON.stringify(retained.adapter)}.`,
+  return [`Inspect and settle plan ${retained.planId}${context}, adapter ${retained.adapter.map(argument => JSON.stringify(argument)).join(" ")}.`,
     `Retained source ${JSON.stringify(retained.sourceRoot)}; manifest ${JSON.stringify(retained.manifest)}${inputs}.`,
     retained.recovery ?? "Use the provider's attempt inspection procedure before removing retained inputs.",
     "Repair the runner and retry with a fresh attempt."].join(" ");

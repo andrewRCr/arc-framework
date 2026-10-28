@@ -24,7 +24,7 @@ function selectedEntries(bytes: Uint8Array): { mode: string; oid: string; path: 
 function verifyKind(mode: string, entry: SourceManifestEntry): void {
   if (mode === "120000") {
     if (entry.kind !== "symlink") throw new SourceCaptureError("Selected source link cannot be preserved as a literal link");
-  } else if (entry.kind !== "file" || (entry.mode & 0o111) !== (mode === "100755" ? 0o111 : 0)) {
+  } else if (entry.kind !== "file" || ((entry.mode & 0o100) !== 0) !== (mode === "100755")) {
     throw new SourceCaptureError("Selected source file kind or executable mode cannot be preserved");
   }
 }

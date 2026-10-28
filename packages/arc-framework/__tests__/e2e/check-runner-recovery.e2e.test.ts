@@ -172,6 +172,7 @@ it.runIf(process.platform === "linux")("reports retained context recovery when c
   const check = JSON.parse(result.stdout).result.checks[0];
   expect(check).toMatchObject({ outcome: "couldn't run" });
   expect(check.remedy).toMatch(/Inspect and settle plan [a-f0-9-]{36}, context /u);
+  expect(check.remedy).toContain(`adapter ${[process.execPath, proxy, example, "bad-close", captures].map(argument => JSON.stringify(argument)).join(" ")}.`);
   expect(check.remedy).toContain(source.root);
   expect(check.remedy).toContain(source.manifest);
   expect(check.remedy).toContain("--inspect");

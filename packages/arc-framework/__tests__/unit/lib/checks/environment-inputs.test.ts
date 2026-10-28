@@ -114,7 +114,7 @@ describe("explicit environment capture", () => {
     expect(await readFile(join(root, "original"), "utf8")).toBe("keep me");
   });
 
-  it("redacts disposal failures and supports cleanup retry after access is repaired", async () => {
+  it("names owned storage without raw disposal errors and supports cleanup retry after access is repaired", async () => {
     const root = await mkdtemp(join(tmpdir(), "arc-env-dispose-retry-"));
     roots.push(root);
     await writeFile(join(root, "original"), "keep me");
@@ -127,12 +127,23 @@ describe("explicit environment capture", () => {
       } };
     const capture = await captureEnvironmentInputs({ INPUT: "file" }, root, { environment: { INPUT: "original" }, io });
     const failed = capture.dispose();
-    await expect(failed).rejects.toThrow(/frozen environment inputs.*retry cleanup/u);
-    await expect(failed).rejects.not.toThrow(owned);
+    await expect(failed).rejects.toThrow(`Could not remove frozen environment inputs at ${JSON.stringify(owned)}; remove that directory manually.`);
+    await expect(failed).rejects.not.toThrow(/EACCES/u);
     unavailable = false;
     await expect(capture.dispose()).resolves.toBeUndefined();
     await expect(capture.dispose()).resolves.toBeUndefined();
     expect(await readFile(join(root, "original"), "utf8")).toBe("keep me");
+  });
+
+  it.each(["createDirectory", "openOutput"] as const)("attributes a %s failure to temporary storage rather than the input", async operation => {
+    const root = await mkdtemp(join(tmpdir(), "arc-env-storage-failure-"));
+    roots.push(root);
+    await writeFile(join(root, "original"), "readable");
+    const io = { ...nodeEnvironmentCaptureIO,
+      [operation]: async () => { throw Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC" }); } };
+    const failed = captureEnvironmentInputs({ INPUT: "file" }, root, { environment: { INPUT: "original" }, io });
+    await expect(failed).rejects.toThrow(/INPUT: temporary storage could not hold a frozen copy; repair temporary storage access and retry/u);
+    await expect(failed).rejects.not.toThrow(/repair the file input|ENOSPC/u);
   });
 
   it("preserves valid own environment names and does not capture inherited object properties", async () => {

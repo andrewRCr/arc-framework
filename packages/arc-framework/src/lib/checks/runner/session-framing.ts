@@ -1,10 +1,16 @@
 /** Strict UTF-8 NDJSON framing independent of stream chunk boundaries. */
 import { parseRunnerMessage, type RunnerMessage } from "./contract.js";
 
+/** Largest protocol line ARC buffers from an adapter, far above any valid message. */
+export const MAX_RUNNER_FRAME_BYTES = 128 * 1024 * 1024;
+
 /** Preserve partial byte sequences until a complete newline-delimited message arrives. */
 export class RunnerMessageFramer {
   private parts: Uint8Array[] = [];
   private bytes = 0;
+  private readonly limit: number;
+
+  constructor(limit = MAX_RUNNER_FRAME_BYTES) { this.limit = limit; }
 
   /** Deliver complete frames in order, including required asynchronous consumers. */
   async accept(chunk: Uint8Array, consume: (message: RunnerMessage) => Promise<void>): Promise<void> {
@@ -32,6 +38,9 @@ export class RunnerMessageFramer {
 
   private append(part: Uint8Array): void {
     if (part.length === 0) return;
+    if (this.bytes + part.length > this.limit) {
+      throw new Error(`Runner emitted a JSON-RPC line longer than ${this.limit} bytes; repair the runner and retry the check request.`);
+    }
     this.parts.push(part);
     this.bytes += part.length;
   }

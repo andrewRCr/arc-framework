@@ -142,7 +142,9 @@ function expectedSeedPath(envelope) {
 }
 
 // Resolve the ARC root the way the `arc` CLI's resolveArcRoot does: walk up from
-// the hook's base dir to the nearest ancestor containing `.arc/`. The seed is
+// the hook's base dir to the nearest ancestor whose `.arc/` marks a project
+// (machine configuration alone, `.arc/config.yml` without `.arc/system/`, does
+// not). The seed is
 // written under that root (the emitter resolves it identically), which is not
 // necessarily the raw base dir when the hook runs from a subdirectory or a linked
 // worktree — so matching this walk-up keeps expectedSeedPath equal to the emitter's
@@ -151,7 +153,8 @@ function expectedSeedPath(envelope) {
 function arcRoot(startDir) {
   let dir = resolve(startDir);
   for (;;) {
-    if (existsSync(join(dir, ".arc"))) return dir;
+    const marker = join(dir, ".arc");
+    if (existsSync(marker) && (!existsSync(join(marker, "config.yml")) || existsSync(join(marker, "system")))) return dir;
     const parent = dirname(dir);
     if (parent === dir) return resolve(startDir);
     dir = parent;

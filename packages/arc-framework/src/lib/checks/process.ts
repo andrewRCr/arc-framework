@@ -4,8 +4,7 @@ import { constants, tmpdir } from "node:os";
 import { join } from "node:path";
 import { execa } from "execa";
 import { environmentForGitCwd, sanitizeGitRepositoryEnvironment } from "../git/process-executor.js";
-import { CHECK_EXECUTION_ENVIRONMENT } from "./environment-policy.js";
-import type { CheckContentContext } from "../../handlers/check/run.js";
+import { CHECK_EXECUTION_ENVIRONMENT, type CheckContentContext } from "./environment-policy.js";
 
 /** The exit status a shell reports for a command a signal ended: 128 plus the signal's number. */
 function signalExitCode(signal: NodeJS.Signals | undefined): number | undefined {

@@ -2,7 +2,7 @@
 import type { EnvironmentInputDeclarations } from "./environment-declaration.js";
 import { createHash } from "node:crypto";
 import { join, resolve } from "node:path";
-import { captureEnvironmentFile, EnvironmentFileCaptureError, nodeEnvironmentCaptureIO,
+import { captureEnvironmentFile, EnvironmentFileCaptureError, EnvironmentStorageError, nodeEnvironmentCaptureIO,
   type EnvironmentCaptureIO } from "./environment-file.js";
 
 /** A captured input's literal presence or frozen file descriptor. */
@@ -40,7 +40,7 @@ function capturedBindingValue(binding: CapturedBinding): string | undefined {
 }
 
 /** Digest captured values and file bytes without transport or original file paths. */
-export function capturedEnvironmentIdentity(bindings: Readonly<Record<string, CapturedBinding>>): string {
+function capturedEnvironmentIdentity(bindings: Readonly<Record<string, CapturedBinding>>): string {
   const entries = Object.entries(bindings).sort(([first], [second]) => first < second ? -1 : first > second ? 1 : 0)
     .map(([name, binding]) => ({ name, kind: binding.kind, state: binding.state,
       ...(binding.kind === "value" && binding.state === "set" ? { value: binding.value } : {}),
@@ -55,7 +55,9 @@ async function captureBinding(
 ): Promise<CapturedBinding> {
   if (kind === "value") return value === undefined ? { kind, state: "unset" } : { kind, state: "set", value };
   if (value === undefined || value === "") return { kind, state: value === undefined ? "unset" : "empty" };
-  context.directory ??= await context.io.createDirectory();
+  context.directory ??= await context.io.createDirectory().catch((cause: unknown) => {
+    throw new EnvironmentStorageError("temporary storage could not hold a frozen copy", { cause });
+  });
   const file = await captureEnvironmentFile(context.io, resolve(context.cwd, value), join(context.directory, `${index}.input`));
   return { kind, state: "file", ...file };
 }
@@ -78,15 +80,18 @@ export async function captureEnvironmentInputs(
   } catch (cause) {
     const cleanup = context.directory === undefined ? undefined : await context.io.removeDirectory(context.directory)
       .then(() => "", () => " Temporary cleanup also failed.");
-    const reason = cause instanceof EnvironmentFileCaptureError ? cause.message : "file could not be read or copied";
-    throw new Error(`Could not capture environment_inputs binding ${currentName}: ${reason}; repair the file input and retry the check request.${cleanup ?? ""}`, { cause });
+    const repair = cause instanceof EnvironmentStorageError ? "repair temporary storage access" : "repair the file input";
+    const reason = cause instanceof EnvironmentFileCaptureError || cause instanceof EnvironmentStorageError
+      ? cause.message : "file could not be read or copied";
+    throw new Error(`Could not capture environment_inputs binding ${currentName}: ${reason}; ${repair} and retry the check request.${cleanup ?? ""}`, { cause });
   }
   const bindings = Object.freeze(Object.fromEntries(entries.map(([name, binding]) => [name, Object.freeze(binding)])));
   let disposed = false;
   return { bindings, identity: capturedEnvironmentIdentity(bindings), dispose: async () => {
     if (disposed) return;
-    if (context.directory !== undefined) await context.io.removeDirectory(context.directory).catch((cause: unknown) => {
-      throw new Error("Could not dispose frozen environment inputs; repair temporary storage access and retry cleanup.", { cause });
+    const directory = context.directory;
+    if (directory !== undefined) await context.io.removeDirectory(directory).catch((cause: unknown) => {
+      throw new Error(`Could not remove frozen environment inputs at ${JSON.stringify(directory)}; remove that directory manually.`, { cause });
     });
     disposed = true;
   } };
