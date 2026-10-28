@@ -33,9 +33,13 @@ it.each([
     ["__proto__", "value"], ["constructor", "file"]]);
   const check = CheckDeclarationSchema.parse({ checks: { check: {
     command: ["check"], mode, environment_inputs: bindings,
+    shards: { count: 3, argument: "--shard={index}/{count}", routed: true },
   } } }).checks.check!;
   const forecast = resolveCheckForecast(check, resolve("repository"), [...paths], process.platform);
   expect(forecast.environmentInputs).toEqual(bindings);
+  expect(forecast.shards?.map(({ index }) => index)).toEqual([1, 2, 3]);
+  expect(forecast.shards?.map(({ batches }) => batches.length)).toEqual(mode === "files" && paths.length === 0
+    ? [0, 0, 0] : [1, 1, 1]);
   check.environment_inputs.CHECK_MODE = "file";
   expect(forecast.environmentInputs.CHECK_MODE).toBe("value");
 });

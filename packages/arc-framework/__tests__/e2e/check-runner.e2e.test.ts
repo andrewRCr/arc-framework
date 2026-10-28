@@ -297,6 +297,7 @@ it("forecasts configured reuse as requiring preparation without probes or explic
   const probe = `require('node:fs').appendFileSync(${JSON.stringify(probeReceipt)},'probe\\n');process.stdout.write('same')`;
   const root = await createDeclaredCheckRepository({ example: { runner: true, inputs: ["src/**"],
     command: [process.execPath, "-e", "process.stdout.write('native pass')"], runtime_inputs: [[process.execPath, "-e", probe]],
+    shards: { count: 3, argument: "--shard={index}/{count}", routed: true },
     environment_inputs: { PRIVATE_FILE: "file" } } });
   directories.push(root);
   const privateFile = join(root, "input.secret");
@@ -307,13 +308,21 @@ it("forecasts configured reuse as requiring preparation without probes or explic
     ...(dryRun ? ["--dry-run"] : []), ...(json ? ["--json"] : [])], root, { env: environment });
   expect(JSON.parse((await run(false)).stdout).result.checks[0].outcome).toBe("passed");
   expect(JSON.parse((await run(false)).stdout).result.checks[0].outcome).toBe("reused");
+  const nativePreview = JSON.parse((await run(true)).stdout).result.checks[0] as { batches: string[][];
+    shards: { index: number; batches: string[][] }[] };
+  expect(nativePreview.batches).toEqual([[process.execPath, "-e", "process.stdout.write('native pass')"]]);
+  expect(nativePreview.shards).toEqual([1, 2, 3].map(index => ({
+    index, batches: [[...nativePreview.batches[0]!, `--shard=${index}/3`]],
+  })));
   const probesBefore = await readFile(probeReceipt, "utf8");
   await writeFile(join(machine.home, ".arc/config.yml"), configuration);
   await rm(privateFile);
   const preview = await run(true);
   expect(preview.exitCode, preview.stdout + preview.stderr).toBe(0);
-  const check = JSON.parse(preview.stdout).result.checks[0] as { reason?: string };
+  const check = JSON.parse(preview.stdout).result.checks[0] as { reason?: string; batches?: string[][]; shards?: unknown };
   expect(check).toMatchObject({ outcome: "would run", environmentInputs: { PRIVATE_FILE: "file" } });
+  expect(check.batches).toBeUndefined();
+  expect(check.shards).toBeUndefined();
   expect(check.reason).toMatch(/reuse.*requires.*preparation/iu);
   const text = await run(true, false);
   expect(text.exitCode, text.stdout + text.stderr).toBe(0);

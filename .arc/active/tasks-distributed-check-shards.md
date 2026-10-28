@@ -192,7 +192,7 @@ _Mode:_ `slice` through Phase 4 — closes on native tier coverage and completio
   retain shared immutable dependencies while giving Vite mutable roots private ancestors; existing teardown and
   worker-cleanup failures still fail after passing cases.
 
-### `[ ]` **3.2 Preserve forecast and late-bound native CI shard inputs — D3, D9**
+### `[x]` **3.2 Preserve forecast and late-bound native CI shard inputs — D3, D9**
 
 - _Goal:_ Forecasts and native CI playback preserve declared shard placement and bind actual delivered inputs at
   dispatch, without accidentally routing through a second capture path or freezing setup-time absence.
@@ -202,14 +202,13 @@ _Mode:_ `slice` through Phase 4 — closes on native tier coverage and completio
           check, including shard-expanded jobs. Process cases preserve final shard/report arguments and cwd;
           declaration mismatches refuse with regeneration guidance and execute after repair.
 
-    - `[ ]` **3.2.b Keep forecast/dry-run paths descriptive and side-effect bounded**
-        - Extend forecast and selected-check tests for both native playback and a configured routed check. The
-          routed dry-run bound already exists in `executeRoutedSelectedCheck`; extend its tests to an opted-in
-          sharded check.
-        - Build `test-first` (one behavior at a time):
-            - Routed dry-run does not allocate capture/context, start a worker or probe a runtime; reuse remains
-              unknown when qualification would require preparation.
-            - Ordinary CI matrix size/placement and unconfigured native behavior remain unchanged by local routing.
+    - `[x]` **3.2.b Keep forecast/dry-run paths descriptive and side-effect bounded**
+        - Opted-in selected-check previews retain native shard forecasts without routing, then report unknown
+          routed reuse without capture, adapter startup or probes. Sharded environment metadata preserves only
+          names/kinds, including empty file selections, while native CI expansion remains independent of opt-in.
+
+- _Outcome:_ Forecasts preserve the native CI matrix and defer explicit-input capture until actual dispatch.
+  Configured routed previews omit native argv and require preparation for reuse rather than borrowing a local hit.
 
 ### `[ ]` **3.3 Exercise consumer portability and exact native Windows statuses — D3, D6, D7**
 
