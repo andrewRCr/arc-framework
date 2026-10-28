@@ -327,9 +327,14 @@ parser: it runs no write check, and its read codec already decodes the Candidate
 that returns their keys (`decodeTrackedContent`, `lib/store/in-repo/read-codec.ts`). Neither parser therefore joins the
 in-repo backend's static import closure, whose deferred modules a test pins (`in-repo-boundary.test.ts`).
 
+Amended 2026-10-27 — A18 admits the two ordinary extra-pass continuation corrections in § 5.5 in both storage
+arms before the flip, extending Goal 8 and Criterion 2's exceptions and the pass-policy and pre-flip behavior
+exclusions above. Pass counts, source eligibility, grant reach, record shapes, and all other admission rules stay fixed.
+
 ### 3. Before the flip
 
-The review gate's behavior is unchanged until the flip, with one exception (§ 3.2).
+The review gate's behavior is unchanged until the flip, with the checkpoint exception (§ 3.2) and the two
+ordinary extra-pass continuation corrections in § 5.5 (A18).
 
 #### 3.1 Candidate and boundary callers through the contract
 
@@ -931,6 +936,22 @@ Git's proof that its range follows a converged pass, its `correctionScope` namin
 (`predecessorProducerId`), so it spends none and its outcome's `admittedBy` stays empty. Its finished outcome still
 advances the logical count against which any later grant's applicability is checked. Both write the same record, and no
 rule of this change tells them apart.
+
+The following two corrections apply in both storage arms (A18). `bindReviewPolicyContinuationEvidence` currently
+clears attempts on its fresh post-response route while copying the request's ceiling override. That route drops an
+ordinary override whose admitted logical pass has finished; the original decision and terminal-result replay retain
+its evidence. A matching unconsumed ceiling or conditional approved-fix authorization stays available to the one pass
+it admits. The incremental fix check receives no new complete-pass permission from this cleanup. Pre-publication's
+stored judgment projection must not reintroduce the spent override when it composes that next-pass route.
+
+For an elective additional pass, the predecessor is the latest immutable finished producer at the exact target and
+logical count, verified by `bindReviewPolicyEvidence`, independently of whether its source supports the requested
+successor scope. `lastEligibleAttempt` currently filters by that new scope before `invalidAdditionalPassReason`
+compares the predecessor. Whole-target to chunked and chunked to whole-target changes preserve the verified
+predecessor and its convergence facts, while the next attempt still uses only a source eligible for its own scope.
+Foreign producers, changed targets, mismatching counts, and reused grants refuse without spending a pass;
+correcting the request or supplying matching live authority restores the supported continuation. Ordinary and
+approved-fix decision schemas, keys, recorded author provenance, bindings, and consumption rules remain unchanged.
 
 An `approved-fix` extra pass is also consumed by the attempt citing it (§ 4.6), checked when the attempt is admitted,
 before the pass runs, as `bindConditionalPendingAdmission` checks it today: a consumed pass admits only a retry after an
@@ -2517,6 +2538,14 @@ spec's review copy until the candidate tail deletes it (§ 12.5).
     Public command inputs, version-one repository records and outputs, and corrective request payloads retain their
     existing shapes.
 
+18. **Ordinary extra-pass continuations retain their one-pass boundary (A18).** After a performed Candidate fix,
+    public pre-publication re-entry drops the completed pass's spent ceiling override and admits the separately
+    authorized incremental fix check without authorizing another complete pass. Valid unconsumed conditional authority
+    remains usable. An authorized complete successor preserves the immutable predecessor across whole-target/chunked
+    scope changes in either direction, while foreign producer, changed target, count mismatch, and reused grant
+    refusals remain effective and repaired inputs resume. These checks run against repository and native composition;
+    native replay retains the original decision key and recorded author and writes no replacement grant.
+
 ## Open Questions
 
 None blocks starting. The rest are expected contracts with stated availability, and none leaves design open: the ref
@@ -2581,5 +2610,8 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
   _Trigger:_ 6.2.a must-stop. _Work:_ 6.2.R. _Revalidated:_ pending → 6.6.
 - **A17** — 2026-10-20 — design: retain native terminus provenance. _Supersedes:_ § 3.5, § 9.3, Goal 8, Criterion 2.
   _Trigger:_ 6.2.b must-stop. _Work:_ 6.2.R2. _Revalidated:_ pending → 6.6.
+
+- **A18** — 2026-10-27 — design: fix pass continuation. _Supersedes:_ § 3/5.5, Goal 8, Non-Goals ¶1/5, Criterion 2.
+  _Trigger:_ door. _Work:_ 6.R. _Revalidated:_ pending → 8.1.
 
 ---

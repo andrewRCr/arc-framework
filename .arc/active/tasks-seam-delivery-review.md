@@ -1088,6 +1088,8 @@ this phase puts publication's claim and reopen's boundary write in their transit
   boundary names the terminus it carries by key, carrying or dropping it where today's writers carry or drop the
   terminus.
 
+- _Amended in:_ 6.R (A18)
+
     - `[x]` **6.2.R Retain ordinary grant policy bindings and relay keys**
 
         - _Goal:_ Ordinary extra-pass decisions retain whether their original grant bound repository and PR or binds
@@ -1266,6 +1268,24 @@ this phase puts publication's claim and reopen's boundary write in their transit
   authority. Export-only successor proof retains approved-fix and hosted continuations; old tracked projections keep
   imported subject identity. Native delivery acknowledgment and replay preserve exact verification without record
   effects, while the repository arms retain their existing behavior.
+
+### `[ ]` **6.R Preserve ordinary extra-pass continuations — § 5.5 (A18)**
+
+- _Goal:_ A spent ceiling override cannot block the next approved fix check or authorize another complete pass, and
+  an additional-pass decision retains its exact verified predecessor across successor scope changes, in both storage
+  arms, without changing decision records, pass counts, source eligibility, or one-pass authority (A18).
+
+    - `[ ]` **6.R.a Drop spent ceiling authority from the post-fix route**
+        - Build `test-first`: reproduce public pre-publication re-entry after a completed overridden pass and a
+          performed fix, then remove only the spent override from the fresh successor route. Preserve terminal replay,
+          valid unconsumed conditional authority and its exact retries; native composition retains the stored key
+          without recreating a decision. Prove the incremental repair check runs without granting a complete pass.
+    - `[ ]` **6.R.b Preserve the verified predecessor across scope changes**
+        - Build `test-first`: admit a clean whole-target predecessor's authorized chunked complete successor and the
+          reverse transition through public composition over both storage arms. Bind predecessor validation to the
+          immutable terminal rather than the successor source's scope eligibility; keep next-source selection scoped.
+          Retain recorded author provenance; refuse foreign producer, changed target, count mismatch and reused authority,
+          and prove continuation after repair. Keep ordinary and conditional decision contracts unchanged.
 
 ### `[x]` **6.6 The Candidate and its boundary** — validate exit criterion at segment scope
 
@@ -1462,6 +1482,10 @@ prerequisites have landed, and every earlier task is independent of the remainin
   `review/decision` record.
 
 - `[ ]` Adding, re-exporting, and deleting the review copy leave the review subject unchanged.
+
+- `[ ]` Ordinary extra-pass continuation cleanup drops spent ceiling authority before a post-fix incremental
+  check without granting another complete pass; additional-pass predecessor binding survives scope changes in both
+  directions, with original native decision identity, one-pass restrictions and repaired refusals preserved (A18).
 
 - `[ ]` From the flip, a landed merge writes the landing-commit link naming the project ID.
 

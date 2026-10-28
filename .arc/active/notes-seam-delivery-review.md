@@ -661,6 +661,35 @@ The mapping and its keys, ordinary/approved-fix grants, and repository terminus 
 additive amendment pointer for its native output embeddings; completed mapping scenarios retain their recorded
 outcomes. The task checklist also mirrors the already-approved ordinary-grant criterion from A16.
 
+## A18 — Ordinary extra-pass continuation validity
+
+Two adopted captures concern the public use of D5 ordinary decisions rather than their stored shape:
+`Drop consumed complete-pass overrides from post-fix continuations` and the scope-change predecessor capture.
+
+The settled scope said each lane "admits, counts, and stops passes as today" and excluded changing the review gate's
+behavior before the flip. A18 narrowly supersedes those exclusions for the two corrections. Existing § 5.5's one-pass
+consumption, § 5.6's reach, and § 4.3's distinct logical and complete-coverage counts remain binding. The correction
+requires no new record or public schema: it changes which already-verified authority the continuation projects.
+
+`bindReviewPolicyContinuationEvidence` preserves a request's override when it clears attempts for fresh continuation;
+`resolveInvalidOverrideReason` then reads it as authority for the next logical pass. Ordinary native ceiling
+resolution retains the prior grant at its admitted count for terminal replay, so pre-publication must distinguish
+that replay from fresh incremental admission. `invalidAdditionalPassReason` compares against `lastEligibleAttempt`,
+which filters using successor scope and can discard the actual predecessor even after immutable evidence binding.
+
+Propagation: 6.2's stored decision implementation gains the additive amendment pointer. The 6.6 scenario's attestation,
+withdrawal, readiness, re-root and retirement evidence remains valid; it did not exercise either newly adopted case.
+Terminal verification covers the appended criterion after 6.R's focused public-path regressions. Tasks 7.5 and 7.7
+retain the independent provider dependency. No Phase 8 work is advanced by this detour.
+
+The Candidate staging-recovery capture stays held until cutover: Task 6.5.a already makes `appendCandidateResponse`
+and `stageCandidateResponse` skip Candidate-record staging natively. The repository arm retains that failure path;
+a legacy-only remedy remains a separately authorized Errand if it is needed before cutover.
+
+Author checks: source-grounding and spec-review cover § 3/5.5, surrounding § 4.3/5.6 and the new criterion; task-audit
+covers 6.R and its neighbors at grounding-only depth. The correction is determinate at low amendment depth, so the
+independent planning offer is omitted by `planning-review`; no independent review is claimed.
+
 ## Neighbors
 
 The spec names no other work unit. These are the ones its descriptive references mean, and what each owns where it
