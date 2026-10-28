@@ -151,16 +151,15 @@ context/capture under the specified lifecycle. The unconfigured command remains 
           Sharded pre-context loss, repeated interrupts and standalone descendant inspection/settlement preserve
           recovery ownership without duplicate execution. Refused recovery delivery launches no preparation probe.
 
-### `[ ]` **2.5 Prove the public consumer lifecycle** — validate exit criterion at segment scope
+### `[x]` **2.5 Prove the public consumer lifecycle** — validate exit criterion at segment scope
 
 - _Goal:_ Executable production-entry scenarios prove the segment's complete public-consumer lifecycle and preserve
   the unconfigured native default before native/provider breadth is added.
 
-    - Run process-backed selected-check scenarios using the standalone adapter and scripted peers: group/basic
-      equivalence, fixed inputs, known/unknown reuse, hit release, completed failure beside missing work,
-      no-context refusal/retry, cancellation and lost-conversation retention.
-    - Request `arc check segment` and record the executed scenarios, native parent results and observed resource
-      closure. A failed scenario needs separate corrective work, not edits hidden in this evidence sink.
+- _Outcome:_ Production-entry scenarios exercised group/basic playback, fixed source and inputs, whole-parent reuse,
+  native failure beside missing siblings, refusal/retry and interruption. Publication waited for provider closure;
+  uncertain captures survived for explicit recovery, while settled groups and cache hits released their resources.
+  Unconfigured checks remained native and unsharded.
 
 ## **Phase 3:** Private native writers and unchanged CI playback
 
