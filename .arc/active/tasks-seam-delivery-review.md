@@ -1274,6 +1274,7 @@ this phase puts publication's claim and reopen's boundary write in their transit
 - _Goal:_ A spent ceiling override cannot block the next approved fix check or authorize another complete pass, and
   an additional-pass decision retains its exact verified predecessor across successor scope changes, in both storage
   arms, without changing decision records, pass counts, source eligibility, or one-pass authority (A18).
+    - _Amended in:_ 6.R2 (A19)
 
     - `[x]` **6.R.a Drop spent ceiling authority from the post-fix route**
         - Fresh continuation and pre-publication relay omit finished-pass ceiling authority while terminal replay and
@@ -1285,6 +1286,18 @@ this phase puts publication's claim and reopen's boundary write in their transit
           immutable terminal rather than the successor source's scope eligibility; keep next-source selection scoped.
           Retain recorded author provenance; refuse foreign producer, changed target, count mismatch and reused authority,
           and prove continuation after repair. Keep ordinary and conditional decision contracts unchanged.
+
+### `[ ]` **6.R2 Bind complete successors of clean fix checks — § 5.5 (A19)**
+
+- _Goal:_ A verified clean incremental fix check can bind an ordinary additional-pass grant for the next complete
+  pass under `full-final`, retaining exact predecessor evidence without satisfying final coverage or changing counts,
+  source eligibility, grant records, or one-use authority (A19).
+
+- Build `test-first`: drive public pre-publication and local preparation in both storage arms through a clean fix
+  check and an authorized complete successor, changing scope in both directions. Bind repository authority before
+  continuation projection; retain native decision keys and recorded authors. Keep incomplete final coverage and
+  pending responses distinct from convergence; refuse foreign or stale producer, target/count mismatch, incremental
+  successor and spent authority, and prove the supported continuation after repair.
 
 ### `[x]` **6.6 The Candidate and its boundary** — validate exit criterion at segment scope
 
@@ -1560,3 +1573,8 @@ prerequisites have landed, and every earlier task is independent of the remainin
   nullable recorded author, and stored pass-count basis without new acceptance or a second decision. Native policy
   outputs preserve that projection while the boundary stores only its key; invalid authority refuses and recovers
   after repair. Public command and corrective payloads and version-one repository behavior remain unchanged (spec, A17).
+
+- `[ ]` A verified clean incremental fix check under `full-final` retains its exact predecessor when ordinary
+  additional-pass authority admits the required complete successor, including scope changes in either direction,
+  in both storage arms. Its final-coverage signal remains false; invalid bindings, unresolved convergence or responses,
+  incremental successors, and spent grants refuse, while matching inputs resume (spec, A19).

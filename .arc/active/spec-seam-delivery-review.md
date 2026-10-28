@@ -331,10 +331,14 @@ Amended 2026-10-27 — A18 admits the two ordinary extra-pass continuation corre
 arms before the flip, extending Goal 8 and Criterion 2's exceptions and the pass-policy and pre-flip behavior
 exclusions above. Pass counts, source eligibility, grant reach, record shapes, and all other admission rules stay fixed.
 
+Amended 2026-10-28 — A19 also permits a verified clean incremental fix check to bind ordinary authority for the
+required complete final successor (§ 5.5), in both storage arms. The incremental result remains insufficient final
+coverage; every other admission rule excluded above remains fixed.
+
 ### 3. Before the flip
 
 The review gate's behavior is unchanged until the flip, with the checkpoint exception (§ 3.2) and the two
-ordinary extra-pass continuation corrections in § 5.5 (A18).
+ordinary extra-pass continuation corrections in § 5.5 (A18), including the clean fix-check clarification (A19).
 
 #### 3.1 Candidate and boundary callers through the contract
 
@@ -952,6 +956,16 @@ predecessor and its convergence facts, while the next attempt still uses only a 
 Foreign producers, changed targets, mismatching counts, and reused grants refuse without spending a pass;
 correcting the request or supplying matching live authority restores the supported continuation. Ordinary and
 approved-fix decision schemas, keys, recorded author provenance, bindings, and consumption rules remain unchanged.
+
+A verified clean incremental fix check may bind an ordinary additional-pass grant for the required complete final
+successor (A19). `deriveVerifiedTerminalSignal` keeps that result's `coverageAdequate` false under `full-final`;
+`deriveReviewNextPassContext` separately establishes convergence. Where the exact terminal is verified clean,
+coverage is incremental, the obligation is `full-final`, the derived context is converged with no response due, and
+the successor is complete, `invalidAdditionalPassReason` permits that predecessor without claiming final coverage.
+The continuation retains its immutable attempts for grant validation; repository pre-publication binds additional
+authority before choosing a fresh route, as native composition already does. The complete pass still runs and alone
+advances the complete-coverage count. Foreign or stale producers, changed targets, count mismatches, incremental
+successors, unconverged repairs, pending responses, and reused grants gain no authority from this exception.
 
 An `approved-fix` extra pass is also consumed by the attempt citing it (§ 4.6), checked when the attempt is admitted,
 before the pass runs, as `bindConditionalPendingAdmission` checks it today: a consumed pass admits only a retry after an
@@ -2546,6 +2560,12 @@ spec's review copy until the candidate tail deletes it (§ 12.5).
     refusals remain effective and repaired inputs resume. These checks run against repository and native composition;
     native replay retains the original decision key and recorded author and writes no replacement grant.
 
+19. **Clean fix checks bind the required complete successor (A19).** Over both storage arms, a verified clean
+    incremental fix check under `full-final` retains its original producer when an ordinary additional-pass grant
+    authorizes the next complete pass, including scope changes in either direction. Its terminal coverage remains
+    insufficient for final review; the next complete pass remains required. Invalid bindings, unresolved convergence
+    or response obligations, incremental successors, and spent authority refuse, while matching inputs resume.
+
 ## Open Questions
 
 None blocks starting. The rest are expected contracts with stated availability, and none leaves design open: the ref
@@ -2613,5 +2633,8 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
 
 - **A18** — 2026-10-27 — design: fix pass continuation. _Supersedes:_ § 3/5.5, Goal 8, Non-Goals ¶1/5, Criterion 2.
   _Trigger:_ door. _Work:_ 6.R. _Revalidated:_ pending → 8.1.
+
+- **A19** — 2026-10-28 — design: bind clean fix-check successors. _Supersedes:_ § 3/5.5, Goal 8, Criterion 2.
+  _Trigger:_ 6.R.b must-stop. _Work:_ 6.R2. _Revalidated:_ pending → 8.1.
 
 ---

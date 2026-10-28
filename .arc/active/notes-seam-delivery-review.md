@@ -690,6 +690,25 @@ Author checks: source-grounding and spec-review cover § 3/5.5, surrounding § 4
 covers 6.R and its neighbors at grounding-only depth. The correction is determinate at low amendment depth, so the
 independent planning offer is omitted by `planning-review`; no independent review is claimed.
 
+## A19 — A clean fix check and its complete successor
+
+The public regression for 6.R.b reproduces two distinct refusals. Repository composition applies additional
+judgment in `applyPrePublicationExtraPassJudgment` after `bindReviewPolicyContinuationEvidence` has selected a fresh
+route and cleared attempts, causing `preceding-producer-mismatch`. Native composition binds the grant earlier, but
+`deriveVerifiedTerminalSignal` reports inadequate final coverage for the incremental result, and
+`invalidAdditionalPassReason` uses that flag as convergence, causing `pass-not-converged`.
+
+A18 retained "all other admission rules" and preserved the shipped pass policy. A19 supersedes that restriction only
+for the approved clean fix-check case: repository-derived convergence may authorize the required complete successor
+while the result's final-coverage signal remains false. Exact target, ordinal, immutable producer, source selection,
+recorded author, and consumed-grant checks remain binding. The exception admits no incremental successor and never
+settles final coverage. No command-input field or record schema is added.
+
+The amendment is a determinate correction at low depth. Source-grounding and spec-review cover § 3/5.5, surrounding
+§ 4.3/5.1/5.6, and appended Criterion 19; task-audit grounds 6.R2 against the real public regression. Reader independence
+and binding completeness are checked over that footprint. The independent planning offer is omitted at low depth.
+The original 6.6 scenario and later provider-dependent tasks are unaffected; 8.1 remains the next covering verifier.
+
 ## Neighbors
 
 The spec names no other work unit. These are the ones its descriptive references mean, and what each owns where it
