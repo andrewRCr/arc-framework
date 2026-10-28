@@ -14,10 +14,11 @@
 
 - **Current Workflow:** `process-task-loop`
 - **Last Completed:** [none]
-- **Next Task:** Task 1.1.a — Compose canonical batch/shard coordinates and invocation records (line ~25)
+- **Next Task:** Task 1.1.a — Compose canonical batch/shard coordinates and invocation records (line ~27)
 - **Blockers:** [none]
 
-- **Next Action:** Wait for machine-check-runner to land; then re-ground its qualified exports and begin Task 1.1.a.
+- **Next Action:** Start Task 1.1.a. Before Task 4.3, confirm `storage-ref-backend` has landed and merge `main`; if
+  not, stop and report per the 4.3 note.
 
 - **PR URL:** [none]
 - **Completed:** [none]
