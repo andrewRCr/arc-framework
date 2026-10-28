@@ -44,7 +44,8 @@ it("selects the local E2E tier for a declaration-only change", async () => {
   await writeFile(join(root, path), `${declaration}\n# Declaration-only change\n`);
   expect((await git("git", ["diff", "--name-only"], { cwd: root })).stdout.trim()).toBe(path);
 
-  const result = await runArc(["check", "run", "test:e2e:local", "--changed", "--dry-run", "--json"], root);
+  const result = await runArc(["check", "run", "test:e2e:local", "--changed", "--dry-run", "--json"], root,
+    { env: { HOME: root, USERPROFILE: root } });
   expect(result.exitCode, result.stdout + result.stderr).toBe(0);
   const checks = JSON.parse(result.stdout).result.checks;
   expect(checks).toMatchObject([{ id: "test:e2e:local", outcome: "would run" }]);
