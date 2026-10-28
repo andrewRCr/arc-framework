@@ -100,10 +100,13 @@ describe("final-head convergence", () => {
     await expect(resolveEvidenceBoundReviewPolicy(request, dependencies)).resolves.toMatchObject({ state: "pass-complete" });
   });
 
-  it("refuses elective-pass authority over a fix check that has not closed the lane", async () => {
+  it("binds ordinary authority to the complete successor without settling final coverage", async () => {
     const { request, dependencies, result } = await fixture();
     await expect(resolveEvidenceBoundReviewPolicy({ ...request, additionalPassAuthorization: {
       target: request.target, lane: "standard", precedingProducerId: result.producerId, completedPasses: 2, nextPass: 3,
-    } }, dependencies)).resolves.toMatchObject({ state: "invalid-override", payload: { reason: "pass-not-converged" } });
+    } }, dependencies)).resolves.toMatchObject({ state: "ready", nextAction: "hosted-request", payload: { pass: 3 } });
+    await expect(resolveEvidenceBoundReviewPolicy(request, dependencies)).resolves.toMatchObject({
+      state: "coverage-required", payload: { verifiedTerminalSignal: { coverageAdequate: false } },
+    });
   });
 });

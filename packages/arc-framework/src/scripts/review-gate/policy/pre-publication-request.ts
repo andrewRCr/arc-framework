@@ -851,7 +851,9 @@ export async function composePrePublicationReviewRequest(
         : dependencies.confirmPriorProducerApplicability(input.workUnit, predecessor, exactTarget, currentLineage, policyTarget),
       ...await readCandidateCorrectionContext(dependencies, input.workUnit, policy.sources),
     });
-    return bindReviewPolicyContinuationEvidence(policyInput, {
+    const continuationInput = applyPrePublicationExtraPassJudgment(policyInput, { lane, policyTarget, judgment,
+      native: dependencies.resolveExtraPassJudgment !== undefined, frontlineCeilingHeadSha: input.frontlineCeilingHeadSha });
+    return bindReviewPolicyContinuationEvidence(continuationInput, {
       terminalResponsePerformed: evidenceDependencies.terminalResponseSettled,
     }, { ...evidenceDependencies, nextPassContext });
   };

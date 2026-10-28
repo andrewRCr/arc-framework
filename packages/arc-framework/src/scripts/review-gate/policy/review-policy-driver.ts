@@ -18,6 +18,8 @@ import {
   ReviewAdditionalPassAuthorizationSchema,
   ReviewPolicyTargetSchema,
   invalidAdditionalPassReason,
+  isCleanFixCheckCompleteSuccessor,
+  verifiedAdditionalPassPredecessor,
 } from "./review-additional-pass.js";
 export { ReviewAdditionalPassAuthorizationSchema } from "./review-additional-pass.js";
 export type { ReviewAdditionalPassAuthorization } from "./review-additional-pass.js";
@@ -63,9 +65,13 @@ interface ReviewPassProgressInput {
   completedPasses: number;
   attempts: readonly ReviewAttempt[];
   scopeSelection?: { mode: z.infer<typeof ReviewScopeModeSchema> };
+  additionalPassAuthorization?: { precedingProducerId: string };
+  verifiedTerminalSignal?: VerifiedTerminalReviewSignal;
 }
 
 function lastEligibleAttempt(request: ReviewPassProgressInput): ReviewAttempt | undefined {
+  const predecessor = verifiedAdditionalPassPredecessor(request);
+  if (predecessor !== undefined) return predecessor;
   const scope = request.scopeSelection?.mode ?? "whole-target";
   for (let index = request.attempts.length - 1; index >= 0; index -= 1) {
     const attempt = request.attempts[index];
@@ -85,7 +91,11 @@ function validateTerminalPassProgress(
   if (lastAttempt === undefined) return;
   const terminalOutcome = lastAttempt.outcome === "clean"
     || lastAttempt.outcome === "findings";
+  const predecessorFromAnotherScope = verifiedAdditionalPassPredecessor(request) !== undefined
+    && sourceDiagnostic(lastAttempt.sourceId, request.lane, request.scopeSelection?.mode ?? "whole-target",
+      request.target.pullRequest)?.code === "source-scope-ineligible";
   if (terminalOutcome
+    && !predecessorFromAnotherScope
     && request.scopeSelection?.mode === "chunked"
     && lastAttempt.chunkSeriesComplete !== true) {
     context.addIssue({
@@ -95,7 +105,8 @@ function validateTerminalPassProgress(
     });
   }
   const completedTerminalPass = terminalOutcome
-    && (request.scopeSelection?.mode !== "chunked" || lastAttempt.chunkSeriesComplete === true);
+    && (predecessorFromAnotherScope
+      || request.scopeSelection?.mode !== "chunked" || lastAttempt.chunkSeriesComplete === true);
   if (completedTerminalPass && request.completedPasses === 0) {
     context.addIssue({
       code: "custom",
@@ -275,11 +286,12 @@ function validateConfiguredAttempts(
 ): number {
   let previousSourceIndex = -1;
   const scope = request.scopeSelection?.mode ?? "whole-target";
+  const predecessor = verifiedAdditionalPassPredecessor(request);
   for (const [attemptIndex, attempt] of request.attempts.entries()) {
     const sourceIndex = request.sources.indexOf(attempt.sourceId);
     const diagnostic = sourceDiagnostic(attempt.sourceId, request.lane, scope, request.target.pullRequest);
     const historicalScopeAttempt = diagnostic?.code === "source-scope-ineligible"
-      && attempt.outcome !== "clean" && attempt.outcome !== "findings";
+      && ((attempt.outcome !== "clean" && attempt.outcome !== "findings") || attempt === predecessor);
     if (sourceIndex <= previousSourceIndex) {
       context.addIssue({
         code: "custom",
@@ -737,6 +749,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       authorization: request.additionalPassAuthorization,
       terminal: lastAttempt,
       signal: request.verifiedTerminalSignal,
+      successor: request,
     });
   if (invalidOverrideReason !== null) {
     return resolveEnvelope({
@@ -802,7 +815,8 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
     if (!signal.coverageAdequate && request.terminus !== undefined && request.nextPassContext?.responseDue === false) {
       return ownerAcceptedEnvelope(request, scope);
     }
-    if (!signal.coverageAdequate) {
+    if (!signal.coverageAdequate
+      && !(request.additionalPassAuthorization !== undefined && isCleanFixCheckCompleteSuccessor(request))) {
       return resolveEnvelope({
         state: "coverage-required",
         nextAction: "select-coverage",

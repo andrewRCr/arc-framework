@@ -379,6 +379,28 @@ describe("evidence-bound review policy", () => {
     });
   });
 
+  it.each([false, true])("retains a whole-target predecessor for a chunked additional pass (native=%s)", async native => {
+    const result = cleanHostedResult();
+    const request = { ...cleanRequest(result), scopeSelection: { mode: "chunked" as const, target: policyTarget },
+      additionalPassAuthorization: { target: policyTarget, lane: "standard" as const,
+        precedingProducerId: result.producerId, completedPasses: 1, nextPass: 2 } };
+    const evidence = {
+      ...dependencies(result), sources: ["codex-pr", "delegated-agent"], selectionSources: ["delegated-agent"], maxPasses: 1,
+      ...(native ? { stateOffBranch: true as const } : {}),
+    };
+    for (const [authorization, reason] of [
+      [{ ...request.additionalPassAuthorization, precedingProducerId: "foreign-producer" }, "preceding-producer-mismatch"],
+      [{ ...request.additionalPassAuthorization, completedPasses: 0 }, "pass-count-mismatch"],
+      [{ ...request.additionalPassAuthorization, target: { ...policyTarget, headSha: "f".repeat(40) } }, "target-mismatch"],
+    ] as const) {
+      await expect(resolveEvidenceBoundReviewPolicyContinuation({ ...request, additionalPassAuthorization: authorization },
+        { terminalResponsePerformed: false }, evidence)).resolves.toMatchObject({ state: "invalid-override", payload: { reason } });
+    }
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: false }, evidence))
+      .resolves.toMatchObject({ state: "ready", nextAction: "local-prepare",
+      payload: { pass: 2, scope: "chunked", sourceId: "delegated-agent", ceilingOverrideApplied: true } });
+  });
+
   it("waits for the approved minor response before an elective successor pass", async () => {
     const result = findingsHostedResult(["minor"]);
     const record = approvedRecord(result, [{

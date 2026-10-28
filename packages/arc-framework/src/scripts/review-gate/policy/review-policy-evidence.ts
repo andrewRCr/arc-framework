@@ -1,5 +1,6 @@
 /** Evidence composition for terminal review-policy attempts. */
 
+import { isCleanFixCheckCompleteSuccessor } from "./review-additional-pass.js";
 import type { ReviewNextPassContext } from "./review-next-pass-schema.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
 
@@ -509,13 +510,15 @@ export function continuationChoice(input: {
   terminal: ReviewResolveEnvelope;
   additionalPass: ReviewResolveEnvelope | null;
   terminalOutcome?: string;
+  completeFixCheckSuccessor?: boolean;
   currentResponsePerformed: boolean;
   coverageSelected: boolean;
   nextPassContext?: ReviewNextPassContext;
   retrigger?: "none" | "full-final" | "incremental";
 }): "terminal" | "additional" | "fresh" {
   const { terminal, additionalPass, terminalOutcome, currentResponsePerformed, coverageSelected } = input;
-  if (additionalPass !== null && terminal.state === "pass-complete"
+  if (additionalPass !== null && (terminal.state === "pass-complete"
+    || (terminal.state === "coverage-required" && input.completeFixCheckSuccessor === true))
     && (terminalOutcome === "clean" || currentResponsePerformed)) return "additional";
   if (terminal.state === "findings" && currentResponsePerformed) return "fresh";
   const completeSuccessor = input.retrigger === "full-final"
@@ -584,6 +587,7 @@ export async function bindReviewPolicyContinuationEvidence(
   );
   const choice = continuationChoice({
     terminal, additionalPass, terminalOutcome: terminalAttempt?.outcome,
+    completeFixCheckSuccessor: isCleanFixCheckCompleteSuccessor(boundTerminal),
     currentResponsePerformed, coverageSelected: response.coverageSelected === true,
     nextPassContext: dependencies.nextPassContext, retrigger: request.standardReview.retrigger,
   });

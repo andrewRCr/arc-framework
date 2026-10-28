@@ -1269,7 +1269,7 @@ this phase puts publication's claim and reopen's boundary write in their transit
   imported subject identity. Native delivery acknowledgment and replay preserve exact verification without record
   effects, while the repository arms retain their existing behavior.
 
-### `[ ]` **6.R Preserve ordinary extra-pass continuations — § 5.5 (A18)**
+### `[x]` **6.R Preserve ordinary extra-pass continuations — § 5.5 (A18)**
 
 - _Goal:_ A spent ceiling override cannot block the next approved fix check or authorize another complete pass, and
   an additional-pass decision retains its exact verified predecessor across successor scope changes, in both storage
@@ -1280,24 +1280,22 @@ this phase puts publication's claim and reopen's boundary write in their transit
         - Fresh continuation and pre-publication relay omit finished-pass ceiling authority while terminal replay and
           unspent conditional authority retain their bindings. Public re-entry after a performed fix admits the
           incremental check in both storage arms, preserving native grant records without granting a complete pass.
-    - `[ ]` **6.R.b Preserve the verified predecessor across scope changes**
-        - Build `test-first`: admit a clean whole-target predecessor's authorized chunked complete successor and the
-          reverse transition through public composition over both storage arms. Bind predecessor validation to the
-          immutable terminal rather than the successor source's scope eligibility; keep next-source selection scoped.
-          Retain recorded author provenance; refuse foreign producer, changed target, count mismatch and reused authority,
-          and prove continuation after repair. Keep ordinary and conditional decision contracts unchanged.
+    - `[x]` **6.R.b Preserve the verified predecessor across scope changes**
+        - Additional-pass validation retains the verified immutable terminal independently of successor source scope,
+          while fresh selection remains scoped and incomplete local chunk aggregates still refuse. Foreign producer,
+          changed target and count mismatches refuse; matching inputs resume. Public transitions in both directions
+          retain native decision keys and recorded authors, with no replacement grant.
 
-### `[ ]` **6.R2 Bind complete successors of clean fix checks — § 5.5 (A19)**
+### `[x]` **6.R2 Bind complete successors of clean fix checks — § 5.5 (A19)**
 
 - _Goal:_ A verified clean incremental fix check can bind an ordinary additional-pass grant for the next complete
   pass under `full-final`, retaining exact predecessor evidence without satisfying final coverage or changing counts,
   source eligibility, grant records, or one-use authority (A19).
 
-- Build `test-first`: drive public pre-publication and local preparation in both storage arms through a clean fix
-  check and an authorized complete successor, changing scope in both directions. Bind repository authority before
-  continuation projection; retain native decision keys and recorded authors. Keep incomplete final coverage and
-  pending responses distinct from convergence; refuse foreign or stale producer, target/count mismatch, incremental
-  successor and spent authority, and prove the supported continuation after repair.
+- _Outcome:_ Clean incremental results bind their required complete successors without satisfying final coverage.
+  Repository pre-publication binds authority before continuation projection; native replay preserves the original
+  decision. Both scope directions prepare and complete the successor, spent native keys refuse, and repaired re-entry
+  returns to settled review. Incremental successors, pending responses and unconverged findings remain inadmissible.
 
 ### `[x]` **6.6 The Candidate and its boundary** — validate exit criterion at segment scope
 

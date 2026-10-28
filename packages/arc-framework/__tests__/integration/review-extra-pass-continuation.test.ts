@@ -47,7 +47,7 @@ async function subject(native: boolean) {
   await mkdir(join(cwd, ".arc/system"), { recursive: true });
   await writeFile(join(cwd, ".arc/system/arc-config.yml"),
     "branch.base: main\nreview.standard_sources: [delegated-agent]\nreview.standard_max_passes: 1\n");
-  await writeFile(join(cwd, ".gitignore"), ".arc/system/.internal/\n.arc/user/\n");
+  await writeFile(join(cwd, ".gitignore"), ".arc/system/.internal/worktree-marker.json\n.arc/user/\n");
   await writeFile(join(cwd, "source.ts"), "export const value = 0;\n");
   await git("add", "."); await git("commit", "-m", "Configure project");
   await git("push", "origin", "main");
@@ -154,13 +154,13 @@ async function subject(native: boolean) {
   if (!native) { await git("add", "."); await git("commit", "-m", "Record response"); }
   expect(await readIncrementalPredecessorResponseEvidence(result, context.family.ports.dispositions,
     predecessor => readLaneResponsePerformance(context.family.ports.inFlight, predecessor))).toMatchObject({ status: "performed" });
-  const prepublish = async (judgments: unknown) => {
+  const prepublish = async (judgments: unknown, expectedExits: number[] = []) => {
     let output = ""; const exits: number[] = [];
     await handleReviewPrePublication(name, { selfReview: "settled", lanes: "lanes.json", changeSet: "facts.json" }, {
       resolveRoot: () => cwd, readText: async source => JSON.stringify(source === "facts.json"
         ? { changeSetState: "known", ...routingFacts } : judgments), write: text => { output += text; },
       setExitCode: code => exits.push(code) }, undefined, input);
-    expect(exits, output).toEqual([]);
+    expect(exits, output).toEqual(expectedExits);
     return JSON.parse(output);
   };
   let retained: ReviewLaneJudgment["ceilingOverride"] = spent;
@@ -171,7 +171,7 @@ async function subject(native: boolean) {
     if (grant === undefined) throw new Error("Expected the original ceiling decision");
     retained = { ...spent, decisionKey: reviewDecisionKey(grant.value) };
   }
-  return { ...input, candidate, result, spent: retained, context, prepublish };
+  return { ...input, candidate, result, spent: retained, context, prepublish, invoke, reader, routingFacts };
 }
 
 it.each([false, true])("public post-fix re-entry omits the consumed complete-pass override (native=%s)", async native => {
@@ -184,7 +184,63 @@ it.each([false, true])("public post-fix re-entry omits the consumed complete-pas
   };
   const before = await grants();
   const result = await h.prepublish({ frontline: { invocation: { mode: "skip" } }, standard: { ceilingOverride: h.spent } });
-  expect(result).toMatchObject({ locus: "candidate-review-pending", policy: { state: "ready", nextAction: "local-prepare",
+  expect(result, JSON.stringify(result)).toMatchObject({ locus: "candidate-review-pending", policy: { state: "ready", nextAction: "local-prepare",
     payload: { pass: 3, ceilingOverrideApplied: false } } });
   expect(await grants()).toEqual(before);
+}, 45_000);
+
+
+it.each([false, true].flatMap(native => (["whole-target", "chunked"] as const).map(fromScope => ({ native, fromScope,
+  toScope: fromScope === "whole-target" ? "chunked" as const : "whole-target" as const }))))(
+  "public additional pass retains its clean $fromScope fix-check predecessor for $toScope (native=$native)", async ({ native, fromScope, toScope }) => {
+  const h = await subject(native);
+  const request = { schemaVersion: 1, evaluatorIdentity: "independent-reviewer", routingFacts: h.routingFacts,
+    policyJudgment: { scopeMode: fromScope } };
+  const offer = LocalPrepareEnvelopeSchema.parse(await h.invoke(handleReviewLocalPrepare, request));
+  if (offer.state !== "coverage-required") throw new Error(JSON.stringify(offer));
+  const coverageAdmission = offer.payload.coverageSelectionAction.choices.find(choice => choice.requestedCoverage === "incremental");
+  if (coverageAdmission === undefined) throw new Error("Expected the approved fix-check choice");
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.invoke(handleReviewLocalPrepare, { ...request, coverageAdmission }));
+  if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
+  await h.invoke(handleReviewLocalAttest, localReviewResult(prepared.payload, "clean-fix-check", []));
+  await h.invoke(handleReviewReduce, { schemaVersion: 1, operationId: prepared.payload.operationId });
+  const predecessor = await h.reader.readResult(prepared.payload.operationId);
+  expect(predecessor).toMatchObject({ admission: { logicalPass: 3, scopeMode: fromScope, effectiveCoverage: "incremental" }, originalOutcome: "clean" });
+  let judgment: ReviewLaneJudgment = { scopeMode: toScope,
+    additionalPassAuthorization: { precedingProducerId: predecessor.producerId, headSha: predecessor.target.headSha,
+      completedPasses: 3, nextPass: 4 } };
+  const lanes = () => ({ frontline: { invocation: { mode: "skip" } }, standard: judgment });
+  const result = await h.prepublish(lanes());
+  expect(result, JSON.stringify(result)).toMatchObject({ locus: "candidate-review-pending", policy: { state: "ready", nextAction: "local-prepare",
+    payload: { pass: 4, scope: toScope, sourceId: "delegated-agent", ceilingOverrideApplied: true } } });
+  if (h.context.family.mode === "stored") {
+    const listing = await h.context.family.ports.decisions.list();
+    if (listing.status !== "complete") throw new Error(listing.reason);
+    const grant = listing.records.find(({ value }) => value.choice.kind === "extra-pass" && value.choice.passCount === 3
+      && value.choice.precondition.kind === "additional");
+    if (grant === undefined || judgment.additionalPassAuthorization === undefined) throw new Error("Expected the successor decision");
+    expect(grant.value.decidedBy).toBe("andrew");
+    judgment = { ...judgment, additionalPassAuthorization: { ...judgment.additionalPassAuthorization, decisionKey: reviewDecisionKey(grant.value) } };
+    expect(await h.prepublish(lanes())).toMatchObject({ policy: result.policy });
+    expect(await h.context.family.ports.decisions.list()).toEqual(listing);
+  }
+  const successor = LocalPrepareEnvelopeSchema.parse(await h.invoke(handleReviewLocalPrepare, { ...request,
+    policyJudgment: judgment, coverageAdmission: { requestedCoverage: "complete" } }));
+  expect(successor, JSON.stringify(successor)).toMatchObject({ state: "ready", payload: { request: { logicalPass: 4 } } });
+  if (successor.state !== "ready") throw new Error("Expected complete-successor preparation");
+  await h.invoke(handleReviewLocalAttest, localReviewResult(successor.payload, "clean-complete-successor", []));
+  await h.invoke(handleReviewReduce, { schemaVersion: 1, operationId: successor.payload.operationId });
+  const completed = await h.reader.readResult(successor.payload.operationId);
+  expect(completed).toMatchObject({ admission: { logicalPass: 4, scopeMode: toScope, effectiveCoverage: "complete" } });
+  if (h.context.family.mode === "stored") {
+    const key = judgment.additionalPassAuthorization?.decisionKey;
+    if (key === undefined) throw new Error("Expected the original decision key");
+    expect((await h.context.family.ports.decisions.read(key))?.value).toMatchObject({ decidedBy: "andrew",
+      choice: { passCount: 3, precondition: { kind: "additional", precedingProducerId: predecessor.producerId } } });
+    const refused = await h.prepublish(lanes(), [1]);
+    expect(refused).toMatchObject({ error: { code: "invalid-input" } });
+    expect(refused.error.message).toContain("matching live decision reference");
+  }
+  const settled = await h.prepublish({ frontline: { invocation: { mode: "skip" } } });
+  expect(["candidate-convergence-verification-pending", "candidate-publish-ready"]).toContain(settled.locus);
 }, 45_000);

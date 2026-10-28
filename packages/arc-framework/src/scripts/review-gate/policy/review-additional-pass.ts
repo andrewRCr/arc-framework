@@ -1,6 +1,8 @@
 /** Exact Owner authorization for another standard pass after convergence. */
 
 import { z } from "zod";
+import type { ReviewAttempt } from "./review-policy-attempt.js";
+import type { ReviewPolicyRequest } from "./review-policy-driver.js";
 
 import { GitObjectIdSchema, ReviewIdentifierSchema, ReviewCanonicalDigestSchema } from "../core/gate-contract-v2-schema.js";
 import { CompletedReviewPassCountSchema, ReviewPassSchema } from "../core/review-pass.js";
@@ -34,6 +36,35 @@ function convergedSignal(signal: { coverageAdequate: boolean; materialFix: boole
   return signal !== undefined && signal.coverageAdequate && !signal.materialFix;
 }
 
+/** Retain an immutable additional-pass predecessor independently of successor source eligibility. */
+export function verifiedAdditionalPassPredecessor(request: {
+  attempts: readonly ReviewAttempt[];
+  additionalPassAuthorization?: { precedingProducerId: string };
+  verifiedTerminalSignal?: { reviewOperationId: string };
+}): ReviewAttempt | undefined {
+  const terminal = request.attempts.at(-1);
+  return request.additionalPassAuthorization !== undefined
+    && (terminal?.outcome === "clean" || terminal?.outcome === "findings")
+    && request.verifiedTerminalSignal?.reviewOperationId === terminal.reviewOperationId
+    ? terminal : undefined;
+}
+
+type FixCheckSuccessorRequest = Pick<ReviewPolicyRequest, "lane" | "attempts" | "verifiedTerminalSignal"
+  | "standardReview" | "nextPassContext" | "chosenCoverage">;
+
+/** Recognize a verified clean incremental result that still requires its complete final successor. */
+export function isCleanFixCheckCompleteSuccessor(request: FixCheckSuccessorRequest): boolean {
+  const terminal = request.attempts.at(-1);
+  const signal = request.verifiedTerminalSignal;
+  return request.lane === "standard" && terminal?.outcome === "clean"
+    && signal?.reviewOperationId === terminal.reviewOperationId
+    && signal.effectiveCoverage === "incremental" && !signal.materialFix
+    && request.standardReview.retrigger === "full-final"
+    && request.nextPassContext?.convergence === "converged" && !request.nextPassContext.responseDue
+    && request.chosenCoverage !== "incremental"
+    && (request.chosenCoverage === "complete" || request.nextPassContext.incremental === null);
+}
+
 /**
  * Validate an elective pass against the exact latest converged producer and pass count.
  *
@@ -47,6 +78,7 @@ export function invalidAdditionalPassReason(input: {
   authorization?: ReviewAdditionalPassAuthorization;
   terminal?: { outcome: string; reviewOperationId?: string };
   signal?: { coverageAdequate: boolean; materialFix: boolean };
+  successor?: FixCheckSuccessorRequest;
 }): "target-mismatch" | "lane-mismatch" | "pass-count-mismatch" | "next-pass-mismatch"
   | "preceding-producer-mismatch" | "pass-not-converged" | null {
   const { authorization } = input;
@@ -59,7 +91,8 @@ export function invalidAdditionalPassReason(input: {
     || input.terminal.reviewOperationId !== authorization.precedingProducerId) {
     return "preceding-producer-mismatch";
   }
-  if (!convergedSignal(input.signal)) return "pass-not-converged";
+  if (!convergedSignal(input.signal)
+    && (input.successor === undefined || !isCleanFixCheckCompleteSuccessor(input.successor))) return "pass-not-converged";
   return null;
 }
 
