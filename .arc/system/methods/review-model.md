@@ -109,8 +109,8 @@ including at the cap, and obtain the separate approval before invoking a pass.
 ### Cadence and records
 
 Planning artifacts are small enough for a complete pass each time. Large code changes use complete passes on their
-policy's cadence with fix checks between. A full-final lane remains open after a clean fix check until a complete pass
-closes it. Incremental closure requires the policy's proved chain. Human review follows agentic review out of band
+policy's cadence with fix checks between. A full-final lane remains open after a converged fix check until a complete
+pass closes it. Incremental closure requires the policy's proved chain. Human review follows agentic review out of band
 and is never a pass.
 
 Keep each family's records separate: adversarial review retains its `review/adversarial-pass` record; code review uses

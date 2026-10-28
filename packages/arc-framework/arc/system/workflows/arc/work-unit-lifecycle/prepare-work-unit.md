@@ -109,9 +109,10 @@ bound source and obtain any approval still required; continue an existing approv
 disposition. Re-enter pre-publication only after durable response completion. The pass conclusion does not authorize
 publication while this response remains pending.
 
-**After a clean fix check.** Before source dispatch, or a non-null `reservation` at convergence verification or
-publication, run [code-review's successor decision][code-successor-decision]. This caller's available stop re-enters
-with `lanes.standard.terminus: { mode: "owner-accepted" }`; keep an unchanged accepted decision on re-entry.
+**After a converged fix check.** Before `arc review local prepare` or a hosted request admits the next look, and when a
+non-null `reservation` appears at convergence verification or publication, run [code-review's successor
+decision][code-successor-decision]. This caller's available stop re-enters with
+`lanes.standard.terminus: { mode: "owner-accepted" }`; keep an unchanged accepted decision on re-entry.
 
 The non-null `reservation` is the driver's `awaiting-change-request / open-change-request` continuation. Retain the
 hosted-first reservation when continuing review and follow the envelope through `candidate-publish-ready`.

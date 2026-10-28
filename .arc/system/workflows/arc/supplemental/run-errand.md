@@ -266,7 +266,7 @@ remote base all name the same exact head. Any tracked change continues through t
    targetless fields as `policyJudgment.additionalPassAuthorization` on local prepare. At the open PR, the exact
    `arc review status --target <targetRef> --additional-pass '<authorization>'` scope reports that outstanding review.
 
-   **Clean-fix-check successor.** Before standard source dispatch, apply [code-review's successor
+   **Converged-fix-check successor.** Before standard source dispatch, apply [code-review's successor
    decision][code-successor-decision] with the exact Errand subject. An open PR supplies the
    [Errand stop continuation][code-errand-stop]; before PR creation, supply this surface's explicit stop limit.
 
@@ -369,7 +369,7 @@ remote base all name the same exact head. Any tracked change continues through t
    Other outcomes continue below.
 
    Bind the opened target's `scopeSelection` directly to whole-target and invoke `arc review resolve -` for
-   each incomplete lane. Before either standard-lane ready source dispatch, apply the clean-fix-check successor check above.
+   each incomplete lane. Before either standard-lane ready source dispatch, apply the successor check above.
    If the Owner has directed that no further standard-review pass be spent, take the exact
    Owner-directed review stop below only from `ready / hosted-request`, `ready / local-prepare`, or
    `approval-required / obtain-ceiling-override`, or `coverage-required / select-coverage` once
