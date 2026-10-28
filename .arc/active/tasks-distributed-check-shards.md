@@ -230,6 +230,15 @@ _Mode:_ `slice` through Phase 4 — closes on native tier coverage and completio
             - Record a completed run of these cases on the Windows/macOS portability pair. PR classification alone
               is insufficient; the pair is scheduled or explicitly dispatched.
 
+        - `[x]` **3.3.b.1 Exercise actual native statuses in complete and interrupted shard parents**
+            - Existing process cases execute complete/interrupted three-shard groups and repaired serial playback,
+              asserting each native status and missing sibling. Actual status 137 retains declared no-evidence
+              precedence; platform-native results are exercised through the public parent and transport.
+
+        - `[ ]` **3.3.b.2 Record the Windows/macOS portability qualification**
+            - Push the qualified checkpoint, explicitly dispatch the existing portability pair and retain the
+              completed run's exact head and native status evidence.
+
 ## **Phase 4:** Native membership and completion qualification
 
 _Purpose:_ Observe native discovery and actual partition assignments, then qualify each tier's selection, evidence
