@@ -151,8 +151,9 @@ context/capture under the specified lifecycle. The unconfigured command remains 
 
     - `[ ]` **2.1.c Prove the production entry with a real adapter conversation**
         - Extend the process-backed fixtures in `__tests__/fixtures/checks/prepared-execution.ts` (including its
-          group modes) and `runner.ts`, and the standalone example in `examples/check-runner/`, for a tiny declared
-          check. Group faults use scripted peers through the same public wire, not injected final handler answers.
+          group modes) and `runner.ts`, and the standalone example in `packages/arc-framework/examples/check-runner/`,
+          for a tiny declared check. The example stays a basic adapter; group coverage and group faults use the
+          scripted process peers through the same public wire, not injected final handler answers.
         - Build `test-first` (one behavior at a time):
             - The real selected-check path prepares, executes two or more pairs and produces one parent result.
             - Group and basic playback preserve command/cwd/input meaning and produce equivalent parent evidence.
@@ -217,8 +218,9 @@ context/capture under the specified lifecycle. The unconfigured command remains 
   shared capture and actionable provider guidance without duplicate execution.
 
     - `[ ]` **2.4.a Consume settled preparation refusal without inventing a context**
-        - Forward the foundation's interruption channel during preparation and consume its no-context terminal
-          arm. Do not add another signal handler, release handshake, recovery operation or job store.
+        - The foundation's request-wide interruption (`src/lib/checks/runner/request-control.ts`) and no-context
+          terminal arm already serve its unsharded plan; consume them unchanged for a shard-expanded plan. Do not
+          add another signal handler, release handshake, recovery operation or job store.
         - Build `test-first` (one behavior at a time):
             - Unavailable preparation settles, replies and exits zero without a release request before disposal.
             - Cancellation racing that reply tolerates an unnecessary/late acknowledgement; missing settlement or
@@ -261,8 +263,9 @@ _Mode:_ `slice` through Phase 4 — closes on native tier coverage and completio
         - Each placement prepares a private copy and runs further siblings serially in it, so no views share an
           installation. Keep the default Vite `cacheDir` and workspace-relative reporters in the package's
           `vitest.config.ts`, and confirm they lie under roots the adapter's preparation establishes.
-        - Add a process-backed native fixture running two invocations serially in one prepared copy; assert the
-          second passes the adapter's per-invocation source verification and handed duration-input bytes stay fixed.
+        - Confirm the resolved cache and report locations, including Vite's results under
+          `node_modules/.vite/vitest`, by configuration and path inspection. The proof that a second sibling in one
+          prepared copy passes per-invocation verification runs in the external adapter against a real tier (5.1.a).
         - Configuration uses test-after feedback; do not replace native cache formats or weaken controller leases.
 
     - `[ ]` **3.1.b Keep CI duration collection aligned with the native cache path**
@@ -288,14 +291,18 @@ _Mode:_ `slice` through Phase 4 — closes on native tier coverage and completio
 
     - `[ ]` **3.2.a Consume shared expansion and dispatch-time binding in CI playback**
         - Reuse the landed foundation metadata/binding helper in `src/lib/ci-check-runner.ts`; extend its
-          integration tests around the consumer's final-argument expansion. No new CI schema or input binder is added.
+          integration tests around the consumer's final-argument expansion. Its binding and mismatch refusal already
+          exist; extend their tests to shard-expanded jobs rather than rewiring them. No new CI schema or input binder
+          is added.
         - Build `test-first` (one behavior at a time):
             - Setup forecasts contain names/kinds without payloads; playback receives the shared duration bytes
               delivered later and preserves native job/shard arguments, cwd and report destinations.
             - Forecast/declaration binding mismatch refuses with regeneration guidance, then succeeds after repair.
 
     - `[ ]` **3.2.b Keep forecast/dry-run paths descriptive and side-effect bounded**
-        - Extend forecast and selected-check tests for both native playback and a configured routed check.
+        - Extend forecast and selected-check tests for both native playback and a configured routed check. The
+          routed dry-run bound already exists in `executeRoutedSelectedCheck`; extend its tests to an opted-in
+          sharded check.
         - Build `test-first` (one behavior at a time):
             - Routed dry-run does not allocate capture/context, start a worker or probe a runtime; reuse remains
               unknown when qualification would require preparation.
@@ -316,9 +323,9 @@ _Mode:_ `slice` through Phase 4 — closes on native tier coverage and completio
               without widening ordinary tier selection or changing CI placement.
 
     - `[ ]` **3.3.b Exercise Windows process statuses through parent reduction on the portability pair**
-        - Add platform-aware cases on the Node scripted adapter fixture for 256 and a high-bit DWORD outcome,
-          retaining useful common completed cases on other platforms. No adapter routes checks on Windows; reuse the
-          foundation's native transport/status handling.
+        - `__tests__/e2e/check-runner-platform.e2e.test.ts` already retains 256 and high-bit statuses beside
+          incomplete work for one invocation; extend it to a shard-expanded parent rather than adding a parallel
+          fixture. No adapter routes checks on Windows; reuse the foundation's native transport/status handling.
         - Build `test-first` (one behavior at a time):
             - Exact Windows status survives as a completed parent failure, including beside missing work; POSIX
               signal handling and declared no-evidence precedence retain their existing meanings.
@@ -367,8 +374,9 @@ through controller closing. Store qualification uses the native reach command la
           available/absent/empty duration states. Check exact membership, not only subprocess success.
 
     - `[ ]` **4.2.b Qualify integration through its native controller**
-        - Set `shards.routed: true` on `test:integration` in `.arc/system/arc-checks.yml`; `test:unit` stays
-          opted out and routes one unsharded command.
+        - Set `shards.routed: true` on `test:integration` in `.arc/system/arc-checks.yml` and declare
+          `ARC_TEST_DURATION_FILE: file` in its `environment_inputs`, so every sibling partitions from one captured
+          duration state. `test:unit` stays opted out and routes one unsharded command.
         - Exercise the tier's actual setup/execution/closing path under its normal gate/CI selection rules;
           retain runtime artifact ownership and private output locations.
         - Verify complete/disjoint membership and fixed handed inputs; preserve unmatched-name, all-skipped and
@@ -455,9 +463,40 @@ the external adapter retains generic use outside ARC and native test tools.
               wait and run serially in an already prepared copy instead of a second upload to that placement.
             - Each placement satisfies its prepared runtime binding or refuses before affected work; unknown
               coverage still executes without reuse. Existing generic single execution remains usable.
+            - A placement running a second sibling of a real native tier passes per-invocation source
+              verification in its prepared copy.
             - No hidden rebatching, automatic retry or second ARC-specific adapter entry is introduced.
 
-    - `[ ]` **5.1.b Retain group evidence and resource ownership through failures**
+    - `[ ]` **5.1.b Present one context across placements and recover every placement**
+        - The adapter is built around one placement per plan today: one placement choice, one journal `remote`,
+          one stage per plan ID and backend frames forwarded unchanged. Track the group's own pending and prepared
+          placements so no two siblings target one placement at once; record every remote placement in the plan
+          journal with inspect/settle covering all of them; rewrite backend context identities to the group's one
+          context; persist the staged materialization for later uploads; release each placement's permits after its
+          last sibling settles.
+        - Build `test-first` (one behavior at a time):
+            - With two remote placements and one local, ARC sees one context, every frame passes its identity check,
+              and each placement's permits release after its own last sibling settles.
+            - Losing the conversation mid-group leaves recovery guidance that inspects and settles every placement.
+
+    - `[ ]` **5.1.c Fall back before launch when a placement refuses admission**
+        - A runner with a wake probe launches without waiting, so a sibling that loses the admission race receives
+          a busy receipt before its backend starts. Wait for that placement or place the sibling elsewhere; never
+          re-run work whose backend started.
+        - Build `test-first` (one behavior at a time):
+            - Two groups racing for one guarded runner both complete, with every sibling executed exactly once.
+            - A refusal after backend start remains a failure or uncertain outcome, never a silent re-run.
+
+    - `[ ]` **5.1.d Record sibling timings and report each sibling's placement**
+        - Record each completed sibling in the provider's history under its own argv key, and report each sibling's
+          placement and admission wait in its invocation output, so ordering, 5.2.a and Phase 6 have a source.
+        - Build `test-first` (one behavior at a time):
+            - A later group places siblings in descending recorded duration; with no record, availability order
+              applies.
+            - Each invocation's output names its placement and admission wait; telemetry never becomes pass
+              authority.
+
+    - `[ ]` **5.1.e Retain group evidence and resource ownership through failures**
         - Extend the provider's fake-SSH/drop/stop fixtures around its qualified attempt accounting and pool permits.
           Keep protocol framing and required-output drainage in the shared adapter implementation.
         - Build `test-first` (one behavior at a time):
@@ -500,8 +539,10 @@ the external adapter retains generic use outside ARC and native test tools.
     - Extend the foundation's public runner documentation/examples in the package/root READMEs and installed quality
       gate guidance. Edit shipped framework source before project sync; leave the deliberately deferred `docs/` site.
     - Describe native single-command defaults, optional complete-group capability, basic serial playback, explicit
-      value/file inputs, native membership constraints, parent reuse and incomplete/recovery diagnostics.
-    - Show a provider-neutral example using the standalone adapter; distinguish measured profiles from unmeasured
+      value/file inputs, native membership constraints, parent reuse and incomplete/recovery diagnostics. State
+      that a basic adapter runs an opted-in matrix serially at the native sharding overhead.
+    - Show a provider-neutral example using the standalone adapter. It is a basic adapter, so document group
+      capability from the contract rather than from the example. Distinguish measured profiles from unmeasured
       deployments. Keep internal work-unit references out of shipped text and retain foundation-owned migration/ADR
       closeout rather than duplicating them. Validate examples against executable fixtures with test-after feedback.
 
@@ -525,6 +566,8 @@ variation, and a named-workload slowdown above 10% keeps qualification open.
     - `[ ]` **6.1.a Fix equivalent native and distributed comparison requests**
         - Add a bounded qualification harness using the production check/controller path and Phase 4 membership
           observer; select one fixed source, native selection, duration definition and requested complete check set.
+        - Vary the plan in memory through the selected-check handler's injected `readDeclaration`, one process per
+          gate, so both arms read the same on-disk declaration and store's reach selection is identical.
         - Build `test-first` (one behavior at a time):
             - Routed unsharded and declaration-derived plans differ only in shard expansion, with forced fresh work;
               fully native local runs are recorded as context. The harness changes no source/declaration or
@@ -678,6 +721,10 @@ _Purpose:_ Verify the complete implementation against its success criteria and r
 - `[ ]` Repeated forced comparisons against the same gates routed unsharded show an idle-pool per-gate gain beyond
   observed variation. Under two concurrent store-selecting merge gates plus one push gate, aggregate completion is at
   most 10% slower than that baseline and is reported with its measured size.
+
+- `[ ]` Two groups racing for one placement both complete; a refusal before a backend starts leads to waiting or
+  another placement, never an unavailable sibling. Recovery guidance from a group reaches every remote placement it
+  used.
 
 - `[ ]` All quality gates pass.
 

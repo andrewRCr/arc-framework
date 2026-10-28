@@ -149,8 +149,15 @@ materialization and verification about 4.7 s; ARC capture about 8 s after a repo
 start to adapter start. Capture and local materialization happen once per check, so a group pays them once; upload
 and preparation repeat per placement. Sharing an installation across views would save about 5 s per placement and
 bring back the cache relocation A5 deferred, so each placement keeps a private copy. § Proposed Design 9 changes CI
-clear/upload locations only as the native cache path requires; with no relocation, Success Criterion 8's and the
-task list's private clear/upload clauses are met by the unchanged paths.
+clear/upload locations only as the native cache path requires. With no relocation, A6 supersedes Success Criterion 8's
+"updated private cache clear/upload paths" clause and the task list's matching clause; the unchanged paths serve.
+
+An independent review of the amended plan found the adapter built for one placement per plan: one placement choice,
+one journal `remote`, one stage per plan ID, backend frames forwarded with their own context identity, a non-waiting
+launch on runners with a wake probe, and no timing history on the routed path (`History.record` runs only in the
+legacy `run_on`). Group placement bookkeeping, multi-placement recovery, pre-launch fallback and sibling timing
+records are therefore new adapter work (5.1.b–5.1.d). The duration file becomes a declared input, because the
+adapter passes undeclared ambient variables to every placement uncaptured.
 
 With m2-mini and m5-air about 1.45× and 1.3× slower than m4-mini on store, a four-shard store group is modelled at
 about 7.5 minutes on four free heavy machines and 10–11 minutes on three, against 23 minutes unsharded on m4-mini;
@@ -185,7 +192,8 @@ Superseded § Open Questions ¶1:
 so expanding it on the routed path would pay upload and preparation per placement for no useful gain. Store and
 integration, at 23 and 7.5 minutes unsharded, opt in. The flag sits beside `runner: true` as declaration
 eligibility. It sets no count, placement or concurrency preference, so the Non-Goals on concurrency preferences and
-shard counts outside declarations do not apply.
+shard counts outside declarations do not apply. Unit keeps its native membership qualification: Phase 1 changes the
+shard-argument expansion that CI's native unit shards share, so that check still guards behavior this work changes.
 
 Superseded § Proposed Design 2 ¶2, first sentence:
 

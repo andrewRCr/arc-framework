@@ -124,7 +124,9 @@ same captured inputs as a remote placement. Required-remote policy remains effec
 
 With group capability, submit the complete check plan once. Without it, send the same invocations serially through
 mandatory single execution within the prepared context. Serial playback remains sharded; never silently substitute
-the unsharded command. An eligible declaration without shards or without the routed opt-in continues through the
+the unsharded command. The plan is fixed before preparation reports capability, so a basic adapter runs an opted-in
+matrix serially and pays the native sharding overhead without parallel gain; the opt-in confines that cost to the
+checks that chose it (A7). An eligible declaration without shards or without the routed opt-in continues through the
 foundation's single-check path.
 
 Existing CI forecasting and native job playback remain distinct from this routing decision. Preserve CI's declared
@@ -437,11 +439,23 @@ routing mode remain authoritative. Do not assume a fixed machine order or add th
 The external adapter advertises group capability (A6). It verifies and materializes a check's captured plan once
 locally, then uploads it to each placement that takes a sibling, where that placement prepares its own private copy. The
 pool's existing admission places every sibling by estimated finish, one heavy job per machine and memory tokens,
-longest expected sibling first, falling back to availability order where it holds no record for a command. A
-placement that takes a further sibling runs it after its first, in the same prepared copy. Fan-out is therefore
-bounded by free heavy capacity: with fewer heavy-capable placements free than siblings, a placement runs more than
-one sibling serially, which is expected rather than a defect. Locally routed groups bind no duration file unless the
-declaration names one; the native partitioner's fallback estimates then apply, and nothing here collects durations.
+longest expected sibling first, falling back to availability order where it holds no record for a command. The
+adapter records each completed sibling's timings under that sibling's own command and reports each sibling's
+placement and admission wait in its invocation output. A placement that takes a further sibling runs it after its
+first, in the same prepared copy. Fan-out is therefore bounded by free heavy capacity: with fewer heavy-capable
+placements free than siblings, a placement runs more than one sibling serially, which is expected rather than a
+defect.
+
+The group presents ARC one context (A6). The adapter tracks its own pending and prepared placements so no two
+siblings target one placement at once, records every remote placement in its plan journal so recovery guidance
+reaches all of them, rewrites backend context identities to the group's, and releases a placement's permits once its
+last sibling settles. A placement that refuses admission before its backend starts does not fail its sibling: the
+adapter waits for it or places the sibling elsewhere. That is pre-launch fallback the adapter owns, not a retry of
+launched work.
+
+Opted-in checks whose native partitioner reads a duration file declare it as a file input (A6). A developer machine
+usually holds none, so the binding is absent and the partitioner's fallback estimates apply; nothing here collects
+durations.
 
 Measure the complete selected gate with fixed source, native selection, duration inputs and requested check set.
 Compare the same gate routed unsharded with the declared shard plan using fresh runs, and report fully native local
@@ -581,6 +595,9 @@ repairing a refusal, not only the initial rejection.
 14. **Named-workload benefit (A8):** Repeated forced comparisons against the same gates routed unsharded show an
     idle-pool per-gate gain beyond observed variation. Under two concurrent store-selecting merge gates plus one push
     gate, aggregate completion is at most 10% slower than that baseline and is reported with its measured size.
+15. **Group placement fallback (A6):** Two groups racing for one placement both complete; a refusal before a backend
+    starts leads to waiting or another placement, never an unavailable sibling. Recovery guidance from a group
+    reaches every remote placement it used.
 
 ## Open Questions
 
@@ -600,8 +617,8 @@ implementation rather than becoming an undocumented task decision.
   _Supersedes:_ § Proposed Design 10 ¶2. _Trigger:_ door. _Work:_ 3.3.b. _Revalidated:_ pending → 4.4.
 - **A5** — 2026-10-28 — design: cache placement and the external group design reopen pending measurement.
   _Supersedes:_ § Proposed Design 7 ¶7, § Open Questions ¶1. _Trigger:_ door. _Work:_ 3.1. _Revalidated:_ pending → 4.4.
-- **A6** — 2026-10-28 — spec-depth: groups spread one plan across runners, one heavy sibling per machine. _Supersedes:_
-  § Proposed Design 7 ¶7, § Open Questions ¶1. _Trigger:_ door. _Work:_ 3.1, 5.1, 5.2. _Revalidated:_ pending → 6.4.
+- **A6** — 2026-10-28 — spec-depth: groups span runners, one heavy sibling per machine. _Supersedes:_ § Proposed Design
+  7 ¶7, § Open Questions ¶1, § Success Criteria 8. _Trigger:_ door. _Work:_ 3.1, 5.1, 5.2. _Revalidated:_ pending → 6.4.
 - **A7** — 2026-10-28 — design: routed shard expansion becomes a per-check declaration opt-in. _Supersedes:_ § Proposed
   Design 2 ¶2. _Trigger:_ door. _Work:_ 1.1, 4.2, 4.3. _Revalidated:_ pending → 2.5.
 - **A8** — 2026-10-28 — design: concurrent benefit uses a named workload and a bounded slowdown. _Supersedes:_ § Goals
