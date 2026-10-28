@@ -121,26 +121,20 @@ context/capture under the specified lifecycle. The unconfigured command remains 
           collection decodes each invocation/stream independently; full reports label each pair and preserve adapter
           diagnostics. Optional report failure preserves complete evidence without printing captured bindings.
 
-### `[ ]` **2.3 Close reuse and completed execution before parent publication — D5, D8**
+### `[x]` **2.3 Close reuse and completed execution before parent publication — D5, D8**
 
 - _Goal:_ Parent reuse/publication and capture disposal occur only after their required context/output closure,
   while settled disposal/cache-storage warnings retain their advisory meaning.
 
-    - `[ ]` **2.3.a Complete the prepared cache-hit and successful-run paths**
-        - Keep lookup after prepared qualification and publication in `finalizeCheckRun` after the facade proves
-          complete outcomes, required output, settlement and normal closure.
-        - Build `test-first` (one behavior at a time):
-            - A complete hit runs no invocation and releases the context; a miss publishes at most one parent only
-              after required release/exit closure. No failed, incomplete or unknown-runtime parent publishes.
-            - Input/source validation and lifetime handling remain effective when recording is disabled.
+    - `[x]` **2.3.a Complete the prepared cache-hit and successful-run paths**
+        - Real grouped requests prove no publication or capture disposal before provider exit, one complete parent
+          record, context release without execution on a hit, and explicit forced execution. Failed, incomplete and
+          unknown-runtime matrices publish no pass; fresh attempts preserve equivalent parent identity.
 
-    - `[ ]` **2.3.b Preserve advisory persistence/disposal behavior after settlement**
-        - Extend process-backed handler cases around the existing pass/report abstractions and shared release path.
-        - Build `test-first` (one behavior at a time):
-            - Invalid/unavailable pass reads miss; failed pass writes, optional logs and leftover disposable
-              directories do not change a valid completed verdict.
-            - Required-output loss, unsettled children or abnormal conversation closure never masquerade as those
-              advisory failures; native controller-close failure remains substantive.
+    - `[x]` **2.3.b Preserve advisory persistence/disposal behavior after settlement**
+        - Corrupt/unavailable records miss; occupied invalid records and unavailable pass/report directories preserve
+          native success and recover after repair. Settled disposal warnings remain advisory during execution and
+          reuse, while lost required output and abnormal provider exit prevent publication.
 
 ### `[ ]` **2.4 Preserve settlement and recovery through refusal and interruption — D8**
 
