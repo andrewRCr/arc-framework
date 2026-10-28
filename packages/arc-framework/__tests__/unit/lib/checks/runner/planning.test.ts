@@ -3,6 +3,7 @@ import { afterEach, expect, it } from "vitest";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { batchPortableCheckPaths } from "../../../../../src/lib/checks/batching.js";
 import { CheckDeclarationSchema } from "../../../../../src/lib/checks/declaration.js";
 import { freezeSourcePresentation } from "../../../../../src/lib/checks/runner/source-presentation.js";
 import { planCheckExecution } from "../../../../../src/lib/checks/runner/planning.js";
@@ -155,4 +156,61 @@ it.each(["global", "check"] as const)("budgets complete %s probe argv before pla
   const plan = await planCheckExecution({ ...input, check: repaired,
     globalRuntimeInputs: group === "global" ? [["node", "--version"]] : [] });
   expect(plan.probes[group][0]!.argv).toEqual(["node", "--version"]);
+});
+
+it("expands an opted-in matrix in batch/shard order with stable coordinates and fresh wire IDs", async () => {
+  const paths = Array.from({ length: 20 }, (_, index) => `packages/check/src/${index}/${"&".repeat(100)}`);
+  const input = await fixture(undefined, paths);
+  const check = CheckDeclarationSchema.parse({ checks: { example: { command: ["check"], mode: "files",
+    runner: true, shards: { count: 3, argument: "--shard={index}/{count}", routed: true } } } }).checks.example!;
+  const first = await planCheckExecution({ ...input, check });
+  const second = await planCheckExecution({ ...input, check });
+  expect(first.coordinates).toEqual([
+    { batch: 1, shard: { index: 1, count: 3 } }, { batch: 1, shard: { index: 2, count: 3 } },
+    { batch: 1, shard: { index: 3, count: 3 } }, { batch: 2, shard: { index: 1, count: 3 } },
+    { batch: 2, shard: { index: 2, count: 3 } }, { batch: 2, shard: { index: 3, count: 3 } },
+  ]);
+  expect(first.invocations.map(invocation => invocation.argv)).toEqual(second.invocations.map(invocation => invocation.argv));
+  expect(first.invocations.map(invocation => invocation.id)).not.toEqual(second.invocations.map(invocation => invocation.id));
+  for (let shard = 0; shard < 3; shard++) {
+    const invocations = first.invocations.filter((_, index) => index % 3 === shard);
+    expect(invocations.flatMap(invocation => invocation.argv.slice(1, -1))).toEqual(paths);
+    expect(invocations.map(invocation => invocation.argv.at(-1))).toEqual([`--shard=${shard + 1}/3`, `--shard=${shard + 1}/3`]);
+  }
+});
+
+it("reserves the final multi-digit shard argument before partitioning literal paths", async () => {
+  const paths = Array.from({ length: 20 }, (_, index) => `packages/check/${index}/${'é"&'.repeat(50)}`);
+  const input = await fixture(undefined, paths);
+  const check = CheckDeclarationSchema.parse({ checks: { example: { command: ["check"], mode: "files",
+    runner: true, shards: { count: 12, argument: `${"x".repeat(7400)}--shard={index}/{count}`, routed: true } } } }).checks.example!;
+  await expect(planCheckExecution({ ...input, check })).rejects.toThrow(/argument budget.*shorten.*retry/u);
+  check.shards!.argument = `${"x".repeat(7000)}--shard={index}/{count}`;
+  const plan = await planCheckExecution({ ...input, check });
+  for (let index = 0; index < 12; index++) {
+    const invocations = plan.invocations.filter((_, ordinal) => ordinal % 12 === index);
+    expect(invocations.flatMap(invocation => invocation.argv.slice(1, -1))).toEqual(paths);
+    for (const invocation of invocations) {
+      expect(batchPortableCheckPaths(invocation.argv, [])).toEqual([]);
+      expect(invocation.argv.at(-1)).toBe(`${"x".repeat(7000)}--shard=${index + 1}/12`);
+    }
+  }
+});
+
+it.each(["project", "files"] as const)("budgets fixed shard overflow for %s without paths and permits a shorter argument", async mode => {
+  const input = await fixture();
+  const check = CheckDeclarationSchema.parse({ checks: { example: { command: ["check"], mode, ...(mode === "files" ? { pass_paths: false } : {}),
+    runner: true, shards: { count: 2, argument: `${"x".repeat(8000)}{index}`, routed: true } } } }).checks.example!;
+  await expect(planCheckExecution({ ...input, check })).rejects.toThrow(/argument budget.*shorten.*retry/u);
+  check.shards!.argument = "--shard={index}";
+  const plan = await planCheckExecution({ ...input, check });
+  expect(plan.invocations.map(invocation => invocation.argv)).toEqual([["check", "--shard=1"], ["check", "--shard=2"]]);
+});
+
+it("composes shell shards as one native command string", async () => {
+  const input = await fixture();
+  const check = CheckDeclarationSchema.parse({ checks: { example: { command: "node check.cjs", shell: true,
+    runner: true, shards: { count: 2, argument: "--shard={index}/{count}", routed: true } } } }).checks.example!;
+  expect((await planCheckExecution({ ...input, check })).invocations.map(invocation => invocation.argv))
+    .toEqual([["node check.cjs --shard=1/2"], ["node check.cjs --shard=2/2"]]);
 });

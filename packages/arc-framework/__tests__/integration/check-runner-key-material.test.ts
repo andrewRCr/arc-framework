@@ -19,7 +19,7 @@ afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 it.runIf(process.platform === "linux")("reads scoped material after caller removal without changing prepared execution", async () => {
   const fixture = await createRunnerCheckRepository(directories);
   const definition = CheckDeclarationSchema.parse({ global_inputs: ["check.cjs"], global_runtime_inputs: [["forbidden-local-probe"]],
-    checks: { example: { ...fixture.input.check, inputs: ["input.txt"], runtime_inputs: [["forbidden-local-probe"]] } } });
+    checks: { example: { ...fixture.input.check, shards: { count: 2, argument: "--shard={index}/{count}", routed: true }, inputs: ["input.txt"], runtime_inputs: [["forbidden-local-probe"]] } } });
   const check = definition.checks.example!;
   const prepared = await prepareSelectedCheckExecution({ ...fixture.input, check }, fixture.io);
   if (prepared.status !== "ready") throw new Error(prepared.reason);
@@ -47,7 +47,7 @@ it.runIf(process.platform === "linux")("keys known execution independently of at
   const fixture = await createRunnerCheckRepository(directories);
   const definition = CheckDeclarationSchema.parse({ global_inputs: ["check.cjs"],
     global_runtime_inputs: fixture.input.globalRuntimeInputs,
-    checks: { example: { ...fixture.input.check, inputs: ["input.txt"] } } });
+    checks: { example: { ...fixture.input.check, shards: { count: 2, argument: "--shard={index}/{count}", routed: true }, inputs: ["input.txt"] } } });
   const check = definition.checks.example!;
   const key = async (renamed: boolean, file: string, scalar = "literal\nvalue") => {
     const resolved = await resolveCheckRequest(fixture.io.git, fixture.root, { form: { kind: "run", ids: ["example"] } });
@@ -57,7 +57,7 @@ it.runIf(process.platform === "linux")("keys known execution independently of at
       configuration: { ...fixture.input.configuration, argv: [...fixture.input.configuration.argv, "--known-node-runtime"] },
       ...(renamed ? { buildPlan: async context => {
         const plan = await planCheckExecution({ ...fixture.input, check, source: context.source, paths: context.paths });
-        return { invocations: plan.invocations.map((invocation, index) => ({ ...invocation, id: `other-invocation:${index}` })),
+        return { ...(plan.coordinates === undefined ? {} : { coordinates: plan.coordinates }), invocations: plan.invocations.map((invocation, index) => ({ ...invocation, id: `other-invocation:${index}` })),
           probes: { global: plan.probes.global.map((probe, index) => ({ ...probe, id: `other-global:${index}` })),
             check: plan.probes.check.map((probe, index) => ({ ...probe, id: `other-check:${index}` })) } };
       } } : {}) }, fixture.io);

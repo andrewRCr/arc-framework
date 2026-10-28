@@ -16,19 +16,21 @@ it("preserves settled drift refusal without dispatch or replacement and qualifie
   await writeFile(generation, "environment-one");
   const input: PrepareSelectedCheckExecutionInput = { ...fixture.input, configuration: { ...fixture.input.configuration,
     argv: [process.execPath, "-e", preparedAdapterScript("drift", generation)] },
-  buildPlan: () => ({ invocations: [{ id: "check", cwd: ".", shell: false,
-    argv: [process.execPath, "-e", `require('node:fs').writeFileSync(${JSON.stringify(marker)},'executed')`] }],
+  buildPlan: () => ({ invocations: ["check", "sibling"].map(id => ({ id, cwd: ".", shell: false as const,
+    argv: [process.execPath, "-e", `require('node:fs').writeFileSync(${JSON.stringify(marker)},'executed')`] as [string, ...string[]] })),
   probes: { global: [], check: [] } }) };
   const first = prepareSelectedCheckExecution(input, fixture.io);
   const prepared = await first;
   if (prepared.status !== "ready") throw new Error(prepared.reason);
   const firstRuntime = prepared.execution.runtime;
   try {
-    expect(firstRuntime).toBeDefined();
+    expect(firstRuntime?.size).toBe(2);
     await writeFile(generation, "environment-two");
-    const result = await prepared.execution.run("check");
-    expect(result.status).toBe("settled");
-    expect(result.outcomes.get("check")).toMatchObject({ status: "unavailable", reason: "Prepared runtime changed" });
+    for (const id of ["check", "sibling"]) {
+      const result = await prepared.execution.run(id);
+      expect(result.status).toBe("settled");
+      expect(result.outcomes.get(id)).toMatchObject({ status: "unavailable", reason: "Prepared runtime changed" });
+    }
     await expect(access(marker)).rejects.toThrow();
     expect(prepared.execution.runtime).toEqual(firstRuntime);
     await expect(prepared.execution.close()).resolves.toMatchObject({ status: "closed" });
@@ -40,8 +42,10 @@ it("preserves settled drift refusal without dispatch or replacement and qualifie
   try {
     expect(repaired.execution.runtime).toBeDefined();
     expect(repaired.execution.runtime).not.toEqual(firstRuntime);
-    const result = await repaired.execution.run("check");
-    expect(result.outcomes.get("check")).toEqual({ status: "completed", exitCode: 0 });
+    for (const id of ["check", "sibling"]) {
+      const result = await repaired.execution.run(id);
+      expect(result.outcomes.get(id)).toEqual({ status: "completed", exitCode: 0 });
+    }
     expect(await readFile(marker, "utf8")).toBe("executed");
     await expect(repaired.execution.close()).resolves.toMatchObject({ status: "closed" });
   } finally { await repaired.execution.close(); }

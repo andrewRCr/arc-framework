@@ -9,7 +9,7 @@ const SharedFields = {
   inputs: z.array(z.string()).default(["**"]),
   runtime_inputs: z.array(ArgumentListSchema).default([]),
   root: z.string().default("."),
-  shards: z.strictObject({ count: z.int().positive(), argument: z.string() }).optional(),
+  shards: z.strictObject({ count: z.int().positive(), argument: z.string(), routed: z.boolean().default(false) }).optional(),
   no_evidence_exit: z.int().min(1).max(255).optional(),
   runner: z.boolean().default(false),
   environment_inputs: EnvironmentInputsSchema.default({}),

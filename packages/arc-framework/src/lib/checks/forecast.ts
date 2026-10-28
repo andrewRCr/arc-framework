@@ -1,5 +1,6 @@
 /** Resolve native invocation plans without running declared checks. */
 import { relative, resolve, sep } from "node:path";
+import { checkShardArguments, checkShardBatches } from "./shards.js";
 import type { CheckDeclaration } from "./declaration.js";
 import type { EnvironmentInputDeclarations } from "./environment-declaration.js";
 import { checkArgumentBatches, checkFileArguments } from "./batching.js";
@@ -33,12 +34,13 @@ export function resolveCheckForecast(check: CheckDeclaration["checks"][string], 
   const received = checkFileArguments(coordinates?.root ?? root, coordinates?.cwd ?? cwd, paths, platform);
   const batches = checkArgumentBatches(check, command, received, platform).map(batch => [...command, ...batch]);
   const shards = check.shards;
+  const suffixes = shards ? checkShardArguments(shards) : [];
+  const shardBatches = shards ? checkShardBatches(check, command, received, suffixes, platform) : [];
   return { cwd: relative(root, cwd).split(sep).join("/") || ".", mode: check.mode, shell: check.shell,
     fixes: check.fixes, ciOnly: check.ci_only, environmentInputs: { ...check.environment_inputs }, batches,
-    ...(shards ? { shards: Array.from({ length: shards.count }, (_, offset) => {
+    ...(shards ? { shards: suffixes.map((argument, offset) => {
       const index = offset + 1;
-      const argument = shards.argument.replaceAll("{index}", String(index)).replaceAll("{count}", String(shards.count));
-      return { index, batches: batches.map(batch => [...batch, argument]) };
+      return { index, batches: shardBatches.map(batch => [...command, ...batch, argument]) };
     }) } : {}),
   };
 }

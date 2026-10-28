@@ -1,5 +1,6 @@
 /** Content-derived identities for disposable check passes. */
 import { createHash } from "node:crypto";
+import type { CheckInvocationCoordinate } from "./shards.js";
 import type { CheckDeclaration } from "./declaration.js";
 import type { TreePathChange } from "./tree.js";
 import type { SourceManifestEntry } from "./runner/contract-source.js";
@@ -32,6 +33,9 @@ export interface CheckKeyInput {
   materializedInputs?: readonly CheckMaterializedPathContent[];
   /** Qualified executors and exact applicable probe output for the complete check plan. */
   preparedRuntime?: readonly CheckRuntimeIdentity[];
+  /** Canonical prepared commands; excludes wire IDs and raw content-coordinate object identities. */
+  preparedPlan?: readonly { readonly coordinate: CheckInvocationCoordinate; readonly argv: readonly string[];
+    readonly cwd: string; readonly shell: boolean }[];
   base?: readonly CheckPathContent[];
   merged?: readonly (readonly CheckPathContent[])[];
 }
@@ -44,7 +48,7 @@ export interface CheckKeyInput {
 export function checkContentKey(input: CheckKeyInput): string {
   const inputs = digestEntries(input.inputs);
   return createHash("sha256").update(JSON.stringify({
-    version: 5,
+    version: 6,
     id: input.id,
     declaration: input.declaration,
     inputs,
@@ -57,6 +61,11 @@ export function checkContentKey(input: CheckKeyInput): string {
       .map(({ path, entry }) => ({ path, entry: entry.kind === "file"
         ? { path: entry.path, kind: entry.kind, mode: entry.mode, bytes: entry.bytes, digest: entry.digest }
         : { path: entry.path, kind: entry.kind, target: entry.target } })),
+    preparedPlan: input.preparedPlan?.map(({ coordinate, argv, cwd, shell }) => ({
+      coordinate: { batch: coordinate.batch, ...(coordinate.shard === undefined ? {} : {
+        shard: { index: coordinate.shard.index, count: coordinate.shard.count },
+      }) }, argv, cwd, shell,
+    })) ?? null,
     preparedRuntime: input.preparedRuntime?.map(({ identity, globalRuntime, runtime }) => ({ identity, globalRuntime, runtime })) ?? null,
     paths: input.paths ?? [],
     base: input.base ?? null,

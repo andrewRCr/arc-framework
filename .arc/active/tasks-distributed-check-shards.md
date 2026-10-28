@@ -14,85 +14,51 @@ _Mode:_ `slice` through Phase 2 — closes on trustworthy routed shard execution
 _Design decisions:_ Consumer implementation starts after the runner foundation lands and its qualified exports are
 re-grounded. This plan consumes that source, binding, protocol and lifetime implementation; it creates no substitute.
 
-### `[ ]` **1.1 Expand complete, portably bounded batch/shard plans — D3**
+### `[x]` **1.1 Expand complete, portably bounded batch/shard plans — D3**
 
 - _Goal:_ Every selected routed check has one deterministic, complete plan whose final commands fit every compatible
   placement before preparation or reuse can begin.
 
-- _Note:_ The foundation's `buildPlan` seam in `src/lib/checks/runner/execution.ts` receives captured source,
-  bindings and paths before preparation; `planCheckExecution` in `src/lib/checks/runner/planning.ts` forms the
-  unsharded batch plan with captured path spelling and probes. A missing prerequisite returns to its defining
-  interface rather than a private replacement here.
+    - `[x]` **1.1.a Compose canonical batch/shard coordinates and invocation records**
+        - Captured planning emits batch/shard order, immutable local coordinates and fresh wire IDs, preserving
+          captured path spelling, cwd, probes and native command-content policy.
 
-    - `[ ]` **1.1.a Compose canonical batch/shard coordinates and invocation records**
-        - Extend the expansion used by `resolveCheckForecast` in `src/lib/checks/forecast.ts`, using the landed
-          shared invocation DTOs. Build the routed plan for the `buildPlan` seam, reusing `planCheckExecution`'s
-          captured path spelling and probes. Keep stable coordinates separate from fresh wire correlation IDs.
-        - Build `test-first` (one behavior at a time):
-            - Every expected batch/shard pair occurs once in stable batch/index order, including identical commands.
-            - Project/withheld-path commands retain their required no-path invocation; selected-file behavior,
-              deletion/widening rules, literal path order, cwd and command-content policy remain unchanged.
+    - `[x]` **1.1.b Budget the complete final command before partitioning paths**
+        - Shared shard batching reserves the largest final argument against both portable models before partitioning;
+          shell invocations retain one command string. Fixed and single-path overflow carry shortening remedies.
 
-    - `[ ]` **1.1.b Budget the complete final command before partitioning paths**
-        - Consume `batchPortableCheckPaths` in `src/lib/checks/batching.ts`, which sizes trailing arguments placed
-          in its command but takes no suffix. Include the final shard argument in the fixed budget while retaining
-          its native position after received paths.
-        - Build `test-first` (one behavior at a time):
-            - POSIX bytes and escaped Windows units both fit, including Unicode, quotes and multi-digit shard values.
-            - Fixed-only and single-path overflow refuse before launch with a shortening remedy; repaired input runs.
-            - Shell invocations use the foundation's single-command-string representation with native composition;
-              the adapter cannot change the path partition or secretly split an invocation.
+    - `[x]` **1.1.c Keep native forecasts and routed plans consistent**
+        - Native forecasts share final-argument expansion and retain native platform budgets. Coverage exercises
+          ordered Unicode/quoted paths, multi-digit shards, invalid cwd/argv and repaired overflow.
 
-    - `[ ]` **1.1.c Keep native forecasts and routed plans consistent**
-        - Extend `__tests__/unit/lib/checks/forecast.test.ts` and `batching.test.ts`; preserve ordinary native
-          platform budgeting and CI shard counts while sharing final-argument expansion.
-        - Build `test-first` (one behavior at a time):
-            - The native forecast still describes its existing jobs, and routed planning emits the complete matrix.
-            - Invalid/escaping cwd and unsupported final commands fail through the foundation's actionable boundary.
+    - `[x]` **1.1.d Expand routed shards only for checks that opt in**
+        - Strict declarations admit `shards.routed`, default false; only opted-in routed plans expand. CI expansion
+          ignores the opt-in, and ordinary declarations retain the foundation's unsharded batches.
 
-    - `[ ]` **1.1.d Expand routed shards only for checks that opt in**
-        - Add an optional `routed` boolean, default false, to the `shards` object in `src/lib/checks/declaration.ts`.
-          Routed planning expands only declarations that set it; others keep the foundation's unsharded plan. CI
-          forecasting and native playback ignore the field.
-        - Build `test-first` (one behavior at a time):
-            - An opted-in routed check emits its complete matrix; an opted-out check with shards emits the
-              foundation's unsharded plan, never a partial or substituted matrix.
-            - `resolveCheckForecast` produces identical CI jobs with and without the opt-in; unknown `shards` keys
-              still refuse.
+- _Outcome:_ One expansion/budget boundary supplies native forecasts and captured routed plans without transporting
+  local reporting coordinates through the runner protocol.
 
-### `[ ]` **1.2 Bind complete prepared runtime coverage to a scoped parent key — D4, D5**
+### `[x]` **1.2 Bind complete prepared runtime coverage to a scoped parent key — D4, D5**
 
 - _Goal:_ A parent is reusable only for its full canonical matrix and applicable prepared inputs/runtimes, without
   making unrelated repository state or attempt identities dependencies.
 
-    - `[ ]` **1.2.a Verify the prepared runtime projection over the shard matrix**
-        - `composePreparedCheckKey` in `src/lib/checks/runner/key.ts` already projects known runtime per invocation
-          in plan order from `PreparedCheckExecution`. Extend its tests over a shard-expanded plan; add projection
-          code only where the matrix exposes a gap. No caller `CheckKeyIO.runtime` substitutes for prepared evidence.
-        - Build `test-first` (one behavior at a time):
-            - Complete known coverage binds every expected invocation even when received observations are reordered.
-            - Unknown coverage disables whole-parent lookup/publication; malformed claimed coverage refuses instead
-              of silently downgrading. No caller-local fingerprint substitutes for missing execution evidence.
+    - `[x]` **1.2.a Verify the prepared runtime projection over the shard matrix**
+        - Matrix tests bind reordered known observations in plan order, reject missing/duplicate/unknown coverage
+          and withhold reuse for unknown qualification without caller-local probing.
 
-    - `[ ]` **1.2.b Confirm or extend the scoped key's matrix coverage**
-        - The landed `checkContentKey` in `src/lib/checks/key.ts` hashes the declaration (including `shards`),
-          received paths and the plan-ordered runtime vector, not invocation argv. Establish whether those inputs
-          determine the canonical matrix; add explicit coordinates and a key version only where they do not.
-          Preserve declaration, raw-byte presentation, explicit environment and historical-content dependencies.
-        - Build `test-first` (one behavior at a time):
-            - Relevant content, bindings, matrix or applicable runtime changes miss; a complete identical plan hits.
-            - Unrelated source/projection changes, identical bytes at another host path, request/context IDs and
-              provider labels do not miss. Raw content-coordinate IDs are not unconditional dependencies.
-            - Divergent/unreadable scoped content remains unrecordable, and disposable key versioning needs no
-              migration reader or per-shard pass store.
+    - `[x]` **1.2.b Confirm or extend the scoped key's matrix coverage**
+        - Disposable key version 6 binds canonical prepared argv, cwd, shell and batch/shard coordinates: custom
+          captured plans can differ despite identical declarations/paths/runtime. Wire IDs and raw content IDs stay
+          excluded; real sharded preparation preserves unrelated-source and identical-file-location invariance.
 
-    - `[ ]` **1.2.c Preserve capture and execution requirements when reuse is unavailable**
-        - Extend the landed key-resolver/handler tests and process fixture; keep generic input capture in the
-          foundation rather than reproducing it in the consumer.
-        - Build `test-first` (one behavior at a time):
-            - `cache: false`, unknown runtime and forced fresh execution still use fixed source and explicit inputs.
-            - Captured value/file absence, emptiness and bytes stay identical across siblings after original edits.
-            - Incompatible known-runtime placement refuses before work; an explicit retry gets fresh qualification.
+    - `[x]` **1.2.c Preserve capture and execution requirements when reuse is unavailable**
+        - Real basic-adapter siblings retain captured source and unset/empty/file bindings with caching disabled
+          and unknown runtime. A changed known placement refuses both siblings before work; explicit retry qualifies
+          the new placement and executes successfully.
+
+- _Outcome:_ Prepared matrix identity supplements scoped content rather than hashing the whole captured container;
+  runtime coverage and fixed-input lifetime remain owned by the shared foundation.
 
 ### `[ ]` **1.3 Project shard coordinates through the shared native outcome reducer — D6**
 
