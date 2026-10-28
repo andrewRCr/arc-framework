@@ -30,7 +30,8 @@ export interface WithdrawEntryResult {
 }
 interface EntryDefinition { grammar: EntryConfig; reference: RecordReference; metadataPath: string }
 interface EntryDocument { entry: RefTreeEntry; content: string; metadata: RefMetadata; formatVersion: number; invalidIds: boolean }
-interface EntryStage { selected?: EntryDocument; conflicts: ConflictRecord[]; retainMetadata?: boolean }
+interface EntrySelection { selected?: EntryDocument; retainMetadata?: boolean }
+interface EntryStage extends EntrySelection { conflicts: ConflictRecord[] }
 type EntrySource = "ancestor" | "before" | "after" | "current" | "published";
 
 /** First preserve pre-batch and published changes, then replay the surrounding local changes. */
@@ -51,8 +52,8 @@ export async function inverseEntryDocument(context: RefBackendContext, step: Wit
   const publishedLabel = step.publishedTip ? await entryLabel(context, step.publishedTip, path) : beforeLabel;
   const currentLabel = sameDocument(current, published) ? publishedLabel : step.currentTip
     ? await entryLabel(context, step.currentTip, path) : beforeLabel;
-  const without = await mergeDocumentStage(context, step.ref, definition, ancestor, before, published, beforeLabel, publishedLabel);
-  const inverse = await mergeDocumentStage(context, step.ref, definition, after, current, without.selected, currentLabel,
+  const without = await mergeDocumentStage(context, step.ref, definition, ancestor, { selected: before }, { selected: published }, beforeLabel, publishedLabel);
+  const inverse = await mergeDocumentStage(context, step.ref, definition, after, { selected: current }, without, currentLabel,
     sameDocument(without.selected, published) ? publishedLabel : beforeLabel);
   return { selected: inverse.selected?.entry,
     ...inverse.retainMetadata ? { retainedFormat: { metadataPath: definition.metadataPath, key: refFormatKey(definition.reference),
@@ -62,10 +63,13 @@ export async function inverseEntryDocument(context: RefBackendContext, step: Wit
 
 /** Use the existing current-side policy for whole-record clashes, including explicit absence. */
 async function mergeDocumentStage(context: RefBackendContext, ref: string, definition: EntryDefinition,
-  base: EntryDocument | undefined, current: EntryDocument | undefined, incoming: EntryDocument | undefined,
+  base: EntryDocument | undefined, currentChoice: EntrySelection, incomingChoice: EntrySelection,
   currentLabel: SideLabel, incomingLabel: SideLabel): Promise<EntryStage> {
-  if (sameDocument(current, base)) return { selected: incoming, conflicts: [] };
-  if (sameDocument(incoming, base) || sameDocument(current, incoming)) return { selected: current, conflicts: [] };
+  const current = currentChoice.selected, incoming = incomingChoice.selected;
+  if (sameDocument(current, base)) return { ...incomingChoice, conflicts: [] };
+  if (sameDocument(incoming, base)) return { ...currentChoice, conflicts: [] };
+  if (sameDocument(current, incoming)) return { selected: current,
+    retainMetadata: currentChoice.retainMetadata || incomingChoice.retainMetadata, conflicts: [] };
   if (!current || !incoming || [base, current, incoming].some(document => document?.invalidIds)) {
     const [original, left, right] = await Promise.all([
       conflictValue(context, ref, definition, base), conflictValue(context, ref, definition, current), conflictValue(context, ref, definition, incoming),
