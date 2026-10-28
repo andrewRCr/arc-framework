@@ -14,11 +14,12 @@
 - **Candidate:** `sha256:5facc56cca5a86554f34768ee992cafc6b6dfab260ce840dd85494d97cd5213d`
 
 - **Current Workflow:** `prepare-work-unit`
-- **Last Completed:** Task 19.1 — Complete verification
+- **Last Completed:** Pass 7 fix-check round 7 — repair verified and recorded
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** prepare-work-unit Step 2 — apply the approved standard-pass-2 fix round, then verify and replay it.
+- **Next Action:** prepare-work-unit Step 2 — decide an eighth complete pass or Owner-accepted review terminus in a
+  fresh session.
 
 - **PR URL:** [none]
 - **Completed:** [none]
