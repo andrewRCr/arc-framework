@@ -3,14 +3,20 @@
   "slug": "housekeep-2026-10-28",
   "claimId": "535790106a644ab4ec7eb1303592aa03",
   "createdAt": "2026-10-28T20:33:41.618Z",
-  "updatedAt": "2026-10-28T20:33:41.618Z",
+  "updatedAt": "2026-10-28T21:04:57.209Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Route the 2026-10-28 USER-INBOX drain's backlog writes: inbound holds, three new stubs",
   "branch": "chore/housekeep-2026-10-28",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/housekeep-2026-10-28",
+    "headSha": "3d3de62537b1cae90a1a8e03e32a9d0ae57e45f4"
+  }
 }
