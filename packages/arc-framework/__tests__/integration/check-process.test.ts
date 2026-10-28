@@ -1,4 +1,5 @@
 /** Declared check commands report a short notice through a file the process boundary names and removes. */
+import { execFileSync } from "node:child_process";
 import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -118,3 +119,15 @@ it.each([false, true])("replays supplied frozen inputs before engine channels, f
       ...(filesMode ? { tree: "checked", base: "base", merged: "parent", index: "/selected/index" } : {}) });
   } finally { await capture.dispose(); }
 });
+
+it.runIf(process.platform !== "win32")("refuses a writer-less FIFO input promptly and captures its repaired regular file", async () => {
+  const root = await checkout();
+  execFileSync("mkfifo", [join(root, "pipe.secret")]);
+  const refused = captureEnvironmentInputs({ INPUT: "file" }, root, { environment: { INPUT: "pipe.secret" } });
+  await expect(refused).rejects.toThrow(/environment_inputs binding INPUT:.*regular file.*retry/u);
+  await expect(refused).rejects.not.toThrow("pipe.secret");
+  await writeFile(join(root, "repaired"), "usable");
+  const repaired = await captureEnvironmentInputs({ INPUT: "file" }, root, { environment: { INPUT: "repaired" } });
+  try { expect(repaired.bindings.INPUT).toMatchObject({ state: "file", bytes: 6 }); }
+  finally { await repaired.dispose(); }
+}, 2000);

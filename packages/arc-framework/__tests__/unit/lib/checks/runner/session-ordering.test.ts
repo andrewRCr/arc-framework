@@ -2,6 +2,7 @@
 import { expect, it } from "vitest";
 import { makeRunnerProtocolPlan, makeRunnerProtocolReady } from "../../../../fixtures/checks/runner-protocol.js";
 import { runnerStreamHarness, reply, recovery, prepare, completeRun } from "../../../../fixtures/checks/runner-streams.js";
+import type { CheckRunnerOperation } from "../../../../../src/lib/checks/runner/session.js";
 
 function outcome(h: ReturnType<typeof runnerStreamHarness>, invocationId: string, exitCode = 0): void {
   h.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", method: "check/outcome", params: {
@@ -87,6 +88,29 @@ it("declines an unadvertised group while keeping mandatory single execution avai
   await single;
   await h.close();
   await refusal;
+});
+
+it.each<{ name: string; operation: CheckRunnerOperation }>([
+  { name: "duplicate group IDs", operation: { method: "check/runGroup", params: { contextId: "context", invocationIds: ["__proto__", "__proto__"] } } },
+  { name: "an empty invocation ID", operation: { method: "check/run", params: { contextId: "context", invocationId: "" } } },
+])("attributes $name to the caller and still settles a corrected request", async ({ operation }) => {
+  const h = runnerStreamHarness();
+  await prepare(h);
+  await expect(h.session.request(operation)).rejects.toThrow(/^Check execution request operation is invalid; correct the request/u);
+  const corrected = h.session.request({ method: "check/run", params: { contextId: "context", invocationId: "__proto__" } });
+  completeRun(h);
+  await expect(corrected).resolves.toMatchObject({ settled: true, invocationIds: ["__proto__"] });
+  await h.close();
+});
+
+it("attributes closing with outstanding work to the caller and closes once it settles", async () => {
+  const h = runnerStreamHarness();
+  await prepare(h);
+  const running = h.session.request({ method: "check/run", params: { contextId: "context", invocationId: "__proto__" } });
+  await expect(h.session.close()).rejects.toThrow(/^Check execution request cannot close while work is outstanding;.*correct the request/u);
+  completeRun(h);
+  await running;
+  await h.close();
 });
 
 it.each(["unknown", "constructor"])("rejects unplanned or wrong-context execution for %s", async id => {

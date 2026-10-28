@@ -86,3 +86,22 @@ it("keeps a probe's leading byte order mark in known runtime qualification", asy
   expect(runtime).toMatchObject({ kind: "known" });
   expect(runtime.bindings?.[0]?.probes[0]?.stdout).toBe("\uFEFFversion");
 });
+
+it.each([
+  { name: "another executable", invocation: { argv: ["/usr/bin/env", "node", "check.js"] } },
+  { name: "a shell command", invocation: { shell: true } },
+  { name: "a custom module path", environment: { NODE_PATH: { kind: "value", state: "set", value: "/modules" } } },
+  { name: "an unsupported startup option", environment: { NODE_OPTIONS: { kind: "value", state: "set", value: "--require ./hook.js" } } },
+  { name: "probe stdout over the limit", overflow: true },
+])("leaves the runtime unknown for $name", async ({ invocation = {}, environment = {}, overflow = false }) => {
+  vi.stubEnv("NODE_OPTIONS", "");
+  vi.stubEnv("NODE_PATH", "");
+  const qualify = await exampleExport("local-runtime.mjs", "qualifyNodeRuntime") as (plan: unknown,
+    execute: () => Promise<unknown>) => Promise<{ kind: string }>;
+  const plan = (overrides: object, bindings: object) => ({ environment: bindings,
+    invocations: [{ id: "check", cwd: ".", shell: false, argv: [process.execPath, "check.js"], ...overrides }],
+    probes: { global: [{ id: "probe", argv: [process.execPath, "-v"] }], check: [] } });
+  const execute = (exceeds: boolean) => async () => ({ outcome: { status: "completed", exitCode: 0 }, stdout: Buffer.from("v24"), overflow: exceeds });
+  await expect(qualify(plan({}, {}), execute(false))).resolves.toMatchObject({ kind: "known" });
+  await expect(qualify(plan(invocation, environment), execute(overflow))).resolves.toMatchObject({ kind: "unknown" });
+});

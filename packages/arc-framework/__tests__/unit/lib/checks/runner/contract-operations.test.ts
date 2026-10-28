@@ -69,6 +69,8 @@ it.each([
   { ...plan, source: { ...plan.source, digest: "bad" } },
   { ...plan, source: { ...plan.source, root: "" } },
   { ...plan, probes: { ...plan.probes, testFramework: "unsupported" } },
+  { ...plan, invocations: [invocation, { ...invocation, argv: ["runner", "again"] }] },
+  { ...plan, probes: { global: [probe], check: [{ ...probe, argv: ["runner", "--help"] }] } },
 ])("refuses invalid preparation claims: %j", input => {
   assertSchemaRefuses(PrepareParamsSchema, input);
 });

@@ -28,10 +28,17 @@ function identity(stat: BigIntStats): string {
 
 function nameKey(bytes: Uint8Array): string { return Buffer.from(bytes).toString("hex"); }
 
+/** Refuse a parent that does not physically resolve inside the source root, observing it through the capture IO. */
+async function assertContainedParent(context: SpellingContext, parent: string): Promise<void> {
+  try { await resolveSourceCwd(context.root, parent, context.io); }
+  catch (cause) { throw new SourceCaptureError("Source path parent is not a contained directory", { cause }); }
+}
+
 async function parentNames(context: SpellingContext, parent: string): Promise<ParentNames> {
-  await resolveSourceCwd(context.root, parent);
   let names = context.parents.get(parent);
   if (names === undefined) {
+    // Each parent is validated once per pass here and once more by the closing recheck.
+    await assertContainedParent(context, parent);
     names = { names: new Map((await context.io.readDirectory(parent)).map(name => [nameKey(name), name])), expected: new Set() };
     context.parents.set(parent, names);
   }
@@ -87,7 +94,7 @@ async function resolveSpelling(context: SpellingContext, codePath: string): Prom
 
 async function recheckSpellings(context: SpellingContext): Promise<void> {
   for (const [parent, names] of context.parents) {
-    await resolveSourceCwd(context.root, parent);
+    await assertContainedParent(context, parent);
     const current = new Set((await context.io.readDirectory(parent)).map(nameKey));
     if ([...names.expected].some(name => !current.has(name))) throw new SourceCaptureError("Source filesystem path spelling changed during capture");
   }

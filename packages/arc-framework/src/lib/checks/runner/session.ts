@@ -1,6 +1,6 @@
 /** Ordered process-backed JSON-RPC transport for one check runner conversation. */
 import { RunnerRequestSchema, type RecoveryParams, type TerminalOutcome, type RunnerMessage, type RunnerNotification, type RunnerRequest } from "./contract.js";
-import { decodeRunnerReply, type KnownRunnerRuntime, type RunnerResultByMethod } from "./correlation.js";
+import { callerRequestError, decodeRunnerReply, type KnownRunnerRuntime, type RunnerResultByMethod } from "./correlation.js";
 import { startCheckRunnerProcess, type CheckRunnerProcess, type CheckRunnerProcessExit, type CheckRunnerProcessInput } from "./session-process.js";
 import { RunnerMessageFramer } from "./session-framing.js";
 import { RunnerConversationState } from "./session-state.js";
@@ -94,7 +94,7 @@ class RunnerSessionTransport implements CheckRunnerSession {
     if (this.protocolFailure !== undefined) throw this.protocolFailure;
     if (this.inputClosed || this.processClosed) throw sessionError("conversation is closed");
     const parsed = RunnerRequestSchema.safeParse({ ...operation, jsonrpc: "2.0", id: `rpc:${this.sequence++}` });
-    if (!parsed.success) throw sessionError("caller operation is invalid");
+    if (!parsed.success) throw callerRequestError("operation is invalid");
     const request = parsed.data;
     this.conversation.begin(request);
     return new Promise<RunnerResultByMethod[Operation["method"]]>((resolve, reject) => {
@@ -118,7 +118,7 @@ class RunnerSessionTransport implements CheckRunnerSession {
   close(): Promise<CheckRunnerClosure> {
     if (this.closing !== undefined) return this.closing;
     if (!this.processClosed && this.protocolFailure === undefined && this.conversation.hasOutstandingWork) {
-      return Promise.reject(sessionError("cannot close while work is outstanding; cancel and await its settlement first"));
+      return Promise.reject(callerRequestError("cannot close while work is outstanding; cancel and await its settlement first"));
     }
     this.closing = this.finishClose();
     return this.closing;

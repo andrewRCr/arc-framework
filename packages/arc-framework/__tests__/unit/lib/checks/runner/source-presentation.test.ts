@@ -1,6 +1,6 @@
 /** File-boundary failures and concurrent mutations refuse owned source capture. */
 import { afterEach, expect, it } from "vitest";
-import { access, chmod, mkdir, mkdtemp, readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, mkdtemp, readFile, realpath, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { freezeSourcePresentation, type FrozenSourcePresentation } from "../../../../../src/lib/checks/runner/source-presentation.js";
@@ -108,9 +108,50 @@ it("refuses a parent directory link that changed to a sibling input boundary", a
   let unexpected: FrozenSourcePresentation | undefined;
   try {
     await expect(freezeSourcePresentation(root, Buffer.from("parent/external.txt\0"), coordinates, io)
-      .then(value => { unexpected = value; return value; })).rejects.toThrow(/repair.*retry.*local.*explicit/iu);
+      .then(value => { unexpected = value; return value; })).rejects.toThrow(/parent is not a contained directory.*repair.*retry.*local.*explicit/iu);
     expect(await readFile(join(outside, "external.txt"), "utf8")).toBe("external source");
   } finally { await unexpected?.remove(); }
+  await rm(join(root, "parent"));
+  await mkdir(join(root, "parent"));
+  await writeFile(join(root, "parent", "external.txt"), "repaired source");
+  const repaired = await freezeSourcePresentation(root, Buffer.from("parent/external.txt\0"), coordinates, io);
+  try { expect(await readFile(join(repaired.root, "parent", "external.txt"), "utf8")).toBe("repaired source"); }
+  finally { await repaired.remove(); }
+});
+
+it("names a selected entry the worktree lacks and captures it once present", async () => {
+  const { root, io } = await fixture();
+  await expect(freezeSourcePresentation(root, Buffer.from("source.txt\0sparse/omitted.txt\0"), coordinates, io))
+    .rejects.toThrow(/selected source entry is absent, as outside a sparse checkout.*retry.*local/iu);
+  await mkdir(join(root, "sparse"));
+  await writeFile(join(root, "sparse", "omitted.txt"), "present");
+  const repaired = await freezeSourcePresentation(root, Buffer.from("source.txt\0sparse/omitted.txt\0"), coordinates, io);
+  try { expect(await readFile(join(repaired.root, "sparse", "omitted.txt"), "utf8")).toBe("present"); }
+  finally { await repaired.remove(); }
+});
+
+it("validates each parent once per pass and refuses one that leaves the source by the closing recheck", async () => {
+  const { root, io } = await fixture();
+  await mkdir(join(root, "dir"));
+  await Promise.all(["a.txt", "b.txt"].map(name => writeFile(join(root, "dir", name), name)));
+  const outside = await realpath(await mkdtemp(join(tmpdir(), "arc-source-escape-unit-")));
+  directories.push(outside);
+  let resolutions = 0;
+  let escape = false;
+  io.realpath = async path => {
+    if (path !== join(root, "dir")) return nodeSourcePresentationIO.realpath(path);
+    resolutions++;
+    return escape && resolutions > 1 ? outside : nodeSourcePresentationIO.realpath(path);
+  };
+  const listing = Buffer.from("dir/a.txt\0dir/b.txt\0");
+  const captured = await freezeSourcePresentation(root, listing, coordinates, io);
+  await captured.remove();
+  expect(resolutions).toBe(2);
+  resolutions = 0;
+  escape = true;
+  await expect(freezeSourcePresentation(root, listing, coordinates, io))
+    .rejects.toThrow(/parent is not a contained directory.*retry.*local/iu);
+  expect(resolutions).toBe(2);
 });
 
 it("reports unavailable source storage with repair and retry guidance", async () => {

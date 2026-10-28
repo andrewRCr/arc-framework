@@ -4,6 +4,7 @@ import { constants, tmpdir } from "node:os";
 import { join } from "node:path";
 import { execa } from "execa";
 import { environmentForGitCwd, sanitizeGitRepositoryEnvironment } from "../git/process-executor.js";
+import { displayLines, NOTICE_LIMIT } from "./display-text.js";
 import { CHECK_EXECUTION_ENVIRONMENT, type CheckContentContext } from "./environment-policy.js";
 
 /** The exit status a shell reports for a command a signal ended: 128 plus the signal's number. */
@@ -12,8 +13,6 @@ function signalExitCode(signal: NodeJS.Signals | undefined): number | undefined 
   return number === undefined ? undefined : 128 + number;
 }
 
-/** Longest notice a check may report, so it stays one short line of the summary. */
-const NOTICE_LIMIT = 200;
 /** Bytes read from the start of a notice file, so a large write to it never reaches memory. */
 const NOTICE_READ_BYTES = 4096;
 
@@ -42,11 +41,8 @@ async function readNoticeStart(noticeFile: string): Promise<string> {
 }
 
 async function readNotice(noticeFile: string, exitCode: number): Promise<{ notice?: string; notRunReason?: string }> {
-  const text = await readNoticeStart(noticeFile).catch(() => "");
-  // A bare carriage return breaks a line too, and other control characters become spaces, so a notice
-  // printed inside a summary line cannot move the cursor over that line. The command and a runner wrapping it
-  // may each write a line, so every line is kept.
-  const lines = text.split(/\r\n|\r|\n/u).map(part => part.replace(/\p{Cc}+/gu, " ").trim()).filter(part => part !== "");
+  // The command and a runner wrapping it may each write a line, so every line is kept.
+  const lines = displayLines(await readNoticeStart(noticeFile).catch(() => ""));
   const notRun = exitCode === 0 ? undefined : lines.find(line => line.startsWith("not run:"));
   return { ...(lines.length === 0 ? {} : { notice: lines.join("; ").slice(0, NOTICE_LIMIT) }),
     ...(notRun === undefined ? {} : { notRunReason: notRun.slice("not run:".length).trim().slice(0, NOTICE_LIMIT) || "runner reported no check result" }) };

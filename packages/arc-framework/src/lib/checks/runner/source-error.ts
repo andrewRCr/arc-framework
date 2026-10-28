@@ -4,13 +4,24 @@ import { EnvironmentFileCaptureError } from "../environment-file.js";
 /** A path-free observed capture condition that may be shown without arbitrary filesystem diagnostics. */
 export class SourceCaptureError extends Error {}
 
+/** What a missing entry means while freezing the caller's selection or verifying the captured copy. */
+const ABSENT_ENTRY = {
+  freeze: "a selected source entry is absent, as outside a sparse checkout or after a concurrent removal",
+  verify: "a captured source entry is absent",
+} as const;
+
 /** A capture refusal that already carries its observed reason and repair guidance. */
 class SourceCaptureFailure extends Error {}
 
 /** Add repair guidance while retaining the original failure for diagnostics; an existing refusal passes through. */
 export function sourceCaptureFailure(cause: unknown, action: "freeze" | "verify" = "freeze"): Error {
   if (cause instanceof SourceCaptureFailure) return cause;
-  const reason = cause instanceof SourceCaptureError || cause instanceof EnvironmentFileCaptureError
-    ? cause.message : "a source filesystem operation failed";
+  const reason = cause instanceof SourceCaptureError || cause instanceof EnvironmentFileCaptureError ? cause.message
+    : absent(cause) ? ABSENT_ENTRY[action] : "a source filesystem operation failed";
   return new SourceCaptureFailure(`Cannot ${action} source presentation: ${reason}. Repair unsupported entries or concurrent changes and retry; keep the check local or declare an explicit input for external data.`, { cause });
+}
+
+function absent(cause: unknown): boolean {
+  const code = (cause as NodeJS.ErrnoException | undefined)?.code;
+  return code === "ENOENT" || code === "ENOTDIR";
 }

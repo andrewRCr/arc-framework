@@ -54,15 +54,17 @@ it("reports a never-started process without inventing a process exit", async () 
   await expect(session.close()).resolves.toMatchObject({ status: "unavailable" });
 });
 
-it("retains the actual platform launcher outcome when an executable is missing", async () => {
+it.each([
+  { name: "absolute path", argv: (cwd: string) => [join(cwd, "missing-adapter")] },
+  { name: "PATH search", argv: () => ["arc-missing-check-runner-adapter"] },
+])("reports a missing executable found by $name as never started on every platform", async ({ argv }) => {
   const cwd = await mkdtemp(join(tmpdir(), "arc-runner-missing-command-"));
   directories.push(cwd);
-  const session = createCheckRunnerSession({ argv: [join(cwd, "missing-adapter")], cwd, onNotification: () => undefined });
+  const session = createCheckRunnerSession({ argv: argv(cwd) as [string], cwd, onNotification: () => undefined });
   const pending = session.request({ method: "check/prepare", params: makeRunnerProtocolPlan() });
   await expect(pending).rejects.toThrow(/runner.*retry/iu);
-  const started = process.platform === "win32";
-  await expect(session.closed).resolves.toEqual(started ? { started: true, exitCode: 1 } : { started: false });
-  await expect(session.close()).resolves.toMatchObject({ status: started ? "uncertain" : "unavailable" });
+  await expect(session.closed).resolves.toEqual({ started: false });
+  await expect(session.close()).resolves.toMatchObject({ status: "unavailable" });
 });
 
 it("keeps a started adapter that disappears before preparation settlement uncertain", async () => {

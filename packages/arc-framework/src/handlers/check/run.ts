@@ -35,6 +35,7 @@ import { readMachineCheckRunner, type MachineCheckRunnerConfiguration } from "..
 import { prepareSelectedCheckExecution, type PreparedCheckExecution, type CheckExecutionClosure,
   type CheckExecutionPreparation } from "../../lib/checks/runner/execution.js";
 import { retainedRunnerRemedy } from "./runner-recovery.js";
+import { displayRunnerOutcome, runnerDisplayText } from "../../lib/checks/display-text.js";
 import { composePreparedCheckKey } from "../../lib/checks/runner/key.js";
 import { normalizeCheckInvocationOutcome, reduceCheckInvocationOutcomes,
   type CheckInvocationReduction, type NormalizedCheckInvocationOutcome } from "../../lib/checks/result.js";
@@ -502,7 +503,9 @@ async function executeRoutedSelectedCheck(selected: SelectedCheck, io: DeclaredC
     request: selected.coordinates, check, paths, configuration, globalRuntimeInputs: definition.global_runtime_inputs,
     onOutput: output => { outputs.push(Buffer.from(output.bytes)); },
     onDiagnostic: bytes => { outputs.push(Buffer.from(bytes)); } });
-  if (prepared.status !== "ready") return unpreparedRoutedCheck(selected, configuration, prepared);
+  if (prepared.status !== "ready") {
+    return unpreparedRoutedCheck(selected, configuration, prepared, await routedDiagnosticOutput(io, id, outputs, startedAt));
+  }
   const execution = prepared.execution;
   let closing: Promise<CheckExecutionClosure> | undefined;
   const close = () => closing ??= execution.close();
@@ -515,8 +518,9 @@ async function executeRoutedSelectedCheck(selected: SelectedCheck, io: DeclaredC
     if (pass !== null) {
       const closure = await close();
       return closure.status === "closed" ? { id, kind, outcome: "reused", output: pass.output,
-        ...(closure.cleanupWarning === undefined ? {} : { notice: closure.cleanupWarning }) }
-        : { id, kind, outcome: "couldn't run", reason: closure.reason, remedy: retainedRunnerRemedy(closure.retained), remedyKind: "runner" };
+        ...(closure.cleanupWarning === undefined ? {} : { notice: runnerDisplayText(closure.cleanupWarning) }) }
+        : { id, kind, outcome: "couldn't run", reason: closure.reason, remedy: retainedRunnerRemedy(closure.retained), remedyKind: "runner",
+          ...await routedDiagnosticOutput(io, id, outputs, startedAt) };
     }
     const result = await executeRoutedSingles(execution, check);
     const closure = await close();
@@ -525,16 +529,30 @@ async function executeRoutedSelectedCheck(selected: SelectedCheck, io: DeclaredC
   } finally { await close(); }
 }
 
+/** Keep the adapter's diagnostics from an attempt that produced no execution result, with a log when one is saved. */
+async function routedDiagnosticOutput(io: DeclaredCheckDependencies, id: string, outputs: readonly Buffer[],
+  startedAt: number): Promise<Pick<DeclaredCheckResult, "output" | "logPath" | "costMs">> {
+  if (outputs.length === 0) return {};
+  const output = Buffer.concat(outputs).toString("utf8");
+  const costMs = Math.max(0, (io.now ?? performance.now.bind(performance))() - startedAt);
+  const measurement = await io.reports?.save(id, output, costMs);
+  return { output, costMs, ...(measurement === undefined ? {} : { logPath: measurement.logPath }) };
+}
+
 /** Attribute a refused or uncertain preparation to the caller's inputs or the configured runner. */
 function unpreparedRoutedCheck(selected: SelectedCheck, configuration: MachineCheckRunnerConfiguration,
-  prepared: Exclude<CheckExecutionPreparation, { status: "ready" }>): DeclaredCheckResult {
+  prepared: Exclude<CheckExecutionPreparation, { status: "ready" }>,
+  diagnostics: Pick<DeclaredCheckResult, "output" | "logPath" | "costMs">): DeclaredCheckResult {
   const { id, kind } = selected;
-  const runnerReason = `${configuration.file}: checks.runner: ${prepared.reason}`;
+  const runnerReason = `${configuration.file}: checks.runner: ${runnerDisplayText(prepared.reason)}`;
   if (prepared.status === "uncertain") {
-    return { id, kind, outcome: "couldn't run", reason: runnerReason, remedy: retainedRunnerRemedy(prepared.retained), remedyKind: "runner" };
+    return { id, kind, outcome: "couldn't run", reason: runnerReason, remedy: retainedRunnerRemedy(prepared.retained), remedyKind: "runner",
+      ...diagnostics };
   }
   return { id, kind, outcome: "couldn't run", reason: prepared.origin === "inputs" ? prepared.reason : runnerReason,
-    ...(prepared.cleanupWarning === undefined ? {} : { notice: prepared.cleanupWarning }), remedy: prepared.remedy, remedyKind: "runner" };
+    ...(prepared.cleanupWarning === undefined ? {} : { notice: runnerDisplayText(prepared.cleanupWarning) }),
+    remedy: runnerDisplayText(prepared.remedy, "Repair the runner and retry."), remedyKind: "runner",
+    ...diagnostics };
 }
 
 async function executeRoutedSingles(execution: PreparedCheckExecution, check: SelectedCheck["check"]): Promise<CheckInvocationReduction> {
@@ -543,7 +561,7 @@ async function executeRoutedSingles(execution: PreparedCheckExecution, check: Se
   try {
     for (const invocation of execution.plan.invocations) {
       const result = await execution.run(invocation.id);
-      outcomes.push(normalizeCheckInvocationOutcome(result.outcomes.get(invocation.id), check.no_evidence_exit));
+      outcomes.push(normalizeCheckInvocationOutcome(displayRunnerOutcome(result.outcomes.get(invocation.id)), check.no_evidence_exit));
       if (result.status === "incomplete") { incomplete.push(result.reason); break; }
     }
   } catch (cause) { incomplete.push(String(cause)); }
@@ -557,7 +575,8 @@ async function finalizeRoutedCheck(selected: SelectedCheck, io: DeclaredCheckDep
   const measurement = await io.reports?.save(selected.id, output, costMs);
   const finalized = await finalizeCheckRun({ ...selected, routed: true }, io, request,
     { evidence: result, output, incompleteWork: closure.status === "uncertain" ? [closure.reason] : [] }, key);
-  const notice = [...result.notices, closure.status === "closed" ? closure.cleanupWarning : undefined].filter(Boolean).join("; ");
+  const notice = [...result.notices, closure.status === "closed" && closure.cleanupWarning !== undefined
+    ? runnerDisplayText(closure.cleanupWarning) : undefined].filter(Boolean).join("; ");
   const remedy = closure.status === "uncertain" ? retainedRunnerRemedy(closure.retained)
     : finalized.outcome === "couldn't run" && result.remedies.length > 0 ? result.remedies.join(" ") : undefined;
   return { ...finalized, costMs,
@@ -589,12 +608,19 @@ async function executeNativeSelectedCheck(selected: SelectedCheck, io: DeclaredC
   const result = await executeCheckBatches(io, { command, paths: argumentsFromRoot, cwd, content, check, indexFile });
   const costMs = Math.max(0, (io.now ?? performance.now.bind(performance))() - startedAt);
   const measurement = await io.reports?.save(id, result.output, costMs);
-  // An interrupted run neither restages a fixer's partial rewrites nor publishes evidence.
-  if (result.interrupted) return { id, kind, outcome: "couldn't run", reason: INTERRUPTED_WHILE_RUNNING, output: result.output, costMs,
-    ...(result.notice === undefined ? {} : { notice: result.notice }), ...(measurement ? { logPath: measurement.logPath } : {}) };
-  return { ...await finalizeCheckRun(selected, io, request, result, key), costMs,
-    ...(result.notice === undefined ? {} : { notice: result.notice }),
+  const measured = { costMs, ...(result.notice === undefined ? {} : { notice: result.notice }),
     ...(measurement ? { logPath: measurement.logPath } : {}) };
+  if (result.interrupted) return { ...interruptedNativeCheck(selected, result), ...measured };
+  return { ...await finalizeCheckRun(selected, io, request, result, key), ...measured };
+}
+
+/**
+ * An interrupted run neither restages a fixer's partial rewrites nor publishes evidence, but a batch that already
+ * failed still fails the check, as it does when routed.
+ */
+function interruptedNativeCheck(selected: SelectedCheck, result: { evidence: CheckInvocationReduction; output: string }): DeclaredCheckResult {
+  return { id: selected.id, kind: selected.kind, outcome: result.evidence.kind === "failure" ? "failed" : "couldn't run",
+    reason: INTERRUPTED_WHILE_RUNNING, output: result.output };
 }
 
 async function finalizeCheckRun(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,

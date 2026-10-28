@@ -9,8 +9,10 @@ import { isWellFormedUnicode } from "../../kernel/canonical/unicode.js";
 export const RUNNER_OUTPUT_CHUNK_BYTES = 64 * 1024;
 /** Nonblank diagnostic text, preserved without trimming. */
 export const RunnerMessageTextSchema = z.string().refine(value => value.trim().length > 0);
-const InvocationIdsSchema = z.array(OpaqueIdSchema).refine(ids => new Set(ids).size === ids.length);
+const InvocationIdsSchema = z.array(OpaqueIdSchema).refine(unique);
 const OutputChunkSchema = z.string().refine(validOutputChunk);
+
+function unique(ids: readonly string[]): boolean { return new Set(ids).size === ids.length; }
 
 function validOutputChunk(data: string): boolean {
   if (data.length > Math.ceil(RUNNER_OUTPUT_CHUNK_BYTES / 3) * 4
@@ -20,12 +22,13 @@ function validOutputChunk(data: string): boolean {
     && decoded.toString("base64").replace(/=+$/u, "") === data.replace(/=+$/u, "");
 }
 
-/** A fixed attempt's source, captured environment, probes and commands. */
+/** A fixed attempt's source, captured environment, probes and commands; invocation and probe IDs are each unique. */
 export const PrepareParamsSchema = z.strictObject({ protocolVersion: z.literal(1), planId: z.uuid(),
   source: z.strictObject({ root: ArtifactPathSchema, manifest: ArtifactPathSchema, digest: CanonicalDigestSchema, coordinates: SourceCoordinatesSchema }),
   environment: CapturedEnvironmentSchema, probes: z.strictObject({ global: z.array(ProbeSchema), check: z.array(ProbeSchema) }),
   invocations: z.array(InvocationSchema),
-});
+}).refine(params => unique(params.invocations.map(invocation => invocation.id))
+  && unique([...params.probes.global, ...params.probes.check].map(probe => probe.id)));
 /** Applicable execution environments or an explicit inability to qualify reuse. */
 export const QualifiedRuntimeSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("unknown"), reason: RunnerMessageTextSchema }),

@@ -70,16 +70,16 @@ records introduce no automatic reconnect, replacement execution or ARC job datab
 
 ## Implementation size
 
-The current example totals 573 lines and 33,083 bytes, including comments/blank lines and excluding READMEs:
+The example is under 600 lines across four modules, including comments and blank lines and excluding READMEs:
 
-| Module              | Responsibility                                  | Lines |  Bytes |
-| ------------------- | ----------------------------------------------- | ----: | -----: |
-| `local.mjs`         | Conversation and protocol ordering              |   175 | 10,541 |
-| `local-inputs.mjs`  | Source/files verification and child environment |   188 | 11,113 |
-| `local-process.mjs` | Descendant supervision and recovery             |   174 |  9,147 |
-| `local-runtime.mjs` | Supported Node runtime qualification            |    36 |  2,282 |
+| Module              | Responsibility                                  |
+| ------------------- | ----------------------------------------------- |
+| `local.mjs`         | Conversation and protocol ordering              |
+| `local-inputs.mjs`  | Source/files verification and child environment |
+| `local-process.mjs` | Descendant supervision and recovery             |
+| `local-runtime.mjs` | Supported Node runtime qualification            |
 
-These are implementation-size measurements, not preparation timings or a minimum adapter size. Remote transport,
+That is implementation size, not preparation timing or a minimum adapter size. Remote transport,
 dependency preparation, provider admission and broader runtime qualification add their own implementation work.
 
 ---

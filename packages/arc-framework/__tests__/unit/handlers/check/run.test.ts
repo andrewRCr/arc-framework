@@ -171,6 +171,30 @@ it("carries the runner's remedy for an invocation it reports it could not run", 
   });
 });
 
+it.each([
+  { name: "completed notice", outcome: { status: "completed" as const, exitCode: 1, notice: `checked\r\u001b[2Kall ${"x".repeat(300)}` },
+    expected: { outcome: "failed", notice: `checked; [2Kall ${"x".repeat(184)}; cleanup; [Kretry later` } },
+  { name: "unavailable reason and remedy", outcome: { status: "unavailable" as const, reason: "busy\u001b[1A\rpassed", remedy: "Free\u0007a worker.\n" },
+    expected: { outcome: "couldn't run", reason: expect.stringContaining("busy [1A; passed"), remedy: expect.stringMatching(/^Free a worker\. Then run /u) } },
+])("renders an adapter's $name as one control-free bounded line", async ({ outcome, expected }) => {
+  const { root, io, ids } = await fixture({ remote: { runner: true } });
+  io.readRunnerConfiguration = async () => ({ file: "machine.yml", argv: ["adapter"] });
+  const execution: Partial<PreparedCheckExecution> = { contextId: "context", runtime: undefined, supportsRunGroup: false,
+    plan: { invocations: [{ id: "only", cwd: ".", shell: false, argv: ["remote"] }], probes: { global: [], check: [] } },
+    run: async id => ({ status: "settled", outcomes: new Map([[id, outcome]]),
+      settlement: { contextId: "context", settled: true, outputComplete: true, invocationIds: [id] } }),
+    close: async () => ({ status: "closed", exit: { started: true, exitCode: 0 }, cleanupWarning: "cleanup\r\u001b[Kretry later" }) };
+  io.prepareExecution = () => Object.assign(Promise.resolve({ status: "ready" as const, execution: execution as PreparedCheckExecution }), {
+    planId: "726ea270-cdb4-49d0-8e30-de4ffb6d4566", retained: undefined, cancel: async () => undefined, terminate: () => undefined,
+  });
+  const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids } });
+  if (result.kind !== "result") throw new Error(result.error.message);
+  const [check] = result.result.checks;
+  expect(check).toMatchObject(expected);
+  expect(check?.notice).toContain("cleanup; [Kretry later");
+  expect(JSON.stringify([check?.notice, check?.reason, check?.remedy])).not.toMatch(/\\r|\\u001b|\\u0007/u);
+});
+
 it("reports settled input cleanup trouble alongside unavailable preparation", async () => {
   const { root, io, ids } = await fixture({ remote: { runner: true } });
   const artifact = join(root, "settled-capture");
@@ -188,6 +212,29 @@ it("reports settled input cleanup trouble alongside unavailable preparation", as
   });
   expect(await readFile(artifact, "utf8")).toBe("settled input");
   await rm(artifact);
+});
+
+it.each(["unavailable", "uncertain"] as const)("keeps the adapter's diagnostics and a log for %s preparation", async status => {
+  const { root, io, ids } = await fixture({ remote: { runner: true } });
+  const saved: string[] = [];
+  io.reports = { save: async (_id, output) => { saved.push(output); return { schemaVersion: 1, id: "remote", logPath: "/logs/remote.log", costMs: 0 }; },
+    latest: async () => undefined };
+  io.readRunnerConfiguration = async () => ({ file: "machine.yml", argv: ["adapter"] });
+  const retained = { planId: "726ea270-cdb4-49d0-8e30-de4ffb6d4566", adapter: ["adapter"], sourceRoot: "/captured/source",
+    manifest: "/captured/manifest", environmentFiles: [] };
+  io.prepareExecution = input => {
+    void input.onDiagnostic?.(Buffer.from("adapter: worker pool quota exhausted\n"));
+    return Object.assign(Promise.resolve(status === "unavailable"
+      ? { status, origin: "runner" as const, reason: "Runner protocol closed before replying", remedy: "Repair the runner and retry." }
+      : { status, reason: "Runner did not prove settlement", retained }), {
+      planId: retained.planId, retained: undefined, cancel: async () => undefined, terminate: () => undefined,
+    });
+  };
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
+    kind: "result", exitCode: 2, result: { checks: [{ outcome: "couldn't run", output: "adapter: worker pool quota exhausted\n",
+      logPath: "/logs/remote.log" }] },
+  });
+  expect(saved).toEqual(["adapter: worker pool quota exhausted\n"]);
 });
 
 it("shares frozen bytes across global/check probes and all path batches before reuse qualification", async () => {
@@ -521,6 +568,31 @@ it.each(["not-run reason", "not started", "throws"])("keeps a completed batch fa
       output: `lint violation\n${fault === "throws" ? "Error: VM connection dropped" : "ssh disconnected"}`,
       reason: expect.stringMatching(/VM connection dropped|did not start/u) }] },
   });
+});
+
+it("keeps a completed batch failure when the request is interrupted during a later batch", async () => {
+  const { root, io, ids } = await fixture({ lint: { mode: "files", inputs: ["**"] } });
+  const paths = Array.from({ length: 100 }, (_, index) => `${"x".repeat(195)}${index}.ts`);
+  const raw = paths.map(path => `:000000 100644 ${"0".repeat(40)} ${"d".repeat(40)} A\0${path}\0`).join("");
+  const git = io.git;
+  io.git = async (file, args, options) => args[0] === "diff"
+    ? { stdout: raw, stderr: "" } : git(file, args, options);
+  const published: string[] = [];
+  io.passes = { get: async () => null, put: async record => { published.push(record.id); return { status: "recorded" }; } };
+  let interrupted = false;
+  io.interrupted = () => interrupted;
+  let batch = 0;
+  io.execute = async () => {
+    if (++batch === 1) return { started: true, exitCode: 1, output: "lint violation" };
+    interrupted = true;
+    return { started: true, exitCode: 0, output: "exited zero" };
+  };
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
+    kind: "result", exitCode: 1, result: { checks: [{ outcome: "failed", output: "lint violation\nexited zero",
+      reason: expect.stringContaining("interrupted while this check ran") }] },
+  });
+  expect(batch).toBe(2);
+  expect(published).toEqual([]);
 });
 
 

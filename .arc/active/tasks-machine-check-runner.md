@@ -426,7 +426,8 @@ admission/fallback remain provider-owned and cold/warm preparation costs are rec
     - `[x]` **5.3.a Document the complete public contract and configuration**
         - Added package and example READMEs covering literal configuration, explicit inputs, exact manifest vectors,
           complete wire/runtime/native-result and ownership contracts. Inspect/settle/retry guidance states the Linux
-          example's containment, runtime and resource limits; its four modules measure 510 lines and 29,507 bytes.
+          example's containment, runtime and resource limits; its four modules measure 510 lines and 29,507 bytes
+          (as of this task; later review fixes grew them to 573 lines and 33,083 bytes).
 
     - `[x]` **5.3.b Ship the example and installed quality-gates guidance**
         - Package inventory includes the independent example and support files. Dry-run/archive checks and actual packed

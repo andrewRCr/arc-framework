@@ -335,9 +335,12 @@ Status 137 means killed before completion unless declared as no evidence. A comp
 beside later unavailable or missing work; incomplete work without a completed failure cannot pass. Later cancellation
 cannot replace an already completed native failure.
 
-A best-effort per-child notice may accompany completion. Read nonzero `not run:` notice markers as `notRunReason`; a
-zero exit with that advisory is not unavailable. Bound/redact routine notices appropriately. Notices, logs and human
-output are diagnostics, never terminal-result evidence.
+A best-effort per-child notice may accompany completion. Read nonzero `not run:` notice markers as `notRunReason`, and
+report `notRunReason` only with a nonzero exit; ARC treats any reported `notRunReason` as unavailable execution, even
+beside exit 0. Redact routine notices appropriately. ARC renders each notice and `notRunReason` as one line of at most
+200 characters, and each other reason, remedy, cleanup warning and recovery instruction as one line of at most 1,000:
+line breaks become semicolons and other control characters become spaces. Notices, logs and human output are
+diagnostics, never terminal-result evidence.
 
 The run reply follows all required output, terminal notifications and settlement of launched work. Its invocation ID
 set equals the requested set exactly, with one terminal notification already retained for each. It supplies no
@@ -411,11 +414,10 @@ reusable passes. Supervisors record identity before accepting work, stop process
 descendants even after the original process exits or closes pipes. Termination escalates after one second. Inspect must
 report settled before retained captures are removed; recovered leftover records may then be removed manually.
 
-Measured from the four shipped `.mjs` files, the example comprises 573 lines and 33,083 bytes: conversation 175 lines /
-10,541 bytes; input verification/environment 188 / 11,113; process/recovery 174 / 9,147; runtime qualification 36 /
-2,282. These counts include comments and blank lines, exclude this guide, and describe implementation size rather than
-runtime cost or a minimum adapter size. Deployment, remote transport and provider-specific dependency qualification are
-additional implementation responsibilities for providers that need them.
+The example is under 600 lines across four `.mjs` modules — conversation, input verification and environment,
+process supervision and recovery, and runtime qualification — counting comments and blank lines. That describes
+implementation size rather than runtime cost or a minimum adapter size. Deployment, remote transport and
+provider-specific dependency qualification are additional implementation responsibilities for providers that need them.
 
 ---
 

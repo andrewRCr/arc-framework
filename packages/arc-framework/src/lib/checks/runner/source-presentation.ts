@@ -4,9 +4,8 @@ import { dirname, join, resolve } from "node:path";
 import { decodeSourcePaths } from "./source-paths.js";
 import { freezeSourceFile } from "./source-file.js";
 import { freezeSourceLink } from "./source-link.js";
-import { resolveSourceCwd } from "./source-cwd.js";
 import { nodeSourcePresentationIO, type SourcePresentationIO } from "./source-io.js";
-import { SourceCaptureError, sourceCaptureFailure } from "./source-error.js";
+import { sourceCaptureFailure } from "./source-error.js";
 import { createSourceSpellingIndex } from "./source-spelling.js";
 import { identifySourceManifest } from "./source-manifest.js";
 
@@ -40,8 +39,6 @@ export async function freezeSourcePresentation(root: string, paths: Uint8Array,
       if (presentationPaths.has(path)) continue;
       presentationPaths.add(path);
       const source = resolve(root, path);
-      try { await resolveSourceCwd(root, dirname(source)); }
-      catch (cause) { throw new SourceCaptureError("Source path parent is not a contained directory", { cause }); }
       const destination = join(capturedRoot, path);
       await io.mkdir(dirname(destination));
       const before = await io.lstat(source);
