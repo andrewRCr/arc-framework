@@ -13,16 +13,18 @@ const example = fileURLToPath(exampleURL);
 const directories: string[] = [];
 const localIt = it.runIf(process.platform === "linux");
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
+// Points every repository selector, in either case, at another repository inside the adapter's own process.
+const poisonSelectors = `
+  for(const name of ${JSON.stringify([...GIT_REPOSITORY_LOCAL_ENVIRONMENT])}){
+    process.env[name]='wrong repository';process.env[name.toLowerCase()]='wrong repository';
+  }`;
 
 localIt.each(["files", "project"] as const)("clears worker overrides and preserves explicit/case-sensitive ambient inputs for %s commands", async mode => {
   const fixture = await selectedExecutionFixture(directories);
   const staleNotice = join(fixture.root, "notice.secret");
   await writeFile(staleNotice, "not run: stale caller notice");
   const stateRoot = join(fixture.root, "adapter.secret");
-  const wrapper = `
-    for(const name of ${JSON.stringify([...GIT_REPOSITORY_LOCAL_ENVIRONMENT])}){
-      process.env[name]='wrong repository';process.env[name.toLowerCase()]='wrong repository';
-    }
+  const wrapper = `${poisonSelectors}
     for(const name of ['ARC_CHECK_BASE','ARC_CHECK_TREE','ARC_CHECK_MERGED'])process.env[name]='stale';
     process.env.ARC_CHECK_NOTICE=${JSON.stringify(staleNotice)};
     process.env.scalar='ambient lowercase';process.env.ABSENT_INPUT='worker stale';process.env.EMPTY_INPUT='worker stale';
@@ -61,5 +63,27 @@ localIt.each(["files", "project"] as const)("clears worker overrides and preserv
       head: fixture.input.request.source.head.status === "known" ? fixture.input.request.source.head.commit : undefined });
     expect(output.notice).not.toBe(staleNotice);
     expect(await readFile(staleNotice, "utf8")).toBe("not run: stale caller notice");
+  } finally { await prepared.execution.close(); }
+});
+
+localIt("clears worker overrides from runtime probes, which still read the captured repository", async () => {
+  const fixture = await selectedExecutionFixture(directories);
+  const wrapper = `${poisonSelectors}
+    process.argv.splice(1,0,${JSON.stringify(example)},'--known-node-runtime','--state-root',${JSON.stringify(join(fixture.root, "adapter.secret"))});
+    await import(${JSON.stringify(exampleURL.href)});
+  `;
+  const prepared = await prepareSelectedCheckExecution({ ...fixture.input,
+    configuration: { file: fixture.input.configuration.file, argv: [process.execPath, "--input-type=module", "-e", wrapper] },
+    check: { ...fixture.input.check, runtime_inputs: [[process.execPath, "-e", `
+      const names=${JSON.stringify([...GIT_REPOSITORY_LOCAL_ENVIRONMENT])};
+      process.stdout.write(JSON.stringify({gitVariables:Object.keys(process.env).filter(name=>names.includes(name.toUpperCase())),
+        head:require('node:child_process').execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim()}));
+    `]] },
+  }, fixture.io);
+  if (prepared.status !== "ready") throw new Error(prepared.reason);
+  try {
+    const binding = prepared.execution.runtime?.get(prepared.execution.plan.invocations[0]!.id);
+    expect(JSON.parse(binding?.probes.get("check-probe:0") ?? "null")).toEqual({ gitVariables: [],
+      head: fixture.input.request.source.head.status === "known" ? fixture.input.request.source.head.commit : undefined });
   } finally { await prepared.execution.close(); }
 });
