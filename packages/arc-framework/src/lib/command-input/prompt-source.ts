@@ -202,11 +202,15 @@ function passingCalls(module: ModuleBindings, modules: ReadonlyMap<string, Modul
 /**
  * Resolve prompt constant bindings and concrete calls from one immutable text snapshot.
  * @param sources - Source-relative module texts
+ * @param parsed - Syntax trees already parsed from these exact texts, reused by path
  * @returns Reusable parsed files and passing-call identities
  */
-export function buildPromptSourceIndex(sources: Readonly<Record<string, string>>): PromptSourceIndex {
+export function buildPromptSourceIndex(
+  sources: Readonly<Record<string, string>>,
+  parsed: ReadonlyMap<string, ts.SourceFile> = new Map(),
+): PromptSourceIndex {
   const modules = new Map<string, ModuleBindings>(Object.entries(sources).map(([path, text]) => {
-    const file = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    const file = parsed.get(path) ?? ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
     refuseReexports(file, sources);
     return [path, { file, imports: importedBindings(file, sources), sites: new Map(), lookup: lazyBindingLookup(file) }] as const;
   }));
