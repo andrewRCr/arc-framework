@@ -156,7 +156,7 @@ must match the current Candidate and carries the ordered sources and exact oblig
   pre-publication policy fields.
 - `continue-pre-publication-review` remains the singleton continuation while a pre-publication action is still owed.
   Invoke `integrationBoundary.nextAction.command` and apply [code-review's successor decision][code-successor-decision]
-  to its clean-fix-check continuation, including a hosted-first reservation before convergence verification or
+  to its converged-fix-check continuation, including a hosted-first reservation before convergence verification or
   publication. That private continuation carries explicit acceptance through `lanes.standard.terminus`. After it settles
   and the exact PR is open, re-enter the singleton status route above.
 
@@ -184,8 +184,8 @@ scope and any supplied member terminus. Carry an approved consequence through `-
 WU-scoped status command for delivery, or `arc review status --target '{targetRef}'` for an ordinary singleton.
 
 A `review-hosted-request` or `review-local-prepare` result may also carry `terminusAction` after an earlier complete
-pass. Surface it as an optional Owner alternative. The clean-fix-check recommendation above determines whether to stop
-for that choice; otherwise, absent explicit acceptance, execute the returned review action unchanged.
+pass. Surface it as an optional Owner alternative. The successor decision's recommendation above determines whether to
+stop for that choice; otherwise, absent explicit acceptance, execute the returned review action unchanged.
 
 Apply [code-review's convergence procedure][code-convergence] to the concluded look and returned applicability.
 A delivery's authorized additional complete pass is exact JSON in `--additional-pass` on the same WU-scoped status

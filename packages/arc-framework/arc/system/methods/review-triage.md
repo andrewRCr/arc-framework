@@ -148,7 +148,7 @@ evidence.
 
 A fix check verifies repairs and a complete pass looks for what remains undiscovered. Recommend the fix check on the
 approved fixes' merits, even when a complete pass follows. Converge the rounds before a successor complete pass;
-`full-final` stays open after a clean fix check, while incremental closure requires the policy's proved chain.
+`full-final` stays open after a converged fix check, while incremental closure requires the policy's proved chain.
 Disposition approval and each next activity's authorization remain distinct, even when one reply grants both. A decline
 leaves the approved set unchanged; the governing caller honors the Owner's stop at the new head (an Errand's
 Owner-directed review stop or a work unit's Owner-accepted terminus), confirmed there once before any pass is
