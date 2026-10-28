@@ -15,7 +15,14 @@ it("selects the build and prebuilt recovery suites alongside existing portabilit
     "lib/checks/runner/contract-operations.test.ts", "lib/checks/result.test.ts",
     "check-runner-session.test.ts", "check-runner-conformance-wire.test.ts", "check-runner-conformance-groups.test.ts",
     "check-runner-execution-run.test.ts", "check-runner-platform-status.test.ts", "check-runner-platform-spelling.test.ts",
-    "check-runner-platform.e2e.test.ts", "check-symlink-cwd.test.ts"];
+    "check-runner-platform.e2e.test.ts", "check-symlink-cwd.test.ts",
+    "lib/checks/batching.test.ts", "lib/checks/forecast.test.ts",
+    "lib/checks/key.test.ts", "handlers/check/run-output.test.ts", "handlers/check/run-output-json.test.ts",
+    "check-runner-shards.e2e.test.ts", "check-runner-shard-loss.e2e.test.ts", "check-runner-shard-inputs.test.ts",
+    "ci-check-runner.test.ts", "heavy-first-sequencer.test.ts", "duration-artifacts.test.ts",
+    "duration-layout-workflow.test.ts", "vitest-discovery.test.ts", "vitest-completion.test.ts",
+    "vitest-mixed-shard.test.ts", "vitest-native-writers.test.ts", "vitest-native-closing.test.ts",
+    "vitest-runtime-ownership.test.ts"];
   try {
     const config = join(fixture.packageRoot, "vitest.config.mjs");
     await writeFile(config, (await readFile(config, "utf8")).replace('["tests/unit*.test.mjs"]', '["tests/**/*.test.ts"]'));

@@ -215,14 +215,10 @@ _Mode:_ `slice` through Phase 4 — closes on native tier coverage and completio
 - _Goal:_ Supported-platform feedback actually executes consumer budgeting/result/writer cases, and Windows status
   preservation is demonstrated through the parent rather than inferred from Linux-injected numbers alone.
 
-    - `[ ]` **3.3.a Select and classify the consumer's portability surface**
-        - Extend `localVitestTierArguments` in `src/lib/local-vitest-runner.ts` and `isPortabilitySurfacePath` in
-          `src/lib/change-facts.ts`, after re-grounding foundation additions.
-        - Build `test-first` (one behavior at a time):
-            - Execution selectors include the consumer budget/reducer/process/writer cases; classifier coverage
-              includes their actual source/tests, including sequencer/writer changes where applicable.
-            - `portability-build-selection.test.ts`, change-facts and classifier integration tests catch omissions
-              without widening ordinary tier selection or changing CI placement.
+    - `[x]` **3.3.a Select and classify the consumer's portability surface**
+        - Portability execution includes consumer batching/forecast/key/output, shard process cases and native
+          sequencer/writer/completion cases. Library/script classification covers their source, fixtures and tests;
+          the actual expanded tier exercises those boundaries without changing ordinary tiers or CI placement.
 
     - `[ ]` **3.3.b Exercise Windows process statuses through parent reduction on the portability pair**
         - `__tests__/e2e/check-runner-platform.e2e.test.ts` already retains 256 and high-bit statuses beside

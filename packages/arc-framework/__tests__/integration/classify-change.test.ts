@@ -259,6 +259,17 @@ describe("classify-change.sh portability", () => {
     expect(await portability([path])).toBe("true");
   });
 
+  it.each([
+    "packages/arc-framework/src/lib/checks/shards.ts",
+    "packages/arc-framework/src/lib/vitest-execution.ts",
+    "packages/arc-framework/__tests__/helpers/native-writer-fixture.ts",
+    "packages/arc-framework/__tests__/helpers/heavy-first-sequencer.ts",
+    "packages/arc-framework/__tests__/integration/vitest-native-writers.test.ts",
+    "packages/arc-framework/__tests__/unit/lib/checks/forecast.test.ts",
+  ])("targets native shard consumer surface %s", async path => {
+    expect(await portability([path])).toBe("true");
+  });
+
   it("does not target unrelated code changes", async () => {
     expect(await portability(["packages/arc-framework/src/lib/config.ts"])).toBe("false");
     expect(await portability(["README.md", "packages/arc-framework/src/commands/status.ts"])).toBe("false");

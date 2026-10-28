@@ -80,6 +80,12 @@ it("retains each native portability boundary on the portability tier", () => {
     "ci-build-transfer.test.ts", "ci-build-recovery.test.ts", "local-test-admission.test.ts", "worktree-marker.test.ts",
     "commit-message-retry-store.test.ts", "advisory-lock", "user-sync-notes-lock", "ref-tree-cas", "state-ref-race.e2e",
     "git-executor", "delivery-transfer.e2e", "check-symlink-cwd.test.ts",
+    "lib/checks/batching.test.ts", "lib/checks/forecast.test.ts",
+    "lib/checks/key.test.ts", "handlers/check/run-output", "check-runner-shard",
+    "ci-check-runner.test.ts", "heavy-first-sequencer.test.ts", "duration-artifacts.test.ts",
+    "duration-layout-workflow.test.ts", "vitest-discovery.test.ts", "vitest-completion",
+    "vitest-mixed-shard.test.ts", "vitest-native-writers.test.ts", "vitest-native-closing.test.ts",
+    "vitest-runtime-ownership.test.ts",
   ]));
 });
 
