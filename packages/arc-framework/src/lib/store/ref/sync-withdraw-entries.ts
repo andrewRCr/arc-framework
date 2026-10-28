@@ -26,13 +26,29 @@ import type { SyncTreeSide } from "./sync-tree.js";
 /** Applied absence is distinct from an inapplicable entry inverse and from present empty bytes. */
 export interface WithdrawEntryResult {
   selected?: RefTreeEntry; conflicts: ConflictRecord[];
-  retainedFormat?: { metadataPath: string; key: string; version?: number };
+  retainedFormat: { metadataPath: string; key: string; version?: number };
 }
 interface EntryDefinition { grammar: EntryConfig; reference: RecordReference; metadataPath: string }
 interface EntryDocument { entry: RefTreeEntry; content: string; metadata: RefMetadata; formatVersion: number; invalidIds: boolean }
-interface EntrySelection { selected?: EntryDocument; retainMetadata?: boolean }
-interface EntryStage extends EntrySelection { conflicts: ConflictRecord[] }
+interface EntryStage { selected?: EntryDocument; conflicts: ConflictRecord[] }
 type EntrySource = "ancestor" | "before" | "after" | "current" | "published";
+
+/** Detect logical entry changes without decoding untouched payloads or reading their labels. */
+export function entryFormatChanged(context: RefBackendContext, step: WithdrawJournalStep, path: string,
+  currentEntries: ReadonlyMap<string, RefTreeEntry>, publishedEntries: ReadonlyMap<string, RefTreeEntry>,
+  objects: ReadonlyMap<string, BatchObject | null>): boolean {
+  if (!step.before.has(path) || !step.after.has(path)) return false;
+  const live = step.ref.replace("refs/arc/history/", "refs/arc/"), family = viewRefFamily(live);
+  if (!family) return false;
+  const home = expandStoredPath(refPrototype(context, live, family), { registry: context.registry });
+  const before = step.before.get(home.metadataPath), after = step.after.get(home.metadataPath);
+  if (before?.oid === after?.oid && before?.mode === after?.mode) return false;
+  const definition = [step.after, step.before, currentEntries, publishedEntries]
+    .map(entries => entryDefinition(context, step.ref, path, entries, objects)).find(value => value !== undefined);
+  if (!definition) return false;
+  return entryMetadata(step.ref, definition, step.before, objects).formatVersion
+    !== entryMetadata(step.ref, definition, step.after, objects).formatVersion;
+}
 
 /** First preserve pre-batch and published changes, then replay the surrounding local changes. */
 export async function inverseEntryDocument(context: RefBackendContext, step: WithdrawJournalStep, path: string,
@@ -52,29 +68,25 @@ export async function inverseEntryDocument(context: RefBackendContext, step: Wit
   const publishedLabel = step.publishedTip ? await entryLabel(context, step.publishedTip, path) : beforeLabel;
   const currentLabel = sameDocument(current, published) ? publishedLabel : step.currentTip
     ? await entryLabel(context, step.currentTip, path) : beforeLabel;
-  const without = await mergeDocumentStage(context, step.ref, definition, ancestor, { selected: before }, { selected: published }, beforeLabel, publishedLabel);
-  const inverse = await mergeDocumentStage(context, step.ref, definition, after, { selected: current }, without, currentLabel,
+  const without = await mergeDocumentStage(context, step.ref, definition, ancestor, before, published, beforeLabel, publishedLabel);
+  const inverse = await mergeDocumentStage(context, step.ref, definition, after, current, without.selected, currentLabel,
     sameDocument(without.selected, published) ? publishedLabel : beforeLabel);
   return { selected: inverse.selected?.entry,
-    ...inverse.retainMetadata ? { retainedFormat: { metadataPath: definition.metadataPath, key: refFormatKey(definition.reference),
-      version: inverse.selected?.formatVersion } } : {},
+    retainedFormat: { metadataPath: definition.metadataPath, key: refFormatKey(definition.reference), version: inverse.selected?.formatVersion },
     conflicts: [...without.conflicts, ...inverse.conflicts] };
 }
 
 /** Use the existing current-side policy for whole-record clashes, including explicit absence. */
 async function mergeDocumentStage(context: RefBackendContext, ref: string, definition: EntryDefinition,
-  base: EntryDocument | undefined, currentChoice: EntrySelection, incomingChoice: EntrySelection,
+  base: EntryDocument | undefined, current: EntryDocument | undefined, incoming: EntryDocument | undefined,
   currentLabel: SideLabel, incomingLabel: SideLabel): Promise<EntryStage> {
-  const current = currentChoice.selected, incoming = incomingChoice.selected;
-  if (sameDocument(current, base)) return { ...incomingChoice, conflicts: [] };
-  if (sameDocument(incoming, base)) return { ...currentChoice, conflicts: [] };
-  if (sameDocument(current, incoming)) return { selected: current,
-    retainMetadata: currentChoice.retainMetadata || incomingChoice.retainMetadata, conflicts: [] };
+  if (sameDocument(current, base)) return { selected: incoming, conflicts: [] };
+  if (sameDocument(incoming, base) || sameDocument(current, incoming)) return { selected: current, conflicts: [] };
   if (!current || !incoming || [base, current, incoming].some(document => document?.invalidIds)) {
     const [original, left, right] = await Promise.all([
       conflictValue(context, ref, definition, base), conflictValue(context, ref, definition, current), conflictValue(context, ref, definition, incoming),
     ]);
-    return { selected: current, retainMetadata: true, conflicts: [{ record: definition.reference, location: { kind: "record" }, base: original,
+    return { selected: current, conflicts: [{ record: definition.reference, location: { kind: "record" }, base: original,
       current: { value: left, label: currentLabel }, incoming: { value: right, label: incomingLabel } }] };
   }
   const merged = mergeEntryText({ record: definition.reference, base: base?.content ?? "", current: current.content,
@@ -119,13 +131,19 @@ function entryDocument(ref: string, definition: EntryDefinition, path: string, e
   objects: ReadonlyMap<string, BatchObject | null>, source: EntrySource): EntryDocument | undefined {
   const entry = entries.get(path);
   if (!entry) return undefined;
-  const stored = entries.get(definition.metadataPath), metadata = parseRefMetadata(stored ? objects.get(stored.oid) : undefined);
-  if (!metadata) throw new RefSyncLabelError(ref, corruptRef(ref, false, true));
+  const { metadata, formatVersion } = entryMetadata(ref, definition, entries, objects);
   const object = objects.get(entry.oid);
   if (object?.type !== "blob") throw new RefSyncLabelError(ref, corruptRef(ref, true));
   const content = decodeEntryBytes(ref, entry, object.bytes, source);
-  return { entry, content, metadata, formatVersion: metadata.formats[refFormatKey(definition.reference)] ?? 1,
+  return { entry, content, metadata, formatVersion,
     invalidIds: entryIdProblem(content, definition.grammar) !== undefined };
+}
+
+function entryMetadata(ref: string, definition: EntryDefinition, entries: ReadonlyMap<string, RefTreeEntry>,
+  objects: ReadonlyMap<string, BatchObject | null>): { metadata: RefMetadata; formatVersion: number } {
+  const stored = entries.get(definition.metadataPath), metadata = parseRefMetadata(stored ? objects.get(stored.oid) : undefined);
+  if (!metadata) throw new RefSyncLabelError(ref, corruptRef(ref, false, true));
+  return { metadata, formatVersion: metadata.formats[refFormatKey(definition.reference)] ?? 1 };
 }
 
 

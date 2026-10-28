@@ -1,4 +1,4 @@
-/** Whole-record withdrawal choices keep their stored format through surrounding reconciliation. */
+/** Withdrawal choices keep their stored format through surrounding reconciliation. */
 import { describe, expect, it } from "vitest";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { createRefStore } from "../../src/lib/store/create.js";
@@ -33,7 +33,13 @@ async function plantBefore(side: RefSyncFixture["a"], reference: RecordReference
 }
 
 describe.each(["default", "separate"] as const)("withdrawal selected formats in %s", layout => {
-  it.each(["unchanged", "independent current"] as const)("keeps the selected whole document's own format with %s local state", async state => {
+  it.each([
+    { beforeContent: "malformed", published: "unchanged", current: "unchanged" },
+    { beforeContent: "malformed", published: "unchanged", current: "independent" },
+    { beforeContent: "malformed", published: "changed", current: "unchanged" },
+    { beforeContent: "malformed", published: "changed", current: "independent" },
+    { beforeContent: "common", published: "unchanged", current: "unchanged" },
+  ] as const)("keeps the selected document's format with $beforeContent before, $published published and $current current state", async state => {
     const h = await refSyncFixture(layout);
     const a = createRefStore({ ...h.a.ports, registry }), b = createRefStore({ ...h.b.ports, registry });
     const start = async (name: string) => {
@@ -47,7 +53,7 @@ describe.each(["default", "separate"] as const)("withdrawal selected formats in 
     success(await a.write({ action: "put", reference, expected: null, content: document("Common."), provenance }));
     success(await a.push()); success(await b.pull());
     const malformed = document("Before.") + "\n" + document("Repeated managed ID.").split("\n\n").slice(2).join("\n\n");
-    await plantBefore(h.a, reference, malformed);
+    await plantBefore(h.a, reference, state.beforeContent === "common" ? document("Common.") : malformed);
     const before = success(await a.read({ reference }));
     const home = expandStoredPath(reference, { registry });
     const beforeBlob = (await h.a.git(["rev-parse", `${home.ref}:${home.path}`])).stdout.trim();
@@ -56,21 +62,22 @@ describe.each(["default", "separate"] as const)("withdrawal selected formats in 
     success(await a.batch({ writes: [
       { action: "put", reference: local.reference, expected: local.version, content: local.content,
         placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2027-q1") } },
-      { action: "put", reference, expected: before.version, content: document("Unpublished end.") },
+      { action: "put", reference, expected: before.version, content: document(state.beforeContent === "common" ? "Common." : "Unpublished end.") },
     ], provenance }));
     expect(success(await a.read({ reference })).formatVersion).toBe(3);
-    if (state === "independent current") {
+    if (state.beforeContent === "common") expect((await h.a.git(["rev-parse", `${home.ref}:${home.path}`])).stdout.trim()).toBe(beforeBlob);
+    if (state.current === "independent") {
       const written = success(await a.read({ reference }));
       success(await a.write({ action: "put", reference, expected: written.version, content: document("Later local state."),
         provenance: { verb: "save", lifecycleAction: "capture" } }));
     }
-    const selected = state === "unchanged" ? before : success(await a.read({ reference }));
-    const selectedBlob = state === "unchanged" ? beforeBlob : (await h.a.git(["rev-parse", `${home.ref}:${home.path}`])).stdout.trim();
+    const selected = state.current === "unchanged" ? before : success(await a.read({ reference }));
+    const selectedBlob = state.current === "unchanged" ? beforeBlob : (await h.a.git(["rev-parse", `${home.ref}:${home.path}`])).stdout.trim();
     const remote = success(await b.read({ reference: primary.reference })), remoteEntry = success(await b.read({ reference }));
     success(await b.batch({ writes: [
       { action: "put", reference: remote.reference, expected: remote.version, content: remote.content,
         placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } },
-      { action: "put", reference, expected: remoteEntry.version, content: document("Published end.") },
+      ...state.published === "changed" ? [{ action: "put" as const, reference, expected: remoteEntry.version, content: document("Published end.") }] : [],
     ], provenance }));
     success(await b.push());
     const notices = success(await a.pull()).pulls.flatMap(pull => pull.notices);
@@ -82,11 +89,16 @@ describe.each(["default", "separate"] as const)("withdrawal selected formats in 
     expect(metadata.formats[formatKey]).toBe(selected.formatVersion);
     const history = success(await a.history({ reference }));
     expect(history).toContainEqual(expect.objectContaining({ content: selected.content, version: selected.version,
-      provenance: expect.objectContaining({ lifecycleAction: state === "unchanged" ? "withdraw-end" : "capture" }) }));
+      provenance: expect.objectContaining({ lifecycleAction: state.current === "unchanged" ? "withdraw-end" : "capture" }) }));
     const current = success(await a.read({ reference }));
     const conflicts = await Promise.all(current.conflicts.map(async reference =>
       ConflictRecordSchema.parse(JSON.parse(success(await a.read({ reference })).content))));
-    expect(conflicts).toContainEqual(expect.objectContaining({ location: { kind: "record" },
-      current: expect.objectContaining({ value: expect.objectContaining({ content: malformed, formatVersion: 2, version: before.version }) }) }));
+    if (state.published === "changed") expect(conflicts).toContainEqual(expect.objectContaining({ location: { kind: "record" },
+      current: expect.objectContaining({ value: expect.objectContaining({ content: malformed, formatVersion: 2, version: before.version }) }),
+      incoming: expect.objectContaining({ value: expect.objectContaining({ content: document("Published end."), formatVersion: 3 }) }) }));
+    if (state.current === "independent") expect(conflicts).toContainEqual(expect.objectContaining({ location: { kind: "record" },
+      current: expect.objectContaining({ value: expect.objectContaining({ content: selected.content, formatVersion: 3, version: selected.version }) }),
+      incoming: expect.objectContaining({ value: expect.objectContaining({ content: malformed, formatVersion: 2, version: before.version }) }) }));
+    if (state.published === "unchanged" && state.current === "unchanged") expect(conflicts).toEqual([]);
   }, 90_000);
 });

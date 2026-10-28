@@ -5,7 +5,7 @@ import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, type RefTreeEntry, type BatchObject } from "./batch-read.js";
 import { archivedFolders, isArchiveRef } from "./archive-read.js";
 import { writeRefBlob } from "./tree-write.js";
-import { inverseEntryDocument, type WithdrawEntryResult } from "./sync-withdraw-entries.js";
+import { entryFormatChanged, inverseEntryDocument, type WithdrawEntryResult } from "./sync-withdraw-entries.js";
 import { repairWithdrawnLineage } from "./sync-withdraw-lineage.js";
 import type { WithdrawJournalStep } from "./sync-withdraw-journal.js";
 import type { ConflictRecord } from "../conflict.js";
@@ -23,7 +23,7 @@ export async function inverseWithdrawStep(context: RefBackendContext, step: With
   const objects = await readBatchObjects(context, [...new Set([...current.values(), ...step.before.values(), ...step.after.values(), ...step.ancestor.values(), ...published.values()].map(({ oid }) => oid))]);
   if (isArchiveRef(step.ref)) return inverseArchive(step.ref, entries, objects, batches);
   const paths = new Set([...step.before.keys(), ...step.after.keys()]);
-  const conflicts: ConflictRecord[] = [], formats: NonNullable<WithdrawEntryResult["retainedFormat"]>[] = [];
+  const conflicts: ConflictRecord[] = [], formats: WithdrawEntryResult["retainedFormat"][] = [];
   for (const path of paths) {
     if (step.lineageOnly && !["metadata-registry.json", `lineage/${step.lineageOnly}.json`].includes(path)) continue;
     await inverseEntry(context, step, path, entries, current, published, objects, conflicts, formats);
@@ -81,15 +81,15 @@ async function inverseMetadata(context: RefBackendContext, entries: readonly (Re
 }
 
 async function inverseEntry(context: RefBackendContext, step: WithdrawJournalStep, path: string,
-  entries: Map<string, RefTreeEntry>, current: ReadonlyMap<string, RefTreeEntry>, published: ReadonlyMap<string, RefTreeEntry>, objects: ReadonlyMap<string, BatchObject | null>, conflicts: ConflictRecord[], formats: NonNullable<WithdrawEntryResult["retainedFormat"]>[]): Promise<void> {
+  entries: Map<string, RefTreeEntry>, current: ReadonlyMap<string, RefTreeEntry>, published: ReadonlyMap<string, RefTreeEntry>, objects: ReadonlyMap<string, BatchObject | null>, conflicts: ConflictRecord[], formats: WithdrawEntryResult["retainedFormat"][]): Promise<void> {
   const before = step.before.get(path), after = step.after.get(path), here = entries.get(path);
-  if (same(before, after)) return;
+  if (same(before, after) && !entryFormatChanged(context, step, path, current, published, objects)) return;
   const remote = published.get(path);
   const text = await inverseEntryDocument(context, step, path, current, published, objects);
   if (text !== undefined) {
     if (text.selected) entries.set(path, text.selected); else entries.delete(path);
     conflicts.push(...text.conflicts);
-    if (text.retainedFormat) formats.push(text.retainedFormat);
+    formats.push(text.retainedFormat);
     return;
   }
   if (after && same(after, remote)) return;
@@ -111,9 +111,9 @@ async function restoreOriginalEntry(context: RefBackendContext, entries: Map<str
   else entries.delete(path);
 }
 
-/** Whole-record selections keep their own format after the separate metadata inverse. */
+/** Every applied entry inverse keeps its selected format after the separate metadata inverse. */
 async function retainSelectedFormats(context: RefBackendContext, ref: string, entries: Map<string, RefTreeEntry>,
-  formats: readonly NonNullable<WithdrawEntryResult["retainedFormat"]>[]): Promise<void> {
+  formats: readonly WithdrawEntryResult["retainedFormat"][]): Promise<void> {
   for (const { metadataPath, key, version } of formats) {
     const entry = entries.get(metadataPath);
     const metadata = parseRefMetadata(entry ? (await readBatchObjects(context, [entry.oid])).get(entry.oid) : undefined);
