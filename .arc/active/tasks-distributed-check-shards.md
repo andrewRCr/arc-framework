@@ -392,9 +392,12 @@ through controller closing. Store qualification uses the native reach command la
 - _Goal:_ The landed store command uses the public runner with fixed selection inputs and retains its proved no-op
   and empty-share successes without granting success to incomplete, unmatched or all-skipped native work.
 
-- _Note:_ The store check lands with `storage-ref-backend`. Re-ground its landed reach implementation first,
-  converting any remaining wrapper prefix or probe-supplied selectors to `runner: true` and `environment_inputs`;
-  copied/simulated source does not fulfill store qualification.
+- _Note:_ The store check lands with `storage-ref-backend`, and 4.3 is the first task that needs it; Phases 1–3, 4.1
+  and 4.2 do not. Before starting 4.3, confirm with `arc status storage-ref-backend` that it has landed, then merge
+  `main` into this branch. If it has not landed, stop and report rather than simulating store: 4.4, 5.2.a and Phase 6
+  depend on it too, and whether 5.1 proceeds meanwhile is the Owner's call. Re-ground its landed reach implementation
+  first, converting any remaining wrapper prefix or probe-supplied selectors to `runner: true` and
+  `environment_inputs`; copied/simulated source does not fulfill store qualification.
 
     - `[ ]` **4.3.a Complete native store declaration and catalogue adoption**
         - Inspect the actual landed declaration, reach catalogue and input readers. The foundation adopts wrapper
