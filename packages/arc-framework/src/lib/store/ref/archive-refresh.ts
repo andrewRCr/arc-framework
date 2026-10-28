@@ -12,6 +12,7 @@ import type { RefMetadata } from "./metadata.js";
 import { writeRefBlob } from "./tree-write.js";
 import type { StoreResult } from "../refusal.js";
 import { archiveSourceMetadataRefusal } from "./archive-metadata-admission.js";
+import { projectRefTreeEntry } from "./entry-path.js";
 import { archiveCopyNamespaceRefusal, archiveDestinationRefusal } from "./archive-destination-admission.js";
 
 /** Where an owner's completed folder is written and the end batch it keeps, when it has one. */
@@ -53,8 +54,8 @@ export async function writeArchivedFolder(context: RefBackendContext, target: Co
   const root = archivedFolderRoot(context, owner, group.metadata, target.placement);
   for (const entry of group.entries.values()) {
     if (entry.path === home.manifestPath.slice(0, -1) || entry.path.startsWith(home.manifestPath)) continue;
-    const path = root + entry.path;
-    entries.set(path, { ...entry, path, ...(entry.path === home.metadataPath ? { oid: await writeRefBlob(context, canonicalize(metadata)) } : {}) });
+    const projected = projectRefTreeEntry(entry, { fromPrefix: "", toPrefix: root });
+    entries.set(projected.path, { ...projected, ...(entry.path === home.metadataPath ? { oid: await writeRefBlob(context, canonicalize(metadata)) } : {}) });
   }
   return { status: "ok", result: undefined };
 }

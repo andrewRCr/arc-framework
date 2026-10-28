@@ -16,6 +16,7 @@ import { preparedCohortParents, cohortClosePlacement, type PreparedMemberPlaceme
 import { corruptRef } from "./namespace-health.js";
 import { commitRefTree, type RefWriteGroup } from "./write-commits.js";
 import { archivedFolderRoot } from "./archive-refresh.js";
+import { projectRefTreeEntry } from "./entry-path.js";
 import { quarterCommitReference } from "./quarter-provenance.js";
 import { archiveSourceMetadataRefusal } from "./archive-metadata-admission.js";
 import { archiveCopyNamespaceRefusal, archiveDestinationRefusal } from "./archive-destination-admission.js";
@@ -146,8 +147,8 @@ function copyArchiveEntries(context: RefBackendContext, plan: RefArchivePlan, gr
     ?? archiveCopyNamespaceRefusal(plan.reference, plan.home.ref, folder, copied, plan.entries.values(), undefined, plan.home.metadataPath);
   if (refusal) return { status: "refused", refusal };
   for (const entry of copied) {
-    const path = folder + entry.path;
-    plan.entries.set(path, { ...entry, path });
+    const projected = projectRefTreeEntry(entry, { fromPrefix: "", toPrefix: folder });
+    plan.entries.set(projected.path, projected);
   }
   return { status: "ok", result: undefined };
 }

@@ -96,9 +96,11 @@ function malformedCapturedConflictPath(target: RecordReference, root: string, en
 /** Nonempty directory rows are omitted from enumeration; a descendant still proves its direct slot is a tree. */
 function directConflictName(entry: RefTreeEntry, prefix: string): string | undefined {
   if (entry.rawPath) {
-    const end = entry.rawPath.indexOf(47, prefix.length);
+    const bytes = new TextEncoder().encode(prefix);
+    if (!bytes.every((byte, index) => entry.rawPath?.[index] === byte)) return undefined;
+    const end = entry.rawPath.indexOf(47, bytes.length);
     if (end < 0) return undefined;
-    try { return strict.decode(entry.rawPath.subarray(prefix.length, end)); } catch { return undefined; }
+    try { return strict.decode(entry.rawPath.subarray(bytes.length, end)); } catch { return undefined; }
   }
   const nested = entry.path.slice(prefix.length), slash = nested.indexOf("/");
   return slash < 0 ? undefined : nested.slice(0, slash);

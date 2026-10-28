@@ -9,6 +9,7 @@ import { rootFamily } from "./path-decode.js";
 import { parseRefMetadata, historicalMetadataFailure, unparsedMetadata, type RefMetadata } from "./metadata.js";
 import type { RefTreeEntry, BatchObject } from "./batch-read.js";
 import { isOwnerMetadataName } from "./metadata-filename.js";
+import { projectRefTreeEntry } from "./entry-path.js";
 
 /** One archived owner with paths relative to its retained live tree layout. */
 export interface ArchivedFolder {
@@ -99,7 +100,7 @@ function decodeArchiveFolder({ family, ref, quarter, saved }: ArchiveFolderScope
   const placement = folderPlacement(root, metadata, quarter, cohort);
   if (!placement) return unreadable;
   return { ref, root, owner: owner.data, metadata, placement,
-    liveRef: `refs/arc/${cohort ? "cohort" : "work"}/${uid}`, entries: members.map((member) => ({ ...member, path: member.path.slice(root.length) })) };
+    liveRef: `refs/arc/${cohort ? "cohort" : "work"}/${uid}`, entries: members.map(member => projectRefTreeEntry(member, { fromPrefix: root, toPrefix: "" })) };
 }
 
 function ambiguousFolderMetadata(ref: string, root: string, candidates: readonly RefTreeEntry[], saved: boolean): ListingDiagnostic {

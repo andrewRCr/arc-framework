@@ -24,6 +24,7 @@ import type { SyncCheckRecord } from "./sync-checks.js";
 import { readSyncRecordLabel, readSyncRecordPlacement, RefSyncLabelError } from "./sync-label.js";
 import { fixedStoredPathKind } from "./path-decode.js";
 import { findRefNamespaceCollision } from "./path-admission.js";
+import { projectRefTreeEntry } from "./entry-path.js";
 
 interface IndexedRecord { entry: RefTreeEntry; value: ConflictRecordValue; retained?: boolean }
 
@@ -162,7 +163,12 @@ function recordInstallation(context: RefBackendContext, ref: string, group: Capt
   const selectedFormat = group.metadata.formats[refFormatKey(selected.value.reference)] ?? 1;
   const reference = canonicalRecordReference(ref, group.metadata, selected.value.reference);
   const home = expandStoredPath(reference, { registry: context.registry, history: ref.startsWith("refs/arc/history/") });
-  return { reference, entry: { ...selected.entry, path: home.path },
+  if (selected.entry.path !== home.path && (selected.entry.invalidName || selected.entry.rawPath)) throw new RefSyncLabelError(ref, {
+    code: "namespace-corrupt", class: "terminal", namespace: ref,
+    condition: `The selected stored path ${JSON.stringify(selected.entry.path)} cannot be installed through its decoded name because its original bytes are not valid UTF-8.`,
+    remedy: { text: "Rename or remove the malformed entry with Git in a new source-state commit, then retry the pull." },
+  });
+  return { reference, entry: projectRefTreeEntry(selected.entry, { path: home.path }),
     formatVersion: retainMetadata ? selected.value.formatVersion : selectedFormat };
 }
 

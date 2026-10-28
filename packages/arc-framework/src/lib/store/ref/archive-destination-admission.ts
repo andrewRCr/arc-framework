@@ -3,15 +3,16 @@ import type { RecordReference } from "../identity.js";
 import type { StoreRefusal } from "../refusal.js";
 import type { RefTreeEntry } from "./batch-read.js";
 import { findRefPathCollision } from "./path-admission.js";
+import { findArchiveRootOccupant } from "./archive-root-occupancy.js";
 
 /** Only a captured owned folder may be refreshed in place; every other occupied destination stays intact. */
 export function archiveDestinationRefusal(reference: RecordReference, ref: string, root: string,
   entries: Iterable<RefTreeEntry>, ownedRoot?: string): StoreRefusal | undefined {
   if (root === ownedRoot) return undefined;
-  const occupied = [...entries].find(({ path }) => path === root.slice(0, -1) || path.startsWith(root));
+  const occupied = findArchiveRootOccupant(root, [...entries].map(({ path }) => path));
   if (!occupied) return undefined;
   return { code: "record-malformed", class: "recoverable", reference, rule: "store.archive-destination",
-    condition: `The archive destination root ${ref}:${root} already contains another retained folder or entry (${occupied.path}).`,
+    condition: `The archive destination root ${ref}:${root} already contains another retained folder or entry (${occupied}).`,
     remedy: { text: "Rename this owner to an unused archive name, choose a different completed quarter or placement, "
       + "or remove terminal lineage where present and reopen the item before ending it again; then retry. "
       + "Preserve the existing folder and its owner's metadata." } };

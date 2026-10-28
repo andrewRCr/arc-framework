@@ -10,6 +10,7 @@ import { decodeStoredReference } from "./path-decode.js";
 import { checkRefKey, checkRefPathCollision, type RefPathNeighbor } from "./path-admission.js";
 import { mergeLineageAliases } from "./lineage-aliases.js";
 import type { Slug } from "../../kernel/schema/slug.js";
+import { projectRefTreeEntry } from "./entry-path.js";
 
 /** Validate each old key under the new owner before changing any prepared tree. */
 export function prepareRefRenames(context: RefBackendContext, batch: ResolvedBatch, groups: ReadonlyMap<string, RefWriteGroup>): StoreRefusal | undefined {
@@ -41,12 +42,11 @@ function renamedEntries(context: RefBackendContext, group: RefWriteGroup, prior:
       continue;
     }
     const reference = RecordReferenceSchema.parse({ ...old, owner: next.owner });
-    const refusal = checkRefKey(reference, context.registry);
-    if (refusal) return { status: "refused", refusal: { ...refusal, condition: `${entry.path}: ${refusal.condition}`,
-      remedy: { text: `Re-key the companion ${JSON.stringify(old.key)} before renaming its owner, then retry.` } } };
     const target = expandStoredPath(reference, { registry: context.registry });
+    const refusal = renamedEntryRefusal(context, reference, entry, target);
+    if (refusal) return { status: "refused", refusal };
     neighbors.push({ reference, home: { ref: home.ref, path: target.path } });
-    moves.push([entry, { ...entry, path: target.path }]);
+    moves.push([entry, projectRefTreeEntry(entry, { path: target.path })]);
   }
   // Every target comes from the former entries, so a record whose new path is another's former path is not lost.
   const entries = new Map(group.entries);
@@ -58,6 +58,18 @@ function renamedEntries(context: RefBackendContext, group: RefWriteGroup, prior:
     if (refusal) return { status: "refused", refusal };
   }
   return { status: "ok", result: entries };
+}
+
+function renamedEntryRefusal(context: RefBackendContext, reference: RecordReference, entry: RefTreeEntry,
+  target: { ref: string; path: string }): StoreRefusal | undefined {
+  const refusal = checkRefKey(reference, context.registry);
+  if (refusal) return { ...refusal, condition: `${entry.path}: ${refusal.condition}`,
+    remedy: { text: `Re-key the companion ${JSON.stringify(reference.key)} before renaming its owner, then retry.` } };
+  if (entry.path === target.path || !entry.invalidName && !entry.rawPath) return undefined;
+  return { code: "namespace-corrupt", class: "terminal", namespace: target.ref,
+    condition: `The stored path ${JSON.stringify(entry.path)} cannot be renamed through its decoded name because its original bytes are not valid UTF-8.`,
+    remedy: { text: "Rename or remove the malformed entry with Git in a new commit, then retry the owner rename." },
+  };
 }
 
 function renameLineageOwner(groups: ReadonlyMap<string, RefWriteGroup>, reference: RecordReference, formerSlugs: Slug[]): void {

@@ -3,6 +3,7 @@ import type { ReadPlacement } from "../placement.js";
 import type { StoreResult } from "../refusal.js";
 import { expandStoredPath } from "../stored-path.js";
 import { latestArchivedFolders, type ArchivedFolder } from "./archive-read.js";
+import { findArchiveRootOccupant } from "./archive-root-occupancy.js";
 import { ownerPrimaryReference } from "./archive-refresh.js";
 import type { RefTreeEntry } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
@@ -44,7 +45,7 @@ export function planCompletedRoleReplacements(context: Pick<RefBackendContext, "
       const reference = ownerPrimaryReference(folder.owner, group.metadata);
       const home = expandStoredPath(reference, { registry: context.registry, placement });
       const key = `${folder.ref}:${home.root}`;
-      if (occupied.has(key) || home.root !== folder.root && [...target.keys()].some(path => path.startsWith(home.root))) {
+      if (occupied.has(key) || home.root !== folder.root && findArchiveRootOccupant(home.root, target.keys()) !== undefined) {
         return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference,
           rule: "store.ended-twice-placement", condition: "Refreshing this completed primary would collapse independent archived ends into one folder.",
           remedy: { text: "Remove terminal lineage where present, then reopen the item to remove every archived folder, apply the intended edit, and end it once." } } };

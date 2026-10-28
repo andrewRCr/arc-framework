@@ -1,8 +1,10 @@
 /** Merge quarter folders as complete groups and reconcile unpublished sequence assignments. */
 
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
-import type { StoreResult } from "../refusal.js";
+import type { StoreRefusal, StoreResult } from "../refusal.js";
 import { archivedFolders, type ArchivedFolder } from "./archive-read.js";
+import { findArchiveRootOccupant } from "./archive-root-occupancy.js";
+import { projectRefTreeEntry } from "./entry-path.js";
 import { ownerPrimaryReference } from "./archive-refresh.js";
 import { readBatchObjects, readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
@@ -34,23 +36,50 @@ export async function mergeArchiveTree(context: RefBackendContext, ref: string, 
     else if (key === "local") sides.local = folders;
     else sides.incoming = folders;
   }
-  const selected = selectFolders(sides), roots = unpublishedRoots(sides, selected);
+  const selected = selectFolders(sides);
+  const composed = composeSelectedFolders(ref, selected, unpublishedRoots(sides, selected));
+  if (composed.status === "refused") return composed;
+  const entries = composed.result;
+  const subject = [...selected.values(), ...sides.base.values(), ...sides.local.values(), ...sides.incoming.values()][0];
+  if (!subject) return { status: "ok", result: { kind: "empty-archive", entries, archiveRef: ref } };
+  const reference = ownerPrimaryReference(subject.owner, subject.metadata);
+  return { status: "ok", result: { kind: "record", entries, reference } };
+}
+
+function composeSelectedFolders(ref: string, selected: Folders,
+  roots: ReadonlyMap<string, string>): StoreResult<Map<string, RefTreeEntry>> {
+  const rootRefusal = exclusiveRootRefusal(ref, selected, roots);
+  if (rootRefusal) return { status: "refused", refusal: rootRefusal };
   const composed: RefTreeEntry[] = [];
   for (const [key, folder] of selected) {
     for (const entry of folder.entries) {
-      const path = (roots.get(key) ?? folder.root) + entry.path;
-      composed.push({ ...entry, path });
+      composed.push(projectRefTreeEntry(entry, { fromPrefix: "", toPrefix: roots.get(key) ?? folder.root }));
     }
   }
   const collision = findRefPathCollision(composed.map(({ path }) => path));
   if (collision) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: ref,
     condition: `The selected archive folders on ${ref} collide at ${collision.path} and ${collision.other}.`,
     remedy: { text: "Repair the colliding folder paths in a new source commit, then retry the pull." } } };
-  const entries = new Map(composed.map(entry => [entry.path, entry]));
-  const subject = [...selected.values(), ...sides.base.values(), ...sides.local.values(), ...sides.incoming.values()][0];
-  if (!subject) return { status: "ok", result: { kind: "empty-archive", entries, archiveRef: ref } };
-  const reference = ownerPrimaryReference(subject.owner, subject.metadata);
-  return { status: "ok", result: { kind: "record", entries, reference } };
+  return { status: "ok", result: new Map(composed.map(entry => [entry.path, entry])) };
+}
+
+function exclusiveRootRefusal(ref: string, selected: Folders, roots: ReadonlyMap<string, string>): StoreRefusal | undefined {
+  const claimed = new Map<string, ArchivedFolder>();
+  for (const [key, folder] of selected) {
+    const root = roots.get(key) ?? folder.root;
+    const occupied = findArchiveRootOccupant(root, claimed.keys());
+    if (occupied !== undefined) {
+      const earlier = claimed.get(occupied);
+      if (!earlier) throw new Error("An occupied archive root has no captured owner claim");
+      const claim = (owner: ArchivedFolder): string => `${owner.liveRef} generation ${owner.metadata.endBatch ?? owner.root} (source root ${owner.root})`;
+      return { code: "namespace-corrupt", class: "terminal", namespace: ref,
+        condition: `The selected archive folders on ${ref} require exclusive roots: ${root} is claimed by ${claim(earlier)} and ${claim(folder)}.`,
+        remedy: { text: "In a new forward source commit, rename one completed owner to a distinct archive name, preserving both owners' metadata "
+          + "and their established quarter and sequence; then retry the pull." } };
+    }
+    claimed.set(root, folder);
+  }
+  return undefined;
 }
 
 function selectFolders(sides: ArchiveSides): Folders {
