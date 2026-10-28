@@ -25,7 +25,7 @@ export async function readOpenConflicts(context: RefBackendContext, target: Reco
   if (tree?.type !== "tree") {
     // A missing path query also means an existing directory's tree object is missing. Its pinned parent proves absence.
     if (!tree && basis.parent?.type === "tree" && !treeEntries(basis.parent).some(({ name }) => name === "conflicts")) return { status: "ok", result: [] };
-    return { status: "refused", refusal: unavailableConflictEvidence(target, directory) };
+    return { status: "refused", refusal: unavailableConflictEvidence(target, directory, tree ? "structural" : "missing") };
   }
   const entries = treeEntries(tree).flatMap(({ name, oid }) => name?.endsWith(".json")
     ? [{ key: name.slice(0, -5), oid, path: `${directory}/${name}` }] : []);
@@ -42,7 +42,7 @@ function establishConflicts(target: RecordReference, entries: readonly ConflictE
     const conflict = conflictReference(target, entry.key);
     if (!conflict.success) continue;
     const object = objects.get(entry.oid);
-    if (object?.type !== "blob") return { status: "refused", refusal: unavailableConflictEvidence(target, entry.path, saved) };
+    if (object?.type !== "blob") return { status: "refused", refusal: unavailableConflictEvidence(target, entry.path, object ? "structural" : "missing", saved) };
     const record = conflictTarget(object.bytes);
     if (!record) return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference: target,
       rule: "store.conflict-evidence", condition: `The sibling conflict at ${entry.path} cannot be decoded; its target and the record's conflict set cannot be established.`,
@@ -67,7 +67,7 @@ export function attachOpenConflicts(context: Pick<RefBackendContext, "registry">
     });
     const malformed = malformedCapturedConflictPath(record.reference, home.root, entries);
     const conflicts: StoreResult<RecordReference[]> = malformed
-      ? { status: "refused", refusal: unavailableConflictEvidence(record.reference, malformed, saved) }
+      ? { status: "refused", refusal: unavailableConflictEvidence(record.reference, malformed, "structural", saved) }
       : establishConflicts(record.reference, siblings, objects, saved);
     if (conflicts.status === "ok") attached.push({ ...record, conflicts: conflicts.result });
     else {
@@ -106,11 +106,15 @@ function directConflictName(entry: RefTreeEntry, prefix: string): string | undef
   return slash < 0 ? undefined : nested.slice(0, slash);
 }
 
-function unavailableConflictEvidence(reference: RecordReference, path: string, saved = false): StoreRefusal {
+function unavailableConflictEvidence(reference: RecordReference, path: string, cause: "missing" | "structural", saved = false): StoreRefusal {
+  const text = cause === "structural"
+    ? saved ? "Retain the immutable saved-state evidence, repair the source forward with valid conflict structure, then select a readable saved state."
+      : "Repair the source forward with valid conflict structure, then retry the read or write with complete evidence."
+    : saved ? "Restore or fetch the original missing conflict objects, then retry this saved-state read."
+      : "Restore or fetch the missing conflict objects, then retry the read or write with complete evidence.";
   return { code: "state-unresolvable", class: "recoverable", reference, historyRefs: [],
     condition: `The sibling conflict evidence at ${path} is unavailable; the record's conflict set cannot be established.`,
-    remedy: { text: saved ? "Restore or fetch the original missing conflict objects, then retry this saved-state read."
-      : "Restore or fetch the missing conflict objects, then retry the read or write with complete evidence." } };
+    remedy: { text } };
 }
 
 /** Decode the target of a typed conflict independently of its containing path. */

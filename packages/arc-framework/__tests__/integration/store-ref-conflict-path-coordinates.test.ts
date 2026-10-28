@@ -25,6 +25,12 @@ async function addConflict(f: RefConformanceFixture, record: StoreRecord) {
   return reference;
 }
 
+/** Structural damage requires a new source state; a saved damaged state remains immutable evidence. */
+const structurallyUnavailable = (saved = false) => ({ status: "refused", refusal: { code: "state-unresolvable",
+  condition: expect.stringMatching(/unavailable|cannot.*establish/iu), remedy: { text: expect.stringMatching(saved
+    ? /retain.*immutable.*evidence.*repair.*source forward.*valid conflict structure.*select a readable saved state/iu
+    : /repair.*source forward.*valid conflict structure.*retry/iu) } } });
+
 describe.each(["default", "separate"] as const)("completed conflict path coordinates in %s", layout => {
   it.each(["work-item/companion", "cohort/document"] as const)("retains malformed descendants for %s through reads and atomic admission", async kind => {
     let armed = false;
@@ -66,24 +72,22 @@ describe.each(["default", "separate"] as const)("completed conflict path coordin
     const damaged = await plantRef(f.root, home.ref, [...kept, { path: conflictHome.path, mode: "040000", oid: invalidChild }],
       { parents: [ignored.tip], gitDir: f.gitDir });
     const damagedState = await f.settle(), before = await refs(f);
-    const unavailable = { status: "refused", refusal: { code: "state-unresolvable",
-      condition: expect.stringMatching(/unavailable|cannot.*establish/iu), remedy: { text: expect.stringMatching(/repair|restore|fetch/iu) } } };
     for (const saved of [false, true]) expect.soft(await f.store.read({ reference: evidence.reference,
-      ...(saved ? { asOf: damagedState } : {}) })).toMatchObject(unavailable);
+      ...(saved ? { asOf: damagedState } : {}) })).toMatchObject(structurallyUnavailable(saved));
     const request = { writes: [mutationOf(update(f, control))], provenance: testProvenance,
       observations: [{ reference: evidence.reference, expected: { version: evidence.version, conflicts: [] } }] };
-    expect.soft(await f.store.batch(request)).toMatchObject(unavailable);
+    expect.soft(await f.store.batch(request)).toMatchObject(structurallyUnavailable());
     armed = true;
     const checkedControl = success(await f.store.read({ reference: control.reference }));
     expect.soft(await f.store.write(update(f, checkedControl))).toMatchObject({ status: "refused" });
     expect.soft(checked).toHaveLength(2);
-    for (const result of checked) expect.soft(result).toMatchObject(unavailable);
+    for (const result of checked) expect.soft(result).toMatchObject(structurallyUnavailable());
     expect.soft(await refs(f)).toBe(before);
     await plantRef(f.root, home.ref, original, { parents: [damaged.tip], gitDir: f.gitDir, message: "Repair conflict slot forward" });
     const repaired = await f.settle();
     for (const saved of [false, true]) expect(success(await f.store.read({ reference: evidence.reference,
       ...(saved ? { asOf: repaired } : {}) }))).toMatchObject({ version: evidence.version, conflicts: [conflict] });
-    expect(await f.store.read({ reference: evidence.reference, asOf: damagedState })).toMatchObject(unavailable);
+    expect(await f.store.read({ reference: evidence.reference, asOf: damagedState })).toMatchObject(structurallyUnavailable(true));
     expect(success(await f.store.read({ reference: evidence.reference, asOf: ignoredState })).conflicts).toEqual([]);
     checked.length = 0;
     success(await f.store.batch({ ...request, observations: [{ reference: evidence.reference,
