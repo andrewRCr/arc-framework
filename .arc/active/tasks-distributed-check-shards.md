@@ -251,13 +251,10 @@ through controller closing. Store qualification uses the native reach command la
 - _Goal:_ Qualification can compare native unsharded selection with the actual executed shard assignments without
   changing native membership or partitioning the same selection twice.
 
-    - `[ ]` **4.1.a Collect native membership identities and actual assignments**
-        - Use `discoverVitestSelection`, real controller fixtures and `HeavyFirstSequencer.shard` observation.
-          Keep any observer/report in the qualification harness/native helper, outside the generic check protocol.
-        - Build `test-first` (one behavior at a time):
-            - Identities include project and normalized package-relative module path; equal filenames in different
-              projects remain distinct and assignment observation matches actual native execution.
-            - Discovery is not pre-sharding: observed lists are never fed back into execution with sharding enabled.
+    - `[x]` **4.1.a Collect native membership identities and actual assignments**
+        - A qualification-only configuration observes full native discovery, one native shard/sort cycle and worker
+          queue/end events with project/package-relative identities. Real pre-parsed controllers preserve equal
+          filenames across projects and distinguish unassigned module presence from actual execution.
 
     - `[ ]` **4.1.b Compare complete union and pairwise disjointness over fixed inputs**
         - Add a reusable qualification helper near existing native controller/sequencer tests, using captured

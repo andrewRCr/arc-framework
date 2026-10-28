@@ -86,6 +86,7 @@ it("retains each native portability boundary on the portability tier", () => {
     "duration-layout-workflow.test.ts", "vitest-discovery.test.ts", "vitest-completion",
     "vitest-mixed-shard.test.ts", "vitest-native-writers.test.ts", "vitest-native-closing.test.ts",
     "vitest-runtime-ownership.test.ts",
+    "vitest-shard-",
   ]));
 });
 

@@ -221,6 +221,7 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "vitest-native-writers.test.ts",
         "vitest-native-closing.test.ts",
         "vitest-runtime-ownership.test.ts",
+        "vitest-shard-",
         "check-runner-session.test.ts",
         "check-runner-conformance-wire.test.ts",
         "check-runner-conformance-groups.test.ts",
