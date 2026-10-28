@@ -91,7 +91,7 @@ export async function mergeCapturedRefState(context: RefBackendContext, incoming
   const reopens = await readPendingRefReopens(context, unblocked(held), unblocked(state), unblocked(incoming), published, blocked);
   const routes = lifecycleRoutes(held, items, reopens);
   for (const { live, history } of pending) if (held.has(live) && incoming.has(history)) {
-    routes.set(history, { ref: history, source: live });
+    routes.set(history, pendingEndRoute(live, history));
   }
   const last = await mergeRefSets(context, state, items, { ...options, routes, incomingState: unblocked(incoming), priorState: unblocked(held) });
   if (last.status === "restart") return last;
@@ -142,6 +142,11 @@ async function withdrawEndBatches(context: RefBackendContext, held: Map<string, 
 
 function isItem(ref: string): boolean { return /^refs\/arc\/(?:history\/)?(?:work|cohort)\//u.test(ref); }
 
+function pendingEndRoute(live: string, history: string): RefMergeRoute {
+  return { ref: history, source: live,
+    ...live.startsWith("refs/arc/cohort/") ? { cohortEndRoute: { kind: "pending-end", live, history, liveSide: "local" } as const } : {} };
+}
+
 /** A withheld ref stays out of merges while the source still holds it at the tip it had before the fetch. */
 export function isWithheld(ref: string, incoming: ReadonlyMap<string, string>, withheld: ReadonlyMap<string, string> = new Map()): boolean {
   const tip = withheld.get(ref);
@@ -167,7 +172,8 @@ function lifecycleRoutes(held: ReadonlyMap<string, string>, items: ReadonlyMap<s
     if (reopening) { routes.set(ref, { ref, source: reopening, reopening: true }); continue; }
     const history = ref.replace(/^refs\/arc\/(work|cohort)\//u, "refs/arc/history/$1/");
     if (history !== ref && !held.has(ref) && held.has(history)) {
-      routes.set(ref, { ref: history, source: history, currentSide: "local" });
+      routes.set(ref, { ref: history, source: history, currentSide: "local",
+        ...ref.startsWith("refs/arc/cohort/") ? { cohortEndRoute: { kind: "late-live", live: ref, history, liveSide: "incoming" } as const } : {} });
     }
     const live = ref.replace("refs/arc/history/", "refs/arc/");
     if (live !== ref && !held.has(ref) && held.has(live)) routes.set(ref, { ref: live, source: live, reopening: true });

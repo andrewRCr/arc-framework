@@ -5,12 +5,12 @@ import { RecordReferenceSchema, type OwnerIdentity, type RecordReference } from 
 import type { ReadPlacement } from "../placement.js";
 import { expandStoredPath } from "../stored-path.js";
 import type { RefBackendContext } from "./context.js";
-import type { ArchivedFolder } from "./archive-read.js";
+import { decodeArchiveFolderControls, type ArchivedFolder } from "./archive-read.js";
 import type { RefWriteGroup } from "./write-commits.js";
 import type { RefTreeEntry } from "./batch-read.js";
 import type { RefMetadata } from "./metadata.js";
 import { writeRefBlob } from "./tree-write.js";
-import type { StoreResult } from "../refusal.js";
+import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { archiveSourceMetadataRefusal } from "./archive-metadata-admission.js";
 import { projectRefTreeEntry } from "./entry-path.js";
 import { archiveCopyNamespaceRefusal, archiveDestinationRefusal } from "./archive-destination-admission.js";
@@ -65,10 +65,31 @@ function archiveFolderRefusal(context: RefBackendContext, target: CompletedFolde
   const reference = ownerPrimaryReference(owner, group.metadata), home = expandStoredPath(reference, { registry: context.registry });
   const root = archivedFolderRoot(context, owner, group.metadata, target.placement);
   const destination = expandStoredPath(reference, { registry: context.registry, placement: target.placement });
+  const emitted = completedFolderMetadata(target, group.metadata);
+  const own = group.entries.get(home.metadataPath);
   return archiveSourceMetadataRefusal(context, reference, home.ref.replace("refs/arc/", "refs/arc/history/"), group.entries.values())
+    ?? archiveOutputControlRefusal(reference, destination.ref, root, target, emitted,
+      own ? { path: root + own.path } : undefined)
     ?? archiveDestinationRefusal(reference, destination.ref, root, entries.values(), ownedRoot)
     ?? archiveCopyNamespaceRefusal(reference, destination.ref, root, [...group.entries.values()].filter(entry =>
       entry.path !== home.manifestPath.slice(0, -1) && !entry.path.startsWith(home.manifestPath)), entries.values(), ownedRoot);
+}
+
+/** Refuse prospective output that the same archive reader cannot read as the intended owner and coordinate. */
+export function archiveOutputControlRefusal(reference: RecordReference, ref: string, root: string, target: CompletedFolderTarget,
+  metadata: RefMetadata | null, own: Pick<RefTreeEntry, "path"> | undefined): StoreRefusal | undefined {
+  const family = reference.owner.type;
+  if ((family === "work-item" || family === "cohort") && target.placement.kind === "completed") {
+    const decoded = decodeArchiveFolderControls({ family, ref, quarter: target.placement.quarter, saved: false }, root, own, metadata);
+    if (decoded && !("kind" in decoded) && "uid" in decoded.owner && "uid" in reference.owner
+      && decoded.owner.uid === reference.owner.uid && decoded.owner.name === (metadata?.slug ?? reference.owner.name)
+      && (family === "cohort" || metadata?.primary?.role === reference.kind)
+      && canonicalize(decoded.placement) === canonicalize(target.placement) && metadata?.endBatch === target.endBatch) return undefined;
+  }
+  return { code: "record-malformed", class: "recoverable", reference, rule: "store.archive-controls",
+    condition: `The prospective completed folder ${ref}:${root} lacks readable metadata for its selected owner, role or completed coordinate.`,
+    remedy: { text: "Repair the owning source state forward in a new commit with its correct owner metadata, primary role and completed placement, "
+      + "preserving retained records and conflicts, then retry. Do not replace historical state or borrow controls from an unrelated folder." } };
 }
 
 /** The placement and end batch an existing folder keeps when it is refreshed. */

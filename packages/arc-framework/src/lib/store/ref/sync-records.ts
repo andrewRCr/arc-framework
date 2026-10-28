@@ -25,6 +25,7 @@ import { readSyncRecordLabel, readSyncRecordPlacement, RefSyncLabelError } from 
 import { fixedStoredPathKind } from "./path-decode.js";
 import { findRefNamespaceCollision } from "./path-admission.js";
 import { projectRefTreeEntry } from "./entry-path.js";
+import type { SyncControlSelections } from "./sync-control-sources.js";
 
 interface IndexedRecord { entry: RefTreeEntry; value: ConflictRecordValue; retained?: boolean }
 
@@ -36,7 +37,7 @@ interface SyncRecordNamespace { family: FamilyId; owner: OwnerIdentity; metadata
 
 /** Reconcile semantic records while retaining opaque entries outside the registered record set. */
 export async function reconcileSyncRecords(context: RefBackendContext, ref: string, base: SyncTreeSide, local: SyncTreeSide,
-  incoming: SyncTreeSide, objects: ReadonlyMap<string, BatchObject | null>, group: CapturedWriteGroup, metadataConflicts: readonly string[][], tipSets: readonly ReadonlyMap<string, string>[], currentSide: "local" | "incoming" = "incoming"): Promise<SyncCheckRecord[]> {
+  incoming: SyncTreeSide, objects: ReadonlyMap<string, BatchObject | null>, group: CapturedWriteGroup, metadataConflicts: readonly string[][], tipSets: readonly ReadonlyMap<string, string>[], currentSide: "local" | "incoming", controls: SyncControlSelections): Promise<SyncCheckRecord[]> {
   const [previous, current, remote] = await Promise.all([base, local, incoming].map(side => indexRecords(context, ref, side, objects, tipSets)));
   if (!previous || !current || !remote) throw new Error("A reconciliation lacks one indexed side");
   const conflicts: ConflictRecord[] = [];
@@ -51,7 +52,7 @@ export async function reconcileSyncRecords(context: RefBackendContext, ref: stri
     const subject = (records.local ?? records.incoming ?? records.base)?.value.reference;
     if (choice.followsIncoming && subject?.kind === "lineage/transition") followLineageName(group.metadata, sides.incoming.metadata, subject);
     conflicts.push(...choice.conflicts);
-    if (choice.retainMetadata && key === "primary") retainPrimaryMetadata(group.metadata, currentSide === "local" ? local.metadata : incoming.metadata);
+    if (choice.retainMetadata && key === "primary") retainPrimaryMetadata(group.metadata, currentSide === "local" ? local : incoming, controls);
     choices.push({ records, choice });
   }
   installSelectedRecords(context, ref, group, choices, changedOpaquePaths(base, [[local, current], [incoming, remote]]));
@@ -241,11 +242,14 @@ function ownsMetadataConflict(key: string, records: RecordTriple, paths: readonl
   });
 }
 
-function retainPrimaryMetadata(metadata: RefMetadata, local: RefMetadata): void {
+function retainPrimaryMetadata(metadata: RefMetadata, side: SyncTreeSide, controls: SyncControlSelections): void {
+  const local = side.metadata;
   for (const key of ["slug", "formerSlugs", "primary", "placement"] as const) {
     Reflect.deleteProperty(metadata, key);
     if (local[key] !== undefined) Object.assign(metadata, { [key]: structuredClone(local[key]) });
   }
+  controls.primary = side.controlSource;
+  controls.placement = side.controlSource;
 }
 
 function recordValue(kind: KindDefinition, reference: RecordReference, entry: RefTreeEntry, object: BatchObject, metadata: RefMetadata,

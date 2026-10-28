@@ -8,18 +8,19 @@ import type { ReadPlacement, WritePlacement } from "../placement.js";
 import type { BatchCreationReceipt } from "../creation-receipt.js";
 import type { BatchInput } from "../write.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
-import { readRefTrees, type RefTreeEntry } from "./batch-read.js";
+import { readBatchObjects, readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
 import type { ResolvedBatch, ResolvedMutation } from "./write-resolution.js";
 import type { PreparedRefMutation } from "./write-merge.js";
 import { preparedCohortParents, cohortClosePlacement, type PreparedMemberPlacement } from "./cohort-coordinates.js";
 import { corruptRef } from "./namespace-health.js";
 import { commitRefTree, type RefWriteGroup } from "./write-commits.js";
-import { archivedFolderRoot } from "./archive-refresh.js";
+import { archivedFolderRoot, archiveOutputControlRefusal, ownerPrimaryReference } from "./archive-refresh.js";
 import { projectRefTreeEntry } from "./entry-path.js";
 import { quarterCommitReference } from "./quarter-provenance.js";
 import { archiveSourceMetadataRefusal } from "./archive-metadata-admission.js";
 import { archiveCopyNamespaceRefusal, archiveDestinationRefusal } from "./archive-destination-admission.js";
+import { parseRefMetadata } from "./metadata.js";
 
 /** One item's assigned destination, resolved from the locked quarter tree. */
 export interface RefArchivePlan {
@@ -109,7 +110,7 @@ export async function archiveRefChanges(context: RefBackendContext, changes: rea
     const group = writes.some((write) => write.home.ref === plan.source && write.conflicts.length > 0)
       ? completed.get(plan.source) : groups.get(plan.source);
     if (!group) throw new Error("An archive has no final item tree");
-    const copied = copyArchiveEntries(context, plan, group);
+    const copied = await copyArchiveEntries(context, plan, group);
     if (copied.status === "refused") return copied;
     result.push({ ref: plan.history, next: change.next, expected: tips.get(plan.history) ?? null });
     const prior = tips.get(plan.source);
@@ -139,11 +140,16 @@ async function readArchiveQuarters(context: RefBackendContext, selected: readonl
   return { status: "ok", result: entries };
 }
 
-function copyArchiveEntries(context: RefBackendContext, plan: RefArchivePlan, group: RefWriteGroup): StoreResult<undefined> {
+async function copyArchiveEntries(context: RefBackendContext, plan: RefArchivePlan, group: RefWriteGroup): Promise<StoreResult<undefined>> {
   const live = expandStoredPath(plan.reference, { registry: context.registry });
   const folder = archivedFolderRoot(context, plan.reference.owner, group.metadata, plan.placement);
   const copied = [...group.entries.values()].filter(entry => entry.path !== live.manifestPath.slice(0, -1) && !entry.path.startsWith(live.manifestPath));
+  const own = group.entries.get(live.metadataPath);
+  const objects = await readBatchObjects(context, own ? [own.oid] : []);
+  const metadata = parseRefMetadata(own ? objects.get(own.oid) : undefined);
   const refusal = archiveSourceMetadataRefusal(context, plan.reference, plan.source, group.entries.values())
+    ?? archiveOutputControlRefusal(ownerPrimaryReference(plan.reference.owner, group.metadata), plan.home.ref, folder,
+      { placement: plan.placement, endBatch: group.metadata.endBatch }, metadata, own ? { path: folder + own.path } : undefined)
     ?? archiveCopyNamespaceRefusal(plan.reference, plan.home.ref, folder, copied, plan.entries.values(), undefined, plan.home.metadataPath);
   if (refusal) return { status: "refused", refusal };
   for (const entry of copied) {

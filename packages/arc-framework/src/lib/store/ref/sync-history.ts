@@ -6,7 +6,7 @@ import type { ReadPlacement } from "../placement.js";
 import { readBatchObjects, readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import { parseStoreCommitProvenance } from "../commit-provenance.js";
 import { OwnerIdentitySchema } from "../identity.js";
-import type { SyncRecordMergedTree } from "./sync-tree.js";
+import type { SyncRecordMergedTree, SyncTreeMergeScope } from "./sync-tree.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { ownerPrimaryReference, refreshArchivedFolder } from "./archive-refresh.js";
 import { parseRefMetadata, type RefMetadata } from "./metadata.js";
@@ -19,10 +19,11 @@ import { checkSyncRefTip } from "./sync-tip.js";
 import { readLifecycleFolders } from "./sync-lifecycle.js";
 import { planCompletedRoleReplacements, type CompletedRoleReplacement } from "./write-completed-role.js";
 import { readLifecycleLog } from "./sync-lifecycle-evidence.js";
+import { cohortEndLiveSource, type SyncControlSource } from "./sync-control-sources.js";
 
 /** Stamp a history fast-forward only when its retained folders need a paired refresh. */
 export async function prepareSyncHistoryFastForward(context: RefBackendContext, ref: string, tip: string,
-  quarters: readonly SyncHistoryQuarter[], batchId: string, preferred: ReadonlyMap<string, string>): Promise<StoreResult<SyncRecordMergedTree | undefined>> {
+  quarters: readonly SyncHistoryQuarter[], batchId: string, preferred: ReadonlyMap<string, string>, scope: SyncTreeMergeScope): Promise<StoreResult<SyncRecordMergedTree | undefined>> {
   const folder = latestArchivedFolders(quarters.flatMap(quarter => quarter.folders))[0];
   if (!folder || !("uid" in folder.owner)) {
     const refusal = await checkSyncRefTip(context, ref, tip);
@@ -36,10 +37,16 @@ export async function prepareSyncHistoryFastForward(context: RefBackendContext, 
   const entry = entries.find((entry) => entry.path === path);
   const objects = await readBatchObjects(context, entry ? [entry.oid] : []);
   const sourceMetadata = parseRefMetadata(entry ? objects.get(entry.oid) : undefined, ref);
-  const metadata = sourceMetadata ?? (recordFree ? emptyHistoryMetadata(folder) : null);
+  const metadata = sourceMetadata ? structuredClone(sourceMetadata) : recordFree ? emptyHistoryMetadata(folder) : null;
   if (!metadata) return { status: "refused", refusal: corruptRef(ref) };
   const reference = ownerPrimaryReference(folder.owner, metadata);
-  const tree: SyncRecordMergedTree = { kind: "record", entries: new Map(entries.map((entry) => [entry.path, entry])), metadata, reference };
+  const sourceRefs = scope.sourceRefs ?? { local: ref, incoming: ref };
+  const liveEnd = cohortEndLiveSource(scope.cohortEndRoute, sourceRefs, ref, scope.currentSide ?? "incoming", scope.reopening);
+  const source: SyncControlSource = { ref: sourceRefs.incoming, tip, recordFree,
+    ...sourceRefs.incoming === liveEnd && sourceMetadata && !sourceMetadata.primary && sourceMetadata.placement === undefined
+      ? { cohortEnd: { live: sourceRefs.incoming, history: ref } } : {} };
+  const tree: SyncRecordMergedTree = { kind: "record", entries: new Map(entries.map((entry) => [entry.path, entry])), metadata, reference,
+    controlSources: { primary: source, placement: source } };
   // A new empty group keeps only authenticated owner/lifecycle controls, never the folder's old record formats or values.
   if (!sourceMetadata) tree.entries.set(path, { path, mode: "100644", oid: await writeRefBlob(context, canonicalize(metadata)) });
   const preview = quarters.map((quarter) => ({ ...quarter, entries: new Map(quarter.entries) }));
@@ -102,7 +109,7 @@ export async function prepareSyncHistoryQuarters(context: RefBackendContext, qua
   preferred: ReadonlyMap<string, string>): Promise<StoreResult<undefined>> {
   if (!tree.metadata) throw new Error("A retained item merge has no group metadata");
   const folders = quarters.flatMap(quarter => quarter.folders);
-  await completeEmptyHistoryControls(context, tree, folders);
+  await completeHistoryControls(context, tree, folders);
   const group: CompletedRoleReplacement["group"] = { metadata: tree.metadata };
   const role = tree.metadata.primary?.role;
   if (role) {
@@ -122,14 +129,21 @@ export async function prepareSyncHistoryQuarters(context: RefBackendContext, qua
 }
 
 /** Only batch-eligible folders supply missing lifecycle controls; source metadata keeps every explicit field. */
-async function completeEmptyHistoryControls(context: RefBackendContext, tree: SyncRecordMergedTree,
+async function completeHistoryControls(context: RefBackendContext, tree: SyncRecordMergedTree,
   folders: readonly ArchivedFolder[]): Promise<void> {
   const folder = latestArchivedFolders(folders)[0], metadata = tree.metadata;
   if (!folder || !metadata) return;
   const home = expandStoredPath(tree.reference, { registry: context.registry });
-  if (!holdsNoRecord(home, tree.entries.keys())) return;
-  if (!metadata.primary && folder.metadata.primary) metadata.primary = { ...folder.metadata.primary };
-  if (!metadata.placement && folder.metadata.placement) metadata.placement = { ...folder.metadata.placement };
+  const recordFree = holdsNoRecord(home, tree.entries.keys());
+  if (!metadata.primary && folder.metadata.primary && (recordFree || tree.controlSources?.primary?.recordFree)) {
+    metadata.primary = structuredClone(folder.metadata.primary);
+  }
+  const placementSource = tree.controlSources?.placement;
+  const openCohort = tree.reference.owner.type === "cohort" && placementSource?.cohortEnd?.live === folder.liveRef
+    && placementSource.cohortEnd.history === folder.liveRef.replace("refs/arc/", "refs/arc/history/");
+  if (!metadata.placement && folder.metadata.placement && (recordFree || placementSource?.recordFree || openCohort)) {
+    metadata.placement = { ...folder.metadata.placement };
+  }
   tree.reference = ownerPrimaryReference(folder.owner, metadata);
   tree.entries.set(home.metadataPath, { path: home.metadataPath, mode: "100644", oid: await writeRefBlob(context, canonicalize(metadata)) });
 }

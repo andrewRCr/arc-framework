@@ -79,7 +79,7 @@ export function archivedFolders(family: FamilyId, ref: string, entries: readonly
   return { folders, diagnostics };
 }
 
-interface ArchiveFolderScope { family: "work-item" | "cohort"; ref: string; quarter: ReturnType<typeof ArchiveQuarterSchema.parse>; saved: boolean }
+export interface ArchiveFolderScope { family: "work-item" | "cohort"; ref: string; quarter: ReturnType<typeof ArchiveQuarterSchema.parse>; saved: boolean }
 
 function decodeArchiveFolder({ family, ref, quarter, saved }: ArchiveFolderScope, root: string,
   entries: readonly RefTreeEntry[], objects: ReadonlyMap<string, BatchObject | null>): ArchivedFolder | ListingDiagnostic | undefined {
@@ -88,6 +88,15 @@ function decodeArchiveFolder({ family, ref, quarter, saved }: ArchiveFolderScope
   if (candidates.length > 1) return ambiguousFolderMetadata(ref, root, candidates, saved);
   const entry = candidates[0];
   const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : undefined);
+  const controls = decodeArchiveFolderControls({ family, ref, quarter, saved }, root, entry, metadata);
+  if (!controls || "kind" in controls) return controls;
+  return { ref, root, ...controls, entries: members.map(member => projectRefTreeEntry(member, { fromPrefix: root, toPrefix: "" })) };
+}
+
+/** Shared pure reader rules for the owner and completed coordinate an emitted folder must name. */
+export function decodeArchiveFolderControls({ family, ref, quarter, saved }: ArchiveFolderScope, root: string,
+  entry: Pick<RefTreeEntry, "path"> | undefined, metadata: RefMetadata | null):
+  Pick<ArchivedFolder, "owner" | "metadata" | "placement" | "liveRef"> | ListingDiagnostic | undefined {
   const cohort = metadata?.primary === undefined && (metadata?.placement?.kind === "completed" || /^\d+[ab]_cohort-/u.test(root));
   if (cohort !== (family === "cohort")) return;
   const unreadable: ListingDiagnostic = { kind: "unreadable", key: `${ref}:${root}`, ...unparsedMetadata(`${ref}:${root}`, saved) };
@@ -99,8 +108,7 @@ function decodeArchiveFolder({ family, ref, quarter, saved }: ArchiveFolderScope
   if (mismatch) return mismatch;
   const placement = folderPlacement(root, metadata, quarter, cohort);
   if (!placement) return unreadable;
-  return { ref, root, owner: owner.data, metadata, placement,
-    liveRef: `refs/arc/${cohort ? "cohort" : "work"}/${uid}`, entries: members.map(member => projectRefTreeEntry(member, { fromPrefix: root, toPrefix: "" })) };
+  return { owner: owner.data, metadata, placement, liveRef: `refs/arc/${cohort ? "cohort" : "work"}/${uid}` };
 }
 
 function ambiguousFolderMetadata(ref: string, root: string, candidates: readonly RefTreeEntry[], saved: boolean): ListingDiagnostic {

@@ -22,6 +22,7 @@ import { isGitProcessError } from "../../git/process-error.js";
 import { readBatchObjects } from "./batch-read.js";
 import { corruptRef } from "./namespace-health.js";
 import { isUnavailableGraphFailure } from "./history-graph.js";
+import type { SyncCohortEndRoute } from "./sync-control-sources.js";
 
 /** Reuse the same merge over ordinary refs or a caller's isolated destination refs. */
 export interface RefMergeOptions {
@@ -35,7 +36,7 @@ export interface RefMergeOptions {
   onApplied?: (context: RefBackendContext, ref: string, before: string | null, after: string, notices: readonly PullNotice[]) => Promise<void>;
 }
 /** One explicit lifecycle destination and the held source it replaces. */
-export interface RefMergeRoute { ref: string; source: string; currentSide?: "local" | "incoming"; reopening?: boolean }
+export interface RefMergeRoute { ref: string; source: string; currentSide?: "local" | "incoming"; reopening?: boolean; cohortEndRoute?: SyncCohortEndRoute }
 
 /** A changed basis asks the caller to release locks and capture its sets again. */
 export type RefMergeResult = { status: "complete"; changed: boolean; notices: PullNotice[] } | { status: "restart" };
@@ -83,7 +84,8 @@ async function mergeCapturedSyncRef(context: RefBackendContext, local: ReadonlyM
     const batchId = randomUUID();
     const staged = { ...context, blobStage: { format: await readObjectFormat(context), blobs: new Map<string, Uint8Array>() } };
     const built = await prepareSyncMerge(staged, ref, current, next, local, quarters, { currentSide: route?.currentSide,
-      incoming: options.incomingState ?? incoming, priorState: options.priorState, batchId, reopening: route?.reopening, ended: captured.result.latest });
+      incoming: options.incomingState ?? incoming, priorState: options.priorState, batchId, reopening: route?.reopening, ended: captured.result.latest,
+      sourceRefs: { local: source, incoming: incomingRef }, cohortEndRoute: route?.cohortEndRoute });
     if (built.status === "refused") return heldMerge(ref, built.refusal);
     const { tree: prepared, parents, placementState } = built.result;
     if (prepared?.kind === "record" && prepared.metadata) {
@@ -123,7 +125,7 @@ async function prepareSyncMerge(context: RefBackendContext, ref: string, current
     return merged.status === "refused" ? merged : { status: "ok", result: { tree: merged.result, parents: [current, next],
       placementState: scope.currentSide === "local" ? local : incoming } };
   }
-  const prepared = await prepareSyncHistoryFastForward(context, ref, next, quarters, scope.batchId, incoming);
+  const prepared = await prepareSyncHistoryFastForward(context, ref, next, quarters, scope.batchId, incoming, scope);
   return prepared.status === "refused" ? prepared : { status: "ok", result: { tree: prepared.result, parents: [next], placementState: incoming } };
 }
 
