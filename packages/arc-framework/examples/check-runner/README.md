@@ -52,9 +52,10 @@ node /absolute/path/to/local.mjs --settle PLAN_UUID --state-root /absolute/state
 ```
 
 The default state root is `~/.cache/arc-local-check-runner`; `--state-root` selects another absolute directory.
-Settlement signals the process groups that attempt records name, so preparation refuses a root that is not a directory
-owned by the current user and writable by no one else. Each attempt owns private process records. Normal release
-removes them; unsuccessful conversations retain recovery records usable after the protocol process exits.
+Settlement signals the process groups that attempt records name, skipping groups that already drained or whose ID a
+later process now holds, so preparation refuses a root that is not a directory owned by the current user and writable
+by no one else. Each attempt owns private process records. Normal release removes them; unsuccessful conversations
+retain recovery records usable after the protocol process exits.
 
 Supervisors record process identity before accepting work. Cancel/EOF stops owned groups and waits for descendants,
 even after the original process exits or output pipes close. Termination escalates after one second. Inspect reports
@@ -69,13 +70,13 @@ records introduce no automatic reconnect, replacement execution or ARC job datab
 
 ## Implementation size
 
-The current example totals 573 lines and 33,097 bytes, including comments/blank lines and excluding READMEs:
+The current example totals 573 lines and 33,083 bytes, including comments/blank lines and excluding READMEs:
 
 | Module              | Responsibility                                  | Lines |  Bytes |
 | ------------------- | ----------------------------------------------- | ----: | -----: |
 | `local.mjs`         | Conversation and protocol ordering              |   175 | 10,541 |
 | `local-inputs.mjs`  | Source/files verification and child environment |   188 | 11,113 |
-| `local-process.mjs` | Descendant supervision and recovery             |   174 |  9,161 |
+| `local-process.mjs` | Descendant supervision and recovery             |   174 |  9,147 |
 | `local-runtime.mjs` | Supported Node runtime qualification            |    36 |  2,282 |
 
 These are implementation-size measurements, not preparation timings or a minimum adapter size. Remote transport,

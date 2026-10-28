@@ -139,7 +139,7 @@ export async function executeChild(executable, directory, invocation, cwd, envir
   if (control.active === active) control.active = undefined;
   if (!collected.ok || observationError !== undefined) throw new IncompleteExecutionError("Required execution output or terminal reporting could not be collected");
   if (control.cancelled && started) return failure ?? { status: "cancelled", reason: "Local process group cancellation settled" };
-  if (timedOut && outcome === undefined && failure === undefined) return timeoutOutcome(timeout);
+  if (timedOut && outcome === undefined) return failure ?? timeoutOutcome(timeout);
   if (launchError !== undefined || !started || status.code !== 0 || outcome === undefined) throw new Error("Local supervisor did not complete its execution record");
   return failure ?? outcome;
 }

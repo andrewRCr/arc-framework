@@ -591,7 +591,7 @@ async function executeNativeSelectedCheck(selected: SelectedCheck, io: DeclaredC
   const measurement = await io.reports?.save(id, result.output, costMs);
   // An interrupted run neither restages a fixer's partial rewrites nor publishes evidence.
   if (result.interrupted) return { id, kind, outcome: "couldn't run", reason: INTERRUPTED_WHILE_RUNNING, output: result.output, costMs,
-    ...(measurement ? { logPath: measurement.logPath } : {}) };
+    ...(result.notice === undefined ? {} : { notice: result.notice }), ...(measurement ? { logPath: measurement.logPath } : {}) };
   return { ...await finalizeCheckRun(selected, io, request, result, key), costMs,
     ...(result.notice === undefined ? {} : { notice: result.notice }),
     ...(measurement ? { logPath: measurement.logPath } : {}) };

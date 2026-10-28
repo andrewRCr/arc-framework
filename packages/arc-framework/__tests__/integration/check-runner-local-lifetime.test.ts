@@ -136,3 +136,51 @@ localIt.each(["stops on SIGTERM", "ignores SIGTERM"])("names the command limit w
   expect(outcome).toEqual({ status: "unavailable", reason: "Command exceeded this example's 0.3-second limit and was stopped",
     remedy: "Shorten the command, or run it under a provider with a longer limit, and retry." });
 });
+
+localIt("keeps a delivered native failure when a SIGTERM-resistant descendant outlives the command limit", async () => {
+  const loaded: unknown = await import(fileURLToPath(new URL("../../examples/check-runner/local-process.mjs", import.meta.url)));
+  if (typeof loaded !== "object" || loaded === null || !("executeChild" in loaded) || typeof loaded.executeChild !== "function") {
+    throw new Error("Expected the independent example's supervised execution");
+  }
+  const executeChild = loaded.executeChild as (...args: unknown[]) => Promise<unknown>;
+  const directory = await mkdtemp(join(tmpdir(), "arc-example-timeout-"));
+  directories.push(directory);
+  const descendant = "process.on('SIGTERM',()=>{});setInterval(()=>{},1000)";
+  const program = `require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(descendant)}],{stdio:'ignore'});`
+    + "setTimeout(()=>process.exit(7),50)";
+  const delivered: unknown[] = [];
+  const outcome = await bounded(executeChild(example, directory, { argv: [process.execPath, "-e", program], shell: false },
+    directory, { PATH: process.env.PATH }, 300, async () => undefined, { cancelled: false, active: undefined },
+    async (failure: unknown) => { delivered.push(failure); }));
+  expect(delivered).toEqual([{ status: "completed", exitCode: 7 }]);
+  expect(outcome).toEqual({ status: "completed", exitCode: 7 });
+});
+
+localIt("inspects only the group a record still owns, never a drained or reused one", async () => {
+  const loaded: unknown = await import(fileURLToPath(new URL("../../examples/check-runner/local-process.mjs", import.meta.url)));
+  if (typeof loaded !== "object" || loaded === null || !("inspectAttempt" in loaded) || typeof loaded.inspectAttempt !== "function") {
+    throw new Error("Expected the independent example's attempt inspection");
+  }
+  const inspect = loaded.inspectAttempt as (directory: string) => Promise<{ status: string; workers: { pid: number; members: number[] }[] }>;
+  const sleeper = spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], { detached: true, stdio: "ignore" });
+  try {
+    const pid = sleeper.pid;
+    if (pid === undefined) throw new Error("Expected a detached group leader");
+    const stat = await readFile(`/proc/${pid}/stat`, "utf8");
+    const birth = stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19];
+    const owner = { pid: 2 ** 22 + 1, birth: "gone", planId: randomUUID() };
+    const inspectRecord = async (record: object) => {
+      const directory = await mkdtemp(join(tmpdir(), "arc-example-inspect-"));
+      directories.push(directory);
+      await writeFile(join(directory, "owner.json"), JSON.stringify(owner));
+      await writeFile(join(directory, "worker.json"), JSON.stringify(record));
+      return inspect(directory);
+    };
+    await expect(inspectRecord({ pid, birth, done: false })).resolves.toMatchObject({ status: "active", workers: [{ pid, members: [pid] }] });
+    await expect(inspectRecord({ pid, birth, done: true })).resolves.toMatchObject({ status: "settled", workers: [{ pid, members: [] }] });
+    await expect(inspectRecord({ pid, birth: "earlier", done: false })).resolves.toMatchObject({ status: "settled", workers: [{ pid, members: [] }] });
+  } finally {
+    // Only the detached group this test created is signalled.
+    if (sleeper.pid !== undefined) process.kill(-sleeper.pid, "SIGKILL");
+  }
+});
