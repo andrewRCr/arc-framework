@@ -8,6 +8,8 @@ const booleanFields = ["isolate", "fileParallelism", "allowOnly", "passWithNoTes
 const booleanValue: ValueValidator = (value) => typeof value === "boolean";
 const nonemptyString: ValueValidator = (value) => typeof value === "string" && value.length > 0;
 const stringArray: ValueValidator = (value) => Array.isArray(value) && value.length > 0 && value.every(nonemptyString);
+const snapshotUpdate: ValueValidator = (value) => value === true || value === "all" || value === "new"
+  || value === "none";
 const nonnegativeNumber: ValueValidator = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0;
 const validators: Readonly<Record<string, ValueValidator>> = {
   ...Object.fromEntries(booleanFields.map((key) => [key, booleanValue])),
@@ -21,6 +23,7 @@ const validators: Readonly<Record<string, ValueValidator>> = {
   retry: (value) => nonnegativeNumber(value) && Number.isInteger(value),
   bail: (value) => nonnegativeNumber(value) && Number.isInteger(value),
   silent: (value) => typeof value === "boolean" || value === "passed-only",
+  update: snapshotUpdate, u: snapshotUpdate,
   outputFile: nonemptyString,
 };
 
