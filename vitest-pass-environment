@@ -3,7 +3,7 @@
   "slug": "vitest-pass-environment",
   "claimId": "a6bee87e11fa57edaba54969d913fab8",
   "createdAt": "2026-10-29T04:10:04.561Z",
-  "updatedAt": "2026-10-29T04:10:04.561Z",
+  "updatedAt": "2026-10-29T04:55:39.795Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Keep variables that change vitest's pass or selection out of reusable check passes",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Keep selection-affecting environment out of reusable vitest check passes",
   "originEntrySourceDigest": "sha256:ef6477124b9c9be7051a21c1efc1e15e991f97e4f426e002935cabb8ba68d54d",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/vitest-pass-environment",
+    "headSha": "9375204c369c663367cca23dd08406975f7a27ee"
+  }
 }
