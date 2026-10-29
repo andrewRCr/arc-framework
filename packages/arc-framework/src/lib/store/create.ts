@@ -70,7 +70,8 @@ export async function runStoreRemote(ports: RefStorePorts, input: StoreRemoteInp
 }
 
 /** Inspect or explicitly discard one conflict through the ref backend's exact history. */
-export async function runStoreConflict(ports: RefStorePorts, input: StoreConflictInput): Promise<StoreConflictResult> {
+export async function runStoreConflict(ports: RefStorePorts, input: StoreConflictInput,
+  writeNotice?: (line: string) => void): Promise<StoreConflictResult> {
   const { runRefBackendConflict } = await import("./ref/backend.js");
-  return runRefBackendConflict(ports, input);
+  return runRefBackendConflict(ports, input, writeNotice);
 }

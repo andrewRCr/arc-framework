@@ -5,14 +5,15 @@ import type { HistoryEntry } from "../contract.js";
 import type { StoreResult } from "../refusal.js";
 import type { Store } from "../contract.js";
 import { RecordReferenceSchema, type RecordReference } from "../identity.js";
+import { pullHistoryForRetry } from "../pull-consumption.js";
 
 /** Inspect through the same history contract as every caller, preserving typed refusals. */
-export async function runRefConflict(store: Store, input: StoreConflictInput): Promise<StoreConflictResult> {
+export async function runRefConflict(store: Store, input: StoreConflictInput, writeNotice?: (line: string) => void): Promise<StoreConflictResult> {
   const parsed = StoreConflictInputSchema.safeParse(input);
   if (!parsed.success) return conflictOperandRefusal(parsed.error);
   const reference = RecordReferenceSchema.parse({ owner: { type: "work-item", name: parsed.data.uid, uid: parsed.data.uid },
     kind: parsed.data.kind, key: parsed.data.id });
-  const inspected = await inspectConflict(store, reference);
+  const inspected = await inspectConflict(store, reference, writeNotice);
   if (!parsed.data.discard || inspected.status === "refused" || inspected.result.status !== "present") return inspected;
   const current = inspected.result;
   const removed = await store.write({ action: "remove", reference: current.reference, expected: current.version,
@@ -27,8 +28,8 @@ export async function runRefConflict(store: Store, input: StoreConflictInput): P
   return removed;
 }
 
-async function inspectConflict(store: Store, reference: RecordReference): Promise<StoreConflictResult> {
-  const history = await conflictHistory(store, reference);
+async function inspectConflict(store: Store, reference: RecordReference, writeNotice?: (line: string) => void): Promise<StoreConflictResult> {
+  const history = await conflictHistory(store, reference, writeNotice);
   if (history.status === "refused") return history;
   const latest = history.result[0];
   if (!latest || latest.version === null || latest.content === null) return { status: "ok", result: { status: "absent", reference: latest?.reference ?? reference } };
@@ -45,10 +46,8 @@ function malformedConflict(reference: RecordReference, condition: string): Store
     condition, remedy: { text: "Repair the exact retained conflict's content using a clone holding its valid history, then retry inspection." } } };
 }
 
-async function conflictHistory(store: Store, reference: RecordReference): Promise<StoreResult<HistoryEntry[]>> {
+async function conflictHistory(store: Store, reference: RecordReference, writeNotice?: (line: string) => void): Promise<StoreResult<HistoryEntry[]>> {
   const history = await store.history({ reference });
   if (history.status === "ok" || !("historyRefs" in history.refusal) || !history.refusal.historyRefs.length) return history;
-  const pulled = await store.pull({ history: history.refusal.historyRefs });
-  if (pulled.status === "refused" || pulled.result.pulls.some((outcome) => outcome.status === "failed")) return history;
-  return store.history({ reference });
+  return await pullHistoryForRetry(store, history.refusal.historyRefs, writeNotice) ? store.history({ reference }) : history;
 }

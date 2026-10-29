@@ -80,6 +80,7 @@ export async function runRefBackendRemote(ports: RefStorePorts, input: StoreRemo
 }
 
 /** Inspect an exact conflict without changing operational backend selection. */
-export async function runRefBackendConflict(ports: RefStorePorts, input: StoreConflictInput): Promise<StoreConflictResult> {
-  return runRefConflict(createRefBackend(ports), input);
+export async function runRefBackendConflict(ports: RefStorePorts, input: StoreConflictInput,
+  writeNotice?: (line: string) => void): Promise<StoreConflictResult> {
+  return runRefConflict(createRefBackend(ports), input, writeNotice);
 }

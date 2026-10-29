@@ -1,7 +1,8 @@
 /** One consumer policy over a pull: stop only for the state remote, and surface every notice it raised. */
 import { pullResultNotices, type PullResult } from "./operational-sync.js";
-import type { PullNotice, PullOutcome } from "./sync.js";
+import type { PullInput, PullNotice, PullOutcome } from "./sync.js";
 import type { Remedy } from "./refusal.js";
+import type { Store } from "./contract.js";
 
 /** Proceed with the rendered notices to surface, or stop for the state remote's stated reason, surfacing them first. */
 export type PullConsumption = { kind: "proceed"; notices: string[] } | { kind: "stop"; reason: string; notices: string[] };
@@ -28,6 +29,18 @@ export function pullOutcomeNotices(pulls: readonly PullOutcome[]): string[] {
   const notices = pulls.flatMap(pull => pull.notices);
   const unique = [...new Map(notices.map(notice => [JSON.stringify(notice), notice])).values()];
   return [...readFailures(pulls.filter(pull => pull.status === "failed")), ...unique.map(renderPullNotice)];
+}
+
+/**
+ * Pull a refusal's history refs for one retry of the refused operation, writing every notice the pull raised. Only a
+ * failed state or candidate outcome keeps the original refusal: a failed read source leaves that history in place.
+ */
+export async function pullHistoryForRetry(store: Pick<Store, "pull">, history: NonNullable<PullInput["history"]>,
+  write?: (line: string) => void): Promise<boolean> {
+  const pulled = await store.pull({ history });
+  if (pulled.status === "refused") return false;
+  writePullNotices(pullOutcomeNotices(pulled.result.pulls), write);
+  return !pulled.result.pulls.some(outcome => outcome.status === "failed" && outcome.role !== "read");
 }
 
 /** Write rendered notices where an invocation reports diagnostics when its result carries no warning field. */

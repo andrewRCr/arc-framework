@@ -1,9 +1,10 @@
 /** A consumer stops only for the state remote and surfaces every notice and failed read source beside it. */
 import { describe, expect, it } from "vitest";
-import { consumePull, pullOutcomeNotices } from "../../../../src/lib/store/pull-consumption.js";
+import { consumePull, pullHistoryForRetry, pullOutcomeNotices } from "../../../../src/lib/store/pull-consumption.js";
 import type { PullResult } from "../../../../src/lib/store/operational-sync.js";
 import { PullResultSchema, type PullOutcome, type SyncState } from "../../../../src/lib/store/sync.js";
 import { OwnerIdentitySchema, RecordReferenceSchema } from "../../../../src/lib/store/identity.js";
+import { HistoryRefSchema } from "../../../../src/lib/store/refusal.js";
 
 const item = OwnerIdentitySchema.parse({ type: "work-item", name: "alpha", uid: "11111111-1111-4111-8111-111111111111" });
 const conflict = RecordReferenceSchema.parse({ kind: "work-item/conflict-record", owner: item, key: "held" });
@@ -59,4 +60,28 @@ it("renders every outcome's notices once, with each failed read source first", (
   const notices = pullOutcomeNotices([statePulled, { ...statePulled, remote: "backup" }, failed("read"), failed("state")]);
   expect(notices).toEqual(["Read source upstream was not pulled: The read remote is offline. Reconnect and retry.",
     expect.stringContaining("Alpha ended with conflicts.")]);
+});
+
+describe("pullHistoryForRetry", () => {
+  const history = [HistoryRefSchema.parse("refs/arc/history/work/11111111-1111-4111-8111-111111111111")];
+  const store = (pulls: PullOutcome[]) => ({ pull: async () => ({ status: "ok" as const, result: PullResultSchema.parse({ states: [], pulls }) }) });
+
+  it("writes the pull's notices and retries past a lone failed read source", async () => {
+    const written: string[] = [];
+    expect(await pullHistoryForRetry(store([statePulled, failed("read")]), history, line => written.push(line))).toBe(true);
+    expect(written).toEqual(["Read source upstream was not pulled: The read remote is offline. Reconnect and retry.",
+      expect.stringContaining("Alpha ended with conflicts.")]);
+  });
+
+  it.each(["state", "candidate"] as const)("keeps the refusal on a failed %s remote, writing the notices it carried", async role => {
+    const written: string[] = [];
+    expect(await pullHistoryForRetry(store([{ ...failed(role), notices: [ended] }]), history, line => written.push(line))).toBe(false);
+    expect(written).toEqual([expect.stringContaining("Alpha ended with conflicts.")]);
+  });
+
+  it("keeps the refusal when the pull itself is refused", async () => {
+    const refused = { pull: async () => ({ status: "refused" as const, refusal: { code: "unsupported" as const, class: "terminal" as const,
+      case: "no-remote", condition: "No remote.", remedy: repair } }) };
+    expect(await pullHistoryForRetry(refused as never, history, () => { throw new Error("no notices expected"); })).toBe(false);
+  });
 });
