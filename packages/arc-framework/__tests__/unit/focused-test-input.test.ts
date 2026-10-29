@@ -29,11 +29,12 @@ it("resolves root file and directory operands while retaining native literal val
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-it.each([["-u"], ["--update"], ["--update=new"]] as const)("accepts the explicit snapshot update %s", async (flag) => {
-  const { root, file } = await inputFixture();
-  try { expect(parseFocusedTestInput(root, [file, flag]).options.update).toBeDefined(); }
-  finally { await rm(root, { recursive: true, force: true }); }
-});
+it.each([["-u"], ["--update"], ["--update=new"], ["--no-update"]] as const)("accepts the explicit snapshot update %s",
+  async (flag) => {
+    const { root, file } = await inputFixture();
+    try { expect(parseFocusedTestInput(root, [file, flag]).options.update).toBeDefined(); }
+    finally { await rm(root, { recursive: true, force: true }); }
+  });
 
 it.each([
   ["unknown", "--unknown=1"], ["unknown reporter spelling", "--reporters=dot"],
@@ -45,6 +46,7 @@ it.each([
   ["invalid workers", "--maxWorkers=wat"], ["zero workers", "--maxWorkers=0"],
   ["invalid boolean", "--isolate=wat"], ["invalid regular expression", "-t", "["],
   ["extra separator", "--", "missing.test.ts"], ["invalid snapshot update", "--update=some"],
+  ["string snapshot update false", "--update=false"],
 ] as const)("rejects %s before native discovery", async (_name, ...flags) => {
   const { root, file } = await inputFixture();
   try { expect(() => parseFocusedTestInput(root, [file, ...flags])).toThrow(/focused|separator/iu); }
