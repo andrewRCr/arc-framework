@@ -38,8 +38,8 @@ export function lookupCapturedRefTrees(context: Pick<RefBackendContext, "registr
   trees: ReadonlyMap<string, RefLookupTree>, unreadable: ReadonlyMap<string, StoreRefusal> = new Map()): StoreResult<LookupResult> {
   const payload = input.kind === "claim" ? claimPayloadRefusal(context, input.claim, trees) : undefined;
   if (payload) return { status: "refused", refusal: payload };
-  const { candidates, tie } = lookupCandidates(context, input, trees);
-  const skipped = lookupSkippedRefusal(context, input, trees, unreadable, candidates.length > 0);
+  const selection = lookupCandidates(context, input, trees), { candidates, tie } = selection;
+  const skipped = lookupSkippedRefusal(context, input, trees, unreadable, selection);
   if (skipped) return { status: "refused", refusal: skipped };
   if (candidates.length > 1) return { status: "refused", refusal: {
     code: "ambiguous-match", class: "recoverable", candidates: candidates.map(({ reference }) => reference), ...(tie ? { tie } : {}), condition: "The lookup matches more than one record generation.",
@@ -57,16 +57,24 @@ function lookupCandidates(context: Pick<RefBackendContext, "registry">, input: L
   trees: ReadonlyMap<string, RefLookupTree>): LookupSelection {
   if (input.kind === "slug") return slugCandidates(context, trees, input.slug);
   if (input.kind === "lineage") return { candidates: lineageCandidates(trees, input.origin).map((reference) => ({ reference })) };
-  if (input.kind === "ref") return { candidates: [...trees].flatMap(([ref, tree]) => {
-    const reference = lookupPrimary(context, ref, tree);
-    return reference && tree.metadata.primary?.links?.branches?.some((branch) => branch.repository === input.repository && branch.ref === input.ref)
-      ? [{ reference }] : [];
-  }) };
+  if (input.kind === "ref") return refCandidates(context, trees, input);
   if (input.kind === "commit") {
     const exact = commitCandidates(context, trees, input, "sha");
     return { candidates: exact.length ? exact : commitCandidates(context, trees, input, "copyKey") };
   }
   return { candidates: claimLookupCandidates(context, input.claim, trees) };
+}
+
+function refCandidates(context: Pick<RefBackendContext, "registry">, trees: ReadonlyMap<string, RefLookupTree>,
+  input: Extract<LookupInput, { kind: "ref" }>): LookupSelection {
+  const linked = [...trees].filter(([ref, tree]) => lookupPrimary(context, ref, tree)
+    && tree.metadata.primary?.links?.branches?.some(branch => branch.repository === input.repository && branch.ref === input.ref));
+  const live = linked.filter(([, tree]) => !tree.liveRef);
+  const tier = live.length > 0 ? live : completedLookupWinner(context, linked);
+  return { candidates: tier.flatMap(([ref, tree]) => {
+    const reference = lookupPrimary(context, ref, tree);
+    return reference ? [{ reference }] : [];
+  }), ...(tier.length > 0 ? { tie: { liveness: live.length > 0 ? "live" : "completed" } } : {}) };
 }
 
 function commitCandidates(context: Pick<RefBackendContext, "registry">, trees: ReadonlyMap<string, RefLookupTree>,
@@ -113,7 +121,8 @@ function answerHolders(input: LookupInput): RegExp {
 }
 
 function lookupSkippedRefusal(context: Pick<RefBackendContext, "registry">, input: LookupInput,
-  trees: ReadonlyMap<string, RefLookupTree>, unreadable: ReadonlyMap<string, StoreRefusal>, matched: boolean): StoreRefusal | undefined {
+  trees: ReadonlyMap<string, RefLookupTree>, unreadable: ReadonlyMap<string, StoreRefusal>, selection: LookupSelection): StoreRefusal | undefined {
+  const matched = selection.candidates.length > 0;
   if (input.kind === "lineage") return unreadable.get("refs/arc/project/registry");
   if (input.kind === "claim" && input.claim.kind === "partial-errand") return undefined;
   if (input.kind === "claim" && (input.claim.kind === "groom" || input.claim.kind === "housekeep")) {
@@ -122,10 +131,15 @@ function lookupSkippedRefusal(context: Pick<RefBackendContext, "registry">, inpu
   const holders = answerHolders(input);
   const skipped = [...unreadable].find(([ref]) => holders.test(ref))?.[1];
   if (!skipped) return undefined;
+  return hasConclusiveLookupMatch(context, input, trees, selection) ? undefined : skipped;
+}
+
+function hasConclusiveLookupMatch(context: Pick<RefBackendContext, "registry">, input: LookupInput,
+  trees: ReadonlyMap<string, RefLookupTree>, selection: LookupSelection): boolean {
   if (input.kind === "slug") {
-    return preferredNameTrees(context, trees, input.slug).some(([, tree]) => !tree.liveRef && tree.metadata.slug === input.slug)
-      ? undefined : skipped;
+    return preferredNameTrees(context, trees, input.slug).some(([, tree]) => !tree.liveRef && tree.metadata.slug === input.slug);
   }
-  if (input.kind === "commit") return commitCandidates(context, trees, input, "sha").length > 0 ? undefined : skipped;
-  return matched ? undefined : skipped;
+  if (input.kind === "commit") return commitCandidates(context, trees, input, "sha").length > 0;
+  if (input.kind === "ref") return selection.tie?.liveness === "live";
+  return selection.candidates.length > 0;
 }

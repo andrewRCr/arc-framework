@@ -952,18 +952,11 @@ an ordering the spec records rather than a dependency edge.
 - **Additional Context:** `notes-lifecycle-slug-selection.md` § Regrounding after the ref backend landing
   (2026-10-29).
 
-    - `[ ]` **8.2.a The `ref` arm**
+    - `[x]` **8.2.a The `ref` arm**
 
-        - `lookupCandidates` (`lib/store/ref/lookup.ts`) ranks the primaries linking a branch as 1.3 states, breaking a
-          completed tie through 8.1's helper, and sets the tie's liveness. Its `ref` case moves into its own function,
-          keeping `lookupCandidates` within its limit.
-        - That function is conclusive for the skipped-ref refusal (`lookupSkippedRefusal`) only on a live match, as the
-          slug arm is, so an unreadable work or cohort ref beside a completed linker refuses `skipped` rather than
-          resolving the completed holder, where any match is conclusive today.
-        - Build `test-first` (one behavior at a time):
-            - over the ref backend, a branch linked by a completed and a live holder resolves to the live holder, and
-              one linked by two live holders refuses with its tier
-            - an unreadable work ref beside a completed holder linking the branch refuses `skipped`
+        - `refCandidates` selects live linkers first and shares completed work-unit ordering with slug lookup;
+          ambiguity carries liveness alone. Unreadable work or cohort evidence blocks a completed answer until
+          forward repair, while readable live matches remain conclusive.
 
     - `[ ]` **8.2.b The claim arm**
 

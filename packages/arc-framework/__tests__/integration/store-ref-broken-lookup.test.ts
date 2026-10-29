@@ -4,6 +4,7 @@ import { plantRef, removeLooseObject } from "../helpers/store/ref-plant.js";
 import { seed, success, update, testProvenance } from "../helpers/store/suite-tools.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { RecordReferenceSchema, type LookupInput } from "../../src/lib/store/index.js";
+import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 
 const repository = "repo", sha = "a".repeat(40), copyKey = `v1:${"b".repeat(64)}:${"c".repeat(64)}`;
@@ -124,6 +125,25 @@ describe("lookup with an unreadable item ref", () => {
       .toEqual({ reference: cohort.reference });
     expect(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("absent") }))
       .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  });
+
+  it.each(["work-item/meta", "cohort/document"] as const)("refuses a completed branch answer behind unreadable %s evidence until repair", async (kind) => {
+    const f = await createRefFixture(), git = makeGitExec(f.root), branch = "feat/completed";
+    const broken = await seed(f, f.reference(kind, "broken"));
+    const readable = await seed(f, f.reference("work-item/meta", "ended"), undefined, { kind: "active" }, {
+      branches: [{ repository, ref: branch, linkedAs: "created", excluded: [] }],
+    });
+    success(await f.store.write({ ...update(f, readable, readable.content), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
+    if (broken.reference.owner.type !== "work-item" && broken.reference.owner.type !== "cohort") throw new Error("Expected lifecycle owner");
+    const ref = `refs/arc/${kind === "cohort/document" ? "cohort" : "work"}/${broken.reference.owner.uid}`;
+    const path = `metadata-${broken.reference.owner.uid}.json`, primary = `${kind === "cohort/document" ? "cohort" : "meta"}-${broken.reference.owner.name}.md`;
+    const parent = (await git("git", ["rev-parse", ref])).stdout;
+    const metadata = (await git("git", ["show", `${ref}:${path}`])).stdout;
+    const damaged = await plantRef(f.root, ref, [{ path: primary, content: broken.content }], { parents: [parent] });
+    const input = { kind: "ref" as const, repository, ref: branch };
+    expect(await f.store.lookup(input)).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: ref } });
+    await plantRef(f.root, ref, [{ path, content: metadata }, { path: primary, content: broken.content }], { parents: [damaged.tip] });
+    expect(success(await f.store.lookup(input)).reference).toEqual(readable.reference);
   });
 
 });
