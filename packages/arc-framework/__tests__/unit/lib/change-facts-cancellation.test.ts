@@ -11,6 +11,7 @@ vi.mock("node:child_process", async original => ({
 }));
 
 import { createSpawnRawGitExec } from "../../../src/lib/change-facts.js";
+import { withExitState } from "../../helpers/child-exit-state.js";
 
 const platform = Object.getOwnPropertyDescriptor(process, "platform");
 afterEach(() => {
@@ -20,10 +21,10 @@ afterEach(() => {
 
 it("reports an unconfirmed descendant tree with the captured native raw output", async () => {
   Object.defineProperty(process, "platform", { value: "darwin" });
-  const child = Object.assign(new EventEmitter(), {
+  const child = withExitState(Object.assign(new EventEmitter(), {
     pid: 2_000_000_001, stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(),
     kill: () => { child.emit("close", null); return true; },
-  });
+  }));
   let spawned!: () => void;
   const ready = new Promise<void>(resolve => { spawned = resolve; });
   boundary.spawn.mockImplementation(() => { queueMicrotask(spawned); return child; });
@@ -51,8 +52,8 @@ it.each([0, 128])("joins accepted native cancellation when the direct child clos
     callbacks.push(() => callback(new Error("Process utility unavailable"), ""));
     return { stdin: { end: () => undefined } };
   });
-  const child = Object.assign(new EventEmitter(), { pid: 2_000_000_001,
-    stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), kill: () => true });
+  const child = withExitState(Object.assign(new EventEmitter(), { pid: 2_000_000_001,
+    stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), kill: () => true }));
   let ready!: () => void;
   const started = new Promise<void>(resolve => { ready = resolve; });
   boundary.spawn.mockImplementation(() => { queueMicrotask(ready); return child; });
@@ -72,10 +73,10 @@ it.each([0, 128])("joins accepted native cancellation when the direct child clos
 
 it("owns a pending stdin error while native cancellation is joining its child", async () => {
   Object.defineProperty(process, "platform", { value: "darwin" });
-  const child = Object.assign(new EventEmitter(), {
+  const child = withExitState(Object.assign(new EventEmitter(), {
     pid: 2_000_000_001, stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(),
     kill: () => { child.emit("close", null); return true; },
-  });
+  }));
   let ready!: () => void;
   const started = new Promise<void>(resolve => { ready = resolve; });
   boundary.spawn.mockImplementation(() => { queueMicrotask(ready); return child; });

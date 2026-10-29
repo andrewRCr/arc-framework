@@ -2,6 +2,7 @@
 import { EventEmitter } from "node:events";
 import { PassThrough, Writable } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
+import { withExitState } from "../../helpers/child-exit-state.js";
 
 const child = vi.hoisted(() => ({ current: undefined as unknown }));
 vi.mock("node:child_process", async (original) => ({
@@ -33,14 +34,14 @@ function exitedBeforeReading(): EventEmitter {
 
 /** A Git process that waits on its input, aborting the read once the request reaches it, until it is killed. */
 function waitingForOutput(abort: () => void): EventEmitter {
-  const process = Object.assign(new EventEmitter(), {
+  const process = withExitState(Object.assign(new EventEmitter(), {
     pid: 2_000_000_003, stdout: new PassThrough(), stderr: new PassThrough(),
     stdin: new Writable({ write(_chunk, _encoding, done) { done(); abort(); } }),
     kill: () => {
       setImmediate(() => { process.stdout.end(); process.stderr.end(); process.emit("close", null, "SIGKILL"); });
       return true;
     },
-  });
+  }));
   return process;
 }
 
@@ -49,11 +50,11 @@ describe("native Git batch reader failures", () => {
     const platform = Object.getOwnPropertyDescriptor(process, "platform");
     Object.defineProperty(process, "platform", { value: "darwin" });
     const controller = new AbortController();
-    const readerChild = Object.assign(new EventEmitter(), {
+    const readerChild = withExitState(Object.assign(new EventEmitter(), {
       pid: 2_000_000_004, stdout: new PassThrough(), stderr: new PassThrough(),
       stdin: new Writable({ write(_chunk, _encoding, done) { done(); controller.abort(); } }),
       kill: () => { readerChild.stdout.end(); return true; },
-    });
+    }));
     let closed = false;
     const close = () => {
       if (!closed && readerChild.stdout.destroyed && readerChild.stderr.destroyed) { closed = true; readerChild.emit("close", null, "SIGKILL"); }
