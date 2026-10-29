@@ -403,6 +403,20 @@ describe("changes between ref manifests", () => {
     expect(changes.filter(({ reference }) => sameReference(reference, record.reference)).map(({ version }) => version)).toEqual([record.version, null]);
   });
 
+  it("returns a later window's changes beside an ended origin whose registry end names no batch", async () => {
+    const f = await createRefFixture();
+    const { record, git } = await abandonInWindow(f);
+    const registry = "refs/arc/project/registry", ended = (await git("git", ["rev-parse", registry])).stdout.trim();
+    const parents = (await git("git", ["log", "-n1", "--format=%P", ended])).stdout.split(" ").filter(Boolean);
+    await plantRef(f.root, registry, await treeEntries(git, ended), { parents, message: "Record the end" });
+    const from = await f.settle();
+    // A registry write inside the window makes it weigh every standing origin.
+    const later = await seed(f, f.reference("project-registry/counter"));
+    const changes = success(await f.store.changes({ from, to: await f.settle() }));
+    expect(changes.filter(({ reference }) => sameReference(reference, record.reference))).toEqual([]);
+    expect(changes.map(({ reference }) => reference)).toContainEqual(later.reference);
+  });
+
   it("lists nothing of its own for an origin whose history is the import's empty root commit", async () => {
     const f = await createRefFixture();
     const { record, from, history, git } = await abandonInWindow(f);

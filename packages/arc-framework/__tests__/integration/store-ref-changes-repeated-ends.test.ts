@@ -193,4 +193,27 @@ describe("changes over an item that ended more than once", () => {
       reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "later" } }), provenance }));
     expect(versionsOf(success(await h.a.store.changes({ from: beforeEnds, to: settled })), reference)).toEqual([null]);
   });
+
+  it("refuses a restored lifetime whose earlier end the registry recorded in no batch with a remedy that clears it", async () => {
+    const h = await refSyncFixture("default"), { reference, live } = await published(h, "unbatched");
+    const original = (await h.a.git(["rev-parse", live])).stdout.trim();
+    await abandon(h.a, reference);
+    // A registry commit made outside ARC records the end with no batch trailer.
+    const registry = "refs/arc/project/registry", ended = (await h.a.git(["rev-parse", registry])).stdout.trim();
+    const parents = (await h.a.git(["log", "-n1", "--format=%P", ended])).stdout.split(" ").filter(Boolean);
+    const tree = (await h.a.git(["rev-parse", `${ended}^{tree}`])).stdout.trim();
+    const unbatched = (await h.a.ports.execInput([...h.a.gitDir ? [`--git-dir=${h.a.gitDir}`] : [], "-c", "user.name=Outside", "-c",
+      "user.email=outside@example.test", "commit-tree", tree, ...parents.flatMap(parent => ["-p", parent])], "Record the end\n", { cwd: h.a.root })).trim();
+    await h.a.git(["update-ref", registry, unbatched, ended]);
+    success(await h.a.store.push()); success(await h.b.store.pull());
+    const betweenEnds = success(await h.b.store.version());
+    await h.a.git(["push", h.remoteName, `${original}:${live}`]);
+    success(await h.b.store.pull());
+    const afterRestore = success(await h.b.store.version());
+    const revived = await reviveAndEnd(h.b, reference, live, original);
+    const to = success(await h.b.store.version());
+    expect(await h.b.store.changes({ from: betweenEnds, to })).toMatchObject({ status: "refused", refusal: { code: "state-unresolvable",
+      historyRefs: [], remedy: { text: expect.stringContaining("after the item was restored") } } });
+    expect(versionsOf(success(await h.b.store.changes({ from: afterRestore, to })), reference)).toEqual([revived, null]);
+  });
 });

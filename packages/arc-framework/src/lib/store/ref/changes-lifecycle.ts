@@ -68,18 +68,20 @@ interface OwnerLowerBasis {
   source: string; index: ReadonlyMap<string, string>; ends: ChangeEnds;
 }
 
-/** Standing lineage bounds a restored lifetime through prior retirement evidence and the interval's registry anchors. */
+/**
+ * Standing lineage bounds a restored lifetime through prior retirement evidence and the interval's registry anchors,
+ * which a window holding none of the item's retirements never consults.
+ */
 async function ownerWindowLower(context: RefBackendContext, input: ChangesInput, basis: OwnerLowerBasis,
   evidence: StoreCreationReceiptReader): Promise<StoreResult<{ lower: string | undefined; unchanged: boolean }>> {
   const { live, older, newer, from, to, source, index, ends } = basis;
   const lower = older ?? (from?.metadata.batch ? index.get(from.metadata.batch) : undefined);
   if (older || from || !ends.beforeOrigins.has(live)) return { status: "ok", result: { lower, unchanged: false } };
   const history = live.replace("refs/arc/", "refs/arc/history/");
-  const origin = await originEndBefore(context, input, history, source, index, ends.beforeRegistry, evidence);
-  if (origin.status === "refused") return origin;
   const retired = !newer && !to ? await readItemEndBatches(context, source, historyOwner(history), "retirement") : undefined;
-  return { status: "ok", result: { lower: origin.result,
-    unchanged: retired !== undefined && ![...ends.registryBatches].some(batch => retired.has(batch)) } };
+  if (retired !== undefined && ![...ends.registryBatches].some(batch => retired.has(batch))) return { status: "ok", result: { lower: undefined, unchanged: true } };
+  const origin = await originEndBefore(context, input, history, source, index, ends.beforeRegistry, evidence);
+  return origin.status === "refused" ? origin : { status: "ok", result: { lower: origin.result, unchanged: false } };
 }
 
 function newLiveWindow(context: RefBackendContext, input: ChangesInput, live: string, newer: string, ends: ChangeEnds,
@@ -124,7 +126,15 @@ async function originEndBefore(context: RefBackendContext, input: ChangesInput, 
     if (!lower || await syncRefIsAncestor(context, lower, candidate)) lower = candidate;
     else if (!await syncRefIsAncestor(context, candidate, lower)) return missing();
   }
-  return lower ? { status: "ok", result: lower } : missing();
+  if (lower) return { status: "ok", result: lower };
+  // Held history names the retirement, but the older registry recorded it in no batch, so no pull can bound the lifetime.
+  return [...retired].some(batch => index.has(batch)) ? { status: "refused", refusal: unrecordedRetirement(history, input.from) } : missing();
+}
+
+function unrecordedRetirement(history: string, version: StateVersion): StoreRefusal {
+  return { code: "state-unresolvable", class: "recoverable", stateVersion: version, historyRefs: [],
+    condition: `The older registry recorded ${history}'s retirement in no batch, so the restored lifetime's start cannot be bounded.`,
+    remedy: { text: "Compare from a state version after the item was restored, or restrict the comparison to other records." } };
 }
 
 /** A bound its version's latest folder wrote reads, as that version's read did, with the folder's placement. */
