@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "store-config-snapshot",
+  "claimId": "503976d2e7b9d46117f2be4d09f31f7d",
+  "createdAt": "2026-10-29T23:36:22.334Z",
+  "updatedAt": "2026-10-29T23:36:22.334Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Read Git config and remote transport once per ref-store operation, measured before and after",
+  "branch": "chore/store-config-snapshot",
+  "origin": "inbox",
+  "originEntry": "Read Git config and remote transport once per ref-store operation",
+  "originEntrySourceDigest": "sha256:3945db0a36ad2aa1edd9e61f0e41ab5e6bb0cf391423443b3ea18e0648876d89",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
