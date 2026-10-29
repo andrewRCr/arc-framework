@@ -30,7 +30,7 @@ export async function laterSiblingEnds(context: RefBackendContext, basis: Withdr
       const folder = folders.find(({ liveRef }) => liveRef === step.ref.replace("refs/arc/history/", "refs/arc/"));
       const owner = folder?.owner ?? await terminalOwner(context, basis, step.ref);
       if (!owner) continue;
-      const candidates = await currentEndCandidates(context, step.ref, tip, owner, folder);
+      const candidates = await currentEndCandidates(context, basis, step.ref, tip, owner, folder);
       if (await hasLaterEnd(context, original, candidates, basis.batches)) retained.set(step.ref, owner);
     } catch (error) {
       if (!await isUnavailableGraphFailure(context, error)) throw error;
@@ -67,13 +67,15 @@ async function terminalOwner(context: RefBackendContext, basis: WithdrawalBasis,
   return lineage.kind === "rename" ? undefined : OwnerIdentitySchema.parse({ type: "work-item", ...lineage.origin });
 }
 
-async function currentEndCandidates(context: RefBackendContext, ref: string, tip: string, owner: OwnerIdentity,
+async function currentEndCandidates(context: RefBackendContext, basis: WithdrawalBasis, ref: string, tip: string, owner: OwnerIdentity,
   folder?: ArchivedFolder): Promise<ItemEndCandidate[]> {
   const evidence = await readItemEndCandidates(context, tip, owner, folder ? "all" : "retirement");
   if (evidence.unavailable.size) throw new UnavailableWithdrawJournal(ref, "A tree required to establish the sibling's current end is unavailable.");
   if (!folder) return evidence.candidates;
   const batch = folder.metadata.endBatch;
   const candidates = evidence.candidates.filter(candidate => batch && candidate.batch === batch);
+  // Another machine's published end is never in the local history, and as an independent end it keeps no sibling.
+  if (!candidates.length && await publishedFolder(context, basis.incoming, owner, folder)) return [];
   if (!candidates.length) throw new UnavailableWithdrawJournal(ref, "The current archive folder's original end cannot be witnessed in its retained history.");
   const uid = "uid" in owner ? owner.uid : undefined;
   const objects = await readBatchObjects(context, candidates.map(({ commit }) => `${commit}:metadata-${uid}.json`));
@@ -81,6 +83,12 @@ async function currentEndCandidates(context: RefBackendContext, ref: string, tip
     throw new UnavailableWithdrawJournal(ref, "Metadata required to establish the current archive end is unavailable or cannot be decoded.");
   }
   return candidates;
+}
+
+async function publishedFolder(context: RefBackendContext, incoming: ReadonlyMap<string, string>, owner: OwnerIdentity,
+  folder: ArchivedFolder): Promise<boolean> {
+  const published = await siblingFolders(context, incoming, [owner]);
+  return published.some(({ liveRef, metadata }) => liveRef === folder.liveRef && metadata.endBatch === folder.metadata.endBatch);
 }
 
 async function hasLaterEnd(context: RefBackendContext, original: string, candidates: readonly ItemEndCandidate[],

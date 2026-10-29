@@ -88,7 +88,9 @@ it.each((["default", "separate"] as const).flatMap(layout => (["archive", "retir
       }
       return result;
     } });
-    success(await observing.pull());
+    const notices = success(await observing.pull()).pulls.flatMap(row => row.notices);
+    expect(notices).toContainEqual(expect.objectContaining({ kind: "end-withdrawn", item: a.reference.owner }));
+    expect(notices.filter(notice => notice.kind === "namespace-corrupt")).toEqual([]);
     const verify = async () => {
       const record = await h.a.store.read({ reference: b.reference });
       if (end === "archive") expect(success(record).placement).toMatchObject({ kind: "completed", quarter: remote });
@@ -136,3 +138,41 @@ it.each((["default", "separate"] as const).flatMap(layout => (["edit", "end"] as
     if (sibling === "edit") expect(success(await h.a.store.read({ reference: child })).content).toBe(makeMetaFixture("new-child"));
     expect(success(await h.a.store.push()).publishes.every(row => row.status !== "failed")).toBe(true);
   }, 20_000);
+
+it.each(["default", "separate"] as const)("archives a restored sibling whose published end arrives after the withdrawal in %s", async layout => {
+  const h = await refSyncFixture(layout);
+  const make = async (name: string) => {
+    const made = success(await h.a.store.write({ action: "put", expected: null,
+      reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name } }),
+      content: makeMetaFixture(name), placement: { kind: "active" }, provenance }));
+    return success(await h.a.store.read({ reference: made.reference }));
+  };
+  const a = await make("ending-owner"), b = await make("later-published-sibling");
+  success(await h.a.store.push()); success(await h.b.store.pull());
+  success(await h.a.store.batch({ writes: [
+    { action: "put", reference: a.reference, expected: a.version, content: a.content, placement: { kind: "completed", quarter: own } },
+    { action: "put", expected: null, reference: RecordReferenceSchema.parse({ kind: "lineage/transition", owner: b.reference.owner }),
+      content: JSON.stringify(LineageRecordSchema.parse({ schemaVersion: 2,
+        origin: { name: b.reference.owner.name, uid: "uid" in b.reference.owner ? b.reference.owner.uid : undefined },
+        kind: "abandon", successors: [], incoming: [] })) },
+    { action: "remove", reference: b.reference, expected: b.version },
+  ], provenance }));
+  success(await h.b.store.write({ action: "put", reference: a.reference, expected: a.version, content: a.content,
+    placement: { kind: "completed", quarter: remote }, provenance }));
+  success(await h.b.store.push());
+  const withdrawn = success(await h.a.store.pull()).pulls.flatMap(row => row.notices);
+  expect(withdrawn).toContainEqual(expect.objectContaining({ kind: "end-withdrawn", item: a.reference.owner }));
+  expect(withdrawn.filter(notice => notice.kind === "namespace-corrupt")).toEqual([]);
+  expect(success(await h.a.store.read({ reference: b.reference })).placement).toEqual({ kind: "active" });
+  success(await h.b.store.write({ action: "put", reference: b.reference, expected: b.version, content: b.content,
+    placement: { kind: "completed", quarter: remote }, provenance }));
+  success(await h.b.store.push());
+  const later = success(await h.a.store.pull()).pulls.flatMap(row => row.notices);
+  expect(later.filter(notice => notice.kind === "namespace-corrupt")).toEqual([]);
+  const uid = "uid" in b.reference.owner ? b.reference.owner.uid : "";
+  for (const side of [h.a, h.b]) {
+    if (side === h.b) { expect(success(await h.a.store.push()).publishes.every(row => row.status !== "failed")).toBe(true); success(await h.b.store.pull()); }
+    expect(success(await side.store.read({ reference: b.reference })).placement).toMatchObject({ kind: "completed", quarter: remote });
+    expect((await side.git(["for-each-ref", "--format=%(refname)", `refs/arc/work/${uid}`])).stdout).toBe("");
+  }
+}, 20_000);
