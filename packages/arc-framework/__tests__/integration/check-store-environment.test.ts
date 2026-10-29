@@ -42,7 +42,7 @@ async function storeCheckHarness() {
   });
   const reach = await readReachDeclaration(join(checkoutRoot, declarationPath));
   const io: DeclaredCheckDependencies = { git: gitExec, gitInput: gitExecInput, platform: process.platform,
-    availableParallelism: () => 1, passes,
+    availableParallelism: () => 1, passes, readRunnerConfiguration: async () => undefined,
     readDeclaration: async () => ({ status: "valid", location: ".arc/system/arc-checks.yml", value: definition }),
     runtime: (command, cwd) => runCheckProcess(command, cwd, undefined, { rawStdout: true }),
     execute: async () => {
@@ -51,7 +51,7 @@ async function storeCheckHarness() {
       return { started: true, exitCode: 0, output: JSON.stringify(selection.suites) };
     },
   };
-  return { run: async (ask: string, bursts: string | undefined): Promise<DeclaredCheckResult> => {
+  return { root, io, run: async (ask: string, bursts: string | undefined): Promise<DeclaredCheckResult> => {
     vi.stubEnv("ARC_STORE_CHECK", ask);
     vi.stubEnv("ARC_STORE_BURSTS", bursts);
     const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids: ["test:store"] } });
@@ -89,3 +89,17 @@ it("keys real declared passes to their ask while reusing each unchanged form", a
     expect(full).toContain(file);
   }
 }, 60_000);
+
+it("hands a routed run both store selection inputs as declared values", async () => {
+  const { root, io } = await storeCheckHarness();
+  let declared: Record<string, string> | undefined;
+  const result = await runDeclaredRequest(root, { ...io,
+    readRunnerConfiguration: async () => ({ file: join(root, "runner.yml"), argv: [process.execPath] }),
+    prepareExecution: input => {
+      declared = { ...input.check.environment_inputs };
+      return Object.assign(Promise.resolve({ status: "unavailable" as const, origin: "runner" as const, reason: "Routed preparation stops here.", remedy: "None needed." }),
+        { planId: "store-environment", retained: undefined, cancel: async () => undefined, terminate: () => undefined });
+    } }, { form: { kind: "run", ids: ["test:store"] } });
+  expect(result.kind).toBe("result");
+  expect(declared).toEqual({ ARC_STORE_CHECK: "value", ARC_STORE_BURSTS: "value" });
+});
