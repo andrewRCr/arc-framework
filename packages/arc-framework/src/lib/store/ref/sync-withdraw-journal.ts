@@ -7,6 +7,8 @@ import { readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import { isStateRef } from "./manifest.js";
 import { isArchiveRef } from "./archive-read.js";
 import { readLifecycleFolders } from "./sync-lifecycle.js";
+import { readHistoricalGraph } from "./history-graph.js";
+import { corruptRef } from "./namespace-health.js";
 
 /** One ref's complete contribution to the original batch, including its conflict commit. */
 export interface WithdrawJournalStep {
@@ -35,15 +37,15 @@ export async function readWithdrawJournal(context: RefBackendContext, held: Read
   return materializeWithdrawJournal(context, await describeWithdrawJournal(context, held, batches, reference, origin));
 }
 
-/** Find original contributions without acquiring mutable object availability evidence. */
+/** Find original contributions without acquiring mutable object availability evidence; a lost commit holds the end. */
 export async function describeWithdrawJournal(context: RefBackendContext, held: ReadonlyMap<string, string>,
   batches: ReadonlySet<string>, reference: RecordReference, origin: string): Promise<WithdrawJournalDescription[]> {
   const descriptions: WithdrawJournalDescription[] = [];
   for (const [ref, tip] of held) {
     if (!isStateRef(ref)) continue;
-    const { stdout } = await context.exec("git", ["log", "--first-parent", "--format=%H %P%n%B%x00", tip],
-      { cwd: context.checkoutRoot, objectAccess: "local-only" });
-    const rows = stdout.split("\0").flatMap((block) => {
+    const walked = await readHistoricalGraph(context, ["log", "--first-parent", "--format=%H %P%n%B%x00", tip], corruptRef(ref, true));
+    if (walked.status === "refused") throw new UnavailableWithdrawJournal(ref, walked.refusal.condition);
+    const rows = walked.result.split("\0").flatMap((block) => {
       const [header = "", ...message] = block.trimStart().split("\n"), [commit, ...parents] = header.split(" ");
       const provenance = parseStoreCommitProvenance(message.join("\n"), reference);
       return commit && "batchId" in provenance && provenance.batchId && batches.has(provenance.batchId) ? [{ commit, parents }] : [];

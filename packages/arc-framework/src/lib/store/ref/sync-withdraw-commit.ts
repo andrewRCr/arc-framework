@@ -6,7 +6,7 @@ import { RecordReferenceSchema, type OwnerIdentity } from "../identity.js";
 import { renderStoreCommitMessage } from "../commit-provenance.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefMergeOptions, RefMergeResult } from "./sync-merge.js";
-import { describeWithdrawJournal, UnavailableWithdrawJournal } from "./sync-withdraw-journal.js";
+import { describeWithdrawJournal, UnavailableWithdrawJournal, type WithdrawJournalDescription } from "./sync-withdraw-journal.js";
 import { prepareWithdrawEnd, type WithdrawalBasis } from "./sync-withdraw-prepare.js";
 import { withdrawGroupReference } from "./sync-withdraw-targets.js";
 import type { RefTreeEntry } from "./batch-read.js";
@@ -28,7 +28,12 @@ export interface WithdrawEnd { owner: OwnerIdentity; live: string; history: stri
 export async function commitWithdrawEnd(context: RefBackendContext, end: WithdrawEnd, held: ReadonlyMap<string, string>,
   state: ReadonlyMap<string, string>, incoming: ReadonlyMap<string, string>, options: RefMergeOptions): Promise<RefMergeResult> {
   const reference = RecordReferenceSchema.parse({ owner: end.owner, kind: end.owner.type === "cohort" ? "cohort/document" : "work-item/meta" }), batches = new Set([end.batch]);
-  const journal = await describeWithdrawJournal(context, held, batches, reference, end.history);
+  let journal: WithdrawJournalDescription[];
+  try { journal = await describeWithdrawJournal(context, held, batches, reference, end.history); }
+  catch (error) {
+    if (!(error instanceof UnavailableWithdrawJournal)) throw error;
+    return heldWithdrawal(error, end);
+  }
   const watched = new Set([end.live, end.history, ...journal.map(({ ref }) => ref),
     ...journal.filter(({ ref }) => /^refs\/arc\/history\/(?:work|cohort)\//u.test(ref)).map(({ ref }) => ref.replace("refs/arc/history/", "refs/arc/")),
     ...held.has("refs/arc/project/registry") || state.has("refs/arc/project/registry") ? ["refs/arc/project/registry"] : [],
