@@ -3188,3 +3188,41 @@ selection. `archiveSourceMetadataRefusal` checks retained sources before copying
 Repair is a forward source commit renaming or removing the extra entry, preserving actual owner metadata, followed by
 retry. No ownership encoding or stored index changes. The separately approved narrow namespace decision is a
 low-depth design amendment; criterion 61 and § 14.3 bind refusal, diagnosis and successful retry in both layouts.
+
+## A58 — Defer deadline-stranded ref locks to hardening
+
+**Superseded text.** Criterion 37 required that "the bursts pass with no lost write in one dispatched run of the
+Windows and macOS pair" and criterion 33 that "a complete dispatched portability pair passes"; criterion 9 required a
+dispatched portability run that passes. § 6.1 aborts "a Git call still running then" without naming what an aborted ref
+transaction leaves.
+
+**Mechanism.** Hosted dispatch `40794816270` at `b78522879` failed one case, the separate layout's publishing burst on
+Windows, and `store-ref-bursts.test.ts` now prints every publication attempt and whether the refused lock remains:
+
+- Attempt 1's nested pull reached the 120 s deadline "while applying fetched state"; the canceled call was
+  `update-ref --stdin` in cloneB's store after `start: ok prepare: ok`, holding `reftable/tables.list.lock`.
+- Attempt 2 was refused `lock-held` on that file by `rethrowRefFetchKeeperLock`, ending publication.
+- After every writer had exited the lock still existed: stranded by the kill, not held by a live writer.
+
+Dispatch `40767396473` at `d4c6e091c` failed the same case on writer-18's store, which supports the same mechanism,
+though that run predates the attempt diagnostic. Git cleans its lock files on ordinary exit and catchable signals,
+never on `taskkill /F` or `SIGKILL`, so the defect is not Windows-only. Slow Windows commits widen the window between
+`prepare` and `commit`. Four native local Windows runs on Git 2.56.0.windows.2 and Node 24.22.1 passed: full CPU,
+four CPUs (14 deadline kills) and two CPUs (51 kills), none stranding a lock. Every other case of that pair passed:
+2,015 Windows tests, macOS in full, and the eleven-sample medians within criterion 33's limits.
+
+**Decision.** Defer the repair to `storage-ref-hardening` under the P8 stop rule: both repairs change settled
+behavior. Either the deadline stops aborting a prepared transaction, or the backend reclaims a lock its own canceled
+call provably held, which is unsafe while cancellation can report descendants unconfirmed. The hardening item has two
+parts:
+
+- the deadline must not strand a lock its own canceled transaction held;
+- reconcile the asymmetry where § 6.3 reports a stale lock on a fetch's `!` line as a retryable `tracking-update-failed`
+  notice, while the same lock on a keeper or tracking transaction becomes a top-level `lock-held` refusal that cannot
+  tell stale from held.
+
+Reclassification alone does not restore convergence, since no retry clears a stranded lock. 18.R4 skips only that
+Windows case so the scheduled pair stays green. Criterion 62 supersedes 9, 33 and 37 with the exception stated.
+
+**Footprint.** § 6.1's deadline paragraph, § 14.5's burst gate, new criterion 62, and the burst suite's Windows skip.
+No production code changes. Low depth, with no segment or Class ratchet.

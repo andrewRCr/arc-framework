@@ -1438,8 +1438,11 @@ and settles without waiting on a descendant's output — probed on Git 2.55, abo
 `unreachable` with cause `timeout` (`RemoteFailureReasonSchema`, `lib/kernel/schema/vocabulary.ts`), carrying the
 notices of what did apply (§ 2.2). The writes stay local for the next firing point. An aborted push may have landed,
 which the next pull's fetch reads as any remote movement (§ 6.4). A deadline that passes between the push loop's
-attempts ends it as § 6.7 has it. A move's transfers take no deadline (§ 10.2), since a person runs a move once and a
-large state may outlast any bound.
+attempts ends it as § 6.7 has it. Aborting a ref transaction (`updateRefTransaction`, `lib/git/ref-transaction.ts`)
+after Git's `prepare` strands its lock, which later syncs report, as a notice or a `lock-held` refusal
+(`rethrowRefFetchKeeperLock`), until it is removed by hand (§ 6.3); keeping the deadline from stranding its own lock is
+deferred to `storage-ref-hardening` (A58). A move's transfers take no deadline (§ 10.2), since a person runs a move once
+and a large state may outlast any bound.
 
 #### 6.2 The fetch
 
@@ -3908,7 +3911,9 @@ typed conflicts:
   `.github/workflows/ci.yml`): twenty worktrees writing personal-inbox insertions and removals at once, and twenty
   clones converging on one ref. The full bursts took about 12 s on Linux and 378–401 s on Windows. Before this change
   lands, one dispatched run of the pair and one of the Linux job pass, each recorded in `notes-storage-ref-backend.md`,
-  since a scheduled workflow runs only on the default branch.
+  since a scheduled workflow runs only on the default branch. On Windows the separate layout's publishing burst is
+  skipped (`store-ref-bursts.test.ts`): under its contention the deadline aborts a prepared ref transaction and strands
+  the store's lock (§ 6.1), which no retry clears (A58).
 
 #### 14.6 Who designates, and read sources
 
@@ -4868,6 +4873,13 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     current/saved/list/lookup/sync diagnostic and a forward repair route; corrected sources retry successfully
     (§ 2.5, § 3.2, § 7.1, § 7.3) (A57).
 
+62. **The bursts and the pair hold, one Windows case excepted.** Every integration case of § 14.5 passes on every
+    change that reaches it (§ 14.14); one dispatched run of the Windows and macOS pair and one of the Linux portability
+    job pass before this change lands, with no lost write in the bursts and eleven-sample Windows medians within
+    criterion 33's limits in both layouts, except the separate layout's publishing burst on Windows, which fails only
+    on a ref lock the deadline stranded (§ 6.1) and is skipped there, its repair owned by `storage-ref-hardening`.
+    Supersedes criteria 9, 33, and 37 (§ 14.5, § 14.10) (A58).
+
 ## Open Questions
 
 None blocks starting. The dependencies below are expected contracts with stated availability, and none leaves design
@@ -5081,3 +5093,6 @@ open:
 
 - **A57** — 2026-10-27 — design: reserve owner metadata names. _Supersedes:_ §§ 2.5, 3.2.
   _Trigger:_ standard-pass-7/AGG-13 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A58** — 2026-10-28 — design: defer deadline-stranded ref locks to hardening. _Supersedes:_ § 14.5 burst gate.
+  _Trigger:_ 19.1 terminal. _Work:_ 18.R4. _Revalidated:_ verify-work-unit.

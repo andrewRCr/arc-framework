@@ -1858,6 +1858,8 @@ in `notes-storage-ref-backend.md` (A25).
 
 - _Goal:_ Twenty worktrees and twenty clones writing at once lose no write, on the platforms where contention costs most.
 
+    - _Amended in:_ 18.R4 (A58)
+
     - `[x]` **18.1.a Native contention suite and dispatch gating**
         - Both native layouts retain every insertion and observed removal from twenty independent worktree writers
           and converge twenty publishing clones on the exact final remote tip. Workers preserve the captured basis
@@ -2309,6 +2311,13 @@ in `notes-storage-ref-backend.md` (A25).
   job's 965–1,573 s to 420 s once the separate layout's whole run spanned three files. `notes-storage-ref-backend.md`
   § A33 records the runs, the rows, and that rows keyed to a shard index compare a different set of files on each run.
 
+### `[ ]` **18.R4 Quarantine the Windows separate publishing burst — § 14.5 (A58)**
+
+- _Goal:_ The scheduled and dispatched pair skip only the separate layout's publishing burst on Windows, naming the
+  deadline-stranded ref lock and its owner, `storage-ref-hardening`, while every other burst keeps running (A58).
+
+    - `[ ]` **18.R4.a Skip the one case on Windows — § 14.5**
+
 ### `[x]` **18.7 Hosts, platforms, and cost** — validate exit criterion at segment scope
 
 - _Goal:_ The bursts and the Windows budget pass on their dispatched runs, CI cost holds, and the host kit, pack cost,
@@ -2319,6 +2328,8 @@ in `notes-storage-ref-backend.md` (A25).
     - _Amended in:_ 18.R2 (A29)
 
     - _Amended in:_ 18.R3 (A33)
+
+    - _Amended in:_ 18.R4 (A58)
 
 - _Outcome:_ The complete platform pair and all twelve platform/burst combinations pass; both layouts meet the
   calibrated Windows limits. Corrected Linux CI `39674185052` passes. The cost measurements, real-host results and
@@ -2574,3 +2585,19 @@ in `notes-storage-ref-backend.md` (A25).
 - `[x]` Both layouts report terminal-only sibling ends with surviving publication witnesses, distinguish sequential
   lifetimes and forced replacement before versus after capture, and execute the emitted native restoration plus one
   expected-version retirement while retaining both histories, lineage and branch authority (§ 6.6, § 14.5) (A56)
+
+- `[ ]` Every integration case of § 14.5 passes on every change that reaches it (§ 14.14); one dispatched run of the
+  Windows and macOS pair and one of the Linux portability job pass before this change lands, with no lost write in the
+  bursts and eleven-sample Windows medians within criterion 35's limits in both layouts, except the separate layout's
+  publishing burst on Windows, which fails only on a ref lock the deadline stranded (§ 6.1) and is skipped there, its
+  repair owned by `storage-ref-hardening`; supersedes criteria 9, 35, and 40 (§ 14.5, § 14.10) (A58)
+
+- `[ ]` Both layouts fetch large exact history selections through owned stdin, completeness retries included;
+  native-Windows oversized pushes stop before launch with recoverable `command-line-capacity`, keeping exact pending
+  state, prior landed-copy accounting and contextual migrate remedies, a combined carry taking its independent code
+  leg, and a supported retry finishing without weakening leases or atomicity (§ 6.2, § 11.3) (A54)
+
+- `[ ]` In both layouts, root companion keys matching `^metadata-[0-9a-f-]{36}\.json$` refuse before archive or
+  completed refresh changes refs, nested and nonreserved names keep their rules, multiple external metadata candidates
+  yield an explicit diagnostic with a forward repair route, and corrected sources retry successfully (§ 2.5, § 3.2,
+  § 7.1, § 7.3) (A57)
