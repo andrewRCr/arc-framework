@@ -932,7 +932,7 @@ an ordering the spec records rather than a dependency edge.
   matches stay conclusive; unresolved lookups resume after forward repair. Shared conformance requires cohort
   resolution on both store-arm backends, with the in-repo limitation declared explicitly.
 
-### `[ ]` **8.1 Break a completed tie, and set the tie's facts, in the ref backend's slug arm — § 1.2, § 1.5**
+### `[x]` **8.1 Break a completed tie, and set the tie's facts, in the ref backend's slug arm — § 1.2, § 1.5**
 
 - _Goal:_ The ref backend's slug lookup resolves a completed tie that includes a work unit to its latest archived work
   unit, as the reference backend does, and names a tie's tier on its refusal, while its name-only reference binding
@@ -940,35 +940,9 @@ an ordering the spec records rather than a dependency edge.
 
     - _Amended in:_ 8.R (A3)
 
-- **Additional Context:** `notes-lifecycle-slug-selection.md` § Regrounding after the ref backend landing
-  (2026-10-29).
-
-- _Context:_ the ref backend lands on `main` with the expected contracts the spec states (§ 11): its slug ranking
-  (`rankNameTrees` under `preferredNameTrees`, `lib/store/ref/lookup-primary.ts`) already tiers work-item and cohort
-  trees, each archived lookup tree carries its folder's placement (`RefLookupTree.archived`, `lib/store/ref/lookup.ts`),
-  and the backend already orders one owner's archived folders (`latestArchivedFolders`, `archive-read.ts`). A contract
-  that differs when it lands routes to a spec amendment before this phase proceeds.
-
-    - The slug lookup's candidates (`slugCandidates`, `lib/store/ref/lookup.ts`) break a completed tie as 1.2 states,
-      through one helper in the ref backend that reads each archived tree's folder placement with 1.2's comparator and
-      that 8.2.a's `ref` arm shares. `preferredNameTrees` and `rankNameTrees` are unchanged, so name-only reference
-      binding (`resolveCapturedReference`, `reference-resolution.ts`), which serves read, write binding, write views,
-      and changes, still refuses a completed tie, as `store-ref-name-resolution.test.ts` pins.
-    - `slugCandidates` reads the tie's facts from the tier's trees, its liveness from `liveRef` and its name from each
-      tree's metadata, and `lookupCapturedRefTrees` sets them as the refusal's `tie` (1.4.a); its other caller
-      (`write-views.ts`) is unchanged.
-    - With both backends breaking the tie, status's dependency resolution never meets a completed tie of work units, and
-      its branch for one (`resolveName`'s `ambiguous-match` case, `lib/status/store-project-dependencies.ts`) is
-      removed.
-    - `store-ref-lookup-ended.test.ts`'s cases naming two completed holders of one slug, under the current and a former
-      name, take the latest archived holder; its refusing pins move to a completed tie that includes a cohort and to one
-      of Errands alone.
-    - Build `test-first` (one behavior at a time):
-        - over the ref backend, two and three completed generations of one slug resolve to the latest archived work
-          unit, under the current or a former name, and a completed work unit outranks a completed Errand
-        - a completed tie that includes a cohort, one of Errands alone, and a live tie refuse with their tier
-        - a name-only read of a completed tie still refuses
-        - the claim, commit, and lineage arms' `ambiguous-match` carries no `tie`
+- _Outcome:_ `completedLookupWinner` applies the shared archive comparator in slug lookup, preferring a work unit
+  above an Errand while preserving cohort and Errand-only ties. Refusals carry the slug tier; name-only binding
+  keeps its completed ambiguity, other arms omit tier facts, and status no longer supplies a completed-tie fallback.
 
 ### `[ ]` **8.2 Rank the ref backend's `ref` arm, and match its work-unit claims by UID — § 1.3, § 1.4, § 1.5**
 

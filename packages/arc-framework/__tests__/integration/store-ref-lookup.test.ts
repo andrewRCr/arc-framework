@@ -61,7 +61,7 @@ describe("lookup over live state refs", () => {
     const first = await plantOwner(f.root, firstUid, tier === "current" ? "shared" : "alpha", ["shared"]);
     const second = await plantOwner(f.root, secondUid, tier === "current" ? "shared" : "beta", ["shared"]);
     expect(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("shared") })).toMatchObject({ status: "refused", refusal: {
-      code: "ambiguous-match", candidates: expect.arrayContaining([first, second]),
+      code: "ambiguous-match", tie: { liveness: "live", name: tier }, candidates: expect.arrayContaining([first, second]),
     } });
   });
 
