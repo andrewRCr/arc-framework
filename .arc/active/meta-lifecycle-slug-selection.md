@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1.a — The reference backend's slug ranking (line ~33)
+- **Last Completed:** Task 8.3 — Pin the lookup's rules in the conformance suite
+- **Next Task:** Task 9.1 — Complete verification (line ~980)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1.a — The reference backend's slug ranking
+- **Next Action:** Begin Task 9.1 — load and follow `verify-work-unit.md` in a fresh session
 
 - **PR URL:** [none]
 - **Completed:** [none]
