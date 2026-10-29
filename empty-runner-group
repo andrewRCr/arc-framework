@@ -3,7 +3,7 @@
   "slug": "empty-runner-group",
   "claimId": "c4b34959d7c811fd91207c3e01b86f9a",
   "createdAt": "2026-10-28T23:58:39.732Z",
-  "updatedAt": "2026-10-28T23:58:39.732Z",
+  "updatedAt": "2026-10-29T00:31:12.071Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Refuse empty runner groups as caller errors and document the nonempty group requirement.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Decide whether an empty runner group is refused",
   "originEntrySourceDigest": "sha256:41e6990d4fbe80b6f72b8d8a8b806b8a5ab8cd5632dc3389e044e02960694d9c",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/empty-runner-group",
+    "headSha": "224ed8339f9ab9132f6b4ecb2045df634a829959"
+  }
 }
