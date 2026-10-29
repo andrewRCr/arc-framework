@@ -143,6 +143,15 @@ async function expectEnded(pids: number[]): Promise<void> {
   expect((await processes()).filter((row) => pids.includes(row.pid) && !row.command.includes("<defunct>"))).toEqual([]);
 }
 
+/** Wait until a child is gone from the process table: its parent reaps it and records its exit in the same step. */
+async function expectReaped(pid: number): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (!(await processes()).some((row) => row.pid === pid)) return;
+    await delay(5);
+  }
+  expect((await processes()).filter((row) => row.pid === pid)).toEqual([]);
+}
+
 async function unsettledProcessUtility(root: string, inherited: boolean) {
   await listProcessesCommand();
   const directory = join(root, "unsettled-tools"), marker = join(root, "utility-pids"), recovered = join(root, "utility-recovered");
@@ -318,9 +327,8 @@ describe("Git cancellation after direct-child exit", () => {
 });
 
 describe("Git cancellation utility settlement", () => {
-  it.skipIf(process.platform === "win32").each(["plain", "stdin", "raw", "native raw"].flatMap(variant =>
-    [false, true].map(inherited => ({ variant, inherited }))))(
-    "settles $variant with inherited utility pipes=$inherited and permits a repaired operation", async ({ variant, inherited }) => {
+  it.skipIf(process.platform === "win32").each(["plain", "stdin", "raw", "native raw"])(
+    "settles %s after its direct child exits without running the process utility and permits a repaired operation", async (variant) => {
     const root = await repository(), ready = join(root, "orphan-ready"), release = join(root, "release-direct");
     await writeFile(join(root, "hold-pipes.cjs"), [
       'const { spawn } = require("node:child_process");', 'const { writeFileSync, existsSync } = require("node:fs");',
@@ -328,7 +336,7 @@ describe("Git cancellation utility settlement", () => {
       `writeFileSync(${JSON.stringify(ready)}, String(holder.pid));`, "holder.unref();",
       `setInterval(() => { if (existsSync(${JSON.stringify(release)})) process.exit(0); }, 5);`,
     ].join("\n"));
-    const utility = await unsettledProcessUtility(root, inherited), controller = new AbortController();
+    const utility = await unsettledProcessUtility(root, false), controller = new AbortController();
     const marker = `--git-dir=${join(root, ".git")}`;
     const pending = invoke(variant, [marker, "-c", "alias.hold-pipes=!node ./hold-pipes.cjs", "hold-pipes"], { cwd: root, signal: controller.signal });
     void pending.catch(() => undefined);
@@ -343,11 +351,9 @@ describe("Git cancellation utility settlement", () => {
       expect(holder).toBeGreaterThan(0);
       children.add(holder);
       await writeFile(release, "exit");
-      await expectEnded([direct]);
+      await expectReaped(direct);
       await settlesWithUnconfirmedDescendants(pending, controller);
-      const pids = await utility.pids();
-      expect(pids.length).toBeGreaterThanOrEqual(2);
-      await expectEnded(pids.filter((_pid, index) => index % 2 === 0));
+      expect(await utility.pids()).toEqual([]);
       await utility.restore();
       await invoke(variant, ["update-ref", "refs/heads/repaired-utility", "HEAD"], { cwd: root });
       expect((await exec("git", ["rev-parse", "refs/heads/repaired-utility"], { cwd: root })).stdout)

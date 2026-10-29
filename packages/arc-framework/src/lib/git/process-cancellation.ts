@@ -42,11 +42,14 @@ function disposeUtility(child: ChildProcess | undefined): void {
   child?.unref();
 }
 
-/** Run a process utility, retrying once so a transient spawn or timeout failure does not leave the tree unconfirmed. */
-async function runCancellationUtility(command: string, args: string[], timeout: number, active: () => boolean): Promise<string | null> {
-  if (!active()) return null;
+/**
+ * Run a process utility against the direct child's PID, retrying once so a transient spawn or timeout failure does not
+ * leave the tree unconfirmed. Neither attempt starts once the child has exited, since the system may reuse its PID.
+ */
+async function runCancellationUtility(command: string, args: string[], timeout: number, running: () => boolean): Promise<string | null> {
+  if (!running()) return null;
   const result = await runUtilityOnce(command, args, timeout);
-  return result ?? (active() ? await runUtilityOnce(command, args, timeout) : null);
+  return result ?? (running() ? await runUtilityOnce(command, args, timeout) : null);
 }
 
 /** Linux's own process table, read when `ps` is absent or fails; null when it cannot be read either. */
@@ -62,18 +65,22 @@ async function readProcessTable(): Promise<number[][] | null> {
   return rows.flat();
 }
 
-async function snapshotProcesses(active: () => boolean): Promise<number[][] | null> {
-  const snapshot = await runCancellationUtility("ps", ["-A", "-o", "pid=,ppid="], 250, active);
-  if (!active()) return null;
+/** A process table read while the direct child runs; null once it has exited, since its PID then names nothing. */
+async function snapshotProcesses(running: () => boolean): Promise<number[][] | null> {
+  const snapshot = await runCancellationUtility("ps", ["-A", "-o", "pid=,ppid="], 250, running);
+  if (!running()) return null;
   if (snapshot === null) return process.platform === "linux" ? readProcessTable() : null;
   return snapshot.trim().split("\n").map((line) => line.trim().split(/\s+/u).map(Number));
 }
 
-/** End the process's descendants, returning whether the platform's utility confirmed the tree. */
-async function endDescendants(pid: number, active: () => boolean): Promise<boolean> {
-  if (process.platform === "win32") return await runCancellationUtility("taskkill", ["/PID", String(pid), "/T", "/F"], 500, active) !== null;
-  const rows = await snapshotProcesses(active);
-  if (!rows || !active() || !rows.some(([process]) => process === pid)) return false;
+/**
+ * End the process's descendants, returning whether the platform's utility confirmed the tree. A child that has
+ * already exited leaves its descendants unconfirmed rather than having its possibly reused PID acted on.
+ */
+async function endDescendants(pid: number, running: () => boolean): Promise<boolean> {
+  if (process.platform === "win32") return await runCancellationUtility("taskkill", ["/PID", String(pid), "/T", "/F"], 500, running) !== null;
+  const rows = await snapshotProcesses(running);
+  if (!rows || !running() || !rows.some(([process]) => process === pid)) return false;
   const descendants = [pid];
   for (let index = 0; index < descendants.length; index += 1) {
     for (const [child, parent] of rows) {
@@ -82,30 +89,40 @@ async function endDescendants(pid: number, active: () => boolean): Promise<boole
   }
   let confirmed = true;
   for (const child of descendants.slice(1).reverse()) {
-    if (!active()) return false;
     if (!kill(child)) confirmed = false;
   }
   return confirmed;
 }
 
-/** Bind abort to descendant-first termination; await disposal to finish any accepted cancellation. */
+type GitChildExit = Pick<ChildProcess, "exitCode" | "signalCode">;
+
+/**
+ * A direct child with the exit state that tells whether its PID still names it: its own, or for an execa subprocess,
+ * that of the Node process it wraps.
+ */
+export type CancelableGitChild = Pick<ChildProcess, "pid" | "kill"> & (GitChildExit | { readonly nodeChildProcess: GitChildExit });
+
+/**
+ * Bind abort to descendant-first termination; await disposal to finish any accepted cancellation. An accepted
+ * cancellation always finishes, since disposal waits for it; only the direct child's exit stops acting on its PID.
+ */
 export function bindGitProcessCancellation(
-  child: Pick<ChildProcess, "pid" | "kill">,
+  child: CancelableGitChild,
   signal: AbortSignal | undefined,
   markCanceled: () => void,
   finishCancellation: (descendantsUnconfirmed: boolean) => void = () => undefined,
 ): () => Promise<void> {
   let active = true;
-  const isActive = (): boolean => active;
+  const exit = "nodeChildProcess" in child ? child.nodeChildProcess : child;
+  const running = (): boolean => exit.exitCode === null && exit.signalCode === null;
   let completion: Promise<void> | undefined;
   const abort = (): void => {
     if (!active || completion) return;
     markCanceled();
     completion = (async () => {
-      const confirmed = child.pid === undefined || await endDescendants(child.pid, () => active).catch(() => false);
-      if (!isActive()) return;
+      const confirmed = child.pid === undefined || await endDescendants(child.pid, running).catch(() => false);
       finishCancellation(!confirmed);
-      if (isActive()) child.kill("SIGKILL");
+      child.kill("SIGKILL");
     })();
   };
   signal?.addEventListener("abort", abort, { once: true });
@@ -119,7 +136,7 @@ export function bindGitProcessCancellation(
 
 /** Await an execa process, delaying its direct-child abort until descendants have been ended. */
 export async function runCancelableGitProcess<T>(
-  start: (signal: AbortSignal | undefined) => Pick<ChildProcess, "pid" | "kill">
+  start: (signal: AbortSignal | undefined) => CancelableGitChild
     & Partial<Pick<ChildProcess, "stdout" | "stderr">> & PromiseLike<T>,
   signal: AbortSignal | undefined,
   invocation: GitInvocation,

@@ -35,10 +35,11 @@ afterEach(() => {
 });
 
 /** A Git process that runs until its direct child is killed. */
-function runningGit(): Promise<never> & { pid: number; kill: (signal?: NodeJS.Signals | number) => boolean } {
+function runningGit(): Promise<never> & { pid: number; kill: (signal?: NodeJS.Signals | number) => boolean; exitCode: null; signalCode: null } {
   let fail!: (error: unknown) => void;
   const settled = new Promise<never>((_resolve, reject) => { fail = reject; });
-  return Object.assign(settled, { pid: gitPid, kill: () => { fail(Object.assign(new Error("killed"), { signal: "SIGKILL" })); return true; } });
+  return Object.assign(settled, { pid: gitPid, exitCode: null, signalCode: null,
+    kill: () => { fail(Object.assign(new Error("killed"), { signal: "SIGKILL" })); return true; } });
 }
 
 async function cancel(): Promise<unknown> {
@@ -109,7 +110,7 @@ describe("Git descendant cancellation when the process utility fails", () => {
       vi.spyOn(process, "kill").mockImplementation(pid => { alive.delete(pid); return true; });
       let resolve!: (value: { stdout: string | Buffer; stderr: string | Buffer }) => void, reject!: (error: unknown) => void;
       const child = Object.assign(new Promise<{ stdout: string | Buffer; stderr: string | Buffer }>((yes, no) => { resolve = yes; reject = no; }),
-        { pid: gitPid, kill: () => true });
+        { pid: gitPid, kill: () => true, exitCode: null, signalCode: null });
       const controller = new AbortController();
       let settled = false;
       const pending = runCancelableGitProcess(() => child, controller.signal, { command: "git", args: ["fetch"] })
