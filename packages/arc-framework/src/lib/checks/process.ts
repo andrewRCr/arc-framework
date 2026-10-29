@@ -3,6 +3,7 @@ import { mkdtemp, open, rm } from "node:fs/promises";
 import { constants, tmpdir } from "node:os";
 import { join } from "node:path";
 import { execa } from "execa";
+import { whichCommandSync } from "which-command";
 import { environmentForGitCwd, sanitizeGitRepositoryEnvironment } from "../git/process-executor.js";
 import { displayLines, NOTICE_LIMIT } from "./display-text.js";
 import { CHECK_EXECUTION_ENVIRONMENT, type CheckContentContext } from "./environment-policy.js";
@@ -65,8 +66,14 @@ export async function runCheckProcess(command: readonly string[], cwd: string, c
   const noticeDirectory = await mkdtemp(join(tmpdir(), "arc-check-notice-")).catch(() => undefined);
   const noticeFile = noticeDirectory === undefined ? undefined : join(noticeDirectory, "notice");
   try {
-    const result = await execa(command[0] ?? "", command.slice(1), {
-      cwd, env: checkEnvironment(cwd, noticeFile, content, policy.indexFile, policy.environment), extendEnv: false, stdin: "ignore",
+    const executable = command[0] ?? "";
+    const env = checkEnvironment(cwd, noticeFile, content, policy.indexFile, policy.environment);
+    // An unresolved Windows command falls back to cmd.exe, whose failure is not a check result.
+    if (process.platform === "win32" && !policy.shell && !resolvesOnWindows(executable, cwd, env)) {
+      return { started: false, exitCode: 1, stdout: "", output: "Check executable was not found; check its path and PATH, then retry." };
+    }
+    const result = await execa(executable, command.slice(1), {
+      cwd, env, extendEnv: false, stdin: "ignore",
       reject: false, shell: policy.shell ?? false, stripFinalNewline: !policy.rawStdout,
     });
     const started = result.exitCode !== undefined || result.signal !== undefined;
@@ -78,4 +85,10 @@ export async function runCheckProcess(command: readonly string[], cwd: string, c
   } finally {
     if (noticeDirectory !== undefined) await rm(noticeDirectory, { recursive: true, force: true }).catch(() => undefined);
   }
+}
+
+function resolvesOnWindows(executable: string, cwd: string, env: NodeJS.ProcessEnv): boolean {
+  const pathName = Object.keys(env).reverse().find(name => name.toUpperCase() === "PATH");
+  try { return whichCommandSync(executable, { cwd, path: pathName === undefined ? "" : env[pathName] ?? "" }) !== undefined; }
+  catch { return false; }
 }
