@@ -4884,6 +4884,9 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
 63. **Contract decision changes live in the cohort record.** `cohort-state-storage.md` § Shared contracts records each
     change § 2.6 makes to a contract decision, dated and stated as it now stands, and the contract's specification
     matches the one its work unit shipped. Supersedes criterion 1's Amendments-log clause (§ 2) (A59).
+64. **A routed store check runs the form it was asked for.** The store check declares its ask and every variable its
+    selection reads as environment inputs, so a run placed on another machine receives them and a run asked for one
+    form never reuses a pass made in another (§ 14.14) (A60).
 
 ## Open Questions
 
