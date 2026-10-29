@@ -3,7 +3,7 @@
   "slug": "runner-example-checks",
   "claimId": "3fc543e326182fccbec45f05103d8217",
   "createdAt": "2026-10-29T00:33:53.986Z",
-  "updatedAt": "2026-10-29T00:33:53.986Z",
+  "updatedAt": "2026-10-29T02:02:59.912Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Lint and typecheck the shipped check-runner examples with JSDoc where needed, preserving their package inclusion.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Lint and typecheck the shipped check-runner example",
   "originEntrySourceDigest": "sha256:5e3c764c0029b9d2df76b0ad5e9e2a60fa2d77e9a07cf4f4eb00f7b32ecd7f13",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/runner-example-checks",
+    "headSha": "c5ff910cdd2da841ea8649d4bde62db33e4b81d5"
+  }
 }
