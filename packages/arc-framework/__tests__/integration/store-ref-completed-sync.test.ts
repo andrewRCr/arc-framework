@@ -196,6 +196,40 @@ describe("completed-item reconciliation in the default layout", () => {
       content: `${read.content}\nAfter the merge.\n`, placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2027-q2") }, provenance }));
     expect(success(await h.b.store.history({ reference: h.reference })).map(({ version }) => version)).toEqual([written.version, ...before]);
   });
+  it("holds a merge across concurrent moves while the vacated quarter's history misses a commit", async () => {
+    const h = await completedFixture(layout);
+    const move = async (side: typeof h.a, quarter: string) => {
+      const record = success(await side.store.read({ reference: h.reference }));
+      success(await side.store.write({ action: "put", reference: record.reference, expected: record.version, content: record.content,
+        placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse(quarter) }, provenance }));
+    };
+    const archived = (await h.b.git(["rev-parse", h.archive])).stdout.trim();
+    const later = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("later-completed"),
+      reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "later-completed" } }),
+      placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "activate" } }));
+    success(await h.a.store.write({ action: "put", reference: later.reference, expected: success(await h.a.store.read({ reference: later.reference })).version,
+      content: makeMetaFixture("later-completed"),
+      placement: { kind: "completed", quarter }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
+    success(await h.a.store.push()); success(await h.b.store.pull());
+    await move(h.a, "2027-q1"); success(await h.a.store.push());
+    await move(h.b, "2027-q2");
+    const object = join(h.b.root, ".git", "objects", archived.slice(0, 2), archived.slice(2)), saved = await readFile(object);
+    const history = (await h.b.git(["rev-parse", h.history])).stdout;
+    let removed = false;
+    const store = createRefStore({ ...h.b.ports, exec: async (command, args, options) => {
+      const result = await h.b.ports.exec(command, args, options);
+      if (!removed && args.includes("fetch")) { removed = true; await rm(object); }
+      return result;
+    } });
+    try {
+      const held = success(await store.pull());
+      expect(removed).toBe(true);
+      expect(held.pulls.flatMap(({ notices }) => notices)).toContainEqual(expect.objectContaining({ kind: "namespace-corrupt", ref: h.history }));
+      expect((await h.b.git(["rev-parse", h.history])).stdout).toBe(history);
+    } finally { await writeFile(object, saved, { mode: 0o444 }); }
+    expect(success(await store.push()).publishes).toContainEqual(expect.objectContaining({ status: "reconciled" }));
+    expect(success(await h.b.store.read({ reference: h.reference })).placement).toMatchObject({ kind: "completed", quarter: "2027-q2" });
+  });
   it.each(["its tree removed", "its folder's metadata unparseable", "its folder's metadata file removed"] as const)(
     "holds a history merge while a local quarter has %s and rebuilds the folder once it is repaired", async (damage) => {
     const h = await completedFixture(layout);

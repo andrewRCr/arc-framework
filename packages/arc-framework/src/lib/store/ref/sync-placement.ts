@@ -4,6 +4,9 @@ import type { RefBackendContext } from "./context.js";
 import type { SyncTreeSide } from "./sync-tree.js";
 import { archivedFolders } from "./archive-read.js";
 import { readBatchObjects, readRefTrees } from "./batch-read.js";
+import { readHistoricalGraph } from "./history-graph.js";
+import { corruptRef } from "./namespace-health.js";
+import { RefSyncLabelError } from "./sync-label.js";
 
 /** Fill caller-owned merge snapshots without changing their version-bearing stored metadata. */
 export async function completeSyncPlacements(context: RefBackendContext, ref: string, sides: readonly SyncTreeSide[],
@@ -19,6 +22,9 @@ export async function completeSyncPlacements(context: RefBackendContext, ref: st
     .map(([name, tip]) => ({ label: `${index}:${name}`, ref: name, tip })));
   if (!captured.length) return false;
   const trees = await readRefTrees(context, new Map(captured.map(({ label, tip }) => [label, tip])));
+  // A quarter whose tree cannot be read may hold the folder itself, so no earlier state of it supplies the placement.
+  const unreadable = captured.find(({ label }) => !trees.has(label));
+  if (unreadable) throw new RefSyncLabelError(ref, corruptRef(unreadable.ref, true));
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
   const family = ref.includes("/cohort/") ? "cohort" : "work-item";
   const live = ref.replace("refs/arc/history/", "refs/arc/");
@@ -41,8 +47,9 @@ async function historicalPlacement(context: RefBackendContext, live: string, sid
   const quarter = `refs/arc/archive/${placement.quarter}`;
   const tips = [...new Set(captured.filter(({ ref }) => ref === quarter).map(({ tip }) => tip))];
   if (!tips.length) return undefined;
-  const { stdout } = await context.exec("git", ["rev-list", ...tips], { cwd: context.checkoutRoot, objectAccess: "local-only" });
-  const commits = stdout.split(/\r?\n/u).filter(Boolean);
+  const walked = await readHistoricalGraph(context, ["rev-list", ...tips], corruptRef(quarter, true));
+  if (walked.status === "refused") throw new RefSyncLabelError(live, walked.refusal);
+  const commits = walked.result.split(/\r?\n/u).filter(Boolean);
   if (!commits.length) return undefined;
   const trees = await readRefTrees(context, new Map(commits.map((commit) => [commit, commit])));
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);

@@ -18,6 +18,7 @@ import { refOwner } from "./codec.js";
 import { readStoredMergeLabel } from "./side-labels.js";
 import { corruptRef } from "./namespace-health.js";
 import { captureHistoricalNamespaces } from "./historical-namespace.js";
+import { readHistoricalGraph } from "./history-graph.js";
 
 /** An unreadable historical label refuses its ref without masking other reconciliation failures. */
 export class RefSyncLabelError extends Error {
@@ -65,9 +66,10 @@ async function captureSyncRecordHistory(context: RefBackendContext, reference: R
   tip: string, base: string | null) {
   const home = expandStoredPath(reference, { registry: context.registry, history: ref.startsWith("refs/arc/history/") });
   const paths = await readHistoryPaths(context, reference, home, tip);
-  const { stdout } = await context.exec("git", ["rev-list", "--full-history", "--parents", "--topo-order", tip,
-    ...base ? [`^${base}`] : [], "--", ...paths.map((path) => `:(literal)${path}`)], { cwd: context.checkoutRoot, objectAccess: "local-only" });
-  const rows = orderHistoryCommits(parseHistoryRows(stdout)).reverse();
+  const walked = await readHistoricalGraph(context, ["rev-list", "--full-history", "--parents", "--topo-order", tip,
+    ...base ? [`^${base}`] : [], "--", ...paths.map((path) => `:(literal)${path}`)], corruptRef(ref, true));
+  if (walked.status === "refused") throw new RefSyncLabelError(ref, walked.refusal);
+  const rows = orderHistoryCommits(parseHistoryRows(walked.result)).reverse();
   const revisions = [...new Set(rows.flatMap((row) => [row.revision, ...row.parents]))];
   const trees = revisions.length ? await readRefTrees(context, new Map(revisions.map((revision) => [revision, revision])), paths) : new Map<string, RefTreeEntry[]>();
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries: RefTreeEntry[]) =>
