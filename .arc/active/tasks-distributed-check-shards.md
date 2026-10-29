@@ -275,14 +275,10 @@ through controller closing. Store qualification uses the native reach command la
         - The native forecast fixture uses an empty machine home while a controlled ambient home declares a runner.
           Declaration-only E2E selection retains native argv evidence independently of developer machine settings.
 
-    - `[ ]` **4.2.b Qualify integration through its native controller**
-        - Set `shards.routed: true` on `test:integration` in `.arc/system/arc-checks.yml` and declare
-          `ARC_TEST_DURATION_FILE: file` in its `environment_inputs`, so every sibling partitions from one captured
-          duration state. `test:unit` stays opted out and routes one unsharded command.
-        - Exercise the tier's actual setup/execution/closing path under its normal gate/CI selection rules;
-          retain runtime artifact ownership and private output locations.
-        - Verify complete/disjoint membership and fixed handed inputs; preserve unmatched-name, all-skipped and
-          ordinary empty-execution failures. Do not reinterpret an arbitrary nonzero exit or missing report.
+    - `[x]` **4.2.b Qualify integration through its native controller**
+        - Integration opts into four routed shards with an explicit handed-duration file while retaining CI-only
+          selection. Full and filtered native runs prove exact membership and successful closing; ordinary unmatched,
+          all-skipped and over-sharded selections stay nonpassing. Native profile evidence is recorded in the notes.
 
     - `[ ]` **4.2.c Prove controller failure and output-isolation boundaries**
         - Extend native closing/runtime-ownership fixtures with applicable concurrent views and shared dependencies.

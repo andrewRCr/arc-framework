@@ -133,6 +133,20 @@ comparison. Native fixtures additionally cover deletion/widening, fixed input re
 Windows/macOS process-status qualification remains the completed CI record in Task 3.3.b.2 of
 `tasks-distributed-check-shards.md`.
 
+Integration qualification with arc-offload `b272745` retains native CPU admission and artifact ownership:
+
+- `integration-full-unset-post-fix.json`: Linux arm64, Node 26.3.0, Vitest 4.1.11; 455 selected modules, assigned
+  114/114/114/113 with exact complete/disjoint union, unset duration input and successful parent/closure.
+- `integration-filtered-available-post-fix.json`: the same profile; four selected modules, one per declared shard,
+  partitioned from one captured 11,761-byte handed file, with successful parent/closure.
+- `integration-selection-forecasts.json`: ordinary merge gates exclude the CI-only tier; named requests and `--ci`
+  select it and expose the duration binding's name/kind. Native CI retains four shards.
+
+Pre-fix native baselines passed but later invocations were refused when CPU admission left empty directories under
+`.git/arc/test-suite`. The original full/filtered receipts are retained as `*-prepared-git-refusal.json`.
+`admission-empty-directory-proof.json` reproduces that failure; `admission-directory-post-fix-proof.json` verifies
+that ARC directories preserve identity while ARC files and directories elsewhere remain bound after the fix.
+
 ## Amendment reasoning
 
 ### A2 — store dependency

@@ -388,6 +388,8 @@ checks:
       argument: --shard={index}/{count}
   test:integration:
     runner: true
+    environment_inputs:
+      ARC_TEST_DURATION_FILE: file
     command:
       - npm
       - run
@@ -403,6 +405,7 @@ checks:
       - '!.arc/completed/**'
       - '!.arc/system/.internal/candidates/**'
     shards:
+      routed: true
       count: 4
       argument: --shard={index}/{count}
   # Integration tests read ARC Markdown from disk, which no import graph shows, so test:changed never reaches them.
