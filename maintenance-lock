@@ -3,7 +3,7 @@
   "slug": "maintenance-lock",
   "claimId": "d69c82154d0410daa2d04d0fc8eff527",
   "createdAt": "2026-10-29T02:41:16.104Z",
-  "updatedAt": "2026-10-29T02:41:16.104Z",
+  "updatedAt": "2026-10-29T12:02:00.624Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Report a leftover Git maintenance lock with safe recovery guidance in installation verification",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Report a leftover Git maintenance lock in `arc verify`",
   "originEntrySourceDigest": "sha256:a9d6a77ee1d16ead38ccfb85e5730f2a60f863841c5dc65b09124ecad5b96c9e",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/maintenance-lock",
+    "headSha": "cf79316bdd7405c8a558cb5167e44016562b9958"
+  }
 }
