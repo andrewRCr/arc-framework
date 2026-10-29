@@ -1,13 +1,16 @@
 /** Terminal migration paths account copy effects before releasing their active journal. */
 import { expect, it } from "vitest";
-import { createRemoteMover, switchFixture } from "../helpers/store/remote-move.js";
+import { createRemoteMover, provenance, switchFixture } from "../helpers/store/remote-move.js";
 import { lateFollowFixture } from "../helpers/store/follow.js";
 import { missingSourceFixture } from "../helpers/store/leave-source.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 import { capturedEntries } from "../helpers/store/ref-fixture-plant.js";
 import { plantRef } from "../helpers/store/ref-plant.js";
-import { createKindRegistry, type RefStorePorts, type WriteCheck } from "../../src/lib/store/index.js";
+import { createKindRegistry, RecordReferenceSchema, type RefStorePorts, type WriteCheck } from "../../src/lib/store/index.js";
+import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { success } from "../helpers/store/suite-tools.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
 import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { join } from "node:path";
@@ -95,6 +98,9 @@ it.each((["remote", "follow"] as const).flatMap(kind =>
     expect.soft(ended.result.notices).toContainEqual(expect.objectContaining({ condition: expect.stringMatching(/^If the interrupted copy landed.*Inspect the late combined documents\./u), remedy: advisory.remedy }));
   } else expect.soft(ended.result.notices.filter(row => row.condition.includes(advisory.condition))).toEqual(boundary === "unlanded" || boundary === "advanced" ? [] : [expect.objectContaining({ remedy: advisory.remedy })]);
   expect.soft((await original.exec("git", ["for-each-ref", "--format=%(refname)", pending, "refs/arc/tmp/migrate/move"], { cwd: root })).stdout).toBe("");
+  if (boundary === "advanced") for (const text of ["Late source data.", "A follower's progress."]) {
+    expect.soft((await original.exec("git", [`--git-dir=${h.destinationDirectory}`, "grep", "-F", text, personal], { cwd: root })).stdout).toContain(text);
+  }
   if (boundary.startsWith("unread") || boundary === "changed" || boundary === "forwarded") {
     const kept = (await original.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/accounted-copy/"], { cwd: root })).stdout;
     expect.soft(kept).toContain("/record");
@@ -108,6 +114,49 @@ it.each((["remote", "follow"] as const).flatMap(kind =>
   const next = join(root, "later-home.git"); await original.exec("git", ["init", "--bare", next], { cwd: root });
   expect.soft(await invokeStoreMigrate(["--to", next], original)).toMatchObject({ status: "ok" });
 }, 30_000);
+
+it.each(["archived", "progressed"] as const)("restarts an unlanded first copy whose destination item was then %s and re-copies it", async activity => {
+  const h = await switchFixture();
+  const made = success(await h.store.write({ action: "put", expected: null,
+    reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "copy-progress" } }),
+    content: makeMetaFixture("copy-progress"), placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "activate" } }));
+  if (made.reference.owner.type !== "work-item" || !made.reference.owner.uid) throw new Error("Expected a work UID");
+  success(await h.store.push());
+  const live = `refs/arc/work/${made.reference.owner.uid}`, history = `refs/arc/history/work/${made.reference.owner.uid}`;
+  await h.a.git(["push", "--atomic", h.destinationDirectory, "refs/arc/project/registry:refs/arc/project/registry", `${live}:${live}`]);
+  const companion = RecordReferenceSchema.parse({ owner: made.reference.owner, kind: "work-item/companion", key: "late.md" });
+  // An archived item meets a late source edit; a progressed one is a destination ref the copy leaves alone.
+  if (activity === "archived") {
+    success(await h.store.write({ action: "put", reference: companion, expected: null, content: "Late source edit.\n", provenance }));
+    success(await h.store.push());
+  }
+  let armed = true;
+  await invokeStoreMigrate(["--to", h.to], { ...h.ports, exec: async (command, args, options) => {
+    if (armed && args.includes("push") && args.includes(h.destinationDirectory)) throw makeGitProcessError({ command, args, timedOut: true, stderr: "No send before timeout." });
+    return h.ports.exec(command, args, options);
+  } });
+  armed = false;
+  const held = JSON.parse((await h.a.exec("git", ["cat-file", "blob", pending + "record"])).stdout) as { attempt: { changes: { ref: string; next: string | null; expected: string | null }[] } };
+  const row = held.attempt.changes.find(change => change.ref === live);
+  expect(row).toBeDefined();
+  expect(row?.next === row?.expected).toBe(activity === "progressed");
+  const peer = await createRemoteMover(h, h.destinationDirectory, "destination-peer");
+  const primary = success(await peer.store.read({ reference: made.reference }));
+  success(activity === "archived"
+    ? await peer.store.write({ action: "put", reference: primary.reference, expected: primary.version, content: primary.content,
+      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: { verb: "archive", lifecycleAction: "archive" } })
+    : await peer.store.write({ action: "put", reference: companion, expected: null, content: "Destination progress.\n", provenance }));
+  success(await peer.store.push());
+  const ended = await invokeStoreMigrate([], h.ports);
+  expect(ended.status, JSON.stringify(ended)).toBe("ok");
+  expect.soft((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", pending, "refs/arc/tmp/migrate/move"])).stdout).toBe("");
+  const holds = async (ref: string, text: string) => (await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "grep", "-F", text, ref])).stdout;
+  if (activity === "archived") expect.soft(await holds(history, "Late source edit.")).toContain("Late source edit.");
+  else {
+    expect.soft(await holds(live, "Destination progress.")).toContain("Destination progress.");
+    expect.soft(await holds("refs/arc/user/andrew/personal", "Shared state.")).toContain("Shared state.");
+  }
+}, 60_000);
 
 it("resumes a departure after its move transaction landed before journal handoff", async () => {
   const h = await missingSourceFixture(), original = h.follower.ports, root = h.follower.root;

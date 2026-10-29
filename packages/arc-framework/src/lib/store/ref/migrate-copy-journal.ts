@@ -93,15 +93,19 @@ export async function beginCopyJournal(context: RefBackendContext, key: string, 
   await saveJournal(context, record, prior?.refs ?? new Map());
 }
 
+/** The coordinate a lifecycle move carries a work item's or cohort's ref to, between live and history. */
+function lifecyclePair(ref: string): string | undefined {
+  if (/^refs\/arc\/history\/(work|cohort)\//u.test(ref)) return ref.replace(/^refs\/arc\/history\/(work|cohort)\//u, "refs/arc/$1/");
+  if (/^refs\/arc\/(work|cohort)\//u.test(ref)) return ref.replace(/^refs\/arc\/(work|cohort)\//u, "refs/arc/history/$1/");
+}
+
 async function landedChange(context: RefBackendContext, change: z.infer<typeof ChangeSchema>, destination: ReadonlyMap<string, string>,
   proposed: ReadonlyMap<string, string | null>): Promise<boolean> {
   if (change.next === null && !destination.has(change.ref)) return true;
-  const paired = /^refs\/arc\/history\/(work|cohort)\//u.test(change.ref)
-    ? change.ref.replace(/^refs\/arc\/history\/(work|cohort)\//u, "refs/arc/$1/")
-    : change.ref.replace(/^refs\/arc\/(work|cohort)\//u, "refs/arc/history/$1/");
+  const paired = lifecyclePair(change.ref);
   // A later lifecycle move may recreate the deleted coordinate from the paired update in this same attempt.
-  const next = change.next ?? (paired !== change.ref ? proposed.get(paired) : undefined);
-  const current = destination.get(change.ref) ?? (change.next !== null && paired !== change.ref ? destination.get(paired) : undefined);
+  const next = change.next ?? (paired ? proposed.get(paired) : undefined);
+  const current = destination.get(change.ref) ?? (change.next !== null && paired ? destination.get(paired) : undefined);
   if (!next || !current) return false;
   if (current === next) return true;
   const objects = await readBatchObjects(context, [next, current]);
@@ -109,10 +113,13 @@ async function landedChange(context: RefBackendContext, change: z.infer<typeof C
     && await syncRefIsAncestor(context, next, current);
 }
 
-// Ordinary progress at the destination, such as a follower's fast-forward, keeps every expected tip in its history.
+// Ordinary progress at the destination, such as a follower's fast-forward or a teammate's lifecycle move to the paired
+// coordinate, keeps every expected tip in its history.
 async function progressedChange(context: RefBackendContext, change: z.infer<typeof ChangeSchema>, destination: ReadonlyMap<string, string>): Promise<boolean> {
-  const current = destination.get(change.ref);
-  if (change.expected === null || current === change.expected) return true;
+  if (change.expected === null) return true;
+  const paired = lifecyclePair(change.ref);
+  const current = destination.get(change.ref) ?? (paired ? destination.get(paired) : undefined);
+  if (current === change.expected) return true;
   if (current === undefined) return false;
   const objects = await readBatchObjects(context, [change.expected, current]);
   return objects.get(change.expected)?.type === "commit" && objects.get(current)?.type === "commit"
@@ -122,7 +129,8 @@ async function progressedChange(context: RefBackendContext, change: z.infer<type
 /**
  * Reconcile an interrupted atomic copy against freshly fetched destination evidence before rebuilding it. An attempt
  * none of whose proposed tips landed is dropped while the destination only progressed from its expected tips; a partial
- * landing or a rewritten tip keeps the refusal.
+ * landing or a rewritten tip keeps the refusal. A change that leaves its ref at the expected tip only leases the
+ * transaction, so it is no evidence either way.
  */
 export async function recoverCopyJournal(context: RefBackendContext, key: string, destination: ReadonlyMap<string, string>): Promise<MigrateReport | undefined> {
   const held = await readCopyJournal(context);
@@ -131,12 +139,13 @@ export async function recoverCopyJournal(context: RefBackendContext, key: string
   const { record, refs } = held, attempt = record.attempt;
   if (attempt) {
     const proposed = new Map(attempt.changes.map(({ ref, next }) => [ref, next]));
+    const changes = attempt.changes.filter(change => change.next !== change.expected);
     const landing: boolean[] = [];
-    for (const change of attempt.changes) landing.push(await landedChange(context, change, destination, proposed));
+    for (const change of changes) landing.push(await landedChange(context, change, destination, proposed));
     const landed = landing.every(Boolean);
-    const unchanged = attempt.changes.every(change => (destination.get(change.ref) ?? null) === change.expected);
+    const unchanged = changes.every(change => (destination.get(change.ref) ?? null) === change.expected);
     const unlanded = !landed && !unchanged && !landing.some(Boolean)
-      && (await Promise.all(attempt.changes.map(change => progressedChange(context, change, destination)))).every(Boolean);
+      && (await Promise.all(changes.map(change => progressedChange(context, change, destination)))).every(Boolean);
     if (!landed && !unchanged && !unlanded) throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable",
       condition: "Destination state changed after an interrupted copy, so its landed report cannot yet be established.",
       remedy: { text: "Restore the interrupted copy's retained target tips at the destination, then retry the same migration; its pending evidence remains local." } });
