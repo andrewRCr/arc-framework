@@ -901,6 +901,29 @@ it("asks on a terminal after the layout move a setting finished first, the answe
   expect(exitCode).toBe(0);
 });
 
+function answering(answer: Awaited<ReturnType<PromptRenderer["confirm"]>>): PromptRenderer {
+  const unexpected = async (): Promise<never> => { throw new Error("Unexpected prompt form"); };
+  return { text: unexpected, select: unexpected, multiselect: unexpected, confirm: async () => answer };
+}
+
+it("reports a retained copy account once when a terminal accepts the own-state question", async () => {
+  const h = await layoutFixture();
+  const retained = "refs/arc/work/00000000-0000-4000-8000-0000000000aa", condition = "Retained source cleanup is pending.";
+  const account = { move: "remote", refs: [{ ref: retained, scope: "project", action: "copy" }], refused: [], brokenChains: [],
+    reviewMapping: [], differingNotes: [], notices: [{ condition }] };
+  const blob = new TextDecoder().decode((await h.a.ports.rawExec(["hash-object", "-w", "--stdin"],
+    { input: Buffer.from(JSON.stringify(account)) })).stdout).trim();
+  await h.a.exec("git", ["update-ref", "refs/arc/tmp/migrate/copied/report", blob]);
+  const { result, exitCode } = await invokeStoreRemote(["origin", "push"], { cwd: h.a.root,
+    renderer: answering({ kind: "answered", value: true }), ports: { ...h.a.ports, backingRepository: async () => h.origin } });
+  expect(result, JSON.stringify(result)).toMatchObject({ status: "ok" });
+  if (result.status !== "ok" || !result.result.report) throw new Error("Expected the retained account's report");
+  expect(result.result.report.refs.filter(({ ref }) => ref === retained)).toHaveLength(1);
+  expect(result.result.report.notices.filter((notice) => notice.condition === condition)).toHaveLength(1);
+  expect((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/copied/report"])).stdout).toBe("");
+  expect(exitCode).toBe(0);
+});
+
 it.each([
   { fault: "malformed", boundary: "layout.delete" },
   { fault: "malformed", boundary: "layout.deleted" },

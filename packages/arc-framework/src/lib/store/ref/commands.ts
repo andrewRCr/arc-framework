@@ -156,7 +156,8 @@ export async function runRefRemote(context: RefBackendContext, store: Store, inp
 
 /** The finished move's record is already gone, so a setting that then refuses or asks keeps its own stop and carries the report. */
 function unappliedSetting(completed: MigrateReport, applied: Exclude<StoreRemoteResult, { status: "ok" }>): StoreRemoteResult {
-  if (applied.status === "confirmation-needed") return { ...applied, report: applied.report ? combineMigrateReports(completed, applied.report) : completed };
+  if (applied.status === "confirmation-needed") return { ...applied, finished: completed,
+    report: applied.report ? combineMigrateReports(completed, applied.report) : completed };
   return { status: "refused", refusal: applied.refusal.code === "import-refused" ? applied.refusal : { ...applied.refusal,
     report: applied.refusal.report ? combineMigrateReports(completed, applied.refusal.report) : completed } };
 }

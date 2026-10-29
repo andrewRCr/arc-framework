@@ -31,12 +31,13 @@ export async function handleStoreRemote(remote: string | undefined, role: string
   const input = parsed.data;
   let result = await runStoreRemote(io.ports, input);
   if (result.status === "confirmation-needed") {
-    const finished = result.report;
+    const question = result;
     const answer = await prompt(storeOwnStatePromptSite, interaction, { message: result.condition, initialValue: false }, io.promptRenderer);
-    if (answer.kind === "answered" && answer.value) result = withFinishedMove(await runStoreRemote(io.ports, { ...input, ownState: true }), finished);
+    // The accepted rerun reads any retained copy account again, so it carries only the move the question's run finished.
+    if (answer.kind === "answered" && answer.value) result = withFinishedMove(await runStoreRemote(io.ports, { ...input, ownState: true }), question.finished);
     else if (answer.kind !== "refused") {
       io.write("Remote setting left unchanged.\n");
-      result = withFinishedMove(await runStoreRemote(io.ports), finished);
+      result = withFinishedMove(await runStoreRemote(io.ports), question.report);
     }
   }
   renderStoreCommand(result, options.json === true, io);

@@ -75,9 +75,14 @@ export interface StoreRemoteView {
 export interface StoreDesignationQuestion {
   status: "designation-needed"; remote: string; choices: ("push" | "read" | "off")[]; remedy: z.infer<typeof RemedySchema>;
 }
-/** A setting that needs explicit publication authority carries what accepting it publishes, and any move it finished first. */
+/**
+ * A setting that needs explicit publication authority carries what accepting it publishes, and any move it finished first.
+ * `report` holds everything the question's run accounted for; `finished` holds only the move whose record that run removed,
+ * which a rerun cannot report again.
+ */
 export interface StoreRemoteConfirmation {
   status: "confirmation-needed"; repository: string; condition: string; remedy: z.infer<typeof RemedySchema>; report?: MigrateReport;
+  finished?: MigrateReport;
 }
 /** The migrate entry's complete result. */
 export type StoreMigrateResult = StoreCommandResult<MigrateReport> | StoreDesignationQuestion;
