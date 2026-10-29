@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "boundary-size-trigger",
+  "claimId": "c35bf7fdbe35967abcda0a5104b2bd9c",
+  "createdAt": "2026-10-29T20:02:27.366Z",
+  "updatedAt": "2026-10-29T20:02:27.366Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make size a trigger for the boundary decision in this project's planning",
+  "branch": "chore/boundary-size-trigger",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
