@@ -255,7 +255,7 @@ it("withholds terminal role from disputed lineage even when a completed primary 
   const remote = h.fixture.remote(true);
   if (remote === undefined) throw new Error("Expected a remote writer");
   success(await remote.write({ action: "put", reference, expected: null, content: content("c".repeat(40)), provenance: testProvenance }));
-  success(await h.fixture.store.sync());
+  success(await h.fixture.store.push());
   const disputed = success(await h.fixture.store.read({ reference }));
   expect(disputed.conflicts.length).toBeGreaterThan(0);
   const unresolved = await frame(h.io);

@@ -12,6 +12,7 @@ import type {
   HostedGitHubWriteResult,
 } from "./github.js";
 import { HostedGitHubReadError } from "./github.js";
+import type { HostedDismissalReview, HostedReviewDismissalPort, HostedReviewDismissalWrite } from "./dismiss.js";
 import type { HostedArtifact, HostedTarget } from "./request.js";
 import type { HostedSettlementReply } from "./settle.js";
 
@@ -197,7 +198,7 @@ function issueComment(value: unknown, path: string): HostedGitHubIssueComment {
 }
 
 /** Developer-authenticated GitHub reads and mutations for hosted review. */
-export class GhHostedReviewPort implements HostedGitHubPort {
+export class GhHostedReviewPort implements HostedGitHubPort, HostedReviewDismissalPort {
   private readonly runner: HostedProcessRunner;
 
   constructor(runner: HostedProcessRunner) {
@@ -522,6 +523,58 @@ export class GhHostedReviewPort implements HostedGitHubPort {
         : { kind: "ambiguous" as const };
     } catch {
       return { kind: "ambiguous" as const };
+    }
+  }
+
+  async readReview(target: HostedTarget, reviewId: number): Promise<HostedDismissalReview | null> {
+    let stdout: string;
+    try {
+      stdout = (await this.runner.run(["api", apiPath(target, `pulls/${target.pullRequest}/reviews/${reviewId}`)]))
+        .stdout;
+    } catch (error) {
+      if (error instanceof HostedProcessError && error.httpStatus === 404) return null;
+      return readFailure(error);
+    }
+    const review = record(parse(stdout, "review"), "review");
+    const state = string(review.state, "review.state");
+    const states: Record<string, HostedDismissalReview["state"]> = {
+      APPROVED: "approved",
+      CHANGES_REQUESTED: "changes-requested",
+      COMMENTED: "commented",
+      DISMISSED: "dismissed",
+      PENDING: "pending",
+    };
+    const mapped = states[state];
+    if (mapped === undefined) throw new HostedGitHubReadError("terminal-failure", `review.state: unsupported ${state}`);
+    return {
+      state: mapped,
+      actorIdentity: integerString(record(review.user, "review.user").id, "review.user.id"),
+      commitSha: typeof review.commit_id === "string" && review.commit_id.length > 0 ? review.commit_id : null,
+    };
+  }
+
+  async dismissReview(
+    target: HostedTarget,
+    reviewId: number,
+    message: string,
+  ): Promise<HostedReviewDismissalWrite> {
+    try {
+      const output = await this.runner.run([
+        "api",
+        apiPath(target, `pulls/${target.pullRequest}/reviews/${reviewId}/dismissals`),
+        "--method", "PUT",
+        "--raw-field", `message=${message}`,
+        "--raw-field", "event=DISMISS",
+      ]);
+      return record(parse(output.stdout, "dismissal"), "dismissal").state === "DISMISSED"
+        ? { kind: "dismissed" }
+        : { kind: "ambiguous" };
+    } catch (error) {
+      const status = error instanceof HostedProcessError ? error.httpStatus : null;
+      if (error instanceof HostedProcessError && status !== null && status >= 400 && status < 500 && status !== 429) {
+        return { kind: "refused", reason: `${error.message}\n${error.stderr}`.trim() };
+      }
+      return { kind: "ambiguous" };
     }
   }
 }

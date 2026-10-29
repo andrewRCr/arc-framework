@@ -76,7 +76,9 @@ async function failedPreparation(failure: { cause: unknown; lifetime: ExecutionL
     : closure?.cleanupWarning;
   const reason = control.cancelled ? "Runner preparation was cancelled and settled."
     : closure?.status === "closed" && closure.unstarted !== undefined ? closure.unstarted : preparationFailure(cause);
-  return { status: "unavailable", origin: launching ? "runner" : "inputs", reason, remedy: "Repair the runner or captured inputs and retry with a fresh attempt; keep the check native if preparation cannot be honored.",
+  return { status: "unavailable", origin: launching ? "runner" : "inputs", reason,
+    remedy: control.cancelled ? "Retry the check with a fresh attempt when ready."
+      : "Repair the runner or captured inputs and retry with a fresh attempt; keep the check native if preparation cannot be honored.",
     ...(cleanupWarning === undefined ? {} : { cleanupWarning }) };
 }
 

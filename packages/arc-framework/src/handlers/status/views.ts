@@ -191,7 +191,7 @@ async function handleStoreProjectStatus(operational: { store: Store; sync?: Stor
   const pullWarnings = opts.fetch === true && !opts.local ? await pullStoreStatus(operational) : [];
   const input = await readStoreProjectViewInput({ store,
     reviewAfterDays: positive(resolved.settings["pause.review_after_days"], 14) });
-  if (input.status === "refused") { renderStatusViewRefusal(input.refusal, opts); return; }
+  if (input.status === "refused") { renderStatusViewRefusal(input.refusal, opts, pullWarnings.map(warning => warning.rendered)); return; }
   const result = composeProjectReadinessViewResult({ ...input.result,
     sourceWarnings: [...pullWarnings, ...input.result.sourceWarnings] });
   if (opts.json) process.stdout.write(`${JSON.stringify(result)}\n`);

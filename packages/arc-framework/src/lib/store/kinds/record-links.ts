@@ -4,7 +4,7 @@ import { SlugSchema } from "../../kernel/index.js";
 import { isProjectedPath, resolveArcPath } from "../../layout/index.js";
 import type { RecordReference } from "../identity.js";
 import type { BrokenRule, WriteCheckInput } from "../write-check.js";
-import { KIND_SHAPES, familyOf, type KindId } from "../catalog.js";
+import { familyOf } from "../catalog.js";
 import { readMarkdownLinks, type MarkdownLinkOccurrence } from "./markdown-links.js";
 
 /** Stable shape rules for links carried by a stored record. */
@@ -16,15 +16,11 @@ export interface RecordLinkViolation extends MarkdownLinkOccurrence {
   key: string;
 }
 
-function usesNameKey(kind: KindId): boolean {
-  return KIND_SHAPES[kind].key === "name";
-}
-
 function isMarkdownRecord(reference: RecordReference): boolean {
   if (reference.kind === "personal/document") return typeof reference.key === "string" && reference.key.endsWith(".md");
   if (reference.kind !== "work-item/companion") return true;
   return typeof reference.key === "string"
-    && ((usesNameKey(reference.kind) && SlugSchema.safeParse(reference.key).success) || reference.key.endsWith(".md"));
+    && (SlugSchema.safeParse(reference.key).success || reference.key.endsWith(".md"));
 }
 
 function fixedRecordPath(reference: RecordReference): string | undefined {

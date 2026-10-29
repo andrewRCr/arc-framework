@@ -16,6 +16,14 @@ it("reads the seed's saved task list and the pinned current task list", async ()
   const stateVersion = lifecycleSuccess(await h.store.version());
   lifecycleSuccess(await h.store.write({ action: "put", reference, expected: task.version, content: after,
     provenance: { verb: "task-close", lifecycleAction: "update" } }));
+  let available = false;
+  const read = h.store.read.bind(h.store);
+  h.store.read = async input => available ? read(input) : { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable",
+    condition: "Saved tasks unavailable.", remedy: { text: "Restore saved tasks." }, historyRefs: ["refs/arc/history/work/00000000-0000-4000-8000-000000000001"] } };
+  h.store.pull = async input => {
+    available = input?.history?.length === 1 && input.history[0] === "refs/arc/history/work/00000000-0000-4000-8000-000000000001";
+    return { status: "ok", result: { states: [], pulls: [] } };
+  };
   expect(await resolveRecoveryTaskListEvidence({ cwd: "/absent-checkout", exec: noGit, seedHead: "code-head",
     taskListPath: ".arc/active/tasks-subject.md", store: h.store, stateVersion }))
     .toEqual({ status: "ok", seed: before, fresh: after });

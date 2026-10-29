@@ -10,7 +10,7 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { assertEditorDocumentsProvisioned, resetEditorDocumentsProvisioning } from "./editor-document-helpers.js";
-import { runArc, createTempRepo, cleanupTempDir, commitAll } from "./helpers.js";
+import { runArc, createTempRepo, cleanupTempDir, commitAll, git } from "./helpers.js";
 
 describe("update", () => {
   let tmpDir: string;
@@ -38,6 +38,7 @@ describe("update", () => {
     expect(update.exitCode).toBe(0);
     const output = update.stdout + update.stderr;
     expect(output).toContain("unchanged");
+    expect(await git(tmpDir, ["status", "--porcelain"])).toBe("");
   });
 
   it("concurrent clean updates preserve valid manifest state", async () => {

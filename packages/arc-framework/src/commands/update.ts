@@ -29,6 +29,7 @@ import {
   resolveMissingBaselines,
   missingBaselineError,
   refuseUnsafePlanWrites,
+  writeManifest,
   type FileMergeFn,
 } from "../lib/manifest/index.js";
 import { gitMergeFile, type GitExec } from "../lib/git/index.js";
@@ -525,7 +526,7 @@ async function writeUpdatedState(
   cwd: string, manifest: Manifest, pristineStore: Record<string, string>, io: IOContext,
 ): Promise<void> {
   const internalDir = join(materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" })), ...INTERNAL_DIR_SEGMENTS);
-  await atomicWriteJson(join(internalDir, MANIFEST_FILENAME), manifest);
+  await writeManifest(join(internalDir, MANIFEST_FILENAME), manifest);
   await atomicWriteJson(join(internalDir, PRISTINE_FILENAME), pristineStore);
   await writeEditorDocumentsOrThrow(cwd, io.exec, nodeEditorDocumentsFs, undefined, io.writeEditorDocuments);
 }

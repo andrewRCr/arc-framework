@@ -1,0 +1,174 @@
+/** Capture and combine published trees without changing the index or live refs. */
+
+import type { RefBackendContext } from "./context.js";
+import { readRefTrees, readBatchObjects, type RefTreeEntry, type BatchObject } from "./batch-read.js";
+import { parseRefMetadata, type RefMetadata } from "./metadata.js";
+import { viewRefFamily } from "./view-state.js";
+import { refPrototype } from "./read.js";
+import { refOwner } from "./codec.js";
+import { RecordReferenceSchema, type RecordReference } from "../identity.js";
+import { expandStoredPath, holdsNoRecord, type StoredRecordHome } from "../stored-path.js";
+import { corruptRef } from "./namespace-health.js";
+import type { StoreResult } from "../refusal.js";
+import { syncRefMergeBase } from "./sync-graph.js";
+import { reconcileSyncRecords } from "./sync-records.js";
+import { mergeSyncMetadata } from "./sync-metadata.js";
+import { writeRefBlob } from "./tree-write.js";
+import { isArchiveRef } from "./archive-read.js";
+import { mergeArchiveTree } from "./sync-archive.js";
+import type { ReadPlacement } from "../placement.js";
+import { readLineageOwners } from "./lineage-resolution.js";
+import { completeSyncPlacements } from "./sync-placement.js";
+import { withCompletedPlacement } from "./archive-refresh.js";
+import { observeSyncChecks } from "./sync-checks.js";
+import type { PullNotice } from "../sync.js";
+import { canonicalize } from "../../kernel/canonical/canonical-json.js";
+import { RefSyncLabelError } from "./sync-label.js";
+import { findRefNamespaceCollision } from "./path-admission.js";
+import { cohortEndLiveSource, type SyncCohortEndRoute, type SyncControlSource, type SyncControlSelections } from "./sync-control-sources.js";
+
+/** One immutable side's raw entries and validated group metadata. */
+export interface SyncTreeSide { tip: string | null; entries: Map<string, RefTreeEntry>; metadata: RefMetadata; placement?: ReadPlacement; controlSource?: SyncControlSource }
+/** Exact incoming tips and the side a lifecycle merge must preserve at a clash. */
+/** `ended` is the placement of an ended owner's latest folder, which its merged history stores as a write's does. */
+export interface SyncTreeMergeScope {
+  currentSide?: "local" | "incoming"; incoming?: ReadonlyMap<string, string>; priorState?: ReadonlyMap<string, string>; batchId?: string;
+  reopening?: boolean; ended?: ReadPlacement | undefined;
+  sourceRefs?: { local: string; incoming: string }; cohortEndRoute?: SyncCohortEndRoute;
+}
+/** Prepared entries retain untouched blob identities and the provenance's actual owner. */
+export interface SyncRecordMergedTree {
+  kind: "record"; entries: Map<string, RefTreeEntry>; reference: RecordReference; metadata?: RefMetadata; notices?: PullNotice[];
+  controlSources?: SyncControlSelections;
+}
+/** Only a validated wholly empty archive inventory can merge without a record owner. */
+export type SyncMergedTree = SyncRecordMergedTree | {
+  kind: "empty-archive"; entries: Map<string, RefTreeEntry>; archiveRef: string; reference?: never; metadata?: never; notices?: never;
+};
+
+/** Merge independently changed tree entries and metadata over their captured common ancestor. */
+export async function mergeSyncTree(context: RefBackendContext, ref: string, local: string, incoming: string, tips: ReadonlyMap<string, string>, scope: SyncTreeMergeScope = {}): Promise<StoreResult<SyncMergedTree>> {
+  try {
+    return await (isArchiveRef(ref) ? mergeArchiveTree(context, ref, local, incoming) : mergeGroupTree(context, ref, local, incoming, tips, scope));
+  } catch (error) {
+    if (error instanceof RefSyncLabelError) return { status: "refused", refusal: error.refusal };
+    throw error;
+  }
+}
+
+async function mergeGroupTree(context: RefBackendContext, ref: string, local: string, incoming: string, captured: ReadonlyMap<string, string>, scope: SyncTreeMergeScope): Promise<StoreResult<SyncMergedTree>> {
+  const live = ref.replace("refs/arc/history/", "refs/arc/"), family = viewRefFamily(live);
+  if (!family) return { status: "refused", refusal: corruptRef(ref) };
+  const prototype = refPrototype(context, live, family);
+  const home = expandStoredPath(prototype, { registry: context.registry });
+  const base = await syncRefMergeBase(context, local, incoming);
+  const tips = new Map([["local", local], ["incoming", incoming], ...base ? [["base", base] as const] : []]);
+  const trees = await readRefTrees(context, tips);
+  const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
+  // Shared merges already supplied the registry labels needed by empty retired histories.
+  const lineage = await readLineageOwners(context, captured);
+  const retiredOwner = lineage.status === "ok" ? lineage.result.find((owner) => "uid" in owner && live === `refs/arc/work/${owner.uid}`) : undefined;
+  const emptyMetadata = emptySideMetadata(prototype, home, trees, objects, retiredOwner?.name, scope.currentSide);
+  const capturedSides = groupSides(ref, home, trees, objects, tips, emptyMetadata, retiredOwner?.name, scope);
+  if (capturedSides.status === "refused") return capturedSides;
+  const sides = capturedSides.result;
+  const tipSets = [captured, scope.incoming ?? captured, scope.priorState ?? captured];
+  if (!await completeSyncPlacements(context, ref, sides, tipSets)) {
+    return { status: "refused", refusal: corruptRef(ref) };
+  }
+  const currentSide = scope.currentSide ?? "incoming";
+  const [previous, current, remote] = sides;
+  if (!previous || !current || !remote) throw new Error("A reconciliation lacks one captured side");
+  const preferred = currentSide === "local" ? current : remote, other = currentSide === "local" ? remote : current;
+  if (!preferred.controlSource || !other.controlSource) throw new Error("A metadata selection lacks its captured source");
+  const { metadata, conflicts, controls } = mergeSyncMetadata(base ? previous.metadata : undefined, preferred.metadata, other.metadata,
+    { local: preferred.controlSource, incoming: other.controlSource });
+  const entries = mergeEntries(previous, preferred, other);
+  const records = await reconcileSyncRecords(context, ref, previous, current, remote, objects, { entries, metadata }, conflicts, tipSets, currentSide, controls);
+  finishSyncMetadata(ref, metadata, current.metadata, scope);
+  entries.set(home.metadataPath, { path: home.metadataPath, mode: "100644", oid: await writeRefBlob(context, canonicalize(metadata)) });
+  const collision = findRefNamespaceCollision(ref, entries.keys());
+  if (collision) throw new RefSyncLabelError(ref, { code: "namespace-corrupt", class: "terminal", namespace: ref,
+    condition: `The final merged namespace on ${ref} collides at ${collision.path} and ${collision.other}.`,
+    remedy: { text: "Rename or remove the colliding source entries in a new commit, then retry the pull." } });
+  const notices = await observeSyncChecks(context, captured, ref, { entries, metadata, original: current.entries }, records);
+  return { status: "ok", result: { kind: "record", entries, metadata, notices, controlSources: controls,
+    reference: RecordReferenceSchema.parse({ ...prototype, owner: refOwner(live, family, metadata) }) } };
+}
+
+/** Preserve admission values while binding eligibility to each raw captured source. */
+function groupSides(ref: string, home: StoredRecordHome, trees: ReadonlyMap<string, readonly RefTreeEntry[]>,
+  objects: ReadonlyMap<string, BatchObject | null>, tips: ReadonlyMap<string, string>, emptyMetadata: RefMetadata | null,
+  retiredName: RefMetadata["slug"], scope: SyncTreeMergeScope): StoreResult<SyncTreeSide[]> {
+  const sourceRefs = scope.sourceRefs ?? { local: ref, incoming: ref }, live = ref.replace("refs/arc/history/", "refs/arc/");
+  const liveEnd = cohortEndLiveSource(scope.cohortEndRoute, sourceRefs, ref, scope.currentSide ?? "incoming", scope.reopening);
+  const sides: SyncTreeSide[] = [];
+  for (const key of ["base", "local", "incoming"] as const) {
+    if (key === "base" && !tips.has(key)) { sides.push({ tip: null, entries: new Map(), metadata: { formatVersion: 1, formats: {} },
+      controlSource: { ref, tip: null, recordFree: true } }); continue; }
+    const entries = trees.get(key), metadata = sideMetadata(entries, objects, home, live, emptyMetadata, retiredName);
+    if (!entries || !metadata) return { status: "refused", refusal: corruptRef(ref, !entries) };
+    const sourceRef = key === "base" ? ref : sourceRefs[key], raw = metadataAt(entries, objects, home.metadataPath, live);
+    const controlSource: SyncControlSource = { ref: sourceRef, tip: tips.get(key) ?? null,
+      recordFree: holdsNoRecord(home, entries.map(({ path }) => path)),
+      ...key !== "base" && sourceRef === liveEnd && raw && !raw.primary && raw.placement === undefined
+        ? { cohortEnd: { live: sourceRef, history: ref } } : {} };
+    sides.push({ tip: tips.get(key) ?? null, entries: new Map(entries.map((entry) => [entry.path, entry])), metadata, controlSource });
+  }
+  return { status: "ok", result: sides };
+}
+
+/**
+ * Stamp the merge's batch, or clear a reopened item's end. An ended item's history names its latest folder's quarter, as
+ * a write to it does, so every state it holds keeps the version read returned while that state was current.
+ */
+function finishSyncMetadata(ref: string, metadata: RefMetadata, local: RefMetadata, scope: SyncTreeMergeScope): void {
+  if (scope.reopening) {
+    delete metadata.endBatch;
+    delete metadata.batch;
+    if (metadata.primary && local.primary && local.primary.placement.kind !== "completed") metadata.primary = { ...metadata.primary, placement: local.primary.placement };
+    return;
+  }
+  if (!ref.startsWith("refs/arc/history/")) return;
+  if (scope.batchId) metadata.batch = scope.batchId;
+  if (scope.ended && (metadata.primary?.placement ?? metadata.placement)?.kind === "completed") Object.assign(metadata, withCompletedPlacement(metadata, scope.ended));
+}
+
+function mergeEntries(base: SyncTreeSide, current: SyncTreeSide, incoming: SyncTreeSide): Map<string, RefTreeEntry> {
+  const entries = new Map<string, RefTreeEntry>();
+  for (const path of new Set([...base.entries.keys(), ...current.entries.keys(), ...incoming.entries.keys()])) {
+    const before = base.entries.get(path), here = current.entries.get(path), there = incoming.entries.get(path);
+    const selected = sameEntry(here, before) ? there : here;
+    if (selected) entries.set(path, selected);
+  }
+  return entries;
+}
+
+function metadataAt(entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>, path: string, ref: string): RefMetadata | null {
+  const entry = entries?.find((candidate) => candidate.path === path);
+  return parseRefMetadata(entry ? objects.get(entry.oid) : null, ref);
+}
+
+function sameEntry(left: RefTreeEntry | undefined, right: RefTreeEntry | undefined): boolean {
+  return left?.oid === right?.oid && left?.mode === right?.mode;
+}
+
+/** Empty sides retain genuine identity evidence without borrowing any record's metadata. */
+function emptySideMetadata(prototype: RecordReference, home: StoredRecordHome,
+  trees: ReadonlyMap<string, readonly RefTreeEntry[]>, objects: ReadonlyMap<string, BatchObject | null>,
+  retiredName: RefMetadata["slug"], currentSide: SyncTreeMergeScope["currentSide"]): RefMetadata | null {
+  // Only this exact ref's captured metadata, or authenticated terminal lineage, can name a UID owner.
+  const preferredKey = currentSide === "local" ? "local" : "incoming";
+  const ownerName = retiredName ?? [preferredKey, preferredKey === "local" ? "incoming" : "local", "base"]
+    .map(key => metadataAt(trees.get(key), objects, home.metadataPath, home.ref)?.slug).find(name => name !== undefined);
+  const named = prototype.owner.type === "work-item" || prototype.owner.type === "cohort";
+  return named && !ownerName ? null : { formatVersion: 1, formats: {}, ...(named ? { slug: ownerName } : {}) };
+}
+
+function sideMetadata(entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>,
+  home: StoredRecordHome, ref: string, emptyMetadata: RefMetadata | null, retiredName: RefMetadata["slug"]): RefMetadata | null {
+  const metadata = metadataAt(entries, objects, home.metadataPath, ref);
+  if (!entries || !holdsNoRecord(home, entries.map(({ path }) => path))) return metadata;
+  if (retiredName) return { formatVersion: 1, formats: {}, slug: retiredName };
+  return metadata ?? (emptyMetadata ? { ...emptyMetadata, formats: {} } : null);
+}

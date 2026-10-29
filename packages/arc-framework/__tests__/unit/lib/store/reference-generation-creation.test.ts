@@ -15,9 +15,9 @@ describe("reference completed-name reuse", () => {
       const companionKind = kind === "work-item/meta" ? "work-item/notes" : "work-item/description";
       const companionName = fixture.reference(companionKind);
       const oldCompanion = await seed(fixture, RecordReferenceSchema.parse({ ...fixture.reference(previousKind === "work-item/meta" ? "work-item/notes" : "work-item/description"), owner: first.reference.owner }));
-      success(await fixture.store.sync());
+      success(await fixture.store.push());
       success(await fixture.store.write(WriteInputSchema.parse({ ...update(fixture, first), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } })));
-      success(await fixture.store.sync());
+      success(await fixture.store.push());
       const completed = success(await fixture.store.read({ reference: first.reference }));
       const archivedCompanion = success(await fixture.store.read({ reference: oldCompanion.reference }));
       const history = success(await fixture.store.history({ reference: first.reference }));
@@ -58,7 +58,7 @@ describe("reference completed-name reuse", () => {
       expect(success(await fixture.store.read({ reference: oldCompanion.reference }))).toEqual(archivedCompanion);
       expect(success(await fixture.store.read({ reference: first.reference, asOf: before }))).toEqual(completed);
       expect(await fixture.store.write(creation)).toMatchObject({ status: "refused", refusal: { code: "version-conflict" } });
-      success(await fixture.store.sync());
+      success(await fixture.store.push());
       expect(success(await remote.read({ reference: named }))).toEqual(created);
       expect(success(await remote.lookup({ kind: "slug", slug: named.owner.name }))).toEqual({ reference: created.reference });
       expect(success(await remote.read({ reference: first.reference }))).toEqual(completed);

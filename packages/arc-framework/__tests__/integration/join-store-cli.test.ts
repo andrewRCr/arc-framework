@@ -10,18 +10,6 @@ vi.mock("../../src/lib/store/create.js", async importOriginal => {
     return binding.store ?? original.createStore(ports);
   } };
 });
-vi.mock("../../src/lib/store/operational-sync.js", async importOriginal => {
-  const original = await importOriginal<typeof import("../../src/lib/store/operational-sync.js")>();
-  return { ...original, createStoreSyncPort: () => original.createStoreSyncPort({ pull: async () => {
-    if (binding.store === null) throw new Error("No selected store");
-    // The bound backend reads the records it would fetch for the selected identity.
-    const { personalReference } = await import("../helpers/store/personal-fixture.js");
-    const record = await binding.store.read({ reference: personalReference("personal/inbox", undefined, "alice") });
-    if (record.status !== "ok") throw new Error(record.refusal.condition);
-    return { status: "designation-needed", remote: "upstream", choices: ["state", "code"],
-      remedy: { text: "arc store remote upstream state", argv: ["arc", "store", "remote", "upstream", "state"] } };
-  } }) };
-});
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 import { createLifecycleHarness } from "../helpers/store/lifecycle-harness.js";
 import { personalReference } from "../helpers/store/personal-fixture.js";
@@ -35,6 +23,12 @@ it("joins with CLI-selected identity, invokes the bound pull and reports designa
   await writeFile(join(cwd, ".arc/system/arc-config.yml"), "pm.mode: none\n");
   const h = createLifecycleHarness(); h.store.environment.identity = "alice";
   const existingInbox = await h.seed(personalReference("personal/inbox", undefined, "alice"), "# USER-INBOX\n\nSelected Alice\n");
+  const pull = vi.spyOn(h.store, "pull").mockImplementation(async () => {
+    const record = await h.store.read({ reference: personalReference("personal/inbox", undefined, "alice") });
+    if (record.status !== "ok") throw new Error(record.refusal.condition);
+    return { status: "ok", result: { pulls: [], states: [{ status: "designation-needed", remote: "upstream", choices: ["push", "read"],
+      remedy: { text: "arc store remote upstream push", argv: ["arc", "store", "remote", "upstream", "push"] } }] } };
+  });
   binding.store = h.store;
   const originalCwd = process.cwd(), originalExit = process.exitCode;
   let output = "";
@@ -47,7 +41,7 @@ it("joins with CLI-selected identity, invokes the bound pull and reports designa
     expect(memory).toMatchObject({ status: "ok", result: { content: expect.stringContaining("Working Memory") } });
     expect(await h.store.read({ reference: existingInbox.reference })).toEqual({ status: "ok", result: existingInbox });
     expect(output).toContain("Remote upstream needs a store designation.");
-    expect(output).toContain("arc store remote upstream state");
+    expect(output).toContain("arc store remote upstream push");
     expect(process.exitCode).toBeUndefined();
-  } finally { out.mockRestore(); binding.store = null; process.chdir(originalCwd); process.exitCode = originalExit; }
+  } finally { pull.mockRestore(); out.mockRestore(); binding.store = null; process.chdir(originalCwd); process.exitCode = originalExit; }
 }, 30_000);

@@ -319,6 +319,7 @@ With no settlement plan, perform only the description upkeep below.
 
 Follow [review-response's channel boundary][channel-boundary]. For `reply-and-resolve`, invoke
 `arc review hosted settle -` for each active phase ID with `payload.hostedSettlementPlan.actorIdentity` unchanged.
+Write each `reply` as the account's owner, under [pull-request-format's rule for posted text][posted-text].
 Complete every `beforeFixFindingIds` entry against the unchanged originating `target` and `fixTarget: null` before
 any approved fix changes the head. Return control to the ongoing [findings round][findings-round] for its approved
 fix, verification, commit, verified-fix replay, and push; never restart its proposal. After-fix settlement waits for
@@ -413,6 +414,7 @@ coordinates cannot be recovered.
 [review-response]: review-response.md
 [review-chunking]: review-chunking.md
 [pull-request-format]: pull-request-format.md
+[posted-text]: pull-request-format.md#other-text-posted-under-the-account
 [channel-boundary]: review-response.md#keep-response-etiquette-at-the-channel-boundary
 [review-increment-invariant]: ../rules/DEV-RULES.ARC.md#review-increment-invariant
 [stop-line]: #stop-line

@@ -1,0 +1,519 @@
+import { randomUUID } from "node:crypto";
+import { describe, expect, it } from "vitest";
+import { createRefFixture } from "../helpers/store/ref-fixture.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { META_REGISTRATION } from "../../src/lib/store/kinds/meta/registration.js";
+import { plantRef, type PlantTreeEntry } from "../helpers/store/ref-plant.js";
+import { makeGitExec } from "../helpers/integration.js";
+import { RecordReferenceSchema, StateVersionSchema, sameReference } from "../../src/lib/store/index.js";
+import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
+import { seed, success, testProvenance, update, mutationOf } from "../helpers/store/suite-tools.js";
+import { renderStoreCommitMessage } from "../../src/lib/store/commit-provenance.js";
+import type { RefConformanceFixture } from "../helpers/store/ref-fixture.js";
+import type { StoreRecord } from "../../src/lib/store/index.js";
+
+describe("changes between ref manifests", () => {
+  it("orders normal ref logs by ref name and their writes oldest first", async () => {
+    const f = await createRefFixture();
+    const document = await seed(f, f.reference("personal/document"), "first\n");
+    const counter = await seed(f, f.reference("project-registry/counter"));
+    const from = await f.settle();
+    success(await f.store.write({ ...update(f, document, "second\n"), provenance: { ...testProvenance, lifecycleAction: "document-first" } }));
+    success(await f.store.write({ ...update(f, counter), provenance: { ...testProvenance, lifecycleAction: "counter" } }));
+    const current = success(await f.store.read({ reference: document.reference }));
+    success(await f.store.write({ ...update(f, current, "third\n"), provenance: { ...testProvenance, lifecycleAction: "document-last" } }));
+    const to = await f.settle();
+    const changes = success(await f.store.changes({ from, to }));
+    expect(changes.map((entry) => [entry.reference.kind, entry.content, "lifecycleAction" in entry.provenance ? entry.provenance.lifecycleAction : "legacy"]))
+      .toEqual([[counter.reference.kind, f.content(counter.reference, "changed"), "counter"],
+        [document.reference.kind, "second\n", "document-first"], [document.reference.kind, "third\n", "document-last"]]);
+  });
+
+  it.each(["work-item/meta", "cohort/document"] as const)("reads an older-only %s end from retained history once", async (kind) => {
+    const f = await createRefFixture();
+    const record = await seed(f, f.reference(kind));
+    const from = await f.settle();
+    success(await f.store.write({ ...update(f, record, record.content), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
+    const closed = success(await f.store.read({ reference: record.reference }));
+    const changes = success(await f.store.changes({ from, to: await f.settle() }));
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ reference: record.reference, version: closed.version, content: closed.content });
+  });
+
+  it.each(["archive", "abandon"] as const)("finds a work item created and ended by %s inside the window", async (ending) => {
+    const f = await createRefFixture();
+    const from = await f.settle();
+    const record = await seed(f, f.reference("work-item/meta"));
+    if (ending === "archive") success(await f.store.write({ ...update(f, record, record.content), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
+    else {
+      const lineage = RecordReferenceSchema.parse({ kind: "lineage/transition", owner: record.reference.owner });
+      success(await f.store.batch({ writes: [{ action: "put", reference: lineage, expected: null, content: f.content(lineage) },
+        { action: "remove", reference: record.reference, expected: record.version }], provenance: testProvenance }));
+    }
+    const changes = success(await f.store.changes({ from, to: await f.settle() }));
+    const own = changes.filter(({ reference }) => sameReference(reference, record.reference));
+    expect(own).toEqual(success(await f.store.history({ reference: record.reference })).reverse());
+    expect(own).toHaveLength(2);
+    if (ending === "abandon") expect(changes.some(({ reference }) => reference.kind === "lineage/transition")).toBe(true);
+  });
+
+  it("finds completed writes through their folder and reports each changed record once", async () => {
+    const f = await createRefFixture();
+    const record = await seed(f, f.reference("work-item/meta"));
+    const note = await seed(f, RecordReferenceSchema.parse({ ...record.reference, kind: "work-item/companion", key: "extra" }), "before");
+    success(await f.store.write({ ...update(f, record, record.content), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
+    const closed = success(await f.store.read({ reference: record.reference }));
+    const from = await f.settle();
+    const batch = success(await f.store.batch({ writes: [mutationOf(update(f, closed)), mutationOf(update(f, note, "after"))], provenance: testProvenance }));
+    const changes = success(await f.store.changes({ from, to: await f.settle() }));
+    expect(changes).toHaveLength(2);
+    expect(changes.every(({ provenance }) => "batchId" in provenance && provenance.batchId === batch.batchId)).toBe(true);
+    expect(changes).toEqual(expect.arrayContaining([expect.objectContaining({ reference: record.reference, content: f.content(record.reference, "changed") }),
+      expect.objectContaining({ reference: note.reference, content: "after" })]));
+  });
+
+  it("starts a reopened item at its reopen and reports no copied companion removal", async () => {
+    const f = await createRefFixture();
+    const record = await seed(f, f.reference("work-item/meta"));
+    await seed(f, RecordReferenceSchema.parse({ ...record.reference, kind: "work-item/companion", key: "extra" }), "unchanged");
+    success(await f.store.write({ ...update(f, record, record.content), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
+    const closed = success(await f.store.read({ reference: record.reference })), from = await f.settle();
+    success(await f.store.write({ ...update(f, closed, closed.content), placement: { kind: "active" } }));
+    const reopened = success(await f.store.read({ reference: record.reference }));
+    const changes = success(await f.store.changes({ from, to: await f.settle() }));
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ reference: reopened.reference, version: reopened.version, content: reopened.content });
+  });
+
+  it("keeps reopen, live writes, and another archive in their landed order", async () => {
+    const f = await createRefFixture();
+    const record = await seed(f, f.reference("work-item/meta"));
+    const quarter = ArchiveQuarterSchema.parse("2026-q4");
+    success(await f.store.write({ ...update(f, record, record.content), placement: { kind: "completed", quarter } }));
+    const closed = success(await f.store.read({ reference: record.reference })), from = await f.settle();
+    success(await f.store.write({ ...update(f, closed, closed.content), placement: { kind: "active" } }));
+    const reopened = success(await f.store.read({ reference: record.reference }));
+    success(await f.store.write(update(f, reopened)));
+    const live = success(await f.store.read({ reference: record.reference }));
+    success(await f.store.write({ ...update(f, live, live.content), placement: { kind: "completed", quarter } }));
+    const final = success(await f.store.read({ reference: record.reference }));
+    expect(success(await f.store.changes({ from, to: await f.settle() })).map(({ version }) => version)).toEqual([reopened.version, live.version, final.version]);
+  });
+
+  it("reports a reopened origin's live writes and retirement without replaying its old archive", async () => {
+    const f = await createRefFixture();
+    const record = await seed(f, f.reference("work-item/meta"));
+    const note = await seed(f, RecordReferenceSchema.parse({ ...record.reference, kind: "work-item/companion", key: "extra" }), "before");
+    success(await f.store.write({ ...update(f, record, record.content), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
+    const closed = success(await f.store.read({ reference: record.reference })), from = await f.settle();
+    success(await f.store.write({ ...update(f, closed, closed.content), placement: { kind: "active" } }));
+    const reopened = success(await f.store.read({ reference: record.reference }));
+    success(await f.store.write(update(f, note, "live write")));
+    const lineage = RecordReferenceSchema.parse({ kind: "lineage/transition", owner: record.reference.owner });
+    success(await f.store.batch({ writes: [{ action: "put", reference: lineage, expected: null, content: f.content(lineage) },
+      { action: "remove", reference: reopened.reference, expected: reopened.version }], provenance: testProvenance }));
+    const changes = success(await f.store.changes({ from, to: await f.settle() }));
+    expect(changes.filter(({ reference }) => sameReference(reference, record.reference)).map(({ version }) => version)).toEqual([reopened.version, null]);
+    expect(changes.filter(({ reference }) => sameReference(reference, note.reference)).map(({ content }) => content)).toEqual(["live write", null]);
+    expect(changes.filter(({ reference }) => reference.kind === "lineage/transition")).toHaveLength(1);
+  });
+
+  it.each(["missing", "stale"] as const)("refuses %s retained history and admits the restored copy", async (mode) => {
+    const f = await createRefFixture();
+    const record = await seed(f, f.reference("work-item/meta"));
+    const from = await f.settle(), uid = "uid" in record.reference.owner ? record.reference.owner.uid : undefined;
+    const history = `refs/arc/history/work/${uid}`, git = makeGitExec(f.root);
+    success(await f.store.write({ ...update(f, record, record.content), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
+    const old = (await git("git", ["rev-parse", history])).stdout;
+    if (mode === "stale") {
+      const closed = success(await f.store.read({ reference: record.reference }));
+      success(await f.store.write(update(f, closed)));
+    }
+    const complete = (await git("git", ["rev-parse", history])).stdout, to = await f.settle();
+    if (mode === "missing") await git("git", ["update-ref", "-d", history]);
+    else await git("git", ["update-ref", history, old]);
+    expect(await f.store.changes({ from, to })).toMatchObject({ status: "refused", refusal: { code: "state-unresolvable", historyRefs: [history],
+      remedy: { text: expect.stringMatching(/pull.*retry/iu) } } });
+    await git("git", ["update-ref", history, complete]);
+    expect(success(await f.store.changes({ from, to }))).toHaveLength(mode === "missing" ? 1 : 2);
+  });
+
+  it("refuses an unavailable compared manifest and admits available anchors", async () => {
+    const f = await createRefFixture();
+    const record = await seed(f, f.reference("personal/document")), from = await f.settle();
+    success(await f.store.write(update(f, record)));
+    const to = await f.settle(), missing = StateVersionSchema.parse("f".repeat(40));
+    for (const input of [{ from: missing, to }, { from, to: missing }]) {
+      expect(await f.store.changes(input)).toMatchObject({ status: "refused", refusal: { code: "state-unresolvable", stateVersion: missing, historyRefs: [] } });
+    }
+    expect(success(await f.store.changes({ from, to }))).toHaveLength(1);
+  });
+
+  it.each(["created", "removed"] as const)("resolves a named %s lineage record over the compared registry maps", async (mode) => {
+    const f = await createRefFixture();
+    let from = await f.settle();
+    const record = await seed(f, f.reference("lineage/transition"));
+    if (mode === "removed") {
+      from = await f.settle();
+      success(await f.store.write({ action: "remove", reference: record.reference, expected: record.version, provenance: testProvenance }));
+    }
+    const changes = success(await f.store.changes({ from, to: await f.settle(), references: [f.reference("lineage/transition")] }));
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ reference: record.reference, version: mode === "created" ? record.version : null });
+  });
+
+  it("restricts a renamed primary across both roles while excluding another record's writes", async () => {
+    const f = await createRefFixture();
+    const record = await seed(f, f.reference("work-item/record"));
+    const note = await seed(f, RecordReferenceSchema.parse({ ...record.reference, kind: "work-item/companion", key: "extra" }), "before");
+    const from = await f.settle();
+    const renamed = RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, name: "renamed" } });
+    success(await f.store.write({ ...update(f, record, record.content), reference: renamed }));
+    const current = success(await f.store.read({ reference: renamed }));
+    success(await f.store.write(update(f, note, "after")));
+    const promoted = RecordReferenceSchema.parse({ ...renamed, kind: "work-item/meta" });
+    success(await f.store.write({ ...update(f, current, current.content), reference: promoted }));
+    const changes = success(await f.store.changes({ from, to: await f.settle(), references: [record.reference] }));
+    expect(changes.map(({ reference }) => [reference.kind, reference.owner.name])).toEqual([["work-item/record", "renamed"], ["work-item/meta", "renamed"]]);
+  });
+
+  it("scopes an ended item without requiring an unrelated owner's history", async () => {
+    const f = await createRefFixture();
+    const first = await seed(f, f.reference("work-item/meta"));
+    const other = await seed(f, f.reference("work-item/meta", "other"));
+    const from = await f.settle(), quarter = ArchiveQuarterSchema.parse("2026-q4");
+    for (const record of [first, other]) success(await f.store.write({ ...update(f, record, record.content), placement: { kind: "completed", quarter } }));
+    const uid = "uid" in other.reference.owner ? other.reference.owner.uid : undefined;
+    await makeGitExec(f.root)("git", ["update-ref", "-d", `refs/arc/history/work/${uid}`]);
+    const changes = success(await f.store.changes({ from, to: await f.settle(), references: [first.reference] }));
+    expect(changes).toHaveLength(1);
+    expect(changes[0]?.reference).toEqual(first.reference);
+  });
+
+  it("carries a newer-only identity's complete history and ignores the older-only identity", async () => {
+    const f = await createRefFixture();
+    const own = await seed(f, f.reference("personal/document"), "own first");
+    success(await f.store.write(update(f, own, "own second")));
+    f.identity("other");
+    const other = await seed(f, RecordReferenceSchema.parse({ ...own.reference, owner: { type: "person", name: "other" } }), "other first");
+    success(await f.store.write(update(f, other, "other second")));
+    f.identity("test-user");
+    const git = makeGitExec(f.root);
+    const older = await plantRef(f.root, "refs/test/older", [{ path: "user/test-user/personal", mode: "160000",
+      oid: (await git("git", ["rev-parse", "refs/arc/user/test-user/personal"])).stdout }]);
+    const newer = await plantRef(f.root, "refs/test/newer", [{ path: "user/other/personal", mode: "160000",
+      oid: (await git("git", ["rev-parse", "refs/arc/user/other/personal"])).stdout }]);
+    const changes = success(await f.store.changes({ from: StateVersionSchema.parse(older.tree), to: StateVersionSchema.parse(newer.tree) }));
+    expect(changes.map(({ reference, content }) => [reference.owner.name, content])).toEqual([["other", "other first"], ["other", "other second"]]);
+  });
+
+  it("omits identity history without configuration and admits a configured retry", async () => {
+    const f = await createRefFixture();
+    const record = await seed(f, f.reference("personal/document")), from = await f.settle();
+    success(await f.store.write(update(f, record)));
+    const to = await f.settle();
+    f.identity(undefined);
+    expect(success(await f.store.changes({ from, to }))).toEqual([]);
+    expect(await f.store.changes({ from, to, references: [record.reference] })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    f.identity("test-user");
+    expect(success(await f.store.changes({ from, to, references: [record.reference] }))).toHaveLength(1);
+  });
+
+  it("keeps project references bound to the compared identity", async () => {
+    const f = await createRefFixture();
+    await seed(f, f.reference("project-registry/identity"));
+    const record = await seed(f, f.reference("project-registry/counter")), from = await f.settle();
+    success(await f.store.write(update(f, record)));
+    const changes = success(await f.store.changes({ from, to: await f.settle() }));
+    expect(changes).toHaveLength(1);
+    expect(changes[0]?.reference).toEqual(record.reference);
+  });
+
+  it("ends the comparison at its saved archive batch despite later reopen and archive", async () => {
+    const f = await createRefFixture();
+    const record = await seed(f, f.reference("work-item/meta")), from = await f.settle();
+    success(await f.store.write(update(f, record)));
+    const live = success(await f.store.read({ reference: record.reference })), quarter = ArchiveQuarterSchema.parse("2026-q4");
+    success(await f.store.write({ ...update(f, live, live.content), placement: { kind: "completed", quarter } }));
+    const closed = success(await f.store.read({ reference: record.reference })), to = await f.settle();
+    success(await f.store.write({ ...update(f, closed, closed.content), placement: { kind: "active" } }));
+    const reopened = success(await f.store.read({ reference: record.reference }));
+    success(await f.store.write({ ...update(f, reopened, reopened.content), placement: { kind: "completed", quarter } }));
+    expect(success(await f.store.changes({ from, to })).map(({ version }) => version)).toEqual([live.version, closed.version]);
+  });
+
+  it("groups a stale merge and its generated conflict commit under one batch", async () => {
+    const f = await createRefFixture({ "personal/document": { merge: "line", parser: null } });
+    const record = await seed(f, f.reference("personal/document"), "a\nmiddle\nz\n"), from = await f.settle();
+    success(await f.store.write(update(f, record, "A\nmiddle\nz\n")));
+    const written = success(await f.store.batch({ writes: [mutationOf(update(f, record, "B\nmiddle\nZ\n"))],
+      provenance: { ...testProvenance, verb: "save" } }));
+    const result = written.writes[0];
+    expect(result?.conflicts).toHaveLength(1);
+    const changes = success(await f.store.changes({ from, to: await f.settle() }));
+    expect(changes).toHaveLength(3);
+    const batch = changes.filter(({ provenance }) => "batchId" in provenance && provenance.batchId === written.batchId);
+    expect(batch).toHaveLength(2);
+    expect(batch.find(({ reference }) => sameReference(reference, record.reference)))
+      .toMatchObject({ content: "A\nmiddle\nZ\n", version: result?.version, provenance: { verb: "save" } });
+    expect(batch.find(({ reference }) => reference.kind === "personal/conflict-record")?.provenance).toMatchObject({ verb: "merge" });
+  });
+
+  it("limits a requested record's paths without enumerating an unrelated malformed path", async () => {
+    const f = await createRefFixture();
+    const record = await seed(f, f.reference("project-registry/counter")), from = await f.settle();
+    const git = makeGitExec(f.root), ref = "refs/arc/project/registry";
+    const parent = (await git("git", ["rev-parse", ref])).stdout;
+    const rows = (await git("git", ["ls-tree", "-r", "-z", ref])).stdout.split("\0").filter(Boolean).map((row) => {
+      const parsed = /^100644 blob ([0-9a-f]+)\t(.*)$/su.exec(row);
+      if (!parsed?.[1] || !parsed[2]) throw new Error("Expected producer record blobs");
+      return { path: parsed[2], oid: parsed[1], mode: "100644" as const };
+    });
+    await plantRef(f.root, ref, [...rows, { path: "unrecognized", content: "unrelated bytes" }], { parents: [parent] });
+    success(await f.store.write(update(f, record)));
+    const changes = success(await f.store.changes({ from, to: await f.settle(), references: [record.reference] }));
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ reference: record.reference, content: f.content(record.reference, "changed") });
+  });
+
+  it("does not enumerate a carried empty manifest as a companion record", async () => {
+    const f = await createRefFixture({ "work-item/meta": { parser: META_REGISTRATION.parser, anchorFields: META_REGISTRATION.anchorFields } });
+    const from = await f.settle(), reference = f.reference("work-item/meta");
+    const created = success(await f.store.write({ action: "put", reference, expected: null, placement: { kind: "active" },
+      content: makeMetaFixture(reference.owner.name, { stateAtHandoff: from }), provenance: testProvenance }));
+    const changes = success(await f.store.changes({ from, to: await f.settle() }));
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ reference: created.reference, version: created.version });
+  });
+
+  it("refuses an ambiguous lineage name and admits an explicit UID restriction", async () => {
+    const f = await createRefFixture(), from = await f.settle();
+    const first = await seed(f, f.reference("lineage/transition"));
+    const second = await seed(f, RecordReferenceSchema.parse({ ...first.reference, owner: { ...first.reference.owner, uid: randomUUID() } }));
+    const to = await f.settle();
+    expect(await f.store.changes({ from, to, references: [f.reference("lineage/transition")] }))
+      .toMatchObject({ status: "refused", refusal: { code: "ambiguous-match", candidates: expect.arrayContaining([first.reference, second.reference]) } });
+    const changes = success(await f.store.changes({ from, to, references: [first.reference] }));
+    expect(changes).toHaveLength(1);
+    expect(changes[0]?.reference).toEqual(first.reference);
+  });
+
+  it("bounds an abandoned item's window at its end, leaving a later retained-history commit out", async () => {
+    const f = await createRefFixture();
+    const { record, from, to, history, git } = await abandonInWindow(f);
+    const expected = success(await f.store.changes({ from, to }));
+    expect(expected.filter(({ reference }) => sameReference(reference, record.reference)).map(({ version }) => version)).toEqual([record.version, null]);
+    // A late write merged into retained history after the end, as a pull of another clone's write leaves it.
+    const tip = (await git("git", ["rev-parse", history])).stdout.trim();
+    const metadata = (await treeEntries(git, `${tip}^`)).filter(({ path }) => path.startsWith("metadata-"));
+    await plantRef(f.root, history, [...metadata, { path: `meta-${record.reference.owner.name}.md`, content: f.content(record.reference, "changed-again") }],
+      { parents: [tip], message: renderStoreCommitMessage({ ...testProvenance, verb: "merge" }, record.reference, randomUUID()) });
+    expect(success(await f.store.changes({ from, to }))).toEqual(expected);
+  });
+
+  it("bounds an abandoned item's window at its retirement's final commit when its registry commit names no batch", async () => {
+    const f = await createRefFixture();
+    const { record, from, history, git } = await abandonInWindow(f);
+    // A legacy registry commit carries the same end with no batch trailer.
+    const registry = "refs/arc/project/registry", ended = (await git("git", ["rev-parse", registry])).stdout.trim();
+    const parents = (await git("git", ["log", "-n1", "--format=%P", ended])).stdout.split(" ").filter(Boolean);
+    await plantRef(f.root, registry, await treeEntries(git, ended), { parents, message: "Record the end" });
+    const to = await f.settle();
+    const own = async () => success(await f.store.changes({ from, to })).filter(({ reference }) => sameReference(reference, record.reference));
+    expect((await own()).map(({ version }) => version)).toEqual([record.version, null]);
+    const tip = (await git("git", ["rev-parse", history])).stdout.trim();
+    const metadata = (await treeEntries(git, `${tip}^`)).filter(({ path }) => path.startsWith("metadata-"));
+    await plantRef(f.root, history, [...metadata, { path: `meta-${record.reference.owner.name}.md`, content: f.content(record.reference, "changed-again") }],
+      { parents: [tip], message: renderStoreCommitMessage({ ...testProvenance, verb: "merge" }, record.reference, randomUUID()) });
+    expect((await own()).map(({ version }) => version)).toEqual([record.version, null]);
+  });
+
+  it("refuses an abandoned item's window while its retained history lacks the end, and reads it once restored", async () => {
+    const f = await createRefFixture();
+    const { record, from, to, history, git } = await abandonInWindow(f);
+    const tip = (await git("git", ["rev-parse", history])).stdout.trim();
+    await git("git", ["update-ref", history, `${tip}^`]);
+    expect(await f.store.changes({ from, to })).toMatchObject({ status: "refused", refusal: { code: "state-unresolvable", historyRefs: [history] } });
+    await git("git", ["update-ref", history, tip]);
+    const changes = success(await f.store.changes({ from, to }));
+    expect(changes.filter(({ reference }) => sameReference(reference, record.reference)).map(({ version }) => version)).toEqual([record.version, null]);
+  });
+
+  it("bounds an abandon whose lineage came in an earlier batch at its removal's retirement", async () => {
+    const f = await createRefFixture();
+    const from = await f.settle();
+    const record = await seed(f, f.reference("work-item/meta"));
+    await putLineage(f, record);
+    success(await f.store.write({ action: "remove", reference: record.reference, expected: record.version, provenance: testProvenance }));
+    const changes = success(await f.store.changes({ from, to: await f.settle() }));
+    expect(changes.filter(({ reference }) => sameReference(reference, record.reference)).map(({ version }) => version)).toEqual([record.version, null]);
+  });
+
+  it("bounds an abandon whose primary's removal came before its lineage at the lineage batch's sweep", async () => {
+    const f = await createRefFixture();
+    const from = await f.settle();
+    const record = await seed(f, f.reference("work-item/meta"));
+    success(await f.store.write({ action: "remove", reference: record.reference, expected: record.version, provenance: testProvenance }));
+    await putLineage(f, record);
+    const to = await f.settle();
+    const expected = success(await f.store.changes({ from, to }));
+    expect(expected.filter(({ reference }) => sameReference(reference, record.reference)).map(({ version }) => version)).toEqual([record.version, null]);
+    if (!("uid" in record.reference.owner) || !record.reference.owner.uid) throw new Error("Expected a resolved owner");
+    await mergeLateWrite(f, makeGitExec(f.root), `refs/arc/history/work/${record.reference.owner.uid}`, record);
+    expect(success(await f.store.changes({ from, to }))).toEqual(expected);
+  });
+
+  it("bounds an item archived beside lineage written while it was live at the archive", async () => {
+    const f = await createRefFixture();
+    const from = await f.settle();
+    const record = await seed(f, f.reference("work-item/meta"));
+    await putLineage(f, record);
+    const archived = success(await f.store.write({ ...update(f, record, record.content), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
+    const changes = success(await f.store.changes({ from, to: await f.settle() }));
+    expect(changes.filter(({ reference }) => sameReference(reference, record.reference)).map(({ version }) => version)).toEqual([record.version, archived.version]);
+  });
+
+  it("bounds an abandon whose lineage predates the window at its retirement, leaving a later retained-history commit out", async () => {
+    const f = await createRefFixture();
+    const record = await seed(f, f.reference("work-item/meta"));
+    await putLineage(f, record);
+    const from = await f.settle();
+    success(await f.store.write({ action: "remove", reference: record.reference, expected: record.version, provenance: testProvenance }));
+    const to = await f.settle();
+    const expected = success(await f.store.changes({ from, to }));
+    expect(expected.filter(({ reference }) => sameReference(reference, record.reference)).map(({ version }) => version)).toEqual([null]);
+    if (!("uid" in record.reference.owner) || !record.reference.owner.uid) throw new Error("Expected a resolved owner");
+    const history = `refs/arc/history/work/${record.reference.owner.uid}`, git = makeGitExec(f.root);
+    await mergeLateWrite(f, git, history, record);
+    expect(success(await f.store.changes({ from, to }))).toEqual(expected);
+  });
+
+  it("bounds an abandon whose registry commit names no batch at its retirement, past a later write and its discard", async () => {
+    const f = await createRefFixture();
+    const { record, from, history, git } = await abandonInWindow(f);
+    const registry = "refs/arc/project/registry", ended = (await git("git", ["rev-parse", registry])).stdout.trim();
+    const parents = (await git("git", ["log", "-n1", "--format=%P", ended])).stdout.split(" ").filter(Boolean);
+    await plantRef(f.root, registry, await treeEntries(git, ended), { parents, message: "Record the end" });
+    const to = await f.settle();
+    const late = await mergeLateWrite(f, git, history, record);
+    // The discard leaves the metadata file and no record, as removing the late write's conflict record does.
+    await plantRef(f.root, history, late.metadata, { parents: [late.tip],
+      message: renderStoreCommitMessage({ ...testProvenance, verb: "resolve" }, record.reference, randomUUID()) });
+    const changes = success(await f.store.changes({ from, to }));
+    expect(changes.filter(({ reference }) => sameReference(reference, record.reference)).map(({ version }) => version)).toEqual([record.version, null]);
+  });
+
+  it("returns a later window's changes beside an ended origin whose registry end names no batch", async () => {
+    const f = await createRefFixture();
+    const { record, git } = await abandonInWindow(f);
+    const registry = "refs/arc/project/registry", ended = (await git("git", ["rev-parse", registry])).stdout.trim();
+    const parents = (await git("git", ["log", "-n1", "--format=%P", ended])).stdout.split(" ").filter(Boolean);
+    await plantRef(f.root, registry, await treeEntries(git, ended), { parents, message: "Record the end" });
+    const from = await f.settle();
+    // A registry write inside the window makes it weigh every standing origin.
+    const later = await seed(f, f.reference("project-registry/counter"));
+    const changes = success(await f.store.changes({ from, to: await f.settle() }));
+    expect(changes.filter(({ reference }) => sameReference(reference, record.reference))).toEqual([]);
+    expect(changes.map(({ reference }) => reference)).toContainEqual(later.reference);
+  });
+
+  it("lists nothing of its own for an origin whose history is the import's empty root commit", async () => {
+    const f = await createRefFixture();
+    const { record, from, history, git } = await abandonInWindow(f);
+    // The import gives an origin it brings in ended one parentless commit with an empty tree, in its lineage's batch.
+    const retirement = (await git("git", ["rev-parse", history])).stdout.trim();
+    await plantRef(f.root, history, [], { parents: [], message: (await git("git", ["log", "-n1", "--format=%B", retirement])).stdout });
+    const changes = success(await f.store.changes({ from, to: await f.settle() }));
+    expect(changes.filter(({ reference }) => sameReference(reference, record.reference))).toEqual([]);
+    expect(changes.some(({ reference }) => reference.kind === "lineage/transition")).toBe(true);
+  });
+
+  it("names the historical remedy for an unparseable registry commit beside lineage inside the window", async () => {
+    const f = await createRefFixture();
+    const { from, git } = await abandonInWindow(f);
+    const registry = "refs/arc/project/registry", metadata = "metadata-registry.json";
+    const ended = (await git("git", ["rev-parse", registry])).stdout.trim(), intact = await treeEntries(git, ended);
+    expect(intact.some(({ path }) => path.startsWith("lineage/"))).toBe(true);
+    // Repaired forward on top, so only the window's own history holds the damage.
+    const broken = await plantRef(f.root, registry, intact.map((entry) => entry.path === metadata ? { path: entry.path, content: "not metadata" } : entry),
+      { parents: [ended] });
+    await plantRef(f.root, registry, intact, { parents: [broken.tip] });
+    expect(await f.store.changes({ from, to: await f.settle() })).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt",
+      namespace: registry, condition: `Historical metadata on ${registry} is missing or cannot be parsed.`,
+      remedy: { text: expect.stringContaining("a forward repair cannot change an ancestor") } } });
+  });
+
+  it("reads a restricted changes window beside another owner's unreadable folder", async () => {
+    const f = await createRefFixture(), quarter = ArchiveQuarterSchema.parse("2026-q4");
+    const damaged = await seed(f, f.reference("work-item/meta", "damaged"));
+    success(await f.store.write({ ...update(f, damaged, damaged.content), placement: { kind: "completed", quarter } }));
+    const archive = `refs/arc/archive/${quarter}`, git = makeGitExec(f.root);
+    const parent = (await git("git", ["rev-parse", archive])).stdout.trim();
+    await plantRef(f.root, archive, (await treeEntries(git, archive)).map((entry) => entry.path.includes("/metadata-") ? { path: entry.path, content: "not metadata" } : entry),
+      { parents: [parent] });
+    const record = await seed(f, f.reference("work-item/meta"));
+    const from = await f.settle();
+    success(await f.store.write({ ...update(f, record, record.content), placement: { kind: "completed", quarter } }));
+    const closed = success(await f.store.read({ reference: record.reference }));
+    const to = await f.settle();
+    const changes = success(await f.store.changes({ from, to, references: [record.reference] }));
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ reference: record.reference, version: closed.version });
+    // Both saved endpoints hold the damaged folder, which no forward repair reaches.
+    expect(await f.store.changes({ from, to })).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: archive,
+      remedy: { text: expect.stringMatching(/historical|ancestor/iu) } } });
+  });
+
+  it.each(["lineage map", "item metadata"] as const)("names the historical remedy for a saved lineage restriction over unparseable %s", async (damage) => {
+    const f = await createRefFixture();
+    await seed(f, f.reference("project-registry/counter"));
+    const item = await seed(f, f.reference("work-item/meta", "other"));
+    const from = await f.settle();
+    if (item.reference.owner.type !== "work-item") throw new Error("Expected work-item owner");
+    const ref = damage === "lineage map" ? "refs/arc/project/registry" : `refs/arc/work/${item.reference.owner.uid}`, git = makeGitExec(f.root);
+    const metadata = damage === "lineage map" ? "metadata-registry.json" : `metadata-${item.reference.owner.uid}.json`;
+    const parent = (await git("git", ["rev-parse", ref])).stdout.trim();
+    await plantRef(f.root, ref, (await treeEntries(git, ref)).map((entry) => entry.path === metadata ? { path: entry.path, content: "not metadata" } : entry),
+      { parents: [parent] });
+    const to = await f.settle();
+    expect(await f.store.changes({ from, to, references: [f.reference("lineage/transition")] })).toMatchObject({ status: "refused",
+      refusal: { code: "namespace-corrupt", namespace: ref, remedy: { text: expect.stringMatching(/historical|ancestor/iu) } } });
+  });
+
+});
+
+async function treeEntries(git: ReturnType<typeof makeGitExec>, revision: string): Promise<PlantTreeEntry[]> {
+  return (await git("git", ["ls-tree", "-r", "-z", revision])).stdout.split("\0").filter(Boolean).map((row) => {
+    const match = /^100644 blob ([0-9a-f]+)\t(.*)$/su.exec(row);
+    if (!match?.[1] || !match[2]) throw new Error("Expected regular record blobs");
+    return { path: match[2], mode: "100644", oid: match[1] };
+  });
+}
+
+/** Write a work item's lineage beside its live primary, which ends nothing until a write removes the primary. */
+async function putLineage(f: RefConformanceFixture, record: StoreRecord): Promise<void> {
+  const lineage = RecordReferenceSchema.parse({ kind: "lineage/transition", owner: record.reference.owner });
+  success(await f.store.write({ action: "put", reference: lineage, expected: null, content: f.content(lineage), provenance: testProvenance }));
+}
+
+/** Merge a late write into an abandoned item's retained history after its retirement, as a pull of another clone's write leaves it. */
+async function mergeLateWrite(f: RefConformanceFixture, git: ReturnType<typeof makeGitExec>, history: string,
+  record: StoreRecord): Promise<{ tip: string; metadata: PlantTreeEntry[] }> {
+  const retirement = (await git("git", ["rev-parse", history])).stdout.trim();
+  const metadata = (await treeEntries(git, `${retirement}^`)).filter(({ path }) => path.startsWith("metadata-"));
+  const merged = await plantRef(f.root, history, [...metadata, { path: `meta-${record.reference.owner.name}.md`, content: f.content(record.reference, "changed-again") }],
+    { parents: [retirement], message: renderStoreCommitMessage({ ...testProvenance, verb: "merge" }, record.reference, randomUUID()) });
+  return { tip: merged.tip, metadata };
+}
+
+/** Create and abandon one work item inside a compared window, returning that window and its retained history. */
+async function abandonInWindow(f: RefConformanceFixture): Promise<{ record: StoreRecord; from: Awaited<ReturnType<RefConformanceFixture["settle"]>>;
+  to: Awaited<ReturnType<RefConformanceFixture["settle"]>>; history: string; git: ReturnType<typeof makeGitExec> }> {
+  const from = await f.settle();
+  const record = await seed(f, f.reference("work-item/meta"));
+  const lineage = RecordReferenceSchema.parse({ kind: "lineage/transition", owner: record.reference.owner });
+  success(await f.store.batch({ writes: [{ action: "put", reference: lineage, expected: null, content: f.content(lineage) },
+    { action: "remove", reference: record.reference, expected: record.version }], provenance: testProvenance }));
+  if (!("uid" in record.reference.owner) || !record.reference.owner.uid) throw new Error("Expected a resolved owner");
+  return { record, from, to: await f.settle(), history: `refs/arc/history/work/${record.reference.owner.uid}`, git: makeGitExec(f.root) };
+}

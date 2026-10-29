@@ -35,11 +35,11 @@ describe.each(["work-unit", "errand"] as const)("disputed %s primary", kind => {
     if (listed.state === "refused" || listed.entries[0] === undefined) throw new Error("Expected a held entry");
     const row = listed.entries[0], remote = f.remote(true);
     if (remote === undefined) throw new Error("Expected remote writer");
-    success(await f.store.sync());
+    success(await f.store.push());
     const local = success(await f.store.read({ reference })), other = success(await remote.read({ reference }));
     success(await f.store.write({ action: "put", reference, expected: local.version, content: content("alice"), placement: { kind: "active" }, provenance: testProvenance }));
     success(await remote.write({ action: "put", reference, expected: other.version, content: content("test-user"), placement: { kind: "active" }, provenance: testProvenance }));
-    success(await f.store.sync());
+    success(await f.store.push());
     const disputed = success(await f.store.read({ reference }));
     expect(disputed.conflicts.length).toBeGreaterThan(0);
     const source = success(await f.store.read({ reference: sourceRef })), target = success(await f.store.read({ reference: destination.reference }));

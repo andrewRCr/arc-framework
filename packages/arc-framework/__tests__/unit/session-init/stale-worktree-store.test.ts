@@ -63,7 +63,7 @@ async function withDerivedRows(input: RunStaleWorktreeSweepOptions): Promise<Run
 async function conflictedPrimary(publish = true) {
   const h = createLifecycleHarness(), initial = await h.seedMeta("done", { state: "Planning", currentWorkflow: "draft-design" });
   const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   const other = lifecycleSuccess(await writer.read({ reference: initial.reference }));
   const localContent = initial.content + "\nLocal work\n", provenance = { verb: "update", lifecycleAction: "update" };
@@ -72,7 +72,7 @@ async function conflictedPrimary(publish = true) {
   lifecycleSuccess(await writer.write({ action: "put", reference: initial.reference, expected: other.version,
     placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
     content: renderMetaFile("done", { state: "Shipped", owner: "test-user", currentWorkflow: null }), provenance }));
-  const sync = async () => { lifecycleSuccess(await h.store.sync()); };
+  const sync = async () => { lifecycleSuccess(await h.store.push()); };
   if (publish) await sync();
   const resolve = async () => {
     const disputed = lifecycleSuccess(await h.store.read({ reference: initial.reference }));
@@ -197,7 +197,7 @@ it("withholds a missing-primary release after lineage becomes disputed and retri
   const remoteExecutor = buildExecutorContext({ cwd: "/absent", store: writer, io: { ...createUserIOContext(), exec }, identity: "test-user", teamMode: false,
     internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null } });
   expect(await runStoreAbandon({ executor: remoteExecutor }, { name: "done", confirmed: true })).toMatchObject({ status: "abandoned" });
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const disputed = lifecycleSuccess(await h.store.read({ reference }));
   expect(disputed.conflicts.length).toBeGreaterThan(0);
   const selected = await selectStoreWorktreeCleanup({ store: h.store, topology: [checkout], derivedRoster: input.derivedRoster ?? [],

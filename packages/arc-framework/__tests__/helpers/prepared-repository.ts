@@ -1,12 +1,13 @@
 /** Prepared integration-repository templates and independent per-test copies. */
 
-import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { cp, mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 
 import { removeGitBackedDir } from "./temp-repo.js";
 
-export type PreparedRepositoryKind = "plain" | "remote-bearing" | "worktree-bearing";
+export type PreparedRepositoryKind = "plain" | "remote-bearing" | "worktree-bearing" | "multi-clone";
 
 /** Self-contained support paths used by prepared repository shapes. */
 export const PREPARED_REMOTE_PATH = ".arc-fixture/remote.git";
@@ -36,6 +37,8 @@ export interface PreparedSiblingWorktreeCopy {
 export interface PreparedRepositoryTemplate {
   readonly root: string;
   readonly shape: PreparedRepositoryShape | PreparedSiblingWorktreeShape;
+  /** A multi-clone template's files, relative to its root, that name the root: remotes, links, alternates, pointers. */
+  readonly rewrites?: readonly string[];
 }
 
 /**
@@ -49,7 +52,14 @@ export async function prepareRepositoryTemplate(
   shape: PreparedRepositoryShape | PreparedSiblingWorktreeShape,
   build: () => Promise<string>,
 ): Promise<PreparedRepositoryTemplate> {
-  return { root: await build(), shape };
+  const root = await build();
+  if (shape.kind !== "multi-clone") return { root, shape };
+  try {
+    return { root, shape, rewrites: await multiCloneRewrites(root) };
+  } catch (error) {
+    await removeGitBackedDir(root);
+    throw error;
+  }
 }
 
 /**
@@ -83,6 +93,10 @@ export async function copyPreparedRepository(
   await rm(destination, { recursive: true, force: true });
   try {
     await cp(template.root, destination, { recursive: true });
+    if (shape.kind === "multi-clone") {
+      const forms = await rootForms(template.root);
+      for (const file of template.rewrites ?? []) await rewriteRootForms(join(destination, file), forms, destination);
+    }
     if (shape.kind === "remote-bearing") {
       await rewriteRequiredPath(
         join(destination, ".git", "config"),
@@ -129,9 +143,85 @@ export async function copyPreparedRepository(
 
 async function rewriteRequiredPath(file: string, from: string, to: string): Promise<void> {
   const content = await readFile(file, "utf8");
-  const source = content.includes(from) ? from : from.replaceAll("\\", "/");
-  if (!content.includes(source)) {
+  const source = pathForms(from).find(candidate => content.includes(candidate));
+  if (source === undefined) {
     throw new Error(`Prepared repository expected an absolute template reference in ${file}`);
   }
   await writeFile(file, content.replaceAll(source, to.replaceAll("\\", "/")), "utf8");
+}
+
+/** A path as Git and JSON may write it: native, with forward slashes, and with its backslashes and quotes escaped. */
+function pathForms(path: string): string[] {
+  return [path, path.replaceAll("\\", "/"), path.replaceAll("\\", "\\\\").replaceAll('"', '\\"')];
+}
+
+/**
+ * List the text files outside Git's object, reftable, and log storage that name a multi-clone template's root,
+ * refusing a template whose reachable objects name it, since no copy can rewrite a path inside an object.
+ */
+async function multiCloneRewrites(root: string): Promise<string[]> {
+  const needles = (await rootForms(root)).map(form => Buffer.from(form));
+  const rewrites: string[] = [];
+  const directories = [root];
+  while (directories.length > 0) {
+    const current = directories.pop();
+    if (current === undefined) break;
+    const entries = await readdir(current, { withFileTypes: true });
+    const has = (name: string, directory: boolean): boolean => entries.some(entry => entry.name === name
+      && (directory ? entry.isDirectory() : entry.isFile()));
+    const objects = has("HEAD", false) && has("objects", true);
+    const gitDirectory = objects || has("HEAD", false) && has("commondir", false);
+    if (objects && await objectsName(current, needles)) {
+      throw new Error(`Prepared multi-clone template names its own path in an object of ${relative(root, current)}; build that state per test`);
+    }
+    const files = entries.filter(entry => !(gitDirectory && ["objects", "reftable", "logs", "index"].includes(entry.name)));
+    for (const entry of files) {
+      if (entry.isDirectory()) directories.push(join(current, entry.name));
+      else if (entry.isFile()) await collectRewrite(root, join(current, entry.name), needles, rewrites);
+    }
+    if (objects) await collectRewrite(root, join(current, "objects", "info", "alternates"), needles, rewrites);
+  }
+  return rewrites.sort();
+}
+
+async function collectRewrite(root: string, file: string, needles: readonly Buffer[], rewrites: string[]): Promise<void> {
+  const content = await readFile(file).catch((error: unknown) => {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return undefined;
+    throw error;
+  });
+  if (content && !content.includes(0) && needles.some(needle => content.includes(needle))) rewrites.push(relative(root, file));
+}
+
+/** Every form a template's root takes in its files, its resolved path's first, longest first so none splits another. */
+async function rootForms(root: string): Promise<string[]> {
+  return [...new Set([...pathForms(await realpath(root)), ...pathForms(root)])].sort((left, right) => right.length - left.length);
+}
+
+async function rewriteRootForms(file: string, forms: readonly string[], to: string): Promise<void> {
+  const content = await readFile(file, "utf8");
+  if (!forms.some(form => content.includes(form))) throw new Error(`Prepared repository expected an absolute template reference in ${file}`);
+  await writeFile(file, forms.reduce((text, form) => text.replaceAll(form, to.replaceAll("\\", "/")), content), "utf8");
+}
+
+async function objectsName(gitDirectory: string, needles: readonly Buffer[]): Promise<boolean> {
+  const listed = (await gitOutput(gitDirectory, ["rev-list", "--objects", "--all"])).toString("utf8");
+  const objects = listed.split("\n").filter(Boolean).map(line => line.split(" ")[0]);
+  if (objects.length === 0) return false;
+  const content = await gitOutput(gitDirectory, ["cat-file", "--batch"], `${objects.join("\n")}\n`);
+  return needles.some(needle => content.includes(needle));
+}
+
+function gitOutput(gitDirectory: string, args: readonly string[], input?: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("git", [`--git-dir=${gitDirectory}`, ...args], { stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"] });
+    const output: Buffer[] = [], errors: Buffer[] = [];
+    child.stdout?.on("data", (chunk: Buffer) => output.push(chunk));
+    child.stderr?.on("data", (chunk: Buffer) => errors.push(chunk));
+    child.on("error", reject);
+    child.on("close", code => code === 0 ? resolve(Buffer.concat(output))
+      : reject(new Error(`git ${args.join(" ")} failed in ${gitDirectory}: ${Buffer.concat(errors).toString("utf8")}`)));
+    // A git that exits before reading all its input reports through its exit status, not this write.
+    child.stdin?.on("error", () => {});
+    child.stdin?.end(input);
+  });
 }

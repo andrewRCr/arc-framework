@@ -17,6 +17,7 @@ and gitignored, while the normalized evidence below is the durable record.
 - [Method and its limits](#method-and-its-limits)
 - [Diagnosing a wall-clock change](#diagnosing-a-wall-clock-change)
 - [Tracing which tests read a file](#tracing-which-tests-read-a-file)
+- [Routed check capture cost](#routed-check-capture-cost)
 - [Tier baselines](#tier-baselines)
 - [Post-cost baseline](#post-cost-baseline)
 - [Where the time concentrates](#where-the-time-concentrates)
@@ -358,6 +359,64 @@ test built a temporary repository first.
 
 The content tier's and CI's exclusion of those records rests on this result. A test that starts reading a record
 needs the exclusion revisited, and the parity test between the two lists will not notice.
+
+## Routed check capture cost
+
+A check routed to a runner first captures its source on this host: ARC copies every selected file into a private
+directory, gives the copy a self-contained Git history, and only then starts the adapter. A 2026-10-28 profile at
+`8cad4cecf` split that span. The method below repeats it for any later question about capture cost; the results are
+that day's observations.
+
+### Capture method
+
+- **Spans** — import the capture modules from a checkout's `src` with `tsx` and time the calls the check runner makes,
+  in order: `acquireSourceBoundary`, `freezeSelectedSource`, `addSourceGitMetadata`, then the boundary's `recheck`.
+  The request needs only the tree, HEAD evidence, the base, and an empty merged list. Use the Node source IO and the
+  `process-executor` Git executors; the copy lands under the system temporary directory and is removed afterwards.
+- **Git steps** — run what `addSourceGitMetadata` runs by hand, into a fresh scratch repository:
+  `pack-objects --revs --stdout` fed the tree, HEAD and base, then `index-pack --stdin`, `read-tree`, and
+  `fsck --connectivity-only`. With `--progress`, `pack-objects` reports how many objects it compresses afresh
+  rather than reusing a stored delta.
+- **Whole path** — under a temporary `HOME`, point `checks.runner` at a stub adapter that records its start time and
+  exits non-zero, then time `arc check run typecheck` from launch to the stub's timestamp. The stub never proves
+  closure, so ARC retains each run's captured inputs under the system temporary directory and names them in its
+  retry text; remove them afterwards.
+- **Quiet host** — measure with little else running. Concurrent captures share the CPU, and `pack-objects` uses every
+  core it is given.
+
+### Result at `8cad4cecf`
+
+| One capture, quiet host        | Before repack | After repack |
+| ------------------------------ | ------------- | ------------ |
+| `pack-objects`                 | 8.3–9.6 s     | 1.1 s        |
+| Git metadata, all steps        | 10.8–11.4 s   | 3.9 s        |
+| File freeze, 5,262 files       | 3.8–4.5 s     | 3.8–4.4 s    |
+| Capture total                  | 14.8–15.7 s   | 7.8–8.6 s    |
+| CLI start to adapter start     | 17.2–18.3 s   | 10.3–10.4 s  |
+
+- **Freeze** — the per-file copy took 3.0–3.2 s one file at a time, and 1.5 s at every width from four to 32 files
+  at once: the limit of Node's four-thread I/O pool. Spelling resolution took 0.23 s.
+- **Git metadata after the repack** — `index-pack` takes 2.4 s and `fsck` 0.4 s. Both verify the whole reachable
+  history, which a self-contained copy needs.
+- **The rest of ARC's path** — startup, selection, planning, and launch take about 2.5 s.
+- **Past adapter start** — a merge gate the same day, with five routed plans in flight, measured about 1.9 s to the
+  adapter's local materialization, 4.7 s materializing and verifying, 4.5 s uploading, and 1.2 s on the runner
+  before the backend started.
+
+### Pack state decides `pack-objects`
+
+`pack-objects` reuses deltas already stored in packs and compresses every other object afresh. On 2026-10-28 the
+repository held 133,690 loose objects in 58 packs, and each capture compressed 86,622 of the 177,308 objects
+reachable from HEAD. A fully packed copy of the same history built the same pack in 0.96–1.05 s. Turning delta
+search off made it slower (`--window=0`: 16.3 s and a 290 MB pack), because the larger pack costs more to write.
+
+Automatic maintenance had not run since 2026-08-26. A commit inside a Codex command started Git's automatic
+maintenance, which takes `objects/maintenance.lock` and then detaches. The Codex sandbox runs each command in its own
+process namespace, so the kernel killed the detached process when the command returned, and the lock stayed. While
+that lock exists, automatic maintenance and a manual `git maintenance run` both exit 0 without doing or printing
+anything. Scheduled maintenance (`git maintenance start`) runs from the scheduler, outside any sandbox, and turns off
+commit-triggered maintenance for the repository. Read `git count-objects -v` and look for that lock before
+attributing a capture or fetch slowdown to ARC.
 
 ## Tier baselines
 

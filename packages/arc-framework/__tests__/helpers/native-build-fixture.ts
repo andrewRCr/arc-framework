@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { copyLiveDependencies } from "./copy-live-dependencies.js";
+import { REACH_DECLARATIONS } from "../../src/lib/local-vitest-runner.js";
 
 /**
  * Make a native compiler checkout with a tiny CLI and fixture-owned compiler success hook.
@@ -20,6 +21,8 @@ export async function makeNativeBuildFixture(): Promise<{ root: string; packageR
     "src/lib/build-command.ts", "src/lib/build-generation.ts",
     "src/scripts/run-local-test-tier.ts", "src/scripts/run-focused-tests.ts",
     "src/scripts/measure-test-cost.ts", "src/lib/unit-process-metadata.ts",
+    // The test-tier runner reads these to leave the suites that run by reach out of the tiers that hold them.
+    ...REACH_DECLARATIONS,
   ]);
   for (const file of ["package.json", "package-lock.json"]) {
     await writeFile(join(root, file), await readFile(join(sourceRoot, file)));

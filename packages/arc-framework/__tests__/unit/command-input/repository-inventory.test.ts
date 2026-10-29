@@ -250,7 +250,9 @@ describe("repository command-input inventory", () => {
   });
 
   it("routes hosted review JSON commands under a constant machine-mode policy", () => {
-    for (const path of ["review hosted request", "review hosted await", "review hosted settle"]) {
+    for (const path of [
+      "review hosted request", "review hosted await", "review hosted settle", "review hosted dismiss",
+    ]) {
       const command = snapshot.source.commands.find((entry) => entry.path === path);
       expect(command?.action?.interactionContext, path).toBe(true);
       expect(command?.action?.constantMachineMode, path).toBe(true);
@@ -383,6 +385,9 @@ describe("repository command-input inventory", () => {
       "set-stage",
       "start",
       "status",
+      "store conflict",
+      "store migrate",
+      "store remote",
       "stub",
       "task close",
       "task defer",
@@ -540,7 +545,7 @@ describe("repository command-input inventory", () => {
     const refusal = inventory.entries.find((site) => site.commandPath === "start"
       && site.siteId === "safety.indeterminate-lifecycle");
     expect(refusal).toMatchObject({ origin: "prompt", noInput: "refuse" });
-    expect(reached.map((site) => site?.noInput).sort()).toEqual([...kinds].sort());
+    expect([...new Set(reached.map((site) => site?.noInput))].sort()).toEqual([...kinds].sort());
   });
 
   it("rejects duplicate explicit policy ownership instead of silently taking the last declaration", () => {

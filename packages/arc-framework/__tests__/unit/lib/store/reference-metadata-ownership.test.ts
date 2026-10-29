@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, RecordReferenceSchema, type RecordReference } from "../../../../src/lib/store/index.js";
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
-import { success, testProvenance, update } from "../../../helpers/store/suite-tools.js";
+import { success, testProvenance, update, mutationOf } from "../../../helpers/store/suite-tools.js";
 
 function rename(reference: RecordReference, name: string): void {
   reference.owner.name = OwnerIdentitySchema.parse({ ...reference.owner, name }).name;
@@ -16,8 +16,8 @@ describe("reference metadata ownership", () => {
     const links = { branches: [{ repository: "repo", ref: "refs/heads/owned", linkedAs: "created" as const, excluded: [] }] };
     const placement = { kind: "completed" as const, quarter: ArchiveQuarterSchema.parse("2026-q4") };
     const provenance = { ...testProvenance };
-    const write = { action: "put" as const, reference, expected: null, content: fixture.content(reference), placement, links, provenance, unknownExtra: () => "caller-only" };
-    const landed = batch ? success(await fixture.store.batch({ writes: [write], provenance })).writes[0]! : success(await fixture.store.write(write));
+    const write = { action: "put" as const, reference, expected: null, content: fixture.content(reference), placement, links, provenance };
+    const landed = batch ? success(await fixture.store.batch({ writes: [mutationOf(write)], provenance })).writes[0]! : success(await fixture.store.write(write));
     const expected = structuredClone(success(await fixture.store.read({ reference })));
     const anchor = success(await fixture.store.version());
     rename(reference, "input-alias");

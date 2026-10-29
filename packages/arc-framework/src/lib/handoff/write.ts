@@ -2,7 +2,7 @@
 import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 import type { Store } from "../store/contract.js";
 import type { GitExec } from "../git/exec.js";
-import { createStoreSyncPort, type StoreSyncPort } from "../store/operational-sync.js";
+import { bindStoreSyncPort, type StoreSyncPort } from "../store/operational-sync.js";
 import { HandoffWriteRequestSchema, type HandoffWriteServiceResult } from "./write-schema.js";
 import { resolveCurrentWorkUnit } from "../store/current-work-unit.js";
 import { WritePlacementSchema } from "../store/placement.js";
@@ -43,7 +43,7 @@ export async function runHandoffWrite(input: { cwd: string; request: unknown; st
   const write = await store.write({ action: "put", reference: meta.reference, expected: meta.version, content,
     placement: WritePlacementSchema.parse(meta.placement), provenance: { verb: "handoff-write", lifecycleAction: "handoff", codeHead: CommitShaSchema.parse(head) } });
   if (write.status === "refused") return write;
-  const maintained = await maintainAfterWrite(input.sync ?? createStoreSyncPort());
+  const maintained = await maintainAfterWrite(input.sync ?? bindStoreSyncPort(store));
   return { status: "written", reference: write.result.reference, stateAtHandoff: version.result,
     commitAtHandoff: head, ...maintained };
 }

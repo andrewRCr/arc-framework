@@ -83,6 +83,8 @@ const reviewIdentities = [
   "review-frontline-run-envelope",
   "review-hosted-await-envelope",
   "review-hosted-await-request",
+  "review-hosted-dismiss-envelope",
+  "review-hosted-dismiss-request",
   "review-hosted-request-envelope",
   "review-hosted-request-request",
   "review-hosted-settle-envelope",

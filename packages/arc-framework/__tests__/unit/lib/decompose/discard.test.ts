@@ -154,14 +154,14 @@ it("closes a real sync conflict through its subject removal rather than directly
   const member = lifecycleSuccess(await readWorkUnit(h.store, "member-a"));
   const remote = createMemoryRemote();
   h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const other = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   for (const [store, text] of [[h.store, "Local authoring"], [other, "Remote authoring"]] as const) {
     const record = lifecycleSuccess(await store.read({ reference: member.reference }));
     lifecycleSuccess(await store.write({ ...recordPut(record, { content: writeMetaNextAction(record.content, text) }),
       provenance: { verb: "write-back", lifecycleAction: "edit" } }));
   }
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const disputed = lifecycleSuccess(await h.store.read({ reference: member.reference }));
   expect(disputed.conflicts.length).toBeGreaterThan(0);
   const plan = await preview(h);

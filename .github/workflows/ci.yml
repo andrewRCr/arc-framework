@@ -20,11 +20,20 @@ on:
         description: 'Also run the Windows/macOS portability pair'
         type: boolean
         default: false
+      portability_timing_only:
+        description: 'Diagnostic only: run Windows/macOS operation timing, skipping other test jobs'
+        type: boolean
+        default: false
+      store_per_change:
+        description: 'Run every store suite in its per-change form instead of the full run'
+        type: boolean
+        default: false
   # Weekly full-tier duration refresh and cross-platform portability. The pair fires only here or
   # on an explicit dispatch opt-in — never from PR synchronizes — so the weekly
   # cadence is a post-merge backstop against OS-specific concurrency-guard
-  # regressions. classify still computes portability_target as the relevance
-  # signal; the pair no longer consumes it.
+  # regressions. The complete native suites also run in the pair, so additional
+  # hosted executions stay scheduled or explicitly requested. classify still
+  # computes portability_target as the relevance signal; the pair no longer consumes it.
   schedule:
     - cron: '17 8 * * 1'
 
@@ -299,7 +308,7 @@ jobs:
       contents: read
       actions: write
     needs: [classify, setup]
-    if: ${{ !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || needs.classify.outputs.integration_target == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}
+    if: ${{ !inputs.portability_timing_only && !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || needs.classify.outputs.integration_target == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -341,7 +350,7 @@ jobs:
     needs: [classify, setup, build]
     # Documentation and default checks run on light and heavy push/PR runs.
     # The shared build is optional when the classifier selected light weight.
-    if: ${{ !cancelled() && github.event_name != 'schedule' && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && needs.setup.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    if: ${{ !inputs.portability_timing_only && !cancelled() && github.event_name != 'schedule' && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && needs.setup.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -455,7 +464,7 @@ jobs:
       contents: read
       actions: write # upload-artifact under workflow-level contents-only defaults
     needs: [classify, setup]
-    if: ${{ !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}
+    if: ${{ !inputs.portability_timing_only && !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -604,6 +613,85 @@ jobs:
         --tier integration --project-set integration --workers "${VITEST_MAX_WORKERS:-native}"
         --ci-job "integration-${{ matrix.shard }}" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
 
+  # The store suites run by reach, across four shards balanced by the integration durations. A pull request runs the
+  # suites its change reaches; every push to main, the weekly run, and a dispatched run ask for a full run, the
+  # separate layout's whole conformance suite among them, unless a dispatch asks for every suite's per-change form. A
+  # push whose run a later push cancels leaves its tree to that later full run.
+  store:
+    name: Store Suites (${{ matrix.shard }})
+    permissions:
+      contents: read
+      actions: write # download runtime and upload writer durations
+    needs: [classify, setup, build]
+    if: ${{ !cancelled() && needs.setup.result == 'success' && needs.build.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && (needs.classify.outputs.weight != 'light' || needs.classify.outputs.integration_target == 'true')) || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Start test budget clock
+      run: echo "TEST_COST_STARTED_AT_SECONDS=$(date +%s)" >> "$GITHUB_ENV"
+    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      with:
+        node-version: 'lts/*'
+        cache: 'npm'
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      id: nm-cache
+      with:
+        path: |
+          node_modules
+          packages/arc-framework/node_modules
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
+    - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
+      run: npm ci
+    - name: Initialize approved dependency tools
+      run: npm run setup
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: arc-framework-dist
+        path: packages/arc-framework/dist
+    - name: Download check forecast
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: arc-check-forecast
+        path: .
+    - name: Download duration input
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: test-duration-input
+        path: packages/arc-framework/.test-cost-runs/duration-input/
+    - id: runtime-preflight
+      run: node --import tsx packages/arc-framework/src/scripts/run-build.ts prepare
+      env:
+        ARC_E2E_SKIP_BUILD: ''
+    - name: Clear native test results
+      run: rm -rf packages/arc-framework/node_modules/.vite/vitest/
+    - name: Run store suites
+      id: test
+      run: node --import tsx scripts/run-ci-checks.mjs run store test --shard ${{ matrix.shard }}
+      env:
+        ARC_TEST_DURATION_FILE: ${{ github.workspace }}/packages/arc-framework/.test-cost-runs/duration-input/integration.json
+        ARC_E2E_SKIP_BUILD: '1'
+        ARC_STORE_CHECK: ${{ github.event_name != 'pull_request' && (inputs.store_per_change && 'every' || 'full') || '' }}
+    - name: Upload native durations
+      if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: duration-results-integration-store-${{ matrix.shard }}
+        path: packages/arc-framework/node_modules/.vite/vitest/**/results.json
+        include-hidden-files: true
+        if-no-files-found: error
+    - name: Report test budget
+      run: >-
+        npm run -s benchmark:test-cost:ci-budget -w packages/arc-framework --
+        --tier store --project-set integration --workers "${VITEST_MAX_WORKERS:-native}"
+        --ci-job "store-${{ matrix.shard }}" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
+
   e2e:
     name: E2E Tests (${{ matrix.shard }})
     permissions:
@@ -685,8 +773,9 @@ jobs:
     permissions:
       contents: read
       actions: read
-    needs: [unit, integration, e2e]
-    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.unit.result == 'success' && needs.integration.result == 'success' && needs.e2e.result == 'success' }}
+    needs: [unit, integration, store, e2e]
+    # A per-change store run leaves out suites a full run times, so its durations would drop theirs from the cache.
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && !inputs.store_per_change && needs.unit.result == 'success' && needs.integration.result == 'success' && needs.store.result == 'success' && needs.e2e.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -730,7 +819,7 @@ jobs:
     name: Portability (concurrency guards) (linux)
     permissions:
       contents: read
-      actions: read # download-artifact of shared dist
+      actions: write # download shared dist and upload portability measurements
     needs: [classify, setup, build]
     if: ${{ !cancelled() && needs.setup.result == 'success' && needs.build.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
@@ -770,21 +859,34 @@ jobs:
       run: node --import tsx scripts/run-ci-checks.mjs run portability test
       env:
         ARC_E2E_SKIP_BUILD: '1'
+        ARC_STORE_BURSTS: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+        # A pull request leaves the store suites to the store job, which runs them by reach.
+        ARC_PORTABILITY_FORM: ${{ github.event_name == 'pull_request' && 'pull-request' || '' }}
+    - name: Upload portability measurements
+      if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: portability-results-${{ runner.os }}
+        path: |
+          packages/arc-framework/.test-cost-runs/store-timing.json
+          packages/arc-framework/node_modules/.vite/vitest/**/results.json
+        include-hidden-files: true
+        if-no-files-found: error
 
   # Cross-platform legs keep their own install+build: OS-native deps make a
   # Linux node_modules cache unusable on Windows/macOS (Pass 1 is Linux-only).
   # Schedule and explicit dispatch opt-in retain native install/build per OS.
   # Setup supplies the shared invocation forecast.
   portability-cross-platform:
-    name: Portability targeted
+    name: ${{ inputs.portability_timing_only && 'Portability timing diagnostic' || 'Portability targeted' }} (${{ matrix.os }})
     permissions:
       contents: read
-      actions: read
+      actions: write # upload portability measurements
     needs: setup
     # The Linux sizing variable does not apply to hosted Windows/macOS.
     env:
       VITEST_MAX_WORKERS: ''
-    if: ${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.run_portability_pair) || github.event_name == 'schedule') }}
+    if: ${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && (inputs.run_portability_pair || inputs.portability_timing_only)) || github.event_name == 'schedule') }}
     strategy:
       fail-fast: false
       matrix:
@@ -813,11 +915,33 @@ jobs:
       env:
         ARC_E2E_SKIP_BUILD: ''
     - id: test
+      if: ${{ !inputs.portability_timing_only }}
       run: node --import tsx scripts/run-ci-checks.mjs run portability-cross-platform test
       env:
         ARC_E2E_SKIP_BUILD: '1'
+        ARC_STORE_BURSTS: '1'
+        ARC_STORE_PROFILE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+    - name: Measure native operation timing only
+      if: ${{ github.event_name == 'workflow_dispatch' && inputs.portability_timing_only }}
+      run: npm run test:file -- packages/arc-framework/__tests__/integration/store-ref-timing.test.ts --maxWorkers=1
+      env:
+        ARC_E2E_SKIP_BUILD: '1'
+        ARC_STORE_BURSTS: '1'
+        ARC_STORE_PROFILE: '1'
+    - name: Upload portability measurements
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: portability-results-${{ runner.os }}
+        path: |
+          packages/arc-framework/.test-cost-runs/store-timing.json
+          packages/arc-framework/.test-cost-runs/store-write-profile*
+          packages/arc-framework/.test-cost-runs/store-process-baseline.json
+          packages/arc-framework/node_modules/.vite/vitest/**/results.json
+        include-hidden-files: true
+        if-no-files-found: error
     - id: macos
-      if: ${{ runner.os == 'macOS' }}
+      if: ${{ runner.os == 'macOS' && !inputs.portability_timing_only }}
       run: node --import tsx scripts/run-ci-checks.mjs run portability-cross-platform macos
       env:
         ARC_E2E_SKIP_BUILD: '1'
@@ -825,7 +949,7 @@ jobs:
   ci_ok:
     name: ci-ok
     permissions: {}
-    needs: [classify, setup, build, lint-typecheck, unit, integration, e2e, portability, portability-cross-platform]
+    needs: [classify, setup, build, lint-typecheck, unit, integration, store, e2e, portability, portability-cross-platform]
     if: ${{ always() && !cancelled() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
@@ -857,8 +981,8 @@ jobs:
   record-verified-tree:
     name: Record verified tree
     permissions: {}
-    needs: [classify, setup, build, lint-typecheck, unit, integration, e2e, portability]
-    if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && needs.classify.outputs.weight == 'heavy' && needs.classify.outputs.tested_tree != '' && needs.setup.result == 'success' && needs.build.result == 'success' && needs.lint-typecheck.result == 'success' && needs.unit.result == 'success' && needs.integration.result == 'success' && needs.e2e.result == 'success' && needs.portability.result == 'success' }}
+    needs: [classify, setup, build, lint-typecheck, unit, integration, store, e2e, portability]
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && needs.classify.outputs.weight == 'heavy' && needs.classify.outputs.tested_tree != '' && needs.setup.result == 'success' && needs.build.result == 'success' && needs.lint-typecheck.result == 'success' && needs.unit.result == 'success' && needs.integration.result == 'success' && needs.store.result == 'success' && needs.e2e.result == 'success' && needs.portability.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
     - name: Write verified-tree marker

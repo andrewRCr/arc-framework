@@ -28,7 +28,7 @@ it("cancels during local capture before adapter launch and waits for owned clean
   continueCapture();
   const result = await attempt;
   if (result.status === "ready") await result.execution.close();
-  expect(result.status).toBe("unavailable");
+  expect(result).toMatchObject({ status: "unavailable", remedy: "Retry the check with a fresh attempt when ready." });
   await expect(access(marker)).rejects.toThrow();
   for (const directory of fixture.captures) await expect(access(directory)).rejects.toThrow();
 });
@@ -44,7 +44,7 @@ it("releases a ready context racing cancellation without granting execution auth
   await attempt.cancel();
   const result = await attempt;
   if (result.status === "ready") await result.execution.close();
-  expect(result.status).toBe("unavailable");
+  expect(result).toMatchObject({ status: "unavailable", remedy: "Retry the check with a fresh attempt when ready." });
   expect(await readFile(marker, "utf8")).toBe("released");
   expect(attempt.retained).toBeUndefined();
   for (const directory of fixture.captures) await expect(access(directory)).rejects.toThrow();

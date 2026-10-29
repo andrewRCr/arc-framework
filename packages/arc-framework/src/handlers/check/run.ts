@@ -470,7 +470,12 @@ async function executeSelectedCheck(selected: SelectedCheck, io: DeclaredCheckDe
   forecast: Partial<CheckForecast>): Promise<DeclaredCheckResult> {
   const { id, kind } = selected;
   if (io.interrupted?.()) return { id, kind, ...forecast, outcome: "couldn't run", reason: "Check request was interrupted before dispatch; retry explicitly with a fresh request." };
-  const runner = await (io.readRunnerConfiguration ?? readMachineCheckRunner)(selected.check);
+  let runner: MachineCheckRunnerConfiguration | undefined;
+  try {
+    runner = await (io.readRunnerConfiguration ?? readMachineCheckRunner)(selected.check);
+  } catch (error) {
+    return { id, kind, ...forecast, outcome: "couldn't run", reason: error instanceof Error ? error.message : String(error) };
+  }
   if (runner !== undefined) {
     // The runner plans its own portable invocations, so native batches and shards would misdescribe a routed dry run.
     // CI forecasts keep them: CI steps play declared batches back natively.

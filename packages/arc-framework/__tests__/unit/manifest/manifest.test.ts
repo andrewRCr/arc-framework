@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import {
   validateManifest,
   readManifest,
+  writeManifest,
 } from "../../../src/lib/manifest/store.js";
 import { buildManifest, buildFileEntry } from "../../helpers/factories.js";
 import { MANIFEST_SCHEMA_VERSION } from "../../../src/lib/constants.js";
@@ -183,5 +184,38 @@ describe("readManifest", () => {
     await writeManifestHelper(filePath, manifest);
     const loaded = await readManifest(filePath, readFileFn);
     expect(loaded).toEqual(manifest);
+  });
+});
+
+describe("writeManifest", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), "arc-manifest-test-"));
+  });
+
+  afterEach(async () => {
+    if (tmpDir) await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("writes the same bytes for the same files collected in any order", async () => {
+    const files = {
+      "system/rules/DEV-RULES.ARC.md": buildFileEntry(),
+      "reference/PROJECT-PRD.md": buildFileEntry({ classification: "Scaffolded" }),
+      "reference/adr/README.md": buildFileEntry(),
+    };
+    const collected = { ...validManifest(), files };
+    const reordered = { ...validManifest(), files: Object.fromEntries(Object.entries(files).reverse()) };
+    const first = join(tmpDir, "first.json");
+    const second = join(tmpDir, "second.json");
+    await writeManifest(first, collected);
+    await writeManifest(second, reordered);
+
+    const written = await readFile(first, "utf-8");
+    expect(await readFile(second, "utf-8")).toBe(written);
+    expect(Object.keys((JSON.parse(written) as Manifest).files)).toEqual([
+      "reference/PROJECT-PRD.md", "reference/adr/README.md", "system/rules/DEV-RULES.ARC.md",
+    ]);
+    expect(await readManifest(first, readFileFn)).toEqual(collected);
   });
 });

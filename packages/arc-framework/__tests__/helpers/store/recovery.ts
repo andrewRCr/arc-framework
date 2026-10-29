@@ -21,8 +21,6 @@ function transient(id: "unreachable" | "refused" | "retries-exhausted" | "versio
 
 /** Compile-time complete table; a new refusal code requires an explicit executable fixture case. */
 export const refusalRecoveryTable: Record<RefusalCode, readonly RecoveryCase[]> = {
-  "state-unresolvable": [{ id: "state-unresolvable", class: "recoverable", produce: "Read a saved state whose named subject history refs are missing.",
-    repair: "Pull only those history refs, then retry the same saved-state read once." }],
   "not-found": [
     { id: "not-found:name", class: "recoverable", produce: "Lookup a name with no primary record.", repair: "Create its valid primary record, then repeat lookup." },
     { id: "not-found:identity", class: "recoverable", produce: "Read a personal record with arc.identity unset.", repair: "Set arc.identity to the record owner, then read it again." },
@@ -34,6 +32,8 @@ export const refusalRecoveryTable: Record<RefusalCode, readonly RecoveryCase[]> 
   "lock-held": [{ id: "lock-held", class: "recoverable", produce: "Hold the injected surface write lock while a write waits.", repair: "Release that lock and repeat the original write." }],
   "namespace-corrupt": [{ id: "namespace-corrupt", class: "terminal", produce: "Break the namespace record index.", repair: "Rebuild the index from its saved record state." }],
   "checkout-not-writable": [{ id: "checkout-not-writable", class: "recoverable", produce: "Attempt a write in a checkout without authority.", repair: "Repeat the write in the authorized checkout named by its remedy." }],
+  "state-unresolvable": [{ id: "state-unresolvable", class: "recoverable", produce: "Read a saved state the backend holds no snapshot for.",
+    repair: "Read the current version and rebuild the query from that saved state." }],
   unsupported: (Object.keys(UNSUPPORTED_CASES) as (keyof typeof UNSUPPORTED_CASES)[]).map((value) => ({
     id: `unsupported:${value}`, class: UNSUPPORTED_CASES[value],
     produce: {
@@ -42,7 +42,7 @@ export const refusalRecoveryTable: Record<RefusalCode, readonly RecoveryCase[]> 
       "uncovered-state-version": "Request saved state for records outside that version's coverage.",
       "work-item-kind-required": "List the interim work-item family without naming its kind.",
       "held-here": "List checkout-held records on a store whose state lives off the code branch.",
-      "unhomed-kind": "Write a kind with no home before the flip.",
+      "unhomed-kind": "Write a kind or key without an admitted storage home.",
       "personal-history": "Request history for a personal file with no saved state.",
       "links-write": "Write links on the interim backend that does not store links.",
       "placement-move": "Move a work item by an interim backend's placement write.",
@@ -55,7 +55,7 @@ export const refusalRecoveryTable: Record<RefusalCode, readonly RecoveryCase[]> 
       "uncovered-state-version": "Bind reads and changes by each record's own version.",
       "work-item-kind-required": "List each requested work-item kind.",
       "held-here": "Use lookup with the checkout claim, or list without the held-here flag.",
-      "unhomed-kind": "Use a backend with a home for the kind after the flip.",
+      "unhomed-kind": "Use a supported kind or key, or a backend that serves it.",
       "personal-history": "Use a backend that saves personal record history after the flip.",
       "links-write": "Use a backend that stores links after the flip.",
       "placement-move": "Use the appropriate lifecycle or Errand close verb.",
@@ -64,6 +64,8 @@ export const refusalRecoveryTable: Record<RefusalCode, readonly RecoveryCase[]> 
     }[value],
   })),
   "retries-exhausted": [{ id: "retries-exhausted", class: "recoverable", produce: "Move the remote at every compare-and-swap retry.", repair: "Retry sync once the remote stops contending." }, transient("retries-exhausted")],
+  "command-line-capacity": [{ id: "command-line-capacity", class: "recoverable", produce: "Refuse the ref publisher before starting its native process.",
+    repair: "Resolve the local execution constraint and retry the same pending publication." }],
   unreachable: [{ id: "unreachable", class: "recoverable", produce: "Take the configured remote transport down.", repair: "Restore the remote and retry sync." }, transient("unreachable")],
   refused: [{ id: "refused", class: "terminal", produce: "Make the remote refuse with its policy message.", repair: "Change the server policy named by that message." }, transient("refused")],
 };

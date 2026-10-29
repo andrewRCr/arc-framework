@@ -680,6 +680,26 @@
 - _Approach:_ Design the binding against the stored review fact, and drop the commit body once review facts are
   stored.
 
+### `[ ]` **Tell a fix-check reviewer the scope each repair was held to, without handing it a preferred fix**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-28).
+
+- _Shapes:_ § Hosted Guidance Contract item 3, the evaluator boundary that withholds preferred fixes and
+  author conclusions; and the fix-check prompt in `code-review`'s findings round.
+
+- _Observation:_ two of four findings in `storage-ref-backend`'s fix check 2 carried a second half calling a repair
+  broader than its finding required. Both repairs followed their approved actions, which the reviewer never saw, so it
+  judged them against the producer's suggested correction, and discarding those halves took source reads each time.
+
+- _Approach:_ decide what a fix check may be told about each repair's approved scope (the approved action, or only the
+  finding's boundary) without breaching the evaluator boundary that withholds preferred fixes and author conclusions.
+
+- _Evidence:_ `fix-check-2/REVIEW-report.yaml` R-03 and R-04, and `fix-check-2/verification.md` § F3 and § F4,
+  under `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/` in that work unit's
+  checkout (checkout-local).
+
+- _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24 (Owner-approved).
+
 ## Hosted Guidance Contract
 
 Established against source: the hosted adapters inject **no** guidance — `CodeRabbitHostedAdapter.request` posts exactly

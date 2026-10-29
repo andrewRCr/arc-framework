@@ -147,6 +147,40 @@ Pre-fix native baselines passed but later invocations were refused when CPU admi
 `admission-empty-directory-proof.json` reproduces that failure; `admission-directory-post-fix-proof.json` verifies
 that ARC directories preserve identity while ARC files and directories elsewhere remain bound after the fix.
 
+## Re-grounding against the landed store backend
+
+The base merge takes `main` at `d5eff3e35`, including the backend landing (PR #1180) and archive (PR #1183),
+over consumer head `7388b0993`. The storage flip has not occurred; capture and disposable pass records remain
+independent of operational state. The storage cohort's new hardening work does not change this consumer's native
+qualification boundary.
+
+The landed `test:store` invokes `node --import tsx scripts/run-reach-check.mjs` with the actual
+`__tests__/reach/store-suites.json` catalogue. It already uses `runner: true`, explicit value inputs for
+`ARC_STORE_CHECK` and `ARC_STORE_BURSTS`, and four native shards. Its catalogue has no retired-wrapper dependency.
+Task 4.3.a therefore adds only the planned routed-shard opt-in and `ARC_TEST_DURATION_FILE: file` binding, with
+binding/forecast coverage; selector or catalogue migration is unnecessary on this base.
+
+The actual selection forms are `full`, `every` and reach. An absent/empty ask follows the base/selection-change
+rules; any other nonempty ask refuses. Only `ARC_STORE_BURSTS=1` includes the gated timing/burst suites. The three
+separate-conformance suites are full-only. `reach-check.ts` includes deletions in its comparison, widens when its
+selection or own check entry changes, and validates reach before a no-affected-suite success. An empty native share
+closes its discovered controller; nonempty work executes the original full selection with native sharding enabled.
+Qualification must observe that distinction and retain close failures, without treating absent execution as success.
+
+The qualification helper currently accepts only unit/integration npm entries and one native shard/sort cycle. Store
+adoption must preserve the landed node entry, account for the native reach controller's preliminary empty-share probe,
+and observe the actual execution across the `integration`, `integration-timing` and `integration-bursts` groups.
+The existing reach selection/shard/cleanup integration tests provide native building blocks, not captured public-runner
+qualification. Tasks 4.3.b–c still own the real catalogue, captured selectors/source/durations, no-op and empty-share
+evidence. No production scheduler or generic empty-work protocol is needed.
+
+The merged integration/lane and pull-request portability commands exclude reach-store suites. Earlier unit/integration
+records above retain their original captured basis; Task 4.4 must refresh native membership on the merged source rather
+than carry those counts forward. The combined portability list retains both branches' boundaries. Handler routing
+retains machine-configuration refusal containment, cancellation retains the fresh-attempt remedy, and runner session
+settlement retains the landed request-write ordering fix. Merge verification covers those overlaps before task work
+resumes. Phase 5's external adapter and Phase 6's complete-gate measurements remain separate later boundaries.
+
 ## Amendment reasoning
 
 ### A2 — store dependency

@@ -261,6 +261,32 @@ program
     await (await import("./scripts/remedy-roadmap-conflict.js")).runRoadmapConflictAutoRemedyCommand();
   });
 
+const storeCmd = program.command("store", { hidden: true }).description("Operate on the ref store explicitly");
+storeCmd.command("conflict").argument("<uid>", "Owner UID").argument("<kind>", "Registered work-item conflict kind")
+  .argument("<id>", "Exact conflict ID")
+  .option("--discard", "Accept the current state and discard this retained alternative")
+  .option("--json", "Emit the complete conflict or resolution result as JSON")
+  .action(withInteractionContext({ machineReadable: (opts) => opts.json === true },
+    async (_context, uid: string, kind: string, id: string, options: import("./commands/store-conflict.js").StoreConflictOptions) => {
+      await (await import("./commands/store-conflict.js")).handleStoreConflict(uid, kind, id, options);
+    }));
+storeCmd.command("migrate").option("--to <remote-or-url>", "Move state to a remote or backing URL")
+  .option("--trial", "Build and report the move without landing it")
+  .option("--leave-source", "Finish leaving the recorded source")
+  .option("--import", "Import the current operational state")
+  .option("--json", "Emit the move report or refusal as JSON")
+  .action(withInteractionContext({ machineReadable: (opts) => opts.json === true },
+    async (context, options: import("./commands/store-migrate.js").StoreMigrateOptions) => {
+      await (await import("./commands/store-migrate.js")).handleStoreMigrate(options, context);
+    }));
+storeCmd.command("remote").argument("[remote]", "Remote name").argument("[role]", "push, read, or off")
+  .option("--own-state", "Publish everything this clone's store holds on the selected remote")
+  .option("--json", "Emit the store result as JSON")
+  .action(withInteractionContext({ machineReadable: (opts) => opts.json === true },
+    async (context, remote: string | undefined, role: string | undefined, options: import("./commands/store-remote.js").StoreRemoteOptions) => {
+      await (await import("./commands/store-remote.js")).handleStoreRemote(remote, role, options, context);
+    }));
+
 program
   .command("hook-validate-frontmatter", { hidden: true })
   .argument("[paths...]", "Staged paths to validate")
@@ -2284,6 +2310,26 @@ hostedCmd
       return;
     }
     await (await import("./handlers/review.js")).handleReviewHostedSettle(input ?? "", {}, context);
+  }));
+
+hostedCmd
+  .command("dismiss")
+  .description("Dismiss one review service's settled change-request review as JSON")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .addHelpText(
+    "after",
+    "\nInput:\n  The open pull request's exact head and one blocking review as `arc review status` reports it.\n",
+  )
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, async (_context, input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-hosted-dismiss-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewHostedDismiss(input ?? "");
   }));
 
 reviewCmd

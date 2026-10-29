@@ -17,6 +17,8 @@ Stage 1  storage-contract          design core; ships the contract over today's 
 Stage 2  storage-seam              every reader and writer through the contract; after storage-contract lands
          storage-ref-backend       the refs/arc/* store, personal state synced through it, import, explicit
                                    state fetch; implements once seam-lifecycle ships
+         storage-ref-hardening     the ref backend's routed defects the cutover exercises; after the
+                                   ref backend lands
          storage-projection        the working copy
          projected-markdown-checks Markdown checks over projected state; builds beside the projection
 Stage 3  storage-cutover           rehearse, quiesce, import, flip, retire notes; then deletion and documentation
@@ -52,6 +54,10 @@ builds for each family it reroutes.
       minted at `storage-contract`'s draft close, whose only edge is the cutover;
     - framework core from the package — `framework-core-from-package`: its read-only projection, which ghost mode needs,
       is core, and the rest is deferred.
+    - native-Windows bulk publication and migration — `storage-native-windows-bulk-transport`, designated core by
+      the Owner on 2026-10-26; it may start after the ref backend, before the cutover, by the ordering below.
+    - the ref backend's routed test, benchmark, and remote-move gaps — `storage-ref-release-hardening`, due before
+      the public release (Owner, 2026-10-29); it may start once the ref backend lands.
 - **Deferred,** each never precluded:
     - `operational-state-docs`'s user-surface residue, while its conformance gate may run ahead;
     - delivery re-scoped toward observe-and-attest — `delivery-observe-attest`;
@@ -70,6 +76,25 @@ lifecycle commands, as an added `storage-seam` member depending on `storage-ref-
 seam writers and sequence their implementation after overlapping writers land. Existing post-cutover follow-ons,
 including `work-item-relations`, retain their scopes and order.
 
+### Native-Windows bulk transport (2026-10-26)
+
+The Owner approved a staged split: `storage-ref-backend` supplies fetch through stdin and explicit push-capacity refusal
+with preserved recovery; `storage-native-windows-bulk-transport` completes native bulk publication and migration. The
+capability remains core, not an excluded platform case. The follow-up depends on the ref backend for implementation and
+may run alongside projection work. It must land before the first native-Windows adoption, no later than Gate A; a
+controlled Linux/WSL-only cutover is not unconditionally blocked by it. Its draft starts with bounded feasibility,
+retains the semantic push boundary and transaction guarantees, and does not presume a storage-engine redesign.
+
+### Ref-backend hardening (2026-10-29)
+
+`storage-ref-backend`'s review stopped under a pre-committed rule that routed its remaining ref-backend findings
+out (Owner, 2026-10-29). `storage-ref-hardening` takes those the cutover or its rehearsal exercises, with a focused
+import review, and `storage-cutover` depends on it. `storage-ref-release-hardening` takes the test, benchmark, and
+remote-move gaps a default-layout cutover never reaches; it is due before the public release and the cutover does
+not wait on it. Both depend on `storage-ref-backend`. `storage-ref-hardening` runs ahead of `storage-projection`'s
+and `cohort-identity-verbs`' ref-backend phases, landing first the listing scope, the fault classes and remedies,
+and the pull-result consumer sweep those phases observe; its internal items run alongside them.
+
 ### Shared contracts
 
 - **The storage contract** — its interface, record model, ref layout, and each shared surface's concurrency
@@ -83,6 +108,63 @@ A shipped member's spec records what that member built and is not amended. A lat
 the storage contract's decisions describes what it builds in its own spec, and the change is recorded in this section:
 dated, naming the member, and stating the decision as it now stands. `storage-seam` records changes to its own shared
 decisions the same way, in `cohort-storage-seam.md` § Shared contracts.
+
+Amended 2026-10-29 — `storage-ref-backend` amends D1 forward in `spec-storage-ref-backend.md` § 2.1, § 2.2, § 2.6, and
+§ 12 (A51, A54): two remote operations, `pull` and `push`, replace `sync`, and `maintain()` joins the contract; a
+carried code leg's unreachable outcome carries a message, an already-expired leg's timeout and any reported descendant
+warning among it; and a publish or carry failure admits recoverable `command-line-capacity` when a native-Windows push
+exceeds its process limit before launch, keeping pending state and exact leases for a retry on a transport that can
+carry the transaction.
+
+Amended 2026-10-29 — `storage-ref-backend` amends D2 forward in `spec-storage-ref-backend.md` § 2.1, § 2.5, and § 3.2
+(A43): a companion is keyed by its path among its work item's records, a name storing where it does today and any
+other path verbatim; and a non-person owner's generation, retained creation receipts included, takes the lowercase UID
+grammar stored names carry (`StoredUidSchema`).
+
+Amended 2026-10-29 — `storage-ref-backend` amends D3 forward in `spec-storage-ref-backend.md` § 3.1 and § 6.4 (A55): a
+divergent archive-quarter merge whose folder inventories are all valid and empty names its archive ref in the commit
+subject and omits `Arc-Owner`, keeping the fresh batch, actor, and complete-none creation receipt; every other merge
+keeps its real record owner's provenance.
+
+Amended 2026-10-29 — `storage-ref-backend` amends D4 forward in `spec-storage-ref-backend.md` § 2.1–2.3, § 6.6, § 6.9,
+and § 9.3 (A41, A50, A51, A54): `state-unresolvable` joins the local refusals, and `history-diverged` stays `pull`'s
+notice; Git's message text is read in three named places — a receiver without atomic pushes, a server's per-ref
+refusal line, and a remote failure's cause; `pull` and `push` report five states beside `no-remote` and `no-identity`,
+none a failure — `designation-ambiguous`, `move-incomplete`, `moved`, `designation-needed`, and `move-unfinished`, the
+last stopping nothing — and every publish outcome carries the push loop's retry count and time waited; when a late
+write meets an item's end, the end's version stays current and the late version goes into a conflict record; a history
+ref names its owner by the lowercase UID stored names carry; a `record-malformed` refusal omits its reference only
+when the failing operand has no valid record reference, its condition then naming that operand and any batch index;
+and the outcome and refusal types carry D1's carried-code message and `command-line-capacity` reason.
+
+Amended 2026-10-29 — `storage-ref-backend` amends D6 forward in `spec-storage-ref-backend.md` § 2.6, § 3.7, § 3.8, and
+§ 6.6 (A16): when a late write meets an item's end, the end's version stays current whichever side is remote, and the
+late version goes into a conflict record; a hunk conflict record carries `baseVersion`, the record version its base
+line range counts in or null where the base held no such record, and `currentLines` and `incomingLines`, its sides'
+line counts; no stub rank is built until a consumer reads one, and only the Errand queue keeps rank keys; and a
+lineage-ended owner permits removal of a retained conflict on its history coordinate with an explicit nonnull expected
+version, each retired resolution target by its own removal in the same batch, while its other records stay
+inaccessible and the owner stays retired.
+
+Amended 2026-10-29 — `storage-ref-backend` amends D10 forward in `spec-storage-ref-backend.md` § 3.2, § 3.8, § 5.6, §
+9.5, and § 10.6: only the Errand queue keeps rank keys; the size cap reaches projected kinds only; a repository that
+goes public moves its state to a backing repository only when it wants that state private; `refs/arc/project/moved`
+joins the ref table; and a backend over Git adds the refusals Git or canonical JSON needs — `store.git-path`,
+`store.json`, a key that is not one path segment, and an owner's name or key over 2,040 bytes.
+
+Amended 2026-10-29 — `storage-ref-backend` amends D12 forward in `spec-storage-ref-backend.md` § 6.5–6.9 (A52, A56):
+`stale info`, `reference already exists`, and `reference does not exist` join the retry set as lost races, and a
+server's refusal of a state ref outside it is read by state, a lost race when the ref moved; every push of a work
+item's or cohort's ref, live or under history, and every delete, is leased; a carried code ref's own rejection is
+never a lost race for state; both-published ends require retained evidence of each end, and only once a forced
+tracking replacement removes the last witness may the local end be withdrawn; and ancestry-maximal nonwithdrawn
+published retirement batches report `ended-twice` with no archive folder, repaired by a native restoration descending
+from their joined history followed by one expected-version retirement.
+
+Amended 2026-10-29 — `storage-ref-backend` amends D14 forward in `spec-storage-ref-backend.md` § 9.2 and § 9.8: where
+no remote holds the project's registry, the clone asks once whether its code remote is `push` or `off`; on a host
+whose forks copy state refs, a contributor's lone fork remote holding that copy is designated without asking and
+adopts the upstream's ID, a residual the host trial checks.
 
 ### Soft coordination
 
@@ -250,6 +332,28 @@ registrations, write checks, `anchorFields`, and `HAND_EDIT_VERBS`, which the ba
 `seam-lifecycle`'s record placement, rename path, pause section, branch links, and capture keys, which the backend and
 its import build on, so implementation starts once it ships; and `seam-locus`'s Errand `owner` field, which the import
 needs before it re-homes Errands, so it lands after that member.
+
+### `storage-ref-hardening`
+
+_Exposes:_ the ref backend with the defects the cutover exercises fixed: the import, fault classes and remedies for
+missing objects, listing scope, pull-result consumers, sync and withdrawal robustness, and ref locks.
+
+_Consumes:_ `storage-ref-backend`, landed. `storage-cutover` consumes it.
+
+### `storage-ref-release-hardening`
+
+_Exposes:_ the ref backend's test, fixture, and race-kit gaps closed, and remote moves corrected.
+
+_Consumes:_ `storage-ref-backend`, landed; due before the public release.
+
+### `storage-native-windows-bulk-transport`
+
+_Exposes:_ native-Windows bulk publication and complete migration beyond the process command-line ceiling, preserving
+atomicity, exact leases, ordinary unleased fast-forward behavior, hooks, remote identity/settings, and recovery.
+
+_Consumes:_ `storage-ref-backend`'s structured push boundary and both physical layouts. Its core release deadline is
+before first native-Windows adoption, no later than Gate A; implementation may overlap projection after the backend
+lands.
 
 ### `storage-projection`
 

@@ -13,11 +13,12 @@ import { captureEnvironmentInputs } from "../../../../src/lib/checks/environment
 import { nodeEnvironmentCaptureIO } from "../../../../src/lib/checks/environment-file.js";
 import type { TerminalOutcome } from "../../../../src/lib/checks/runner/contract.js";
 import type { PreparedCheckExecution } from "../../../../src/lib/checks/runner/execution.js";
+import { readMachineCheckRunner } from "../../../../src/lib/checks/runner/machine-config.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 
-async function fixture(checks: Record<string, { runner?: boolean; fixes?: boolean; no_evidence_exit?: number; mode?: "files" | "selection"; root?: string; runtime_inputs?: string[][]; inputs?: string[]; gate?: "commit" | "push"; ci_only?: boolean; cache?: boolean; environment_inputs?: Record<string, "value" | "file">; shards?: { count: number; argument: string; routed?: boolean } }>, failSecondTreeWrite = false, globals: { global_runtime_inputs?: string[][] } = {}) {
+async function fixture(checks: Record<string, { runner?: boolean; reads_index?: boolean; fixes?: boolean; no_evidence_exit?: number; mode?: "files" | "selection"; root?: string; runtime_inputs?: string[][]; inputs?: string[]; gate?: "commit" | "push"; ci_only?: boolean; cache?: boolean; environment_inputs?: Record<string, "value" | "file">; shards?: { count: number; argument: string; routed?: boolean } }>, failSecondTreeWrite = false, globals: { global_runtime_inputs?: string[][] } = {}) {
   const root = await mkdtemp(join(tmpdir(), "arc-check-scheduling-"));
   roots.push(root);
   await mkdir(join(root, ".git"));
@@ -153,6 +154,56 @@ it("reports a native explicit-input capture failure as that check's result and s
       { id: "inputs", outcome: "couldn't run", reason: expect.stringContaining("repair the file input") },
       { id: "other", outcome: "passed" },
     ] },
+  });
+});
+
+it("keeps invalid machine configuration inside the pool until its running sibling finishes and permits repair", async () => {
+  const { root, io, ids } = await fixture({ native: { reads_index: true }, routed: { runner: true }, queued: {} });
+  const configuration = join(root, ".arc/config.yml");
+  await mkdir(join(root, ".arc"));
+  await writeFile(configuration, "checks.runner: []\n");
+  const originalIndex = await readFile(join(root, ".git/index"));
+  let started!: () => void;
+  let readConfiguration!: () => void;
+  let release!: () => void;
+  let finished!: () => void;
+  const nativeStarted = new Promise<void>(resolve => { started = resolve; });
+  const configurationRead = new Promise<void>(resolve => { readConfiguration = resolve; });
+  const released = new Promise<void>(resolve => { release = resolve; });
+  const nativeFinished = new Promise<void>(resolve => { finished = resolve; });
+  let retainedIndex: string | undefined;
+  io.readRunnerConfiguration = async check => {
+    if (check.runner) await nativeStarted;
+    try { return await readMachineCheckRunner(check, { home: () => root }); }
+    finally { if (check.runner) readConfiguration(); }
+  };
+  io.execute = async (command, _cwd, _content, policy) => {
+    if (command[0] !== "native") return { started: true, exitCode: 0, output: `${command[0]} completed` };
+    retainedIndex = policy?.indexFile;
+    started();
+    try {
+      await released;
+      return { started: true, exitCode: 0, output: (await readFile(retainedIndex!)).toString("hex") };
+    } finally { finished(); }
+  };
+  const pending = runDeclaredRequest(root, io, { form: { kind: "run", ids } }).then(
+    value => ({ value }), (error: unknown) => ({ error }));
+  await configurationRead;
+  release();
+  const result = await pending;
+  await nativeFinished;
+  expect(result).toMatchObject({ value: { kind: "result", exitCode: 2, result: { checks: [
+    { id: "native", outcome: "passed", output: originalIndex.toString("hex") },
+    { id: "routed", outcome: "couldn't run", reason: expect.stringContaining(`${configuration}: checks.runner`) },
+    { id: "queued", outcome: "passed", output: "queued completed" },
+  ] } } });
+  if (!("value" in result) || result.value.kind !== "result") throw new Error("Expected per-check results");
+  expect(result.value.result.checks[1]?.reason).toMatch(/remove checks\.runner or repair.*retry/u);
+  expect(result.value.result.checks[1]).not.toHaveProperty("record");
+  await expect(readFile(retainedIndex!)).rejects.toMatchObject({ code: "ENOENT" });
+  await writeFile(configuration, "{}\n");
+  await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
+    kind: "result", exitCode: 0, result: { checks: ids.map(id => ({ id, outcome: "passed" })) },
   });
 });
 

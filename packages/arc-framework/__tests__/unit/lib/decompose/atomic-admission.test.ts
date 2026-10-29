@@ -31,7 +31,9 @@ it.each(["dependency", "pause"] as const)("refuses disputed surviving %s edges a
         reason: "Waiting.", waitsOn: { kind: "work-unit", slug: SlugSchema.parse("member-b") }, resumeNotes: null, open: false });
     const label = { actor: "competing-writer", time: "2026-10-19T00:00:00Z" };
     lifecycleSuccess(await h.store.write({ action: "put", reference, expected: null,
-      content: JSON.stringify({ record: outsider.reference, location: { kind: "hunk", start: 0, end: 1 },
+      content: JSON.stringify({ record: outsider.reference, baseVersion: outsider.version,
+      currentLines: outsider.content.replace(/\n$/, "").split("\n").length, incomingLines: incoming.replace(/\n$/, "").split("\n").length,
+      location: { kind: "hunk", start: 0, end: outsider.content.replace(/\n$/, "").split("\n").length },
         base: outsider.content, current: { content: outsider.content, label }, incoming: { content: incoming, label } }),
       provenance: { verb: "sync", lifecycleAction: "merge" } }));
     competing = lifecycleSuccess(await h.store.version());

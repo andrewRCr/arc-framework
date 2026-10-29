@@ -54,7 +54,7 @@ it("refuses an alias lookup that advanced beyond the captured name and succeeds 
 it("accepts a resolved current-name replacement while the earlier generation retains its alias", async () => {
   const h = createLifecycleHarness(), original = await h.seedMeta("former"), remote = createMemoryRemote();
   h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   const currentReference = RecordReferenceSchema.parse({ ...original.reference, owner: { ...original.reference.owner, name: "current" } });
   lifecycleSuccess(await h.store.write({ action: "put", reference: currentReference, expected: original.version,
@@ -65,13 +65,13 @@ it("accepts a resolved current-name replacement while the earlier generation ret
   const reusedReference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "former" }));
   const replacement = lifecycleSuccess(await writer.write({ action: "put", reference: reusedReference, expected: null,
     content: original.content, placement: { kind: "active" }, provenance: { verb: "create", lifecycleAction: "create" } }));
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const conflicts = lifecycleSuccess(await h.store.list({ family: "work-item", kind: "work-item/conflict-record" }));
   if (conflicts.status !== "complete") throw new Error("Missing name-reuse conflict");
   expect(conflicts.records).toHaveLength(1);
   lifecycleSuccess(await h.store.write({ action: "put", reference: incoming.reference, expected: null, content: incoming.content,
     placement: { kind: "active" }, resolves: conflicts.records.map(record => record.reference), provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   expect(lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: reusedReference.owner.name })).reference).toEqual(replacement.reference);
   const records = lifecycleSuccess(await h.store.list({ family: "work-item", kind: "work-item/meta" }));
   if (records.status !== "complete") throw new Error("Missing complete primary inventory");
