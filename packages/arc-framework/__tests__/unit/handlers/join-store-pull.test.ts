@@ -40,6 +40,7 @@ it("runs the explicit alternate answer while marking the remedy as the recommend
     execute: async ([command, family, verb, remote, role]) => {
       if (command !== "arc" || family !== "store" || verb !== "remote" || remote === undefined || role === undefined) throw new Error("Invalid designation command");
       remoteRoles.set(remote, role);
+      return { status: "ok" };
     },
   });
   expect(remoteRoles.get("upstream")).toBe("code");
@@ -57,6 +58,7 @@ it("allows an explicit designation when the selected store supplies a human reme
     execute: async ([command, family, verb, remote, role]) => {
       if (command !== "arc" || family !== "store" || verb !== "remote" || remote === undefined || role === undefined) throw new Error("Invalid designation command");
       roles.set(remote, role);
+      return { status: "ok" };
     } });
   expect(result).toMatchObject({ status: "designation-needed", summary: expect.stringContaining("Choose the upstream role.") });
   expect(roles.get("upstream")).toBe("read");

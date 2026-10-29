@@ -39,9 +39,12 @@ import { prompt, type PromptRenderer } from "../lib/command-input/prompter.js";
 export interface JoinStorePorts {
   openStore?: (input: { cwd: string; exec: GitExec; identity: Slug }) => Store;
   sync?: (store: Store) => StoreSyncPort;
-  execute?: (argv: readonly string[], cwd: string, context: InteractionContext) => Promise<void>;
+  execute?: (argv: readonly string[], cwd: string, context: InteractionContext) => Promise<JoinDesignationOutcome>;
   renderer?: PromptRenderer;
 }
+
+/** A designation run's outcome; a failed run's own output already reached the terminal it inherited. */
+export type JoinDesignationOutcome = { status: "ok" } | { status: "failed"; reason: string };
 
 /** Cancellation stops setup before identity or workspace writes. */
 export type JoinStorePullResult = StoreSessionInitUserValue | { status: "cancelled" } | null;
@@ -70,15 +73,21 @@ export async function pullJoinStore(input: { cwd: string; exec: GitExec; identit
   if (answer.kind === "cancelled") return { status: "cancelled" };
   if (answer.kind !== "answered" || !result.choices.includes(answer.value)) return value;
   const argv = answer.value === recommended ? [...remedyArgv] : ["arc", "store", "remote", result.remote, answer.value];
-  await (ports.execute ?? executeJoinDesignation)(argv, input.cwd, input.context);
+  const designated = await (ports.execute ?? executeJoinDesignation)(argv, input.cwd, input.context);
+  if (designated.status === "failed") {
+    p.log.warn(`${argv.join(" ")} ${designated.reason}; setup continues without that designation. Resolve its output above, then run it again.`);
+  }
   return value;
 }
 
-async function executeJoinDesignation(argv: readonly string[], cwd: string, context: InteractionContext): Promise<void> {
+async function executeJoinDesignation(argv: readonly string[], cwd: string, context: InteractionContext): Promise<JoinDesignationOutcome> {
   const [command, ...args] = argv;
-  if (command === undefined) return;
-  await execa(command, args, { cwd, stdin: context.subprocess.ambientStdin === "closed" ? "ignore" : "inherit",
+  if (command === undefined) return { status: "ok" };
+  const result = await execa(command, args, { cwd, reject: false, stdin: context.subprocess.ambientStdin === "closed" ? "ignore" : "inherit",
     stdout: "inherit", stderr: "inherit", env: context.subprocess.terminalPrompts === "forbidden" ? { GIT_TERMINAL_PROMPT: "0" } : {} });
+  if (!result.failed) return { status: "ok" };
+  return { status: "failed", reason: result.exitCode !== undefined ? `exited with code ${result.exitCode}`
+    : result.signal ? `was ended by ${result.signal}` : `could not start: ${result.shortMessage}` };
 }
 
 export type JoinOptions = JoinCommandOptions;
