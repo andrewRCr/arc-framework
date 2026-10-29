@@ -4,10 +4,13 @@ import { dirname, join, relative, resolve } from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
-type Helper = { parameter: string; expression: ts.Expression };
+type Helper = { parameter: string; expression: ts.Expression; declaration: ts.FunctionDeclaration };
 const refRoot = resolve(import.meta.dirname, "../../../../src/lib/store/ref");
 
-/** This is a conservative syntax guard, not a replacement for execution tests of process outcomes. */
+/**
+ * This is a conservative syntax guard, not a replacement for execution tests of process outcomes. It follows direct
+ * const projections of an exit code; it does not infer `let` or reassigned aliases, or chains of aliases.
+ */
 function unguardedExitCodes(text: string, filename = "fixture.ts"): string[] {
   const source = ts.createSourceFile(filename, text, ts.ScriptTarget.Latest, true);
   const helpers = new Map<string, Helper>();
@@ -26,15 +29,18 @@ function unguardedExitCodes(text: string, filename = "fixture.ts"): string[] {
       const parameter = statement.parameters[0]?.name;
       const result = statement.body.statements[0];
       if (parameter && ts.isIdentifier(parameter) && result && ts.isReturnStatement(result) && result.expression) {
-        helpers.set(statement.name.text, { parameter: parameter.text, expression: result.expression });
+        helpers.set(statement.name.text, { parameter: parameter.text, expression: result.expression, declaration: statement });
       }
     }
   }
-  // Fail closed on any local binding of a canonical import name. This deliberately
+  // Fail closed on any local binding of a canonical import or top-level helper name. This deliberately
   // rejects even non-overlapping shadows rather than pretending to resolve scopes.
   function rejectShadowedNames(node: ts.Node): void {
     if ((ts.isParameter(node) || ts.isVariableDeclaration(node) || ts.isBindingElement(node)
-      || ts.isFunctionDeclaration(node)) && node.name && ts.isIdentifier(node.name)) completionNames.delete(node.name.text);
+      || ts.isFunctionDeclaration(node)) && node.name && ts.isIdentifier(node.name)) {
+      completionNames.delete(node.name.text);
+      if (helpers.get(node.name.text)?.declaration !== node) helpers.delete(node.name.text);
+    }
     ts.forEachChild(node, rejectShadowedNames);
   }
   rejectShadowedNames(source);
@@ -106,13 +112,24 @@ function unguardedExitCodes(text: string, filename = "fixture.ts"): string[] {
     return ts.isIdentifier(name) ? name.text === identifier
       : name.elements.some(element => ts.isBindingElement(element) && binds(element.name, identifier));
   }
-  // Follow direct const projections in their nearest lexical statement block.
-  // Ordinary shadowing stops lookup; mutable bindings and alias chains are not inferred.
-  function aliasReceiver(node: ts.Identifier): ts.Expression | undefined {
+  function takesExitCode(element: ts.BindingElement): boolean {
+    const property = element.propertyName ?? element.name;
+    return !element.dotDotDotToken && (ts.isIdentifier(property) || ts.isStringLiteral(property)) && property.text === "exitCode";
+  }
+  // An exit code destructured by a parameter or catch binding leaves no receiver to prove completion of (null).
+  function boundReceiver(name: ts.BindingName, identifier: string): null | undefined {
+    return ts.isObjectBindingPattern(name) && name.elements.some(element => ts.isIdentifier(element.name)
+      && element.name.text === identifier && takesExitCode(element)) ? null : undefined;
+  }
+  // Follow direct const projections in their nearest lexical statement block; ordinary shadowing stops lookup.
+  function aliasReceiver(node: ts.Identifier): ts.Expression | null | undefined {
     if (ts.isPropertyAccessExpression(node.parent) && node.parent.name === node) return undefined;
     for (let ancestor: ts.Node | undefined = node.parent; ancestor; ancestor = ancestor.parent) {
-      if (ts.isFunctionLike(ancestor) && ancestor.parameters.some(parameter => binds(parameter.name, node.text))) return undefined;
-      if (ts.isCatchClause(ancestor) && ancestor.variableDeclaration && binds(ancestor.variableDeclaration.name, node.text)) return undefined;
+      const parameter = ts.isFunctionLike(ancestor) ? ancestor.parameters.find(candidate => binds(candidate.name, node.text)) : undefined;
+      if (parameter) return boundReceiver(parameter.name, node.text);
+      if (ts.isCatchClause(ancestor) && ancestor.variableDeclaration && binds(ancestor.variableDeclaration.name, node.text)) {
+        return boundReceiver(ancestor.variableDeclaration.name, node.text);
+      }
       if (!ts.isBlock(ancestor) && !ts.isSourceFile(ancestor)) continue;
       for (const statement of ancestor.statements) {
         if (!ts.isVariableStatement(statement)) continue;
@@ -123,10 +140,7 @@ function unguardedExitCodes(text: string, filename = "fixture.ts"): string[] {
           if (ts.isIdentifier(declaration.name)) return exitCodeReceiver(declaration.initializer);
           if (!ts.isObjectBindingPattern(declaration.name)) return undefined;
           const element = declaration.name.elements.find(binding => ts.isIdentifier(binding.name) && binding.name.text === node.text);
-          const property = element?.propertyName ?? element?.name;
-          return element && !element.dotDotDotToken && !element.initializer && property
-            && (ts.isIdentifier(property) || ts.isStringLiteral(property)) && property.text === "exitCode"
-            ? declaration.initializer : undefined;
+          return element && !element.initializer && takesExitCode(element) ? declaration.initializer : undefined;
         }
       }
     }
@@ -135,8 +149,9 @@ function unguardedExitCodes(text: string, filename = "fixture.ts"): string[] {
   const violations: string[] = [];
   function visit(node: ts.Node): void {
     const receiver = exitCodeReceiver(node) ?? (ts.isIdentifier(node) ? aliasReceiver(node) : undefined);
-    if (receiver && isClassification(node)) {
-      const error = operand(receiver, new Map());
+    if (receiver !== undefined && isClassification(node)) {
+      // No call argument has empty text, so an exit code with no receiver is never proven complete.
+      const error = receiver === null ? "" : operand(receiver, new Map());
       let guarded = false;
       // A dominating early-throw guard also protects nested decisions in its continuation.
       for (let ancestor: ts.Node = node; ancestor.parent && !ts.isFunctionLike(ancestor); ancestor = ancestor.parent) {
@@ -179,6 +194,8 @@ const safe = [
   'import { isCompletedGitFailure as done } from "../../git/process-error.js"; if (done(error) && error["exitCode"] === 1) return null;',
   'return isCompletedGitFailure(error) && error.exitCode === 1;',
   'return isCompletedGitFailure(error) && error.exitCode === 1 ? null : fail(error);',
+  'promise.catch(({ stderr }) => stderr === "" ? null : fail());',
+  'promise.catch((caught) => isCompletedGitFailure(caught) && caught.exitCode === 1 ? null : fail(caught));',
 ];
 const unsafe = [
   'const code = error.exitCode; if (code === 1) return null;',
@@ -197,6 +214,9 @@ const unsafe = [
   'function complete(e: unknown) { return complete(e); } if (complete(error) && error.exitCode === 1) return false;',
   'if (!isCompletedGitFailure(error) && error.exitCode !== 5) throw error;',
   'if (error["exitCode"] === 1) return null;',
+  'try { run(); } catch ({ exitCode }) { if (exitCode === 1) return null; }',
+  'promise.catch(({ exitCode }) => exitCode === 1 ? null : fail());',
+  'promise.catch(({ exitCode: code }) => { if (code === 1) return null; });',
 ];
 
 const untrusted = [
@@ -205,6 +225,10 @@ const untrusted = [
   'import { isCompletedGitFailure } from "../../fake/git/process-error.js"; if (isCompletedGitFailure(error) && error.exitCode === 1) return null;',
   canonicalImport + 'function classify(isCompletedGitFailure: (e: unknown) => boolean) { if (isCompletedGitFailure(error) && error.exitCode === 1) return null; }',
   canonicalImport + 'function classify() { const isCompletedGitFailure = () => true; if (isCompletedGitFailure(error) && error.exitCode === 1) return null; }',
+  canonicalImport + 'try { run(); } catch ({ isCompletedGitFailure }) { if (isCompletedGitFailure(error) && error.exitCode === 1) return null; }',
+  canonicalImport + 'function classify([isCompletedGitFailure]: Array<(e: unknown) => boolean>) { if (isCompletedGitFailure(error) && error.exitCode === 1) return null; }',
+  canonicalImport + 'function complete(e: unknown) { return isCompletedGitFailure(e); } function classify() { const complete = (e: unknown) => true; if (complete(error) && error.exitCode === 1) return null; }',
+  canonicalImport + 'function complete(e: unknown) { return isCompletedGitFailure(e); } function classify({ complete }: Checks) { if (complete(error) && error.exitCode === 1) return null; }',
 ];
 
 describe("ref completed-failure guard fixtures", () => {
