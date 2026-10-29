@@ -100,6 +100,20 @@ describe("Git descendant cancellation when the process utility fails", () => {
     expect([...alive]).toEqual([other]);
   });
 
+  /** A child the test settles by hand, recording Node's exit state first as a real child's exit does. */
+  function settlingGit() {
+    let resolve!: (value: { stdout: string | Buffer; stderr: string | Buffer }) => void, reject!: (error: unknown) => void;
+    const child = Object.assign(new Promise<{ stdout: string | Buffer; stderr: string | Buffer }>((yes, no) => { resolve = yes; reject = no; }),
+      { pid: gitPid, kill: () => true, exitCode: null as number | null, signalCode: null as NodeJS.Signals | null });
+    return { child,
+      succeed: (output: { stdout: string | Buffer; stderr: string | Buffer }) => { child.exitCode = 0; resolve(output); },
+      fail: (error: Error) => { child.exitCode = 128; reject(error); } };
+  }
+
+  async function drainDelayedUtilities(): Promise<void> {
+    for (let i = 0; i < 3; i += 1) { utilities.pending.shift()?.(); await new Promise<void>(done => setImmediate(done)); }
+  }
+
   it.each((["success", "failure"] as const).flatMap(outcome => [false, true].flatMap(failedScan =>
     [false, true].map(bytes => ({ outcome, failedScan, bytes })))))(
     "finishes accepted cancellation after independent $outcome while a delayed scan fails: $failedScan, bytes: $bytes", async ({ outcome, failedScan, bytes }) => {
@@ -108,25 +122,40 @@ describe("Git descendant cancellation when the process utility fails", () => {
       utilities.table = `${gitPid} 1\n${descendant} ${gitPid}\n`;
       const alive = new Set([descendant]);
       vi.spyOn(process, "kill").mockImplementation(pid => { alive.delete(pid); return true; });
-      let resolve!: (value: { stdout: string | Buffer; stderr: string | Buffer }) => void, reject!: (error: unknown) => void;
-      const child = Object.assign(new Promise<{ stdout: string | Buffer; stderr: string | Buffer }>((yes, no) => { resolve = yes; reject = no; }),
-        { pid: gitPid, kill: () => true, exitCode: null, signalCode: null });
+      const git = settlingGit();
       const controller = new AbortController();
       let settled = false;
-      const pending = runCancelableGitProcess(() => child, controller.signal, { command: "git", args: ["fetch"] })
+      const pending = runCancelableGitProcess(() => git.child, controller.signal, { command: "git", args: ["fetch"] })
         .catch((error: unknown) => { settled = true; return error; });
       controller.abort();
       const output = bytes ? { stdout: Buffer.from([65, 0, 128, 255]), stderr: Buffer.from([66, 255, 128]) }
         : { stdout: "Completed text output", stderr: "Completed text diagnostic" };
-      if (outcome === "success") resolve(output); else reject(Object.assign(new Error("Independent failure"), output, { exitCode: 128 }));
+      if (outcome === "success") git.succeed(output); else git.fail(Object.assign(new Error("Independent failure"), output, { exitCode: 128 }));
       await new Promise<void>(done => setImmediate(done));
       expect.soft(settled).toBe(false);
-      for (let i = 0; i < 3; i += 1) { utilities.pending.shift()?.(); await new Promise<void>(done => setImmediate(done)); }
-      expect(await pending).toMatchObject({ kind: "canceled", descendantsUnconfirmed: failedScan,
+      await drainDelayedUtilities();
+      // The child exited before the scan returned, so its PID may name another process and its descendants stay unconfirmed.
+      expect(await pending).toMatchObject({ kind: "canceled", descendantsUnconfirmed: true,
         stdout: typeof output.stdout === "string" ? output.stdout : output.stdout.toString("latin1"),
         stderr: typeof output.stderr === "string" ? output.stderr : output.stderr.toString("latin1") });
-      if (!failedScan) expect([...alive]).toEqual([]);
+      expect([...alive]).toEqual([descendant]);
     });
+
+  it("confirms descendants it ends while the child keeps running through a delayed scan", async () => {
+    Object.defineProperty(process, "platform", { value: "darwin" });
+    utilities.delayed = true;
+    utilities.table = `${gitPid} 1\n${descendant} ${gitPid}\n`;
+    const alive = new Set([descendant]);
+    vi.spyOn(process, "kill").mockImplementation(pid => { alive.delete(pid); return true; });
+    const git = settlingGit();
+    const controller = new AbortController();
+    const pending = runCancelableGitProcess(() => git.child, controller.signal, { command: "git", args: ["fetch"] }).catch((error: unknown) => error);
+    controller.abort();
+    await drainDelayedUtilities();
+    expect([...alive]).toEqual([]);
+    git.fail(Object.assign(new Error("killed"), { signal: "SIGKILL" }));
+    expect(await pending).toMatchObject({ kind: "canceled", descendantsUnconfirmed: false });
+  });
 
   it("reports uncertain ownership when the process table no longer contains the parent", async () => {
     Object.defineProperty(process, "platform", { value: "darwin" });
