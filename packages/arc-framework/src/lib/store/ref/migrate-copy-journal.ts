@@ -101,16 +101,13 @@ function lifecyclePair(ref: string): string | undefined {
 
 async function landedChange(context: RefBackendContext, change: z.infer<typeof ChangeSchema>, destination: ReadonlyMap<string, string>,
   proposed: ReadonlyMap<string, string | null>): Promise<boolean> {
-  if (change.next === null && !destination.has(change.ref)) return true;
-  const paired = lifecyclePair(change.ref);
+  const paired = lifecyclePair(change.ref), pairedNext = paired ? proposed.get(paired) : undefined;
+  // A destination writer making the same lifecycle move also removes this coordinate, so only the paired update shows it landed.
+  if (change.next === null && !destination.has(change.ref)) return !paired || !pairedNext || reaches(context, pairedNext, destination.get(paired));
   // A later lifecycle move may recreate the deleted coordinate from the paired update in this same attempt.
-  const next = change.next ?? (paired ? proposed.get(paired) : undefined);
+  const next = change.next ?? pairedNext;
   const current = destination.get(change.ref) ?? (change.next !== null && paired ? destination.get(paired) : undefined);
-  if (!next || !current) return false;
-  if (current === next) return true;
-  const objects = await readBatchObjects(context, [next, current]);
-  return objects.get(next)?.type === "commit" && objects.get(current)?.type === "commit"
-    && await syncRefIsAncestor(context, next, current);
+  return next ? reaches(context, next, current) : false;
 }
 
 // Ordinary progress at the destination, such as a follower's fast-forward or a teammate's lifecycle move to the paired
@@ -118,12 +115,15 @@ async function landedChange(context: RefBackendContext, change: z.infer<typeof C
 async function progressedChange(context: RefBackendContext, change: z.infer<typeof ChangeSchema>, destination: ReadonlyMap<string, string>): Promise<boolean> {
   if (change.expected === null) return true;
   const paired = lifecyclePair(change.ref);
-  const current = destination.get(change.ref) ?? (paired ? destination.get(paired) : undefined);
-  if (current === change.expected) return true;
+  return reaches(context, change.expected, destination.get(change.ref) ?? (paired ? destination.get(paired) : undefined));
+}
+
+/** Whether the destination's tip is this commit or descends from it. */
+async function reaches(context: RefBackendContext, tip: string, current: string | undefined): Promise<boolean> {
   if (current === undefined) return false;
-  const objects = await readBatchObjects(context, [change.expected, current]);
-  return objects.get(change.expected)?.type === "commit" && objects.get(current)?.type === "commit"
-    && await syncRefIsAncestor(context, change.expected, current);
+  if (current === tip) return true;
+  const objects = await readBatchObjects(context, [tip, current]);
+  return objects.get(tip)?.type === "commit" && objects.get(current)?.type === "commit" && await syncRefIsAncestor(context, tip, current);
 }
 
 /**

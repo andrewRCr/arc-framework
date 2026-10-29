@@ -7,7 +7,7 @@ import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 import { capturedEntries } from "../helpers/store/ref-fixture-plant.js";
 import { plantRef } from "../helpers/store/ref-plant.js";
-import { createKindRegistry, RecordReferenceSchema, type RefStorePorts, type WriteCheck } from "../../src/lib/store/index.js";
+import { createKindRegistry, RecordReferenceSchema, type RefStorePorts, type Store, type WriteCheck } from "../../src/lib/store/index.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
@@ -115,7 +115,7 @@ it.each((["remote", "follow"] as const).flatMap(kind =>
   expect.soft(await invokeStoreMigrate(["--to", next], original)).toMatchObject({ status: "ok" });
 }, 30_000);
 
-it.each(["archived", "progressed"] as const)("restarts an unlanded first copy whose destination item was then %s and re-copies it", async activity => {
+it.each(["archived", "progressed", "ended twice"] as const)("restarts an unlanded first copy whose destination item was then %s and re-copies it", async activity => {
   const h = await switchFixture();
   const made = success(await h.store.write({ action: "put", expected: null,
     reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "copy-progress" } }),
@@ -125,9 +125,19 @@ it.each(["archived", "progressed"] as const)("restarts an unlanded first copy wh
   const live = `refs/arc/work/${made.reference.owner.uid}`, history = `refs/arc/history/work/${made.reference.owner.uid}`;
   await h.a.git(["push", "--atomic", h.destinationDirectory, "refs/arc/project/registry:refs/arc/project/registry", `${live}:${live}`]);
   const companion = RecordReferenceSchema.parse({ owner: made.reference.owner, kind: "work-item/companion", key: "late.md" });
-  // An archived item meets a late source edit; a progressed one is a destination ref the copy leaves alone.
+  const archive = async (store: Pick<Store, "read" | "write">, quarter = "2026-q4") => {
+    const primary = success(await store.read({ reference: made.reference }));
+    return store.write({ action: "put", reference: primary.reference, expected: primary.version, content: primary.content,
+      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse(quarter) }, provenance: { verb: "archive", lifecycleAction: "archive" } });
+  };
+  // An archived item meets a late source edit; a progressed one is a destination ref the copy leaves alone; an item
+  // ended twice is one the copy itself ends, then the destination ends in an earlier quarter.
   if (activity === "archived") {
     success(await h.store.write({ action: "put", reference: companion, expected: null, content: "Late source edit.\n", provenance }));
+    success(await h.store.push());
+  }
+  if (activity === "ended twice") {
+    success(await archive(h.store));
     success(await h.store.push());
   }
   let armed = true;
@@ -140,21 +150,26 @@ it.each(["archived", "progressed"] as const)("restarts an unlanded first copy wh
   const row = held.attempt.changes.find(change => change.ref === live);
   expect(row).toBeDefined();
   expect(row?.next === row?.expected).toBe(activity === "progressed");
+  expect(row?.next === null).toBe(activity === "ended twice");
   const peer = await createRemoteMover(h, h.destinationDirectory, "destination-peer");
-  const primary = success(await peer.store.read({ reference: made.reference }));
-  success(activity === "archived"
-    ? await peer.store.write({ action: "put", reference: primary.reference, expected: primary.version, content: primary.content,
-      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: { verb: "archive", lifecycleAction: "archive" } })
-    : await peer.store.write({ action: "put", reference: companion, expected: null, content: "Destination progress.\n", provenance }));
+  success(activity === "progressed"
+    ? await peer.store.write({ action: "put", reference: companion, expected: null, content: "Destination progress.\n", provenance })
+    : await archive(peer.store, activity === "ended twice" ? "2026-q3" : "2026-q4"));
   success(await peer.store.push());
   const ended = await invokeStoreMigrate([], h.ports);
   expect(ended.status, JSON.stringify(ended)).toBe("ok");
   expect.soft((await h.a.exec("git", ["for-each-ref", "--format=%(refname)", pending, "refs/arc/tmp/migrate/move"])).stdout).toBe("");
   const holds = async (ref: string, text: string) => (await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, "grep", "-F", text, ref])).stdout;
   if (activity === "archived") expect.soft(await holds(history, "Late source edit.")).toContain("Late source edit.");
-  else {
+  else if (activity === "progressed") {
     expect.soft(await holds(live, "Destination progress.")).toContain("Destination progress.");
     expect.soft(await holds("refs/arc/user/andrew/personal", "Shared state.")).toContain("Shared state.");
+  } else {
+    // The source's end holds and the destination's own is withdrawn.
+    const destination = async (...args: string[]) => (await h.a.exec("git", [`--git-dir=${h.destinationDirectory}`, ...args])).stdout;
+    expect.soft((await destination("for-each-ref", "--format=%(refname)", live, history)).trim()).toBe(history);
+    expect.soft(await destination("ls-tree", "-r", "--name-only", "refs/arc/archive/2026-q4")).toContain(made.reference.owner.uid);
+    expect.soft(await destination("ls-tree", "-r", "--name-only", "refs/arc/archive/2026-q3")).not.toContain(made.reference.owner.uid);
   }
 }, 60_000);
 
