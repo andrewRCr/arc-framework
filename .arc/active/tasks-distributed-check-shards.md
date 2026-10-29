@@ -271,6 +271,10 @@ through controller closing. Store qualification uses the native reach command la
           recorded/fallback durations and unset, empty-value and zero-byte-file inputs. Native fixtures verify
           deletion/widening, exact membership and recorded ordering; profile evidence is in the notes.
 
+    - `[x]` **4.2.R Isolate the native project-selection fixture from machine runners**
+        - The native forecast fixture uses an empty machine home while a controlled ambient home declares a runner.
+          Declaration-only E2E selection retains native argv evidence independently of developer machine settings.
+
     - `[ ]` **4.2.b Qualify integration through its native controller**
         - Set `shards.routed: true` on `test:integration` in `.arc/system/arc-checks.yml` and declare
           `ARC_TEST_DURATION_FILE: file` in its `environment_inputs`, so every sibling partitions from one captured
