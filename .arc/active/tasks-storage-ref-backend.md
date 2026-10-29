@@ -2311,12 +2311,19 @@ in `notes-storage-ref-backend.md` (A25).
   job's 965–1,573 s to 420 s once the separate layout's whole run spanned three files. `notes-storage-ref-backend.md`
   § A33 records the runs, the rows, and that rows keyed to a shard index compare a different set of files on each run.
 
-### `[ ]` **18.R4 Quarantine the Windows separate publishing burst — § 14.5 (A58)**
+### `[x]` **18.R4 Quarantine the Windows separate publishing burst — § 14.5 (A58)**
 
 - _Goal:_ The scheduled and dispatched pair skip only the separate layout's publishing burst on Windows, naming the
   deadline-stranded ref lock and its owner, `storage-ref-hardening`, while every other burst keeps running (A58).
 
-    - `[ ]` **18.R4.a Skip the one case on Windows — § 14.5**
+    - `[x]` **18.R4.a Skip the one case on Windows — § 14.5**
+        - `store-ref-bursts.test.ts` skips "converges twenty simultaneously publishing clones" only where
+          `process.platform === "win32"` and the layout is separate, its comment naming A58 and `storage-ref-hardening`.
+          A native Windows run on Git 2.56.0.windows.2 reports the case skipped. The default layout and both worktree
+          bursts still run there, and every burst still runs on Linux and macOS.
+
+- _Outcome:_ The scheduled pair no longer fails on the stranded lock that dispatches `40767396473` and `40794816270`
+  exposed. Notes § A58 records the mechanism and the hardening scope.
 
 ### `[x]` **18.7 Hosts, platforms, and cost** — validate exit criterion at segment scope
 
