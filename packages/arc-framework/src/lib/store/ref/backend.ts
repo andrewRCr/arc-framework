@@ -1,8 +1,11 @@
 /** Entry point for the ref-backed operational state implementation. */
 
+import type { z } from "zod";
 import type { StoreConflictInput, StoreConflictResult, StoreMigrateInput, StoreMigrateResult, StoreRemoteInput, StoreRemoteResult } from "../commands.js";
 import type { Store, ReadOnlyStore } from "../contract.js";
 import type { RefStorePorts } from "../ports.js";
+import type { StoreResult } from "../refusal.js";
+import { PullInputSchema, PushInputSchema } from "../sync.js";
 import { createRefBackendContext, type RefBackendContext } from "./context.js";
 import { refStateVersion } from "./manifest.js";
 import { readSnapshotRecord, listSnapshotRecords } from "./snapshot-read.js";
@@ -28,10 +31,26 @@ export function createRefBackend(ports: RefStorePorts): Store {
     ...refReadOperations(context, operations),
     write: (input) => operations.read((reader) => writeRefRecord(scoped(reader), input)),
     batch: (input) => operations.read((reader) => batchRefRecords(scoped(reader), input)),
-    pull: (input) => operations.maintenance(() => pullRefStore(scoped(context), input)),
-    push: (input) => operations.maintenance(() => pushRefStore(scoped(context), input)),
+    pull: (input) => {
+      const parsed = PullInputSchema.safeParse(input ?? {});
+      return parsed.success ? operations.maintenance(() => pullRefStore(scoped(context), parsed.data)) : syncInputRefusal("pull", parsed.error);
+    },
+    push: (input) => {
+      const parsed = PushInputSchema.safeParse(input ?? {});
+      return parsed.success ? operations.maintenance(() => pushRefStore(scoped(context), parsed.data)) : syncInputRefusal("push", parsed.error);
+    },
     maintain: () => operations.maintenance(() => maintainRefStore(scoped(context))),
   };
+}
+
+// A history entry becomes a fetch refspec pattern, so a malformed one would widen or add to what the fetch prunes.
+function syncInputRefusal(operation: "pull" | "push", error: z.ZodError): Promise<StoreResult<never>> {
+  const issue = error.issues[0], operand = issue?.path.length ? issue.path.join(".") : "input";
+  return Promise.resolve({ status: "refused", refusal: { code: "record-malformed", class: "recoverable", rule: `store.${operation}-input`,
+    condition: `The ${operation} input's ${operand} is invalid: ${issue?.message ?? "it does not match the input shape"}.`,
+    remedy: { text: operation === "pull"
+      ? "Name each history as refs/arc/history/work/<uid> or refs/arc/history/cohort/<uid>, or omit it, then retry."
+      : "Carry a non-empty code ref with an optional full commit lease, or omit the carry, then retry." } } });
 }
 
 /** Construct the remote view without exposing any mutation or synchronization operation. */
