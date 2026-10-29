@@ -4,8 +4,7 @@ import type { OwnerIdentity, RecordReference } from "./identity.js";
 import type { ReadPlacement } from "./placement.js";
 import { FAMILY_REGISTRY, KIND_REGISTRY, type FamilyDefinition, type KindDefinition } from "./registry.js";
 import type { KindId } from "./catalog.js";
-import { isSlugSafe } from "../kernel/schema/slug.js";
-import { companionArtifactName } from "./companion-name.js";
+import { companionStoredName } from "./companion-name.js";
 
 /** Resolved lifecycle facts; history retains the live tree layout. */
 export interface StoredPathOptions {
@@ -91,8 +90,7 @@ export function expandStoredPath(reference: RecordReference, options: StoredPath
   }
   const { owner, key } = reference;
   const path = reference.kind === "work-item/companion" && typeof key === "string"
-    ? isSlugSafe(key) ? companionArtifactName(owner.name, key) : key
-    : expandTemplate(kind.ref.path, reference);
+    ? companionStoredName(owner.name, key) : expandTemplate(kind.ref.path, reference);
   const prefix = parent.id === "personal" ? `${owner.name}/` : "";
   const stem = metadataStem(parent, reference);
   return { ref, path: folder + path, root: folder + familyRoot(family, owner),
