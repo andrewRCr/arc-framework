@@ -4,6 +4,7 @@ import { expect } from "vitest";
 import { LinksSchema, OwnerIdentitySchema, RecordReferenceSchema, singletonReference, type Links } from "../../../src/lib/store/index.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { assertion, seed, success, testProvenance, update, type SuiteContext } from "./suite-tools.js";
+import { registerRankedLookupAssertions } from "./suite-lookup-ranking.js";
 import type { ConformanceFixture } from "./fixture-contract.js";
 
 async function retireRenamed(fixture: ConformanceFixture, name: string, withDraft = false) {
@@ -44,6 +45,7 @@ async function checkDirectAliasBoundary(fixture: ConformanceFixture, operation: 
  * @param context - Backend registration context.
  */
 export function registerLookupAssertions(context: SuiteContext): void {
+  registerRankedLookupAssertions(context);
   for (const synced of [false, true]) for (const operation of ["read", "list", "write", "saved-read"] as const) assertion(context, "lineage",
     `terminal-alias-lookup-only:${operation}:${synced ? "synced" : "local"}`, fixture => checkDirectAliasBoundary(fixture, operation, synced));
   assertion(context, "lineage", "terminal-origin-former-slug-lookup", async fixture => {

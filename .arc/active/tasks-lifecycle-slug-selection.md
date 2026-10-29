@@ -964,34 +964,16 @@ an ordering the spec records rather than a dependency edge.
           redirect them. Missing UIDs conclude not-found before unreadable evidence, unknown UIDs never fall back
           to a name, and native public/checked fixtures carry the intended owner's UID.
 
-### `[ ]` **8.3 Pin the lookup's rules in the conformance suite — § 1, § 10.2**
+### `[x]` **8.3 Pin the lookup's rules in the conformance suite — § 1, § 10.2**
 
 - _Goal:_ Every store-arm backend the shared suite registers is held to the lookup's rules, so no backend can drift from
   them unnoticed.
 
     - _Amended in:_ 8.R (A3)
 
-- **Additional Context:** `notes-lifecycle-slug-selection.md` § Regrounding after the ref backend landing
-  (2026-10-29).
-
-    - `suite-lookup.ts` (`__tests__/helpers/store/`) gains the assertions public writes can build on both backends: a
-      slug a cohort holds resolving to the cohort's document, the completed tie-break over reuse, three generations
-      included, under the current and a former name, a completed work unit above a completed Errand, the completed ties
-      it leaves refusing (one that includes a cohort, and Errands alone), the ranked `ref` arm and its live tie with
-      that tie's facts, built from two live holders of distinct names linking one branch, the UID-matched work-unit
-      claim and a claim without a UID, and the completed tie's facts on both arms. `checkout-work-unit-claim` already
-      sends the owner's UID (4.3.d). The in-repo registration, whose slug lookup resolves only a work unit's meta
-      (`lookupSlug`, `lib/store/in-repo/lookup.ts`) and where a slug has one holder, declares them skipped
-      (`familyExclusions.assertions`).
-    - A live slug-arm tie's facts and the cohort ranking under a former name stay in each backend's own tests, under a
-      named exclusion: the reference backend admits a live slug clash only across types and records no cohort former
-      name through writes, and the ref backend refuses every live slug clash at a write (`checkLiveNamespace`). They are
-      `reference-lookup-ranking.test.ts`'s planted cases and the ref backend's planted owners (`plantOwner`,
-      `store-ref-lookup.test.ts`).
-    - Build `test-first` (one behavior at a time):
-        - each shared assertion passes over the reference backend and the ref backend, and the in-repo registration
-          reports them skipped
-        - each backend's own tests pin a live slug-arm tie's facts and a cohort holding a slug as a former name
+- _Outcome:_ Shared lookup assertions cover completed reuse, refusing tiers, branch ranking, and UID-only claims
+  across the reference backend and both ref layouts, with tracked limitations and planted-state exclusions named.
+  Each backend's own tests cover live slug facts and cohort former-name priority; the lookup regression scope closes.
 
 ## **Phase 9:** Verification
 
