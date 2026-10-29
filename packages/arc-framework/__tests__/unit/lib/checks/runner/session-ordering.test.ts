@@ -90,6 +90,24 @@ it("declines an unadvertised group while keeping mandatory single execution avai
   await refusal;
 });
 
+it("refuses an empty group as a caller error and then settles a nonempty group", async () => {
+  const h = runnerStreamHarness();
+  try {
+    await prepare(h);
+    const empty = h.session.request({ method: "check/runGroup", params: { contextId: "context", invocationIds: [] } });
+    // A dispatched empty group can settle without any outcomes.
+    if (h.requests.at(-1)?.method === "check/runGroup") {
+      reply(h, { contextId: "context", settled: true, outputComplete: true, invocationIds: [] });
+    }
+    await expect(empty).rejects.toThrow(/^Check execution request operation is invalid; correct the request/u);
+    const corrected = h.session.request({ method: "check/runGroup", params: { contextId: "context", invocationIds: ["__proto__"] } });
+    completeRun(h);
+    await expect(corrected).resolves.toEqual({ contextId: "context", settled: true, outputComplete: true, invocationIds: ["__proto__"] });
+    expect(h.session.observedOutcomes.get("__proto__")).toEqual({ status: "completed", exitCode: 0 });
+    expect(h.session.failure).toBeUndefined();
+  } finally { await h.close(); }
+});
+
 it.each<{ name: string; operation: CheckRunnerOperation }>([
   { name: "duplicate group IDs", operation: { method: "check/runGroup", params: { contextId: "context", invocationIds: ["__proto__", "__proto__"] } } },
   { name: "an empty invocation ID", operation: { method: "check/run", params: { contextId: "context", invocationId: "" } } },

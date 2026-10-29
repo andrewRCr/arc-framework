@@ -99,6 +99,7 @@ it.each([
 
 it.each([
   { name: "empty run identity", schema: RunParamsSchema, value: { contextId: "context", invocationId: "" } },
+  { name: "empty group", schema: RunGroupParamsSchema, value: { contextId: "context", invocationIds: [] } },
   { name: "duplicate group IDs", schema: RunGroupParamsSchema, value: { contextId: "context", invocationIds: ["id", "id"] } },
   { name: "invalid cancel UUID", schema: CancelParamsSchema, value: { planId: "not-a-uuid" } },
   { name: "empty release context", schema: ReleaseParamsSchema, value: { contextId: "" } },
