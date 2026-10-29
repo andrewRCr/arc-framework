@@ -1,5 +1,5 @@
 /** Exact history inspection and explicit resolution of a retained alternative. */
-import { StoreConflictInputSchema, type StoreConflictInput, type StoreConflictResult } from "../commands.js";
+import { StoreConflictInputSchema, conflictOperandRefusal, type StoreConflictInput, type StoreConflictResult } from "../commands.js";
 import { ConflictRecordSchema } from "../conflict.js";
 import type { HistoryEntry } from "../contract.js";
 import type { StoreResult } from "../refusal.js";
@@ -9,8 +9,7 @@ import { RecordReferenceSchema, type RecordReference } from "../identity.js";
 /** Inspect through the same history contract as every caller, preserving typed refusals. */
 export async function runRefConflict(store: Store, input: StoreConflictInput): Promise<StoreConflictResult> {
   const parsed = StoreConflictInputSchema.safeParse(input);
-  if (!parsed.success) return { status: "refused", refusal: { code: "unsupported", class: "terminal", case: "unhomed-kind",
-    condition: parsed.error.message, remedy: { text: "Use arc store conflict --help and provide an owner UID, registered work-item conflict kind, and exact ID." } } };
+  if (!parsed.success) return conflictOperandRefusal(parsed.error);
   const reference = RecordReferenceSchema.parse({ owner: { type: "work-item", name: parsed.data.uid, uid: parsed.data.uid },
     kind: parsed.data.kind, key: parsed.data.id });
   const inspected = await inspectConflict(store, reference);

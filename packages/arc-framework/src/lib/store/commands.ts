@@ -97,6 +97,17 @@ export const StoreConflictInputSchema = z.strictObject({ uid: StoredUidSchema, k
 }, "Expected a registered conflict kind on a work-item ref"), id: z.string().min(1), discard: z.boolean().optional() });
 /** An exact conflict operand and optional removal request. */
 export type StoreConflictInput = z.infer<typeof StoreConflictInputSchema>;
+
+/** Refuse an invalid conflict operand: a kind with no conflict home is unhomed, and any other operand is malformed. */
+export function conflictOperandRefusal(error: z.ZodError): Extract<StoreResult<never>, { status: "refused" }> {
+  const kind = error.issues.find((issue) => issue.path[0] === "kind"), issue = kind ?? error.issues[0];
+  const operand = typeof issue?.path[0] === "string" ? issue.path[0] : "input";
+  const condition = `The conflict ${operand} is invalid: ${issue?.message ?? "it does not match the operand shape"}.`;
+  const remedy = { text: "Use arc store conflict --help with an owner UID, registered work-item conflict kind, and exact ID.",
+    argv: ["arc", "store", "conflict", "--help"] };
+  return kind ? { status: "refused", refusal: { code: "unsupported", class: "terminal", case: "unhomed-kind", condition, remedy } }
+    : { status: "refused", refusal: { code: "record-malformed", class: "recoverable", rule: "store.conflict-operand", condition, remedy } };
+}
 /** A complete retained alternative or an explicit absence after resolution. */
 export type StoreConflictResult = StoreResult<
   { status: "present"; reference: RecordReference; version: RecordVersion; conflict: ConflictRecord }

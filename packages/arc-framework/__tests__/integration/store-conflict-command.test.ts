@@ -3,10 +3,32 @@ import { retainedConflictFixture } from "../helpers/store/retained-conflicts.js"
 import { plantRef, removeLooseObject } from "../helpers/store/ref-plant.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { RecordReferenceSchema, runStoreConflict, type StoreConflictInput } from "../../src/lib/store/index.js";
+import { handleStoreConflict } from "../../src/commands/store-conflict.js";
 
 function input(reference: { kind: StoreConflictInput["kind"]; key?: unknown; owner: { type: string; uid?: string } }): StoreConflictInput {
   return { uid: reference.owner.uid!, kind: reference.kind, id: String(reference.key) };
 }
+
+it("refuses a malformed operand by the operand it names, from the command and the backend alike, then inspects a corrected one", async () => {
+  const h = await retainedConflictFixture("default", "abandon"), valid = input(h.conflicts[0]!);
+  const help = { argv: ["arc", "store", "conflict", "--help"] };
+  const cases: [StoreConflictInput, object][] = [
+    [{ ...valid, uid: "not-a-uid" }, { code: "record-malformed", class: "recoverable", rule: "store.conflict-operand", condition: expect.stringContaining("conflict uid") }],
+    [{ ...valid, id: "" }, { code: "record-malformed", class: "recoverable", rule: "store.conflict-operand", condition: expect.stringContaining("conflict id") }],
+    [{ ...valid, kind: "work-item/meta" as StoreConflictInput["kind"] }, { code: "unsupported", class: "terminal", case: "unhomed-kind",
+      condition: expect.stringContaining("conflict kind") }],
+  ];
+  for (const [operand, refusal] of cases) {
+    const backend = await runStoreConflict(h.a.ports, operand);
+    expect(backend, JSON.stringify(operand)).toMatchObject({ status: "refused", refusal: { ...refusal, remedy: help } });
+    let exitCode: number | undefined;
+    const command = await handleStoreConflict(operand.uid, operand.kind, operand.id, {}, { cwd: h.a.root, ports: h.a.ports,
+      write: () => undefined, setExitCode: (code) => { exitCode = code; } });
+    expect(command).toEqual(backend);
+    expect(exitCode).toBe(1);
+  }
+  expect(success(await runStoreConflict(h.a.ports, valid))).toMatchObject({ status: "present" });
+}, 60_000);
 
 describe.each(["default", "separate"] as const)("exact conflict command in %s", (layout) => {
   it.each(["resolved", "changed"] as const)("preserves a %s conflict basis racing an explicit discard", async (race) => {
