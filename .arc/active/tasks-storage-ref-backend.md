@@ -2262,6 +2262,8 @@ in `notes-storage-ref-backend.md` (A25).
           run on push, schedule, and dispatch, and `remote-check` gives the check the integration class. The lock
           holder's inline code moved to `__tests__/fixtures/store/`, and `store-ref-timing-isolation.test.ts` proves
           the order under the store tier.
+        - **Superseded:** A60 declares the ask and `ARC_STORE_BURSTS` as the check's environment inputs in place of the
+          runtime input, so a routed run receives both and keys its pass to them.
 
     - `[x]` **18.R2.R The benchmark measures each tier as it runs — § 14.12 (A34)**
         - `runTestCostMeasurement` composes each project set through `localVitestTierRunArguments`

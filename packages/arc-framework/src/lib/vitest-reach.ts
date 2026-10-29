@@ -18,7 +18,7 @@ export const ReachDeclarationSchema = z.strictObject({
   // The package Vitest runs in, holding every suite.
   package: z.string().min(1),
   check: z.strictObject({ id: z.string().min(1), declaration: z.string().min(1) }),
-  // An ARC_ variable, so a check runner that forwards ARC_ variables to another machine carries the ask with it.
+  // An ARC_ variable the check declares as an environment input, as it does each environment entry's variable.
   ask: z.string().regex(/^ARC_[A-Z0-9_]+$/u),
   suites: z.array(z.string().min(1)).min(1),
   fullOnly: z.array(z.string().min(1)).default([]),

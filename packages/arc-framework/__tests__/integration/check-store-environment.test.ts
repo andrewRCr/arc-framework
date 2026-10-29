@@ -101,5 +101,7 @@ it("hands a routed run both store selection inputs as declared values", async ()
         { planId: "store-environment", retained: undefined, cancel: async () => undefined, terminate: () => undefined });
     } }, { form: { kind: "run", ids: ["test:store"] } });
   expect(result.kind).toBe("result");
+  const reach = await readReachDeclaration(join(checkoutRoot, declarationPath));
+  expect(declared).toEqual(Object.fromEntries([reach.ask, ...reach.environment.map(entry => entry.variable)].map(name => [name, "value"])));
   expect(declared).toEqual({ ARC_STORE_CHECK: "value", ARC_STORE_BURSTS: "value" });
 });

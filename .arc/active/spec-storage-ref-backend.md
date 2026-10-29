@@ -4352,16 +4352,17 @@ that cannot reach them, and cost no more than their evidence needs where it can.
   full run — every store suite, the separate layout's whole suite among them — is one the runner is asked for, and the
   runner can also be asked to select every suite in its per-change form, which measures the per-change cost the target
   records (A33); an ask sets the run's form, and only a run with none given no base or changing the selection's own
-  declaration or code runs in full. The ask enters the check's cache key through a runtime input, so an asked run never
-  reuses a pass made in another form. Pull-request CI selects the same way, and CI asks for a full run on every push to
-  `main`, in a job of its own, on the weekly scheduled run, and on a dispatched run, which may ask instead for every
-  suite in its per-change form to measure what a pull request reaching them all costs (A33); a push whose run a later
-  push cancels leaves its tree, and anything it missed, to the later full run. The check runs each selected suite in the
-  Vitest project it runs in today, so the timing and burst suites keep their single-worker projects and order, and the
-  runner takes the heavy-test admission the integration tier's runs take (`withLocalHeavyTestAdmission`,
-  `lib/local-test-admission.ts`). The rest of the integration tier keeps its whole-tier run without the store suites.
-  The runner's data file names the suites, locating modules, and widening inputs, since the check declaration's schema
-  is the framework's and admits no such fields, so another suite can take the rule unchanged.
+  declaration or code runs in full. The check declares the ask and each variable the selection reads as environment
+  inputs, so a routed run receives them and an asked run never reuses a pass made in another form (A60). Pull-request
+  CI selects the same way, and CI asks for a full run on every push to `main`, in a job of its own, on the weekly
+  scheduled run, and on a dispatched run, which may ask instead for every suite in its per-change form to measure what
+  a pull request reaching them all costs (A33); a push whose run a later push cancels leaves its tree, and anything it
+  missed, to the later full run. The check runs each selected suite in the Vitest project it runs in today, so the
+  timing and burst suites keep their single-worker projects and order, and the runner takes the heavy-test admission the
+  integration tier's runs take (`withLocalHeavyTestAdmission`, `lib/local-test-admission.ts`). The rest of the
+  integration tier keeps its whole-tier run without the store suites. The runner's data file names the suites, locating
+  modules, and widening inputs, since the check declaration's schema is the framework's and admits no such fields, so
+  another suite can take the rule unchanged.
 - **The portability tier.** On a pull request the Linux portability job runs its tier without the store suites, which
   the store check runs on Linux by reach. The tier's scheduled and dispatched runs — the Windows and macOS pair's, on
   which § 14.10 rests, and the dispatched Linux job's — keep them whole, the separate layout's whole suite among them.
@@ -5103,3 +5104,7 @@ open:
 - **A59** — 2026-10-29 — design: record contract decision changes in the cohort document. _Supersedes:_ § 2 log
   sentence; criterion 1 log clause. _Trigger:_ standard-pass-8/AGG-20 review. _Work:_ review-fix. _Revalidated:_
   review-fix.
+
+- **A60** — 2026-10-29 — design: declare the store check's selection variables as environment inputs. _Supersedes:_
+  § 14.14 runtime-input key. _Trigger:_ standard-pass-8-fix-check-1/AGG-07 review. _Work:_ review-fix.
+  _Revalidated:_ review-fix.
