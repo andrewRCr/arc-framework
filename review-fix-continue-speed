@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "review-fix-continue-speed",
+  "claimId": "3b122efb9e3e7a7609ee932312ae69b8",
+  "createdAt": "2026-10-29T12:16:02.764Z",
+  "updatedAt": "2026-10-29T12:16:02.764Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Profile one arc delivery review-fix continue call and remove its dominant cost if one cause dominates",
+  "branch": "chore/review-fix-continue-speed",
+  "origin": "inbox",
+  "originEntry": "Find why each `arc delivery review-fix continue` takes about a second, and speed it up if one cause dominates",
+  "originEntrySourceDigest": "sha256:d5cb533994d4dc1743f9a2c7b4911451e109fc4926ede191187527b0d48f10fa",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
