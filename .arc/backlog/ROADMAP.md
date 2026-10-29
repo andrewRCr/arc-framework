@@ -16,6 +16,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | State      | Work unit                       | Priority | Owner  | Depends on      | Cohort        |
 | ---------- | ------------------------------- | -------- | ------ | --------------- | ------------- |
 | `Planning` | storage-projection              | P1       | andrew | —               | state-storage |
+| `Planning` | storage-ref-hardening           | P1       | andrew | —               | state-storage |
 | `Planning` | cohort-identity-verbs           | P1       | andrew | —               | storage-seam  |
 | `Active`   | seam-delivery-review            | P1       | andrew | —               | storage-seam  |
 | `Planning` | adopter-install-authority       | P1       | andrew | storage-cutover | —             |
@@ -27,6 +28,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning` | stub-mint-to-launch             | P1       | andrew | —               | —             |
 | `Planning` | cli-output-contract             | P2       | andrew | —               | —             |
 | `Active`   | distributed-check-shards        | P3       | andrew | —               | —             |
+| `Planning` | store-operation-git-access      | P3       | andrew | —               | —             |
 
 ## Ready
 
@@ -41,7 +43,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | review-evaluator-isolation            | P1       | andrew | —          | review-protocol-alignment  |
 | review-source-authority               | P1       | andrew | —          | review-protocol-alignment  |
 | storage-native-windows-bulk-transport | P1       | andrew | —          | state-storage              |
-| storage-ref-hardening                 | P1       | andrew | —          | state-storage              |
 | cross-worktree-git-state-safety       | P1       | andrew | —          | —                          |
 | delivery-intent-integrity             | P1       | andrew | —          | —                          |
 | locus-claim-revalidation              | P1       | andrew | —          | —                          |
