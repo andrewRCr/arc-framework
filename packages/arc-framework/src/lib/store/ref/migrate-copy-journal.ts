@@ -109,18 +109,35 @@ async function landedChange(context: RefBackendContext, change: z.infer<typeof C
     && await syncRefIsAncestor(context, next, current);
 }
 
-/** Reconcile an interrupted atomic copy against freshly fetched destination evidence before rebuilding it. */
+// Ordinary progress at the destination, such as a follower's fast-forward, keeps every expected tip in its history.
+async function progressedChange(context: RefBackendContext, change: z.infer<typeof ChangeSchema>, destination: ReadonlyMap<string, string>): Promise<boolean> {
+  const current = destination.get(change.ref);
+  if (change.expected === null || current === change.expected) return true;
+  if (current === undefined) return false;
+  const objects = await readBatchObjects(context, [change.expected, current]);
+  return objects.get(change.expected)?.type === "commit" && objects.get(current)?.type === "commit"
+    && await syncRefIsAncestor(context, change.expected, current);
+}
+
+/**
+ * Reconcile an interrupted atomic copy against freshly fetched destination evidence before rebuilding it. An attempt
+ * none of whose proposed tips landed is dropped while the destination only progressed from its expected tips; a partial
+ * landing or a rewritten tip keeps the refusal.
+ */
 export async function recoverCopyJournal(context: RefBackendContext, key: string, destination: ReadonlyMap<string, string>): Promise<MigrateReport | undefined> {
   const held = await readCopyJournal(context);
   if (!held) return;
   requireKey(held.record, key);
   const { record, refs } = held, attempt = record.attempt;
   if (attempt) {
-    let landed = true;
     const proposed = new Map(attempt.changes.map(({ ref, next }) => [ref, next]));
-    for (const change of attempt.changes) if (!await landedChange(context, change, destination, proposed)) { landed = false; break; }
+    const landing: boolean[] = [];
+    for (const change of attempt.changes) landing.push(await landedChange(context, change, destination, proposed));
+    const landed = landing.every(Boolean);
     const unchanged = attempt.changes.every(change => (destination.get(change.ref) ?? null) === change.expected);
-    if (!landed && !unchanged) throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable",
+    const unlanded = !landed && !unchanged && !landing.some(Boolean)
+      && (await Promise.all(attempt.changes.map(change => progressedChange(context, change, destination)))).every(Boolean);
+    if (!landed && !unchanged && !unlanded) throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable",
       condition: "Destination state changed after an interrupted copy, so its landed report cannot yet be established.",
       remedy: { text: "Restore the interrupted copy's retained target tips at the destination, then retry the same migration; its pending evidence remains local." } });
     if (landed) appendCleanupReport(record.settled, attempt.report);

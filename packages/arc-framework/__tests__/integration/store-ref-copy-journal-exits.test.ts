@@ -16,7 +16,7 @@ const pending = "refs/arc/tmp/migrate/pending-copy/";
 const advisory = { condition: "Inspect the late combined documents.", remedy: { text: "Save their combined result." } };
 
 it.each((["remote", "follow"] as const).flatMap(kind =>
-  (["before-report", "before-confirm", "unread-accepted", "unread-unlanded", "unlanded", "changed", "forwarded"] as const)
+  (["before-report", "before-confirm", "unread-accepted", "unread-unlanded", "unlanded", "advanced", "changed", "forwarded"] as const)
     .map(boundary => ({ kind, boundary }))))(
   "accounts a $kind copy at $boundary before ending and permits another migration", async ({ kind, boundary }) => {
   const followed = kind === "follow" ? await lateFollowFixture() : null, h = followed ?? await switchFixture();
@@ -45,7 +45,7 @@ it.each((["remote", "follow"] as const).flatMap(kind =>
     },
     exec: async (command, args, options) => {
       const copying = armed && args.includes("push") && args.includes(h.destinationDirectory);
-      if (copying && ["unread-unlanded", "unlanded"].includes(boundary)) throw makeGitProcessError({ command, args, timedOut: true, stderr: "No send before timeout." });
+      if (copying && ["unread-unlanded", "unlanded", "advanced"].includes(boundary)) throw makeGitProcessError({ command, args, timedOut: true, stderr: "No send before timeout." });
       const result = await original.exec(command, args, options);
       if (copying) {
         published = true;
@@ -55,10 +55,16 @@ it.each((["remote", "follow"] as const).flatMap(kind =>
     } };
   const start = () => kind === "remote" ? invokeStoreMigrate(["--to", h.to], ports)
     : invokeStoreRemote(["backing", "push", "--json"], { cwd: root, ports });
-  if (boundary.startsWith("unread") || boundary === "unlanded") await start();
+  if (boundary.startsWith("unread") || boundary === "unlanded" || boundary === "advanced") await start();
   else await expect(start()).rejects.toThrow("Interrupted late copy");
   expect((await original.exec("git", ["for-each-ref", "--format=%(refname)", pending], { cwd: root })).stdout).toContain(pending + "record");
   armed = false;
+  if (boundary === "advanced") {
+    const progressed = await plantRef(root, "refs/testing/destination-progress", [...entries,
+      { path: "andrew/destination-late.md", content: "Destination data.\n" }, { path: "andrew/progress.md", content: "A follower's progress.\n" }],
+      { parents: [diverged.tip] });
+    await original.exec("git", ["push", h.destinationDirectory, `${progressed.tip}:${personal}`], { cwd: root });
+  }
   if (boundary === "changed") {
     const other = await plantRef(root, "refs/testing/unrelated-destination", [...entries,
       { path: "andrew/unrelated.md", content: "Independently replaced state.\n" }], { parents: [before] });
@@ -81,13 +87,13 @@ it.each((["remote", "follow"] as const).flatMap(kind =>
       return original.exec(command, args, options);
     } };
   const sourceBefore = boundary === "forwarded" ? (await original.exec("git", [`--git-dir=${h.origin}`, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"], { cwd: root })).stdout : undefined;
-  const ended = await invokeStoreMigrate(boundary === "forwarded" ? [] : ["--leave-source"], retry);
+  const ended = await invokeStoreMigrate(boundary === "forwarded" || boundary === "advanced" ? [] : ["--leave-source"], retry);
   expect(ended.status, JSON.stringify(ended)).toBe("ok");
   if (ended.status !== "ok") throw new Error("Recorded copy did not end");
   if (boundary.startsWith("unread") || boundary === "changed" || boundary === "forwarded") {
     expect.soft(ended.result.notices).toContainEqual(expect.objectContaining({ condition: expect.stringContaining("could not be established"), remedy: expect.anything() }));
     expect.soft(ended.result.notices).toContainEqual(expect.objectContaining({ condition: expect.stringMatching(/^If the interrupted copy landed.*Inspect the late combined documents\./u), remedy: advisory.remedy }));
-  } else expect.soft(ended.result.notices.filter(row => row.condition.includes(advisory.condition))).toEqual(boundary === "unlanded" ? [] : [expect.objectContaining({ remedy: advisory.remedy })]);
+  } else expect.soft(ended.result.notices.filter(row => row.condition.includes(advisory.condition))).toEqual(boundary === "unlanded" || boundary === "advanced" ? [] : [expect.objectContaining({ remedy: advisory.remedy })]);
   expect.soft((await original.exec("git", ["for-each-ref", "--format=%(refname)", pending, "refs/arc/tmp/migrate/move"], { cwd: root })).stdout).toBe("");
   if (boundary.startsWith("unread") || boundary === "changed" || boundary === "forwarded") {
     const kept = (await original.exec("git", ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/migrate/accounted-copy/"], { cwd: root })).stdout;
