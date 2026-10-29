@@ -9,6 +9,7 @@ import { createRefStore } from "../../src/lib/store/create.js";
 
 const firstUid = "00000000-0000-4000-8000-000000000001";
 const secondUid = "00000000-0000-4000-8000-000000000002";
+const thirdUid = "00000000-0000-4000-8000-000000000003";
 
 async function plantOwner(root: string, uid: string, name: string, formerSlugs: string[] = [], kind: "work-item/meta" | "cohort/document" = "work-item/meta") {
   const cohort = kind === "cohort/document";
@@ -30,11 +31,14 @@ describe("lookup over live state refs", () => {
     expect(success(await f.store.lookup({ kind: "slug", slug }))).toEqual({ reference });
   });
 
-  it("prefers a current live cohort slug over another owner's former slug", async () => {
+  it("returns a work item by its former slug beside a cohort holding it, and never the cohort alone", async () => {
     const f = await createRefReadFixture();
-    await plantOwner(f.root, firstUid, "alpha", ["beta"]);
-    const reference = await plantOwner(f.root, secondUid, "beta", [], "cohort/document");
+    const reference = await plantOwner(f.root, firstUid, "alpha", ["beta"]);
+    await plantOwner(f.root, secondUid, "beta", [], "cohort/document");
+    await plantOwner(f.root, thirdUid, "gamma", [], "cohort/document");
     expect(success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("beta") }))).toEqual({ reference });
+    expect(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("gamma") }))
+      .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   });
 
   it("does not claim a live slug from retained metadata without its primary path", async () => {
@@ -51,7 +55,7 @@ describe("lookup over live state refs", () => {
   it.each(["current", "former"])("names both owners when the highest %s-slug tier is ambiguous", async (tier) => {
     const f = await createRefReadFixture();
     const first = await plantOwner(f.root, firstUid, tier === "current" ? "shared" : "alpha", ["shared"]);
-    const second = await plantOwner(f.root, secondUid, tier === "current" ? "shared" : "beta", ["shared"], "cohort/document");
+    const second = await plantOwner(f.root, secondUid, tier === "current" ? "shared" : "beta", ["shared"]);
     expect(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("shared") })).toMatchObject({ status: "refused", refusal: {
       code: "ambiguous-match", candidates: expect.arrayContaining([first, second]),
     } });

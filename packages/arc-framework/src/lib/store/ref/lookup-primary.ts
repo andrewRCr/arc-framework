@@ -17,19 +17,25 @@ export function lookupPrimary(context: Pick<RefBackendContext, "registry">, ref:
   return tree.entries.some(({ path }) => path === expandStoredPath(reference, { registry: context.registry }).path) ? reference : null;
 }
 
-/** Rank one name consistently, optionally admitting owners whose auxiliary records outlive their primary. */
+/** The lifecycle families whose owners share the slug name space. */
+type NamedFamily = "work-item" | "cohort";
+
+/**
+ * Rank one name consistently, optionally admitting owners whose auxiliary records outlive their primary. `families`
+ * narrows the owners ranked, so a narrower caller never loses a match to an owner it would discard.
+ */
 export function preferredNameTrees(context: Pick<RefBackendContext, "registry">, trees: ReadonlyMap<string, RefLookupTree>,
-  slug: Slug, requirePrimary = true): Array<[string, RefLookupTree]> {
-  const primaries = rankNameTrees(context, trees, slug, true);
-  return requirePrimary || primaries.length ? primaries : rankNameTrees(context, trees, slug, false);
+  slug: Slug, requirePrimary = true, families: readonly NamedFamily[] = ["work-item", "cohort"]): Array<[string, RefLookupTree]> {
+  const primaries = rankNameTrees(context, trees, slug, true, families);
+  return requirePrimary || primaries.length ? primaries : rankNameTrees(context, trees, slug, false, families);
 }
 
 function rankNameTrees(context: Pick<RefBackendContext, "registry">, trees: ReadonlyMap<string, RefLookupTree>,
-  slug: Slug, requirePrimary: boolean): Array<[string, RefLookupTree]> {
+  slug: Slug, requirePrimary: boolean, families: readonly NamedFamily[]): Array<[string, RefLookupTree]> {
   const tiers: Array<Array<[string, RefLookupTree]>> = [[], [], [], []];
   for (const [ref, tree] of trees) {
     const live = tree.liveRef ?? ref;
-    if (!matchesFamilyRef(live, "work-item") && !matchesFamilyRef(live, "cohort")) continue;
+    if (!families.some(family => matchesFamilyRef(live, family))) continue;
     if (requirePrimary && !lookupPrimary(context, ref, tree)) continue;
     const current = tree.metadata.slug === slug;
     if (!current && !tree.metadata.formerSlugs?.includes(slug)) continue;

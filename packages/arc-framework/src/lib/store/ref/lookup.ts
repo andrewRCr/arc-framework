@@ -78,8 +78,9 @@ function commitCandidates(context: Pick<RefBackendContext, "registry">, trees: R
   });
 }
 
+// A slug lookup returns a work item's primary record; a cohort sharing the name space is never its result.
 function slugCandidates(context: Pick<RefBackendContext, "registry">, trees: ReadonlyMap<string, RefLookupTree>, slug: Slug): RecordReference[] {
-  return preferredNameTrees(context, trees, slug).flatMap(([ref, tree]) => {
+  return preferredNameTrees(context, trees, slug, true, ["work-item"]).flatMap(([ref, tree]) => {
     const reference = lookupPrimary(context, ref, tree);
     return reference ? [reference] : [];
   });
@@ -107,7 +108,10 @@ function lookupSkippedRefusal(context: Pick<RefBackendContext, "registry">, inpu
   }
   const skipped = [...unreadable].find(([ref]) => /^refs\/arc\/(?:work|cohort|archive)\//u.test(ref))?.[1];
   if (!skipped) return undefined;
-  if (input.kind === "slug") return preferredNameTrees(context, trees, input.slug).some(([, tree]) => !tree.liveRef && tree.metadata.slug === input.slug) ? undefined : skipped;
+  if (input.kind === "slug") {
+    return preferredNameTrees(context, trees, input.slug, true, ["work-item"]).some(([, tree]) => !tree.liveRef && tree.metadata.slug === input.slug)
+      ? undefined : skipped;
+  }
   if (input.kind === "commit") return commitCandidates(context, trees, input, "sha").length > 0 ? undefined : skipped;
   return matched ? undefined : skipped;
 }
