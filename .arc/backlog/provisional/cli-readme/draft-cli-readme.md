@@ -8,6 +8,28 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Decide the npm landing content for the CLI package README**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-28).
+
+- _Shapes:_ § Problem / Motivation and § Shape: the package now has a README, and it is the check-runner
+  adapter guide.
+
+- _Observation:_ `packages/arc-framework/README.md` is now the check-runner adapter guide, titled "ARC check runners".
+  As the package README it also becomes the `@arc-framework/cli` npm landing page, which then covers only adapters.
+
+- _Approach:_ Decide what the npm page should present, and whether the adapter guide stays at the package root or moves
+  with a link from a general landing README.
+
+- _Captured during:_ `machine-check-runner` verification author check, 2026-10-27; deferred at disposition approval.
+
+---
+
 ## Problem / Motivation
 
 `npm view @arc-framework/cli` shows `readmeFilename: ""` for the published `0.1.0` — there is no

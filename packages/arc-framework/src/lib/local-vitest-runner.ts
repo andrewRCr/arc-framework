@@ -287,6 +287,8 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "check-runner-platform-spelling.test.ts",
         "check-runner-platform.e2e.test.ts",
         "check-symlink-cwd.test.ts",
+        "check-process.test.ts",
+        "check-execution.e2e.test.ts",
       ];
     case "portability-macos":
       return ["anchored-sequence", "git-identity", "locus-errand-roundtrip", "rename"];

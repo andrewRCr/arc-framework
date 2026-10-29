@@ -484,8 +484,12 @@ remote base all name the same exact head. Any tracked change continues through t
    own review verdict. It is a merge blocker separate from ARC's review state, so neither settled review nor an
    Owner-directed stop clears it. `changes-requested` names each blocking review's author, ID, and reviewed commit;
    the host refuses the merge while one stands, so obtain Owner direction to dismiss it or request re-review before
-   the integration interlock. `approval-required` names a host approval still missing. `unavailable` surfaces its
-   `detail`; inspect the PR's native review on the host instead.
+   the integration interlock. To dismiss a review service's review on that direction, pass
+   `{ "schemaVersion": 1, "target": <target>, "review": <blocking review> }` to `arc review hosted dismiss -`, with
+   the exact `{ repository, pullRequest, headSha }` target and the blocking review unchanged. It refuses a person's
+   review or one whose service still has an unresolved thread, and writes the dismissal message itself.
+   `approval-required` names a host approval still missing. `unavailable` surfaces its `detail`; inspect the PR's
+   native review on the host instead.
 
    Under an Owner-directed review stop, `review-required` remains expected; a status refusal or pending/response
    action stops. Recheck the accepted Errand claim, PR, base OID, head, and known review/response state before the

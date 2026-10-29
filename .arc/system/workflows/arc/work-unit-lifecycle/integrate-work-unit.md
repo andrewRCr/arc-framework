@@ -619,8 +619,12 @@ No commit or push may occur after `ready`.
 Re-enter status once over the checkpointed head, in Step 2's status scope, and surface its `hostReview`, the host's
 own review verdict — a merge blocker the ready evidence does not clear. `changes-requested` names each blocking
 review's author, ID, and reviewed commit; the host refuses the merge while one stands, so obtain Owner direction to
-dismiss it or request re-review before merge. `approval-required` names a host approval still missing. On
-`unavailable` or a status refusal, surface the detail and inspect the PR's native review on the host instead.
+dismiss it or request re-review before merge. To dismiss a review service's review on that direction, pass
+`{ "schemaVersion": 1, "target": <target>, "review": <blocking review> }` to `arc review hosted dismiss -`, with the
+exact `{ repository, pullRequest, headSha }` target and the blocking review unchanged. It refuses a person's review or
+one whose service still has an unresolved thread, and writes the dismissal message itself. `approval-required` names
+a host approval still missing. On `unavailable` or a status refusal, surface the detail and inspect the PR's native
+review on the host instead.
 
 > [!IMPORTANT]
 > `integration-interlock`: Stop after the ready evidence and `hostReview` read. Surface each,

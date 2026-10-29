@@ -80,6 +80,9 @@ function isNativeSkippedSpecification({ testModule }: TestSpecification): boolea
 
 /**
  * Mirror native run-mode option normalization before controller configuration.
+ *
+ * Snapshots are never written unless the command line asks: Vitest would otherwise decide from `UPDATE_SNAPSHOT`
+ * and its CI detection, so the same run could rewrite or add snapshots and pass where another fails.
  * @param filters - Native filename filters, including supported line suffixes
  * @param options - Parsed native CLI options
  * @returns Options for public controller creation
@@ -87,6 +90,7 @@ function isNativeSkippedSpecification({ testModule }: TestSpecification): boolea
 export function normalizeVitestOptions(filters: string[], options: CliOptions): CliOptions {
   const { exclude, ...normalized } = options;
   return { ...normalized, watch: options.run ? false : options.watch,
+    update: options.update === undefined || options.update === false ? "none" : options.update,
     ...(exclude === undefined ? {} : { cliExclude: exclude }),
     ...(filters.some((filter) => filter.includes(":")) && options.includeTaskLocation === undefined
       ? { includeTaskLocation: true } : {}) };

@@ -53,6 +53,7 @@ class RunnerSessionTransport implements CheckRunnerSession {
   private sequence = 0;
   private processing = Promise.resolve();
   private protocolFailure: Error | undefined;
+  private inputFailure: Error | undefined;
   private inputClosed = false;
   private processClosed = false;
   private closing: Promise<CheckRunnerClosure> | undefined;
@@ -92,18 +93,20 @@ class RunnerSessionTransport implements CheckRunnerSession {
 
   async request<Operation extends CheckRunnerOperation>(operation: Operation): Promise<RunnerResultByMethod[Operation["method"]]> {
     if (this.protocolFailure !== undefined) throw this.protocolFailure;
+    if (this.inputFailure !== undefined) throw this.inputFailure;
     if (this.inputClosed || this.processClosed) throw sessionError("conversation is closed");
     const parsed = RunnerRequestSchema.safeParse({ ...operation, jsonrpc: "2.0", id: `rpc:${this.sequence++}` });
     if (!parsed.success) throw callerRequestError("operation is invalid");
     const request = parsed.data;
     this.conversation.begin(request);
     return new Promise<RunnerResultByMethod[Operation["method"]]>((resolve, reject) => {
+      // Retain correlation for in-flight replies even when a failed write rejects its caller.
       this.pending.set(request.id, { request, resolve: result => { resolve(result as RunnerResultByMethod[Operation["method"]]); }, reject });
       try {
         this.process.stdin.write(`${JSON.stringify(request)}\n`, error => {
-          if (error !== null && error !== undefined) this.failInputDelivery();
+          if (error !== null && error !== undefined) reject(this.failInputDelivery());
         });
-      } catch { this.failInputDelivery(); }
+      } catch { reject(this.failInputDelivery()); }
     });
   }
 
@@ -117,7 +120,7 @@ class RunnerSessionTransport implements CheckRunnerSession {
 
   close(): Promise<CheckRunnerClosure> {
     if (this.closing !== undefined) return this.closing;
-    if (!this.processClosed && this.protocolFailure === undefined && this.conversation.hasOutstandingWork) {
+    if (!this.processClosed && this.protocolFailure === undefined && this.inputFailure === undefined && this.conversation.hasOutstandingWork) {
       return Promise.reject(callerRequestError("cannot close while work is outstanding; cancel and await its settlement first"));
     }
     this.closing = this.finishClose();
@@ -126,7 +129,7 @@ class RunnerSessionTransport implements CheckRunnerSession {
 
   private async finishClose(): Promise<CheckRunnerClosure> {
     const contextId = this.conversation.releaseContextId;
-    if (contextId !== undefined && !this.processClosed && this.protocolFailure === undefined) {
+    if (contextId !== undefined && !this.processClosed && this.protocolFailure === undefined && this.inputFailure === undefined) {
       try { await this.request({ method: "check/release", params: { contextId } }); }
       catch (error) { this.fail(error instanceof Error ? error : sessionError("context release failed")); }
     }
@@ -151,9 +154,16 @@ class RunnerSessionTransport implements CheckRunnerSession {
     });
   }
 
-  private failInputDelivery(): void {
-    if (this.conversation.closureKind !== undefined) return;
-    this.fail(sessionError("could not deliver a request"));
+  private failInputDelivery(): Error {
+    const error = this.inputFailure ?? sessionError("could not deliver a request");
+    if (this.conversation.closureKind !== undefined || this.inputFailure !== undefined) return error;
+    // Stop further writes immediately, but let received frames establish settlement first.
+    this.inputFailure = error;
+    this.enqueue(() => {
+      if (this.conversation.closureKind !== undefined) return;
+      this.fail(error);
+    });
+    return error;
   }
 
   private async acceptMessage(message: RunnerMessage): Promise<void> {

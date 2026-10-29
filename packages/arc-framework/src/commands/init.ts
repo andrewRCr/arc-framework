@@ -39,7 +39,7 @@ import {
 import { UserFacingError } from "../lib/errors.js";
 import { atomicWriteJson } from "../lib/fs.js";
 import {
-  findOccupiedPaths, findSymlinkedWritePaths, occupiedPathsError, symlinkedWritePathsError,
+  findOccupiedPaths, findSymlinkedWritePaths, occupiedPathsError, symlinkedWritePathsError, writeManifest,
 } from "../lib/manifest/index.js";
 import {
   nodeEditorDocumentsFs, writeEditorDocumentsOrThrow, type EditorDocumentsWriter,
@@ -340,7 +340,7 @@ export async function runInit(
 async function writeInitState(
   cwd: string, internalDir: string, manifest: Manifest, pristineStore: Record<string, string>, io: IOContext,
 ): Promise<void> {
-  await atomicWriteJson(join(internalDir, MANIFEST_FILENAME), manifest);
+  await writeManifest(join(internalDir, MANIFEST_FILENAME), manifest);
   await atomicWriteJson(join(internalDir, PRISTINE_FILENAME), pristineStore);
   await writeEditorDocumentsOrThrow(cwd, io.exec, nodeEditorDocumentsFs, undefined, io.writeEditorDocuments);
 }

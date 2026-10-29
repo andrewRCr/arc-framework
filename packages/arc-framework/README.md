@@ -312,8 +312,9 @@ interface OutcomeParams { contextId: string; invocationId: string; outcome: Term
 ```
 
 `check/run` is mandatory. Groups are optional and require `capabilities.runGroup:true`; otherwise consumers run fixed
-singles sequentially through the same context. Group ID lists contain unique planned IDs. Only one execution request is
-outstanding per context; cancellation may overlap it. Each planned invocation is requested/executed at most once.
+singles sequentially through the same context. Group ID lists must be nonempty and contain unique planned IDs; an empty
+group is a caller error. Only one execution request is outstanding per context; cancellation may overlap it. Each planned
+invocation is requested/executed at most once.
 
 Before accepting ready, ARC must receive one matching `check/recovery` notification with nonblank actionable
 instructions for inspecting and settling preparation/execution by its caller-known UUID after adapter exit. Associate

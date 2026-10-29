@@ -11,13 +11,19 @@ import { scriptGitExec } from "../helpers/git-exec-fake.js";
 
 it("normalizes run-mode exclusions without retaining a CLI-only exclude field", () => {
   expect(normalizeVitestOptions([], { run: true, watch: true, exclude: ["ignored"], maxWorkers: 2 }))
-    .toEqual({ run: true, watch: false, cliExclude: ["ignored"], maxWorkers: 2 });
+    .toEqual({ run: true, watch: false, cliExclude: ["ignored"], maxWorkers: 2, update: "none" });
+});
+it("writes no snapshot unless the command line asks for it", () => {
+  expect(normalizeVitestOptions([], { run: true })).toMatchObject({ update: "none" });
+  expect(normalizeVitestOptions([], { run: true, update: false })).toMatchObject({ update: "none" });
+  expect(normalizeVitestOptions([], { run: true, update: true })).toMatchObject({ update: true });
+  expect(normalizeVitestOptions([], { run: true, update: "new" })).toMatchObject({ update: "new" });
 });
 it("enables task locations for line filters while preserving an explicit override", () => {
   expect(normalizeVitestOptions(["case.test.ts:4"], {})).toMatchObject({ includeTaskLocation: true });
   expect(normalizeVitestOptions(["case.test.ts:4"], { includeTaskLocation: false }))
     .toMatchObject({ includeTaskLocation: false });
-  expect(normalizeVitestOptions(["case.test.ts"], { watch: true })).toEqual({ watch: true });
+  expect(normalizeVitestOptions(["case.test.ts"], { watch: true })).toEqual({ watch: true, update: "none" });
 });
 
 const tiers = [

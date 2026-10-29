@@ -51,7 +51,7 @@ export const TerminalOutcomeSchema = z.discriminatedUnion("status", [
 /** One fixed invocation selected for execution. */
 export const RunParamsSchema = z.strictObject({ contextId: OpaqueIdSchema, invocationId: OpaqueIdSchema });
 /** An explicitly requested optional group of fixed invocations. */
-export const RunGroupParamsSchema = z.strictObject({ contextId: OpaqueIdSchema, invocationIds: InvocationIdsSchema });
+export const RunGroupParamsSchema = z.strictObject({ contextId: OpaqueIdSchema, invocationIds: InvocationIdsSchema.min(1) });
 /** Cancellation coordinates, including preparation before a context exists. */
 export const CancelParamsSchema = z.strictObject({ planId: z.uuid(), contextId: OpaqueIdSchema.optional() });
 /** Context whose lifetime is ready to close. */

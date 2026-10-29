@@ -3,6 +3,7 @@
 import { boundedGitInvocation, type GitExec, type RawGitExec } from "./exec.js";
 import { DEFAULT_NETWORK_TIMEOUT_MS } from "./remote-ref-reader.js";
 import { computeCopyKeys } from "./copy-key.js";
+import { isCompletedGitFailure } from "./process-error.js";
 import type { BranchLink, CommitCapture } from "../store/links.js";
 
 /** Facts retained for one uncaptured commit. */
@@ -83,7 +84,7 @@ async function resolveBaseRefs(input: DefaultCaptureSetInput): Promise<string[]>
         { cwd: input.cwd, objectAccess: "local-only" });
       if (result.stdout.trim() !== "") available.push(result.stdout.trim());
     } catch (error) {
-      if (!(error instanceof Error && "exitCode" in error && error.exitCode === 1)) throw error;
+      if (!(error instanceof Error && "exitCode" in error && error.exitCode === 1 && isCompletedGitFailure(error))) throw error;
     }
   }
   return [...new Set(available)];
@@ -98,7 +99,7 @@ async function revisionWalk(input: DefaultCaptureSetInput, bases: string[]): Pro
         { cwd: input.cwd, objectAccess: "local-only" });
       if (result.stdout.trim() !== "") tips.push(result.stdout.trim());
     } catch (error) {
-      if (!(error instanceof Error && "exitCode" in error && error.exitCode === 1)) throw error;
+      if (!(error instanceof Error && "exitCode" in error && error.exitCode === 1 && isCompletedGitFailure(error))) throw error;
     }
   }
   const result = await input.exec("git", ["--no-replace-objects", "rev-list", "--no-merges", ...tips, "--not", ...bases],
@@ -122,7 +123,7 @@ export async function resolveLinkedCheckoutBranch(input: {
   if (links.length === 0) return { kind: "no-link" };
   const result = await input.exec("git", ["symbolic-ref", "--quiet", "HEAD"], { cwd: input.cwd })
     .catch((error: unknown) => {
-      if (error instanceof Error && "exitCode" in error && error.exitCode === 1) return null;
+      if (error instanceof Error && "exitCode" in error && error.exitCode === 1 && isCompletedGitFailure(error)) return null;
       throw error;
     });
   if (result === null) return { kind: "detached" };

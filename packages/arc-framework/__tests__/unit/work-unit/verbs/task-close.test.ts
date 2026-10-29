@@ -35,6 +35,23 @@ async function harness(content = tasks(), links: Links = { branches: [{ reposito
     readMeta: async () => lifecycleSuccess(await store.read({ reference: meta.reference })),
   };
 }
+it("preserves task records on an interrupted branch probe and closes after repair", async () => {
+  const h = await harness(), beforeTasks = await h.readTasks(), beforeMeta = await h.readMeta();
+  const failure = Object.assign(new Error("Branch probe interrupted"), { exitCode: 1, isCanceled: true });
+  const original = h.ctx.exec;
+  let broken = true;
+  h.ctx.exec = async (command, args, options) => {
+    if (broken && args[0] === "symbolic-ref") throw failure;
+    return original(command, args, options);
+  };
+  await expect(runTaskClose(h.ctx)).rejects.toBe(failure);
+  expect(await h.readTasks()).toEqual(beforeTasks);
+  expect(await h.readMeta()).toEqual(beforeMeta);
+  broken = false;
+  expect(await runTaskClose(h.ctx)).toMatchObject({ status: "closed", ids: ["1.1.a"] });
+  expect((await h.readTasks()).content).toBe(tasks(" ", "x", " "));
+});
+
 it("bare close closes only the cursor leaf", async () => {
   const h = await harness();
   const result = await runTaskClose(h.ctx);

@@ -19,6 +19,7 @@ export const ReviewCommandModeSchema = z.enum([
   "review-hosted-request",
   "review-hosted-await",
   "review-hosted-settle",
+  "review-hosted-dismiss",
   "review-terminus-accept",
   "review-pre-publication",
 ]);
