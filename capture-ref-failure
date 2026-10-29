@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "capture-ref-failure",
+  "claimId": "6b29894b317347bbade15f929626039d",
+  "createdAt": "2026-10-29T12:21:03.194Z",
+  "updatedAt": "2026-10-29T12:21:03.194Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Preserve incomplete Git failures in default commit capture inventory",
+  "branch": "chore/capture-ref-failure",
+  "origin": "inbox",
+  "originEntry": "Require completed Git failure before default capture inventory treats a ref as absent",
+  "originEntrySourceDigest": "sha256:2799ae3b7fe1988003e45f8ee16a1104184c2d9203eeec35690f9d2f03c6b88e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
