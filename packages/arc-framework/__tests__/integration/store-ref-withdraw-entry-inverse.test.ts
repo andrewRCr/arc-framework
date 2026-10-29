@@ -199,7 +199,7 @@ describe.each(["default", "separate"] as const)("whole withdrawal entry inverse 
       expect(success(await h.a.store.read({ reference })).content).toBe(before);
     });
 
-    it.each(["tree", "blob", "commit", "unrelated failure", "completed failure", "readable diagnostic"] as const)("holds unavailable ancestor %s before any inverse write and retries after exact restoration", async damage => {
+    it.each(["tree", "blob", "commit", "label walk", "unrelated failure", "completed failure", "readable diagnostic"] as const)("holds unavailable ancestor %s before any inverse write and retries after exact restoration", async damage => {
       const h = await refSyncFixture(layout);
       const made = success(await h.a.store.write({ action: "put", expected: null,
         reference: RecordReferenceSchema.parse({ owner: { type: "work-item", name: "ancestor-inverse" }, kind: "work-item/meta" }),
@@ -209,10 +209,12 @@ describe.each(["default", "separate"] as const)("whole withdrawal entry inverse 
       const home = expandStoredPath(reference, { registry: createKindRegistry(PRODUCTION_REGISTRATIONS) });
       success(await h.a.store.write({ action: "put", reference, expected: null, content: empty + old, provenance }));
       const common = (await h.a.git(["rev-parse", home.ref])).stdout.trim();
-      const oid = (await h.a.git(["rev-parse", damage === "commit" ? common : damage === "tree" ? `${common}^{tree}` : `${common}:${home.path}`])).stdout.trim();
+      // The label walk loses the common tree only once the entry label reads history, after every other ancestor read.
+      const treeDamage = damage === "tree" || damage === "label walk";
+      const oid = (await h.a.git(["rev-parse", damage === "commit" ? common : treeDamage ? `${common}^{tree}` : `${common}:${home.path}`])).stdout.trim();
       const gitScope = h.a.gitDir ? [`--git-dir=${h.a.gitDir}`] : [];
-      const type = damage === "commit" ? "commit" : damage === "tree" ? "tree" : "blob";
-      const unavailable = damage === "tree" || damage === "blob" || damage === "commit";
+      const type = damage === "commit" ? "commit" : treeDamage ? "tree" : "blob";
+      const unavailable = treeDamage || damage === "blob" || damage === "commit";
       const bytes = (await h.a.ports.rawExec([...gitScope, "cat-file", type, oid], { cwd: h.a.root, objectAccess: "local-only" })).stdout;
       success(await h.a.store.push()); success(await h.b.store.pull());
       const original = success(await h.a.store.read({ reference }));
@@ -238,7 +240,7 @@ describe.each(["default", "separate"] as const)("whole withdrawal entry inverse 
       const observing = createRefStore({ ...h.a.ports, lock: async (ref, wait) => {
         const release = await h.a.ports.lock(ref, wait);
         locked.add(ref);
-        if (!damaged && unavailable && requiredLocks.every(ref => locked.has(ref))) {
+        if (!damaged && unavailable && damage !== "label walk" && requiredLocks.every(ref => locked.has(ref))) {
           damaged = true;
           await removeLooseObject(h.a.root, oid, h.a.gitDir);
           refs = await stateRefs(h.a);
@@ -246,6 +248,12 @@ describe.each(["default", "separate"] as const)("whole withdrawal entry inverse 
         }
         return async () => { locked.delete(ref); await release(); };
       }, exec: async (command, args, options) => {
+        if (!damaged && damage === "label walk" && args.includes("log") && args.includes(`:(literal)${home.path}`)) {
+          damaged = true;
+          await removeLooseObject(h.a.root, oid, h.a.gitDir);
+          refs = await stateRefs(h.a);
+          objects = (await h.a.git(["count-objects", "-v"])).stdout;
+        }
         if (!damaged && !unavailable && args.includes("merge-base") && args.includes(before) && args.includes(incoming)) {
           damaged = true;
           refs = await stateRefs(h.a);

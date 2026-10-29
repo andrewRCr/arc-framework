@@ -17,6 +17,7 @@ import { corruptRef } from "./namespace-health.js";
 import { writeRefBlob } from "./tree-write.js";
 import { completeSyncPlacements } from "./sync-placement.js";
 import { readSyncRefs } from "./sync-graph.js";
+import { readHistoricalGraph } from "./history-graph.js";
 import type { SyncTreeSide } from "./sync-tree.js";
 
 /** Applied absence is distinct from an inapplicable entry inverse and from present empty bytes. */
@@ -44,10 +45,10 @@ export async function inverseEntryDocument(context: RefBackendContext, step: Wit
   ];
   const [ancestor, before, after, current, published] = originals
     .map(([source, entries]) => entryDocument(step.ref, definition, path, entries, objects, source));
-  const beforeLabel = await entryLabel(context, step.beforeTip || step.afterTip, path);
-  const publishedLabel = step.publishedTip ? await entryLabel(context, step.publishedTip, path) : beforeLabel;
+  const beforeLabel = await entryLabel(context, step.ref, step.beforeTip || step.afterTip, path);
+  const publishedLabel = step.publishedTip ? await entryLabel(context, step.ref, step.publishedTip, path) : beforeLabel;
   const currentLabel = sameDocument(current, published) ? publishedLabel : step.currentTip
-    ? await entryLabel(context, step.currentTip, path) : beforeLabel;
+    ? await entryLabel(context, step.ref, step.currentTip, path) : beforeLabel;
   const without = await mergeDocumentStage(context, step.ref, definition, ancestor, before, published, beforeLabel, publishedLabel);
   const inverse = await mergeDocumentStage(context, step.ref, definition, after, current, without.selected, currentLabel,
     sameDocument(without.selected, published) ? publishedLabel : beforeLabel);
@@ -124,8 +125,8 @@ function documentVersion(definition: EntryDefinition, document: EntryDocument) {
   return refRecordVersion(definition.reference, document.entry.oid, document.metadata, document.formatVersion);
 }
 
-async function entryLabel(context: RefBackendContext, tip: string, path: string): Promise<SideLabel> {
-  const { stdout } = await context.exec("git", ["log", "-1", "--format=%H", tip, "--", `:(literal)${path}`],
-    { cwd: context.checkoutRoot, objectAccess: "local-only" });
-  return readStoredMergeLabel(context, stdout.trim() || tip);
+async function entryLabel(context: RefBackendContext, ref: string, tip: string, path: string): Promise<SideLabel> {
+  const walked = await readHistoricalGraph(context, ["log", "-1", "--format=%H", tip, "--", `:(literal)${path}`], corruptRef(ref, true));
+  if (walked.status === "refused") throw new RefSyncLabelError(ref, walked.refusal);
+  return readStoredMergeLabel(context, walked.result.trim() || tip);
 }
