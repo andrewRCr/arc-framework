@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "delivery-position-e2e-headroom",
+  "claimId": "8e44d83a545c8877465bbe531757c8cd",
+  "createdAt": "2026-10-29T02:09:18.418Z",
+  "updatedAt": "2026-10-29T02:09:18.418Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Keep delivery-position.e2e's review-correction case inside its time limit on hosted Linux",
+  "branch": "chore/delivery-position-e2e-headroom",
+  "origin": "inbox",
+  "originEntry": "Keep `delivery-position.e2e.test.ts`'s review-correction case inside its time limit on hosted Linux",
+  "originEntrySourceDigest": "sha256:6846fca69b1e2ec99b33881589356d4bc3e4b1849d340a18d24e639f5319e43c",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
