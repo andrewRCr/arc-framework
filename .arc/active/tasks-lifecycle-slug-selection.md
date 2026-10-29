@@ -944,7 +944,7 @@ an ordering the spec records rather than a dependency edge.
   above an Errand while preserving cohort and Errand-only ties. Refusals carry the slug tier; name-only binding
   keeps its completed ambiguity, other arms omit tier facts, and status no longer supplies a completed-tie fallback.
 
-### `[ ]` **8.2 Rank the ref backend's `ref` arm, and match its work-unit claims by UID — § 1.3, § 1.4, § 1.5**
+### `[x]` **8.2 Rank the ref backend's `ref` arm, and match its work-unit claims by UID — § 1.3, § 1.4, § 1.5**
 
 - _Goal:_ The ref backend resolves a reused slug's branch to its live holder and each work-unit claim to the owner with
   its UID, live or archived, and nothing without one.
@@ -958,20 +958,11 @@ an ordering the spec records rather than a dependency edge.
           ambiguity carries liveness alone. Unreadable work or cohort evidence blocks a completed answer until
           forward repair, while readable live matches remain conclusive.
 
-    - `[ ]` **8.2.b The claim arm**
+    - `[x]` **8.2.b The claim arm**
 
-        - `claimLookupCandidates` (`lib/store/ref/lookup-claims.ts`) matches a work-unit claim by its UID alone,
-          ignoring its slug, as 4.3.a's reference backend does, to the one owner with that UID, archived owners included
-          (`readLookupTrees`, `lookup-trees.ts`), and resolves one without a UID to `not-found`. It compares the name
-          before the kind today.
-        - `store-ref-lookup-claims.test.ts`'s case resolving a work-unit claim by slug sends the seeded owner's UID. A
-          claim without a UID resolves to `not-found` before the skipped-ref check, so
-          `store-ref-broken-lookup.test.ts`'s claim, which sends none, carries an unknown UID and still refuses
-          `namespace-corrupt`.
-        - Build `test-first` (one behavior at a time):
-            - over the ref backend, a reused slug's claims resolve the live and the archived holder each by its own UID,
-              and a claim carrying a holder's UID beside another slug resolves to that holder
-            - a claim without a UID resolves to `not-found`
+        - Work-unit claims match the allocated UID alone across live and archived owners; stale marker names do not
+          redirect them. Missing UIDs conclude not-found before unreadable evidence, unknown UIDs never fall back
+          to a name, and native public/checked fixtures carry the intended owner's UID.
 
 ### `[ ]` **8.3 Pin the lookup's rules in the conformance suite — § 1, § 10.2**
 

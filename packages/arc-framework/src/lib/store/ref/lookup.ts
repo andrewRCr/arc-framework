@@ -36,6 +36,7 @@ export async function lookupRefRecord(context: RefBackendContext, input: LookupI
 /** Match the same lookup rules against a caller's captured or prepared tree set. */
 export function lookupCapturedRefTrees(context: Pick<RefBackendContext, "registry">, input: LookupInput,
   trees: ReadonlyMap<string, RefLookupTree>, unreadable: ReadonlyMap<string, StoreRefusal> = new Map()): StoreResult<LookupResult> {
+  if (input.kind === "claim" && input.claim.kind === "work-unit" && input.claim.uid === undefined) return missingLookup(input);
   const payload = input.kind === "claim" ? claimPayloadRefusal(context, input.claim, trees) : undefined;
   if (payload) return { status: "refused", refusal: payload };
   const selection = lookupCandidates(context, input, trees), { candidates, tie } = selection;
@@ -46,7 +47,11 @@ export function lookupCapturedRefTrees(context: Pick<RefBackendContext, "registr
     remedy: { text: "Name the intended owner by UID and rename one to a free slug, then repeat the lookup." },
   } };
   const result = candidates[0];
-  return result ? { status: "ok", result } : { status: "refused", refusal: {
+  return result ? { status: "ok", result } : missingLookup(input);
+}
+
+function missingLookup(input: LookupInput): StoreResult<LookupResult> {
+  return { status: "refused", refusal: {
     code: "not-found", class: "recoverable", lookup: input, condition: input.kind === "claim" && input.claim.kind === "partial-errand" ? "A partial Errand claim keeps no stored record."
       : "No readable primary, claim, or lineage origin matches this lookup.",
     remedy: { text: "Pull state or correct the requested name or origin, then repeat the lookup." },

@@ -7,6 +7,7 @@ import { RecordReferenceSchema, type LookupInput } from "../../src/lib/store/ind
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 
+const unknownUid = "00000000-0000-4000-8000-000000000099";
 const repository = "repo", sha = "a".repeat(40), copyKey = `v1:${"b".repeat(64)}:${"c".repeat(64)}`;
 
 async function brokenScan(damage: "metadata" | "root") {
@@ -48,7 +49,7 @@ describe("lookup with an unreadable item ref", () => {
       { kind: "slug", slug: SlugSchema.parse(f.broken.reference.owner.name) },
       { kind: "commit", repository, sha: "d".repeat(40), copyKey },
       { kind: "ref", repository, ref: "feat/unknown" },
-      { kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse("unknown") } },
+      { kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse("unknown"), uid: unknownUid } },
     ];
     for (const input of inputs) expect(await f.store.lookup(input)).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: f.ref } });
   });
@@ -106,7 +107,7 @@ describe("lookup with an unreadable item ref", () => {
     const damaged = await plantRef(f.root, ref, [{ path: `cohort-${cohort.reference.owner.name}.md`, content: cohort.content }], { parents: [parent] });
     expect(success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse(readable.reference.owner.name) }))).toEqual({ reference: readable.reference });
     expect(success(await f.store.lookup({ kind: "commit", repository, sha, copyKey }))).toEqual({ reference: readable.reference, taskIds: ["1.1"] });
-    expect(success(await f.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(readable.reference.owner.name) } })))
+    expect(success(await f.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(readable.reference.owner.name), uid: "uid" in readable.reference.owner ? readable.reference.owner.uid : undefined } })))
       .toEqual({ reference: readable.reference });
     for (const slug of ["absent", cohort.reference.owner.name]) {
       expect(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse(slug) }))
@@ -115,7 +116,7 @@ describe("lookup with an unreadable item ref", () => {
     expect(success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse(known.reference.owner.name) })))
       .toEqual({ reference: known.reference });
     for (const input of [{ kind: "commit", repository, sha: "d".repeat(40), copyKey: `v1:${"e".repeat(64)}:${"f".repeat(64)}` },
-      { kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse("absent") } }] satisfies LookupInput[]) {
+      { kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse("absent"), uid: unknownUid } }] satisfies LookupInput[]) {
       expect(await f.store.lookup(input)).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
     }
     expect(await f.store.lookup({ kind: "ref", repository, ref: "feat/unknown" })).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: ref } });
@@ -144,6 +145,16 @@ describe("lookup with an unreadable item ref", () => {
     expect(await f.store.lookup(input)).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: ref } });
     await plantRef(f.root, ref, [{ path, content: metadata }, { path: primary, content: broken.content }], { parents: [damaged.tip] });
     expect(success(await f.store.lookup(input)).reference).toEqual(readable.reference);
+  });
+
+  it("treats unbound work-unit claims as absent despite unreadable metadata and resolves a bound retry", async () => {
+    const f = await brokenScan("metadata");
+    for (const name of [f.readable.reference.owner.name, f.broken.reference.owner.name, "unknown"]) {
+      expect(await f.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(name) } }))
+        .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    }
+    expect(success(await f.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: f.readable.reference.owner.name,
+      uid: "uid" in f.readable.reference.owner ? f.readable.reference.owner.uid : undefined } }))).toEqual({ reference: f.readable.reference });
   });
 
 });
