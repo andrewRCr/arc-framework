@@ -3,7 +3,7 @@
   "slug": "store-suite-time",
   "claimId": "56adb770dd38e4d9956480fe9a75c28e",
   "createdAt": "2026-10-29T20:59:32.987Z",
-  "updatedAt": "2026-10-29T20:59:32.987Z",
+  "updatedAt": "2026-10-29T23:23:57.259Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Measure where the store suites spend their time",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Measure where the store suites spend their time",
   "originEntrySourceDigest": "sha256:e2f697bc0263e04ea49af75527aaf49d3c08da1e1f3705bb931c64d86829bc21",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/store-suite-time",
+    "headSha": "a60447bea3de2ea11f1a16c62a41f90dca53b1df"
+  }
 }
