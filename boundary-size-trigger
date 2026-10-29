@@ -3,14 +3,20 @@
   "slug": "boundary-size-trigger",
   "claimId": "c35bf7fdbe35967abcda0a5104b2bd9c",
   "createdAt": "2026-10-29T20:02:27.366Z",
-  "updatedAt": "2026-10-29T20:02:27.366Z",
+  "updatedAt": "2026-10-29T20:52:01.768Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Make size a trigger for the boundary decision in this project's planning",
   "branch": "chore/boundary-size-trigger",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/boundary-size-trigger",
+    "headSha": "64d9896427f573592dec7c5c7a6020b2952f471f"
+  }
 }
