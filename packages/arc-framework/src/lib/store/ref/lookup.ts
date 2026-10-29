@@ -78,9 +78,9 @@ function commitCandidates(context: Pick<RefBackendContext, "registry">, trees: R
   });
 }
 
-// A slug lookup returns a work item's primary record; a cohort sharing the name space is never its result.
+// Work items and cohorts compete in the same slug tiers.
 function slugCandidates(context: Pick<RefBackendContext, "registry">, trees: ReadonlyMap<string, RefLookupTree>, slug: Slug): RecordReference[] {
-  return preferredNameTrees(context, trees, slug, true, ["work-item"]).flatMap(([ref, tree]) => {
+  return preferredNameTrees(context, trees, slug).flatMap(([ref, tree]) => {
     const reference = lookupPrimary(context, ref, tree);
     return reference ? [reference] : [];
   });
@@ -99,10 +99,9 @@ function lineageCandidates(trees: ReadonlyMap<string, RefLookupTree>, origin: st
   return matches.map(([uid, name]) => RecordReferenceSchema.parse({ owner: { type: "work-item", name, uid }, kind: "lineage/transition" }));
 }
 
-// Only a ref lookup can answer with a cohort; a slug, commit, or checkout claim answers with a work item alone, so an
-// unreadable cohort could not hold a better answer to any of them.
+// Slug and ref lookups admit cohorts; commit and work-unit claim evidence stays within work-item holders.
 function answerHolders(input: LookupInput): RegExp {
-  return input.kind === "ref" ? /^refs\/arc\/(?:work|cohort|archive)\//u : /^refs\/arc\/(?:work|archive)\//u;
+  return input.kind === "ref" || input.kind === "slug" ? /^refs\/arc\/(?:work|cohort|archive)\//u : /^refs\/arc\/(?:work|archive)\//u;
 }
 
 function lookupSkippedRefusal(context: Pick<RefBackendContext, "registry">, input: LookupInput,
@@ -116,7 +115,7 @@ function lookupSkippedRefusal(context: Pick<RefBackendContext, "registry">, inpu
   const skipped = [...unreadable].find(([ref]) => holders.test(ref))?.[1];
   if (!skipped) return undefined;
   if (input.kind === "slug") {
-    return preferredNameTrees(context, trees, input.slug, true, ["work-item"]).some(([, tree]) => !tree.liveRef && tree.metadata.slug === input.slug)
+    return preferredNameTrees(context, trees, input.slug).some(([, tree]) => !tree.liveRef && tree.metadata.slug === input.slug)
       ? undefined : skipped;
   }
   if (input.kind === "commit") return commitCandidates(context, trees, input, "sha").length > 0 ? undefined : skipped;

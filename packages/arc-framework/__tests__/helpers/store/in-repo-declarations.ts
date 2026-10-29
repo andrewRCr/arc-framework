@@ -70,6 +70,7 @@ for (const family of families) {
   familyExclusions[family] = { items: { 10: "Interim substrates have no newer-format envelope." }, assertions };
 }
 Object.assign(familyExclusions["work-item"]?.assertions ?? {}, {
+  "slug-held-only-by-a-cohort": "In-repo slug lookup resolves work-unit metadata only; cohort slug resolution belongs to store-arm backends.",
   "primary-role-transition-retains-generation-and-metadata": "Interim UID-less meta and Errand records retain distinct substrates; promotion is not rerouted here.",
   "primary-role-stale-absence-and-atomic-batch-guards": "Interim UID-less meta and Errand records retain distinct substrates; promotion is not rerouted here.",
   "primary-role-reopen-sync-and-current-side-conflicts": "Interim UID-less meta and Errand records retain distinct substrates; promotion is not rerouted here.",

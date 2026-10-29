@@ -78,10 +78,10 @@ export function registerLookupAssertions(context: SuiteContext): void {
     success(await fixture.store.write({ ...update(fixture, record), reference: renamed }));
     for (const slug of [record.reference.owner.name, renamed.owner.name]) expect(success(await fixture.store.lookup({ kind: "slug", slug })).reference).toEqual(renamed);
   });
-  assertion(context, "work-item", "slug-held-only-by-a-cohort-not-found", async (fixture) => {
+  assertion(context, "work-item", "slug-held-only-by-a-cohort", async (fixture) => {
     const cohort = await seed(fixture, fixture.reference("cohort/document"));
-    expect(await fixture.store.lookup({ kind: "slug", slug: cohort.reference.owner.name }))
-      .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    expect(success(await fixture.store.lookup({ kind: "slug", slug: cohort.reference.owner.name })).reference)
+      .toEqual(cohort.reference);
   }, context.registration.declarations.families.includes("cohort") ? undefined : "No cohort is served to hold the name.");
   assertion(context, "lineage", "terminal-transition-after-primary-removal", async (fixture) => {
     const work = await seed(fixture, fixture.reference("work-item/meta"));

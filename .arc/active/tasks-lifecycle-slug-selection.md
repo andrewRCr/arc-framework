@@ -924,11 +924,24 @@ changes rewritten.
 _Design decisions:_ The phase starts once the ref backend has landed on `main` and this branch has merged it (§ 10.2),
 an ordering the spec records rather than a dependency edge.
 
+### `[x]` **8.R Align cohort slug lookup and conformance**
+
+- _Goal:_ Realize the existing cohort-ranking outcome across both store-arm backends (A3), with unreadable cohort
+  evidence preserved and shared conformance aligned before the remaining Phase 8 work proceeds.
+- _Outcome:_ Cohort primaries participate in slug ranking and unreadable-cohort evidence. Highest live current-name
+  matches stay conclusive; unresolved lookups resume after forward repair. Shared conformance requires cohort
+  resolution on both store-arm backends, with the in-repo limitation declared explicitly.
+
 ### `[ ]` **8.1 Break a completed tie, and set the tie's facts, in the ref backend's slug arm — § 1.2, § 1.5**
 
 - _Goal:_ The ref backend's slug lookup resolves a completed tie that includes a work unit to its latest archived work
   unit, as the reference backend does, and names a tie's tier on its refusal, while its name-only reference binding
   keeps refusing a completed tie.
+
+    - _Amended in:_ 8.R (A3)
+
+- **Additional Context:** `notes-lifecycle-slug-selection.md` § Regrounding after the ref backend landing
+  (2026-10-29).
 
 - _Context:_ the ref backend lands on `main` with the expected contracts the spec states (§ 11): its slug ranking
   (`rankNameTrees` under `preferredNameTrees`, `lib/store/ref/lookup-primary.ts`) already tiers work-item and cohort
@@ -962,6 +975,9 @@ an ordering the spec records rather than a dependency edge.
 - _Goal:_ The ref backend resolves a reused slug's branch to its live holder and each work-unit claim to the owner with
   its UID, live or archived, and nothing without one.
 
+- **Additional Context:** `notes-lifecycle-slug-selection.md` § Regrounding after the ref backend landing
+  (2026-10-29).
+
     - `[ ]` **8.2.a The `ref` arm**
 
         - `lookupCandidates` (`lib/store/ref/lookup.ts`) ranks the primaries linking a branch as 1.3 states, breaking a
@@ -994,6 +1010,11 @@ an ordering the spec records rather than a dependency edge.
 
 - _Goal:_ Every store-arm backend the shared suite registers is held to the lookup's rules, so no backend can drift from
   them unnoticed.
+
+    - _Amended in:_ 8.R (A3)
+
+- **Additional Context:** `notes-lifecycle-slug-selection.md` § Regrounding after the ref backend landing
+  (2026-10-29).
 
     - `suite-lookup.ts` (`__tests__/helpers/store/`) gains the assertions public writes can build on both backends: a
       slug a cohort holds resolving to the cohort's document, the completed tie-break over reuse, three generations

@@ -31,14 +31,18 @@ describe("lookup over live state refs", () => {
     expect(success(await f.store.lookup({ kind: "slug", slug }))).toEqual({ reference });
   });
 
-  it("returns a work item by its former slug beside a cohort holding it, and never the cohort alone", async () => {
+  it("ranks a cohort current slug above a work item's former slug", async () => {
     const f = await createRefReadFixture();
-    const reference = await plantOwner(f.root, firstUid, "alpha", ["beta"]);
-    await plantOwner(f.root, secondUid, "beta", [], "cohort/document");
-    await plantOwner(f.root, thirdUid, "gamma", [], "cohort/document");
+    await plantOwner(f.root, firstUid, "alpha", ["beta"]);
+    const reference = await plantOwner(f.root, secondUid, "beta", [], "cohort/document");
     expect(success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("beta") }))).toEqual({ reference });
-    expect(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("gamma") }))
-      .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  });
+
+  it.each(["current", "former"])("resolves a cohort-only %s slug", async (match) => {
+    const f = await createRefReadFixture();
+    const reference = await plantOwner(f.root, thirdUid, "gamma", ["before-gamma"], "cohort/document");
+    const slug = SlugSchema.parse(match === "current" ? "gamma" : "before-gamma");
+    expect(success(await f.store.lookup({ kind: "slug", slug }))).toEqual({ reference });
   });
 
   it("does not claim a live slug from retained metadata without its primary path", async () => {
