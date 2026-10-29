@@ -8,7 +8,7 @@ import { classifyRemoteFailure, PASSIVE_REMOTE_INTERACTION } from "./remote-ref-
 /** One remote ref's reported push result. */
 export type PushRefOutcome =
   | { ref: string; status: "ok" }
-  | { ref: string; status: "rejected" | "remote-rejected"; reason: string }
+  | { ref: string; status: "rejected" | "remote-rejected" | "remote-failure"; reason: string }
   | { ref: string; status: "atomic-collateral" };
 
 /** Captured process output, retained verbatim for refusal diagnostics. */
@@ -51,7 +51,9 @@ function parseRefLine(line: string): PushRefOutcome | null {
   if (reason === "atomic push failed" || reason === "atomic push failure") {
     return { ref, status: "atomic-collateral" };
   }
-  return { ref, status: rejection?.[1] === "remote rejected" ? "remote-rejected" : "rejected", reason };
+  const label = rejection?.[1];
+  // A receiver that reported no status leaves the ref's outcome unknown, never a client-side rejection.
+  return { ref, status: label === "remote rejected" ? "remote-rejected" : label === "remote failure" ? "remote-failure" : "rejected", reason };
 }
 
 /** An explicit source tip (null deletes), optionally leased on the remote's old tip or absence. */

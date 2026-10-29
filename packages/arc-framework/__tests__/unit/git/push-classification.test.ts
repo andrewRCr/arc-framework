@@ -28,6 +28,12 @@ describe("state push classification", () => {
       status: "by-state", causes: [{ ref: first, disposition: "by-state", reason }],
     });
   });
+  it("reads a receiver that reported no status by state", () => {
+    const reason = "remote failed to report status";
+    expect(classifyPushOutcome(parsed([rejected(first, "remote failure", reason)]))).toMatchObject({
+      status: "by-state", causes: [{ ref: first, disposition: "by-state", reason }],
+    });
+  });
   it.each([
     ["non-fast-forward", "rejected", "lost-race"],
     ["failed to update ref", "remote rejected", "by-state"],

@@ -31,7 +31,7 @@ const clientRaces = new Set(["non-fast-forward", "fetch first", "stale info"]);
 const serverRaces = /(?:cannot lock ref|incorrect old value provided|reference already exists|reference does not exist|\bTF401028\b)/u;
 
 function classifyRefCause(row: Extract<PushRefOutcome, { reason: string }>): PushRejectionCause {
-  const disposition = row.status === "rejected" ? clientRaces.has(row.reason) ? "lost-race" : "refused"
+  const disposition = row.status === "remote-failure" ? "by-state" : row.status === "rejected" ? clientRaces.has(row.reason) ? "lost-race" : "refused"
     : serverRaces.test(row.reason) ? "lost-race" : "by-state";
   return { ref: row.ref, disposition, reason: row.reason };
 }

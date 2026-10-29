@@ -24,6 +24,7 @@ describe("push porcelain", () => {
     ["second:refs/arc/a", "rejected", "fetch first", "rejected"],
     ["second:refs/arc/a", "remote rejected", "pre-receive hook declined", "remote-rejected"],
     ["second:refs/arc/a", "remote rejected", "atomic transaction failed", "remote-rejected"],
+    ["second:refs/arc/a", "remote failure", "remote failed to report status", "remote-failure"],
     ["first:refs/arc/a", "rejected", "atomic push failed", "atomic-collateral"],
     ["first:refs/arc/a", "remote rejected", "atomic push failure", "atomic-collateral"],
   ])("preserves the cause of %s [%s] (%s)", (pair, label, reason, status) => {
