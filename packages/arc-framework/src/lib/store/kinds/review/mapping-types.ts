@@ -13,6 +13,7 @@ export interface ReviewMappingInput {
   candidates: {
     workItem: string;
     versions: { commit: string; content: string }[];
+    current: string | null;
     boundary: string | null;
   }[];
   workItems: ReviewMappingWorkItem[];

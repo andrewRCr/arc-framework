@@ -38,7 +38,7 @@ it.each(["fallback", "retry"] as const)("preserves a mapped %s lane's terminal p
   const lineage = { kind: "candidate" as const, candidateId: candidate.attestation.candidateId };
   const imported = { workItems: [{ kind: "work-unit" as const, slug: "example", uid: primary.reference.owner.uid, live: true }],
     candidates: [{ workItem: primary.reference.owner.uid, versions: [{ commit: "a".repeat(40),
-      content: serializeCandidateManagedRecord(candidate) }], boundary: null }] };
+      content: serializeCandidateManagedRecord(candidate) }], current: serializeCandidateManagedRecord(candidate), boundary: null }] };
   const fixture = await createLocalMappingFixture({ repositoryId: projectId, lineage,
     vehicle: { kind: "work-unit", identity: "example" }, imported });
   let store = fixture.dependencies.operationStore, resultReader: ReviewResultReader = fixture.resultReader;

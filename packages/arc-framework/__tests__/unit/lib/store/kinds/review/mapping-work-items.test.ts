@@ -15,7 +15,7 @@ function candidateInput(): ReviewMappingInput {
     baseRevision: "b".repeat(40), attestedAt: "2026-08-13T14:00:00Z", supersedes: older.attestation.candidateId }) };
   return { projectId: "project-1", gate: [], workItems: [workItem], candidates: [{ workItem: workItem.uid,
     versions: [older, current].map((record, index) => ({ commit: String(index + 1).repeat(40),
-      content: serializeCandidateManagedRecord(record) })), boundary: null }] };
+      content: serializeCandidateManagedRecord(record) })), current: null, boundary: null }] };
 }
 
 it("resolves a superseded Candidate through the supplied chain to its imported work-item UID", () => {

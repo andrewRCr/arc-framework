@@ -69,7 +69,7 @@ export async function storedCandidateApproval(candidate: import("../../src/lib/w
     vehicle: { kind: "work-unit", identity: owner.name },
     imported: { workItems: [{ kind: "work-unit", slug: owner.name, uid: owner.uid, live: true }],
       candidates: [{ workItem: owner.uid, versions: [{ commit: "a".repeat(40),
-        content: serializeCandidateManagedRecord(candidate) }], boundary: null }] } });
+        content: serializeCandidateManagedRecord(candidate) }], current: serializeCandidateManagedRecord(candidate), boundary: null }] } });
   await fixture.conclude();
   const producer = await fixture.resultReader.readResult(fixture.state.operationId);
   const initial = approvedRecord(producer, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);

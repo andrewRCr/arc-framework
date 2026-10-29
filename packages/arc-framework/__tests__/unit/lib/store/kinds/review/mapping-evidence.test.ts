@@ -230,7 +230,7 @@ it("retains a Candidate-only approval binding on the imported work unit", async 
   const workItem = { kind: "work-unit" as const, slug: "example", uid: "123e4567-e89b-42d3-a456-426614174000", live: true };
   const fixture = await createLocalMappingFixture({ lineage: { kind: "candidate", candidateId: candidate.attestation.candidateId },
     vehicle: { kind: "work-unit", identity: workItem.slug }, imported: { workItems: [workItem], candidates: [{ workItem: workItem.uid,
-      versions: [{ commit: "a".repeat(40), content: serializeCandidateManagedRecord(candidate) }], boundary: null }] } });
+      versions: [{ commit: "a".repeat(40), content: serializeCandidateManagedRecord(candidate) }], current: serializeCandidateManagedRecord(candidate), boundary: null }] } });
   await fixture.conclude();
   const producer = await fixture.resultReader.readResult(fixture.state.operationId);
   const original = approvedRecord(producer, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "defer" }]);

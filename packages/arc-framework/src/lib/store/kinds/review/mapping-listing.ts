@@ -8,6 +8,7 @@ export type ReviewMappingSource =
   | { kind: "gate"; source: string; bytes: Uint8Array }
   | { kind: "materialization"; source: string }
   | { kind: "candidate"; source: string; workItem: ReviewMappingWorkItem; commit: string; content: string }
+  | { kind: "current-candidate"; source: string; workItem: ReviewMappingWorkItem; content: string }
   | { kind: "boundary"; source: string; workItem: ReviewMappingWorkItem; content: string };
 
 function gateSources(files: ReviewMappingInput["gate"]): ReviewMappingSource[] {
@@ -34,6 +35,7 @@ export function collectReviewMappingSources(input: ReviewMappingInput): ReviewMa
     for (const version of candidate.versions) {
       sources.push({ kind: "candidate", source: `${path}@${version.commit}`, workItem, ...version });
     }
+    if (candidate.current !== null) sources.push({ kind: "current-candidate", source: path, workItem, content: candidate.current });
     if (candidate.boundary !== null) {
       sources.push({ kind: "boundary", source: resolveSubmissionBoundaryPath(workItem.slug), workItem,
         content: candidate.boundary });

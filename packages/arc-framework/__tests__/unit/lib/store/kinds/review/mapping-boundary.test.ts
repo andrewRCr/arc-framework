@@ -17,7 +17,7 @@ it.each(boundaryLoci)("maps a native %s boundary to its current strict variant",
     candidateId: boundary.candidateId, candidateSubjectDigest: boundary.candidateSubjectDigest, reservation: boundary.reservation });
   expect(content).not.toHaveProperty("policy");
   expect(content).not.toHaveProperty("standardLaneOwnerVersion");
-  expect(result.listing.find(({ source }) => !source.includes("@"))?.records).toContainEqual(boundaries[0]!.reference);
+  expect(result.listing.find(({ source }) => source.endsWith(".boundary.json"))?.records).toContainEqual(boundaries[0]!.reference);
   await assertReviewMapping(result);
 });
 

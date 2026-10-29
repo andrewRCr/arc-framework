@@ -488,18 +488,12 @@ alone.
   accounts for each live work unit's current Candidate record the import gives, so the import's trial over this
   repository reports the mapping's listing with no review coverage notice (A20).
 
-    - `[ ]` **3.R2.a List each live work unit's current Candidate record (A21)**
-        - `ReviewMappingInput` (`mapping-types.ts`) takes the port's `current`, and `collectReviewMappingSources` adds
-          it as a source at the plain tracked path. `mapReviewCandidateSources` lists it with its newest committed
-          version's outcome where it repeats that version, adding no content, and otherwise maps it as the Candidate
-          record's newest revision through today's reader checks over the committed versions; a live work unit holding
-          committed versions but no current record leaves them behind.
-        - Build `test-first` (one behavior at a time):
-            - a current record repeating its newest version lists once with that version's outcome, the record's
-              contents unchanged
-            - an uncommitted current record newer than its committed history, or with none, maps as the record's
-              newest revision, and one today's reader refuses lists left behind with its reason
-            - committed versions with a null `current` list left behind, and no current source is added
+    - `[x]` **3.R2.a List each live work unit's current Candidate record (A21)**
+        - `ReviewMappingInput` takes the port's `current`, listed once at the plain tracked path. A current record
+          repeating its newest committed version takes that version's outcome and adds no content; a newer or first
+          uncommitted record passes `mapReviewCandidateSources`' reader checks as the Candidate record's newest revision
+          or is left behind with the reader's reason; committed versions with no current record are left behind. The
+          import-level coverage check moves to 3.R2.b, since tests reach the import only through `runStoreMigrate`.
     - `[ ]` **3.R2.b Pass the mapping into the import from `arc store migrate`**
         - `handleStoreMigrate` (`commands/store-migrate.ts`) runs `runStoreMigrate` with `mapReviewRecords` as its
           `reviewMapping` port; the follow path's `runStoreRemote` and `arc store remote` are unchanged, and the review

@@ -21,6 +21,6 @@ export function mappingBoundaryFixture(locus: typeof boundaryLoci[number] = "can
   const input: ReviewMappingInput = { projectId: "repo-1", gate: [],
     workItems: [{ kind: "work-unit", slug: "example", uid: mappingErrand.uid, live: true }],
     candidates: [{ workItem: mappingErrand.uid, versions: [{ commit: "a".repeat(40), content: JSON.stringify(candidate) }],
-      boundary: JSON.stringify(boundary) }] };
+      current: JSON.stringify(candidate), boundary: JSON.stringify(boundary) }] };
   return { input, candidate, boundary };
 }

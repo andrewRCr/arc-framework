@@ -16,7 +16,7 @@ it("replays every whole Candidate version and joins a repeated response to one e
     attestation: createCandidateAttestation({ ...original.attestation, subject: original.subject, baseRevision: "c".repeat(40) }) });
   const imported: Pick<ReviewMappingInput, "candidates" | "workItems"> = {
     workItems: [{ kind: "work-unit", slug: "example", uid: mappingErrand.uid, live: true }],
-    candidates: [{ workItem: mappingErrand.uid, versions: [{ commit: "a".repeat(40), content: JSON.stringify(initial) }], boundary: null }] };
+    candidates: [{ workItem: mappingErrand.uid, versions: [{ commit: "a".repeat(40), content: JSON.stringify(initial) }], current: null, boundary: null }] };
   const fixture = await createLocalMappingFixture({ imported,
     lineage: { kind: "candidate", candidateId: initial.attestation.candidateId }, vehicle: { kind: "work-unit", identity: "example" } });
   await fixture.conclude();
@@ -36,6 +36,7 @@ it("replays every whole Candidate version and joins a repeated response to one e
   const versions = [initial, responded, converged].map((record, index) => ({ commit: String(index + 1).repeat(40),
     content: JSON.stringify(record, null, 2) + "\n" }));
   imported.candidates[0]!.versions = versions;
+  imported.candidates[0]!.current = versions.at(-1)!.content;
   const { recordLaneResponsePerformance } = await import("../../../../../../src/scripts/review-gate/lane-progress.js");
   await recordLaneResponsePerformance(fixture.dependencies.operationStore, { lane: "standard", repositoryId: producer.repositoryId,
     headSha: producer.target.headSha, lineage: producer.admission.lineage, attemptId: producer.producerId,
@@ -56,7 +57,7 @@ it("replays every whole Candidate version and joins a repeated response to one e
   await assertReviewMapping(result);
 });
 
-it.each(["schema", "supersession"])("lists a Candidate version refused by today's %s reader", async (refusal) => {
+it.each(["schema", "supersession"])("lists a Candidate version refused by today's %s reader with its current record", async (refusal) => {
   const { parseCandidateManagedRecord, resolveCandidateSupersessionAncestors } = await import(
     "../../../../../../src/lib/work-unit/candidate-attestation.js");
   const { record } = candidateRecordFixture();
@@ -71,10 +72,15 @@ it.each(["schema", "supersession"])("lists a Candidate version refused by today'
   }
   const result = mapReviewRecords({ projectId: "repo-1", gate: [],
     workItems: [{ kind: "work-unit", slug: "example", uid: mappingErrand.uid, live: true }],
-    candidates: [{ workItem: mappingErrand.uid, versions: [{ commit: "a".repeat(40), content: invalid }], boundary: null }] });
+    candidates: [{ workItem: mappingErrand.uid, versions: [{ commit: "a".repeat(40), content: invalid }], current: invalid,
+      boundary: null }] });
   expect(result.records).toEqual([]);
-  expect(result.listing).toEqual([{ source: expect.stringContaining(`@${"a".repeat(40)}`), outcome: "left-behind",
-    reason: expect.stringContaining(refusal === "schema" ? "malformed" : "supersession"), records: [] }]);
+  const reason = expect.stringContaining(refusal === "schema" ? "malformed" : "supersession");
+  expect(result.listing).toEqual([
+    { source: expect.stringContaining(`@${"a".repeat(40)}`), outcome: "left-behind", reason, records: [] },
+    { source: ".arc/system/.internal/candidates/example.json", outcome: "left-behind", reason, records: [] },
+  ]);
+  expect(result.listing[1]!.reason).toBe(result.listing[0]!.reason);
   await assertReviewMapping(result);
 });
 
@@ -98,7 +104,7 @@ it("preserves the repository path log's supersession identities and inherited re
   const native = await readRepositoryCandidateSupersessionChain({ cwd: "/candidate", workUnit: "example", record: current, exec });
   const result = mapReviewRecords({ projectId: "repo-1", gate: [],
     workItems: [{ kind: "work-unit", slug: "example", uid: mappingErrand.uid, live: true }],
-    candidates: [{ workItem: mappingErrand.uid, versions, boundary: null }] });
+    candidates: [{ workItem: mappingErrand.uid, versions, current: versions.at(-1)!.content, boundary: null }] });
   const contents = result.records.find(({ reference }) => reference.kind === "review/candidate")!.contents;
   const mapped = contents.map((content) => CandidateManagedRecordV1Schema.parse(JSON.parse(content)));
   const ancestors = resolveCandidateSupersessionAncestors(mapped.at(-1)!, [...mapped].reverse());
@@ -106,4 +112,60 @@ it("preserves the repository path log's supersession identities and inherited re
   expect(ancestors.map(({ candidateId }) => candidateId)).toEqual([parent.attestation.candidateId, older.attestation.candidateId]);
   expect(ancestors[1]?.reviewResponseCount).toBe(1);
   await assertReviewMapping(result);
+});
+
+function acceptedVersion(baseRevision: string): string {
+  const { record } = candidateRecordFixture();
+  return JSON.stringify(CandidateManagedRecordV1Schema.parse({ ...record, transitions: [], lineageAttestations: [],
+    attestation: createCandidateAttestation({ ...record.attestation, subject: record.subject, baseRevision }) }));
+}
+
+it("lists the current Candidate record into the record its newest version became, adding no content", async () => {
+  const { resolveCandidateRecordRelativePath } = await import("../../../../../../src/lib/store/kinds/review/paths.js");
+  const path = resolveCandidateRecordRelativePath("example");
+  const versions = [acceptedVersion("c".repeat(40)), acceptedVersion("d".repeat(40))]
+    .map((content, index) => ({ commit: String(index + 1).repeat(40), content }));
+  const result = mapReviewRecords({ projectId: "repo-1", gate: [],
+    workItems: [{ kind: "work-unit", slug: "example", uid: mappingErrand.uid, live: true }],
+    candidates: [{ workItem: mappingErrand.uid, versions, current: versions[1]!.content, boundary: null }] });
+  const reference = { kind: "review/candidate", owner: { type: "work-item", name: "example", uid: mappingErrand.uid } };
+  expect(result.records).toEqual([{ reference, contents: versions.map(({ content }) => content) }]);
+  expect(result.listing.filter(({ source }) => source === path))
+    .toEqual([{ source: path, outcome: "mapped", records: [reference] }]);
+  await assertReviewMapping(result);
+});
+
+const path = ".arc/system/.internal/candidates/example.json";
+const live = [{ kind: "work-unit" as const, slug: "example", uid: mappingErrand.uid, live: true }];
+const reference = { kind: "review/candidate", owner: { type: "work-item", name: "example", uid: mappingErrand.uid } };
+
+it.each([
+  ["it has no committed history", []],
+  ["it is newer than its committed history", [{ commit: "a".repeat(40), content: acceptedVersion("c".repeat(40)) }]],
+] as const)("maps an uncommitted current Candidate record as its record's newest revision when %s", async (_case, versions) => {
+  const current = acceptedVersion("d".repeat(40));
+  const result = mapReviewRecords({ projectId: "repo-1", gate: [], workItems: live,
+    candidates: [{ workItem: mappingErrand.uid, versions: [...versions], current, boundary: null }] });
+  expect(result.records).toEqual([{ reference, contents: [...versions.map(({ content }) => content), current] }]);
+  expect(result.listing.filter(({ source }) => source === path)).toEqual([{ source: path, outcome: "mapped", records: [reference] }]);
+  await assertReviewMapping(result);
+});
+
+it("leaves an uncommitted current Candidate record today's reader refuses behind with its reason", async () => {
+  const versions = [{ commit: "a".repeat(40), content: acceptedVersion("c".repeat(40)) }];
+  const result = mapReviewRecords({ projectId: "repo-1", gate: [], workItems: live,
+    candidates: [{ workItem: mappingErrand.uid, versions, current: "{}", boundary: null }] });
+  expect(result.records).toEqual([{ reference, contents: [versions[0]!.content] }]);
+  expect(result.listing.filter(({ source }) => source === path)).toEqual([{ source: path, outcome: "left-behind",
+    reason: expect.stringContaining("malformed"), records: [] }]);
+  await assertReviewMapping(result);
+});
+
+it("leaves committed versions behind when the live work unit holds no current Candidate record", async () => {
+  const versions = [{ commit: "a".repeat(40), content: acceptedVersion("c".repeat(40)) }];
+  const result = mapReviewRecords({ projectId: "repo-1", gate: [], workItems: live,
+    candidates: [{ workItem: mappingErrand.uid, versions, current: null, boundary: null }] });
+  expect(result.records).toEqual([]);
+  expect(result.listing).toEqual([{ source: `${path}@${"a".repeat(40)}`, outcome: "left-behind",
+    reason: expect.stringContaining("no current Candidate record"), records: [] }]);
 });

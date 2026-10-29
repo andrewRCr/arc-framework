@@ -21,7 +21,7 @@ function boundaryInput() {
     candidateSubjectDigest: record.subject.subjectDigest });
   const input: ReviewMappingInput = { projectId: "repo-1", gate: [],
     workItems: [{ kind: "work-unit", slug: "example", uid: mappingErrand.uid, live: true }],
-    candidates: [{ workItem: mappingErrand.uid, versions: [{ commit: "a".repeat(40), content: JSON.stringify(record) }], boundary: null }] };
+    candidates: [{ workItem: mappingErrand.uid, versions: [{ commit: "a".repeat(40), content: JSON.stringify(record) }], current: JSON.stringify(record), boundary: null }] };
   return { input, record, boundary };
 }
 

@@ -187,7 +187,7 @@ it("maps the native initial skip on its Candidate without inventing an actor or 
     candidateId: record.attestation.candidateId, now: "2026-10-19T13:01:00Z" });
   const input = { projectId: "repo-1", gate: [mappingOperation(marker)],
     workItems: [{ kind: "work-unit" as const, slug: "example", uid: mappingErrand.uid, live: true }],
-    candidates: [{ workItem: mappingErrand.uid, versions: [{ commit: "a".repeat(40), content: JSON.stringify(record) }], boundary: null }] };
+    candidates: [{ workItem: mappingErrand.uid, versions: [{ commit: "a".repeat(40), content: JSON.stringify(record) }], current: JSON.stringify(record), boundary: null }] };
   const result = mapReviewRecords(input);
   const decisions = result.records.filter(({ reference }) => reference.kind === "review/decision");
   expect(decisions).toHaveLength(1);
@@ -213,7 +213,7 @@ it("coalesces the same native decision retained by two supplied sources", async 
   const second = { ...first, path: "arc/review-gate/operations/retained-skip-copy.json" };
   const result = mapReviewRecords({ projectId: "repo-1", gate: [first, second],
     workItems: [{ kind: "work-unit", slug: "example", uid: mappingErrand.uid, live: true }],
-    candidates: [{ workItem: mappingErrand.uid, versions: [{ commit: "a".repeat(40), content: JSON.stringify(record) }], boundary: null }] });
+    candidates: [{ workItem: mappingErrand.uid, versions: [{ commit: "a".repeat(40), content: JSON.stringify(record) }], current: JSON.stringify(record), boundary: null }] });
   const decisions = result.records.filter(({ reference }) => reference.kind === "review/decision");
   expect(decisions).toHaveLength(1);
   expect(result.listing.filter(({ source }) => source === first.path || source === second.path))

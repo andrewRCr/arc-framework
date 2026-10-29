@@ -10,7 +10,7 @@ function input(): ReviewMappingInput {
   return { projectId: "project-1", workItems: [{ kind: "work-unit", slug: "example", uid, live: true }],
     gate: [{ path: "arc/review-gate/operations/operation-a.json", bytes: new TextEncoder().encode("{}") }],
     candidates: [{ workItem: uid, versions: ["a", "b"].map((character) => ({ commit: character.repeat(40), content: "{}" })),
-      boundary: "{}" }] };
+      current: null, boundary: "{}" }] };
 }
 
 it("accounts for every supplied gate file, Candidate version, and boundary under its complete source identity", () => {
@@ -22,6 +22,15 @@ it("accounts for every supplied gate file, Candidate version, and boundary under
     ".arc/system/.internal/candidates/example.boundary.json",
   ]);
   expect(sources.map(({ kind }) => kind)).toEqual(["gate", "candidate", "candidate", "boundary"]);
+});
+
+it("accounts for a live work unit's current Candidate record once by its plain tracked path", () => {
+  const value = input();
+  value.candidates[0]!.current = "{}";
+  const sources = collectReviewMappingSources(value);
+  expect(sources.filter(({ kind }) => kind === "current-candidate")).toEqual([{ kind: "current-candidate",
+    source: ".arc/system/.internal/candidates/example.json", workItem: value.workItems[0], content: "{}" }]);
+  expect(sources.map(({ source }) => source)).toHaveLength(new Set(sources.map(({ source }) => source)).size);
 });
 
 it("lists a partially mapped receipt ledger once with its produced references and leftover entry identities", () => {
