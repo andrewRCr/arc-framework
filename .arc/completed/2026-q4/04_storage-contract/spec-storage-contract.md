@@ -389,12 +389,6 @@ ref commit's, which `history` and `changes` return as they are.
   through the branch name and to its Errand through the record that names the branch. A commit resolves to an Errand
   only from the flip, when captures begin and an Errand's close captures its landing commit (D15).
 
-**Forward amendment (A31).** A divergent archive-quarter merge whose selected, base, local and incoming folder
-inventories are valid and empty names the archive ref in its `sync` subject and omits `Arc-Owner`, since no record
-supplies an owner. It retains the fresh batch, actor, lifecycle merge action, complete-none creation receipt and
-local-first parents. Other record/history merges and paired quarter refreshes retain real record-owner provenance;
-missing or malformed inventories do not qualify.
-
 ### D4. Failures and outcomes
 
 Every failure meets the recovery-complete refusal rule in `DEV-RULES.PROJECT`: it says whether it is terminal or
@@ -477,14 +471,6 @@ while the rest publish; the two are reported independently, so both can appear. 
   retry can succeed. Multi-state-ref publication without receiver atomic-push capability uses this existing
   `PublishFailure` refusal (A7), naming the capability condition and the remedy to enable an atomic-capable receiver;
   pending local state remains available for retry after that remedy.
-
-**Forward amendment (A32) to D1 and D4.** `PublishFailureSchema` additionally admits recoverable
-`command-line-capacity` when a native-Windows push exceeds its process limit before launch. `CarryRefusalSchema`
-admits the same reason for the carried ref's own invocation. This local capacity refusal attributes no network,
-receiver or hook failure and retains pending state, exact leases and any earlier landed-copy accounting. Its remedy
-names retry from the complete retained clone on a transport that can carry the transaction; atomic state publication
-is never split to fit the command line. Scalable native-Windows bulk publication remains deferred in
-`spec-storage-ref-backend.md` § 2.1 (A54).
 
 No remote — as in local-only or ghost use — no identity, and being offline are states, not failures. Every publish the
 in-repo implementation makes — the notes save and push and the Errand push — rides a ref keyed by the identity, so with
@@ -1501,14 +1487,6 @@ backend's, and identity scope is not private, so a held push only delays the sam
 other machines stale — and so do `session.init_pull.notes` and `session.init_load.notes`, since the projection makes
 loading automatic. No migration is written for them.
 
-**Forward amendment (A33).** A readable terminal lineage owner with no live ref or archive folder reports
-`ended-twice` when at least two ancestry-maximal nonwithdrawn retirement batches retain publication witnesses. Select
-that frontier before testing publication, so sequential restored lifetimes do not appear concurrent. A terminal-only
-repair keeps the chosen lineage and its retired branches, joins both histories, creates a restoration commit from an
-explicitly selected authentic same-owner tree descending from their joined tip, then atomically CAS-creates the live
-ref and deletes that history tip. Normal expected-version primary removal retires the same UID once and ordinary
-push/pull converges; no automatic restoration, archive fabrication, authority relaxation or new restore API is added.
-
 ### D13. The projection's caller-visible behavior
 
 The store is authoritative. A gitignored projection at `.arc/active/`, `.arc/backlog/`, `.arc/completed/`, and
@@ -2408,78 +2386,3 @@ operations and outcomes, and which test tier each conformance fixture runs in.
 - **A14** — 2026-10-05 — design: require completed Errand common-ancestor observations before treating ancestry as absent.
   _Supersedes:_ Goal 3 parity; D8 unchanged failures; A10/A12 bounded scope; SC7 common-basis cases. _Trigger:_ aggregate-F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 <!-- markdownlint-enable MD013 -->
-
-- **A15** — 2026-10-16 — design: Two remote operations, `pull` and `push`, replace `sync`; `maintain()` joins the
-  contract. _Supersedes:_ D1. _Trigger:_ `spec-storage-ref-backend.md` § 2.1, 12. _Work:_ storage-ref-backend 1.10.
-  _Revalidated:_ storage-ref-backend 1.10.
-- **A16** — 2026-10-16 — design: A companion is keyed by its path among its work item's records: a name stores where it
-  does today, and any other path verbatim. _Supersedes:_ D2. _Trigger:_ `spec-storage-ref-backend.md` § 2.5, 3.2.
-  _Work:_ storage-ref-backend 1.10. _Revalidated:_ storage-ref-backend 1.10.
-- **A17** — 2026-10-16 — design: `state-unresolvable` joins the local refusals; `history-diverged` stays as `pull`'s
-  notice; Git's message text is read in three named places: a receiver without atomic pushes, a server's per-ref refusal
-  line, and a remote failure's cause. _Supersedes:_ D4. _Trigger:_ `spec-storage-ref-backend.md` § 2.3, 6.9. _Work:_
-  storage-ref-backend 1.10. _Revalidated:_ storage-ref-backend 1.10.
-- **A18** — 2026-10-16 — design: `pull` and `push` report five states beside `no-remote` and `no-identity`, none a
-  failure: `designation-ambiguous`, `move-incomplete`, `moved`, `designation-needed`, and `move-unfinished`, the last
-  stopping nothing; every publish outcome carries the push loop's retry count and time waited. _Supersedes:_ D4.
-  _Trigger:_ `spec-storage-ref-backend.md` § 2.2, 9.3. _Work:_ storage-ref-backend 1.10. _Revalidated:_
-  storage-ref-backend 1.10.
-- **A19** — 2026-10-16 — design: When a late write meets an item's end, the end's version stays current whichever side
-  is remote, and the late version goes into a conflict record. _Supersedes:_ D4, D6. _Trigger:_
-  `spec-storage-ref-backend.md` § 6.6. _Work:_ storage-ref-backend 1.10. _Revalidated:_ storage-ref-backend 1.10.
-- **A20** — 2026-10-16 — design: A hunk conflict record carries `baseVersion`, the record version its base line range
-  counts in, or null where the base held no such record, and `currentLines` and `incomingLines`, its current and
-  incoming sides' line counts. _Supersedes:_ D6. _Trigger:_ `spec-storage-ref-backend.md` § 3.7. _Work:_
-  storage-ref-backend 1.10. _Revalidated:_ storage-ref-backend 1.10.
-- **A21** — 2026-10-16 — design: No stub rank is built until a consumer reads one; only the Errand queue keeps rank
-  keys. _Supersedes:_ D6, D10. _Trigger:_ `spec-storage-ref-backend.md` § 3.8. _Work:_ storage-ref-backend 1.10.
-  _Revalidated:_ storage-ref-backend 1.10.
-- **A22** — 2026-10-16 — design: The size cap reaches projected kinds only; a repository that goes public moves its
-  state to a backing repository only when it wants that state private; `refs/arc/project/moved` joins the ref table; a
-  backend over Git adds the refusals Git or canonical JSON needs — `store.git-path`, `store.json`, a key that is not one
-  path segment, and an owner's name or key over 2,040 bytes. _Supersedes:_ D10. _Trigger:_ `spec-storage-ref-backend.md`
-  § 3.2, 5.6, 9.5, 10.6. _Work:_ storage-ref-backend 1.10. _Revalidated:_ storage-ref-backend 1.10.
-- **A23** — 2026-10-16 — design: `stale info`, `reference already exists`, and `reference does not exist` join the retry
-  set as lost races, and a server's refusal of a state ref outside it is read by state, a lost race when the ref moved;
-  every push of a work item's or cohort's ref, live or under history, and every delete, is leased; a carried code ref's
-  own rejection is never a lost race for state. _Supersedes:_ D12. _Trigger:_ `spec-storage-ref-backend.md` § 6.5,
-  6.7–6.9. _Work:_ storage-ref-backend 1.10. _Revalidated:_ storage-ref-backend 1.10.
-- **A24** — 2026-10-16 — design: Where no remote holds the project's registry, the clone asks once about its code
-  remote, `push` or `off`; on a host whose forks copy state refs, a contributor's lone fork remote holding that copy is
-  designated without asking and adopts the upstream's ID, a residual the host trial checks. _Supersedes:_ D14.
-  _Trigger:_ `spec-storage-ref-backend.md` § 9.2, 9.8. _Work:_ storage-ref-backend 1.10. _Revalidated:_
-  storage-ref-backend 1.10.
-- **A25** — 2026-10-17 — design: A lineage-ended owner permits removal of a retained conflict on its history
-  coordinate with an explicit nonnull expected version. Every retired resolution target needs its own such removal
-  in the same batch; ordinary retained records remain inaccessible and the owner stays retired. _Supersedes:_ D6.
-  _Trigger:_ `spec-storage-ref-backend.md` § 2.6, 6.6 (A16). _Work:_ storage-ref-backend 13.5.R. _Revalidated:_ storage-ref-backend 13.5.R.
-
-
-- **A26** — 2026-10-25 — design: `HistoryRefSchema` admits only the lowercase owner UID forms that
-  `StoredUidSchema` accepts; explicit history requests and stored paths use one grammar. _Supersedes:_ D4 history
-  coordinates. _Trigger:_ `spec-storage-ref-backend.md` § 2.1, 2.6 (A41). _Work:_ review-fix.
-  _Revalidated:_ review-fix.
-- **A27** — 2026-10-25 — design: non-person owner generations use `StoredUidSchema` in `OwnerIdentitySchema` and
-  `CreatedOwnerSchema`, including retained creation receipts. _Supersedes:_ D2 UID grammar.
-  _Trigger:_ `spec-storage-ref-backend.md` § 2.1, 2.6 (A43). _Work:_ review-fix. _Revalidated:_ review-fix.
-- **A28** — 2026-10-25 — design: the `record-malformed` arm of `LocalRefusalSchema` may omit its reference only when
-  the failing input operand has no valid `RecordReference`; its condition names that operand and any batch index.
-  A valid operand reference is preserved. _Supersedes:_ D4 record-malformed reference requirement.
-  _Trigger:_ `spec-storage-ref-backend.md` § 2.1, 2.6 (A50). _Work:_ review-fix. _Revalidated:_ review-fix.
-- **A29** — 2026-10-25 — design: the unreachable arm of `CarryOutcomeSchema` requires a diagnostic message,
-  including an already-expired code leg's timeout and any reported descendant warning. _Supersedes:_ D1, D4
-  carried-code failure diagnostics. _Trigger:_ `spec-storage-ref-backend.md` § 2.2, 2.6 (A51).
-  _Work:_ review-fix. _Revalidated:_ review-fix.
-- **A30** — 2026-10-25 — design: both-published ends require retained evidence of each end. After forced tracking
-  replacement removes its last publication witness, `refEndPublished` permits withdrawal of the local end; surviving
-  evidence still requires the explicit clear/reopen/end repair. _Supersedes:_ D12 publication evidence for end
-  reconciliation. _Trigger:_ `spec-storage-ref-backend.md` § 2.6, 6.6 (A52). _Work:_ review-fix. _Revalidated:_ review-fix.
-
-- **A31** — 2026-10-27 — design: name ownerless empty-quarter merges by ref. _Supersedes:_ D3 owner-bound subjects.
-  _Trigger:_ `spec-storage-ref-backend.md` A55 review. _Work:_ review-fix. _Revalidated:_ review-fix.
-
-- **A32** — 2026-10-27 — design: local push capacity refusal joins D1 and D4. _Supersedes:_ publication vocabulary.
-  _Trigger:_ `spec-storage-ref-backend.md` A54 propagation. _Work:_ review-fix. _Revalidated:_ review-fix.
-
-- **A33** — 2026-10-27 — design: restore terminal-only ends before one repair end. _Supersedes:_ D12 generic end repair.
-  _Trigger:_ `spec-storage-ref-backend.md` A56 review. _Work:_ review-fix. _Revalidated:_ review-fix.

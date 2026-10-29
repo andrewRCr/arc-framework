@@ -119,6 +119,8 @@ both existing backends, and the Git access the engine calls.
 
 - _Outcome:_ The completed contract's Amendments log appends A15–A24, one per decision row in § 2.6,
   preserving the original decisions and tracing each amendment to its ref-backend design sections.
+    - **Superseded:** A59 moved these records to `cohort-state-storage.md` § Shared contracts and restored the contract
+      specification as it shipped, since a shipped work unit's specification is not amended.
 
 ### `[x]` **1.11 A companion keyed by its path — § 2.5, § 14.2**
 
@@ -2363,10 +2365,13 @@ in `notes-storage-ref-backend.md` (A25).
 
 ## Success Criteria
 
-- `[x]` `Store` has `pull`, `push`, and `maintain` and no `sync`; the result types, the `state-unresolvable` refusal,
+- `[~]` `Store` has `pull`, `push`, and `maintain` and no `sync`; the result types, the `state-unresolvable` refusal,
   the cohort's archive placement, a companion's path key, `ReadOnlyStore`, and `RefHome` match the spec's contract
   changes; the hunk conflict record carries `baseVersion`, `currentLines`, and `incomingLines`, and `MergeTextInput` the
   base's version; and the contract specification's Amendments log carries one entry per amendment
+    - **Superseded:** A59 replaced the Amendments-log clause with criterion 53: the cohort document's § Shared
+      contracts records each contract decision change, and the contract's specification matches the one it shipped.
+      The other clauses hold.
 
 - `[x]` The shared conformance suite passes over the ref backend in both layouts with no exclusion beyond the spec's
   named set, and over the in-repo and reference fixtures with the suite's changes
@@ -2620,3 +2625,7 @@ in `notes-storage-ref-backend.md` (A25).
   completed refresh changes refs, nested and nonreserved names keep their rules, multiple external metadata candidates
   yield an explicit diagnostic with a forward repair route, and corrected sources retry successfully (§ 2.5, § 3.2,
   § 7.1, § 7.3) (A57)
+
+- `[x]` `cohort-state-storage.md` § Shared contracts records each change the spec's § 2.6 makes to a contract
+  decision, dated and stated as it now stands, and the contract's specification matches the one its work unit shipped;
+  supersedes criterion 1's Amendments-log clause (§ 2) (A59)

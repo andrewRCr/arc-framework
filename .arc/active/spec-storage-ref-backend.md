@@ -222,9 +222,9 @@ one refusal from every broken rule through `composeWriteCheckRefusal`.
 ### 2. Contract changes
 
 Part A's types change where this design needs them, and the contract's decisions are amended forward where this design
-changes them or finds them wrong. Each change below is normative here. The change that alters Part A's types also
-appends one entry per amendment in § 2.6 to the contract specification's Amendments log, so that specification never
-describes types the code does not have.
+changes them or finds them wrong. Each change below is normative here. The contract's specification shipped with its
+work unit and is not amended; each change to one of its decisions is recorded in `cohort-state-storage.md` § Shared
+contracts, dated and stated as it now stands (A59).
 
 #### 2.1 Operations
 
@@ -4879,6 +4879,9 @@ synced to this repository's `QUICK-REFERENCE.md`, and for `storage.backing_repos
     criterion 33's limits in both layouts, except the separate layout's publishing burst on Windows, which fails only
     on a ref lock the deadline stranded (§ 6.1) and is skipped there, its repair owned by `storage-ref-hardening`.
     Supersedes criteria 9, 33, and 37 (§ 14.5, § 14.10) (A58).
+63. **Contract decision changes live in the cohort record.** `cohort-state-storage.md` § Shared contracts records each
+    change § 2.6 makes to a contract decision, dated and stated as it now stands, and the contract's specification
+    matches the one its work unit shipped. Supersedes criterion 1's Amendments-log clause (§ 2) (A59).
 
 ## Open Questions
 
@@ -5096,3 +5099,7 @@ open:
 
 - **A58** — 2026-10-28 — design: defer deadline-stranded ref locks to hardening. _Supersedes:_ § 14.5 burst gate.
   _Trigger:_ 19.1 terminal. _Work:_ 18.R4. _Revalidated:_ verify-work-unit.
+
+- **A59** — 2026-10-29 — design: record contract decision changes in the cohort document. _Supersedes:_ § 2 log
+  sentence; criterion 1 log clause. _Trigger:_ standard-pass-8/AGG-20 review. _Work:_ review-fix. _Revalidated:_
+  review-fix.
