@@ -77,8 +77,8 @@ describe.skipIf(process.env.ARC_STORE_BURSTS !== "1").each(["default", "separate
     assertInbox(success(await store.read({ reference: inbox })));
   }, BURST_TIMEOUT_MS);
 
-  // A58: on Windows the deadline can abort a prepared ref transaction here and strand the separate store's lock,
-  // which no retry clears; storage-ref-hardening owns the repair and unskips this case.
+  // On Windows the sync deadline can abort a prepared ref transaction here and strand the separate store's lock,
+  // which no retry clears, so this case is skipped there until the deadline releases its own lock.
   it.skipIf(process.platform === "win32" && layout === "separate")("converges twenty simultaneously publishing clones on every accepted inbox write", async () => {
     const f = await refSyncFixture(layout), store = nativeStore(f.cloneA);
     const parent = await mkdtemp(join(tmpdir(), "arc-inbox-clones-"));
