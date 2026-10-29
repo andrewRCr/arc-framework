@@ -104,8 +104,10 @@ describe("writes that leave no primary live", () => {
     const content = f.content(archived.reference, "changed-again");
     success(await f.store.write(update(f, archived, content)));
     expect(success(await f.store.read({ reference: archived.reference }))).toMatchObject({ content, placement: archived.placement });
-    expect(success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse(reused.reference.owner.name) })).reference)
-      .toEqual(reused.reference);
+    // A slug lookup returns work items alone; a cohort's name resolves through its reference.
+    const named = kind === "cohort/document" ? success(await f.store.read({ reference: f.reference(kind) })).reference
+      : success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse(reused.reference.owner.name) })).reference;
+    expect(named).toEqual(reused.reference);
   });
 
   it.each(["work-item/meta", "cohort/document"] as const)("edits a completed %s beside an unrelated unreadable live ref", async (kind) => {
