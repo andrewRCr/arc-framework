@@ -72,7 +72,8 @@ records introduce no automatic reconnect, replacement execution or ARC job datab
 
 ## Implementation size
 
-The example is under 600 lines across four modules, including comments and blank lines and excluding READMEs:
+The four runtime modules and their declaration companion total 842 lines, including comments and blank lines and
+excluding READMEs:
 
 | Module              | Responsibility                                  |
 | ------------------- | ----------------------------------------------- |
@@ -80,8 +81,10 @@ The example is under 600 lines across four modules, including comments and blank
 | `local-inputs.mjs`  | Source/files verification and child environment |
 | `local-process.mjs` | Descendant supervision and recovery             |
 | `local-runtime.mjs` | Supported Node runtime qualification            |
+| `local-types.d.mts` | Wire records and private worker types           |
 
-That is implementation size, not preparation timing or a minimum adapter size. Remote transport,
+The declaration companion supports JavaScript typechecking and adds no runtime dependency. The count measures
+implementation size, not preparation timing or a minimum adapter size. Remote transport,
 dependency preparation, provider admission and broader runtime qualification add their own implementation work.
 
 ---
