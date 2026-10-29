@@ -76,21 +76,28 @@ export async function readBackingRepository(cwd: string): Promise<string | null>
     throw new Error(`Cannot read the backing pointer at ${path}. Restore a readable arc-config.yml, then retry the operation.`, { cause: error });
   }
   const value = parseArcConfig(content)["storage.backing_repository"] ?? "";
-  return getArcConfigField("storage.backing_repository").schema.parse(value).trim() || null;
+  const parsed = getArcConfigField("storage.backing_repository").schema.safeParse(value);
+  if (!parsed.success) {
+    throw new Error(`The backing pointer storage.backing_repository at ${path} is not a repository location: ${JSON.stringify(value)}. `
+      + "Set it to the backing repository's URL or path, or to an empty value, then retry the operation.");
+  }
+  return parsed.data.trim() || null;
 }
 
 /** Write the tracked backing pointer as the configuration reader decodes it, preserving unrelated text and line endings. */
 export async function writeBackingRepository(cwd: string, value: string | null): Promise<void> {
   const path = configSettingsPath(cwd), key = "storage.backing_repository";
   const validated = getArcConfigField(key).schema.parse(value ?? "").trim();
-  // The reader strips one pair of surrounding quotes and unescapes nothing, so any one-line value round-trips quoted as is.
+  // The reader strips one pair of surrounding quotes and unescapes nothing, and a single-quoted YAML scalar escapes nothing
+  // but its own quote, so a one-line value without one decodes the same through both.
   if (/[\r\n]/u.test(validated)) throw new Error(`The backing pointer must fit on one line of arc-config.yml: ${JSON.stringify(validated)}`);
+  if (validated.includes("'")) throw new Error(`The backing pointer cannot contain a single quote: ${JSON.stringify(validated)}`);
   let content = "";
   try { content = await readFile(path, "utf8"); }
   catch (error) {
     if (!(typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT")) throw error;
   }
-  const line = `${key}: "${validated}"`, eol = content.includes("\r\n") ? "\r\n" : "\n";
+  const line = `${key}: '${validated}'`, eol = content.includes("\r\n") ? "\r\n" : "\n";
   const claimed = /^storage\.backing_repository:[^\r\n]*/mu;
   const next = claimed.test(content) ? content.replace(claimed, () => line)
     : content + (content.length && !content.endsWith("\n") ? eol : "") + line + eol;

@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { load } from "js-yaml";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { runConfigStatus } from "../../../src/commands/config/status.js";
@@ -79,24 +80,40 @@ describe("the tracked backing pointer writer", () => {
     for (let write = 0; write < 2; write++) {
       await writeBackingRepository(root, value);
       expect(await readBackingRepository(root)).toBe(value);
-      expect(await readFile(configPath, "utf8")).toBe(lines.map((line) => line.startsWith("storage.") ? `storage.backing_repository: "${value}"` : line).join(eol));
+      expect(await readFile(configPath, "utf8")).toBe(lines.map((line) => line.startsWith("storage.") ? `storage.backing_repository: '${value}'` : line).join(eol));
     }
     await writeBackingRepository(root, null);
     expect(await readBackingRepository(root)).toBeNull();
-    expect(await readFile(configPath, "utf8")).toBe(lines.join(eol));
+    expect(await readFile(configPath, "utf8")).toBe(lines.map((line) => line.startsWith("storage.") ? "storage.backing_repository: ''" : line).join(eol));
   });
 
   it.each([["LF", "\n"], ["CRLF", "\r\n"]])("appends an absent pointer with the %s file's line ending", async (_name, eol) => {
     const { root, configPath } = await fixture(["# Settings.", "commit.format: conventional"].join(eol));
     await writeBackingRepository(root, "https://example.test/state.git");
-    expect(await readFile(configPath, "utf8")).toBe(["# Settings.", "commit.format: conventional", 'storage.backing_repository: "https://example.test/state.git"', ""].join(eol));
+    expect(await readFile(configPath, "utf8")).toBe(["# Settings.", "commit.format: conventional", "storage.backing_repository: 'https://example.test/state.git'", ""].join(eol));
     expect(await readBackingRepository(root)).toBe("https://example.test/state.git");
   });
 
-  it("refuses a pointer the configuration file cannot hold on one line, leaving the file unchanged", async () => {
-    const { root, configPath } = await fixture('storage.backing_repository: ""\n');
-    await expect(writeBackingRepository(root, "https://example.test/a\nstate.git")).rejects.toThrow(/one line/u);
-    expect(await readFile(configPath, "utf8")).toBe('storage.backing_repository: ""\n');
+  it.each([["two lines", "https://example.test/a\nstate.git", /one line/u], ["a single quote", "C:\\repos\\o'brien.git", /single quote/u]])(
+    "refuses a pointer on %s, leaving the file unchanged", async (_name, value, message) => {
+      const { root, configPath } = await fixture('storage.backing_repository: ""\n');
+      await expect(writeBackingRepository(root, value)).rejects.toThrow(message);
+      expect(await readFile(configPath, "utf8")).toBe('storage.backing_repository: ""\n');
+    });
+
+  it.each(["C:\\repos\\state.git", 'D:\\team "state"\\repo.git'])("writes %j so a standard YAML parser and the reader decode it alike", async value => {
+    const { root, configPath } = await fixture();
+    await writeBackingRepository(root, value);
+    expect(load(await readFile(configPath, "utf8"))).toEqual({ "storage.backing_repository": value });
+    expect(await readBackingRepository(root)).toBe(value);
+  });
+
+  it("names the key, the file and a remedy for an invalid stored pointer", async () => {
+    const { root, configPath } = await fixture('storage.backing_repository: " \t "\n');
+    const read = readBackingRepository(root);
+    await expect(read).rejects.toThrow("storage.backing_repository");
+    await expect(read).rejects.toThrow(configPath);
+    await expect(read).rejects.toThrow(/then retry/u);
   });
 });
 
@@ -127,7 +144,7 @@ describe("backing pointers through the full authoring boundary", () => {
 it("normalizes padded pointer writes before persisting them", async () => {
   const { root, configPath } = await fixture();
   await writeBackingRepository(root, " https://example.test/state.git ");
-  expect(await readFile(configPath, "utf8")).toBe('storage.backing_repository: "https://example.test/state.git"\n');
+  expect(await readFile(configPath, "utf8")).toBe("storage.backing_repository: 'https://example.test/state.git'\n");
   expect(await readBackingRepository(root)).toBe("https://example.test/state.git");
 });
 

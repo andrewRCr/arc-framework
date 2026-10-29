@@ -41,7 +41,7 @@ it.each(directions)("forwards before switching from $source to $destination and 
   }
   const pointer = await readFile(h.config, "utf8");
   expect(pointer).toContain('# Keep this comment.\nhistory.policy: "rewrite-with-lease"\n');
-  expect(pointer).toContain(`storage.backing_repository: ${JSON.stringify(destination === "backing" ? h.destinationDirectory : "")}`);
+  expect(pointer).toContain(`storage.backing_repository: '${destination === "backing" ? h.destinationDirectory : ""}'`);
   expect(success(await h.store.pull()).states).toContainEqual(expect.objectContaining({ status: "move-unfinished" }));
   expect(success(await h.store.push()).publishes).toContainEqual(expect.objectContaining({ status: "pushed" }));
   expect((await h.remote("git", ["rev-parse", "refs/arc/user/andrew/personal"])).stdout.trim()).toBe(h.sourcePersonal);
