@@ -3,7 +3,7 @@
   "slug": "delivery-transfer-windows-budget",
   "claimId": "746a17a0109d777fd949b70629c3c836",
   "createdAt": "2026-10-29T18:23:48.587Z",
-  "updatedAt": "2026-10-29T18:23:48.587Z",
+  "updatedAt": "2026-10-29T19:47:06.047Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Measure delivery-transfer setup on hosted Windows and size its explicit hook timeout from the evidence.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Give the delivery-transfer end-to-end setup a budget that holds on a loaded Windows runner",
   "originEntrySourceDigest": "sha256:3da1464bae604e5aa4949424ecef4e2c870b7b8c8f7d014331941edcc360c90f",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/delivery-transfer-windows-budget",
+    "headSha": "a4fa9bd49e65ae41aa56ab3ea01209f722045588"
+  }
 }
