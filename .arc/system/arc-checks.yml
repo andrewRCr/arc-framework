@@ -249,6 +249,8 @@ checks:
     inputs:
       - packages/arc-framework/src/**/*.ts
       - packages/arc-framework/__tests__/**/*.ts
+      - packages/arc-framework/examples/**/*.mjs
+      - packages/arc-framework/examples/**/*.mts
     mode: files
     root: packages/arc-framework
   typecheck:
@@ -262,6 +264,8 @@ checks:
     inputs:
       - packages/arc-framework/src/**/*.ts
       - packages/arc-framework/__tests__/**/*.ts
+      - packages/arc-framework/examples/**/*.mjs
+      - packages/arc-framework/examples/**/*.mts
   typecheck:test:
     runner: true
     command:
@@ -273,6 +277,8 @@ checks:
     inputs:
       - packages/arc-framework/src/**/*.ts
       - packages/arc-framework/__tests__/**/*.ts
+      - packages/arc-framework/examples/**/*.mjs
+      - packages/arc-framework/examples/**/*.mts
   lint:ts:
     runner: true
     command:
@@ -284,6 +290,8 @@ checks:
     inputs:
       - packages/arc-framework/src/**/*.ts
       - packages/arc-framework/__tests__/**/*.ts
+      - packages/arc-framework/examples/**/*.mjs
+      - packages/arc-framework/examples/**/*.mts
   lint:sh:
     command:
       - npm

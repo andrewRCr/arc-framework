@@ -1,9 +1,20 @@
 /** Conservative qualification of this example's own Node installation and actual probes. */
+import process from "node:process";
+import { TextDecoder } from "node:util";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { childEnvironment } from "./local-inputs.mjs";
 
+/**
+ * @param {import("./local-types.mjs").Plan} plan
+ * @param {(probe: import("./local-types.mjs").Probe) => Promise<import("./local-types.mjs").ProbeResult>} execute
+ * @returns {Promise<import("./local-types.mjs").Runtime>}
+ */
 export async function qualifyNodeRuntime(plan, execute) {
+  /**
+   * @param {string} reason
+   * @returns {import("./local-types.mjs").Runtime}
+   */
   const unknown = reason => ({ kind: "unknown", reason });
   const probes = [...plan.probes.global, ...plan.probes.check];
   if ([...plan.invocations, ...probes].some(command => command.shell || command.argv[0] !== process.execPath)) {
@@ -17,11 +28,12 @@ export async function qualifyNodeRuntime(plan, execute) {
   try {
     const fingerprint = async () => {
       const hash = createHash("sha256");
-      for await (const bytes of createReadStream(process.execPath)) hash.update(bytes);
+      for await (const bytes of /** @type {AsyncIterable<import("node:buffer").Buffer>} */ (createReadStream(process.execPath))) hash.update(bytes);
       hash.update(JSON.stringify({ platform: process.platform, arch: process.arch, versions: process.versions, options }));
       return `sha256:${hash.digest("hex")}`;
     };
     const identity = await fingerprint();
+    /** @type {{id: string, stdout: string}[]} */
     const results = [];
     for (const probe of probes) {
       const result = await execute(probe);
