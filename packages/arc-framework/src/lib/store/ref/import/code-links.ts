@@ -13,7 +13,8 @@ import { readImportCodeTip, resolveImportBranchTip } from "./branch-tip.js";
 interface BranchSource { record: ImportRecord; branch: string; tip: string }
 
 /** Acquire link facts against the original code repository without publishing a project identity. */
-export async function prepareImportCodeLinks(context: RefBackendContext, records: ImportRecord[], report: MigrateReport): Promise<void> {
+export async function prepareImportCodeLinks(context: RefBackendContext, records: ImportRecord[], report: MigrateReport,
+  skipped: MigrateReport["notices"]): Promise<void> {
   const source = context.importSource;
   if (!source) throw new Error("No import source bound");
   const bases = [...new Set((await Promise.all([`refs/heads/${source.baseBranch}`, `refs/remotes/origin/${source.baseBranch}`]
@@ -21,7 +22,7 @@ export async function prepareImportCodeLinks(context: RefBackendContext, records
   const branches = await readBranchSources(context, records, report);
   report.refused.sort((left, right) => refusalPriority(left.rule) - refusalPriority(right.rule));
   if (!bases.length) { await reportMissingBase(source, report); return; }
-  await importTaskCaptures(context, records, [...bases, ...branches.filter(item => item.record.reference.kind === "work-item/meta").map(item => item.tip)], report);
+  await importTaskCaptures(context, records, [...bases, ...branches.filter(item => item.record.reference.kind === "work-item/meta").map(item => item.tip)], report, skipped);
   for (const branch of branches) await importBranchLink(context, branch, bases);
 }
 

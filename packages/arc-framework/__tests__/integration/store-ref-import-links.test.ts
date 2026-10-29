@@ -277,3 +277,21 @@ it.each(["missing", "diverged"] as const)("reports a %s branch before other refu
   }
   expect(await h.migrate()).toMatchObject({ status: "ok" });
 }, 30_000);
+
+it("lands an import over a task list the scanner rejects, deriving no captures from it and reporting the skip", async () => {
+  const h = await importComparisonFixture("default", async fixture => {
+    await fixture.git("git", ["switch", "feat/alpha"]);
+    await writeFile(join(fixture.root, ".arc/active/tasks-alpha.md"), "# Task List: Alpha\n\n### Phase 1: Work\n\n- [x] 1.1 Finished the older way\n");
+    await fixture.git("git", ["add", ".arc/active/tasks-alpha.md"]);
+    await fixture.git("git", ["commit", "-m", "Keep the older task markers"]);
+    await writeFile(join(fixture.root, "work.txt"), "closed work\n");
+    await fixture.git("git", ["add", "work.txt"]);
+    await fixture.git("git", ["commit", "-m", "Close the task\n\nContext: tasks-alpha.md (Task 1.1)"]);
+  });
+  const migrated = await h.target.migrate();
+  expect(migrated).toMatchObject({ status: "ok" });
+  expect(migrated.status === "ok" ? migrated.result.notices : []).toContainEqual(
+    { condition: "Task list for 'alpha' cannot be scanned, so no task captures are derived from it." });
+  const meta = success(await h.store.read({ reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "alpha" } }) }));
+  expect(meta.links?.taskCaptures).toBeUndefined();
+}, 30_000);

@@ -12,12 +12,16 @@ import { computeCopyKeys } from "../../../git/copy-key.js";
 interface CapturableWork { primary: ImportRecord; ids: string[]; closed: Set<string> }
 interface AttributedCommit { sha: string; work: CapturableWork; tasks: string[] }
 
-/** Walk each reachable commit once and acquire its object in bounded Git batches. */
-export async function importTaskCaptures(context: RefBackendContext, records: ImportRecord[], tips: readonly string[], report: MigrateReport): Promise<void> {
+/**
+ * Walk each reachable commit once and acquire its object in bounded Git batches. A task list the scanner rejects yields
+ * no captures and is reported to `skipped`, a row that never blocks the import.
+ */
+export async function importTaskCaptures(context: RefBackendContext, records: ImportRecord[], tips: readonly string[], report: MigrateReport,
+  skipped: MigrateReport["notices"]): Promise<void> {
   const source = context.importSource;
   if (!source) throw new Error("No import source bound");
   if (!tips.length) return;
-  const index = capturableWork(records, report);
+  const index = capturableWork(records, skipped);
   if (![...index.values()].some(works => works.some(work => work.closed.size > 0))) return;
   const walk = await source.ports.exec("git", ["--no-replace-objects", "rev-list", ...new Set(tips)], { cwd: source.ports.checkoutRoot, objectAccess: "local-only" });
   const shas = walk.stdout.trim().split(/\s+/u).filter(Boolean);
@@ -62,7 +66,7 @@ function commitAttribution(object: BatchObject | null | undefined): ReturnType<t
   return footer?.key === "Context" ? contextAttribution(footer.value) : undefined;
 }
 
-function capturableWork(records: readonly ImportRecord[], report: MigrateReport): Map<string, CapturableWork[]> {
+function capturableWork(records: readonly ImportRecord[], skipped: MigrateReport["notices"]): Map<string, CapturableWork[]> {
   const index = new Map<string, CapturableWork[]>();
   for (const taskList of records.filter(record => record.reference.kind === "work-item/task-list")) {
     const owner = taskList.reference.owner;
@@ -72,8 +76,7 @@ function capturableWork(records: readonly ImportRecord[], report: MigrateReport)
     if (!primary) continue;
     const scan = scanTaskListStructure(taskList.content);
     if (scan.status === "malformed") {
-      report.notices.push({ condition: `Task list for '${primary.reference.owner.name}' cannot be scanned.`,
-        remedy: { text: "Repair its task markers, then retry arc store migrate --import." } });
+      skipped.push({ condition: `Task list for '${primary.reference.owner.name}' cannot be scanned, so no task captures are derived from it.` });
       continue;
     }
     const tasks = scan.events.filter(event => event.type === "parent" || event.type === "subtask");
