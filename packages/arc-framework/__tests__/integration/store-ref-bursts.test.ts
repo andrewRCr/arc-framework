@@ -1,5 +1,5 @@
 /** Full native inbox contention on linked worktrees and independently publishing clones. */
-import { mkdtemp } from "node:fs/promises";
+import { lstat, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
@@ -110,6 +110,10 @@ describe.skipIf(process.env.ARC_STORE_BURSTS !== "1").each(["default", "separate
       assertWritten(report);
       if (!report.publication) throw new Error("The clone never attempted to publish its accepted write");
       expect(report.publicationAttempts?.at(-1)).toEqual(report.publication);
+      // Every writer has exited, so a named lock that remains was stranded rather than held.
+      const lock = report.publication.status === "refused" && report.publication.refusal.code === "lock-held" ? report.publication.refusal.lock : null;
+      expect(report.publication.status, JSON.stringify({ attempts: report.publicationAttempts,
+        lockRemains: lock && await lstat(lock).then(() => true, () => false) })).toBe("ok");
       assertPublished(success(report.publication));
     }
     const remoteTip = (await f.remote("git", ["rev-parse", personalRef])).stdout;
