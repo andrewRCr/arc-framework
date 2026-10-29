@@ -746,6 +746,34 @@ Author checks: source-grounding and spec-review's coherence and grounding slices
 § 14.2, and Criteria 4 and 20; task-audit grounds 3.R2 at grounding-only depth. The correction is determinate at low
 depth, so `planning-review` omits the independent offer; no independent review is claimed.
 
+## A21 — The current Candidate record can be newer than its history
+
+A20 rested on `current` always repeating the newest committed version, and it does not. The import reads each live
+work unit's Candidate where the in-repo implementation selects that work unit's meta (`composedMetaSource`): a saved
+revision for a work unit held elsewhere, but the working copy for one this checkout holds, where `arc attest` writes the
+record before the workflow commits it. The import's own suite pins that case ("preserves a newer uncommitted Candidate
+separately from its committed history"), and a staged removal gives the opposite one, committed versions with a null
+`current` ("supplies null current content for live work holding only a boundary"). Under A20 the first case would
+leave a live work unit's newest Candidate behind, so it would need attesting again after the import.
+
+Superseded in § 11 ¶1 (A20): "its content its newest version's, mapped into the Candidate record that version became,
+adding no content, or left behind with that version's reason". Superseded Criterion 20's clause: "mapped into the
+Candidate record its newest version became or left behind with that version's reason"; its coverage requirement stands.
+
+The current record now maps as one more version. Where it repeats the newest committed version it takes that version's
+outcome and adds nothing; otherwise it is the record's newest revision and passes today's reader checks — parse, owning
+work unit, supersession over the committed versions — or is left behind with the reader's reason. The port's record
+contents carry no trailing removal, so committed versions with no current record cannot land without bringing back a
+Candidate today's reader no longer finds; they are left behind with that reason, and their history stays in Git.
+
+Propagation: 3.R2.a's plan bullets change with its Goal unchanged; its import-level coverage check moves to 3.R2.b,
+since tests reach the import only through `runStoreMigrate` (the `store-tests` import boundary). Criterion 20's
+coverage requirement and Criterion 4 stand, Criterion 21 appends, and the A20 analysis otherwise holds.
+
+Author checks: source-grounding and spec-review's coherence and grounding slices cover § 11 ¶1–2 and Criteria 20–21;
+task-audit grounds the revised 3.R2.a against the import suite's two `current` cases. The correction is determinate
+at low depth, so `planning-review` omits the independent offer.
+
 ## Neighbors
 
 The spec names no other work unit. These are the ones its descriptive references mean, and what each owns where it

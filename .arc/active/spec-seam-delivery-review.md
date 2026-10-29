@@ -1640,24 +1640,27 @@ pure module under `lib/store/kinds/review/`: given today's records as read, it r
 items and keys, and a listing that accounts for every source it was given exactly once — each gate file by the
 `gate.path` it was given, its `arc/review-gate/` prefix included; a leftover materialization once by its folder, written
 with a trailing `/` and covering every file below it; each Candidate version as `<tracked path>@<commit>`, its tracked
-path the one its work unit's slug gives (`resolveCandidateRecordRelativePath`); a live work unit's current Candidate
-record by that tracked path alone, its content its newest version's, mapped into the Candidate record that version
-became, adding no content, or left behind with that version's reason (A20); and each boundary by its tracked path —
-as mapped with the records it became, left behind with a reason, or in flight, no two entries covering one file. A file
-mapped in part, as the repository-wide receipt ledger is, lists as mapped, its reason naming the entries it left
-behind. The import's reads, its writes, its trial, and its refusals stay the ref backend's.
+path the one its work unit's slug gives (`resolveCandidateRecordRelativePath`), left behind where its live work unit
+holds no current Candidate record, which today's reader then does not find (A21); a live work unit's current Candidate
+record by that tracked path alone (A20), with its newest committed version's outcome where it repeats that version,
+adding no content, and otherwise as that Candidate record's newest revision, an uncommitted record among them, mapped or
+left behind as today's reader takes it over the committed versions as its history (A21); and each boundary by its
+tracked path — as mapped with the records it became, left behind with a reason, or in flight, no two entries covering
+one file. A file mapped in part, as the repository-wide receipt ledger is, lists as mapped, its reason naming the
+entries it left behind. The import's reads, its writes, its trial, and its refusals stay the ref backend's.
 
 The mapping meets one contract of the import, on base ahead of it (A20): that it calls the mapping through an optional
 port (`reviewMapping`, on the import's `runStoreMigrate`), whose input and result types the mapping meets by shape,
 importing nothing of the import's, with `arc store migrate`'s handler (`handleStoreMigrate`) passing it in; that it
 gives the mapping the project ID, the review gate's whole folder under the Git common directory (`arc/review-gate/`),
 its quarantined and retired records among them, each live work unit's Candidate versions, oldest first from the record's
-path log, with its current Candidate record (`current`), read at the work unit's selected meta revision, and its current
-boundary, and a table of every work unit and Errand it carries, each with the UID it minted (§ 11.3) and whether it is
-live (§ 11.1), an Errand with its claim ID too, since its review lineages name it by that ID, which is random
-(`claimId`, `lib/errand/identity-record.ts`), a name the table lacks being no live work; that it refuses a listing that
-does not account for every source it gave exactly once (`inspectReviewCoverage`); and that it lands what the mapping
-returns in place of the Candidate and boundary records and gate files it gave.
+path log, with its current Candidate record (`current`), read as the in-repo implementation selects that work unit's
+meta (`composedMetaSource`) — from the working copy where it holds that meta, so possibly uncommitted, and from a saved
+revision otherwise (A21) — and its current boundary, and a table of every work unit and Errand it carries, each with the
+UID it minted (§ 11.3) and whether it is live (§ 11.1), an Errand with its claim ID too, since its review lineages name
+it by that ID, which is random (`claimId`, `lib/errand/identity-record.ts`), a name the table lacks being no live work;
+that it refuses a listing that does not account for every source it gave exactly once (`inspectReviewCoverage`); and
+that it lands what the mapping returns in place of the Candidate and boundary records and gate files it gave.
 
 #### 11.1 Live work
 
@@ -2579,6 +2582,12 @@ spec's review copy until the candidate tail deletes it (§ 12.5).
     Candidate record lists once by its tracked path, mapped into the Candidate record its newest version became or left
     behind with that version's reason.
 
+21. **An uncommitted Candidate survives the import (A21).** In `arc store migrate --import`'s trial, each live work
+    unit's current Candidate record lists once by its tracked path. Where it repeats its newest committed version, it
+    takes that version's outcome. Otherwise it is the Candidate record's newest revision, mapped or left behind as
+    today's reader takes it. The coverage-notice requirement from Criterion 20 is unchanged. A live work unit holding
+    committed Candidate versions but no current record leaves those versions behind.
+
 ## Open Questions
 
 None blocks starting. The rest are expected contracts with stated availability, and none leaves design open: the ref
@@ -2652,5 +2661,8 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
 
 - **A20** — 2026-10-29 — design: account for the import's current Candidate source and pass the mapping in.
   _Supersedes:_ § 11 ¶1–2, § 11.1 ¶1. _Trigger:_ 7.5 must-stop. _Work:_ 3.R2. _Revalidated:_ pending → 8.1.
+
+- **A21** — 2026-10-29 — design: map an uncommitted current Candidate as its record's newest revision.
+  _Supersedes:_ § 11 ¶1 (A20), Criterion 20. _Trigger:_ 3.R2.a must-stop. _Work:_ 3.R2. _Revalidated:_ pending → 8.1.
 
 ---

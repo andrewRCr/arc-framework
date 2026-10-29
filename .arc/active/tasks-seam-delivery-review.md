@@ -488,17 +488,18 @@ alone.
   accounts for each live work unit's current Candidate record the import gives, so the import's trial over this
   repository reports the mapping's listing with no review coverage notice (A20).
 
-    - `[ ]` **3.R2.a List each live work unit's current Candidate record**
-        - `ReviewMappingInput` (`mapping-types.ts`) takes the port's `current`; `collectReviewMappingSources` adds it
-          as a source at the plain tracked path, and `mapReviewCandidateSources` lists it as mapped into the Candidate
-          record its newest version became, adding no content, or left behind with that version's reason.
+    - `[ ]` **3.R2.a List each live work unit's current Candidate record (A21)**
+        - `ReviewMappingInput` (`mapping-types.ts`) takes the port's `current`, and `collectReviewMappingSources` adds
+          it as a source at the plain tracked path. `mapReviewCandidateSources` lists it with its newest committed
+          version's outcome where it repeats that version, adding no content, and otherwise maps it as the Candidate
+          record's newest revision through today's reader checks over the committed versions; a live work unit holding
+          committed versions but no current record leaves them behind.
         - Build `test-first` (one behavior at a time):
-            - a live work unit whose newest version maps lists its current record once, mapped into its Candidate
-              record, and that record's contents are unchanged
-            - a current record whose newest version is refused lists left behind with that version's reason, and a
-              null `current` adds no source
-            - `inspectReviewCoverage` over the sources `mapImportReview` gives reports no notice for a live work unit's
-              versions, current record, and boundary
+            - a current record repeating its newest version lists once with that version's outcome, the record's
+              contents unchanged
+            - an uncommitted current record newer than its committed history, or with none, maps as the record's
+              newest revision, and one today's reader refuses lists left behind with its reason
+            - committed versions with a null `current` list left behind, and no current source is added
     - `[ ]` **3.R2.b Pass the mapping into the import from `arc store migrate`**
         - `handleStoreMigrate` (`commands/store-migrate.ts`) runs `runStoreMigrate` with `mapReviewRecords` as its
           `reviewMapping` port; the follow path's `runStoreRemote` and `arc store remote` are unchanged, and the review
@@ -1611,3 +1612,8 @@ prerequisites have landed, and every earlier task is independent of the remainin
   records reports no review coverage notice: each live work unit's current Candidate record lists once by its tracked
   path, mapped into the Candidate record its newest version became or left behind with that version's reason
   (spec, A20).
+
+- `[ ]` In `arc store migrate --import`'s trial, each live work unit's current Candidate record lists once by its
+  tracked path, with its newest committed version's outcome where it repeats that version and otherwise as the
+  Candidate record's newest revision, mapped or left behind as today's reader takes it; committed versions with no
+  current record are left behind (spec, A21).
