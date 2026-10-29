@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "windows-symlink-targets",
+  "claimId": "c954a42f5986d9958980d1d471abf417",
+  "createdAt": "2026-10-29T19:56:26.986Z",
+  "updatedAt": "2026-10-29T19:56:26.986Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Qualify Windows backslash link targets in index and commit capture before any production fix.",
+  "branch": "chore/windows-symlink-targets",
+  "origin": "inbox",
+  "originEntry": "Qualify backslash symlink targets in Windows index and commit capture",
+  "originEntrySourceDigest": "sha256:ecd1519ed725e5b238b115c53745e585d69f983b4b6d7f69b1942e2fb1d8cd32",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
