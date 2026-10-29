@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "markdown-increment-selection",
+  "claimId": "8e7b7f8425408da0e51093a1f960eea5",
+  "createdAt": "2026-10-29T12:06:02.950Z",
+  "updatedAt": "2026-10-29T12:06:02.950Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Diagnose missing pre-commit Markdown selection in increment checks",
+  "branch": "chore/markdown-increment-selection",
+  "origin": "inbox",
+  "originEntry": "Find why `arc check increment`'s Markdown selections see no changed file before the first commit",
+  "originEntrySourceDigest": "sha256:b1cf9b73c95e68faaa728820317c007f4153f3340aa1c2eda0c826a3373f2d1d",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
