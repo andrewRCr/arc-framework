@@ -924,6 +924,20 @@ it("reports a retained copy account once when a terminal accepts the own-state q
   expect(exitCode).toBe(0);
 });
 
+it.each([{ kind: "answered", value: false }, { kind: "cancelled" }] as const)(
+  "leaves the setting unapplied when a terminal answers $kind, still carrying the move it finished first", async (answer) => {
+    const h = await layoutFixture();
+    await expect(runStoreRemote({ ...h.a.ports, migrateStep: (step) => step === "layout.deleted"
+      ? Promise.reject(new Error("Stop after source delete")) : Promise.resolve() }, { remote: "origin", role: "off" })).rejects.toThrow("Stop after source delete");
+    const { result, output, exitCode } = await invokeStoreRemote(["origin", "push"], { cwd: h.a.root, renderer: answering(answer),
+      ports: { ...h.a.ports, backingRepository: async () => h.origin } });
+    expect(output).toContain("Remote setting left unchanged.\n");
+    expect(result, JSON.stringify(result)).toMatchObject({ status: "ok", result: { layout: "separate", report: { move: "layout" } } });
+    if (result.status !== "ok" || !("remotes" in result.result)) throw new Error("Expected the remote view");
+    expect(result.result.remotes.find(({ name }) => name === "origin")?.role).not.toBe("push");
+    expect(exitCode).toBe(0);
+  });
+
 it.each([
   { fault: "malformed", boundary: "layout.delete" },
   { fault: "malformed", boundary: "layout.deleted" },
