@@ -17,6 +17,8 @@ Stage 1  storage-contract          design core; ships the contract over today's 
 Stage 2  storage-seam              every reader and writer through the contract; after storage-contract lands
          storage-ref-backend       the refs/arc/* store, personal state synced through it, import, explicit
                                    state fetch; implements once seam-lifecycle ships
+         storage-ref-hardening     the ref backend's routed defects the cutover exercises; after the
+                                   ref backend lands
          storage-projection        the working copy
          projected-markdown-checks Markdown checks over projected state; builds beside the projection
 Stage 3  storage-cutover           rehearse, quiesce, import, flip, retire notes; then deletion and documentation
@@ -52,6 +54,10 @@ builds for each family it reroutes.
       minted at `storage-contract`'s draft close, whose only edge is the cutover;
     - framework core from the package — `framework-core-from-package`: its read-only projection, which ghost mode needs,
       is core, and the rest is deferred.
+    - native-Windows bulk publication and migration — `storage-native-windows-bulk-transport`, designated core by
+      the Owner on 2026-10-26; it may start after the ref backend, before the cutover, by the ordering below.
+    - the ref backend's routed test, benchmark, and remote-move gaps — `storage-ref-release-hardening`, due before
+      the public release (Owner, 2026-10-29); it may start once the ref backend lands.
 - **Deferred,** each never precluded:
     - `operational-state-docs`'s user-surface residue, while its conformance gate may run ahead;
     - delivery re-scoped toward observe-and-attest — `delivery-observe-attest`;
@@ -69,6 +75,25 @@ first supplies canonical holder selection under slug reuse and clashes; the seco
 lifecycle commands, as an added `storage-seam` member depending on `storage-ref-backend`. Coordinate both with current
 seam writers and sequence their implementation after overlapping writers land. Existing post-cutover follow-ons,
 including `work-item-relations`, retain their scopes and order.
+
+### Native-Windows bulk transport (2026-10-26)
+
+The Owner approved a staged split: `storage-ref-backend` supplies fetch through stdin and explicit push-capacity refusal
+with preserved recovery; `storage-native-windows-bulk-transport` completes native bulk publication and migration. The
+capability remains core, not an excluded platform case. The follow-up depends on the ref backend for implementation and
+may run alongside projection work. It must land before the first native-Windows adoption, no later than Gate A; a
+controlled Linux/WSL-only cutover is not unconditionally blocked by it. Its draft starts with bounded feasibility,
+retains the semantic push boundary and transaction guarantees, and does not presume a storage-engine redesign.
+
+### Ref-backend hardening (2026-10-29)
+
+`storage-ref-backend`'s review stopped under a pre-committed rule that routed its remaining ref-backend findings
+out (Owner, 2026-10-29). `storage-ref-hardening` takes those the cutover or its rehearsal exercises, with a focused
+import review, and `storage-cutover` depends on it. `storage-ref-release-hardening` takes the test, benchmark, and
+remote-move gaps a default-layout cutover never reaches; it is due before the public release and the cutover does
+not wait on it. Both depend on `storage-ref-backend`. `storage-ref-hardening` runs ahead of `storage-projection`'s
+and `cohort-identity-verbs`' ref-backend phases, landing first the listing scope, the fault classes and remedies,
+and the pull-result consumer sweep those phases observe; its internal items run alongside them.
 
 ### Shared contracts
 
@@ -250,6 +275,28 @@ registrations, write checks, `anchorFields`, and `HAND_EDIT_VERBS`, which the ba
 `seam-lifecycle`'s record placement, rename path, pause section, branch links, and capture keys, which the backend and
 its import build on, so implementation starts once it ships; and `seam-locus`'s Errand `owner` field, which the import
 needs before it re-homes Errands, so it lands after that member.
+
+### `storage-ref-hardening`
+
+_Exposes:_ the ref backend with the defects the cutover exercises fixed: the import, fault classes and remedies for
+missing objects, listing scope, pull-result consumers, sync and withdrawal robustness, and ref locks.
+
+_Consumes:_ `storage-ref-backend`, landed. `storage-cutover` consumes it.
+
+### `storage-ref-release-hardening`
+
+_Exposes:_ the ref backend's test, fixture, and race-kit gaps closed, and remote moves corrected.
+
+_Consumes:_ `storage-ref-backend`, landed; due before the public release.
+
+### `storage-native-windows-bulk-transport`
+
+_Exposes:_ native-Windows bulk publication and complete migration beyond the process command-line ceiling, preserving
+atomicity, exact leases, ordinary unleased fast-forward behavior, hooks, remote identity/settings, and recovery.
+
+_Consumes:_ `storage-ref-backend`'s structured push boundary and both physical layouts. Its core release deadline is
+before first native-Windows adoption, no later than Gate A; implementation may overlap projection after the backend
+lands.
 
 ### `storage-projection`
 
