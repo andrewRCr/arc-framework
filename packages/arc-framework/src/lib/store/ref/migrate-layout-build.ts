@@ -59,10 +59,13 @@ export async function buildLayoutMove(code: RefBackendContext, source: RefBacken
   return { context: target, source: refs, destination, planned: copied.refs, notices: copied.notices };
 }
 
-/** Move objects using stdin refspecs so a large store never grows a command-line-sized argument list. */
+/**
+ * Move objects using stdin refspecs so a large store never grows a command-line-sized argument list, never pruning a
+ * ref or tag by the person's configured fetch pruning.
+ */
 export async function fetchLayoutObjects(context: RefBackendContext, source: string, refs: ReadonlyMap<string, string>): Promise<void> {
   if (!refs.size || source === (context.repository?.gitDir ?? context.repository?.commonDir)) return;
-  await context.execInput(["fetch", "--stdin", "--refmap=", "--no-tags", "--no-filter", "--no-write-fetch-head", "--", source],
+  await context.execInput(["fetch", "--stdin", "--refmap=", "--no-tags", "--no-prune", "--no-prune-tags", "--no-filter", "--no-write-fetch-head", "--", source],
     [...new Set(refs.values())].join("\n") + "\n", { cwd: context.checkoutRoot });
 }
 

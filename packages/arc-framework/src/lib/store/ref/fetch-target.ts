@@ -17,13 +17,13 @@ export async function refFetchTarget(context: RefBackendContext, remote: RefRemo
 }
 
 /**
- * The one argument list a store fetch of named refs runs: no configured refmap, tags, filter, or FETCH_HEAD, which
- * belongs to the person's own fetches, and per-ref porcelain over forced-update checks. Omitted refspecs select
- * owned stdin; explicit refspecs render bounded, directly executable repair commands.
+ * The one argument list a store fetch of named refs runs: no configured refmap, tags, tag pruning, filter, or
+ * FETCH_HEAD, which belong to the person's own fetches, and per-ref porcelain over forced-update checks. Omitted
+ * refspecs select owned stdin; explicit refspecs render bounded, directly executable repair commands.
  */
 export function refFetchArgs(remote: string, negotiation: readonly string[], target: string, refspecs?: readonly string[]): string[] {
   return [...gitRefLockArgs(), "-c", `remote.${remote}.negotiationInclude=`, "fetch", "--refmap=", "--no-tags", "--no-filter",
-    "--no-write-fetch-head", "--prune", "--show-forced-updates", "--porcelain", "--verbose", ...negotiation, ...(refspecs === undefined ? ["--stdin"] : []), "--", target, ...(refspecs ?? [])];
+    "--no-write-fetch-head", "--prune", "--no-prune-tags", "--show-forced-updates", "--porcelain", "--verbose", ...negotiation, ...(refspecs === undefined ? ["--stdin"] : []), "--", target, ...(refspecs ?? [])];
 }
 
 /** Restrict negotiation to state namespaces actually held by this store. */
