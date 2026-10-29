@@ -30,13 +30,15 @@ export async function qualifyNativeCheck(root: string, checkId: "test:unit" | "t
   if (resolved.status !== "resolved") throw new Error(resolved.message);
   await mkdir(dirname(output), { recursive: true });
   const stdout = new Map<string, Buffer[]>();
+  const stderr = new Map<string, Buffer[]>();
   const preparation = await prepareSelectedCheckExecution({ callerRoot: root, request: resolved.request, check, paths: [],
     configuration, environment, globalRuntimeInputs: loaded.value.global_runtime_inputs,
     onDiagnostic: bytes => { process.stderr.write(bytes); },
-    onOutput: frame => { if (frame.stream === "stdout") {
-      const chunks = stdout.get(frame.invocationId) ?? [];
-      chunks.push(Buffer.from(frame.bytes)); stdout.set(frame.invocationId, chunks);
-    } },
+    onOutput: frame => {
+      const stream = frame.stream === "stdout" ? stdout : stderr;
+      const chunks = stream.get(frame.invocationId) ?? [];
+      chunks.push(Buffer.from(frame.bytes)); stream.set(frame.invocationId, chunks);
+    },
     buildPlan: async context => {
       const input = { callerRoot: root, source: context.source, paths: context.paths, check,
         globalRuntimeInputs: loaded.value.global_runtime_inputs };
@@ -68,14 +70,19 @@ export async function qualifyNativeCheck(root: string, checkId: "test:unit" | "t
     for (const invocation of execution.plan.invocations) {
       const outcome = execution.observedOutcomes.get(invocation.id);
       const text = Buffer.concat(stdout.get(invocation.id) ?? []).toString("utf8");
-      await writeFile(`${output}.${invocation.id}.stdout`, text);
       runs.push({ exitCode: outcome?.status === "completed" ? outcome.exitCode : -1,
         basis, observations: readNativeShardObservations(text) });
     }
     if (parent.evidence.kind !== "success") throw new Error(`Native parent did not complete successfully: ${parent.evidence.kind}.`);
     selected = qualifyNativeShardMembership(runs[0]!, runs.slice(1), check.shards.count);
   } catch (cause) { failure = cause instanceof Error ? cause.message : String(cause); }
-  finally { closure = await execution.close(); }
+  finally {
+    closure = await execution.close();
+    for (const invocation of execution.plan.invocations) {
+      await writeFile(`${output}.${invocation.id}.stdout`, Buffer.concat(stdout.get(invocation.id) ?? []));
+      await writeFile(`${output}.${invocation.id}.stderr`, Buffer.concat(stderr.get(invocation.id) ?? []));
+    }
+  }
   if (closure.status !== "closed" || closure.exit.exitCode !== 0) failure ??= "Native runner closure is incomplete or failed.";
   const report = { checkId, status: failure === undefined ? "qualified" : "incomplete", failure,
     declaredRouted: declared.shards.routed, runtimeBinding: execution.runtime === undefined ? "unknown" : "known",

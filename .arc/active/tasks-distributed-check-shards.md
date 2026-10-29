@@ -306,6 +306,10 @@ through controller closing. Store qualification uses the native reach command la
         - Repository setup establishes the existing `.test-cost-runs` output root before the runner freezes generated
           additions. Later timing and `duration-input/` writes retain their paths; new and changed source still refuse.
 
+    - `[x]` **4.3.S Preserve native qualification stderr**
+        - Qualification retains per-invocation stdout and stderr through failed qualification and closure, while
+          native observations continue to parse stdout alone.
+
     - `[ ]` **4.3.b Qualify full and selected native store membership**
         - Use the landed store declaration, reach suite catalogue and native shard entry; cover deletions,
           declaration widening, `ARC_STORE_CHECK` forms and `ARC_STORE_BURSTS` membership gates through captured inputs.
