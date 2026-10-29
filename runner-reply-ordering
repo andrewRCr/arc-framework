@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "runner-reply-ordering",
+  "claimId": "47434434e0a2adc33c251b6471949605",
+  "createdAt": "2026-10-29T14:08:20.028Z",
+  "updatedAt": "2026-10-29T14:08:20.028Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Reproduce and resolve cancel-write ordering after a settled runner reply",
+  "branch": "chore/runner-reply-ordering",
+  "origin": "inbox",
+  "originEntry": "Process a settled runner reply before a failed cancel write fails the session",
+  "originEntrySourceDigest": "sha256:a30e70604aad303e5c57df3275ca05840fd2c9583f76272ecddcec20b0836f74",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
