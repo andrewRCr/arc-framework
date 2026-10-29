@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "windows-missing-check",
+  "claimId": "bb04fe5115246b5e2569ec36570cf4eb",
+  "createdAt": "2026-10-29T15:52:04.571Z",
+  "updatedAt": "2026-10-29T15:52:04.571Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Report unresolvable native Windows check executables as not started",
+  "branch": "chore/windows-missing-check",
+  "origin": "inbox",
+  "originEntry": "Report a missing native check command on Windows as not run",
+  "originEntrySourceDigest": "sha256:39c7948935977db6be25f5be39ab249bbec4b119ea22334f30faa271245f0757",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
