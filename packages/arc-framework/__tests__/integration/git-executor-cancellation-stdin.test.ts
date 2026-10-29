@@ -64,7 +64,10 @@ try {
   assert(started, "The child must start without consuming its 16 MiB input");
   await delay(25);
   assert.equal(settled, false, "Input must remain pending before cancellation");
-  const owned = (await processes()).filter(row => row.pid !== process.pid && row.command.includes(ready)).map(row => row.pid);
+  // The alias carries the marker in forward-slash form on Windows, as the shell needs it.
+  const marker = ready.replaceAll("\\\\", "/");
+  const owned = (await processes()).filter(row => row.pid !== process.pid && row.command.replaceAll("\\\\", "/").includes(marker))
+    .map(row => row.pid);
   assert(owned.length >= 2, "Observe Git and its blocked input consumer before cancellation");
   controller.abort();
   const failure = await Promise.race([pending, delay(2500, undefined, { ref: false }).then(() => ({ kind: "still-running" }))]);
