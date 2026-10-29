@@ -1564,6 +1564,6 @@ settler are implementation detail; § 7.3 fixes the request `LocusPorts` takes.
   _Supersedes:_ none. _Trigger:_ 7.6 segment. _Work:_ 7.R. _Revalidated:_ 7.6.
 
 - **A3** — 2026-10-29 — task: align ref cohort slug lookup and shared conformance before remaining lookup work.
-  _Supersedes:_ none. _Trigger:_ 8.1 must-stop. _Work:_ 8.R. _Revalidated:_ pending → 8.R.
+  _Supersedes:_ none. _Trigger:_ 8.1 must-stop. _Work:_ 8.R. _Revalidated:_ 8.R.
 
 ---

@@ -60,9 +60,9 @@ categories in `task-audit`, with bounded read-only scouts; it is not independent
 
 No new scope is needed for the recommended cohort correction: it realizes the existing cohort-ranking goal.
 The remaining checked archive, claim, ref-ranking, and reference-binding contracts still match their tasks.
-Phase 9 remains the terminal verification boundary. The failed new-head check is unresolved; no passing post-merge
-qualification is claimed. The native cleanup matrix passes 75 cases and the ref-store decomposition fixture passes
-22 cases, but neither substitutes for the failed shared conformance assertion.
+Phase 9 remains the terminal verification boundary. At this audit boundary the failed new-head check was unresolved; no
+passing post-merge qualification had been established. The native cleanup matrix passes 75 cases and the ref-store
+decomposition fixture passes 22 cases, but neither substitutes for the failed shared conformance assertion.
 
 ## A3 — Cohort lookup after reconciliation
 
@@ -83,4 +83,6 @@ The correction admits both lifecycle families in `slugCandidates`, `answerHolder
 conclusiveness check without changing the shared ranker or typed name binding. Native red runs expose the three
 cohort selection cases, the shared assertion, unresolved cohort evidence, and the conclusive-current-name boundary;
 the corrected paths pass. Focused normal/separate conformance and declaration inventories pass, including the
-in-repo exclusion. The original new-head request remains pending until the correction has its commit head.
+in-repo exclusion. The original `arc check new-head --from 5d16bc32756df53cd9a9b13578c6b8b809538ab3`
+passes at correction commit `afacae528eb940f0041c7f1949d0fdda4b4238b7`: 9 checks passed and 8 were reused, with all
+20,522 unit cases passing. This clears the detecting failure and closes A3; terminal verification remains in Phase 9.
