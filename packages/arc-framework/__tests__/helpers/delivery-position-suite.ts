@@ -3100,7 +3100,8 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     ]).then((line) => line.split("\t")[0]));
   });
 
-  // Its thirteen review-fix continuations take about 85 s on a hosted runner shared with other E2E files, up to 110 s.
+  // About 85 s on a hosted runner shared with other E2E files, up to 110 s,
+  // most of it in thirteen review-fix continuations.
   it("drives a registered review correction through superseded verification to hosted review", async () => {
     const fixture = await positionFixture("registered-current", {
       reviewChunkingThresholdLines: 2,
