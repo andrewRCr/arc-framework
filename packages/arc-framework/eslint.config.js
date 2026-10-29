@@ -219,6 +219,15 @@ export default tseslint.config(
       "max-lines": ["error", { max: 1500, skipBlankLines: true, skipComments: true }],
     },
   },
+  // A focused test narrows every run of its file, so a pass recorded with one never covers the whole file.
+  {
+    files: ["__tests__/**/*.ts"],
+    rules: {
+      "no-restricted-properties": ["error", ...["it", "test", "describe", "suite"].map((object) => ({
+        object, property: "only", message: "Remove .only; a focused test narrows every run of its file.",
+      }))],
+    },
+  },
   ...composeArchitectureBans(architectureBans),
   {
     ignores: ["dist/", "eslint.config.js",
