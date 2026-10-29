@@ -7,7 +7,7 @@
 - **Cohort:** `state-storage`
 - **Depends On:** `storage-ref-backend`, `storage-projection`, `seam-decomposition`, `seam-delivery-review`,
   `seam-lifecycle`, `seam-locus`, `seam-record-kinds`, `seam-status-roadmap`, `projected-markdown-checks`,
-  `lifecycle-slug-selection`, `cohort-identity-verbs`
+  `lifecycle-slug-selection`, `cohort-identity-verbs`, `storage-ref-hardening`
 
 - **Origin:** [internal] — the `state-storage` re-cut (2026-09-28)
 - **Design:** `draft-storage-cutover.md`
