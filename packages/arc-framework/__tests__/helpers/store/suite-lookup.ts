@@ -24,7 +24,7 @@ async function checkDirectAliasBoundary(fixture: ConformanceFixture, operation: 
   const reference = singletonReference(owner, "work-item/draft");
   const store = synced ? fixture.remote(true) : fixture.store;
   if (store === undefined) throw Error("Expected a remote fixture.");
-  if (synced) success(await fixture.store.sync());
+  if (synced) success(await fixture.store.push());
   const saved = success(await store.version());
   if (operation === "read") expect(await store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   else if (operation === "list") expect(success(await store.list({ family: "work-item", owner })).status).toBe("absent");
@@ -78,6 +78,11 @@ export function registerLookupAssertions(context: SuiteContext): void {
     success(await fixture.store.write({ ...update(fixture, record), reference: renamed }));
     for (const slug of [record.reference.owner.name, renamed.owner.name]) expect(success(await fixture.store.lookup({ kind: "slug", slug })).reference).toEqual(renamed);
   });
+  assertion(context, "work-item", "slug-held-only-by-a-cohort-not-found", async (fixture) => {
+    const cohort = await seed(fixture, fixture.reference("cohort/document"));
+    expect(await fixture.store.lookup({ kind: "slug", slug: cohort.reference.owner.name }))
+      .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  }, context.registration.declarations.families.includes("cohort") ? undefined : "No cohort is served to hold the name.");
   assertion(context, "lineage", "terminal-transition-after-primary-removal", async (fixture) => {
     const work = await seed(fixture, fixture.reference("work-item/meta"));
     const reference = singletonReference(work.reference.owner, "lineage/transition");

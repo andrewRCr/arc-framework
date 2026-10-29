@@ -1,7 +1,28 @@
-/** Explicit I/O and lazy policy seams for the in-repository store. */
+/** Explicit I/O and lazy policy seams for operational storage backends. */
 
-import type { GitExec, GitExecInput } from "../git/exec.js";
+import type { GitExec, GitExecInput, RawGitExec } from "../git/exec.js";
 import type { Slug } from "../kernel/schema/slug.js";
+import type { KindId } from "./catalog.js";
+import type { KindDefinition } from "./registry.js";
+import type { ReadOnlyStore } from "./contract.js";
+import type { RecordReference } from "./identity.js";
+import type { MigrateReport } from "./commands.js";
+
+/** Review sources retain byte identity, code-history coordinates, and freshly minted store identities. */
+export interface ReviewMappingInput {
+  projectId: string;
+  gate: { path: string; bytes: Uint8Array }[];
+  candidates: { workItem: string; versions: { commit: string; content: string }[]; current: string | null; boundary: string | null }[];
+  workItems: (
+    | { slug: string; kind: "work-unit"; uid: string; live: boolean }
+    | { slug: string; kind: "errand"; uid: string; live: boolean; claimId: string }
+  )[];
+}
+/** Each review mapping lists every input source and returns only the records it intends to retain. */
+export interface ReviewMappingResult {
+  records: { reference: RecordReference; contents: string[] }[];
+  listing: MigrateReport["reviewMapping"];
+}
 
 /** File types used by the lifecycle walk; symbolic links are never regular records. */
 export interface StoreDirectoryEntry {
@@ -31,4 +52,44 @@ export interface StorePorts {
   identity: () => Promise<Slug | null>;
   remote: () => Promise<string | null>;
   locks: { tracked: StoreWriteLock; notes: StoreWriteLock };
+}
+
+/** Signal-ended retry waits and independently scheduled deadline bounds. */
+export interface RefStoreSleep {
+  wait(milliseconds: number, signal: AbortSignal): Promise<void>;
+  bound(milliseconds: number, signal: AbortSignal): Promise<void>;
+}
+
+/** Directory operations used to install a complete bare repository atomically. */
+export interface RefRepositoryFileAccess {
+  realpath(path: string): Promise<string>;
+  rename(source: string, destination: string): Promise<void>;
+  removeDirectory(path: string): Promise<void>;
+}
+
+/** Ref backend dependencies; identity and actor resolution stay lazy. */
+export interface RefStorePorts {
+  exec: GitExec;
+  execInput: GitExecInput;
+  rawExec: RawGitExec;
+  fs: StoreFileAccess & RefRepositoryFileAccess & { readBytes(path: string): Promise<Uint8Array>; writeBytes(path: string, content: Uint8Array): Promise<void> };
+  clock: () => Date;
+  sleep: RefStoreSleep;
+  random: () => number;
+  checkoutRoot: string;
+  identity: () => Promise<Slug | null>;
+  actor: (identity: Slug) => Promise<string>;
+  /** Read the invoking checkout's tracked pointer only at destination decisions. */
+  backingRepository: () => Promise<string | null>;
+  /** Explicit remote migrations require a command-owned writer for the tracked pointer. */
+  writeBackingRepository?: (value: string | null) => Promise<void>;
+  registry?: Readonly<Record<KindId, KindDefinition>>;
+  /** One-time import source, bound by the backend composition point only when requested. */
+  importSource?: { store: ReadOnlyStore; ports: StorePorts & { rawExec: RawGitExec }; baseBranch: string };
+  /** Observe an explicit move step before it runs; fault tests may interrupt the operation here. */
+  migrateStep?: (step: string) => Promise<void>;
+  /** Pure conversion of legacy review sources, supplied only once their mapping is available. */
+  reviewMapping?: (input: ReviewMappingInput) => ReviewMappingResult;
+  /** Acquire a state ref lock or the "layout" lock in the code repository's common Git directory. */
+  lock: (ref: string, waitMs?: number) => Promise<() => Promise<void>>;
 }

@@ -1,0 +1,119 @@
+import { mkdtemp, mkdir, lstat, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterEach, describe, expect, it } from "vitest";
+
+import { readGitDirectories } from "../../../src/lib/git/directories.js";
+
+const roots: string[] = [];
+const files = { lstat, realpath, readFile: (path: string) => readFile(path, "utf8") };
+afterEach(async () => {
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+});
+async function root() {
+  const path = await mkdtemp(join(tmpdir(), "arc-git-directories-"));
+  roots.push(path);
+  return path;
+}
+
+describe("filesystem Git directory discovery", () => {
+  it("uses the main checkout's .git directory for both metadata scopes", async () => {
+    const path = await root();
+    const gitDir = join(path, ".git");
+    await mkdir(gitDir);
+    expect(await readGitDirectories(path, files)).toEqual({ gitDir, commonDir: gitDir });
+  });
+
+  it("follows a .git symlinked to a directory, as Git does", async () => {
+    const path = await root();
+    const target = join(path, "elsewhere.git");
+    await mkdir(target);
+    const marker = join(path, ".git");
+    await symlink(target, marker, "junction");
+    expect(await readGitDirectories(path, files)).toEqual({ gitDir: marker, commonDir: marker });
+  });
+
+  it("uses a .git file's directory for both scopes when it has no commondir", async () => {
+    const path = await root();
+    const gitDir = join(path, "separate.git");
+    await mkdir(gitDir);
+    await writeFile(join(path, ".git"), `gitdir: ${gitDir}\n`);
+    expect(await readGitDirectories(path, files)).toEqual({ gitDir, commonDir: gitDir });
+  });
+
+  it.each(["directory", "gitfile"])("resolves relative commondir at the physical %s target", async kind => {
+    const path = await root(), checkout = join(path, "checkout"), commonDir = join(path, "repository", ".git");
+    const target = join(commonDir, "worktrees", "child"), marker = join(checkout, ".git");
+    await mkdir(checkout);
+    await mkdir(target, { recursive: true });
+    await writeFile(join(target, "commondir"), "../..\n");
+    const gitDir = kind === "directory" ? marker : join(path, "metadata-link");
+    await symlink(target, gitDir, "junction");
+    if (kind === "gitfile") await writeFile(marker, "gitdir: ../metadata-link\n");
+    expect(await readGitDirectories(checkout, files)).toEqual({ gitDir, commonDir });
+  });
+
+
+  it("resolves .git and commondir relative to the files that contain them", async () => {
+    const path = await root();
+    const checkout = join(path, "checkout");
+    const commonDir = join(path, "repository", ".git");
+    const gitDir = join(commonDir, "worktrees", "child");
+    await mkdir(checkout);
+    await mkdir(gitDir, { recursive: true });
+    await writeFile(join(checkout, ".git"), "gitdir: ../repository/.git/worktrees/child\n");
+    await writeFile(join(gitDir, "commondir"), "../..\n");
+    expect(await readGitDirectories(checkout, files)).toEqual({ gitDir, commonDir });
+  });
+
+
+  it("refuses a malformed .git marker and succeeds after its path is repaired", async () => {
+    const path = await root();
+    const gitDir = join(path, "repaired.git");
+    await mkdir(gitDir);
+    const marker = join(path, ".git");
+    await writeFile(marker, "not a Git marker\n");
+    await expect(readGitDirectories(path, files)).rejects.toThrow(/repair.*gitdir:/u);
+    await writeFile(marker, `gitdir: ${gitDir}\n`);
+    expect(await readGitDirectories(path, files)).toEqual({ gitDir, commonDir: gitDir });
+  });
+
+
+  it("preserves an unreadable commondir failure and succeeds once access is repaired", async () => {
+    const path = await root();
+    const gitDir = join(path, ".git");
+    await mkdir(gitDir);
+    const original = Object.assign(new Error("EACCES: commondir is unreadable"), { code: "EACCES" });
+    const unreadable = { ...files, readFile: async (): Promise<string> => { throw original; } };
+    await expect(readGitDirectories(path, unreadable)).rejects.toBe(original);
+    expect(await readGitDirectories(path, files)).toEqual({ gitDir, commonDir: gitDir });
+  });
+
+});
+
+
+describe("significant whitespace in Git marker paths", () => {
+  it.skipIf(process.platform === "win32").each(["\n", "\r\n", ""])("preserves leading and trailing gitfile path bytes with ending %j", async eol => {
+    const path = await root(), gitDir = join(path, " separate \v\f\n\t");
+    await mkdir(gitDir);
+    await writeFile(join(path, ".git"), `gitdir:  separate \v\f\n\t${eol}`);
+    expect(await readGitDirectories(path, files)).toEqual({ gitDir, commonDir: gitDir });
+  });
+
+  it.skipIf(process.platform === "win32").each(["\n", "\r\n", ""])("preserves leading and trailing commondir path bytes with ending %j", async eol => {
+    const path = await root(), gitDir = join(path, ".git"), commonDir = join(gitDir, " common \v\f\n\t");
+    await mkdir(commonDir, { recursive: true });
+    await writeFile(join(gitDir, "commondir"), ` common \v\f\n\t${eol}`);
+    expect(await readGitDirectories(path, files)).toEqual({ gitDir, commonDir });
+  });
+
+  it("requires Git's exact marker prefix and accepts a repaired marker", async () => {
+    const path = await root(), gitDir = join(path, "separate.git"), marker = join(path, ".git");
+    await mkdir(gitDir);
+    await writeFile(marker, "gitdir:\tseparate.git\n");
+    await expect(readGitDirectories(path, files)).rejects.toThrow(/Invalid Git directory marker/u);
+    await writeFile(marker, "gitdir: separate.git\n");
+    expect(await readGitDirectories(path, files)).toEqual({ gitDir, commonDir: gitDir });
+  });
+});

@@ -30,6 +30,27 @@ branch_protection=$(arc_config_get "branch.protection" "partial")
 arc_role=$(git config arc.role 2>/dev/null || echo "maintainer")
 tsx_loader=${ARC_TSX_LOADER:-tsx}
 
+# The installed ARC CLI, resolved as the commit-msg and pre-push hooks resolve it:
+# the repository-local executable when present, else `arc` on PATH. Empty when
+# neither exists, so a project need not install the CLI globally.
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
+local_arc="$repo_root/node_modules/.bin/arc"
+arc_cli=""
+if [ -n "$repo_root" ] && [ -x "$local_arc" ]; then
+    arc_cli="$local_arc"
+elif command -v arc >/dev/null 2>&1; then
+    arc_cli="arc"
+fi
+
+# Run a hidden hook command through the installed CLI, or fail naming why.
+run_arc_cli() {
+    if [ -z "$arc_cli" ]; then
+        echo "the ARC CLI could not be resolved; install @arc-framework/cli in this repository or globally"
+        return 127
+    fi
+    "$arc_cli" "$@"
+}
+
 # Exit early if hook is disabled
 if [ "$hook_enabled" = "disabled" ]; then
     exit 0
@@ -129,7 +150,7 @@ if [ "$pm_mode" = "arc-in-git" ]; then
     if [ -f packages/arc-framework/src/scripts/remedy-roadmap-conflict.ts ]; then
         roadmap_remedy_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/remedy-roadmap-conflict.ts 2>&1) || roadmap_remedy_status=$?
     else
-        roadmap_remedy_output=$(arc hook-remedy-roadmap-conflict 2>&1) || roadmap_remedy_status=$?
+        roadmap_remedy_output=$(run_arc_cli hook-remedy-roadmap-conflict 2>&1) || roadmap_remedy_status=$?
     fi
     if [ "$roadmap_remedy_status" -ne 0 ]; then
         echo -e "${RED}Error: ROADMAP conflict auto-remedy failed:${NC}"
@@ -374,16 +395,25 @@ fi
 # ============================================================================
 # CHECK[frontmatter-schema]: Frontmatter schema validation (methods)
 # ============================================================================
-# Delegates to validate-frontmatter.ts via Node's TypeScript loader — schema logic lives in
-# TypeScript where it is unit-tested; this hook is a thin invoker. Catches
-# missing or malformed frontmatter on staged files under system/methods/
-# only.
+# Delegates to validate-frontmatter.ts — schema logic lives in TypeScript where it
+# is unit-tested; this hook is a thin invoker. ARC's own checkout runs the source
+# through Node's TypeScript loader; an installed project, which has no package
+# source, runs the same validator through the installed CLI. Catches missing or
+# malformed frontmatter on staged files under system/methods/ only.
+validate_frontmatter() {
+    if [ -f packages/arc-framework/src/scripts/validate-frontmatter.ts ]; then
+        node --import "$tsx_loader" packages/arc-framework/src/scripts/validate-frontmatter.ts "$@"
+    else
+        run_arc_cli hook-validate-frontmatter "$@"
+    fi
+}
+
 frontmatter_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -E '^(\.arc|packages/arc-framework/arc)/system/methods/' || true)
 
 if [ -n "$frontmatter_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
-    if ! frontmatter_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/validate-frontmatter.ts $frontmatter_candidates 2>&1); then
+    if ! frontmatter_output=$(validate_frontmatter $frontmatter_candidates 2>&1); then
         echo -e "${RED}Error: Frontmatter schema validation failed:${NC}"
         echo "$frontmatter_output" | sed 's/^/   /'
         echo ""
@@ -395,7 +425,7 @@ fi
 # ============================================================================
 # CHECK[domain-rules-frontmatter]: Domain-rules frontmatter validation (DEV-RULES.{DOMAIN}.md)
 # ============================================================================
-# Delegates to validate-frontmatter.ts — same validator as CHECK[frontmatter-schema], scoped
+# Delegates to validate_frontmatter — same validator as CHECK[frontmatter-schema], scoped
 # to DEV-RULES.{DOMAIN}.md files under system/rules/. Reserved
 # filenames (DEV-RULES.ARC.md, DEV-RULES.PROJECT.md) are filtered by the
 # validator's classifier and not checked.
@@ -404,7 +434,7 @@ domain_rules_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
 
 if [ -n "$domain_rules_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
-    if ! domain_rules_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/validate-frontmatter.ts $domain_rules_candidates 2>&1); then
+    if ! domain_rules_output=$(validate_frontmatter $domain_rules_candidates 2>&1); then
         echo -e "${RED}Error: Domain-rules frontmatter validation failed:${NC}"
         echo "$domain_rules_output" | sed 's/^/   /'
         echo ""
@@ -472,10 +502,20 @@ fi
 # `**Design:**` field shape, lifecycle State enum, and Cohort path shape.
 # Tier-aware semantics (per-WU-type Design requirements) are deferred to a
 # downstream WU.
+#
+# This check, the cohort-consistency check, and the ROADMAP assert run their
+# scripts from ARC's package source, so an installed project, which has none,
+# skips each with a notice.
+skip_source_only_check() {
+    echo -e "${YELLOW}Notice: $1 skipped; it needs ARC's package source, which this installation does not include.${NC}"
+}
+
 meta_spec_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -E '^\.arc/(active(/[^/]+)?|backlog/(planned|provisional)(/.+)?|completed(/.+)?)/meta-[^/]+\.md$' || true)
 
-if [ -n "$meta_spec_candidates" ]; then
+if [ -n "$meta_spec_candidates" ] && [ ! -f packages/arc-framework/src/scripts/validate-meta-spec.ts ]; then
+    skip_source_only_check "Meta-file validation"
+elif [ -n "$meta_spec_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
     if ! meta_spec_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/validate-meta-spec.ts $meta_spec_candidates 2>&1); then
         echo -e "${RED}Error: Meta-file validation failed:${NC}"
@@ -535,7 +575,9 @@ fi
 cohort_consistency_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -E '^\.arc/backlog/planned/([^/]+/)*(meta|cohort)-[^/]+\.md$' || true)
 
-if [ -n "$cohort_consistency_candidates" ]; then
+if [ -n "$cohort_consistency_candidates" ] && [ ! -f packages/arc-framework/src/scripts/validate-cohort-consistency.ts ]; then
+    skip_source_only_check "Cohort-consistency validation"
+elif [ -n "$cohort_consistency_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
     if ! cohort_consistency_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/validate-cohort-consistency.ts $cohort_consistency_candidates 2>&1); then
         echo -e "${RED}Error: Cohort-consistency validation failed:${NC}"
@@ -560,7 +602,9 @@ if [ "$pm_mode" = "arc-in-git" ]; then
     roadmap_assert_candidate=$(git diff --cached --name-only --diff-filter=ACMR | \
         grep -E '^\.arc/backlog/ROADMAP\.md$' || true)
 
-    if [ -n "$roadmap_assert_candidate" ]; then
+    if [ -n "$roadmap_assert_candidate" ] && [ ! -f packages/arc-framework/src/scripts/assert-roadmap-regenerated.ts ]; then
+        skip_source_only_check "ROADMAP regeneration assert"
+    elif [ -n "$roadmap_assert_candidate" ]; then
         if ! roadmap_assert_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/assert-roadmap-regenerated.ts 2>&1); then
             echo -e "${RED}Error: ROADMAP is not regenerated from sources:${NC}"
             echo "$roadmap_assert_output" | sed 's/^/   /'
@@ -602,20 +646,12 @@ fi
 # ============================================================================
 # CHECK[declared-commit-gate]: Declared commit checks
 # ============================================================================
-if ! repo_root=$(git rev-parse --show-toplevel 2>/dev/null); then
+if [ -z "$repo_root" ]; then
     echo "error: ARC commit gate could not resolve the Git repository root." >&2
     errors=$((errors + 1))
 else
-    local_arc="$repo_root/node_modules/.bin/arc"
-    gate_cli=""
-    if [ -x "$local_arc" ]; then
-        gate_cli="$local_arc"
-    elif command -v arc >/dev/null 2>&1; then
-        gate_cli="arc"
-    fi
-
-    if [ -n "$gate_cli" ]; then
-        if ! "$gate_cli" check pre-commit; then
+    if [ -n "$arc_cli" ]; then
+        if ! "$arc_cli" check pre-commit; then
             errors=$((errors + 1))
         fi
     elif [ -f "$repo_root/.arc/system/arc-checks.yml" ]; then

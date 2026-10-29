@@ -21,13 +21,14 @@ export interface VitestSelection {
  * Initialize native reporting once and discover without executing setups or workers.
  * @param filters - Native package-relative filename filters
  * @param options - Parsed native options
- * @param selectInitial - Optional exact selection before configured native pre-parsing
+ * @param selectInitial - Optional asynchronous refinement using the owning controller before native pre-parsing
  * @param createController - Native controller creation boundary
  * @returns Controller and configured selection for the caller's owning execution
  */
 export async function discoverVitestSelection(
   filters: string[], options: CliOptions,
-  selectInitial?: (specifications: TestSpecification[]) => TestSpecification[],
+  selectInitial?: (specifications: TestSpecification[], controller: Vitest) =>
+    TestSpecification[] | Promise<TestSpecification[]>,
   createController: typeof createVitest = createVitest,
 ): Promise<VitestSelection> {
   process.env.TEST = "true";
@@ -39,7 +40,7 @@ export async function discoverVitestSelection(
     applyProjectCliExclusions(controller, normalized.cliExclude ?? []);
     await controller.standalone();
     let specifications = await controller.getRelevantTestSpecifications(filters);
-    if (selectInitial !== undefined) specifications = selectInitial(specifications);
+    if (selectInitial !== undefined) specifications = await selectInitial(specifications, controller);
     if (controller.config.experimental.preParse) {
       const modules = await controller.experimental_parseSpecifications(specifications);
       const failed = modules.filter((module) => module.errors().length > 0);
@@ -79,6 +80,9 @@ function isNativeSkippedSpecification({ testModule }: TestSpecification): boolea
 
 /**
  * Mirror native run-mode option normalization before controller configuration.
+ *
+ * Snapshots are never written unless the command line asks: Vitest would otherwise decide from `UPDATE_SNAPSHOT`
+ * and its CI detection, so the same run could rewrite or add snapshots and pass where another fails.
  * @param filters - Native filename filters, including supported line suffixes
  * @param options - Parsed native CLI options
  * @returns Options for public controller creation
@@ -86,6 +90,7 @@ function isNativeSkippedSpecification({ testModule }: TestSpecification): boolea
 export function normalizeVitestOptions(filters: string[], options: CliOptions): CliOptions {
   const { exclude, ...normalized } = options;
   return { ...normalized, watch: options.run ? false : options.watch,
+    update: options.update === undefined || options.update === false ? "none" : options.update,
     ...(exclude === undefined ? {} : { cliExclude: exclude }),
     ...(filters.some((filter) => filter.includes(":")) && options.includeTaskLocation === undefined
       ? { includeTaskLocation: true } : {}) };

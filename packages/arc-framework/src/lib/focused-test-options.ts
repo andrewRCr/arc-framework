@@ -8,6 +8,10 @@ const booleanFields = ["isolate", "fileParallelism", "allowOnly", "passWithNoTes
 const booleanValue: ValueValidator = (value) => typeof value === "boolean";
 const nonemptyString: ValueValidator = (value) => typeof value === "string" && value.length > 0;
 const stringArray: ValueValidator = (value) => Array.isArray(value) && value.length > 0 && value.every(nonemptyString);
+// `--update=false` parses to the string "false", which Vitest reads as updating every snapshot; only the native
+// `--no-update` spelling supplies false.
+const snapshotUpdate: ValueValidator = (value) => typeof value === "boolean" || value === "all" || value === "new"
+  || value === "none";
 const nonnegativeNumber: ValueValidator = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0;
 const validators: Readonly<Record<string, ValueValidator>> = {
   ...Object.fromEntries(booleanFields.map((key) => [key, booleanValue])),
@@ -21,6 +25,7 @@ const validators: Readonly<Record<string, ValueValidator>> = {
   retry: (value) => nonnegativeNumber(value) && Number.isInteger(value),
   bail: (value) => nonnegativeNumber(value) && Number.isInteger(value),
   silent: (value) => typeof value === "boolean" || value === "passed-only",
+  update: snapshotUpdate, u: snapshotUpdate,
   outputFile: nonemptyString,
 };
 

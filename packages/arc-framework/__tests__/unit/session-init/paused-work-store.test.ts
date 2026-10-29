@@ -26,13 +26,13 @@ it("refuses disputed pause ownership after sync and lists only the explicitly re
   const h = createLifecycleHarness(), initial = await h.seedMeta("paused", { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" });
   lifecycleSuccess(await h.store.write({ ...recordPut(initial, { content: writeMetaPause(initial.content, pause()) }), provenance: { verb: "pause", lifecycleAction: "pause" } }));
   const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   const local = lifecycleSuccess(await h.store.read({ reference: initial.reference })), other = lifecycleSuccess(await writer.read({ reference: initial.reference }));
   const content = local.content.replace("Waiting for a decision", "Local reason"), provenance = { verb: "update", lifecycleAction: "update" };
   lifecycleSuccess(await h.store.write({ ...recordPut(local, { content }), provenance }));
   lifecycleSuccess(await writer.write({ ...recordPut(other, { content: other.content.replaceAll("andrew", "another").replace("Waiting for a decision", "Remote reason") }), provenance }));
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const disputed = lifecycleSuccess(await h.store.read({ reference: initial.reference })); expect(disputed.conflicts).toHaveLength(1);
   const read = (identity: string) => runPausedWork({ store: h.store, identity, reviewAfterDays: 14, now, findHoldingCheckout: boundHolderLookup(initial, () => "/holder") });
   for (const owner of ["andrew", "another"]) await expect(read(owner)).rejects.toThrow(/conflicts.*resolve.*retry/iu);
@@ -182,7 +182,7 @@ it("names missing prerequisite authority and accepts a repaired explicit prerequ
 it("withholds conflicted terminal alias authority after sync and resumes after explicit resolution", async () => {
   const f = await renamedPrerequisite(); await f.seedMeta("second");
   const remote = createMemoryRemote(); f.store.context.publication.remote = remote;
-  lifecycleSuccess(await f.store.sync());
+  lifecycleSuccess(await f.store.push());
   const writer = new ReferenceBackend({ state: remote.state, registry: f.store.context.registry });
   const other = lifecycleSuccess(await writer.read({ reference: f.dependency.reference }));
   if (other.reference.owner.type !== "work-item") throw new Error("Missing work item");
@@ -191,7 +191,7 @@ it("withholds conflicted terminal alias authority after sync and resumes after e
     { action: "put", reference: recordReferences["lineage/transition"](other.reference.owner), expected: null,
       content: writeLineageRecord({ schemaVersion: 2, kind: "decompose", origin: { name: other.reference.owner.name, uid: other.reference.owner.uid },
         successors: [{ name: SlugSchema.parse("second") }], incoming: [], outgoing: [], retiredBranches: [] }) }], { verb: "decompose", lifecycleAction: "decompose" }));
-  lifecycleSuccess(await f.store.sync());
+  lifecycleSuccess(await f.store.push());
   const disputed = lifecycleSuccess(await f.store.read({ reference: terminal.reference }));
   expect(disputed.conflicts).toHaveLength(1);
   const item = { slug: "paused", pause: f.savedPause }, options = { store: f.store, reviewAfterDays: 14, now };

@@ -14,7 +14,6 @@
  * @module
  */
 
-import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
 import { atomicWriteJson, exclusiveCreateFile } from "../fs.js";
@@ -22,7 +21,8 @@ import { ensureDir } from "../template/index.js";
 import type { CoreIO } from "../types.js";
 
 import { acquireAdvisoryLock, releaseAdvisoryLock } from "../advisory-lock.js";
-import { getRepoSharedUserInternalDir } from "./repo-shared-paths.js";
+import { resolveGitCommonDir } from "../git/exec.js";
+import { getOrCreateMachineId as getStoreMachineId, readMachineIdFile, isMachineId } from "../store/machine-id.js";
 import {
   LocalSyncStateSchema,
   normalizeLocalSyncState,
@@ -82,11 +82,6 @@ function getLocalSyncStateLockPath(cwd: string, identity: string): string {
   return join(getUserInternalDir(cwd, identity), LOCAL_SYNC_STATE_LOCK_FILENAME);
 }
 
-/** Absolute path to the repo-shared dedicated `.machine-id` store. */
-async function getMachineIdPath(cwd: string, io: CoreIO, identity: string): Promise<string> {
-  return join(await getRepoSharedUserInternalDir(io.exec, cwd, identity), MACHINE_ID_FILENAME);
-}
-
 export async function readLocalSyncState(
   cwd: string,
   io: CoreIO,
@@ -135,29 +130,8 @@ function parseLocalSyncState(raw: string): LocalSyncStateParseResult {
 /** Exclusive-create seam — defaults to the real filesystem primitive. */
 export type ExclusiveCreateFn = (path: string, content: string) => Promise<void>;
 
-/** Read-back attempts for the lost-race branch (see {@link getOrCreateMachineId}). */
-const MACHINE_ID_READBACK_ATTEMPTS = 50;
-const MACHINE_ID_READBACK_DELAY_MS = 2;
-
-/**
- * Resolve this machine's stable identifier from the repo-shared dedicated
- * `.machine-id` store, creating one on first need.
- *
- * The id is a random {@link randomUUID} — never the hostname or any environment
- * value — so it can key a sync-state marker on a ref collaborators fetch
- * without leaking machine names. The first write uses an exclusive create
- * ({@link exclusiveCreateFile}, `O_CREAT | O_EXCL`): concurrent first-callers
- * race it, exactly one wins, and every loser adopts the winner's id via an
- * `EEXIST` read-back — so two first-callers on one machine converge on a single
- * id rather than each minting a different one. On a first write, an id already
- * established under the legacy `.sync-state.json` field is adopted rather than
- * minted (preserving an existing identity); that field is read-tolerated only,
- * never written back. Idempotent: once written, every later call returns the
- * persisted id without minting.
- *
- * @param exclusiveCreate - Exclusive-create seam, defaulting to the real
- *   filesystem primitive; injectable so a test can force the lost-race branch.
- * @returns This machine's persisted machine-id.
+/** Resolve the clone's shared machine ID, lazily adopting checkout-local or legacy sync-state IDs.
+ * @param exclusiveCreate - Exclusive-create boundary for callers exercising concurrent first use.
  */
 export async function getOrCreateMachineId(
   cwd: string,
@@ -165,74 +139,11 @@ export async function getOrCreateMachineId(
   identity: string,
   exclusiveCreate: ExclusiveCreateFn = exclusiveCreateFile,
 ): Promise<string> {
-  const machineIdPath = await getMachineIdPath(cwd, io, identity);
-
-  const existing = await readMachineIdFile(io, machineIdPath);
-  if (existing) return existing;
-
-  // On a fresh common-dir `.machine-id`, adopt an id already established by the
-  // prior checkout-local store or the legacy `.sync-state.json` field before
-  // minting — so a machine that already has an identity keeps it rather than
-  // orphaning its sync-state marker key. Legacy stores are read-tolerated only;
-  // nothing writes them back. Routed through the same exclusive create so
-  // concurrent migrators still converge on one.
-  const adopted = await readLegacyCheckoutMachineId(cwd, io, identity)
-    ?? await readLegacyMachineId(cwd, io, identity);
-  const candidate = adopted ?? randomUUID();
-  try {
-    await exclusiveCreate(machineIdPath, candidate);
-    return candidate;
-  } catch (err) {
-    if (!isEexistError(err)) throw err;
-    // Lost the create race: a concurrent first-caller already wrote the
-    // canonical id. Adopt it so both callers converge. The winner's exclusive
-    // create can momentarily precede its content write, so the read-back
-    // tolerates a brief empty window before giving up.
-    for (let attempt = 0; attempt < MACHINE_ID_READBACK_ATTEMPTS; attempt++) {
-      const winner = await readMachineIdFile(io, machineIdPath);
-      if (winner) return winner;
-      await delay(MACHINE_ID_READBACK_DELAY_MS);
-    }
-    throw err;
-  }
-}
-
-/**
- * Read the bare UUID from the `.machine-id` store, or `null` when the file is
- * absent or empty. Only a genuine `ENOENT` reads as absent; any other read failure
- * (a permission error, an unreadable store) rethrows rather than masquerading as
- * "no id yet" — masking it would mint a second identity and orphan this machine's
- * sync-state marker key.
- */
-async function readMachineIdFile(io: CoreIO, machineIdPath: string): Promise<string | null> {
-  let raw: string;
-  try {
-    raw = await io.readFile(machineIdPath);
-  } catch (err) {
-    if (isEnoentError(err)) return null;
-    throw err;
-  }
-  const id = raw.trim();
-  // Require the full UUID shape, not just non-empty: the winner's exclusiveCreateFile
-  // creates the file before its body is fully written, so an EEXIST loser's read-back
-  // can observe a partial id. Rejecting a partial keeps it in the retry/fail-closed
-  // path instead of adopting a truncated id.
-  return isMachineId(id) ? id : null;
-}
-
-/** Whether a string is a canonical machine id — the randomUUID shape getOrCreateMachineId mints. */
-function isMachineId(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(value);
-}
-
-/** Whether an error is a filesystem `EEXIST` (the lost-race signal). */
-function isEexistError(err: unknown): boolean {
-  return isErrnoCode(err, "EEXIST");
-}
-
-/** Whether an error is a filesystem `ENOENT` (the legitimately-absent signal). */
-function isEnoentError(err: unknown): boolean {
-  return isErrnoCode(err, "ENOENT");
+  return getStoreMachineId({
+    commonGitDir: await resolveGitCommonDir(io.exec, cwd), identity, fs: io, exclusiveCreate,
+    candidate: async () => await readLegacyCheckoutMachineId(cwd, io, identity)
+      ?? await readLegacyMachineId(cwd, io, identity),
+  });
 }
 
 function isErrnoCode(err: unknown, code: string): boolean {
@@ -241,10 +152,6 @@ function isErrnoCode(err: unknown, code: string): boolean {
     && err !== null
     && (err as { code?: unknown }).code === code
   );
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**

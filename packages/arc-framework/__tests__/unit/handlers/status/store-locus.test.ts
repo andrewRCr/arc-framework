@@ -24,7 +24,7 @@ it("refuses a disputed named primary while preserving healthy and missing querie
   const h = createLifecycleHarness(), meta = await h.seedMeta("demo", { owner: "starter", state: "Planning", currentWorkflow: "draft-design" });
   await h.seedMeta("healthy");
   const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const other = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   for (const [store, owner] of [[h.store, "alice"], [other, "bob"]] as const) {
     const prior = lifecycleSuccess(await store.read({ reference: meta.reference }));
@@ -32,7 +32,7 @@ it("refuses a disputed named primary while preserving healthy and missing querie
       content: renderMetaFile("demo", { owner, state: "Planning", currentWorkflow: "draft-design" }), placement: { kind: "active" },
       provenance: { verb: "test", lifecycleAction: "update" } }));
   }
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const disputed = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
   expect(disputed.conflicts.length).toBeGreaterThan(0);
   const output = vi.spyOn(process.stdout, "write").mockReturnValue(true);

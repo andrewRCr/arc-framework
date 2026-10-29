@@ -92,7 +92,7 @@ it("reconciles a remote write that commits after sync prepared its first publish
     content: fixture.content(remoteReference, "changed"), provenance: testProvenance });
   await entered.promise;
   (fixture.store as ReferenceBackend).context.publication.remote!.beforePublish = () => { prepared.release(); };
-  const syncing = fixture.store.sync();
+  const syncing = fixture.store.push();
   await prepared.promise;
   unblock.release();
   success(await writing);

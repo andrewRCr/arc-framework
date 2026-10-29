@@ -2,7 +2,9 @@
 import { describe, expect, it } from "vitest";
 import { FAMILY_IDS } from "../../../../src/lib/store/index.js";
 import type { ConformanceRegistration, FixtureDeclarations } from "../../../helpers/store/fixture-contract.js";
-import { registerStoreConformanceSuite, validateConformanceRegistration } from "../../../helpers/store/conformance-suite.js";
+import {
+  collectConformanceCoverage, registerStoreConformanceSuite, validateConformanceInventory, validateConformanceRegistration,
+} from "../../../helpers/store/conformance-suite.js";
 import { inRepoDeclarations } from "../../../helpers/store/in-repo-declarations.js";
 import { unservedFamilyExclusions } from "../../../helpers/store/suite-tools.js";
 
@@ -134,4 +136,30 @@ it("accepts an exclusion after its missing reason is supplied", () => {
 it.each([undefined, "true", 1])("refuses a non-boolean write-check declaration: %j", (runsWriteChecks) => {
   expect(() => validateConformanceRegistration(registration({ runsWriteChecks })))
     .toThrow(/Invalid conformance registration:.*runsWriteChecks/);
+});
+
+describe("conformance runs", () => {
+  it.each([
+    ["a gap", { first: [1, 6], rest: [8, 17] }],
+    ["an overlap", { first: [1, 7], rest: [7, 17] }],
+    ["a reversed range", { first: [6, 1], rest: [7, 17] }],
+    ["an unknown item", { first: [1, 6], rest: [7, 18] }],
+  ])("refuses item ranges with %s", (_name, ranges) => {
+    const probe = { ...registration(), runs: { ranges } } as unknown as ConformanceRegistration;
+    expect(() => validateConformanceRegistration(probe)).toThrow(/Invalid conformance registration:.*(item range|every suite item exactly once)/);
+  });
+
+  it("checks exclusions and the per-change subset against every case of the registration, whatever a file runs", () => {
+    const probe: ConformanceRegistration = { ...registration({ familyExclusions: { "work-item": { assertions: { "reopen-read:work-item/meta": "Probe" } } } }),
+      runs: { ranges: { first: [1, 6], rest: [7, 17] }, subset: { 13: ["work-item: reopen-read:work-item/meta"] } } };
+    expect(() => validateConformanceRegistration(probe)).not.toThrow();
+    expect(() => validateConformanceInventory(probe, collectConformanceCoverage(probe))).not.toThrow();
+    const unknownExclusion = { ...probe, declarations: { ...probe.declarations,
+      familyExclusions: { "work-item": { assertions: { "no-such-assertion": "Probe" } } } } };
+    expect(() => validateConformanceInventory(unknownExclusion, collectConformanceCoverage(unknownExclusion)))
+      .toThrow(/unused assertion exclusions work-item: no-such-assertion/);
+    const unknownCase = { ...probe, runs: { subset: { 13: ["work-item: no-such-case"] } } };
+    expect(() => validateConformanceInventory(unknownCase, collectConformanceCoverage(unknownCase)))
+      .toThrow(/per-change subset names unregistered cases item 13: work-item: no-such-case/);
+  });
 });

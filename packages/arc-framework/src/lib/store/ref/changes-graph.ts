@@ -1,0 +1,116 @@
+/** Immutable commit windows and raw trees used to enumerate landed record changes. */
+import { StoreCreationReceiptReader } from "../commit-creation-receipt.js";
+import type { BatchCreationReceipt } from "../creation-receipt.js";
+import { captureCommitReceipts } from "./history-receipts.js";
+import { readHistoricalGraph } from "./history-graph.js";
+import { checkRefTip } from "./namespace-health.js";
+import { expandStoredPath } from "../stored-path.js";
+import { refPrototype } from "./read.js";
+import { viewRefFamily } from "./view-state.js";
+import type { ChangesInput } from "../contract.js";
+import type { StateVersion } from "../identity.js";
+import type { ReadPlacement } from "../placement.js";
+import { HistoryRefSchema, type StoreResult, type StoreRefusal } from "../refusal.js";
+import type { RefBackendContext } from "./context.js";
+import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
+import { parseHistoryRows, orderHistoryCommits, type HistoryCommit } from "./history-order.js";
+import { captureHistoricalNamespaces } from "./historical-namespace.js";
+import { historicalMetadataFailure } from "./metadata.js";
+
+/**
+ * An exact upper commit with an optional older ancestry exclusion. `placements` names each bound an ended owner's latest
+ * folder defined at its version, whose state decodes with that folder's placement as read took it; captures omit it.
+ */
+export interface RefChangeWindow {
+  ref: string; upper: string; lower?: string; version: StateVersion; paths?: readonly string[]; placements?: ReadonlyMap<string, ReadPlacement>;
+}
+/** Captured commits include boundary parents so per-record comparisons need no live reads. */
+export interface CapturedChangeWindow {
+  receipts: Map<string, BatchCreationReceipt | undefined>;
+  window: RefChangeWindow; rows: HistoryCommit[]; trees: Map<string, RefTreeEntry[]>; objects: Map<string, BatchObject | null>;
+  recordFree: ReadonlySet<string>;
+}
+
+/** The exact saved-state comparison shared by end discovery and record selection. */
+export interface RefChangeInterval { input: ChangesInput; before: ReadonlyMap<string, string>; after: ReadonlyMap<string, string> }
+/** One memoized immutable window read within a comparison. */
+export type ChangeWindowReader = (window: RefChangeWindow) => Promise<StoreResult<CapturedChangeWindow>>;
+
+/** Reuse an end ref's captured graph when it also supplies ordinary record events. */
+export function createChangeWindowReader(context: RefBackendContext, evidence = new StoreCreationReceiptReader()): ChangeWindowReader {
+  const reads = new Map<string, Promise<StoreResult<CapturedChangeWindow>>>();
+  return (window) => {
+    const key = JSON.stringify([window.ref, window.upper, window.lower, window.paths, window.version]);
+    let captured = reads.get(key);
+    if (!captured) { captured = captureChangeWindow(context, window, evidence); reads.set(key, captured); }
+    return captured;
+  };
+}
+
+/** Read each branch in local-before-remote order, bounded by the caller's exact commits. */
+async function captureChangeWindow(context: RefBackendContext, window: RefChangeWindow, evidence = new StoreCreationReceiptReader()): Promise<StoreResult<CapturedChangeWindow>> {
+  const heads = await readBatchObjects(context, [window.upper, ...window.lower ? [window.lower] : []]);
+  if ([...heads.values()].some((object) => object?.type !== "commit")) return { status: "refused", refusal: missingChangeState(window) };
+  const headReceipts = captureCommitReceipts(heads, window.ref, evidence);
+  if (headReceipts.status === "refused") return headReceipts;
+  const unhealthy = await checkWindowTips(context, window);
+  if (unhealthy) return { status: "refused", refusal: unhealthy };
+  const graph = await readHistoricalGraph(context, ["rev-list", "--full-history", "--parents", "--topo-order", window.upper,
+    ...window.lower ? [`^${window.lower}`] : [], ...window.paths ? ["--", ...window.paths.map((path) => `:(literal)${path}`)] : []],
+  missingChangeState(window));
+  if (graph.status === "refused") return graph;
+  const rows = orderHistoryCommits(parseHistoryRows(graph.result)).reverse();
+  if (!rows.length) return { status: "ok", result: { window, rows, trees: new Map(), objects: heads, receipts: headReceipts.result, recordFree: new Set() } };
+  const revisions = [...new Set([...rows.flatMap(({ revision, parents }) => [revision, ...parents]), ...window.lower ? [window.lower] : []])];
+  const trees = await readRefTrees(context, new Map(revisions.map((revision) => [revision, revision])), window.paths);
+  if (revisions.some((revision) => !trees.has(revision))) return { status: "refused", refusal: missingChangeState(window) };
+  const objects = await readBatchObjects(context, [...new Set([...revisions, ...[...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid))])]);
+  if (revisions.some((revision) => objects.get(revision)?.type !== "commit")) return { status: "refused", refusal: missingChangeState(window) };
+  const receipts = captureCommitReceipts(objects, window.ref, evidence);
+  if (receipts.status === "refused") return receipts;
+  const namespaces = await changeNamespaceFacts(context, window, trees, objects);
+  return namespaces.status === "refused" ? namespaces : { status: "ok", result: { window, rows, trees, objects, receipts: receipts.result,
+    recordFree: namespaces.result } };
+}
+
+async function changeNamespaceFacts(context: RefBackendContext, window: RefChangeWindow,
+  trees: ReadonlyMap<string, readonly RefTreeEntry[]>, objects: ReadonlyMap<string, BatchObject | null>): Promise<StoreResult<ReadonlySet<string>>> {
+  const live = window.ref.replace("refs/arc/history/", "refs/arc/"), family = viewRefFamily(live);
+  const home = family ? { ...expandStoredPath(refPrototype(context, live, family), { registry: context.registry }), ref: window.ref } : undefined;
+  const namespaces = home ? await captureHistoricalNamespaces(context, home, trees, objects, window.paths === undefined) : undefined;
+  if (namespaces?.unavailable.size) return { status: "refused", refusal: missingChangeState(window) };
+  if (namespaces?.corrupt.size) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
+    namespace: window.ref, ...historicalMetadataFailure(window.ref) } };
+  return { status: "ok", result: namespaces?.recordFree ?? new Set() };
+}
+
+/** Name the retained history that can repair a missing item window. */
+export function missingChangeState(window: Pick<RefChangeWindow, "ref" | "version">): StoreRefusal {
+  const history = HistoryRefSchema.safeParse(window.ref.replace(/^refs\/arc\/(?:history\/)?(work|cohort)\//u, "refs/arc/history/$1/"));
+  return { code: "state-unresolvable", class: "recoverable", stateVersion: window.version, historyRefs: history.success ? [history.data] : [],
+    condition: `The saved changes window for ${window.ref} is not available locally.`,
+    remedy: { text: "Pull the named history refs or restore the missing state objects, then retry the comparison." } };
+}
+
+/** Return a captured commit's verbatim message after its Git header. */
+export function changeCommitMessage(captured: CapturedChangeWindow, revision: string): string {
+  const object = captured.objects.get(revision);
+  if (object?.type !== "commit") throw new Error("A captured history revision is not a commit");
+  const raw = new TextDecoder().decode(object.bytes), boundary = raw.indexOf("\n\n");
+  if (boundary < 0) throw new Error("Git returned a commit without its header boundary");
+  return raw.slice(boundary + 2);
+}
+
+async function checkWindowTips(context: RefBackendContext, window: RefChangeWindow): Promise<StoreRefusal | undefined> {
+  const live = window.ref.replace("refs/arc/history/", "refs/arc/");
+  const family = viewRefFamily(live);
+  if (family) {
+    const home = expandStoredPath(refPrototype(context, live, family), { registry: context.registry });
+    for (const tip of [window.upper, ...window.lower ? [window.lower] : []]) {
+      // Each window tip is a saved endpoint or a historical commit, which no forward repair reaches.
+      const unhealthy = await checkRefTip(context, window.ref, tip, home, true);
+      if (unhealthy) return unhealthy;
+    }
+  }
+  return undefined;
+}

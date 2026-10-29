@@ -1,0 +1,114 @@
+/** Results and validated inputs owned by the explicit ref-store commands. */
+
+import { z } from "zod";
+import { FAMILY_REGISTRY, KIND_REGISTRY } from "./registry.js";
+import type { ConflictRecord } from "./conflict.js";
+import type { RecordReference, RecordVersion } from "./identity.js";
+import type { StoreResult } from "./refusal.js";
+import { KindIdSchema, RecordReferenceSchema, StoredUidSchema } from "./identity.js";
+import { RemedySchema, StoreRefusalSchema } from "./refusal.js";
+import type { PullNotice } from "./sync.js";
+
+/** A complete account of the refs and source records a move examined. */
+export const MigrateReportSchema = z.strictObject({
+  move: z.enum(["layout", "remote", "import"]),
+  refs: z.array(z.strictObject({ ref: z.string().min(1), scope: z.enum(["project", "identity"]),
+    person: z.string().min(1).optional(), action: z.enum(["copy", "merge", "create", "delete"]) })),
+  refused: z.array(z.strictObject({ reference: RecordReferenceSchema, rule: z.string().min(1) })),
+  brokenChains: z.array(z.strictObject({ reference: RecordReferenceSchema, condition: z.string().min(1) })),
+  reviewMapping: z.array(z.strictObject({ source: z.string().min(1), outcome: z.enum(["mapped", "left-behind", "in-flight"]),
+    reason: z.string().min(1).optional(), records: z.array(RecordReferenceSchema) })),
+  differingNotes: z.array(z.strictObject({ person: z.string().min(1), path: z.string().min(1), kind: z.enum(["differs", "snapshot-only", "disk-only"]) })),
+  notices: z.array(z.strictObject({ condition: z.string().min(1), remedy: RemedySchema.optional() })),
+});
+/** A move's complete build and recovery report. */
+export type MigrateReport = z.infer<typeof MigrateReportSchema>;
+
+/** Preserve a pull observation in the migration report's condition and remedy shape. */
+export function migrateNoticeFromPull(notice: PullNotice): MigrateReport["notices"][number] {
+  const { condition, remedy, ...subject } = notice;
+  return { condition: `${JSON.stringify(subject)}: ${condition}`, remedy };
+}
+
+/** Account for two moves one command ran in order, the later one's kind standing for both. */
+export function combineMigrateReports(first: MigrateReport, last: MigrateReport): MigrateReport {
+  return { ...last, refs: [...first.refs, ...last.refs], refused: [...first.refused, ...last.refused],
+    brokenChains: [...first.brokenChains, ...last.brokenChains], reviewMapping: [...first.reviewMapping, ...last.reviewMapping],
+    differingNotes: [...first.differingNotes, ...last.differingNotes], notices: [...first.notices, ...last.notices] };
+}
+
+const explained = { condition: z.string().min(1), remedy: RemedySchema };
+/** The report of a recorded move the command finished before it refused. */
+const finished = { report: MigrateReportSchema.optional() };
+/** Command refusals remain separate from the storage operation's closed refusal vocabulary. */
+export const StoreCommandRefusalSchema = z.discriminatedUnion("code", [
+  z.strictObject({ code: z.enum(["unsupported", "request-invalid"]), class: z.literal("terminal"), ...explained, ...finished }),
+  z.strictObject({ code: z.enum(["no-state-remote", "role-conflict", "move-incomplete", "move-unfinished",
+    "move-record-malformed", "moved", "follow-refused"]), class: z.literal("recoverable"), ...explained, ...finished }),
+  z.strictObject({ code: z.literal("import-refused"), class: z.literal("recoverable"), ...explained, report: MigrateReportSchema }),
+  z.strictObject({ code: z.literal("store"), refusal: StoreRefusalSchema, ...finished }),
+]);
+/** An explicit command's refusal, preserving a store refusal unchanged in its own arm. */
+export type StoreCommandRefusal = z.infer<typeof StoreCommandRefusalSchema>;
+/** Shared success/refusal envelope for the ref-store command entries. */
+export type StoreCommandResult<T> = { status: "ok"; result: T } | { status: "refused"; refusal: StoreCommandRefusal };
+
+/** The hidden migrate command's input, also used by interrupted-move recovery. */
+export const StoreMigrateInputSchema = z.strictObject({
+  to: z.string().min(1).optional(), trial: z.boolean().optional(), leaveSource: z.boolean().optional(), import: z.boolean().optional(),
+});
+/** Requested move or no-target reconciliation. */
+export type StoreMigrateInput = z.infer<typeof StoreMigrateInputSchema>;
+/** Roles may be inspected without selecting a remote or changed by one explicit setting. */
+export const StoreRemoteInputSchema = z.strictObject({
+  remote: z.string().min(1).optional(), role: z.enum(["push", "read", "off"]).optional(), ownState: z.boolean().optional(),
+});
+/** A role inspection or setting. */
+export type StoreRemoteInput = z.infer<typeof StoreRemoteInputSchema>;
+/** Clone-local roles and the layout move a setting performed, if any. */
+export interface StoreRemoteView {
+  layout: "default" | "separate";
+  remotes: { name: string; role?: "push" | "read" | "off"; url: string; repository: "code" | "backing" }[];
+  report?: MigrateReport;
+}
+/** A follow asks about a destination without performing a synchronous prompt. */
+export interface StoreDesignationQuestion {
+  status: "designation-needed"; remote: string; choices: ("push" | "read" | "off")[]; remedy: z.infer<typeof RemedySchema>;
+}
+/**
+ * A setting that needs explicit publication authority carries what accepting it publishes, and any move it finished first.
+ * `report` holds everything the question's run accounted for; `finished` holds only the move whose record that run removed,
+ * which a rerun cannot report again.
+ */
+export interface StoreRemoteConfirmation {
+  status: "confirmation-needed"; repository: string; condition: string; remedy: z.infer<typeof RemedySchema>; report?: MigrateReport;
+  finished?: MigrateReport;
+}
+/** The migrate entry's complete result. */
+export type StoreMigrateResult = StoreCommandResult<MigrateReport> | StoreDesignationQuestion;
+/** The remote entry's complete result. */
+export type StoreRemoteResult = StoreCommandResult<StoreRemoteView> | StoreRemoteConfirmation;
+
+/** Exact conflict inspection or explicit discard; the handler owns output formatting. */
+export const StoreConflictInputSchema = z.strictObject({ uid: StoredUidSchema, kind: KindIdSchema.refine((kind) => {
+  const family = KIND_REGISTRY[kind].family, home = FAMILY_REGISTRY[family].ref;
+  return kind.endsWith("/conflict-record") && KIND_REGISTRY[kind].ref !== undefined
+    && (family === "work-item" || home && "subtreeOf" in home && home.subtreeOf === "work-item");
+}, "Expected a registered conflict kind on a work-item ref"), id: z.string().min(1), discard: z.boolean().optional() });
+/** An exact conflict operand and optional removal request. */
+export type StoreConflictInput = z.infer<typeof StoreConflictInputSchema>;
+
+/** Refuse an invalid conflict operand: a kind with no conflict home is unhomed, and any other operand is malformed. */
+export function conflictOperandRefusal(error: z.ZodError): Extract<StoreResult<never>, { status: "refused" }> {
+  const kind = error.issues.find((issue) => issue.path[0] === "kind"), issue = kind ?? error.issues[0];
+  const operand = typeof issue?.path[0] === "string" ? issue.path[0] : "input";
+  const condition = `The conflict ${operand} is invalid: ${issue?.message ?? "it does not match the operand shape"}.`;
+  const remedy = { text: "Use arc store conflict --help with an owner UID, registered work-item conflict kind, and exact ID.",
+    argv: ["arc", "store", "conflict", "--help"] };
+  return kind ? { status: "refused", refusal: { code: "unsupported", class: "terminal", case: "unhomed-kind", condition, remedy } }
+    : { status: "refused", refusal: { code: "record-malformed", class: "recoverable", rule: "store.conflict-operand", condition, remedy } };
+}
+/** A complete retained alternative or an explicit absence after resolution. */
+export type StoreConflictResult = StoreResult<
+  { status: "present"; reference: RecordReference; version: RecordVersion; conflict: ConflictRecord }
+  | { status: "discarded" | "absent"; reference: RecordReference }>;

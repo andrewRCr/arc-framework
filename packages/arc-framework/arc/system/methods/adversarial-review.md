@@ -235,26 +235,8 @@ reads.
 
 **Severity is not disposition.** Severity measures materiality. Disposition is the primary's verified action on a
 finding: fix it in place, carry it forward durably, or drop it. The primary assigns disposition only after source
-verification and obtains approval for the complete set before any finding-driven response.
-
-**Presenting the set.** Render each pass and fix-check round through [disposition-report][disposition-report],
-following its conditions for the table, Trend, and Decisions block. A fix in place is `FIX`, durable carry-forward
-`DEFER`, a drop `REJECT`, and a refuted finding `Not supported`. Assign canonical labels before displaying new-design
-folds first within their grade.
-
-Bold a `Pass N of M` position for a complete pass, or `Fix check, round R since pass N` for a round, followed by the
-finding counts by verified grade; add a stop reason when the look has one. Keep unsupported findings ungraded. Each
-finding's status line ends with the supplied rubric item it fails, in the rubric's own terms, or `none` with the
-source-verified reason; the primary verifies it with the finding. Write each Finding as what is wrong and why it
-matters, and each Detail as how the primary verified it.
-
-Once the loop has two or more looks, render the material trend, origins, and new-design counts after the finding
-sections, led by one [trend reading][review-model-trend] and its rationale; planning counts come from the pass record,
-including each fix-check round.
-
-Put each decision in the Decisions block — the decision a fix creates about the next round or pass, and open questions,
-each with its recommendation — then end with the one question asking for complete-set approval, as `Approve: 2 fixes,
-1 defer?`. It names what approval releases and never the next pass, which approval does not authorize.
+verification and a look across the verified set by [review-model § Shared causes][review-model-shared-causes], and
+obtains approval for the complete set before any finding-driven response.
 
 Disposition is orthogonal to severity: any severity can be fixed, carried forward, or dropped. Disposing a finding
 settles the approved response backlog; it does not rewrite what the pass surfaced. Carry-forward is therefore not a
@@ -288,6 +270,25 @@ The primary-facing report distinguishes clean convergence, convergence with sett
 findings, or material ones deferred or rejected — and non-convergence. The approved disposition set decides which one
 the completed pass established; performing the response never changes it.
 
+**Presenting the set.** Render each pass and fix-check round through [disposition-report][disposition-report],
+following its conditions for the table, Trend, and Decisions block. A fix in place is `FIX`, durable carry-forward
+`DEFER`, a drop `REJECT`, and a refuted finding `Not supported`. Assign canonical labels before displaying new-design
+folds first within their grade.
+
+Bold a `Pass N of M` position for a complete pass, or `Fix check, round R since pass N` for a round, followed by the
+finding counts by verified grade; add a stop reason when the look has one. Keep unsupported findings ungraded. Each
+finding's status line ends with the supplied rubric item it fails, in the rubric's own terms, or `none` with the
+source-verified reason; the primary verifies it with the finding. Write each Finding as what is wrong and why it
+matters, and each Detail as how the primary verified it.
+
+Once the loop has two or more looks, render the Trend after the finding sections: one
+[trend reading][review-model-trend] saying where the review stands, then the critical and major findings at each look.
+Planning counts come from the pass record, including each fix-check round.
+
+Put each decision in the Decisions block — the decision a fix creates about the next round or pass, and open questions,
+each with its recommendation — then end with the one question asking for complete-set approval, as `Approve: 2 fixes,
+1 defer?`. It names what approval releases and never the next pass, which approval does not authorize.
+
 **`Class`-scaled pass cap.** Use `Light` 1, `Heavy` 2, and `Novel` 3 as the default pass caps. Present every
 completed result as `Pass N of M`. Every ended loop names one stop reason: converged, `cap-exhausted`, suspended,
 re-entered, or Owner-accepted. Owner acceptance is an accepted-risk terminus, not a converged result. Re-entered
@@ -298,11 +299,11 @@ pass completes normally and reports that its allowance is exhausted. Neither out
 current pass, and cap exhaustion resolves no material finding.
 
 **Re-inspection test.** After fix-check rounds converge, recommend another complete pass when the folds changed the
-artifact so much that the last complete assessment no longer holds. Otherwise, the caller's response check verifies
-rework where it stands. The test decides whether a complete pass follows the fix checks, never whether it replaces
-them. This is a recommendation input, never a trigger or authorization; the share of majors landing in earlier fixes
-may inform its cost-and-signal rationale, except under sustained non-convergence (below): there the re-entry offer
-comes before another pass.
+artifact so much that the last complete assessment no longer holds, or a fold repaired a rule that sections it did
+not touch also state. Otherwise, the caller's response check verifies rework where it stands. The test decides
+whether a complete pass follows the fix checks, never whether it replaces them. This is a recommendation input, never
+a trigger or authorization; the share of majors landing in earlier fixes may inform its cost-and-signal rationale,
+except under sustained non-convergence (below): there the re-entry offer comes before another pass.
 
 **Severity beside fold tags.** With fold verification on, severity and the fold tags answer different questions.
 Severity decides whether a fix needs a successor look: an approved fix of a confirmed `critical` or `major` withholds
@@ -505,12 +506,24 @@ Record each artifact's filename and hash in the pass entry for the pass and each
 loop has ended, its stop reason is recorded, and no round is offered or running. Moving to another machine or
 checkout may lose the copies; scope the fix check from the account alone and disclose that limitation in its report.
 
+**Kept prompts and reports.** Whether fold verification is on or off, save each look's exact prompts before sending
+and its returned reports on receipt, including scoped, chunk, seam, aggregate, and fix-check calls. Planning and
+criteria callers keep them in an `adversarial-review/` folder in the work unit's personal workspace, beside
+`ADVERSARIAL-PASSES.md` when present, until that workspace is swept at archive, not just until the loop ends. Name
+each file `{sha256}.md` from its exact content; reuse a name only for identical content and never replace it with
+different bytes. For a stub groomed before it starts, keep these files beside its kept reviewed versions under
+`.arc/user/{identity}/.internal/reviewed-versions/{slug}/`; they stay machine-local and are removed with those
+versions when the loop ends.
+
 ### Pass record
 
 Advisory planning callers keep the finding/account/action set, conditional decision, response-performance check, and
 consumption fact in `ADVERSARIAL-PASSES.md` in the work unit's personal workspace; criteria callers keep them with
 the criteria report. This creates no lane-progress record, stored review-gate operation, Candidate, policy binding,
 or receipt.
+
+Both callers record each kept look file's filename, content hash, and role (`prompt` or `report`) with that record,
+identifying its pass and any fix-check round, chunk, seam, or aggregate call.
 
 A planning pass entry carries:
 
@@ -691,3 +704,4 @@ the same source verification, disposition, and exit-gate rules as a standard pas
 
 [review-model]: review-model.md
 [review-model-trend]: review-model.md#trend
+[review-model-shared-causes]: review-model.md#shared-causes

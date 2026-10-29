@@ -1,0 +1,167 @@
+/** Captured archive folders refreshed alongside a merge of their retained history ref. */
+
+import type { RefBackendContext } from "./context.js";
+import { archivedFolders, isArchiveRef, latestArchivedFolders, firstOwnedArchiveDiagnostic, type ArchivedFolder } from "./archive-read.js";
+import type { ReadPlacement } from "../placement.js";
+import { readBatchObjects, readRefTrees, type RefTreeEntry } from "./batch-read.js";
+import { parseStoreCommitProvenance } from "../commit-provenance.js";
+import { OwnerIdentitySchema } from "../identity.js";
+import type { SyncRecordMergedTree, SyncTreeMergeScope } from "./sync-tree.js";
+import { readSyncRefs } from "./sync-graph.js";
+import { ownerPrimaryReference, refreshArchivedFolder } from "./archive-refresh.js";
+import { parseRefMetadata, type RefMetadata } from "./metadata.js";
+import { expandStoredPath, holdsNoRecord } from "../stored-path.js";
+import { writeRefBlob } from "./tree-write.js";
+import { canonicalize } from "../../kernel/canonical/canonical-json.js";
+import type { StoreResult } from "../refusal.js";
+import { corruptRef } from "./namespace-health.js";
+import { checkSyncRefTip } from "./sync-tip.js";
+import { readLifecycleFolders } from "./sync-lifecycle.js";
+import { planCompletedRoleReplacements, type CompletedRoleReplacement } from "./write-completed-role.js";
+import { readLifecycleLog } from "./sync-lifecycle-evidence.js";
+import { cohortEndLiveSource, type SyncControlSource } from "./sync-control-sources.js";
+
+/** Stamp a history fast-forward only when its retained folders need a paired refresh. */
+export async function prepareSyncHistoryFastForward(context: RefBackendContext, ref: string, tip: string,
+  quarters: readonly SyncHistoryQuarter[], batchId: string, preferred: ReadonlyMap<string, string>, scope: SyncTreeMergeScope): Promise<StoreResult<SyncRecordMergedTree | undefined>> {
+  const folder = latestArchivedFolders(quarters.flatMap(quarter => quarter.folders))[0];
+  if (!folder || !("uid" in folder.owner)) {
+    const refusal = await checkSyncRefTip(context, ref, tip);
+    return refusal ? { status: "refused", refusal } : { status: "ok", result: undefined };
+  }
+  const path = `metadata-${folder.owner.uid}.json`;
+  const entries = (await readRefTrees(context, new Map([[ref, tip]]))).get(ref);
+  if (!entries) return { status: "refused", refusal: corruptRef(ref, true) };
+  const home = expandStoredPath(ownerPrimaryReference(folder.owner, folder.metadata), { registry: context.registry });
+  const recordFree = holdsNoRecord(home, entries.map(({ path }) => path));
+  const entry = entries.find((entry) => entry.path === path);
+  const objects = await readBatchObjects(context, entry ? [entry.oid] : []);
+  const sourceMetadata = parseRefMetadata(entry ? objects.get(entry.oid) : undefined, ref);
+  const metadata = sourceMetadata ? structuredClone(sourceMetadata) : recordFree ? emptyHistoryMetadata(folder) : null;
+  if (!metadata) return { status: "refused", refusal: corruptRef(ref) };
+  const reference = ownerPrimaryReference(folder.owner, metadata);
+  const sourceRefs = scope.sourceRefs ?? { local: ref, incoming: ref };
+  const liveEnd = cohortEndLiveSource(scope.cohortEndRoute, sourceRefs, ref, scope.currentSide ?? "incoming", scope.reopening);
+  const source: SyncControlSource = { ref: sourceRefs.incoming, tip, recordFree,
+    ...sourceRefs.incoming === liveEnd && sourceMetadata && !sourceMetadata.primary && sourceMetadata.placement === undefined
+      ? { cohortEnd: { live: sourceRefs.incoming, history: ref } } : {} };
+  const tree: SyncRecordMergedTree = { kind: "record", entries: new Map(entries.map((entry) => [entry.path, entry])), metadata, reference,
+    controlSources: { primary: source, placement: source } };
+  // A new empty group keeps only authenticated owner/lifecycle controls, never the folder's old record formats or values.
+  if (!sourceMetadata) tree.entries.set(path, { path, mode: "100644", oid: await writeRefBlob(context, canonicalize(metadata)) });
+  const preview = quarters.map((quarter) => ({ ...quarter, entries: new Map(quarter.entries) }));
+  const prepared = await prepareSyncHistoryQuarters(context, preview, tree, preferred);
+  if (prepared.status === "refused") return prepared;
+  if (preview.every((quarter, index) => sameEntries(quarter.entries, quarters[index]?.entries))) return { status: "ok", result: undefined };
+  metadata.batch = batchId;
+  tree.entries.set(path, { path, mode: "100644", oid: await writeRefBlob(context, canonicalize(metadata)) });
+  return { status: "ok", result: tree };
+}
+
+/** Captured matching folders can name a new record-free group without reviving their old records or formats. */
+function emptyHistoryMetadata(folder: ArchivedFolder): RefMetadata {
+  return { formatVersion: 1, slug: folder.owner.name, formats: {} };
+}
+
+/** One complete quarter snapshot and the owner's folders whose batches its history contains. */
+export interface SyncHistoryQuarter { ref: string; tip: string; entries: Map<string, RefTreeEntry>; folders: ArchivedFolder[] }
+/** The quarters a history merge refreshes, and the placement of the owner's latest folder, which its version names. */
+export interface SyncHistoryQuarters { quarters: SyncHistoryQuarter[]; latest?: ReadPlacement }
+
+/** Select only folders this captured history can refresh without discarding an unseen batch. */
+export async function readSyncHistoryQuarters(context: RefBackendContext, ref: string,
+  tips: ReadonlyMap<string, string>, additionalTips: readonly string[] = []): Promise<StoreResult<SyncHistoryQuarters>> {
+  const tip = tips.get(ref);
+  if (!ref.startsWith("refs/arc/history/") || !tip && !additionalTips.length) return { status: "ok", result: { quarters: [] } };
+  const quarters = new Map([...tips].filter(([name]) => isArchiveRef(name)));
+  if (!quarters.size) return { status: "ok", result: { quarters: [] } };
+  const trees = await readRefTrees(context, quarters);
+  // A quarter whose tree or one of this item's folders cannot be read may hold a folder the merge must rebuild.
+  const unreadable = [...quarters.keys()].find((quarter) => !trees.has(quarter));
+  if (unreadable) return { status: "refused", refusal: corruptRef(unreadable, true) };
+  const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
+  const family = ref.includes("/cohort/") ? "cohort" : "work-item", live = ref.replace("refs/arc/history/", "refs/arc/");
+  const broken = firstOwnedArchiveDiagnostic(trees, [OwnerIdentitySchema.parse({ type: family, name: "unresolved", uid: live.split("/").at(-1) })], objects);
+  if (broken) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: broken.ref,
+    condition: broken.diagnostic.condition, remedy: broken.diagnostic.remedy } };
+  const own = [...trees].map(([quarter, entries]) => ({ ref: quarter, entries,
+    folders: archivedFolders(family, quarter, entries, objects).folders.filter((folder) => folder.liveRef === live) })).filter(({ folders }) => folders.length);
+  const first = own[0]?.folders[0];
+  if (!first) return { status: "ok", result: { quarters: [] } };
+  const latest = latestArchivedFolders(own.flatMap(({ folders }) => folders))[0]?.placement;
+  const reference = ownerPrimaryReference(first.owner, first.metadata);
+  const messages: string[] = [];
+  for (const captured of new Set([...(tip ? [tip] : []), ...additionalTips])) {
+    for (const row of await readLifecycleLog(context, captured)) messages.push(row.message);
+  }
+  const batches = new Set(messages.map((message) => parseStoreCommitProvenance(message.trimStart(), reference))
+    .flatMap((entry) => "batchId" in entry ? [entry.batchId] : []));
+  return { status: "ok", result: { latest, quarters: own.flatMap(({ ref: quarter, entries, folders }) => {
+    const tip = quarters.get(quarter);
+    if (tip === undefined) throw new Error("An archive snapshot has no captured tip");
+    const included = folders.filter(({ metadata }) => metadata.batch && batches.has(metadata.batch));
+    return included.length ? [{ ref: quarter, tip, entries: new Map(entries.map((entry) => [entry.path, entry])), folders: included }] : [];
+  }) } };
+}
+
+/** Compose each selected owner's new tree into its captured complete quarter entries. */
+export async function prepareSyncHistoryQuarters(context: RefBackendContext, quarters: readonly SyncHistoryQuarter[], tree: SyncRecordMergedTree,
+  preferred: ReadonlyMap<string, string>): Promise<StoreResult<undefined>> {
+  if (!tree.metadata) throw new Error("A retained item merge has no group metadata");
+  const folders = quarters.flatMap(quarter => quarter.folders);
+  await completeHistoryControls(context, tree, folders);
+  const group: CompletedRoleReplacement["group"] = { metadata: tree.metadata };
+  const role = tree.metadata.primary?.role;
+  if (role) {
+    const preferredFolders = folders.some(folder => folder.metadata.primary?.role !== role)
+      ? await readLifecycleFolders(context, preferred) : [];
+    const planned = planCompletedRoleReplacements(context, [{ group, role, folders }],
+      new Map(quarters.map(quarter => [quarter.ref, new Map(quarter.entries)])), preferredFolders);
+    if (planned.status === "refused") return planned;
+  }
+  for (const quarter of quarters) for (const folder of quarter.folders) {
+    const placement = group.completedPlacements?.get(`${folder.ref}:${folder.root}`) ?? folder.placement;
+    const refreshed = await refreshArchivedFolder(context, folder, { entries: tree.entries, metadata: tree.metadata }, quarter.entries,
+      { placement, endBatch: folder.metadata.endBatch });
+    if (refreshed.status === "refused") return refreshed;
+  }
+  return { status: "ok", result: undefined };
+}
+
+/** Only batch-eligible folders supply missing lifecycle controls; source metadata keeps every explicit field. */
+async function completeHistoryControls(context: RefBackendContext, tree: SyncRecordMergedTree,
+  folders: readonly ArchivedFolder[]): Promise<void> {
+  const folder = latestArchivedFolders(folders)[0], metadata = tree.metadata;
+  if (!folder || !metadata) return;
+  const home = expandStoredPath(tree.reference, { registry: context.registry });
+  const recordFree = holdsNoRecord(home, tree.entries.keys());
+  if (!metadata.primary && folder.metadata.primary && (recordFree || tree.controlSources?.primary?.recordFree)) {
+    metadata.primary = structuredClone(folder.metadata.primary);
+  }
+  const placementSource = tree.controlSources?.placement;
+  const openCohort = tree.reference.owner.type === "cohort" && placementSource?.cohortEnd?.live === folder.liveRef
+    && placementSource.cohortEnd.history === folder.liveRef.replace("refs/arc/", "refs/arc/history/");
+  if (!metadata.placement && folder.metadata.placement && (recordFree || placementSource?.recordFree || openCohort)) {
+    metadata.placement = { ...folder.metadata.placement };
+  }
+  tree.reference = ownerPrimaryReference(folder.owner, metadata);
+  tree.entries.set(home.metadataPath, { path: home.metadataPath, mode: "100644", oid: await writeRefBlob(context, canonicalize(metadata)) });
+}
+
+/** Verify captured quarter tips again under the same ordered locks as their history ref. */
+export async function unchangedSyncHistoryQuarters(context: RefBackendContext, quarters: readonly SyncHistoryQuarter[],
+  targetRef?: (canonical: string) => string): Promise<boolean> {
+  for (const quarter of quarters) {
+    const target = targetRef?.(quarter.ref) ?? quarter.ref;
+    if ((await readSyncRefs(context, target)).get(target) !== quarter.tip) return false;
+  }
+  return true;
+}
+
+function sameEntries(left: ReadonlyMap<string, RefTreeEntry>, right: ReadonlyMap<string, RefTreeEntry> | undefined): boolean {
+  if (!right || left.size !== right.size) return false;
+  return [...left].every(([path, entry]) => {
+    const other = right.get(path);
+    return entry.oid === other?.oid && entry.mode === other.mode;
+  });
+}

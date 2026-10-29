@@ -9,6 +9,10 @@ import { gitExec } from "./io-context.js";
 import { createWorktreeSnapshot } from "./checks/tree.js";
 import { z } from "zod";
 import { CHECK_REQUEST_SCHEMA_VERSION } from "./checks/usage.js";
+import { EnvironmentInputsSchema } from "./checks/environment-declaration.js";
+import { bindCapturedEnvironment, captureEnvironmentInputs, type CapturedBinding } from "./checks/environment-inputs.js";
+
+const REGENERATE_FORECAST = "regenerate the forecast with arc check gate merge --ci --dry-run --json and retry the CI step.";
 
 const batches = z.array(z.array(z.string()).min(1));
 const CiForecastEnvelopeSchema = z.object({
@@ -16,7 +20,7 @@ const CiForecastEnvelopeSchema = z.object({
   result: z.object({ ci: z.literal(true), status: z.literal("completed"), tree: z.string(),
     base: z.string().optional(), merged: z.array(z.string()).optional(),
     checks: z.array(z.object({ id: z.string(), cwd: z.string(), mode: z.enum(["files", "project"]),
-      shell: z.boolean(), fixes: z.boolean(), ciOnly: z.boolean(), batches,
+      shell: z.boolean(), fixes: z.boolean(), ciOnly: z.boolean(), environmentInputs: EnvironmentInputsSchema, batches,
       shards: z.array(z.object({ index: z.int().positive(), batches })).optional(),
     })),
   }),
@@ -28,7 +32,12 @@ const CiForecastEnvelopeSchema = z.object({
  * @returns Validated coordinates and native batches
  */
 export function parseCiCheckForecast(envelope: unknown): CiCheckForecast {
-  return CiForecastEnvelopeSchema.parse(envelope).result;
+  const parsed = CiForecastEnvelopeSchema.safeParse(envelope);
+  if (!parsed.success) {
+    const fields = [...new Set(parsed.error.issues.map(issue => issue.path.map(String).join(".") || "<root>"))].join(", ");
+    throw new Error(`Invalid CI check forecast at ${fields}; ${REGENERATE_FORECAST}`, { cause: parsed.error });
+  }
+  return parsed.data.result;
 }
 
 /** The invocation-bearing portion of a successful merge forecast. */
@@ -63,6 +72,7 @@ export async function runCiCheckStep(options: CiCheckStep): Promise<number> {
     const selected = (options.step === "default" && destinations === undefined)
       || destinations?.some(destination => destination.job === options.job && destination.step === options.step);
     if (!selected) continue;
+    validateEnvironmentDeclaration(options.declaration, check);
     const shard = options.shard;
     const batches = shard === undefined || check.shards === undefined ? check.batches
       : check.shards.find(entry => entry.index === shard)?.batches;
@@ -72,7 +82,29 @@ export async function runCiCheckStep(options: CiCheckStep): Promise<number> {
   return exitCode;
 }
 
+function validateEnvironmentDeclaration(declaration: CheckDeclaration, check: CheckForecast & { id: string }): void {
+  const current = Object.hasOwn(declaration.checks, check.id) ? declaration.checks[check.id] : undefined;
+  const inputs = current?.environment_inputs;
+  if (inputs === undefined || Object.keys(inputs).length !== Object.keys(check.environmentInputs).length
+    || Object.entries(check.environmentInputs).some(([name, kind]) => !Object.hasOwn(inputs, name) || inputs[name] !== kind)) {
+    throw new Error(`CI check ${check.id} has a missing or changed environment declaration; ${REGENERATE_FORECAST}`);
+  }
+}
+
 async function runForecastCheck(options: CiCheckStep, check: CheckForecast & { id: string }, batches: string[][]): Promise<number> {
+  if (batches.length === 0) return 0;
+  if (Object.keys(check.environmentInputs).length === 0) return runNativeForecastCheck(options, check, batches);
+  const capture = await captureEnvironmentInputs(check.environmentInputs, resolve(options.root, check.cwd));
+  const executed = await runNativeForecastCheck(options, check, batches, capture.bindings).then(
+    result => ({ ok: true as const, result }), (error: unknown) => ({ ok: false as const, error }));
+  const cleanup = await capture.dispose().then(() => undefined, (error: unknown) => error instanceof Error ? error.message : String(error));
+  if (!executed.ok) throw executed.error;
+  if (cleanup !== undefined) process.stderr.write(`${check.id}: ${cleanup}\n`);
+  return executed.result;
+}
+
+async function runNativeForecastCheck(options: CiCheckStep, check: CheckForecast & { id: string }, batches: string[][],
+  bindings?: Readonly<Record<string, CapturedBinding>>): Promise<number> {
   let exitCode = 0;
   let index: CheckIndexView | undefined;
   const before = check.fixes ? await createWorktreeSnapshot(gitExec, options.root) : undefined;
@@ -82,7 +114,8 @@ async function runForecastCheck(options: CiCheckStep, check: CheckForecast & { i
     }
     for (const batch of batches) {
       const result = await runCheckProcess([...batch, ...options.arguments ?? []], resolve(options.root, check.cwd),
-        check.mode === "files" ? options.forecast : undefined, { shell: check.shell, indexFile: index?.file });
+        check.mode === "files" ? options.forecast : undefined, { shell: check.shell, indexFile: index?.file,
+          ...(bindings === undefined ? {} : { environment: bindCapturedEnvironment(bindings, process.env) }) });
       if (result.output) process.stdout.write(`${check.id}: ${result.output}\n`);
       if (!result.started || result.exitCode !== 0) exitCode = 1;
     }

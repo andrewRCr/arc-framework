@@ -1,5 +1,6 @@
 /** Registry binding for public review command envelopes. */
 
+import { LocalCancelEnvelopeSchema } from "./local-cancel-envelope.js";
 import { ReviewLaneReadEnvelopeSchema } from "../lane-read-schema.js";
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
 import { ReviewReadinessEnvelopeSchema } from "../readiness.js";
@@ -8,6 +9,7 @@ import { PrePublicationReviewEnvelopeSchema } from "../policy/pre-publication-pr
 import { HostedRequestResultSchema } from "../hosted/request.js";
 import { HostedAwaitCommandResultSchema } from "../hosted/await.js";
 import { HostedSettleResultSchema } from "../hosted/settle.js";
+import { HostedDismissResultSchema } from "../hosted/dismiss.js";
 import {
   FrontlineResolveEnvelopeSchema, ReviewChunkingResolveEnvelopeSchema,
   PlanningGroomingReviewEnvelopeSchema, FrontlineRunEnvelopeSchema,
@@ -27,12 +29,14 @@ export function registerReviewCommandEnvelopeSchemas(registry: KernelRegistry): 
     ["review-frontline-run-envelope", FrontlineRunEnvelopeSchema],
     ["review-local-prepare-envelope", LocalPrepareEnvelopeSchema],
     ["review-local-attest-envelope", LocalAttestEnvelopeSchema],
+    ["review-local-cancel-envelope", LocalCancelEnvelopeSchema],
     ["review-respond-envelope", RespondEnvelopeSchema],
     ["review-reduce-envelope", ReduceEnvelopeSchema],
     ["review-local-resume-envelope", LocalResumeEnvelopeSchema],
     ["review-hosted-request-envelope", HostedRequestResultSchema],
     ["review-hosted-await-envelope", HostedAwaitCommandResultSchema],
     ["review-hosted-settle-envelope", HostedSettleResultSchema],
+    ["review-hosted-dismiss-envelope", HostedDismissResultSchema],
     ["review-pre-publication-envelope", PrePublicationReviewEnvelopeSchema],
     ["review-command-error-envelope", ReviewCommandErrorEnvelopeSchema],
   ] as const) {

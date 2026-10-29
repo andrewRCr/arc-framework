@@ -39,7 +39,7 @@ it.each(["errand", "groom", "housekeep"] as const)("withholds conflicted %s auth
   const initial = await h.seed(reference, JSON.stringify(content), kind === "errand" ? { kind: "active" } : undefined);
   expect((await row(h.store, await readStoreIdentityEvidence(h.store, "alice"), kind, slug)).kind).toBe("transient");
   const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry }); writer.environment.identity = "alice";
   const other = lifecycleSuccess(await writer.read({ reference: initial.reference }));
   const provenance = { verb: "update", lifecycleAction: "update" };
@@ -47,7 +47,7 @@ it.each(["errand", "groom", "housekeep"] as const)("withholds conflicted %s auth
     content: JSON.stringify({ ...content, updatedAt: "2026-10-14T01:00:00Z" }), ...(kind === "errand" ? { placement: { kind: "active" as const } } : {}), provenance }));
   lifecycleSuccess(await writer.write({ action: "put", reference: initial.reference, expected: other.version,
     content: JSON.stringify({ ...content, updatedAt: "2026-10-14T02:00:00Z" }), ...(kind === "errand" ? { placement: { kind: "active" as const } } : {}), provenance }));
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const disputed = lifecycleSuccess(await h.store.read({ reference: initial.reference })); expect(disputed.conflicts).toHaveLength(1);
   const evidence = await readStoreIdentityEvidence(h.store, "alice"), acquisition = kind === "errand" ? evidence.errands : evidence.claims;
   expect(acquisition).toMatchObject({ kind: "complete", missed: true, diagnostics: [{ key: slug, condition: expect.stringContaining("conflicts"), remedy: { text: expect.stringMatching(/resolve.*retry/iu) } }] });

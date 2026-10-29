@@ -50,7 +50,7 @@ export interface ApplyResult {
   updated: number;
   /** Conflicted file paths requiring manual resolution. */
   conflicts: string[];
-  /** Files whose pristine baseline was rebuilt (missing from store). */
+  /** Customized files with no stored baseline, kept local without this update's upstream changes. */
   pristineRebuilt: string[];
   /** Newly added file paths. */
   added: string[];
@@ -220,15 +220,16 @@ export async function applyChangePlan(
       continue;
     }
 
+    // With no stored baseline, the update stands in as the base, so the merge keeps the local content
     const effectiveBase = entry.pristineContent ?? updated;
-    const pristineRebuilt = entry.pristineContent === undefined;
+    const keptLocal = entry.pristineContent === undefined && current !== updated;
 
     const merged = await mergeFileContents(mergeFn, current, effectiveBase, updated);
 
     await ensureDir(dirname(currentPath), io.mkdir);
     await io.writeFile(currentPath, merged.content);
 
-    if (pristineRebuilt) {
+    if (keptLocal) {
       result.pristineRebuilt.push(entry.outputPath);
     }
 

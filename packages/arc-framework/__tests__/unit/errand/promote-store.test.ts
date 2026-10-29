@@ -38,7 +38,7 @@ async function fixture(floor: PromoteFloor = "derivation", failCut = false, inbo
 }
 async function disputePrimary(f: Awaited<ReturnType<typeof fixture>>) {
   const remote = createMemoryRemote(); f.store.context.publication.remote = remote;
-  lifecycleSuccess(await f.store.sync());
+  lifecycleSuccess(await f.store.push());
   const other = new ReferenceBackend({ state: remote.state, registry: f.store.context.registry });
   for (const [store, digit] of [[f.store, "2"], [other, "3"]] as const) {
     const record = lifecycleSuccess(await store.read({ reference: f.primary.reference }));
@@ -48,7 +48,7 @@ async function disputePrimary(f: Awaited<ReturnType<typeof fixture>>) {
       content: record.content, placement: { kind: "active" }, links,
       provenance: { verb: "test", lifecycleAction: "update" } }));
   }
-  lifecycleSuccess(await f.store.sync());
+  lifecycleSuccess(await f.store.push());
   const disputed = lifecycleSuccess(await f.store.read({ reference: f.primary.reference }));
   expect(disputed.conflicts.length).toBeGreaterThan(0); return disputed;
 }

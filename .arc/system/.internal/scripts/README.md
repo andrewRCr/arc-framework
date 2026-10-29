@@ -23,7 +23,7 @@ scripts.
 
 - **`verify-integrity.sh`** — Orchestrator that runs all mechanical health checks: config
   validation, file structure, reference integrity, hook status, method frontmatter,
-  and lifecycle meta-file shape. Invoked via the `arc-verify` skill.
+  lifecycle meta-file shape, and Git maintenance lock presence. Invoked via the `arc-verify` skill.
 
 ## Running
 

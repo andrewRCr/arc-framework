@@ -1,6 +1,6 @@
 /** Declared command execution through the built check CLI. */
 import { afterEach, expect, it } from "vitest";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, realpath, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createDeclaredCheckRepository } from "../fixtures/checks/repository.js";
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
@@ -19,7 +19,7 @@ it("passes file paths containing spaces and shell metacharacters verbatim", asyn
   const result = await runArc(["check", "run", "files", "--json"], root);
   expect(result.exitCode, result.stderr).toBe(0);
   expect(JSON.parse(result.stdout).result.checks).toMatchObject([{ outcome: "passed" }]);
-  expect(JSON.parse(await readFile(join(root, "receipt.json"), "utf8"))).toEqual({ cwd: root, args: [path] });
+  expect(JSON.parse(await readFile(join(root, "receipt.json"), "utf8"))).toEqual({ cwd: await realpath(root), args: [path] });
 });
 
 it("runs a declared shell string through the platform shell", async () => {
@@ -42,7 +42,7 @@ it("runs below the repository root and passes paths relative to that working dir
   expect(result.exitCode, result.stderr).toBe(0);
   expect(JSON.parse(result.stdout).result.checks).toMatchObject([{ outcome: "passed" }]);
   expect(JSON.parse(await readFile(join(root, "docs/receipt.json"), "utf8"))).toEqual({
-    cwd: join(root, "docs"), args: ["../src/a.ts"],
+    cwd: await realpath(join(root, "docs")), args: ["../src/a.ts"],
   });
 });
 

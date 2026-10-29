@@ -73,12 +73,15 @@ it("preserves foreign-generation confirmation without cutting a branch", async (
   expect(await promoteOrdinaryErrandAtRuntime({ ...f.options, readFrame: async () => ({ ...f.frame, entering: other }) })).toMatchObject({ outcome: "confirmation-required" });
   expect(f.calls).toEqual([]);
 });
-it("refuses an unreachable authority pull without mutation and retries through the repaired port", async () => {
+it.each(["unreachable", "incomplete"] as const)("refuses %s authority pulls without mutation and retries through the repaired port", async status => {
   const f = await fixture(), before = lifecycleSuccess(await f.store.version()), marker = await readWorktreeMarker(f.cwd);
   let reachable = false;
-  const sync = createStoreSyncPort({ pull: async () => reachable ? { status: "pulled" }
-    : { status: "unreachable", condition: "Origin is offline.", remedy: { text: "Reconnect to origin and retry promotion." } } });
-  const options = { ...f.options, sync };
+  f.store.pull = async () => reachable ? { status: "ok", result: { states: [], pulls: [] } }
+    : { status: "ok", result: { states: [], pulls: [{ status: "failed", remote: "origin", role: "state", families: ["work-item"], notices: [],
+      failure: { ...(status === "unreachable" ? { code: "unreachable", class: "recoverable", cause: "network" } as const
+        : { code: "refused", class: "terminal", message: "Origin is offline." } as const),
+      condition: "Origin is offline.", remedy: { text: "Reconnect to origin and retry promotion." } } }] } };
+  const options = { ...f.options };
   expect(await promoteOrdinaryErrandAtRuntime(options)).toMatchObject({ outcome: "refused", reason: "authority-unresolved",
     recommendedPromptText: "Origin is offline. Reconnect to origin and retry promotion." });
   expect(lifecycleSuccess(await f.store.version())).toBe(before);
@@ -87,6 +90,17 @@ it("refuses an unreachable authority pull without mutation and retries through t
   expect(f.calls).toEqual([]);
   reachable = true;
   expect(await promoteOrdinaryErrandAtRuntime(options)).toMatchObject({ outcome: "applied", checkoutPath: f.cwd });
+});
+it("promotes past a lone failed read source and writes the failure", async () => {
+  const f = await fixture();
+  f.store.pull = async () => ({ status: "ok", result: { states: [], pulls: [
+    { status: "pulled", remote: "origin", role: "state", families: ["work-item"], notices: [] },
+    { status: "failed", remote: "upstream", role: "read", families: ["work-item"], notices: [], failure: { code: "unreachable",
+      class: "recoverable", cause: "network", condition: "Upstream is offline.", remedy: { text: "Reconnect the read source." } } }] } });
+  const written: string[] = [];
+  expect(await promoteOrdinaryErrandAtRuntime({ ...f.options, writeNotice: line => written.push(line) }))
+    .toMatchObject({ outcome: "applied", checkoutPath: f.cwd });
+  expect(written).toEqual(["Read source upstream was not pulled: Upstream is offline. Reconnect the read source."]);
 });
 it("pulls the project identity and source owner before acquiring promotion authority", async () => {
   const f = await fixture(), repository = "00000000-0000-4000-8000-000000000001";

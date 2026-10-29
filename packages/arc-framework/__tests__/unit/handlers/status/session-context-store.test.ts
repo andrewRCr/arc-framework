@@ -1,5 +1,6 @@
 /** One selected Store supplies personal inbox content throughout a status invocation. */
 import { expect, it } from "vitest";
+import { createTestStatusContext } from "../../../helpers/status-context.js";
 import { createSessionStatusContext, readWorkingMemoryFromStore } from "../../../../src/handlers/status/session-context.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { createLifecycleHarness } from "../../../helpers/store/lifecycle-harness.js";
@@ -27,4 +28,15 @@ it("reads working memory from the selected personal record and treats authoritat
   const content = "## Memories\n\n**Stored reminder:**\n_Remove when: complete._\n- _Id:_ `abcdef12`\n\nRemember the stored value.\n";
   await h.seed(reference, content);
   expect(await readWorkingMemoryFromStore(h.store, "alice")).toBe(content);
+});
+
+it("binds pull and maintenance to the same Store as operational reads", async () => {
+  const h = createLifecycleHarness();
+  h.store.pull = async () => ({ status: "ok", result: { states: [], pulls: [
+    { status: "pulled", remote: "selected", role: "state", families: ["work-item"], notices: [] },
+  ] } });
+  h.store.maintain = async () => ({ status: "ok", result: { measurements: [{ ref: "selected-ref", commits: 3, diskBytes: 64 }] } });
+  const context = await createTestStatusContext({ store: h.store });
+  expect(await context.storeSync?.pull()).toEqual({ status: "pulled" });
+  expect(await context.storeSync?.maintain()).toEqual({ measurements: [{ ref: "selected-ref", commits: 3, diskBytes: 64 }] });
 });

@@ -1,8 +1,9 @@
 /** Checkout-local editor documents generated from authored contracts. */
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { posix, resolve } from "node:path";
+import { join, posix, resolve } from "node:path";
+import { withAdvisoryLock } from "../advisory-lock.js";
 import { ensureGitExcludePattern } from "../git/exclude.js";
-import type { GitExec } from "../git/exec.js";
+import { resolveCheckoutGitDir, type GitExec } from "../git/exec.js";
 import type { WorktreeMarkerIgnoreFs } from "../git/worktree-marker.js";
 import { SlugSchema, type KernelRegistry } from "../kernel/index.js";
 import { foldKernelSchemaClosure, projectKernelSchemas } from "../kernel/schema/generate.js";
@@ -14,7 +15,7 @@ export interface EditorDocumentsFs extends WorktreeMarkerIgnoreFs {
 }
 export const nodeEditorDocumentsFs: EditorDocumentsFs = {
   readFile: (path) => readFile(path, "utf8"), writeFile,
-  mkdir: async (path, options) => { await mkdir(path, options); }, rm,
+  mkdir: async (path, options) => { await mkdir(path, options); }, rm, withLock: withAdvisoryLock,
 };
 export interface EditorDocumentsFailure { target: "documents" | "exclude"; path?: string; detail: string }
 export type EditorDocumentsResult = { ok: true; documents: string[] } | ({ ok: false } & EditorDocumentsFailure);
@@ -37,7 +38,7 @@ function detail(error: unknown): string { return error instanceof Error ? error.
  * @param fs - Injectable filesystem operations.
  * @param registry - Optional registry, defaulting to the production editor-document families.
  * @returns Written checkout-relative paths, or a typed write failure.
- * @throws Projection defects, which are independent of filesystem failure.
+ * @throws Projection defects or lock acquisition/release failures.
  */
 export async function writeEditorDocuments(
   root: string, exec: GitExec, fs: EditorDocumentsFs, registry: KernelRegistry = createEditorDocumentSchemaRegistry(),
@@ -54,16 +55,22 @@ export async function writeEditorDocuments(
     content: `${JSON.stringify(foldKernelSchemaClosure(bundle, id), null, 2)}\n`,
   }));
   const absoluteDirectory = resolve(root, directory);
-  try {
-    await fs.rm(absoluteDirectory, { recursive: true, force: true });
-    await fs.mkdir(absoluteDirectory, { recursive: true });
-  } catch (error) { return { ok: false, target: "documents", path: absoluteDirectory, detail: detail(error) }; }
-  for (const document of documents) {
-    const path = resolve(root, document.path);
-    try { await fs.writeFile(path, document.content); }
-    catch (error) { return { ok: false, target: "documents", path, detail: detail(error) }; }
-  }
-  return { ok: true, documents: documents.map(({ path }) => path) };
+  let checkoutGitDir: string;
+  try { checkoutGitDir = await resolveCheckoutGitDir(exec, root); }
+  catch (error) { return { ok: false, target: "documents", path: absoluteDirectory, detail: detail(error) }; }
+  const lockPath = join(checkoutGitDir, "arc-editor-documents.lock");
+  return fs.withLock(lockPath, async () => {
+    try {
+      await fs.rm(absoluteDirectory, { recursive: true, force: true });
+      await fs.mkdir(absoluteDirectory, { recursive: true });
+    } catch (error) { return { ok: false, target: "documents", path: absoluteDirectory, detail: detail(error) }; }
+    for (const document of documents) {
+      const path = resolve(root, document.path);
+      try { await fs.writeFile(path, document.content); }
+      catch (error) { return { ok: false, target: "documents", path, detail: detail(error) }; }
+    }
+    return { ok: true, documents: documents.map(({ path }) => path) };
+  });
 }
 
 /**

@@ -339,6 +339,28 @@
 - _Captured during:_ read-only exploration session on cross-harness agent messaging, including the Herdr label spike
   (`.arc/user/andrew/tools/herdr-arc-labels.mjs`), 2026-10-14.
 
+### `[ ]` **Add the `EnterWorktree` case to the Claude Code compaction-seed binding**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ "Bind compaction recovery to the live directed-worktree locus", its Claude Code fold-in, and the entry "Key
+  the Claude Code compaction seed to its session through `CLAUDE_CODE_SESSION_ID`".
+
+- _Observation:_ a Claude Code session started in an installed project's primary ran `arc start <name> --new`, moved
+  into the spawned worktree with `EnterWorktree` as `init-work-unit` directs, and compacted during planning. The
+  PreCompact hook seeded `CLAUDE_PROJECT_DIR || process.cwd()` (`pre-compact-seed.mjs`), which stayed the launch
+  checkout: the seed landed in the primary with the primary's frame (`main`, no work unit). The audit, run from the
+  worktree, stopped `seed-missing`. Unlike the recorded Errand recurrences, which came back `ready` on the primary's
+  frame, this variant stops, so it is the safer failure; but every session that follows the workflow's relocation
+  default loses verified recovery at its first compaction. After `EnterWorktree` Claude Code also keys the session's
+  transcript under the worktree's project directory, a candidate signal for the binding beside `CLAUDE_CODE_SESSION_ID`.
+
+- _Approach:_ cover the relocated session in the binding's tests: start in the primary, relocate into a spawned
+  work-unit worktree, compact, and require the seed and the audit to name the worktree.
+
+- _Captured during:_ the CineXplorer install rehearsal (`2026-10-23T083226`), `score-badge-low-votes` generate-tasks
+  entry.
+
 ## Problem / Motivation
 
 ARC's compaction-recovery mechanism emits a seed before compaction and, after it, tells the agent

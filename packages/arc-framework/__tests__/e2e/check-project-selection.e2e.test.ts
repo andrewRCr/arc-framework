@@ -44,7 +44,8 @@ it("selects the local E2E tier for a declaration-only change", async () => {
   await writeFile(join(root, path), `${declaration}\n# Declaration-only change\n`);
   expect((await git("git", ["diff", "--name-only"], { cwd: root })).stdout.trim()).toBe(path);
 
-  const result = await runArc(["check", "run", "test:e2e:local", "--changed", "--dry-run", "--json"], root);
+  const result = await runArc(["check", "run", "test:e2e:local", "--changed", "--dry-run", "--json"], root,
+    { env: { HOME: root, USERPROFILE: root } });
   expect(result.exitCode, result.stdout + result.stderr).toBe(0);
   const checks = JSON.parse(result.stdout).result.checks;
   expect(checks).toMatchObject([{ id: "test:e2e:local", outcome: "would run" }]);
@@ -59,6 +60,11 @@ it.each([
   { change: "a backlog planning artifact", path: ".arc/backlog/planned/example/draft-example.md",
     outcome: "not selected" },
   { change: "personal notes", path: ".arc/user/someone/notes.md", outcome: "not selected" },
+  { change: "a decision record", path: ".arc/reference/adr/adr-099-example.md", outcome: "not selected" },
+  { change: "supplemental research", path: ".arc/reference/supplemental/research/research-example.md",
+    outcome: "not selected" },
+  { change: "supplemental analysis", path: ".arc/reference/supplemental/analysis/analysis-example.md",
+    outcome: "not selected" },
   { change: "source code", path: "src/a.ts", outcome: "not selected" },
 ])("selects the content integration tier for $change: $outcome", async ({ path, outcome }) => {
   const root = await createDeclaredCheckRepository({});

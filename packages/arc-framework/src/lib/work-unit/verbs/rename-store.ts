@@ -1,6 +1,7 @@
 /** Record-based work-unit rename with recoverable physical identity steps. */
 import { readStoreRenameSubject, prepareStoreRename, type StoreRenameSubject } from "../../store/lifecycle-rename.js";
 import { usesOffBranchState } from "../../store/lifecycle-write.js";
+import { pullHistoryForRetry } from "../../store/pull-consumption.js";
 import { selectWorkBranchLink, workBranchName } from "../../store/lifecycle-branch.js";
 import { applyPreparedLifecycleWrite } from "../prepared-lifecycle-write.js";
 import { readBranchTracking, restoreClearedBranchTracking, type BranchTracking } from "../rename-branch-tracking.js";
@@ -23,6 +24,8 @@ export interface StoreRenameContext {
   store: Store; cwd: string; exec: GitExec; baseBranch: string; projectId?: () => Promise<string>; locusPorts?: LocusPorts;
   renameCheckout?: (request: StoreRenameCheckoutRequest, onPrepared?: (receipt: StoreRenameCheckoutReceipt) => void) => Promise<StoreRenameCheckoutReceipt>;
   onPreparedAdvisories?: (advisories: readonly string[]) => Promise<void>;
+  /** Where a history pull's notices are written; standard error by default. */
+  writeNotice?: (line: string) => void;
 }
 interface BranchRename { prior: BranchLink; next: BranchLink; oldBranch: string; newBranch: string; oldRemoteOid: string | null }
 /** Rename one logical owner while respecting record and checkout authority.
@@ -31,7 +34,12 @@ interface BranchRename { prior: BranchLink; next: BranchLink; oldBranch: string;
  * @returns A complete rename, original refusal, or exact physical continuation.
  */
 export async function runStoreRename(ctx: StoreRenameContext, params: { sourceSlug: string; targetSlug: string }): Promise<RunRenameResult> {
-  try { return await rename(ctx, params); }
+  try {
+    const result = await rename(ctx, params);
+    if (result.status !== "rejected" || result.recovery !== undefined || result.refusal?.code !== "state-unresolvable"
+      || result.refusal.historyRefs.length === 0) return result;
+    return await pullHistoryForRetry(ctx.store, result.refusal.historyRefs, ctx.writeNotice) ? await rename(ctx, params) : result;
+  }
   catch (error) { return { status: "rejected", reason: error instanceof Error ? error.message : String(error) }; }
 }
 async function rename(ctx: StoreRenameContext, params: { sourceSlug: string; targetSlug: string }): Promise<RunRenameResult> {

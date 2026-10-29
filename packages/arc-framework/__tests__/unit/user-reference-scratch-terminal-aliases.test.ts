@@ -81,7 +81,7 @@ it("withholds conflicted terminal history and retries after explicit resolution"
     identity: "andrew", teamMode: false, internalTemplateDir: "/templates", projectId: async () => "project",
     locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) } });
   expect(await runStoreAbandon({ executor }, { name: "current", confirmed: true })).toMatchObject({ status: "abandoned" });
-  ok(await h.store.sync());
+  ok(await h.store.push());
   const disputed = ok(await h.store.read({ reference: h.terminal.reference })); expect(disputed.conflicts.length).toBeGreaterThan(0);
   const blocked = applyScratchReconcile(h.input);
   await expect(blocked).rejects.toThrow(/conflict.*retry/iu);

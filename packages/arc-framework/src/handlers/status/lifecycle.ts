@@ -236,29 +236,30 @@ async function resolveSlugOperationalBoundary(options: {
 /** Render lifecycle truth without composing code-ref or materialized-artifact evidence. */
 async function handleStoreLifecycleStatus(store: Store, slug: string, opts: StatusCliOptions,
   local: { cwd: string; exec: GitExec; identity: string | null; sync?: StoreSyncPort }, ports?: StoreLifecycleStatusPorts): Promise<void> {
-  const refreshWarnings = opts.fetch === true ? (await pullStoreStatus(local)).map(warning => warning.rendered) : [];
+  const refreshWarnings = opts.fetch === true && !opts.local ? (await pullStoreStatus(local)).map(warning => warning.rendered) : [];
   const view = await readLifecycleView(store);
   if (view.status === "refused") {
-    renderStoreQueryRefusal(view.refusal, opts);
+    renderStoreQueryRefusal(view.refusal, opts, refreshWarnings);
     return;
   }
   const record = await readWorkUnit(store, slug);
   if (record.status === "refused" && record.refusal.code !== "not-found") {
-    renderStoreQueryRefusal(record.refusal, opts);
+    renderStoreQueryRefusal(record.refusal, opts, refreshWarnings);
     return;
   }
   if (record.status === "ok" && record.result.conflicts.length > 0) {
     renderStoreQueryRefusal({ code: "record-malformed", class: "recoverable", reference: record.result.reference,
       rule: "lifecycle.meta-conflict", condition: `The named work-unit primary has unresolved conflicts: ${record.result.conflicts.map((reference) => JSON.stringify(reference)).join(", ")}.`,
-      remedy: { text: "Resolve the named conflict records, then retry this status query." } }, opts);
+      remedy: { text: "Resolve the named conflict records, then retry this status query." } }, opts, refreshWarnings);
     return;
   }
   const standing = view.result.standing;
   const query = resolveSlugQuery(view.result.index, record.status === "ok" ? record.result.reference.owner.name : slug);
   const fields = storeQueryMetaFields(record);
   const design = record.status === "ok" ? await readLifecycleDesign(store, record.result) : { record: null, content: null, warnings: [] };
-  const locus = await readStoreStatusLocus({ ...local, store, slug: query.slug, record: record.status === "ok" ? record.result : undefined }, ports);
-  const derived = await readDerivedSlugPosition({ slug: query.slug, uid: record.status === "ok" ? ownerHolderRequest(record.result).uid : undefined, worktreePath: locus.worktreePath, identity: local.identity,
+  const selected = record.status === "ok" ? { record: record.result, uid: ownerHolderRequest(record.result).uid } : undefined;
+  const locus = await readStoreStatusLocus({ ...local, store, slug: query.slug, record: selected?.record }, ports);
+  const derived = await readDerivedSlugPosition({ slug: query.slug, uid: selected?.uid, worktreePath: locus.worktreePath, identity: local.identity,
     readRoster: ports?.readRoster ?? (identity => readStatusCheckoutRoster({ ...local, store }, identity)) });
   const scopeWindow = projectScopeWindow(query.state, derived.position, storeQueryPause(fields));
   const warnings = [...design.warnings, ...lifecycleListingWarnings(view.result.listing),
@@ -294,8 +295,9 @@ function lifecycleListingWarnings(listing: LifecycleIndexOutcome): string[] {
   return listing.status === "unreadable" ? [listing.condition] : [];
 }
 /** Preserve the exact refusal in machine output and its remedy in human output. */
-function renderStoreQueryRefusal(refusal: StoreRefusal, opts: StatusCliOptions): void {
-  if (opts.json) process.stdout.write(`${JSON.stringify({ status: "refused", refusal })}\n`);
+function renderStoreQueryRefusal(refusal: StoreRefusal, opts: StatusCliOptions, warnings: readonly string[] = []): void {
+  if (!opts.json) for (const warning of warnings) process.stderr.write(`warning: ${warning}\n`);
+  if (opts.json) process.stdout.write(`${JSON.stringify({ status: "refused", refusal, ...(warnings.length ? { warnings } : {}) })}\n`);
   else p.log.error(`${refusal.condition} ${refusal.remedy.text}`);
   process.exitCode = 1;
 }

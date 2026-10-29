@@ -11,7 +11,7 @@ describe("Store cross-substrate batch", () => {
   it("refuses tracked, personal and identity writes whole, then admits their sequenced retries", async () => {
     const h = await syncFixture();
     await h.a.inbox("Existing personal bytes\n");
-    success(await h.a.store.sync());
+    success(await h.a.store.push());
     success(await h.a.store.write(syncPut()));
     const notesBefore = (await h.a.exec("git", ["rev-parse", syncNotesRef])).stdout;
     const identityBefore = (await h.a.exec("git", ["rev-parse", syncErrandRef])).stdout;

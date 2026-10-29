@@ -45,6 +45,8 @@ export interface PromoteOrdinaryErrandRuntimeOptions {
   store?: Store;
   /** Optional synchronization bound to that same operational store. */
   sync?: StoreSyncPort;
+  /** Where the pull's notices are written; standard error by default. */
+  writeNotice?: (line: string) => void;
   projectId?: () => Promise<string>;
   locusPorts?: LocusPorts;
   readonly slug: string;

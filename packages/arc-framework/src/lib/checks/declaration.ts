@@ -1,6 +1,7 @@
 /** Typed project declarations for executable checks. */
 import { z } from "zod";
 import type { KernelRegistry } from "../kernel/index.js";
+import { EnvironmentInputsSchema } from "./environment-declaration.js";
 
 const ArgumentListSchema = z.array(z.string()).min(1);
 const SharedFields = {
@@ -10,6 +11,8 @@ const SharedFields = {
   root: z.string().default("."),
   shards: z.strictObject({ count: z.int().positive(), argument: z.string() }).optional(),
   no_evidence_exit: z.int().min(1).max(255).optional(),
+  runner: z.boolean().default(false),
+  environment_inputs: EnvironmentInputsSchema.default({}),
 };
 const OrdinaryCheckSchema = z.strictObject({
   ...SharedFields,
@@ -25,9 +28,13 @@ const OrdinaryCheckSchema = z.strictObject({
   ci_only: z.boolean().default(false),
   cache: z.boolean().default(true),
   reads_index: z.boolean().default(false),
+}).refine(check => !check.runner || !(check.fixes || check.reads_index), {
+  path: ["runner"],
+  message: "runner cannot relocate owning-checkout fixer or index-certifying execution; remove runner: true and retry the check request.",
 });
 const SelectionFields = {
   ...SharedFields,
+  runner: z.literal(false, { error: "runner requires owning-checkout execution for selection; remove runner: true and retry the check request." }).default(false),
   mode: z.literal("selection").describe("selection receives editable projected Markdown paths as feedback with cache and widen false. Increment and segment use changed paths; named runs use the whole selection unless --paths or --changed, --staged, or --range narrows it."),
   gate: z.never({ error: "selection cannot declare gate: no gate reads projected state." }).optional(),
   cache: z.literal(false, { error: "selection cannot enable cache: nothing keys its content." }).default(false),

@@ -47,7 +47,8 @@ const architectureBans = [
   { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: ["src/lib/git/identity.ts"], predicates: ["configured-identity"] },
   // Ratchets: today's violations are recorded in eslint-suppressions.json as a floor, drained to zero by rerouting.
   { files: [`src/${TYPESCRIPT_SCOPE}`], predicates: ["store-raw-state"] },
-  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`], predicates: ["surface-names", "work-unit-paths"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`, src("lib/store/registry.ts")], predicates: ["surface-names"] },
+  { files: [`src/${TYPESCRIPT_SCOPE}`], ignores: [`src/lib/layout/${TYPESCRIPT_SCOPE}`], predicates: ["work-unit-paths"] },
   {
     files: [src("lib/kernel/canonical/canonical-json.ts")],
     ...restrictedReference("^zod(?:/.*)?$"),
@@ -211,12 +212,21 @@ export default tseslint.config(
     },
   },
   {
-    files: ["__tests__/**/*.ts"],
+    files: ["__tests__/**/*.{ts,mjs}"],
     ...tseslint.configs.disableTypeChecked,
     rules: {
       ...tseslint.configs.disableTypeChecked.rules,
       "@typescript-eslint/no-non-null-assertion": "off",
       "max-lines": ["error", { max: 1500, skipBlankLines: true, skipComments: true }],
+    },
+  },
+  // A focused test narrows every run of its file, so a pass recorded with one never covers the whole file.
+  {
+    files: ["__tests__/**/*.ts"],
+    rules: {
+      "no-restricted-properties": ["error", ...["it", "test", "describe", "suite"].map((object) => ({
+        object, property: "only", message: "Remove .only; a focused test narrows every run of its file.",
+      }))],
     },
   },
   ...composeArchitectureBans(architectureBans),

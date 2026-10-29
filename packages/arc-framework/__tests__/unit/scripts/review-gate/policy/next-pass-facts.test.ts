@@ -11,6 +11,7 @@ import type { LaneProgressState } from "../../../../../src/scripts/review-gate/c
 import { deriveNextPassFacts, NextPassFactsSchema } from "../../../../../src/scripts/review-gate/policy/next-pass-facts.js";
 import { projectProvisionalPassAssessment } from "../../../../../src/scripts/review-gate/runtime/provisional-pass-assessment.js";
 import { readProposedResponseReport } from "../../../../../src/scripts/review-gate/runtime/response-report.js";
+import { materialTrendEntries } from "../../../../../src/scripts/review-gate/policy/next-pass-offer-text.js";
 
 async function laneWithDelta(outcome: "clean" | "findings" = "clean") {
   const fixture = await createLocalDeltaFixture("Light");
@@ -136,21 +137,82 @@ it("joins each historical response round to its own approved set", async () => {
     { dispositionSetId, outsideCitedLoci: false, addedFiles: false },
     { dispositionSetId: successorId, outsideCitedLoci: true, addedFiles: false },
   ]);
+});
+
+it("reports the trend as each complete pass's critical and major counts, without the signals behind it", async () => {
+  const fixture = await createLocalDeltaFixture("Light", 4);
+  const check = await fixture.moveHead(); await fixture.conclude(check, "clean");
+  const second = await fixture.moveHead("f", { requestedCoverage: "complete" });
+  await fixture.conclude(second, "findings");
+  const owner = fixture.laneProgress();
+  if (owner?.kind !== "lane-progress") throw new Error("expected lane owner");
+  const producer = await fixture.resultReader.readResult(second.operationId);
+  const record = approvedRecord(producer, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);
   const proposal = proposeDispositionSet(currentApprovedDispositionNode(record).approvedDisposition.dispositionSet);
+  const facts = await deriveNextPassFacts({ progress: [owner], dispositions: [record], proposed: proposal,
+    nextPassContext: { completePasses: 2, convergence: "unconverged", responseDue: false, incremental: null },
+    target: fixture.currentTarget(), ceiling: 4, exec: async () => { throw new Error("Git unavailable"); } });
   const standardFacts = { facts, chainAdequate: true, delegatedAgentSelectable: true };
   const assessment = projectProvisionalPassAssessment({ proposal, result: producer, lane: "standard",
     admittedLogicalPass: producer.admission.logicalPass, configuredMaxPasses: 4, standardFacts });
-  const report = await readProposedResponseReport({ proposal, producerFindings: producer.findings,
-    release: { commit: true, push: true, threads: null },
-    assessment, standardFacts, readRecord: async id => id === producer.producerId ? record : null,
-    report: { tags: [], fails: [{ findingId: "finding-1", fails: "Correctness and failure behavior" }],
-      successorRecommendation: "Stop after the approved response.", origin: [],
-      reading: { kind: "converging", rationale: "The latest response defers the remaining finding." } },
+  const { dispositionReportText: text } = readProposedResponseReport({ proposal, producerFindings: producer.findings,
+    release: { commit: true, push: true, threads: null }, assessment, standardFacts,
+    report: { tags: [{ findingId: "finding-1", tag: "local-correction" }],
+      fails: [{ findingId: "finding-1", fails: "Correctness and failure behavior" }],
+      successorRecommendation: "Check the repair before stopping.",
+      reading: { kind: "converging", rationale: "One major finding is left, in the new pass's own code." } },
   });
-  expect(report.dispositionReportText).toContain("**Trend:** converging — The latest response defers the remaining finding.\n- Looks: ");
-  expect(report.dispositionReportText).not.toContain("Round 1 ");
-  expect(report.dispositionReportText).toContain(
-    "- Round 2 changed paths outside the cited loci; its tags forecast 0 new design, 0 local correction.");
+  expect(text).toContain("\n\n---\n\n**Trend:** converging — One major finding is left, in the new pass's own code.\n\n"
+    + "Critical and major findings, each full pass then its fix checks:\n- Pass 1 of 4: 0 → 0\n- Pass 2 of 4: 1 (this look)\n\n"
+    + "**Decisions**");
+  for (const absent of ["Looks:", "Origins:", "Round ", "forecast", "material", "provisional"]) {
+    expect(text).not.toContain(absent);
+  }
+});
+
+it("marks a current fix check as this look, labels a look before the first pass or without a count, and collapses "
+  + "a lane with no critical or major finding to one line", async () => {
+  const fixture = await laneWithDelta("findings");
+  const producer = await fixture.resultReader.readResult(fixture.delta.operationId);
+  const record = approvedRecord(producer, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);
+  const proposal = proposeDispositionSet(currentApprovedDispositionNode(record).approvedDisposition.dispositionSet);
+  const facts = await deriveNextPassFacts({ progress: fixture.progress(), dispositions: [record], proposed: proposal,
+    nextPassContext: { completePasses: 1, convergence: "unconverged", responseDue: false, incremental: null },
+    target: fixture.currentTarget(), ceiling: 4, exec: async () => { throw new Error("Git unavailable"); } });
+  const render = (laneFacts: typeof facts) => {
+    const standardFacts = { facts: laneFacts, chainAdequate: true, delegatedAgentSelectable: true };
+    const assessment = projectProvisionalPassAssessment({ proposal, result: producer, lane: "standard",
+      admittedLogicalPass: producer.admission.logicalPass, configuredMaxPasses: 4, standardFacts });
+    return readProposedResponseReport({ proposal, producerFindings: producer.findings,
+      release: { commit: true, push: true, threads: null }, assessment, standardFacts,
+      report: { tags: [{ findingId: "finding-1", tag: "local-correction" }],
+        fails: [{ findingId: "finding-1", fails: "Correctness and failure behavior" }],
+        successorRecommendation: "Check the repair.", reading: { kind: "converging", rationale: "One repair is left." } },
+    }).dispositionReportText;
+  };
+  const series = "Critical and major findings, each full pass then its fix checks:\n";
+  expect(render(facts)).toContain(`${series}- Pass 1 of 4: 0 → 1 (this look)\n\n`);
+  const earlier = { producerId: "earlier", logicalPass: 1, coverage: "fix-check" as const, outcome: "findings" as const,
+    materialCount: null, provisional: false };
+  expect(render({ ...facts, materialTrend: [earlier, ...facts.materialTrend] }))
+    .toContain(`${series}- Before pass 1: unknown\n- Pass 1 of 4: 0 → 1 (this look)\n\n`);
+  const quiet = render({ ...facts, materialTrend: facts.materialTrend.map(look => ({ ...look, materialCount: 0 })) });
+  expect(quiet).toContain("**Trend:** converging — One repair is left.\n\nNo critical or major findings at any look.\n\n"
+    + "**Decisions**");
+  expect(quiet).not.toContain(series);
+});
+
+it("places each trend look after the complete pass it follows, or before the first", () => {
+  const look = (producerId: string, coverage: "complete" | "fix-check") =>
+    ({ producerId, logicalPass: 1, coverage, outcome: "findings", materialCount: 1, provisional: false });
+  const entries = materialTrendEntries(NextPassFactsSchema.parse({ fixRounds: [], chainProven: false,
+    rangeSize: { target: { kind: "unknown", reason: "git-failure" }, fix: null }, completePasses: 1, ceiling: 3,
+    fixChecksSinceLastComplete: [], materialTrend: [look("a", "fix-check"), look("b", "complete"), look("c", "fix-check")] }));
+  expect(entries.map(({ position, pass }) => ({ position, pass }))).toEqual([
+    { position: "fix check, round 1 since pass 0", pass: 0 },
+    { position: "complete pass 1 of 3", pass: 1 },
+    { position: "fix check, round 1 since pass 1", pass: 1 },
+  ]);
 });
 
 it("resets fix-check rounds when a later complete look concludes", async () => {

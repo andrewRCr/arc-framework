@@ -157,8 +157,11 @@ spawned WU worktree: post-create provisioning and registered harness-dir copy ha
 session's effective config and scripts resolve from that root. Do not continue planning from the invoking checkout
 after a spawned start succeeds.
 
-- **Claude Code** — if `EnterWorktree` is available, call it with the emitted worktree path, then re-run
-  `/arc-session` in the relocated session.
+- **Claude Code** — tell the user to start a fresh session in the emitted worktree path and invoke `/arc-session`
+  there; the seeded SESSION-NOTES is the handoff bridge. `EnterWorktree` is the escape hatch, for a user who asks to
+  keep this session: call it with the emitted path, then re-run `/arc-session`. The user's terminal stays at the
+  invoking checkout, and Claude Code's worktree guard then refuses edits and some commands that reach outside the
+  worktree, the primary checkout's personal files among them.
 - **Codex CLI** — no live-session relocate. Do not launch nested Codex from a shell escape inside the current
   session. Tell the user to open a fresh terminal (or end this session and reuse the terminal), run
   `codex --cd <worktree-path>`, then invoke `arc-session`. The seeded SESSION-NOTES is the handoff bridge; the

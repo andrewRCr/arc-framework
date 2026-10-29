@@ -81,6 +81,7 @@ function buildCtx(opts: MockOptions = {}): { ctx: ReconcileWorkUnitWorktreeConte
       copyFileIfAbsent: async () => {},
       readFile: async () => "",
       writeFile: async () => {},
+      withLock: async (_path, operation) => operation(),
       mkdir: async () => {},
       readDir: async () => [],
     },

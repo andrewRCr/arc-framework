@@ -2218,8 +2218,8 @@ describe("hosted review fan-out lifecycle", () => {
       const prompt = selection.coverageSelectionAction.interactionText;
       expect(prompt).toContain("Complete passes: 1 of 2");
       expect(prompt).toContain("Correction chain: proven");
-      expect(prompt).toContain("Round 1, paths outside cited loci:");
-      expect(prompt).toContain("Material trend:");
+      expect(prompt).toContain("Change signals after fixes:");
+      expect(prompt).toContain("Critical and major findings:");
       expect(prompt.indexOf("local fix check")).toBeLessThan(prompt.indexOf("Complete passes:"));
       expect(prompt).toContain("What do you recommend, why, and what would change your recommendation?");
       const command = [...prompt.matchAll(/`(arc review status[^`]+)`/gu)]

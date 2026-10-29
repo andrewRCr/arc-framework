@@ -39,6 +39,7 @@ function create(overrides: {
   setupRepository?: () => Promise<CommitMessageCheckRepository>;
   hasPrepareCommitMsgHook?: (cwd: string) => Promise<boolean>;
   stdinIsTTY?: boolean;
+  interactionAllowed?: boolean;
   wrap?: boolean;
 } = {}) {
   const readFile = vi.fn(overrides.readFile ?? (() => Promise.resolve(new Uint8Array())));
@@ -48,6 +49,7 @@ function create(overrides: {
     readStdin,
     preflight: createCommitMessagePreflight({
       stdinIsTTY: overrides.stdinIsTTY ?? false,
+      interactionAllowed: overrides.interactionAllowed,
       readFile,
       ...(overrides.readFileWithIdentity === undefined
         ? {}
@@ -61,13 +63,35 @@ function create(overrides: {
 }
 
 describe("createCommitMessagePreflight", () => {
-  it("returns a validation refusal for invalid assembled message argv", async () => {
-    const { preflight } = create();
+  it.each([
+    { label: "a new commit", args: ["-m", "short"] },
+    { label: "an amendment", args: ["--amend", "--no-edit", "-m", "short"] },
+  ])("refuses an invalid explicit message for $label", async ({ args }) => {
+    const { preflight } = create({ interactionAllowed: false });
 
-    const result = await preflight({ args: ["-m", "short"], cwd: "/repo" });
+    const result = await preflight({ args, cwd: "/repo" });
 
     expect(result).toMatchObject({ kind: "refused", reason: "validation" });
     expect(result).toHaveProperty("message", expect.stringContaining("Commit validation FAILED"));
+  });
+
+  it.each([
+    { args: ["--amend", "--no-edit", "--edit"] },
+    { args: ["--amend", "--no-edit", "--signoff"] },
+    { args: ["--amend", "--no-edit", "-C", "HEAD"] },
+    { args: ["--author", "--amend", "--no-edit"] },
+    { args: ["--", "--amend", "--no-edit"] },
+  ])("does not treat $args as proven reuse of HEAD's message", async ({ args }) => {
+    const { preflight } = create({ interactionAllowed: false });
+
+    expect(await preflight({ args, cwd: "/repo" })).toMatchObject({ kind: "refused", reason: "input" });
+  });
+
+  it("lets an editor-free amendment reuse HEAD's message without interaction", async () => {
+    const { preflight } = create({ interactionAllowed: false });
+
+    expect(await preflight({ args: ["--amend", "--no-edit"], cwd: "/repo" }))
+      .toEqual({ kind: "pass-through" });
   });
 
   it("diagnoses literal escaped newlines when they flatten an otherwise valid message", async () => {
