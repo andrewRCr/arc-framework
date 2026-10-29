@@ -4386,8 +4386,9 @@ design avoids.
   backing repository and local-only would be choices made once, at `arc init`.
 - **Splitting the import into its own work unit:** it lands through the migrate verb's transaction, which the layout
   moves need regardless (§ 1.1).
-- **Recording the Part B amendments at spec time** would leave the contract specification describing types the code does
-  not have until this change lands; the change that alters the types appends the rows (§ 2).
+- **Recording the Part B amendments at spec time** would leave the cohort record stating decisions the code does not
+  make until this change lands; the change that alters the types records each decision change in
+  `cohort-state-storage.md` § Shared contracts (§ 2) (A59).
 
 **Encoding and versions**
 
@@ -5102,8 +5103,8 @@ open:
   _Trigger:_ 19.1 terminal. _Work:_ 18.R4. _Revalidated:_ verify-work-unit.
 
 - **A59** — 2026-10-29 — design: record contract decision changes in the cohort document. _Supersedes:_ § 2 log
-  sentence; criterion 1 log clause. _Trigger:_ standard-pass-8/AGG-20 review. _Work:_ review-fix. _Revalidated:_
-  review-fix.
+  sentence; criterion 1 log clause; the Alternatives entry on recording the amendments at spec time. _Trigger:_
+  standard-pass-8/AGG-20 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 - **A60** — 2026-10-29 — design: declare the store check's selection variables as environment inputs. _Supersedes:_
   § 14.14 runtime-input key. _Trigger:_ standard-pass-8-fix-check-1/AGG-07 review. _Work:_ review-fix.
