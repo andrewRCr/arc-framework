@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "vitest-pass-environment",
+  "claimId": "a6bee87e11fa57edaba54969d913fab8",
+  "createdAt": "2026-10-29T04:10:04.561Z",
+  "updatedAt": "2026-10-29T04:10:04.561Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Keep variables that change vitest's pass or selection out of reusable check passes",
+  "branch": "chore/vitest-pass-environment",
+  "origin": "inbox",
+  "originEntry": "Keep selection-affecting environment out of reusable vitest check passes",
+  "originEntrySourceDigest": "sha256:ef6477124b9c9be7051a21c1efc1e15e991f97e4f426e002935cabb8ba68d54d",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
