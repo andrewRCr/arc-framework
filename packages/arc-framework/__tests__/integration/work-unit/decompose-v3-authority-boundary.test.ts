@@ -5,6 +5,8 @@ import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { shippedMethodForm } from "../../helpers/shipped-method-form.js";
+
 const PACKAGE_ROOT = resolve(import.meta.dirname, "../../..");
 const PROJECT_ROOT = resolve(PACKAGE_ROOT, "../..");
 
@@ -24,7 +26,7 @@ describe("decomposition v3 authority boundary", () => {
       "utf8",
     );
 
-    expect(projectMethod).toBe(packageMethod);
+    expect(shippedMethodForm(projectMethod, "assess-boundary-fit")).toBe(packageMethod);
     expect(projectPark).toBe(packagePark);
   });
 });
