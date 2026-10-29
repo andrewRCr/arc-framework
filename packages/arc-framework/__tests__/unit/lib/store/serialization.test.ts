@@ -65,6 +65,15 @@ describe("record serialization admission", () => {
       expect(checkSerializationRules(document(key), "text"), key).toBeUndefined();
     }
   });
+  it("reads an NTFS `.git` up to a backslash and again after every backslash, as Git's object checks do", () => {
+    const conflict = (key: string) => RecordReferenceSchema.parse({ owner: { type: "work-item", name: "work" }, kind: "work-item/conflict-record", key });
+    for (const key of [".git\\x", "GIT~1\\x", ".git. \\x", ".GIT\\", "git~1 .:x\\y", "x\\.git\\y", "x\\y\\git~1. \\z"]) {
+      expect(checkSerializationRules(conflict(key), "{}"), key).toMatchObject({ rule: "store.git-path" });
+    }
+    for (const key of ["x\\.git", ".gitx\\y", "x.git\\y", ".gitmodules\\x", "x\\.gitattributes\\y", "x\\.github\\y"]) {
+      expect(checkSerializationRules(conflict(key), "{}"), key).toBeUndefined();
+    }
+  });
   it("bounds expanded components and owner/key bytes, exempting the whole personal path key", () => {
     expect(checkSerializationRules(document(`scratch/${"é".repeat(2_048)}x`), "text")).toMatchObject({ rule: "store.git-path" });
     expect(checkSerializationRules(document(`scratch/${"é".repeat(2_048)}/${"b".repeat(4_086)}`), "text")).toBeUndefined();

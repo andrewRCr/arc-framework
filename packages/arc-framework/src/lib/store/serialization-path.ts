@@ -13,11 +13,17 @@ function hashedAlias(name: string, prefix: string): boolean {
     && name.slice(0, tilde) === prefix.slice(0, tilde) && /^[1-9][0-9]*$/u.test(name.slice(tilde + 1));
 }
 
+function ntfsName(component: string): string {
+  return component.split(":", 1)[0]?.replace(/[. ]+$/u, "").toLowerCase() ?? "";
+}
+
 function gitSpecialSegment(segment: string): boolean {
   // HFS and NTFS are independent predicates: their normalizations must not compose.
   if (specialNames.includes(segment.replace(hfsIgnored, "").toLowerCase())) return true;
-  const ntfs = segment.split(":", 1)[0]?.replace(/[. ]+$/u, "").toLowerCase() ?? "";
-  return specialNames.includes(ntfs) || ntfs === "git~1" || /^(?:gitmod|gitatt)~[1-4]$/u.test(ntfs)
+  // Git reads `.git` up to a backslash as well as a colon, and again after every backslash.
+  if (segment.split("\\").some((component) => [".git", "git~1"].includes(ntfsName(component)))) return true;
+  const ntfs = ntfsName(segment);
+  return specialNames.includes(ntfs) || /^(?:gitmod|gitatt)~[1-4]$/u.test(ntfs)
     || hashedAlias(ntfs, "gi7eba") || hashedAlias(ntfs, "gi7d29");
 }
 
