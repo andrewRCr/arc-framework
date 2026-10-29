@@ -9,7 +9,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 
 import {
-  initInTempRepo,
   cleanupTempDir,
   DEFAULT_PROMPTS,
   readFile,
@@ -20,6 +19,7 @@ import {
   execFileAsync,
   manifestPath,
 } from "../helpers/integration.js";
+import { initInTempRepo } from "../helpers/init-temp-repo.js";
 import { runHealth } from "../../src/commands/health.js";
 import type { HealthIOContext } from "../../src/commands/health.js";
 import { runDiff } from "../../src/commands/diff.js";

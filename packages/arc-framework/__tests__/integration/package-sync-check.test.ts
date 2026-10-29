@@ -4,7 +4,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execa } from "execa";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cleanupTempDir, DEFAULT_PROMPTS, initInTempRepo } from "../helpers/integration.js";
+import { cleanupTempDir, DEFAULT_PROMPTS } from "../helpers/integration.js";
+import { initInTempRepo } from "../helpers/init-temp-repo.js";
 import { gitExec } from "../../src/lib/io-context.js";
 import { environmentForGitCwd } from "../../src/lib/git/process-executor.js";
 
