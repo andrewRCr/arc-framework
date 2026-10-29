@@ -297,15 +297,10 @@ through controller closing. Store qualification uses the native reach command la
   first, converting any remaining wrapper prefix or probe-supplied selectors to `runner: true` and
   `environment_inputs`; copied/simulated source does not fulfill store qualification.
 
-    - `[ ]` **4.3.a Complete native store declaration and catalogue adoption**
-        - Inspect the actual landed declaration, reach catalogue and input readers. The foundation adopts wrapper
-          consumers present at its retirement; complete remaining store adoption here if the native tier lands later.
-        - Use ordinary native argv with `runner: true`, `shards.routed: true` and explicit actual selectors,
-          including `ARC_STORE_CHECK`, `ARC_STORE_BURSTS` and the handed duration file when read. Keep their
-          value/file and absent/empty semantics.
-        - Remove any obsolete retired-wrapper catalogue dependency; native full/reach selection must remain valid
-          with that executable absent. Prototype executable retirement and machine-setting migration remain outside
-          this task. Test-after declaration/catalogue changes through binding/forecast and native selection fixtures.
+    - `[x]` **4.3.a Complete native store declaration and catalogue adoption**
+        - The landed native entry opts into four routed shards and captures its handed duration file alongside the
+          existing store selectors. Public preparation and CI forecasts retain native argv; replay preserves unset,
+          empty and file states after caller edits. The actual reach catalogue has no retired-wrapper dependency.
 
     - `[ ]` **4.3.b Qualify full and selected native store membership**
         - Use the landed store declaration, reach suite catalogue and native shard entry; cover deletions,
