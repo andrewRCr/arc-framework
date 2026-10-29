@@ -1,7 +1,7 @@
 /** Read saved operational history with one narrowly named synchronization retry. */
 import type { StoreResult, StoreRefusal } from "../store/refusal.js";
 import { createStoreSyncPort, type StoreSyncPort } from "../store/operational-sync.js";
-import { consumePull, writePullNotices } from "../store/pull-consumption.js";
+import { consumePull, pullDesignation, writePullNotices } from "../store/pull-consumption.js";
 
 /** A refused history operation retains the provider's original condition and repair. */
 export class StateHistoryRefusal extends Error {
@@ -31,12 +31,13 @@ export async function readStateHistory<T>(operation: () => Promise<StoreResult<T
 // A failed read source leaves the state leg's history in place, so only the state remote stops the retry.
 async function requireHistoryPull(sync: StoreSyncPort, refs: readonly string[], refusal: StoreRefusal, writeNotice?: (line: string) => void): Promise<void> {
   const pulled = await pullHistory(sync, refs, refusal);
-  if (pulled.status === "designation-needed") {
-    throw new Error(`${refusal.condition} ${refusal.remedy.text} State remote ${pulled.remote} needs a role. ${pulled.remedy.text}`);
-  }
   const consumed = consumePull(pulled);
   writePullNotices(consumed.notices, writeNotice);
   if (consumed.kind === "stop") throw new Error(`${refusal.condition} ${refusal.remedy.text} ${consumed.reason}`);
+  const designation = pullDesignation(pulled);
+  if (designation) {
+    throw new Error(`${refusal.condition} ${refusal.remedy.text} State remote ${designation.remote} needs a role. ${designation.remedy.text}`);
+  }
 }
 async function pullHistory(sync: StoreSyncPort, refs: readonly string[], refusal: StoreRefusal) {
   try { return await sync.pull(refs); }

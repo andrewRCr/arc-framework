@@ -153,3 +153,24 @@ it("retries a saved read whose history pulled while a read source failed, and wr
   expect(await readStateHistory(read, bindStoreSyncPort(f.store), line => written.push(line))).toBe("saved state");
   expect(written).toEqual([`Read source upstream was not pulled: Remote offline. ${remedy.text} ${remedy.argv.join(" ")}`]);
 });
+
+it.each([{ beside: "alone", pulls: [] }, { beside: "beside a failed read source", pulls: [{ ...readPulled, status: "failed", failure: unreachable }] }])(
+  "explains a saved read's history retry by the state remote's designation question $beside, then reads once it is answered", async ({ pulls }) => {
+    const f = createReferenceFixture();
+    const ref = HistoryRefSchema.parse("refs/arc/history/work/11111111-1111-4111-8111-111111111111");
+    let available = false;
+    f.store.pull = async () => ({ status: "ok", result: PullResultSchema.parse({ states: [{ status: "designation-needed", remote: "backup",
+      choices: ["push", "read", "off"], remedy }], pulls }) });
+    const read = () => Promise.resolve(available ? { status: "ok" as const, result: "saved state" } : { status: "refused" as const,
+      refusal: { code: "state-unresolvable" as const, class: "recoverable" as const, condition: "Saved state unavailable.",
+        remedy: { text: "Restore the named history." }, historyRefs: [ref] } });
+    const written: string[] = [];
+    await expect(readStateHistory(read, bindStoreSyncPort(f.store), line => written.push(line))).rejects.toThrow(
+      `Saved state unavailable. Restore the named history. State remote backup needs a role. ${remedy.text}`);
+    expect(written).toEqual(pulls.length ? [`Read source upstream was not pulled: Remote offline. ${remedy.text} ${remedy.argv.join(" ")}`] : []);
+    f.store.pull = async () => {
+      available = true;
+      return { status: "ok", result: PullResultSchema.parse({ states: [], pulls: [pulled] }) };
+    };
+    expect(await readStateHistory(read, bindStoreSyncPort(f.store))).toBe("saved state");
+  });

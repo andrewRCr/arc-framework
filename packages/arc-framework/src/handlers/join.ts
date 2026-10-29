@@ -30,7 +30,7 @@ import { createStore } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import type { Store } from "../lib/store/contract.js";
 import { bindStoreSyncPort, type StoreSyncPort } from "../lib/store/operational-sync.js";
-import { consumePull } from "../lib/store/pull-consumption.js";
+import { consumePull, pullDesignation } from "../lib/store/pull-consumption.js";
 import { describeStorePull, type StoreSessionInitUserValue } from "../lib/session-init/store-user-pull.js";
 import { joinStoreDesignationSite } from "../prompts/join-store-designation.js";
 import { prompt, type PromptRenderer } from "../lib/command-input/prompter.js";
@@ -59,20 +59,21 @@ export async function pullJoinStore(input: { cwd: string; exec: GitExec; identit
   const result = await (ports.sync?.(store) ?? bindStoreSyncPort(store)).pull();
   const value = describeStorePull(result), consumed = consumePull(result);
   for (const line of [...consumed.kind === "stop" ? [consumed.reason] : [], ...consumed.notices]) p.log.warn(line);
-  if (result.status !== "designation-needed") return value;
+  const designation = pullDesignation(result);
+  if (designation === undefined) return value;
   p.log.info(value.summary);
   if (input.context.interaction !== "allowed") return value;
-  const remedyArgv = result.remedy.argv ?? [];
+  const remedyArgv = designation.remedy.argv ?? [];
   const recommended = remedyArgv.at(-1);
   const answer = await prompt(joinStoreDesignationSite, input.context, {
-    message: `How should remote ${result.remote} serve store state?`,
-    options: result.choices.map(choice => ({ value: choice, label: choice,
+    message: `How should remote ${designation.remote} serve store state?`,
+    options: designation.choices.map(choice => ({ value: choice, label: choice,
       ...(choice === recommended ? { hint: remedyArgv.join(" ") } : {}) })),
-    ...(recommended !== undefined && result.choices.includes(recommended) ? { initialValue: recommended } : {}),
+    ...(recommended !== undefined && designation.choices.includes(recommended) ? { initialValue: recommended } : {}),
   }, ports.renderer);
   if (answer.kind === "cancelled") return { status: "cancelled" };
-  if (answer.kind !== "answered" || !result.choices.includes(answer.value)) return value;
-  const argv = answer.value === recommended ? [...remedyArgv] : ["arc", "store", "remote", result.remote, answer.value];
+  if (answer.kind !== "answered" || !designation.choices.includes(answer.value)) return value;
+  const argv = answer.value === recommended ? [...remedyArgv] : ["arc", "store", "remote", designation.remote, answer.value];
   const designated = await (ports.execute ?? executeJoinDesignation)(argv, input.cwd, input.context);
   if (designated.status === "failed") {
     p.log.warn(`${argv.join(" ")} ${designated.reason}; setup continues without that designation. Resolve its output above, then run it again.`);

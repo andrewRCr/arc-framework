@@ -24,6 +24,16 @@ export function consumePull(result: PullResult): PullConsumption {
   return { kind: "proceed", notices: [...readFailures(failures), ...surfaced] };
 }
 
+/** A remote whose state role awaits an explicit choice, and the command that makes it. */
+export interface PullDesignation { remote: string; choices: readonly string[]; remedy: Remedy }
+
+/** Find a designation question a pull raised, whether it stands alone or beside a failed read source. */
+export function pullDesignation(result: PullResult): PullDesignation | undefined {
+  if (result.status === "designation-needed") return result;
+  const partial = "partial" in result ? result.partial : undefined;
+  return partial?.states.find(state => state.status === "designation-needed");
+}
+
 /** Render every notice a push or pull's outcomes raised, with each failed read source beside them. */
 export function pullOutcomeNotices(pulls: readonly PullOutcome[]): string[] {
   const notices = pulls.flatMap(pull => pull.notices);
