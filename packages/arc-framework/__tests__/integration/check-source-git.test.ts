@@ -1,6 +1,6 @@
 /** Relocated source Git metadata resolves code without original repository administration. */
 import { afterEach, expect, it } from "vitest";
-import { cp, lstat, mkdtemp, readFile, readdir, symlink, unlink, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdir, mkdtemp, readFile, readdir, readlink, symlink, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createTempRepoCore, removeGitBackedDir, removeGitBackedDirs } from "../helpers/temp-repo.js";
@@ -12,6 +12,7 @@ import { addSourceGitMetadata } from "../../src/lib/checks/runner/source-git.js"
 import { nodeSourcePresentationIO } from "../../src/lib/checks/runner/source-io.js";
 import { verifySourcePresentation } from "../../src/lib/checks/runner/source-verify.js";
 import { readCheckHead } from "../../src/lib/checks/head.js";
+import { SourceCaptureError } from "../../src/lib/checks/runner/source-error.js";
 
 const git = createExecaGitExec();
 const io = { git, gitRaw: createExecaRawGitExec(), source: nodeSourcePresentationIO };
@@ -23,6 +24,66 @@ async function commit(root: string, name: string): Promise<string> {
   await git("git", ["commit", "-m", name], { cwd: root });
   return (await git("git", ["rev-parse", "HEAD"], { cwd: root })).stdout;
 }
+
+const LINK_QUALIFICATION_TIMEOUT = 60_000;
+const sourceModes = ["index", "commit"] as const;
+const linkSpellings = ["flat", "forward-slash", "backslash"] as const;
+
+it.each(sourceModes.flatMap(basis => linkSpellings.map(spelling => ({ basis, spelling }))))(
+  "qualifies $basis symlink targets written with $spelling", async ({ basis, spelling }) => {
+    const root = await createTempRepoCore({ prefix: "arc-source-link-qualification-" });
+    directories.push(root);
+    await git("git", ["config", "core.symlinks", "true"], { cwd: root });
+    const target = spelling === "flat" ? "target" : ["nested", "target"].join(spelling === "backslash" ? "\\" : "/");
+    await mkdir(join(root, "nested"));
+    await writeFile(join(root, target), "captured target");
+    await symlink(target, join(root, "link"), "file");
+    expect((await lstat(join(root, "link"))).isSymbolicLink()).toBe(true);
+    const tip = await commit(root, "link qualification");
+    await git("git", ["update-ref", "refs/heads/topic", tip], { cwd: root });
+    const mode = Buffer.from((await io.gitRaw(["ls-files", "--stage", "-z", "--", "link"], { cwd: root })).stdout).toString("utf8");
+    expect(mode).toMatch(/^120000 [0-9a-f]+ 0\tlink\0$/u);
+    const gitTarget = Buffer.from((await io.gitRaw(["show", basis === "index" ? ":link" : tip + ":link"], { cwd: root })).stdout).toString("utf8");
+    const observation = { basis, spelling, platform: process.platform, suppliedTarget: target,
+      callerTarget: await readlink(join(root, "link")), gitTarget, mode };
+    const result = await resolveCheckRequest(git, root, basis === "index" ? { form: { kind: "pre-commit" } }
+      : { form: { kind: "pre-push", ref: "refs/heads/topic", old: tip, tip } });
+    if (result.status !== "resolved") throw new Error(result.message);
+    const boundary = await acquireSourceBoundary(io, root, result.request);
+    const observedTargets = new Set<string>();
+    const observed: typeof io = { ...io, source: { ...io.source, readlink: async path => {
+      const value = await io.source.readlink(path);
+      observedTargets.add(Buffer.from(value).toString("utf8"));
+      return value;
+    } } };
+    let frozen: Awaited<ReturnType<typeof freezeSelectedSource>> | undefined;
+    let phase = "capture";
+    try {
+      frozen = await freezeSelectedSource(observed, root, result.request, boundary);
+      const entry = frozen.manifest.entries.find(candidate => candidate.path === "link");
+      if (entry?.kind !== "symlink") throw new Error("Selected Git link did not produce a source symlink");
+      expect(entry.target).toBe(gitTarget);
+      phase = "verify";
+      expect(await verifySourcePresentation({ root: frozen.root, manifest: frozen.manifestPath,
+        digest: frozen.digest, coordinates: frozen.manifest.coordinates })).toEqual(frozen.manifest);
+      const linkedRead = await readFile(join(frozen.root, "link"), "utf8").then(
+        value => ({ status: "readable", value }),
+        error => ({ status: "unreadable", code: (error as NodeJS.ErrnoException).code ?? "unknown" }),
+      );
+      console.info("source-link-qualification", JSON.stringify({ ...observation, outcome: "captured",
+        observedTargets: [...observedTargets], frozenTarget: await readlink(join(frozen.root, "link")),
+        linkedRead, manifest: frozen.manifest }));
+      if (spelling === "flat") expect(linkedRead).toEqual({ status: "readable", value: "captured target" });
+    } catch (error) {
+      if (spelling === "flat" || !(error instanceof SourceCaptureError)) throw error;
+      console.info("source-link-qualification", JSON.stringify({ ...observation, outcome: "refused",
+        phase, observedTargets: [...observedTargets], message: error.message }));
+    } finally {
+      try { await frozen?.remove(); }
+      finally { await boundary.remove(); }
+    }
+  }, LINK_QUALIFICATION_TIMEOUT,
+);
 
 it("retains HEAD, checked tree, base, merge and code history after original removal, excluding private administration", async () => {
   const root = await createTempRepoCore({ prefix: "arc-source-git-closure-" });
