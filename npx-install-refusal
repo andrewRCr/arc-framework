@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "npx-install-refusal",
+  "claimId": "7407320ade94c2d12e069f9aa3ab2066",
+  "createdAt": "2026-10-29T19:04:16.481Z",
+  "updatedAt": "2026-10-29T19:04:16.481Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make npx refuse packages this repository does not provide",
+  "branch": "chore/npx-install-refusal",
+  "origin": "inbox",
+  "originEntry": "Make npx refuse to install packages this repository does not provide",
+  "originEntrySourceDigest": "sha256:5d19ecc7ccd79af59e0d43e455447151e40db2f3939b004a63b20090f7e7c3ff",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
