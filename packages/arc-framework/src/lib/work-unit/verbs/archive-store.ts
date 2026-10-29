@@ -61,8 +61,15 @@ export async function runStoreArchive(ctx: ArchiveContext & { executor: ArchiveC
   return settleStoredArchive(store, primary, outcome);
 }
 
+// Every notice a push raised joins the archive's warnings, or the reason of any rejection after publication.
 async function settleStoredArchive(store: Store, primary: StoreRecord, outcome: Extract<TransitionOutcome, { status: "ok" }>): Promise<ArchiveResult> {
-  const name = primary.reference.owner.name, notices: string[] = [];
+  const notices: string[] = [], result = await settleStoredArchiveSteps(store, primary, outcome, notices);
+  return result.status === "rejected" && notices.length ? { ...result, reason: `${result.reason} Also reported: ${notices.join(" ")}` } : result;
+}
+
+async function settleStoredArchiveSteps(store: Store, primary: StoreRecord, outcome: Extract<TransitionOutcome, { status: "ok" }>,
+  notices: string[]): Promise<ArchiveResult> {
+  const name = primary.reference.owner.name;
   try {
     const publication = await publishArchive(store, name, notices);
     if (publication !== undefined) return publication;
@@ -101,13 +108,12 @@ async function publishCohortCloseout(store: Store, name: string, cohorts: { writ
   return closed.status === "refused" ? reportFailure(name, closed.refusal) : publishArchive(store, name, notices);
 }
 
-// Every notice the push raised joins the archive's warnings, or a persisted failure's reason when publication holds.
 async function publishArchive(store: Store, name: string, notices: string[]): Promise<Extract<ArchiveResult, { status: "rejected" }> | undefined> {
   const synced = await store.push();
   if (synced.status === "refused") return reportFailure(name, synced.refusal);
   notices.push(...pullOutcomeNotices(synced.result.pulls));
   const held = archivePublicationHold(name, synced.result) ?? archivePublicationFailure(name, synced.result);
-  if (held) return notices.length === 0 ? held : { ...held, reason: `${held.reason} Also reported: ${notices.join(" ")}` };
+  if (held) return held;
   notices.push(...synced.result.states.flatMap(state => state.status === "move-unfinished" ? [renderExplained([state.condition], state.remedy)] : []));
   return undefined;
 }

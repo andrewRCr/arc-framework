@@ -171,6 +171,31 @@ it("carries an ended item's retained conflicts from the archive's push into its 
   expect(result.status === "archived" ? result.warnings[0] : "").toContain(JSON.stringify(conflict));
 });
 
+it("keeps the archive push's notices in a later closeout rejection", async () => {
+  const h = createLifecycleHarness(), remote = createMemoryRemote(); h.store.context.publication.remote = remote;
+  await h.seedMeta("example");
+  const item = OwnerIdentitySchema.parse({ type: "work-item", name: "alpha", uid: "11111111-1111-4111-8111-111111111111" });
+  let landed = false;
+  const store: Store = new Proxy(h.store, { get(target, key) {
+    if (key === "batch") return async (input: Parameters<Store["batch"]>[0]) => {
+      const result = await target.batch(input); landed = result.status === "ok"; return result;
+    };
+    if (key === "push") return async () => {
+      const result = await target.push(); if (result.status === "refused") return result;
+      return { status: "ok", result: PushResultSchema.parse({ ...result.result, pulls: [{ remote: "origin", role: "state", status: "pulled",
+        families: ["work-item"], notices: [{ kind: "end-pending", item, ref: "refs/arc/work/11111111-1111-4111-8111-111111111111",
+          condition: "Alpha's end remains pending.", remedy: { text: "Pull again to settle it." } }] }] }) };
+    };
+    if (key === "read") return async (input: Parameters<Store["read"]>[0]) => landed
+      ? { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference: input.reference,
+        rule: "test.report-unavailable", condition: "Archive report temporarily unavailable.", remedy: { text: "Repair reads, then retry." } } }
+      : target.read(input);
+    const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  expect(await archive(store, "example")).toMatchObject({ status: "rejected", persisted: true,
+    reason: expect.stringMatching(/Archive report temporarily unavailable\..*Also reported: Alpha's end remains pending\. Pull again to settle it\./su) });
+});
+
 it("completes an archive published successfully beside an unfinished-move advisory", async () => {
   const h = createLifecycleHarness(), remote = createMemoryRemote();
   h.store.context.publication.remote = remote;
