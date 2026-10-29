@@ -11,15 +11,14 @@
 - **Design:** `spec-storage-ref-backend.md`
 - **Task List:** `tasks-storage-ref-backend.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:5facc56cca5a86554f34768ee992cafc6b6dfab260ce840dd85494d97cd5213d`
+- **Candidate:** `sha256:5ff0f5dd93beb68f34575568e152e4c01a84c1740cafa6b58eb4fd31653e660e`
 
 - **Current Workflow:** `prepare-work-unit`
-- **Last Completed:** Pass 7 fix-check round 7 — repair verified and recorded
+- **Last Completed:** Task 19.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** prepare-work-unit Step 2 — decide an eighth complete pass or Owner-accepted review terminus in a
-  fresh session.
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]

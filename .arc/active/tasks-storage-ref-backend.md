@@ -2350,8 +2350,14 @@ in `notes-storage-ref-backend.md` (A25).
   checks not selected; hosted dispatch `40003927279` at that head passes every job, the Windows/macOS pair and the
   store suites' full run included. The criteria review's fixes landed with their exposing cases first and closed over
   five fix-check rounds, the last with no findings (`notes-storage-ref-backend.md` § Final-head portability pair).
-- _Success criteria:_ 47 criteria: 43 met, three of them with Deviation notes (6, 9, 41), and 4 superseded (5 and 7
-  by A29, 11 by A25, 37 by A33).
+  The re-root after `a2c593461` merged `8cad4cecf`: at `4172c6944` the merge gate passes 19 checks, the store suites'
+  full run included, with 4 CI-only checks not selected. Hosted dispatch `40794816270` at `b78522879` passes every
+  job but two (notes § Merged-head portability pair):
+    - Windows fails only the separate publishing burst A58 routes to `storage-ref-hardening`; 18.R4 then skips it.
+    - E2E shard 3 times out main's `delivery-position` case, which is unchanged from the merge base and runs equally
+      fast locally on both heads.
+- _Success criteria:_ 52 criteria: 45 met, two of them with Deviation notes (6, 41), and 7 superseded (5 and 7 by
+  A29, 11 by A25, 37 by A33, 9, 35 and 40 by A58).
 
 ---
 
@@ -2395,9 +2401,11 @@ in `notes-storage-ref-backend.md` (A25).
 - `[x]` The Git floor reads 2.47 at every listed site, a store failure an older Git explains names the version found
   and the floor, and the stdin and byte executor variants end a call on an aborted signal
 
-- `[x]` A dispatched portability run passes and times every budgeted operation within its Windows budget
+- `[~]` A dispatched portability run passes and times every budgeted operation within its Windows budget
     - **Deviation:** A27 replaced the numeric Windows budgets with calibrated limits; the delivered head's pair passes
       within them (criterion 35).
+    - **Superseded:** A58 replaced it with criterion 50: the merged head's pair times every operation within those limits
+      and fails only the Windows separate publishing burst, routed to `storage-ref-hardening`.
 
 - `[x]` The backend stays dark: `createStore` composes the in-repo implementation, nothing outside `lib/store/` imports
   `lib/store/ref/`, no production code calls `createRefStore` or `createReadSourceStore`, only the `arc store` handlers
@@ -2495,10 +2503,12 @@ in `notes-storage-ref-backend.md` (A25).
   and succeed after repair, and fresh namespace/observation admission remains atomic with unchanged Windows budgets
   (§ 11.7) (A26)
 
-- `[x]` A complete dispatched portability pair passes with eleven-sample Windows medians over 600 work items across
+- `[~]` A complete dispatched portability pair passes with eleven-sample Windows medians over 600 work items across
   twelve quarters at or below 100/300/600/300/1,500 ms for version/read/list/lookup/write in both layouts, retaining
   all correctness and native resource coverage. Timing-only diagnostics do not close acceptance; these limits
   supersede the earlier numeric budget obligations, including the unchanged-budget clause in A26 (§ 11.7) (A27)
+    - **Superseded:** A58 replaced it with criterion 50, which keeps these limits and excepts the one Windows case the
+      deadline-stranded lock fails.
 
 - `[x]` The tip read, sync's ref sets, fetch negotiation, and the ref-transaction helper's re-read each run a listing
   again when Git refuses it with `Duplicated ref, and SHA1s don't match`, at most three attempts in all, and rethrow
@@ -2528,9 +2538,11 @@ in `notes-storage-ref-backend.md` (A25).
   before this change lands with no exclusion beyond § 14.1's; and the default run spans files split by item range, every
   declared exclusion checked against the whole registration (§ 14.1) (A29)
 
-- `[x]` Every integration case of § 14.5 passes on every change that reaches it (§ 14.14), and the bursts pass with no
+- `[~]` Every integration case of § 14.5 passes on every change that reaches it (§ 14.14), and the bursts pass with no
   lost write in one dispatched run of the Windows and macOS pair and one of the Linux portability job before this change
   lands; supersedes the every-change criterion (§ 14.5) (A29)
+    - **Superseded:** A58 replaced it with criterion 50, which keeps the every-change clause and excepts the Windows
+      separate publishing burst.
 
 - `[x]` Every case of § 14.7 passes: each move and each follow, interrupted at each distinct recovery state § 10.3 gives
   it, what the interrupted run left on the machine counted and each one's sets recorded in
@@ -2593,18 +2605,18 @@ in `notes-storage-ref-backend.md` (A25).
   lifetimes and forced replacement before versus after capture, and execute the emitted native restoration plus one
   expected-version retirement while retaining both histories, lineage and branch authority (§ 6.6, § 14.5) (A56)
 
-- `[ ]` Every integration case of § 14.5 passes on every change that reaches it (§ 14.14); one dispatched run of the
+- `[x]` Every integration case of § 14.5 passes on every change that reaches it (§ 14.14); one dispatched run of the
   Windows and macOS pair and one of the Linux portability job pass before this change lands, with no lost write in the
   bursts and eleven-sample Windows medians within criterion 35's limits in both layouts, except the separate layout's
   publishing burst on Windows, which fails only on a ref lock the deadline stranded (§ 6.1) and is skipped there, its
   repair owned by `storage-ref-hardening`; supersedes criteria 9, 35, and 40 (§ 14.5, § 14.10) (A58)
 
-- `[ ]` Both layouts fetch large exact history selections through owned stdin, completeness retries included;
+- `[x]` Both layouts fetch large exact history selections through owned stdin, completeness retries included;
   native-Windows oversized pushes stop before launch with recoverable `command-line-capacity`, keeping exact pending
   state, prior landed-copy accounting and contextual migrate remedies, a combined carry taking its independent code
   leg, and a supported retry finishing without weakening leases or atomicity (§ 6.2, § 11.3) (A54)
 
-- `[ ]` In both layouts, root companion keys matching `^metadata-[0-9a-f-]{36}\.json$` refuse before archive or
+- `[x]` In both layouts, root companion keys matching `^metadata-[0-9a-f-]{36}\.json$` refuse before archive or
   completed refresh changes refs, nested and nonreserved names keep their rules, multiple external metadata candidates
   yield an explicit diagnostic with a forward repair route, and corrected sources retry successfully (§ 2.5, § 3.2,
   § 7.1, § 7.3) (A57)

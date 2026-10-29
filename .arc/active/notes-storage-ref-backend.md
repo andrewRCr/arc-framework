@@ -3021,6 +3021,37 @@ runner. Its macOS and Linux jobs passed. That failure stays recorded as a failur
 conformance case a 90 s hang guard, and this run is the passing pair at the delivered head. Run metadata and job logs
 are retained under `verification/task-19.1/` in the machine-local storage-ref-backend tools directory.
 
+## Merged-head portability pair
+
+After the base merge at `a2c593461`, three dispatches ran with `run_portability_pair: true`:
+
+- `40759729599` at `a2c593461` failed `reach-check-cleanup` under CI's prebuilt-only switch (fixed by `d4c6e091c`).
+  Its E2E `delivery-position` case also timed out. A stray dispatch cancelled its Windows job.
+- `40767396473` at `d4c6e091c` failed two Windows cases. The stdin cancellation test matched `C:\` while its children
+  carry `C:/` (fixed by `26306437f`). The separate layout's publishing burst was refused `lock-held`.
+- `40794816270` at `b78522879` is the re-root's pair, the one point 3 of the Owner's portability rule allowed.
+
+At `b78522879`, Windows passes 89 of 90 files: 2,015 cases pass, 95 are skipped, and one fails. The failure is the
+separate layout's publishing burst, refused on a lock the deadline stranded (§ A58). It took 433 s, and the other three
+Windows bursts pass. macOS passes all 90 files (2,045 cases, 66 skips) and its additional 24-file suite (199 cases).
+Linux portability passes all 90 files (2,050 cases, 61 skips) and all four bursts. The four store shards pass. Windows's
+job takes 68 minutes 58 seconds and macOS's 23 minutes 15 seconds.
+
+| Platform/layout  | Version (ms) | Read (ms) | List (ms) | Lookup (ms) | Write (ms) |
+| ---------------- | ------------ | --------- | --------- | ----------- | ---------- |
+| Windows/default  | 89.314       | 173.669   | 400.548   | 151.729     | 1,041.942  |
+| Windows/separate | 54.155       | 136.847   | 370.977   | 117.743     | 1,026.745  |
+| macOS/default    | 22.196       | 50.027    | 169.520   | 57.230      | 477.237    |
+| macOS/separate   | 8.626        | 35.466    | 168.720   | 37.749      | 236.335    |
+
+All eleven-sample Windows medians satisfy A27's 100/300/600/300/1,500 ms limits.
+
+The run's E2E shard 3 timed out main's `delivery-position` case at 120 s, and a single-job rerun timed out again. The
+test and its suite helper are unchanged from the merge base `8cad4cecf`, and so is the E2E job. A local A/B ran the
+file in 44.5 and 42.4 s at the merge base and 44.2 and 43.2 s here, so the hosted timeout is main's and was reported
+to main's session. `18.R4` then skips the routed Windows case, so the scheduled pair stays green. Logs and the
+burst diagnostic are retained under `verification/prepublication/base-merge-8cad4cecf/` in the tools directory.
+
 ## A45 — Move one ended folder while preserving published ends
 
 **Superseded text.** § 3.3: “a write to it refreshes each folder (§ 7.3) until the `ended-twice` remedy's reopen removes
