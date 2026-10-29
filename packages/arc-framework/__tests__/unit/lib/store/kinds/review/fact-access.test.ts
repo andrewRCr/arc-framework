@@ -27,7 +27,7 @@ async function conflicted(kind: Kind) {
   if (kind !== "outcome") await outcomes.create(outcome);
   const remote = createMemoryRemote();
   h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   let reference: RecordReference;
   if (kind === "outcome") {
@@ -43,7 +43,7 @@ async function conflicted(kind: Kind) {
     reference = (await decisions.create(value)).reference;
     await createReviewDecisionPort(writer, owner).create({ ...value, decidedAt: "2026-10-19T14:00:00Z" });
   }
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const record = lifecycleSuccess(await h.store.read({ reference }));
   return { record, evidence, outcome, list: () => kind === "outcome" ? outcomes.list()
     : kind === "evidence" ? evidence.list() : decisions.list(), repair: async () => {

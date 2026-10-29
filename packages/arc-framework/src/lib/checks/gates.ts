@@ -36,6 +36,17 @@ export function selectRequestChecks(checks: CheckDeclaration["checks"], form: Ch
   });
 }
 /**
+ * Select the push-gate entries an increment leaves for the push to run, so its report can name them.
+ * @param checks - Validated entries in declaration order
+ * @param form - Requested gates or identifiers
+ * @returns Push-gate entries outside an increment's selection; none for any other form
+ */
+export function selectIncrementDeferredChecks(checks: CheckDeclaration["checks"], form: CheckForm): [string, CheckDeclaration["checks"][string]][] {
+  if (form.kind !== "increment") return [];
+  const selected = new Set(selectRequestChecks(checks, form).map(([id]) => id));
+  return Object.entries(checks).filter(([id, check]) => check.gate === "push" && !selected.has(id));
+}
+/**
  * Label a check from this request's deadline without reading approval or interlock policy.
  * @param form - Validated request form
  * @param check - Validated declaration entry

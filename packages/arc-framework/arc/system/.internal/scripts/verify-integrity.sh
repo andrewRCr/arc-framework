@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Verify ARC installation integrity — config, files, references, hooks, session state.
+# Verify ARC installation integrity — config, files, references, hooks, session state, Git maintenance.
 # Location: .arc/system/.internal/scripts/verify-integrity.sh
 #
 # Run from repository root:
@@ -449,6 +449,26 @@ if [ -f "$manifest" ]; then
     # Future: validate manifest entries match files on disk
 else
     info "No manifest file (pre-CLI or fresh install)"
+fi
+
+echo ""
+
+# ============================================================================
+# 9. Git maintenance
+# ============================================================================
+
+echo "--- Git Maintenance ---"
+
+if maintenance_lock=$(git rev-parse --git-path objects/maintenance.lock 2>/dev/null) && [ -n "$maintenance_lock" ]; then
+    if [ -e "$maintenance_lock" ] || [ -L "$maintenance_lock" ]; then
+        warn "Git maintenance lock exists: $maintenance_lock (maintenance may be active or interrupted)"
+        info "Confirm no Git maintenance process is running before removing the lock; then run: git maintenance run --task=gc"
+        info "Schedule maintenance outside the agent sandbox with: git maintenance start"
+    else
+        pass "No Git maintenance lock"
+    fi
+else
+    warn "Could not resolve the Git maintenance lock path; run verification from a Git repository"
 fi
 
 echo ""

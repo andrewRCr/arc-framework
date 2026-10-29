@@ -6,10 +6,13 @@ import { ParsedMetaRecordSchema } from "../../../../src/lib/active/meta-schema.j
 import { runArchive } from "../../../../src/lib/work-unit/verbs/archive.js";
 import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lifecycle-executor.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
-import { writeMetaPause, writeMetaSessionContext } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { writeMetaCohort, writeMetaPause, writeMetaSessionContext } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { ConflictRecordSchema, RecordReferenceSchema } from "../../../../src/lib/store/index.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { createMemoryRemote } from "../../../helpers/store/sync.js";
+import { withCompetingBatch } from "../../../helpers/store/decompose-harness.js";
 import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
+import { PushResultSchema, type SyncState } from "../../../../src/lib/store/sync.js";
 function context(store: Store): ExecuteTransitionContext {
   const forbidden = async (): Promise<never> => { throw new Error("tracked artifact access"); };
   return { cwd: "/repo", store, indexFs: { readdir: forbidden, readFile: forbidden },
@@ -83,6 +86,134 @@ describe("store archive", () => {
 function archive(store: Store, name: string) {
   return runArchive({ executor: context(store), fs: { readdir: async () => [] }, clock: () => new Date("2026-10-14T12:00:00Z") }, { name });
 }
+
+const publicationRepair = { text: "Repair the remote designation and retry publication." };
+const stoppingPublicationStates: SyncState[] = [
+  { status: "designation-ambiguous", remotes: ["origin", "backup"], remedy: publicationRepair },
+  { status: "move-incomplete", condition: "Store placement is incomplete.", remedy: publicationRepair },
+  { status: "move-unfinished", condition: "Remote move needs an answer.", remedy: publicationRepair },
+  { status: "moved", remote: "backup", remedy: publicationRepair },
+  { status: "designation-needed", remote: "origin", choices: ["push", "read", "off"], remedy: publicationRepair },
+];
+it.each(stoppingPublicationStates)("retains archive completion until publication recovers from $status", async state => {
+  const h = createLifecycleHarness(), remote = createMemoryRemote();
+  h.store.context.publication.remote = remote;
+  const meta = await h.seedMeta("example");
+  let blocked = true;
+  const store: Store = new Proxy(h.store, { get(target, key) {
+    if (key === "push") return () => blocked ? Promise.resolve({ status: "ok", result: { states: [state], pulls: [], publishes: [] } }) : target.push();
+    const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  expect(await archive(store, "example")).toMatchObject({ status: "rejected", persisted: true,
+    remedy: { text: expect.stringContaining(publicationRepair.text), argv: ["arc", "archive", "example"] } });
+  const completed = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
+  expect(completed.placement).toMatchObject({ kind: "completed" });
+  blocked = false;
+  expect(await archive(store, "example")).toMatchObject({ status: "archived" });
+  expect(lifecycleSuccess(await h.store.read({ reference: meta.reference })).version).toBe(completed.version);
+  expect([...remote.state.records.values()].find(record => record.reference.kind === "work-item/meta")?.placement)
+    .toMatchObject({ kind: "completed" });
+});
+
+it.each(["candidate", "state"] as const)("retains failed %s guidance until its persisted archive actually publishes", async role => {
+  const h = createLifecycleHarness(), remote = createMemoryRemote(); h.store.context.publication.remote = remote;
+  const meta = await h.seedMeta("example"); let blocked = true;
+  const failure = { code: "unreachable", class: "recoverable", cause: "timeout", condition: "Candidate check timed out.", remedy: publicationRepair };
+  const stopped = PushResultSchema.parse({ states: [], pulls: [{ remote: "origin", role, status: "failed", families: ["work-item", "cohort"], failure, notices: [] }], publishes: [] });
+  const store: Store = new Proxy(h.store, { get(target, key) {
+    if (key === "push") return () => blocked ? Promise.resolve({ status: "ok", result: stopped }) : target.push();
+    const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  expect(await archive(store, "example")).toMatchObject({ status: "rejected", persisted: true,
+    reason: expect.stringContaining(failure.condition), remedy: { text: expect.stringContaining(publicationRepair.text), argv: ["arc", "archive", "example"] } });
+  const completed = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
+  expect(completed.placement?.kind).toBe("completed"); expect(remote.state.records.size).toBe(0);
+  blocked = false;
+  expect(await archive(store, "example")).toMatchObject({ status: "archived" });
+  expect(lifecycleSuccess(await h.store.read({ reference: meta.reference })).version).toBe(completed.version);
+  expect([...remote.state.records.values()].find(record => record.reference.kind === "work-item/meta")?.placement?.kind).toBe("completed");
+});
+
+it("completes an archive published beside an independent failed read source", async () => {
+  const h = createLifecycleHarness(), remote = createMemoryRemote(); h.store.context.publication.remote = remote;
+  await h.seedMeta("example");
+  const store: Store = new Proxy(h.store, { get(target, key) {
+    if (key === "push") return async () => {
+      const result = await target.push(); if (result.status === "refused") return result;
+      return { status: "ok", result: PushResultSchema.parse({ ...result.result, pulls: [{ remote: "upstream", role: "read", status: "failed", families: ["work-item", "cohort"], notices: [],
+        failure: { code: "unreachable", class: "recoverable", cause: "network", condition: "Read source unavailable.", remedy: publicationRepair } }] }) };
+    };
+    const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  expect(await archive(store, "example")).toMatchObject({ status: "archived",
+    warnings: [`Read source upstream was not pulled: Read source unavailable. ${publicationRepair.text}`] });
+  expect([...remote.state.records.values()].find(record => record.reference.kind === "work-item/meta")?.placement?.kind).toBe("completed");
+});
+
+it("carries an ended item's retained conflicts from the archive's push into its warnings", async () => {
+  const h = createLifecycleHarness(), remote = createMemoryRemote(); h.store.context.publication.remote = remote;
+  await h.seedMeta("example");
+  const item = OwnerIdentitySchema.parse({ type: "work-item", name: "alpha", uid: "11111111-1111-4111-8111-111111111111" });
+  const conflict = RecordReferenceSchema.parse({ kind: "work-item/conflict-record", owner: item, key: "held" });
+  let raised = false;
+  const store: Store = new Proxy(h.store, { get(target, key) {
+    if (key === "push") return async () => {
+      const result = await target.push(); if (result.status === "refused" || raised) return result;
+      raised = true;
+      return { status: "ok", result: PushResultSchema.parse({ ...result.result, pulls: [{ remote: "origin", role: "state", status: "pulled",
+        families: ["work-item"], notices: [{ kind: "ended-with-conflicts", item, conflicts: [conflict], condition: "Alpha ended with conflicts.",
+          remedy: { text: "Resolve alpha's retained conflicts." } }] }] }) };
+    };
+    const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  const result = await archive(store, "example");
+  expect(result).toMatchObject({ status: "archived", warnings: [expect.stringContaining("Alpha ended with conflicts.")] });
+  expect(result.status === "archived" ? result.warnings[0] : "").toContain(JSON.stringify(conflict));
+});
+
+it("keeps the archive push's notices in a later closeout rejection", async () => {
+  const h = createLifecycleHarness(), remote = createMemoryRemote(); h.store.context.publication.remote = remote;
+  await h.seedMeta("example");
+  const item = OwnerIdentitySchema.parse({ type: "work-item", name: "alpha", uid: "11111111-1111-4111-8111-111111111111" });
+  let landed = false;
+  const store: Store = new Proxy(h.store, { get(target, key) {
+    if (key === "batch") return async (input: Parameters<Store["batch"]>[0]) => {
+      const result = await target.batch(input); landed = result.status === "ok"; return result;
+    };
+    if (key === "push") return async () => {
+      const result = await target.push(); if (result.status === "refused") return result;
+      return { status: "ok", result: PushResultSchema.parse({ ...result.result, pulls: [{ remote: "origin", role: "state", status: "pulled",
+        families: ["work-item"], notices: [{ kind: "end-pending", item, ref: "refs/arc/work/11111111-1111-4111-8111-111111111111",
+          condition: "Alpha's end remains pending.", remedy: { text: "Pull again to settle it." } }] }] }) };
+    };
+    if (key === "read") return async (input: Parameters<Store["read"]>[0]) => landed
+      ? { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference: input.reference,
+        rule: "test.report-unavailable", condition: "Archive report temporarily unavailable.", remedy: { text: "Repair reads, then retry." } } }
+      : target.read(input);
+    const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  expect(await archive(store, "example")).toMatchObject({ status: "rejected", persisted: true,
+    reason: expect.stringMatching(/Archive report temporarily unavailable\..*Also reported: Alpha's end remains pending\. Pull again to settle it\./su) });
+});
+
+it("completes an archive published successfully beside an unfinished-move advisory", async () => {
+  const h = createLifecycleHarness(), remote = createMemoryRemote();
+  h.store.context.publication.remote = remote;
+  await h.seedMeta("example");
+  const store: Store = new Proxy(h.store, { get(target, key) {
+    if (key === "push") return async () => {
+      const pushed = await target.push();
+      if (pushed.status === "refused") return pushed;
+      return { status: "ok", result: { ...pushed.result, states: [...pushed.result.states,
+        { status: "move-unfinished", condition: "The old source awaits cleanup.", remedy: publicationRepair }] } };
+    };
+    const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  expect(await archive(store, "example")).toMatchObject({ status: "archived",
+    warnings: [`The old source awaits cleanup. ${publicationRepair.text}`] });
+  expect([...remote.state.records.values()].find(record => record.reference.kind === "work-item/meta")?.placement)
+    .toMatchObject({ kind: "completed" });
+});
 async function groupFixture(nested = false) {
   const h = createLifecycleHarness();
   const parent = nested ? await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "parent" })),
@@ -150,12 +281,12 @@ it("refuses a cohort preparation whose version changed and succeeds after re-pre
 it("publishes before reporting and closes a shared cohort after another client's sibling archive arrives", async () => {
   const left = await groupFixture(), right = createLifecycleHarness(), remote = createMemoryRemote();
   left.store.context.publication.remote = remote; right.store.context.publication.remote = remote;
-  lifecycleSuccess(await left.store.sync()); lifecycleSuccess(await right.store.sync());
+  lifecycleSuccess(await left.store.push()); lifecycleSuccess(await right.store.push());
   expect(await archive(left.store, "alpha")).toMatchObject({ status: "archived", destination: { sequence: "01" } });
   expect(await archive(right.store, "beta")).toMatchObject({ status: "archived", destination: { sequence: "02" } });
   const completed = lifecycleSuccess(await right.store.read({ reference: left.group.reference }));
   expect(completed.placement).toMatchObject({ kind: "completed", sequence: "03", closeout: "a" });
-  lifecycleSuccess(await left.store.sync());
+  lifecycleSuccess(await left.store.push());
   expect(lifecycleSuccess(await left.store.read({ reference: left.group.reference }))).toEqual(completed);
   expect(await archive(left.store, "alpha")).toMatchObject({ status: "archived", cohortSwept: expect.stringContaining("03a_cohort-group") });
 });
@@ -174,7 +305,7 @@ it("retains a persisted archive through a failed publish and its completed-subje
 it.each(["write", "publication"])("retries standalone closeout after interrupted %s without another primary archive", async (stage) => {
   const left = await groupFixture(), right = createLifecycleHarness(), remote = createMemoryRemote();
   left.store.context.publication.remote = remote; right.store.context.publication.remote = remote;
-  lifecycleSuccess(await left.store.sync()); lifecycleSuccess(await right.store.sync());
+  lifecycleSuccess(await left.store.push()); lifecycleSuccess(await right.store.push());
   expect(await archive(left.store, "alpha")).toMatchObject({ status: "archived" });
   let interrupted = false;
   const store: Store = new Proxy(right.store, { get(target, key) {
@@ -216,7 +347,7 @@ async function nestedCloseoutFixture() {
   const beta = await left.seedMeta("beta", { cohort: "parent/leaf" });
   await left.seedMeta("gamma", { cohort: "parent/sibling" });
   left.store.context.publication.remote = remote; right.store.context.publication.remote = remote;
-  lifecycleSuccess(await left.store.sync()); lifecycleSuccess(await right.store.sync());
+  lifecycleSuccess(await left.store.push()); lifecycleSuccess(await right.store.push());
   expect(await archive(left.store, "alpha")).toMatchObject({ status: "archived" });
   return { left, right, remote, parent, beta };
 }
@@ -224,9 +355,9 @@ async function nestedCloseoutFixture() {
 it.each(["none", "write", "publication"])("settles parent eligibility learned during closeout sync, interruption=%s", async (stage) => {
   const h = await nestedCloseoutFixture(); let syncs = 0, interrupted = false;
   const store: Store = new Proxy(h.right.store, { get(target, key) {
-    if (key === "sync") return async () => {
+    if (key === "push") return async () => {
       if (++syncs === 2) expect(await archive(h.left.store, "gamma")).toMatchObject({ status: "archived" });
-      return target.sync();
+      return target.push();
     };
     if (key === "batch") return async (input: Parameters<Store["batch"]>[0]) => {
       const parentCloseout = input.writes.some((write) => write.reference.kind === "cohort/document"
@@ -250,7 +381,7 @@ it.each(["none", "write", "publication"])("settles parent eligibility learned du
     nestedParentSwept: expect.stringContaining("05b_cohort-parent") });
   expect(lifecycleSuccess(await h.right.store.read({ reference: member.reference }))).toEqual(member);
   expect(lifecycleSuccess(await h.right.store.history({ reference: member.reference }))).toEqual(history);
-  lifecycleSuccess(await h.left.store.sync());
+  lifecycleSuccess(await h.left.store.push());
   expect(lifecycleSuccess(await h.left.store.read({ reference: h.parent.reference })).placement)
     .toMatchObject({ kind: "completed", sequence: "05", closeout: "b" });
 });
@@ -292,6 +423,31 @@ it("refuses a changed empty-child observation before archiving and succeeds afte
   expect(await archive(store, "alpha")).toMatchObject({ status: "rejected", refusal: { code: "version-conflict" } });
   expect(lifecycleSuccess(await h.store.read({ reference: h.alpha.reference }))).toEqual(h.alpha);
   expect(await archive(store, "alpha")).toMatchObject({ status: "archived" });
+});
+
+it("refuses closing a cohort when a disputed outsider arrives at batch admission, then closes it after resolution", async () => {
+  const h = await groupFixture();
+  expect(await archive(h.store, "alpha")).toMatchObject({ status: "archived" });
+  const outsider = await h.seedMeta("outsider");
+  const racing = withCompetingBatch(h.store, async () => {
+    const label = { actor: "remote", time: new Date(0).toISOString() };
+    lifecycleSuccess(await h.store.write({ action: "put", expected: null,
+      reference: RecordReferenceSchema.parse({ owner: outsider.reference.owner, kind: "work-item/conflict-record", key: "membership-gap" }),
+      content: JSON.stringify(ConflictRecordSchema.parse({ record: outsider.reference, location: { kind: "hunk", start: 1, end: 2 },
+        baseVersion: outsider.version, currentLines: 1, incomingLines: 1,
+        base: outsider.content, current: { content: outsider.content, label },
+        incoming: { content: writeMetaCohort(outsider.content, "group"), label } })),
+      provenance: { verb: "sync", lifecycleAction: "reconcile" } }));
+  });
+  expect(await archive(racing, "beta")).toMatchObject({ status: "rejected", refusal: { rule: "cohort.open-members",
+    condition: expect.stringContaining("outsider") } });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.beta.reference }))).toEqual(h.beta);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.group.reference })).placement?.kind).not.toBe("completed");
+  const disputed = lifecycleSuccess(await h.store.read({ reference: outsider.reference }));
+  lifecycleSuccess(await h.store.write({ ...recordPut(disputed), resolves: disputed.conflicts,
+    provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  expect(await archive(h.store, "beta")).toMatchObject({ status: "archived" });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.group.reference })).placement).toMatchObject({ kind: "completed" });
 });
 
 it("rejects a malformed selected meta without writes and archives after its bytes are repaired", async () => {

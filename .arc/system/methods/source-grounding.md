@@ -73,7 +73,9 @@ sweep's reach comes from source — the importers and callers of the symbols it 
 scope or file list, which is itself a claim under check. Where the design or a proposed repair removes or changes an
 invariant — a required field, a file's presence, an enum value — inventory that invariant's readers in source and check
 each against the change. A claim that a list is complete or that a composed outcome set covers every case belongs to
-this sweep.
+this sweep. So does a claim that a state is never re-entered or a path never taken: enumerate every path that could
+reach it — reopen, restore, retry, and remedy paths especially — and check each, since finding no counterexample does
+not ground it.
 
 **Reach.** Ground at source everything the artifact claims exists outside itself: code behavior, external tools,
 configuration, and what shipped rules and methods require. Re-ground inherited claims at source rather than citing
@@ -87,6 +89,10 @@ proposed repair asserts outside the artifact — what code or a tool does, what 
 rule or hold reaches — before the disposition set carrying it is presented, and revise the repair when the check
 refutes it. Hold the evidence for the approver to request by [disposition-report][disposition-report]. This
 grounding is author-run and never stands in for the fix check.
+
+**Corrections toward the code.** A grounding correction that narrows a rule to match what the code does is a claim
+that the code is right. Check the code's special case against the general rule before narrowing the rule; when the
+special case is wrong, it is a finding against the code, not a correction to the artifact.
 
 **Procedure.** Enumerate the claims, verify each against source on its own, then cross-check them against what was
 found. An independent runner verifies from source, never from the author's account. Probe wherever a behavior claim can

@@ -26,6 +26,7 @@ import type { StatusCliOptions } from "./input.js";
 import type { SessionStatusContext } from "./session-context.js";
 import { openDefaultStore } from "../lifecycle-shared.js";
 import { releaseRoutingFromSettings } from "./session-evidence.js";
+import { pullStoreStatus } from "./store-locus.js";
 
 function requireGitExecInput(execInput: GitExecInput | undefined): GitExecInput {
   if (execInput === undefined) {
@@ -221,6 +222,8 @@ export async function handleRecoverStatus(context: SessionStatusContext, opts: S
 export async function handleCompositeStatus(context: SessionStatusContext, opts: StatusCliOptions): Promise<void> {
   const { cwd, exec, io, identity, role } = context;
   const json = Boolean(opts.json);
+  const warnings = context.store?.capabilities.stateOffBranch === true && opts.fetch === true && !opts.local
+    ? await pullStoreStatus({ sync: context.storeSync }) : [];
   const probes: StatusProbes = {
     user: (id) => runUserStatus({ cwd, io, identity: id }),
     config: () => runConfigStatus({ cwd }),
@@ -229,11 +232,12 @@ export async function handleCompositeStatus(context: SessionStatusContext, opts:
   const result = await runStatus({ identity, role, probes });
 
   if (json) {
-    process.stdout.write(`${JSON.stringify(result)}\n`);
+    process.stdout.write(`${JSON.stringify({ ...result, ...(warnings.length ? { warnings } : {}) })}\n`);
     return;
   }
 
   p.intro("arc status");
+  for (const warning of warnings) process.stderr.write(`warning: ${warning.rendered}\n`);
   p.note(buildStatusSummary(result), "Status");
   p.outro("Done.");
 }

@@ -108,7 +108,8 @@ inside the current increment is agent-doable under discovered-work routing, repo
   appending it needs no authorization of its own.
 - **Spec-depth and design arms** — Owner-authorized at a stop that already exists. The report at that stop carries
   the triage read, the cited statement or criterion, the depth read, and a lean; the Owner's direction is the
-  authorization. No new prompt shape, and the procedure is never agent-invoked into design.
+  authorization. A measured bound — a cost, time, or size limit — is cited with its measured value and what exceeding
+  it costs the work after this one. No new prompt shape, and the procedure is never agent-invoked into design.
 - **Escalation** — the Owner's, always.
 
 User direction overrides any arm at any time. When the read is torn between steps 2 and 3, ask in one line at the
@@ -118,10 +119,14 @@ stop you are already at.
 task arm, `amend` the spec-depth or design arm, and `defer` a supersession on the design arm. All three enter this
 gate, and none lands work inside the verifier's own increment.
 
+Before spec-depth or design-arm approval, draft the row in its final grammar (§ The log), within the project's line
+width and two-line limit. Present that exact row at the interlock or in the review-site disposition proposal, then
+record it unchanged.
+
 > [!IMPORTANT]
 > `task-interlock`: Stop before the spec-depth or design arm writes anything. Surface the triage read, the cited
-> statement or criterion, the depth read, and the recommended arm; await approval before proceeding to the
-> amendment capture.
+> statement or criterion, the depth read, the recommended arm, and the drafted row; await approval before proceeding
+> to the amendment capture.
 
 ## Depth and rigor
 

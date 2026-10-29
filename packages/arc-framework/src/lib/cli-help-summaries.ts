@@ -1,6 +1,9 @@
 /** Intentional concise list summaries for the registered visible command tree. */
 
 export const COMMAND_SUMMARIES: Readonly<Record<string, string>> = {
+  "store conflict": "Inspect or explicitly discard an exact stored conflict",
+  "store migrate": "Move or import state into the ref store",
+  "store remote": "Inspect or set the ref store's remote roles",
   "inbox": "List entries in an inbox or work item",
   "route": "Move or insert a routed entry",
   "locus release": "Release the checkout's work-item occupancy",
@@ -203,11 +206,13 @@ export const COMMAND_SUMMARIES: Readonly<Record<string, string>> = {
   "review hosted request": "Request a hosted pull-request review",
   "review hosted await": "Await a requested hosted review",
   "review hosted settle": "Reply to and resolve a hosted finding",
+  "review hosted dismiss": "Dismiss a review service's settled change request",
   "review changeset resolve": "Resolve a target's changeset-size recommendation",
   "review changeset": "Assess changeset size for review",
   "review local": "Manage immutable-source local reviews",
   "review local prepare": "Prepare an immutable local review",
   "review local attest": "Attest a normalized local review result",
+  "review local cancel": "Cancel a pending local review dispatch",
   "review local resume": "Resume a durable local review",
   "review respond": "Manage a source-bound review response",
   "review reduce": "Reduce a durable review operation",

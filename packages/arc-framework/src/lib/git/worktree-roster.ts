@@ -9,7 +9,7 @@
 
 import type { Store } from "../store/contract.js";
 import { createStore } from "../store/create.js";
-import { createDefaultStorePorts } from "../store/default-ports.js";
+import { createDefaultStorePorts } from "../store/default-store-ports.js";
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import { decodeWorktreeMarkerOwnership, readWorktreeMarkerGeneration } from "./worktree-marker.js";
 import { SlugSchema } from "../kernel/index.js";

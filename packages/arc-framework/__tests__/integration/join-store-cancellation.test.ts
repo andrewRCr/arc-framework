@@ -73,6 +73,7 @@ it("cancels designation before setup mutations and completes an explicitly answe
     execute: async ([command, family, verb, remote, role]) => {
       if (command !== "arc" || family !== "store" || verb !== "remote" || remote === undefined || role === undefined) throw new Error("Invalid designation");
       designations.set(remote, role);
+      return { status: "ok" };
     },
   };
   const originalCwd = process.cwd(), originalExit = process.exitCode;
@@ -109,3 +110,43 @@ it("cancels designation before setup mutations and completes an explicitly answe
     vi.unstubAllEnvs();
   }
 }, 30000);
+
+it("completes setup when the chosen designation exits non-zero, reporting the failed designation", async () => {
+  const cwd = await createTempRepo(); onTestFinished(() => cleanupTempDir(cwd));
+  const exec = makeGitExec(cwd);
+  await mkdir(join(cwd, ".arc/system"), { recursive: true });
+  await writeFile(join(cwd, ".arc/system/arc-config.yml"), "pm.mode: none\n");
+  const h = createLifecycleHarness(); h.store.environment.identity = "alice";
+  // The recommended remedy runs through join's own executor and exits 3, as a refused or unanswerable designation does.
+  const failing = [process.execPath, "-e", "process.exitCode = 3", "state"];
+  let output = "";
+  binding.ports = { openStore: () => h.store,
+    sync: () => createStoreSyncPort({ pull: async () => ({ status: "designation-needed", remote: "upstream", choices: ["state", "code"],
+      remedy: { text: failing.join(" "), argv: failing } }) }),
+    renderer: { confirm: async () => ({ kind: "answered", value: true }), text: async () => ({ kind: "cancelled" }), multiselect: async () => ({ kind: "cancelled" }),
+      select: async (_context, question) => {
+        const option = question.options.find(option => option.value === "state");
+        if (!option) throw new Error("No recommended state choice");
+        return { kind: "answered", value: option.value };
+      } } };
+  const originalCwd = process.cwd(), originalExit = process.exitCode;
+  const inTty = Object.getOwnPropertyDescriptor(process.stdin, "isTTY"), outTty = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
+  Object.defineProperty(process.stdin, "isTTY", { configurable: true, value: true });
+  Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: true });
+  vi.stubEnv("CI", ""); vi.stubEnv("FORCE_COLOR", "0");
+  const out = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { output += String(chunk); return true; });
+  try {
+    process.chdir(cwd); process.exitCode = undefined;
+    await dispatchRegisteredCli(["join", "--contributor", "--tools", "", "--identity", "alice"]);
+    expect(output).toContain("exited with code 3; setup continues without that designation");
+    expect(output).not.toContain("Setup failed.");
+    expect(output).toContain("Workspace setup complete"); expect(output).toContain("Done.");
+    expect((await exec("git", ["config", "--get", "arc.identity"])).stdout.trim()).toBe("alice");
+    expect(process.exitCode).toBeUndefined();
+  } finally {
+    out.mockRestore(); binding.ports = null; process.chdir(originalCwd); process.exitCode = originalExit;
+    if (inTty) Object.defineProperty(process.stdin, "isTTY", inTty); else Reflect.deleteProperty(process.stdin, "isTTY");
+    if (outTty) Object.defineProperty(process.stdout, "isTTY", outTty); else Reflect.deleteProperty(process.stdout, "isTTY");
+    vi.unstubAllEnvs();
+  }
+}, 30_000);

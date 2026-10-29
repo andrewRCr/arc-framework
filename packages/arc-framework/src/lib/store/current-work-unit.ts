@@ -6,7 +6,7 @@ import { identifyWorkUnitArtifactPath, resolveArcPath } from "../layout/index.js
 import { parseMetaFile } from "../active/meta-reader.js";
 import { readClaimedCurrentWorkUnit } from "./current-work-unit-marker.js";
 import { createStore } from "./create.js";
-import { createDefaultStorePorts } from "./default-ports.js";
+import { createDefaultStorePorts } from "./default-store-ports.js";
 import type { StoreRecord } from "./read.js";
 import type { ListingDiagnostic } from "./read.js";
 

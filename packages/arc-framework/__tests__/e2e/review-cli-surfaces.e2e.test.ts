@@ -79,6 +79,7 @@ describe("packaged review CLI surfaces", () => {
     expect(hostedHelp.stdout).toContain("request");
     expect(hostedHelp.stdout).toContain("await");
     expect(hostedHelp.stdout).toContain("settle");
+    expect(hostedHelp.stdout).toContain("dismiss");
   });
 
   it("names the full SHAs planning-lane needs in its help and its refusal", async () => {
@@ -108,8 +109,10 @@ describe("packaged review CLI surfaces", () => {
     [["review", "readiness"], "urn:arc:schema:review-readiness-request"],
     [["review", "frontline", "resolve"], "urn:arc:schema:review-frontline-resolve-request"],
     [["review", "hosted", "settle"], "urn:arc:schema:review-hosted-settle-request"],
+    [["review", "hosted", "dismiss"], "urn:arc:schema:review-hosted-dismiss-request"],
     [["review", "local", "prepare"], "urn:arc:schema:review-local-prepare-request"],
     [["review", "local", "attest"], "urn:arc:schema:review-local-attest-request"],
+    [["review", "local", "cancel"], "urn:arc:schema:review-local-cancel-request"],
     [["review", "local", "resume"], "urn:arc:schema:review-local-resume-request"],
     [["review", "terminus", "accept"], "urn:arc:schema:review-terminus-accept-request"],
   ] as const)("emits one self-contained public request schema at %s", async (

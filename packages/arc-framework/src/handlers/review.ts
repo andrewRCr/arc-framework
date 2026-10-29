@@ -330,6 +330,11 @@ import {
 import { explainHostedSettlementBindingMismatch } from
   "../scripts/review-gate/hosted/settlement-binding.js";
 import {
+  HostedDismissEnvelopeSchema,
+  HostedDismissResultSchema,
+  dismissHostedReview,
+} from "../scripts/review-gate/hosted/dismiss.js";
+import {
   GhHostedReviewPort,
   hostedGhRunner,
   type HostedProcessRunner,
@@ -347,6 +352,8 @@ import {
   LocalPrepareRequestSchema,
   prepareLocalReview,
 } from "../scripts/review-gate/runtime/local-prepare.js";
+import { LocalCancelEnvelopeSchema } from "../scripts/review-gate/core/local-cancel-envelope.js";
+import { cancelLocalReviewCommand, LocalCancelRequestSchema } from "../scripts/review-gate/runtime/local-cancel-command.js";
 import { createLocalAttestDependencies } from "../scripts/review-gate/runtime/local-attest-composition.js";
 import {
   LocalAttestRequestSchema,
@@ -467,8 +474,10 @@ export const REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS = [
   "review adversarial record",
   "review frontline resolve",
   "review hosted settle",
+  "review hosted dismiss",
   "review local prepare",
   "review local attest",
+  "review local cancel",
   "review local resume",
   "review terminus accept",
 ] as const;
@@ -2055,7 +2064,8 @@ export interface ReviewFrontlineResolveHandlerDependencies {
 type HostedReviewHandlerMode =
   | "review-hosted-request"
   | "review-hosted-await"
-  | "review-hosted-settle";
+  | "review-hosted-settle"
+  | "review-hosted-dismiss";
 
 type HostedReviewHandlerBoundary = Pick<
   ReviewHandlerBoundary,
@@ -3056,6 +3066,32 @@ export async function handleReviewLocalAttest(
   });
 }
 
+export interface ReviewLocalCancelHandlerDependencies extends ReviewHandlerBoundary {
+  cancel: (request: unknown, root: string) => Promise<unknown>;
+}
+
+/** Cancel a pending local dispatch and emit its public continuation as JSON. */
+export async function handleReviewLocalCancel(
+  source: string,
+  overrides: Partial<ReviewLocalCancelHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false, machineReadable: true, yes: "absent",
+  });
+  const exec = createGitExec(context.subprocess);
+  const dependencies: ReviewLocalCancelHandlerDependencies = {
+    ...defaultReviewHandlerBoundary(),
+    cancel: (request, root) => cancelLocalReviewCommand(request, createLocalAttestDependencies({ exec, cwd: root })),
+    ...overrides,
+  };
+  await executeReviewHandler({
+    mode: "review-local-cancel", source,
+    requestSchema: LocalCancelRequestSchema, resultSchema: LocalCancelEnvelopeSchema,
+    dependencies, execute: dependencies.cancel,
+  });
+}
+
 export interface ReviewLocalResumeHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
@@ -3681,8 +3717,9 @@ async function executeDefaultHostedRequest(
         }, {
           sourceId: request.provider, nextAction: "hosted-request",
         }, {
+          // Unavailable attempts retain the configured order even when the next provider selects a suffix.
           sources: latestAttempt?.terminalProducer === true
-            ? [latestAttempt.sourceId, ...sources.filter(source => source !== latestAttempt.sourceId)] : sources,
+            ? [latestAttempt.sourceId, ...sources.filter(source => source !== latestAttempt.sourceId)] : policy.sources,
           selectionSources: sources,
           configuredSources: policy.sources,
           maxPasses: policy.maxPasses,
@@ -4107,6 +4144,44 @@ export async function handleReviewHostedSettle(
     resultSchema: HostedSettleResultSchema,
     dependencies,
     execute: dependencies.settle,
+  });
+}
+
+export interface ReviewHostedDismissHandlerDependencies extends HostedReviewHandlerBoundary {
+  dismiss(input: unknown): Promise<unknown>;
+}
+
+function defaultHostedDismissDependencies(): ReviewHostedDismissHandlerDependencies {
+  const { adapters } = createHostedAdapters();
+  const port = new GhHostedReviewPort(hostedGhRunner);
+  return {
+    ...defaultHostedHandlerBoundary(),
+    dismiss: async (input) => dismissHostedReview(
+      HostedDismissEnvelopeSchema.parse(input),
+      port,
+      adapters.map((adapter) => adapter.identities.botUserId),
+    ),
+  };
+}
+
+/**
+ * Dismiss one registered review service's settled change-request review on an open pull request.
+ *
+ * @param source - The request file path, or `-` for stdin.
+ * @param overrides - Test seams for the host and output boundaries.
+ */
+export async function handleReviewHostedDismiss(
+  source: string,
+  overrides: Partial<ReviewHostedDismissHandlerDependencies> = {},
+): Promise<void> {
+  const dependencies = { ...defaultHostedDismissDependencies(), ...overrides };
+  await executeHostedReviewHandler({
+    mode: "review-hosted-dismiss",
+    source,
+    requestSchema: HostedDismissEnvelopeSchema,
+    resultSchema: HostedDismissResultSchema,
+    dependencies,
+    execute: dependencies.dismiss,
   });
 }
 

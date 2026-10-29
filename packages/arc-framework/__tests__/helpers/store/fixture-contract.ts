@@ -71,4 +71,17 @@ export interface ConformanceFixture {
 export interface ConformanceRegistration {
   declarations: FixtureDeclarations;
   create(registryOverrides?: Partial<Record<KindId, Partial<KindDefinition>>>): ConformanceFixture | Promise<ConformanceFixture>;
+  /** How the registration's files divide its cases; absent when one file runs them all. */
+  runs?: ConformanceRuns;
 }
+
+/** A registration's declared per-change subset and the item range each of its split files runs. */
+export interface ConformanceRuns {
+  /** Case IDs, by item, that a per-change run selects. */
+  subset?: Partial<Record<SuiteItem, readonly string[]>>;
+  /** Each split file's first and last item; together the ranges cover every item once. */
+  ranges?: Readonly<Record<string, readonly [SuiteItem, SuiteItem]>>;
+}
+
+/** The cases one file runs: every case, one declared item range, or the declared per-change subset. */
+export type ConformanceRun = { range: string } | "subset";

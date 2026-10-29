@@ -295,6 +295,10 @@ If quality gates fail after task completion:
 - **Otherwise** — report details and suspected causes; ask fix-now vs defer. Do not proceed until resolved or
   approved.
 
+**A green rerun after an intermittent failure shows only that the failure is intermittent.** A fix names the
+mechanism it removes and shows the change reaches it, such as a reproduction that fails reliably without the change
+and not with it; until then, report the cause as suspected.
+
 **A red gate never becomes a green report, and is never bypassed** · `[invariant]`. Reading what a gate
 reported — including that it produced no result — is not that judgment.
 

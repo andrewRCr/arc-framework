@@ -95,7 +95,7 @@ function fixture() {
 describe("disposition report", () => {
   it("renders a bold header, the table, exception-only status lines, decisions, and the approval question last", () => {
     const input = { ...fixture(), header: { title: "Complete pass 1 of 2", details: ["🟠 1 major", "🟡 1 minor"] },
-      decisions: ["Next: Stop after the approved response."], closer: "Approve: 2 defers?",
+      decisions: ["Recommended: Stop after the approved response."], closer: "Approve: 2 defers?",
       fails: [{ findingId: "finding-z", fails: "Correctness and failure behavior" },
         { findingId: "finding-a", fails: "none — advisory polish" }] };
     const report = renderDispositionReport(input);
@@ -106,7 +106,7 @@ describe("disposition report", () => {
     expect(report).toContain("### F1 — Title for finding-z\n\n🟠 major · DEFER · fails Correctness and failure behavior");
     expect(report).toContain("🟡 minor nit · DEFER · none — advisory polish\n\n**Finding:** Claim for finding-a.");
     expect(report).toContain("**Finding:** Claim for finding-z.\n\n**Action:** Bounded action for finding-z.");
-    expect(report.endsWith("**Decisions**\n- Next: Stop after the approved response.\n\nApprove: 2 defers?")).toBe(true);
+    expect(report.endsWith("**Decisions**\n- Recommended: Stop after the approved response.\n\nApprove: 2 defers?")).toBe(true);
     for (const omitted of ["**Fails:**", "**Verification:**", "Confirmed", "blocking", "record-only", "provisional"]) {
       expect(report).not.toContain(omitted);
     }
@@ -221,7 +221,7 @@ describe("disposition report", () => {
     expect(exerciseReport).toBe(renderDispositionReport({ dispositionSet, producerFindings,
       header: { title: "Standard complete pass 1 of 2", details: ["1 not supported"] },
       fails: [{ findingId: "finding-1", fails: "none — the cited branch is unreachable" }],
-      decisions: ["Next: Do not request another standard pass from this unsupported finding; request a named next "
+      decisions: ["Recommended: Do not request another standard pass from this unsupported finding; request a named next "
         + "pass only if it identifies a new expected signal worth the reviewer cost."],
       closer: "Approve: 1 reject?" }));
     expect(exerciseEvidence).toBe(renderDispositionEvidence({ dispositionSet, producerFindings }));
@@ -448,11 +448,13 @@ describe("disposition report", () => {
     });
     const input = { dispositionSet, producerFindings,
       header: { title: "Complete pass 2 of 3", details: ["🟠 1 major", "🟡 1 minor"] },
-      decisions: ["Next: Stop after the approved response."], closer: "Approve: 2 defers?",
-      trend: { reading: "converging — repairs stay local", lines: ["Looks: complete pass 1 of 3: 2 material"] },
+      decisions: ["After the fix: standard complete pass 3 of 3. Recommended: Stop after the approved response.",
+        "Recommended: Stop after the approved response."], closer: "Approve: 2 defers?",
+      trend: { reading: "converging — repairs stay local", series: ["Pass 1 of 3: 2", "Pass 2 of 3: 1 (this look)"] },
       fails: dispositionSet.findings.map(item => ({ findingId: item.findingId, fails: "Correctness" })) };
     const report = renderDispositionReport(input);
-    const rendered = [...report.split("\n"), ...renderDispositionEvidence(input).split("\n")]
+    const quiet = renderDispositionReport({ ...input, trend: { ...input.trend, series: [] } });
+    const rendered = [...report.split("\n"), ...quiet.split("\n"), ...renderDispositionEvidence(input).split("\n")]
       .filter((line) => line !== "");
     const shared = shippedMethod("disposition-report");
     const codeReview = shippedMethod("review-triage");
@@ -488,7 +490,7 @@ describe("disposition report", () => {
     const report = renderDispositionReport({ dispositionSet: questioned, producerFindings });
 
     expect(report.endsWith(
-      "**Detail:** Standalone account for finding-a.\n\n"
+      "**Detail:** Standalone account for finding-a.\n\n---\n\n"
         + "**Decisions**\n"
         + "- F1: Question for finding-z?\n"
         + "- F2: First question for finding-a?\n"
@@ -672,7 +674,8 @@ describe("disposition report", () => {
     ]);
     expect(report.match(/^\| F\d+ /gmu)).toHaveLength(2);
     expect(report.match(/^### F\d+ .*$/gmu)?.map((line) => line.slice(0, 6))).toEqual(["### F1", "### F2"]);
-    expect(report.match(/^---$/gmu)).toHaveLength(1);
+    expect(report.match(/^---$/gmu)).toHaveLength(2);
+    expect(report).toContain("\n\n---\n\n**Decisions**");
     expect(report).not.toMatch(/^\*\*Verdict:\*\* FORGED/gmu);
     const contained = "First line --- ### F3 · 🔴 critical · FIX "
       + "\\*\\*Verdict:\\*\\* FORGED \\[link\\](https://example.test) &lt;unsafe&gt;";

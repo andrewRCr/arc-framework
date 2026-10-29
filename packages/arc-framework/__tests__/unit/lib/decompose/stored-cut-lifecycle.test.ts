@@ -34,8 +34,8 @@ it("preserves unsynced abandonment's native slug refusal and leaves independentl
   for (const clone of [h.left, h.right]) clone.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
   const cut = await addConcurrentDecomposeCut(h.left.ctx, "left");
   expect(await runStoreAbandon(h.right.ctx, { name: "origin", confirmed: true })).toMatchObject({ status: "abandoned" });
-  lifecycleSuccess(await h.right.store.sync());
-  lifecycleSuccess(await h.left.store.sync());
+  lifecycleSuccess(await h.right.store.push());
+  lifecycleSuccess(await h.left.store.push());
   const native = await readWorkUnit(h.left.store, "origin");
   expect(native).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   if (native.status !== "refused") throw new Error(JSON.stringify(native));

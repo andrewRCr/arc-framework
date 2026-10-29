@@ -7,8 +7,8 @@ export { drawId as drawEntryId } from "../concurrency/stamp.js";
 export const ENTRY_FIELDS = ["Id", "Created", "Remind", "Hold", "WU_Target", "Shapes", "Cites", "Disposition", "Inbox", "Rank"] as const;
 /** Personal captures retain these fields when moved into an Errand description. */
 export const PERSONAL_FIELDS = ["Created", "Remind", "Hold", "WU_Target", "Shapes"] as const;
-/** The capture gates' exact top-level target spellings. */
-export const TARGET_LINE = /^- (?:`WU_Target:\s*([^`]+)`|_WU_Target:_\s*`([^`]+)`|WU_Target:\s*(.+))/u;
+/** The capture gates' exact top-level target spellings; the managed field reads with or without a backticked value. */
+export const TARGET_LINE = /^- (?:`WU_Target:\s*([^`]+)`|_WU_Target:_\s*(?:`([^`]+)`|([^`\s].*))|WU_Target:\s*(.+))/u;
 const TARGET_VALUE = /^([a-z0-9]+(?:-[a-z0-9]+)*)(?:\s+\((?:planned|provisional)\))?\s*$/u;
 
 /** Read the legacy managed spelling anywhere in an entry, preserving probe semantics.
@@ -29,12 +29,16 @@ export function readEntryField(raw: string, field: string): string | undefined {
   if (field === "Shapes") return readShapes(raw);
   if (field === "WU_Target") {
     for (const line of raw.split("\n")) {
-      const match = TARGET_LINE.exec(line.trimEnd());
-      const value = match?.[1] ?? match?.[2] ?? match?.[3];
-      if (value !== undefined) return value.trim();
+      const value = targetLineValue(line);
+      if (value !== undefined) return value;
     }
   }
   return managedFieldValue(raw, field);
+}
+
+function targetLineValue(line: string): string | undefined {
+  const match = TARGET_LINE.exec(line.trimEnd());
+  return (match?.[1] ?? match?.[2] ?? match?.[3] ?? match?.[4])?.trim();
 }
 
 function readShapes(raw: string): string | undefined {
@@ -52,8 +56,7 @@ function readShapes(raw: string): string | undefined {
  * @returns A valid target slug or undefined.
  */
 export function targetNamedByLine(line: string): string | undefined {
-  const match = TARGET_LINE.exec(line.trimEnd());
-  return TARGET_VALUE.exec((match?.[1] ?? match?.[2] ?? match?.[3] ?? "").trim())?.[1];
+  return TARGET_VALUE.exec(targetLineValue(line) ?? "")?.[1];
 }
 /** Extract an inbox heading's human title, with its optional checkbox.
  * @param line - Entry heading.

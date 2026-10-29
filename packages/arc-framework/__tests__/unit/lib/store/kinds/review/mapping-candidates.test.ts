@@ -92,7 +92,7 @@ it("preserves the repository path log's supersession identities and inherited re
       supersedes: parent.attestation.candidateId }) });
   const versions = [older, parent, current].map((record, index) => ({ commit: String(index + 1).repeat(40), content: JSON.stringify(record) }));
   const path = resolveCandidateRecordRelativePath("example");
-  const { exec } = scriptGitExec([{ match: ["log", "--format=%H", "--", path], responses: [{
+  const { exec } = scriptGitExec([{ match: ["log", "HEAD", "--format=%H", "--", path], responses: [{
     stdout: [...versions].reverse().map(({ commit }) => commit).join("\n") }] },
   ...versions.map(({ commit, content }) => ({ match: ["show", `${commit}:${path}`], responses: [{ stdout: content }] }))]);
   const native = await readRepositoryCandidateSupersessionChain({ cwd: "/candidate", workUnit: "example", record: current, exec });

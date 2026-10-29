@@ -1,0 +1,109 @@
+/** Native metadata capture and a disposable tip-keyed lookup cache. */
+
+import { corruptRef } from "./namespace-health.js";
+import type { StoreResult, StoreRefusal } from "../refusal.js";
+import type { RefBackendContext } from "./context.js";
+import type { RefLookupTree } from "./lookup.js";
+import { isArchiveRef } from "./archive-read.js";
+import { archiveStateFromCapture, captureArchivedFolders, selectEndedOwners } from "./ended-owners.js";
+import type { RefViewState } from "./view-state.js";
+import { expandStoredPath, holdsNoRecord, type StoredRecordHome } from "../stored-path.js";
+import { refPrototype } from "./read.js";
+import { viewRefFamily } from "./view-state.js";
+import { matchesFamilyRef } from "./codec.js";
+import { readBatchObjects, readRefTips, readRefTrees } from "./batch-read.js";
+import type { BatchObject, RefTreeEntry } from "./batch-read.js";
+import { parseRefMetadata } from "./metadata.js";
+import { revalidateLookupAcquisition, type RefLookupAcquisition } from "./lookup-acquisition.js";
+
+/** Readable scan evidence plus the namespaces omitted from it. */
+export interface RefLookupCapture { trees: ReadonlyMap<string, RefLookupTree>; unreadable: ReadonlyMap<string, StoreRefusal>; acquisition?: RefLookupAcquisition }
+
+const cache = new Map<string, { signature: string; capture: RefLookupCapture }>();
+
+/** Capture primary, completed, registry, and own-claim metadata without a persisted index. */
+export async function readLookupTrees(context: RefBackendContext, identity: string | null): Promise<StoreResult<RefLookupCapture>> {
+  return readCapturedLookupTrees(context, await readRefTips(context), identity);
+}
+
+/** Resolve exactly the supplied tips without taking a second live namespace snapshot. */
+export async function readCapturedLookupTrees(context: RefBackendContext, all: ReadonlyMap<string, string>,
+  identity: string | null = null, revalidate = false, saved = false): Promise<StoreResult<RefLookupCapture>> {
+  const tips = new Map([...all].filter(([ref]) => matchesFamilyRef(ref, "work-item") || matchesFamilyRef(ref, "cohort")
+    || isArchiveRef(ref) || ref === "refs/arc/project/registry" || identity !== null && ref === `refs/arc/user/${identity}/claims`));
+  const signature = JSON.stringify([identity, saved, [...tips].sort(([left], [right]) => left.localeCompare(right))]);
+  const prior = cache.get(context.checkoutRoot);
+  if (prior?.signature === signature) {
+    const acquisition = prior.capture.acquisition;
+    if (!revalidate || !acquisition) return { status: "ok", result: prior.capture };
+    const fresh = await revalidateLookupAcquisition(context, acquisition);
+    if (fresh.unchanged) return { status: "ok", result: prior.capture };
+    return { status: "ok", result: decodeLookupCapture(context, tips, fresh.entries, fresh.objects, acquisition, saved) };
+  }
+  const captured = await captureLookupTrees(context, tips, saved);
+  const acquisition = captured.status === "ok" ? captured.result.acquisition : undefined;
+  if (captured.status === "ok" && captured.result.unreadable.size === 0 && acquisition
+    && acquisition.objects.every(query => acquisition.values.get(query))) cache.set(context.checkoutRoot, { signature, capture: captured.result });
+  return captured;
+}
+
+async function captureLookupTrees(context: RefBackendContext, tips: ReadonlyMap<string, string>, saved: boolean): Promise<StoreResult<RefLookupCapture>> {
+  const directories = new Map<string, readonly string[]>();
+  const captured = tips.size > 0 ? await readRefTrees(context, tips, undefined, directories) : new Map<string, RefTreeEntry[]>();
+  const payloads = claimPayloadPatterns(context);
+  const queries = [...new Set([...captured.values()].flatMap((entries) => entries.filter(({ path }) =>
+    /(?:^|\/)metadata-[^/]+\.json$/u.test(path) || payloads.some((pattern) => pattern.test(path))).map(({ oid }) => oid)))];
+  const objects = await readBatchObjects(context, queries);
+  return { status: "ok", result: decodeLookupCapture(context, tips, captured, objects, { tips, entries: captured, directories, objects: queries, values: objects }, saved) };
+}
+
+function decodeLookupCapture(context: RefBackendContext, tips: ReadonlyMap<string, string>, captured: ReadonlyMap<string, RefTreeEntry[]>,
+  objects: ReadonlyMap<string, BatchObject | null>, acquisition: RefLookupAcquisition, saved: boolean): RefLookupCapture {
+  const trees = new Map<string, RefLookupTree>();
+  const unreadable = new Map<string, StoreRefusal>();
+  for (const [ref] of tips) {
+    const entries = captured.get(ref);
+    if (!entries) { unreadable.set(ref, corruptRef(ref, true, saved)); continue; }
+    if (isArchiveRef(ref)) continue;
+    const home = lookupRecordHome(context, ref);
+    if (holdsNoRecord(home, entries.map(({ path }) => path))) continue;
+    const entry = entries.find(({ path }) => path === home.metadataPath);
+    const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : null, ref);
+    if (!metadata) { unreadable.set(ref, corruptRef(ref, false, saved)); continue; }
+    trees.set(ref, { entries, metadata, objects });
+  }
+  appendArchivedLookupTrees(trees, archiveStateFromCapture(tips, captured, objects, saved), unreadable);
+  return { trees, unreadable, acquisition };
+}
+
+function lookupRecordHome(context: RefBackendContext, ref: string): StoredRecordHome {
+  const family = viewRefFamily(ref);
+  if (!family) throw new Error("The lookup scan contains an unregistered ref family");
+  return expandStoredPath(refPrototype(context, ref, family), { registry: context.registry });
+}
+
+/** Add each completed owner's latest folder without consulting current refs. */
+export function appendArchivedLookupTrees(trees: Map<string, RefLookupTree>, state: RefViewState,
+  unreadable?: Map<string, StoreRefusal>): void {
+  for (const family of ["work-item", "cohort"] as const) {
+    const { folders, diagnostics } = selectEndedOwners(state, captureArchivedFolders(state, family));
+    for (const diagnostic of diagnostics) {
+      const ref = diagnostic.key.split(":")[0] ?? diagnostic.key;
+      unreadable?.set(ref, { code: "namespace-corrupt", class: "terminal", namespace: ref,
+        condition: diagnostic.condition, remedy: diagnostic.remedy });
+    }
+    for (const folder of folders) trees.set(`${folder.ref}:${folder.root}`, {
+      entries: folder.entries, metadata: folder.metadata, liveRef: folder.liveRef, objects: state.objects, archived: folder,
+    });
+  }
+}
+
+function claimPayloadPatterns(context: Pick<RefBackendContext, "registry">): RegExp[] {
+  return (["work-item/record", "claims/groom", "claims/housekeep"] as const).flatMap((kind) => {
+    const path = context.registry[kind].ref?.path;
+    if (!path) return [];
+    const pattern = path.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&").replace(/<(?:slug|uid|person|key)>/gu, "[^/]+");
+    return [new RegExp(`(?:^|/)${pattern}$`, "u")];
+  });
+}
+

@@ -2,10 +2,11 @@
 
 import { describe, it } from "vitest";
 import { FAMILY_IDS, KIND_REGISTRY, type KindId } from "../../../src/lib/store/index.js";
-import type { ConformanceRegistration, FixtureDeclarations, SuiteItem } from "./fixture-contract.js";
+import type { ConformanceRegistration, ConformanceRun, FixtureDeclarations, SuiteItem } from "./fixture-contract.js";
 import { refusalRecoveryTable } from "./recovery.js";
 import {
-  createAssertionCoverage, emptyItemExclusions, unservedFamilyExclusions, validateUsedAssertionExclusions, type SuiteContext,
+  caseSkip, createAssertionCoverage, emptyItemExclusions, unservedFamilyExclusions, validateUsedAssertionExclusions,
+  type AssertionCoverage, type CaseSelection, type SuiteContext,
 } from "./suite-tools.js";
 import { registerCapabilityAssertions, registerDurabilityAssertions, registerRecordAssertions, registerVersionConflictAssertions } from "./suite-records.js";
 import { registerBatchAssertions, registerFreshnessAssertions, registerHistoryAssertions, registerStateAssertions } from "./suite-versions.js";
@@ -37,26 +38,74 @@ export const conformanceItems: Record<SuiteItem, { name: string; register(contex
   17: { name: "registered write checks", register: registerWriteCheckAssertions },
 };
 
+const SUITE_ITEMS = Object.keys(conformanceItems).map(Number) as SuiteItem[];
+
 /** Register one describe per numbered item and named tests/skips from the fixture declarations.
+ * Every file registers the whole registration, so its declarations are checked against every case it holds; a run
+ * selects which of those cases this file runs.
  * @param name - Backend name used in the test runner output.
  * @param registration - Static exclusions and a fresh isolated fixture factory.
+ * @param run - One declared item range or the declared per-change subset; absent, every case.
  * @returns Nothing after every applicable assertion is registered.
  */
-export function registerStoreConformanceSuite(name: string, registration: ConformanceRegistration): void {
+export function registerStoreConformanceSuite(name: string, registration: ConformanceRegistration, run?: ConformanceRun): void {
   validateConformanceRegistration(registration);
   const coverage = createAssertionCoverage();
+  const selection = runSelection(registration, run);
   const unserved = unservedFamilyExclusions(registration);
-  if (unserved.length > 0) describe(`${name} — unserved families`, () => {
+  if (unserved.length > 0 && selection.reportsUnserved) describe(`${name} — unserved families`, () => {
     for (const { family, reason } of unserved) it.skip(`${family}: every item — ${reason}`, () => {});
   });
-  for (const [number, item] of Object.entries(conformanceItems)) {
-    const context = { item: Number(number) as SuiteItem, registration, coverage };
-    describe(`${name} — item ${number}: ${item.name}`, () => {
-      item.register(context);
-      for (const { family, reason } of emptyItemExclusions(context)) it.skip(`${family}: item ${number} — ${reason}`, () => {});
-    });
+  for (const item of SUITE_ITEMS) {
+    const context: SuiteContext = { item, registration, coverage, selects: selection.selects };
+    if (selection.runsItem(item)) describe(`${name} — item ${item}: ${conformanceItems[item].name}`, () => registerItem(context));
+    else registerItem(context);
   }
-  it(`${name} — declaration inventory`, () => { validateUsedAssertionExclusions(registration, coverage); });
+  it(`${name} — declaration inventory`, () => { validateConformanceInventory(registration, coverage); });
+}
+
+function registerItem(context: SuiteContext): void {
+  conformanceItems[context.item].register(context);
+  for (const { family, reason } of emptyItemExclusions(context)) {
+    caseSkip(context, `${family}: item ${context.item}`, `${family}: item ${context.item} — ${reason}`);
+  }
+}
+
+/** Collect every case a registration holds, as each of its files does, without registering any test.
+ * @param registration - Static declarations; no fixture is opened.
+ * @returns The whole registration's assertions, used exclusions, and case IDs.
+ */
+export function collectConformanceCoverage(registration: ConformanceRegistration): AssertionCoverage {
+  const coverage = createAssertionCoverage();
+  for (const item of SUITE_ITEMS) registerItem({ item, registration, coverage, selects: () => false });
+  return coverage;
+}
+
+/** Refuse declared exclusions and per-change cases that name no case of the whole registration.
+ * @param registration - Declared exclusions and runs.
+ * @param coverage - The whole registration's inventory.
+ */
+export function validateConformanceInventory(registration: ConformanceRegistration, coverage: AssertionCoverage): void {
+  validateUsedAssertionExclusions(registration, coverage);
+  validateDeclaredSubset(registration, coverage);
+}
+
+function runSelection(registration: ConformanceRegistration, run: ConformanceRun | undefined):
+  { selects: CaseSelection; runsItem(item: SuiteItem): boolean; reportsUnserved: boolean } {
+  if (run === undefined) return { selects: () => true, runsItem: () => true, reportsUnserved: true };
+  if (run === "subset") {
+    const subset = registration.runs?.subset ?? declarationError("the run selects a per-change subset the registration does not declare");
+    return { selects: (item, id) => subset[item]?.includes(id) ?? false, runsItem: (item) => (subset[item]?.length ?? 0) > 0, reportsUnserved: false };
+  }
+  const range = registration.runs?.ranges?.[run.range] ?? declarationError(`the run selects undeclared item range ${run.range}`);
+  const runsItem = (item: SuiteItem) => item >= range[0] && item <= range[1];
+  return { selects: (item) => runsItem(item), runsItem, reportsUnserved: range[0] === 1 };
+}
+
+function validateDeclaredSubset(registration: ConformanceRegistration, coverage: AssertionCoverage): void {
+  const unknown = Object.entries(registration.runs?.subset ?? {}).flatMap(([item, ids]) =>
+    (ids ?? []).filter((id) => !coverage.cases.get(Number(item) as SuiteItem)?.has(id)).map((id) => `item ${item}: ${id}`));
+  if (unknown.length) declarationError(`the per-change subset names unregistered cases ${unknown.join("; ")}`);
 }
 
 
@@ -77,6 +126,19 @@ export function validateConformanceRegistration(registration: ConformanceRegistr
   validateEntryShapes(registration);
   validateFamilyExclusions(registration);
   validateRefusalAndContentExclusions(registration);
+  validateItemRanges(registration);
+}
+
+function validateItemRanges(registration: ConformanceRegistration): void {
+  const ranges = Object.entries(registration.runs?.ranges ?? {});
+  if (ranges.length === 0) return;
+  const covered = ranges.flatMap(([key, [first, last]]) => {
+    if (!SUITE_ITEMS.includes(first) || !SUITE_ITEMS.includes(last) || first > last) declarationError(`item range ${key} is not a range of suite items`);
+    return SUITE_ITEMS.filter((item) => item >= first && item <= last);
+  });
+  if (covered.length !== SUITE_ITEMS.length || new Set(covered).size !== SUITE_ITEMS.length) {
+    declarationError("the item ranges must cover every suite item exactly once");
+  }
 }
 
 

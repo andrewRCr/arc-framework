@@ -20,6 +20,24 @@
   or delegate a focused lint. Consume delivery's scope-parameterized invocation topology without re-deriving its
   member boundaries, records, or cadence.
 
+### `[ ]` **Satisfy a restart requirement by enumerating the move's states from source**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ its direction to treat a stated inventory as an exhaustive checklist whose identity matters, not a count to
+  reach.
+
+- _Observation:_ `storage-ref-backend`'s "each move interrupted after each step" was built as one matrix per move, in
+  one direction and setup, and read as satisfied. Deriving the recovery states from source found whole configurations
+  never interrupted (a remote move between two backing repositories or back to the code remote; follows other than
+  `push` from the code remote) and two likely defects in them, which that work unit owns.
+
+- _Approach:_ a restart requirement is met by an enumeration of the move's states from source, recorded beside the
+  tests, not by hooking every step of one fixture. How a spec states such a requirement may belong to
+  `planning-iteration-mechanics` (success-criteria authoring); settle that split at integration.
+
+- _Captured during:_ `storage-ref-backend` verification (process lessons), 2026-10-22.
+
 ---
 
 ### `[ ]` **Share the native delivery stack fixture across the end-to-end delivery suites**

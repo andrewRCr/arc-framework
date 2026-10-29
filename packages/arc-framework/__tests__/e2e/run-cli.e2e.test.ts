@@ -44,6 +44,7 @@ describe("runCli", () => {
         expect(result.stdout).toContain("https://github.com/andrewRCr/arc-framework#readme");
         expect(result.stdout).toContain("https://github.com/andrewRCr/arc-framework/issues");
         expect(result.stdout).not.toContain("hook-remedy-roadmap-conflict");
+        expect(result.stdout).not.toContain("hook-validate-frontmatter");
       }
     } finally {
       await rm(cwd, { recursive: true, force: true });

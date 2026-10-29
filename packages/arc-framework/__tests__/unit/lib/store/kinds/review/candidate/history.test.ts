@@ -35,7 +35,7 @@ function fixture() {
     supersedes: predecessor.attestation.candidateId }) };
   const grandparentContent = serializeCandidateManagedRecord(grandparent);
   const { exec } = scriptGitExec([
-    { match: ["log", "--format=%H", "--", path], responses: [{ stdout: `${merge}\n${older}\n` }] },
+    { match: ["log", "HEAD", "--format=%H", "--", path], responses: [{ stdout: `${merge}\n${older}\n` }] },
     { match: ["log", head, "--format=%H", "--", path], responses: [{ stdout: `${merge}\n${older}\n` }] },
     { match: ["show", `${merge}:${path}`], responses: [{ stdout: serializeCandidateManagedRecord(predecessor) }] },
     { match: ["show", `${older}:${path}`], responses: [{ stdout: grandparentContent }] },

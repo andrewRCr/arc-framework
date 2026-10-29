@@ -38,7 +38,7 @@ describe("stub ROADMAP staging", () => {
 
     const result = await runStub(
       { executor, fs: { mkdir, writeFile } },
-      { name: "created-stub", commitment: "planned", priority: "P1", owner: "test-user" },
+      { name: "created-stub", commitment: "planned", priority: "P1", owner: "test-user", cls: "Light" },
     );
 
     expect(result.status).toBe("scaffolded");

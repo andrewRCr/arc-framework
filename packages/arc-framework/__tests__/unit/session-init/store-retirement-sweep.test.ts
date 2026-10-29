@@ -71,7 +71,7 @@ it("blocks disputed abandonment lineage and restores teardown after explicit res
     identity: "test-user", teamMode: false, internalTemplateDir: "/templates", projectId: async () => "project",
     locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null } });
   expect(await runStoreAbandon({ executor }, { name: "done", confirmed: true })).toMatchObject({ status: "abandoned" });
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const disputed = lifecycleSuccess(await h.store.read({ reference: initial.reference }));
   expect(disputed.conflicts.length).toBeGreaterThan(0);
   const blocked = await run(h.store);

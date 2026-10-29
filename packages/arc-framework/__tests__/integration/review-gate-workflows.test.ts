@@ -52,7 +52,7 @@ describe("trusted review-gate workflows", () => {
     // Shared setup is a required dependency so a failed install cannot roll up green
     // via skipped consumer legs.
     expect(workflow).toContain(
-      "needs: [classify, setup, build, lint-typecheck, unit, integration, e2e, portability, portability-cross-platform]",
+      "needs: [classify, setup, build, lint-typecheck, unit, integration, store, e2e, portability, portability-cross-platform]",
     );
     expect(workflow).toContain("scripts/classify-change.sh lane --stdin0");
     expect(workflow).toContain("scripts/classify-change.sh portability --stdin0");
@@ -135,7 +135,7 @@ describe("trusted review-gate workflows", () => {
     expect(upload?.uses).toMatch(/^actions\/upload-artifact@/u);
     expect(upload?.if).toBe("${{ !cancelled() }}");
     expect(upload?.with).toMatchObject({
-      name: "unit-test-report-${{ matrix.shard }}",
+      name: "unit-test-report-${{ matrix.node.label }}-${{ matrix.shard }}",
       path: "packages/arc-framework/unit-test-report.json",
       "if-no-files-found": "error",
     });
@@ -226,7 +226,7 @@ describe("trusted review-gate workflows", () => {
     // The pair fires only on the weekly schedule or an explicit dispatch
     // opt-in, so PR synchronizes never bill hosted-runner multipliers.
     expect(jobValue(workflow, "portability-cross-platform").if).toBe(
-      "${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.run_portability_pair) || " +
+      "${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && (inputs.run_portability_pair || inputs.portability_timing_only)) || " +
         "github.event_name == 'schedule') }}",
     );
     expect(jobValue(workflow, "portability-cross-platform").needs).toBe("setup");
@@ -289,7 +289,7 @@ describe("trusted review-gate workflows", () => {
     expect(focused).toEqual([{ id: "arc-contracts", if: "${{ needs.classify.outputs.weight == 'light' }}",
       run: "node --import tsx scripts/run-ci-checks.mjs run lint-typecheck arc-contracts" }]);
 
-    const unitCondition = "${{ !cancelled() && needs.classify.result == 'success' && " +
+    const unitCondition = "${{ !inputs.portability_timing_only && !cancelled() && needs.classify.result == 'success' && " +
       "needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || " +
       "github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}";
     expect(jobValue(workflow, "unit").if).toBe(unitCondition);
@@ -308,10 +308,15 @@ describe("trusted review-gate workflows", () => {
       "needs.classify.outputs.weight != 'light')",
       `(needs.classify.outputs.weight != 'light' || ${integrationTarget}))`,
     ));
-    expect(jobValue(workflow, "build").if).toBe("${{ !cancelled() && needs.classify.result == 'success' && " +
+    // The store suites run by reach on a pull request and in full on every push to main, which needs the build too.
+    expect(jobValue(workflow, "store").if).toBe(broadSuiteCondition.replace(
+      "needs.classify.outputs.weight != 'light')",
+      `(needs.classify.outputs.weight != 'light' || ${integrationTarget}))`,
+    ).replace(" || github.event_name == 'workflow_dispatch'", " || github.event_name == 'push' || github.event_name == 'workflow_dispatch'"));
+    expect(jobValue(workflow, "build").if).toBe("${{ !inputs.portability_timing_only && !cancelled() && needs.classify.result == 'success' && " +
       "needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || " +
-      `${integrationTarget} || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && ` +
-      "needs.setup.result == 'success' }}");
+      `${integrationTarget} || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || ` +
+      "github.event_name == 'schedule') && needs.setup.result == 'success' }}");
   });
 
   it("parses every workflow and pins every external action", async () => {

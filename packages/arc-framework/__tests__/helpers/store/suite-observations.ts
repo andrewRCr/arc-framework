@@ -1,7 +1,7 @@
 /** Shared atomic read-evidence behavior, including the interim backend's explicit refusal. */
 import { expect } from "vitest";
 import { BatchInputSchema } from "../../../src/lib/store/index.js";
-import { assertion, seed, success, testProvenance, update, type SuiteContext } from "./suite-tools.js";
+import { assertion, seed, success, testProvenance, update, mutationOf, type SuiteContext } from "./suite-tools.js";
 
 /** Register strict observations without writing or advancing the observed record's history. */
 export function registerObservationAssertions(context: SuiteContext): void {
@@ -10,7 +10,7 @@ export function registerObservationAssertions(context: SuiteContext): void {
     const target = await seed(fixture, fixture.reference("personal/document", "two"));
     success(await fixture.store.write(update(fixture, observed)));
     const before = await fixture.settle();
-    const input = { writes: [update(fixture, target)], provenance: testProvenance,
+    const input = { writes: [mutationOf(update(fixture, target))], provenance: testProvenance,
       observations: [{ reference: observed.reference, expected: { version: observed.version, conflicts: observed.conflicts } }] };
     expect(await fixture.store.batch(input)).toMatchObject({ status: "refused", refusal: fixture.declarations.stateOffBranch
       ? { code: "version-conflict", records: [observed.reference] }

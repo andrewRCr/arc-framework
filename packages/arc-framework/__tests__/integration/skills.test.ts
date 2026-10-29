@@ -12,6 +12,7 @@ import { mkdir } from "node:fs/promises";
 import {
   createTempRepo,
   cleanupTempDir,
+  commitAll,
   makeIOContext,
   loadRecipe,
   readFile,
@@ -171,6 +172,7 @@ describe("skill generation (integration)", () => {
 
   it("update regenerates skills with canonical content after modification", async () => {
     tempDir = await initWithTools(["claude"]);
+    await commitAll(tempDir);
 
     // Modify a generated skill file
     const skillPath = join(tempDir, ".claude/skills/arc-design-audit/SKILL.md");

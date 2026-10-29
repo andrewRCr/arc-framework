@@ -5,7 +5,7 @@ import { runUpdate } from "../../../src/commands/update.js";
 import { runJoin } from "../../../src/commands/join.js";
 import { EditorDocumentsWriteError } from "../../../src/lib/schema-command/editor-documents.js";
 import {
-  createTempRepo, cleanupTempDir, makeIOContext, loadRecipe, DEFAULT_PROMPTS,
+  createTempRepo, cleanupTempDir, commitAll, makeIOContext, loadRecipe, DEFAULT_PROMPTS,
   getArcTemplatePath, getInternalTemplatePath,
 } from "../../helpers/integration.js";
 
@@ -22,7 +22,10 @@ describe("primary editor-document provisioning failures", () => {
   it.each(["init", "update", "join"] as const)("fails %s on the writer's typed error", async (command) => {
     const io = makeIOContext(root);
     io.writeEditorDocuments = async () => ({ ok: true, documents: [] });
-    if (command !== "init") await initialize(root, io);
+    if (command !== "init") {
+      await initialize(root, io);
+      await commitAll(root);
+    }
     const failure = { target: "documents" as const, path: `${root}/blocked`, detail: "editor documents denied" };
     io.writeEditorDocuments = async () => ({ ok: false, ...failure });
     let operation: Promise<unknown>;

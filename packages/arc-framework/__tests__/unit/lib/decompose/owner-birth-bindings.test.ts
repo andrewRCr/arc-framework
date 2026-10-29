@@ -104,8 +104,8 @@ it.each(["left", "right"] as const)("preserves the complete %s selected wrapper 
   const selectedRecord = lifecycleSuccess(await first.store.read({ reference: selected.applied.storedMap }));
   const wrapper = decodeCutMapContent(selectedRecord.content);
   if (!wrapper.success) throw new Error(wrapper.error);
-  lifecycleSuccess(await first.store.sync());
-  lifecycleSuccess(await receiving.store.sync());
+  lifecycleSuccess(await first.store.push());
+  lifecycleSuccess(await receiving.store.push());
   const origin = lifecycleSuccess(await readWorkUnit(receiving.store, "origin"));
   if (origin.conflicts.length > 0) lifecycleSuccess(await receiving.store.write({ ...recordPut(origin), resolves: origin.conflicts,
     provenance: { verb: "write-back", lifecycleAction: "resolve" } }));

@@ -1,7 +1,7 @@
 /** Current work-unit identity consumed by release and delivery entry points. */
 import { resolveCurrentWorkUnit } from "../store/current-work-unit.js";
 import { createStore } from "../store/create.js";
-import { createDefaultStorePorts } from "../store/default-ports.js";
+import { createDefaultStorePorts } from "../store/default-store-ports.js";
 import type { Store } from "../store/contract.js";
 import { createProjectIdentityReader } from "../store/project-identity.js";
 import { selectWorkBranchLink, workBranchName } from "../store/lifecycle-branch.js";

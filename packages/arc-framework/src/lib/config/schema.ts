@@ -22,7 +22,8 @@ export type ArcConfigFieldPolicy =
       | "branch"
       | "worktree-template"
       | "harness-directories"
-      | "shell-command";
+      | "shell-command"
+      | "repository-url";
   };
 
 /** One catalog entry for a project-level `arc-config.yml` field. */
@@ -217,6 +218,14 @@ export const ARC_CONFIG_FIELDS = [
     ".claude,.codex,.gemini,.opencode",
     "unset",
     "harness-directories",
+  ),
+  // Catalog validation is lossless so its output agrees with the string-record intersection; pointer I/O trims.
+  stringField(
+    "storage.backing_repository",
+    z.union([z.literal(""), z.string().regex(/\S/u)]),
+    "",
+    "unset",
+    "repository-url",
   ),
   enumField("commit.format", ["conventional", "custom", "any"], "conventional"),
   enumField(

@@ -57,6 +57,8 @@ import { gitFailureText } from "../../git/process-error.js";
 import { checkWorktreeRemoval, clearMissingWorktreeRegistrations, removeWorktreeCheckout, describeRemovalRefusal, type ProjectionRemovalSlots } from "../../git/worktree-removal.js";
 import {
   ensureWorktreeMarkerIgnored,
+  nodeWorktreeMarkerIgnoreFs,
+  type WorktreeMarkerIgnoreFs,
   type WorktreeSubject,
   type WorktreeMarker,
   writeWorktreeOwnershipMarker,
@@ -99,7 +101,7 @@ export interface ReconcileWorkUnitWorktreeContext {
 }
 
 /** Filesystem operations used by the fresh-worktree post-create provisioning leg. */
-export interface ReconcileWorkUnitWorktreeFs {
+export interface ReconcileWorkUnitWorktreeFs extends WorktreeMarkerIgnoreFs {
   /** Return true when any filesystem entry occupies `path`. */
   pathExists(path: string): Promise<boolean>;
   /** Return true when `path` exists and is a directory. */
@@ -108,12 +110,6 @@ export interface ReconcileWorkUnitWorktreeFs {
   copyDirectory(source: string, destination: string): Promise<void>;
   /** Copy one file, creating parent directories, unless the destination already exists. */
   copyFileIfAbsent(source: string, destination: string): Promise<void>;
-  /** Read a UTF-8 text file. */
-  readFile(path: string): Promise<string>;
-  /** Write a UTF-8 text file. */
-  writeFile(path: string, content: string): Promise<void>;
-  /** Ensure a directory exists. */
-  mkdir(path: string, options: { recursive: boolean }): Promise<void>;
   /** Read directory entries. */
   readDir(path: string): Promise<UserSurfaceMigrationDirent[]>;
   /** Remove a machine-local user-surface cache. */
@@ -135,6 +131,7 @@ export const nodeReconcileWorkUnitWorktreeFs: ReconcileWorkUnitWorktreeFs = {
   copyFileIfAbsent: nodeCopyFileIfAbsent,
   readFile: (path) => readFile(path, "utf8"),
   writeFile,
+  withLock: (path, operation) => nodeWorktreeMarkerIgnoreFs.withLock(path, operation),
   mkdir: async (path, options) => {
     await mkdir(path, options);
   },

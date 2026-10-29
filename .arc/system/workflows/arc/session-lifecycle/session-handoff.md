@@ -411,7 +411,8 @@ Markers:
   is unknown, state it: "Path unclear — will return to Task X.Y when resolved."
 - **Additional Context:** Debugging insights, decisions not in tracked state, things tried and
   ruled out, observed risks, "currently mid-X with concrete next action Y" mid-task stops.
-  Filter applies — empty is normal.
+  Record an Owner direction with the subject it answered — the gate, Errand, or head — so the next session does
+  not read it as standing posture for other work. Filter applies — empty is normal.
 
 - **WORKING-MEMORY entries:** Cross-WU persistent context — entries that survive across handoffs
   (and WU boundaries) at the resolver-backed identity-global `WORKING-MEMORY.md` path. Under

@@ -114,11 +114,11 @@ it.each(["unreadable", "refused"])("preserves a %s Store listing refusal until r
 it("refuses a conflicted outcome and recomputes readiness after its resolution", async ({ onTestFinished }) => {
   const h = await fixture(onTestFinished), remote = createMemoryRemote();
   h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   const outcome = await createReviewOutcomePort(h.store, h.input.workItem).create(h.outcome);
   await createReviewOutcomePort(writer, h.input.workItem).create({ ...h.outcome, endedAt: "2026-10-19T14:00:00Z" });
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const conflicted = lifecycleSuccess(await h.store.read({ reference: outcome.reference }));
   expect(conflicted.conflicts.length).toBeGreaterThan(0);
   const result = await readReviewReadinessBinding(h.input);

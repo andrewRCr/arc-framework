@@ -6,9 +6,10 @@ import type { ProvisionalFixConsequence } from "../core/provisional-pass-assessm
 function nextPassCoverage(
   input: Parameters<typeof projectFixConsequence>[0], errand: boolean, convergedFixCheck: boolean,
 ): Extract<ProvisionalFixConsequence, { kind: "next-pass" }>["coverage"] {
-  if (input.result.kind !== "frontline" && input.chainAdequate && input.delegatedAgentSelectable
-    && (input.materialFix || (errand && input.result.requirement.retrigger === "incremental"))) {
-    return "incremental-when-proven";
+  if (input.result.kind !== "frontline" && input.chainAdequate && input.delegatedAgentSelectable) {
+    if (input.materialFix) return "incremental-when-proven";
+    // A minor-only fix converges the look, so the configured source's complete pass comes first, beside a fix check.
+    if (errand && input.result.requirement.retrigger === "incremental") return "complete-or-incremental";
   }
   return errand || convergedFixCheck ? "complete" : null;
 }
@@ -34,7 +35,9 @@ export function projectFixConsequence(input: {
     && result.admission.effectiveCoverage === "incremental";
   if (input.materialFix || errand || convergedFixCheck) {
     const coverage = nextPassCoverage(input, errand, convergedFixCheck);
-    if (!input.belowCeiling && coverage !== "incremental-when-proven") return { kind: "ceiling-decision" };
+    if (!input.belowCeiling && coverage !== "incremental-when-proven" && coverage !== "complete-or-incremental") {
+      return { kind: "ceiling-decision" };
+    }
     return { kind: "next-pass", coverage };
   }
   return result.kind === "frontline" || lineage.kind === "delivery-member"

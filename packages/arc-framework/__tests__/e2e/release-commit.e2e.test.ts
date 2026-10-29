@@ -653,19 +653,23 @@ describe("release commit amend", () => {
     await writeFile(join(repository, "tracked.txt"), "amended\n");
     await git(["add", "tracked.txt"]);
 
-    const unsourced = await runCli(["release", "commit", "--amend", "--no-edit"], {
+    const beforeAmend = await gitOutput(["rev-parse", "HEAD"]);
+    const messageBefore = await gitOutput(["show", "-s", "--format=%B", "HEAD"]);
+    const invalid = await runCli(["--no-input", "release", "commit", "--amend", "-m", "short"], {
       cwd: repository,
       env: { ARC_HOOK_LOG: hookLog },
     });
-    expect(unsourced.exitCode).toBe(16);
-    expect(unsourced.stderr).toContain("arc release commit --amend --no-edit -F <message-file>");
+    expect(invalid.exitCode).toBe(16);
+    expect(invalid.stderr).toContain("Commit validation FAILED");
+    expect(await gitOutput(["rev-parse", "HEAD"])).toBe(beforeAmend);
+    expect(await readHookLog()).toEqual(["pre-commit", "commit-msg"]);
 
-    const amended = await runCli(["release", "commit", "--amend", "-m", "feat(release): add the tracked change"], {
+    const amended = await runCli(["--no-input", "release", "commit", "--amend", "--no-edit"], {
       cwd: repository,
       env: { ARC_HOOK_LOG: hookLog },
     });
-
     expect(amended.exitCode).toBe(0);
+    expect(await gitOutput(["show", "-s", "--format=%B", "HEAD"])).toBe(messageBefore);
     expect(await readHookLog()).toEqual(["pre-commit", "commit-msg", "pre-commit", "commit-msg"]);
     expect(await gitOutput(["log", "--format=%s"])).toBe("feat(release): add the tracked change\ninitial");
     expect(await gitOutput(["show", "HEAD:tracked.txt"])).toBe("amended");

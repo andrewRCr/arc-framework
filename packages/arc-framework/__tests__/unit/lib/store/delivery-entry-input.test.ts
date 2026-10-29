@@ -11,14 +11,14 @@ import { readStoredDeliveryEntryInput } from "../../../../src/lib/store/delivery
 it("reports exact metadata conflicts without writes and reads the same owner after resolution", async () => {
   const h = createReviewHarness(), primary = await h.seedMeta("example", { taskList: "tasks-example.md" });
   const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   for (const [store, label] of [[h.store, "local"], [writer, "remote"]] as const) {
     const record = lifecycleSuccess(await store.read({ reference: primary.reference }));
     lifecycleSuccess(await store.write({ ...recordPut(record, { content: writeMetaNextAction(record.content, label) }),
       provenance: { verb: "attest", lifecycleAction: "edit" } }));
   }
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const disputed = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
   expect(disputed.conflicts.length).toBeGreaterThan(0);
   const version = lifecycleSuccess(await h.store.version());

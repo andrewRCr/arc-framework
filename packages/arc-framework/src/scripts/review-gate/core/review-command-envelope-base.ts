@@ -1,47 +1,10 @@
 /** Shared command headers and operation-coordinate checks for review result envelopes. */
 import { z } from "zod";
 import { nativeReviewOperationReferenceMatches } from "./review-operation-reference.js";
-
-export const ReviewCommandModeSchema = z.enum([
-  "review-readiness",
-  "review-lane-read",
-  "review-adversarial-record",
-  "review-resolve",
-  "review-frontline-resolve",
-  "review-chunking-resolve",
-  "review-planning-grooming-resolve",
-  "review-frontline-run",
-  "review-local-prepare",
-  "review-local-attest",
-  "review-respond",
-  "review-reduce",
-  "review-local-resume",
-  "review-hosted-request",
-  "review-hosted-await",
-  "review-hosted-settle",
-  "review-terminus-accept",
-  "review-pre-publication",
-]);
-export type ReviewCommandMode = z.infer<typeof ReviewCommandModeSchema>;
-
-const RepositoryPreconditionDiagnosticSchema = z.strictObject({
-  code: z.literal("repository-precondition"),
-  message: z.string().trim().min(1),
-  precondition: z.enum([
-    "repository-born",
-    "base-resolved",
-    "clean-worktree",
-    "commit-head",
-  ]),
-});
-const GeneralReviewCommandDiagnosticSchema = z.strictObject({
-  code: z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u),
-  message: z.string().trim().min(1),
-});
-export const ReviewCommandDiagnosticSchema = z.union([
-  RepositoryPreconditionDiagnosticSchema,
-  GeneralReviewCommandDiagnosticSchema,
-]);
+import { ReviewCommandDiagnosticSchema } from "./review-command-diagnostic.js";
+import type { ReviewCommandMode } from "./review-command-mode.js";
+export { ReviewCommandModeSchema, type ReviewCommandMode } from "./review-command-mode.js";
+export { ReviewCommandDiagnosticSchema } from "./review-command-diagnostic.js";
 
 export const ReviewCommandHeaderShape = {
   schemaVersion: z.literal(1),

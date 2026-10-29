@@ -95,14 +95,14 @@ it.each(["meta", "draft"] as const)("preserves the %s source-conflict refusal an
   const original = lifecycleSuccess(await h.store.read({ reference }));
   const remote = createMemoryRemote();
   h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const other = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   for (const [store, text] of [[h.store, "Local edit"], [other, "Remote edit"]] as const) {
     const record = lifecycleSuccess(await store.read({ reference }));
     const content = role === "meta" ? writeMetaNextAction(record.content, text) : record.content.replace("Owned work.", text);
     lifecycleSuccess(await store.write({ ...recordPut(record, { content }), provenance: { verb: "write-back", lifecycleAction: "edit" } }));
   }
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const disputed = lifecycleSuccess(await h.store.read({ reference }));
   expect(disputed.conflicts.length).toBeGreaterThan(0);
   const before = lifecycleSuccess(await h.store.version());

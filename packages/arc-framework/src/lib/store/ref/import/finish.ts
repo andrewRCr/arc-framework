@@ -1,0 +1,54 @@
+/** Finish publication from an already landed import without rereading or reminting its source. */
+import type { Store } from "../../contract.js";
+import type { MigrateReport, StoreMigrateResult } from "../../commands.js";
+import { migrateNoticeFromPull } from "../../commands.js";
+import type { RefBackendContext } from "../context.js";
+import type { StoreRefusal, Remedy } from "../../refusal.js";
+import type { PullOutcome } from "../../sync.js";
+import { retireImportLocals, retireImportRemote } from "./transient-cleanup.js";
+
+/** A retry publishes the existing landing through the same store synchronization operation. */
+export async function publishImport(context: RefBackendContext, store: Store, report: MigrateReport): Promise<StoreMigrateResult> {
+  const local = await retireImportLocals(context);
+  if (local) return local;
+  await context.migrateStep?.("import.publish");
+  const pushed = await store.push();
+  if (pushed.status === "refused") return storeFailure(pushed.refusal);
+  const pullFailure = appendImportPulls(report, pushed.result.pulls);
+  if (pullFailure) return pullFailure;
+  for (const outcome of pushed.result.publishes) {
+    if (outcome.status === "failed") return storeFailure(outcome.failure);
+    if ("condition" in outcome) return unfinished(outcome.condition, outcome.remedy);
+  }
+  const missingIdentity = pushed.result.states.find(({ status }) => status === "no-identity");
+  if (missingIdentity?.status === "no-identity") report.notices.push({ condition: "Only project state was synchronized because no personal identity is configured.", remedy: missingIdentity.remedy });
+  const state = pushed.result.states.find(({ status }) => status !== "no-remote" && status !== "no-identity");
+  if (state && "remedy" in state) return unfinished(`State publication reported ${state.status}.`, state.remedy);
+  const retired = await retireImportRemote(context, report);
+  if (retired) return retired;
+  return { status: "ok", result: report };
+}
+
+function appendImportPulls(report: MigrateReport, pulls: readonly PullOutcome[]): StoreMigrateResult | undefined {
+  for (const pull of pulls) {
+    report.notices.push(...pull.notices.map(migrateNoticeFromPull));
+    if (pull.status !== "failed") continue;
+    if (pull.role !== "read") return storeFailure(pull.failure);
+    report.notices.push({ condition: `Read source ${pull.remote} could not be synchronized: ${pull.failure.condition}`,
+      remedy: { ...pull.failure.remedy, text: `For read source ${pull.remote}: ${pull.failure.remedy.text}` } });
+  }
+}
+
+function importRetry(remedy: Remedy): Remedy {
+  return { text: `${remedy.text} Then rerun arc store migrate --import to publish its existing landing.`,
+    argv: ["arc", "store", "migrate", "--import"] };
+}
+
+function storeFailure(refusal: StoreRefusal): StoreMigrateResult {
+  return { status: "refused", refusal: { code: "store", refusal: { ...refusal, remedy: importRetry(refusal.remedy) } } };
+}
+
+function unfinished(condition: string, remedy: Remedy): StoreMigrateResult {
+  return { status: "refused", refusal: { code: "move-unfinished", class: "recoverable", condition,
+    remedy: importRetry(remedy) } };
+}

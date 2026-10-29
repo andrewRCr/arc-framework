@@ -79,6 +79,7 @@ function configResult(protection: "full" | "partial" = "partial") {
       "worktree.location_template": "../{repo}-{branch}",
       "worktree.post_create": "",
       "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
+      "storage.backing_repository": "",
     },
     warnings: [],
   };
@@ -166,6 +167,7 @@ vi.mock("../../../src/lib/work-unit/verbs/stub.js", () => ({ runStub: (...a: unk
 // Lifecycle handlers read templates and other files through `node:fs/promises`.
 const mockReadFile = vi.fn(async () => "{}");
 vi.mock("node:fs/promises", () => ({
+  realpath: vi.fn(async (path: string) => path),
   readFile: () => mockReadFile(),
   lstat: vi.fn(),
   writeFile: vi.fn(),
@@ -869,7 +871,7 @@ describe("handleDecompose", () => {
   ] as const)("converts a thrown %s failure to the core refusal", async (mode, options, adapter, argv) => {
     const forbidden = async (): Promise<never> => { throw new Error("Tracked-state dispatch must not call the store."); };
     const store: Store = { capabilities: { stateOffBranch: false }, read: forbidden, list: forbidden, lookup: forbidden,
-      write: forbidden, batch: forbidden, history: forbidden, version: forbidden, changes: forbidden, sync: forbidden };
+      write: forbidden, batch: forbidden, history: forbidden, version: forbidden, changes: forbidden, pull: forbidden, push: forbidden, maintain: forbidden };
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     const locus = `${mode} exploded`;

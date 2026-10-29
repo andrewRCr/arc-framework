@@ -7,23 +7,43 @@ import {
 import type { HostedFinding } from "./await.js";
 import type { HostedGitHubReview, HostedGitHubThreadComment } from "./github.js";
 
-/** One provider badge: an italic or bold span that opens with an emoji, such as `**🔵 Trivial**`. */
-const BADGE = "(?:_\\p{Extended_Pictographic}[^_\\r\\n]*_|\\*\\*\\p{Extended_Pictographic}[^*\\r\\n]*\\*\\*)";
-const BADGES = new RegExp(BADGE, "gu");
-/** A grouped finding's metadata line: its line or line range, then only pipe-separated badges. */
+/**
+ * CodeRabbit's icon image, which a badge may carry in place of its leading emoji. It ends at its own `</picture>`, so
+ * a run of icon badges has one reading and a line that does not match fails fast.
+ */
+const ICON = "<picture>(?:(?!</picture>)[^*\\r\\n])*</picture>";
+/** One provider badge: an italic or bold span that opens with an emoji or icon, such as `**🔵 Trivial**`. */
+const BADGE = `(?:_(?:\\p{Extended_Pictographic}|${ICON})[^_\\r\\n]*_`
+  + `|\\*\\*(?:\\p{Extended_Pictographic}|${ICON})[^*\\r\\n]*\\*\\*)`;
+/**
+ * Any italic or bold span, as a badge joined by `·` may be: that layout drops the category and effort emoji. An italic
+ * span reads a leading icon whole, since its URL may hold `_`; a bold span's text already covers one.
+ */
+const SPAN = `(?:_(?:${ICON}|[^_<\\r\\n])[^_\\r\\n]*_|\\*\\*[^*\\r\\n]+\\*\\*)`;
+/**
+ * A run of badges in either layout: emoji-led badges joined by `|`, such as `**🎯 Correctness** | **🟡 Minor**`, or
+ * two or more spans joined by `·`, such as `**🟡 Minor** · **Correctness**`. Only emoji-led badges join by `|`, so a
+ * bold title sharing that line stays prose.
+ */
+const BADGE_RUN = `(?:${BADGE}(?:[\\t ]*\\|[\\t ]*${BADGE})*|${SPAN}(?:[\\t ]*·[\\t ]*${SPAN})+)`;
+const BADGE_LINE = new RegExp(`^[\\t ]*${BADGE_RUN}[\\t ]*\\r?$`, "u");
+/** A grouped finding's metadata line: its line or line range, then only badges. */
 const GROUPED_METADATA_LINE = new RegExp(
-  `^[\\t ]*(?:>[\\t ]*)*\`(\\d+(?:-\\d+)?)\`:[\\t ]*${BADGE}(?:[\\t ]*\\|[\\t ]*${BADGE})*[\\t ]*\\r?$`,
+  `^[\\t ]*(?:>[\\t ]*)*\`(\\d+(?:-\\d+)?)\`:[\\t ]*${BADGE_RUN}[\\t ]*\\r?$`,
   "gmu",
 );
+
+/** A severity badge: its color emoji or icon, then the grade, in one italic or bold span. */
+const SEVERITY = new RegExp(`(_|\\*\\*)(?:[🔴🟠🟡🔵]|${ICON})\\s*(Critical|Major|Minor|Trivial)\\1`, "iu");
 
 /**
  * Read the first severity badge, in either the italic (`_🟠 Major_`) or bold (`**🟠 Major**`) form.
  *
- * The badge's color emoji is required, so emphasized prose such as `**Major**` is never read as a grade.
+ * The grade comes from the badge's label. Its leading mark, a color emoji or icon image, is required, so emphasized
+ * prose such as `**Major**` is never read as a grade.
  */
 function severity(body: string): "critical" | "major" | "minor" | null {
-  const match = /(_|\*\*)([🔴🟠🟡🔵])\s*(Critical|Major|Minor|Trivial)\1/iu.exec(body);
-  switch (match?.[3]?.toLowerCase()) {
+  switch (SEVERITY.exec(body)?.[2]?.toLowerCase()) {
     case "critical":
       return "critical";
     case "major":
@@ -43,22 +63,26 @@ function severityOnMetadataLine(body: string, start: number): ReturnType<typeof 
 
 /** A metadata line made only of badges, one of them the severity this parser reads. */
 function isBadgeLine(line: string): boolean {
-  return severity(line) !== null && line.replace(BADGES, "").replace(/\|/gu, "").trim().length === 0;
+  return severity(line) !== null && BADGE_LINE.test(line);
 }
 
 /**
  * Select the prose that labels an inline thread comment.
  *
- * Collapsed `<details>` content is supporting material, and a leading badge line is metadata, so the label comes
- * from the first top-level prose after them; a comment that opens with anything else keeps its first top-level line.
+ * Collapsed `<details>` content is supporting material, and the provider's HTML comment marker lines and leading
+ * badge line are metadata, so the label comes from the first top-level prose after them; a comment that opens with
+ * anything else keeps its first top-level prose line.
  */
 function threadLabelSource(body: string): string {
   const blocks = detailsBlocks(body);
   const topLevel = blocks === null ? body : maskDetailsRanges(body, 0, body.length, blocks);
   const lines = topLevel.split(/\r?\n/u);
-  const first = lines.findIndex((line) => line.trim().length > 0);
+  const isProse = (line: string): boolean => line.trim().length > 0 && !/^[\t ]*<!--.*-->[\t ]*$/u.test(line);
+  const first = lines.findIndex(isProse);
   const firstLine = lines[first];
-  return firstLine !== undefined && isBadgeLine(firstLine) ? lines.slice(first + 1).join("\n") : topLevel;
+  if (firstLine === undefined) return "";
+  const label = isBadgeLine(firstLine) ? lines.findIndex((line, index) => index > first && isProse(line)) : first;
+  return label === -1 ? "" : lines.slice(label).join("\n");
 }
 
 type UnorderedThreadFinding = Omit<Extract<HostedFinding, { origin: "review-thread" }>, "sourceOrdinal">;
@@ -146,20 +170,30 @@ function nonNegativeInteger(value: string): number | null {
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
+/** Match one-line `<summary>` headers; the text excludes a leading icon image, whose URL is not header text. */
 function summaryMatches(body: string): SummaryMatch[] {
-  return [...body.matchAll(/^[\t ]*(?:>[\t ]*)*<summary>([^<\r\n]+)<\/summary>/gimu)].map((match) => ({
+  const summary = new RegExp(`^[\\t ]*(?:>[\\t ]*)*<summary>(?:${ICON})?([^<\\r\\n]+)<\\/summary>`, "gimu");
+  return [...body.matchAll(summary)].map((match) => ({
     text: (match[1] as string).trim(),
     start: match.index,
     end: match.index + match[0].length,
   }));
 }
 
+/** Read a header's trailing count, written `(1)` or `: 1`, and the label before it. */
+function headerCount(text: string): { label: string; count: number } | null {
+  const countMatch = /(?:\((\d+)\)|:[\t ]*(\d+))[\t ]*$/u.exec(text);
+  const digits = countMatch?.[1] ?? countMatch?.[2];
+  if (countMatch === null || digits === undefined) return null;
+  const count = nonNegativeInteger(digits);
+  return count === null ? null : { label: text.slice(0, countMatch.index), count };
+}
+
 function supplementalHeader(text: string): Pick<SupplementalSection, "category" | "count"> | null {
-  const countMatch = /\((\d+)\)\s*$/u.exec(text);
-  if (countMatch?.[1] === undefined) return null;
-  const count = nonNegativeInteger(countMatch[1]);
-  if (count === null) return null;
-  const label = text.slice(0, countMatch.index).toLowerCase();
+  const header = headerCount(text);
+  if (header === null) return null;
+  const { count } = header;
+  const label = header.label.replace(new RegExp(ICON, "gu"), "").toLowerCase();
   if (label.includes("nitpick") && label.includes("comment")) {
     return { category: "nitpick", count };
   }
@@ -459,15 +493,12 @@ function supplementalGroups(
 ) {
   return blocks.filter((block) => block.parentId === section.blockId).flatMap((block) => {
     const match = directSummary(body, block, blocks);
-    if (match === null) return [];
-    const countMatch = /\((\d+)\)\s*$/u.exec(match.text);
-    if (countMatch?.[1] === undefined) return [];
-    const count = nonNegativeInteger(countMatch[1]);
-    if (count === null) return [];
+    const header = match === null ? null : headerCount(match.text);
+    if (match === null || header === null) return [];
     return [{
       blockId: block.id,
-      path: match.text.slice(0, countMatch.index).trim(),
-      count,
+      path: header.label.trim(),
+      count: header.count,
       start: match.end,
       end: block.closeStart,
     }];
@@ -564,6 +595,29 @@ function parseSupplementalSection(
   return { kind: "parsed", findings };
 }
 
+/**
+ * Refuse a finding marker outside fenced code that no recognized section holds.
+ *
+ * A section whose header the parser does not recognize is skipped while the rest of the body still parses, so its
+ * findings would otherwise vanish from a result that reads as complete.
+ */
+function unattributedMarker(
+  body: string,
+  sections: readonly SupplementalSection[],
+): CodeRabbitReviewBodyParseResult | null {
+  const fencedRanges = fencedMarkdownRanges(body);
+  const unattributed = [...body.matchAll(/<!--\s*cr-comment:v1:([a-f0-9]+)\s*-->/giu)].filter((marker) =>
+    !fencedRanges.some((range) => range.start <= marker.index && marker.index < range.end)
+    && !sections.some((section) => section.start <= marker.index && marker.index < section.end));
+  const first = unattributed[0];
+  return first === undefined
+    ? null
+    : malformedWithContext("provider-supplemental-marker-unattributed", {
+      markers: unattributed.length,
+      fingerprint: first[1] as string,
+    });
+}
+
 /** Parse CodeRabbit's optional review-thread count claim and non-thread findings. */
 export function parseCodeRabbitReviewBody(
   review: HostedGitHubReview,
@@ -598,6 +652,8 @@ export function parseCodeRabbitReviewBody(
     .filter((section): section is SupplementalSection => section !== null)
     .concat(calloutSections(detailBody, blocks))
     .sort((left, right) => left.start - right.start);
+  const unattributed = unattributedMarker(detailBody, sections);
+  if (unattributed !== null) return unattributed;
   const findings: ReviewBodyFinding[] = [];
   for (const section of sections) {
     const parsed = parseSupplementalSection(

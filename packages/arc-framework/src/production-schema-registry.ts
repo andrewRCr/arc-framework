@@ -23,3 +23,15 @@ export function createProductionSchemaRegistry(): KernelRegistry {
   ))))));
   return registerInboxSchemas(registerHandoffWriteSchemas(registry));
 }
+
+/**
+ * Compose only the schema families that publish checkout editor documents.
+ *
+ * Provisioning projects this registry rather than the complete surface, since projection cost grows with every
+ * registered root while the documents it writes do not.
+ *
+ * @returns A fresh registry whose editor documents match the complete production surface's.
+ */
+export function createEditorDocumentSchemaRegistry(): KernelRegistry {
+  return registerCheckDeclarationSchemas(createKernelRegistry());
+}

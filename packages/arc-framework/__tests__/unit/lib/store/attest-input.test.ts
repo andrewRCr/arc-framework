@@ -68,7 +68,7 @@ it.each(["meta", "task-list"] as const)("refuses conflicted stored %s authority 
   const h = await fixture(), reference = kind === "meta" ? h.primary.reference : h.reference;
   const remote = createMemoryRemote();
   h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   for (const [store, label] of [[h.store, "local"], [writer, "remote"]] as const) {
     const record = lifecycleSuccess(await store.read({ reference }));
@@ -76,7 +76,7 @@ it.each(["meta", "task-list"] as const)("refuses conflicted stored %s authority 
       ? writeMetaNextAction(record.content, label) : `${closedTasks}\n${label} task context.\n` }),
     provenance: { verb: kind === "meta" ? "attest" : "close-task", lifecycleAction: "edit" } }));
   }
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const record = lifecycleSuccess(await h.store.read({ reference }));
   expect(record.conflicts.length).toBeGreaterThan(0);
   const refused = await readAttestInput(h.ports, "example");

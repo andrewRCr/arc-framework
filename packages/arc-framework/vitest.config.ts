@@ -54,6 +54,16 @@ const maxWorkers = resolveVitestMaxWorkers(process.env);
 // per-file isolation, and `unit` runs everything else. The split keeps the
 // mock-heavy files quarantined so the main tier can relax isolation for its
 // import-cost win without their hoisted mocks leaking across file boundaries.
+const timingTest = "__tests__/integration/store-ref-timing.test.ts";
+const burstTest = "__tests__/integration/store-ref-bursts.test.ts";
+const integrationTest = {
+  root: packageRoot,
+  ...(integrationTempRoot === undefined ? {} : { env: { TMPDIR: integrationTempRoot } }),
+  globalSetup: ["__tests__/integration/global-setup.ts"],
+  testTimeout: 30_000,
+  passWithNoTests: true,
+};
+
 export default defineConfig({
   test: {
     sequence: { sequencer: HeavyFirstSequencer },
@@ -86,13 +96,30 @@ export default defineConfig({
       },
       {
         test: {
+          ...integrationTest,
           name: "integration",
-          root: packageRoot,
           include: ["__tests__/integration/**/*.test.ts"],
-          ...(integrationTempRoot === undefined ? {} : { env: { TMPDIR: integrationTempRoot } }),
-          globalSetup: ["__tests__/integration/global-setup.ts"],
-          testTimeout: 30_000,
-          passWithNoTests: true,
+          exclude: [...configDefaults.exclude, timingTest, burstTest],
+        },
+      },
+      {
+        test: {
+          ...integrationTest,
+          name: "integration-timing",
+          include: [timingTest],
+          // Finish the parallel group before collecting uncontended operation medians.
+          sequence: { groupOrder: 1 },
+          maxWorkers: 1,
+        },
+      },
+      {
+        test: {
+          ...integrationTest,
+          name: "integration-bursts",
+          include: [burstTest],
+          // Keep unrelated selected tests outside the twenty-writer workload.
+          sequence: { groupOrder: 2 },
+          maxWorkers: 1,
         },
       },
       {
@@ -102,6 +129,7 @@ export default defineConfig({
           include: ["__tests__/e2e/**/*.test.ts"],
           globalSetup: ["__tests__/e2e/global-setup.ts"],
           testTimeout: 30_000,
+          hookTimeout: 60_000,
           passWithNoTests: true,
         },
       },

@@ -13,7 +13,9 @@ export async function fileDecomposeConflict(store: Store, subject: StoreRecord) 
     owner: subject.reference.owner, key: "abcdef12" });
   const label = { actor: "competing-writer", time: "2026-10-19T00:00:00.000Z" };
   lifecycleSuccess(await store.write({ action: "put", reference, expected: null,
-    content: JSON.stringify({ record: subject.reference, location: { kind: "hunk", start: 0, end: 1 },
+    content: JSON.stringify({ record: subject.reference, baseVersion: subject.version,
+      currentLines: subject.content.replace(/\n$/, "").split("\n").length, incomingLines: 1,
+      location: { kind: "hunk", start: 0, end: subject.content.replace(/\n$/, "").split("\n").length },
       base: subject.content, current: { content: subject.content, label }, incoming: { content: "Competing content.\n", label } }),
     provenance: { verb: "sync", lifecycleAction: "merge" } }));
   return { subject: lifecycleSuccess(await store.read({ reference: subject.reference })),

@@ -98,12 +98,11 @@ it("pulls only named missing history and retries the exact saved-state query", a
   let fetched = false;
   const store: Store = Object.create(h.store) as Store;
   store.changes = (input) => fetched ? h.store.changes(input) : Promise.resolve(missingHistory);
-  const sync = createStoreSyncPort({ pull: (refs) => {
-    if (refs?.length !== 1 || refs[0] !== "refs/arc/history/work/00000000-0000-4000-8000-000000000001") throw new Error("An unrelated ref was requested");
-    fetched = true;
-    return Promise.resolve({ status: "pulled" });
-  } });
-  expect((await deriveRestateCandidates({ exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice", sync }))
+  store.pull = async input => {
+    fetched = input?.history?.length === 1 && input.history[0] === "refs/arc/history/work/00000000-0000-4000-8000-000000000001";
+    return { status: "ok", result: { states: [], pulls: [] } };
+  };
+  expect((await deriveRestateCandidates({ exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice" }))
     .tasksClosedSinceHandoff).toEqual(["1.1"]);
 });
 it("retains the history condition and the failed pull's repair", async () => {
@@ -113,7 +112,7 @@ it("retains the history condition and the failed pull's repair", async () => {
   const sync = createStoreSyncPort({ pull: () => Promise.resolve({ status: "unreachable",
     condition: "Origin is offline.", remedy: { text: "Reconnect to origin and retry." } }) });
   await expect(deriveRestateCandidates({ exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice", sync }))
-    .rejects.toThrow("The saved project history is missing. Origin is offline. Reconnect to origin and retry.");
+    .rejects.toThrow("The saved project history is missing. Fetch the project history ref and retry. Origin is offline. Reconnect to origin and retry.");
 });
 it("stops after one pull when the requested history remains unavailable", async () => {
   const h = await fixture();
@@ -127,7 +126,7 @@ it("stops after one pull when the requested history remains unavailable", async 
   await expect(deriveRestateCandidates({ exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice", sync }))
     .rejects.toThrow("The saved project history is missing. Fetch the project history ref and retry.");
 });
-it("retries once with the default unbound port, which pulls no history", async () => {
+it("retries a transient missing-history refusal through the default selected-store port", async () => {
   const h = await fixture();
   const store: Store = Object.create(h.store) as Store;
   let refused = false;

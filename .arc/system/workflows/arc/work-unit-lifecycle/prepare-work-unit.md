@@ -54,6 +54,13 @@ from repository state by the command below; never assemble or restate them here.
 
 **Method fire-point** · [`classify-review-risk`][classify-review-risk]: Load and apply it to set the risk fact.
 
+**Size every call before it runs.** Before the initial invocation and before invoking each carrier,
+run [code-review's chunk gate][code-chunk-gate] and carry its selected frontline/standard scope through `--lanes`. The
+initial invocation saves each lane's scope mode in the Candidate boundary as author judgment, so size it over the
+exact target the command composes: `kind: change-set`, `baseRef` the configured `branch.base`, `diffBaseSha` the sole
+merge base of `refs/heads/<branch.base>` and `HEAD`, and `headSha` `HEAD`. Size each carrier over the envelope's exact
+`target` (below), chosen coverage, and any correction scope.
+
 Invoke `arc review pre-publication <wu>`, carrying the routing facts as `--change-set`, each lane's scope
 mode and one-run invocation override, and any approved ceiling override as `--lanes`, and a
 completed author self-review as `--self-review settled` only when the effective method is active and ran; omit the
@@ -94,9 +101,6 @@ The envelope's `target` is the exact target every exact-target operation below b
 means the checkout could not compose one; resolve the returned advisory before invoking any operation. The lane
 `target` inside `policy` routes lanes and does not identify a review.
 
-Before invoking a carrier, run [code-review's chunk gate][code-chunk-gate] using the envelope's exact `target`,
-chosen coverage, and any correction scope. Carry its selected frontline/standard scope through `--lanes`.
-
 At `candidate-fix-pending` with `nextAction.command: arc review respond -`, the pass may already be `pass-complete`,
 `owner-accepted`, or `coverage-required`, but its current findings response is still unfinished. Use
 `nextAction.responseOperationId` and `nextAction.responseSource` to resume that exact producer through the typed `arc
@@ -105,9 +109,10 @@ bound source and obtain any approval still required; continue an existing approv
 disposition. Re-enter pre-publication only after durable response completion. The pass conclusion does not authorize
 publication while this response remains pending.
 
-**After a clean fix check.** Before source dispatch, or a non-null `reservation` at convergence verification or
-publication, run [code-review's successor decision][code-successor-decision]. This caller's available stop re-enters
-with `lanes.standard.terminus: { mode: "owner-accepted" }`; keep an unchanged accepted decision on re-entry.
+**After a converged fix check.** Before `arc review local prepare` or a hosted request admits the next look, and when a
+non-null `reservation` appears at convergence verification or publication, run [code-review's successor
+decision][code-successor-decision]. This caller's available stop re-enters with
+`lanes.standard.terminus: { mode: "owner-accepted" }`; keep an unchanged accepted decision on re-entry.
 
 The non-null `reservation` is the driver's `awaiting-change-request / open-change-request` continuation. Retain the
 hosted-first reservation when continuing review and follow the envelope through `candidate-publish-ready`.

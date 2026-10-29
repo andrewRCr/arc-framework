@@ -52,7 +52,7 @@ import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import { checkCurrentWorkflowConsistency } from "../active/current-workflow-consistency.js";
 import { createProjectIdentityReader } from "../store/project-identity.js";
 import { createStore } from "../store/create.js";
-import { createDefaultStorePorts } from "../store/default-ports.js";
+import { createDefaultStorePorts } from "../store/default-store-ports.js";
 import type { Store } from "../store/contract.js";
 import type { GitExec } from "../git/exec.js";
 import { SlugSchema } from "../kernel/index.js";

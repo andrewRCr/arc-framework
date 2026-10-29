@@ -10,7 +10,7 @@
  */
 
 import { createStore } from "../store/create.js";
-import { createDefaultStorePorts } from "../store/default-ports.js";
+import { createDefaultStorePorts } from "../store/default-store-ports.js";
 import { workItemArtifactPath } from "../store/lifecycle-storage.js";
 import { identifyWorkUnitArtifactPath } from "../layout/index.js";
 import type { Store } from "../store/contract.js";

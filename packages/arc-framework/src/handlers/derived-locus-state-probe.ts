@@ -60,7 +60,8 @@ function storeAtVersion(store: Store, stateVersion: StateVersion): Store {
     list: input => store.list({ ...input, asOf: input.asOf ?? stateVersion }),
     version: () => Promise.resolve({ status: "ok", result: stateVersion }),
     lookup: input => store.lookup(input), history: input => store.history(input), changes: input => store.changes(input),
-    write: input => store.write(input), batch: input => store.batch(input), sync: () => store.sync(),
+    write: input => store.write(input), batch: input => store.batch(input),
+    pull: input => store.pull(input), push: input => store.push(input), maintain: () => store.maintain(),
   };
 }
 

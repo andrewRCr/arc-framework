@@ -22,6 +22,28 @@ describe("store import predicate exceptions", () => {
   });
 });
 
+describe("ref store import boundaries", () => {
+  it.each([
+    ["outside.ts", 'import "./lib/store/ref/context.js";', "store-production",
+      "private store implementation outside store"],
+    ["lib/store/helper.ts", 'import "./ref/backend.js";', "store-production",
+      "store implementation entry outside public factory"],
+    ["../__tests__/ref-store.ts", 'import "../src/lib/store/ref/context.js";', "store-tests",
+      "test imports private store implementation"],
+  ] satisfies [string, string, ArchitecturePredicate, string][])("refuses %s: %s", (path, text, predicate, reason) => {
+    expect(violations(path, text, predicate)).toEqual([reason]);
+  });
+  it.each([
+    ["lib/store/helper.ts", 'import "./ref/context.js";', "store-production"],
+    ["lib/store/create.ts", 'import "./ref/backend.js";', "store-production"],
+    ["lib/store/create.ts", 'void import("./ref/backend.js");', "store-production"],
+    ["../__tests__/ref-store-type.ts", 'import type { Shape } from "../src/lib/store/ref/context.js";', "store-tests"],
+  ] satisfies [string, string, ArchitecturePredicate][])("permits %s: %s", (path, text, predicate) => {
+    expect(violations(path, text, predicate)).toEqual([]);
+  });
+
+});
+
 function violations(path: string, text: string, predicate: ArchitecturePredicate): string[] {
   const filename = resolve(sourceRoot, path);
   const source = ts.createSourceFile(filename, text, ts.ScriptTarget.Latest, true);

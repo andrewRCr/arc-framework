@@ -237,21 +237,16 @@ async function resolveSlugOperationalBoundary(options: {
 /** Render lifecycle truth without composing code-ref or materialized-artifact evidence. */
 async function handleStoreLifecycleStatus(store: Store, slug: string, opts: StatusCliOptions,
   local: { cwd: string; exec: GitExec; identity: string | null; sync?: StoreSyncPort }, ports?: StoreLifecycleStatusPorts): Promise<void> {
-  const refreshWarnings = opts.fetch === true ? (await pullStoreStatus(local)).map(warning => warning.rendered) : [];
+  const refreshWarnings = opts.fetch === true && !opts.local ? (await pullStoreStatus(local)).map(warning => warning.rendered) : [];
   const view = await readLifecycleView(store);
   if (view.status === "refused") {
-    renderStoreQueryRefusal(view.refusal, opts);
+    renderStoreQueryRefusal(view.refusal, opts, refreshWarnings);
     return;
   }
   const record = await readWorkUnit(store, slug);
-  if (record.status === "refused" && record.refusal.code !== "not-found") {
-    renderStoreQueryRefusal(record.refusal, opts);
-    return;
-  }
-  if (record.status === "ok" && record.result.conflicts.length > 0) {
-    renderStoreQueryRefusal({ code: "record-malformed", class: "recoverable", reference: record.result.reference,
-      rule: "lifecycle.meta-conflict", condition: `The named work-unit primary has unresolved conflicts: ${record.result.conflicts.map((reference) => JSON.stringify(reference)).join(", ")}.`,
-      remedy: { text: "Resolve the named conflict records, then retry this status query." } }, opts);
+  const recordRefusal = storeQueryRecordRefusal(record);
+  if (recordRefusal !== null) {
+    renderStoreQueryRefusal(recordRefusal, opts, refreshWarnings);
     return;
   }
   const standing = selectStandingLifecycleEntries(view.result.entries,
@@ -287,6 +282,15 @@ async function readStoreStatusBoundary(input: { store: Store; cwd: string; recor
   return readSubmissionBoundary(input.cwd, input.record.reference.owner.name, { store: input.store, owner: input.record.reference.owner });
 }
 
+// A missing primary still reports its listing position; any other refusal or a conflicted primary stops the query.
+function storeQueryRecordRefusal(record: Awaited<ReturnType<typeof readWorkUnit>>): StoreRefusal | null {
+  if (record.status === "refused") return record.refusal.code === "not-found" ? null : record.refusal;
+  if (record.result.conflicts.length === 0) return null;
+  return { code: "record-malformed", class: "recoverable", reference: record.result.reference,
+    rule: "lifecycle.meta-conflict", condition: `The named work-unit primary has unresolved conflicts: ${record.result.conflicts.map((reference) => JSON.stringify(reference)).join(", ")}.`,
+    remedy: { text: "Resolve the named conflict records, then retry this status query." } };
+}
+
 function storeQueryMetaFields(record: Awaited<ReturnType<typeof readWorkUnit>>): ParsedMetaRecord | undefined {
   if (record.status === "refused") return undefined;
   const parsed = ParsedMetaRecordSchema.safeParse(record.result.fields);
@@ -304,8 +308,9 @@ function lifecycleListingWarnings(listing: LifecycleIndexOutcome): string[] {
   return listing.status === "unreadable" ? [listing.condition] : [];
 }
 /** Preserve the exact refusal in machine output and its remedy in human output. */
-function renderStoreQueryRefusal(refusal: StoreRefusal, opts: StatusCliOptions): void {
-  if (opts.json) process.stdout.write(`${JSON.stringify({ status: "refused", refusal })}\n`);
+function renderStoreQueryRefusal(refusal: StoreRefusal, opts: StatusCliOptions, warnings: readonly string[] = []): void {
+  if (!opts.json) for (const warning of warnings) process.stderr.write(`warning: ${warning}\n`);
+  if (opts.json) process.stdout.write(`${JSON.stringify({ status: "refused", refusal, ...(warnings.length ? { warnings } : {}) })}\n`);
   else p.log.error(`${refusal.condition} ${refusal.remedy.text}`);
   process.exitCode = 1;
 }

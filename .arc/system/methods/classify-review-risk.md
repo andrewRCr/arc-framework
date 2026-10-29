@@ -25,7 +25,7 @@ override-mode: extend
 
 Both answers are reviewed. `sensitive` makes standard review **required**, so an incomplete review blocks the merge
 gate, and selects `full-final`: after a material fix, local fix checks verify repairs; the lane stays open after a
-clean fix check until a complete pass closes it. `routine` leaves the obligation to the other routing facts:
+converged fix check until a complete pass closes it. `routine` leaves the obligation to the other routing facts:
 ordinary code still requires standard review, while atomic code and most documentation get a **recommended** review
 that runs by default and does not block merge when it does not complete. Incremental adequacy can close on a proved,
 converged fix-check chain. Complete passes count against the standard ceiling; fix and delta checks do not. A wrong

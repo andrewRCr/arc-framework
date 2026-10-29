@@ -144,7 +144,7 @@ it("refuses conflicted Candidate authority and resumes after resolution", async 
   const record = candidateFixture();
   await h.seed(reference, serializeCandidateManagedRecord(record));
   const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   for (const [store, attestedAt] of [[h.store, "2026-08-13T14:00:00.000Z"], [writer, "2026-08-14T14:00:00.000Z"]] as const) {
     const before = lifecycleSuccess(await store.read({ reference }));
@@ -152,7 +152,7 @@ it("refuses conflicted Candidate authority and resumes after resolution", async 
     lifecycleSuccess(await store.write({ action: "put", reference, expected: before.version,
       content: serializeCandidateManagedRecord(changed), provenance: { verb: "review", lifecycleAction: "edit" } }));
   }
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const disputed = lifecycleSuccess(await h.store.read({ reference }));
   expect(disputed.conflicts.length).toBeGreaterThan(0);
   await expect(readCandidateRecord("/unavailable", "example", { store: h.store, owner: meta.reference.owner }))

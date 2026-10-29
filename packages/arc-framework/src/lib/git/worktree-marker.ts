@@ -35,6 +35,7 @@ import type {
 } from "../work-unit/retirement-authority.js";
 import type { GitExec } from "./exec.js";
 import { ensureGitExcludePattern, type GitExcludeFs } from "./exclude.js";
+import { withAdvisoryLock } from "../advisory-lock.js";
 
 /** Logical target a worktree was created for or terminally husked from. */
 export type WorktreeSubject =
@@ -201,6 +202,7 @@ export type WorktreeMarkerIgnoreFs = GitExcludeFs;
 export const nodeWorktreeMarkerIgnoreFs: WorktreeMarkerIgnoreFs = {
   readFile: (path) => readFile(path, "utf8"),
   writeFile,
+  withLock: withAdvisoryLock,
   mkdir: async (path, options) => {
     await mkdir(path, options);
   },

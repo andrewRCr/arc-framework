@@ -6,6 +6,7 @@ export interface GitExcludeFs {
   readFile(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
   mkdir(path: string, options: { recursive: boolean }): Promise<void>;
+  withLock<T>(path: string, operation: () => Promise<T>): Promise<T>;
 }
 export type GitExcludeResult = { ok: true; path: string } | { ok: false; path?: string; error: unknown };
 
@@ -25,13 +26,16 @@ export async function ensureGitExcludePattern(
     const { stdout } = await exec("git", ["rev-parse", "--git-path", "info/exclude"], { cwd: root });
     const rawPath = stdout.trim();
     if (rawPath.length === 0) throw new Error("Git returned no exclude path");
-    path = isAbsolute(rawPath) ? rawPath : resolve(root, rawPath);
-    const content = await readExclude(path, fs);
-    if (!content.split(/\r?\n/u).includes(pattern)) {
-      const prefix = content.length === 0 || content.endsWith("\n") ? content : `${content}\n`;
-      await fs.mkdir(dirname(path), { recursive: true });
-      await fs.writeFile(path, `${prefix}${pattern}\n`);
-    }
+    const excludePath = isAbsolute(rawPath) ? rawPath : resolve(root, rawPath);
+    path = excludePath;
+    await fs.withLock(`${excludePath}.arc.lock`, async () => {
+      const content = await readExclude(excludePath, fs);
+      if (!content.split(/\r?\n/u).includes(pattern)) {
+        const prefix = content.length === 0 || content.endsWith("\n") ? content : `${content}\n`;
+        await fs.mkdir(dirname(excludePath), { recursive: true });
+        await fs.writeFile(excludePath, `${prefix}${pattern}\n`);
+      }
+    });
     return { ok: true, path };
   } catch (error) {
     return { ok: false, ...(path === undefined ? {} : { path }), error };

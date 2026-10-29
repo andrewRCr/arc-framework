@@ -38,6 +38,9 @@ import {
 } from "../../src/lib/user-sync/compaction-manifest.js";
 import { createTempRepoCore, removeGitBackedDir } from "./temp-repo.js";
 import { createExecaGitExec, createExecaGitExecInput } from "../../src/lib/git/process-executor.js";
+import { createUserIOContext } from "../../src/lib/io-context.js";
+
+export { commitAll } from "./temp-repo.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -437,47 +440,12 @@ export function makeGitNoteReader(cwd: string) {
   };
 }
 
-/**
- * Read directory entries with name and size (real filesystem).
- * Recurses into subdirectories — entries use relative paths.
- * Skips dot-directories (infrastructure, not user content).
- */
-export async function readUserDir(dirPath: string): Promise<DirEntry[]> {
-  const entries: DirEntry[] = [];
-
-  async function walk(currentPath: string, prefix: string): Promise<void> {
-    let names: string[];
-    try {
-      names = await readdir(currentPath);
-    } catch {
-      return;
-    }
-    for (const name of names) {
-      const fullPath = join(currentPath, name);
-      const s = await stat(fullPath);
-      if (s.isDirectory()) {
-        if (name.startsWith(".")) continue;
-        await walk(fullPath, prefix ? `${prefix}/${name}` : name);
-      } else if (s.isFile()) {
-        const relativeName = prefix ? `${prefix}/${name}` : name;
-        entries.push({ name: relativeName, size: s.size });
-      }
-    }
-  }
-
-  await walk(dirPath, "");
-  return entries;
-}
-
 /** Create a real UserIOContext for a temp repo. */
 export function makeUserIO(cwd: string): UserIOContext {
   return {
+    ...createUserIOContext(),
     exec: makeGitExec(cwd),
     execInput: makeGitExecInput(cwd),
-    readFile: (path) => readFile(path, "utf-8"),
-    writeFile: (path, content) => writeFile(path, content, "utf-8"),
-    mkdir: (path, opts) => mkdir(path, opts).then(() => undefined),
-    readDir: readUserDir,
     writeNote: makeGitNoteWriter(cwd),
     readNote: makeGitNoteReader(cwd),
   };
@@ -499,6 +467,8 @@ export type TestFinishedRegistrar = (handler: () => Promise<void>) => void;
 
 /** Bare-remote cleanup ownership. */
 export interface AddBareRemoteOptions {
+  /** Object format matching the working repository when it is not the default. */
+  objectFormat?: "sha1" | "sha256";
   /** Explicit registrar for per-test cleanup; defaults to Vitest's current test. */
   registerCleanup?: TestFinishedRegistrar;
   /** Setup-hook escape hatch when an existing `afterEach` owns the returned path. */
@@ -525,7 +495,7 @@ export async function addBareRemote(
   const remoteDir = await mkdtemp(join(tmpdir(), "arc-remote-"));
   let originAdded = false;
   try {
-    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remoteDir]);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", ...(options.objectFormat ? [`--object-format=${options.objectFormat}`] : []), remoteDir]);
     await execFileAsync("git", ["remote", "add", "origin", remoteDir], { cwd });
     originAdded = true;
     await execFileAsync("git", ["push", "-u", "origin", "HEAD"], { cwd });

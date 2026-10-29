@@ -213,7 +213,7 @@ checkCmd
 
 checkCmd
   .command("increment")
-  .description("Run commit checks, early push file feedback, and changed projected selection feedback")
+  .description("Run commit checks, early push file feedback, and changed projected selection feedback; list other push checks as left to the push gate")
   .option("--json", "Emit a versioned JSON envelope")
   .option("--force", "Run selected checks without reusing passes")
   .option("--dry-run", "Forecast checks without executing them")
@@ -260,6 +260,39 @@ program
   .command("hook-remedy-roadmap-conflict", { hidden: true })
   .action(async () => {
     await (await import("./scripts/remedy-roadmap-conflict.js")).runRoadmapConflictAutoRemedyCommand();
+  });
+
+const storeCmd = program.command("store", { hidden: true }).description("Operate on the ref store explicitly");
+storeCmd.command("conflict").argument("<uid>", "Owner UID").argument("<kind>", "Registered work-item conflict kind")
+  .argument("<id>", "Exact conflict ID")
+  .option("--discard", "Accept the current state and discard this retained alternative")
+  .option("--json", "Emit the complete conflict or resolution result as JSON")
+  .action(withInteractionContext({ machineReadable: (opts) => opts.json === true },
+    async (_context, uid: string, kind: string, id: string, options: import("./commands/store-conflict.js").StoreConflictOptions) => {
+      await (await import("./commands/store-conflict.js")).handleStoreConflict(uid, kind, id, options);
+    }));
+storeCmd.command("migrate").option("--to <remote-or-url>", "Move state to a remote or backing URL")
+  .option("--trial", "Build and report the move without landing it")
+  .option("--leave-source", "Finish leaving the recorded source")
+  .option("--import", "Import the current operational state")
+  .option("--json", "Emit the move report or refusal as JSON")
+  .action(withInteractionContext({ machineReadable: (opts) => opts.json === true },
+    async (context, options: import("./commands/store-migrate.js").StoreMigrateOptions) => {
+      await (await import("./commands/store-migrate.js")).handleStoreMigrate(options, context);
+    }));
+storeCmd.command("remote").argument("[remote]", "Remote name").argument("[role]", "push, read, or off")
+  .option("--own-state", "Publish everything this clone's store holds on the selected remote")
+  .option("--json", "Emit the store result as JSON")
+  .action(withInteractionContext({ machineReadable: (opts) => opts.json === true },
+    async (context, remote: string | undefined, role: string | undefined, options: import("./commands/store-remote.js").StoreRemoteOptions) => {
+      await (await import("./commands/store-remote.js")).handleStoreRemote(remote, role, options, context);
+    }));
+
+program
+  .command("hook-validate-frontmatter", { hidden: true })
+  .argument("[paths...]", "Staged paths to validate")
+  .action(async (paths: string[]) => {
+    (await import("./scripts/validate-frontmatter.js")).runValidateFrontmatterCommand(paths);
   });
 
 function isDashPrefixedCheckSourceEscaped(
@@ -364,7 +397,7 @@ program
   )
   .option(
     "--from <pointer-or-blurb>",
-    "Seed input — issue ref → Origin; documents and descriptions pass through for assessment",
+    "Seed a new work unit started with --here — issue ref → Origin; documents and descriptions pass through for assessment",
   )
   .option(
     "--class <value>",
@@ -802,7 +835,7 @@ errand
 errand
   .command("open <slug>")
   .description("Open an errand in the free primary or a provisioned transient worktree")
-  .option("--type <type>", "Errand branch nature-type: fix, chore, refactor, or hotfix (default: chore)")
+  .option("--type <type>", "Errand branch nature-type: fix, chore, refactor, or hotfix (default: chore; full protection only)")
   .option("--intent <text>", "Free-text statement of the errand's concern (default: the slug)")
   .option("--from-inbox <entry-title>", "Adopt an inbox capture as the errand concern")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
@@ -1277,9 +1310,13 @@ program
   .command("update")
   .description("Update ARC framework files to the latest version")
   .option("-q, --quiet", "Suppress changelog output")
+  .option(
+    "--keep-local-without-baseline",
+    "Keep customized files that have no merge baseline as they are, skipping their upstream changes",
+  )
   .action(withInteractionContext(
     {},
-    async (context, opts: { quiet?: boolean }) => {
+    async (context, opts: { quiet?: boolean; keepLocalWithoutBaseline?: boolean }) => {
       await (await import("./handlers/installation.js")).handleUpdate(opts, context);
     },
   ));
@@ -2268,6 +2305,26 @@ hostedCmd
     await (await import("./handlers/review.js")).handleReviewHostedSettle(input ?? "", {}, context);
   }));
 
+hostedCmd
+  .command("dismiss")
+  .description("Dismiss one review service's settled change-request review as JSON")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .addHelpText(
+    "after",
+    "\nInput:\n  The open pull request's exact head and one blocking review as `arc review status` reports it.\n",
+  )
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, async (_context, input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-hosted-dismiss-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewHostedDismiss(input ?? "");
+  }));
+
 reviewCmd
   .command("changeset")
   .description("Exact-target changeset-size review operations")
@@ -2315,6 +2372,22 @@ localReviewCmd
       return;
     }
     await (await import("./handlers/review.js")).handleReviewLocalAttest(input ?? "", {}, context);
+  }));
+
+localReviewCmd
+  .command("cancel")
+  .description("Cancel a pending local review dispatch without settling its review obligation")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-local-cancel-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewLocalCancel(input ?? "", {}, context);
   }));
 
 localReviewCmd

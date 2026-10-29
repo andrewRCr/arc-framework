@@ -11,7 +11,8 @@ import { lookupTracked } from "./lookup.js";
 import { listTracked } from "./list.js";
 import type { ListInput, ListingOutcome } from "../read.js";
 import { writeTracked, batchTracked } from "./write.js";
-import type { WriteInput, WriteResult, BatchInput, BatchResult } from "../write.js";
+import { WriteInputSchema, BatchInputSchema, type WriteInput, type WriteResult, type BatchInput, type BatchResult } from "../write.js";
+import { malformedStoreInput } from "../malformed-input.js";
 import type { InRepoContext } from "./context.js";
 import type { ReadInput, StoreRecord } from "../read.js";
 import type { LookupInput, LookupResult } from "../lookup.js";
@@ -34,16 +35,24 @@ export function createInRepoBackend(ports: StorePorts): Store {
     history: (input) => runOperation(() => dispatchedHistory(context, input)),
     changes: (input) => runOperation(() => trackedChanges(context, input)),
     lookup: (input) => runOperation(() => dispatchedLookup(context, input)),
-    sync: () => runOperation(async () => (await import("./sync.js")).syncInRepo(context)),
+    push: () => runOperation(async () => (await import("./sync.js")).pushInRepo(context)),
+    pull: () => runOperation(async () => (await import("./pull.js")).pullInRepo(context)),
+    maintain: () => Promise.resolve({ status: "ok", result: { measurements: null } }),
   };
 }
 async function dispatchedWrite(context: InRepoContext, input: WriteInput): Promise<WriteResult> {
+  const parsed = WriteInputSchema.safeParse(input);
+  if (!parsed.success) return refuse(malformedStoreInput(input, parsed.error, "write"));
+  input = parsed.data;
   const home = context.registry[input.reference.kind].inRepo.substrate;
   if (home === "personal") return (await import("./personal-write.js")).writePersonal(context, input);
   if (home === "transient-identity") return (await import("./transient-write.js")).writeTransient(context, input);
   return writeTracked(context, input);
 }
 async function dispatchedBatch(context: InRepoContext, input: BatchInput): Promise<BatchResult> {
+  const parsed = BatchInputSchema.safeParse(input);
+  if (!parsed.success) return refuse(malformedStoreInput(input, parsed.error, "batch"));
+  input = parsed.data;
   if ((input.observations?.length ?? 0) > 0) return unsupported("batch-observations",
     "The interim backend cannot admit read observations atomically with a batch",
     "Use a backend serving atomic batch observations; keep using the existing verb before the storage cutover.");

@@ -65,10 +65,12 @@ inline / message / errand-now / defer call. `arc-housekeep` drains captures; `ar
    - **Descriptors** (prose, bare values): `_Observation:_`, `_Approach:_`, `_Files:_`, `_Scope:_`,
      `_Captured during:_`, `_Shapes:_` — and others as the entry warrants.
    - **`## Errand`** — the shared shape; **no `WU_Target`**. May carry the reminder flag (step 4).
-   - **`## Work Unit`** — the shared shape **plus a `WU_Target:` line** naming a candidate the drain's gate checks:
-     - `WU_Target: <slug>` — check coupling and exclusions there; existence alone never establishes a home.
-     - `WU_Target: <slug> (planned|provisional)` — a new-stub commitment hint, subject to the drain's Owner stop.
-     - `WU_Target: TBD` — undecided; resolved at drain.
+   - **`## Work Unit`** — the shared shape **plus a top-level `_WU_Target:_` bullet**, its value backtick-delimited
+     like every parsed field (step 4), naming a candidate the drain's gate checks:
+     - ``- _WU_Target:_ `<slug>` `` — check coupling and exclusions there; existence alone never establishes a home.
+     - ``- _WU_Target:_ `<slug> (planned|provisional)` `` — a new-stub commitment hint, subject to the drain's Owner
+       stop.
+     - ``- _WU_Target:_ `TBD` `` — undecided; resolved at drain.
      - `_Shapes:_ <decision or section>` — optional capture-time coupling evidence; the drain validates it against
        the target's current design. No `new` keyword; the gate decides existing versus new stub.
 

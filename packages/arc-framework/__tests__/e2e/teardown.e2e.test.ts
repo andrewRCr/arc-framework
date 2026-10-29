@@ -10,7 +10,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runArc, createTempRepo, cleanupTempDir, git } from "./helpers.js";
+import { runArc, createTempRepo, cleanupTempDir, git, unwrapPresentationOutput } from "./helpers.js";
 
 async function prepareSelfTeardown(
   repo: string,
@@ -78,6 +78,17 @@ async function prepareSelfTeardown(
   expect(await git(worktree, ["status", "--porcelain"])).toBe("");
   return worktree;
 }
+
+it.each((["│", "|"] as const).flatMap(border => ["\n", "\r\n"].map(newline => ({ border, newline }))))(
+  "joins $border presentation continuations with newline $newline and preserves literal bars", ({ border, newline }) => {
+  const wrapped = `${border} /tmp/literal|│/   ${border}${newline}${border} name.md ${border}`;
+  expect(unwrapPresentationOutput(wrapped)).toBe(`${border} /tmp/literal|│/name.md ${border}`);
+});
+
+it("keeps literal presentation bars inside an unwrapped value", () => {
+  const value = "/tmp/literal|│/name.md";
+  expect(unwrapPresentationOutput(value)).toBe(value);
+});
 
 describe("arc teardown (CLI surface)", () => {
   let tmpDir: string | undefined;
@@ -212,16 +223,18 @@ describe("arc teardown (CLI surface)", () => {
     expect(await git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("feat/demo");
   });
 
-  it("reports outside husk replay as physical removal, not another deferred husk", async () => {
+  it.each(["linux", "xterm-256color"])("reports outside husk replay as physical removal under %s", async term => {
     tmpDir = await createTempRepo();
-    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
+    worktreeParent = await mkdtemp(join(tmpdir(), `arc-teardown-e2e-wt-${process.platform === "win32" ? "│" : "|│"}-${"long-".repeat(24)}`));
     const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
     const created = await runArc(["teardown", "demo"], worktree);
     expect(created.exitCode).toBe(0);
 
-    const replay = await runArc(["teardown", "demo"], tmpDir);
+    const replay = await runArc(["teardown", "demo"], tmpDir, { env: { TERM: term, CI: "true", FORCE_COLOR: "0", NO_COLOR: "1" } });
     const output = replay.stdout + replay.stderr;
-    const unwrappedOutput = output.replace(/\s*│\n│\s*/gu, "");
+    expect(output).toMatch(process.platform !== "win32" && term === "linux" ? /\|\r?\n\|/u : /│\r?\n│/u);
+    expect(output).not.toContain(worktree);
+    const unwrappedOutput = unwrapPresentationOutput(output);
 
     expect(replay.exitCode).toBe(0);
     expect(unwrappedOutput).toContain(worktree);

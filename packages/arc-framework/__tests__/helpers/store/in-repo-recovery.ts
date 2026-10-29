@@ -4,7 +4,7 @@ import { RecordReferenceSchema, type StoreResult } from "../../../src/lib/store/
 import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import { createReferenceFixture } from "./reference-fixture.js";
-import { seed, success, testProvenance, update } from "./suite-tools.js";
+import { seed, success, testProvenance, update, mutationOf } from "./suite-tools.js";
 import type { ConformanceFixture, RecoveryCaseId, RecoveryOperation } from "./fixture-contract.js";
 import { produceRemoteRecovery } from "./in-repo-remote-recovery.js";
 type Repairs = Map<string, () => Promise<void>>;
@@ -101,7 +101,7 @@ async function crossSubstrate(fixture: ConformanceFixture, repairs: Repairs, cas
   let split = false;
   repairs.set(caseId, async () => { split = true; });
   return { run: async () => {
-    if (!split) return fixture.store.batch({ writes: [left, right], provenance: testProvenance });
+    if (!split) return fixture.store.batch({ writes: [left, right].map(mutationOf), provenance: testProvenance });
     success(await fixture.store.write(left));
     const result = await fixture.store.write(right);
     success(result);

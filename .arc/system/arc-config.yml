@@ -59,6 +59,11 @@ worktree.post_create: bash scripts/worktree-post-create.sh
 # outside `.arc/` into the new worktree, leaving files already there in place.
 worktree.harness_dirs: .claude,.codex,.gemini,.opencode
 
+# --- Storage ---
+
+# Optional backing repository URL for ARC state. Empty uses no backing repository pointer.
+storage.backing_repository: ""
+
 # --- Commit Discipline ---
 
 # Commit message format enforced by commit-msg hook.

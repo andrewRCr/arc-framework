@@ -71,12 +71,12 @@ it("refuses conflicted hosted evidence and returns the result after resolution",
   if (listed.status !== "complete" || listed.records[0] === undefined) throw new Error("Expected hosted outcome");
   const value = reviewEvidenceFixture(listed.records[0].value), remote = createMemoryRemote();
   h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   const stored = await evidence.create(value);
   await createReviewEvidencePort(writer, primary.reference.owner).create({ ...value,
     approval: { ...value.approval, approvedAt: "2026-10-19T14:00:00Z" } });
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const record = lifecycleSuccess(await h.store.read({ reference: stored.reference }));
   expect(record.conflicts.length).toBeGreaterThan(0);
   const reader = new StoredReviewResultReader({ outcomes, evidence, readProjectId: h.projectId });

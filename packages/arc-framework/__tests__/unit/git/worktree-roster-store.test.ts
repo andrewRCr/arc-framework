@@ -40,14 +40,14 @@ it("withholds disputed primary fields after sync while retaining the marked chec
   onTestFinished(async () => rm(cwd, { recursive: true, force: true }));
   const h = createLifecycleHarness(), meta = await h.seedMeta("demo", { state: "Planning", currentWorkflow: "draft-design", owner: "original" });
   const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   const local = lifecycleSuccess(await h.store.read({ reference: meta.reference })), other = lifecycleSuccess(await writer.read({ reference: meta.reference }));
   const content = (owner: string) => renderMetaFile("demo", { state: "Planning", currentWorkflow: "draft-design", owner });
   const provenance = { verb: "race-owner", lifecycleAction: "race-owner" };
   lifecycleSuccess(await h.store.write({ action: "put", reference: meta.reference, expected: local.version, placement: { kind: "active" }, content: content("andrew"), provenance }));
   lifecycleSuccess(await writer.write({ action: "put", reference: meta.reference, expected: other.version, placement: { kind: "active" }, content: content("another"), provenance }));
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const disputed = lifecycleSuccess(await h.store.read({ reference: meta.reference })); expect(disputed.conflicts).toHaveLength(1);
   await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name: "demo" }, spawningIdentity: "andrew", now: 0 });
   const readRoster = () => runWorktreeRoster({ cwd, store: h.store,
