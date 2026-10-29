@@ -113,6 +113,8 @@ function classifyRefCarry(ref: string, outcome: PushOutcome): CarryOutcome | und
   const row = outcome.refs.find((row) => row.ref === ref);
   if (row?.status === "ok") return { ref, status: "pushed" };
   if (!row || !("reason" in row) || row.reason === "atomic transaction failed") return undefined;
+  // A receiver that reported no status may still have updated the ref, so claim no refusal; a retry reads it as landed.
+  if (row.status === "remote-failure") return { ref, status: "unreachable", cause: "error", message };
   const reasons: Record<string, CarryRefusal> = { "non-fast-forward": "non-fast-forward", "fetch first": "fetch-first", "stale info": "stale-info" };
   const knownRace = row.status === "remote-rejected" && classifyPushOutcome({ ...outcome, refs: [row] }).status === "lost-race";
   const reason = reasons[row.reason] ?? (knownRace ? "raced" : "remote-rejected");

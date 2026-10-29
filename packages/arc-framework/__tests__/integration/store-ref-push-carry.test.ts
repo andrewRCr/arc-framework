@@ -6,6 +6,7 @@ import { refCarryFixture as carryFixture, carriedBranch as branch, carriedDocume
 import { plantRef } from "../helpers/store/ref-plant.js";
 import { createRefClock } from "../helpers/store/ref-clock.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { createRefStore, RecordReferenceSchema, PushResultSchema, PushInputSchema } from "../../src/lib/store/index.js";
 
 describe.each(["default", "separate"] as const)("carried code in the %s layout", (layout) => {
@@ -129,6 +130,22 @@ it("keeps an unreachable ordered code leg independent and retries it after repai
   await h.a.exec("git", ["remote", "set-url", "origin", h.origin]);
   expect(success(await h.a.store.push({ carry: { ref: branch } })).carry).toEqual({ ref: branch, status: "pushed" });
   expect((await h.remote("git", ["rev-parse", branch])).stdout.trim()).toBe(h.code.tip);
+});
+
+it("reports a carried code ref its receiver gave no status for as unreachable, and a retry reads it as landed", async () => {
+  const h = await carryFixture("separate");
+  let armed = true;
+  const store = createRefStore({ ...h.a.ports, exec: async (command, args, options) => {
+    const result = await h.a.ports.exec(command, args, options);
+    if (!armed || !args.includes("push") || !args.some(arg => arg.endsWith(`:${branch}`))) return result;
+    armed = false;
+    throw makeGitProcessError({ command, args, exitCode: 1, stderr: "error: failed to push some refs\n",
+      stdout: `To origin\n!\t${h.code.tip}:${branch}\t[remote failure] (remote failed to report status)\nDone\n` });
+  } });
+  const result = PushResultSchema.parse(success(await store.push({ carry: { ref: branch } })));
+  expect(result.carry).toEqual({ ref: branch, status: "unreachable", cause: "error", message: expect.stringContaining("remote failed to report status") });
+  expect((await h.remote("git", ["rev-parse", branch])).stdout.trim()).toBe(h.code.tip);
+  expect(success(await store.push({ carry: { ref: branch } })).carry).toEqual({ ref: branch, status: "pushed" });
 });
 
 it("reports no code push destination while its backing state still publishes", async () => {
