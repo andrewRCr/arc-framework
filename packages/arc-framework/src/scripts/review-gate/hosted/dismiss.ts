@@ -7,7 +7,7 @@ import type { HostedGitHubThread } from "./github.js";
 import { HostedTargetSchema, type HostedTarget } from "./request.js";
 
 /** The dismissal message, written in the account owner's voice and composed here rather than by the caller. */
-export const HOSTED_DISMISSAL_MESSAGE = "Every finding in this review has been addressed and its thread resolved.";
+export const HOSTED_DISMISSAL_MESSAGE = "All of the reviewer's threads on this pull request are resolved.";
 
 /** One blocking review exactly as `arc review status` reports it under `hostReview`, at the open request's head. */
 export const HostedDismissEnvelopeSchema = z.strictObject({
