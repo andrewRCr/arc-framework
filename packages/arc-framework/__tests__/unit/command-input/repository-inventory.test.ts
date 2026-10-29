@@ -385,6 +385,9 @@ describe("repository command-input inventory", () => {
       "set-stage",
       "start",
       "status",
+      "store conflict",
+      "store migrate",
+      "store remote",
       "stub",
       "task close",
       "task defer",
@@ -542,7 +545,7 @@ describe("repository command-input inventory", () => {
     const refusal = inventory.entries.find((site) => site.commandPath === "start"
       && site.siteId === "safety.indeterminate-lifecycle");
     expect(refusal).toMatchObject({ origin: "prompt", noInput: "refuse" });
-    expect(reached.map((site) => site?.noInput).sort()).toEqual([...kinds].sort());
+    expect([...new Set(reached.map((site) => site?.noInput))].sort()).toEqual([...kinds].sort());
   });
 
   it("rejects duplicate explicit policy ownership instead of silently taking the last declaration", () => {

@@ -14,10 +14,10 @@ export async function createDecomposeCloneFixture() {
   const left = await createDecomposeOriginFixture();
   const remote = createMemoryRemote();
   left.store.context.publication.remote = remote;
-  lifecycleSuccess(await left.store.sync());
+  lifecycleSuccess(await left.store.push());
   const right = createLifecycleHarness();
   right.store.context.publication.remote = remote;
-  lifecycleSuccess(await right.store.sync());
+  lifecycleSuccess(await right.store.pull());
   return { left, right: { ...right, ctx: decomposeContext(right.store) }, remote };
 }
 

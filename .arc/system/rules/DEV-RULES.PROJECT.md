@@ -106,11 +106,13 @@ to gates still have to pass by their declared deadlines.
 
 ### Hosted CI before verification attests
 
-The local merge gate skips the `ci_only` checks, `test:integration` and `test:e2e` among them, and a feature-branch push
-starts no CI. Once the merge gate passes, dispatch CI at the pushed verified head
-(`gh workflow run ci.yml --ref <branch>`). Work-unit verification attests only on a passing run whose `headSha` is that
-head, recorded by run id in the verification commit body. Dispatch again after any later code change; planning-only
-commits need no new run.
+The local merge gate skips the `ci_only` checks, `test:integration` and `test:e2e` among them, and a feature-branch
+push starts no CI. Once the merge gate passes, dispatch CI at the pushed verified head (`gh workflow run ci.yml --ref
+<branch>`). Work-unit verification attests only on a passing run whose `headSha` is that head and that was dispatched
+with neither diagnostic input set, recorded by run id in the verification commit body: `portability_timing_only` skips
+the build, lint, type-check, unit, integration, store, and E2E jobs, and `store_per_change` narrows the store run to
+its per-change form, so either run passes for its own purpose and attests nothing. Dispatch again after any later code
+change; planning-only commits need no new run.
 
 ### Test execution
 
@@ -130,6 +132,18 @@ the full `npm run build` declaration gate and both type checks remain required. 
 and qualifies or repairs them in a consumer-local preflight before setting `ARC_E2E_SKIP_BUILD=1`. Skip-build requires
 matching context and files and forbids generation; repair installation with `npm ci` when required, then prepare
 outside that prohibited run before retrying.
+
+The store suites, every `store-ref-*` integration file, run by reach in the `test:store` merge-gate check instead of
+the integration tier. Its runner selects each suite whose reach holds a changed path, deletions included: the suite's
+import closure, every file a module in it locates from its own path, what
+`packages/arc-framework/__tests__/reach/store-suites.json` declares a locating module finds, and the widening inputs
+that reach every suite. A path built from a module's location that the runner can neither resolve to a file nor find
+declared fails the check, so a new runtime read joins the reach or stops the gate. This departs from the quality-gates
+strategy's complete suite at the merge gate: for the store suites the gate rests on that reach and on the full run CI
+makes on every push to `main`, so a miss shows on `main` after merge rather than before it. A run given no base or
+changing the selection's data file, runner, or check entry runs every suite in full. `ARC_STORE_CHECK=full` asks for a
+full run, the separate layout's whole conformance suite among it, and `ARC_STORE_CHECK=every` for every suite in its
+per-change form; the integration tier, the lane, and a pull request's portability run leave the store suites out.
 
 ## Testing Requirements
 

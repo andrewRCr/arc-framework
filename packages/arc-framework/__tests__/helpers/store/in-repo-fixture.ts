@@ -74,7 +74,7 @@ export async function createInRepoFixture(): Promise<ConformanceFixture> {
     reference(kind, suffix = "one") {
       const d = KIND_REGISTRY[kind];
       const owner = { type: d.owner, name: d.owner === "person" ? "andrew" : d.owner === "project" ? "project" : `${d.owner}-${suffix}` };
-      const key = d.key === "pass" ? { activity: "review", number: suffix === "two" ? 2 : 1 } : d.key === "path" ? `scratch-${suffix}.md` : kind === "claims/groom" ? `groom-${suffix}` : suffix;
+      const key = kind === "work-item/companion" ? suffix : d.key === "pass" ? { activity: "review", number: suffix === "two" ? 2 : 1 } : d.key === "path" ? `scratch-${suffix}.md` : kind === "claims/groom" ? `groom-${suffix}` : suffix;
       return RecordReferenceSchema.parse({ owner, kind, ...(d.key === null ? {} : { key }) });
     },
     content: inRepoContent,

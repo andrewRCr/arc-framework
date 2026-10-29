@@ -232,6 +232,10 @@ export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
     if (options?.input !== undefined && options.inputFile !== undefined) {
       throw new Error("Raw Git input and inputFile cannot both be supplied.");
     }
+    // The direct Node entrypoint runs from source before a build or dependency install.
+    // Only callers supplying cancellation need the compiled-module support graph.
+    const cancellation = options?.signal === undefined ? undefined : await import("./git/process-cancellation.js");
+    const failures = options?.signal === undefined ? undefined : await import("./git/process-error.js");
     const handles: FileHandle[] = [];
     try {
       const input = options?.inputFile === undefined ? undefined : await open(options.inputFile, "r");
@@ -244,25 +248,51 @@ export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
         const environment = Object.fromEntries(Object.entries(environmentForRawGit())
           .filter(([name]) => !options?.removeEnvironment?.includes(name)));
         const env = options?.objectAccess === "local-only" ? { ...environment, GIT_NO_LAZY_FETCH: "1" } : environment;
+        cancellation?.assertGitNotCanceled(options?.signal, { command: "git", args: effectiveArgs });
         const child = spawn("git", effectiveArgs, {
-          cwd: effectiveCwd, env, signal: options?.signal,
+          cwd: effectiveCwd, env,
           stdio: [input?.fd ?? "pipe", output?.fd ?? "pipe", "pipe"],
         });
+        let canceled = false;
+        let descendantsUnconfirmed = false;
+        let stdinError: Error | undefined;
+        const dispose = cancellation?.bindGitProcessCancellation(child, options?.signal, () => { canceled = true; }, unconfirmed => {
+          descendantsUnconfirmed = unconfirmed;
+          child.stdin?.destroy();
+          child.stdout?.destroy();
+          child.stderr?.destroy();
+        }) ?? (() => Promise.resolve());
         const stdout: Buffer[] = [], stderr: Buffer[] = [];
-        let failure: Error | undefined;
+
         child.stdout?.on("data", (chunk: Buffer) => stdout.push(chunk));
         child.stderr?.on("data", (chunk: Buffer) => stderr.push(chunk));
-        child.on("error", error => { failure = error; });
-        child.stdin?.on("error", error => { failure ??= error; });
-        child.on("close", (code, signal) => {
+        child.stdin?.on("error", (error: Error) => { stdinError = error; });
+        child.on("error", (error) => { void dispose().then(() => {
+          if (canceled && failures !== undefined) {
+            reject(new failures.GitProcessError({ command: "git", args: effectiveArgs, kind: "canceled", isCanceled: true,
+              stdout: Buffer.concat(stdout).toString("latin1"), stderr: Buffer.concat(stderr).toString("latin1"),
+              descendantsUnconfirmed, cause: error }));
+            return;
+          }
+          reject(error);
+        }).catch(reject); });
+        child.on("close", (code, signal) => { void dispose().then(() => {
           const stdoutBytes = Buffer.concat(stdout), stderrBytes = Buffer.concat(stderr);
-          if (failure !== undefined) { reject(failure); return; }
+          if (canceled && failures !== undefined) {
+            reject(new failures.GitProcessError({ command: "git", args: effectiveArgs, kind: "canceled", isCanceled: true,
+              stdout: stdoutBytes.toString("latin1"), stderr: stderrBytes.toString("latin1"), descendantsUnconfirmed }));
+            return;
+          }
+          if (code === 0 && stdinError) {
+            reject(Object.assign(stdinError, { stdout: stdoutBytes, stderr: stderrBytes }));
+            return;
+          }
           if (code === 0) { resolveResult({ stdout: stdoutBytes, stderr: stderrBytes }); return; }
           reject(Object.assign(new Error(`git ${effectiveArgs[0] ?? "command"} failed with exit code ${code ?? "unknown"}`), {
             ...(code === null ? {} : { exitCode: code }), ...(signal === null ? {} : { signal }),
             stdout: stdoutBytes, stderr: stderrBytes,
           }));
-        });
+        }).catch(reject); });
         child.stdin?.end(options?.input);
       });
     } finally {

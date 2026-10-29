@@ -60,7 +60,7 @@ describe("record link targets", () => {
   ] as const)("admits legal target from %s: %s %s", (kind, key, url) => {
     expect(readRecordLinkViolations(reference(kind, key), `[x](${url})`)).toEqual([]);
   });
-  it.each(["diagram", "spec-prd", "spec-rfc"])("reads conventional Markdown companion %s", key => {
+  it.each(["diagram", "spec-prd", "spec-rfc", "diagram.md", "spec-prd.md", "spec-rfc.md"])("reads Markdown companion path %s", key => {
     expect(readRecordLinkViolations(reference("work-item/companion", key), "[x](relative.md)"))
       .toEqual([expect.objectContaining({ rule: "links.relative-in-movable" })]);
   });

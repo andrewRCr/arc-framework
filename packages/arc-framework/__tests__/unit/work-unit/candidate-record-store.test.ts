@@ -47,6 +47,22 @@ function record(): CandidateManagedRecordV1 {
 }
 
 describe("Candidate supersession history", () => {
+  it("reads predecessors at the revision that supplied a composed work unit", async () => {
+    const predecessor = record();
+    const current = CandidateManagedRecordV1Schema.parse({ ...predecessor,
+      attestation: createCandidateAttestation({ workUnit: "example", subject: predecessor.subject,
+        baseRevision: "b".repeat(40), attestedBy: "andrew", attestedAt: "2026-08-13T14:00:00.000Z",
+        verificationEvidenceRef: "verification://branch", supersedes: predecessor.attestation.candidateId }),
+    });
+    const revision = "c".repeat(40);
+    const ancestor = "d".repeat(40);
+    const result = await readRepositoryCandidateSupersessionChain({ cwd: "/repo", workUnit: "example", record: current, revision,
+      exec: async (_command, args) => ({ stdout: args[0] === "log"
+        ? args.includes(revision) ? `${ancestor}\n` : ""
+        : serializeCandidateManagedRecord(predecessor) }),
+    });
+    expect(result).toMatchObject([{ candidateId: predecessor.attestation.candidateId, recordRevision: ancestor }]);
+  });
   it("pins recovery to the commit containing the exact predecessor Candidate", async () => {
     const predecessor = record();
     const revision = "b".repeat(40);

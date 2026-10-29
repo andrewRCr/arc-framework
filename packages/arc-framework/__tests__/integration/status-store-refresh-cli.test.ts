@@ -17,6 +17,7 @@ import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integrat
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
 import { runHandlerAt } from "../helpers/handler.js";
+import { PullResultSchema } from "../../src/lib/store/sync.js";
 
 const binding = vi.hoisted(() => ({ store: null as Store | null, sync: null as StoreSyncPort | null }));
 vi.mock("../../src/handlers/status/session-context.js", async importOriginal => {
@@ -58,15 +59,60 @@ async function session(h: Awaited<ReturnType<typeof fixture>>, sync: StoreSyncPo
 it("dispatches a registered slug query through the session's selected store and synchronization port", async () => {
   const h = await fixture();
   binding.store = h.store;
-  binding.sync = createStoreSyncPort({ pull: async () => {
+  h.store.pull = async () => {
     lifecycleSuccess(await h.store.write({ ...recordPut(h.meta, { content: writeMetaOwner(h.meta.content, SlugSchema.parse("bob")) }),
       provenance: { verb: "pull", lifecycleAction: "pull" } }));
-    return { status: "pulled" };
-  } });
+    return { status: "ok", result: PullResultSchema.parse({ states: [], pulls: [{ status: "pulled", remote: "origin", role: "state", families: ["work-item"], notices: [] }] }) };
+  };
   try {
     const result = await runHandlerAt(h.cwd, () => dispatchRegisteredCli(["--no-input", "status", "demo", "--fetch", "--json"]));
     expect(result.exitCode).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({ slug: "demo", state: "planning", owner: "bob" });
+  } finally { binding.store = null; binding.sync = null; }
+}, 30_000);
+
+it("preserves incomplete pulls and retained-conflict notices in every registered status mode while local queries stay offline", async () => {
+  const h = await fixture();
+  binding.store = h.store;
+  let offline = false;
+  const item = h.meta.reference.owner;
+  const conflict = recordReferences["work-item/conflict-record"](item, "held");
+  h.store.pull = async () => {
+    if (offline) throw new Error("A local status query attempted a pull");
+    return { status: "ok", result: PullResultSchema.parse({ states: [], pulls: [{ status: "failed", remote: "backup", role: "state", families: ["work-item"],
+      failure: { code: "refused", class: "terminal", message: "Backup refused state.", condition: "Backup refused state.", remedy: { text: "Repair backup." } },
+      notices: [{ kind: "ended-with-conflicts", item, conflicts: [conflict], condition: "Ended state retained.", remedy: { text: "Inspect and discard the retained conflict." } }] }] }) };
+  };
+  try {
+    for (const mode of [[], ["--project"], ["--user"], ["--conflicts"], ["demo"]]) {
+      const result = await runHandlerAt(h.cwd, () => dispatchRegisteredCli(["--no-input", "status", ...mode, "--fetch", "--json"]));
+      expect.soft(result.exitCode, mode.join(" ")).toBe(0);
+      const output = JSON.parse(result.stdout) as { warnings?: unknown };
+      const warnings = JSON.stringify(output.warnings ?? []);
+      expect.soft(warnings, mode.join(" ")).toContain("Backup refused state.");
+      expect.soft(warnings, mode.join(" ")).toContain("Repair backup.");
+      expect.soft(warnings, mode.join(" ")).toContain("Ended state retained.");
+      expect.soft(warnings, mode.join(" ")).toContain("Inspect and discard the retained conflict.");
+      expect.soft(warnings, mode.join(" ")).toContain("ordinary conflict view does not list");
+      expect.soft(warnings, mode.join(" ")).toContain("demo");
+    }
+    offline = true;
+    const local = await runHandlerAt(h.cwd, () => dispatchRegisteredCli(["--no-input", "status", "demo", "--fetch", "--local", "--json"]));
+    expect(local.exitCode, local.stderr).toBe(0);
+    expect(JSON.parse(local.stdout).warnings ?? []).toEqual([]);
+    offline = false;
+    h.store.version = async () => ({ status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: "project",
+      condition: "Local project state is unreadable.", remedy: { text: "Repair local project state." } } });
+    h.store.list = async () => ({ status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: "project",
+      condition: "Local project state is unreadable.", remedy: { text: "Repair local project state." } } });
+    for (const mode of [["--project"], ["--user"], ["--conflicts"], ["demo"]]) {
+      const result = await runHandlerAt(h.cwd, () => dispatchRegisteredCli(["--no-input", "status", ...mode, "--fetch", "--json"]));
+      expect.soft(result.exitCode, mode.join(" ")).toBe(1);
+      const output = JSON.parse(result.stdout) as { status: string; warnings?: unknown };
+      expect.soft(output.status, mode.join(" ")).toBe("refused");
+      expect.soft(JSON.stringify(output.warnings ?? []), mode.join(" ")).toContain("Ended state retained.");
+      expect.soft(JSON.stringify(output.warnings ?? []), mode.join(" ")).toContain("Inspect and discard the retained conflict.");
+    }
   } finally { binding.store = null; binding.sync = null; }
 }, 30_000);
 

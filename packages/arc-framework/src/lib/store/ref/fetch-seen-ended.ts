@@ -1,0 +1,50 @@
+/** Release prune keepers only after a captured published end makes them unnecessary. */
+import { rethrowRefFetchKeeperLock } from "./fetch-keeper-lock.js";
+import { updateRefTransaction } from "../../git/ref-transaction.js";
+import type { RefBackendContext } from "./context.js";
+import { readSyncRefs } from "./sync-graph.js";
+import { readLifecycleFolders } from "./sync-lifecycle.js";
+import { withRefFetchKeepers } from "./fetch-seen.js";
+import { readRefTrees, readBatchObjects } from "./batch-read.js";
+import { decodeCapturedRef } from "./read.js";
+
+/** A read source needs fetched end proof and live absence; a merged source also needs applied local history. */
+export async function releaseEndedRefKeepers(context: RefBackendContext, remote: string,
+  incoming: ReadonlyMap<string, string>, keepers: ReadonlyMap<string, string>, readOnly = false): Promise<void> {
+  if (!keepers.size) return;
+  await withRefFetchKeepers(context, remote, () => releaseCapturedKeepers(context, remote, incoming, keepers, readOnly));
+}
+
+async function releaseCapturedKeepers(context: RefBackendContext, remote: string,
+  incoming: ReadonlyMap<string, string>, keepers: ReadonlyMap<string, string>, readOnly: boolean): Promise<void> {
+  const prefix = `refs/arc/tmp/seen/${remote}/`;
+  const tracking = await capturedTracking(context, remote);
+  const state = readOnly ? tracking : await readSyncRefs(context, "refs/arc/");
+  const proof = new Map([...incoming].filter(([ref, tip]) => tracking.get(ref) === tip));
+  const ended = new Set((await readLifecycleFolders(context, proof)).map(({ liveRef }) => liveRef));
+  for (const ref of await publishedLineageRefs(context, proof)) ended.add(ref);
+  for (const [ref, tip] of keepers) {
+    const live = `refs/arc/${ref.slice(prefix.length)}`, history = live.replace("refs/arc/", "refs/arc/history/");
+    if (ended.has(live) && !state.has(live) && (readOnly || state.has(history))) {
+      await updateRefTransaction(context, [{ ref, delete: true, expected: tip }], { cwd: context.checkoutRoot })
+        .catch((error: unknown) => rethrowRefFetchKeeperLock(context, [ref], error));
+    }
+  }
+}
+
+async function capturedTracking(context: RefBackendContext, remote: string): Promise<Map<string, string>> {
+  const prefix = `refs/arc-remotes/${remote}/`;
+  return new Map([...(await readSyncRefs(context, prefix))].map(([ref, tip]) => [`refs/arc/${ref.slice(prefix.length)}`, tip]));
+}
+
+async function publishedLineageRefs(context: RefBackendContext, incoming: ReadonlyMap<string, string>): Promise<string[]> {
+  const ref = "refs/arc/project/registry", tip = incoming.get(ref);
+  if (!tip) return [];
+  const entries = (await readRefTrees(context, new Map([[ref, tip]]))).get(ref);
+  if (!entries) return [];
+  const objects = await readBatchObjects(context, [...new Set(entries.filter(({ path }) =>
+    path === "metadata-registry.json" || path.startsWith("lineage/")).map(({ oid }) => oid))]);
+  const decoded = decodeCapturedRef(context, { family: "lineage", kind: "lineage/transition" }, ref, entries, objects);
+  return decoded.records.flatMap(({ reference }) => reference.owner.type === "work-item" && reference.owner.uid
+    ? [`refs/arc/work/${reference.owner.uid}`] : []);
+}

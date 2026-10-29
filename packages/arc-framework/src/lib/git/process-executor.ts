@@ -12,6 +12,8 @@ import { finished } from "node:stream/promises";
 import type { InteractionContext } from "../command-input/interaction-context.js";
 import type { RawGitExec } from "./exec.js";
 import { PUSH_GATE_ID_VARIABLE, type GitExec, type GitExecInput } from "./exec.js";
+import { runCancelableGitProcess } from "./process-cancellation.js";
+import { assertNativeGitCommandLineCapacity } from "./command-line-capacity.js";
 import { normalizeGitRejection } from "./process-error.js";
 import { sanitizeGitRepositoryEnvironment } from "./repository-environment.mjs";
 
@@ -45,11 +47,12 @@ function isLiteralOpenSshExecutable(executable: string): boolean {
  * Build an environment where `cwd` selects the Git repository.
  *
  * @param cwd - Repository working directory, when the command is cwd-scoped.
+ * @param environment - Optional invocation-owned environment, replacing ambient inheritance.
  * @returns The inherited environment without repository-local Git overrides.
  */
-export function environmentForGitCwd(cwd: string | undefined): NodeJS.ProcessEnv | undefined {
-  if (cwd === undefined) return undefined;
-  return sanitizeGitRepositoryEnvironment(process.env);
+export function environmentForGitCwd(cwd: string | undefined, environment?: NodeJS.ProcessEnv): NodeJS.ProcessEnv | undefined {
+  if (cwd === undefined) return environment;
+  return sanitizeGitRepositoryEnvironment(environment ?? process.env);
 }
 
 function applyInteractionEnvironment(
@@ -102,11 +105,13 @@ function applyNonInteractiveSshEnvironment(base: NodeJS.ProcessEnv): NodeJS.Proc
  * Construct the captured-output execa adapter without changing the live binding.
  *
  * @param maxBuffer - Captured-output ceiling; injectable only for focused process-boundary tests.
+ * @param environment - Optional snapshot used by this binding without changing process.env.
  * @returns A plain-Promise {@link GitExec} implementation.
  */
-export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
+export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES, environment?: NodeJS.ProcessEnv): GitExec {
+  const boundEnvironment = environment === undefined ? undefined : { ...environment };
   return async (command, args, options) => {
-    const environment = environmentForGitCwd(options?.cwd);
+    const environment = environmentForGitCwd(options?.cwd, boundEnvironment);
     const indexedEnvironment = options?.indexFile === undefined
       ? environment
       : { ...(environment ?? process.env), GIT_INDEX_FILE: options.indexFile };
@@ -127,15 +132,19 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
       ? ["--no-lazy-fetch", ...args]
       : args;
     try {
-      const result = await execa(command, effectiveArgs, {
-        cwd: options?.cwd,
-        env,
-        extendEnv: env === undefined,
-        cancelSignal: options?.signal,
-        maxBuffer,
-        stripFinalNewline: false,
-        ...(options?.interaction?.ambientStdin === "closed" ? { stdin: "ignore" as const } : {}),
-      });
+      const result = await runCancelableGitProcess((cancelSignal) => {
+        if (options?.checkNativeWindowsArgv) assertNativeGitCommandLineCapacity(command, effectiveArgs);
+        return execa(command, effectiveArgs, {
+          cwd: options?.cwd,
+          env,
+          extendEnv: env === undefined,
+          cancelSignal,
+          maxBuffer,
+          stripFinalNewline: false,
+          ...(options?.input !== undefined ? { input: options.input }
+            : options?.interaction?.ambientStdin === "closed" ? { stdin: "ignore" as const } : {}),
+        });
+      }, options?.signal, { command, args: effectiveArgs });
       return {
         stdout: options?.preserveOutput === true ? result.stdout : result.stdout.trimEnd(),
         stderr: result.stderr,
@@ -146,14 +155,20 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
   };
 }
 
-/** Construct a byte-preserving Git adapter for raw tree and object reads. */
+/** Construct a byte-preserving Git adapter for raw tree and object reads.
+ * @param onStart - Optional process-attempt observer, including starts inside persistent readers.
+ * @param environment - Optional snapshot used by this binding without changing process.env.
+ */
 export function createExecaRawGitExec(
   cwd = process.cwd(),
   maxBuffer = MAX_GIT_OUTPUT_BYTES,
+  onStart?: () => void,
+  environment?: NodeJS.ProcessEnv,
 ): RawGitExec {
+  const boundEnvironment = environment === undefined ? undefined : { ...environment };
   return async (args, options = {}) => {
     const effectiveCwd = options.cwd ?? cwd;
-    const environment = environmentForGitCwd(effectiveCwd);
+    const environment = environmentForGitCwd(effectiveCwd, boundEnvironment);
     const filteredEnvironment = Object.fromEntries(
       Object.entries(environment ?? process.env).filter(([name]) => !options.removeEnvironment?.includes(name)),
     );
@@ -163,13 +178,13 @@ export function createExecaRawGitExec(
     const objectEnvironment = options.objectAccess === "local-only"
       ? { ...indexedEnvironment, GIT_NO_LAZY_FETCH: "1" }
       : indexedEnvironment;
-    const env = applyNonInteractiveSshEnvironment(
-      applyInteractionEnvironment(objectEnvironment, {
-        terminalPrompts: "forbidden",
-        presenters: "forbidden",
-        ambientStdin: "closed",
-      }) ?? objectEnvironment,
-    );
+    const interactionEnvironment = applyInteractionEnvironment(objectEnvironment, {
+      terminalPrompts: "forbidden",
+      presenters: "forbidden",
+      ambientStdin: "closed",
+    }) ?? objectEnvironment;
+    const env = options.objectAccess === "local-only" ? interactionEnvironment
+      : applyNonInteractiveSshEnvironment(interactionEnvironment);
     const effectiveArgs = options.objectAccess === "local-only"
       ? ["--no-lazy-fetch", ...args]
       : args;
@@ -179,6 +194,11 @@ export function createExecaRawGitExec(
     const handles: FileHandle[] = [];
     const streams: Array<Readable | Writable> = [];
     try {
+      if (options.batchReader && options.objectAccess === "local-only" && options.input !== undefined
+        && options.outputFile === undefined && args.at(-2) === "cat-file" && args.at(-1) === "--batch") {
+        return await options.batchReader.run({ args: effectiveArgs, cwd: effectiveCwd, env, maxBuffer,
+          input: options.input, signal: options.signal, onStart });
+      }
       const input = options.inputFile === undefined ? undefined : await open(options.inputFile, "r");
       if (input !== undefined) handles.push(input);
       const output = options.outputFile === undefined ? undefined : await open(options.outputFile, "wx", 0o600);
@@ -186,18 +206,21 @@ export function createExecaRawGitExec(
       const inputStream: Readable | undefined = input?.createReadStream({ autoClose: false });
       const outputStream: Writable | undefined = output?.createWriteStream({ autoClose: false });
       streams.push(...[inputStream, outputStream].filter(stream => stream !== undefined));
-      const result = await execa("git", effectiveArgs, {
-        cwd: effectiveCwd,
-        cancelSignal: options.signal,
-        env,
-        encoding: "buffer",
-        stripFinalNewline: false,
-        extendEnv: false,
-        maxBuffer,
-        ...(outputStream === undefined ? {} : { stdout: outputStream, buffer: { stdout: false } }),
-        ...(inputStream !== undefined ? { stdin: inputStream }
-          : options.input === undefined ? { stdin: "ignore" as const } : { input: options.input }),
-      });
+      const result = await runCancelableGitProcess((cancelSignal) => {
+        onStart?.();
+        return execa("git", effectiveArgs, {
+          cwd: effectiveCwd,
+          env,
+          cancelSignal,
+          encoding: "buffer",
+          stripFinalNewline: false,
+          extendEnv: false,
+          maxBuffer,
+          ...(outputStream === undefined ? {} : { stdout: outputStream, buffer: { stdout: false } }),
+          ...(inputStream !== undefined ? { stdin: inputStream }
+            : options.input === undefined ? { stdin: "ignore" as const } : { input: options.input }),
+        });
+      }, options.signal, { command: "git", args: effectiveArgs });
       return { stdout: result.stdout ?? new Uint8Array(), stderr: result.stderr };
     } catch (error) {
       throw normalizeGitRejection(error, { command: "git", args: effectiveArgs });
@@ -215,30 +238,37 @@ export function createExecaRawGitExec(
  *
  * @param maxBuffer - Captured-output ceiling; injectable only for focused process-boundary tests.
  * @param interaction - Invocation-bound terminal and prompt policy.
+ * @param environment - Optional snapshot used by this binding without changing process.env.
  * @returns A raw-stdout {@link GitExecInput} implementation.
  */
 export function createExecaGitExecInput(
   maxBuffer = MAX_GIT_OUTPUT_BYTES,
   interaction?: InteractionContext["subprocess"],
+  environment?: NodeJS.ProcessEnv,
 ): GitExecInput {
+  const boundEnvironment = environment === undefined ? undefined : { ...environment };
   return async (args, input, options) => {
-    const environment = environmentForGitCwd(options?.cwd);
-    const objectEnvironment = options?.objectAccess === "local-only"
-      ? { ...(environment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
+    const environment = environmentForGitCwd(options?.cwd, boundEnvironment);
+    const diagnosticEnvironment = options?.diagnosticLocale === "stable"
+      ? { ...(environment ?? process.env), LC_ALL: "C", LANG: "C" }
       : environment;
+    const objectEnvironment = options?.objectAccess === "local-only"
+      ? { ...(diagnosticEnvironment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
+      : diagnosticEnvironment;
     const env = applyInteractionEnvironment(objectEnvironment, interaction);
     const effectiveArgs = options?.objectAccess === "local-only"
       ? ["--no-lazy-fetch", ...args]
       : args;
     try {
-      const result = await execa("git", effectiveArgs, {
+      const result = await runCancelableGitProcess((cancelSignal) => execa("git", effectiveArgs, {
         cwd: options?.cwd,
         env,
         extendEnv: env === undefined,
         input,
+        cancelSignal,
         maxBuffer,
         stripFinalNewline: false,
-      });
+      }), options?.signal, { command: "git", args: effectiveArgs });
       return result.stdout;
     } catch (error) {
       throw normalizeGitRejection(error, { command: "git", args: effectiveArgs });

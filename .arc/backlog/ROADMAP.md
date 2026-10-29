@@ -1,7 +1,6 @@
 # Roadmap: Project Status
 
 > **Generated from meta files — re-render at ceremony boundaries.**
-> Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -13,21 +12,21 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                       | Priority | Owner  | Depends on          | Cohort        |
-| ---------- | ------------------------------- | -------- | ------ | ------------------- | ------------- |
-| `Planning` | storage-projection              | P1       | andrew | storage-ref-backend | state-storage |
-| `Active`   | storage-ref-backend             | P1       | andrew | —                   | state-storage |
-| `Planning` | cohort-identity-verbs           | P1       | andrew | storage-ref-backend | storage-seam  |
-| `Active`   | seam-delivery-review            | P1       | andrew | —                   | storage-seam  |
-| `Planning` | adopter-install-authority       | P1       | andrew | storage-cutover     | —             |
-| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                   | —             |
-| `Planning` | decomposition-doctrine          | P1       | andrew | —                   | —             |
-| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                   | —             |
-| `Active`   | lifecycle-slug-selection        | P1       | andrew | —                   | —             |
-| `Planning` | review-checkout-lifecycle       | P1       | andrew | —                   | —             |
-| `Planning` | stub-mint-to-launch             | P1       | andrew | —                   | —             |
-| `Planning` | cli-output-contract             | P2       | andrew | —                   | —             |
-| `Active`   | distributed-check-shards        | P3       | andrew | storage-ref-backend | —             |
+| State         | Work unit                       | Priority | Owner  | Depends on          | Cohort        |
+| ------------- | ------------------------------- | -------- | ------ | ------------------- | ------------- |
+| `Planning`    | storage-projection              | P1       | andrew | storage-ref-backend | state-storage |
+| `Integrating` | storage-ref-backend             | P1       | andrew | —                   | state-storage |
+| `Planning`    | cohort-identity-verbs           | P1       | andrew | storage-ref-backend | storage-seam  |
+| `Active`      | seam-delivery-review            | P1       | andrew | —                   | storage-seam  |
+| `Planning`    | adopter-install-authority       | P1       | andrew | storage-cutover     | —             |
+| `Planning`    | candidate-reroot-recovery-frame | P1       | andrew | —                   | —             |
+| `Planning`    | decomposition-doctrine          | P1       | andrew | —                   | —             |
+| `Planning`    | delivery-rebuild-continuity     | P1       | andrew | —                   | —             |
+| `Active`      | lifecycle-slug-selection        | P1       | andrew | —                   | —             |
+| `Planning`    | review-checkout-lifecycle       | P1       | andrew | —                   | —             |
+| `Planning`    | stub-mint-to-launch             | P1       | andrew | —                   | —             |
+| `Planning`    | cli-output-contract             | P2       | andrew | —                   | —             |
+| `Active`      | distributed-check-shards        | P3       | andrew | storage-ref-backend | —             |
 
 ## Ready
 

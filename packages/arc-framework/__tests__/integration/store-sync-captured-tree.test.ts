@@ -36,13 +36,13 @@ describe.each(["local", "incoming"] as const)("captured %s tree", (side) => {
       return base(command, args, options);
     };
     let failure: unknown;
-    try { await h.a.store.sync(); } catch (error) { failure = error; }
+    try { await h.a.store.push(); } catch (error) { failure = error; }
     expect(original).toBeDefined();
     expect(failure).toMatchObject({ code: "store.sync-failed", cause: original });
     expect((await h.a.exec("git", ["rev-parse", syncErrandRef])).stdout.trim()).toBe(localBefore);
     expect((await h.remote("git", ["rev-parse", syncErrandRef])).stdout.trim()).toBe(remoteBefore);
     h.a.ports.exec = base;
-    expect(success(await h.a.store.sync()).publishes[1]?.status).toBe("reconciled");
+    expect(success(await h.a.store.push()).publishes[1]?.status).toBe("reconciled");
     expect((await h.remote("git", ["ls-tree", "--name-only", syncErrandRef])).stdout.trim().split("\n"))
       .toEqual(["alpha", "beta", "gamma"]);
   });

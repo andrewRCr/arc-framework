@@ -16,6 +16,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 describe("captured command output", () => {
@@ -23,17 +24,19 @@ describe("captured command output", () => {
     const controller = new AbortController();
     let running!: () => void;
     const started = new Promise<void>(resolve => { running = resolve; });
-    execaMock.mockImplementation((_command, _args, options: { cancelSignal?: AbortSignal }) => new Promise((resolve, reject) => {
+    const kill = vi.fn();
+    execaMock.mockImplementation((_command, _args, options: { cancelSignal?: AbortSignal }) => Object.assign(new Promise((resolve, reject) => {
       running();
       if (options.cancelSignal === undefined) { resolve({ stdout: Buffer.from("uncancelled"), stderr: Buffer.alloc(0) }); return; }
       options.cancelSignal.addEventListener("abort", () => {
         reject(Object.assign(new Error("The operation was canceled"), { isCanceled: true, name: "AbortError" }));
       }, { once: true });
-    }));
+    }), { pid: undefined, kill }));
     const pending = createExecaRawGitExec()(["--version"], { signal: controller.signal });
     await started;
     controller.abort();
     await expect(pending).rejects.toMatchObject({ kind: "canceled", isCanceled: true });
+    expect(kill).toHaveBeenCalledWith("SIGKILL");
   });
 
   it("preserves stdout whitespace when the caller requests exact output", async () => {
@@ -43,6 +46,34 @@ describe("captured command output", () => {
     await expect(createExecaGitExec()("git", ["var", "GIT_EDITOR"]))
       .resolves.toEqual({ stdout: "command\\", stderr: "" });
   });
+});
+
+it("feeds owned input while preserving exact output and diagnostics under closed ambient stdin", async () => {
+  execaMock.mockImplementation(async (_command, _args, options) => ({
+    stdout: options.input ?? "No owned input reached the child", stderr: "Retained diagnostic\n",
+  }));
+  const input = "refs/arc/history/work/example*:refs/arc-remotes/origin/history/work/example*\n";
+  await expect(createExecaGitExec()("git", ["fetch", "--stdin", "origin"], { input, preserveOutput: true,
+    interaction: { terminalPrompts: "forbidden", presenters: "forbidden", ambientStdin: "closed" } }))
+    .resolves.toEqual({ stdout: input, stderr: "Retained diagnostic\n" });
+});
+
+it("guards the final Windows argv including repository and executor prefixes", async () => {
+  vi.stubGlobal("process", { ...process, platform: "win32" });
+  execaMock.mockResolvedValue({ stdout: "Child started", stderr: "" });
+  const args = ["--git-dir=C:/" + "x".repeat(32_738), "push"];
+  await expect(createExecaGitExec()("git", args, { checkNativeWindowsArgv: true }))
+    .resolves.toEqual({ stdout: "Child started", stderr: "" });
+  await expect(createExecaGitExec()("git", args, { checkNativeWindowsArgv: true, objectAccess: "local-only" }))
+    .rejects.toMatchObject({ kind: "command-line-capacity", stdout: "", stderr: "", commandLine: { limit: 32_767 } });
+});
+
+it("preserves already-aborted cancellation ahead of Windows capacity", async () => {
+  vi.stubGlobal("process", { ...process, platform: "win32" });
+  const controller = new AbortController(); controller.abort();
+  await expect(createExecaGitExec()("git", ["push", "x".repeat(40_000)], {
+    checkNativeWindowsArgv: true, signal: controller.signal,
+  })).rejects.toMatchObject({ kind: "canceled" });
 });
 
 describe("push gate identifier", () => {

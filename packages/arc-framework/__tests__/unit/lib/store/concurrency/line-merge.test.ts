@@ -3,14 +3,14 @@ import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import { lint } from "markdownlint/promise";
 import { displayWidth } from "../../../../../src/lib/markdown/display-width.js";
-import type { RecordReference } from "../../../../../src/lib/store/identity.js";
+import { RecordVersionSchema, type RecordReference } from "../../../../../src/lib/store/identity.js";
 import { mergeLineText, type MergeTextInput } from "../../../../../src/lib/store/concurrency/line-merge.js";
 
 const record = {owner:{type:"person",name:"owner"},kind:"personal/document",key:"notes.md"} as RecordReference;
 const currentLabel = {actor:"current-session",time:"2026-10-01T00:00:00Z"};
 const incomingLabel = {actor:"incoming-session",time:"2026-10-01T01:00:00Z"};
 function input(base: string,current: string,incoming: string): MergeTextInput {
-  return {base,current,incoming,record,currentLabel,incomingLabel};
+  return {base,current,incoming,record,baseVersion:null,currentLabel,incomingLabel};
 }
 
 function table(width: number, first = "a", last = "c"): string {
@@ -33,7 +33,7 @@ describe("Markdown table padding", () => {
     const base = table(5), current = table(12, "current-wide"), incoming = table(15, "incoming-longer", "last-edit");
     const result = mergeLineText(input(base, current, incoming));
     expect(result.content).toBe(table(12, "current-wide", "last-edit"));
-    expect(result.conflicts).toEqual([{record,location:{kind:"hunk",start:2,end:3},base:base.split("\n")[2],
+    expect(result.conflicts).toEqual([{record,baseVersion:null,currentLines:1,incomingLines:1,location:{kind:"hunk",start:2,end:3},base:base.split("\n")[2],
       current:{content:current.split("\n")[2],label:currentLabel},incoming:{content:incoming.split("\n")[2],label:incomingLabel}}]);
   });
 
@@ -107,7 +107,7 @@ describe("Markdown table padding", () => {
       const current = base.replace("-----",left);
       const incoming = base.replace("-----",right);
       expect(mergeLineText(input(base,current,incoming))).toEqual({content:current,conflicts:[{
-        record,location:{kind:"hunk",start:1,end:2},base:base.split("\n")[1],
+        record,baseVersion:null,currentLines:1,incomingLines:1,location:{kind:"hunk",start:1,end:2},base:base.split("\n")[1],
         current:{content:current.split("\n")[1],label:currentLabel},
         incoming:{content:incoming.split("\n")[1],label:incomingLabel},
       }]});
@@ -167,7 +167,7 @@ describe("three-way prose merge", () => {
 it("preserves touching conflicting hunks as labelled data with a base line range", () => {
   const result = mergeLineText(input("a\nb\nc\nd","a\nB\nc\nd","a\nb\nC\nd"));
   expect(result.content).toBe("a\nB\nc\nd");
-  expect(result.conflicts).toEqual([{record,location:{kind:"hunk",start:1,end:3},base:"b\nc",
+  expect(result.conflicts).toEqual([{record,baseVersion:null,currentLines:2,incomingLines:2,location:{kind:"hunk",start:1,end:3},base:"b\nc",
     current:{content:"B\nc",label:currentLabel},incoming:{content:"b\nC",label:incomingLabel}}]);
   const overlap = mergeLineText(input("before\nbase\nafter","before\ncurrent\nafter","before\nincoming\nafter"));
   expect(overlap.content).toBe("before\ncurrent\nafter");
@@ -205,3 +205,14 @@ it("returns the other side byte for byte when one side is unchanged", () => {
     expect(mergeLineText(input(base,edit,base))).toEqual({content:edit,conflicts:[]});
   }), {numRuns:400});
 });
+
+it.each([{ baseVersion: RecordVersionSchema.parse("observed-base") }, { baseVersion: null }])("retains the merge's supplied base version $baseVersion", ({ baseVersion }) => {
+  const result = mergeLineText({ ...input("base\n", "current\n", "incoming\n"), baseVersion });
+  expect(result.conflicts[0]).toMatchObject({ baseVersion, currentLines: 1, incomingLines: 1 });
+});
+for (const side of ["current", "incoming"] as const) it.each([{ content: "", count: 0 }, { content: "\n", count: 1 }])(
+  `distinguishes an empty ${side} side from one blank line: $count`, ({ content, count }) => {
+    const result = mergeLineText(input("base\n", side === "current" ? content : "edited\n", side === "incoming" ? content : "edited\n"));
+    expect(result.conflicts[0]).toMatchObject({ [side]: { content: "" }, [`${side}Lines`]: count });
+  },
+);

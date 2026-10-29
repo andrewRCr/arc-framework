@@ -19,7 +19,7 @@ export async function handleConflictStatus(context: SessionStatusContext, opts: 
   const pullWarnings = opts.fetch === true && !opts.local ? await pullStoreStatus({ sync: context.storeSync }) : [];
   const read = typeof opts.conflicts === "string" ? await readStoreConflictToken({ store, identity, token: opts.conflicts })
     : await readStoreConflicts({ store, identity });
-  if (read.status === "refused") { renderStatusViewRefusal(read.refusal, opts); return; }
+  if (read.status === "refused") { renderStatusViewRefusal(read.refusal, opts, pullWarnings.map(warning => warning.rendered)); return; }
   const result = { conflicts: read.result.conflicts, warnings: [...pullWarnings.map(warning => warning.rendered), ...read.result.warnings] };
   if (!opts.json) for (const warning of result.warnings) process.stderr.write(`warning: ${warning}\n`);
   process.stdout.write(`${opts.json ? JSON.stringify(result) : renderStoreConflicts(result.conflicts)}\n`);

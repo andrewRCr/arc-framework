@@ -73,7 +73,9 @@ it("refuses a source conflict filed after the additive batch and continues after
   const reference = recordReferences["work-item/conflict-record"](subject.reference.owner, "11111111");
   const label = { actor: "other-writer", time: "2026-10-19T00:00:00.000Z" };
   lifecycleSuccess(await h.store.write({ action: "put", reference, expected: null,
-    content: JSON.stringify({ record: subject.reference, location: { kind: "hunk", start: 0, end: 1 },
+    content: JSON.stringify({ record: subject.reference, baseVersion: subject.version,
+      currentLines: subject.content.replace(/\n$/, "").split("\n").length, incomingLines: 1,
+      location: { kind: "hunk", start: 0, end: subject.content.replace(/\n$/, "").split("\n").length },
       base: subject.content, current: { content: subject.content, label }, incoming: { content: "# Competing content\n", label } }),
     provenance: { verb: "sync", lifecycleAction: "merge" } }));
   const before = lifecycleSuccess(await h.store.version());

@@ -8,7 +8,7 @@ for (const effects of [false, true]) {
   it.each(["canceled", "output-limit", "unknown"] as const)(`retains %s merge uncertainty; effects: ${effects}`, async (kind) => {
     const h = await syncFixture();
     await h.b.inbox("remote contested bytes\n");
-    success(await h.b.store.sync());
+    success(await h.b.store.push());
     await h.a.inbox("local contested bytes\n");
     const remoteBefore = (await h.remote("git", ["rev-parse", syncNotesRef])).stdout.trim();
     const actual = h.a.ports.exec, lock = h.a.ports.locks.notes;
@@ -32,7 +32,7 @@ for (const effects of [false, true]) {
       return actual(command, args, options);
     };
     let failure: unknown;
-    try { await h.a.store.sync(); } catch (error) { failure = error; }
+    try { await h.a.store.push(); } catch (error) { failure = error; }
     expect(original).toBeDefined();
     expect(anchor).toBeDefined();
     expect(failure).toMatchObject({ code: "store.sync-failed", cause: {
@@ -56,7 +56,7 @@ for (const effects of [false, true]) {
     await h.a.exec("git", ["fetch", "origin", `${syncNotesRef}:refs/arc/test/remote-notes`]);
     await h.a.exec("git", ["update-ref", syncNotesRef, remoteBefore, anchor!]);
     await h.a.inbox("combined local and remote contested bytes\n");
-    expect(success(await h.a.store.sync()).publishes[0]?.status).toBe("pushed");
+    expect(success(await h.a.store.push()).publishes[0]?.status).toBe("pushed");
     const published = await h.remote("git", ["notes", "--ref", syncNotesRef, "show", "HEAD"]);
     expect(published.stdout).toContain("combined local and remote contested bytes");
   });
@@ -65,7 +65,7 @@ for (const effects of [false, true]) {
 it("keeps completed nonzero merge failures as conflicts with both notes tips preserved", async () => {
   const h = await syncFixture();
   await h.b.inbox("remote bytes\n");
-  success(await h.b.store.sync());
+  success(await h.b.store.push());
   await h.a.inbox("local bytes\n");
   const actual = h.a.ports.exec;
   let anchor: string | undefined;
@@ -77,7 +77,7 @@ it("keeps completed nonzero merge failures as conflicts with both notes tips pre
     }
     return actual(command, args, options);
   };
-  const result = success(await h.a.store.sync());
+  const result = success(await h.a.store.push());
   expect(result.publishes[0]).toMatchObject({ status: "conflict", condition: expect.stringContaining("merge rejected") });
   expect(anchor).toBeDefined();
   expect((await h.a.exec("git", ["rev-parse", syncNotesRef])).stdout.trim()).toBe(anchor);

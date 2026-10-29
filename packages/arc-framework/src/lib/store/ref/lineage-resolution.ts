@@ -1,0 +1,63 @@
+/** Lineage origins resolved independently of their absent work-item refs. */
+
+import { OwnerIdentitySchema, RecordReferenceSchema, type OwnerIdentity, type RecordReference } from "../identity.js";
+import type { StoreResult } from "../refusal.js";
+import type { RefBackendContext } from "./context.js";
+import { readBatchObjects, readRefTips, readRefTrees } from "./batch-read.js";
+import { parseRefMetadata, unparsedMetadata } from "./metadata.js";
+import { readLiveRefOwners, type LiveRefOwnerEvidence } from "./live-owners.js";
+import { expandStoredPath, holdsNoRecord } from "../stored-path.js";
+import { corruptRef } from "./namespace-health.js";
+
+/** Read the registry's UID-to-slug map from the caller's captured namespace; a saved namespace names historical repair. */
+export async function readLineageOwners(context: RefBackendContext, tips: ReadonlyMap<string, string>, saved = false): Promise<StoreResult<OwnerIdentity[]>> {
+  const ref = "refs/arc/project/registry";
+  const tip = tips.get(ref);
+  if (!tip) return { status: "ok", result: [] };
+  const entries = (await readRefTrees(context, new Map([[ref, tip]]))).get(ref);
+  if (!entries) return { status: "refused", refusal: corruptRef(ref, true, saved) };
+  const home = expandStoredPath(RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } }),
+    { registry: context.registry });
+  if (holdsNoRecord(home, entries.map(({ path }) => path))) return { status: "ok", result: [] };
+  const query = `${tip}:metadata-registry.json`;
+  const objects = await readBatchObjects(context, [query]);
+  const metadata = parseRefMetadata(objects.get(query), ref);
+  if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: ref, ...unparsedMetadata(ref, saved) } };
+  return { status: "ok", result: Object.entries(metadata.lineage ?? {}).map(([uid, name]) => OwnerIdentitySchema.parse({ type: "work-item", uid, name })) };
+}
+
+/** Select live current names, then actual live primary former names, before registry current names. */
+export function lineageOwnerCandidates(reference: RecordReference, live: readonly LiveRefOwnerEvidence[], lineage: readonly OwnerIdentity[]): OwnerIdentity[] {
+  const requested = reference.owner;
+  if (requested.type !== "work-item") return [];
+  const matches = (owner: OwnerIdentity) => owner.type === "work-item"
+    && (requested.uid ? owner.uid === requested.uid : owner.name === requested.name);
+  const current = live.filter(({ owner }) => matches(owner)).map(({ owner }) => owner);
+  if (current.length || requested.uid) return current.length ? current : lineage.filter(matches);
+  const former = live.filter(({ owner, primary, formerSlugs }) => owner.type === "work-item" && primary && formerSlugs.includes(requested.name))
+    .map(({ owner }) => owner);
+  return former.length ? former : lineage.filter(matches);
+}
+
+/** Resolve a transition by live ownership and then registry history; conflict paths need no owner UID. */
+export async function resolveLineageReadReference(context: RefBackendContext, reference: RecordReference, captured?: ReadonlyMap<string, string>): Promise<StoreResult<RecordReference>> {
+  if (reference.kind === "lineage/conflict-record" || reference.owner.type !== "work-item" || reference.owner.uid) return { status: "ok", result: reference };
+  const tips = captured ?? await readRefTips(context);
+  const live = await readLiveRefOwners(context, tips);
+  if (live.status === "refused") return live;
+  const lineage = await readLineageOwners(context, tips);
+  if (lineage.status === "refused") return lineage;
+  const candidates = lineageOwnerCandidates(reference, live.result.owners, lineage.result);
+  const skipped = [...live.result.unreadable].find(([ref]) => ref.startsWith("refs/arc/work/"))?.[1];
+  if (skipped && !live.result.owners.some(({ owner }) => owner.type === "work-item" && owner.name === reference.owner.name)) return { status: "refused", refusal: skipped };
+  if (candidates.length > 1) return { status: "refused", refusal: {
+    code: "ambiguous-match", class: "recoverable", candidates: candidates.map((owner) => RecordReferenceSchema.parse({ ...reference, owner })),
+    condition: "More than one lineage origin holds this name.", remedy: { text: "Name the intended origin by UID, then retry." },
+  } };
+  const owner = candidates[0];
+  if (!owner) return { status: "refused", refusal: {
+    code: "not-found", class: "recoverable", reference, condition: "No live or lineage owner holds this name.",
+    remedy: { text: "Pull state or name the origin by UID, then retry." },
+  } };
+  return { status: "ok", result: RecordReferenceSchema.parse({ ...reference, owner }) };
+}

@@ -1,6 +1,6 @@
 /** Integration coverage for reusable prepared-repository fixtures. */
 
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, rename } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
@@ -40,6 +40,7 @@ const worktreeShape: PreparedRepositoryShape = {
 const siblingShape: PreparedSiblingWorktreeShape = {
   kind: "sibling-worktree-bearing", key: "default-init-with-sibling", worktreeName: "linked",
 };
+const multiShape: PreparedRepositoryShape = { kind: "multi-clone", key: "origin-clones-store-and-links" };
 const roots = new Set<string>();
 
 async function buildPlainRepository(): Promise<string> {
@@ -79,6 +80,33 @@ async function buildSiblingRepository(): Promise<string> {
   const parent = await mkdtemp(join(tmpdir(), "arc-prepared-original-sibling-"));
   roots.add(parent);
   await execFileAsync("git", ["worktree", "add", "-b", "prepared-sibling", join(parent, "linked")], { cwd: root });
+  return root;
+}
+
+/** An origin, a clone with a linked worktree, a separate store, and a backing pointer, and a clone borrowing objects. */
+async function buildMultiCloneRepository(withPathInObject = false, escaped = false): Promise<string> {
+  const parent = await mkdtemp(join(tmpdir(), "arc-prepared-multi-"));
+  roots.add(parent);
+  const root = escaped && process.platform !== "win32" ? join(parent, "multi\\escaped") : parent;
+  if (root !== parent) await mkdir(root);
+  const origin = join(root, "origin.git"), a = join(root, "a"), b = join(root, "b");
+  const git = async (args: string[], cwd?: string): Promise<void> => { await execFileAsync("git", args, cwd === undefined ? {} : { cwd }); };
+  await git(["init", "--bare", "--initial-branch=main", origin]);
+  await git(["init", "--initial-branch=main", a]);
+  await writeFile(join(a, "fixture.txt"), withPathInObject ? `${root}\n` : "Prepared multi-clone fixture.\n");
+  await git(["add", "fixture.txt"], a);
+  await git(["-c", "user.name=Prepared", "-c", "user.email=prepared@example.com", "-c", "core.hooksPath=/dev/null",
+    "commit", "-m", "prepared multi-clone"], a);
+  await git(["remote", "add", "origin", origin], a);
+  await git(["push", "-u", "origin", "main"], a);
+  await git(["clone", origin, b]);
+  await git(["worktree", "add", "-b", "linked", join(root, "a-linked")], a);
+  await writeFile(join(b, ".git", "objects", "info", "alternates"), `${join(origin, "objects")}\n`);
+  const store = join(a, ".git", "arc", "store");
+  await git(["init", "--bare", "--ref-format=reftable", store]);
+  await git([`--git-dir=${store}`, "remote", "add", "backing", origin]);
+  await mkdir(join(a, ".arc", "system"), { recursive: true });
+  await writeFile(join(a, ".arc", "system", "arc-config.yml"), `storage.backing_repository: ${JSON.stringify(origin)}\n`);
   return root;
 }
 
@@ -140,8 +168,27 @@ describe("prepared repository fixtures", () => {
     roots.add(copy);
     const { stdout } = await execFileAsync("git", ["remote", "get-url", "origin"], { cwd: copy });
 
-    expect(stdout.trim()).toBe(join(copy, PREPARED_REMOTE_PATH));
+    expect(resolve(stdout.trim())).toBe(resolve(join(copy, PREPARED_REMOTE_PATH)));
     expect(await absolutePathOccurrences(copy, template.root)).toEqual([]);
+  });
+
+  it("copies a remote whose template path Git serializes with escaped backslashes", async () => {
+    const template = await prepareRepositoryTemplate(remoteShape, async () => {
+      const original = await buildRemoteRepository();
+      if (process.platform === "win32") return original;
+      const root = `${original}\\escaped`;
+      await rename(original, root); roots.delete(original); roots.add(root);
+      await execFileAsync("git", ["remote", "set-url", "origin", join(root, PREPARED_REMOTE_PATH)], { cwd: root });
+      return root;
+    });
+    const copy = await copyPreparedRepository(template, remoteShape); roots.add(copy);
+    const { stdout } = await execFileAsync("git", ["remote", "get-url", "origin"], { cwd: copy });
+    expect(resolve(stdout.trim())).toBe(resolve(join(copy, PREPARED_REMOTE_PATH)));
+    await makeCommit(copy, "independent escaped-path copy");
+    await execFileAsync("git", ["push", "origin", "HEAD"], { cwd: copy });
+    const original = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: template.root });
+    const published = await execFileAsync("git", ["--git-dir", join(copy, PREPARED_REMOTE_PATH), "rev-parse", "HEAD"]);
+    expect(published.stdout).not.toBe(original.stdout);
   });
 
   it("resolves a copied worktree-bearing fixture inside its own copy", async () => {
@@ -151,7 +198,7 @@ describe("prepared repository fixtures", () => {
     const linked = join(copy, PREPARED_WORKTREE_PATH);
     const { stdout } = await execFileAsync("git", ["rev-parse", "--absolute-git-dir"], { cwd: linked });
 
-    expect(stdout.trim().startsWith(`${copy}/`)).toBe(true);
+    expect(resolve(stdout.trim())).toBe(resolve(join(copy, ".git", "worktrees", "worktree")));
     expect(await absolutePathOccurrences(copy, template.root)).toEqual([]);
   });
 
@@ -230,6 +277,48 @@ describe("prepared repository fixtures", () => {
 
     expect(await readFile(join(left, "copy-marker"), "utf8")).toBe("left");
     expect(await readFile(join(right, "copy-marker"), "utf8")).toBe("right");
+  });
+
+  it.each([["a plain root", false], ["a root Git serializes with escaped backslashes", true]] as const)(
+    "resolves a copied multi-clone fixture's remotes, links, alternates, store, and pointer inside the copy from %s", async (_, escaped) => {
+    const template = await prepareRepositoryTemplate(multiShape, () => buildMultiCloneRepository(false, escaped));
+    const copy = await copyPreparedRepository(template, multiShape);
+    roots.add(copy);
+    const git = async (args: string[], cwd?: string): Promise<string> =>
+      (await execFileAsync("git", args, cwd === undefined ? {} : { cwd })).stdout.trim();
+    const origin = resolve(join(copy, "origin.git")), store = join(copy, "a", ".git", "arc", "store");
+
+    for (const clone of ["a", "b"]) expect(resolve(await git(["remote", "get-url", "origin"], join(copy, clone)))).toBe(origin);
+    expect(resolve(await git(["rev-parse", "--path-format=absolute", "--git-common-dir"], join(copy, "a-linked"))))
+      .toBe(resolve(join(copy, "a", ".git")));
+    expect((await git(["worktree", "list", "--porcelain"], join(copy, "a"))).split("\n").filter((line) => line.startsWith("worktree "))
+      .map((line) => resolve(line.slice("worktree ".length)))).toContain(resolve(join(copy, "a-linked")));
+    expect(resolve((await readFile(join(copy, "b", ".git", "objects", "info", "alternates"), "utf8")).trim()))
+      .toBe(resolve(join(copy, "origin.git", "objects")));
+    expect(resolve(await git([`--git-dir=${store}`, "remote", "get-url", "backing"]))).toBe(origin);
+    const pointer = /^storage\.backing_repository: (".*")$/mu.exec(await readFile(join(copy, "a", ".arc", "system", "arc-config.yml"), "utf8"));
+    expect(resolve(JSON.parse(pointer?.[1] ?? "null") as string)).toBe(origin);
+
+    for (const repository of [join(copy, "a", ".git"), join(copy, "b", ".git"), join(copy, "origin.git"), store]) {
+      const objects = await execFileAsync("git", [`--git-dir=${repository}`, "cat-file", "--batch-all-objects", "--batch"],
+        { encoding: "buffer", maxBuffer: 64 * 1024 * 1024 });
+      expect(objects.stdout.includes(Buffer.from(template.root))).toBe(false);
+    }
+    for (const form of [template.root, template.root.replaceAll("\\", "\\\\")]) {
+      expect((await absolutePathOccurrences(copy, form)).filter((path) => !/[\\/]logs[\\/]/u.test(path))).toEqual([]);
+    }
+
+    await git(["-c", "user.name=Copy", "-c", "user.email=copy@example.com", "-c", "core.hooksPath=/dev/null",
+      "commit", "--allow-empty", "-m", "independent multi-clone copy"], join(copy, "a"));
+    await git(["push", "origin", "main"], join(copy, "a"));
+    expect(await git([`--git-dir=${origin}`, "rev-parse", "main"])).toBe(await git(["rev-parse", "main"], join(copy, "a")));
+    expect(await git([`--git-dir=${join(template.root, "origin.git")}`, "rev-parse", "main"]))
+      .toBe(await git(["rev-parse", "main"], join(template.root, "a")));
+  });
+
+  it("refuses a multi-clone template whose objects name its own path", async () => {
+    await expect(prepareRepositoryTemplate(multiShape, () => buildMultiCloneRepository(true)))
+      .rejects.toThrow(/names its own path in an object of (a|origin\.git|b)[\\/]?/u);
   });
 
   it("refuses to serve a fixture requested as a different shape", async () => {

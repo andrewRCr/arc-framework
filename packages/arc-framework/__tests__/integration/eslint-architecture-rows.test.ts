@@ -195,6 +195,7 @@ describe("actual architecture table enforcement", () => {
     ["src/lib/store/planted.ts", 'import "../active/meta-reader.js";'],
     ["src/lib/work-unit/composed-lifecycle-index.ts", 'import "./lifecycle-index.js";'],
     ["src/lib/layout/planted.ts", 'const inbox = "USER-INBOX.md"; void inbox;'],
+    ["src/lib/store/registry.ts", 'const inbox = "USER-INBOX.md"; void inbox;'],
     ["src/lib/store/planted.ts", 'import { resolveArcPath } from "../layout/index.js"; void resolveArcPath({ kind: "placement-root", tier: "active" });'],
     ["src/lib/layout/planted.ts", 'import { resolveArcPath } from "./index.js"; void resolveArcPath({ kind: "placement-root", tier: "active" });'],
   ])("allows the ratchet's owning boundary in %s: %s", async (path, text) => {

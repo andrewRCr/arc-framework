@@ -25,7 +25,7 @@ export function prepareDurationInputs(directory: string): void {
 export function mergeDurationArtifacts(input: string, output: string): void {
   const documents = readdirSync(input, { recursive: true, encoding: "utf8" }).filter((path) => basename(path) === "results.json")
     .sort().map((path) => {
-      const tier = /^duration-results-(unit|integration|e2e)-\d+$/u.exec(path.split(sep)[0] ?? "")?.[1];
+      const tier = /^duration-results-(unit|integration|e2e)-(?:store-)?\d+$/u.exec(path.split(sep)[0] ?? "")?.[1];
       if (tier === undefined) throw new Error(`Unrecognized duration artifact: ${path}`);
       return { tier, content: readFileSync(join(input, path), "utf8") };
     });

@@ -25,7 +25,7 @@ it("refuses idempotent late-link settlement when a genuine stale-write reread re
   const opened = await transitionStoreErrand(options, { kind: "create", record: record() });
   if (opened.kind !== "applied" || opened.value === null) throw new Error("Expected an ordinary Errand");
   const previous = opened.value, remote = createMemoryRemote(); h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   const batch = h.store.batch.bind(h.store);
   const observed: { refusal?: string } = {};
@@ -38,7 +38,7 @@ it("refuses idempotent late-link settlement when a genuine stale-write reread re
       provenance: { verb: "save", lifecycleAction: "update" } }));
     lifecycleSuccess(await writer.write({ action: "put", reference: other.reference, expected: other.version,
       content: target.content, placement: target.placement, links: target.links, provenance: { verb: "errand-link", lifecycleAction: "update" } }));
-    lifecycleSuccess(await h.store.sync());
+    lifecycleSuccess(await h.store.push());
     const result = await batch(input);
     if (result.status === "refused") observed.refusal = result.refusal.code;
     return result;
@@ -71,7 +71,7 @@ it.each(["read", "transition", "transform"] as const)("withholds %s authority fo
   lifecycleSuccess(await writer.write({ action: "put", reference: initial.reference, expected: null, placement: { kind: "active" },
     content: JSON.stringify({ ...previous, intent: "Concurrent intent" }), links: initial.links,
     provenance: { verb: "errand-open", lifecycleAction: "create" } }));
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const disputed = lifecycleSuccess(await h.store.read({ reference: initial.reference }));
   expect(disputed.conflicts.length).toBeGreaterThan(0);
   const selected = TransientIdentityRecordV3Schema.parse(JSON.parse(disputed.content));
@@ -188,4 +188,51 @@ it("keeps create-only description companions out of the actual awaiting-merge re
   expect(await transitionStoreErrand({ store: h.store, identity: "alice", companionWrites: [companion] },
     { kind: "resume", previous, authorization: authorization.authorization, updatedAt: "2026-10-17T00:00:00Z" })).toMatchObject({ kind: "applied", value: { state: "open", claimId: previous.claimId } });
   expect(lifecycleSuccess(await h.store.read({ reference: description.reference }))).toEqual(description);
+});
+
+it("withholds Errand authority after an incomplete pull and continues after repair", async () => {
+  const h = createLifecycleHarness();
+  const opened = await transitionStoreErrand({ store: h.store, identity: "alice", projectId: async () => "project-id" }, { kind: "create", record: record() });
+  if (opened.kind !== "applied" || opened.value === null) throw new Error("Expected open");
+  let complete = false;
+  h.store.pull = async () => ({ status: "ok", result: complete ? { states: [], pulls: [] }
+    : { states: [{ status: "move-incomplete", condition: "State was only partly pulled.", remedy: { text: "Repair the state remote." } }], pulls: [] } });
+  const before = lifecycleSuccess(await h.store.version());
+  expect(await readStoreErrand({ store: h.store, identity: "alice" }, "fix-it"))
+    .toEqual({ kind: "refused", reason: "State was only partly pulled. Repair the state remote." });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  complete = true;
+  expect(await readStoreErrand({ store: h.store, identity: "alice" }, "fix-it")).toMatchObject({ kind: "ready", record: opened.value });
+});
+
+it("proceeds past a lone failed read source and writes it beside the state pull's notices", async () => {
+  const h = createLifecycleHarness();
+  const opened = await transitionStoreErrand({ store: h.store, identity: "alice", projectId: async () => "project-id" }, { kind: "create", record: record() });
+  if (opened.kind !== "applied" || opened.value === null) throw new Error("Expected open");
+  const repair = { text: "Reconnect the read source." };
+  h.store.pull = async () => ({ status: "ok", result: { states: [], pulls: [
+    { status: "pulled", remote: "origin", role: "state", families: ["work-item"], notices: [{ kind: "end-pending",
+      item: OwnerIdentitySchema.parse({ type: "work-item", name: "alpha" }), ref: "refs/arc/work/11111111-1111-4111-8111-111111111111",
+      condition: "Alpha's end remains pending.", remedy: { text: "Pull again to settle it." } }] },
+    { status: "failed", remote: "upstream", role: "read", families: ["work-item"], notices: [],
+      failure: { code: "unreachable", class: "recoverable", cause: "network", condition: "Upstream is offline.", remedy: repair } }] } });
+  const written: string[] = [];
+  expect(await readStoreErrand({ store: h.store, identity: "alice", writeNotice: line => written.push(line) }, "fix-it"))
+    .toMatchObject({ kind: "ready", record: opened.value });
+  expect(written).toEqual(["Read source upstream was not pulled: Upstream is offline. Reconnect the read source.",
+    "Alpha's end remains pending. Pull again to settle it."]);
+});
+
+it("writes the notices a stopping pull already applied before withholding Errand authority", async () => {
+  const h = createLifecycleHarness();
+  const opened = await transitionStoreErrand({ store: h.store, identity: "alice", projectId: async () => "project-id" }, { kind: "create", record: record() });
+  if (opened.kind !== "applied" || opened.value === null) throw new Error("Expected open");
+  h.store.pull = async () => ({ status: "ok", result: { states: [], pulls: [{ status: "failed", remote: "origin", role: "state", families: ["work-item"],
+    notices: [{ kind: "end-pending", item: OwnerIdentitySchema.parse({ type: "work-item", name: "alpha" }), ref: "refs/arc/work/11111111-1111-4111-8111-111111111111",
+      condition: "Alpha's end remains pending.", remedy: { text: "Pull again to settle it." } }],
+    failure: { code: "unreachable", class: "recoverable", cause: "timeout", condition: "Origin timed out.", remedy: { text: "Retry the pull." } } }] } });
+  const written: string[] = [];
+  expect(await readStoreErrand({ store: h.store, identity: "alice", writeNotice: line => written.push(line) }, "fix-it"))
+    .toMatchObject({ kind: "refused" });
+  expect(written).toEqual(["Alpha's end remains pending. Pull again to settle it."]);
 });

@@ -8,19 +8,13 @@ import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifec
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
-const binding = vi.hoisted(() => ({ store: null as Store | null, pull: null as null | (() => Promise<void>) }));
+const binding = vi.hoisted(() => ({ store: null as Store | null }));
 vi.mock("../../src/lib/store/create.js", async importOriginal => {
   const original = await importOriginal<typeof import("../../src/lib/store/create.js")>();
   return { ...original, createStore: (ports: StorePorts) => {
     if (binding.store === null) return original.createStore(ports);
     return binding.store;
   } };
-});
-vi.mock("../../src/lib/store/operational-sync.js", async importOriginal => {
-  const original = await importOriginal<typeof import("../../src/lib/store/operational-sync.js")>();
-  return { ...original, createStoreSyncPort: () => original.createStoreSyncPort({ pull: async () => {
-    await binding.pull?.(); return { status: "pulled" };
-  } }) };
 });
 const owner = OwnerIdentitySchema.parse({ type: "person", name: "alice" });
 const inbox = recordReferences["personal/inbox"](owner), memory = recordReferences["personal/working-memory"](owner);
@@ -48,7 +42,7 @@ it.each(["add", "init", "join"])("registered %s creates only the missing record 
     if (verb !== "add") expect((await exec("git", ["config", "--get", "arc.identity"])).stdout.trim()).toBe("alice");
     else expect((await exec("git", ["config", "--get", "arc.identity"])).stdout.trim()).toBe("configured-person");
     expect(process.exitCode).toBeUndefined();
-  } finally { out.mockRestore(); binding.store = null; binding.pull = null; process.chdir(originalCwd); process.exitCode = originalExit; }
+  } finally { out.mockRestore(); binding.store = null; process.chdir(originalCwd); process.exitCode = originalExit; }
 }, 30_000);
 it("join finds records supplied by pull before setting a previously absent identity", async () => {
   const cwd = await createTempRepo(); onTestFinished(() => cleanupTempDir(cwd));
@@ -58,19 +52,21 @@ it("join finds records supplied by pull before setting a previously absent ident
   const originalCwd = process.cwd(), originalExit = process.exitCode;
   let output = "", pulledContent = "";
   const out = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { output += String(chunk); return true; });
-  try {
-    binding.store = h.store; binding.pull = async () => {
+  const pull = vi.spyOn(h.store, "pull").mockImplementation(async () => {
       await expect(exec("git", ["config", "--get", "arc.identity"])).rejects.toThrow();
       pulledContent = "# Inbox\n\n## Work Unit\n\n### **Pulled Alice capture**\n\n- _Id:_ `12345678`\n";
       await h.seed(inbox, pulledContent);
-    };
+      return { status: "ok", result: { states: [], pulls: [{ status: "pulled", role: "state", remote: "upstream", families: ["personal"], notices: [] }] } };
+  });
+  try {
+    binding.store = h.store;
     process.chdir(cwd); process.exitCode = undefined;
     await dispatchRegisteredCli(["--no-input", "join", "--tools", "", "--identity", "alice"]);
     expect(lifecycleSuccess(await h.store.read({ reference: inbox })).content).toBe(pulledContent);
     expect(output).toContain("Identity 'alice' already has personal records");
     expect((await exec("git", ["config", "--get", "arc.identity"])).stdout.trim()).toBe("alice");
     expect(process.exitCode).toBeUndefined();
-  } finally { out.mockRestore(); binding.store = null; binding.pull = null; process.chdir(originalCwd); process.exitCode = originalExit; }
+  } finally { pull.mockRestore(); out.mockRestore(); binding.store = null; process.chdir(originalCwd); process.exitCode = originalExit; }
 }, 30_000);
 it("registered legacy join retains its workspace seeds and no-input completion", async () => {
   const { readFile } = await import("node:fs/promises");

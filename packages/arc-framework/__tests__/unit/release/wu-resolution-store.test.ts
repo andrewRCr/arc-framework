@@ -35,13 +35,13 @@ it("withholds a disputed primary's branch until an explicit resolution", async (
   await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name: reference.owner.name }, spawningIdentity: "andrew", now: 0 });
   const remote = fixture.remote(true);
   if (remote === undefined) throw new Error("Expected a remote writer");
-  success(await fixture.store.sync());
+  success(await fixture.store.push());
   const local = success(await fixture.store.read({ reference })), other = success(await remote.read({ reference }));
   success(await fixture.store.write({ action: "put", reference, expected: local.version, content, placement: { kind: "active" },
     links: branches("feat/local"), provenance: testProvenance }));
   success(await remote.write({ action: "put", reference, expected: other.version, content, placement: { kind: "active" },
     links: branches("feat/remote"), provenance: testProvenance }));
-  success(await fixture.store.sync());
+  success(await fixture.store.push());
   const disputed = success(await fixture.store.read({ reference }));
   expect(disputed.conflicts.length).toBeGreaterThan(0);
   const input = { cwd, store: fixture.store, projectId: async () => "project-1" };

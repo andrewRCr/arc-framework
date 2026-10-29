@@ -6,6 +6,7 @@ import type { GitExec } from "./git/exec.js";
 import type { LocalHeavyTestTier } from "./local-test-admission.js";
 import { discoverVitestSelection, EmptyVitestSelectionError } from "./vitest-discovery.js";
 import { executeVitestSelection } from "./vitest-execution.js";
+import { readFile } from "node:fs/promises";
 import { checkVitestCompletion } from "./vitest-completion.js";
 import { resolve, sep } from "node:path";
 
@@ -35,6 +36,15 @@ export const ARC_CONTRACT_SUITES = [
 ] as const;
 
 /**
+ * Reach declarations, package-relative, whose suites run by reach in their own check rather than in the tiers that
+ * would otherwise run them whole.
+ */
+export const REACH_DECLARATIONS = ["__tests__/reach/store-suites.json"] as const;
+
+/** Names the form of a portability run; a pull request's leaves its store suites to their own check. */
+const PORTABILITY_FORM_VARIABLE = "ARC_PORTABILITY_FORM";
+
+/**
  * Exit status of a related-tests run that no configured unit test reaches, so a caller can tell missing evidence
  * from a failing test. pytest exits with the same status when it collects no tests.
  */
@@ -51,10 +61,11 @@ export async function runLocalVitestTier(
   tier: LocalHeavyTestTier,
   forwardedArguments: string[],
 ): Promise<void> {
+  const packageRoot = resolve(import.meta.dirname, "../..");
   const { filter, options } = parseCLI([
     "vitest",
     tier === "changed" ? "related" : "run",
-    ...localVitestTierArguments(tier),
+    ...await localVitestTierRunArguments(packageRoot, tier, process.env),
     ...forwardedArguments,
   ]);
   const guardPath = unitChangeGuard(tier, options.related);
@@ -66,8 +77,7 @@ export async function runLocalVitestTier(
       return [...specifications, ...guard.filter(({ taskId, moduleId }) =>
         resolve(moduleId) === guardPath && !originalCoverage.has(taskId))];
     });
-  await executeVitestSelection(selection, { cwd: process.cwd(), env: process.env, tier,
-    packageRoot: resolve(import.meta.dirname, "../..") }, () => {
+  await executeVitestSelection(selection, { cwd: process.cwd(), env: process.env, tier, packageRoot }, () => {
     if (guardPath === undefined) return;
     if (!selection.specifications.some(({ taskId }) => originalCoverage.has(taskId))) {
       throw new EmptyVitestSelectionError();
@@ -84,6 +94,51 @@ function unitChangeGuard(tier: LocalHeavyTestTier, related: string | string[] | 
   const unitDirectory = resolve(import.meta.dirname, "../../__tests__/unit");
   return related.some((path) => resolve(path).startsWith(`${unitDirectory}${sep}`))
     ? resolve(unitDirectory, "isolated-mock-files.guard.test.ts") : undefined;
+}
+
+/**
+ * Compose a tier's native selectors as the tier runs: its project membership and portability boundaries, less the
+ * suites that run by reach in their own check.
+ * @param packageRoot - Package root holding the reach declarations
+ * @param tier - Logical test tier
+ * @param env - Environment naming the portability run's form
+ * @returns Native Vitest selectors and run-mode flags
+ */
+export async function localVitestTierRunArguments(packageRoot: string, tier: LocalHeavyTestTier,
+  env: Readonly<Record<string, string | undefined>>): Promise<string[]> {
+  return [...localVitestTierArguments(tier),
+    ...reachSuiteExclusions(tier, env, await readReachSuites(packageRoot, tier, env))];
+}
+
+/**
+ * Leave the suites that run by reach out of the tiers that would run them whole: the integration tier, the lane that
+ * contains it, and a pull request's portability run.
+ * @param tier - Logical package-script tier
+ * @param env - The run's environment, which names a portability run's form
+ * @param suites - Package-relative suite globs of every reach declaration
+ * @returns Native exclusion arguments
+ */
+export function reachSuiteExclusions(tier: LocalHeavyTestTier, env: Readonly<Record<string, string | undefined>>,
+  suites: readonly string[]): string[] {
+  const excluded = tier === "integration" || tier === "lane"
+    || (tier === "portability" && env[PORTABILITY_FORM_VARIABLE] === "pull-request");
+  return excluded ? suites.flatMap((suite) => ["--exclude", suite]) : [];
+}
+
+async function readReachSuites(packageRoot: string, tier: LocalHeavyTestTier,
+  env: Readonly<Record<string, string | undefined>>): Promise<string[]> {
+  if (reachSuiteExclusions(tier, env, ["any"]).length === 0) return [];
+  const { ReachDeclarationSchema } = await import("./vitest-reach.js");
+  const suites: string[] = [];
+  for (const path of REACH_DECLARATIONS) {
+    const declaration = ReachDeclarationSchema.parse(JSON.parse(await readFile(resolve(packageRoot, path), "utf8")));
+    const prefix = `${declaration.package}/`;
+    for (const suite of declaration.suites) {
+      if (!suite.startsWith(prefix)) throw new Error(`Reach suite ${suite} lies outside its package ${declaration.package}`);
+      suites.push(suite.slice(prefix.length));
+    }
+  }
+  return suites;
 }
 
 /**
@@ -171,9 +226,14 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "unit-mocks",
         "--project",
         "integration",
+        "--project",
+        "integration-timing",
+        "--project",
+        "integration-bursts",
       ];
     case "integration":
-      return ["--project", "integration"];
+    case "store":
+      return ["--project", "integration", "--project", "integration-timing", "--project", "integration-bursts"];
     case "arc-contracts":
       return ["--project", "integration", ...ARC_CONTRACT_SUITES];
     case "e2e":
@@ -204,6 +264,19 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "raw-git-files.test.ts",
         "check-source-git.test.ts",
         "delivery-transfer.e2e",
+        "store-ref-bursts.test.ts",
+        "store-ref-directory.test.ts",
+        "store-ref-write-batching.test.ts",
+        "store-ref-reader-lifetime.test.ts",
+        "store-ref-archive-acquisition.test.ts",
+        "store-ref-named-acquisition.test.ts",
+        "store-ref-publication.test.ts",
+        "git-batch-reader.test.ts",
+        "store-ref-separate-conformance-records.test.ts",
+        "store-ref-separate-conformance-reads.test.ts",
+        "store-ref-separate-conformance-sync.test.ts",
+        "store-ref-timing.test.ts",
+        "store-ref-timing-isolation.test.ts",
         "checks/runner/",
         "lib/checks/result.test.ts",
         "check-runner-session.test.ts",
