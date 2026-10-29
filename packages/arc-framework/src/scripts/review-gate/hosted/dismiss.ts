@@ -88,7 +88,8 @@ export type HostedDismissResult = z.infer<typeof HostedDismissResultSchema>;
 
 /**
  * Dismiss one review service's change-request review, refusing unless the request is still at the reviewed head and
- * every thread that service commented in on the request is resolved.
+ * every thread that service commented in on the request is resolved. The head is read again just before the write;
+ * the host's dismissal takes no head condition, so a push landing after that read is not caught.
  *
  * A person's review is never dismissed: only a review whose author is one of `serviceIdentities` qualifies. A review
  * the host already reports dismissed completes without another mutation, so a retry after an uncertain write is safe.
@@ -112,16 +113,19 @@ export async function dismissHostedReview(
   const stop = (state: z.infer<typeof HostedDismissStopStateSchema>, detail: string): HostedDismissResult =>
     ({ ...base, state, nextAction: "stop", detail });
 
-  const observedHeadSha = await port.readHead(request.target);
-  if (observedHeadSha !== request.target.headSha) {
-    return {
+  const staleTarget = async (): Promise<HostedDismissResult | null> => {
+    const observedHeadSha = await port.readHead(request.target);
+    return observedHeadSha === request.target.headSha ? null : {
       ...base,
       state: "stale-target",
       nextAction: "stop",
       observedHeadSha,
       detail: "The pull request's head moved; read `arc review status` at the new head before dismissing.",
     };
-  }
+  };
+
+  const moved = await staleTarget();
+  if (moved !== null) return moved;
   const review = await port.readReview(request.target, request.review.reviewId);
   if (review === null) return stop("missing-review", "The host has no review with this ID on the pull request.");
   if (review.state === "dismissed") return { ...base, state: "already-dismissed", nextAction: "complete" };
@@ -148,6 +152,8 @@ export async function dismissHostedReview(
       detail: "Settle each of the review service's unresolved threads before dismissing its review.",
     };
   }
+  const movedDuringReads = await staleTarget();
+  if (movedDuringReads !== null) return movedDuringReads;
   const written = await port.dismissReview(request.target, request.review.reviewId, HOSTED_DISMISSAL_MESSAGE);
   if (written.kind === "dismissed") return { ...base, state: "dismissed", nextAction: "complete" };
   if (written.kind === "refused") return stop("host-refused", `The host refused the dismissal: ${written.reason}`);

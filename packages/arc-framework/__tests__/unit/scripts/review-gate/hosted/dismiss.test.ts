@@ -38,6 +38,7 @@ function thread(id: string, actorIdentity: string | null, isResolved: boolean): 
 
 function fakePort(input: {
   head?: string;
+  headAfterReads?: string;
   review?: HostedDismissalReview | null;
   threads?: HostedGitHubThread[];
   write?: "dismissed" | "ambiguous" | "refused";
@@ -45,11 +46,15 @@ function fakePort(input: {
 }) {
   const dismissals: Array<{ reviewId: number; message: string }> = [];
   let reads = 0;
+  let headReads = 0;
   let review = input.review === undefined
     ? { state: "changes-requested", actorIdentity: SERVICE, commitSha: HEAD } as HostedDismissalReview
     : input.review;
   const port: HostedReviewDismissalPort = {
-    readHead: async () => input.head ?? HEAD,
+    readHead: async () => {
+      headReads += 1;
+      return headReads > 1 && input.headAfterReads !== undefined ? input.headAfterReads : input.head ?? HEAD;
+    },
     readReview: async () => {
       reads += 1;
       return review;
@@ -109,6 +114,15 @@ describe("dismissing a review service's change request", () => {
   ] as const)("refuses %s without dismissing anything", async (_label, scenario, state) => {
     const { port, dismissals } = fakePort(scenario as Parameters<typeof fakePort>[0]);
     await expect(dismissHostedReview(request, port, [SERVICE])).resolves.toMatchObject({ state, nextAction: "stop" });
+    expect(dismissals).toEqual([]);
+  });
+
+  it("refuses without dismissing when the head moves while the review and threads are read", async () => {
+    const moved = "d".repeat(40);
+    const { port, dismissals } = fakePort({ headAfterReads: moved });
+    await expect(dismissHostedReview(request, port, [SERVICE])).resolves.toMatchObject({
+      state: "stale-target", nextAction: "stop", observedHeadSha: moved,
+    });
     expect(dismissals).toEqual([]);
   });
 
