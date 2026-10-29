@@ -100,12 +100,13 @@ class RunnerSessionTransport implements CheckRunnerSession {
     const request = parsed.data;
     this.conversation.begin(request);
     return new Promise<RunnerResultByMethod[Operation["method"]]>((resolve, reject) => {
+      // Retain correlation for in-flight replies even when a failed write rejects its caller.
       this.pending.set(request.id, { request, resolve: result => { resolve(result as RunnerResultByMethod[Operation["method"]]); }, reject });
       try {
         this.process.stdin.write(`${JSON.stringify(request)}\n`, error => {
-          if (error !== null && error !== undefined) this.failInputDelivery();
+          if (error !== null && error !== undefined) reject(this.failInputDelivery());
         });
-      } catch { this.failInputDelivery(); }
+      } catch { reject(this.failInputDelivery()); }
     });
   }
 
@@ -153,14 +154,16 @@ class RunnerSessionTransport implements CheckRunnerSession {
     });
   }
 
-  private failInputDelivery(): void {
-    if (this.conversation.closureKind !== undefined || this.inputFailure !== undefined) return;
+  private failInputDelivery(): Error {
+    const error = this.inputFailure ?? sessionError("could not deliver a request");
+    if (this.conversation.closureKind !== undefined || this.inputFailure !== undefined) return error;
     // Stop further writes immediately, but let received frames establish settlement first.
-    const error = this.inputFailure = sessionError("could not deliver a request");
+    this.inputFailure = error;
     this.enqueue(() => {
       if (this.conversation.closureKind !== undefined) return;
       this.fail(error);
     });
+    return error;
   }
 
   private async acceptMessage(message: RunnerMessage): Promise<void> {
