@@ -58,7 +58,7 @@ export async function pullJoinStore(input: { cwd: string; exec: GitExec; identit
   if (!store.capabilities.stateOffBranch) return null;
   const result = await (ports.sync?.(store) ?? bindStoreSyncPort(store)).pull();
   const value = describeStorePull(result), consumed = consumePull(result);
-  for (const line of consumed.kind === "stop" ? [consumed.reason] : consumed.notices) p.log.warn(line);
+  for (const line of [...consumed.kind === "stop" ? [consumed.reason] : [], ...consumed.notices]) p.log.warn(line);
   if (result.status !== "designation-needed") return value;
   p.log.info(value.summary);
   if (input.context.interaction !== "allowed") return value;

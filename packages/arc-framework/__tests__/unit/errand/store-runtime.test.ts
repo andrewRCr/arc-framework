@@ -222,3 +222,17 @@ it("proceeds past a lone failed read source and writes it beside the state pull'
   expect(written).toEqual(["Read source upstream was not pulled: Upstream is offline. Reconnect the read source.",
     "Alpha's end remains pending. Pull again to settle it."]);
 });
+
+it("writes the notices a stopping pull already applied before withholding Errand authority", async () => {
+  const h = createLifecycleHarness();
+  const opened = await transitionStoreErrand({ store: h.store, identity: "alice", projectId: async () => "project-id" }, { kind: "create", record: record() });
+  if (opened.kind !== "applied" || opened.value === null) throw new Error("Expected open");
+  h.store.pull = async () => ({ status: "ok", result: { states: [], pulls: [{ status: "failed", remote: "origin", role: "state", families: ["work-item"],
+    notices: [{ kind: "end-pending", item: OwnerIdentitySchema.parse({ type: "work-item", name: "alpha" }), ref: "refs/arc/work/11111111-1111-4111-8111-111111111111",
+      condition: "Alpha's end remains pending.", remedy: { text: "Pull again to settle it." } }],
+    failure: { code: "unreachable", class: "recoverable", cause: "timeout", condition: "Origin timed out.", remedy: { text: "Retry the pull." } } }] } });
+  const written: string[] = [];
+  expect(await readStoreErrand({ store: h.store, identity: "alice", writeNotice: line => written.push(line) }, "fix-it"))
+    .toMatchObject({ kind: "refused" });
+  expect(written).toEqual(["Alpha's end remains pending. Pull again to settle it."]);
+});

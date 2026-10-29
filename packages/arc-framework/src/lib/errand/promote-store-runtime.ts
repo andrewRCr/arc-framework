@@ -20,8 +20,8 @@ export async function promoteStoreErrandAtRuntime(options: PromoteOrdinaryErrand
   const store = options.store;
   if (store === undefined) return refused("The operational store is unavailable.");
   const pulled = consumePull(await (options.sync ?? bindStoreSyncPort(store)).pull());
-  if (pulled.kind === "stop") return refused(pulled.reason);
   writePullNotices(pulled.notices, options.writeNotice);
+  if (pulled.kind === "stop") return refused(pulled.reason);
   const project = await resolveProjectIdentity(options.projectId ?? createProjectIdentityReader(store));
   if (project.status !== "ready") return refused(`${project.reason} ${project.remedy.text}`);
   const frame = await options.readFrame();

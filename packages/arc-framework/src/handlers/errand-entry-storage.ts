@@ -24,8 +24,8 @@ export async function prepareHandlerErrandAdoption(input: { slug: string; litera
   const selected = input.literal !== undefined || input.file !== undefined;
   if (!context.store.capabilities.stateOffBranch) return { origin: selected ? await legacy() : null, writes: [] };
   const pulled = consumePull(await (context.sync ?? bindStoreSyncPort(context.store)).pull());
-  if (pulled.kind === "stop") throw new Error(pulled.reason);
   writePullNotices(pulled.notices, context.writeNotice);
+  if (pulled.kind === "stop") throw new Error(pulled.reason);
   const from = selected ? await resolveInboxEntryOperand({ literal: input.literal, file: input.file, stateOffBranch: true }) : undefined;
   const adoption = await prepareErrandAdoption({ slug: input.slug, from, intent: input.intent, partial: input.partial }, context);
   if (adoption.status === "refused") throw new Error(`${adoption.refusal.condition} ${adoption.refusal.remedy.text}`);

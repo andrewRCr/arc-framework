@@ -29,12 +29,23 @@ describe("consumePull", () => {
   });
 
   it.each(["state", "candidate"] as const)("stops on a failed %s remote", role => {
-    expect(consumePull(incomplete([failed(role)]))).toEqual({ kind: "stop", reason: "The pull was incomplete. Reconnect and retry." });
+    expect(consumePull(incomplete([failed(role)]))).toEqual({ kind: "stop", reason: "The pull was incomplete. Reconnect and retry.", notices: [] });
   });
 
   it("stops on a state the state remote reports, and on a refused pull with no partial result", () => {
     expect(consumePull(incomplete([], [{ status: "move-incomplete", condition: "Moving.", remedy: repair }])).kind).toBe("stop");
-    expect(consumePull({ status: "unreachable", condition: "Offline.", remedy: repair })).toEqual({ kind: "stop", reason: "Offline. Reconnect and retry." });
+    expect(consumePull({ status: "unreachable", condition: "Offline.", remedy: repair })).toEqual({ kind: "stop", reason: "Offline. Reconnect and retry.", notices: [] });
+  });
+
+  it("carries the notices of merges a stopping pull already applied, with any failed read source", () => {
+    const stopped = consumePull(incomplete([{ ...failed("state"), notices: [ended] }, failed("read")]));
+    expect(stopped).toEqual({ kind: "stop", reason: "The pull was incomplete. Reconnect and retry.", notices: [
+      "Read source upstream was not pulled: The read remote is offline. Reconnect and retry.", expect.stringContaining("Alpha ended with conflicts.")] });
+  });
+
+  it.each([{ status: "designation-needed" as const, remote: "upstream", choices: ["push", "read"], remedy: repair },
+    { status: "no-identity" as const, families: ["work-item"], remedy: repair }])("proceeds past a failed read source beside a $status state, as without one", state => {
+    expect(consumePull(incomplete([statePulled, failed("read")], [state as SyncState])).kind).toBe("proceed");
   });
 
   it("surfaces a complete pull's notices and an unfinished move's advisory", () => {

@@ -71,8 +71,8 @@ export async function transformStoreErrand(options: ErrandStoreOptions, previous
 }
 async function readBasis(options: ErrandStoreOptions, slug: string, claimId?: string, completed = false): Promise<Basis> {
   const pulled = consumePull(await (options.sync ?? bindStoreSyncPort(options.store)).pull());
-  if (pulled.kind === "stop") return { kind: "refused", reason: pulled.reason };
   writePullNotices(pulled.notices, options.writeNotice);
+  if (pulled.kind === "stop") return { kind: "refused", reason: pulled.reason };
   const found = await options.store.lookup(claimId === undefined ? { kind: "slug", slug: SlugSchema.parse(slug) }
     : { kind: "claim", claim: { kind: "errand", slug: SlugSchema.parse(slug), claimId } });
   if (found.status === "refused") return found.refusal.code === "not-found" ? { kind: "ready", saved: null, record: null }

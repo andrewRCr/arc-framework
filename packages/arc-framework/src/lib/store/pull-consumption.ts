@@ -3,12 +3,13 @@ import { pullResultNotices, type PullResult } from "./operational-sync.js";
 import type { PullNotice, PullOutcome } from "./sync.js";
 import type { Remedy } from "./refusal.js";
 
-/** Proceed with the rendered notices to surface, or stop for the state remote's stated reason. */
-export type PullConsumption = { kind: "proceed"; notices: string[] } | { kind: "stop"; reason: string };
+/** Proceed with the rendered notices to surface, or stop for the state remote's stated reason, surfacing them first. */
+export type PullConsumption = { kind: "proceed"; notices: string[] } | { kind: "stop"; reason: string; notices: string[] };
 
 /**
  * Decide a synchronized pull for a consumer that reads the state it merged. A failed read source never stops one,
- * since a read source is never merged; it is reported beside the pull's notices and advisories instead.
+ * since a read source is never merged; it is reported beside the pull's notices and advisories instead. A stopping pull
+ * still carries the notices of merges it applied before it stopped, and the next pull will not raise them again.
  */
 export function consumePull(result: PullResult): PullConsumption {
   const surfaced = [...pullResultNotices(result).map(renderPullNotice),
@@ -17,8 +18,8 @@ export function consumePull(result: PullResult): PullConsumption {
   const partial = result.partial;
   const failures = partial?.pulls.filter(pull => pull.status === "failed") ?? [];
   const stopping = partial === undefined || failures.some(pull => pull.role !== "read")
-    || partial.states.some(state => state.status !== "no-remote" && state.status !== "move-unfinished");
-  if (stopping) return { kind: "stop", reason: `${result.condition} ${result.remedy.text}` };
+    || partial.states.some(state => !["no-remote", "move-unfinished", "designation-needed", "no-identity"].includes(state.status));
+  if (stopping) return { kind: "stop", reason: `${result.condition} ${result.remedy.text}`, notices: [...readFailures(failures), ...surfaced] };
   return { kind: "proceed", notices: [...readFailures(failures), ...surfaced] };
 }
 

@@ -35,8 +35,8 @@ async function requireHistoryPull(sync: StoreSyncPort, refs: readonly string[], 
     throw new Error(`${refusal.condition} ${refusal.remedy.text} State remote ${pulled.remote} needs a role. ${pulled.remedy.text}`);
   }
   const consumed = consumePull(pulled);
-  if (consumed.kind === "stop") throw new Error(`${refusal.condition} ${refusal.remedy.text} ${consumed.reason}`);
   writePullNotices(consumed.notices, writeNotice);
+  if (consumed.kind === "stop") throw new Error(`${refusal.condition} ${refusal.remedy.text} ${consumed.reason}`);
 }
 async function pullHistory(sync: StoreSyncPort, refs: readonly string[], refusal: StoreRefusal) {
   try { return await sync.pull(refs); }
