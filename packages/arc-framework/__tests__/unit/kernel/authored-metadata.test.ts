@@ -42,6 +42,7 @@ describe("authored schema metadata", () => {
       "review-frontline-resolve-request",
       "review-frontline-run-request",
       "review-hosted-await-request",
+      "review-hosted-dismiss-request",
       "review-hosted-request-request",
       "review-hosted-settle-request",
       "review-lane-read-request",

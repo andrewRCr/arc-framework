@@ -201,6 +201,7 @@ export const COMMAND_SUMMARIES: Readonly<Record<string, string>> = {
   "review hosted request": "Request a hosted pull-request review",
   "review hosted await": "Await a requested hosted review",
   "review hosted settle": "Reply to and resolve a hosted finding",
+  "review hosted dismiss": "Dismiss a review service's settled change request",
   "review changeset resolve": "Resolve a target's changeset-size recommendation",
   "review changeset": "Assess changeset size for review",
   "review local": "Manage immutable-source local reviews",

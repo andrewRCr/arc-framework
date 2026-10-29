@@ -9,6 +9,7 @@ import { PrePublicationReviewEnvelopeSchema } from "../policy/pre-publication-pr
 import { HostedRequestResultSchema } from "../hosted/request.js";
 import { HostedAwaitCommandResultSchema } from "../hosted/await.js";
 import { HostedSettleResultSchema } from "../hosted/settle.js";
+import { HostedDismissResultSchema } from "../hosted/dismiss.js";
 import {
   FrontlineResolveEnvelopeSchema, ReviewChunkingResolveEnvelopeSchema,
   PlanningGroomingReviewEnvelopeSchema, FrontlineRunEnvelopeSchema,
@@ -35,6 +36,7 @@ export function registerReviewCommandEnvelopeSchemas(registry: KernelRegistry): 
     ["review-hosted-request-envelope", HostedRequestResultSchema],
     ["review-hosted-await-envelope", HostedAwaitCommandResultSchema],
     ["review-hosted-settle-envelope", HostedSettleResultSchema],
+    ["review-hosted-dismiss-envelope", HostedDismissResultSchema],
     ["review-pre-publication-envelope", PrePublicationReviewEnvelopeSchema],
     ["review-command-error-envelope", ReviewCommandErrorEnvelopeSchema],
   ] as const) {

@@ -13,7 +13,8 @@ override-active: false
 
 > - **Workflow:** [run-errand.md][run-errand], [integrate-work-unit.md][integrate-work-unit],
 >   [deliver-stack.md][deliver-stack]
-> - **When:** An agent composes or edits a pull-request title or body
+> - **When:** An agent composes or edits a pull-request title or body, or other text it posts to the host under the
+>   account
 >
 > - **Contract:** Under `merge.strategy: squash`, the title remains a valid commit subject under the project's
 >   commit policy, whatever an override changes. In a multi-member delivery, the authored terminal title is a
@@ -62,6 +63,14 @@ A project prescription governs; the defaults here fill only what it leaves open:
 
 A fix for an undisclosed vulnerability follows the project's security policy; its title and body do not describe
 how to exploit the flaw.
+
+### Other text posted under the account
+
+A thread reply, review dismissal, or pull-request comment the agent posts under the account reads as the account's
+owner speaking. Write it as the owner, in first person or neutrally, about the finding or change it answers. Never
+describe the owner as a third party, as in "the Owner accepted…". The surface boundary's vocabulary rule applies,
+along with review-process terms such as pass, fix check, review stop, and disposition. A reply that defers or rejects
+a finding gives its reason in the project's own terms.
 
 ### Title
 

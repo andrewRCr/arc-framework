@@ -10,6 +10,7 @@ import { RespondRequestSchema } from "./runtime/respond-command.js";
 import { ReviewReadinessRequestSchema } from "./readiness.js";
 import { FrontlineResolveRequestSchema } from "./policy/frontline-command-schema.js";
 import { HostedSettleEnvelopeSchema } from "./hosted/settle.js";
+import { HostedDismissEnvelopeSchema } from "./hosted/dismiss.js";
 import { LocalPrepareRequestSchema } from "./runtime/local-prepare.js";
 import { LocalAttestRequestSchema } from "./runtime/local-attest-command.js";
 import { LocalCancelRequestSchema } from "./runtime/local-cancel-command.js";
@@ -25,6 +26,7 @@ export const REVIEW_LANE_READ_REQUEST_SCHEMA_ID = "review-lane-read-request";
 export const REVIEW_READINESS_REQUEST_SCHEMA_ID = "review-readiness-request";
 export const REVIEW_FRONTLINE_RESOLVE_REQUEST_SCHEMA_ID = "review-frontline-resolve-request";
 export const REVIEW_HOSTED_SETTLE_REQUEST_SCHEMA_ID = "review-hosted-settle-request";
+export const REVIEW_HOSTED_DISMISS_REQUEST_SCHEMA_ID = "review-hosted-dismiss-request";
 export const REVIEW_LOCAL_PREPARE_REQUEST_SCHEMA_ID = "review-local-prepare-request";
 export const REVIEW_LOCAL_ATTEST_REQUEST_SCHEMA_ID = "review-local-attest-request";
 export const REVIEW_LOCAL_CANCEL_REQUEST_SCHEMA_ID = "review-local-cancel-request";
@@ -52,6 +54,7 @@ export function registerReviewRequestCommandSchemas(registry: KernelRegistry): K
     [REVIEW_LANE_READ_REQUEST_SCHEMA_ID, ReviewLaneReadRequestSchema],
     [REVIEW_FRONTLINE_RESOLVE_REQUEST_SCHEMA_ID, FrontlineResolveRequestSchema],
     [REVIEW_HOSTED_SETTLE_REQUEST_SCHEMA_ID, HostedSettleEnvelopeSchema],
+    [REVIEW_HOSTED_DISMISS_REQUEST_SCHEMA_ID, HostedDismissEnvelopeSchema],
     [REVIEW_LOCAL_PREPARE_REQUEST_SCHEMA_ID, LocalPrepareRequestSchema],
     [REVIEW_LOCAL_ATTEST_REQUEST_SCHEMA_ID, LocalAttestRequestSchema],
     [REVIEW_LOCAL_CANCEL_REQUEST_SCHEMA_ID, LocalCancelRequestSchema],
