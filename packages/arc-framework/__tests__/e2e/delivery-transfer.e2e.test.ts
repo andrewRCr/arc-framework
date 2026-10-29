@@ -18,13 +18,24 @@ describe("arc delivery transfer", () => {
   let transferRoot: string;
 
   beforeEach(async () => {
-    source = await createTempRepo();
-    transferRoot = await mkdtemp(join(tmpdir(), "arc-delivery-transfer-"));
-    const init = await runArc(["init", "--yes", "--name", "delivery-transfer-test"], source);
-    expect(init.exitCode).toBe(0);
-    await installActiveWorkUnit(source);
-    await git(source, ["add", "-A"]);
-    await git(source, ["commit", "-m", "init delivery transfer fixture"]);
+    const started = performance.now();
+    const test = expect.getState().currentTestName;
+    let completed = false;
+    try {
+      source = await createTempRepo();
+      transferRoot = await mkdtemp(join(tmpdir(), "arc-delivery-transfer-"));
+      const init = await runArc(["init", "--yes", "--name", "delivery-transfer-test"], source);
+      expect(init.exitCode).toBe(0);
+      await installActiveWorkUnit(source);
+      await git(source, ["add", "-A"]);
+      await git(source, ["commit", "-m", "init delivery transfer fixture"]);
+      completed = true;
+    } finally {
+      console.info("delivery-transfer-setup-timing", JSON.stringify({
+        test, platform: process.platform, completed,
+        durationMs: Math.round(performance.now() - started),
+      }));
+    }
   });
 
   afterEach(async () => {
