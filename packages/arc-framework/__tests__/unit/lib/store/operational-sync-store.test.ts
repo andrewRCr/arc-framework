@@ -137,3 +137,19 @@ it("preserves a maintenance refusal's condition and remedy and returns measureme
   f.store.maintain = async () => ({ status: "ok", result: { measurements: [] } });
   expect(await port.maintain()).toEqual({ measurements: [] });
 });
+
+it("retries a saved read whose history pulled while a read source failed, and writes the failure", async () => {
+  const f = createReferenceFixture();
+  const ref = HistoryRefSchema.parse("refs/arc/history/work/11111111-1111-4111-8111-111111111111");
+  let available = false;
+  f.store.pull = async () => {
+    available = true;
+    return { status: "ok", result: PullResultSchema.parse({ states: [], pulls: [pulled, { ...readPulled, status: "failed", failure: unreachable }] }) };
+  };
+  const read = () => Promise.resolve(available ? { status: "ok" as const, result: "saved state" } : { status: "refused" as const,
+    refusal: { code: "state-unresolvable" as const, class: "recoverable" as const, condition: "Saved state unavailable.",
+      remedy: { text: "Restore the named history." }, historyRefs: [ref] } });
+  const written: string[] = [];
+  expect(await readStateHistory(read, bindStoreSyncPort(f.store), line => written.push(line))).toBe("saved state");
+  expect(written).toEqual([`Read source upstream was not pulled: Remote offline. ${remedy.text} ${remedy.argv.join(" ")}`]);
+});

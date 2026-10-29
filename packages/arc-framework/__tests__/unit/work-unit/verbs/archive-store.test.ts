@@ -145,8 +145,30 @@ it("completes an archive published beside an independent failed read source", as
     };
     const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
   } });
-  expect(await archive(store, "example")).toMatchObject({ status: "archived" });
+  expect(await archive(store, "example")).toMatchObject({ status: "archived",
+    warnings: [`Read source upstream was not pulled: Read source unavailable. ${publicationRepair.text}`] });
   expect([...remote.state.records.values()].find(record => record.reference.kind === "work-item/meta")?.placement?.kind).toBe("completed");
+});
+
+it("carries an ended item's retained conflicts from the archive's push into its warnings", async () => {
+  const h = createLifecycleHarness(), remote = createMemoryRemote(); h.store.context.publication.remote = remote;
+  await h.seedMeta("example");
+  const item = OwnerIdentitySchema.parse({ type: "work-item", name: "alpha", uid: "11111111-1111-4111-8111-111111111111" });
+  const conflict = RecordReferenceSchema.parse({ kind: "work-item/conflict-record", owner: item, key: "held" });
+  let raised = false;
+  const store: Store = new Proxy(h.store, { get(target, key) {
+    if (key === "push") return async () => {
+      const result = await target.push(); if (result.status === "refused" || raised) return result;
+      raised = true;
+      return { status: "ok", result: PushResultSchema.parse({ ...result.result, pulls: [{ remote: "origin", role: "state", status: "pulled",
+        families: ["work-item"], notices: [{ kind: "ended-with-conflicts", item, conflicts: [conflict], condition: "Alpha ended with conflicts.",
+          remedy: { text: "Resolve alpha's retained conflicts." } }] }] }) };
+    };
+    const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  const result = await archive(store, "example");
+  expect(result).toMatchObject({ status: "archived", warnings: [expect.stringContaining("Alpha ended with conflicts.")] });
+  expect(result.status === "archived" ? result.warnings[0] : "").toContain(JSON.stringify(conflict));
 });
 
 it("completes an archive published successfully beside an unfinished-move advisory", async () => {
@@ -162,7 +184,8 @@ it("completes an archive published successfully beside an unfinished-move adviso
     };
     const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
   } });
-  expect(await archive(store, "example")).toMatchObject({ status: "archived" });
+  expect(await archive(store, "example")).toMatchObject({ status: "archived",
+    warnings: [`The old source awaits cleanup. ${publicationRepair.text}`] });
   expect([...remote.state.records.values()].find(record => record.reference.kind === "work-item/meta")?.placement)
     .toMatchObject({ kind: "completed" });
 });

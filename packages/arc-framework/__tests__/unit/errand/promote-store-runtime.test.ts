@@ -90,6 +90,17 @@ it.each(["unreachable", "incomplete"] as const)("refuses %s authority pulls with
   reachable = true;
   expect(await promoteOrdinaryErrandAtRuntime(options)).toMatchObject({ outcome: "applied", checkoutPath: f.cwd });
 });
+it("promotes past a lone failed read source and writes the failure", async () => {
+  const f = await fixture();
+  f.store.pull = async () => ({ status: "ok", result: { states: [], pulls: [
+    { status: "pulled", remote: "origin", role: "state", families: ["work-item"], notices: [] },
+    { status: "failed", remote: "upstream", role: "read", families: ["work-item"], notices: [], failure: { code: "unreachable",
+      class: "recoverable", cause: "network", condition: "Upstream is offline.", remedy: { text: "Reconnect the read source." } } }] } });
+  const written: string[] = [];
+  expect(await promoteOrdinaryErrandAtRuntime({ ...f.options, writeNotice: line => written.push(line) }))
+    .toMatchObject({ outcome: "applied", checkoutPath: f.cwd });
+  expect(written).toEqual(["Read source upstream was not pulled: Upstream is offline. Reconnect the read source."]);
+});
 it("pulls the project identity and source owner before acquiring promotion authority", async () => {
   const f = await fixture(), repository = "00000000-0000-4000-8000-000000000001";
   const source = TransientIdentityRecordV3Schema.parse(JSON.parse(f.primary.content));

@@ -31,3 +31,17 @@ it.each(["unreachable", "incomplete"] as const)("refuses %s adoption and continu
   expect((await prepareHandlerErrandAdoption(request, boundContext, legacy)).writes).toEqual(
     expect.arrayContaining([expect.objectContaining({ content: expect.stringContaining(request.intent) })]));
 });
+
+it("adopts past a lone failed read source and writes the failure", async () => {
+  const h = createLifecycleHarness();
+  h.store.pull = async () => ({ status: "ok", result: PullResultSchema.parse({ states: [], pulls: [
+    { status: "pulled", remote: "origin", role: "state", families: ["personal"], notices: [] },
+    { status: "failed", remote: "upstream", role: "read", families: ["personal"], notices: [], failure: { code: "unreachable",
+      class: "recoverable", cause: "network", condition: "Upstream is offline.", remedy: { text: "Reconnect the read source." } } }] }) });
+  const written: string[] = [];
+  const context = { store: h.store, identity: "alice", now: () => new Date("2026-10-01T00:00:00.000Z"), writeNotice: (line: string) => written.push(line) };
+  const plan = await prepareHandlerErrandAdoption({ slug: "example", intent: "Keep this free-text description." }, context,
+    async () => { throw new Error("Selected the legacy adoption path"); });
+  expect(plan.writes).toEqual(expect.arrayContaining([expect.objectContaining({ content: expect.stringContaining("Keep this free-text description.") })]));
+  expect(written).toEqual(["Read source upstream was not pulled: Upstream is offline. Reconnect the read source."]);
+});

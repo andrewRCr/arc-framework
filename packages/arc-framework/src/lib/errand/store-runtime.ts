@@ -7,6 +7,7 @@ import type { Links } from "../store/links.js";
 import type { Mutation } from "../store/write.js";
 import { createProjectIdentityReader, resolveProjectIdentity } from "../store/project-identity.js";
 import { bindStoreSyncPort, type StoreSyncPort } from "../store/operational-sync.js";
+import { consumePull, writePullNotices } from "../store/pull-consumption.js";
 import { deserializeTransientIdentityRecord, serializeTransientIdentityRecord, type TransientIdentityRecord } from "./identity-record.js";
 import { ordinaryErrandTransform, type OrdinaryErrandRecord, type OrdinaryErrandTransition, type OrdinaryErrandTransform } from "./identity-transitions.js";
 import type { IdentityTransactionOutcome } from "./identity-transaction.js";
@@ -16,6 +17,8 @@ export interface ErrandStoreOptions {
   store: Store;
   identity: string;
   sync?: StoreSyncPort;
+  /** Where the pull's notices are written; standard error by default. */
+  writeNotice?: (line: string) => void;
   projectId?: () => Promise<string>;
   now?: () => string;
   provenanceVerb?: string;
@@ -67,8 +70,9 @@ export async function transformStoreErrand(options: ErrandStoreOptions, previous
   return basis.kind === "ready" ? applyTransform(options, previous.slug, basis, transform, retire ? previous : undefined) : transactionFailure(basis);
 }
 async function readBasis(options: ErrandStoreOptions, slug: string, claimId?: string, completed = false): Promise<Basis> {
-  const pulled = await (options.sync ?? bindStoreSyncPort(options.store)).pull();
-  if (pulled.status === "unreachable" || pulled.status === "incomplete") return { kind: "refused", reason: `${pulled.condition} ${pulled.remedy.text}` };
+  const pulled = consumePull(await (options.sync ?? bindStoreSyncPort(options.store)).pull());
+  if (pulled.kind === "stop") return { kind: "refused", reason: pulled.reason };
+  writePullNotices(pulled.notices, options.writeNotice);
   const found = await options.store.lookup(claimId === undefined ? { kind: "slug", slug: SlugSchema.parse(slug) }
     : { kind: "claim", claim: { kind: "errand", slug: SlugSchema.parse(slug), claimId } });
   if (found.status === "refused") return found.refusal.code === "not-found" ? { kind: "ready", saved: null, record: null }

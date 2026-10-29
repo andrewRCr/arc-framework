@@ -21,6 +21,7 @@ import { executeTransition } from "../lifecycle-executor.js";
 import { revalidateLifecycleRecords } from "../prepared-lifecycle-write.js";
 import { isArchivalTriggeredWithDescendants } from "../lifecycle-membership.js";
 import { observeOpenCohorts, type OpenCohort } from "../../store/kinds/cohort/check-support.js";
+import { pullOutcomeNotices, renderExplained } from "../../store/pull-consumption.js";
 import type { ArchiveContext, ArchiveParams, ArchiveResult } from "./archive.js";
 
 /** Close session context and every newly completed cohort in the transition's single batch. */
@@ -61,15 +62,15 @@ export async function runStoreArchive(ctx: ArchiveContext & { executor: ArchiveC
 }
 
 async function settleStoredArchive(store: Store, primary: StoreRecord, outcome: Extract<TransitionOutcome, { status: "ok" }>): Promise<ArchiveResult> {
-  const name = primary.reference.owner.name;
+  const name = primary.reference.owner.name, notices: string[] = [];
   try {
-    const publication = await publishArchive(store, name);
+    const publication = await publishArchive(store, name, notices);
     if (publication !== undefined) return publication;
     for (;;) {
       const plan = await prepareStoredCloseout(store, primary);
       if (plan.status === "rejected") return plan;
-      if (plan.writes.length === 0) return await reportStoredArchive(store, plan.primary, outcome, cohortReferencesFor(plan.cohort));
-      const closeout = await publishCohortCloseout(store, name, plan);
+      if (plan.writes.length === 0) return await reportStoredArchive(store, plan.primary, outcome, cohortReferencesFor(plan.cohort), notices);
+      const closeout = await publishCohortCloseout(store, name, plan, notices);
       if (closeout !== undefined) return closeout;
     }
   } catch (error) { return persistedFailure(name, error instanceof Error ? error.message : String(error)); }
@@ -91,20 +92,28 @@ async function prepareStoredCloseout(store: Store, primary: StoreRecord): Promis
     : { ...cohorts, primary: current.result, cohort: meta.cohort };
 }
 
-async function publishCohortCloseout(store: Store, name: string, cohorts: { writes: Mutation[]; records: StoreRecord[] }): Promise<Extract<ArchiveResult, { status: "rejected" }> | undefined> {
+async function publishCohortCloseout(store: Store, name: string, cohorts: { writes: Mutation[]; records: StoreRecord[] },
+  notices: string[]): Promise<Extract<ArchiveResult, { status: "rejected" }> | undefined> {
   if (cohorts.writes.length === 0) return undefined;
   const valid = await revalidateLifecycleRecords(store, cohorts.records);
   if (valid.status === "refused") return reportFailure(name, valid.refusal);
   const closed = await batchLifecycleWrites(store, cohorts.writes, { verb: "archive", lifecycleAction: "archive" });
-  return closed.status === "refused" ? reportFailure(name, closed.refusal) : publishArchive(store, name);
+  return closed.status === "refused" ? reportFailure(name, closed.refusal) : publishArchive(store, name, notices);
 }
 
-async function publishArchive(store: Store, name: string): Promise<Extract<ArchiveResult, { status: "rejected" }> | undefined> {
+// Every notice the push raised joins the archive's warnings, or a persisted failure's reason when publication holds.
+async function publishArchive(store: Store, name: string, notices: string[]): Promise<Extract<ArchiveResult, { status: "rejected" }> | undefined> {
   const synced = await store.push();
   if (synced.status === "refused") return reportFailure(name, synced.refusal);
-  const held = archivePublicationHold(name, synced.result);
-  if (held) return held;
-  for (const publication of synced.result.publishes) {
+  notices.push(...pullOutcomeNotices(synced.result.pulls));
+  const held = archivePublicationHold(name, synced.result) ?? archivePublicationFailure(name, synced.result);
+  if (held) return notices.length === 0 ? held : { ...held, reason: `${held.reason} Also reported: ${notices.join(" ")}` };
+  notices.push(...synced.result.states.flatMap(state => state.status === "move-unfinished" ? [renderExplained([state.condition], state.remedy)] : []));
+  return undefined;
+}
+
+function archivePublicationFailure(name: string, result: PushResult): Extract<ArchiveResult, { status: "rejected" }> | undefined {
+  for (const publication of result.publishes) {
     if (!archiveFamilies(publication.families)) continue;
     if (publication.status === "failed") return persistedFailure(name, publication.failure.condition, publication.failure.remedy);
     if ("condition" in publication) return persistedFailure(name, publication.condition, publication.remedy);
@@ -142,7 +151,7 @@ function persistedFailure(name: string, reason: string, remedy?: Remedy, refusal
 }
 
 async function reportStoredArchive(store: Store, primary: StoreRecord, outcome: Extract<TransitionOutcome, { status: "ok" }>,
-  cohortReferences: readonly RecordReference[]): Promise<ArchiveResult> {
+  cohortReferences: readonly RecordReference[], notices: readonly string[]): Promise<ArchiveResult> {
   const placement = primary.placement;
   if (placement?.kind !== "completed" || !("sequence" in placement)) throw new Error("Archive result lacks its backend-assigned sequence");
   const paths: string[] = [];
@@ -153,7 +162,7 @@ async function reportStoredArchive(store: Store, primary: StoreRecord, outcome: 
   }
   const metaPath = workUnitMetaPath(primary);
   return { status: "archived", outcome, metaPath, destination: { quarter: placement.quarter, sequence: placement.sequence, toDir: posix.dirname(metaPath) },
-    cohortSwept: paths[0] ?? null, nestedParentSwept: paths[1] ?? null, warnings: [] };
+    cohortSwept: paths[0] ?? null, nestedParentSwept: paths[1] ?? null, warnings: [...notices] };
 }
 
 async function prepareArchiveCohorts(store: Store, cohort: string | null, prospective: LifecycleIndex,

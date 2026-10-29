@@ -1,5 +1,4 @@
 /** Invocation-bound checkout, in-flight quality and pull evidence for store lifecycle status. */
-import type { PullNotice } from "../../lib/store/sync.js";
 import type { Store } from "../../lib/store/contract.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import { resolveIdentity } from "../../lib/git/identity.js";
@@ -8,6 +7,7 @@ import { renderInFlightWarning } from "../../lib/git/in-flight-derivation.js";
 import { createLocusPorts } from "../../lib/locus/lifecycle-ports.js";
 import { createStoreSyncPort, pullResultNotices, type StoreSyncPort } from "../../lib/store/operational-sync.js";
 import { describeStorePull } from "../../lib/session-init/store-user-pull.js";
+import { renderExplained, renderPullNotice } from "../../lib/store/pull-consumption.js";
 import type { ProjectReadinessWarning } from "../../lib/status/project-view.js";
 import type { readStatusCheckoutRoster } from "./checkout-roster.js";
 /** Local and synchronization evidence can be supplied by one already-bound invocation. */
@@ -30,20 +30,6 @@ export async function pullStoreStatus(ports: { sync?: StoreSyncPort } = {}): Pro
   return [...warnings, ...pullResultNotices(pull).map(notice => ({ code: "pull-notice" as const, rendered: renderPullNotice(notice) })),
     ...(pull.advisories ?? []).map(advisory => ({ code: "pull-notice" as const,
       rendered: renderExplained([advisory.condition], advisory.remedy) }))];
-}
-
-function renderPullNotice(notice: PullNotice): string {
-  const parts = [notice.condition];
-  if (notice.kind === "ended-with-conflicts") parts.push(
-    `Ended item ${notice.item.name} retains conflicts: ${notice.conflicts.map(reference => JSON.stringify(reference)).join(", ")}.`,
-    "The ordinary conflict view does not list these retained conflicts.");
-  return renderExplained(parts, notice.remedy);
-}
-
-function renderExplained(parts: readonly string[], remedy: PullNotice["remedy"]): string {
-  const rendered = [...parts, remedy.text];
-  if (remedy.argv && !remedy.text.includes(remedy.argv.join(" "))) rendered.push(remedy.argv.join(" "));
-  return rendered.join(" ");
 }
 
 /** Keep a failed holder observation visible in the path field rather than fabricating absence. */

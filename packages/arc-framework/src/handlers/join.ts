@@ -30,6 +30,7 @@ import { createStore } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import type { Store } from "../lib/store/contract.js";
 import { bindStoreSyncPort, type StoreSyncPort } from "../lib/store/operational-sync.js";
+import { consumePull } from "../lib/store/pull-consumption.js";
 import { describeStorePull, type StoreSessionInitUserValue } from "../lib/session-init/store-user-pull.js";
 import { joinStoreDesignationSite } from "../prompts/join-store-designation.js";
 import { prompt, type PromptRenderer } from "../lib/command-input/prompter.js";
@@ -53,8 +54,8 @@ export async function pullJoinStore(input: { cwd: string; exec: GitExec; identit
     ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec, identity: input.identity }));
   if (!store.capabilities.stateOffBranch) return null;
   const result = await (ports.sync?.(store) ?? bindStoreSyncPort(store)).pull();
-  const value = describeStorePull(result);
-  if (result.status === "unreachable" || result.status === "incomplete") p.log.warn(`${result.condition} ${result.remedy.text}`);
+  const value = describeStorePull(result), consumed = consumePull(result);
+  for (const line of consumed.kind === "stop" ? [consumed.reason] : consumed.notices) p.log.warn(line);
   if (result.status !== "designation-needed") return value;
   p.log.info(value.summary);
   if (input.context.interaction !== "allowed") return value;
