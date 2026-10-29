@@ -302,6 +302,10 @@ through controller closing. Store qualification uses the native reach command la
           existing store selectors. Public preparation and CI forecasts retain native argv; replay preserves unset,
           empty and file states after caller edits. The actual reach catalogue has no retired-wrapper dependency.
 
+    - `[x]` **4.3.R Establish native timing output during preparation**
+        - Repository setup establishes the existing `.test-cost-runs` output root before the runner freezes generated
+          additions. Later timing and `duration-input/` writes retain their paths; new and changed source still refuse.
+
     - `[ ]` **4.3.b Qualify full and selected native store membership**
         - Use the landed store declaration, reach suite catalogue and native shard entry; cover deletions,
           declaration widening, `ARC_STORE_CHECK` forms and `ARC_STORE_BURSTS` membership gates through captured inputs.
