@@ -245,6 +245,12 @@ describe("paths and locations", () => {
 });
 
 describe("computed module location reach", () => {
+  it("requires declared finds for a destructured location", () => {
+    const files = memoryFiles({ ...repository, "pkg/helpers/only-one.ts": "const { dirname } = import.meta; export const p = dirname;" });
+    expect(() => selectReachSuites(declaration(), files, { form: "reach", changed: [], environment: {} }))
+      .toThrow(/builds a path from its own location/u);
+  });
+
   it("ignores statically unrelated metadata fields", () => {
     const files = { ...repository, "pkg/helpers/only-one.ts":
       'export const mode = import.meta["env"]; export const main = import.meta.main;' };
@@ -266,6 +272,9 @@ describe("computed module location reach", () => {
     'import.meta["filename"]',
     'import.meta["resolve"]("./data.json")',
     'import.meta[field]',
+    'locate(import.meta)',
+    '(({ dirname }) => dirname)(import.meta)',
+    'locate(__dirname)',
   ])("requires declared finds for unresolved %s and accepts repaired declaration", expression => {
     const files = memoryFiles({ ...repository, "pkg/helpers/only-one.ts":
       `const unrelated = import.meta["env"]; export const p = ${expression};` });

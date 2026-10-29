@@ -319,10 +319,18 @@ function ownLocationName(node: ts.Node): "url" | "dirname" | "filename" | "resol
     if (name === undefined) return "computed";
     return name === "url" || name === "dirname" || name === "filename" || name === "resolve" ? name : undefined;
   }
+  if (isWholeImportMeta(node)) return "computed";
   if (!ts.isIdentifier(node) || (node.text !== "__dirname" && node.text !== "__filename")) return undefined;
   const parent = node.parent;
   if ((ts.isPropertyAccessExpression(parent) || ts.isVariableDeclaration(parent)) && parent.name === node) return undefined;
   return node.text === "__dirname" ? "dirname" : "filename";
+}
+
+/** Destructured or passed along whole, the module metadata object can reach any location field. */
+function isWholeImportMeta(node: ts.Node): boolean {
+  if (!ts.isMetaProperty(node) || node.keywordToken !== ts.SyntaxKind.ImportKeyword) return false;
+  const parent = node.parent;
+  return !((ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) && parent.expression === node);
 }
 
 /** The literal path segments a location reference is joined with, when it sits in one of the literal forms. */
