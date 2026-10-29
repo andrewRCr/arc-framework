@@ -13,10 +13,11 @@ interface CapturableWork { primary: ImportRecord; ids: string[]; closed: Set<str
 interface AttributedCommit { sha: string; work: CapturableWork; tasks: string[] }
 
 /**
- * Walk each reachable commit once and acquire its object in bounded Git batches. A task list the scanner rejects yields
- * no captures and is reported to `skipped`, a row that never blocks the import.
+ * Walk each reachable commit once and acquire its object in bounded Git batches. A task list the scanner rejects, or a
+ * footer slug more than one work item holds, yields no captures and is reported to `skipped`, a row that never blocks the
+ * import.
  */
-export async function importTaskCaptures(context: RefBackendContext, records: ImportRecord[], tips: readonly string[], report: MigrateReport,
+export async function importTaskCaptures(context: RefBackendContext, records: ImportRecord[], tips: readonly string[],
   skipped: MigrateReport["notices"]): Promise<void> {
   const source = context.importSource;
   if (!source) throw new Error("No import source bound");
@@ -27,7 +28,7 @@ export async function importTaskCaptures(context: RefBackendContext, records: Im
   const shas = walk.stdout.trim().split(/\s+/u).filter(Boolean);
   const objects = await readBatchObjects({ ...context, rawExec: source.ports.rawExec, checkoutRoot: source.ports.checkoutRoot,
     readSource: undefined, blobStage: undefined }, shas);
-  const attributed = attributedCommits(objects, shas, index, report);
+  const attributed = attributedCommits(objects, shas, index, skipped);
   const keys = await computeCopyKeys({ cwd: source.ports.checkoutRoot, commits: attributed.map(item => item.sha), execRaw: source.ports.rawExec });
   for (const { sha, work, tasks } of attributed) {
     const copyKey = keys.get(sha)?.copyKey;
@@ -39,7 +40,7 @@ export async function importTaskCaptures(context: RefBackendContext, records: Im
 }
 
 function attributedCommits(objects: ReadonlyMap<string, BatchObject | null>, shas: readonly string[],
-  index: ReadonlyMap<string, CapturableWork[]>, report: MigrateReport): AttributedCommit[] {
+  index: ReadonlyMap<string, CapturableWork[]>, skipped: MigrateReport["notices"]): AttributedCommit[] {
   const attributed: AttributedCommit[] = [];
   const ambiguous = new Set<string>();
   for (const sha of shas) {
@@ -52,8 +53,9 @@ function attributedCommits(objects: ReadonlyMap<string, BatchObject | null>, sha
     const tasks = expandTaskReference(attribution.tasks, work.ids).filter(task => work.closed.has(task));
     if (tasks.length) attributed.push({ sha, work, tasks });
   }
-  for (const slug of ambiguous) report.notices.push({ condition: `Commit footers name ambiguous work item '${slug}'.`,
-    remedy: { text: "Repair the conflicting work-item names or rename lineage, then retry arc store migrate --import." } });
+  for (const slug of ambiguous) {
+    skipped.push({ condition: `Commit footers name work item '${slug}', which more than one imported work item holds, so no task captures are derived from them.` });
+  }
   return attributed;
 }
 

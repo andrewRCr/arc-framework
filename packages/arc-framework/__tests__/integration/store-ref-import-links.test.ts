@@ -4,11 +4,14 @@ import { importComparisonFixture } from "../helpers/store/import-comparison.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { createStore, createRefStore, RecordReferenceSchema, type Store } from "../../src/lib/store/index.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
-import { readFile, writeFile, unlink } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { computeCopyKeys } from "../../src/lib/git/copy-key.js";
 import { importFixture, IMPORT_INBOX } from "../helpers/store/import-fixture.js";
 import { resolveArcPath } from "../../src/lib/layout/index.js";
+import { ArchiveQuarterSchema, ArchiveSequenceSchema, SlugSchema } from "../../src/lib/kernel/index.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { LineageRecordSchema, writeLineageRecord } from "../../src/lib/store/kinds/lineage/index.js";
 import { setMetaBranch, setMetaState } from "../../src/lib/active/meta-reader.js";
 import { serializeTransientIdentityRecord, TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
 import { hashBlob, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
@@ -292,6 +295,37 @@ it("lands an import over a task list the scanner rejects, deriving no captures f
   expect(migrated).toMatchObject({ status: "ok" });
   expect(migrated.status === "ok" ? migrated.result.notices : []).toContainEqual(
     { condition: "Task list for 'alpha' cannot be scanned, so no task captures are derived from it." });
+  const meta = success(await h.store.read({ reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "alpha" } }) }));
+  expect(meta.links?.taskCaptures).toBeUndefined();
+}, 30_000);
+
+it("lands an import whose commit footers name a slug two work items hold, deriving no captures from them and reporting the skip", async () => {
+  const tasks = (title: string) => `# Task List: ${title}\n\n## **Phase 1:** Work\n\n### \`[x]\` **1.1 Finished**\n\n- _Goal:_ Finish.\n`;
+  const h = await importComparisonFixture("default", async fixture => {
+    await fixture.git("git", ["switch", "feat/alpha"]);
+    await writeFile(join(fixture.root, ".arc/active/tasks-alpha.md"), tasks("Alpha"));
+    // The ended work item was renamed from the slug the active one now holds.
+    const placement = { kind: "completed" as const, quarter: ArchiveQuarterSchema.parse("2026-q3"), sequence: ArchiveSequenceSchema.parse("56") };
+    for (const [path, content] of [
+      [resolveArcPath({ kind: "work-unit-artifact", artifact: "meta", slug: SlugSchema.parse("beta"), placement }),
+        makeMetaFixture("beta", { state: "Shipped", owner: "andrew", branch: null, completed: "2026-10-01", prUrl: "https://example.test/pull/2" })],
+      [resolveArcPath({ kind: "work-unit-artifact", artifact: "tasks", slug: SlugSchema.parse("beta"), placement }), tasks("Beta")],
+      [resolveArcPath({ kind: "transition-record", origin: SlugSchema.parse("alpha") }),
+        writeLineageRecord(LineageRecordSchema.parse({ schemaVersion: 2, origin: { name: "alpha" }, kind: "rename", successors: [{ name: "beta" }], incoming: [] }))],
+    ] as const) {
+      await mkdir(dirname(join(fixture.root, path)), { recursive: true });
+      await writeFile(join(fixture.root, path), content);
+    }
+    await fixture.git("git", ["add", ".arc"]);
+    await fixture.git("git", ["commit", "-m", "Reuse a former slug"]);
+    await writeFile(join(fixture.root, "work.txt"), "closed work\n");
+    await fixture.git("git", ["add", "work.txt"]);
+    await fixture.git("git", ["commit", "-m", "Close the task\n\nContext: tasks-alpha.md (Task 1.1)"]);
+  });
+  const migrated = await h.target.migrate();
+  expect(migrated, JSON.stringify(migrated)).toMatchObject({ status: "ok" });
+  expect(migrated.status === "ok" ? migrated.result.notices : []).toContainEqual(
+    { condition: "Commit footers name work item 'alpha', which more than one imported work item holds, so no task captures are derived from them." });
   const meta = success(await h.store.read({ reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "alpha" } }) }));
   expect(meta.links?.taskCaptures).toBeUndefined();
 }, 30_000);

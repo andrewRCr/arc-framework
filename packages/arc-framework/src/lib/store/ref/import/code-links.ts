@@ -22,7 +22,7 @@ export async function prepareImportCodeLinks(context: RefBackendContext, records
   const branches = await readBranchSources(context, records, report);
   report.refused.sort((left, right) => refusalPriority(left.rule) - refusalPriority(right.rule));
   if (!bases.length) { await reportMissingBase(source, report); return; }
-  await importTaskCaptures(context, records, [...bases, ...branches.filter(item => item.record.reference.kind === "work-item/meta").map(item => item.tip)], report, skipped);
+  await importTaskCaptures(context, records, [...bases, ...branches.filter(item => item.record.reference.kind === "work-item/meta").map(item => item.tip)], skipped);
   for (const branch of branches) await importBranchLink(context, branch, bases);
 }
 
