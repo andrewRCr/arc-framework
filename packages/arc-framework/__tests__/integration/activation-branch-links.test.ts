@@ -66,6 +66,25 @@ async function freshActivation() {
     params: { name: input.slug!, toBranch: `${input.type}/${input.slug}`, baseBranch: "main", nextAction: input.action } };
 }
 
+it("preserves activation state when a base probe times out and activates after repair", async () => {
+  const h = await freshActivation();
+  const failure = Object.assign(new Error("Base probe timed out"), { exitCode: 1, timedOut: true });
+  let broken = true;
+  const exec: GitExec = async (command, args, options) => {
+    if (broken && args[1] === "rev-parse" && args[4] === "refs/remotes/origin/main^{commit}") throw failure;
+    return h.exec(command, args, options);
+  };
+  const ctx = h.context(exec);
+  await expect(runActivate(ctx, h.params)).rejects.toBe(failure);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+  expect((await h.exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(h.base);
+  expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"])).stdout.trim()).toBe("main");
+  expect(await h.exec("git", ["rev-parse", "--verify", `refs/heads/${h.params.toBranch}`])
+    .then(result => result.stdout.trim(), () => null)).toBeNull();
+  broken = false;
+  expect(await runActivate(ctx, h.params)).toMatchObject({ status: "activated", branch: h.params.toBranch });
+}, ACTIVATION_TIMEOUT_MS);
+
 it("preserves an independently created target when the activation cut fails, then activates after repair", async () => {
   const h = await freshActivation();
   const otherCheckout = join(h.root, "other-checkout");
