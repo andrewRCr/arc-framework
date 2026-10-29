@@ -99,9 +99,10 @@ function lineageCandidates(trees: ReadonlyMap<string, RefLookupTree>, origin: st
   return matches.map(([uid, name]) => RecordReferenceSchema.parse({ owner: { type: "work-item", name, uid }, kind: "lineage/transition" }));
 }
 
-// Only a work item answers a slug or commit, so an unreadable cohort could not hold a better answer to either.
+// Only a ref lookup can answer with a cohort; a slug, commit, or checkout claim answers with a work item alone, so an
+// unreadable cohort could not hold a better answer to any of them.
 function answerHolders(input: LookupInput): RegExp {
-  return input.kind === "slug" || input.kind === "commit" ? /^refs\/arc\/(?:work|archive)\//u : /^refs\/arc\/(?:work|cohort|archive)\//u;
+  return input.kind === "ref" ? /^refs\/arc\/(?:work|cohort|archive)\//u : /^refs\/arc\/(?:work|archive)\//u;
 }
 
 function lookupSkippedRefusal(context: Pick<RefBackendContext, "registry">, input: LookupInput,

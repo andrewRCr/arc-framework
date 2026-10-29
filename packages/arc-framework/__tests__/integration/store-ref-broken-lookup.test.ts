@@ -91,7 +91,7 @@ describe("lookup with an unreadable item ref", () => {
     expect(await f.store.read({ reference: named })).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: f.ref } });
   });
 
-  it("answers slug and commit lookups past an unreadable cohort ref, which can never hold their answer", async () => {
+  it("answers slug, commit, and checkout claim lookups past an unreadable cohort ref, which can never hold their answer", async () => {
     const f = await createRefFixture();
     const cohort = await seed(f, f.reference("cohort/document"));
     const readable = await seed(f, f.reference("work-item/meta", "readable"), undefined, { kind: "active" }, {
@@ -102,7 +102,10 @@ describe("lookup with an unreadable item ref", () => {
     await plantRef(f.root, ref, [{ path: `cohort-${cohort.reference.owner.name}.md`, content: cohort.content }], { parents: [parent] });
     expect(success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse(readable.reference.owner.name) }))).toEqual({ reference: readable.reference });
     expect(success(await f.store.lookup({ kind: "commit", repository, sha, copyKey }))).toEqual({ reference: readable.reference, taskIds: ["1.1"] });
-    for (const input of [{ kind: "slug", slug: SlugSchema.parse("absent") }, { kind: "commit", repository, sha: "d".repeat(40), copyKey: `v1:${"e".repeat(64)}:${"f".repeat(64)}` }] satisfies LookupInput[]) {
+    expect(success(await f.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(readable.reference.owner.name) } })))
+      .toEqual({ reference: readable.reference });
+    for (const input of [{ kind: "slug", slug: SlugSchema.parse("absent") }, { kind: "commit", repository, sha: "d".repeat(40), copyKey: `v1:${"e".repeat(64)}:${"f".repeat(64)}` },
+      { kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse("absent") } }] satisfies LookupInput[]) {
       expect(await f.store.lookup(input)).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
     }
     expect(await f.store.lookup({ kind: "ref", repository, ref: "feat/unknown" })).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: ref } });
