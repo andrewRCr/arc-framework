@@ -106,11 +106,13 @@ to gates still have to pass by their declared deadlines.
 
 ### Hosted CI before verification attests
 
-The local merge gate skips the `ci_only` checks, `test:integration` and `test:e2e` among them, and a feature-branch push
-starts no CI. Once the merge gate passes, dispatch CI at the pushed verified head
-(`gh workflow run ci.yml --ref <branch>`). Work-unit verification attests only on a passing run whose `headSha` is that
-head, recorded by run id in the verification commit body. Dispatch again after any later code change; planning-only
-commits need no new run.
+The local merge gate skips the `ci_only` checks, `test:integration` and `test:e2e` among them, and a feature-branch
+push starts no CI. Once the merge gate passes, dispatch CI at the pushed verified head (`gh workflow run ci.yml --ref
+<branch>`). Work-unit verification attests only on a passing run whose `headSha` is that head and that was dispatched
+with neither diagnostic input set, recorded by run id in the verification commit body: `portability_timing_only` skips
+the build, lint, type-check, unit, integration, store, and E2E jobs, and `store_per_change` narrows the store run to
+its per-change form, so either run passes for its own purpose and attests nothing. Dispatch again after any later code
+change; planning-only commits need no new run.
 
 ### Test execution
 
