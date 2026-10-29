@@ -99,6 +99,11 @@ function lineageCandidates(trees: ReadonlyMap<string, RefLookupTree>, origin: st
   return matches.map(([uid, name]) => RecordReferenceSchema.parse({ owner: { type: "work-item", name, uid }, kind: "lineage/transition" }));
 }
 
+// Only a work item answers a slug or commit, so an unreadable cohort could not hold a better answer to either.
+function answerHolders(input: LookupInput): RegExp {
+  return input.kind === "slug" || input.kind === "commit" ? /^refs\/arc\/(?:work|archive)\//u : /^refs\/arc\/(?:work|cohort|archive)\//u;
+}
+
 function lookupSkippedRefusal(context: Pick<RefBackendContext, "registry">, input: LookupInput,
   trees: ReadonlyMap<string, RefLookupTree>, unreadable: ReadonlyMap<string, StoreRefusal>, matched: boolean): StoreRefusal | undefined {
   if (input.kind === "lineage") return unreadable.get("refs/arc/project/registry");
@@ -106,7 +111,8 @@ function lookupSkippedRefusal(context: Pick<RefBackendContext, "registry">, inpu
   if (input.kind === "claim" && (input.claim.kind === "groom" || input.claim.kind === "housekeep")) {
     return matched ? undefined : [...unreadable].find(([ref]) => /^refs\/arc\/user\/[^/]+\/claims$/u.test(ref))?.[1];
   }
-  const skipped = [...unreadable].find(([ref]) => /^refs\/arc\/(?:work|cohort|archive)\//u.test(ref))?.[1];
+  const holders = answerHolders(input);
+  const skipped = [...unreadable].find(([ref]) => holders.test(ref))?.[1];
   if (!skipped) return undefined;
   if (input.kind === "slug") {
     return preferredNameTrees(context, trees, input.slug, true, ["work-item"]).some(([, tree]) => !tree.liveRef && tree.metadata.slug === input.slug)
