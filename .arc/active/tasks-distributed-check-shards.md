@@ -261,7 +261,7 @@ through controller closing. Store qualification uses the native reach command la
           bases and incomplete worker observations. Native controllers retain exact assignments from the consumer's
           captured source and duration file after caller branch, test-file and duration edits.
 
-### `[ ]` **4.2 Qualify ordinary native tiers, filters and duration-input states — D4, D7**
+### `[x]` **4.2 Qualify ordinary native tiers, filters and duration-input states — D4, D7**
 
 - _Goal:_ Unit and integration retain their native selection and nonempty-completion requirements under the
   declared matrix and applicable execution profiles.
@@ -280,10 +280,10 @@ through controller closing. Store qualification uses the native reach command la
           selection. Full and filtered native runs prove exact membership and successful closing; ordinary unmatched,
           all-skipped and over-sharded selections stay nonpassing. Native profile evidence is recorded in the notes.
 
-    - `[ ]` **4.2.c Prove controller failure and output-isolation boundaries**
-        - Extend native closing/runtime-ownership fixtures with applicable concurrent views and shared dependencies.
-        - Verify closing errors remain failures, writers/handed durations do not alias, and leases remain effective
-          until native close completes. Keep resource routing/admission active for heavy qualification runs.
+    - `[x]` **4.2.c Prove controller failure and output-isolation boundaries**
+        - Native writers share immutable dependencies while keeping handed duration files, caches and reports private.
+          Gated closing retains artifact ownership through success and teardown failure; separate copies finish
+          independently and merge their native durations without altering handed inputs.
 
 ### `[ ]` **4.3 Qualify landed store reach no-ops and empty shares — D7**
 

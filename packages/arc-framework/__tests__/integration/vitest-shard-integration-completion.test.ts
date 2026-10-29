@@ -17,7 +17,7 @@ it.each(["unmatched name", "all skipped", "oversubscribed selection"] as const)(
         : kind === "oversubscribed selection" ? ["--shard=2/4"] : [];
       const result = await runVitestControllerFixture(fixture.packageRoot, ["integration", ...flags], {
         // The outer test owns admission; this tiny disposable controller checks native completion and artifact closing.
-        CI: "1", FORCE_COLOR: undefined, ARC_E2E_SKIP_BUILD: undefined,
+        CI: "1", FORCE_COLOR: undefined, ARC_E2E_SKIP_BUILD: undefined, ARC_TEST_DURATION_FILE: undefined,
       });
       expect(result.code, result.stdout + result.stderr).toBe(1);
       expect(result.stdout + result.stderr).toContain(kind === "oversubscribed selection"

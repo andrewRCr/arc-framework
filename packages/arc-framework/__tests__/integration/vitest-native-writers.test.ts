@@ -7,12 +7,13 @@ import {
 } from "../helpers/native-writer-fixture.js";
 import { mergeDurationArtifacts } from "../helpers/duration-artifacts.js";
 
-it("holds shared-checkout writers behind the artifact lease until native closing finishes", async () => {
+it.each([false, true])("holds shared-checkout writers through native closing (failure=%s)", async closingFailure => {
   const fixture = await makeNativeWriterFixture();
   await cp(join(fixture.packageRoot, "tests/integration-runtime.test.mjs"),
     join(fixture.packageRoot, "tests/integration-next.test.mjs"));
   const gate = join(fixture.packageRoot, "close.gate");
-  const first = startNativeWriter(fixture.packageRoot, "first", gate, "integration-runtime");
+  const first = startNativeWriter(fixture.packageRoot, "first", gate, "integration-runtime",
+    { NATIVE_WRITER_CLOSE_FAILURE: closingFailure ? "1" : undefined });
   let second: ReturnType<typeof startNativeWriter> | undefined;
   try {
     await waitForNativeWriter(async () => (await nativeWriterEvents(fixture.events))
@@ -33,11 +34,16 @@ it("holds shared-checkout writers behind the artifact lease until native closing
     expect(await readFile(fixture.report, "utf8")).toBe(report);
     await writeFile(gate, "release");
     const results = await Promise.all([first.child, second.child]);
-    for (const result of results) expect(result.exitCode, result.stderr).toBe(0);
+    expect(results[0]!.exitCode, results[0]!.stderr).toBe(closingFailure ? 1 : 0);
+    expect(results[1]!.exitCode, results[1]!.stderr).toBe(0);
+    if (closingFailure) expect(results[0]!.stdout + results[0]!.stderr).toContain("native closing failure retained");
     const events = await nativeWriterEvents(fixture.events);
     const lastFirstClose = events.map(({ stage, writer }) => `${writer}:${stage}`).lastIndexOf("first:closed");
     const secondSetup = events.findIndex(({ stage, writer }) => stage === "integration:setup" && writer === "second");
     expect(secondSetup).toBeGreaterThan(lastFirstClose);
+    const released = events.filter(({ stage, writer }) => stage === "closing-release" && writer === "first");
+    expect(released.length).toBeGreaterThan(0);
+    expect(released.every(({ owned }) => owned)).toBe(true);
     expect(events.filter(({ owned }) => owned !== undefined).every(({ owned }) => owned)).toBe(true);
     expect(JSON.parse(await readFile(fixture.report, "utf8"))).toMatchObject({ success: true, numPassedTests: 1 });
     const download = join(fixture.root, "duration-download");
@@ -64,16 +70,39 @@ it("finishes a separate-copy writer during another copy's closing and merges nat
     await rename(join(fixture.packageRoot, "tests/integration-runtime.test.mjs"),
       join(fixture.packageRoot, `tests/integration-${index}.test.mjs`));
   }
+  for (const fixture of fixtures) {
+    const config = join(fixture.packageRoot, "vitest.config.mjs");
+    await writeFile(config, 'import { HeavyFirstSequencer } from "./__tests__/helpers/heavy-first-sequencer.ts";\n'
+      + (await readFile(config, "utf8")).replace('test: { watch:', 'test: { sequence: { sequencer: HeavyFirstSequencer }, watch:'));
+  }
+  const handedContents = JSON.stringify({ results: [
+    ["integration:tests/integration-0.test.mjs", { duration: 31 }],
+    ["integration:tests/integration-1.test.mjs", { duration: 37 }],
+  ] });
+  const handed = fixtures.map(fixture => join(fixture.packageRoot, "handed-results.json"));
+  await Promise.all(handed.map(file => writeFile(file, handedContents)));
+  expect(await realpath(join(firstFixture.root, "node_modules")))
+    .toBe(await realpath(join(secondFixture.root, "node_modules")));
+  expect(new Set(await Promise.all(handed.map(file => realpath(file)))).size).toBe(2);
   const gate = join(firstFixture.packageRoot, "close.gate");
-  const first = startNativeWriter(firstFixture.packageRoot, "first", gate);
+  const first = startNativeWriter(firstFixture.packageRoot, "first", gate, undefined, { ARC_TEST_DURATION_FILE: handed[0] });
   let second: ReturnType<typeof startNativeWriter> | undefined;
   try {
     await waitForNativeWriter(async () => (await nativeWriterEvents(firstFixture.events))
       .some(({ stage }) => stage === "closing"), "first private close");
-    second = startNativeWriter(secondFixture.packageRoot, "second");
+    second = startNativeWriter(secondFixture.packageRoot, "second", undefined, undefined, { ARC_TEST_DURATION_FILE: handed[1] });
     const completed = await second.child;
     expect(completed.exitCode, completed.stderr).toBe(0);
     expect((await nativeWriterEvents(firstFixture.events)).some(({ stage }) => stage === "closed")).toBe(false);
+    for (const [index, fixture] of fixtures.entries()) {
+      const observations = (await nativeWriterEvents(fixture.events)).filter(event =>
+        event.stage === "integration:setup" || event.stage === "closing");
+      expect(observations.length).toBeGreaterThanOrEqual(2);
+      for (const event of observations) expect(event.handed).toEqual({
+        file: await realpath(handed[index]!), contents: handedContents,
+      });
+      expect(await readFile(handed[index]!, "utf8")).toBe(handedContents);
+    }
     const download = join(firstFixture.root, "duration-download");
     const cacheRoots = await Promise.all(fixtures.map(async (fixture, index) => {
       const cache = join(fixture.packageRoot, "node_modules/.vite/vitest");
@@ -87,6 +116,15 @@ it("finishes a separate-copy writer during another copy's closing and merges nat
     await writeFile(gate, "release");
     const firstResult = await first.child;
     expect(firstResult.exitCode, firstResult.stderr).toBe(0);
+    for (const [index, fixture] of fixtures.entries()) {
+      expect(await readFile(handed[index]!, "utf8")).toBe(handedContents);
+      const released = (await nativeWriterEvents(fixture.events)).filter(event => event.stage === "closing-release");
+      expect(released.length).toBeGreaterThan(0);
+      for (const event of released) {
+        expect(event.handed).toEqual({ file: await realpath(handed[index]!), contents: handedContents });
+        expect(event.owned).toBe(true);
+      }
+    }
     const output = join(firstFixture.root, "duration-output");
     mergeDurationArtifacts(download, output);
     const merged = JSON.parse(await readFile(join(output, "integration.json"), "utf8")) as {
