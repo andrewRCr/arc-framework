@@ -27,7 +27,7 @@ export async function inverseWithdrawStep(context: RefBackendContext, step: With
   const conflicts: ConflictRecord[] = [], formats: WithdrawEntryResult["retainedFormat"][] = [];
   for (const path of paths) {
     if (step.lineageOnly && !["metadata-registry.json", `lineage/${step.lineageOnly}.json`].includes(path)) continue;
-    await inverseEntry(context, step, path, entries, current, published, objects, conflicts, formats);
+    await inverseEntry(context, step, path, entries, current, published, objects, conflicts, formats, batches);
   }
   await repairWithdrawnLineage(context, step, entries, current, objects);
   await retainSelectedFormats(context, step.ref, entries, formats);
@@ -72,7 +72,7 @@ function inverseArchive(ref: string, entries: Map<string, RefTreeEntry>,
 }
 
 async function inverseMetadata(context: RefBackendContext, entries: readonly (RefTreeEntry | undefined)[],
-  objects: ReadonlyMap<string, BatchObject | null>, lineageOnly?: string): Promise<string> {
+  objects: ReadonlyMap<string, BatchObject | null>, batches: ReadonlySet<string>, lineageOnly?: string): Promise<string> {
   const values = entries.map((entry) => {
     if (!entry) return undefined;
     const object = objects.get(entry.oid);
@@ -80,13 +80,14 @@ async function inverseMetadata(context: RefBackendContext, entries: readonly (Re
     return JSON.parse(new TextDecoder().decode(object.bytes)) as unknown;
   });
   const before = lineageOnly ? lineageMetadataSlice(values[0], lineageOnly) : values[0];
-  const after = lineageOnly ? lineageMetadataSlice(values[1], lineageOnly) : values[1];
+  const after = lineageOnly ? lineageMetadataSlice(values[1], lineageOnly) : movedEnd(values[1], values[2], batches);
   const ancestor = lineageOnly ? lineageMetadataSlice(values[4], lineageOnly) : values[4];
   return writeRefBlob(context, canonicalize(inverseValue(before, after, values[2], values[3], ancestor)));
 }
 
 async function inverseEntry(context: RefBackendContext, step: WithdrawJournalStep, path: string,
-  entries: Map<string, RefTreeEntry>, current: ReadonlyMap<string, RefTreeEntry>, published: ReadonlyMap<string, RefTreeEntry>, objects: ReadonlyMap<string, BatchObject | null>, conflicts: ConflictRecord[], formats: WithdrawEntryResult["retainedFormat"][]): Promise<void> {
+  entries: Map<string, RefTreeEntry>, current: ReadonlyMap<string, RefTreeEntry>, published: ReadonlyMap<string, RefTreeEntry>, objects: ReadonlyMap<string, BatchObject | null>, conflicts: ConflictRecord[], formats: WithdrawEntryResult["retainedFormat"][],
+  batches: ReadonlySet<string>): Promise<void> {
   const before = step.before.get(path), here = entries.get(path);
   const live = step.ref.replace("refs/arc/history/", "refs/arc/"), family = viewRefFamily(live);
   const metadataPath = family === undefined ? undefined : expandStoredPath(refPrototype(context, live, family), { registry: context.registry }).metadataPath;
@@ -112,17 +113,17 @@ async function inverseEntry(context: RefBackendContext, step: WithdrawJournalSte
     if (!keep) await restoreOriginalEntry(context, entries, path, before, here, false);
     return;
   }
-  await inverseUnregisteredEntry(context, step, path, entries, published, objects, metadataPath);
+  await inverseUnregisteredEntry(context, step, path, entries, published, objects, metadataPath, batches);
 }
 
 /** Keep structural metadata inversion and opaque entries on their existing blob/mode policy. */
 async function inverseUnregisteredEntry(context: RefBackendContext, step: WithdrawJournalStep, path: string,
   entries: Map<string, RefTreeEntry>, published: ReadonlyMap<string, RefTreeEntry>, objects: ReadonlyMap<string, BatchObject | null>,
-  metadataPath: string | undefined): Promise<void> {
+  metadataPath: string | undefined, batches: ReadonlySet<string>): Promise<void> {
   const before = step.before.get(path), after = step.after.get(path), here = entries.get(path), remote = published.get(path);
   const metadata = path === metadataPath;
   if (metadata && here && (step.lineageOnly || before)) {
-    entries.set(path, { ...here, oid: await inverseMetadata(context, [before, after, here, remote, step.ancestor.get(path)], objects, step.lineageOnly) });
+    entries.set(path, { ...here, oid: await inverseMetadata(context, [before, after, here, remote, step.ancestor.get(path)], objects, batches, step.lineageOnly) });
     return;
   }
   if (after && independentlyPublished(after, remote, step.ancestor.get(path), same)) return;
@@ -166,6 +167,19 @@ async function preserveInverseConflicts(context: RefBackendContext, ref: string,
   if (!entry || !metadata) throw new Error("An entry inverse has no conflict metadata");
   await appendRefConflicts(context, ref, { entries, metadata }, conflicts);
   entries.set(home.metadataPath, { ...entry, oid: await writeRefBlob(context, canonicalize(metadata)) });
+}
+
+/**
+ * A put that later moved a withdrawn end to another quarter changed only where that end stands, keeping its end batch, so
+ * the end's inverse reads the move's placement and batch as its own write and withdraws them with it.
+ */
+function movedEnd(after: unknown, current: unknown, batches: ReadonlySet<string>): unknown {
+  const written = object(after), held = object(current);
+  if (!written || !held || typeof written.endBatch !== "string" || !batches.has(written.endBatch) || held.endBatch !== written.endBatch) return after;
+  const moved: Record<string, unknown> = { ...written, batch: held.batch, placement: held.placement };
+  const primary = object(written.primary), placement = object(held.primary)?.placement;
+  if (primary) moved.primary = { ...primary, placement };
+  return JSON.parse(JSON.stringify(moved)) as unknown;
 }
 
 function lineageMetadataSlice(value: unknown, uid: string): unknown {

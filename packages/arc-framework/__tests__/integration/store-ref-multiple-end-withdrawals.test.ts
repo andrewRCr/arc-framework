@@ -31,4 +31,26 @@ describe.each(["default", "separate"] as const)("independent competing ends in t
     expect(success(await h.a.store.push()).publishes).toContainEqual(expect.objectContaining({ status: "pushed" }));
     expect(success(await h.a.store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
   });
+
+  it("withdraws an unpublished end whose folder a later put moved to another quarter", async () => {
+    const h = await refSyncFixture(layout), moved = ArchiveQuarterSchema.parse("2027-q2");
+    const { reference } = success(await h.a.store.write({ action: "put", expected: null,
+      reference: RecordReferenceSchema.parse({ owner: { type: "work-item", name: "moved-item" }, kind: "work-item/meta" }),
+      content: makeMetaFixture("moved-item"), placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "activate" } }));
+    success(await h.a.store.push()); success(await h.b.store.pull());
+    for (const [side, quarter] of [[h.a, own], [h.a, moved], [h.b, published]] as const) {
+      const current = success(await side.store.read({ reference }));
+      success(await side.store.write({ action: "put", reference, expected: current.version, content: current.content,
+        placement: { kind: "completed", quarter }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
+    }
+    success(await h.b.store.push());
+    const notices = success(await h.a.store.pull()).pulls.flatMap(({ notices }) => notices);
+    expect(notices).toContainEqual(expect.objectContaining({ kind: "end-withdrawn", item: reference.owner }));
+    expect(success(await h.a.store.read({ reference })).placement).toMatchObject({ kind: "completed", quarter: published });
+    for (const quarter of [own, moved]) expect((await h.a.git(["ls-tree", "--name-only", `refs/arc/archive/${quarter}`])).stdout).toBe("");
+    const pushed = success(await h.a.store.push());
+    expect(pushed.publishes.every(({ status }) => status !== "failed")).toBe(true);
+    expect(pushed.pulls.flatMap(({ notices }) => notices).filter(({ kind }) => kind === "ended-twice")).toEqual([]);
+    expect(success(await h.a.store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
+  });
 });

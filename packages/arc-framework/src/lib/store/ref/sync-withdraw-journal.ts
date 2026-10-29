@@ -5,6 +5,8 @@ import { parseStoreCommitProvenance } from "../commit-provenance.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import { isStateRef } from "./manifest.js";
+import { isArchiveRef } from "./archive-read.js";
+import { readLifecycleFolders } from "./sync-lifecycle.js";
 
 /** One ref's complete contribution to the original batch, including its conflict commit. */
 export interface WithdrawJournalStep {
@@ -51,7 +53,20 @@ export async function describeWithdrawJournal(context: RefBackendContext, held: 
     if (/^refs\/arc\/(?:history\/)?work\//u.test(ref) && ref !== origin && !first.parents[0]) continue;
     descriptions.push({ ref, before: first.parents[0], after: last.commit });
   }
-  return descriptions;
+  return [...descriptions, ...await describeMovedEnds(context, held, batches, descriptions)];
+}
+
+/**
+ * A put that moves an ended owner to another quarter rewrites its folder there in the put's own batch, keeping the end
+ * batch, so the quarter now holding the folder joins the inverse whatever batch last wrote it.
+ */
+async function describeMovedEnds(context: RefBackendContext, held: ReadonlyMap<string, string>, batches: ReadonlySet<string>,
+  described: readonly WithdrawJournalDescription[]): Promise<WithdrawJournalDescription[]> {
+  const journaled = new Set(described.map(({ ref }) => ref));
+  const quarters = new Map([...held].filter(([ref]) => isArchiveRef(ref) && !journaled.has(ref)));
+  const holding = new Set((await readLifecycleFolders(context, quarters))
+    .filter(({ metadata }) => metadata.endBatch !== undefined && batches.has(metadata.endBatch)).map(({ ref }) => ref));
+  return [...quarters].filter(([ref]) => holding.has(ref)).map(([ref, tip]) => ({ ref, after: tip }));
 }
 
 /** Read every original tree only after the caller holds the complete withdrawal lock set. */
