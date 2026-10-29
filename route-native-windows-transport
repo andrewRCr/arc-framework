@@ -3,14 +3,20 @@
   "slug": "route-native-windows-transport",
   "claimId": "9d380c8a4d2693be4c50c9f12023a15a",
   "createdAt": "2026-10-27T01:04:25.316Z",
-  "updatedAt": "2026-10-27T01:04:25.316Z",
+  "updatedAt": "2026-10-29T19:01:48.254Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Capture the approved core native-Windows bulk transport follow-up and its storage-program release sequencing.",
   "branch": "chore/route-native-windows-transport",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/route-native-windows-transport",
+    "headSha": "3d0532aa2a56f01d11d920ad903f92a5af6315aa"
+  }
 }
