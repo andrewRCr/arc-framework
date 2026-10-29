@@ -91,7 +91,16 @@ describe.each(["default", "separate"] as const)("distinct record coordinates in 
     for (const coordinate of coordinates) expect(coordinate).toMatch(/^[\u0020-\u007e]*$/u);
     expect(coordinates.map(key => (JSON.parse(key) as { key: string }).key).sort()).toEqual([...keys].sort());
     expect(coordinates).toContain('{"key":"plain","kind":"review/evidence"}');
-    await expect(f.store.write({ action: "put", reference: reference("broken-\ud800"), expected: null,
-      content: "{}", provenance })).rejects.toThrow(/well-formed Unicode/u);
+    const before = success(await f.store.version());
+    for (const key of ["broken-\ud800", "broken-\udc00-tail"]) {
+      expect(await f.store.write({ action: "put", reference: reference(key), expected: null, content: "{}", provenance }))
+        .toMatchObject({ status: "refused", refusal: { code: "record-malformed", class: "recoverable", rule: "store.key",
+          condition: expect.stringContaining("well-formed Unicode"), remedy: { text: expect.stringContaining("well-formed") } } });
+      const pass = RecordReferenceSchema.parse({ owner: owner.reference.owner, kind: "review/adversarial-pass", key: { activity: key, number: 1 } });
+      expect(await f.store.write({ action: "put", reference: pass, expected: null, content: "{}", provenance }))
+        .toMatchObject({ status: "refused", refusal: { code: "record-malformed", rule: "store.key" } });
+    }
+    expect(success(await f.store.version())).toBe(before);
+    success(await f.store.write({ action: "put", reference: reference("repaired"), expected: null, content: f.content(reference("repaired")), provenance }));
   }, 60_000);
 });

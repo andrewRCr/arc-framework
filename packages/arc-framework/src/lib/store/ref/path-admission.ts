@@ -3,6 +3,7 @@
 import { RecordReferenceSchema, sameReference, type RecordReference } from "../identity.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
 import { isSlugSafe } from "../../kernel/schema/slug.js";
+import { isWellFormedUnicode } from "../../kernel/canonical/unicode.js";
 import { IDENTITY_STATUS_FILENAME } from "../../user-surfaces.js";
 import type { RefBackendContext } from "./context.js";
 import type { StoreRefusal } from "../refusal.js";
@@ -83,7 +84,7 @@ export function checkRefBatchPaths(references: readonly RecordReference[], regis
 export function checkRefKey(reference: RecordReference, registry: RefBackendContext["registry"], ownerResolved = true): StoreRefusal | undefined {
   const malformed = malformedKeyProblem(reference, registry);
   if (malformed) return { code: "record-malformed", class: "recoverable", reference, rule: "store.key", condition: malformed,
-    remedy: { text: "Choose a stored key without control characters or excluded machine-local or derived paths, using one segment for an ID or activity, then retry." } };
+    remedy: { text: "Choose a well-formed stored key without control characters or excluded machine-local or derived paths, using one segment for an ID or activity, then retry." } };
   if (!registry[reference.kind].ref) return unsupportedKey(reference, `No ref home is declared for ${reference.kind}`);
   const resolved = pathPrototype(reference);
   const home = expandStoredPath(resolved, { registry });
@@ -158,6 +159,7 @@ function malformedKeyProblem(reference: RecordReference, registry: RefBackendCon
   const key = reference.key;
   const value = typeof key === "object" ? key.activity : key;
   const shape = registry[reference.kind].key;
+  if (value && !isWellFormedUnicode(value)) return "The key holds a lone surrogate, which is not well-formed Unicode";
   if (value && (hasControl(value) || (shape === "id" || shape === "pass") && value.includes("/"))) {
     return "The key holds a control character or more than one path segment for an ID or activity";
   }
