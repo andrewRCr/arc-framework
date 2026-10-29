@@ -1,8 +1,9 @@
 /** Relocated source Git metadata resolves code without original repository administration. */
 import { afterEach, expect, it } from "vitest";
-import { cp, lstat, mkdir, mkdtemp, readFile, readdir, readlink, symlink, unlink, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdir, mkdtemp, readFile, readdir, symlink, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
 import { createTempRepoCore, removeGitBackedDir, removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { createExecaGitExec, createExecaRawGitExec } from "../../src/lib/git/process-executor.js";
 import { resolveCheckRequest } from "../../src/lib/checks/resolve-request.js";
@@ -12,7 +13,6 @@ import { addSourceGitMetadata } from "../../src/lib/checks/runner/source-git.js"
 import { nodeSourcePresentationIO } from "../../src/lib/checks/runner/source-io.js";
 import { verifySourcePresentation } from "../../src/lib/checks/runner/source-verify.js";
 import { readCheckHead } from "../../src/lib/checks/head.js";
-import { SourceCaptureError } from "../../src/lib/checks/runner/source-error.js";
 
 const git = createExecaGitExec();
 const io = { git, gitRaw: createExecaRawGitExec(), source: nodeSourcePresentationIO };
@@ -25,13 +25,13 @@ async function commit(root: string, name: string): Promise<string> {
   return (await git("git", ["rev-parse", "HEAD"], { cwd: root })).stdout;
 }
 
-const LINK_QUALIFICATION_TIMEOUT = 60_000;
-const sourceModes = ["index", "commit"] as const;
+const LINK_CAPTURE_TIMEOUT = 60_000;
+const sourceModes = ["worktree", "index", "commit"] as const;
 const linkSpellings = ["flat", "forward-slash", "backslash"] as const;
 
 it.each(sourceModes.flatMap(basis => linkSpellings.map(spelling => ({ basis, spelling }))))(
-  "qualifies $basis symlink targets written with $spelling", async ({ basis, spelling }) => {
-    const root = await createTempRepoCore({ prefix: "arc-source-link-qualification-" });
+  "preserves $basis symlink targets written with $spelling", async ({ basis, spelling }) => {
+    const root = await createTempRepoCore({ prefix: "arc-source-link-target-" });
     directories.push(root);
     await git("git", ["config", "core.symlinks", "true"], { cwd: root });
     const target = spelling === "flat" ? "target" : ["nested", "target"].join(spelling === "backslash" ? "\\" : "/");
@@ -44,45 +44,31 @@ it.each(sourceModes.flatMap(basis => linkSpellings.map(spelling => ({ basis, spe
     const mode = Buffer.from((await io.gitRaw(["ls-files", "--stage", "-z", "--", "link"], { cwd: root })).stdout).toString("utf8");
     expect(mode).toMatch(/^120000 [0-9a-f]+ 0\tlink\0$/u);
     const gitTarget = Buffer.from((await io.gitRaw(["show", basis === "index" ? ":link" : tip + ":link"], { cwd: root })).stdout).toString("utf8");
-    const observation = { basis, spelling, platform: process.platform, suppliedTarget: target,
-      callerTarget: await readlink(join(root, "link")), gitTarget, mode };
-    const result = await resolveCheckRequest(git, root, basis === "index" ? { form: { kind: "pre-commit" } }
+    const result = await resolveCheckRequest(git, root, basis === "worktree" ? { form: { kind: "run", ids: ["check"] } }
+      : basis === "index" ? { form: { kind: "pre-commit" } }
       : { form: { kind: "pre-push", ref: "refs/heads/topic", old: tip, tip } });
     if (result.status !== "resolved") throw new Error(result.message);
     const boundary = await acquireSourceBoundary(io, root, result.request);
-    const observedTargets = new Set<string>();
-    const observed: typeof io = { ...io, source: { ...io.source, readlink: async path => {
-      const value = await io.source.readlink(path);
-      observedTargets.add(Buffer.from(value).toString("utf8"));
-      return value;
-    } } };
-    let frozen: Awaited<ReturnType<typeof freezeSelectedSource>> | undefined;
-    let phase = "capture";
     try {
-      frozen = await freezeSelectedSource(observed, root, result.request, boundary);
-      const entry = frozen.manifest.entries.find(candidate => candidate.path === "link");
-      if (entry?.kind !== "symlink") throw new Error("Selected Git link did not produce a source symlink");
-      expect(entry.target).toBe(gitTarget);
-      phase = "verify";
-      expect(await verifySourcePresentation({ root: frozen.root, manifest: frozen.manifestPath,
-        digest: frozen.digest, coordinates: frozen.manifest.coordinates })).toEqual(frozen.manifest);
-      const linkedRead = await readFile(join(frozen.root, "link"), "utf8").then(
-        value => ({ status: "readable", value }),
-        error => ({ status: "unreadable", code: (error as NodeJS.ErrnoException).code ?? "unknown" }),
-      );
-      console.info("source-link-qualification", JSON.stringify({ ...observation, outcome: "captured",
-        observedTargets: [...observedTargets], frozenTarget: await readlink(join(frozen.root, "link")),
-        linkedRead, manifest: frozen.manifest }));
-      if (spelling === "flat") expect(linkedRead).toEqual({ status: "readable", value: "captured target" });
-    } catch (error) {
-      if (spelling === "flat" || !(error instanceof SourceCaptureError)) throw error;
-      console.info("source-link-qualification", JSON.stringify({ ...observation, outcome: "refused",
-        phase, observedTargets: [...observedTargets], message: error.message }));
-    } finally {
-      try { await frozen?.remove(); }
-      finally { await boundary.remove(); }
-    }
-  }, LINK_QUALIFICATION_TIMEOUT,
+      const frozen = await freezeSelectedSource(io, root, result.request, boundary);
+      try {
+        const entry = frozen.manifest.entries.find(candidate => candidate.path === "link");
+        expect(entry).toEqual({ path: "link", kind: "symlink", target: gitTarget });
+        const source = { root: frozen.root, manifest: frozen.manifestPath,
+          digest: frozen.digest, coordinates: frozen.manifest.coordinates };
+        expect(await verifySourcePresentation(source)).toEqual(frozen.manifest);
+        expect(await readFile(join(frozen.root, "link"), "utf8")).toBe("captured target");
+        if (spelling === "forward-slash") {
+          await addSourceGitMetadata(io, root, frozen);
+          const example: unknown = await import(fileURLToPath(new URL("../../examples/check-runner/local-inputs.mjs", import.meta.url)));
+          if (typeof example !== "object" || example === null || !("verifyInputs" in example) || typeof example.verifyInputs !== "function") {
+            throw new Error("Independent runner example verifier is unavailable");
+          }
+          await example.verifyInputs({ source, environment: {} });
+        }
+      } finally { await frozen.remove(); }
+    } finally { await boundary.remove(); }
+  }, LINK_CAPTURE_TIMEOUT,
 );
 
 it("retains HEAD, checked tree, base, merge and code history after original removal, excluding private administration", async () => {
