@@ -181,6 +181,7 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
   "review readiness": { summary: COMMAND_SUMMARIES["review readiness"], notes: requestNotes },
   "review frontline resolve": { summary: COMMAND_SUMMARIES["review frontline resolve"], notes: requestNotes },
   "review hosted settle": { summary: COMMAND_SUMMARIES["review hosted settle"], notes: requestNotes },
+  "review hosted dismiss": { summary: COMMAND_SUMMARIES["review hosted dismiss"], notes: requestNotes },
   "review local prepare": { summary: COMMAND_SUMMARIES["review local prepare"], notes: requestNotes },
   "review local attest": { summary: COMMAND_SUMMARIES["review local attest"], notes: requestNotes },
   "review local cancel": { summary: COMMAND_SUMMARIES["review local cancel"], notes: requestNotes },

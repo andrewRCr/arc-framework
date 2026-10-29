@@ -313,6 +313,11 @@ import {
 import { explainHostedSettlementBindingMismatch } from
   "../scripts/review-gate/hosted/settlement-binding.js";
 import {
+  HostedDismissEnvelopeSchema,
+  HostedDismissResultSchema,
+  dismissHostedReview,
+} from "../scripts/review-gate/hosted/dismiss.js";
+import {
   GhHostedReviewPort,
   hostedGhRunner,
   type HostedProcessRunner,
@@ -469,6 +474,7 @@ export const REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS = [
   "review lane read",
   "review frontline resolve",
   "review hosted settle",
+  "review hosted dismiss",
   "review local prepare",
   "review local attest",
   "review local cancel",
@@ -2034,7 +2040,8 @@ type ReviewHandlerErrorPhase = "request" | "execution" | "output";
 type HostedReviewHandlerMode =
   | "review-hosted-request"
   | "review-hosted-await"
-  | "review-hosted-settle";
+  | "review-hosted-settle"
+  | "review-hosted-dismiss";
 
 type HostedReviewHandlerBoundary = Pick<
   ReviewHandlerBoundary,
@@ -4193,6 +4200,44 @@ export async function handleReviewHostedSettle(
     resultSchema: HostedSettleResultSchema,
     dependencies,
     execute: dependencies.settle,
+  });
+}
+
+export interface ReviewHostedDismissHandlerDependencies extends HostedReviewHandlerBoundary {
+  dismiss(input: unknown): Promise<unknown>;
+}
+
+function defaultHostedDismissDependencies(): ReviewHostedDismissHandlerDependencies {
+  const { adapters } = createHostedAdapters();
+  const port = new GhHostedReviewPort(hostedGhRunner);
+  return {
+    ...defaultHostedHandlerBoundary(),
+    dismiss: async (input) => dismissHostedReview(
+      HostedDismissEnvelopeSchema.parse(input),
+      port,
+      adapters.map((adapter) => adapter.identities.botUserId),
+    ),
+  };
+}
+
+/**
+ * Dismiss one registered review service's settled change-request review on an open pull request.
+ *
+ * @param source - The request file path, or `-` for stdin.
+ * @param overrides - Test seams for the host and output boundaries.
+ */
+export async function handleReviewHostedDismiss(
+  source: string,
+  overrides: Partial<ReviewHostedDismissHandlerDependencies> = {},
+): Promise<void> {
+  const dependencies = { ...defaultHostedDismissDependencies(), ...overrides };
+  await executeHostedReviewHandler({
+    mode: "review-hosted-dismiss",
+    source,
+    requestSchema: HostedDismissEnvelopeSchema,
+    resultSchema: HostedDismissResultSchema,
+    dependencies,
+    execute: dependencies.dismiss,
   });
 }
 

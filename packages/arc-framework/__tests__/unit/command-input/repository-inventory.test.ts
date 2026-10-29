@@ -250,7 +250,9 @@ describe("repository command-input inventory", () => {
   });
 
   it("routes hosted review JSON commands under a constant machine-mode policy", () => {
-    for (const path of ["review hosted request", "review hosted await", "review hosted settle"]) {
+    for (const path of [
+      "review hosted request", "review hosted await", "review hosted settle", "review hosted dismiss",
+    ]) {
       const command = snapshot.source.commands.find((entry) => entry.path === path);
       expect(command?.action?.interactionContext, path).toBe(true);
       expect(command?.action?.constantMachineMode, path).toBe(true);

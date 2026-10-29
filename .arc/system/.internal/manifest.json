@@ -600,7 +600,7 @@
     "system/workflows/arc/supplemental/run-errand.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "7ae9d9b1bc84c454adfddc6242bde4d39084ed37c400a47f85109a5d58b37996"
+      "pristine_hash": "91db96b7366483b9c84df2dea020c89a617dcb9b3ccbd569a48266fe0cfcdff9"
     },
     "system/workflows/arc/supplemental/drain-inbox.md": {
       "classification": "Framework",
@@ -635,7 +635,7 @@
     "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "b6419cd3e6ba48be6ed2645b22620ae32c4f59dee44d5152168406adf7015cda"
+      "pristine_hash": "01d4a5d42f8225d7a0cefe6380aa0299549ebaa822bba2914225e8d3b21f0bb8"
     },
     "system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md": {
       "classification": "Framework",
