@@ -709,6 +709,43 @@ The amendment is a determinate correction at low depth. Source-grounding and spe
 and binding completeness are checked over that footprint. The independent planning offer is omitted at low depth.
 The original 6.6 scenario and later provider-dependent tasks are unaffected; 8.1 remains the next covering verifier.
 
+## A20 — The import gives the mapping a source the design did not name
+
+Merging base brought `storage-ref-backend`'s import ahead of this change, and with it the import's own half of the
+mapping contract. Its port (`ReviewMappingInput`, `lib/store/ports.ts`) gives each live work unit's Candidate entry a
+`current` field — the record as read at the work unit's selected meta revision — and `mapImportReview` adds that
+record's plain tracked path to the sources `inspectReviewCoverage` requires the listing to cover exactly once. Any
+coverage notice blocks the import. The branch's mapping met the port by shape and ignored `current`, so once passed in
+it would refuse every import holding a live Candidate. No production caller passes it in yet: `handleStoreMigrate` runs
+`runStoreMigrate` over the command's ports alone, and Task 3.6's deferral assumed the import's change would wire it.
+
+Superseded in § 11 ¶1, which enumerated the listing's sources: "each Candidate version as `<tracked path>@<commit>`, its
+tracked path the one its work unit's slug gives (`resolveCandidateRecordRelativePath`); and each boundary by its
+tracked path". Superseded in § 11 ¶2: "The mapping expects one contract of the import, available from the flip" and
+"each live work unit's Candidate versions, oldest first from the record's path log, with its current boundary".
+Superseded in § 11.1 ¶1: "The import refuses until such a work unit's branch merges, or is removed where its change has
+already landed or is no longer wanted, so the mapping never meets one." The import marks such a work unit live
+(`archivedWorkLive`), so the mapping meets it; the import still refuses, so the outcome is unchanged.
+
+`current` duplicates the newest version's bytes: `readImportCandidateVersions` logs the record's path at the same
+revision whose tree `current` is read from, so the current record is the newest version's content. Listing it as mapped
+into the Candidate record that version became adds no content, and leaving it behind with that version's reason keeps
+one refusal reason per record. The import's and the mapping's tracked paths come from the same layout calls, so versions
+and boundaries already match the import's sources exactly.
+
+Two reader-accuracy corrections ride the same edit with no behavior change: the Terms' ref backend and import are on
+base, and § 10.4's ended item leaves the live listings while an archived item's current records stay readable from its
+quarter's archive ref at placement `completed`, which the location-filtered listings Criterion 5.4 reads leave out.
+
+Propagation: Task 3.6 and verifier 3.8 take the forward pointer; 3.8's counts came from an uncommitted harness built
+to the branch's port model and never met the import's own source list. Criterion 4 stands and Criterion 20 appends.
+§ 14.2 already names `arc store migrate`'s handler, and the Open Questions' availability terms remain accurate. Task 7.5
+and the Phase 7 exit criterion are unaffected; 8.1 is the next covering verifier, with 3.R2.c's trial as its evidence.
+
+Author checks: source-grounding and spec-review's coherence and grounding slices cover § 11, § 11.1, the Terms, § 10.4,
+§ 14.2, and Criteria 4 and 20; task-audit grounds 3.R2 at grounding-only depth. The correction is determinate at low
+depth, so `planning-review` omits the independent offer; no independent review is claimed.
+
 ## Neighbors
 
 The spec names no other work unit. These are the ones its descriptive references mean, and what each owns where it

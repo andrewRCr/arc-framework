@@ -458,6 +458,7 @@ alone.
 - _Goal:_ Where the import has landed on base, `arc store migrate`'s handler passes the mapping into the import's
   `reviewMapping` port, so the import's trial lists the mapping's account; where it has not, the import's change wires
   the handler when it lands.
+    - _Amended in:_ 3.R2 (A20)
 
 - _Outcome:_ The import has not landed; `storage-ref-backend` remains Active. Its import change binds
   `mapReviewRecords` to the handler's `reviewMapping` port when it lands.
@@ -481,11 +482,40 @@ alone.
   the retired-attempt reason and foreign records retain their identity reason; a mapped live attempt still decodes
   through the complete native schema. The repository's actual-live pass now completes without decoding unused findings.
 
+### `[ ]` **3.R2 Carry the mapping through the import — § 11, § 11.1, § 14.2 (A20)**
+
+- _Goal:_ `arc store migrate`'s handler passes the mapping into the import's `reviewMapping` port, and the mapping
+  accounts for each live work unit's current Candidate record the import gives, so the import's trial over this
+  repository reports the mapping's listing with no review coverage notice (A20).
+
+    - `[ ]` **3.R2.a List each live work unit's current Candidate record**
+        - `ReviewMappingInput` (`mapping-types.ts`) takes the port's `current`; `collectReviewMappingSources` adds it
+          as a source at the plain tracked path, and `mapReviewCandidateSources` lists it as mapped into the Candidate
+          record its newest version became, adding no content, or left behind with that version's reason.
+        - Build `test-first` (one behavior at a time):
+            - a live work unit whose newest version maps lists its current record once, mapped into its Candidate
+              record, and that record's contents are unchanged
+            - a current record whose newest version is refused lists left behind with that version's reason, and a
+              null `current` adds no source
+            - `inspectReviewCoverage` over the sources `mapImportReview` gives reports no notice for a live work unit's
+              versions, current record, and boundary
+    - `[ ]` **3.R2.b Pass the mapping into the import from `arc store migrate`**
+        - `handleStoreMigrate` (`commands/store-migrate.ts`) runs `runStoreMigrate` with `mapReviewRecords` as its
+          `reviewMapping` port; the follow path's `runStoreRemote` and `arc store remote` are unchanged, and the review
+          codecs stay outside the in-repo backend's static closure.
+        - Build `test-first`: an import trial through the handler over a repository holding a live work unit's
+          Candidate versions, current record, boundary, and gate files reports the mapping's listing with no review
+          coverage notice.
+    - `[ ]` **3.R2.c Run the import's trial over this repository**
+        - Run `arc store migrate --import --trial --json` over this repository through the handler, and record the
+          listing's accounting and every remaining notice as the appended criterion's evidence.
+
 ### `[x]` **3.8 The import's mapping** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds over this repository's review records on a freshly merged base.
 
     - _Amended in:_ 6.2.R (A16)
+    - _Amended in:_ 3.R2 (A20)
 
 - _Outcome:_ The uncommitted port harness ran at `02d50eef5`, merging base `e6856533f`, over 2,206 gate files,
   272 work units, one actual Errand, and 324 archived Candidate versions. Actual live ownership left every gate file
@@ -1576,3 +1606,8 @@ prerequisites have landed, and every earlier task is independent of the remainin
   additional-pass authority admits the required complete successor, including scope changes in either direction,
   in both storage arms. Its final-coverage signal remains false; invalid bindings, unresolved convergence or responses,
   incremental successors, and spent grants refuse, while matching inputs resume (spec, A19).
+
+- `[ ]` `arc store migrate --import` passes the mapping into the import, and its trial over this repository's review
+  records reports no review coverage notice: each live work unit's current Candidate record lists once by its tracked
+  path, mapped into the Candidate record its newest version became or left behind with that version's reason
+  (spec, A20).

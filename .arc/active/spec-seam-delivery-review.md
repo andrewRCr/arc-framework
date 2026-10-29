@@ -49,8 +49,9 @@ contract, changing nothing observable before the flip except what § 3 names.
 - **Store, backend, record, family, kind** — as `lib/store/` defines them: the contract (`Store`), one implementation of
   it, one stored document, a storage grouping (`FAMILY_IDS`), and a record type within a family (`KIND_SHAPES`).
 - **In-repo implementation** — the backend over today's tracked files, personal files, and transient-identity ref
-  (`lib/store/in-repo/`). **Ref backend** — a planned backend storing state under `refs/arc/*`, with an **import** that
-  reads today's substrates once into the store when a repository moves onto it. Neither is built yet.
+  (`lib/store/in-repo/`). **Ref backend** — the backend storing state under `refs/arc/*` (`createRefStore`), with an
+  **import** that reads today's substrates once into the store when a repository moves onto it (`runStoreMigrate`).
+  Both are on base; the in-repo implementation serves every read and write until the flip (A20).
 - **D5, D18** — two of the shipped storage contract's numbered decisions (`spec-storage-contract.md`): D5 is the record
   model, its families and kinds, which stores durable review facts and keeps review working state machine-local; D18
   exports a work unit's authored design into the code repository as a one-way copy for review, the review copy. § 13
@@ -1600,7 +1601,9 @@ Today's withdrawal and retirement hold, and the tracked files stay where they ar
 
 A work unit's end retires its Candidate with no write of its own. The review records ride the work item's ref, which the
 ref backend moves under `refs/arc/history/work/<uid>` when the item ends — archive, abandonment, or a cut — out of the
-live tips every listing reads. A reader that acts after archive, as the integration checkpoint and merge do under
+live listings. An archived item's current records stay readable from its quarter's archive ref
+(`refs/arc/archive/<quarter>`) at placement `completed`, which the live listings' location filter leaves out (A20). A
+reader that acts after archive, as the integration checkpoint and merge do under
 `archive.cadence: with-integration`, reads the ended item's records by its work item. On a clone lacking an ended item's
 history ref, a read of it as of a state version, or a write to it, refuses `state-unresolvable` naming the refs it
 lacks, and the calling verb pulls them by name and retries, with no stop. The history refs and that refusal are the ref
@@ -1637,20 +1640,24 @@ pure module under `lib/store/kinds/review/`: given today's records as read, it r
 items and keys, and a listing that accounts for every source it was given exactly once — each gate file by the
 `gate.path` it was given, its `arc/review-gate/` prefix included; a leftover materialization once by its folder, written
 with a trailing `/` and covering every file below it; each Candidate version as `<tracked path>@<commit>`, its tracked
-path the one its work unit's slug gives (`resolveCandidateRecordRelativePath`); and each boundary by its tracked path —
+path the one its work unit's slug gives (`resolveCandidateRecordRelativePath`); a live work unit's current Candidate
+record by that tracked path alone, its content its newest version's, mapped into the Candidate record that version
+became, adding no content, or left behind with that version's reason (A20); and each boundary by its tracked path —
 as mapped with the records it became, left behind with a reason, or in flight, no two entries covering one file. A file
 mapped in part, as the repository-wide receipt ledger is, lists as mapped, its reason naming the entries it left
 behind. The import's reads, its writes, its trial, and its refusals stay the ref backend's.
 
-The mapping expects one contract of the import, available from the flip: that it calls the mapping through an optional
+The mapping meets one contract of the import, on base ahead of it (A20): that it calls the mapping through an optional
 port (`reviewMapping`, on the import's `runStoreMigrate`), whose input and result types the mapping meets by shape,
-importing nothing of the import's, with `arc store migrate`'s handler passing it in; that it gives the mapping the
-project ID, the review gate's whole folder under the Git common directory (`arc/review-gate/`), its quarantined and
-retired records among them, each live work unit's Candidate versions, oldest first from the record's path log, with its
-current boundary, and a table of every work unit and Errand it carries, each with the UID it minted (§ 11.3) and whether
-it is live (§ 11.1), an Errand with its claim ID too, since its review lineages name it by that ID, which is random
-(`claimId`, `lib/errand/identity-record.ts`), a name the table lacks being no live work; and that it lands what the
-mapping returns in place of the Candidate and boundary records and gate files it gave.
+importing nothing of the import's, with `arc store migrate`'s handler (`handleStoreMigrate`) passing it in; that it
+gives the mapping the project ID, the review gate's whole folder under the Git common directory (`arc/review-gate/`),
+its quarantined and retired records among them, each live work unit's Candidate versions, oldest first from the record's
+path log, with its current Candidate record (`current`), read at the work unit's selected meta revision, and its current
+boundary, and a table of every work unit and Errand it carries, each with the UID it minted (§ 11.3) and whether it is
+live (§ 11.1), an Errand with its claim ID too, since its review lineages name it by that ID, which is random
+(`claimId`, `lib/errand/identity-record.ts`), a name the table lacks being no live work; that it refuses a listing that
+does not account for every source it gave exactly once (`inspectReviewCoverage`); and that it lands what the mapping
+returns in place of the Candidate and boundary records and gate files it gave.
 
 #### 11.1 Live work
 
@@ -1659,9 +1666,10 @@ ref holds — open, paused, or awaiting merge (`lib/errand/identity-record.ts`) 
 abandoned, nor cut, one merged but not yet archived among them, as is routine under `archive.cadence: manual`. An
 archived work unit has ended unless its branch still exists and has not landed in base by patch identity
 (`isLandedInBaseStrict`, `lib/git/branch-containment.ts`), tested against `origin/<base>` where it resolves and the
-local base otherwise, as for one archived before merge under `archive.cadence: with-integration`. The import refuses
-until such a work unit's branch merges, or is removed where its change has already landed or is no longer wanted, so the
-mapping never meets one.
+local base otherwise, as for one archived before merge under `archive.cadence: with-integration`. The import marks such
+a work unit live, so the mapping meets it as live work, and refuses until its branch merges, or is removed where its
+change has already landed or is no longer wanted (`archivedWorkLive`, `lib/store/ref/import/review-work-items.ts`), so
+nothing the mapping returns for it lands (A20).
 
 The review gate's machine-local facts are imported for live work only. A shipped change's review lives on in its pull
 request on the host and in the commits that carried its records, and nothing reads an ended item's facts to decide.
@@ -2566,6 +2574,11 @@ spec's review copy until the candidate tail deletes it (§ 12.5).
     insufficient for final review; the next complete pass remains required. Invalid bindings, unresolved convergence
     or response obligations, incremental successors, and spent authority refuse, while matching inputs resume.
 
+20. **The import carries the mapping (A20).** `arc store migrate --import` passes the mapping into the import, and its
+    trial over this repository's review records reports no review coverage notice: each live work unit's current
+    Candidate record lists once by its tracked path, mapped into the Candidate record its newest version became or left
+    behind with that version's reason.
+
 ## Open Questions
 
 None blocks starting. The rest are expected contracts with stated availability, and none leaves design open: the ref
@@ -2636,5 +2649,8 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
 
 - **A19** — 2026-10-28 — design: bind clean fix-check successors. _Supersedes:_ § 3/5.5, Goal 8, Criterion 2.
   _Trigger:_ 6.R.b must-stop. _Work:_ 6.R2. _Revalidated:_ pending → 8.1.
+
+- **A20** — 2026-10-29 — design: account for the import's current Candidate source and pass the mapping in.
+  _Supersedes:_ § 11 ¶1–2, § 11.1 ¶1. _Trigger:_ 7.5 must-stop. _Work:_ 3.R2. _Revalidated:_ pending → 8.1.
 
 ---
