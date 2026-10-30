@@ -13,7 +13,8 @@ import { writeMetaCurrentWorkflow } from "../../src/lib/store/kinds/meta/writers
 import { recordReferences } from "../../src/lib/store/identity.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-state-probe.js";
-import { projectCandidateReviewBoundary } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { projectCandidateFixResumeBoundary, projectCandidateReviewBoundary }
+  from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { LocalPrepareEnvelopeSchema, LocalAttestEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
 import { createReviewCompositionContext } from "../../src/scripts/review-gate/runtime/composition-context.js";
 import { publishNativeReviewApproval } from "../../src/scripts/review-gate/runtime/native-review-approval.js";
@@ -22,7 +23,8 @@ import { createRepositoryReviewResultReader } from "../../src/scripts/review-gat
 import { resolveReviewSourceInvocation } from "../../src/scripts/review-gate/runtime/source-invocation.js";
 import { bindReviewSourceReference, parseReviewSourceReference } from "../../src/scripts/review-gate/core/review-source-reference.js";
 
-it("recovers a stored pending fix after execution pruning and keeps its source owner through slug reuse", async () => {
+// A native work unit at Candidate review on its own checkout, its Candidate stored and no boundary recorded.
+async function nativeCandidateCheckout(workflow?: "prepare-work-unit") {
   const h = await createReviewRepositoryHarness(); onTestFinished(h.cleanup);
   const { cwd, exec } = h.native;
   const git = async (...args: string[]) => (await exec("git", args, { cwd })).stdout.trim();
@@ -50,11 +52,35 @@ it("recovers a stored pending fix after execution pruning and keeps its source o
   });
   await h.reference.seed(recordReferences["work-item/task-list"](primary.reference.owner),
     "# Task List\n\n## **Phase 1:** Build\n\n### `[x]` **1.1 Complete**\n");
+  if (workflow !== undefined) {
+    const meta = lifecycleSuccess(await h.reference.store.read({ reference: primary.reference }));
+    lifecycleSuccess(await h.reference.store.write({ action: "put", reference: meta.reference, expected: meta.version,
+      placement: { kind: "active" }, content: writeMetaCurrentWorkflow(meta.content, workflow),
+      provenance: { verb: workflow, lifecycleAction: "prepare" } }));
+  }
   await h.reference.seedCandidate(primary.reference.owner, candidate);
-  await h.reference.seedBoundary(primary.reference.owner, projectCandidateReviewBoundary({ workUnit: name,
-    candidateId: candidate.attestation.candidateId, candidateSubjectDigest: candidate.subject.subjectDigest }, 2));
   await writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: "andrew", createdAt: "2026-10-20T15:00:00Z",
     createdFor: { kind: "work-unit", name } });
+  const probe = () => runDerivedLocusStateProbe({ ...h.native, identity: "andrew", baseBranch: "main", archiveCadence: "manual" });
+  const projectedBoundary = async () => {
+    const context = (await probe()).active?.context;
+    if (context?.kind !== "resolved") throw new Error(`Expected a resolved locus: ${JSON.stringify(context)}`);
+    return context.integrationBoundary;
+  };
+  const coordinates = { workUnit: name, candidateId: candidate.attestation.candidateId,
+    candidateSubjectDigest: candidate.subject.subjectDigest };
+  return { h, cwd, exec, git, projectId, name, branch, candidate, primary, probe, projectedBoundary, coordinates };
+}
+
+it("projects a native Candidate review boundary when none is stored", async () => {
+  const { projectedBoundary, coordinates } = await nativeCandidateCheckout("prepare-work-unit");
+  expect(await projectedBoundary()).toEqual(projectCandidateReviewBoundary(coordinates, 2));
+});
+
+it("recovers a stored pending fix after execution pruning and keeps its source owner through slug reuse", async () => {
+  const { h, cwd, exec, git, projectId, name, branch, candidate, primary, probe, projectedBoundary, coordinates }
+    = await nativeCandidateCheckout();
+  await h.reference.seedBoundary(primary.reference.owner, projectCandidateReviewBoundary(coordinates, 2));
   const invocation = { ...h.native, workItem: primary.reference.owner };
   const prepared = LocalPrepareEnvelopeSchema.parse(await inProcessReview.prepare(cwd, { schemaVersion: 1,
     evaluatorIdentity: "independent-reviewer", routingFacts: { contentKind: "code-bearing", reviewRisk: "routine",
@@ -88,9 +114,9 @@ it("recovers a stored pending fix after execution pruning and keeps its source o
   }
   for (const path of [".arc/active/tasks-example.md", ".arc/system/.internal/candidates/example.json",
     ".arc/system/.internal/candidates/example.boundary.json"]) await expect(access(join(cwd, path))).rejects.toThrow();
-  const probe = () => runDerivedLocusStateProbe({ ...h.native, identity: "andrew", baseBranch: "main", archiveCadence: "manual" });
   expect((await probe()).active?.context).toMatchObject({ kind: "resolved", sessionType: "prepublication",
-    workflow: "prepare-work-unit", branch, integrationBoundary: { locus: "candidate-fix-pending", candidateId: candidate.attestation.candidateId } });
+    workflow: "prepare-work-unit", branch });
+  expect(await projectedBoundary()).toEqual(projectCandidateFixResumeBoundary(coordinates, 2));
   const approved = await context.family.ports.dispositions.readDispositionRecord(prepared.payload.operationId);
   if (approved?.source.kind !== "attested-local") throw new Error("Expected native local source");
   const source = parseReviewSourceReference(approved.source.receiptRef, "attested-local", true);
@@ -112,5 +138,5 @@ it("recovers a stored pending fix after execution pruning and keeps its source o
     provenance: { verb: "remove", lifecycleAction: "remove" } }));
   lifecycleSuccess(await h.reference.store.write({ action: "put", reference: current.reference, expected: null,
     content: current.content, placement: current.placement, links: current.links, provenance: { verb: "restore", lifecycleAction: "create" } }));
-  expect((await probe()).active?.context).toMatchObject({ kind: "resolved", integrationBoundary: { locus: "candidate-fix-pending" } });
+  expect(await projectedBoundary()).toEqual(projectCandidateFixResumeBoundary(coordinates, 2));
 }, 40_000);

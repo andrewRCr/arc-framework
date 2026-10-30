@@ -30,9 +30,8 @@ import {
   type CandidateEffectiveChangedProjection,
   type CandidateTargetProjector,
 } from "../work-unit/candidate-effective-target.js";
-import { resolveCandidateRecordRelativePath, resolveSubmissionBoundaryPath } from "../store/kinds/review/paths.js";
+import { resolveCandidateRecordRelativePath } from "../store/kinds/review/paths.js";
 import { readSubmissionBoundary } from "../store/kinds/review/integration-boundary/access.js";
-import { parseIntegrationBoundaryLocus } from "../store/kinds/review/integration-boundary/parser.js";
 import {
   resolveLoadSetManifest,
   type LoadSetWorkUnitStage,
@@ -269,6 +268,7 @@ export async function projectCheckoutSubjectMeta(options: {
     ? "integration"
     : inferSessionType(record.state, taskListPath, record.branch);
   let integrationBoundary: PublishedIntegrationBoundaryLocus | null = null;
+  const boundaryVersion = options.store?.capabilities.stateOffBranch === true ? 2 : 1;
   if (candidateId !== null && candidateSubjectDigest !== null && record.state === "Integrating") {
     const stored = await readHeldSubmissionBoundary(options);
     const exactDurableBoundary = !requireExactDurableBoundary
@@ -288,7 +288,7 @@ export async function projectCheckoutSubjectMeta(options: {
         workUnit: options.subjectKey,
         candidateId,
         candidateSubjectDigest,
-      });
+      }, boundaryVersion);
     } else {
       const stored = await readHeldSubmissionBoundary(options);
       const recovered = recoverPrePublicationBoundary({
@@ -301,7 +301,7 @@ export async function projectCheckoutSubjectMeta(options: {
         workUnit: options.subjectKey,
         candidateId,
         candidateSubjectDigest,
-      });
+      }, boundaryVersion);
     }
   }
   let deliveryCorrection: DeliveryCorrectionProjection = { status: "none" };
@@ -503,14 +503,5 @@ async function readHeldSubmissionBoundary(options: Pick<Parameters<typeof projec
     if (owner === undefined) throw new Error("Restore the selected work-unit authority before reading its boundary.");
     return readSubmissionBoundary(cwd, workUnit, { store, owner });
   }
-  const path = resolveSubmissionBoundaryPath(workUnit);
-  try {
-    const content = await io.readFile(join(cwd, path));
-    const boundary = parseIntegrationBoundaryLocus(JSON.parse(content) as unknown);
-    if (boundary.workUnit !== workUnit) throw new Error("Submission boundary work unit does not match its path");
-    return boundary;
-  } catch (error) {
-    if ((error as { code?: unknown }).code === "ENOENT") return null;
-    throw error;
-  }
+  return readSubmissionBoundary(cwd, workUnit, { readFile: path => io.readFile(path) });
 }
