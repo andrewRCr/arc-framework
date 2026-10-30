@@ -303,6 +303,7 @@ export function pendingHostedReservationReview(
   }[],
   reservation: StandardReviewReservationV1,
   position: "current" | "retained",
+  bindOperationRef?: (operationId: string) => string,
 ): HostedReservationDischarge | null {
   const pending = attempts.filter((attempt) => attempt.outcome === "pending"
     && reservation.sources.includes(attempt.sourceId));
@@ -322,7 +323,8 @@ export function pendingHostedReservationReview(
     detail: `Hosted source \`${attempt.sourceId}\` has one ${position === "retained" ? "retained " : ""}`
       + "pending request awaiting a verdict.",
     nextSource: null,
-    awaitAction: { schemaVersion: 1, handle },
+    awaitAction: { schemaVersion: 1, handle,
+      ...(bindOperationRef === undefined ? {} : { operationRef: bindOperationRef(handle.admission.admissionId) }) },
   };
 }
 

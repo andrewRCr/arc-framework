@@ -211,7 +211,7 @@ export async function projectHostedReservationDischarge(input: {
   ));
   const currentFindings = projectPendingFindings(currentFindingRoutes, "current");
   if (currentFindings !== null) return currentFindings;
-  const pending = pendingHostedReservationReview(currentAttempts, reservation, "current");
+  const pending = pendingHostedReservationReview(currentAttempts, reservation, "current", input.bindCurrentOperationRef);
   if (pending !== null) return pending;
   const earlierReader = input.readEarlierAttemptApplicability;
   const activeEarlierBySource = earlierReader === undefined ? null : new Map(await Promise.all(
@@ -295,7 +295,7 @@ export async function projectHostedReservationDischarge(input: {
         })));
     }
     return projectPendingFindings(routes, "retained")
-      ?? pendingHostedReservationReview(retainedAttempts, reservation, "retained");
+      ?? pendingHostedReservationReview(retainedAttempts, reservation, "retained", input.bindCurrentOperationRef);
   };
   const terminalDischarge = createHostedTerminalDischargeProjection({
     nativePassGrants: input.nativePassGrants, sources: reservation.sources, nextPassContext: input.nextPassContext,

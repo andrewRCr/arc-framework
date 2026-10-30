@@ -23,20 +23,21 @@ export function mapReviewBoundarySource(source: Extract<ReviewMappingSource, { k
   if (!source.workItem.live) return { records: [], listing: reviewMappingListingEntry({ source: source.source,
     records: [], leftBehind: ["No live work item owns this review fact."] }) };
   const boundary = parseIntegrationBoundaryLocus(JSON.parse(source.content));
+  const workItem = OwnerIdentitySchema.parse({ type: "work-item", name: source.workItem.slug, uid: source.workItem.uid });
+  const owner = { repositoryId: context.input.projectId, workItem };
   const records = mapReviewBoundaryDecisions(source, context);
   const termini = mappingBoundaryTermini(boundary);
   const value: Record<string, unknown> = { ...boundary, schemaVersion: 2,
     terminus: termini.candidate === null ? null : reviewDecisionKey(termini.candidate),
     deliveryReviewTermini: termini.members.map(({ vehicle, decision }) => ({ vehicle, terminus: reviewDecisionKey(decision) })),
-    nextAction: mapReviewBoundaryAction(boundary.nextAction, boundary.workUnit, context.outcomes) };
+    nextAction: mapReviewBoundaryAction(boundary.nextAction, boundary.workUnit, context.outcomes, owner) };
   delete value.policy;
   delete value.standardLaneOwnerVersion;
   if ("postAttestContinuation" in boundary && boundary.postAttestContinuation !== undefined) {
-    value.postAttestContinuation = mapBoundaryPostAttestContinuation(boundary.postAttestContinuation, boundary.workUnit, context.outcomes);
+    value.postAttestContinuation = mapBoundaryPostAttestContinuation(boundary.postAttestContinuation, boundary.workUnit, context.outcomes, owner);
   }
   if (boundary.locus === "candidate-publish-ready" || boundary.locus === "publication-pending") value.readinessBinding = mapReviewReadinessBinding(source, boundary, { ...context, records: [...context.records, ...records] });
-  records.push({ reference: recordReferences["review/integration-boundary"](OwnerIdentitySchema.parse({
-    type: "work-item", name: source.workItem.slug, uid: source.workItem.uid })), contents: [JSON.stringify(value)] });
+  records.push({ reference: recordReferences["review/integration-boundary"](workItem), contents: [JSON.stringify(value)] });
   return { records, listing: reviewMappingListingEntry({ source: source.source,
     records: records.map(({ reference }) => reference), leftBehind: [] }) };
 }

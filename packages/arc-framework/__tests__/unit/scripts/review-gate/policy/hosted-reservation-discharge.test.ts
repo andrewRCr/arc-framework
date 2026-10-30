@@ -1405,6 +1405,29 @@ describe("hosted reservation discharge", () => {
     });
   });
 
+  it("binds the native owner's operation reference into a pending await", async () => {
+    const { bindNativeReviewOperationReference } = await import("../../../../../src/scripts/review-gate/core/review-operation-reference.js");
+    const { HostedAwaitActionSchema } = await import("../../../../../src/scripts/review-gate/hosted/request.js");
+    const { OwnerIdentitySchema } = await import("../../../../../src/lib/store/identity.js");
+    const workItem = OwnerIdentitySchema.parse({ type: "work-item", name: "delivery", uid: "123e4567-e89b-42d3-a456-426614174001" });
+    const bindCurrentOperationRef = (operationId: string) => bindNativeReviewOperationReference({ repositoryId: "repo-1",
+      workItem, operationId });
+    const vehicle = DeliveryReviewMemberVehicleSchema.parse({ kind: "delivery-member", planId: PLAN_ID,
+      deliverableId: MEMBER_ONE, workUnitId: "delivery", head: oid("b") });
+    const pending = attempt(oid("b"), "coderabbit-pr", "pending", vehicle);
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"], { kind: "delivery", repository: "arc-framework/example",
+        workUnitId: "delivery", planId: PLAN_ID }),
+      span: [oid("b")], target: { ...target(oid("b")), vehicle }, bindCurrentOperationRef,
+      readLaneProgress: progress({ [oid("b")]: { status: "recorded", completedPasses: 0, attempts: [pending] } }),
+    });
+    const handle = pending.hosted.handle;
+    if (handle === undefined) throw new Error("Expected a durable hosted handle");
+    const operationRef = bindCurrentOperationRef(handle.admission.admissionId);
+    expect(result).toMatchObject({ discharged: false, awaitAction: { schemaVersion: 1, handle, operationRef } });
+    expect(HostedAwaitActionSchema.safeParse((result as { awaitAction: unknown }).awaitAction).success).toBe(true);
+  });
+
   it("keeps unproved provider-native coverage outstanding without inventing a coverage offer", async () => {
     const vehicle = DeliveryReviewMemberVehicleSchema.parse({
       kind: "delivery-member",

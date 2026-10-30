@@ -53,9 +53,10 @@ const retained: EarlierApplicableAttempt = {
 
 async function discharge(attempts: readonly EarlierApplicableAttempt[], invocation?: {
   mode: "force"; sourceId: string;
-}, ordinaryGrant = false) {
+}, ordinaryGrant = false, bindCurrentOperationRef?: (operationId: string) => string) {
   return projectHostedReservationDischarge({
     reservation,
+    ...(bindCurrentOperationRef === undefined ? {} : { bindCurrentOperationRef }),
     ...(ordinaryGrant ? { nativePassGrants: true as const } : {}),
     ...(invocation === undefined ? {} : { invocation }),
     span: ["d".repeat(40)],
@@ -143,6 +144,12 @@ describe("retained admitted source selection", () => {
     };
     await expect(discharge([retained, pending]))
       .resolves.toMatchObject({ discharged: false, nextSource: null, awaitAction: { handle: pendingHandle } });
+    const { bindNativeReviewOperationReference } = await import("../../../../../src/scripts/review-gate/core/review-operation-reference.js");
+    const { OwnerIdentitySchema } = await import("../../../../../src/lib/store/identity.js");
+    const workItem = OwnerIdentitySchema.parse({ type: "work-item", name: "example", uid: "123e4567-e89b-42d3-a456-426614174001" });
+    const bind = (operationId: string) => bindNativeReviewOperationReference({ repositoryId: "repo-1", workItem, operationId });
+    await expect(discharge([retained, pending], undefined, false, bind)).resolves.toMatchObject({
+      awaitAction: { handle: pendingHandle, operationRef: bind(pendingHandle.admission.admissionId) } });
     await expect(discharge([retained, { ...pending, outcome: "clean" }]))
       .resolves.toMatchObject({ discharged: true, nextSource: null });
   });

@@ -71,7 +71,8 @@ it.each(["attested-local", "frontline", "hosted"] as const)("resolves a %s respo
   const { createLocalMappingFixture, createFrontlineMappingFixture, createHostedMappingFixture } = await import("../../../../../fixtures/review-mapping.js");
   const { approvedRecord } = await import("../../../../../fixtures/review-response-proof.js");
   const { IntegrationBoundaryLocusSchema } = await import("../../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js");
-  const { parseReviewSourceReference } = await import("../../../../../../src/scripts/review-gate/core/review-source-reference.js");
+  const { parseReviewSourceReference, parseReviewSourceReferenceForOwner } = await import("../../../../../../src/scripts/review-gate/core/review-source-reference.js");
+  const { OwnerIdentitySchema } = await import("../../../../../../src/lib/store/identity.js");
   let input: typeof base;
   let producer;
   if (kind === "attested-local") {
@@ -104,7 +105,10 @@ it.each(["attested-local", "frontline", "hosted"] as const)("resolves a %s respo
   if (mapped.nextAction.kind !== "continue-pre-publication-review" || mapped.nextAction.responseSource === undefined) throw new Error("Expected response action");
   const mappedSource = mapped.nextAction.responseSource;
   const mappedRef = mappedSource.kind === "attested-local" ? mappedSource.receiptRef : mappedSource.kind === "frontline" ? mappedSource.outcomeRef : mappedSource.attemptRef;
-  const decoded = parseReviewSourceReference(mappedRef, kind);
+  const item = input.workItems.find(({ slug }) => slug === "example")!;
+  const workItem = OwnerIdentitySchema.parse({ type: "work-item", name: item.slug, uid: item.uid });
+  const decoded = parseReviewSourceReferenceForOwner(mappedRef, kind, { repositoryId: input.projectId, workItem });
+  expect(decoded).toMatchObject({ repositoryId: input.projectId, workItem });
   expect(mapped.nextAction.responseOperationId).toBe(producer.producerId);
   expect(decoded.operationId).toBe(parseReviewSourceReference(originalRef, kind).operationId);
   const outcome = result.records.find(({ reference, contents }) => reference.kind === "review/outcome"
