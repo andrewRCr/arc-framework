@@ -64,7 +64,8 @@ it("refuses an oversized routed command with its shortening remedy and executes 
   const refused = await runArc(["check", "run", "example", "--json"], fixture.root, { env: fixture.environment });
   expect(refused.exitCode, refused.stdout + refused.stderr).not.toBe(0);
   expect(JSON.parse(refused.stdout).result.checks[0]).toMatchObject({ outcome: "couldn't run",
-    reason: expect.stringMatching(/argument budget.*shorten the command/u) });
+    reason: expect.stringMatching(/argument budget.*shorten the command/u),
+    remedy: expect.stringMatching(/^Repair the check declaration, /u) });
   await expect(access(join(fixture.home, "requests"))).rejects.toThrow();
   const path = join(fixture.root, ".arc/system/arc-checks.yml");
   const declaration = JSON.parse(await readFile(path, "utf8"));

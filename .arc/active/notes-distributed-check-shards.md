@@ -803,6 +803,25 @@ Superseded § Proposed Design 10 ¶7, second sentence, in its A8 form:
 > Compare the same gate routed unsharded with the declared shard plan using fresh runs, and report fully native local
 > runs as context (A8).
 
+### A11 — first-placement pre-launch refusals
+
+The independent review's D2 finding: a group's first placement waits or moves elsewhere only on a busy refusal. A failed
+upload, or an availability guard that declines once the upload has landed, settles the whole check unavailable there,
+exactly as the same refusal of a single plan does, while either refusal at a further placement requeues its sibling.
+Extending the fallback to the first placement would need an exclusion on the shared placement path that single plans
+also take. The refusal is settled and retryable, and its window is narrow, so the design records the provider's tested
+behavior rather than widening the provider change ahead of its landing.
+
+Superseded § Proposed Design 10 ¶5, the sentence A11 narrows at the first placement:
+
+> A placement that refuses admission before its backend starts does not fail its sibling: the adapter waits for it or
+> places the sibling elsewhere.
+
+Superseded § Success Criteria 15:
+
+> Two groups racing for one placement both complete; a refusal before a backend starts leads to waiting or another
+> placement, never an unavailable sibling. Recovery guidance from a group reaches every remote placement it used.
+
 ## Prior-art references
 
 - [Cargo runner configuration][cargo-runner]: executable/argument configuration.

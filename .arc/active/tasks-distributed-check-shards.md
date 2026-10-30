@@ -563,6 +563,11 @@ _Purpose:_ Verify the complete implementation against its success criteria and r
   another placement, never an unavailable sibling. Recovery guidance from a group reaches every remote placement it
   used.
 
+- `[ ]` Two groups racing for one placement both complete. A refusal before a backend starts leads to waiting or
+  another placement, never an unavailable sibling, except that a non-busy refusal at the group's first placement
+  settles the check unavailable and retryable, as a single plan's refusal does. Recovery guidance from a group
+  reaches every remote placement it used.
+
 - `[ ]` All quality gates pass.
 
 - `[ ]` Ready for integration.

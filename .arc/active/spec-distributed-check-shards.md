@@ -450,8 +450,10 @@ The group presents ARC one context (A6). The adapter tracks its own pending and 
 siblings target one placement at once, records every remote placement in its plan journal so recovery guidance
 reaches all of them, rewrites backend context identities to the group's, and releases a placement's permits once its
 last sibling settles. A placement that refuses admission before its backend starts does not fail its sibling: the
-adapter waits for it or places the sibling elsewhere. That is pre-launch fallback the adapter owns, not a retry of
-launched work.
+adapter waits for it or places the sibling elsewhere. At the group's first placement the adapter does so only for a
+busy refusal, where admission refuses because the placement is occupied; a failed upload or a declining availability
+guard there settles the check unavailable with a retry remedy, as the same refusal of an ungrouped plan does (A11).
+That is pre-launch fallback the adapter owns, not a retry of launched work.
 
 Opted-in checks whose native partitioner reads a duration file declare it as a file input (A6). A developer machine
 usually holds none, so the binding is absent and the partitioner's fallback estimates apply; nothing here collects
@@ -598,6 +600,10 @@ repairing a refusal, not only the initial rejection.
 15. **Group placement fallback (A6):** Two groups racing for one placement both complete; a refusal before a backend
     starts leads to waiting or another placement, never an unavailable sibling. Recovery guidance from a group
     reaches every remote placement it used.
+16. **Group placement fallback (A11):** Two groups racing for one placement both complete. A refusal before a backend
+    starts leads to waiting or another placement, never an unavailable sibling, except that a non-busy refusal at the
+    group's first placement settles the check unavailable and retryable, as a single plan's refusal does. Recovery
+    guidance from a group reaches every remote placement it used.
 
 ## Open Questions
 
@@ -627,5 +633,7 @@ implementation rather than becoming an undocumented task decision.
   _Supersedes:_ § Proposed Design 10 ¶7. _Trigger:_ door. _Work:_ 6.4. _Revalidated:_ pending → 6.4.
 - **A10** — 2026-10-30 — task: routed checks report planning refusals with the planner's own reason and remedy.
   _Supersedes:_ none. _Trigger:_ 7.1 terminal. _Work:_ 2.R. _Revalidated:_ pending → 7.1.
+- **A11** — 2026-10-30 — design: a group's first placement waits or moves only on a busy refusal. _Supersedes:_
+  § Proposed Design 10 ¶5, § Success Criteria 15. _Trigger:_ D2 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---
