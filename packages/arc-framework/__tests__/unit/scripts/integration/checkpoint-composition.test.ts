@@ -91,8 +91,8 @@ describe("integration checkpoint composition", () => {
 
   it("compares opaque Candidate versions from the supplied store without digest coercion", async () => {
     const h = createLifecycleHarness();
-    await h.seedMeta("example");
-    const options = { store: h.store };
+    const { owner } = (await h.seedMeta("example")).reference;
+    const options = { store: h.store, owner };
     const record = candidateFixture();
     await writeCandidateRecord("/unavailable", "example", record, null, options);
     const context = createCheckpointCandidateContext({

@@ -4,7 +4,7 @@ import type { Store } from "../../contract.js";
 import { createStore } from "../../create.js";
 import { createDefaultStorePorts } from "../../default-ports.js";
 import { retryEndedItemHistory } from "../../history-retry.js";
-import type { RecordReference, OwnerIdentity } from "../../identity.js";
+import { OwnerIdentitySchema, type RecordReference, type OwnerIdentity } from "../../identity.js";
 import type { StoreRecord } from "../../read.js";
 import type { StoreResult } from "../../refusal.js";
 import { describeRecordConflicts } from "../../conflict-diagnostics.js";
@@ -32,6 +32,17 @@ export function resolveReviewRecordAccess<TFs extends ReviewRecordReader>(cwd: s
   if (options.fs !== undefined) return { fs: options.fs };
   return { store: retryEndedItemHistory(createStore(createDefaultStorePorts({ checkoutRoot: cwd,
     ...(options.exec === undefined ? {} : { exec: options.exec }) }))), owner: options.owner };
+}
+
+/**
+ * Select a work unit's review-record owner. In-repo records are keyed by slug; native ones only by the invocation's
+ * exact work item, since a slug alone can name a live namesake of an ended item.
+ */
+export function selectReviewRecordOwner(store: Store, name: string, owner: OwnerIdentity | undefined): OwnerIdentity {
+  if (!store.capabilities.stateOffBranch) return owner ?? OwnerIdentitySchema.parse({ type: "work-item", name });
+  if (owner === undefined) throw new Error(`Review records for ${name} need the invocation's exact work item. `
+    + `Run the command from ${name}'s checkout, or continue it from the reference its producer emitted.`);
+  return owner;
 }
 
 /** Preserve the store's condition and retry remedy for every non-absence refusal. */

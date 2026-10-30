@@ -88,6 +88,7 @@ import {
   resolveCandidateMutationOwner,
   resolveCompletedCandidateWorkUnits,
 } from "../../../handlers/candidate-mutation-owner.js";
+import { selectRespondCandidateWorkUnits } from "./respond-candidate-selection.js";
 import { resolveConfiguredLanePolicy } from "../policy/lane-policy-config.js";
 import { resolveEvidenceBoundReviewPolicyContinuation } from
   "../policy/review-policy-evidence.js";
@@ -162,10 +163,8 @@ async function readRespondCandidate(
 ): Promise<{ workUnit: string; record: CandidateManagedRecordV1 } | null> {
   const lineage = current.admission.lineage;
   if (lineage.kind !== "candidate") return null;
-  const owner = await resolveCandidateMutationOwner(input);
-  const workUnits = owner.status === "owned"
-    ? [owner.workUnit]
-    : owner.status === "unowned" ? await resolveCompletedCandidateWorkUnits(input.cwd, input.store) : [];
+  const workUnits = await selectRespondCandidateWorkUnits(input, await resolveCandidateMutationOwner(input),
+    () => resolveCompletedCandidateWorkUnits(input.cwd, input.store));
   const candidates = await Promise.all(workUnits.map(async (workUnit) => ({
     workUnit,
     record: await readCandidateRecord(input.cwd, workUnit, { store: input.store, exec: input.exec, owner: input.workItem }),
@@ -732,12 +731,7 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
     },
     now: () => new Date().toISOString(),
     readCandidateLineage: async (target) => {
-      const owner = await candidateMutationOwner();
-      const candidates = owner.status === "owned"
-        ? [owner.workUnit]
-        : owner.status === "unowned"
-          ? await completedWorkUnits()
-          : [];
+      const candidates = await selectRespondCandidateWorkUnits(input, await candidateMutationOwner(), completedWorkUnits);
       const matching = [] as Array<{
         workUnit: string;
         record: NonNullable<Awaited<ReturnType<typeof readCandidateRecordVersioned>>["record"]>;

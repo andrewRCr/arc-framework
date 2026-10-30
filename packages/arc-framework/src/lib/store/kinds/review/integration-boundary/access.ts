@@ -7,7 +7,7 @@ import { readSubmissionBoundaryVersioned as readFileBoundaryVersioned,
   writeSubmissionBoundary as writeFileBoundary,
   type SubmissionBoundaryReader, type SubmissionBoundaryStoreFs } from "../../../../work-unit/submission-boundary-store.js";
 import { parseIntegrationBoundaryLocus } from "../../../../../scripts/review-gate/policy/integration-boundary-locus.js";
-import { readReviewRecord, resolveReviewRecordAccess, unwrapReviewRecordResult, type ReviewRecordAccessOptions } from "../access-shared.js";
+import { readReviewRecord, resolveReviewRecordAccess, selectReviewRecordOwner, unwrapReviewRecordResult, type ReviewRecordAccessOptions } from "../access-shared.js";
 import { SubmissionBoundaryVersionConflictError } from "../errors.js";
 import { resolveSubmissionBoundaryPath } from "../paths.js";
 import { IntegrationBoundaryLocusV2Schema, type ReviewIntegrationBoundary, type VersionedSubmissionBoundary } from "./schema.js";
@@ -27,7 +27,7 @@ export async function readSubmissionBoundaryVersioned(cwd: string, name: string,
   const access = resolveReviewRecordAccess(cwd, input);
   if ("fs" in access) return readFileBoundaryVersioned(cwd, workUnit, access.fs);
   const stored = await readReviewRecord(access.store,
-    recordReferences["review/integration-boundary"](access.owner ?? OwnerIdentitySchema.parse({ type: "work-item", name: workUnit })));
+    recordReferences["review/integration-boundary"](selectReviewRecordOwner(access.store, workUnit, access.owner)));
   if (stored === null) return { boundary: null, version: null };
   const content: unknown = JSON.parse(stored.content);
   const native = access.store.capabilities.stateOffBranch && content !== null && typeof content === "object"
@@ -58,7 +58,8 @@ export async function writeSubmissionBoundary(cwd: string, boundary: ReviewInteg
   const access = resolveReviewRecordAccess(cwd, input);
   if ("fs" in access) return writeFileBoundary(cwd, parseIntegrationBoundaryLocus(boundary), expectedVersion, access.fs);
   const value = access.store.capabilities.stateOffBranch ? boundary : parseIntegrationBoundaryLocus(boundary);
-  const result = await access.store.write({ ...prepareSubmissionBoundaryPut(value, expectedVersion, access.owner),
+  const owner = selectReviewRecordOwner(access.store, SlugSchema.parse(boundary.workUnit), access.owner);
+  const result = await access.store.write({ ...prepareSubmissionBoundaryPut(value, expectedVersion, owner),
     provenance: { verb: "write-submission-boundary", lifecycleAction: "edit" } });
   if (result.status === "refused" && result.refusal.code === "version-conflict") throw new SubmissionBoundaryVersionConflictError();
   unwrapReviewRecordResult(result);

@@ -7,7 +7,7 @@ import { readCandidateRecordVersioned as readFileCandidateRecordVersioned,
   writeCandidateRecord as writeFileCandidateRecord,
   type CandidateRecordStoreFs } from "../../../../work-unit/candidate-record-store.js";
 import { parseCandidateManagedRecord, serializeCandidateManagedRecord } from "../../../../work-unit/candidate-attestation.js";
-import { readReviewRecord, resolveReviewRecordAccess, unwrapReviewRecordResult, type ReviewRecordAccessOptions } from "../access-shared.js";
+import { readReviewRecord, resolveReviewRecordAccess, selectReviewRecordOwner, unwrapReviewRecordResult, type ReviewRecordAccessOptions } from "../access-shared.js";
 import { CandidateRecordVersionConflictError } from "../errors.js";
 import { resolveCandidateRecordRelativePath } from "../paths.js";
 import type { CandidateManagedRecordV1, VersionedCandidateRecord } from "./schema.js";
@@ -25,7 +25,7 @@ export async function readCandidateRecordVersioned(cwd: string, name: string,
   const access = resolveReviewRecordAccess(cwd, options);
   if ("fs" in access) return readFileCandidateRecordVersioned(cwd, workUnit, access.fs);
   const stored = await readReviewRecord(access.store,
-    recordReferences["review/candidate"](access.owner ?? OwnerIdentitySchema.parse({ type: "work-item", name: workUnit })));
+    recordReferences["review/candidate"](selectReviewRecordOwner(access.store, workUnit, access.owner)));
   if (stored === null) return { record: null, version: null };
   const path = resolveCandidateRecordRelativePath(workUnit);
   const record = parseCandidateManagedRecord(stored.content);
@@ -47,7 +47,7 @@ export async function readCandidateRecordVersion(cwd: string, name: string,
   const access = resolveReviewRecordAccess(cwd, options);
   if ("fs" in access) return readFileCandidateRecordVersion(cwd, workUnit, access.fs);
   return (await readReviewRecord(access.store,
-    recordReferences["review/candidate"](access.owner ?? OwnerIdentitySchema.parse({ type: "work-item", name: workUnit }))))?.version ?? null;
+    recordReferences["review/candidate"](selectReviewRecordOwner(access.store, workUnit, access.owner))))?.version ?? null;
 }
 
 /** Prepare one Candidate put for the caller's atomic batch. */
@@ -65,7 +65,8 @@ export async function writeCandidateRecord(cwd: string, name: string, record: Ca
   expectedVersion: string | null, options?: CandidateRecordStoreFs | CandidateRecordAccessOptions): Promise<string> {
   const access = resolveReviewRecordAccess(cwd, options);
   if ("fs" in access) return writeFileCandidateRecord(cwd, name, record, expectedVersion, access.fs);
-  const result = await access.store.write({ ...prepareCandidateRecordPut(name, record, expectedVersion, access.owner),
+  const owner = selectReviewRecordOwner(access.store, SlugSchema.parse(name), access.owner);
+  const result = await access.store.write({ ...prepareCandidateRecordPut(name, record, expectedVersion, owner),
     provenance: { verb: "write-candidate-record", lifecycleAction: "edit" } });
   if (result.status === "refused" && result.refusal.code === "version-conflict") throw new CandidateRecordVersionConflictError();
   unwrapReviewRecordResult(result);

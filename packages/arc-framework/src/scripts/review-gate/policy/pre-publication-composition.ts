@@ -602,6 +602,7 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
     readCandidate: async (workUnit): Promise<CandidateRead> => {
       const name = SlugSchema.parse(workUnit);
       Object.assign(input, await resolveNamedReviewWorkUnitInvocation(input, name));
+      if (reviewRecordStore.capabilities.stateOffBranch && input.workItem === undefined) return { status: "missing" };
       const record = await readCandidateRecord(input.cwd, name, { store: reviewRecordStore, owner: input.workItem });
       if (record === null) return { status: "missing" };
       let supersessionAncestors: readonly CandidateSupersessionAncestor[];

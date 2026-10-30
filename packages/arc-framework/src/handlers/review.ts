@@ -4360,7 +4360,8 @@ function defaultPrePublicationDependencies(
       const bound = invocationFor(root);
       const selected = await resolveNamedReviewWorkUnitInvocation({ ...bound, cwd: root, exec }, workUnit);
       if (selected.workItem !== undefined) bound.workItem = selected.workItem;
-      const snapshot = await readSubmissionBoundaryVersioned(root, workUnit, { store: bound.store, owner: bound.workItem });
+      const snapshot = selected.store.capabilities.stateOffBranch && bound.workItem === undefined ? { boundary: null, version: null }
+        : await readSubmissionBoundaryVersioned(root, workUnit, { store: bound.store, owner: bound.workItem });
       boundarySnapshots.set(workUnit, snapshot);
       return snapshot;
     },

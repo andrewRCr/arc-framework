@@ -55,13 +55,13 @@ it.each(["direct", "options"])("preserves boundary writes and stale-writer refus
 
 it.each(["malformed", "wrong-owner"])("rejects %s boundary content returned by the store", async (fault) => {
   const h = createLifecycleHarness();
-  await h.seedMeta("example");
+  const { owner } = (await h.seedMeta("example")).reference;
   const reference = recordReferences["review/integration-boundary"](OwnerIdentitySchema.parse({ type: "work-item", name: "example" }));
   const stored = await h.seed(reference, JSON.stringify(boundaryV2Fixture()));
   const raw = h.store.state.records.get(recordKey(stored.reference));
   if (raw === undefined) throw new Error("Missing stored boundary fixture");
   raw.content = fault === "malformed" ? "{unreadable" : JSON.stringify(boundaryFixture("another"));
-  const read = readSubmissionBoundaryVersioned("/unavailable", "example", { store: h.store });
+  const read = readSubmissionBoundaryVersioned("/unavailable", "example", { store: h.store, owner });
   if (fault === "malformed") await expect(read).rejects.toBeInstanceOf(SyntaxError);
   else await expect(read).rejects.toThrow(/work unit does not match its path/u);
 });
@@ -96,4 +96,15 @@ it.each(boundaryLoci)("reads native %s content with the exact opaque store versi
   await expect(readSubmissionBoundaryVersioned("/unavailable", "example", input))
     .resolves.toEqual({ boundary, version: stored.result.version });
   await expect(readSubmissionBoundary("/unavailable", "example", input)).resolves.toEqual(boundary);
+});
+
+it("refuses native boundary access that names no exact work item, and reads once its owner is supplied", async () => {
+  const h = createLifecycleHarness();
+  const { owner } = (await h.seedMeta("example")).reference;
+  const value = IntegrationBoundaryLocusV2Schema.parse(boundaryV2Fixture());
+  await h.seed(recordReferences["review/integration-boundary"](owner), JSON.stringify(value));
+  const remedy = /need the invocation's exact work item\. Run the command from example's checkout/u;
+  await expect(readSubmissionBoundaryVersioned("/unavailable", "example", { store: h.store })).rejects.toThrow(remedy);
+  await expect(writeSubmissionBoundary("/unavailable", value, null, { store: h.store })).rejects.toThrow(remedy);
+  expect((await readSubmissionBoundaryVersioned("/unavailable", "example", { store: h.store, owner })).boundary).toEqual(value);
 });

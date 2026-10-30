@@ -12,19 +12,19 @@ import { candidateFixture } from "../../../../../../helpers/store/tracked-write-
 
 it("reads through the supplied store and preserves its non-digest version", async () => {
   const h = createLifecycleHarness();
-  await h.seedMeta("example");
+  const { owner } = (await h.seedMeta("example")).reference;
   const record = candidateFixture();
   const reference = recordReferences["review/candidate"](OwnerIdentitySchema.parse({ type: "work-item", name: "example" }));
   const stored = await h.seed(reference, serializeCandidateManagedRecord(record));
   expect(stored.version).not.toMatch(/^sha256:/u);
-  await expect(readCandidateRecordVersioned("/unavailable", "example", { store: h.store }))
+  await expect(readCandidateRecordVersioned("/unavailable", "example", { store: h.store, owner }))
     .resolves.toEqual({ record, version: stored.version });
 });
 
 it("reads established absence as null through every Candidate reader", async () => {
   const h = createLifecycleHarness();
-  await h.seedMeta("example");
-  const options = { store: h.store };
+  const { owner } = (await h.seedMeta("example")).reference;
+  const options = { store: h.store, owner };
   await expect(readCandidateRecord("/unavailable", "example", options)).resolves.toBeNull();
   await expect(readCandidateRecordVersioned("/unavailable", "example", options)).resolves.toEqual({ record: null, version: null });
   await expect(readCandidateRecordVersion("/unavailable", "example", options)).resolves.toBeNull();
@@ -32,13 +32,13 @@ it("reads established absence as null through every Candidate reader", async () 
 
 it.each(["malformed", "wrong-owner"])("rejects %s Candidate content returned by the store", async (fault) => {
   const h = createLifecycleHarness();
-  await h.seedMeta("example");
+  const { owner } = (await h.seedMeta("example")).reference;
   const reference = recordReferences["review/candidate"](OwnerIdentitySchema.parse({ type: "work-item", name: "example" }));
   const stored = await h.seed(reference, serializeCandidateManagedRecord(candidateFixture()));
   const raw = h.store.state.records.get(recordKey(stored.reference));
   if (raw === undefined) throw new Error("Missing stored Candidate fixture");
   raw.content = fault === "malformed" ? "{unreadable" : serializeCandidateManagedRecord(candidateFixture("another"));
-  const options = { store: h.store };
+  const options = { store: h.store, owner };
   await expect(readCandidateRecordVersion("/unavailable", "example", options)).resolves.toBe(stored.version);
   await expect(readCandidateRecordVersioned("/unavailable", "example", options))
     .rejects.toThrow(fault === "malformed" ? /Candidate record is malformed/u : /work unit does not match its path/u);
@@ -46,9 +46,9 @@ it.each(["malformed", "wrong-owner"])("rejects %s Candidate content returned by 
 
 it("writes through the supplied store and returns the established record path", async () => {
   const h = createLifecycleHarness();
-  await h.seedMeta("example");
+  const { owner } = (await h.seedMeta("example")).reference;
   const record = candidateFixture();
-  const options = { store: h.store };
+  const options = { store: h.store, owner };
   await expect(writeCandidateRecord("/unavailable", "example", record, null, options))
     .resolves.toBe(".arc/system/.internal/candidates/example.json");
   await expect(readCandidateRecord("/unavailable", "example", options)).resolves.toEqual(record);
@@ -56,8 +56,8 @@ it("writes through the supplied store and returns the established record path", 
 
 it("preserves a newer Candidate when a writer holds a stale version, then permits a fresh retry", async () => {
   const h = createLifecycleHarness();
-  await h.seedMeta("example");
-  const options = { store: h.store };
+  const { owner } = (await h.seedMeta("example")).reference;
+  const options = { store: h.store, owner };
   const record = candidateFixture();
   await writeCandidateRecord("/unavailable", "example", record, null, options);
   const stale = await readCandidateRecordVersioned("/unavailable", "example", options);
@@ -80,7 +80,7 @@ it("puts a Candidate in the caller's atomic batch beside a primary update", asyn
   await expect(h.store.batch({ writes: [prepareCandidateRecordPut("example", record, null),
     { action: "put", reference: meta.reference, expected: meta.version, placement: { kind: "active" },
       content: writeMetaPriority(meta.content, "P1") }], provenance: { verb: "update-candidate", lifecycleAction: "edit" } })).resolves.toMatchObject({ status: "ok" });
-  await expect(readCandidateRecord("/unavailable", "example", { store: h.store })).resolves.toEqual(record);
+  await expect(readCandidateRecord("/unavailable", "example", { store: h.store, owner: meta.reference.owner })).resolves.toEqual(record);
   expect(lifecycleSuccess(await h.store.read({ reference: meta.reference }))).toMatchObject({ fields: { priority: "P1" } });
 });
 
@@ -105,12 +105,12 @@ it.each(["direct", "options"])("retains the explicit filesystem adapter through 
 
 it("surfaces non-absence store conditions and remedies, then reads after repair", async () => {
   const h = createLifecycleHarness();
-  await h.seedMeta("example");
+  const { owner } = (await h.seedMeta("example")).reference;
   h.store.state.corrupt = true;
-  await expect(readCandidateRecord("/unavailable", "example", { store: h.store }))
+  await expect(readCandidateRecord("/unavailable", "example", { store: h.store, owner }))
     .rejects.toThrow(/structurally corrupt.*Rebuild the namespace index/u);
   h.store.state.corrupt = false;
-  await expect(readCandidateRecord("/unavailable", "example", { store: h.store })).resolves.toBeNull();
+  await expect(readCandidateRecord("/unavailable", "example", { store: h.store, owner })).resolves.toBeNull();
 });
 
 it("retains the selected work-item generation after its slug is reused", async () => {
@@ -161,4 +161,16 @@ it("refuses conflicted Candidate authority and resumes after resolution", async 
     content: disputed.content, resolves: disputed.conflicts, provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
   expect(await readCandidateRecord("/unavailable", "example", { store: h.store, owner: meta.reference.owner }))
     .toEqual(JSON.parse(disputed.content));
+});
+
+it("refuses native access that names no exact work item, and reads once its owner is supplied", async () => {
+  const h = createLifecycleHarness();
+  const { owner } = (await h.seedMeta("example")).reference;
+  const record = candidateFixture();
+  await h.seed(recordReferences["review/candidate"](owner), serializeCandidateManagedRecord(record));
+  const remedy = /need the invocation's exact work item\. Run the command from example's checkout/u;
+  await expect(readCandidateRecordVersioned("/unavailable", "example", { store: h.store })).rejects.toThrow(remedy);
+  await expect(readCandidateRecordVersion("/unavailable", "example", { store: h.store })).rejects.toThrow(remedy);
+  await expect(writeCandidateRecord("/unavailable", "example", record, null, { store: h.store })).rejects.toThrow(remedy);
+  await expect(readCandidateRecord("/unavailable", "example", { store: h.store, owner })).resolves.toEqual(record);
 });

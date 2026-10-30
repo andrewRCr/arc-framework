@@ -20,6 +20,8 @@ import {
 import { deliveryReviewFixRecordDigest } from "../lib/delivery/review-fix-record-effects.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { createStore } from "../lib/store/create.js";
+import type { Store } from "../lib/store/contract.js";
+import type { GitExec } from "../lib/git/exec.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import { retryEndedItemHistory } from "../lib/store/history-retry.js";
 import type { ReviewInvocationInput } from "../scripts/review-gate/runtime/invocation.js";
@@ -61,6 +63,7 @@ import {
   type SpineRemedy,
 } from "../scripts/integration/spine-refusal.js";
 import {
+  resolveCandidateMutationGeneration,
   resolveCandidateMutationOwner,
   resolveCompletedCandidateWorkUnits,
 } from "./candidate-mutation-owner.js";
@@ -141,11 +144,13 @@ async function executeCandidateApplicabilityResolution(
   interaction: InteractionContext | undefined,
   requireMutationOwner: () => Promise<void>,
   invocation?: ReviewInvocationInput,
+  scope: CandidateMutationScope = "owned",
 ): Promise<CandidateApplicabilityCommandResult> {
   const { settings } = await readConfigSettings(root);
   const baseBranch = settings["branch.base"];
   const git = invocation?.exec ?? createGitExec(interaction?.subprocess);
   const store = retryEndedItemHistory(invocation?.store ?? createStore(createDefaultStorePorts({ checkoutRoot: root, exec: git })));
+  const owner = await resolveCandidateMutationGeneration(store, name, scope, invocation?.workItem);
   const rawGit = createRawGitExec(root);
   const readObjectId = async (expression: string): Promise<string> => (
     await git("git", ["rev-parse", "--verify", expression], {
@@ -182,7 +187,7 @@ async function executeCandidateApplicabilityResolution(
   ): Promise<"written" | "version-conflict"> => {
     await requireMutationOwner();
     try {
-      await writeCandidateRecord(root, name, record, expectedVersion, { store });
+      await writeCandidateRecord(root, name, record, expectedVersion, { store, owner });
       return "written";
     } catch (error) {
       if (error instanceof CandidateRecordVersionConflictError) return "version-conflict";
@@ -198,7 +203,7 @@ async function executeCandidateApplicabilityResolution(
     const requests = reviewApplicabilityResolutionInputsFromCommand(input);
     const memberLookup = new RepositoryDeliveryMemberLookup({ cwd: root, exec: git });
     const context = {
-      readRecord: () => readCandidateRecordVersioned(root, name, { store }),
+      readRecord: () => readCandidateRecordVersioned(root, name, { store, owner }),
       projectApplicability: (selector: ReviewApplicabilityResolutionInput["selector"]) => (
         projectGitReviewContributionApplicability({
           selector,
@@ -240,7 +245,7 @@ async function executeCandidateApplicabilityResolution(
       : await resolveReviewApplicabilityBatch(context, requests);
   } else {
     resolution = await resolveCandidateApplicability({
-      readRecord: () => readCandidateRecordVersioned(root, name, { store }),
+      readRecord: () => readCandidateRecordVersioned(root, name, { store, owner }),
       currentTarget,
       currentBase,
       projectApplicability: (request) => projectGitCandidateApplicability({
@@ -297,22 +302,30 @@ export interface CandidateApplicabilityResolveHandlerDependencies {
     input: CandidateApplicabilityCommandInput,
     interaction: InteractionContext | undefined,
     requireMutationOwner: () => Promise<void>,
+    scope?: CandidateMutationScope,
   ): Promise<unknown>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
 
 function defaultDependencies(invocation?: ReviewInvocationInput): CandidateApplicabilityResolveHandlerDependencies {
+  let opened: Store | undefined;
+  const storeFor = (root: string, exec: GitExec): Store =>
+    invocation?.store ?? (opened ??= createStore(createDefaultStorePorts({ checkoutRoot: root, exec })));
+  const execFor = (interaction?: InteractionContext) => invocation?.exec ?? createGitExec(interaction?.subprocess);
   return {
     resolveRoot: () => invocation?.cwd ?? requireArcProjectRoot(),
     resolveMutationOwner: (root, interaction) => resolveCandidateMutationOwner({
       cwd: root,
       ...invocation,
-      exec: invocation?.exec ?? createGitExec(interaction?.subprocess),
+      exec: execFor(interaction),
+      store: storeFor(root, execFor(interaction)),
     }),
-    resolveCompletedWorkUnits: root => resolveCompletedCandidateWorkUnits(root, invocation?.store),
+    resolveCompletedWorkUnits: root => resolveCompletedCandidateWorkUnits(root, storeFor(root, execFor())),
     readText: (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
-    execute: (...args) => executeCandidateApplicabilityResolution(...args, invocation),
+    execute: (root, name, input, interaction, requireMutationOwner, scope) => executeCandidateApplicabilityResolution(
+      root, name, input, interaction, requireMutationOwner,
+      { ...invocation, cwd: root, exec: execFor(interaction), store: storeFor(root, execFor(interaction)) }, scope),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },
   };
@@ -370,29 +383,30 @@ function emit(
 }
 
 type CandidateMutationRefusal = "active-work-unit-mismatch" | "active-work-unit-unavailable";
+type CandidateMutationScope = "owned" | "unowned";
 
-async function resolveCandidateMutationRefusal(
+async function resolveCandidateMutationScope(
   deps: CandidateApplicabilityResolveHandlerDependencies,
   root: string,
   workUnit: string,
   interaction?: InteractionContext,
-): Promise<CandidateMutationRefusal | null> {
+): Promise<{ refusal: CandidateMutationRefusal } | { scope: CandidateMutationScope }> {
   let owner: CandidateMutationOwner;
   try {
     owner = await deps.resolveMutationOwner(root, interaction);
   } catch {
-    return "active-work-unit-unavailable";
+    return { refusal: "active-work-unit-unavailable" };
   }
-  if (owner.status === "unavailable") return "active-work-unit-unavailable";
+  if (owner.status === "unavailable") return { refusal: "active-work-unit-unavailable" };
   if (owner.status === "owned") {
-    return owner.workUnit === workUnit ? null : "active-work-unit-mismatch";
+    return owner.workUnit === workUnit ? { scope: "owned" } : { refusal: "active-work-unit-mismatch" };
   }
   try {
     return (await deps.resolveCompletedWorkUnits(root)).includes(workUnit)
-      ? null
-      : "active-work-unit-mismatch";
+      ? { scope: "unowned" }
+      : { refusal: "active-work-unit-mismatch" };
   } catch {
-    return "active-work-unit-unavailable";
+    return { refusal: "active-work-unit-unavailable" };
   }
 }
 
@@ -440,30 +454,30 @@ export async function handleCandidateApplicabilityResolve(
     }));
     return;
   }
-  const mutationRefusal = await resolveCandidateMutationRefusal(
+  const mutation = await resolveCandidateMutationScope(
     deps,
     root,
     commandInput.data.name,
     interaction,
   );
-  if (mutationRefusal !== null) {
+  if ("refusal" in mutation) {
     emit(deps, CandidateApplicabilityResolutionResultSchema.parse({
       schemaVersion: 1,
       mode: "candidate-applicability-resolve",
       state: "execution-unavailable",
       nextAction: "stop",
-      reason: mutationRefusal,
+      reason: mutation.refusal,
     }));
     return;
   }
   const requireMutationOwner = async (): Promise<void> => {
-    const refusal = await resolveCandidateMutationRefusal(
+    const current = await resolveCandidateMutationScope(
       deps,
       root,
       commandInput.data.name,
       interaction,
     );
-    if (refusal !== null) throw new Error(`Candidate mutation refused: ${refusal}`);
+    if ("refusal" in current) throw new Error(`Candidate mutation refused: ${current.refusal}`);
   };
   let executed: unknown;
   try {
@@ -473,6 +487,7 @@ export async function handleCandidateApplicabilityResolve(
       request,
       interaction,
       requireMutationOwner,
+      mutation.scope,
     );
   } catch (error) {
     emit(deps, executionFailedResult(error, commandInput.data.name));

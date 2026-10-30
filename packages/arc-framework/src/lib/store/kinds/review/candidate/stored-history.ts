@@ -1,14 +1,14 @@
 /** Exact Candidate generations and supersession links from operational record history. */
 import type { Store, HistoryEntry } from "../../../contract.js";
-import { OwnerIdentitySchema, recordReferences, type OwnerIdentity } from "../../../identity.js";
-import { unwrapReviewRecordResult } from "../access-shared.js";
+import { recordReferences, type OwnerIdentity } from "../../../identity.js";
+import { selectReviewRecordOwner, unwrapReviewRecordResult } from "../access-shared.js";
 import { parseCandidateManagedRecord, resolveCandidateSupersessionAncestors, CandidateSupersessionResolutionError,
   type CandidateSupersessionAncestor, type CandidateManagedRecordV1 } from "../../../../work-unit/candidate-attestation.js";
 
 interface StoredHistoryInput { store: Store; workUnit: string; workItem?: OwnerIdentity }
 
 async function history(input: StoredHistoryInput): Promise<HistoryEntry[]> {
-  const owner = input.workItem ?? OwnerIdentitySchema.parse({ type: "work-item", name: input.workUnit });
+  const owner = selectReviewRecordOwner(input.store, input.workUnit, input.workItem);
   return unwrapReviewRecordResult(await input.store.history({ reference: recordReferences["review/candidate"](owner) }));
 }
 
