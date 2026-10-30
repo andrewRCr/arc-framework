@@ -613,7 +613,7 @@ jobs:
         --tier integration --project-set integration --workers "${VITEST_MAX_WORKERS:-native}"
         --ci-job "integration-${{ matrix.shard }}" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
 
-  # The store suites run by reach, across four shards balanced by the integration durations. A pull request runs the
+  # The store suites run by reach, across six shards balanced by the integration durations. A pull request runs the
   # suites its change reaches; every push to main, the weekly run, and a dispatched run ask for a full run, the
   # separate layout's whole conformance suite among them, unless a dispatch asks for every suite's per-change form. A
   # push whose run a later push cancels leaves its tree to that later full run.
@@ -627,7 +627,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6]
     runs-on: ubuntu-latest
     steps:
     - name: Start test budget clock

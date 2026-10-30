@@ -438,7 +438,7 @@ checks:
       ARC_STORE_CHECK: value
       ARC_STORE_BURSTS: value
     shards:
-      count: 4
+      count: 6
       argument: --shard={index}/{count}
   # Integration tests read ARC Markdown from disk, which no import graph shows, so test:changed never reaches them.
   test:integration:content:

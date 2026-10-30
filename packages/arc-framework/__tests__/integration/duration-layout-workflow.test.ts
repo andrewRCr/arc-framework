@@ -19,7 +19,7 @@ it("uses only the adopted literal matrices and admits scheduled writer runs", as
   const value = await workflow();
   expect(Object.keys(value.on.workflow_dispatch.inputs))
     .toEqual(["run_portability_pair", "portability_timing_only", "store_per_change"]);
-  for (const [tier, indices] of [["unit", [1,2]], ["integration", [1,2,3,4]], ["store", [1,2,3,4]],
+  for (const [tier, indices] of [["unit", [1,2]], ["integration", [1,2,3,4]], ["store", [1,2,3,4,5,6]],
     ["e2e", [1,2,3,4]]] as const) {
     const adopted = value.jobs[tier];
     expect(adopted?.strategy?.matrix.shard).toEqual(indices);
