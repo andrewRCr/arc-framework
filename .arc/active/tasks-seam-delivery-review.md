@@ -482,7 +482,7 @@ alone.
   the retired-attempt reason and foreign records retain their identity reason; a mapped live attempt still decodes
   through the complete native schema. The repository's actual-live pass now completes without decoding unused findings.
 
-### `[ ]` **3.R2 Carry the mapping through the import — § 11, § 11.1, § 14.2 (A20)**
+### `[x]` **3.R2 Carry the mapping through the import — § 11, § 11.1, § 14.2 (A20)**
 
 - _Goal:_ `arc store migrate`'s handler passes the mapping into the import's `reviewMapping` port, and the mapping
   accounts for each live work unit's current Candidate record the import gives, so the import's trial over this
@@ -499,9 +499,19 @@ alone.
           supplied ports run the import as given, so the import suites keep exercising the unmapped port. Through the
           command, a trial over a live work unit's Candidate versions, current record, boundary, and gate files lists
           every source once with no review notice, and the import lands the mapped Candidate and version-2 boundary.
-    - `[ ]` **3.R2.c Run the import's trial over this repository**
-        - Run `arc store migrate --import --trial --json` over this repository through the handler, and record the
-          listing's accounting and every remaining notice as the appended criterion's evidence.
+    - `[x]` **3.R2.c Run the import's trial over this repository**
+        - Run through the handler at `8d870f40a`, the trial reported no review coverage notice. Its listing accounted
+          once for each of 2,894 gate files and one materialization folder, all left behind: join-only working state
+          (682), retired snapshots (581), no live owner (557), dispositions with no mapped live result (329), unjoined
+          frontline outcomes (277), skipped older dispositions (192), frontline runs (141), local operations (119),
+          foreign repository identity (13), quarantine (2), an unjoined receipt (1), and the adopted repository
+          identity (1). The import gave the mapping no Candidate, as no live work unit holds one; it carried archived
+          work units' Candidates itself and reported six broken chains. The other 102 notices and one refusal are
+          inbound, task-list, and personal conditions outside the review family.
+
+- _Outcome:_ Over this repository the Candidate clauses of Criteria 20 and 21 go unexercised, since no live work unit
+  holds a Candidate; the trial through `arc store migrate` in 3.R2.b exercises them over a live Candidate's versions,
+  current record, and boundary.
 
 ### `[x]` **3.8 The import's mapping** — validate exit criterion at segment scope
 
