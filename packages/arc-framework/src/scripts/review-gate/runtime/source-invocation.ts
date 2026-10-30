@@ -14,6 +14,14 @@ async function selectedSourceOwner(input: ReviewInvocationContext): Promise<Revi
   return { repositoryId, workItem: input.workItem };
 }
 
+function parseProducedSource(value: string, kind: BoundReviewSourceReference["kind"], native: boolean,
+  producer: string): BoundReviewSourceReference {
+  try { return parseReviewSourceReference(value, kind, native); }
+  catch (error) {
+    throw new ReviewContinuationReferenceError(error instanceof Error ? error.message : "malformed review source reference", producer);
+  }
+}
+
 /** Publish the selected native owner outside source identities while preserving repository encodings. */
 export async function bindReviewSourceReferenceForInvocation(options: ReviewInvocationInput,
   reference: ReviewSourceReferenceCoordinates): Promise<string> {
@@ -32,9 +40,7 @@ export async function resolveReviewSourceInvocation(options: ReviewInvocationInp
     : "arc review local attest, arc review local resume, or arc review reduce";
   const native = input.store.capabilities.stateOffBranch;
   if (native) await input.projectId();
-  let reference: BoundReviewSourceReference;
-  try { reference = parseReviewSourceReference(value, kind, native); }
-  catch { throw new ReviewContinuationReferenceError("malformed or mismatched review source reference", producer); }
+  const reference = parseProducedSource(value, kind, native, producer);
   if (!("workItem" in reference)) {
     if (native && input.workItem === undefined) throw new ReviewContinuationReferenceError(
       "native continuation requires an owner-bearing source reference", producer);

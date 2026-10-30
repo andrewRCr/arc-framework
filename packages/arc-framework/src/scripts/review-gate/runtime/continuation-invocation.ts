@@ -4,11 +4,11 @@ import { ZodError } from "zod";
 import { bindNativeReviewOperationReference, parseNativeReviewOperationReference } from "../core/review-operation-reference.js";
 import { resolveReviewInvocation, type ReviewInvocationInput } from "./invocation.js";
 
-/** A command reference is invalid; retry with the reference emitted by its matching producer. */
+/** A command reference is invalid; by default, retry with the reference emitted by its matching producer. */
 export class ReviewContinuationReferenceError extends Error {
   readonly code = "invalid-input" as const;
-  constructor(detail: string, producer: string) {
-    super(`${detail}; resubmit the matching reference emitted by ${producer}.`);
+  constructor(detail: string, producer: string, remedy = `resubmit the matching reference emitted by ${producer}`) {
+    super(`${detail}; ${remedy}.`);
     this.name = "ReviewContinuationReferenceError";
   }
 }
@@ -33,7 +33,7 @@ export function reviewContinuationRequestError(mode: string, error: unknown, req
   };
   const producer = producers[mode];
   const fields = mode === "review-respond" || mode === "review-hosted-settle"
-    ? ["source", "response", "receiptRef", "outcomeRef", "attemptRef"] : ["operationRef"];
+    ? ["receiptRef", "outcomeRef", "attemptRef"] : ["operationRef"];
   return producer !== undefined && error instanceof ZodError && error.issues.some(issue => referenceIssue(issue, fields))
     ? new ReviewContinuationReferenceError(error.message, producer) : error;
 }
@@ -44,7 +44,8 @@ export async function resolveReviewOperationInvocation(options: ReviewInvocation
   const input = { ...options, ...resolveReviewInvocation(options) };
   const fail = (detail: string) => new ReviewContinuationReferenceError(detail, producer);
   if (!input.store.capabilities.stateOffBranch) {
-    if (request.operationRef !== undefined) throw fail("native references require native storage");
+    if (request.operationRef !== undefined) throw new ReviewContinuationReferenceError("native references require native storage",
+      producer, "omit `operationRef`; repository continuations carry none");
     return input;
   }
   const repositoryId = await input.projectId();
