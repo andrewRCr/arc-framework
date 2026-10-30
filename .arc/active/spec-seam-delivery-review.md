@@ -158,6 +158,10 @@ Amended 2026-10-30 — A25 lets a native boundary carry in the review-fix contin
 § 3.5 before the flip, extending Goal 8's schema exceptions and Criterion 2's pinned-schema test exceptions; in-repo
 emissions remain unchanged.
 
+Amended 2026-10-30 — A26 records three corrections to in-repo output in § 3.5 before the flip: Candidate chain
+refusals, continuation reference errors, and respond's reading of completed names. They extend Goal 8's exceptions; no
+pre-existing test's assertion changes.
+
 ## Proposed Design
 
 § 1 sets the rule every field answers to and § 2 the family it produces. § 3 is everything that changes before the flip.
@@ -532,6 +536,23 @@ Two additions besides a schema's widening are observable before the flip too, wi
   flip.
 - **The export path's classification** (§ 12.5): `classifyPathTreatment` classifies a work unit's own export folder,
   `.arc/specs/<slug>`, as evidence-neutral, which matches no path until the export writes one from the flip.
+
+Three corrections change in-repo output before the flip as well (A26), each repairing a defect review found rather
+than preparing a flip-time arm:
+
+- **Candidate chain refusals name no single command.** The supersession chain's history, malformed-version, and
+  absent-predecessor refusals (`lib/store/kinds/review/candidate/history.ts`, `stored-history.ts`,
+  `lib/work-unit/candidate-attestation.ts`) say to retry the command rather than pre-publication review, since next-pass
+  resolution, hosted pass judgments, policy grants, and the import read the chain too.
+- **Continuation reference errors name their producer.** A malformed continuation reference, whether a hosted settle's
+  or respond's source reference or a command's `operationRef`, reports `invalid-input` with the parser's reason and a
+  remedy naming the command that emits a valid one (`rg/runtime/continuation-invocation.ts`, `source-invocation.ts`);
+  another malformed field keeps its schema error. An in-repo continuation naming an `operationRef` refuses with the
+  remedy to omit it, and a request whose `operationRef` fails its schema, before the storage arm is known, may omit or
+  replace it.
+- **Respond passes over completed names that are not slugs.** From a checkout owning no work unit, respond's Candidate
+  selection and mutation-owner check read completed work units as owners (`handlers/candidate-mutation-owner.ts`), so
+  a completed work unit whose name is not a slug, which no command can name, selects no Candidate.
 
 A value renamed with no flip-time arm needing it waits for the deletion pass rather than widening a schema early
 (§ 5.9).
@@ -2703,5 +2724,8 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
 - **A25** — 2026-10-30 — design: omit the boundary's path from a native carry in the review-fix effect log.
   _Supersedes:_ § 3.5, Goal 8, Criterion 2. _Trigger:_ fix-check review. _Work:_ review-fix. _Revalidated:_ pending →
   8.1.
+
+- **A26** — 2026-10-30 — design: record pre-flip corrections to in-repo output. _Supersedes:_ § 3.5, Goal 8.
+  _Trigger:_ pass-2 review. _Work:_ review-fix. _Revalidated:_ pending → 8.1.
 
 ---
