@@ -56,6 +56,7 @@ export const ISOLATED_UNIT_MOCK_FILES = [
   "__tests__/unit/scripts/integration/checkpoint-delivery-composition.test.ts",
   "__tests__/unit/scripts/review-gate/hosted/gh-process.test.ts",
   "__tests__/unit/scripts/review-gate/hosts/local/live-context.test.ts",
+  "__tests__/unit/scripts/review-gate/policy/frontline-window-native-continued-head.test.ts",
   "__tests__/unit/scripts/review-gate/runtime/confirm-delegation.test.ts",
   "__tests__/unit/scripts/review-gate/runtime/local-assurance-dispatch.test.ts",
   "__tests__/unit/scripts/review-gate/runtime/respond-composition.test.ts",
