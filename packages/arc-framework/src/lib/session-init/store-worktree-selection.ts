@@ -45,7 +45,7 @@ async function selectCheckout(input: SelectionInput, checkout: RegisteredWorktre
   const owner = decodeWorktreeMarkerOwnership(marker.marker);
   if (owner.kind !== "current" || owner.subject.kind !== "work-unit") return null;
   const name = owner.subject.name;
-  if (row.subject?.kind !== "work-unit" || row.subject.key !== name) throw new Error("The marker no longer matches derived checkout authority. Refresh and retry cleanup.");
+  if (!matchesWorkUnitMarker(row, owner.subject)) throw new Error("The marker no longer matches derived checkout authority. Refresh and retry cleanup.");
   if (owner.subject.uid === undefined) return selectUnboundCheckout(input, checkout.path, marker.marker);
   const found = await input.store.lookup({ kind: "claim", claim: workUnitCheckoutClaim(input.store, name, owner.subject.uid) });
   if (found.status === "refused") {
@@ -60,6 +60,10 @@ async function selectCheckout(input: SelectionInput, checkout: RegisteredWorktre
   const fields = ParsedMetaRecordSchema.parse(read.result.fields);
   if ((input.identity != null && fields.owner !== input.identity) || read.result.placement?.kind === "backlog") return { kind: "release", name };
   return read.result.placement?.kind === "completed" ? { kind: "ended", owner: read.result.reference.owner } : null;
+}
+function matchesWorkUnitMarker(row: DerivedCheckoutRow, marker: { name: string; uid?: string }): boolean {
+  return row.subject?.kind === "work-unit" && (marker.uid === undefined
+    ? row.subject.key === marker.name : row.subject.uid === marker.uid);
 }
 async function selectUnboundCheckout(input: SelectionInput, cwd: string, marker: WorktreeMarker): Promise<Selected> {
   const unbound = await classifyUnboundMarker({ store: input.store, cwd, marker,

@@ -22,6 +22,7 @@ import type { GitExec } from "../../../src/lib/git/exec.js";
 import { acquireDerivedLocusEvidence, type DerivedLocusEvidenceIO } from "../../../src/lib/locus/derived-evidence.js";
 import { readDerivedLocusRoster } from "../../../src/lib/locus/derived-reader.js";
 import type { SubjectMetaIO } from "../../../src/lib/locus/subject-meta.js";
+import type { WorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
 const base = "a".repeat(40), head = "b".repeat(40);
 const checkout = { path: "/checkout", branch: null, head, detached: true, primary: false, folderPresent: true };
 async function options(store: NonNullable<RunStaleWorktreeSweepOptions["store"]>, subject: ReturnType<typeof boundWorkUnitSubject> | undefined, merged = true, spawned = true): Promise<RunStaleWorktreeSweepOptions> {
@@ -146,6 +147,51 @@ it("offers release for a foreign marked checkout despite the marker's spawning i
   const h = createLifecycleHarness(); const primary = await h.seedMeta("done", { state: "Planning", currentWorkflow: "draft-design", owner: "foreign" });
   expect((await runStaleWorktreeSweep(await options(h.store, boundWorkUnitSubject(primary)))).worktrees[0]?.actions?.[0])
     .toEqual({ text: "arc locus release", argv: ["arc", "locus", "release"], checkout: "/checkout" });
+});
+it.each(["completed", "foreign", "backlog"] as const)("selects %s cleanup for a bound former-name marker", async state => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("done", { state: state === "completed" ? "Shipped" : "Planning",
+    currentWorkflow: state === "completed" ? null : "draft-design", owner: state === "foreign" ? "foreign" : "test-user" },
+    state === "completed" ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }
+      : state === "backlog" ? { kind: "backlog", commitment: "planned" } : { kind: "active" });
+  const original = await options(h.store, boundWorkUnitSubject(primary));
+  const marker = await original.readMarker!(checkout.path);
+  if (marker.kind !== "present" || marker.marker.createdFor?.kind !== "work-unit"
+    || marker.marker.provisioning !== undefined) throw new Error("Expected a bound work-unit marker");
+  const formerMarker: WorktreeMarker = { spawnedByArc: marker.marker.spawnedByArc,
+    spawningIdentity: marker.marker.spawningIdentity, createdAt: marker.marker.createdAt,
+    wuName: "former", createdFor: { ...boundWorkUnitSubject(primary), name: "former" } };
+  const input = await withDerivedRows({ ...original, readMarker: async () => ({ kind: "present", marker: formerMarker }) });
+  expect(input.derivedRoster?.[0]?.subject).toMatchObject({ kind: "work-unit", key: "done", uid: boundWorkUnitSubject(primary).uid });
+  const before = lifecycleSuccess(await h.store.version());
+  const selected = await selectStoreWorktreeCleanup({ store: h.store, topology: [checkout], derivedRoster: input.derivedRoster ?? [],
+    readMarker: path => input.readMarker!(path), identity: "test-user" });
+  expect(selected.warnings).toEqual([]);
+  if (state === "completed") expect(selected).toMatchObject({ ended: [{ checkout, owner: primary.reference.owner }], releases: [] });
+  else {
+    expect(selected.ended).toEqual([]);
+    expect(selected.releases).toHaveLength(1);
+    expect(selected.releases[0]?.actions).toEqual([{ text: "arc locus release", argv: ["arc", "locus", "release"], checkout: checkout.path }]);
+  }
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+});
+it("refuses a fresh marker UID that differs from the derived row, then retries after authority agrees", async () => {
+  const h = createLifecycleHarness(), placement = { kind: "completed" as const, quarter: ArchiveQuarterSchema.parse("2026-q4") };
+  const primary = await h.seedMeta("done", { state: "Shipped", currentWorkflow: null }, placement);
+  const other = await h.seedMeta("other", { state: "Shipped", currentWorkflow: null }, placement);
+  const original = await options(h.store, boundWorkUnitSubject(primary)), marker = await original.readMarker!(checkout.path);
+  if (marker.kind !== "present" || marker.marker.createdFor?.kind !== "work-unit"
+    || marker.marker.provisioning !== undefined) throw new Error("Expected a bound work-unit marker");
+  const select = (readMarker: NonNullable<RunStaleWorktreeSweepOptions["readMarker"]>) => selectStoreWorktreeCleanup({
+    store: h.store, topology: [checkout], derivedRoster: original.derivedRoster ?? [], readMarker, identity: "test-user",
+  });
+  const changedMarker: WorktreeMarker = { spawnedByArc: marker.marker.spawnedByArc,
+    spawningIdentity: marker.marker.spawningIdentity, createdAt: marker.marker.createdAt,
+    wuName: "done", createdFor: { ...boundWorkUnitSubject(other), name: "done" } };
+  expect(await select(async () => ({ kind: "present", marker: changedMarker })))
+    .toMatchObject({ ended: [], releases: [], warnings: [expect.stringContaining("Refresh and retry cleanup")] });
+  expect(await select(path => original.readMarker!(path)))
+    .toEqual({ ended: [{ checkout, owner: primary.reference.owner }], releases: [], warnings: [] });
 });
 it.each([true, false])("offers release for a marked checkout with no work-unit record (spawned=%s)", async spawned => {
   const h = createLifecycleHarness(), input = await options(h.store, undefined, true, spawned);
