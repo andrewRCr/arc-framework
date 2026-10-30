@@ -1,6 +1,14 @@
 /** A native Candidate mutation writes the generation its checkout continues, never a namesake reusing its slug. */
-import { expect, it } from "vitest";
-import { resolveCandidateMutationGeneration } from "../../../src/handlers/candidate-mutation-owner.js";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { expect, it, onTestFinished } from "vitest";
+import { resolveCandidateMutationGeneration, resolveCompletedCandidateOwners, resolveCompletedCandidateWorkUnits }
+  from "../../../src/handlers/candidate-mutation-owner.js";
+import { createStore } from "../../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
+import { renderMetaFile } from "../../../src/lib/store/kinds/meta/writers.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
 import { RecordReferenceSchema, recordReferences } from "../../../src/lib/store/identity.js";
@@ -75,4 +83,17 @@ it("carries the store's refusal whole when the checkout's own work unit cannot b
     refusal: { code: "not-found" } });
   await h.seedMeta("example");
   expect(await resolveCandidateMutationGeneration(h.store, "example", "owned")).toMatchObject({ name: "example" });
+});
+
+it("keeps an in-repo completed name that is no slug in the name list, selecting no owner for it", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "arc-completed-names-"));
+  onTestFinished(() => rm(cwd, { recursive: true, force: true }));
+  await mkdir(join(cwd, ".arc", "completed", "2026-q4"), { recursive: true });
+  const meta = renderMetaFile("example", { state: "Shipped", owner: "andrew", workClass: "Light", currentWorkflow: null });
+  for (const name of ["example", "Legacy_Name"]) {
+    await writeFile(join(cwd, ".arc", "completed", "2026-q4", `meta-${name}.md`), meta);
+  }
+  const store = createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec: scriptGitExec([]).exec }));
+  expect([...await resolveCompletedCandidateWorkUnits(cwd, store)].sort()).toEqual(["Legacy_Name", "example"]);
+  expect(await resolveCompletedCandidateOwners(cwd, store)).toEqual([{ type: "work-item", name: "example" }]);
 });

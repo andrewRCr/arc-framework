@@ -54,7 +54,8 @@ export async function resolveCandidateMutationOwner(input: {
  * @returns Completed work-unit slugs
  */
 export async function resolveCompletedCandidateWorkUnits(cwd: string, store: Store = openDefaultStore(cwd, gitExec)): Promise<readonly string[]> {
-  return (await resolveCompletedCandidateOwners(cwd, store)).map(owner => owner.name);
+  if (store.capabilities.stateOffBranch) return (await readCompletedOwners(store)).map(owner => owner.name);
+  return readCompletedSlugs(cwd);
 }
 
 /**
@@ -67,13 +68,21 @@ export async function resolveCompletedCandidateWorkUnits(cwd: string, store: Sto
 export async function resolveCompletedCandidateOwners(cwd: string, store: Store = openDefaultStore(cwd, gitExec)):
   Promise<readonly OwnerIdentity[]> {
   if (store.capabilities.stateOffBranch) return readCompletedOwners(store);
+  // A completed name that is not a slug is one no command can name, so it selects no owner.
+  return (await readCompletedSlugs(cwd)).flatMap(name => {
+    const owner = OwnerIdentitySchema.safeParse({ type: "work-item", name });
+    return owner.success ? [owner.data] : [];
+  });
+}
+
+async function readCompletedSlugs(cwd: string): Promise<string[]> {
   const fs: LifecycleIndexFs = {
     readdir: (path) => readdir(path, { withFileTypes: true }),
     readFile: (path) => readFile(path, "utf8"),
   };
   return [...(await buildLifecycleIndex({ cwd, fs })).values()]
     .filter(({ location }) => location === "completed")
-    .map(({ slug }) => OwnerIdentitySchema.parse({ type: "work-item", name: slug }));
+    .map(({ slug }) => slug);
 }
 
 async function readCompletedOwners(store: Store): Promise<readonly OwnerIdentity[]> {
