@@ -181,6 +181,67 @@ retains machine-configuration refusal containment, cancellation retains the fres
 settlement retains the landed request-write ordering fix. Merge verification covers those overlaps before task work
 resumes. Phase 5's external adapter and Phase 6's complete-gate measurements remain separate later boundaries.
 
+### Store qualification and prepared timing output
+
+The native reach entry performs a preliminary shard selection before an execution run begins. The observer keeps
+that preflight separate and requires its discovery and assignment to equal the single execution partition over all
+three native project groups. A real reach fixture exercises the native sequencing seam; it does not substitute for
+the landed catalogue's public-runner qualifications.
+
+`store-selected-deletion-recorded.json` qualifies four actual store suites from one captured range, with a deleted
+suite excluded and recorded durations retained. Removing the original selected files, widening the original catalogue,
+changing caller selectors and corrupting the original handed file after capture do not change native playback. It
+records Linux arm64, Node 26.3.0 and Vitest 4.1.11, with successful parent and closure.
+
+The first burst-enabled full run is retained as `store-full-bursts-unset.json`, with failed runner history
+`e9fe045f6a254cc19a73370978822373`. Its baseline selected 321 suites and failed one withdrawal case; the focused rerun
+`fc618dc245a0451593a3ab4d2be0c8d6` passed all four variants without establishing the original cause. Primary owns that
+investigation. The qualification collector now preserves per-invocation stderr separately from parsed stdout, including
+when qualification fails; the original assertion details were not retained.
+
+The baseline's timing suite also created `.test-cost-runs` after preparation, causing all later invocations to refuse
+the changed source inventory. Repository setup now establishes that existing output root before generated additions
+freeze. `check-output-boundary.py` and its log retain the original refusal and the repaired provider verification:
+later timing and `duration-input/` output is allowed while new source files and captured-source changes still refuse.
+The timing writer, duration-input helpers and native output paths are unchanged. This repair does not qualify the
+failed full run; its fresh replacement is recorded separately.
+
+The machine state path currently traverses an `arc-offload` directory symlink. An initial remote delivery failed
+before any native command because transport relativized a resolved binding against the unresolved upload path.
+`store-selected-deletion-recorded-state-alias-refusal.json` retains that closed failure. Subsequent store qualifications
+use the runner's supported per-run `--state-root` operand with the same physical directory's canonical path, recorded
+as a configuration override. Pool policy, capacity and global configuration are unchanged; the transport concern was
+reported to primary. Unknown runtime bindings permit execution here but authorize no cached reuse.
+
+`unit-full-merged-unset.json` refreshes ordinary membership on the merged source: Linux x64, Node 26.3.0 and Vitest
+4.1.11; 1,367 members (1,323 unit and 44 unit-mocks), assigned 684/683 with successful parent and closure. Its three
+separate stderr artifacts retain 31,208 bytes. `store-default-empty-duration.json` qualifies 319 actual store members
+on Linux arm64 with the same Node/Vitest versions, assigned 80/80/80/79. The store ask is unset, bursts are a literal
+empty string and the duration binding is an empty environment value; the native catalogue independently supplies the
+expected set. These remain case/profile evidence on their recorded captures, rather than exact-head verification.
+
+The fresh full-store qualification retained two further unsuccessful attempts. The first is
+`store-full-bursts-post-preparation-admission-refusal.json`, history `1173ea3256ad4aec8378199cb275996e`: m2-mini refused
+admission before native work. The single fresh-plan retry, `store-full-bursts-post-preparation.json`, history
+`96aae45901154241a8dd2d95a0be644b`, received runner RPC error -32000 without any native terminal outcome. Its closure
+was uncertain; subsequent public recovery inspection proves plan `5e562bbf-1f59-4c24-b6fc-8bb2c8d43a93` settled with
+no active workers. The backend journal retained an owned baseline command without an outcome, and its worker receipt
+records SIGTERM after about 30 minutes. Primary subsequently correlated the failure with a kernel OOM kill in the
+attempt's 3,072 MiB cgroup at 22:16:30 UTC; SIGTERM followed that kill. The recorded store peak exceeded this cap, but
+m2-mini's absent memory budget had allowed placement. The explicitly authorized fresh attempt, pinned to m4-mini,
+is retained separately as `store-full-bursts-m4-pinned.json`. It qualifies all 321 native members on Linux arm64,
+Node 26.3.0 and Vitest 4.1.11, with shard assignments 80/80/80/81, successful parent and closed runner. Its full/burst
+inputs and absent duration file come from one capture; it does not change the failed attempts' evidence or diagnosis.
+
+`store-every-zero-byte.json` also qualifies on Linux arm64 with Node 26.3.0 and Vitest 4.1.11: 316 native members,
+assigned 79 per shard, with successful parent and closure. Its ask is `every`, bursts are `0` and the handed duration
+file has zero bytes. Catalogue-derived expected membership excludes the gated timing/burst and full-only suites.
+
+The isolated external worktree is `arc-offload.distributed-check-shards`, branch `feat/distributed-check-shards`,
+re-grounded through `cb46a71`, including memory-stall attribution, peak-token charging and OOM diagnostics. The
+unchanged baseline passed its adapter checks before group implementation. Independent implementation worktrees
+isolate transport, placement and recorder changes; the configured live runner checkout remains untouched.
+
 ## Amendment reasoning
 
 ### A2 — store dependency

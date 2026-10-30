@@ -310,11 +310,10 @@ through controller closing. Store qualification uses the native reach command la
         - Qualification retains per-invocation stdout and stderr through failed qualification and closure, while
           native observations continue to parse stdout alone.
 
-    - `[ ]` **4.3.b Qualify full and selected native store membership**
-        - Use the landed store declaration, reach suite catalogue and native shard entry; cover deletions,
-          declaration widening, `ARC_STORE_CHECK` forms and `ARC_STORE_BURSTS` membership gates through captured inputs.
-        - Verify the unsharded union, exactly-once membership and actual compatible runtime profiles, including
-          fixed duration-input states and original-checkout/selector edits after capture.
+    - `[x]` **4.3.b Qualify full and selected native store membership**
+        - The real declaration and catalogue qualify default, full/burst, every and selected/deleted membership on
+          Linux arm64, Node 26.3.0 and Vitest 4.1.11. Native unsharded/sharded unions retain captured duration states
+          despite original source, catalogue and selector edits; preflight and execution assignments agree.
 
     - `[ ]` **4.3.c Preserve successful reach no-ops and empty native shares**
         - Exercise the real reach controllers and their closing path with a validated no-affected-suite selection

@@ -44,3 +44,13 @@ it.each([
   change(invalid);
   expect(() => qualifyNativeShardMembership(run(members), [run([members[0]!], 1), invalid], 2)).toThrow();
 });
+
+it.each(["discovery", "assignment", "repeat"] as const)("refuses divergent reach preflight %s", fault => {
+  const invalid = run([members[1]!], 2);
+  invalid.observations[0]!.preflight = {
+    selected: fault === "discovery" ? [members[0]!] : members,
+    assigned: fault === "assignment" ? [members[0]!] : [members[1]!],
+    shardCalls: fault === "repeat" ? 2 : 1,
+  };
+  expect(() => qualifyNativeShardMembership(run(members), [run([members[0]!], 1), invalid], 2)).toThrow();
+});

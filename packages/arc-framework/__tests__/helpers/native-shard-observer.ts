@@ -11,7 +11,8 @@ export { readNativeShardObservations, type NativeMember, type NativeShardObserva
 import { HeavyFirstSequencer } from "./heavy-first-sequencer.js";
 
 const packageRoot = fileURLToPath(new URL("../..", import.meta.url));
-const recordings = new WeakMap<Vitest, { cycles: number; current?: NativeShardObservation }>();
+const recordings = new WeakMap<Vitest, { cycles: number; current?: NativeShardObservation;
+  preflight?: NativeShardObservation["preflight"] }>();
 
 function identity(module: Pick<TestSpecification, "project" | "moduleId">): NativeMember {
   return { project: module.project.name, file: relative(packageRoot, module.moduleId).replaceAll("\\", "/") };
@@ -26,6 +27,12 @@ function current(controller: Vitest): NativeShardObservation {
 class ObservedSequencer extends HeavyFirstSequencer {
   override async shard(files: TestSpecification[]): Promise<TestSpecification[]> {
     const assigned = await super.shard(files);
+    const state = recordings.get(this.ctx);
+    if (state?.cycles === 0 && state.current === undefined) {
+      state.preflight = { selected: files.map(identity), assigned: assigned.map(identity),
+        shardCalls: (state.preflight?.shardCalls ?? 0) + 1 };
+      return assigned;
+    }
     const record = current(this.ctx);
     record.shardCalls++;
     record.assigned = assigned.map(identity);
@@ -56,7 +63,8 @@ class MembershipReporter implements Reporter {
     state.current = { cycle: ++state.cycles,
       runtime: { node: process.version, vitest: this.controller.version, platform: process.platform, arch: process.arch },
       duration: observedDuration(), ...(shard === undefined ? {} : { shard: { ...shard } }),
-      selected: specifications.map(identity), assigned: [], ordered: [], queued: [], ended: [], shardCalls: 0, sortCalls: 0 };
+      selected: specifications.map(identity), assigned: [], ordered: [], queued: [], ended: [], shardCalls: 0, sortCalls: 0,
+      ...(state.preflight === undefined ? {} : { preflight: state.preflight }) };
   }
 
   onTestModuleQueued(module: TestModule): void { current(this.controller).queued.push(identity(module)); }
@@ -65,6 +73,7 @@ class MembershipReporter implements Reporter {
 
   onTestRunEnd(): void {
     process.stdout.write(`\n${nativeObservationPrefix}${JSON.stringify(current(this.controller))}\n`);
+    recordings.get(this.controller)!.current = undefined;
   }
 }
 

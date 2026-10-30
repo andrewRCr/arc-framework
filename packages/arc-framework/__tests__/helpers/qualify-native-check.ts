@@ -6,16 +6,18 @@ import { readTypedProjectFile } from "../../src/lib/config/typed-file-reader.js"
 import { CheckDeclarationSchema } from "../../src/lib/checks/declaration.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { resolveCheckRequest } from "../../src/lib/checks/resolve-request.js";
-import { readMachineCheckRunner } from "../../src/lib/checks/runner/machine-config.js";
+import { readMachineCheckRunner, type MachineCheckRunnerConfiguration } from "../../src/lib/checks/runner/machine-config.js";
 import { prepareSelectedCheckExecution, type CheckExecutionClosure } from "../../src/lib/checks/runner/execution.js";
 import { planCheckExecution } from "../../src/lib/checks/runner/planning.js";
 import { executePreparedCheckPlan } from "../../src/lib/checks/runner/dispatch.js";
+import type { CheckScope } from "../../src/lib/checks/request.js";
 import { readNativeShardObservations, type NativeDurationInput, type NativeMember } from "./native-shard-evidence.js";
 import { qualifyNativeShardMembership, type NativeMembershipRun } from "./native-shard-qualification.js";
 
 /** Capture the real declaration, execute its native baseline and matrix, and retain observed membership and closure. */
-export async function qualifyNativeCheck(root: string, checkId: "test:unit" | "test:integration", output: string,
-  filters: readonly string[] = [], environment: NodeJS.ProcessEnv = process.env): Promise<void> {
+export async function qualifyNativeCheck(root: string, checkId: "test:unit" | "test:integration" | "test:store", output: string,
+  filters: readonly string[] = [], environment: NodeJS.ProcessEnv = process.env,
+  options: { scope?: CheckScope; configuration?: MachineCheckRunnerConfiguration; afterCapture?: () => Promise<void> } = {}): Promise<void> {
   const loaded = await readTypedProjectFile(root, "check-declaration", CheckDeclarationSchema);
   if (loaded.status !== "valid") throw new Error(`Cannot read native declaration: ${JSON.stringify(loaded)}`);
   const declared = loaded.value.checks[checkId];
@@ -24,9 +26,10 @@ export async function qualifyNativeCheck(root: string, checkId: "test:unit" | "t
     "--config", "__tests__/helpers/native-shard-observation.config.ts"],
     environment_inputs: { ...declared.environment_inputs, ARC_TEST_DURATION_FILE: "file" as const },
     shards: { ...declared.shards, routed: true } };
-  const configuration = await readMachineCheckRunner(check);
+  const configuration = options.configuration ?? await readMachineCheckRunner(check);
   if (configuration === undefined) throw new Error("Native qualification requires the configured runner.");
-  const resolved = await resolveCheckRequest(createExecaGitExec(), root, { form: { kind: "run", ids: [checkId] }, scope: { kind: "all" } });
+  const resolved = await resolveCheckRequest(createExecaGitExec(), root, { form: { kind: "run", ids: [checkId] },
+    scope: options.scope ?? { kind: "all" } });
   if (resolved.status !== "resolved") throw new Error(resolved.message);
   await mkdir(dirname(output), { recursive: true });
   const stdout = new Map<string, Buffer[]>();
@@ -59,6 +62,7 @@ export async function qualifyNativeCheck(root: string, checkId: "test:unit" | "t
   let parent;
   const runs: NativeMembershipRun[] = [];
   try {
+    await options.afterCapture?.();
     parent = await executePreparedCheckPlan(execution, check);
     const binding = execution.environment.ARC_TEST_DURATION_FILE;
     if (binding?.kind !== "file") throw new Error("Missing captured native duration binding.");
@@ -85,6 +89,8 @@ export async function qualifyNativeCheck(root: string, checkId: "test:unit" | "t
   }
   if (closure.status !== "closed" || closure.exit.exitCode !== 0) failure ??= "Native runner closure is incomplete or failed.";
   const report = { checkId, status: failure === undefined ? "qualified" : "incomplete", failure,
+    coordinates: execution.source.coordinates, environment: execution.environment,
+    runnerConfigurationOverride: options.configuration !== undefined,
     declaredRouted: declared.shards.routed, runtimeBinding: execution.runtime === undefined ? "unknown" : "known",
     parent, closure, selected, runs };
   await writeFile(output, JSON.stringify(report, null, 2));
@@ -94,6 +100,6 @@ export async function qualifyNativeCheck(root: string, checkId: "test:unit" | "t
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [checkId, output, ...filters] = process.argv.slice(2);
-  if ((checkId !== "test:unit" && checkId !== "test:integration") || output === undefined) throw new Error("Use CHECK OUTPUT [native filters].");
+  if ((checkId !== "test:unit" && checkId !== "test:integration" && checkId !== "test:store") || output === undefined) throw new Error("Use CHECK OUTPUT [native filters].");
   await qualifyNativeCheck(process.cwd(), checkId, resolve(output), filters);
 }

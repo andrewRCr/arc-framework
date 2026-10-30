@@ -50,6 +50,11 @@ function checkedRun(run: NativeMembershipRun, sharded: boolean): NativeShardObse
   if (record.cycle !== 1 || record.sortCalls !== 1 || record.shardCalls !== (sharded ? 1 : 0)
     || (record.shard !== undefined) !== sharded) throw new Error("Unexpected native sequencing cycle.");
   if (durationIdentity(record.duration) !== durationIdentity(run.basis.duration)) throw new Error("Native duration input differs from capture.");
+  if (record.preflight !== undefined) {
+    if (!sharded || record.preflight.shardCalls !== 1) throw new Error("Unexpected native reach preflight cycle.");
+    equalMembers(record.preflight.selected, record.selected, "reach preflight discovery");
+    equalMembers(record.preflight.assigned, record.assigned, "reach preflight assignment");
+  }
   for (const [label, members] of [["sorted assignment", record.ordered], ["worker queue", record.queued],
     ["worker completion", record.ended]] as const) equalMembers(members, record.assigned, label);
   return record;

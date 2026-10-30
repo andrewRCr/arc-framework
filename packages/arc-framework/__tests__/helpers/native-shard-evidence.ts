@@ -15,6 +15,7 @@ export const NativeShardObservationSchema = z.object({
   selected: z.array(member), assigned: z.array(member), ordered: z.array(member),
   queued: z.array(member), ended: z.array(member),
   shardCalls: z.int().nonnegative(), sortCalls: z.int().nonnegative(),
+  preflight: z.object({ selected: z.array(member), assigned: z.array(member), shardCalls: z.int().positive() }).optional(),
 });
 export type NativeMember = z.infer<typeof member>;
 export type NativeShardObservation = z.infer<typeof NativeShardObservationSchema>;
