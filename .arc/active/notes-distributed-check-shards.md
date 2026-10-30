@@ -352,6 +352,18 @@ the whole-gate budget includes preparation and other declared checks. Failed, in
 samples remain unsuccessful and stop later launches. Strict profile differences require actual corroboration; this
 setup establishes no latency, throughput or performance qualification by itself.
 
+The first attempt, `measurements-f5b4ac8b-0cd0-447d-8c0f-ee363dcf0665/experiment.json`, stops before any gate
+launches: zero samples and no performance result. Its pool snapshot and retained histories identify active/queued
+checks from `lifecycle-slug-selection` and a separate Errand. A fresh pool snapshot still observes other work.
+Idle-pool and named-workload qualification therefore remain open pending a quiet measurement window.
+
+`experiment-harness-capacity-v2/` and `experiment-config-capacity-v2.json` preserve the same fixed requests and
+schedule for the next fresh attempt. The private driver corrects one status classification: guard deferral means
+unavailable capacity under existing host policy, not proof of a foreign pool job. The provider maps memory/power
+probe exit 75 to that flag before querying workers. Actual job/permit occupancy still prevents measurement, and
+all unavailable observations remain recorded. The original driver, zero-sample attempt and hashes are preserved;
+no routing policy, registry, shard count, source, requested coverage or timeout changes.
+
 ## Amendment reasoning
 
 ### A2 — store dependency
