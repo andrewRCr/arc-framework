@@ -7,7 +7,7 @@ import type { StoreResult } from "./refusal.js";
 import { SlugSchema } from "../kernel/index.js";
 import { parseLineageRecord } from "./kinds/lineage/index.js";
 import { readLifecycleMetaFields } from "./lifecycle-write.js";
-import { sameOwner } from "./identity.js";
+import { sameOwner, sameReference } from "./identity.js";
 import { readRetiredLineage } from "./retired-lineage.js";
 
 /** An edge can discharge or name the replacement providers of its retired target. */
@@ -47,7 +47,7 @@ async function resolveTargets(ctx: ResolutionContext, target: WorkItemRef,
     if (primary.status === "refused") return { status: "refused", refusal: primary.refusal };
     const owner = primary.result.reference.owner;
     if (owner.type !== "work-item" || primary.result.conflicts.length > 0) return { status: "ok", result: null };
-    return resolveLive(primary.result, ctx.dependent);
+    return resolveLive(ctx, primary.result, target.name);
   } else if (lookup.refusal.code === "ambiguous-match" && target.uid !== undefined) return resolveRetiredTarget(ctx, target, visited);
   else if (lookup.refusal.code !== "not-found") return lookup.refusal.code === "ambiguous-match"
     ? { status: "ok", result: null } : { status: "refused", refusal: lookup.refusal };
@@ -64,14 +64,21 @@ async function resolveRetiredTarget(ctx: ResolutionContext, target: WorkItemRef,
   return resolveTransition(ctx, transition, record.result, new Set([...visited, target.uid ?? target.name]));
 }
 
-function resolveLive(primary: StoreRecord, dependent: OwnerIdentity): StoreResult<ResolvedTargets | null> {
+async function resolveLive(ctx: ResolutionContext, primary: StoreRecord, resolvedName: string): Promise<StoreResult<ResolvedTargets | null>> {
   const owner = primary.reference.owner;
-  if (sameOwner(owner, dependent)) return { status: "ok", result: null };
+  if (sameOwner(owner, ctx.dependent)) return { status: "ok", result: null };
   const fields = readLifecycleMetaFields(primary);
   if (fields.status === "refused") return { status: "refused", refusal: fields.refusal };
+  const complete = primary.placement?.kind === "completed" || fields.result.state === "Integrating";
+  if (!complete && owner.name !== resolvedName) {
+    const current = await ctx.store.lookup({ kind: "slug", slug: owner.name });
+    if (current.status === "refused") return current.refusal.code === "not-found" || current.refusal.code === "ambiguous-match"
+      ? { status: "ok", result: null } : current;
+    if (!sameReference(current.result.reference, primary.reference)) return { status: "ok", result: null };
+  }
   const priorTarget = { name: owner.name, ...(owner.type === "work-item" && owner.uid !== undefined ? { uid: owner.uid } : {}) };
   return { status: "ok", result: { priorTarget, records: [primary],
-    targets: primary.placement?.kind === "completed" || fields.result.state === "Integrating" ? [] : [owner.name] } };
+    targets: complete ? [] : [owner.name] } };
 }
 
 async function resolveTransition(ctx: ResolutionContext, transition: LineageRecord, record: StoreRecord,
