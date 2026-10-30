@@ -384,6 +384,33 @@ chosen measurement request changes. The amendment entry gate therefore selects i
 The original all-scope setup and failed result remain preserved. This branch-range experiment qualifies neither
 those failed all-scope gates nor their unchanged Markdown, and no unrelated files are edited to obtain a green result.
 
+### First range pair and remote upload failure
+
+`measurements-range-2f8deeea-9eff-48d6-8ff3-99c6ccf56a0f/experiment.json` retains the first range pair under
+provider `6ffe3cf`. The routed-unsharded merge gate passes in 1,337.68 seconds with complete unit/store native
+coverage and normal capture closure. Its distributed partner stops unsuccessfully after 248.375 seconds: store
+placements on m2-mini and m5-air fail during upload before native launch, while cancellation ends the already
+launched m4-mini and local siblings. A concurrent singleton contracts check on m2-mini also fails during upload.
+No complete distributed native matrix or performance comparison results.
+
+`distributed-upload-failure-evidence/identifiers.json` names the store plan
+`d4cfc446-b362-48a7-9ea5-5637b340fdb3` and contracts plan `adca1b18-a59b-4dba-abf9-19698eb7b32d`, their run IDs,
+raw histories, journals and public inspections. Both inspections prove settlement of registered ownership; that
+settlement does not supply missing native results or normal SDK closure. Store's uncertain SDK capture remains
+retained. Upload journals show cancellation and empty stderr, with placement durations near the existing 120-second
+helper deadline; they do not establish whether deadline, cancellation, archive transfer or process drainage caused
+failure. No OOM receipt is present. A fresh contracts diagnostic passes locally and therefore supplies no evidence
+about the failed remote upload path.
+
+Primary's `8f5e131` was absent from the feature provider. Merge `adc8251` brings its PID-birth-aware process-group
+drainage into the isolated feature checkout; the live provider checkout is unchanged. This is a potentially relevant
+mechanism, not an established cause of the upload failure. The first post-merge provider regression exposes a fixture
+teardown race: a second fake runner can schedule detached pruning because only the first runner's daily marker was
+seeded. Commit `75ecdf0` seeds every configured fake runner while explicit maintenance fixtures retain real pruning.
+The fresh full regression passes all 433 tests; failed and passing logs remain under the evidence root. Commit
+`bb89d87` separately documents actual grouped placement, recovery ownership and advisory records. A fresh provider
+freeze and actual remote-path validation precede further measurements; the old pair remains unsuccessful evidence.
+
 ## Amendment reasoning
 
 ### A2 — store dependency
