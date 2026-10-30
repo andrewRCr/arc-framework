@@ -13,6 +13,7 @@ import { inRepoContent } from "../helpers/store/in-repo-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { resolveCandidateRecordRelativePath } from "../../src/lib/work-unit/candidate-record-store.js";
 import type { ReviewMappingInput, ReviewMappingResult } from "../../src/lib/store/ports.js";
+import { mapReviewSource } from "../../src/lib/store/kinds/review/mapping-error.js";
 import { expandStoredPath } from "../../src/lib/store/stored-path.js";
 import { createKindRegistry } from "../../src/lib/store/registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
@@ -600,6 +601,21 @@ it("passes the review mapping into the import from arc store migrate and covers 
   expect(JSON.parse(stored.content)).toMatchObject({ schemaVersion: 2, workUnit: "alpha", candidateId: attestation.candidateId });
 }, 60_000);
 
+it("names the records a joined review source joins in the import's remedy, never its removal", async () => {
+  const h = await opaqueReviewImport();
+  const source = "arc/review-gate/operations/lane.json";
+  let missingPartner = true;
+  h.ports.reviewMapping = input => missingPartner ? mapReviewSource(source, () => { throw new Error("cited outcome is absent"); },
+    "the review outcomes it cites") : tableMapping(input);
+  const trial = await h.migrate(true);
+  if (trial.status !== "ok") throw new Error(JSON.stringify(trial));
+  expect(trial.result.notices).toContainEqual({ condition: expect.stringContaining("cited outcome is absent"),
+    remedy: { text: `Repair ${source}, or restore the review outcomes it cites, then retry arc store migrate --import.` } });
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
+  missingPartner = false;
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+}, 40_000);
+
 it("refuses a trial over an unmappable review source through its report and imports once it is removed", async () => {
   const h = await importFixture();
   const common = await resolveGitCommonDir(h.git, h.root);
@@ -610,7 +626,7 @@ it("refuses a trial over an unmappable review source through its report and impo
   if (trial.status !== "ok") throw new Error(JSON.stringify(trial));
   expect(trial.result.notices).toContainEqual({
     condition: expect.stringContaining(`Review source ${broken} cannot be mapped`),
-    remedy: { text: `Repair or remove ${broken}, then retry arc store migrate --import.` } });
+    remedy: { text: `Repair ${broken}, then retry arc store migrate --import.` } });
   expect(await h.migrateCommand()).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
   expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
   await rm(join(common, broken));

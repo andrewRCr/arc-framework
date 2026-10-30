@@ -75,7 +75,7 @@ function runReviewMapping(mapping: (input: ReviewMappingInput) => ReviewMappingR
     return mapping(input);
   } catch (error) {
     report.notices.push({ condition: error instanceof Error ? error.message : String(error), remedy: { text: error instanceof ReviewMappingSourceError
-      ? `Repair or remove ${error.source}, then retry arc store migrate --import.`
+      ? `Repair ${error.source}${error.joins === undefined ? "" : `, or restore ${error.joins}`}, then retry arc store migrate --import.`
       : "Repair the review sources the mapping reads, then retry arc store migrate --import." } });
     return null;
   }

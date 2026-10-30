@@ -100,6 +100,7 @@ it("refuses a joined frontline run whose original source-binding digest differs"
   input.gate.push(mappingOperation({ ...fixture.run, sourceBindingId: `sha256:${"9".repeat(64)}` }));
   expect(() => mapReviewRecords(input)).toThrow(expect.objectContaining({ name: "ReviewMappingSourceError",
     source: expect.stringMatching(/^arc\/review-gate\/operations\/operation-/u),
+    joins: "the operations, frontline outcomes, and receipts its attempts cite",
     message: expect.stringMatching(/Frontline source binding mismatch/u) }));
 });
 

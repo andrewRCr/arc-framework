@@ -58,11 +58,12 @@ export function mapReviewOperations(indexed: ReviewMappingSources,
   const decisions: ReviewMappingResult["records"] = [];
   for (const [source, state] of indexed.operations) {
     if (state.kind === "lane-progress") {
-      const mapped = mapReviewSource(source, () => mapLane(source, state, indexed, resolveOwner));
+      const mapped = mapReviewSource(source, () => mapLane(source, state, indexed, resolveOwner),
+        "the operations, frontline outcomes, and receipts its attempts cite");
       outcomes.push(...mapped.records);
       sourceListings.set(source, mapped.listing);
     } else if (state.kind === "frontline-phase") {
-      const mapped = mapReviewSource(source, () => mapSkip(source, state, resolveOwner));
+      const mapped = mapReviewSource(source, () => mapSkip(source, state, resolveOwner), "the work units it names");
       decisions.push(...mapped.records);
       sourceListings.set(source, mapped.listing);
     }
@@ -70,7 +71,7 @@ export function mapReviewOperations(indexed: ReviewMappingSources,
   for (const [source, state] of indexed.operations) {
     const listing = sourceListings.get(source);
     if (state.kind !== "lane-progress" || listing?.outcome !== "mapped") continue;
-    const mapped = mapReviewSource(source, () => mapReviewLaneDecisions(state, outcomes));
+    const mapped = mapReviewSource(source, () => mapReviewLaneDecisions(state, outcomes), "the review outcomes it cites");
     decisions.push(...mapped);
     listing.records.push(...mapped.map(({ reference }) => reference));
   }

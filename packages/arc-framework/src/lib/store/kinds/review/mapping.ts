@@ -18,7 +18,8 @@ export function mapReviewRecords(input: ReviewMappingInput): ReviewMappingResult
   const resolveOwner = createReviewMappingWorkItemResolver(input);
   const { outcomes, records, sourceListings } = mapReviewOperations(indexed, resolveOwner);
   for (const source of sources) {
-    const evidence = mapReviewSource(source.source, () => mapReviewEvidenceSource(source, input.projectId, outcomes, indexed));
+    const evidence = mapReviewSource(source.source, () => mapReviewEvidenceSource(source, input.projectId, outcomes, indexed),
+      "the review outcomes and operations it cites");
     if (evidence === null) continue;
     records.push(...evidence.records);
     sourceListings.set(source.source, evidence.listing);
@@ -28,7 +29,8 @@ export function mapReviewRecords(input: ReviewMappingInput): ReviewMappingResult
   for (const entry of candidates.listing) sourceListings.set(entry.source, entry);
   for (const source of sources) {
     if (source.kind !== "boundary") continue;
-    const mapped = mapReviewSource(source.source, () => mapReviewBoundarySource(source, { input, outcomes, records, indexed }));
+    const mapped = mapReviewSource(source.source, () => mapReviewBoundarySource(source, { input, outcomes, records, indexed }),
+      "the Candidate records, review outcomes, and operations it cites");
     records.push(...mapped.records);
     sourceListings.set(source.source, mapped.listing);
   }
