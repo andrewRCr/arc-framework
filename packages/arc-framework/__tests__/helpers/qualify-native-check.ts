@@ -9,7 +9,7 @@ import { resolveCheckRequest } from "../../src/lib/checks/resolve-request.js";
 import { readMachineCheckRunner, type MachineCheckRunnerConfiguration } from "../../src/lib/checks/runner/machine-config.js";
 import { prepareSelectedCheckExecution, type CheckExecutionClosure } from "../../src/lib/checks/runner/execution.js";
 import { planCheckExecution } from "../../src/lib/checks/runner/planning.js";
-import { executePreparedCheckPlan } from "../../src/lib/checks/runner/dispatch.js";
+import { executeNativeQualificationPlan } from "./native-qualification-dispatch.js";
 import type { CheckScope } from "../../src/lib/checks/request.js";
 import { bindCapturedEnvironment } from "../../src/lib/checks/environment-inputs.js";
 import { readReachDeclaration, selectReachCheck } from "../../src/lib/reach-check.js";
@@ -19,7 +19,7 @@ import { qualifyNativeShardMembership, type NativeMembershipRun } from "./native
 /** Capture the real declaration, execute its native baseline and matrix, and retain observed membership and closure. */
 export async function qualifyNativeCheck(root: string, checkId: "test:unit" | "test:integration" | "test:store", output: string,
   filters: readonly string[] = [], environment: NodeJS.ProcessEnv = process.env,
-  options: { scope?: CheckScope; configuration?: MachineCheckRunnerConfiguration; afterCapture?: () => Promise<void> } = {}): Promise<void> {
+  options: { scope?: CheckScope; configuration?: MachineCheckRunnerConfiguration; afterCapture?: () => Promise<void>; baselineThenGroup?: boolean } = {}): Promise<void> {
   const loaded = await readTypedProjectFile(root, "check-declaration", CheckDeclarationSchema);
   if (loaded.status !== "valid") throw new Error(`Cannot read native declaration: ${JSON.stringify(loaded)}`);
   const declared = loaded.value.checks[checkId];
@@ -36,7 +36,7 @@ export async function qualifyNativeCheck(root: string, checkId: "test:unit" | "t
   await mkdir(dirname(output), { recursive: true });
   const stdout = new Map<string, Buffer[]>();
   const stderr = new Map<string, Buffer[]>();
-  const preparation = await prepareSelectedCheckExecution({ callerRoot: root, request: resolved.request, check, paths: [],
+  const attempt = prepareSelectedCheckExecution({ callerRoot: root, request: resolved.request, check, paths: [],
     configuration, environment, globalRuntimeInputs: loaded.value.global_runtime_inputs,
     onDiagnostic: bytes => { process.stderr.write(bytes); },
     onOutput: frame => {
@@ -53,8 +53,9 @@ export async function qualifyNativeCheck(root: string, checkId: "test:unit" | "t
         coordinates: [...baseline.coordinates!, ...matrix.coordinates!], probes: matrix.probes };
     },
   });
+  const preparation = await attempt;
   if (preparation.status !== "ready") {
-    await writeFile(output, JSON.stringify({ checkId, preparation }, null, 2));
+    await writeFile(output, JSON.stringify({ checkId, planId: attempt.planId, preparation }, null, 2));
     throw new Error(preparation.reason);
   }
   const execution = preparation.execution;
@@ -75,7 +76,7 @@ export async function qualifyNativeCheck(root: string, checkId: "test:unit" | "t
           ARC_CHECK_TREE: content.tree, ...(content.base === undefined ? {} : { ARC_CHECK_BASE: content.base }) } });
     }
     await options.afterCapture?.();
-    parent = await executePreparedCheckPlan(execution, check);
+    parent = await executeNativeQualificationPlan(execution, check, options.baselineThenGroup);
     const binding = execution.environment.ARC_TEST_DURATION_FILE;
     if (binding?.kind !== "file") throw new Error("Missing captured native duration binding.");
     const duration: NativeDurationInput = binding.state === "file"
@@ -105,7 +106,9 @@ export async function qualifyNativeCheck(root: string, checkId: "test:unit" | "t
     }
   }
   if (closure.status !== "closed" || closure.exit.exitCode !== 0) failure ??= "Native runner closure is incomplete or failed.";
-  const report = { checkId, status: failure === undefined ? "qualified" : "incomplete", failure,
+  const report = { checkId, planId: execution.planId, contextId: execution.contextId,
+    invocationIds: execution.plan.invocations.map(invocation => invocation.id),
+    dispatch: options.baselineThenGroup ? "baseline-then-group" : "default", status: failure === undefined ? "qualified" : "incomplete", failure,
     coordinates: execution.source.coordinates, environment: execution.environment,
     runnerConfigurationOverride: options.configuration !== undefined,
     declaredRouted: declared.shards.routed, runtimeBinding: execution.runtime === undefined ? "unknown" : "known",
