@@ -62,3 +62,8 @@ export async function readReviewRecord(store: Store, reference: RecordReference)
   }
   return record;
 }
+
+/** Whether an in-repo read refused a file whose own key names another work unit, which the file readers report themselves. */
+export function isInRepoKeyMismatch(error: unknown): boolean {
+  return error instanceof StoreRefusalError && !error.offBranch && error.refusal.code === "identity-mismatch";
+}

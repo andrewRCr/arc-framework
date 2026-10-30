@@ -7,7 +7,8 @@ import { readSubmissionBoundaryVersioned as readFileBoundaryVersioned,
   writeSubmissionBoundary as writeFileBoundary,
   type SubmissionBoundaryReader, type SubmissionBoundaryStoreFs } from "../../../../work-unit/submission-boundary-store.js";
 import { parseIntegrationBoundaryLocus } from "../../../../../scripts/review-gate/policy/integration-boundary-locus.js";
-import { readReviewRecord, resolveReviewRecordAccess, selectReviewRecordOwner, unwrapReviewRecordResult, type ReviewRecordAccessOptions } from "../access-shared.js";
+import { isInRepoKeyMismatch, readReviewRecord, resolveReviewRecordAccess, selectReviewRecordOwner, unwrapReviewRecordResult,
+  type ReviewRecordAccessOptions } from "../access-shared.js";
 import { SubmissionBoundaryVersionConflictError } from "../errors.js";
 import { resolveSubmissionBoundaryPath } from "../paths.js";
 import { IntegrationBoundaryLocusV2Schema, type ReviewIntegrationBoundary, type VersionedSubmissionBoundary } from "./schema.js";
@@ -27,7 +28,10 @@ export async function readSubmissionBoundaryVersioned(cwd: string, name: string,
   const access = resolveReviewRecordAccess(cwd, input);
   if ("fs" in access) return readFileBoundaryVersioned(cwd, workUnit, access.fs);
   const stored = await readReviewRecord(access.store,
-    recordReferences["review/integration-boundary"](selectReviewRecordOwner(access.store, workUnit, access.owner)));
+    recordReferences["review/integration-boundary"](selectReviewRecordOwner(access.store, workUnit, access.owner))).catch((error: unknown) => {
+    if (isInRepoKeyMismatch(error)) throw new Error("Submission boundary work unit does not match its path");
+    throw error;
+  });
   if (stored === null) return { boundary: null, version: null };
   const content: unknown = JSON.parse(stored.content);
   const native = access.store.capabilities.stateOffBranch && content !== null && typeof content === "object"

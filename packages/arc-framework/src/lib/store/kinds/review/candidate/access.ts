@@ -7,7 +7,8 @@ import { readCandidateRecordVersioned as readFileCandidateRecordVersioned,
   writeCandidateRecord as writeFileCandidateRecord,
   type CandidateRecordStoreFs } from "../../../../work-unit/candidate-record-store.js";
 import { parseCandidateManagedRecord, serializeCandidateManagedRecord } from "../../../../work-unit/candidate-attestation.js";
-import { readReviewRecord, resolveReviewRecordAccess, selectReviewRecordOwner, unwrapReviewRecordResult, type ReviewRecordAccessOptions } from "../access-shared.js";
+import { isInRepoKeyMismatch, readReviewRecord, resolveReviewRecordAccess, selectReviewRecordOwner, unwrapReviewRecordResult,
+  type ReviewRecordAccessOptions } from "../access-shared.js";
 import { CandidateRecordVersionConflictError } from "../errors.js";
 import { resolveCandidateRecordRelativePath } from "../paths.js";
 import type { CandidateManagedRecordV1, VersionedCandidateRecord } from "./schema.js";
@@ -24,10 +25,13 @@ export async function readCandidateRecordVersioned(cwd: string, name: string,
   const workUnit = SlugSchema.parse(name);
   const access = resolveReviewRecordAccess(cwd, options);
   if ("fs" in access) return readFileCandidateRecordVersioned(cwd, workUnit, access.fs);
-  const stored = await readReviewRecord(access.store,
-    recordReferences["review/candidate"](selectReviewRecordOwner(access.store, workUnit, access.owner)));
-  if (stored === null) return { record: null, version: null };
   const path = resolveCandidateRecordRelativePath(workUnit);
+  const stored = await readReviewRecord(access.store,
+    recordReferences["review/candidate"](selectReviewRecordOwner(access.store, workUnit, access.owner))).catch((error: unknown) => {
+    if (isInRepoKeyMismatch(error)) throw new Error(`Candidate record work unit does not match its path: ${path}`);
+    throw error;
+  });
+  if (stored === null) return { record: null, version: null };
   const record = parseCandidateManagedRecord(stored.content);
   if (record === null) throw new Error(`Candidate record is malformed: ${path}`);
   if (record.attestation.workUnit !== workUnit) throw new Error(`Candidate record work unit does not match its path: ${path}`);
@@ -46,8 +50,14 @@ export async function readCandidateRecordVersion(cwd: string, name: string,
   const workUnit = SlugSchema.parse(name);
   const access = resolveReviewRecordAccess(cwd, options);
   if ("fs" in access) return readFileCandidateRecordVersion(cwd, workUnit, access.fs);
-  return (await readReviewRecord(access.store,
-    recordReferences["review/candidate"](selectReviewRecordOwner(access.store, workUnit, access.owner))))?.version ?? null;
+  try {
+    return (await readReviewRecord(access.store,
+      recordReferences["review/candidate"](selectReviewRecordOwner(access.store, workUnit, access.owner))))?.version ?? null;
+  } catch (error) {
+    // The version needs no parse, so an in-repo file keyed elsewhere still reports its bytes, as its file reader does.
+    if (isInRepoKeyMismatch(error)) return readFileCandidateRecordVersion(cwd, workUnit);
+    throw error;
+  }
 }
 
 /** Prepare one Candidate put for the caller's atomic batch. */
