@@ -216,6 +216,22 @@ it.each([false, true])("records a hosted additional grant with the active identi
   expect(lifecycleSuccess(await h.store.version())).toBe(version);
 });
 
+it("refuses a native work unit's hosted request after its completed pass at a one-pass ceiling, and admits it with "
+  + "its owner's additional-pass grant", async () => {
+  const h = await completedHostedPass(true);
+  await appendFile(join(h.cwd, ".arc", "system", "arc-config.yml"), "review.standard_max_passes: 1\n");
+  const version = lifecycleSuccess(await h.store.version());
+  expect(await h.runRequest(h.request)).toMatchObject({ error: {
+    message: "Hosted Candidate request no longer matches the fresh discharge position." } });
+  expect(lifecycleSuccess(await h.store.version())).toBe(version);
+  const granted = await h.runRequest({ ...h.request, additionalPassAuthorization: h.additionalPassAuthorization });
+  expect(granted, JSON.stringify(granted)).toMatchObject({ state: "requested", handle: { admission: { logicalPass: 2 } } });
+  const decisions = await createReviewDecisionPort(h.store, h.primary.reference.owner).list();
+  if (decisions.status !== "complete") throw new Error(decisions.reason);
+  expect(decisions.records.map(({ value }) => value.choice)).toMatchObject([{ kind: "extra-pass",
+    precondition: { kind: "additional", precedingProducerId: h.additionalPassAuthorization.precedingProducerId } }]);
+});
+
 it("refuses a missing hosted grant reference before fresh capacity and accepts its repaired judgment", async () => {
   const h = await completedHostedPass();
   const request = { ...h.request, additionalPassAuthorization: { ...h.additionalPassAuthorization,
