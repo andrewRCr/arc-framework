@@ -412,21 +412,15 @@ variation, and a named-workload slowdown above 10% keeps qualification open.
           provider phase/admission records through final collection. Raw failures and interrupted preparing handles
           remain inspectable; only equivalent complete native coverage enters median/range and aggregate makespan.
 
-### `[ ]` **6.2 Qualify fresh idle-pool gate latency with equivalent coverage — D10**
+### `[x]` **6.2 Qualify fresh idle-pool gate latency with equivalent coverage — D10**
 
 - _Goal:_ An idle-pool improvement claim rests on repeated complete capture-through-collection runs with equivalent
   native coverage and a gain greater than observed run-to-run variation.
 
-- _Note:_ The approved comparison uses explicit D5..acf range requests after the all-scope baseline exposed
-  unchanged Markdown findings. The failed sample remains unsuccessful; full unit/store work and declared checks
-  remain selected. Exact setup and predecessor evidence are in `notes-distributed-check-shards.md`.
-
-    - Run repeated interleaved routed-unsharded baselines and distributed complete gates with an otherwise idle pool;
-      record source/selection/duration/check-set identities, qualified profiles and fresh execution for every sample.
-    - Report raw timings, median/range, phase costs and exact native coverage. Include preparation and queueing rather
-      than comparing warmed remote execution with a fresh native gate.
-    - Treat speedup within observed variation as unestablished. Keep basic serial adapters correct without assigning
-      them an acceleration requirement or extrapolating measurements to unqualified deployments.
+- _Outcome:_ Three interleaved pairs per gate retain complete native coverage and normal closure at frozen source
+  `acf51cc07` with provider `cf08920`. Merge median falls from 1,368.558 to 667.786 seconds, beyond observed variation;
+  push timings overlap within variation. Actual inputs, ranges, phase costs and limits are retained in
+  `notes-distributed-check-shards.md`.
 
 ### `[ ]` **6.3 Qualify named-workload aggregate completion and admission — D10**
 

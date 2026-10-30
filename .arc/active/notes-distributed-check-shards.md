@@ -529,6 +529,40 @@ disabling only the basis guard in a separate invalid reconstruction makes the sa
 negative artifacts are in `membership-handoff-v5-validation/`. A further pool interruption stops for diagnosis rather
 than starting an automatic qualification retry loop.
 
+### Observed idle-pool gate latency
+
+The fresh v5 case completes all twelve idle gates and six equivalent native comparison pairs. Both arms use source
+`acf51cc07`, provider `cf08920`, the fixed D5 range, every/bursts-zero/unset-duration inputs, absent CI and observed
+speed mode. Force-fresh execution retains the full declared merge/push check sets and their CI-only exclusions. Unit
+remains unsharded; distributed store execution uses four declared shards.
+
+| Gate  | Unsharded median (range), seconds | Distributed median (range), seconds |
+| ----- | --------------------------------- | ----------------------------------- |
+| Merge | 1,368.558 (1,344.113–1,370.758)   | 667.786 (667.739–670.573)           |
+| Push  | 149.165 (144.132–149.792)         | 147.074 (146.506–147.686)           |
+
+Each cell has three samples. Merge median elapsed time falls by 51.205%, about 701 seconds, against a largest within-arm
+range of 26.645 seconds. Push differences remain within observed variation, so no push acceleration is established.
+These are complete capture-through-collection timings, including the declared merge build and normal transport,
+preparation, queueing, execution and closure costs.
+
+Every measured native unit selection contains 1,369 modules; each store baseline contains 316, and each distributed
+matrix has four disjoint 79-module shares. The frozen qualifier accepts all six pairs using the four genuine homogeneous
+witnesses already recorded. Each measured gate independently supplies its own native outcomes and normal SDK closures;
+witnesses transfer membership only. Unknown provider runtime remains unknown and grants no reusable pass.
+
+Public store SDK preparation spans 66.101–123.547 seconds unsharded and 58.001–60.126 seconds distributed. Distributed
+additional-placement costs remain inside the end-to-end measurement: twelve placement observations include transfers of
+0–139.300 seconds, preparation of 12.002–18.478 seconds and native execution of 305.164–449.034 seconds. Unsharded store
+native execution spans 1,212.146–1,242.587 seconds. These are advisory phase/service observations, not additive parallel
+end-to-end costs.
+
+Exact input hashes and compact idle arithmetic are in `analysis-range-v5-idle-compact.json`; the frozen full analysis is
+`analysis-range-v5-at-owner-pause.json`. `comparison-results-at-owner-pause/` retains the concise summary, store phase
+costs and resource audit. Initial dependency installation/preparation is outside timing; interleaved OS/npm cache state
+is retained rather than represented as a cold-install benchmark. The result covers the frozen source, provider and
+observed Linux profiles, without extrapolation to another deployment or final-head verification.
+
 ## Amendment reasoning
 
 ### A2 — store dependency
