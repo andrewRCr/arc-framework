@@ -17,6 +17,8 @@ Stage 1  storage-contract          design core; ships the contract over today's 
 Stage 2  storage-seam              every reader and writer through the contract; after storage-contract lands
          storage-ref-backend       the refs/arc/* store, personal state synced through it, import, explicit
                                    state fetch; implements once seam-lifecycle ships
+         store-operation-git-access fewer Git processes per ref-store call; lands before
+                                   storage-ref-hardening's implementation
          storage-ref-hardening     the ref backend's routed defects the cutover exercises; after the
                                    ref backend lands
          storage-projection        the working copy
@@ -94,6 +96,17 @@ remote-move gaps a default-layout cutover never reaches; it is due before the pu
 not wait on it. Both depend on `storage-ref-backend`. `storage-ref-hardening` runs ahead of `storage-projection`'s
 and `cohort-identity-verbs`' ref-backend phases, landing first the listing scope, the fault classes and remedies,
 and the pull-result consumer sweep those phases observe; its internal items run alongside them.
+
+### Store process cost (2026-10-29)
+
+The store-suite measurement (`analysis-test-suite-cost-baseline.md` § Store-suite process cost) found the store suites'
+cost is the store's own Git process volume, and that routed to `store-operation-git-access` (P1). It gives every public
+ref-store call one operation-owned scope, a shared object reader and remembered configuration lookups refreshed at the
+events that can make them stale, with no contract change. It lands before `storage-ref-hardening`'s implementation, and
+the two plan side by side: hardening's keeper-lock item moves where the scope's fetch and lock events fall, and its
+missing-object classification sits on the scope's missing-answer check. Hardening takes a `Depends On` edge on it and
+keeps one invariant: transport and designation lookups stay fresh under whatever lease replaces the keeper lock. Sharing
+state across calls is captured as a follow-on.
 
 ### Shared contracts
 
@@ -332,6 +345,15 @@ registrations, write checks, `anchorFields`, and `HAND_EDIT_VERBS`, which the ba
 `seam-lifecycle`'s record placement, rename path, pause section, branch links, and capture keys, which the backend and
 its import build on, so implementation starts once it ships; and `seam-locus`'s Errand `owner` field, which the import
 needs before it re-homes Errands, so it lands after that member.
+
+### `store-operation-git-access`
+
+_Exposes:_ fewer Git processes per ref-store call: every public store call holds an operation-owned scope with a shared
+`cat-file --batch` reader and remembered configuration lookups, refreshed at the events that can make them stale. No
+contract change.
+
+_Consumes:_ `storage-ref-backend`, landed. `storage-ref-hardening` consumes it: its keeper-lock and missing-object items
+land on this unit's refresh rules.
 
 ### `storage-ref-hardening`
 

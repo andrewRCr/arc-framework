@@ -17,6 +17,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | ---------- | ------------------------------- | -------- | ------ | --------------- | ------------- |
 | `Planning` | storage-projection              | P1       | andrew | —               | state-storage |
 | `Planning` | storage-ref-hardening           | P1       | andrew | —               | state-storage |
+| `Planning` | store-operation-git-access      | P1       | andrew | —               | state-storage |
 | `Planning` | cohort-identity-verbs           | P1       | andrew | —               | storage-seam  |
 | `Active`   | seam-delivery-review            | P1       | andrew | —               | storage-seam  |
 | `Planning` | adopter-install-authority       | P1       | andrew | storage-cutover | —             |
@@ -28,7 +29,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning` | stub-mint-to-launch             | P1       | andrew | —               | —             |
 | `Planning` | cli-output-contract             | P2       | andrew | —               | —             |
 | `Active`   | distributed-check-shards        | P3       | andrew | —               | —             |
-| `Planning` | store-operation-git-access      | P3       | andrew | —               | —             |
 
 ## Ready
 

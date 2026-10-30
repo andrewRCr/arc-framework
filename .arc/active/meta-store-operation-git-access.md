@@ -2,17 +2,17 @@
 
 | **State**  | **Owner** | **Branch**                        | **Class** | **Priority** |
 | ---------- | --------- | --------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/store-operation-git-access` | [TBD]     | `P3`         |
+| `Planning` | `andrew`  | `plan/store-operation-git-access` | `Heavy`   | `P1`         |
 
-- **Cohort:** [none]
+- **Cohort:** `state-storage`
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** [none]
+- **Design:** `draft-store-operation-git-access.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
