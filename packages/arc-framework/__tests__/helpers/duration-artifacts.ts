@@ -1,7 +1,7 @@
 /** Filesystem preparation and writer merging for handed test-duration artifacts. */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join, sep } from "node:path";
-import { mergeTestDurations } from "./merge-test-durations.js";
+import { mergeTestDurations, overlayTestDurations } from "./merge-test-durations.js";
 
 /**
  * Preserve restored tier files and supply empty files for cache misses.
@@ -20,9 +20,10 @@ export function prepareDurationInputs(directory: string): void {
  * Merge downloaded shard artifacts into the duration cache directory.
  * @param input - Artifact download root
  * @param output - Directory receiving one native results file per tier
+ * @param base - The run's handed input, when its writers measured only part of it and update it rather than replace it
  * @returns After disjoint native files are persisted
  */
-export function mergeDurationArtifacts(input: string, output: string): void {
+export function mergeDurationArtifacts(input: string, output: string, base?: string): void {
   const documents = readdirSync(input, { recursive: true, encoding: "utf8" }).filter((path) => basename(path) === "results.json")
     .sort().map((path) => {
       const tier = /^duration-results-(unit|integration|e2e)-(?:store-)?\d+$/u.exec(path.split(sep)[0] ?? "")?.[1];
@@ -30,6 +31,12 @@ export function mergeDurationArtifacts(input: string, output: string): void {
       return { tier, content: readFileSync(join(input, path), "utf8") };
     });
   const merged = mergeTestDurations(documents);
+  const tiers = base === undefined ? merged : overlayTestDurations(readTierFiles(base), merged);
   mkdirSync(output, { recursive: true });
-  for (const [tier, content] of Object.entries(merged)) writeFileSync(join(output, `${tier}.json`), content);
+  for (const [tier, content] of Object.entries(tiers)) writeFileSync(join(output, `${tier}.json`), content);
+}
+
+function readTierFiles(directory: string): Record<string, string> {
+  return Object.fromEntries(readdirSync(directory).filter((name) => name.endsWith(".json"))
+    .map((name) => [name.slice(0, -".json".length), readFileSync(join(directory, name), "utf8")]));
 }

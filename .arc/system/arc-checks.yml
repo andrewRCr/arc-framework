@@ -444,7 +444,7 @@ checks:
       ARC_TEST_DURATION_FILE: file
     shards:
       routed: true
-      count: 4
+      count: 6
       argument: --shard={index}/{count}
   # Integration tests read ARC Markdown from disk, which no import graph shows, so test:changed never reaches them.
   test:integration:content:

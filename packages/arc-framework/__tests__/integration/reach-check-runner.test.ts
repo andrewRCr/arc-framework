@@ -34,7 +34,7 @@ it.each(["unset", "empty", "zero-byte", "recorded"] as const)(
       const forecast = resolveCheckForecast(check, root, ["packages/arc-framework/src/lib/store/ref/read.ts"], process.platform);
       const argv = ["node", "--import", "tsx", "scripts/run-reach-check.mjs",
         "packages/arc-framework/__tests__/reach/store-suites.json"];
-      const expected = [1, 2, 3, 4].map(index => [...argv, `--shard=${index}/4`]);
+      const expected = [1, 2, 3, 4, 5, 6].map(index => [...argv, `--shard=${index}/6`]);
       expect(prepared.execution.plan.invocations.map(invocation => invocation.argv)).toEqual(expected);
       expect(forecast.shards?.flatMap(shard => shard.batches)).toEqual(expected);
       await writeFile(source, "later caller edits");
