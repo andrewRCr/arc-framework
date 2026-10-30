@@ -2,6 +2,7 @@
 import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
 import { createPrePublicationRecordAccess } from "./pre-publication-record-access.js";
 import { resolveReviewInvocation, type ReviewInvocationInput } from "../runtime/invocation.js";
+import { createCandidateResponseHeadContinuationReader } from "../runtime/candidate-response-head-continuation.js";
 import { confirmReviewCorrectionLeg } from "./review-next-pass.js";
 
 import { readdir, readFile } from "node:fs/promises";
@@ -774,6 +775,8 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
         .map((id) => ({ kind: "candidate" as const, candidateId: id }));
       return frontlinePhaseClosed(store, {
         repositoryId: repository, lineages, headSha,
+        confirmResponseHeadContinuation: createCandidateResponseHeadContinuationReader({
+          ...input, dispositionStore, operationStore: store }),
         readSettledFindingsAdvice: settledFrontlineAdviceReader(resultReader, dispositionStore),
       });
     },
