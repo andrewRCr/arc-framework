@@ -2,6 +2,7 @@
 import type { LaneSubjectLineage } from "../../../../scripts/review-gate/core/lane-admission.js";
 import { parseCandidateManagedRecord, resolveCandidateSupersessionAncestors } from "../../../work-unit/candidate-attestation.js";
 import type { CandidateManagedRecordV1 } from "./candidate/schema.js";
+import { candidateRevisionContents } from "./mapping-candidates.js";
 import type { ReviewMappingInput, ReviewMappingWorkItem } from "./mapping-types.js";
 
 /** Liveness is resolved before a fact's attempt or continuation state matters. */
@@ -24,8 +25,8 @@ function candidateOwners(input: Pick<ReviewMappingInput, "workItems" | "candidat
     const workItem = input.workItems.find((row) => row.uid === candidate.workItem && row.kind === "work-unit" && row.live);
     if (workItem === undefined) continue;
     const history: CandidateManagedRecordV1[] = [];
-    for (const version of candidate.versions) {
-      const record = parseCandidateManagedRecord(version.content);
+    for (const content of candidateRevisionContents(candidate)) {
+      const record = parseCandidateManagedRecord(content);
       if (record === null || record.attestation.workUnit !== workItem.slug) continue;
       for (const id of resolvedCandidateIds(record, history)) owners.set(id, workItem);
       history.unshift(record);

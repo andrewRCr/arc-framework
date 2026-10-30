@@ -5,7 +5,7 @@ import { parseCandidateManagedRecord, resolveCandidateSupersessionAncestors, Can
 import type { CandidateManagedRecordV1 } from "./candidate/schema.js";
 import type { ReviewMappingSource } from "./mapping-listing.js";
 import { reviewMappingListingEntry } from "./mapping-listing.js";
-import type { ReviewMappingResult, ReviewMappingWorkItem } from "./mapping-types.js";
+import type { ReviewMappingInput, ReviewMappingResult, ReviewMappingWorkItem } from "./mapping-types.js";
 
 type CandidateRevision = { source: string; workItem: ReviewMappingWorkItem; content: string };
 type CandidateMappingState = {
@@ -50,6 +50,12 @@ function candidateRevisionListing(source: CandidateRevision, state: CandidateMap
   }
   state.newest.set(source.workItem.uid, { content: source.content, reason });
   return candidateListingEntry(source.source, reason, mapped);
+}
+
+/** A work item's Candidate contents oldest first, its current record last unless it repeats the newest committed version. */
+export function candidateRevisionContents(candidate: ReviewMappingInput["candidates"][number]): string[] {
+  const contents = candidate.versions.map(({ content }) => content);
+  return candidate.current === null || candidate.current === contents.at(-1) ? contents : [...contents, candidate.current];
 }
 
 /** A current record repeating its newest committed version takes that version's outcome; a newer one is the record's newest revision. */

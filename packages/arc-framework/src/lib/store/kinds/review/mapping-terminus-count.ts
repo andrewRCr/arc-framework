@@ -1,6 +1,7 @@
 /** Reuse stored lane accounting for a legacy replay's unstored terminus basis. */
 import { parseCandidateManagedRecord, resolveCandidateSupersessionAncestors } from "../../../work-unit/candidate-attestation.js";
 import { deriveReviewOutcomePassCounts } from "./outcome/counts.js";
+import { candidateRevisionContents } from "./mapping-candidates.js";
 import type { ReviewOutcomeEvidence } from "./outcome/settlement.js";
 import type { MappedReviewOutcome } from "./mapping-source-listing.js";
 import type { ReviewMappingInput, ReviewMappingResult } from "./mapping-types.js";
@@ -11,8 +12,9 @@ import type { IntegrationBoundaryLocus } from "../../../../scripts/review-gate/p
 export function mappingTerminusPassCount(source: Extract<ReviewMappingSource, { kind: "boundary" }>,
   boundary: IntegrationBoundaryLocus, input: ReviewMappingInput, mapped: readonly MappedReviewOutcome[],
   records: ReviewMappingResult["records"]): number {
-  const versions = input.candidates.find(({ workItem }) => workItem === source.workItem.uid)?.versions ?? [];
-  const history = [...versions].reverse().flatMap(({ content }) => {
+  const candidate = input.candidates.find(({ workItem }) => workItem === source.workItem.uid);
+  const contents = candidate === undefined ? [] : candidateRevisionContents(candidate);
+  const history = contents.reverse().flatMap((content) => {
     const record = parseCandidateManagedRecord(content);
     return record === null || record.attestation.workUnit !== source.workItem.slug ? [] : [record];
   });

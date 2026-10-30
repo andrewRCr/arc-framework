@@ -75,3 +75,15 @@ it("does not infer Candidate ownership through an unresolved supersession chain"
   expect(resolve({ kind: "candidate", candidateId: record.attestation.candidateId }))
     .toEqual({ outcome: "left-behind", reason: "No live work item owns this review fact." });
 });
+
+it("resolves a Candidate held only as the uncommitted current record, alone or past the newest committed one", () => {
+  const input = candidateInput();
+  const candidate = input.candidates[0]!;
+  const [older, newer] = candidate.versions.map(({ content }) => parseCandidateManagedRecord(content)!);
+  candidate.current = candidate.versions.pop()!.content;
+  expect(createReviewMappingWorkItemResolver(input)({ kind: "candidate", candidateId: newer!.attestation.candidateId }))
+    .toEqual({ outcome: "live", workItem });
+  candidate.current = candidate.versions.pop()!.content;
+  expect(createReviewMappingWorkItemResolver(input)({ kind: "candidate", candidateId: older!.attestation.candidateId }))
+    .toEqual({ outcome: "live", workItem });
+});

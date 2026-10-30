@@ -165,6 +165,22 @@ it.each([false, true])("counts a replay terminus across the Candidate chain unle
   await assertReviewMapping(result);
 });
 
+it("counts a replay terminus whose Candidate is held only as the uncommitted current record", async () => {
+  const { input, current, boundary } = await chainBoundaryInput();
+  const candidate = input.candidates[0]!;
+  candidate.current = candidate.versions.pop()!.content;
+  const token = Buffer.from(JSON.stringify({ lanes: { standard: { terminus: { mode: "owner-accepted" } } } })).toString("base64url");
+  candidate.boundary = JSON.stringify(IntegrationBoundaryLocusSchema.parse({ ...boundary,
+    nextAction: { kind: "continue-pre-publication-review", command: `arc review pre-publication example --resume ${token}`,
+      interactionText: "Resume review." } }));
+  const result = mapReviewRecords(input);
+  const decisions = result.records.filter(({ reference }) => reference.kind === "review/decision");
+  expect(decisions).toHaveLength(1);
+  expect(JSON.parse(decisions[0]!.contents[0]!)).toMatchObject({ subject: { lineage: { kind: "candidate",
+    candidateId: current.attestation.candidateId } }, choice: { kind: "terminus" }, basis: { passCount: 2 } });
+  await assertReviewMapping(result);
+});
+
 it.each([false, true])("counts ancestral findings only when their mapped evidence settles them: %s", async (settled) => {
   const { input, boundary, olderFixture } = await chainBoundaryInput("findings");
   if (settled) {
