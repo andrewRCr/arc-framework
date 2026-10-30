@@ -421,7 +421,7 @@ attributing a capture or fetch slowdown to ARC.
 
 ## Store-suite process cost
 
-The store suites (`test:store`, the 321 `store-ref-*` integration files) run in CI as four shards, which took 13–22
+The store suites (`test:store`, the 321 `store-ref-*` integration files) ran in CI as four shards, which took 13–22
 minutes each on the ref backend's last three branch runs. A 2026-10-29 measurement at `f663af671` found where the ten
 slowest files spend their time. The method below repeats it; the results are that day's observations.
 
@@ -518,6 +518,18 @@ Attribution over the nine files other than `import-observation-failures`, 224,99
 - **Host** — local runs at niceness 19 beside other work; CI runs each shard on a hosted Linux runner.
 - **Later codecs** — the measurement predates any change to the store's codec registry; codecs added to it later add
   parse cost to every read and listing they decode.
+
+### Shard balance
+
+On run `40928051907` (2026-10-29, four shards), the 319 store files that ran took 197.9 minutes of file time between
+them. CI's duration input held a recorded duration for 175 of them, and their measured times ran a median 1.31 times
+the recorded ones (10th percentile 0.84, 90th 2.15). The shards carried 41.3, 43.5, 53.7 and 59.5 minutes of file
+time, 79 or 80 files each, and their jobs took 17.6, 16.2, 19.6 and 21.7 minutes.
+
+Placed on those measured durations, longest first onto the lightest shard, the heaviest shard carries 49.5 minutes of
+file time at four shards, 39.6 at five, 33.0 at six and 24.7 at eight. At four shards the total alone sets that
+49.5-minute floor, so balancing cannot go below it. A straight-line fit of the run's four jobs against their file time
+puts a 33-minute shard at about 14.5 minutes of job time.
 
 ## Tier baselines
 
