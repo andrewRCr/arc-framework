@@ -1,11 +1,11 @@
-/** The portability npm route executes installation, cancellation, and publication coverage. */
+/** The portability npm route executes build, runner, and repository environment coverage. */
 import { execa } from "execa";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { expect, it } from "vitest";
 import { makeVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
 
-it("selects the build and prebuilt recovery suites alongside existing portability cases", async () => {
+it("executes the required build, runner, and repository environment suites", async () => {
   const fixture = await makeVitestControllerFixture();
   const required = ["unit/paths.test.ts", "check-runner-home.e2e.test.ts", "fs.test.ts", "build-context.test.ts", "build-cancellation.test.ts", "build-generation-lifetime.test.ts",
     "build-coordinator.test.ts", "build-publication.test.ts",
@@ -16,7 +16,9 @@ it("selects the build and prebuilt recovery suites alongside existing portabilit
     "check-runner-session.test.ts", "check-runner-conformance-wire.test.ts", "check-runner-conformance-groups.test.ts",
     "check-runner-execution-run.test.ts", "check-runner-platform-status.test.ts", "check-runner-platform-spelling.test.ts",
     "check-runner-platform.e2e.test.ts", "check-symlink-cwd.test.ts",
-    "check-process.test.ts", "check-execution.e2e.test.ts"];
+    "check-process.test.ts", "check-execution.e2e.test.ts",
+    "unit/lib/checks/environment-inputs.test.ts", "unit/git/repository-environment.test.ts",
+    "unit/lib/ci-check-runner.test.ts", "integration/ci-check-runner.test.ts"];
   try {
     const config = join(fixture.packageRoot, "vitest.config.mjs");
     await writeFile(config, (await readFile(config, "utf8")).replace('["tests/unit*.test.mjs"]', '["tests/**/*.test.ts"]'));

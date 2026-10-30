@@ -15,7 +15,6 @@ import {
   cleanupTempDir,
   commitAll,
   makeIOContext,
-  loadRecipe,
   setupInitialState,
   createTemplateDir,
   fileExists,
@@ -24,11 +23,10 @@ import {
   mkdir,
   join,
   dirname,
-  getArcTemplatePath,
-  getInternalTemplatePath,
   DEFAULT_PROMPTS,
   manifestPath,
 } from "../helpers/integration.js";
+import { loadRecipe, getArcTemplatePath, getInternalTemplatePath } from "../helpers/init-temp-repo.js";
 import { runInit } from "../../src/commands/init.js";
 import { runUpdate } from "../../src/commands/update.js";
 import { UserFacingError } from "../../src/lib/errors.js";

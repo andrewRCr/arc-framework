@@ -192,7 +192,7 @@ describe("the store check's declaration", () => {
       ["reads", "records", "sync"].map(range => `${directory}/store-ref-separate-conformance-${range}.test.ts`));
   });
 
-  it("forecasts four CI shards, each handing its shard to the runner, while a local run stays one", async () => {
+  it("forecasts six CI shards, each handing its shard to the runner, while a local run stays one", async () => {
     const reach = ReachDeclarationSchema.parse(JSON.parse(await readFile(
       resolve(repositoryRoot, "packages/arc-framework/__tests__/reach/store-suites.json"), "utf8")));
     const checks = CheckDeclarationSchema.parse(load(await readFile(resolve(repositoryRoot, reach.check.declaration), "utf8")));
@@ -200,7 +200,7 @@ describe("the store check's declaration", () => {
     const [run] = forecast.batches;
     expect(forecast.batches).toHaveLength(1);
     expect(run?.some(argument => argument.startsWith("--shard"))).toBe(false);
-    expect(forecast.shards).toEqual([1, 2, 3, 4].map(index => ({ index, batches: [[...run!, `--shard=${index}/4`]] })));
+    expect(forecast.shards).toEqual([1, 2, 3, 4, 5, 6].map(index => ({ index, batches: [[...run!, `--shard=${index}/6`]] })));
   });
 });
 
