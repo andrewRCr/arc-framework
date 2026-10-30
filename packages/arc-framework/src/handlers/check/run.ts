@@ -34,7 +34,6 @@ import { bindCapturedEnvironment, captureEnvironmentInputs, type CapturedEnviron
 import { readMachineCheckRunner, type MachineCheckRunnerConfiguration } from "../../lib/checks/runner/machine-config.js";
 import { prepareSelectedCheckExecution, type CheckExecutionClosure,
   type CheckExecutionPreparation } from "../../lib/checks/runner/execution.js";
-import { planCheckExecution } from "../../lib/checks/runner/planning.js";
 import { createCheckOutputCollector } from "../../lib/checks/runner/output.js";
 import { executePreparedCheckPlan } from "../../lib/checks/runner/dispatch.js";
 import { retainedRunnerRemedy } from "./runner-recovery.js";
@@ -514,8 +513,6 @@ async function executeRoutedSelectedCheck(selected: SelectedCheck, io: DeclaredC
   const startedAt = (io.now ?? performance.now.bind(performance))();
   const prepared = await (io.prepareExecution ?? prepareSelectedCheckExecution)({ callerRoot: root,
     request: selected.coordinates, check, paths, configuration, globalRuntimeInputs: definition.global_runtime_inputs,
-    buildPlan: context => planCheckExecution({ callerRoot: root, check, source: context.source, paths: context.paths,
-      globalRuntimeInputs: definition.global_runtime_inputs }),
     onOutput: outputs.onOutput, onDiagnostic: outputs.onDiagnostic });
   if (prepared.status !== "ready") {
     return unpreparedRoutedCheck(selected, configuration, prepared, await routedDiagnosticOutput(io, id, outputs.combined(), startedAt));

@@ -88,6 +88,7 @@ context/capture under the specified lifecycle. The unconfigured command remains 
 
 - _Goal:_ An eligible routed check executes its complete declared matrix through one prepared context, while the
   native path retains its existing single command and configured failures remain visible.
+    - _Amended in:_ 2.R (A10)
 
     - `[x]` **2.1.a Connect the consumer at the selected-check dispatch boundary**
         - The selected-check handler supplies captured planning through `buildPlan`. Native and opted-out routed
@@ -150,6 +151,19 @@ context/capture under the specified lifecycle. The unconfigured command remains 
         - Actual grouped resistant children retain source through cancel acknowledgment and drain before release.
           Sharded pre-context loss, repeated interrupts and standalone descendant inspection/settlement preserve
           recovery ownership without duplicate execution. Refused recovery delivery launches no preparation probe.
+
+### `[x]` **2.R Report routed planning refusals with their own remedy — D3**
+
+- _Goal:_ A routed check whose final command or selected path exceeds the portable argument budget refuses before
+  preparation with the planner's own reason and shortening remedy, and runs once shortened.
+
+    - `[x]` **2.R.a Plan routed checks through capture's own planner**
+        - The selected-check handler no longer supplies a consumer plan builder, whose failures are reported without
+          their text; capture plans the same check, paths and runtime inputs and reports planning refusals unchanged.
+
+    - `[x]` **2.R.b Prove the refusal and repaired retry through the production entry**
+        - An opted-in routed declaration with an oversized fixed command reports the shortening remedy without
+          launching its adapter, and the shortened declaration passes every shard.
 
 ### `[x]` **2.5 Prove the public consumer lifecycle** — validate exit criterion at segment scope
 

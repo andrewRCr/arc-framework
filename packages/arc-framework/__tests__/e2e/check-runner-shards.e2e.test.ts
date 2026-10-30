@@ -56,6 +56,28 @@ it.each([undefined, false])("keeps opted-out routed declarations unsharded (%s)"
     .toEqual(["check/prepare", "check/run", "check/release"]);
 });
 
+it("refuses an oversized routed command with its shortening remedy and executes after the command is shortened", async () => {
+  const fixture = await createShardedCheckFixture(directories, { mode: "group",
+    program: "process.stdout.write(process.argv[2])",
+    check: { command: [process.execPath, "capture.cjs", "x".repeat(20_000)] },
+  });
+  const refused = await runArc(["check", "run", "example", "--json"], fixture.root, { env: fixture.environment });
+  expect(refused.exitCode, refused.stdout + refused.stderr).not.toBe(0);
+  expect(JSON.parse(refused.stdout).result.checks[0]).toMatchObject({ outcome: "couldn't run",
+    reason: expect.stringMatching(/argument budget.*shorten the command/u) });
+  await expect(access(join(fixture.home, "requests"))).rejects.toThrow();
+  const path = join(fixture.root, ".arc/system/arc-checks.yml");
+  const declaration = JSON.parse(await readFile(path, "utf8"));
+  declaration.checks.example.command = [process.execPath, "capture.cjs"];
+  await writeFile(path, JSON.stringify(declaration));
+  const repaired = await runArc(["check", "run", "example", "--json"], fixture.root, { env: fixture.environment });
+  expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
+  const check = JSON.parse(repaired.stdout).result.checks[0];
+  expect(check.outcome).toBe("passed");
+  expect(check.invocations.map((detail: { output: string }) => detail.output).sort())
+    .toEqual([1, 2, 3].map(index => `--shard=${index}/3`));
+});
+
 it("keeps complete group evidence when optional reports cannot be saved, without exposing bindings", async () => {
   const secret = "private-captured-input";
   const fixture = await createShardedCheckFixture(directories, { mode: "group",

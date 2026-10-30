@@ -625,5 +625,7 @@ implementation rather than becoming an undocumented task decision.
   7, § Proposed Design 10 ¶4–5, § Success Criteria 10. _Trigger:_ door. _Work:_ 6.1–6.3. _Revalidated:_ pending → 6.4.
 - **A9** — 2026-10-30 — design: the gate comparison reports no fully native local context runs.
   _Supersedes:_ § Proposed Design 10 ¶7. _Trigger:_ door. _Work:_ 6.4. _Revalidated:_ pending → 6.4.
+- **A10** — 2026-10-30 — task: routed checks report planning refusals with the planner's own reason and remedy.
+  _Supersedes:_ none. _Trigger:_ 7.1 terminal. _Work:_ 2.R. _Revalidated:_ pending → 7.1.
 
 ---
