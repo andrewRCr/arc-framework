@@ -428,20 +428,14 @@ the external adapter retains generic use outside ARC and native test tools.
         - Keep provider configuration, inventory, fallback/admission and transport internals outside ARC declarations,
           protocol semantics and native test grammar.
 
-### `[ ]` **5.3 Document declaration-driven shards through the public runner seam — D2, D9, D10**
+### `[x]` **5.3 Document declaration-driven shards through the public runner seam — D2, D9, D10**
 
 - _Goal:_ A team can declare native shards and use any conforming runner with clear defaults, failure/recovery
   behavior and qualification limits, without adopting the personal provider's deployment settings.
 
-    - Extend the foundation's public runner documentation/examples in the package/root READMEs and installed quality
-      gate guidance. Edit shipped framework source before project sync; leave the deliberately deferred `docs/` site.
-    - Describe native single-command defaults, optional complete-group capability, basic serial playback, explicit
-      value/file inputs, native membership constraints, parent reuse and incomplete/recovery diagnostics. State
-      that a basic adapter runs an opted-in matrix serially at the native sharding overhead.
-    - Show a provider-neutral example using the standalone adapter. It is a basic adapter, so document group
-      capability from the contract rather than from the example. Distinguish measured profiles from unmeasured
-      deployments. Keep internal work-unit references out of shipped text and retain foundation-owned migration/ADR
-      closeout rather than duplicating them. Validate examples against executable fixtures with test-after feedback.
+- _Outcome:_ Public guides cover native defaults, optional groups and basic serial playback, fixed value/file inputs,
+  whole-parent reuse, incomplete/recovery behavior and measured-profile limits. The standalone example carries a
+  provider-neutral declaration and its preparation/output limits; installed guidance is rendered from package source.
 
 ## **Phase 6:** End-to-end latency and concurrent throughput
 
