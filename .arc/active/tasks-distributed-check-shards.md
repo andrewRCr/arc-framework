@@ -397,25 +397,15 @@ _Exit criterion:_ Interleaved repeated routed-unsharded and distributed runs rep
 median/range, coverage, aggregate completion and admission. Any claimed idle-pool improvement exceeds observed
 variation, and a named-workload slowdown above 10% keeps qualification open.
 
-### `[ ]` **6.1 Build a reproducible whole-gate comparison harness — D10**
+### `[x]` **6.1 Build a reproducible whole-gate comparison harness — D10**
 
 - _Goal:_ Comparisons measure fresh complete gates over equivalent inputs and retain enough observations to detect
   coverage loss, preparation cost and aggregate regression rather than merely faster job submission.
 
-- _Note:_ See `notes-distributed-check-shards.md` § Implementation starting points for existing provider telemetry
-  and native test-cost limits; neither is already a complete gate benchmark.
-
-    - `[ ]` **6.1.a Fix equivalent native and distributed comparison requests**
-        - Add a bounded qualification harness using the production check/controller path and Phase 4 membership
-          observer; select one fixed source, native selection, duration definition and requested complete check set.
-        - Vary the plan in memory through the selected-check handler's injected `readDeclaration`, one process per
-          gate, so both arms read the same on-disk declaration and store's reach selection is identical.
-        - Build `test-first` (one behavior at a time):
-            - Routed unsharded and declaration-derived plans differ only in shard expansion, with forced fresh work;
-              fully native local runs are recorded as context. The harness changes no source/declaration or
-              production sharding-toggle setting.
-            - Original-checkout edits and pass reuse cannot contaminate comparisons; failures or coverage mismatch
-              remain recorded unsuccessful runs rather than being dropped from the sample.
+    - `[x]` **6.1.a Fix equivalent native and distributed comparison requests**
+        - Frozen control and independent trial clones bind source `acf51cc07`, actual base, complete merge/push sets
+          and every/bursts-zero/unset-duration inputs. The production controller forces fresh work; only in-memory
+          routed shard expansion differs. Preflight and the fixed interleaved schedule retain raw failures and gaps.
 
     - `[x]` **6.1.b Record complete timing, coverage and admission observations**
         - Gate children retain source/input identity, actual native output/outcomes, preparation, closure and

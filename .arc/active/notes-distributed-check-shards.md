@@ -327,6 +327,31 @@ storage prefix and counts exact native marker lines without discarding surroundi
 rewritten, no adapter retry is introduced, and no Phase 6 performance or final-head verification follows from these
 cases.
 
+## Whole-gate experiment inputs
+
+The initial experiment is frozen under `~/dev/arc-evidence/distributed-check-shards/gate-experiment-acf51cc07/`.
+`experiment-config.json`, `experiment-harness/`, `inventory.json` and `preflight.json` bind the actual requests and
+implementation. Control and three independent trial clones retain source `acf51cc0743ef37f3e0c755a194a010911252268`,
+tree `1972c585c8b871c0ac6733d5485448083291a00f` and production-resolved base
+`d5eff3e358756aee90fea3ee279653eca598c9d0`. Ordinary clone-local main/upstream refs preserve the captured origin/main
+context; installation/setup/build-fast receipts and source/dependency fingerprints remain outside the trial clock.
+The controller imports committed code from its own prepared control clone, independently of later session edits.
+
+Both arms request all inputs with CI unset: 23 cumulative merge entries and 17 push entries, including ordinary
+CI-only exclusions. Store asks every, bursts are zero and the duration-file binding is unset. Merge observes actual
+unit/store membership; push observes unit. The baseline disables only eligible in-memory routed shard expansion;
+distributed retains declared unit-unsharded/store-four-shard defaults. Every gate forces fresh execution, retains
+local/index checks, and includes the declared merge build. Native-local runs are context under observed speed mode,
+using the existing local worker/heap ceilings; neither routing mode nor registry is changed.
+
+The fixed schedule has three interleaved AB/BA/AB pairs for each idle gate, three matched named-workload rounds per
+arm (two concurrent store-selecting merge gates plus one push), then two conditional native-local context runs.
+The initial caller budget is 60 minutes per gate and 24 hours overall for at most 32 attempts; it precedes measurement
+and does not change provider timeouts. The prior full-store five-command qualification took about 1,905 seconds, so
+the whole-gate budget includes preparation and other declared checks. Failed, incomplete or coverage-unqualified
+samples remain unsuccessful and stop later launches. Strict profile differences require actual corroboration; this
+setup establishes no latency, throughput or performance qualification by itself.
+
 ## Amendment reasoning
 
 ### A2 — store dependency
