@@ -483,6 +483,52 @@ Witness archives are `~/dev/arc-evidence/distributed-check-shards/native-store-a
 closure, exact registered-backend settlement and unchanged provider/source/policy. The receipt reader has not yet
 accepted a nonempty real witness set; absent or invalid proof keeps the measured pair unqualified.
 
+### Completed profile witnesses and availability interruption
+
+The four fresh witness archives now prove their full homogeneous matrices: `native-store-arm-range-v4-a/` and
+`native-store-x64-range-v4-a/` each contain baseline316 plus four 79-file shards; `native-unit-arm-range-v4-a/` and
+`native-unit-intel-range-v4-a/` each contain baseline1369 plus 685/684-file shards. All actual native outcomes are zero,
+SDK/frontend closure is normal, and public inspection proves every registered backend settled. Actual profiles are Linux
+arm64/x64, Node26.3.0 and Vitest4.1.11; reusable provider runtime remains unknown.
+Source/environment/selection/unset-duration bindings and provider `cf08920` are unchanged.
+
+The frozen nonempty receipt validator accepts all four actual archives in `witness-index-range-v4.json`. Original raw
+protocol/output, SDK manifest, immutable measured sample and actual configuration remain its authority. A separate
+intentionally invalid stdout-copy fixture is rejected; disabling only that byte guard makes the same rejection assertion
+fail. `analysis-range-v4-first-pair-witness-qualified.json` therefore qualifies the first complete merge pair without
+changing either sample. Witnesses supply membership only, never original-gate closure, timing, pass or reuse.
+
+The resumed v4 study returns seven samples: six complete gates and one incomplete second distributed merge. Both
+completed push pairs have equivalent coverage and approximately 148–150-second complete timings. Store plan
+`5e34a043-149b-4b7a-aa11-26e8c0b5e0d2`, run `4a35f3101f874a9a94a67cada7c0c2a7`, stops when M5's retained availability
+guard reports offline or sleeping after upload. M2/M5 uploads complete successfully in about 132/136 seconds; the other
+running siblings are cancelled. This is not a native check failure or another upload deadline. The SDK retains
+`/tmp/arc-check-source-7Mxfc7/root`; uncertain closure remains unsuccessful.
+
+Public inspection subsequently proves exactly four registered backends settled. Later pool/Tailscale observations and a
+successful registered guard show M5 available again; they do not prove its earlier availability or repair the failed
+sample. `availability-loss-idle-2-merge-v4/` retains history, inspection, journals, upload progress and later
+observations with hashes. `analysis-range-v4-availability-loss.json` reports six complete gates, three equivalent pairs
+and the incomplete row separately. No repeated-merge benefit or named-workload qualification is established.
+
+### Fresh comparison after the availability interruption
+
+`experiment-config-range-v5.json` and `experiment-harness-range-v5/` prepare one fresh 32-slot study with the same
+24-hour bound, 60-minute gates, source, provider, range, native selections, every/bursts-zero/unset-duration
+environment, registry, mode and AB/BA/AB schedule. All old samples remain in their original study and enter no fresh
+timing pair. The destination is `measurements-range-availability-restart-6e338286-a274-46f6-8025-0491bd62213b/` under
+the same evidence base. Preflight proves exact clean source/provider and complete check sets; the new harness manifest
+hash is `dc9816b90b3f8de4f4311bc69461aacbb3e238998e492122708550a46dec86a0`.
+
+A read-only membership handoff validates the exact original configuration hash, complete original harness, unchanged
+receipt validator and all four original receipts against their own study. Its equivalence guard permits only experiment
+identity, evidence destination and analysis-bundle identity to change, plus the explicit original-study locator. Every
+runtime, selection, schedule, policy and collector field must match. The new gate samples still require their own
+successful native execution, complete output, normal closure and matching basis. Eleven changed-input boundaries reject;
+disabling only the basis guard in a separate invalid reconstruction makes the same assertion fail. Actual positive and
+negative artifacts are in `membership-handoff-v5-validation/`. A further pool interruption stops for diagnosis rather
+than starting an automatic qualification retry loop.
+
 ## Amendment reasoning
 
 ### A2 — store dependency
