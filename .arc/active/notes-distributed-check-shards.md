@@ -427,6 +427,37 @@ and `da8f648a72ad4959a6b211c1f201699b` reject missing corroboration; green run
 `67b9ce89f5144ecdb95841434459f95d`. Synthetic profile rows are validation fixtures only; no full-gate mixed profile
 is qualified by these tests. Actual full native witnesses and their SDK closure/inspection evidence remain required.
 
+### Upload deadline repair and fresh comparison
+
+A pinned M2 contracts diagnostic under `bb89d87` completes its actual remote upload and native check with normal
+SDK closure. A separate four-command public group reproduces the concurrent failure: plan
+`af4e1799-c5eb-4e68-8fab-21499b1a5882`, run `08cd9c2f8da2403a834338f0aac11d06`, loses M2's upload near the
+120-second helper deadline while read-only process observations show archive streaming. M5 finishes uploading just
+before group cancellation. The captured source and failed raw receipt remain retained; public inspection proves
+settlement without supplying the missing native outcomes. The PID-reuse merge therefore does not resolve this case.
+
+Provider commit `cf08920` allows five bounded minutes for uploads, preserves fixed materialization and command
+deadlines, records upload phases and the first owned termination trigger, and includes the helper outcome in its
+error. Real deadline/caller-cancellation cases fail before that diagnostic is implemented; the fresh full provider
+regression passes all 434 tests. No live provider checkout, mode, registry, admission rule or automatic replay changes.
+
+The same four-command reproduction passes on that committed provider: plan `18b438ec-8691-4bdf-b431-baaec5ffc411`, run
+`cca1f680816e46a39958f35470809b2c`. All four actual placements (M4, M2, M5 and local) return zero, the SDK closes
+normally and inspection proves the exact registered backend set settled. The two slower uploads each transfer an archive
+offset of 192,187,904 bytes in roughly 135 seconds, beyond the former deadline.
+`concurrent-upload-diagnostic-1d483ed0-83d4-41e6-bcb8-028c32723988/` retains progress, journals, raw protocol, history
+and caller hashes. These short generic commands prove this transport continuation; they are neither full-store
+membership evidence nor a measured performance sample.
+
+`experiment-config-range-v4.json`, `experiment-harness-range-v4/` and `preflight-range-v4.json` freeze a wholly fresh
+32-slot study on provider `cf08920` in both arms, with the unchanged acf source, explicit range, requests, schedule,
+pool policy and caller budgets. Pure analysis is frozen separately from commit `19e3057e3`; measured gate children
+still run from acf. Complete harness and collector inventories bind every executed helper. Only a successful closed
+block awaiting actual profile witnesses may resume: original child artifacts remain hashed and immutable, completed
+slots are skipped, and original attempt/wall budgets persist. Strict and composed native proof remain distinct.
+The collector and nonempty receipt loader still require validation against actual fresh full-native witnesses.
+Prelaunch setup establishes no new latency, throughput or mixed-profile qualification by itself.
+
 ## Amendment reasoning
 
 ### A2 — store dependency
