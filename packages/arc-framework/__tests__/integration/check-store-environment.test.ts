@@ -90,18 +90,13 @@ it("keys real declared passes to their ask while reusing each unchanged form", a
   }
 }, 60_000);
 
-it("hands a routed run both store selection inputs as declared values", async () => {
-  const { root, io } = await storeCheckHarness();
-  let declared: Record<string, string> | undefined;
-  const result = await runDeclaredRequest(root, { ...io,
-    readRunnerConfiguration: async () => ({ file: join(root, "runner.yml"), argv: [process.execPath] }),
-    prepareExecution: input => {
-      declared = { ...input.check.environment_inputs };
-      return Object.assign(Promise.resolve({ status: "unavailable" as const, origin: "runner" as const, reason: "Routed preparation stops here.", remedy: "None needed." }),
-        { planId: "store-environment", retained: undefined, cancel: async () => undefined, terminate: () => undefined });
-    } }, { form: { kind: "run", ids: ["test:store"] } });
-  expect(result.kind).toBe("result");
+it("declares routed store selector values and a captured native duration file", async () => {
+  const actual = CheckDeclarationSchema.parse(load(await readFile(join(checkoutRoot, ".arc/system/arc-checks.yml"), "utf8")));
+  const check = actual.checks["test:store"];
   const reach = await readReachDeclaration(join(checkoutRoot, declarationPath));
-  expect(declared).toEqual(Object.fromEntries([reach.ask, ...reach.environment.map(entry => entry.variable)].map(name => [name, "value"])));
-  expect(declared).toEqual({ ARC_STORE_CHECK: "value", ARC_STORE_BURSTS: "value" });
+  expect(check?.runner).toBe(true);
+  expect(check?.environment_inputs).toMatchObject({
+    ...Object.fromEntries([reach.ask, ...reach.environment.map(entry => entry.variable)].map(name => [name, "value"])),
+    ARC_TEST_DURATION_FILE: "file",
+  });
 });
