@@ -12,6 +12,7 @@ import { LocalPrepareCommandError } from "./local-prepare-error.js";
 import { confirmReservedLocalReplay } from "./local-reserved-obligation.js";
 import { readRetainedLocalReviewSource } from "./local-outcome-source.js";
 import { localAttemptCoverageAdmission } from "../policy/local-review-coverage-selection.js";
+import { projectDeliveryLocalReviewAdmissionIdentity } from "../policy/delivery-local-review-admission.js";
 import type { z } from "zod";
 
 /** Preserve the admitted target, scope, pass, and reservation without recreating execution state. */
@@ -28,7 +29,8 @@ export async function replayCompletedNativeLocalAdmission(input: StablePendingRe
     || outcome.logicalPass !== attempt.logicalPass || outcome.retryGeneration !== attempt.retryGeneration
     || canonicalize(localAttemptCoverageAdmission(local)) !== canonicalize(input.coverageAdmission)
     || canonicalize(outcome.lineage) !== canonicalize(input.lineage)
-    || canonicalize(local.deliveryAdmission ?? null) !== canonicalize(input.request.deliveryAdmission ?? null)) {
+    || canonicalize(projectDeliveryLocalReviewAdmissionIdentity(local.deliveryAdmission))
+      !== canonicalize(projectDeliveryLocalReviewAdmissionIdentity(input.request.deliveryAdmission))) {
     throw new LocalPrepareCommandError("local completed admission does not match its outcome");
   }
   assertLocalReviewClaimBinding(local);

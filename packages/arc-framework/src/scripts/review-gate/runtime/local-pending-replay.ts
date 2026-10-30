@@ -6,7 +6,8 @@ import { canonicalize } from "../../../lib/kernel/index.js";
 import { GitObjectIdSchema, type ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import { laneSubjectOwnerMatches, type LaneSubjectLineage } from "../core/lane-admission.js";
 import { assertLocalReviewClaimBinding } from "../core/local-operation.js";
-import type { LocalReviewCoverageAdmission } from "../core/local-review-coverage.js";
+import { LocalReviewCoverageAdmissionSchema, projectLocalReviewCoverageAdmission, type LocalReviewCoverageAdmission }
+  from "../core/local-review-coverage.js";
 import type { LocalReviewState } from "../core/operation-state-schema.js";
 import type { ReviewScopeMode } from "../core/review-primitives.js";
 import {
@@ -53,6 +54,30 @@ export function completedReplayAttemptMatches(
     && attempt.local.scopeMode === input.scopeMode
     && attempt.headSha === input.target.headSha
     && attempt.local.target.targetId === input.target.targetId;
+}
+
+/** The scope and coverage a request selects before its target or authority resolves. */
+export function localRequestScope(request: LocalPrepareRequest): Pick<StablePendingReplayContext, "scopeMode" | "coverageAdmission"> {
+  return { scopeMode: request.deliveryAdmission?.scopeSelection?.mode ?? request.policyJudgment?.scopeMode ?? "whole-target",
+    coverageAdmission: request.deliveryAdmission === undefined
+      ? request.coverageAdmission ?? LocalReviewCoverageAdmissionSchema.parse({ requestedCoverage: "complete" })
+      : projectLocalReviewCoverageAdmission(request.deliveryAdmission) };
+}
+
+/** A request naming no coverage replays an attempt at the coverage that attempt was admitted with. */
+export function replayAttemptCoverage(input: Pick<StablePendingReplayContext, "request" | "coverageAdmission">,
+  attempt: PendingAttempt | undefined): LocalReviewCoverageAdmission {
+  return input.request.coverageAdmission === undefined && input.request.deliveryAdmission === undefined
+    && attempt?.local !== undefined ? localAttemptCoverageAdmission(attempt.local) : input.coverageAdmission;
+}
+
+/** Whether a completed attempt on this target already answers the request, so its replay precedes any fresh judgment. */
+export function completedLocalAttemptAnswers(request: LocalPrepareRequest, attempts: readonly PendingAttempt[],
+  target: ReviewTarget): boolean {
+  const scope = localRequestScope(request);
+  return attempts.some(attempt => attempt.local?.target.targetId === target.targetId
+    && completedReplayAttemptMatches(attempt, { request, target, scopeMode: scope.scopeMode,
+      coverageAdmission: replayAttemptCoverage({ request, coverageAdmission: scope.coverageAdmission }, attempt) }));
 }
 
 async function pendingAdmissionMatches(

@@ -15,6 +15,7 @@ import { RepositoryLocalReviewSourceStore } from "../../../../../src/scripts/rev
 import { parseNativeReviewOperationReference } from "../../../../../src/scripts/review-gate/core/review-operation-reference.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
 import { bindNativeReviewPorts } from "../../../../helpers/store/native-review-ports.js";
+import { createNativeLocalPassJudgmentResolver } from "../../../../../src/scripts/review-gate/runtime/native-local-pass-judgments.js";
 
 async function completedReview(result: "clean" | "findings" = "clean") {
   const h = await nativeLocalReview();
@@ -124,5 +125,42 @@ it.each(["ceilingOverride", "additionalPassAuthorization"] as const)("replays a 
       [field]: { ...grant, decisionKey } } }, h.prepared.dependencies);
   expect(replay).toMatchObject({ state: "ready", payload: { operationId: h.state.operationId } });
   expect(await h.operations.readOperationSnapshot()).toEqual(snapshot);
+  expect(await h.store.version()).toEqual(version);
+});
+
+it.each([["ceilingOverride", "keyless"], ["ceilingOverride", "keyed"], ["additionalPassAuthorization", "keyless"],
+  ["additionalPassAuthorization", "keyed"]] as const)("replays a completed native member admission granted by a prior %s "
+  + "decision on a %s re-entry", async (field, form) => {
+  const deliveryAdmission = createDeliveryLocalReviewAdmission("f".repeat(40)), target = deliveryAdmission.target;
+  const grant = field === "ceilingOverride" ? { target, lane: "standard" as const, exhaustedPassCount: 0, nextPass: 1 }
+    : { target, lane: "standard" as const, precedingProducerId: "producer-1", completedPasses: 0, nextPass: 1 };
+  const admission = DeliveryLocalReviewAdmissionSchema.parse({ ...deliveryAdmission, [field]: grant });
+  const h = await nativeLocalReview(admission);
+  onTestFinished(h.cleanup);
+  const facts = h.operations.nativeFacts;
+  if (facts === undefined) throw new Error("Expected native decision facts");
+  const resolved = await resolveNativeExtraPassJudgment({ facts, repositoryId: h.state.repositoryId,
+    subject: { lineage: h.state.lineage, headSha: h.state.target.headSha, subjectDigest: h.state.target.targetId },
+    policyTarget: target, lane: "standard", completedPasses: 0, [field]: grant,
+    actor: h.state.request.authorIdentity, now: h.prepared.dependencies.now() });
+  const decisionKey = resolved.judgment?.[field]?.decisionKey;
+  const receipt = createReviewReceipt({ target: h.state.target, requirement: h.state.requirement, request: h.state.request,
+    applicabilityId: null, reviewRunId: "review-1", evaluatorIdentity: h.state.request.evaluatorIdentity,
+    attestingRuntimeIdentity: h.state.attestation.runtimeIdentity, attestationMechanism: h.state.attestation.mechanism,
+    providerEventIdentity: null, result: "clean", findings: [] });
+  await recordLocalReceiptConclusion(h.operations, { state: h.state, receipt, now: h.prepared.dependencies.now() });
+  const receiptStore = new LocalForwardReviewReceiptStore(h.publisher, h.state.repositoryId);
+  const dependencies = { ...h.prepared.dependencies, outcomes: h.outcomes,
+    readReceipts: (targetId: string) => readLocalReviewReceipts({ receiptStore, outcomes: h.outcomes }, targetId),
+    materialize: async () => { throw new Error("Completed admission must not rematerialize a source"); },
+    resolvePassJudgments: createNativeLocalPassJudgmentResolver({ input: { ...h, workItem: h.primary.reference.owner },
+      operationStore: h.operations, subjects: h.prepared.dependencies, deriveTarget: h.prepared.dependencies.deriveTarget,
+      validateDeliveryAdmission: h.prepared.dependencies.validateDeliveryAdmission }) };
+  const version = await h.store.version();
+  const replay = await prepareLocalReview({ schemaVersion: 1, evaluatorIdentity: h.state.request.evaluatorIdentity,
+    routingFacts: { contentKind: "code-bearing", reviewRisk: "routine", changeDeterminacy: "ordinary",
+      ownership: "self", surfaceAuthority: "ordinary" }, memberHeadObjectId: admission.vehicle.head,
+    deliveryAdmission: form === "keyless" ? admission : { ...admission, [field]: { ...grant, decisionKey } } }, dependencies);
+  expect(replay, JSON.stringify(replay)).toMatchObject({ state: "review-complete", payload: { operationId: h.state.operationId } });
   expect(await h.store.version()).toEqual(version);
 });

@@ -4,7 +4,8 @@ import { withReviewReport } from "../../fixtures/review-report-input.js";
 import type { LocalReviewEvaluatorResult } from "../../../src/scripts/review-gate/core/local-review-result.js";
 import { parseReviewSourceReference } from "../../../src/scripts/review-gate/core/review-source-reference.js";
 import { LocalPrepareEnvelopeSchema, LocalAttestEnvelopeSchema, LocalResumeEnvelopeSchema, ReduceEnvelopeSchema } from "../../../src/scripts/review-gate/core/review-command-envelope.js";
-import { mkdir, unlink, rm } from "node:fs/promises";
+import { appendFile, mkdir, unlink, rm } from "node:fs/promises";
+import { join } from "node:path";
 import { createProjectIdentityReader } from "../../../src/lib/store/project-identity.js";
 import { resolveWorktreeMarkerPath } from "../../../src/lib/git/worktree-marker.js";
 import { candidateFixture } from "../../helpers/store/tracked-write-fixture.js";
@@ -274,6 +275,45 @@ it("records an additional pass and validates its exact reference before replayin
   expect(lifecycleSuccess(await h.store.version())).toBe(version);
   expect(await decisions.read(key)).toEqual(decision);
 });
+
+type FirstLocalPass = Awaited<ReturnType<typeof completedFirstNativeLocalPass>>["first"];
+async function completedSecondNativeLocalPass(judgmentFor: (first: FirstLocalPass) => Record<string, object>, maxPasses?: number) {
+  const { h, first, owner } = await completedFirstNativeLocalPass();
+  if (maxPasses !== undefined) {
+    // A ceiling admits a further pass over a head the exhausted passes did not review.
+    await appendFile(join(h.cwd, ".arc", "system", "arc-config.yml"), `review.standard_max_passes: ${maxPasses}\n`);
+    h.advanceHead();
+  }
+  const judgment = judgmentFor(first);
+  const request = { ...h.request, coverageAdmission: { requestedCoverage: "complete" }, policyJudgment: judgment };
+  const second = LocalPrepareEnvelopeSchema.parse(await h.run(request));
+  if (second.state !== "ready") throw new Error(JSON.stringify(second));
+  expect(await h.attest(second.payload.operationId, undefined, { status: "complete", result: "clean",
+    evaluatorIdentity: "fresh-reviewer", reviewRunId: "completed-second-pass", applicabilityId: null, findings: [] }))
+    .toMatchObject({ state: "attested-current" });
+  const listing = await createReviewDecisionPort(h.store, owner).list();
+  if (listing.status !== "complete" || listing.records.length !== 1) throw new Error(JSON.stringify(listing));
+  return { h, second, request, judgment, key: reviewDecisionKey(listing.records[0]!.value) };
+}
+
+const completedGrants = {
+  additional: { judgment: (first: FirstLocalPass) => ({ additionalPassAuthorization: { headSha: first.payload.target.headSha,
+    precedingProducerId: first.payload.operationId, completedPasses: 1, nextPass: 2 } }), maxPasses: undefined },
+  ceiling: { judgment: () => ({ ceilingOverride: { exhaustedPassCount: 1, nextPass: 2 } }), maxPasses: 1 },
+} as const;
+
+it.each([["additional", "keyless"], ["additional", "keyed"], ["ceiling", "keyless"], ["ceiling", "keyed"]] as const)(
+  "replays a completed native %s pass on a %s re-entry rather than judging its grant again", async (grant, form) => {
+    const { h, second, request, judgment, key } = await completedSecondNativeLocalPass(completedGrants[grant].judgment,
+      completedGrants[grant].maxPasses);
+    const [name, value] = Object.entries(judgment)[0]!;
+    const reentry = form === "keyless" ? request : { ...request, policyJudgment: { [name]: { ...value, decisionKey: key } } };
+    const version = lifecycleSuccess(await h.store.version());
+    const replayed = await h.run(reentry);
+    expect(replayed, JSON.stringify(replayed)).toMatchObject({ state: "review-complete", nextAction: "reduce",
+      payload: { operationId: second.payload.operationId } });
+    expect(lifecycleSuccess(await h.store.version())).toBe(version);
+  });
 
 it("admits a stored additional pass after the local coverage choice without another judgment", async () => {
   const { h, first } = await completedFirstNativeLocalPass();

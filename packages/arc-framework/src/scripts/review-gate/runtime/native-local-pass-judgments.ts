@@ -9,6 +9,7 @@ import { projectReviewCeilingJudgment } from "../policy/review-ceiling-override.
 import { projectReviewAdditionalPassJudgment } from "../policy/review-additional-pass.js";
 import { resolveLocalPolicyTarget } from "./local-correction-context.js";
 import { requestedExtraPasses } from "./native-extra-pass-input.js";
+import { completedLocalAttemptAnswers } from "./local-pending-replay.js";
 import { resolveNativeInvocationExtraPassJudgment, type NativeExtraPassInput } from "./native-extra-pass.js";
 import { readNativeDecisionSubject, projectNativePolicyGrants } from "./native-policy-grants.js";
 import type { LocalReviewInvocationInput } from "./local-review-invocation.js";
@@ -31,10 +32,13 @@ export function createNativeLocalPassJudgmentResolver(context: LocalPassJudgment
     if (facts === undefined) throw new Error("Restore the selected native review facts and retry local preparation.");
     const listing = await facts.decisions.list();
     if (listing.status !== "complete") throw reviewFactListingError(listing);
-    if (request.policyJudgment?.ceilingOverride === undefined && request.policyJudgment?.additionalPassAuthorization === undefined
-      && request.deliveryAdmission?.ceilingOverride === undefined && request.deliveryAdmission?.additionalPassAuthorization === undefined
-      && !listing.records.some(({ value }) => value.choice.kind === "extra-pass" && value.choice.precondition.kind !== "approved-fix")) return request;
-    const bound = await readLocalPassSubject(request, context, await facts.readProjectId());
+    const requested = request.policyJudgment?.ceilingOverride !== undefined || request.policyJudgment?.additionalPassAuthorization !== undefined
+      || request.deliveryAdmission?.ceilingOverride !== undefined || request.deliveryAdmission?.additionalPassAuthorization !== undefined;
+    if (!requested && !listing.records.some(({ value }) => value.choice.kind === "extra-pass" && value.choice.precondition.kind !== "approved-fix")) return request;
+    const repositoryId = await facts.readProjectId();
+    const owned = await readLocalPassOwner(request, context, repositoryId, requested);
+    if (owned.completed) return request;
+    const bound = await readLocalPassSubject(request, context, repositoryId, owned);
     const settings = (await readConfigSettings(context.input.cwd)).settings;
     const policyTarget = request.deliveryAdmission?.target
       ?? await resolveLocalPolicyTarget(context.input, bound.repositoryId, bound.target, settings["branch.base"]);
@@ -51,11 +55,22 @@ export function createNativeLocalPassJudgmentResolver(context: LocalPassJudgment
   };
 }
 
-async function readLocalPassSubject(request: LocalPrepareRequest, context: LocalPassJudgmentContext, repositoryId: string) {
+// A completed attempt answering a requested grant replays unchanged, as the repository arm's does, rather than judging the
+// grant again; a request carrying no grant takes the stored decisions, which may admit a further pass.
+async function readLocalPassOwner(request: LocalPrepareRequest, context: LocalPassJudgmentContext, repositoryId: string,
+  requested: boolean) {
   const subject = await context.subjects.resolveVehicle(request.memberHeadObjectId, request.deliveryAdmission);
   const headSha = subject.member?.head ?? (await context.input.exec("git", ["rev-parse", "HEAD"], { cwd: context.input.cwd })).stdout.trim();
   const lineage = await context.subjects.resolveLineage(subject.vehicle, headSha, request.deliveryAdmission, subject.member ?? undefined);
   const owner = await readLaneProgressOwner(context.operationStore, { lane: "standard", repositoryId, headSha, lineage });
+  const terminal = owner?.attempts.filter(attempt => attempt.terminalProducer && attempt.local !== undefined) ?? [];
+  const completed = requested && terminal.length > 0 && completedLocalAttemptAnswers(request, terminal,
+    await context.deriveTarget(repositoryId, subject.member ?? undefined));
+  return { subject, headSha, lineage, owner, completed };
+}
+
+async function readLocalPassSubject(request: LocalPrepareRequest, context: LocalPassJudgmentContext, repositoryId: string,
+  { subject, headSha, lineage, owner }: Awaited<ReturnType<typeof readLocalPassOwner>>) {
   const pending = owner?.attempts.filter(attempt => attempt.outcome === "pending" && attempt.local !== undefined && attempt.headSha === headSha) ?? [];
   if (pending.length > 1) throw new Error("Restore the single pending local admission before retrying its pass judgment.");
   const admission = pending[0]?.local?.deliveryAdmission;

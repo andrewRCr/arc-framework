@@ -75,7 +75,6 @@ import type { ReviewScopeMode } from "../core/review-primitives.js";
 import {
   LocalReviewCoverageAdmissionSchema,
   type LocalReviewCoverageSelectionAction,
-  projectLocalReviewCoverageAdmission,
   type LocalReviewCoverageAdmission,
 } from "../core/local-review-coverage.js";
 import {
@@ -85,7 +84,8 @@ import {
 } from "../policy/local-review-coverage-selection.js";
 import { cleanupExpired, retryLaneOwnerConflicts } from "./local-prepare-retry.js";
 import { LocalPrepareCommandError } from "./local-prepare-error.js";
-import { completedReplayAttemptMatches, localReplayAdmissionMatches, resolveStablePendingLocalReplay, type StablePendingReplayContext } from "./local-pending-replay.js";
+import { completedReplayAttemptMatches, localReplayAdmissionMatches, localRequestScope, replayAttemptCoverage, resolveStablePendingLocalReplay,
+  type StablePendingReplayContext } from "./local-pending-replay.js";
 import { replayCompletedNativeLocalAdmission } from "./local-completed-replay.js";
 export { LocalPrepareCommandError } from "./local-prepare-error.js";
 
@@ -273,12 +273,6 @@ function requireSharedLogicalPassCoverage(
     && !sharedLogicalPassCoverageMatches(attempts, logicalPass, coverageAdmission)) {
     throw new LocalPrepareCommandError("local review coverage differs from the shared logical pass");
   }
-}
-
-function replayAttemptCoverage(input: PendingLocalReplayInput,
-  attempt: LocalLaneAttempt | undefined): LocalReviewCoverageAdmission {
-  return input.request.coverageAdmission === undefined && input.request.deliveryAdmission === undefined
-    && attempt?.local !== undefined ? localAttemptCoverageAdmission(attempt.local) : input.coverageAdmission;
 }
 
 async function selectLocalReplayAttempt(input: PendingLocalReplayInput) {
@@ -888,14 +882,7 @@ async function resolveLocalPreparationContext(
     request.deliveryAdmission,
     member ?? undefined,
   );
-  const scopeMode = request.deliveryAdmission?.scopeSelection?.mode
-    ?? request.policyJudgment?.scopeMode
-    ?? "whole-target";
-  const coverageAdmission = request.deliveryAdmission === undefined
-    ? request.coverageAdmission ?? LocalReviewCoverageAdmissionSchema.parse({
-        requestedCoverage: "complete",
-      })
-    : projectLocalReviewCoverageAdmission(request.deliveryAdmission);
+  const { scopeMode, coverageAdmission } = localRequestScope(request);
   if (coverageAdmission.correctionScope !== undefined
     && coverageAdmission.correctionScope.headSha !== target.headSha) {
     throw new LocalPrepareCommandError("local review correction scope does not match its target");
