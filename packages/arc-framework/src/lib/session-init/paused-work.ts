@@ -134,7 +134,12 @@ async function waitingWorkDisposition(store: Store, slug: string): Promise<"ship
     if (record.reference.kind !== "work-item/meta" || record.conflicts.length > 0) throw new Error(`Pause prerequisite '${slug}' has no resolved work-unit record. Inspect and repair it before reviewing this pause.${describeRecordConflicts(record.conflicts)}`);
     return ParsedMetaRecordSchema.parse(record.fields).state === "Shipped" ? "shipped" : "live";
   }
-  if (resolved.refusal.code !== "not-found") throw new Error(`${resolved.refusal.condition} ${resolved.refusal.remedy.text}`);
+  if (resolved.refusal.code !== "not-found") {
+    const refusal = resolved.refusal;
+    const remedy = refusal.code === "ambiguous-match" && refusal.tie !== undefined
+      ? clashRepair(refusal.candidates, refusal.tie) : refusal.remedy;
+    throw new Error(`${refusal.condition} ${remedy.text}`);
+  }
   const record = await terminalPrerequisiteRecord(store, slug);
   const terminal = parseLineageRecord(record.content);
   if (terminal === null || record.conflicts.length > 0) throw new Error(`Pause prerequisite '${slug}' has unresolved terminal lineage. Inspect and repair it before reviewing this pause.${describeRecordConflicts(record.conflicts)}`);

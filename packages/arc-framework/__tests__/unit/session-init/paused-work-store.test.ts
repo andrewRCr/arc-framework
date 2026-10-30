@@ -17,10 +17,29 @@ import { runStoreRename } from "../../../src/lib/work-unit/verbs/rename-store.js
 import { batchLifecycleWrites } from "../../../src/lib/store/lifecycle-write.js";
 import type { Store } from "../../../src/lib/store/contract.js";
 import { importRetiredAlias } from "../../helpers/store/terminal-alias-harness.js";
+import { createClashDouble } from "../../helpers/store/clash-double.js";
+import { recordKey } from "../../helpers/store/model.js";
 
 const now = new Date("2026-10-16T12:00:00.000Z");
 const pause = (waitsOn: unknown = null, open = false) => MetaPauseSchema.parse({ pausedBy: "former-owner", since: "2026-09-01T12:00:00.000Z",
   reason: "Waiting for a decision", waitsOn, resumeNotes: "Read the decision first", open });
+
+it.each(["current", "former"] as const)("names the repair for a %s-name tied pause prerequisite", async tier => {
+  const h = createLifecycleHarness(), first = await h.seedMeta("first-current"), second = await h.seedMeta("second-current");
+  if (tier === "former") for (const record of [first, second]) {
+    const stored = h.store.state.records.get(recordKey(record.reference));
+    if (stored === undefined) throw new Error("Missing prerequisite holder");
+    stored.formerSlugs.push("prerequisite");
+  }
+  const store = tier === "former" ? h.store : createClashDouble(h.store, { slug: "prerequisite", holders: [first.reference, second.reference] });
+  const result = markPausedWorkItem({ slug: "demo", pause: pause({ kind: "work-unit", slug: "prerequisite" }) },
+    { store, reviewAfterDays: 14, now });
+  if (tier === "former") await expect(result).rejects.toThrow("Name the intended holder by its current name: `first-current`, `second-current`.");
+  else {
+    const firstUid = boundWorkUnitSubject(first).uid, secondUid = boundWorkUnitSubject(second).uid;
+    await expect(result).rejects.toThrow(`Rename either work-unit holder: \`arc rename ${firstUid} <new-slug>\` or \`arc rename ${secondUid} <new-slug>\`.`);
+  }
+});
 
 it("refuses disputed pause ownership after sync and lists only the explicitly resolved owner on retry", async () => {
   const h = createLifecycleHarness(), initial = await h.seedMeta("paused", { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" });
