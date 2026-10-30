@@ -11,6 +11,7 @@ import { PRODUCTION_REGISTRATIONS } from "../kinds/registrations.js";
 import type { ObjectFormat } from "./manifest.js";
 import type { BatchObject, ListedTree } from "./batch-read.js";
 import type { LifecycleEvidence } from "./sync-lifecycle-evidence.js";
+import type { RefOperationScope } from "./operation-scope.js";
 
 /** Backend ports with a complete kind registry and failure-time executor checks. */
 export interface RefBackendContext extends RefStorePorts {
@@ -23,6 +24,8 @@ export interface RefBackendContext extends RefStorePorts {
   blobStage?: { format: ObjectFormat; blobs: Map<string, Uint8Array> };
   /** Native object readers belong to one public read or mutation call. */
   batchReader?: GitBatchReadScope;
+  /** Readers and remembered lookups belong to this public operation. */
+  operationScope?: RefOperationScope;
   /** Successful immutable evidence belongs to one repository-bound write or sync attempt. */
   writeEvidence?: { objects: Map<string, BatchObject>; trees: Map<string, ListedTree>; format?: ObjectFormat };
   /** Decoded quarters and raw reachability are local to the selected repository's sync operation. */

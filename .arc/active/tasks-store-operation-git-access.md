@@ -12,115 +12,46 @@ refresh hooks those calls meet: restarts and a departed store's missing answer.
 _Mode:_ `slice` through Phase 4 — closes on every public call holding one scope with no stale state served, and the
 process drop measured.
 
-### `[ ]` **1.1 A read or write call's readers belong to one operation scope — D1, D2**
+### `[x]` **1.1 A read or write call's readers belong to one operation scope — D1, D2**
 
 - _Goal:_ `read`, `list`, `lookup`, `write`, and `batch`, on `createRefBackend` and on `createRefReadSourceBackend`,
   each run inside one operation scope that supplies the context's `batchReader` and closes every reader before the
   call returns, with every result unchanged.
 
-- _Note:_ Tests reach the scope only through public calls: the store's test boundary (`storeViolations` in
-  `eslint/architecture-imports.ts`) refuses a test's runtime import of any module under `lib/store/ref/`. Build each
-  case on `createRefStore` with recording ports and `GIT_TRACE2_EVENT`, as `store-ref-reader-lifetime.test.ts` does.
+- _Outcome:_ The coordinator owns a `RefOperationScope` unless its context already carries one. Public lookup and
+  read-source read/list/lookup traces cover both layouts alongside the existing read/write/batch lifetime guards.
 
-    - Create the scope module under `lib/store/ref/`. It holds one `GitBatchReadScope`, supplied as the context's
-      `batchReader`, and is carried on a new `RefBackendContext` field (`context.ts`) so later hooks reach it. The
-      executor's `batchReader` option keeps its `GitBatchReadScope` type, so the scope supplies a real instance.
-    - `createRefReadCoordinator` (`read-operation.ts`) opens a scope only when the context carries none, runs the
-      operation in it, and closes it when the call ends, on success and on failure, as its `GitBatchReadScope` handling
-      does today. No public call yet hands it a scoped context; the rule is what lets a scope owned above one call
-      supply its own.
-    - `createRefReadSourceBackend` reaches the scope through its own coordinator in `refReadOperations`.
-    - These calls already hold one reader each, so this task changes no behavior and its cases guard against
-      regression rather than fail first. The existing `store-ref-reader-lifetime.test.ts` cases pass unchanged: on the
-      default layout and on the separate one, a `list` and a UID `read` each start one reader and close it before
-      returning, and a write and a batch share one native reader across their acquisitions and close it before
-      returning, on success, refusal, and failure.
-    - Add traced guard cases for the rest of the § 3.2 rows these calls cover: a `lookup` on each layout, and the
-      read-source backend's `read`, `list`, and `lookup`, each start at most one reader per bound repository and close
-      every reader before returning.
-
-### `[ ]` **1.2 `history`, `changes`, and `version` hold the scope and yield to maintenance — D2, D4**
+### `[x]` **1.2 `history`, `changes`, and `version` hold the scope and yield to maintenance — D2, D4**
 
 - _Goal:_ `history`, `changes`, and `version` run through the coordinator's `read`, so each holds a scope, and an
   explicit `maintain` on the same backend instance waits for an in-flight one, and it for `maintain`, as `read` and
   `list` already do.
 
-    - `refReadOperations` (`backend.ts`) routes `version` (`refStateVersion`), `history` (`historyRefRecord`), and
-      `changes` (`changesRefRecords`) through `operations.read`; the read-source backend gains the same through its own
-      coordinator.
-    - The new wait between these three calls and `pull`, `push`, and `maintain` is the intended ordering change; name
-      it as such in the case.
-    - `version` reads no object (`refStateVersion` reads tips and saves its manifest), so its traced case, on each
-      backend, guards that it starts no reader.
-    - Build `test-first` (one behavior at a time):
-        - `maintain` on a backend instance waits for an in-flight `history` on the same instance: the history's reader
-          `exit` precedes `git maintenance run`'s `start`, and neither holds a reader across the other.
-        - A `history` and a `changes` call, on `createRefBackend` and on the read-source backend, each start at most one
-          reader per bound repository and close every reader before returning. Each reads in several batches, so today
-          each batch starts its own `cat-file`.
+- _Outcome:_ History, changes, and version now enter the read coordinator on both backends. Traces prove shared
+  history/changes readers, no version reader, and maintenance waiting for history before admitting the later read.
 
-### `[ ]` **1.3 A read or write call's restart closes its readers — D2, D3**
+### `[x]` **1.3 A read or write call's restart closes its readers — D2, D3**
 
 - _Goal:_ A read or write call that starts again after another process moved its store reads through a fresh reader,
   as the per-call reads it replaces would: no reader the abandoned attempt opened survives into the restarted one.
 
-    - `[ ]` **1.3.a `GitBatchReadScope` closes its readers mid-call and stays usable**
-        - In `lib/git/batch-reader.ts`, a mid-call close ends every reader child and waits for it to exit, so its pack
-          handles are released; the next `run` starts a fresh reader. A close failure propagates, and a reader's nonzero
-          exit is the failure a per-read `cat-file` would raise. The final `close` stays final.
-        - The cases go in `unit/git/batch-reader.test.ts`. A `run` after the final `close` already rejects; its case
-          guards that the mid-call close leaves that intact.
-        - Build `test-first` (one behavior at a time):
-            - After a mid-call close every reader process has exited, and a further `run` starts a new reader and
-              answers.
-            - A mid-call close waits for an exchange queued before it.
-            - A reader's failed exit rejects the mid-call close.
+    - `[x]` **1.3.a `GitBatchReadScope` closes its readers mid-call and stays usable**
+        - `reset` drains prior exchanges and awaits every reader exit before allowing a new exchange to reopen a
+          reader. Failed exits propagate; final `close` still rejects later reads.
 
-    - `[ ]` **1.3.b Restarts in `restartOnVanishedStore` and `executeRefBatch` refresh the scope**
-        - The scope gains a refresh that closes its readers through 1.3.a; 2.2 extends it to drop remembered answers.
-        - Refresh before every attempt `restartOnVanishedStore`'s loop (`repository.ts`) starts again, and before every
-          attempt `executeRefBatch`'s loop (`write.ts`) starts again: a vanished store, `layout-changed`, or a changed
-          basis.
-        - `restartOnVanishedStore` restarts only a call bound to a separate store, since `storeDirectoryVanished`
-          answers false when `gitDir` is null, so the cases move the store into the default layout beneath the call, as
-          `store-ref-layout-vanish.test.ts` does.
-        - Build `test-first` (one behavior at a time):
-            - A `list` bound to the separate store, whose directory another process's move into the default layout
-              deletes mid-call, starts again with a fresh reader: the abandoned attempt's reader `exit` precedes the
-              restarted attempt's first Git process.
-            - A `write` restarted by the same move does the same.
+    - `[x]` **1.3.b Restarts in `restartOnVanishedStore` and `executeRefBatch` refresh the scope**
+        - Both retry loops close the abandoned attempt's readers before resolving again, for vanished stores and
+          changed layouts or bases. Public list/write traces prove exit before the restarted attempt's first process.
 
-### `[ ]` **1.4 A departed store's missing answer fails as a per-read `cat-file` — D3, D5**
+### `[x]` **1.4 A departed store's missing answer fails as a per-read `cat-file` — D3, D5**
 
 - _Goal:_ A reader that outlived its store directory never turns a departed store into a not-found answer: the read
   fails with the `GitProcessError` naming the departed `--git-dir`, as a per-read `cat-file` does, so the call meets
   the same failure and takes the same restart, while a present store's not-found read starts no further process.
 
-    - In `readBatchObjects` (`batch-read.ts`), on any `null` answer read through `context.batchReader` from a context
-      bound to a separate store, check `context.repository.gitDir` with `storeDirectoryVanished`, which starts no
-      process. When the directory is gone, repeat the read with `batchReader` cleared. This holds for every query
-      shape: a bare object ID, a peeled `${tip}^{tree}`, and a `<tip>:<path>`.
-    - `storeDirectoryVanished` (`repository.ts`) imports `readRefTips` from `batch-read.ts`, so calling it here makes
-      an import cycle. No check refuses one, and both modules use the other only at call time; its directory check,
-      `directoryExists` (`designation.ts`, an `fs.lstat`), gives the same answer without the cycle.
-    - The repeated read's per-read `cat-file` fails because the bound executor (`bindRefRepository`) puts the departed
-      `--git-dir=<path>` first. The restart sites recognize that argument in the `GitProcessError` through
-      `storeDirectoryVanished(bound, error)`.
-    - A context bound to the code repository needs no check. `isUnavailableGraphFailure` (`history-graph.ts`) keeps
-      clearing `batchReader` for its own fresh confirmation, and an import context reading its source repository while
-      bound to the store repeats a `null` read only when the store's directory is gone.
-    - Fault reporting stays as it is: the repeated read raises the per-read executor's own error, and no refusal
-      changes.
-    - Run the departed-store case through a `write` or `batch`. A read call already starts again after success
-      (`restartOnVanishedStore`), so its case passes before this change. A write reads trees and objects through its
-      reader (`readRefTrees` and `readBatchObjects` in `write-build.ts`) with no after-success check, so a missing
-      answer reaches its result; confirm the case fails before the change.
-    - With the store directory present, a not-found read through the reader starts no further process. That holds
-      today, so its case guards the check's cost.
-    - Build `test-first` (one behavior at a time):
-        - A reader whose store directory departed answers missing, and the call fails or restarts exactly as it does
-          with a per-read `cat-file`. A recording port can move the store directory aside between two of the call's
-          exchanges, standing in for another process's move.
+- _Outcome:_ Scoped missing answers check the selected store directory without Git. A departed directory retries
+  through the one-shot executor's existing failure and write restart; a present store's absent record keeps one reader.
+  The exposing write returned a refusal before the change and preserves its update after the fix.
 
 ## **Phase 2:** Sync calls hold one scope
 

@@ -119,8 +119,9 @@ async function executeRefBatch(context: RefBackendContext, input: BatchInput, ba
     const bound = await writeRefRepository(source, tips => { captured = tips; });
     let result: StoreResult<BatchResult> | "layout-changed" | null;
     try { result = await attemptRefBatch({ ...bound, writeEvidence: { objects: new Map(), trees: new Map() } }, input, batchId, captured); }
-    catch (error) { if (await storeDirectoryVanished(bound, error)) continue; throw error; }
+    catch (error) { if (await storeDirectoryVanished(bound, error)) { await context.operationScope?.refresh(); continue; } throw error; }
     if (result !== null && result !== "layout-changed") return result;
+    await context.operationScope?.refresh();
   }
 }
 

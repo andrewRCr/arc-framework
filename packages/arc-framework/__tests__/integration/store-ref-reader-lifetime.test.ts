@@ -2,10 +2,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createRefStore } from "../../src/lib/store/create.js";
+import { createReadSourceStore, createRefStore } from "../../src/lib/store/create.js";
 import { createRefReadFixture } from "../helpers/store/ref-read.js";
 import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 import type { Store, WriteInput } from "../../src/lib/store/index.js";
 
 interface TraceEvent { event: string; sid: string; argv?: string[] }
@@ -30,6 +31,71 @@ async function expectClosedReader(path: string) {
 }
 
 describe.each(["default", "separate"] as const)("operation reader (%s)", (layout) => {
+  it.each([false, true])("closes lookup and read-source readers (source=%s)", async (source) => {
+    const f = await createRefReadFixture();
+    if (layout === "separate") await f.exec("git", ["config", "remote.origin.arc-state", "off"]);
+    const reference = RecordReferenceSchema.parse({ owner: { type: "work-item", name: "alpha" }, kind: "work-item/meta" });
+    const written = await f.store.write({ action: "put", expected: null, reference, content: makeMetaFixture("alpha"),
+      placement: { kind: "active" }, provenance });
+    if (written.status !== "ok") throw new Error("No seeded UID");
+    const gitDir = join(f.root, ".git", ...(layout === "separate" ? ["arc", "store"] : []));
+    if (source) await f.exec("git", [`--git-dir=${gitDir}`, "fetch", gitDir, "refs/arc/*:refs/arc-remotes/upstream/*"]);
+    const store = source ? createReadSourceStore(f.ports, "upstream") : f.store;
+    for (const operation of source ? ["read", "list", "lookup"] as const : ["lookup"] as const) {
+      const path = join(f.root, `${operation}-source-${source}-trace.json`);
+      vi.stubEnv("GIT_TRACE2_EVENT", path);
+      try {
+        const result = operation === "read" ? await store.read({ reference: written.result.reference })
+          : operation === "list" ? await store.list({ family: "work-item" })
+            : await store.lookup({ kind: "slug", slug: SlugSchema.parse("alpha") });
+        expect(result).toMatchObject({ status: "ok" });
+        if (operation === "read") expect(result).toMatchObject({ result: { content: makeMetaFixture("alpha") } });
+        if (operation === "list") expect(result).toMatchObject({ result: { records: [{ content: makeMetaFixture("alpha") }] } });
+        if (operation === "lookup") expect(result).toMatchObject({ result: { reference: written.result.reference } });
+        await expectClosedReader(path);
+      } finally { vi.unstubAllEnvs(); }
+    }
+  }, 30_000);
+
+  it.each([false, true])("shares history and changes readers and leaves version reader-free (source=%s)", async (source) => {
+    const f = await createRefReadFixture();
+    if (layout === "separate") await f.exec("git", ["config", "remote.origin.arc-state", "off"]);
+    const reference = RecordReferenceSchema.parse({ owner: { type: "work-item", name: "alpha" }, kind: "work-item/meta" });
+    const written = await f.store.write({ action: "put", expected: null, reference, content: makeMetaFixture("alpha"),
+      placement: { kind: "active" }, provenance });
+    if (written.status !== "ok") throw new Error("No seeded UID");
+    const gitDir = join(f.root, ".git", ...(layout === "separate" ? ["arc", "store"] : []));
+    if (source) await f.exec("git", [`--git-dir=${gitDir}`, "fetch", gitDir, "refs/arc/*:refs/arc-remotes/upstream/*"]);
+    const store = source ? createReadSourceStore(f.ports, "upstream") : f.store;
+    const from = await store.version();
+    expect(await f.store.write({ action: "put", expected: written.result.version!, reference: written.result.reference,
+      content: makeMetaFixture("alpha") + "\nUpdated.\n", placement: { kind: "active" }, provenance })).toMatchObject({ status: "ok" });
+    if (source) await f.exec("git", [`--git-dir=${gitDir}`, "fetch", gitDir, "refs/arc/*:refs/arc-remotes/upstream/*"]);
+    const to = await store.version();
+    if (from.status !== "ok" || to.status !== "ok") throw new Error("No versions");
+    for (const operation of ["history", "changes", "version"] as const) {
+      const path = join(f.root, `${operation}-source-${source}-trace.json`);
+      vi.stubEnv("GIT_TRACE2_EVENT", path);
+      try {
+        const result = operation === "history" ? await store.history({ reference: written.result.reference })
+          : operation === "changes" ? await store.changes({ from: from.result, to: to.result, references: [written.result.reference] })
+            : await store.version();
+        expect(result).toMatchObject({ status: "ok" });
+        if (operation === "history") expect(result).toMatchObject({ result: expect.arrayContaining([
+          expect.objectContaining({ content: makeMetaFixture("alpha") }),
+          expect.objectContaining({ content: makeMetaFixture("alpha") + "\nUpdated.\n" }),
+        ]) });
+        if (operation === "changes") expect(result).toMatchObject({ result: [expect.objectContaining({
+          reference: written.result.reference, content: makeMetaFixture("alpha") + "\nUpdated.\n",
+        })] });
+        if (operation === "version") {
+          const events = await trace(path);
+          expect(events.filter(({ event, argv }) => event === "start" && argv?.includes("cat-file"))).toHaveLength(0);
+        } else await expectClosedReader(path);
+      } finally { vi.unstubAllEnvs(); }
+    }
+  }, 30_000);
+
   it.each(["write", "batch"] as const)("shares one native reader across %s acquisitions and closes before returning", async (operation) => {
     const f = await createRefReadFixture();
     if (layout === "separate") await f.exec("git", ["config", "remote.origin.arc-state", "off"]);
@@ -121,7 +187,7 @@ describe.each(["default", "separate"] as const)("operation reader (%s)", (layout
       content, placement: { kind: "active" }, provenance })).toMatchObject({ status: "ok" });
     expect(await f.store.read({ reference: written.result.reference })).toMatchObject({ status: "ok", result: { content } });
   }, 30_000);
-  it.each(["read", "write", "batch"] as const)("drains an active %s reader before maintenance and admits a later read afterward", async (operation) => {
+  it.each(["read", "write", "batch", "history"] as const)("drains an active %s reader before maintenance and admits a later read afterward", async (operation) => {
     const f = await createRefReadFixture();
     if (layout === "separate") await f.exec("git", ["config", "remote.origin.arc-state", "off"]);
     const reference = RecordReferenceSchema.parse({ owner: { type: "work-item", name: "alpha" }, kind: "work-item/meta" });
@@ -138,8 +204,8 @@ describe.each(["default", "separate"] as const)("operation reader (%s)", (layout
     } });
     const path = join(f.root, "maintenance-trace.json");
     vi.stubEnv("GIT_TRACE2_EVENT", path);
-    const content = operation === "read" ? makeMetaFixture("alpha") : makeMetaFixture("alpha") + "\nBefore maintenance.\n";
-    const reading = operation === "read" ? store.read({ reference: written.result.reference }) : mutate(store, operation, {
+    const content = operation === "read" || operation === "history" ? makeMetaFixture("alpha") : makeMetaFixture("alpha") + "\nBefore maintenance.\n";
+    const reading = operation === "read" ? store.read({ reference: written.result.reference }) : operation === "history" ? store.history({ reference: written.result.reference }) : mutate(store, operation, {
       action: "put", reference: written.result.reference, expected: written.result.version!, content,
       placement: { kind: "active" }, provenance,
     });

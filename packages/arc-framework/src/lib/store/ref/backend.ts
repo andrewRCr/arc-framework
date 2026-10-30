@@ -63,8 +63,9 @@ function refReadOperations(context: RefBackendContext, operations = createRefRea
     capabilities: { stateOffBranch: true },
     read: (input) => operations.read((reader) => input.asOf ? readSnapshotRecord(scoped(reader), input) : readRefRecord(scoped(reader), input)),
     list: (input) => operations.read((reader) => input.asOf ? listSnapshotRecords(scoped(reader), input) : listRefRecords(scoped(reader), input)),
-    version: async () => ({ status: "ok", result: await refStateVersion(scoped(context)) }),
-    history: (input) => historyRefRecord(scoped(context), input), changes: (input) => changesRefRecords(scoped(context), input),
+    version: () => operations.read(async (reader) => ({ status: "ok", result: await refStateVersion(scoped(reader)) })),
+    history: (input) => operations.read((reader) => historyRefRecord(scoped(reader), input)),
+    changes: (input) => operations.read((reader) => changesRefRecords(scoped(reader), input)),
     lookup: (input) => operations.read((reader) => lookupRefRecord(scoped(reader), input)),
   };
 }
