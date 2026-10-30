@@ -9,10 +9,10 @@ import { createReviewCheckout } from "../../../../helpers/store/review-checkout.
 import { RepositoryGitCommonStatePublisher } from "../../../../../src/lib/git-common-state.js";
 import { createProjectIdentityReader } from "../../../../../src/lib/store/project-identity.js";
 import { createReviewOutcomePort } from "../../../../../src/lib/store/kinds/review/outcome/access.js";
-import { NativeReviewInFlightStateStore } from "../../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
 import { RepositoryLocalReviewSourceStore } from "../../../../../src/scripts/review-gate/hosts/local/source-store.js";
 import { parseNativeReviewOperationReference } from "../../../../../src/scripts/review-gate/core/review-operation-reference.js";
 import { bindReviewSourceReference, parseReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
+import { bindNativeReviewPorts } from "../../../../helpers/store/native-review-ports.js";
 
 function dependencies(h: Awaited<ReturnType<typeof nativeLocalReview>>): LocalAttestDependencies {
   return { outcomes: h.outcomes, operationStore: h.operations, sourceStore: h.prepared.dependencies.sourceStore,
@@ -84,8 +84,8 @@ it("replays from a produced source owner on another checkout with no original ex
   onTestFinished(checkout.cleanup);
   const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
   const outcomes = createReviewOutcomePort(h.store, reference.workItem);
-  const operationStore = new NativeReviewInFlightStateStore({ publisher, workItem: reference.workItem,
-    outcomes, projectId: createProjectIdentityReader(h.store) });
+  const operationStore = bindNativeReviewPorts({ store: h.store, owner: reference.workItem,
+    publisher, projectId: createProjectIdentityReader(h.store) }).inFlight;
   const stored = await outcomes.read(request.operationId);
   const replay = await attestLocalReviewCommand(request, { ...dependencies(h), outcomes, operationStore,
     sourceStore: new RepositoryLocalReviewSourceStore(publisher),

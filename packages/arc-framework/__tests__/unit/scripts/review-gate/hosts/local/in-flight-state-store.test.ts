@@ -8,7 +8,6 @@ import { createLocalReviewPreparationFixture } from "../../../../../fixtures/loc
 import { prepareLocalReview } from "../../../../../../src/scripts/review-gate/runtime/local-prepare.js";
 import { RepositoryGitCommonStatePublisher } from "../../../../../../src/lib/git-common-state.js";
 import { createReviewOutcomePort } from "../../../../../../src/lib/store/kinds/review/outcome/access.js";
-import { NativeReviewInFlightStateStore } from "../../../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
 import { createReviewReceipt, createReviewTarget } from "../../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { mapReviewAttempt } from "../../../../../../src/lib/store/kinds/review/mapping-outcomes.js";
 import { canonicalDigest } from "../../../../../../src/lib/kernel/index.js";
@@ -18,6 +17,7 @@ import { createHostedHandleFixture, createHostedTerminalAttemptFixture } from ".
 import { createFrontlineFixture } from "../../../../../fixtures/frontline-review.js";
 import { mapHostedAttempt } from "../../../../../../src/lib/store/kinds/review/mapping-hosted.js";
 import { lifecycleSuccess } from "../../../../../helpers/store/lifecycle-harness.js";
+import { bindNativeReviewPorts } from "../../../../../helpers/store/native-review-ports.js";
 
 async function fixture() {
   const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
@@ -35,8 +35,8 @@ async function fixture() {
   const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
   const outcomes = createReviewOutcomePort(h.store, primary.reference.owner);
   return { ...checkout, primary, prepared, lane, local, publisher, outcomes,
-    operations: new NativeReviewInFlightStateStore({ publisher, workItem: primary.reference.owner,
-      outcomes, projectId: h.projectId }) };
+    operations: bindNativeReviewPorts({ store: h.store, owner: primary.reference.owner,
+      publisher, projectId: h.projectId }).inFlight };
 }
 
 it("round-trips pending local execution in its own namespace without legacy lane facts", async () => {
@@ -172,8 +172,8 @@ it("isolates a reused slug's pending records by exact UID", async () => {
   lifecycleSuccess(await h.store.write({ action: "remove", reference: h.primary.reference, expected: h.primary.version,
     provenance: { verb: "remove", lifecycleAction: "remove" } }));
   const replacement = await h.seedMeta("example");
-  const operations = new NativeReviewInFlightStateStore({ publisher: h.publisher, workItem: replacement.reference.owner,
-    outcomes: createReviewOutcomePort(h.store, replacement.reference.owner), projectId: h.projectId });
+  const operations = bindNativeReviewPorts({ store: h.store, owner: replacement.reference.owner,
+    publisher: h.publisher, projectId: h.projectId }).inFlight;
   expect(await operations.readOperation(h.lane.operationId)).toEqual({ version: 0, state: null });
   await operations.publishOperation(h.lane, 0);
   expect(await h.operations.readOperationSnapshot()).toMatchObject({ status: "complete", records: [{ state: {

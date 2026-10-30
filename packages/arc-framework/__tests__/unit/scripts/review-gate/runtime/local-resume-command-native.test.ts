@@ -12,10 +12,10 @@ import { createReviewCheckout } from "../../../../helpers/store/review-checkout.
 import { RepositoryGitCommonStatePublisher } from "../../../../../src/lib/git-common-state.js";
 import { createProjectIdentityReader } from "../../../../../src/lib/store/project-identity.js";
 import { createReviewOutcomePort } from "../../../../../src/lib/store/kinds/review/outcome/access.js";
-import { NativeReviewInFlightStateStore } from "../../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
 import { RepositoryLocalReviewSourceStore } from "../../../../../src/scripts/review-gate/hosts/local/source-store.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
 import { attestLocalReviewCommand } from "../../../../../src/scripts/review-gate/runtime/local-attest-command.js";
+import { bindNativeReviewPorts } from "../../../../helpers/store/native-review-ports.js";
 
 function dependencies(h: Awaited<ReturnType<typeof nativeLocalReview>>): LocalResumeDependencies {
   return { outcomes: h.outcomes, operationStore: h.operations, sourceStore: h.prepared.dependencies.sourceStore,
@@ -76,8 +76,8 @@ it("resumes portable approved findings on a checkout without original working fi
   onTestFinished(checkout.cleanup);
   const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
   const outcomes = createReviewOutcomePort(h.harness.store, h.owner), readProjectId = createProjectIdentityReader(h.harness.store);
-  const operationStore = new NativeReviewInFlightStateStore({ publisher, workItem: h.owner,
-    outcomes, evidence: h.evidence, projectId: readProjectId });
+  const operationStore = bindNativeReviewPorts({ store: h.harness.store, owner: h.owner,
+    publisher, projectId: readProjectId }).inFlight;
   const resumed = await resumeLocalReviewCommand({ schemaVersion: 1, operationId: h.outcome.attemptId }, {
     outcomes, operationStore, sourceStore: new RepositoryLocalReviewSourceStore(publisher),
     receiptStore: new LocalForwardReviewReceiptStore(publisher, h.outcome.target.repositoryId),

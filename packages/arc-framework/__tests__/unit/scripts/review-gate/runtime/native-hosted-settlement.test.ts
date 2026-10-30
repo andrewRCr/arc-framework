@@ -10,12 +10,12 @@ import { createReviewOutcomePort } from "../../../../../src/lib/store/kinds/revi
 import { createReviewEvidencePort } from "../../../../../src/lib/store/kinds/review/evidence/access.js";
 import { composeReviewDispositionRecord } from "../../../../../src/lib/store/kinds/review/evidence/composed-record.js";
 import { RepositoryGitCommonStatePublisher } from "../../../../../src/lib/git-common-state.js";
-import { NativeReviewInFlightStateStore } from "../../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
 import { outcomeLaneOperationId } from "../../../../../src/scripts/review-gate/hosts/local/lane-outcome-composition.js";
 import { StoredReviewResultReader } from "../../../../../src/scripts/review-gate/hosts/local/stored-result-reader.js";
 import { publishNativeReviewPerformance } from "../../../../../src/scripts/review-gate/runtime/native-review-performance.js";
 import { publishNativeReviewApproval } from "../../../../../src/scripts/review-gate/runtime/native-review-approval.js";
 import { publishNativeHostedSettlement } from "../../../../../src/scripts/review-gate/runtime/native-hosted-settlement.js";
+import { bindNativeReviewPorts } from "../../../../helpers/store/native-review-ports.js";
 
 async function nativeSettlement(fix = false, perform = true) {
   const h = createReviewHarness(), seed = hostedSettlementFixture();
@@ -63,8 +63,8 @@ it("appends each hosted receipt once and derives settlement in a checkout withou
   const checkout = await createReviewCheckout(h);
   onTestFinished(checkout.cleanup);
   const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
-  const operations = new NativeReviewInFlightStateStore({ publisher, workItem: primary.reference.owner,
-    outcomes: ports.outcomes, evidence: ports.evidence, projectId: h.projectId });
+  const operations = bindNativeReviewPorts({ store: h.store, owner: primary.reference.owner,
+    publisher, projectId: h.projectId }).inFlight;
   expect((await operations.readOperation(outcomeLaneOperationId(outcome))).state).toMatchObject({ kind: "lane-progress",
     attempts: [{ outcome: "settled-findings", hosted: { settledFindingIds: ["thread-1", "thread-2"],
       settlementEvidence: [input.settlement, secondEntry] } }] });

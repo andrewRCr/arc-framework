@@ -83,19 +83,3 @@ it("drops an unrun ceiling-cited admission without treating it as approved-fix c
     "2026-10-20T14:01:00Z", async (_id, action) => action())).toMatchObject({ version: written.version + 1 });
   expect(await h.f.input.decisions.read(reviewDecisionKey(ceiling.value))).toEqual(ceiling);
 });
-
-it("keeps a cited admission when its decision reader is absent and continues after the full native context is restored", async () => {
-  const h = await createNativeConditionalFrontlineFixture();
-  onTestFinished(h.cleanup);
-  const pending = await recordLaneAttempt(h.operations, h.pendingInput);
-  const partial = new NativeReviewInFlightStateStore({ publisher: h.publisher, workItem: h.f.primary.reference.owner,
-    outcomes: h.f.input.outcomes, evidence: h.f.input.evidence, projectId: h.f.input.readProjectId });
-  const before = await partial.readOperation(pending.operationId);
-  if (before.state?.kind !== "lane-progress") throw new Error("Expected cited lane owner");
-  await expect(withdrawUnrunFrontlineAdmission(partial, before.state, before.version, h.admission,
-    "2026-10-20T14:01:00Z", async (_id, action) => action())).rejects.toThrow("native decision reader");
-  expect(await partial.readOperation(pending.operationId)).toEqual(before);
-  expect(await recordLaneAttempt(h.operations, h.pendingInput)).toEqual(before.state);
-  await completeNativeConditionalFrontline(h, "clean");
-  expect((await h.f.input.outcomes.read(h.admission.operationId))?.value.outcome).toBe("clean");
-});

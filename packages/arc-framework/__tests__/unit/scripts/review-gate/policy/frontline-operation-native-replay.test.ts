@@ -5,10 +5,10 @@ import { expect, it, onTestFinished } from "vitest";
 import { nativeFrontlineReview } from "../../../../fixtures/native-frontline-review.js";
 import { createReviewCheckout } from "../../../../helpers/store/review-checkout.js";
 import { RepositoryGitCommonStatePublisher } from "../../../../../src/lib/git-common-state.js";
-import { NativeReviewInFlightStateStore } from "../../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
 import { LocalFrontlineOutcomeStore } from "../../../../../src/scripts/review-gate/hosts/local/frontline-outcome-store.js";
 import { executeFrontlineRun } from "../../../../../src/scripts/review-gate/policy/frontline-operation.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
+import { bindNativeReviewPorts } from "../../../../helpers/store/native-review-ports.js";
 
 async function completedFrontline(result: "clean" | "findings" | "failed" | "unavailable" | "timed-out" | "stale-target" = "findings") {
   const h = await nativeFrontlineReview(result === "clean" ? "clean" : "findings");
@@ -46,8 +46,8 @@ it("replays an ended frontline run in a fresh checkout without creating executio
   const checkout = await createReviewCheckout(h);
   onTestFinished(checkout.cleanup);
   const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
-  const operations = new NativeReviewInFlightStateStore({ publisher, workItem: h.primary.reference.owner,
-    outcomes: h.outcomes, projectId: h.projectId });
+  const operations = bindNativeReviewPorts({ store: h.store, owner: h.primary.reference.owner,
+    publisher, projectId: h.projectId }).inFlight;
   expect(await executeFrontlineRun({ ...dependencies, operationStore: operations }, input)).toMatchObject({ operationId: terminal.operationId,
     persistedVersion: 0, outcomeRef: terminal.outcomeRef, outcomeDigest: terminal.outcomeDigest,
     executableIdentity: terminal.executableIdentity, outcome: { outcome: "findings", findings: terminal.outcome.findings } });

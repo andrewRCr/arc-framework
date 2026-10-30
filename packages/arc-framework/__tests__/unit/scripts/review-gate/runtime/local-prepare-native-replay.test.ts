@@ -11,10 +11,10 @@ import { readLocalReviewReceipts } from "../../../../../src/scripts/review-gate/
 import { LocalForwardReviewReceiptStore } from "../../../../../src/scripts/review-gate/hosts/local/receipt-store.js";
 import { createReviewCheckout } from "../../../../helpers/store/review-checkout.js";
 import { RepositoryGitCommonStatePublisher } from "../../../../../src/lib/git-common-state.js";
-import { NativeReviewInFlightStateStore } from "../../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
 import { RepositoryLocalReviewSourceStore } from "../../../../../src/scripts/review-gate/hosts/local/source-store.js";
 import { parseNativeReviewOperationReference } from "../../../../../src/scripts/review-gate/core/review-operation-reference.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
+import { bindNativeReviewPorts } from "../../../../helpers/store/native-review-ports.js";
 
 async function completedReview(result: "clean" | "findings" = "clean") {
   const h = await nativeLocalReview();
@@ -56,8 +56,8 @@ it("prepares an ended native admission on another checkout with no original loca
   const checkout = await createReviewCheckout(h);
   onTestFinished(checkout.cleanup);
   const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
-  const operations = new NativeReviewInFlightStateStore({ publisher, workItem: reference.workItem,
-    outcomes: h.outcomes, evidence: h.evidence, projectId: h.projectId });
+  const operations = bindNativeReviewPorts({ store: h.store, owner: reference.workItem,
+    publisher, projectId: h.projectId }).inFlight;
   const replay = await prepareLocalReview(request, { ...dependencies, operationStore: operations,
     sourceStore: new RepositoryLocalReviewSourceStore(publisher) });
   expect(replay).toMatchObject({ state: "review-complete", payload: { operationId: state.operationId,

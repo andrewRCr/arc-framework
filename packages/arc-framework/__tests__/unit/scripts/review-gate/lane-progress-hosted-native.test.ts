@@ -6,7 +6,6 @@ import { createHostedHandleFixture, createHostedTerminalAttemptFixture } from ".
 import { RepositoryGitCommonStatePublisher } from "../../../../src/lib/git-common-state.js";
 import { createReviewOutcomePort } from "../../../../src/lib/store/kinds/review/outcome/access.js";
 import { createReviewEvidencePort } from "../../../../src/lib/store/kinds/review/evidence/access.js";
-import { NativeReviewInFlightStateStore } from "../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
 import { requestHostedReview, type HostedRequestOutcome } from "../../../../src/scripts/review-gate/hosted/request.js";
 import { awaitHostedReview } from "../../../../src/scripts/review-gate/hosted/await.js";
 import { recordHostedRequestAdmission, acknowledgeHostedRequest, resolveHostedAwaitResult, recordHostedAwaitAttempt } from
@@ -16,6 +15,7 @@ import { readStandardPassCounts } from "../../../../src/scripts/review-gate/runt
 import { recordHostedRequestConclusion } from "../../../../src/scripts/review-gate/lane-progress-hosted-settlement.js";
 import { ReviewInFlightRecordSchema } from "../../../../src/scripts/review-gate/core/in-flight-state-schema.js";
 import { laneProgressOperationId } from "../../../../src/scripts/review-gate/lane-progress.js";
+import { bindNativeReviewPorts } from "../../../helpers/store/native-review-ports.js";
 
 async function hostedReview() {
   const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
@@ -25,8 +25,8 @@ async function hostedReview() {
   const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
   const outcomes = createReviewOutcomePort(h.store, primary.reference.owner);
   const evidence = createReviewEvidencePort(h.store, primary.reference.owner);
-  const operations = new NativeReviewInFlightStateStore({ publisher, workItem: primary.reference.owner,
-    outcomes, evidence, projectId: h.projectId });
+  const operations = bindNativeReviewPorts({ store: h.store, owner: primary.reference.owner,
+    publisher, projectId: h.projectId }).inFlight;
   const template = createHostedHandleFixture({ repositoryId: projectId });
   const request = { schemaVersion: 1 as const, provider: template.provider, target: template.target, coverage: "complete" as const };
   const admission = template.admission, now = () => "2026-10-20T12:01:00Z";
@@ -78,8 +78,8 @@ it.each(["clean", "findings"] as const)("publishes a sealed %s result at its adm
   const checkout = await createReviewCheckout(h);
   onTestFinished(checkout.cleanup);
   const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
-  const operations = new NativeReviewInFlightStateStore({ publisher, workItem: stored.reference.owner,
-    outcomes: h.outcomes, evidence: h.evidence, projectId: h.projectId });
+  const operations = bindNativeReviewPorts({ store: h.store, owner: stored.reference.owner,
+    publisher, projectId: h.projectId }).inFlight;
   const replay = await resolveHostedAwaitResult(operations, { repositoryId: admission.repositoryId, handle, now: h.now,
     observe: async () => { throw new Error("Completed native await must not poll the provider again"); } });
   expect(replay).toMatchObject({ hostedResultId: first.hostedResultId, result: { state: verdict,

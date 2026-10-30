@@ -7,14 +7,13 @@ import { createHostedHandleFixture } from "../../../../../fixtures/hosted-review
 import { performedEvidenceFixture, reviewEvidenceFixture } from "../../../../../fixtures/review-evidence.js";
 import { createReviewEvidencePort } from "../../../../../../src/lib/store/kinds/review/evidence/access.js";
 import { storedLocalApproval } from "../../../../../fixtures/review-family-access.js";
-import { createProjectIdentityReader } from "../../../../../../src/lib/store/project-identity.js";
 import { localOutcome, hostedOutcome, frontlineOutcome } from "../../../../../fixtures/review-outcome.js";
 import { ReviewOutcomeSchema, type ReviewOutcome } from "../../../../../../src/lib/store/kinds/review/outcome/schema.js";
 import { createReviewOutcomePort } from "../../../../../../src/lib/store/kinds/review/outcome/access.js";
-import { NativeReviewInFlightStateStore } from "../../../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
 import { RepositoryGitCommonStatePublisher } from "../../../../../../src/lib/git-common-state.js";
 import { laneProgressOperationId, recordLaneAttempt } from "../../../../../../src/scripts/review-gate/lane-progress.js";
 import { LaneProgressStateSchema, LaneAttemptSchema } from "../../../../../../src/scripts/review-gate/core/operation-state-schema.js";
+import { bindNativeReviewPorts } from "../../../../../helpers/store/native-review-ports.js";
 
 const target = createHostedHandleFixture({ repositoryId: "123e4567-e89b-42d3-a456-426614174099" }).admission.reviewTarget;
 
@@ -26,10 +25,8 @@ async function fixture(values: readonly ReviewOutcome[]) {
   const outcomes = createReviewOutcomePort(h.store, primary.reference.owner);
   for (const value of values) await outcomes.create(value);
   const evidence = createReviewEvidencePort(h.store, primary.reference.owner);
-  const operations = new NativeReviewInFlightStateStore({
-    publisher: new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd),
-    workItem: primary.reference.owner, outcomes, evidence, projectId: h.projectId,
-  });
+  const operations = bindNativeReviewPorts({ store: h.store, owner: primary.reference.owner,
+    publisher: new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd), projectId: h.projectId }).inFlight;
   return { h, primary, checkout, outcomes, evidence, operations };
 }
 
@@ -121,11 +118,8 @@ it("derives settled local findings from the exact stored approved response", asy
   const h = await storedLocalApproval();
   const checkout = await createReviewCheckout(h.harness);
   onTestFinished(checkout.cleanup);
-  const operations = new NativeReviewInFlightStateStore({
-    publisher: new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd), workItem: h.owner,
-    outcomes: createReviewOutcomePort(h.harness.store, h.owner), projectId: createProjectIdentityReader(h.harness.store),
-    ...{ evidence: h.evidence },
-  });
+  const operations = bindNativeReviewPorts({ store: h.harness.store, owner: h.owner,
+    publisher: new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd) }).inFlight;
   const outcome = h.outcome;
   const operationId = laneProgressOperationId({ lane: outcome.lane, repositoryId: outcome.target.repositoryId,
     headSha: outcome.target.headSha, lineage: outcome.lineage });

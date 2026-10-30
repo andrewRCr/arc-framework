@@ -7,16 +7,16 @@ import { createDispositionSet, approveDispositionSet } from "../../../../../src/
 import { composeReviewDispositionRecord } from "../../../../../src/lib/store/kinds/review/evidence/composed-record.js";
 import { lifecycleSuccess } from "../../../../helpers/store/lifecycle-harness.js";
 import { RepositoryGitCommonStatePublisher } from "../../../../../src/lib/git-common-state.js";
-import { NativeReviewInFlightStateStore } from "../../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
 import { NativeApprovedDispositionRecordStore } from "../../../../../src/scripts/review-gate/runtime/native-disposition-store.js";
+import { bindNativeReviewPorts } from "../../../../helpers/store/native-review-ports.js";
 
 async function nativeResponses(kind: "local" | "frontline" | "hosted") {
   const f = await createNativeReviewApprovalFixture(kind);
   const checkout = await createReviewCheckout(f.h);
   onTestFinished(checkout.cleanup);
   const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
-  const inFlight = new NativeReviewInFlightStateStore({ publisher, workItem: f.primary.reference.owner,
-    outcomes: f.input.outcomes, evidence: f.input.evidence, projectId: f.input.readProjectId });
+  const inFlight = bindNativeReviewPorts({ store: f.h.store, owner: f.primary.reference.owner,
+    publisher, projectId: f.input.readProjectId }).inFlight;
   const input = { ...f.input, store: f.h.store, inFlight };
   return { ...f, publisher, input, responses: new NativeApprovedDispositionRecordStore(input) };
 }
@@ -68,8 +68,8 @@ it.each(["errand", "delivery-member"] as const)("appends a verified %s fix and i
   const checkout = await createReviewCheckout(f.h);
   onTestFinished(checkout.cleanup);
   const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
-  const inFlight = new NativeReviewInFlightStateStore({ publisher, workItem: f.primary.reference.owner,
-    outcomes: f.ports.outcomes, evidence: f.ports.evidence, projectId: f.ports.readProjectId });
+  const inFlight = bindNativeReviewPorts({ store: f.h.store, owner: f.primary.reference.owner,
+    publisher, projectId: f.ports.readProjectId }).inFlight;
   const responses = new NativeApprovedDispositionRecordStore({ ...f.ports, store: f.h.store, inFlight,
     now: () => "2026-10-20T15:00:00Z" });
   await responses.appendDispositionRecord(f.input.record);

@@ -9,10 +9,10 @@ import { RepositoryGitCommonStatePublisher } from "../../../../../src/lib/git-co
 import { createDispositionSet, approveDispositionSet } from "../../../../../src/scripts/review-gate/core/dispositions.js";
 import { ReviewEvidenceSchema } from "../../../../../src/lib/store/kinds/review/evidence/schema.js";
 import { composeReviewDispositionRecord } from "../../../../../src/lib/store/kinds/review/evidence/composed-record.js";
-import { NativeReviewInFlightStateStore } from "../../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
 import { publishNativeReviewPerformance } from "../../../../../src/scripts/review-gate/runtime/native-review-performance.js";
 import { publishNativeReviewApproval } from "../../../../../src/scripts/review-gate/runtime/native-review-approval.js";
 import { publishNativeReviewSuccessor } from "../../../../../src/scripts/review-gate/runtime/native-review-successor.js";
+import { bindNativeReviewPorts } from "../../../../helpers/store/native-review-ports.js";
 
 async function nativeSuccessor(kind: "local" | "frontline" | "hosted", tags?: "absent" | "present") {
   const f = await createNativeReviewApprovalFixture(kind, tags === undefined ? "defer" : "fix");
@@ -33,8 +33,8 @@ async function nativeSuccessor(kind: "local" | "frontline" | "hosted", tags?: "a
     successorDispositionSetId: dispositionSet.dispositionSetId }, next], f.primary.reference.owner);
   const checkout = await createReviewCheckout(f.h);
   onTestFinished(checkout.cleanup);
-  const inFlight = new NativeReviewInFlightStateStore({ publisher: new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd),
-    workItem: f.primary.reference.owner, outcomes: f.input.outcomes, evidence: f.input.evidence, projectId: f.h.projectId });
+  const inFlight = bindNativeReviewPorts({ store: f.h.store, owner: f.primary.reference.owner,
+    publisher: new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd), projectId: f.h.projectId }).inFlight;
   return { ...f, prior, next, input: { ...f.input, record, inFlight, store: f.h.store } };
 }
 

@@ -10,7 +10,7 @@ import { runFrontlineReviewCommand } from "../../../../../src/scripts/review-gat
 import { bindReviewSourceReferenceForInvocation } from "../../../../../src/scripts/review-gate/runtime/source-invocation.js";
 import { parseReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import { RepositoryGitCommonStatePublisher } from "../../../../../src/lib/git-common-state.js";
-import { NativeReviewInFlightStateStore } from "../../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
+import { bindNativeReviewPorts } from "../../../../helpers/store/native-review-ports.js";
 
 async function nativeRun() {
   const h = await nativeFrontlineReview();
@@ -55,8 +55,8 @@ it("emits an owner-bearing outcome key and replays that result from a fresh chec
   const checkout = await createReviewCheckout(h);
   onTestFinished(checkout.cleanup);
   const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
-  const operations = new NativeReviewInFlightStateStore({ publisher, workItem: reference.workItem,
-    outcomes: h.outcomes, projectId: h.projectId });
+  const operations = bindNativeReviewPorts({ store: h.store, owner: reference.workItem,
+    publisher, projectId: h.projectId }).inFlight;
   const replay = await runFrontlineReviewCommand(request, { ...dependencies, operationStore: operations,
     bindSourceReference: value => bindReviewSourceReferenceForInvocation({ ...checkout, workItem: reference.workItem }, value),
     confirmSource: async () => { throw new Error("Ended replay must not rebind the provider"); },

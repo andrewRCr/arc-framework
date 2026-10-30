@@ -9,9 +9,9 @@ import { RepositoryGitCommonStatePublisher } from "../../../../../src/lib/git-co
 import { reviewOutcomeKey } from "../../../../../src/lib/store/kinds/review/outcome/key.js";
 import { publishNativeReviewApproval } from "../../../../../src/scripts/review-gate/runtime/native-review-approval.js";
 import { publishNativeReviewPerformance } from "../../../../../src/scripts/review-gate/runtime/native-review-performance.js";
-import { NativeReviewInFlightStateStore } from "../../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
 import { StoredReviewResultReader } from "../../../../../src/scripts/review-gate/hosts/local/stored-result-reader.js";
 import { readLaneResponsePerformance } from "../../../../../src/scripts/review-gate/lane-progress.js";
+import { bindNativeReviewPorts } from "../../../../helpers/store/native-review-ports.js";
 
 
 it.each(["candidate", "errand", "delivery-member"] as const)("publishes complete %s performance in one evidence version and composes it for readers", async kind => {
@@ -30,8 +30,8 @@ it.each(["candidate", "errand", "delivery-member"] as const)("publishes complete
   const checkout = await createReviewCheckout(h);
   onTestFinished(checkout.cleanup);
   const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
-  const operations = new NativeReviewInFlightStateStore({ publisher, workItem: primary.reference.owner,
-    outcomes: ports.outcomes, evidence: ports.evidence, projectId: h.projectId });
+  const operations = bindNativeReviewPorts({ store: h.store, owner: primary.reference.owner,
+    publisher, projectId: h.projectId }).inFlight;
   const result = await new StoredReviewResultReader(ports).readResult(outcome.attemptId);
   expect(await readLaneResponsePerformance(operations, result)).toEqual(input.performance);
   expect(await publisher.list({ root: "review-gate", namespace: "in-flight" })).toEqual([]);

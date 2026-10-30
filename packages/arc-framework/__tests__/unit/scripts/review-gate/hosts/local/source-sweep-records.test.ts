@@ -6,12 +6,13 @@ import { sweepLocalReviewSources } from "../../../../../../src/scripts/review-ga
 import { LocalForwardReviewReceiptStore } from "../../../../../../src/scripts/review-gate/hosts/local/receipt-store.js";
 import { createReviewReceipt } from "../../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createReviewOutcomePort } from "../../../../../../src/lib/store/kinds/review/outcome/access.js";
-import { NativeReviewInFlightStateStore, nativeReviewInFlightRecordName } from "../../../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
+import { nativeReviewInFlightRecordName } from "../../../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
 import { RepositoryLocalReviewSourceStore } from "../../../../../../src/scripts/review-gate/hosts/local/source-store.js";
 import { attestLocalReviewCommand } from "../../../../../../src/scripts/review-gate/runtime/local-attest-command.js";
 import { prepareLocalReview } from "../../../../../../src/scripts/review-gate/runtime/local-prepare.js";
 import { createLocalReviewPreparationFixture } from "../../../../../fixtures/local-review-preparation.js";
 import { recordLocalReceiptConclusion } from "../../../../../../src/scripts/review-gate/lane-progress.js";
+import { bindNativeReviewPorts } from "../../../../../helpers/store/native-review-ports.js";
 
 it("keeps an unfinished native review's pin until its cleanup deadline", async () => {
   const h = await nativeLocalReview();
@@ -117,8 +118,8 @@ it("releases a terminal evaluator failure's pin even when no receipt was written
 async function prepareSibling(h: Awaited<ReturnType<typeof nativeLocalReview>>, lineage = h.state.lineage) {
   const other = await h.seedMeta("another-work-item");
   const outcomes = createReviewOutcomePort(h.store, other.reference.owner);
-  const operations = new NativeReviewInFlightStateStore({ publisher: h.publisher, workItem: other.reference.owner,
-    outcomes, projectId: h.projectId });
+  const operations = bindNativeReviewPorts({ store: h.store, owner: other.reference.owner,
+    publisher: h.publisher, projectId: h.projectId }).inFlight;
   const prepared = createLocalReviewPreparationFixture({ repositoryId: h.state.repositoryId });
   prepared.dependencies.operationStore = operations;
   prepared.dependencies.sourceStore = new RepositoryLocalReviewSourceStore(h.publisher);

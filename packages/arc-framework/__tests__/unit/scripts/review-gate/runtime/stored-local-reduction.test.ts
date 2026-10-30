@@ -9,11 +9,11 @@ import { createReviewCheckout } from "../../../../helpers/store/review-checkout.
 import { createReviewOutcomePort } from "../../../../../src/lib/store/kinds/review/outcome/access.js";
 import { createProjectIdentityReader } from "../../../../../src/lib/store/project-identity.js";
 import { RepositoryGitCommonStatePublisher } from "../../../../../src/lib/git-common-state.js";
-import { NativeReviewInFlightStateStore } from "../../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
 import { LocalFrontlineOutcomeStore } from "../../../../../src/scripts/review-gate/hosts/local/frontline-outcome-store.js";
 import { StoredReviewResultReader } from "../../../../../src/scripts/review-gate/hosts/local/stored-result-reader.js";
 import { DurableReviewReductionPort } from "../../../../../src/scripts/review-gate/runtime/reduce-command.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
+import { bindNativeReviewPorts } from "../../../../helpers/store/native-review-ports.js";
 
 async function completedLocalReview(result: "clean" | "findings" | "failed" = "clean", retainSource = false) {
   const h = await nativeLocalReview();
@@ -52,8 +52,8 @@ it("reduces a portable approved finding on a checkout with no execution, source,
   onTestFinished(checkout.cleanup);
   const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
   const outcomes = createReviewOutcomePort(h.harness.store, h.owner), readProjectId = createProjectIdentityReader(h.harness.store);
-  const operations = new NativeReviewInFlightStateStore({ publisher, workItem: h.owner,
-    outcomes, evidence: h.evidence, projectId: readProjectId });
+  const operations = bindNativeReviewPorts({ store: h.harness.store, owner: h.owner,
+    publisher, projectId: readProjectId }).inFlight;
   const reader = new StoredReviewResultReader({ outcomes, evidence: h.evidence, readProjectId });
   const port = new DurableReviewReductionPort({ outcomes, operationStore: operations,
     sourceStore: new RepositoryLocalReviewSourceStore(publisher), resultReader: reader, dispositionStore: h.evidence,
