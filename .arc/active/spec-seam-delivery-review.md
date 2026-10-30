@@ -2630,9 +2630,9 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
 - **A6** — 2026-10-19 — design: align review storage with shipped contracts. _Supersedes:_ § 5, § 6, § 14.4.
   _Trigger:_ F1–F4 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A7** — 2026-10-19 — spec-depth: preserve frontline source-binding identity. _Supersedes:_ none.
-  _Trigger:_ 1.2.c must-stop. _Work:_ 1.2.R. _Revalidated:_ pending → 5.8.
+  _Trigger:_ 1.2.c must-stop. _Work:_ 1.2.R. _Revalidated:_ pending → 8.1 (5.8 recorded none).
 - **A8** — 2026-10-19 — task: ground evidence checks in their outcome. _Supersedes:_ none.
-  _Trigger:_ 1.4.a door. _Work:_ 1.4.R. _Revalidated:_ pending → 5.8.
+  _Trigger:_ 1.4.a door. _Work:_ 1.4.R. _Revalidated:_ pending → 8.1 (5.8 recorded none).
 - **A9** — 2026-10-19 — task: defer `indexFrontline` payload decoding until a mapped attempt joins. _Supersedes:_ none.
   _Trigger:_ 3.8 segment. _Work:_ 3.R. _Revalidated:_ 3.8.
 - **A10** — 2026-10-19 — design: retain no-fix settlement headers. _Supersedes:_ § 6.2 performance and § 6.5 fix ownership.
@@ -2649,9 +2649,9 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
 - **A15** — 2026-10-20 — spec-depth: preserve fact-free policy resolution. _Supersedes:_ none.
   _Trigger:_ 4.4.R must-stop. _Work:_ 4.R4. _Revalidated:_ 4.11.
 - **A16** — 2026-10-20 — design: preserve grant bindings. _Supersedes:_ § 5.1–5.2, § 5.6, Goal 8, Criterion 2.
-  _Trigger:_ 6.2.a must-stop. _Work:_ 6.2.R. _Revalidated:_ pending → 6.6.
+  _Trigger:_ 6.2.a must-stop. _Work:_ 6.2.R. _Revalidated:_ pending → 8.1 (6.6 recorded none).
 - **A17** — 2026-10-20 — design: retain native terminus provenance. _Supersedes:_ § 3.5, § 9.3, Goal 8, Criterion 2.
-  _Trigger:_ 6.2.b must-stop. _Work:_ 6.2.R2. _Revalidated:_ pending → 6.6.
+  _Trigger:_ 6.2.b must-stop. _Work:_ 6.2.R2. _Revalidated:_ pending → 8.1 (6.6 recorded none).
 
 - **A18** — 2026-10-27 — design: fix pass continuation. _Supersedes:_ § 3/5.5, Goal 8, Non-Goals ¶1/5, Criterion 2.
   _Trigger:_ door. _Work:_ 6.R. _Revalidated:_ pending → 8.1.
