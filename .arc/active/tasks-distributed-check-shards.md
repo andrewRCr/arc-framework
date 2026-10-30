@@ -313,17 +313,15 @@ through controller closing. Store qualification uses the native reach command la
           actual suites qualify across four shares on Linux x64, including two empty controllers observed only after
           awaited close. Existing observations reject ordinary empty runs and native close failures.
 
-### `[ ]` **4.4 Prove native membership, writers and completion** — validate exit criterion at segment scope
+### `[x]` **4.4 Prove native membership, writers and completion** — validate exit criterion at segment scope
 
 - _Goal:_ Recorded native runs demonstrate the segment's unit, integration and store membership/completion contract
   and isolation through actual native controllers on the profiles claimed as qualified.
 
-    - Execute the recorded unsharded-versus-sharded cases for unit, integration and store, including
-      filtered/duration states, reach no-op/empty shares, ordinary nonpassing empty work, shared-dependency writer
-      isolation and closing errors.
-    - Request `arc check segment`; record native membership and profile evidence, including the completed
-      portability-pair status case. Missing native/store/platform evidence remains incomplete rather than a
-      fixture-only success.
+- _Outcome:_ Recorded unit, integration and store captures qualify native membership on the observed Linux x64/arm64
+  profiles, including fixed selector/duration states, reach no-ops, closed empty shares, writer isolation and closing
+  failures. The Windows/macOS status case retains hosted run `40781020166`; capture coordinates, native profiles and
+  unsuccessful attempts are preserved in `notes-distributed-check-shards.md`.
 
 ## **Phase 5:** Public adapter groups and external integration
 

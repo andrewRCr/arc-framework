@@ -268,6 +268,19 @@ history explicitly names an OOM kill under the runner's 3,072 MiB limit. Public 
 `7a147032-7bfd-466d-960d-e06477687894` settled. The single fresh qualification retry uses the existing m4-mini pin;
 the failed capture remains retained, and this refresh does not close the segment until native qualification succeeds.
 
+The first m4-mini refresh completed all five native commands with exits 1/0/1/0/1 and normal runner closure. Its
+`integration-full-merged-m4-failure.json` retains the two fixture causes: the store declaration assertion omitted the
+new duration-file binding, and the npm-policy fixture omitted setup's new output-preparation script. The fixture
+corrections preserve the production declarations and setup behavior; their focused cases execute those real inputs.
+
+The fresh `integration-full-merged-unset.json` qualifies 482 native modules on Linux arm64, Node 26.3.0 and Vitest
+4.1.11, assigned 121/121/120/120 with all five native exits zero, successful parent reduction and closed runner.
+History `4eb7cbcb32004627a946f7e3d034b983`, plan `5bca6fa3-72ab-4d8e-bd20-9e6ac07a55be`, binds source HEAD
+`945c390175e8234573e2c7f51658ac9ccdd6151b`, captured tree `a2dbfa29aa279b6ac2991648c124dea6c274a191` and base
+`d5eff3e358756aee90fea3ee279653eca598c9d0`. It retains unset duration input and per-invocation stdout/stderr. Together
+with the unit/store cases above and hosted portability status run `40781020166`, these are captured case/profile
+qualifications; no exact-head work-unit verification or unmeasured deployment claim follows from them.
+
 ## Amendment reasoning
 
 ### A2 — store dependency
