@@ -1,4 +1,4 @@
-/** Typed integration-boundary access with the current repository content contract. */
+/** Typed integration-boundary access: version-one content in the repository, either version natively. */
 import { canonicalize } from "../../../../kernel/canonical/canonical-json.js";
 import type { Mutation } from "../../../write.js";
 import { SlugSchema } from "../../../../kernel/schema/slug.js";

@@ -126,7 +126,7 @@ async function readFrontlineSource(context: ReviewCompositionContext, input: Rev
 /**
  * Establish the existing response authority; this never authorizes or applies a new fix.
  *
- * @param input - The approved private disposition and exact Candidate checkpoint.
+ * @param options - The approved private disposition and exact Candidate checkpoint.
  * @returns A confirmation action and Candidate order, or null for an ineligible record.
  */
 export async function composeCandidateResponseConfirmation(options: ReviewInvocationInput & {
@@ -226,7 +226,7 @@ export async function composeCandidateResponseConfirmation(options: ReviewInvoca
 /**
  * Recompute the pinned proof before terminal merge; changed or missing evidence invalidates it.
  *
- * @param input - The checkpoint context and previously composed confirmation action.
+ * @param options - The checkpoint context and previously composed confirmation action.
  * @returns Confirmation only while the exact approved evidence is still current.
  */
 export async function confirmCandidateResponseAction(options: ReviewInvocationInput & {

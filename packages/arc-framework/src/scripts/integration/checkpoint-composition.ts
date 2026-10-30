@@ -481,7 +481,7 @@ export async function readLifecycleSummary(
 /**
  * Bind canonical repository, lifecycle, Candidate, host, and policy reads to the checkpoint reducer.
  *
- * @param input - Repository root, Git adapter, and optional exact-version lifecycle storage.
+ * @param options - Repository root, Git adapter, and optional exact-version lifecycle storage.
  * @returns Production dependencies for checkpoint composition.
  */
 export function createIntegrationCheckpointDependencies(options: ReviewInvocationInput & {

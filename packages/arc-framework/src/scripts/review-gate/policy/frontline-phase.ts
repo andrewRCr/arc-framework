@@ -83,10 +83,12 @@ export function settledFrontlineAdviceReader(
 
 /**
  * Close the opening phase after a durable skip, terminal result, or standard admission. Lane progress is owned per
- * subject rather than per head, so a closure recorded on an earlier head holds for every later one.
+ * subject rather than per head, so a closure recorded on an earlier head holds for every later one, except a native
+ * pass-cap stop, which stays open on a later head whose response continues it.
  *
  * @param store - Versioned operation-state storage boundary.
- * @param input - The subject's lineages and the reader that settles findings follow-up advice.
+ * @param input - The subject's lineages, the current head and its continuation reader, and the reader that settles
+ *   findings follow-up advice.
  * @returns Whether any lineage has closed the phase.
  */
 export async function frontlinePhaseClosed(

@@ -33,11 +33,13 @@ resolve to outcome keys; hosted references keep their acknowledged producer iden
 The review gate's `runtime/family-ports.ts` selects these ports from the invocation's backend capability. Repository
 adapters remain selected before off-branch storage; working-state publication retains its separate numeric CAS port.
 
-Boundary access reads and writes version-one content; its public versioned shape can select a content version through
-its type parameter. Store versions remain opaque, while repository-backed versions remain byte digests.
+Boundary access reads and writes version-one content in the repository and accepts version two natively; its public
+versioned shape can select a content version through its type parameter. Store versions remain opaque, while
+repository-backed versions remain byte digests.
 
-`candidate/history.ts` reads supersession chains and exact record revisions through the repository's plain path log,
-retaining Candidate versions introduced by merge commits that rename-following history can omit.
+`candidate/history.ts` reads supersession chains and exact record revisions natively through stored record versions,
+and in the repository through its plain path log, retaining Candidate versions introduced by merge commits that
+rename-following history can omit.
 
 `mapping-types.ts` describes the pure import's supplied source bytes, work-item table, returned records, and listing.
 `mapping-work-items.ts` joins live work-unit and Errand identities to legacy lineages, including Candidate supersession.
@@ -45,10 +47,10 @@ retaining Candidate versions introduced by merge commits that rename-following h
 `mapping-listing.ts` accounts for gate files, tracked record versions, and materialization folders, retaining partial
 mapping reasons and suppressing mapped references for an in-flight source.
 
-`mapping.ts` maps ended lane attempts using their original local, frontline, or hosted admissions. Source codecs share
-pure persistence envelopes with the repository stores. Joined receipt and frontline files retain their contributed
-outcome references; working state, ended owners, foreign repositories, and retired snapshots keep explicit reasons.
-A pending live attempt blocks its entire lane file, and portable outcome times preserve legacy attempt order.
+`mapping-outcomes.ts` maps ended lane attempts using their original local, frontline, or hosted admissions. Source
+codecs share pure persistence envelopes with the repository stores. Joined receipt and frontline files retain their
+contributed outcome references; working state, ended owners, foreign repositories, and retired snapshots keep explicit
+reasons. A pending live attempt blocks its entire lane file, and portable outcome times preserve legacy attempt order.
 
 `mapping-evidence.ts` preserves every approved set, binding, advisory tag, policy snapshot, and succession edge.
 It joins current or historical lane performance with complete Errand/member fix responses and partitions hosted

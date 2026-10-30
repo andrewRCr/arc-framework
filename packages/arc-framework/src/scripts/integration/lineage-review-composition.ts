@@ -155,7 +155,7 @@ function createLineageReviewContext(options: ReviewInvocationInput) {
  * records remain unavailable at the completeness check below, while a readable record whose originating
  * operation is unavailable cannot be placed in any span and is left out when it is unrelated.
  *
- * @param input - The repository root and its Git boundary.
+ * @param options - The repository root and its Git boundary.
  * @returns A composer memoized per work unit, approved head, and checkpoint-validated base.
  */
 export function createLineageReviewComposer(options: ReviewInvocationInput): (

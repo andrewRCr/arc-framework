@@ -199,7 +199,7 @@ async function readSelectedTarget(context: ReviewCompositionContext,
 }
 
 /**
- * Read pending Candidate review-fix authority from repository-common advisory and source state.
+ * Read pending Candidate review-fix authority from the invocation's advisory and source records, repository or native.
  *
  * @param input - Repository, work-unit, and Candidate coordinates for the authority read.
  * @returns One source-validated pending authority, no authority, or a fail-closed refusal.

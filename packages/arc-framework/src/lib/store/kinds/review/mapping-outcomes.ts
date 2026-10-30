@@ -7,7 +7,7 @@ import { mappingLocalOperation, type ReviewMappingSources } from "./mapping-sour
 
 type LaneAttempt = LaneProgressState["attempts"][number];
 
-/** Project one ended local attempt with its recorded request and optional receipt. */
+/** Project one ended attempt through its own hosted, frontline, or local admission and recorded sources. */
 export function mapReviewAttempt(attempt: LaneAttempt, lane: LaneProgressState, endedAt: string,
   sources: ReviewMappingSources): ReviewOutcome {
   if (attempt.outcome === "pending") throw new Error("Pending attempts have no portable outcome.");

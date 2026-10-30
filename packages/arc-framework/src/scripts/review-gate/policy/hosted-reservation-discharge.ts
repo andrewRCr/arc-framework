@@ -579,7 +579,7 @@ export async function projectHostedReservationDischarge(input: {
 /**
  * Bind the repository's durable lane progress and Candidate span to the discharge projection.
  *
- * @param input - The repository root, its Git boundary, and an optional byte-level executor to share.
+ * @param options - The repository root, its Git boundary, and an optional byte-level executor to share.
  * @returns A reader resolving discharge and fresh incremental applicability for one Candidate target.
  */
 export function createHostedReservationDischargeReader(options: ReviewInvocationInput & {
