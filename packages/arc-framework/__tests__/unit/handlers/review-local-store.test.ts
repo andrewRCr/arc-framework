@@ -464,16 +464,19 @@ it("reports reduction's missing saved owner and reduces after its working state 
   expect(await h.reduce(prepared.payload.operationId)).toMatchObject({ state: "stale-target", nextAction: "prepare-current-target" });
 });
 
+// A malformed or foreign reference fails the request's schema before the storage arm is known, so either remedy fits.
+const REFERENCE_REMEDY = "omit `operationRef`, or resubmit the one arc review local prepare";
+const malformedReferences = (reference: ReturnType<typeof parseNativeReviewOperationReference>) =>
+  ["arc-review-operation:v1:broken", bindNativeReviewOperationReference({ ...reference, operationId: "another-operation" })];
+
 it.each(["resume", "attest", "reduce"] as const)("gives reference repair guidance for malformed native %s inputs", async command => {
   const h = await fixture(true, "errand", false);
   const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
   if (prepared.state !== "ready" || prepared.payload.operationRef === undefined) throw new Error(JSON.stringify(prepared));
   const reference = parseNativeReviewOperationReference(prepared.payload.operationRef);
-  for (const operationRef of ["arc-review-operation:v1:broken", bindNativeReviewOperationReference({
-    ...reference, operationId: "another-operation",
-  })]) {
+  for (const operationRef of malformedReferences(reference)) {
     expect(await h[command](prepared.payload.operationId, { operationRef })).toMatchObject({ error: {
-      code: "invalid-input", message: expect.stringContaining("matching reference"),
+      code: "invalid-input", message: expect.stringContaining(REFERENCE_REMEDY),
     } });
   }
   h.advanceHead();
@@ -683,10 +686,9 @@ it("refuses malformed and foreign native cancel references, then cancels with th
   const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
   if (prepared.state !== "ready" || prepared.payload.operationRef === undefined) throw new Error(JSON.stringify(prepared));
   const reference = parseNativeReviewOperationReference(prepared.payload.operationRef);
-  for (const operationRef of ["arc-review-operation:v1:broken", bindNativeReviewOperationReference({
-    ...reference, operationId: "another-operation" })]) {
+  for (const operationRef of malformedReferences(reference)) {
     expect(await h.cancel(prepared.payload.operationId, { operationRef })).toMatchObject({ error: {
-      code: "invalid-input", message: expect.stringContaining("emitted by arc review local prepare") } });
+      code: "invalid-input", message: expect.stringContaining(REFERENCE_REMEDY) } });
   }
   const other = await h.seedMeta("other");
   const foreign = bindNativeReviewOperationReference({ ...reference, workItem: other.reference.owner });

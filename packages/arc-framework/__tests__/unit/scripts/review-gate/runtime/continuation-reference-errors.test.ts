@@ -56,3 +56,10 @@ it("tells an in-repo caller to omit an operation reference rather than resubmit 
     "arc review local prepare");
   expect(accepted).toMatchObject({ store: { capabilities: { stateOffBranch: false } } });
 });
+
+it("lets a malformed request-phase operation reference be omitted as well as resubmitted", () => {
+  const malformed = new ZodError([{ code: "custom", path: ["operationRef"], message: "malformed", input: "x" }]);
+  const error = reviewContinuationRequestError("review-local-resume", malformed, true);
+  expect(error).toBeInstanceOf(ReviewContinuationReferenceError);
+  expect((error as Error).message).toContain("omit `operationRef`, or resubmit the one arc review local prepare emitted");
+});

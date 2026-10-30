@@ -306,7 +306,8 @@ it.each(["missing", "foreign-project", "bound-owner", "pending-owner", "malforme
     expect(await h.run({ ...resolution, payload: { ...resolution.payload, operationRef } },
       { workItem: invalid === "bound-owner" ? other.reference.owner : undefined })).toMatchObject({ error: invalid === "pending-owner"
         ? { code: "invalid-input", message: expect.stringContaining("frontline ready admission is unavailable") }
-        : { code: "invalid-input", message: expect.stringContaining("matching reference") } });
+        : { code: "invalid-input", message: expect.stringContaining(invalid === "malformed" || invalid === "wrong-id"
+          ? "omit `operationRef`, or resubmit the one arc review frontline resolve emitted" : "matching reference") } });
     expect(await h.run(resolution)).toMatchObject({ state: "unavailable", nextAction: "operator-repair",
       payload: { operationRef: resolution.payload.operationRef } });
   });

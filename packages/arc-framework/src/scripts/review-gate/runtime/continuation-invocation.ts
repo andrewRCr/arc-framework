@@ -32,10 +32,12 @@ export function reviewContinuationRequestError(mode: string, error: unknown, req
     "review-reduce": "arc review local prepare or arc review frontline resolve",
   };
   const producer = producers[mode];
-  const fields = mode === "review-respond" || mode === "review-hosted-settle"
-    ? ["receiptRef", "outcomeRef", "attemptRef"] : ["operationRef"];
+  const sourceReferences = mode === "review-respond" || mode === "review-hosted-settle";
+  const fields = sourceReferences ? ["receiptRef", "outcomeRef", "attemptRef"] : ["operationRef"];
+  // An in-repo continuation carries no operation reference, so a malformed one may be dropped as well as replaced.
   return producer !== undefined && error instanceof ZodError && error.issues.some(issue => referenceIssue(issue, fields))
-    ? new ReviewContinuationReferenceError(error.message, producer) : error;
+    ? new ReviewContinuationReferenceError(error.message, producer,
+      sourceReferences ? undefined : `omit \`operationRef\`, or resubmit the one ${producer} emitted`) : error;
 }
 
 /** Preserve already bound internal authority or select the exact native owner carried by a public continuation. */
