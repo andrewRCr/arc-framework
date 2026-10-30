@@ -5,6 +5,7 @@ import type { Store } from "../../../lib/store/contract.js";
 import type { OwnerIdentity } from "../../../lib/store/identity.js";
 import { createStore } from "../../../lib/store/create.js";
 import { createDefaultStorePorts } from "../../../lib/store/default-ports.js";
+import { retryEndedItemHistory } from "../../../lib/store/history-retry.js";
 import { createProjectIdentityReader } from "../../../lib/store/project-identity.js";
 
 /** Optional authority carried from an already selected invocation. */
@@ -27,9 +28,9 @@ export interface ReviewInvocationContext {
   workItem?: OwnerIdentity;
 }
 
-/** Open one checkout backend or retain the caller's exact existing selection. */
+/** Open one checkout backend or retain the caller's exact selection, either retrying an ended item's history. */
 export function resolveReviewInvocation(input: ReviewInvocationInput, references?: ReviewGrantReferences): ReviewInvocationContext {
-  const store = input.store ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec }));
+  const store = retryEndedItemHistory(input.store ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec })));
   requireNativeReviewDecisionReferences(store.capabilities.stateOffBranch, references);
   return { store, projectId: input.projectId ?? createProjectIdentityReader(store),
     ...(input.workItem === undefined ? {} : { workItem: input.workItem }) };

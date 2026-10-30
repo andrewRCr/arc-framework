@@ -1439,33 +1439,19 @@ prerequisites have landed, and every earlier task is independent of the remainin
   final closeout. Shared authored-notes and closeout validators serve both storage arms; archived branch/date field
   requirements remain confined to in-repo readiness.
 
-### `[ ]` **7.5 Retry an ended item's reads and writes through every store this change opens — § 10.4**
+### `[x]` **7.5 Retry an ended item's reads and writes through every store this change opens — § 10.4**
 
 - _Goal:_ From the flip a read or write of an ended item that meets the ref backend's `state-unresolvable` refusal,
   naming history refs this clone lacks, pulls them by name and retries once with no stop, through every store this
   change opens.
 
-    - Every store this change opens goes through one wrapper: each root's — 4.1.b's, session-init's projection's
-      (4.6.b), delivery entry inspection's (4.6.c), and `readinessBoundTo`'s (`handlers/review.ts`), which opens one
-      from 7.4 — and the one the typed access opens where its caller passes none (2.3.b). Attest's handler
-      (`handleAttest`) wraps the store it opens for its own reads and writes, leaving the lifecycle verbs' shared opener
-      (`openDefaultStore`, `handlers/lifecycle-shared.ts`) unwrapped, so no other verb gains the retry. A read or write
-      meeting `state-unresolvable` pulls the named refs (`pull({ history })`) and retries once; a second refusal refuses
-      with it, and any other refusal passes through. Attest `--new-root` on a Shipped work unit (4.6.a) and the review
-      writes after it, the Candidate history read of an ended item (4.8), the landing-commit link's write (7.1), and an
-      applicability selection on an archived work unit (`handlers/candidate.ts`) reach it. The checkpoint's and merge's
-      lifecycle reads (7.1) and readiness (7.4) read an archived item's current records, which the ref backend serves
-      from its archive refs, so they need no history ref (§ 10.4).
-    - This change builds the wrapper, since the ref backend's contract leaves every caller's retry to its verb. It
-      alone needs the refusal and the pull on base: where they have not landed when this task is reached, the task loop
-      stops here, as at any blocking dependency, for a base merge that brings them.
-    - Build `test-first` (one behavior at a time):
-        - a read and a write refusing `state-unresolvable` pull the named refs and succeed on the retry
-        - a second refusal after the pull refuses with it, and any other refusal passes through unretried
-        - over a store that refuses once, attest `--new-root` on a Shipped work unit and a review write after it, the
-          Candidate history read of an ended item, merge's landing-link write under `archive.cadence: with-integration`,
-          and `arc candidate applicability resolve` on an archived work unit, through the typed access's own store, each
-          pull and succeed with no stop
+- _Outcome:_ One idempotent wrapper (`retryEndedItemHistory`, `lib/store/history-retry.ts`) pulls a
+  `state-unresolvable` refusal's named history refs and retries once; a failed pull keeps the refusal. It wraps the
+  selected store in `resolveReviewInvocation`, which every review root, session-init's projection, delivery entry,
+  readiness, and merge select through; the store the typed access opens, not a caller's; applicability resolution's;
+  and attest's own, with `openDefaultStore` left bare. Over a clone that pulled without an archived item's history, the
+  ref backend refuses its write until the pull. Re-root of a Shipped work unit, its Candidate history read and review
+  prepare, the landing link, and an archived selection each pull and succeed.
 
 ### `[x]` **7.6 Read the subject's Candidate and boundary through the store from the flip — § 12.1, § 14.4**
 

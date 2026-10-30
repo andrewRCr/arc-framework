@@ -16,6 +16,11 @@ import { createHostedHandleFixture } from "../fixtures/hosted-review.js";
 import { handleReviewLocalPrepare, handleReviewLocalAttest } from "../../src/handlers/review.js";
 import { LocalPrepareEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
 import { localReviewResult } from "../helpers/in-process-review.js";
+import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
+import type { Store } from "../../src/lib/store/index.js";
+import { recordPut } from "../../src/lib/store/lifecycle-write.js";
+import { writeMetaState } from "../../src/lib/store/kinds/meta/writers.js";
+import { lackingEndedHistory } from "../helpers/store/ended-history.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 afterEach(() => { vi.restoreAllMocks(); process.exitCode = 0; });
@@ -43,9 +48,9 @@ async function fixture(lifecycle: "Active" | "Integrating" = "Active") {
   const base = { cwd, identity: "test-user", io, store: h.reference.store };
   const output: string[] = [];
   vi.spyOn(process.stdout, "write").mockImplementation(chunk => { output.push(String(chunk)); return true; });
-  const attest = async (newRoot = false) => {
+  const attest = async (newRoot = false, store: Store = h.reference.store) => {
     output.length = 0;
-    await attestCandidateWithReviewBoundary(base, AttestCommandInputSchema.parse({ name: "example", json: true, newRoot }));
+    await attestCandidateWithReviewBoundary({ ...base, store }, AttestCommandInputSchema.parse({ name: "example", json: true, newRoot }));
     return JSON.parse(output.join("")) as unknown;
   };
   const initial = AttestResultSchema.parse(await attest());
@@ -130,4 +135,28 @@ it("names the native Candidate version during live-review recovery and re-roots 
     await h.exec("git", ["merge", "saved-correction"], { cwd: h.cwd });
     expect(await h.attest(true)).toMatchObject({ status: "attested", operation: "re-root", locus: { schemaVersion: 2 } });
   } finally { process.chdir(originalCwd); }
+}, 30_000);
+
+it("re-roots a Shipped work unit and prepares its review after pulling the history this clone lacks", async () => {
+  const h = await fixture(), originalCwd = process.cwd();
+  await h.reference.seedProject(projectId);
+  const live = lifecycleSuccess(await h.reference.store.read({ reference: h.primary.reference }));
+  lifecycleSuccess(await h.reference.store.write({ ...recordPut(live, { content: writeMetaState(live.content, "Shipped"),
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }),
+  provenance: { verb: "archive", lifecycleAction: "archive" } }));
+  await writeFile(join(h.cwd, "example.ts"), "export const example = false;\n");
+  await h.exec("git", ["commit", "-am", "Correct example"], { cwd: h.cwd });
+  const lacking = () => lackingEndedHistory(h.reference.store, h.primary.reference.owner);
+  const rooted = await h.attest(true, lacking());
+  expect(rooted, JSON.stringify(rooted)).toMatchObject({ status: "attested", operation: "re-root" });
+  let output = "";
+  const request = { schemaVersion: 1, evaluatorIdentity: "independent-reviewer", routingFacts: { contentKind: "code-bearing",
+    reviewRisk: "routine", changeDeterminacy: "ordinary", ownership: "self", surfaceAuthority: "ordinary" },
+  policyJudgment: { scopeMode: "whole-target", invocation: { mode: "force", sourceId: "delegated-agent" } } };
+  try {
+    process.chdir(h.cwd);
+    await handleReviewLocalPrepare("-", { resolveRoot: () => h.cwd, readText: async () => JSON.stringify(request),
+      write: (text: string) => { output += text; }, setExitCode: () => {} }, undefined, { store: lacking() });
+  } finally { process.chdir(originalCwd); }
+  expect(LocalPrepareEnvelopeSchema.parse(JSON.parse(output)), output).toHaveProperty("state", "ready");
 }, 30_000);

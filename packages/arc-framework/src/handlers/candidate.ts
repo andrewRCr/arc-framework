@@ -21,6 +21,7 @@ import { deliveryReviewFixRecordDigest } from "../lib/delivery/review-fix-record
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { createStore } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import { retryEndedItemHistory } from "../lib/store/history-retry.js";
 import type { ReviewInvocationInput } from "../scripts/review-gate/runtime/invocation.js";
 import { resolveCandidateRecordRelativePath } from "../lib/store/kinds/review/paths.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
@@ -144,7 +145,7 @@ async function executeCandidateApplicabilityResolution(
   const { settings } = await readConfigSettings(root);
   const baseBranch = settings["branch.base"];
   const git = invocation?.exec ?? createGitExec(interaction?.subprocess);
-  const store = invocation?.store ?? createStore(createDefaultStorePorts({ checkoutRoot: root, exec: git }));
+  const store = retryEndedItemHistory(invocation?.store ?? createStore(createDefaultStorePorts({ checkoutRoot: root, exec: git })));
   const rawGit = createRawGitExec(root);
   const readObjectId = async (expression: string): Promise<string> => (
     await git("git", ["rev-parse", "--verify", expression], {

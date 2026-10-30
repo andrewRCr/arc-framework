@@ -10,6 +10,7 @@ import { writeStoredAttestation, type StoredAttestationInput } from "../lib/stor
 import type { StoreRecord } from "../lib/store/read.js";
 import type { StoreRefusal } from "../lib/store/refusal.js";
 import type { Store } from "../lib/store/contract.js";
+import { retryEndedItemHistory } from "../lib/store/history-retry.js";
 import { usesOffBranchState, readWorkUnit } from "../lib/store/lifecycle-write.js";
 import { lifecycleRecordPath } from "../lib/store/lifecycle-record-path.js";
 import { recordReferences } from "../lib/store/identity.js";
@@ -226,7 +227,8 @@ export async function handleAttest(
 /** Execute attestation using the command's resolved checkout, identity, and operational Store. */
 export async function attestCandidateWithReviewBoundary(base: VerbBase,
   input: z.infer<typeof AttestCommandInputSchema>): Promise<void> {
-  const { executor, settings } = await buildExecutor(base);
+  const attesting = base.store === undefined ? base : { ...base, store: retryEndedItemHistory(base.store) };
+  const { executor, settings } = await buildExecutor(attesting);
   const boundarySchemaVersion = executor.store?.capabilities.stateOffBranch === true ? 2 : 1;
   const subjectInput = await readAttestInput({ cwd: base.cwd, store: executor.store,
     readFile: path => base.io.readFile(path), activeMetaPath: projectActiveMetaPath,

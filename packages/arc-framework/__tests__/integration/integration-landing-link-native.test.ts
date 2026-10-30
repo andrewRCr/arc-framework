@@ -10,8 +10,11 @@ import { createUserSurfaceResolver } from "../../src/lib/user-surfaces.js";
 import { SlugSchema, canonicalDigest } from "../../src/lib/kernel/index.js";
 import { createReviewRepositoryHarness } from "../helpers/store/review-differential.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
+import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
+import type { Store } from "../../src/lib/store/index.js";
+import { lackingEndedHistory } from "../helpers/store/ended-history.js";
 
-it("retains a landed merge through missing host identity and a failed link write, then saves the host commit on retry", async () => {
+async function landed(archived = false) {
   const h = await createReviewRepositoryHarness();
   onTestFinished(h.cleanup);
   const { cwd, exec } = h.native;
@@ -34,8 +37,9 @@ it("retains a landed merge through missing host identity and a failed link write
   await git("config", `url.${h.origin}.insteadOf`, "git@github.com:owner/repo.git");
   const links = { branches: [{ repository: projectId, ref: branch, linkedAs: "adopted" as const, excluded: [] }],
     changeRequest: { repository: projectId, number: 42 } };
-  const meta = await h.reference.seedMeta("example", { state: "Integrating", branch: null,
-    currentWorkflow: "integrate-work-unit" }, { kind: "active" }, links);
+  const meta = await h.reference.seedMeta("example", archived ? { state: "Shipped", branch: null, currentWorkflow: null }
+    : { state: "Integrating", branch: null, currentWorkflow: "integrate-work-unit" },
+  archived ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "active" }, links);
   const surfaces = createUserSurfaceResolver({ cwd, identity: SlugSchema.parse("test-user") });
   const checkpoint = await persistIntegrationCheckpointComposition(surfaces.workUnitRoot(SlugSchema.parse("example")), {
     workUnit: "example", approvedHead: head, lifecycleVersion: meta.version,
@@ -60,7 +64,7 @@ it("retains a landed merge through missing host identity and a failed link write
   const oldPath = process.env.PATH;
   process.env.PATH = `${bin}${delimiter}${oldPath ?? ""}`;
   onTestFinished(() => { if (oldPath === undefined) delete process.env.PATH; else process.env.PATH = oldPath; });
-  const run = async () => {
+  const run = async (store: Store = h.reference.store) => {
     let output = "";
     const exits: number[] = [];
     const originalCwd = process.cwd();
@@ -68,11 +72,16 @@ it("retains a landed merge through missing host identity and a failed link write
       process.chdir(cwd);
       await handleIntegrationMerge("example", { checkpoint }, undefined, { resolveRoot: () => cwd,
         write: value => { output += value; }, setExitCode: value => exits.push(value) },
-      { store: h.reference.store, projectId: h.reference.projectId, workItem: meta.reference.owner });
+      { store, projectId: h.reference.projectId, workItem: meta.reference.owner });
     } finally { process.chdir(originalCwd); }
     expect(exits, output).toEqual([]);
     return IntegrationMergeResultSchema.parse(JSON.parse(output));
   };
+  return { h, git, projectId, head, mergeCommit, links, meta, checkpoint, host, run };
+}
+
+it("retains a landed merge through missing host identity and a failed link write, then saves the host commit on retry", async () => {
+  const { h, git, projectId, head, mergeCommit, links, meta, checkpoint, host, run } = await landed();
   await host(null);
   expect(await run()).toMatchObject({ state: "merged", payload: { landingLink: { state: "not-written",
     remedy: { argv: ["arc", "integrate", "merge", "example", "--checkpoint", checkpoint] } } } });
@@ -92,4 +101,13 @@ it("retains a landed merge through missing host identity and a failed link write
   expect(await git("rev-parse", "HEAD")).toBe(head);
   expect(await git("diff", "--cached", "--name-only")).toBe("");
   expect(await git("rev-parse", "origin/main")).toBe(mergeCommit);
+}, 30_000);
+
+it("links an archived work unit's landing after pulling the history this clone lacks", async () => {
+  const { h, projectId, mergeCommit, links, meta, host, run } = await landed(true);
+  await host(mergeCommit);
+  expect(await run(lackingEndedHistory(h.reference.store, meta.reference.owner))).toMatchObject({ state: "merged",
+    payload: { providerMergeId: mergeCommit, landingLink: { state: "written" } } });
+  expect(lifecycleSuccess(await h.reference.store.read({ reference: meta.reference })).links).toEqual({ ...links,
+    landingCommit: { repository: projectId, sha: mergeCommit } });
 }, 30_000);

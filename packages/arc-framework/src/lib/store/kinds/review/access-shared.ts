@@ -3,6 +3,7 @@ import type { GitExec } from "../../../git/exec.js";
 import type { Store } from "../../contract.js";
 import { createStore } from "../../create.js";
 import { createDefaultStorePorts } from "../../default-ports.js";
+import { retryEndedItemHistory } from "../../history-retry.js";
 import type { RecordReference, OwnerIdentity } from "../../identity.js";
 import type { StoreRecord } from "../../read.js";
 import type { StoreResult } from "../../refusal.js";
@@ -20,14 +21,17 @@ export interface ReviewRecordAccessOptions<TFs extends ReviewRecordReader> {
   fs?: TFs;
 }
 
-/** Select the caller's store first, retaining direct filesystem access when explicitly requested. */
+/**
+ * Select the caller's store first, retaining direct filesystem access when explicitly requested. A store opened here
+ * retries an ended item's history.
+ */
 export function resolveReviewRecordAccess<TFs extends ReviewRecordReader>(cwd: string,
   input: TFs | ReviewRecordAccessOptions<TFs> | undefined): { store: Store; owner?: OwnerIdentity } | { fs: TFs } {
   const options: ReviewRecordAccessOptions<TFs> = input === undefined ? {} : "readFile" in input ? { fs: input } : input;
   if (options.store !== undefined) return { store: options.store, owner: options.owner };
   if (options.fs !== undefined) return { fs: options.fs };
-  return { store: createStore(createDefaultStorePorts({ checkoutRoot: cwd,
-    ...(options.exec === undefined ? {} : { exec: options.exec }) })), owner: options.owner };
+  return { store: retryEndedItemHistory(createStore(createDefaultStorePorts({ checkoutRoot: cwd,
+    ...(options.exec === undefined ? {} : { exec: options.exec }) }))), owner: options.owner };
 }
 
 /** Preserve the store's condition and retry remedy for every non-absence refusal. */

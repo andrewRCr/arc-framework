@@ -15,5 +15,5 @@ it.each(["ceilingOverride", "additionalPassAuthorization"] as const)("refuses a 
   const repaired = resolveReviewInvocation(input, ReviewLaneJudgmentSchema.parse({ [field]: value }));
   expect(repaired.store.capabilities.stateOffBranch).toBe(false);
   const native = createReviewHarness();
-  expect(resolveReviewInvocation({ ...input, store: native.store }, reference).store).toBe(native.store);
+  expect(resolveReviewInvocation({ ...input, store: native.store }, reference).store.capabilities.stateOffBranch).toBe(true);
 });

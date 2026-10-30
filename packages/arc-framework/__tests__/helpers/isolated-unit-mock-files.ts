@@ -45,6 +45,7 @@ export const ISOLATED_UNIT_MOCK_FILES = [
   "__tests__/unit/install-prompt-sequences.test.ts",
   "__tests__/unit/io-context.test.ts",
   "__tests__/unit/lib/change-facts-cancellation.test.ts",
+  "__tests__/unit/lib/store/kinds/review/access-shared.test.ts",
   "__tests__/unit/locus/derived-reader.test.ts",
   "__tests__/unit/locus/subject-meta-projection.test.ts",
   "__tests__/unit/notes-reconcile-push.test.ts",
