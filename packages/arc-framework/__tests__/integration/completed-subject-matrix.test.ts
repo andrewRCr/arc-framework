@@ -110,7 +110,11 @@ it.each((["manual", "with-integration"] as const).flatMap(cadence => scenarios.m
     else expect(audited.verdict.stopReasons.filter(reason => reason.kind === "locus-unresolved")).toEqual([]);
     expect(lifecycleSuccess(await h.store.version())).toBe(version);
     expect((await h.exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(h.head);
-    if (unresolved || integration) expect(cleanupCommands({ reader, session, recovered, audit: audited })).toEqual([]);
+    const commands = cleanupCommands({ reader, session, recovered, audit: audited });
+    if (scenario === "missing") {
+      expect(new Set(commands.map(argv => argv.join(" ")))).toEqual(new Set(["arc locus release"]));
+      expect(reader.entering).toMatchObject({ row: { actions: [{ argv: ["arc", "locus", "release"], checkout: h.cwd }] } });
+    } else if (unresolved || integration) expect(commands).toEqual([]);
     if (scenario === "missing") {
       const code = "work-unit-record-missing";
       expect(reader.entering).toMatchObject({ row: { diagnostics: expect.arrayContaining([expect.objectContaining({ code })]) } });
