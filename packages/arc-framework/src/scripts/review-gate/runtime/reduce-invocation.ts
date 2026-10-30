@@ -1,4 +1,5 @@
 /** Bind native reduction from its portable owner locator while validating pending operation state. */
+import { isOffBranchStoreRefusal } from "../../../lib/store/refusal-error.js";
 import { createReviewCompositionContext } from "./composition-context.js";
 import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
 import { ReduceCommandError, ReduceRequestSchema } from "./reduce-command.js";
@@ -18,7 +19,8 @@ export async function resolveReduceInvocation(options: ReviewInvocationInput, re
     if (state.kind !== "local-review" && state.kind !== "frontline-run") throw new ReduceCommandError("operation kind is not reducible");
     return input;
   } catch (error) {
-    if (error instanceof ReviewContinuationReferenceError || error instanceof ReduceCommandError || error instanceof ProjectIdentityError) throw error;
+    if (error instanceof ReviewContinuationReferenceError || error instanceof ReduceCommandError || error instanceof ProjectIdentityError
+      || isOffBranchStoreRefusal(error)) throw error;
     throw new ReduceCommandError(`Restore the pending review record and retry: ${error instanceof Error ? error.message : String(error)}`);
   }
 }

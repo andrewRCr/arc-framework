@@ -1,4 +1,5 @@
 /** Resolve stored native termini without inventing their author or pass-count provenance. */
+import { reviewFactListingError } from "../../../lib/store/kinds/review/fact-access.js";
 import type { CanonicalDigest } from "../../../lib/kernel/index.js";
 import type { ReviewDecision } from "../../../lib/store/kinds/review/decision/schema.js";
 import { reviewDecisionKey } from "../../../lib/store/kinds/review/decision/key.js";
@@ -47,7 +48,7 @@ export async function resolveNativeReviewTerminus(input: {
   carriedBoundary?: PublishedIntegrationBoundaryLocus;
 }): Promise<NativeOwnerAcceptedReviewTerminus | undefined> {
   const listing = await input.facts.decisions.list();
-  if (listing.status !== "complete") throw new Error(listing.reason);
+  if (listing.status !== "complete") throw reviewFactListingError(listing);
   const decisions = listing.records.map(({ value }) => value);
   const withdrawn = new Set(decisions.flatMap(value => value.choice.kind === "withdrawal" ? [value.choice.decisionKey] : []));
   const carried = carriedSubject(input, decisions);

@@ -1,4 +1,5 @@
 /** Native pending admissions cite immutable approved-fix authority without rewriting the decision. */
+import { reviewFactListingError } from "../../../lib/store/kinds/review/fact-access.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
 import { reviewDecisionKey } from "../../../lib/store/kinds/review/decision/key.js";
 import type { ReviewDecision } from "../../../lib/store/kinds/review/decision/schema.js";
@@ -72,7 +73,7 @@ async function observeNativeAdmission(store: Partial<ReviewOperationStateSnapsho
 async function assertNativeConsumedRetry(facts: NativeReviewFactPorts, view: { snapshot: CompleteSnapshot; owner: LaneProgressState },
   input: ConditionalPendingAdmission, next: LaneProgressState): Promise<void> {
   const listing = await facts.outcomes.list();
-  if (listing.status !== "complete") throw new Error(listing.reason);
+  if (listing.status !== "complete") throw reviewFactListingError(listing);
   const admitted = listing.records.map(record => record.value).filter(outcome => outcome.admittedBy === input.authorizationId)
     .sort((a, b) => a.retryGeneration - b.retryGeneration);
   const original = admitted[0];

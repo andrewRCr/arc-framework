@@ -1,4 +1,5 @@
 /** Compose hosted logical-pass history and ordinary native authority before fresh capacity admission. */
+import { reviewFactListingError } from "../../../lib/store/kinds/review/fact-access.js";
 import { readRepositoryCandidateSupersessionChain } from "../../../lib/store/kinds/review/candidate/history.js";
 import type { CandidateManagedRecordV1, CandidateSupersessionAncestor } from "../../../lib/work-unit/candidate-attestation.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
@@ -50,7 +51,7 @@ async function composeHostedGrants<Request extends StandardGrantRequest>(input: 
   const facts = input.operationStore.nativeFacts;
   if (facts === undefined) throw new Error("Restore the selected native review facts and retry the hosted request.");
   const listing = await facts.decisions.list();
-  if (listing.status !== "complete") throw new Error(listing.reason);
+  if (listing.status !== "complete") throw reviewFactListingError(listing);
   if (request.ceilingOverride === undefined && request.additionalPassAuthorization === undefined
     && !listing.records.some(({ value }) => value.choice.kind === "extra-pass"
       && value.choice.precondition.kind !== "approved-fix")) return request;

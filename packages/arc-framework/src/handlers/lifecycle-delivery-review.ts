@@ -8,7 +8,7 @@ import { checkCurrentWorkflowConsistency } from "../lib/active/current-workflow-
 import { checkAdvancingPause } from "../lib/store/lifecycle-pause.js";
 import { writeStoredAttestation, type StoredAttestationInput } from "../lib/store/attest-publication.js";
 import type { StoreRecord } from "../lib/store/read.js";
-import { StoreRefusalError } from "../lib/store/refusal-error.js";
+import { isOffBranchStoreRefusal, StoreRefusalError } from "../lib/store/refusal-error.js";
 import type { Store } from "../lib/store/contract.js";
 import { retryEndedItemHistory } from "../lib/store/history-retry.js";
 import { usesOffBranchState, readWorkUnit } from "../lib/store/lifecycle-write.js";
@@ -261,7 +261,8 @@ async function attestCandidate(base: VerbBase, input: z.infer<typeof AttestComma
   if (meta.state === "Integrating" || meta.state === "Shipped") {
     try {
       deliveryRenewal = await inspectRenewal();
-    } catch {
+    } catch (error) {
+      if (isOffBranchStoreRefusal(error)) throw error;
       deliveryRenewal = { status: "refused", reason: "evidence-unavailable" };
     }
     if (deliveryRenewal.status === "refused") {
@@ -756,6 +757,14 @@ async function publishCandidate(base: VerbBase, target: string, input: PublishOp
   reportOutcome("Integrating", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
 }
 
+/** Refuse ordinary reopen with an off-branch store's own refusal, or as missing delivery evidence. */
+function refuseUnavailableDeliveryEvidence(error: unknown, target: string): false {
+  if (isOffBranchStoreRefusal(error)) refuse(error.refusal.condition, error.refusal);
+  else refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
+    + "the plan, state, or transition evidence is unavailable.");
+  return false;
+}
+
 /**
  * Check exact delivery composition before a lifecycle withdrawal.
  * @param base - Resolved checkout, identity, and I/O.
@@ -805,10 +814,8 @@ export async function permitDeliveryReopen(
       baseBranch: settings["branch.base"],
       exec: base.io.exec,
     });
-  } catch {
-    refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
-      + "the plan, state, or transition evidence is unavailable.");
-    return false;
+  } catch (error) {
+    return refuseUnavailableDeliveryEvidence(error, target);
   }
   if (delivery.status !== "reopen-permitted") {
     refuse(delivery.recommendedActionText);

@@ -1,4 +1,5 @@
 /** Initial native approvals and their policy projection are persisted as producer-bound evidence. */
+import { reviewFactListingError } from "../../../lib/store/kinds/review/fact-access.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
 import { StoredReviewResultReader } from "../hosts/local/stored-result-reader.js";
 import { validateApprovedDispositionRecordForResult } from "../core/review-result-disposition.js";
@@ -32,7 +33,7 @@ export async function publishNativeReviewApproval(input: NativeReviewApprovalInp
     throw new Error("Record approval before publishing a performed response.");
   }
   const listing = await input.outcomes.list();
-  if (listing.status !== "complete") throw new Error(listing.reason);
+  if (listing.status !== "complete") throw reviewFactListingError(listing);
   const stored = listing.records.find(({ value }) => value.attemptId === record.operationId);
   if (stored === undefined) throw new Error("Restore the exact producer outcome before approving its response.");
   return input.evidence.create(createNativeReviewApprovalEvidence(record, node, stored.value, input.now()));

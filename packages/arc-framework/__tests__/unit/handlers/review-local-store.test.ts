@@ -657,3 +657,44 @@ it("refuses malformed and foreign native cancel references, then cancels with th
   expect(await h.operations.readOperation(prepared.payload.operationId)).toMatchObject({ state: { kind: "local-review" } });
   expect(await h.cancel(prepared.payload.operationId)).toMatchObject({ state: "cancelled" });
 });
+
+const unreadableListing = { error: { code: "store-refused" },
+  refusal: { class: "recoverable", rule: "review.listing-unreadable", remedy: { text: "Restore the family index from a saved state." } },
+  remedy: { text: expect.stringContaining("Restore the family index from a saved state.") } };
+
+it.each(["resume", "reduce"] as const)("reports an unreadable native review listing whole for %s and continues once readable", async command => {
+  const h = await fixture(true, "errand", false);
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
+  if (command === "reduce") h.advanceHead();
+  h.store.state.unreadable.add("review");
+  const refused = await h[command](prepared.payload.operationId);
+  expect(refused, JSON.stringify(refused)).toMatchObject(unreadableListing);
+  h.store.state.unreadable.clear();
+  expect(await h[command](prepared.payload.operationId)).toMatchObject({ state: command === "resume" ? "suspended" : "stale-target" });
+});
+
+it("reports an unreadable native review listing whole for respond and records the response once readable", async () => {
+  const h = await fixture(true, "errand", false);
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
+  const attested = LocalAttestEnvelopeSchema.parse(await h.attest(prepared.payload.operationId, undefined, {
+    status: "complete", result: "findings", evaluatorIdentity: "fresh-reviewer", reviewRunId: "completed-run",
+    applicabilityId: null, findings: [{ findingId: "source-retention", severity: "major", locus: "src/example.ts:7",
+      evidenceUrlOrId: "source:src/example.ts:7" }],
+  }));
+  if (attested.state !== "attested-current") throw new Error(JSON.stringify(attested));
+  const resumed = LocalResumeEnvelopeSchema.parse(await h.resume(prepared.payload.operationId));
+  if (resumed.state !== "respond-to-findings") throw new Error(JSON.stringify(resumed));
+  const request = withReviewReport({ schemaVersion: 1, source: resumed.payload.responsePlan.source,
+    proposal: { proposedVerification: "focused", severityGatingPolicy: { minorGating: "record-only" },
+      findings: resumed.payload.responsePlan.findings.map(finding => ({ findingId: finding.findingId,
+        sourceVerification: "verified", verifiedSeverity: finding.severity, verificationRefs: [finding.evidenceUrlOrId],
+        disposition: "defer", title: "Preserve target facts", issue: "The target changes before continuation.",
+        rationale: "The selected source supports the finding.", recommendation: "Retain the target facts.", openQuestions: [] })) } });
+  h.store.state.unreadable.add("review");
+  const refused = await h.respond(request);
+  expect(refused, JSON.stringify(refused)).toMatchObject(unreadableListing);
+  h.store.state.unreadable.clear();
+  expect(await h.respond(request)).toMatchObject({ state: "awaiting-approval", nextAction: "obtain-approval" });
+});

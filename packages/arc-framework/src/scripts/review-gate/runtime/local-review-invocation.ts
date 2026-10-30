@@ -1,4 +1,5 @@
 /** Retain native local review ownership across preparation and operation-based re-entry. */
+import { isOffBranchStoreRefusal } from "../../../lib/store/refusal-error.js";
 import type { ReviewGrantReferences } from "../policy/review-grant-references.js";
 import type { RawGitExec } from "../../../lib/git/exec.js";
 import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
@@ -40,7 +41,7 @@ async function requireLocalReviewOperation(input: LocalReviewInvocationInput, op
   failure: (message: string) => Error): Promise<void> {
   const operations = createReviewCompositionContext(input).family.ports.inFlight;
   const { state } = await operations.readOperation(operationId).catch((error: unknown) => {
-    if (error instanceof ProjectIdentityError) throw error;
+    if (error instanceof ProjectIdentityError || isOffBranchStoreRefusal(error)) throw error;
     throw failure(`Restore the pending local review record and retry: ${error instanceof Error ? error.message : String(error)}`);
   });
   if (state !== null && (state.kind !== "local-review" || state.operationId !== operationId)) {

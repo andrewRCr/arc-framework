@@ -1,4 +1,5 @@
 /** Resolve immutable hosted terminal evidence with ordinary authority from the selected native owner. */
+import { reviewFactListingError } from "../../../lib/store/kinds/review/fact-access.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import type { ReviewOperationStateStore } from "../core/ports.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
@@ -53,7 +54,7 @@ async function readNativeTerminalGrants(input: Parameters<typeof resolveHostedTe
   const facts = input.operationStore.nativeFacts;
   if (facts === undefined) throw new Error("Restore the selected native review facts and retry reservation discharge.");
   const listing = await facts.decisions.list();
-  if (listing.status !== "complete") throw new Error(listing.reason);
+  if (listing.status !== "complete") throw reviewFactListingError(listing);
   if (!listing.records.some(({ value }) => value.choice.kind === "extra-pass"
     && value.choice.precondition.kind !== "approved-fix")) return request;
   if (input.lineage === undefined) throw new Error("Restore the reservation's exact review lineage before reading its grants.");

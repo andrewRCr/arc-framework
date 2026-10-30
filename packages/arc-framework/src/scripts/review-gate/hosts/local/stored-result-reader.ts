@@ -1,4 +1,6 @@
 /** Immutable producer results read from the invocation's portable review facts. */
+import { StoreRefusalError } from "../../../../lib/store/refusal-error.js";
+import { reviewFactListingError } from "../../../../lib/store/kinds/review/fact-access.js";
 import { projectStoredFrontlineOutcome } from "../../core/frontline-result.js";
 import type { ReviewOutcomePort, ReviewEvidencePort, ReviewResultReader } from "../../core/ports.js";
 import type { ReviewResult } from "../../core/review-result.js";
@@ -22,7 +24,8 @@ export class StoredReviewResultReader implements ReviewResultReader {
     try {
       const projectId = await this.dependencies.readProjectId();
       const listing = await this.dependencies.outcomes.list();
-      if (listing.status !== "complete") throw new LocalReviewResultReaderError("corrupt-result", listing.reason);
+      if (listing.status !== "complete") throw listing.refusal === undefined
+        ? new LocalReviewResultReaderError("corrupt-result", listing.reason) : reviewFactListingError(listing);
       const matches = listing.records.filter(({ value }) => value.attemptId === producerId);
       if (matches.length === 0) throw new LocalReviewResultReaderError("missing-producer", `No review producer matches '${producerId}'.`);
       if (matches.length !== 1) throw new LocalReviewResultReaderError("ambiguous-result");
@@ -34,14 +37,16 @@ export class StoredReviewResultReader implements ReviewResultReader {
       return stored.value.frontline === undefined ? localResult(stored.value, stored.reference.owner)
         : frontlineResult(stored.value, stored.reference.owner);
     } catch (error) {
-      if (error instanceof LocalReviewResultReaderError || error instanceof ProjectIdentityError) throw error;
+      if (error instanceof LocalReviewResultReaderError || error instanceof ProjectIdentityError
+        || (error instanceof StoreRefusalError && error.offBranch)) throw error;
       throw new LocalReviewResultReaderError("corrupt-result", error instanceof Error ? error.message : "producer result cannot be validated");
     }
   }
 
   private async readHostedResult(outcome: ReviewOutcome, workItem: OwnerIdentity): Promise<ReviewResult> {
     const listing = await this.dependencies.evidence.list();
-    if (listing.status !== "complete") throw new LocalReviewResultReaderError("corrupt-result", listing.reason);
+    if (listing.status !== "complete") throw listing.refusal === undefined
+      ? new LocalReviewResultReaderError("corrupt-result", listing.reason) : reviewFactListingError(listing);
     return hostedResult(outcome, workItem, listing.records.map(record => record.value));
   }
 }

@@ -1,4 +1,5 @@
 /** Record and resolve the Owner's stored ceiling and additional review-pass judgments. */
+import { reviewFactListingError } from "../../../lib/store/kinds/review/fact-access.js";
 import { readConfiguredIdentity } from "../../../lib/git/identity.js";
 import type { ReviewInvocationInput } from "./invocation.js";
 import type { CanonicalDigest } from "../../../lib/kernel/index.js";
@@ -33,7 +34,7 @@ export interface NativeExtraPassResolution {
 export async function resolveNativeExtraPassJudgment(input: NativeExtraPassInput): Promise<NativeExtraPassResolution> {
   if (await input.facts.readProjectId() !== input.repositoryId) throw new Error("Restore the selected review project's identity, then retry its extra-pass judgment.");
   const listing = await input.facts.decisions.list();
-  if (listing.status !== "complete") throw new Error(listing.reason);
+  if (listing.status !== "complete") throw reviewFactListingError(listing);
   const decisions = listing.records.map(({ value }) => value);
   const requests = requestedExtraPasses(input);
   await validateExtraPassReferences(input, decisions, requests);

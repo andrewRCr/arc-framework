@@ -1,5 +1,6 @@
 /** Durable selection of one pending Candidate-bound review-fix response. */
 
+import { isOffBranchStoreRefusal } from "../../../lib/store/refusal-error.js";
 import {
   candidateReviewResponses,
   type CandidateManagedRecordV1,
@@ -231,7 +232,8 @@ export async function readPendingCandidateReviewFixAuthority(input: ReviewInvoca
       reviewedHead: selected.reviewedHead,
       reviewedTarget,
     };
-  } catch {
+  } catch (error) {
+    if (isOffBranchStoreRefusal(error)) throw error;
     return { status: "refused", reason: "candidate-review-fix-response-invalid" };
   }
 }

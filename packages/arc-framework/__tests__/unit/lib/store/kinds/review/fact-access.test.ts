@@ -16,6 +16,7 @@ import type { RecordReference } from "../../../../../../src/lib/store/identity.j
 import { describeRecordConflicts } from "../../../../../../src/lib/store/conflict-diagnostics.js";
 import { StoreRefusalError } from "../../../../../../src/lib/store/refusal-error.js";
 import { ReviewFactVersionConflictError } from "../../../../../../src/lib/store/kinds/review/errors.js";
+import { reviewFactListingError } from "../../../../../../src/lib/store/kinds/review/fact-access.js";
 
 type Kind = "outcome" | "evidence" | "decision";
 async function conflicted(kind: Kind) {
@@ -58,17 +59,33 @@ async function conflicted(kind: Kind) {
     } };
 }
 
-it.each(["outcome", "evidence", "decision"] as const)("refuses a conflicted %s listing and resumes after resolution", async kind => {
+it.each(["outcome", "evidence", "decision"] as const)("refuses a conflicted %s listing as a typed recoverable refusal and resumes after resolution", async kind => {
   const h = await conflicted(kind);
   expect(h.record.conflicts.length).toBeGreaterThan(0);
   const refused = await h.list();
-  expect(refused).toMatchObject({ status: "incomplete", reason: expect.stringContaining("Resolve the named conflict records") });
-  for (const reference of h.record.conflicts) expect(refused.status === "complete" ? "" : refused.reason)
-    .toContain(JSON.stringify(reference));
+  expect(refused).toMatchObject({ status: "incomplete", reason: expect.stringContaining("Resolve the named conflict records"),
+    refusal: { code: "record-malformed", class: "recoverable", rule: "review.record-conflict",
+      remedy: { text: "Resolve the named conflict records, then retry." } } });
+  if (refused.status === "complete") throw new Error("Expected a conflicted listing");
+  for (const reference of h.record.conflicts) expect(refused.reason).toContain(JSON.stringify(reference));
+  expect(reviewFactListingError(refused)).toBeInstanceOf(StoreRefusalError);
   await h.repair();
   const listed = await h.list();
   expect(listed).toMatchObject({ status: "complete", records: [{ reference: h.record.reference,
     value: JSON.parse(h.record.content) }] });
+});
+
+it("refuses an unreadable native listing as a typed recoverable refusal and lists once readable", async () => {
+  const h = createReviewHarness(), owner = (await h.seedMeta("example")).reference.owner;
+  const outcomes = createReviewOutcomePort(h.store, owner);
+  h.store.state.unreadable.add("review");
+  const refused = await outcomes.list();
+  expect(refused).toMatchObject({ status: "unavailable",
+    refusal: { code: "record-malformed", class: "recoverable", rule: "review.listing-unreadable" } });
+  if (refused.status === "complete") throw new Error("Expected an unreadable listing");
+  expect(reviewFactListingError(refused)).toMatchObject({ offBranch: true, refusal: refused.refusal });
+  h.store.state.unreadable.clear();
+  expect(await outcomes.list()).toEqual({ status: "complete", records: [] });
 });
 
 it.each(["single", "listing"] as const)("keeps conflicted evidence out of the %s composed approval read", async mode => {

@@ -8,6 +8,7 @@ import { CheckoutClaimSchema } from "../../../../lib/store/lookup.js";
 import { sameReference, type RecordReference, type OwnerIdentity } from "../../../../lib/store/identity.js";
 import { describeRecordConflicts } from "../../../../lib/store/conflict-diagnostics.js";
 import type { StoreRefusal } from "../../../../lib/store/refusal.js";
+import { StoreRefusalError } from "../../../../lib/store/refusal-error.js";
 
 /** An ordinary Errand whose exact generation was corroborated by its stored primary. */
 export type ReviewCheckoutErrand = Extract<TransientIdentityRecord, { kind: "errand"; purpose: "errand" }>;
@@ -36,7 +37,8 @@ function decodeClaim(record: StoreRecord, reference: RecordReference, claim: Err
   return decoded.record;
 }
 
-function claimRefusal(claim: ErrandClaim, refusal: StoreRefusal): Error {
+function claimRefusal(store: Store, claim: ErrandClaim, refusal: StoreRefusal): Error {
+  if (store.capabilities.stateOffBranch) return new StoreRefusalError(refusal, true);
   return new Error(`Errand ${claim.slug} (${claim.claimId}): ${refusal.condition} ${refusal.remedy.text}`);
 }
 
@@ -44,7 +46,7 @@ async function readClaim(store: Store, reference: RecordReference, claim: Errand
   const read = await store.read({ reference });
   if (read.status === "refused") {
     if (read.refusal.code === "not-found") return missingClaim(store, claim);
-    throw claimRefusal(claim, read.refusal);
+    throw claimRefusal(store, claim, read.refusal);
   }
   if (read.result.conflicts.length > 0) throw new Error(
     `Errand ${claim.slug} has unresolved conflicts.${describeRecordConflicts(read.result.conflicts)}`);
@@ -62,6 +64,6 @@ export async function readReviewCheckoutErrandSelection(input: { cwd: string; st
   if (claim.kind !== "errand") throw new Error("Expected an Errand checkout claim");
   const found = await input.store.lookup({ kind: "claim", claim });
   if (found.status === "refused" && found.refusal.code === "not-found") return missingClaim(input.store, claim);
-  if (found.status === "refused") throw claimRefusal(claim, found.refusal);
+  if (found.status === "refused") throw claimRefusal(input.store, claim, found.refusal);
   return readClaim(input.store, found.result.reference, claim);
 }

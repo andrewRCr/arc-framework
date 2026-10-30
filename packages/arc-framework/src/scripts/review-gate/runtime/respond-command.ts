@@ -1,4 +1,5 @@
 /** Source-authoritative orchestration for `arc review respond`. */
+import { isOffBranchStoreRefusal } from "../../../lib/store/refusal-error.js";
 import { ReviewFixTagsSchema, ReviewReportInputSchema } from "../core/review-report-inputs.js";
 import {
   readApprovedResponseReport,
@@ -1690,7 +1691,7 @@ export async function respondToReviewCommand(
         ? await resolveFrontlineSource(request.source, dependencies)
         : await resolveHostedSource(request.source, dependencies);
   } catch (error) {
-    if (error instanceof RespondCommandError
+    if (error instanceof RespondCommandError || isOffBranchStoreRefusal(error)
       || (typeof error === "object" && error !== null && "code" in error
         && (error.code === "invalid-input" || error.code === "corrupt-state"))) {
       throw error;

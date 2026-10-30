@@ -1,4 +1,5 @@
 /** Local receipt publication through either the repository ledger or immutable outcome facts. */
+import { reviewFactListingError } from "../../../lib/store/kinds/review/fact-access.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
 import { LocalReceiptStoreError } from "../hosts/local/receipt-store.js";
 import { recordLocalReceiptConclusion } from "../lane-progress.js";
@@ -33,7 +34,7 @@ export async function readLocalReviewReceipts(context: { receiptStore: Pick<Forw
   outcomes?: ReviewOutcomePort; }, targetId: string): Promise<ForwardReceiptLedger> {
   if (context.outcomes === undefined) return context.receiptStore.readReceipts(targetId);
   const listing = await context.outcomes.list();
-  if (listing.status !== "complete") throw new LocalReceiptStoreError(listing.reason);
+  if (listing.status !== "complete") throw listing.refusal === undefined ? new LocalReceiptStoreError(listing.reason) : reviewFactListingError(listing);
   return { ledgerVersion: 0, receipts: listing.records.flatMap(({ value }) =>
     value.target.targetId === targetId && value.local?.receipt !== undefined ? [value.local.receipt] : []) };
 }

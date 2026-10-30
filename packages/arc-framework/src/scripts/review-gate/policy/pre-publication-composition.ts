@@ -1,4 +1,5 @@
 /** Production composition for the typed pre-publication review procedure. */
+import { isOffBranchStoreRefusal, StoreRefusalError } from "../../../lib/store/refusal-error.js";
 import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
 import { createPrePublicationRecordAccess } from "./pre-publication-record-access.js";
 import { resolveReviewInvocation, type ReviewInvocationInput } from "../runtime/invocation.js";
@@ -291,8 +292,10 @@ async function readAssuranceMeta(input: ReviewInvocationInput, workUnit: string)
   let meta: MetaRecord | null;
   if (input.store?.capabilities.stateOffBranch === true) {
     const read = await readWorkUnit(input.store, workUnit, input.workItem);
-    if (read.status === "refused") return read.refusal.code === "not-found" ? missing()
-      : { status: "refused", reason: `${read.refusal.condition} ${read.refusal.remedy.text}` };
+    if (read.status === "refused") {
+      if (read.refusal.code === "not-found") return missing();
+      throw new StoreRefusalError(read.refusal, true);
+    }
     if (read.result.conflicts.length > 0) return { status: "refused", reason:
       `The work-unit metadata has unresolved conflicts.${describeRecordConflicts(read.result.conflicts)}` };
     const fields = readLifecycleMetaFields(read.result);
@@ -738,7 +741,7 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
           }),
         };
       } catch (error) {
-        if (error instanceof ProjectIdentityError) throw error;
+        if (error instanceof ProjectIdentityError || isOffBranchStoreRefusal(error)) throw error;
         return { status: "unavailable", reason: describe(error) };
       }
     },

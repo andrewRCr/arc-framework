@@ -1,5 +1,6 @@
 /** Git-common composition of immutable local, frontline, and hosted producer evidence. */
 
+import { isOffBranchStoreRefusal } from "../../../../lib/store/refusal-error.js";
 import { FrontlineAdmissionSchema } from "../../core/frontline-admission.js";
 import { ProjectIdentityError } from "../../../../lib/store/project-identity.js";
 import { canonicalDigest, canonicalize, type CanonicalDigest } from "../../../../lib/kernel/index.js";
@@ -297,7 +298,7 @@ export class LocalReviewResultReader implements ReviewResultReader {
         : candidate.kind === "frontline-run" ? await this.readFrontlineResult(candidate.record, records)
           : this.readHostedResult(candidate.record, candidate.attempt);
     } catch (error) {
-      if (error instanceof LocalReviewResultReaderError || error instanceof ProjectIdentityError) throw error;
+      if (error instanceof LocalReviewResultReaderError || error instanceof ProjectIdentityError || isOffBranchStoreRefusal(error)) throw error;
       throw new LocalReviewResultReaderError(
         "corrupt-result",
         error instanceof Error ? error.message : "producer result cannot be validated",

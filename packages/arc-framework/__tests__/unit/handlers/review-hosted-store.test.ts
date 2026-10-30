@@ -9,7 +9,7 @@ import { HostedAwaitCommandResultSchema } from "../../../src/scripts/review-gate
 import { appendFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
-import { handleReviewHostedRequest, handleReviewHostedAwait, handleReviewRespond, handleReviewHostedSettle } from "../../../src/handlers/review.js";
+import { handleReviewHostedRequest, handleReviewHostedAwait, handleReviewRespond, handleReviewHostedSettle, handleReviewResolve } from "../../../src/handlers/review.js";
 import { createCandidateAttestation, createCandidateSubjectSnapshot } from "../../../src/lib/work-unit/candidate-attestation.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import { createStandardReviewReservation } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
@@ -586,4 +586,40 @@ it("settles native hosted body findings from their approved record-only evidence
   const operations = createReviewCompositionContext({ ...h, workItem: h.primary.reference.owner }).family.ports.inFlight;
   const reference = parseReviewSourceReference(h.sourceReference, "hosted", true);
   expect((await operations.readOperation(reference.operationId)).state).toMatchObject({ attempts: [{ outcome: "settled-findings" }] });
+});
+
+it.each([false, true])("reports an unreadable native review listing whole for a hosted request and requests once readable "
+  + "(work unit: %s)", async workUnit => {
+  const h = await fixture(workUnit);
+  const version = lifecycleSuccess(await h.store.version());
+  h.store.state.unreadable.add("review");
+  const refused = await h.run();
+  expect(refused, JSON.stringify(refused)).toMatchObject({ error: { code: "store-refused" },
+    refusal: { class: "recoverable", rule: "review.listing-unreadable" },
+    remedy: { text: expect.stringContaining("Restore the family index from a saved state.") } });
+  expect(lifecycleSuccess(await h.store.version())).toBe(version);
+  h.store.state.unreadable.clear();
+  expect(await h.run()).toMatchObject({ state: "requested" });
+});
+
+it("reports an unreadable native review listing whole when resolve reads a hosted result, and resolves once readable", async () => {
+  const h = await approvedHostedResponseFixture(false);
+  const request = ReviewPolicyCommandRequestSchema.parse({ schemaVersion: 1, target: h.policyRequest.target,
+    lane: h.policyRequest.lane, standardReview: h.policyRequest.standardReview, invocation: h.policyRequest.invocation,
+    completedPasses: h.attempt.logicalPass, attempts: [projectReviewPolicyAttempt(h.attempt)] });
+  const resolve = async () => {
+    let output = "";
+    await handleReviewResolve("-", { resolveRoot: () => h.cwd, readText: async () => JSON.stringify(request),
+      write: text => { output += text; }, setExitCode: () => {} }, undefined, { ...h, projectId: createProjectIdentityReader(h.store) });
+    return JSON.parse(output) as unknown;
+  };
+  h.store.state.unreadable.add("review");
+  const refused = await resolve();
+  expect(refused, JSON.stringify(refused)).toMatchObject({ mode: "review-resolve", error: { code: "store-refused" },
+    refusal: { class: "recoverable", rule: "review.listing-unreadable" },
+    remedy: { text: expect.stringContaining("Restore the family index from a saved state."), argv: ["arc", "review", "resolve", "-"] } });
+  h.store.state.unreadable.clear();
+  const resolved = await resolve();
+  expect(resolved, JSON.stringify(resolved)).toMatchObject({ mode: "review-resolve", state: expect.any(String) });
+  expect(resolved).not.toHaveProperty("error");
 });

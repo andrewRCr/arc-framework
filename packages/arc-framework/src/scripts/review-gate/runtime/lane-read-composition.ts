@@ -1,4 +1,5 @@
 /** Read-only checkout composition for lineage facts and rejected findings. */
+import { isOffBranchStoreRefusal } from "../../../lib/store/refusal-error.js";
 import type { RawGitExec } from "../../../lib/git/exec.js";
 import { resolveReviewInvocation, type ReviewInvocationInput } from "./invocation.js";
 import { createReviewCompositionContext } from "./composition-context.js";
@@ -108,6 +109,11 @@ export async function readReviewLane(request: ReviewLaneReadRequest, input: Lane
       return { schemaVersion: 1, mode: "review-lane-read", state: "refused", nextAction: "stop", diagnostics: [],
         payload: { code: "project-identity-unavailable", detail: error.failure.reason,
           remedy: projectIdentitySpineRemedy(error, ["arc", "review", "lane", "read", "-"], request) } };
+    }
+    if (isOffBranchStoreRefusal(error)) {
+      return { schemaVersion: 1, mode: "review-lane-read", state: "refused", nextAction: "stop", diagnostics: [],
+        payload: { code: "store-refused", detail: error.refusal.condition,
+          remedy: spineRemedy(error.refusal.condition, error.refusal.remedy.text, ["arc", "review", "lane", "read", "-"], request) } };
     }
     const code = error instanceof LocalReviewAuthorityError ? error.reason
       : error instanceof Error && "reason" in error && typeof error.reason === "string" ? error.reason : "lane-read-unavailable";

@@ -1,4 +1,5 @@
 /** Record Errand status judgments before early returns and retain their projection's origin. */
+import { reviewFactListingError } from "../../../lib/store/kinds/review/fact-access.js";
 import type { ReviewInFlightPort } from "../core/ports.js";
 import { readLaneProgress } from "../lane-progress.js";
 import { createReviewTarget } from "../core/gate-contract-v2.js";
@@ -48,7 +49,7 @@ async function resolveNativeErrandPassGrants(input: ReviewInvocationInput & Erra
   if (input.operationStore.stateOffBranch !== true) return {};
   if (facts === undefined) throw new Error("Restore the selected native Errand review facts and retry status.");
   const listing = await facts.decisions.list();
-  if (listing.status !== "complete") throw new Error(listing.reason);
+  if (listing.status !== "complete") throw reviewFactListingError(listing);
   if (input.ceilingOverride === undefined && input.additionalPassAuthorization === undefined
     && !listing.records.some(({ value }) => value.choice.kind === "extra-pass" && value.choice.precondition.kind !== "approved-fix")) return {};
   const coordinates = await currentErrandDiffBase(input.exec, input.policyTarget.headSha, input.currentBaseOid, input.currentBaseRef);

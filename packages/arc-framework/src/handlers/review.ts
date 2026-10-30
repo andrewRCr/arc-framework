@@ -2026,14 +2026,15 @@ export async function handleReviewResolve(
   source: string,
   overrides: Partial<ReviewResolveHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
-  invocation: ReviewInvocationOptions = {},
+  invocation: ReviewHandlerInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false,
     machineReadable: true,
     yes: "absent",
   });
-  const dependencies = { ...defaultReviewResolveDependencies(createGitExec(context.subprocess), invocation), ...overrides };
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
+  const dependencies = { ...defaultReviewResolveDependencies(exec, invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-resolve",
     source,

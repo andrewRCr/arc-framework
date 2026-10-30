@@ -1,4 +1,5 @@
 /** Native working-state persistence isolated from repository-backed operation records. */
+import { reviewFactListingError } from "../../../../lib/store/kinds/review/fact-access.js";
 import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 import type { OwnerIdentity } from "../../../../lib/store/identity.js";
 import type { ReviewOutcomePort, ReviewEvidencePort, ReviewDecisionPort, NativeReviewFactPorts, ReviewInFlightPort, ReviewOperationStateSnapshot } from "../../core/ports.js";
@@ -56,13 +57,15 @@ export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
 
   private async outcomes() {
     const listing = await this.input.outcomes.list();
-    if (listing.status !== "complete") throw new LocalOperationStateStoreError(listing.reason);
+    if (listing.status !== "complete") throw listing.refusal === undefined ? new LocalOperationStateStoreError(listing.reason)
+      : reviewFactListingError(listing);
     return listing.records.map(record => record.value);
   }
 
   private async evidence() {
     const listing = await this.input.evidence.list();
-    if (listing.status !== "complete") throw new LocalOperationStateStoreError(listing.reason);
+    if (listing.status !== "complete") throw listing.refusal === undefined ? new LocalOperationStateStoreError(listing.reason)
+      : reviewFactListingError(listing);
     return listing.records.map(record => record.value);
   }
 

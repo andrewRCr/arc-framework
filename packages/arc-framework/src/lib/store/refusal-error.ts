@@ -12,3 +12,8 @@ export class StoreRefusalError extends Error {
     this.name = "StoreRefusalError";
   }
 }
+
+/** Whether an error is an off-branch store's refusal, which a command reports whole rather than rewrapping. */
+export function isOffBranchStoreRefusal(error: unknown): error is StoreRefusalError {
+  return error instanceof StoreRefusalError && error.offBranch;
+}

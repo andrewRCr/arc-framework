@@ -1,5 +1,6 @@
 /** Read-only reduction over durable local and frontline advisory review records. */
 
+import { isOffBranchStoreRefusal } from "../../../lib/store/refusal-error.js";
 import { z } from "zod";
 import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches, bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
 import { projectStoredFrontlineOutcome } from "../core/frontline-result.js";
@@ -545,7 +546,7 @@ export class DurableReviewReductionPort implements ReviewReductionPort {
       }
       throw new ReduceCommandError("operation kind is not reducible");
     } catch (error) {
-      if (error instanceof ReduceCommandError || error instanceof ProjectIdentityError) throw error;
+      if (error instanceof ReduceCommandError || error instanceof ProjectIdentityError || isOffBranchStoreRefusal(error)) throw error;
       throw new ReduceCommandError(
         error instanceof Error ? error.message : "review reduction cannot validate durable state",
       );
@@ -562,7 +563,7 @@ export async function reduceReviewCommand(
   try {
     return await dependencies.reductionPort.reduce(request.operationId);
   } catch (error) {
-    if (error instanceof ReduceCommandError || error instanceof ProjectIdentityError) throw error;
+    if (error instanceof ReduceCommandError || error instanceof ProjectIdentityError || isOffBranchStoreRefusal(error)) throw error;
     throw new ReduceCommandError(
       error instanceof Error ? error.message : "review reduction cannot validate durable state",
     );

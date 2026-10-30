@@ -1,4 +1,5 @@
 /** Bind Owner authorization and native extra-pass judgments to the selected pre-publication invocation. */
+import { isOffBranchStoreRefusal } from "../../../lib/store/refusal-error.js";
 import { SlugSchema } from "../../../lib/kernel/index.js";
 import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
 import type { ReviewInFlightPort } from "../core/ports.js";
@@ -20,7 +21,7 @@ export function createPrePublicationOwnerJudgments(input: ReviewInvocationInput,
     let live: Awaited<ReturnType<typeof readLocalReviewLiveContext>>;
     try { live = await readLocalReviewLiveContext(input); }
     catch (error) {
-      if (error instanceof ProjectIdentityError) throw error;
+      if (error instanceof ProjectIdentityError || isOffBranchStoreRefusal(error)) throw error;
       return { status: "refused", reason: `The Work Unit Owner could not be resolved: ${error instanceof Error ? error.message : String(error)}` };
     }
     if (live.context.workUnit?.identity !== name) {
