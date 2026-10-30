@@ -109,7 +109,7 @@ records introduce no automatic reconnect, replacement execution or ARC job datab
 
 ## Implementation size
 
-The four runtime modules and their declaration companion total 842 lines, including comments and blank lines and
+The four runtime modules and their declaration companion total 856 lines, including comments and blank lines and
 excluding READMEs:
 
 | Module              | Responsibility                                  |
