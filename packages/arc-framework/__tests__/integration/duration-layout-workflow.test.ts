@@ -19,7 +19,7 @@ it("uses only the adopted literal matrices and admits scheduled writer runs", as
   const value = await workflow();
   expect(Object.keys(value.on.workflow_dispatch.inputs))
     .toEqual(["run_portability_pair", "portability_timing_only", "store_per_change", "run_git_floor"]);
-  for (const [tier, indices] of [["unit", [1,2]], ["integration", [1,2,3,4]], ["store", [1,2,3,4]],
+  for (const [tier, indices] of [["unit", [1,2]], ["integration", [1,2,3,4]], ["store", [1,2,3,4,5,6]],
     ["e2e", [1,2,3,4]]] as const) {
     const adopted = value.jobs[tier];
     expect(adopted?.strategy?.matrix.shard).toEqual(indices);
@@ -97,8 +97,9 @@ it("runs the store shards on the integration tier's handed durations and writes 
   expect(steps[run]?.run).toBe("node --import tsx scripts/run-ci-checks.mjs run store test --shard ${{ matrix.shard }}");
   expect(steps[run]?.env).toMatchObject({
     ARC_TEST_DURATION_FILE: "${{ github.workspace }}/packages/arc-framework/.test-cost-runs/duration-input/integration.json" });
-  expect(steps.find((entry) => entry.name === "Upload native durations")?.with?.name)
-    .toBe("duration-results-integration-store-${{ matrix.shard }}");
+  const upload = steps.find((entry) => entry.name === "Upload native durations");
+  expect(upload?.with?.name).toBe("duration-results-integration-store-${{ matrix.shard }}");
+  expect(upload?.if).toContain("github.event_name == 'push'");
   expect(steps.find((entry) => entry.name === "Report test budget")?.run).toContain('--ci-job "store-${{ matrix.shard }}"');
 });
 
@@ -111,13 +112,18 @@ it("runs every store suite in full off pull requests, or in its per-change form 
   expect(value.jobs["merge-test-durations"]?.if).toContain("!inputs.store_per_change");
 });
 
-it("merges and saves only after all writer shards succeeded and gives unit reports distinct names", async () => {
+it("merges and saves after the writer shards succeeded, a push updating the input it was handed", async () => {
   const value = await workflow();
   const merger = value.jobs["merge-test-durations"];
   expect(merger?.needs).toEqual(["unit", "integration", "store", "e2e"]);
   expect(merger?.if).toContain("needs.store.result == 'success'");
   expect(merger?.if).toContain("github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'");
   expect(merger?.steps.find((entry) => entry.name === "Save duration cache")?.uses).toMatch(/^actions\/cache\/save@/u);
+  const handed = merger?.steps.find((entry) => entry.name === "Download handed duration input");
+  expect(handed?.if).toBe("${{ github.event_name == 'push' }}");
+  expect(handed?.with).toMatchObject({ name: "test-duration-input", path: "duration-base" });
+  expect(merger?.steps.find((entry) => entry.name === "Merge disjoint duration memberships")?.run)
+    .toContain("${{ github.event_name == 'push' && 'duration-base' || '' }}");
   expect(merger?.steps.find((entry) => entry.name === "Save duration cache")?.with?.key)
     .toContain("${{ github.run_id }}");
   expect(value.jobs.unit?.steps.find((entry) => entry.name === "Upload unit test report")?.with?.name)
