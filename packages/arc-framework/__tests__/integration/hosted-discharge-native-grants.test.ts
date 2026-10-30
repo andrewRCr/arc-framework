@@ -17,9 +17,11 @@ import { createHostedReservationDischargeReader } from "../../src/scripts/review
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../src/scripts/review-gate/policy/standard-review.js";
 import { resolveNativeExtraPassJudgment } from "../../src/scripts/review-gate/runtime/native-extra-pass.js";
 import { readNativeDecisionSubject } from "../../src/scripts/review-gate/runtime/native-policy-grants.js";
+import { handleReviewHostedAwait } from "../../src/handlers/review.js";
+import type { HostedProcessRunner } from "../../src/scripts/review-gate/hosted/gh-process.js";
 
-it("discharges a clean terminal pass at the ceiling, then admits another pass once its owner stores an additional-pass "
-  + "grant", async () => {
+// Admit and acknowledge one hosted request for a work unit's Candidate, configured to one standard pass.
+async function hostedReview() {
   const h = await createReviewRepositoryHarness();
   onTestFinished(h.cleanup);
   const { cwd, exec } = h.native, store = h.reference.store;
@@ -70,9 +72,6 @@ it("discharges a clean terminal pass at the ceiling, then admits another pass on
     artifact: { kind: "issue-comment" as const, id: "request-1", url: "https://example.test/request-1",
       createdAt: "2026-10-30T15:01:00.000Z" } };
   await acknowledgeHostedRequest(ports.inFlight, { admission: admitted.admission, handle, now: handle.artifact.createdAt });
-  await recordHostedAwaitAttempt(ports.inFlight, { repositoryId: projectId, now: "2026-10-30T15:02:00.000Z",
-    result: { schemaVersion: 1, mode: "review-hosted-await", handle, state: "clean", nextAction: "complete",
-      reviewUrl: "https://example.test/clean-1" } });
   const reservation = createStandardReviewReservation({ candidateId: lineage.candidateId, sourceId: "codex-pr",
     sources: ["codex-pr"], repository: target.repository, headSha, obligation });
   const reader = createHostedReservationDischargeReader({ ...h.native, workItem: owner });
@@ -84,6 +83,15 @@ it("discharges a clean terminal pass at the ceiling, then admits another pass on
     resolveNativeExtraPassJudgment({ facts: { decisions: createReviewDecisionPort(store, owner), readProjectId: h.reference.projectId },
       repositoryId: projectId, subject, lane: "standard", policyTarget: target,
       completedPasses: 1, actor: "andrew", now: "2026-10-30T15:03:00Z", ...extra });
+  return { h, ports, projectId, branch, baseRevision, headSha, target, handle, discharge, grant };
+}
+
+it("discharges a clean terminal pass at the ceiling, then admits another pass once its owner stores an additional-pass "
+  + "grant", async () => {
+  const { ports, projectId, target, handle, discharge, grant } = await hostedReview();
+  await recordHostedAwaitAttempt(ports.inFlight, { repositoryId: projectId, now: "2026-10-30T15:02:00.000Z",
+    result: { schemaVersion: 1, mode: "review-hosted-await", handle, state: "clean", nextAction: "complete",
+      reviewUrl: "https://example.test/clean-1" } });
 
   expect(await discharge()).toMatchObject({ discharged: true, nextSource: null });
   await grant({ additionalPassAuthorization: { target, lane: "standard", precedingProducerId: hostedLaneAttemptId(handle),
@@ -92,3 +100,31 @@ it("discharges a clean terminal pass at the ceiling, then admits another pass on
     detail: "The recorded extra-pass judgment admits another review.", requestCoverage: "complete", completedPasses: 1,
     terminalAttempt: { sourceId: "codex-pr", outcome: "clean", reviewOperationId: hostedLaneAttemptId(handle) } });
 }, 40_000);
+
+it("follows the pending await a native discharge emits, from a checkout naming no work item, to its clean verdict",
+  async () => {
+    const { h, branch, baseRevision, headSha, target, discharge } = await hostedReview();
+    const pending = await discharge();
+    expect(pending).toMatchObject({ discharged: false, nextSource: null, awaitAction: { operationRef: expect.any(String) } });
+    const hostedRunner: HostedProcessRunner = { run: async args => {
+      const endpoint = args[1] ?? "";
+      const value = endpoint === `repos/${target.repository}/pulls/42` ? { number: 42, state: "open", merged: false,
+        draft: false, head: { ref: branch, sha: headSha, repo: { full_name: target.repository } },
+        base: { ref: "main", sha: baseRevision, repo: { full_name: target.repository } } }
+        : endpoint.startsWith(`repos/${target.repository}/issues/42/comments?`) ? [[{ node_id: "clean-comment",
+          html_url: "https://example.test/clean-1", user: { id: 199175422 }, performed_via_github_app: { id: 1144995 },
+          body: `Codex Review: didn't find any major issues\nReviewed commit: ${headSha}`,
+          created_at: "2026-10-30T15:02:00Z", updated_at: "2026-10-30T15:02:00Z" }]]
+        : endpoint.startsWith(`repos/${target.repository}/pulls/42/reviews?`) ? [[]]
+        : endpoint === "graphql" ? { data: { repository: { pullRequest: {
+          reviewThreads: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } } }
+        : undefined;
+      if (args[0] !== "api" || value === undefined) throw new Error(`Unexpected hosted command: ${args.join(" ")}`);
+      return { stdout: JSON.stringify(value), stderr: "" };
+    } };
+    let output = "";
+    await handleReviewHostedAwait("-", { readText: async () => JSON.stringify(pending.awaitAction),
+      write: text => { output += text; }, setExitCode: () => undefined }, undefined, { ...h.native, hostedRunner });
+    expect(JSON.parse(output)).toMatchObject({ state: "clean", nextAction: "complete" });
+    expect(await discharge()).toMatchObject({ discharged: true, nextSource: null });
+  }, 40_000);

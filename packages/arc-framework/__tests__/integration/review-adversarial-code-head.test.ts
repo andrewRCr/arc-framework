@@ -48,9 +48,10 @@ it("binds a code pass to the HEAD of the checkout holding its work unit and refu
   expect(await store.version()).toEqual(before);
   await occupy("example");
   const head = (await exec("git", ["rev-parse", "HEAD"], { cwd })).stdout.trim();
-  for (const activity of ["verification", "criteria"] as const) {
+  for (const number of [1, 2]) for (const activity of ["verification", "criteria"] as const) {
     const result = await run(activity);
     expect(result.exitCode, JSON.stringify(result.envelope)).toBe(0);
+    expect(result.envelope.payload.key).toEqual({ activity, number });
     const saved = lifecycleSuccess(await store.read({
       reference: recordReferences["review/adversarial-pass"](primary.reference.owner, result.envelope.payload.key) }));
     expect(JSON.parse(saved.content)).toMatchObject({ ...adversarialPassFixture(activity), codeHead: head,

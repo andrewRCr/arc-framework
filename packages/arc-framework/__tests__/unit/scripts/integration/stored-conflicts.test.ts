@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
-import { recordReferences, type RecordReference } from "../../../../src/lib/store/identity.js";
+import { RecordReferenceSchema, recordReferences, type RecordReference } from "../../../../src/lib/store/identity.js";
 type RecordKind = RecordReference["kind"];
 import { readStoredLifecycleSummary } from "../../../../src/scripts/integration/lifecycle-record.js";
 import { writeWorkUnitLandingCommit } from "../../../../src/scripts/integration/landing-link.js";
@@ -20,7 +20,9 @@ async function conflicted(kind: RecordKind) {
   h.store.read = async input => {
     const result = await read(input);
     if (!state.conflicted || result.status !== "ok" || input.reference.kind !== kind) return result;
-    state.conflict = { ...result.result.reference, key: "conflict-1" } as RecordReference;
+    // The ref backend names an open conflict as its family's conflict record, keyed by the captured conflict.
+    state.conflict = RecordReferenceSchema.parse({ owner: result.result.reference.owner,
+      kind: `${result.result.reference.kind.split("/")[0]}/conflict-record`, key: "conflict-1" });
     return { status: "ok", result: { ...result.result, conflicts: [state.conflict] } };
   };
   return { ...h, primary, state };

@@ -82,13 +82,15 @@ it("stages an already matching untracked copy at attestation", async () => {
 it.each(["review/integration-boundary", "review/candidate", "work-item/spec"] as const)(
   "refuses through attestation's typed refusal when the %s read refuses, and attests once repaired", async kind => {
     const h = await fixture();
-    const refusal = { code: "lock-held" as const, class: "recoverable" as const, lock: "review", condition: "The review lock is held.",
-      remedy: { text: "Wait for the holder to finish, then retry.", argv: ["arc", "attest", "example"] } };
+    // A ref read whose record objects are missing refuses in this shape, naming the record and no command.
+    const refusal = { code: "state-unresolvable" as const, class: "recoverable" as const, historyRefs: [],
+      condition: "The stored record's objects are missing.", remedy: { text: "Restore or fetch the missing record objects, then retry the read." } };
     const read = h.reference.store.read.bind(h.reference.store);
     let held = true;
-    h.reference.store.read = async input => held && input.reference.kind === kind ? { status: "refused", refusal } : read(input);
+    h.reference.store.read = async input => held && input.reference.kind === kind
+      ? { status: "refused", refusal: { ...refusal, reference: input.reference } } : read(input);
     expect(await h.attest()).toMatchObject({ status: "rejected", reason: refusal.condition,
-      remedy: { invariant: refusal.condition, argv: refusal.remedy.argv, text: expect.stringContaining(refusal.remedy.text) } });
+      remedy: { invariant: refusal.condition, text: expect.stringContaining(refusal.remedy.text) } });
     expect(process.exitCode).toBe(1);
     held = false;
     process.exitCode = 0;

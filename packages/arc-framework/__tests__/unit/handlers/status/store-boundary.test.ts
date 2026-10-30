@@ -7,7 +7,7 @@ import { boundaryV2Fixture } from "../../../fixtures/review-boundary.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import { PublishedIntegrationBoundaryLocusSchema, ContinuePrePublicationActionSchema } from "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { canonicalDigest } from "../../../../src/lib/kernel/index.js";
-import type { Store } from "../../../../src/lib/store/index.js";
+import { recordReferences, type Store } from "../../../../src/lib/store/index.js";
 
 afterEach(() => { vi.restoreAllMocks(); process.exitCode = undefined; });
 
@@ -63,8 +63,10 @@ it("renders a refused native boundary read through status's typed refusal, and r
     readinessBinding: canonicalDigest({ readiness: 1 }) });
   await h.seedBoundary(meta.reference.owner, boundary);
   let held = true;
-  const refusal = { code: "lock-held" as const, class: "recoverable" as const, lock: "review", condition: "The review lock is held.",
-    remedy: { text: "Wait for the holder to finish, then retry.", argv: ["arc", "status", "example"] } };
+  // A ref read whose record objects are missing refuses in this shape, naming the record and no command.
+  const refusal = { code: "state-unresolvable" as const, class: "recoverable" as const, historyRefs: [],
+    reference: recordReferences["review/integration-boundary"](meta.reference.owner),
+    condition: "The stored record's objects are missing.", remedy: { text: "Restore or fetch the missing record objects, then retry the read." } };
   const base = h.store;
   const store: Store = { capabilities: base.capabilities, list: input => base.list(input), write: input => base.write(input),
     batch: input => base.batch(input), version: () => base.version(), history: input => base.history(input),
