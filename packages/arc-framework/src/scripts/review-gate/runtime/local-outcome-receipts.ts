@@ -29,8 +29,8 @@ export async function publishLocalReviewReceipt(context: LocalReceiptPublication
 }
 
 /** Read terminal local receipts through the invocation's selected fact source. */
-export async function readLocalReviewReceipts(context: Pick<LocalReceiptPublicationContext, "receiptStore" | "outcomes">,
-  targetId: string): Promise<ForwardReceiptLedger> {
+export async function readLocalReviewReceipts(context: { receiptStore: Pick<ForwardReviewReceiptStore, "readReceipts">;
+  outcomes?: ReviewOutcomePort; }, targetId: string): Promise<ForwardReceiptLedger> {
   if (context.outcomes === undefined) return context.receiptStore.readReceipts(targetId);
   const listing = await context.outcomes.list();
   if (listing.status !== "complete") throw new LocalReceiptStoreError(listing.reason);

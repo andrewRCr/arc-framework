@@ -13,6 +13,8 @@ import { bindReviewSourceReference } from "../../../../../src/scripts/review-gat
 import { LocalAttestRequestSchema } from "../../../../../src/scripts/review-gate/runtime/local-attest-command.js";
 import { LocalResumeRequestSchema } from "../../../../../src/scripts/review-gate/runtime/local-resume-command.js";
 import { ReduceRequestSchema } from "../../../../../src/scripts/review-gate/runtime/reduce-command.js";
+import { LocalCancelRequestSchema } from "../../../../../src/scripts/review-gate/runtime/local-cancel-command.js";
+import { LocalCancelEnvelopeSchema } from "../../../../../src/scripts/review-gate/core/local-cancel-envelope.js";
 import { LocalAttestEnvelopeSchema, LocalPrepareEnvelopeSchema, LocalResumeEnvelopeSchema, ReduceEnvelopeSchema,
   FrontlineResolveEnvelopeSchema, FrontlineRunEnvelopeSchema } from
   "../../../../../src/scripts/review-gate/core/review-command-envelope.js";
@@ -34,6 +36,8 @@ const receiptRef = bindReviewSourceReference({ ...localOperation, kind: "atteste
 const operationPayload = { operationId: local.attemptId, operationRef, persistedVersion: 0 };
 const attested = { schemaVersion: 1, mode: "review-local-attest", diagnostics: [], state: "attested-current",
   nextAction: "reduce", payload: { ...operationPayload, target: local.target, receiptRef, receiptRecorded: true } };
+const cancelled = { schemaVersion: 1, mode: "review-local-cancel", diagnostics: [], state: "terminal-operation",
+  nextAction: "resume-review", payload: operationPayload };
 const evaluatorResult = { status: "partial", result: null, evaluatorIdentity: "evaluator-1", reviewRunId: "run-1",
   applicabilityId: null, findings: [] };
 const handle = createHostedHandleFixture();
@@ -55,6 +59,8 @@ const nativeSchemaCases = [
   ["local attest request", LocalAttestRequestSchema, { ...requestInput, result: evaluatorResult }],
   ["local resume request", LocalResumeRequestSchema, requestInput],
   ["reduce request", ReduceRequestSchema, requestInput],
+  ["local cancel request", LocalCancelRequestSchema, requestInput],
+  ["local cancel result", LocalCancelEnvelopeSchema, cancelled],
   ["local attested result", LocalAttestEnvelopeSchema, attested],
   ["local prepare completion", LocalPrepareEnvelopeSchema, { ...completedHeader, mode: "review-local-prepare",
     payload: { ...operationPayload, target: local.target } }],
@@ -103,6 +109,8 @@ describe("native continuation embeddings", () => {
     ["local attest", LocalAttestRequestSchema, { ...requestInput, operationId: "different", result: evaluatorResult }],
     ["local resume", LocalResumeRequestSchema, { ...requestInput, operationId: "different" }],
     ["reduce", ReduceRequestSchema, { ...requestInput, operationId: "different" }],
+    ["local cancel", LocalCancelRequestSchema, { ...requestInput, operationId: "different" }],
+    ["cancel envelope", LocalCancelEnvelopeSchema, { ...cancelled, payload: { ...operationPayload, operationId: "different" } }],
     ["attested envelope", LocalAttestEnvelopeSchema, { ...attested,
       payload: { ...attested.payload, operationId: "different" } }],
     ["frontline ready", FrontlineResolveEnvelopeSchema, { ...ready,
@@ -122,12 +130,16 @@ describe("native continuation embeddings", () => {
     const payload = { ...attested.payload, operationRef: undefined };
     assertSchemaRefuses(LocalAttestEnvelopeSchema, { ...attested,
       payload: { ...payload, sourceRef: "original-source-record" } });
+    assertSchemaRefuses(LocalCancelEnvelopeSchema, { ...cancelled, payload: { ...operationPayload, operationRef: undefined } });
   });
 
   it("keeps the existing repository requests and action values", () => {
     const input = { schemaVersion: 1, operationId: local.attemptId };
     expect(assertSchemaAccepts(LocalResumeRequestSchema, input)).toEqual(input);
     expect(assertSchemaAccepts(ReduceRequestSchema, input)).toEqual(input);
+    expect(assertSchemaAccepts(LocalCancelRequestSchema, input)).toEqual(input);
+    const repositoryCancel = { ...cancelled, payload: { operationId: local.attemptId, persistedVersion: 1 } };
+    expect(assertSchemaAccepts(LocalCancelEnvelopeSchema, repositoryCancel)).toEqual(repositoryCancel);
     expect(hostedAwaitAction(handle)).toEqual({ schemaVersion: 1, handle });
   });
 });

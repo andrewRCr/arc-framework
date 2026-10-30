@@ -11,7 +11,7 @@ import { candidateFixture } from "../../helpers/store/tracked-write-fixture.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import { lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { expect, it, onTestFinished } from "vitest";
-import { handleReviewLocalPrepare, handleReviewLocalResume, handleReviewLocalAttest, handleReviewReduce, handleReviewRespond } from "../../../src/handlers/review.js";
+import { handleReviewLocalPrepare, handleReviewLocalResume, handleReviewLocalAttest, handleReviewLocalCancel, handleReviewReduce, handleReviewRespond } from "../../../src/handlers/review.js";
 import { TransientIdentityRecordSchema } from "../../../src/lib/errand/identity-record.js";
 import { scriptRawGitExec } from "../../helpers/git-exec-fake.js";
 import { createReviewHarness } from "../../helpers/store/review-harness.js";
@@ -71,6 +71,7 @@ async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand
       const root = args[2]; if (root === undefined) throw new Error("Expected materialization path");
       materialized.delete(root); await rm(root, { recursive: true, force: true }); return { stdout: "" };
     }] },
+    { match: ["worktree", "prune"], responses: [{ stdout: "" }] },
     { match: { prefix: ["update-ref", "-d"] }, responses: [({ args }) => {
       pins.delete(args[2] ?? ""); return { stdout: "" };
     }] },
@@ -177,6 +178,13 @@ async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand
     await handleReviewLocalAttest("-", { resolveRoot: () => checkout.cwd,
       readText: async () => JSON.stringify({ schemaVersion: 1, operationId, operationRef: referenceFor(operationId, override), result: completion ?? { status: "partial", result: null,
         evaluatorIdentity: "fresh-reviewer", reviewRunId: "test-run", applicabilityId: null, findings: [] } }),
+      write: text => { output += text; }, setExitCode: () => {} },
+    undefined, { ...checkout, store: override?.store ?? checkout.store, workItem: override?.workItem, projectId: createProjectIdentityReader(checkout.store) });
+    return JSON.parse(output) as unknown;
+  }, cancel: async (operationId: string, override?: ContinuationOverride) => {
+    let output = "";
+    await handleReviewLocalCancel("-", { resolveRoot: () => checkout.cwd,
+      readText: async () => JSON.stringify({ schemaVersion: 1, operationId, operationRef: referenceFor(operationId, override) }),
       write: text => { output += text; }, setExitCode: () => {} },
     undefined, { ...checkout, store: override?.store ?? checkout.store, workItem: override?.workItem, projectId: createProjectIdentityReader(checkout.store) });
     return JSON.parse(output) as unknown;
@@ -615,4 +623,37 @@ it("prepares a native Errand fix check only after its approved response is perfo
     logicalPass: 2, coverageAdmission: { requestedCoverage: "incremental", correctionScope: { predecessorProducerId: outcome.attemptId,
       predecessorHeadSha: outcome.target.headSha, headSha: performance.producedHeadSha } } } });
   expect(await family.ports.outcomes.read(outcome.attemptId)).toEqual(stored);
+});
+
+it("cancels a native dispatch through its produced reference and replays the same reference", async () => {
+  const h = await fixture(true, "errand", false);
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (prepared.state !== "ready" || prepared.payload.operationRef === undefined) throw new Error(JSON.stringify(prepared));
+  const { operationId, operationRef } = prepared.payload;
+  const cancelled = await h.cancel(operationId);
+  expect(cancelled, JSON.stringify(cancelled)).toMatchObject({ mode: "review-local-cancel", state: "cancelled",
+    nextAction: "rerun-review", payload: { operationId, operationRef } });
+  expect(await h.operations.readOperation(operationId)).toMatchObject({ state: null });
+  expect(await h.cancel(operationId)).toMatchObject({ state: "terminal-operation", nextAction: "resume-review",
+    payload: { operationId, operationRef } });
+});
+
+it("refuses malformed and foreign native cancel references, then cancels with the produced one", async () => {
+  const h = await fixture(true, "errand", false);
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (prepared.state !== "ready" || prepared.payload.operationRef === undefined) throw new Error(JSON.stringify(prepared));
+  const reference = parseNativeReviewOperationReference(prepared.payload.operationRef);
+  for (const operationRef of ["arc-review-operation:v1:broken", bindNativeReviewOperationReference({
+    ...reference, operationId: "another-operation" })]) {
+    expect(await h.cancel(prepared.payload.operationId, { operationRef })).toMatchObject({ error: {
+      code: "invalid-input", message: expect.stringContaining("emitted by arc review local prepare") } });
+  }
+  const other = await h.seedMeta("other");
+  const foreign = bindNativeReviewOperationReference({ ...reference, workItem: other.reference.owner });
+  for (const workItem of [undefined, other.reference.owner]) {
+    expect(await h.cancel(prepared.payload.operationId, { operationRef: foreign, workItem })).toMatchObject({ error: {
+      code: "corrupt-state", message: expect.stringContaining("operation is unavailable") } });
+  }
+  expect(await h.operations.readOperation(prepared.payload.operationId)).toMatchObject({ state: { kind: "local-review" } });
+  expect(await h.cancel(prepared.payload.operationId)).toMatchObject({ state: "cancelled" });
 });

@@ -877,9 +877,25 @@ through rename and slug reuse; mismatched references refuse and succeed after co
           envelope with an owning-checkout remedy; branch repair resumes them without writes. Explicit generations
           survive slug reuse, project-identity repair stays intact, and fact-free results match the repository arm.
 
+### `[x]` **4.R5 Give `arc review local cancel` its native owner and outcome — § 4.7, § 9.3**
+
+- _Goal:_ `arc review local cancel` binds its operation's native owner from the reference `arc review local prepare`
+  produced, stores the cancelled attempt's outcome, reads receipts and an ended attempt from stored outcomes, and
+  replays as a terminal operation once its working state is pruned, emitting the owner's reference beside the in-flight
+  record's version, 0 where this clone holds none (A22).
+
+- _Outcome:_ Cancel binds the saved owner through the resolver attest and resume now share, and its handler publishes
+  that owner's `operationRef`. The native write carries the local admission into a receiptless terminal-failure
+  outcome; a retry after pruning replays from that outcome as `terminal-operation`, binding the reference from its owner
+  and repeating only a receiptless failure's cleanup. The envelope takes the shared operation-payload checks, so version
+  0 requires the reference, and a foreign owner's reference refuses as unavailable, as attest's does.
+
 ### `[x]` **4.11 The review gate's store** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
+
+    - _Amended in:_ 4.R5 (A22)
+
 - _Outcome:_ On base `7e6852542`, actual native attestation, paused refusal/resume, local completion, derived counts,
   supersession, repository-state coexistence, and project-identity repair satisfy the segment scenario. Supplemental
   re-entry retained the admitted UID through stored-owner rename and slug reuse after pruning, including a second

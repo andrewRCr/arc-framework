@@ -6,6 +6,7 @@ import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
 import { createReviewCompositionContext } from "./composition-context.js";
 import { LocalAttestCommandError, LocalAttestRequestSchema } from "./local-attest-command.js";
 import { LocalResumeCommandError, LocalResumeRequestSchema } from "./local-resume-command.js";
+import { LocalCancelCommandError, LocalCancelRequestSchema } from "./local-cancel-command.js";
 import { resolveReviewOperationInvocation, ReviewContinuationReferenceError } from "./continuation-invocation.js";
 import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationContext } from "./invocation.js";
 import { readLocalReviewLiveContext, type ResolvedLocalReviewLiveContext } from "../hosts/local/live-context.js";
@@ -51,29 +52,35 @@ async function readLocalReviewOperationOwner(input: LocalReviewInvocationInput, 
   return state.workItem;
 }
 
-/** Bind resume from its produced locator, retaining pending-state validation without selecting a checkout vehicle. */
-export async function resolveLocalReviewResumeInvocation(options: LocalReviewInvocationInput,
-  requestInput: unknown): Promise<LocalReviewInvocationInput> {
-  const request = LocalResumeRequestSchema.parse(requestInput);
+/** Bind a saved local operation's owner from its produced locator, refusing a locator naming another work item. */
+async function resolveSavedLocalReviewInvocation(options: LocalReviewInvocationInput,
+  request: { operationId: string; operationRef?: string }, failure: (message: string) => Error): Promise<LocalReviewInvocationInput> {
   const input = { ...options, ...await resolveReviewOperationInvocation(options, request, "arc review local prepare") };
   if (!input.store?.capabilities.stateOffBranch || (options.workItem !== undefined && request.operationRef === undefined)) return input;
-  const savedOwner = await readLocalReviewOperationOwner(input, request.operationId, message => new LocalResumeCommandError(message));
+  const savedOwner = await readLocalReviewOperationOwner(input, request.operationId, failure);
   if (savedOwner !== null && (input.workItem === undefined || !sameOwner(savedOwner, input.workItem))) {
     throw new ReviewContinuationReferenceError("operation reference names another work item", "arc review local prepare");
   }
   return input;
 }
 
+/** Bind resume from its produced locator, retaining pending-state validation without selecting a checkout vehicle. */
+export async function resolveLocalReviewResumeInvocation(options: LocalReviewInvocationInput,
+  requestInput: unknown): Promise<LocalReviewInvocationInput> {
+  return resolveSavedLocalReviewInvocation(options, LocalResumeRequestSchema.parse(requestInput),
+    message => new LocalResumeCommandError(message));
+}
+
 /** Bind attestation from its produced locator before opening its review family. */
 export async function resolveLocalReviewAttestInvocation(options: LocalReviewInvocationInput,
   requestInput: unknown): Promise<LocalReviewInvocationInput> {
-  const request = LocalAttestRequestSchema.parse(requestInput);
-  const input = { ...options, ...await resolveReviewOperationInvocation(options, request, "arc review local prepare") };
-  if (!input.store?.capabilities.stateOffBranch || (options.workItem !== undefined && request.operationRef === undefined)) return input;
-  const savedOwner = await readLocalReviewOperationOwner(input, request.operationId,
+  return resolveSavedLocalReviewInvocation(options, LocalAttestRequestSchema.parse(requestInput),
     message => new LocalAttestCommandError("corrupt-state", message));
-  if (savedOwner !== null && (input.workItem === undefined || !sameOwner(savedOwner, input.workItem))) {
-    throw new ReviewContinuationReferenceError("operation reference names another work item", "arc review local prepare");
-  }
-  return input;
+}
+
+/** Bind cancellation from its produced locator before opening its review family. */
+export async function resolveLocalReviewCancelInvocation(options: LocalReviewInvocationInput,
+  requestInput: unknown): Promise<LocalReviewInvocationInput> {
+  return resolveSavedLocalReviewInvocation(options, LocalCancelRequestSchema.parse(requestInput),
+    message => new LocalCancelCommandError(message));
 }

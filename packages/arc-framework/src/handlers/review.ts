@@ -16,7 +16,7 @@ import { resolveHostedAwaitInvocation, resolveHostedRequestInvocation, retainHos
 import { resolveReviewSourceInvocation } from "../scripts/review-gate/runtime/source-invocation.js";
 import { retainReviewOperationReference, reviewContinuationRequestError, resolveReviewOperationInvocation } from "../scripts/review-gate/runtime/continuation-invocation.js";
 import { resolveNativeOwnerlessReviewPolicy } from "../scripts/review-gate/runtime/review-policy-context.js";
-import { resolveLocalReviewInvocation, resolveLocalReviewResumeInvocation, resolveLocalReviewAttestInvocation, resolveReviewPolicyInvocation } from "../scripts/review-gate/runtime/local-review-invocation.js";
+import { resolveLocalReviewInvocation, resolveLocalReviewResumeInvocation, resolveLocalReviewAttestInvocation, resolveLocalReviewCancelInvocation, resolveReviewPolicyInvocation } from "../scripts/review-gate/runtime/local-review-invocation.js";
 import { resolveReduceInvocation } from "../scripts/review-gate/runtime/reduce-invocation.js";
 import { resolveFrontlineRunInvocation } from "../scripts/review-gate/runtime/frontline-invocation.js";
 import { createReviewCompositionContext } from "../scripts/review-gate/runtime/composition-context.js";
@@ -3070,21 +3070,29 @@ export interface ReviewLocalCancelHandlerDependencies extends ReviewHandlerBound
   cancel: (request: unknown, root: string) => Promise<unknown>;
 }
 
+function defaultLocalCancelDependencies(context: InteractionContext, invocation: ReviewHandlerInvocationOptions = {}): ReviewLocalCancelHandlerDependencies {
+  const exec = invocation.exec ?? createGitExec(context.subprocess);
+  const invocationFor = createReviewInvocationResolver(exec, invocation);
+  return {
+    ...defaultReviewHandlerBoundary(),
+    cancel: async (request, root) => {
+      const input = await resolveLocalReviewCancelInvocation({ ...invocationFor(root), exec, cwd: root }, request);
+      return retainReviewOperationReference(input, await cancelLocalReviewCommand(request, createLocalAttestDependencies(input)));
+    },
+  };
+}
+
 /** Cancel a pending local dispatch and emit its public continuation as JSON. */
 export async function handleReviewLocalCancel(
   source: string,
   overrides: Partial<ReviewLocalCancelHandlerDependencies> = {},
   suppliedContext?: InteractionContext,
+  invocation: ReviewHandlerInvocationOptions = {},
 ): Promise<void> {
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false, machineReadable: true, yes: "absent",
   });
-  const exec = createGitExec(context.subprocess);
-  const dependencies: ReviewLocalCancelHandlerDependencies = {
-    ...defaultReviewHandlerBoundary(),
-    cancel: (request, root) => cancelLocalReviewCommand(request, createLocalAttestDependencies({ exec, cwd: root })),
-    ...overrides,
-  };
+  const dependencies = { ...defaultLocalCancelDependencies(context, invocation), ...overrides };
   await executeReviewHandler({
     mode: "review-local-cancel", source,
     requestSchema: LocalCancelRequestSchema, resultSchema: LocalCancelEnvelopeSchema,

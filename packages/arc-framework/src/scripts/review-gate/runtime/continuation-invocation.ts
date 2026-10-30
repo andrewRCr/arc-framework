@@ -28,6 +28,7 @@ export function reviewContinuationRequestError(mode: string, error: unknown, req
     "review-frontline-run": "arc review frontline resolve",
     "review-local-resume": "arc review local prepare",
     "review-local-attest": "arc review local prepare",
+    "review-local-cancel": "arc review local prepare",
     "review-reduce": "arc review local prepare or arc review frontline resolve",
   };
   const producer = producers[mode];

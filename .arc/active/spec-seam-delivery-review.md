@@ -2665,4 +2665,7 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
 - **A21** — 2026-10-29 — design: map an uncommitted current Candidate as its record's newest revision.
   _Supersedes:_ § 11 ¶1 (A20), Criterion 20. _Trigger:_ 3.R2.a must-stop. _Work:_ 3.R2. _Revalidated:_ pending → 8.1.
 
+- **A22** — 2026-10-29 — task: give `arc review local cancel` its native owner and outcome. _Supersedes:_ none.
+  _Trigger:_ 7.5 must-stop. _Work:_ 4.R5. _Revalidated:_ pending → 8.1.
+
 ---
