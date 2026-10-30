@@ -53,10 +53,11 @@ export class RefOperationScope {
     const index = subcommandIndex(args), command = args[index];
     if (command && ["fetch", "maintenance", "gc"].includes(command)) await this.batchReader.reset();
     try { return await operation(); }
-    finally { if (changesConfiguration(args, index)) this.forget(); }
+    finally { if (changesConfiguration(args, index)) this.refreshConfiguration(); }
   }
 
-  private forget(): void { this.generation++; this.answers.clear(); }
+  /** Drop remembered answers so the next configuration lookup reads fresh evidence. */
+  refreshConfiguration(): void { this.generation++; this.answers.clear(); }
 
   private async directoryEvent<T>(context: RefBackendContext, paths: readonly string[], operation: () => Promise<T>): Promise<T> {
     const candidates = paths.map((path) => resolve(path)).filter((path) => basename(dirname(path)) === "arc"
@@ -89,11 +90,11 @@ export class RefOperationScope {
   private async nested<T>(operation: () => Promise<T>): Promise<T> {
     await this.batchReader.reset();
     try { return await operation(); }
-    finally { this.forget(); }
+    finally { this.refreshConfiguration(); }
   }
 
   /** Release the abandoned attempt's readers before resolving a new one. */
-  async refresh(): Promise<void> { this.forget(); await this.batchReader.reset(); }
+  async refresh(): Promise<void> { this.refreshConfiguration(); await this.batchReader.reset(); }
 }
 
 /** Give a command's second backend independent operations without retaining command evidence across them. */

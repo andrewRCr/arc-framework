@@ -108,10 +108,10 @@ public calls and store-directory moves need.
 - _Goal:_ A1 preserves the existing publisher-disappearance refusal during import source retirement, including retained
   source refs and keepers and successful retry after repair, without adding a lock or ending the command's readers.
 
-    - `[ ]` **3.R.a Refresh configuration before the imported-claims publisher check**
-        - Expose the scope's existing generation-based configuration invalidation and call it in
-          `unpublishedImportClaims`, after required claims are established and before `readRefDesignation`.
-          Configuration writes, nested calls, and restarts keep using the same invalidation implementation.
+    - `[x]` **3.R.a Refresh configuration before the imported-claims publisher check**
+        - `RefOperationScope.refreshConfiguration` exposes the existing invalidation used by configuration writes,
+          nested calls, and restarts. `unpublishedImportClaims` refreshes after establishing required claims and before
+          reading designation, preserving its existing refusal and retained source when the publisher disappears.
 
     - `[ ]` **3.R.b Verify retained authority and repaired continuation**
         - Preserve every assertion and the independent configuration write in `store-ref-import-read-only.test.ts`.
