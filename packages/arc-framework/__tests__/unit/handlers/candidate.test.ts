@@ -6,6 +6,9 @@ import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-jso
 import { createCandidateSubjectSnapshot } from "../../../src/lib/work-unit/candidate-attestation.js";
 import { handleCandidateApplicabilityResolve } from "../../../src/handlers/candidate.js";
 import { CandidateSubjectUncollectableError } from "../../../src/lib/work-unit/git-candidate-subject.js";
+import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
+import { StoreRefusalError } from "../../../src/lib/store/refusal-error.js";
+import { ReviewOwnerSelectionError } from "../../../src/lib/store/kinds/review/errors.js";
 import { classifyReviewContributionApplicability } from
   "../../../src/scripts/review-gate/policy/review-contribution-applicability.js";
 
@@ -346,6 +349,61 @@ describe("handleCandidateApplicabilityResolve", () => {
       },
     });
     expect(exitCodes).toEqual([1]);
+  });
+
+  it.each([
+    ["a store keeping state off the branch", true],
+    ["an in-repo store", false],
+  ])("carries %s's refusal and its repair as the failure's cause only off the branch", async (_label, offBranch) => {
+    const output: string[] = [];
+    const request = makeRequest();
+    const owner = (uid: string) => OwnerIdentitySchema.parse({ type: "work-item", name: "example", uid });
+    const refusal = { code: "ambiguous-match" as const, class: "recoverable" as const,
+      candidates: [owner("00000000-0000-4000-8000-000000000001"), owner("00000000-0000-4000-8000-000000000002")]
+        .map(owner => recordReferences["work-item/meta"](owner)),
+      condition: "`example` names more than one completed work unit.",
+      remedy: { text: "Rename one of them to a free slug, then retry." } };
+
+    await handleCandidateApplicabilityResolve("example", "-", undefined, {
+      resolveRoot: () => "/repo",
+      resolveMutationOwner: async () => ({ status: "unowned" }),
+      resolveCompletedWorkUnits: async () => ["example"],
+      readText: async () => JSON.stringify(request),
+      execute: async () => { throw new StoreRefusalError(refusal, offBranch); },
+      write: (text) => output.push(text),
+      setExitCode: () => undefined,
+    });
+
+    expect(JSON.parse(output.join(""))).toEqual({
+      schemaVersion: 1,
+      mode: "candidate-applicability-resolve",
+      state: "execution-unavailable",
+      nextAction: "stop",
+      reason: "execution-failed",
+      ...(offBranch ? { detail: refusal.condition, remedy: { invariant: refusal.condition,
+        text: expect.stringContaining(refusal.remedy.text), argv: ["arc", "candidate", "applicability", "resolve", "example", "-"],
+        stdin: request } } : {}),
+    });
+  });
+
+  it("carries a work-item selection the command cannot use as its cause and repair", async () => {
+    const output: string[] = [];
+    const remedy = { text: "Run the command from its checkout." };
+
+    await handleCandidateApplicabilityResolve("example", "-", undefined, {
+      resolveRoot: () => "/repo",
+      resolveMutationOwner: async () => ({ status: "unowned" }),
+      resolveCompletedWorkUnits: async () => ["example"],
+      readText: async () => JSON.stringify(makeRequest()),
+      execute: async () => {
+        throw new ReviewOwnerSelectionError("invalid-input", "`example` is not a completed work unit.", remedy);
+      },
+      write: (text) => output.push(text),
+      setExitCode: () => undefined,
+    });
+
+    expect(JSON.parse(output.join(""))).toMatchObject({ reason: "execution-failed",
+      detail: "`example` is not a completed work unit.", remedy: { text: expect.stringContaining(remedy.text) } });
   });
 
   it("keeps an ordinary execution failure closed, with no cause to carry", async () => {

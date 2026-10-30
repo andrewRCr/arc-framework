@@ -7,7 +7,7 @@ import { readSubmissionBoundaryVersioned as readFileBoundaryVersioned,
   writeSubmissionBoundary as writeFileBoundary,
   type SubmissionBoundaryReader, type SubmissionBoundaryStoreFs } from "../../../../work-unit/submission-boundary-store.js";
 import { parseIntegrationBoundaryLocus } from "../../../../../scripts/review-gate/policy/integration-boundary-locus.js";
-import { isInRepoKeyMismatch, readReviewRecord, resolveReviewRecordAccess, selectReviewRecordOwner, unwrapReviewRecordResult,
+import { isInRepoKeyMismatch, readReviewRecord, resolveReviewRecordAccess, selectReviewRecordOwner, storedWorkUnitMismatch, unwrapReviewRecordResult,
   type ReviewRecordAccessOptions } from "../access-shared.js";
 import { SubmissionBoundaryVersionConflictError } from "../errors.js";
 import { resolveSubmissionBoundaryPath } from "../paths.js";
@@ -37,7 +37,10 @@ export async function readSubmissionBoundaryVersioned(cwd: string, name: string,
   const native = access.store.capabilities.stateOffBranch && content !== null && typeof content === "object"
     && "schemaVersion" in content && content.schemaVersion === 2;
   const boundary = native ? IntegrationBoundaryLocusV2Schema.parse(content) : parseIntegrationBoundaryLocus(content);
-  if (boundary.workUnit !== workUnit) throw new Error("Submission boundary work unit does not match its path");
+  if (boundary.workUnit !== workUnit) {
+    throw storedWorkUnitMismatch(access.store, "submission boundary", workUnit, boundary.workUnit,
+      "Submission boundary work unit does not match its path");
+  }
   return { boundary, version: stored.version };
 }
 

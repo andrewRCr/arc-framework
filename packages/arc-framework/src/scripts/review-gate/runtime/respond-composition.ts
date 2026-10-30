@@ -31,7 +31,6 @@ import { createRawGitExec } from "../../../lib/io-context.js";
 import type { DeliveryReviewMemberVehicle } from "../../../lib/delivery/review-vehicle.js";
 import { getFrameworkVersion } from "../../../lib/version.js";
 import {
-  readCandidateRecord,
   readCandidateRecordVersioned,
   writeCandidateRecord,
 } from "../../../lib/store/kinds/review/candidate/access.js";
@@ -84,9 +83,9 @@ import type { RespondCommandDependencies } from "./respond-command.js";
 import { createLocalPrepareDependencies, createLocalReviewCandidateReader } from "./local-prepare-composition.js";
 import {
   resolveCandidateMutationOwner,
-  resolveCompletedCandidateWorkUnits,
+  resolveCompletedCandidateOwners,
 } from "../../../handlers/candidate-mutation-owner.js";
-import { selectRespondCandidateWorkUnits } from "./respond-candidate-selection.js";
+import { readRespondCandidate, selectRespondCandidateWorkUnits } from "./respond-candidate-selection.js";
 import { resolveConfiguredLanePolicy } from "../policy/lane-policy-config.js";
 import { resolveEvidenceBoundReviewPolicyContinuation } from
   "../policy/review-policy-evidence.js";
@@ -152,25 +151,6 @@ export async function resolveRespondPolicyTarget(
     repository: changeRequest.targetRef.repository,
     pullRequest: changeRequest.state === "open" ? changeRequest.candidate.number : null,
   };
-}
-
-/** Select only the unique managed Candidate that owns the immutable producer lineage. */
-async function readRespondCandidate(
-  input: ReviewInvocationInput,
-  current: ReviewResult,
-): Promise<{ workUnit: string; record: CandidateManagedRecordV1 } | null> {
-  const lineage = current.admission.lineage;
-  if (lineage.kind !== "candidate") return null;
-  const workUnits = await selectRespondCandidateWorkUnits(input, await resolveCandidateMutationOwner(input),
-    () => resolveCompletedCandidateWorkUnits(input.cwd, input.store));
-  const candidates = await Promise.all(workUnits.map(async (workUnit) => ({
-    workUnit,
-    record: await readCandidateRecord(input.cwd, workUnit, { store: input.store, exec: input.exec, owner: input.workItem }),
-  })));
-  const matching = candidates.filter(({ record }) =>
-    record?.attestation.candidateId === lineage.candidateId);
-  const selected = matching.length === 1 ? matching[0] : undefined;
-  return selected?.record == null ? null : { workUnit: selected.workUnit, record: selected.record };
 }
 
 /** Observe the exact planned or bound member while D4 reads both contribution endpoints. */
@@ -362,7 +342,7 @@ function createRespondPolicyConfirmation(context: {
         privateDeliveryTargets,
       }) });
     }
-    const selected = await readRespondCandidate(input, current);
+    const selected = await readRespondCandidate(input, current.admission.lineage);
     const observeTarget = () => deriveLocalReviewTarget({
       exec: input.exec,
       cwd: input.cwd,
@@ -419,7 +399,7 @@ async function readRespondPolicyNextPassContext(context: {
   const terminal = request.attempts.at(-1);
   const predecessor = terminal?.outcome === "clean" || terminal?.outcome === "findings"
     ? await policyDependencies.resultReader.readResult(terminal.reviewOperationId) : null;
-  const selected = predecessor === null ? null : await readRespondCandidate(input, predecessor);
+  const selected = predecessor === null ? null : await readRespondCandidate(input, predecessor.admission.lineage);
   const lineage = predecessor?.admission.lineage ?? { kind: "head-bound" as const, vehicleKind: "review-target" as const,
     vehicleIdentity: confirmedProducerTarget.targetId, headSha: confirmedProducerTarget.headSha };
   const { completePasses } = await readStandardPassCounts({ ...input, store: prepare.operationStore, reviewRecordStore: input.store, workItem: input.workItem,
@@ -499,7 +479,7 @@ async function readRespondProvisionalPassFacts(context: RespondPolicyContext,
   const { input, publisher, prepare, settings, rawGit, deliveryMembers, privateDeliveryTargets } = context;
   const { result, proposal, configuredSources, configuredMaxPasses } = assessment;
   if (result.kind === "frontline") throw new Error("standard pass facts require a standard producer");
-  const selected = await readRespondCandidate(input, result);
+  const selected = await readRespondCandidate(input, result.admission.lineage);
   const dispositionStore = createReviewCompositionContext(input).family.ports.dispositions;
   const resultReader = createRepositoryReviewResultReader(publisher, input);
   const readResponsePerformance = (producer: ReviewResult) => readLaneResponsePerformance(prepare.operationStore, producer);
@@ -580,13 +560,12 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
         transitions: record.transitions.slice(0, length),
         lineageAttestations: [],
       }));
-  const completedWorkUnits = (): Promise<readonly string[]> =>
-    resolveCompletedCandidateWorkUnits(input.cwd, input.store);
+  const completedOwners = () => resolveCompletedCandidateOwners(input.cwd, input.store);
   const candidateMutationOwner = () => resolveCandidateMutationOwner(input);
   const requireCandidateMutationOwner = async (workUnit: string): Promise<void> => {
     const owner = await candidateMutationOwner();
     if (owner.status === "owned" && owner.workUnit === workUnit) return;
-    if (owner.status === "unowned" && (await completedWorkUnits()).includes(workUnit)) return;
+    if (owner.status === "unowned" && (await completedOwners()).some(({ name }) => name === workUnit)) return;
     throw new Error("Candidate mutation is not owned by the entering checkout.");
   };
   const policyContext = { input, publisher, prepare, settings, readConfiguredLanePolicy, rawGit, deliveryMembers, privateDeliveryTargets };
@@ -729,7 +708,7 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
     },
     now: () => new Date().toISOString(),
     readCandidateLineage: async (target) => {
-      const candidates = await selectRespondCandidateWorkUnits(input, await candidateMutationOwner(), completedWorkUnits);
+      const candidates = await selectRespondCandidateWorkUnits(input, await candidateMutationOwner(), completedOwners);
       const matching = [] as Array<{
         workUnit: string;
         record: NonNullable<Awaited<ReturnType<typeof readCandidateRecordVersioned>>["record"]>;

@@ -41,7 +41,7 @@ it.each(["malformed", "wrong-owner"])("rejects %s Candidate content returned by 
   const options = { store: h.store, owner };
   await expect(readCandidateRecordVersion("/unavailable", "example", options)).resolves.toBe(stored.version);
   await expect(readCandidateRecordVersioned("/unavailable", "example", options))
-    .rejects.toThrow(fault === "malformed" ? /Candidate record is malformed/u : /work unit does not match its path/u);
+    .rejects.toThrow(fault === "malformed" ? /Candidate record is malformed/u : /belongs to work unit `another`, not `example`/u);
 });
 
 it("writes through the supplied store and returns no tracked path, since no tracked file holds the record", async () => {
@@ -170,5 +170,24 @@ it("refuses native access that names no exact work item, and reads once its owne
   await expect(readCandidateRecordVersioned("/unavailable", "example", { store: h.store })).rejects.toThrow(remedy);
   await expect(readCandidateRecordVersion("/unavailable", "example", { store: h.store })).rejects.toThrow(remedy);
   await expect(writeCandidateRecord("/unavailable", "example", record, null, { store: h.store })).rejects.toThrow(remedy);
+  await expect(readCandidateRecord("/unavailable", "example", { store: h.store, owner })).resolves.toEqual(record);
+});
+
+it("refuses native access with no work item as the caller's input to correct", async () => {
+  const h = createLifecycleHarness();
+  await h.seedMeta("example");
+  await expect(readCandidateRecordVersioned("/unavailable", "example", { store: h.store })).rejects.toMatchObject({
+    code: "invalid-input", condition: "Review records for example need the invocation's exact work item." });
+});
+
+it("refuses natively a bound work item's Candidate naming another work unit, naming both, and reads the named one's", async () => {
+  const h = createLifecycleHarness();
+  const other = (await h.seedMeta("other")).reference.owner, { owner } = (await h.seedMeta("example")).reference;
+  const record = candidateFixture();
+  await h.seed(recordReferences["review/candidate"](other), serializeCandidateManagedRecord(candidateFixture("other")));
+  await h.seed(recordReferences["review/candidate"](owner), serializeCandidateManagedRecord(record));
+  await expect(readCandidateRecordVersioned("/unavailable", "example", { store: h.store, owner: other })).rejects.toMatchObject({
+    code: "invalid-input", condition: "The bound work item's Candidate record belongs to work unit `other`, not `example`.",
+    remedy: { text: "Name work unit `other`, or run the command from `example`'s checkout." } });
   await expect(readCandidateRecord("/unavailable", "example", { store: h.store, owner })).resolves.toEqual(record);
 });

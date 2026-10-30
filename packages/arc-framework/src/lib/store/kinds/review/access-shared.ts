@@ -9,6 +9,7 @@ import type { StoreRecord } from "../../read.js";
 import type { StoreResult } from "../../refusal.js";
 import { recordConflictRefusal } from "../../conflict-diagnostics.js";
 import { StoreRefusalError } from "../../refusal-error.js";
+import { ReviewOwnerSelectionError } from "./errors.js";
 
 /** An explicit filesystem port retains direct adapter semantics. */
 export interface ReviewRecordReader { readFile(path: string): Promise<string> }
@@ -41,9 +42,23 @@ export function resolveReviewRecordAccess<TFs extends ReviewRecordReader>(cwd: s
  */
 export function selectReviewRecordOwner(store: Store, name: string, owner: OwnerIdentity | undefined): OwnerIdentity {
   if (!store.capabilities.stateOffBranch) return owner ?? OwnerIdentitySchema.parse({ type: "work-item", name });
-  if (owner === undefined) throw new Error(`Review records for ${name} need the invocation's exact work item. `
-    + `Run the command from ${name}'s checkout, or continue it from the reference its producer emitted.`);
+  if (owner === undefined) {
+    throw new ReviewOwnerSelectionError("invalid-input", `Review records for ${name} need the invocation's exact work item.`,
+      { text: `Run the command from ${name}'s checkout, or continue it from the reference its producer emitted.` });
+  }
   return owner;
+}
+
+/**
+ * Refuse a stored review record that names another work unit than the one requested: in-repo as the tracked file's
+ * mismatch, natively as the bound work item's record, which no tracked path holds.
+ */
+export function storedWorkUnitMismatch(store: Pick<Store, "capabilities">, record: string, requested: string, stored: string,
+  inRepoMessage: string): Error {
+  if (!store.capabilities.stateOffBranch) return new Error(inRepoMessage);
+  return new ReviewOwnerSelectionError("invalid-input",
+    `The bound work item's ${record} belongs to work unit \`${stored}\`, not \`${requested}\`.`,
+    { text: `Name work unit \`${stored}\`, or run the command from \`${requested}\`'s checkout.` });
 }
 
 /** Carry every non-absence refusal whole, its message the store's condition and retry remedy. */

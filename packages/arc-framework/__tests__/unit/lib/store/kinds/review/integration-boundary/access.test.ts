@@ -63,7 +63,7 @@ it.each(["malformed", "wrong-owner"])("rejects %s boundary content returned by t
   raw.content = fault === "malformed" ? "{unreadable" : JSON.stringify(boundaryFixture("another"));
   const read = readSubmissionBoundaryVersioned("/unavailable", "example", { store: h.store, owner });
   if (fault === "malformed") await expect(read).rejects.toBeInstanceOf(SyntaxError);
-  else await expect(read).rejects.toThrow(/work unit does not match its path/u);
+  else await expect(read).rejects.toThrow(/belongs to work unit `another`, not `example`/u);
 });
 
 it("writes a native boundary through checked storage with its opaque compare-and-swap version and no tracked path", async () => {
@@ -106,5 +106,16 @@ it("refuses native boundary access that names no exact work item, and reads once
   const remedy = /need the invocation's exact work item\. Run the command from example's checkout/u;
   await expect(readSubmissionBoundaryVersioned("/unavailable", "example", { store: h.store })).rejects.toThrow(remedy);
   await expect(writeSubmissionBoundary("/unavailable", value, null, { store: h.store })).rejects.toThrow(remedy);
+  expect((await readSubmissionBoundaryVersioned("/unavailable", "example", { store: h.store, owner })).boundary).toEqual(value);
+});
+
+it("refuses natively a bound work item's boundary naming another work unit, naming both, and reads the named one's", async () => {
+  const h = createLifecycleHarness();
+  const other = (await h.seedMeta("other")).reference.owner, { owner } = (await h.seedMeta("example")).reference;
+  const value = IntegrationBoundaryLocusV2Schema.parse(boundaryV2Fixture());
+  await h.seed(recordReferences["review/integration-boundary"](other), JSON.stringify({ ...value, workUnit: "other" }));
+  await h.seed(recordReferences["review/integration-boundary"](owner), JSON.stringify(value));
+  await expect(readSubmissionBoundaryVersioned("/unavailable", "example", { store: h.store, owner: other })).rejects.toMatchObject({
+    code: "invalid-input", condition: "The bound work item's submission boundary belongs to work unit `other`, not `example`." });
   expect((await readSubmissionBoundaryVersioned("/unavailable", "example", { store: h.store, owner })).boundary).toEqual(value);
 });

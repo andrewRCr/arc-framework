@@ -1,6 +1,6 @@
-/** Stable version-conflict errors shared by typed access and filesystem adapters. */
+/** Stable errors shared by typed review access and filesystem adapters. */
 import { StoreRefusalError } from "../../refusal-error.js";
-import type { StoreRefusal } from "../../refusal.js";
+import type { Remedy, StoreRefusal } from "../../refusal.js";
 
 /** A Candidate writer's exact mutation basis no longer matches the stored record. */
 export class CandidateRecordVersionConflictError extends Error {
@@ -23,5 +23,13 @@ export class ReviewFactVersionConflictError extends StoreRefusalError {
   constructor(refusal: Extract<StoreRefusal, { code: "version-conflict" }>, offBranch: boolean) {
     super(refusal, offBranch);
     this.name = "ReviewFactVersionConflictError";
+  }
+}
+
+/** A work-item selection review records cannot use, with the code the command reports and the act that repairs it. */
+export class ReviewOwnerSelectionError extends Error {
+  constructor(readonly code: "invalid-input" | "corrupt-state", readonly condition: string, readonly remedy: Remedy) {
+    super(`${condition} ${remedy.text}`);
+    this.name = "ReviewOwnerSelectionError";
   }
 }

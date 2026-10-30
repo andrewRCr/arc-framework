@@ -4,10 +4,11 @@ import { readFile, readdir } from "node:fs/promises";
 
 import { openDefaultStore } from "./lifecycle-shared.js";
 import { gitExec } from "../lib/io-context.js";
-import { readStoreCompletedEvidence } from "../lib/store/lifecycle-completed.js";
 import { listLifecycleIndex } from "../lib/store/lifecycle-index.js";
 import { readWorkUnit } from "../lib/store/lifecycle-write.js";
-import type { OwnerIdentity } from "../lib/store/identity.js";
+import { OwnerIdentitySchema, recordReferences, sameOwner, type OwnerIdentity } from "../lib/store/identity.js";
+import { StoreRefusalError } from "../lib/store/refusal-error.js";
+import { ReviewOwnerSelectionError } from "../lib/store/kinds/review/errors.js";
 import type { Store } from "../lib/store/contract.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
@@ -53,23 +54,45 @@ export async function resolveCandidateMutationOwner(input: {
  * @returns Completed work-unit slugs
  */
 export async function resolveCompletedCandidateWorkUnits(cwd: string, store: Store = openDefaultStore(cwd, gitExec)): Promise<readonly string[]> {
-  if (store.capabilities.stateOffBranch) {
-    const evidence = await readStoreCompletedEvidence(store);
-    if (evidence.status !== "available") throw new Error("Completed work-unit inventory could not be read completely; repair its diagnostics, then retry.");
-    return [...evidence.records.keys()];
-  }
+  return (await resolveCompletedCandidateOwners(cwd, store)).map(owner => owner.name);
+}
+
+/**
+ * Resolve the exact work items whose archived lifecycle records authorize ownerless Candidate continuation. In-repo
+ * records are keyed by slug; natively each completed generation is its own owner, and an incomplete inventory refuses.
+ *
+ * @param cwd - Repository root containing the lifecycle records
+ * @returns Completed work-item owners
+ */
+export async function resolveCompletedCandidateOwners(cwd: string, store: Store = openDefaultStore(cwd, gitExec)):
+  Promise<readonly OwnerIdentity[]> {
+  if (store.capabilities.stateOffBranch) return readCompletedOwners(store);
   const fs: LifecycleIndexFs = {
     readdir: (path) => readdir(path, { withFileTypes: true }),
     readFile: (path) => readFile(path, "utf8"),
   };
   return [...(await buildLifecycleIndex({ cwd, fs })).values()]
     .filter(({ location }) => location === "completed")
-    .map(({ slug }) => slug);
+    .map(({ slug }) => OwnerIdentitySchema.parse({ type: "work-item", name: slug }));
+}
+
+async function readCompletedOwners(store: Store): Promise<readonly OwnerIdentity[]> {
+  const listing = await listLifecycleIndex(store, { locations: ["completed"] });
+  if (listing.status === "refused") throw new StoreRefusalError(listing.refusal, true);
+  const result = listing.result;
+  if (result.status === "unreadable") throw new ReviewOwnerSelectionError("corrupt-state", result.condition, result.remedy);
+  if (result.status === "absent") return [];
+  if (result.missed || result.diagnostics.length > 0) {
+    throw new ReviewOwnerSelectionError("corrupt-state", ["The completed work-unit inventory is incomplete.",
+      ...result.diagnostics.map(item => `${item.condition} ${item.remedy.text}`)].join(" "),
+    { text: "Repair the completed work units' metadata, then retry." });
+  }
+  return result.index.entries().map(entry => entry.reference.owner);
 }
 
 /**
  * Resolve the exact generation a Candidate mutation writes natively: the checkout's own live work unit, or from a free
- * primary the completed one, never a live namesake reusing its slug.
+ * primary the one completed generation of its slug, never a live namesake reusing it.
  *
  * @param store - The invocation's store; in-repo records are keyed by slug and resolve no owner
  * @param workUnit - The work unit the mutation names
@@ -80,17 +103,28 @@ export async function resolveCompletedCandidateWorkUnits(cwd: string, store: Sto
 export async function resolveCandidateMutationGeneration(store: Store, workUnit: string, scope: "owned" | "unowned",
   bound?: OwnerIdentity): Promise<OwnerIdentity | undefined> {
   if (!store.capabilities.stateOffBranch) return undefined;
-  if (bound !== undefined && bound.name === workUnit) return bound;
   if (scope === "owned") {
+    if (bound !== undefined && bound.name === workUnit) return bound;
     const live = await readWorkUnit(store, workUnit);
-    if (live.status === "refused") throw new Error(`${live.refusal.condition} ${live.refusal.remedy.text}`);
+    if (live.status === "refused") throw new StoreRefusalError(live.refusal, true);
     return live.result.reference.owner;
   }
-  const listing = await listLifecycleIndex(store, { locations: ["completed"] });
-  if (listing.status === "refused") throw new Error(`${listing.refusal.condition} ${listing.refusal.remedy.text}`);
-  if (listing.result.status === "unreadable") throw new Error(`${listing.result.condition} ${listing.result.remedy.text}`);
-  const completed = listing.result.status === "absent" ? undefined
-    : [...listing.result.index.entries()].find(entry => entry.reference.owner.name === workUnit)?.reference.owner;
-  if (completed === undefined) throw new Error(`\`${workUnit}\` is not a completed work unit. Run the command from its checkout.`);
-  return completed;
+  const completed = (await readCompletedOwners(store)).filter(owner => owner.name === workUnit);
+  if (bound !== undefined) {
+    if (completed.some(owner => sameOwner(owner, bound))) return bound;
+    throw new ReviewOwnerSelectionError("invalid-input", `The selected \`${workUnit}\` work item is not a completed generation.`,
+      { text: `Run the command from \`${workUnit}\`'s checkout.` });
+  }
+  if (completed.length > 1) {
+    throw new StoreRefusalError({ code: "ambiguous-match", class: "recoverable",
+      candidates: completed.map(owner => recordReferences["work-item/meta"](owner)),
+      condition: `\`${workUnit}\` names more than one completed work unit.`,
+      remedy: { text: "Rename one of them to a free slug, then retry." } }, true);
+  }
+  const [owner] = completed;
+  if (owner === undefined) {
+    throw new ReviewOwnerSelectionError("invalid-input", `\`${workUnit}\` is not a completed work unit.`,
+      { text: "Run the command from its checkout." });
+  }
+  return owner;
 }

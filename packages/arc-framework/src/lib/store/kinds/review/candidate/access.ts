@@ -7,7 +7,7 @@ import { readCandidateRecordVersioned as readFileCandidateRecordVersioned,
   writeCandidateRecord as writeFileCandidateRecord,
   type CandidateRecordStoreFs } from "../../../../work-unit/candidate-record-store.js";
 import { parseCandidateManagedRecord, serializeCandidateManagedRecord } from "../../../../work-unit/candidate-attestation.js";
-import { isInRepoKeyMismatch, readReviewRecord, resolveReviewRecordAccess, selectReviewRecordOwner, unwrapReviewRecordResult,
+import { isInRepoKeyMismatch, readReviewRecord, resolveReviewRecordAccess, selectReviewRecordOwner, storedWorkUnitMismatch, unwrapReviewRecordResult,
   type ReviewRecordAccessOptions } from "../access-shared.js";
 import { CandidateRecordVersionConflictError } from "../errors.js";
 import { resolveCandidateRecordRelativePath } from "../paths.js";
@@ -34,7 +34,10 @@ export async function readCandidateRecordVersioned(cwd: string, name: string,
   if (stored === null) return { record: null, version: null };
   const record = parseCandidateManagedRecord(stored.content);
   if (record === null) throw new Error(`Candidate record is malformed: ${path}`);
-  if (record.attestation.workUnit !== workUnit) throw new Error(`Candidate record work unit does not match its path: ${path}`);
+  if (record.attestation.workUnit !== workUnit) {
+    throw storedWorkUnitMismatch(access.store, "Candidate record", workUnit, record.attestation.workUnit,
+      `Candidate record work unit does not match its path: ${path}`);
+  }
   return { record, version: stored.version };
 }
 

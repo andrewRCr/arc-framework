@@ -24,6 +24,10 @@ import type { Store } from "../lib/store/contract.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { createDefaultStorePorts } from "../lib/store/default-store-ports.js";
 import { retryEndedItemHistory } from "../lib/store/history-retry.js";
+import { StoreRefusalError } from "../lib/store/refusal-error.js";
+import type { Remedy } from "../lib/store/refusal.js";
+import { ReviewOwnerSelectionError } from "../lib/store/kinds/review/errors.js";
+import { reviewFailureSpineRemedy } from "../scripts/review-gate/runtime/project-identity-remedy.js";
 import type { ReviewInvocationInput } from "../scripts/review-gate/runtime/invocation.js";
 import { resolveCandidateRecordRelativePath } from "../lib/store/kinds/review/paths.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
@@ -361,7 +365,8 @@ function uncollectableSubjectRemedy(workUnit: string): SpineRemedy {
  * @param workUnit - The work unit whose resolution stopped.
  * @returns The closed execution-unavailable result.
  */
-function executionFailedResult(error: unknown, workUnit: string): CandidateApplicabilityCommandResult {
+function executionFailedResult(error: unknown, workUnit: string, request: unknown): CandidateApplicabilityCommandResult {
+  const refusal = nativeExecutionRefusal(error);
   return CandidateApplicabilityResolutionResultSchema.parse({
     schemaVersion: 1,
     mode: "candidate-applicability-resolve",
@@ -370,8 +375,15 @@ function executionFailedResult(error: unknown, workUnit: string): CandidateAppli
     reason: "execution-failed",
     ...(error instanceof CandidateSubjectUncollectableError
       ? { detail: error.message, remedy: uncollectableSubjectRemedy(workUnit) }
-      : {}),
+      : refusal === undefined ? {} : { detail: refusal.condition.slice(0, 4_096), remedy: reviewFailureSpineRemedy(refusal.condition,
+        refusal.remedy, ["arc", "candidate", "applicability", "resolve", workUnit, "-"], request) }),
   });
+}
+
+// A store keeping state off the branch refuses with its own cause and repair; an in-repo failure stays closed as before.
+function nativeExecutionRefusal(error: unknown): { condition: string; remedy: Remedy } | undefined {
+  if (error instanceof StoreRefusalError && error.offBranch) return error.refusal;
+  return error instanceof ReviewOwnerSelectionError ? error : undefined;
 }
 
 function emit(
@@ -490,7 +502,7 @@ export async function handleCandidateApplicabilityResolve(
       mutation.scope,
     );
   } catch (error) {
-    emit(deps, executionFailedResult(error, commandInput.data.name));
+    emit(deps, executionFailedResult(error, commandInput.data.name, request));
     return;
   }
   const parsed = CandidateApplicabilityCommandResultSchema.safeParse(executed);
