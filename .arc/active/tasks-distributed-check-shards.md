@@ -333,98 +333,51 @@ _Mode:_ `slice` through Phase 6 — closes on independently qualified integratio
 _Design decisions:_ External changes belong on their own branch in arc-offload. ARC consumes the public contract;
 the external adapter retains generic use outside ARC and native test tools.
 
-### `[ ]` **5.1 Extend the foundation-qualified external adapter with complete-plan grouping — D1, D8, D10**
+### `[x]` **5.1 Extend the foundation-qualified external adapter with complete-plan grouping — D1, D8, D10**
 
 - _Goal:_ The existing external adapter accelerates the complete prepared plan while preserving each invocation's
   evidence, resource accounting and settlement through the public protocol.
 
-- _Note:_ See `notes-distributed-check-shards.md` § Implementation starting points for the proposed external entry
-  and current transport actors. Re-ground the foundation-qualified adapter before extending it in its own repository.
+    - `[x]` **5.1.a Schedule complete groups through the qualified adapter**
+        - The external branch materializes one common capture and prepares private placement copies, ordering
+          siblings by their own history and reusing each placement serially. Real native playback verifies a later
+          sibling in the same prepared copy while preserving unknown runtime without reuse.
 
-    - `[ ]` **5.1.a Schedule complete groups through the qualified adapter**
-        - Extend `arc_offload/arc_adapter.py` and `tests/test_arc_adapter.py`, reusing its fixed capture, explicit
-          inputs, runtime qualification and recovery/lifetime primitives. Advertise group capability; verify and
-          materialize the captured plan once locally and upload it to each placement that takes a sibling, where
-          that placement prepares its own private copy.
-        - Place siblings through the existing pool admission: estimated finish, one heavy job per machine and
-          memory tokens, longest expected sibling first, with availability order where no record exists. A
-          placement's further siblings run serially in its prepared copy.
-        - Build `test-first` (one behavior at a time):
-            - Optional group capability accepts every expected ID once under the same prepared source/input basis;
-              local and remote placements cannot resnapshot the caller or substitute ambient duration inputs.
-            - With fewer free heavy placements than siblings, no machine runs two heavy siblings at once; the rest
-              wait and run serially in an already prepared copy instead of a second upload to that placement.
-            - Each placement satisfies its prepared runtime binding or refuses before affected work; unknown
-              coverage still executes without reuse. Existing generic single execution remains usable.
-            - A placement running a second sibling of a real native tier passes per-invocation source
-              verification in its prepared copy.
-            - No hidden rebatching, automatic retry or second ARC-specific adapter entry is introduced.
+    - `[x]` **5.1.b Present one context across placements and recover every placement**
+        - Public groups rewrite backend frames to one context and journal every backend before launch. Recovery
+          covers local controllers, remote workers and upload helpers; the real loss case settles all three actors.
 
-    - `[ ]` **5.1.b Present one context across placements and recover every placement**
-        - The adapter is built around one placement per plan today: one placement choice, one journal `remote`,
-          one stage per plan ID and backend frames forwarded unchanged. Track the group's own pending and prepared
-          placements so no two siblings target one placement at once; record every remote placement in the plan
-          journal with inspect/settle covering all of them; rewrite backend context identities to the group's one
-          context; persist the staged materialization for later uploads; release each placement's permits after its
-          last sibling settles.
-        - Build `test-first` (one behavior at a time):
-            - With two remote placements and one local, ARC sees one context, every frame passes its identity check,
-              and each placement's permits release after its own last sibling settles.
-            - Losing the conversation mid-group leaves recovery guidance that inspects and settles every placement.
+    - `[x]` **5.1.c Fall back before launch when a placement refuses admission**
+        - Only authoritative settled admission refusal before backend start permits another placement. Guarded
+          racing groups execute each ID once; post-start refusal or uncertainty remains incomplete without retry.
 
-    - `[ ]` **5.1.c Fall back before launch when a placement refuses admission**
-        - A runner with a wake probe launches without waiting, so a sibling that loses the admission race receives
-          a busy receipt before its backend starts. Wait for that placement or place the sibling elsewhere; never
-          re-run work whose backend started.
-        - Build `test-first` (one behavior at a time):
-            - Two groups racing for one guarded runner both complete, with every sibling executed exactly once.
-            - A refusal after backend start remains a failure or uncertain outcome, never a silent re-run.
+    - `[x]` **5.1.d Record sibling timings and report each sibling's placement**
+        - Existing PlanRecord stores per-placement phases and per-invocation timings, sampling settled successful
+          siblings under their own argv keys. Output reports actual placement/admission; telemetry stays advisory.
 
-    - `[ ]` **5.1.d Record sibling timings and report each sibling's placement**
-        - Extend the provider's routed-plan record (`PlanRecord` in `arc_offload/arc_record.py`) per sibling:
-          sample each completed sibling under its own argv key with its placement, admission wait and phase timings,
-          and report each sibling's placement and admission wait in its invocation output, so ordering, 5.2.a and
-          Phase 6 have a source. Add no second recording path.
-        - Build `test-first` (one behavior at a time):
-            - A later group places siblings in descending recorded duration; with no record, availability order
-              applies.
-            - Each invocation's output names its placement and admission wait; telemetry never becomes pass
-              authority.
+    - `[x]` **5.1.e Retain group evidence and resource ownership through failures**
+        - Shared framing preserves partial binary output and completed failures through loss. Uncertain work retains
+          its capture and recovery coordinates; permits follow collection/settlement, and real settled input refusal
+          succeeds only on a separate fresh repair attempt.
 
-    - `[ ]` **5.1.e Retain group evidence and resource ownership through failures**
-        - Extend the provider's fake-SSH/drop/stop fixtures around its qualified attempt accounting and pool permits.
-          Keep protocol framing and required-output drainage in the shared adapter implementation.
-        - Build `test-first` (one behavior at a time):
-            - Ordinary failure preserves completed outcomes and allows remaining planned work; terminal evidence
-              remains attributable through partial output, transport loss and cancellation.
-            - Release follows settlement/collection for every launched sibling; uncertain work retains the common
-              input and plan recovery guidance. Cancellation acknowledgement alone releases no permit or capture.
-            - Provider recovery can inspect/settle preparation and execution after conversation loss; failure to
-              flush guidance launches no work. Settled no-context refusal needs no release and repairs successfully.
+- _Outcome:_ The isolated provider branch preserves generic singles, memory/stall policy and normal remote
+  maintenance while adding groups. Native store, generic loss/recovery and refusal/repair evidence are recorded in
+  `notes-distributed-check-shards.md`; the live adapter checkout remains unchanged.
 
-### `[ ]` **5.2 Qualify common-input local and remote groups under existing policy — D4, D6, D8, D10**
+### `[x]` **5.2 Qualify common-input local and remote groups under existing policy — D4, D6, D8, D10**
 
 - _Goal:_ Real local and remote placements satisfy the same public consumer contract and native compatibility
   requirements while the existing pool remains the sole placement and resource-admission authority.
 
-    - `[ ]` **5.2.a Exercise the public contract on real local and remote placements**
-        - Run the independent fixture scenarios against the qualified personal adapter with a small frozen native
-          selection, then apply Phase 4's native membership checks on the profiles claimed as compatible.
-        - Record source/code coordinates, fixed selection/duration states, runtime coverage, actual assignments,
-          exact native failures and output/settlement closure. Edit originals after capture to expose live reads.
-        - Exercise group/basic playback, native failure beside incomplete work and repaired refusal/recovery. Public
-          fixtures cover known/unknown reuse and hit release; actual placements exercise their advertised coverage.
-          Honest unknown runtime qualifies execution without reuse, not a cache-hit or unexercised profile claim.
-        - Run a four-shard store group on the pool as it stands; record each sibling's placement and admission
-          wait, and whether a machine ran two siblings serially because heavy capacity was short.
+    - `[x]` **5.2.a Exercise the public contract on real local and remote placements**
+        - Public baseline/four-shard store playback retains captured selection and handed bytes after original
+          deletion/corruption. Actual x64/arm64 profiles have complete same-capture native witnesses; local runs three
+          members serially while two remote placements execute siblings. Loss/refusal cases retain exact outcomes.
 
-    - `[ ]` **5.2.b Preserve provider policy and generic use**
-        - Use the live registry, measured selection and current routing mode; retain shared job/heavy-job admission,
-          memory ceilings and inherited caller CPU policy. Do not change the Owner's mode or assume host ordering.
-        - Extend existing policy/resource fixtures for grouped local/remote work, including required-remote refusal
-          and capacity loss. Confirm the adapter remains usable outside ARC and Vitest with generic commands.
-        - Keep provider configuration, inventory, fallback/admission and transport internals outside ARC declarations,
-          protocol semantics and native test grammar.
+    - `[x]` **5.2.b Preserve provider policy and generic use**
+        - Real generic Node cases use the unchanged live registry and speed mode without pins; fixtures retain
+          required-remote refusal, shared admission, heaviest-member memory charging and capacity-loss behavior.
+          ARC declarations and protocol carry no provider inventory or transport settings.
 
 ### `[x]` **5.3 Document declaration-driven shards through the public runner seam — D2, D9, D10**
 

@@ -281,6 +281,52 @@ History `4eb7cbcb32004627a946f7e3d034b983`, plan `5bca6fa3-72ab-4d8e-bd20-9e6ac0
 with the unit/store cases above and hosted portability status run `40781020166`, these are captured case/profile
 qualifications; no exact-head work-unit verification or unmeasured deployment claim follows from them.
 
+## External group qualification evidence
+
+The provider implementation is isolated in `arc-offload.distributed-check-shards`, branch
+`feat/distributed-check-shards`, through `6ffe3cfe6951acf53e9a2184695cfa4c14b59f41`. Its common capture feeds private
+placement copies; one public context spans every journaled backend. Completed siblings sample their own argv histories,
+admission uses the heaviest member, and each command keeps the existing memory-stall conversion. Normal remote closure
+retains family-scoped maintenance; maintenance failure remains advisory. The final full provider suite passes in
+`~/dev/arc-evidence/distributed-check-shards/provider-full-after-common-verify.log`.
+
+Live case artifacts are under `~/dev/arc-evidence/distributed-check-shards/`. Each includes actual launch revisions,
+reviewed harness source, raw protocol/output, source/input descriptors, public recovery and provider history:
+
+- `native-store-group-e0c5dc60-5e87-4dc0-8241-2a29b38062ab`: owner plan `ffba5ab7-7140-4452-a0b0-86db6083f75d`, history
+  `a06a93fb7a5e47c69ebc90f48b64d95f`, provider `807f105`. A baseline plus four-shard store group over anchors/as-of
+  succeeds after the disposable originals are deleted and the handed duration file corrupted. Local executes baseline
+  and two siblings serially; m4-mini and m2-mini each execute one sibling. Both empty shares prove native close; all
+  five commands exit zero and owner closure is normal. Actual Linux x64/arm64, Node 26.3.0 and Vitest 4.1.11 profiles
+  are corroborated by complete homogeneous baseline/matrix borrowers over the owner's genuine capture. The unchanged
+  strict native validator checks each witness; the corroboration helper substitutes each actual row into its matching
+  witness and checks the exactly-once union. Borrowers close before their owner. This establishes those profiles and
+  that selection, not deployment-wide reuse.
+- `negative-group-bbe10289-a915-478d-aead-246876c2785e`: plan `a3d437b8-d690-45e0-8e47-b4a83528ac0f`, history
+  `418dc6cb99634d74aeee722c772e3639`, provider `6ffe3cf`. Generic captured-input Node work emits partial
+  binary/stdout/stderr. Native exit 75 is accepted before two siblings start on distinct local/m2 placements;
+  terminating only the frontend conversation preserves that failure beside missing terminal outcomes and uncertain
+  closure. The actual capture remains retained. Public inspect/settle/inspect covers the same three registered
+  local/m4/m2 backends, changing active/exit2 to settled/exit0 with no active members. The interrupted advisory history
+  remains open; fresh public recovery, not that historical snapshot, proves settlement.
+- `refusal-repair-7398d03e-9945-4016-b52b-f6d5925e0e26`: provider `6ffe3cf`; the genuine SDK-owned explicit-file capture
+  is changed only after SDK verification, preserving its wire descriptor and the caller original. Plan
+  `4d5607a3-60da-4525-92c4-4ff851d4d610` refuses captured bytes before backend/context/native ownership and exits
+  normally; public inspection is settled. Separately planned fresh repair `a36e7892-2f0e-4b04-9b5b-0f857a5549bc`,
+  history `1d395fbb5cd64bf7b31a09c645d99ccf`, uses the same source, scalar/file bytes and commands with a new UUID. Both
+  commands complete zero on local/m4-mini, exact captured records are observed, parent reduction succeeds and
+  closure/inspection are normal and settled. Native marker assertions preserve all provider placement/release stderr.
+
+All live cases use the actual registry and Owner-selected speed mode without a host pin or configuration change. The
+provider advertises unknown runtime, so these are execution/settlement qualifications without pass reuse. The original
+negative statuses remain failures; their expected containment and recovery establish the negative cases. Earlier
+refusal-probe attempts are retained: `refusal-repair-02e76601-5e08-49bf-b1ca-3e51775e325f` stopped its own tap before
+forwarding because it assumed the standalone environment prefix; `refusal-repair-c3ef7b70-dcf3-42ea-a907-520b15040bbd`
+proved refusal and successful work but rejected legitimate provider stderr. The final probe uses the real SDK source
+storage prefix and counts exact native marker lines without discarding surrounding bytes. No failed artifact is
+rewritten, no adapter retry is introduced, and no Phase 6 performance or final-head verification follows from these
+cases.
+
 ## Amendment reasoning
 
 ### A2 — store dependency
