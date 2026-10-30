@@ -74,61 +74,16 @@ answers in every scoped call with all the refresh rules that keep them current.
           changed layouts, require the abandoned readers to exit before fresh designation reads, and require push
           retries to release readers before backoff. Resumed calls observe the moved store's role.
 
-### `[ ]` **2.2 A call answers each configuration lookup once until something can change it — D3, D6**
+### `[x]` **2.2 A call answers each configuration lookup once until something can change it — D3, D6**
 
 - _Goal:_ Within one scoped call, each remembered lookup reads Git once and repeats its answer until a configuration
   change or a restart drops it. Under a lock or lease only answers read since it was taken are served, so push
   admission re-reads designation and transport under the comparison lock.
 
-- _Note:_ Remembering, routing, and the refresh rules land as one task. Routed lookups without the lock bound and the
-  drops serve stale answers existing store suites catch: `writeRefRepository` re-reads designation under the layout
-  lock, and a pull's restart resolves designation again after a move. The rules without routing cannot fail first,
-  since every lookup still reads Git. So route first, then add each rule behind its case, which fails with the lookups
-  routed and that rule absent.
-
-    - A helper in the scope module remembers what a lookup function returns. The key is the function, its arguments,
-      and the repository the context is bound to: `context.repository?.gitDir`, or the checkout root when none.
-      `repositoryConfig` is keyed by the function and its own `--git-dir` argument, so every context reading one common
-      directory shares its answer.
-    - An answer includes `configOutput`'s empty answer for a completed exit 1. A thrown error is never remembered, so a
-      cancelled, timed-out, or failed lookup runs again. With no scope open, the helper reads Git as today.
-    - Route `repositoryConfig` (`designation.ts`); `configOutput`, and so `urlRewrites`, `readRemoteTransports`,
-      `readNamedTransport`, the remote listing `selectLiteralTransport` reads first, and `resolveLiteral`'s
-      `ls-remote --get-url` and `remote show -n` (`effective-transport.ts`); and `refFetchNeedsCompleteness`
-      (`fetch-completeness.ts`).
-    - Leave per call the inline reads beside a write or under a lock (`configureBackingRemote`, `repointBackingRemote`,
-      `removeBacking`, `publicationTargetMatches`, `noBackingPointer`), the import's listing of its source's remotes
-      (`import/code-links.ts`), `arc.identity`, and `readObjectFormat`'s file read.
-    - A `config` invocation is a read only with `--get`, `--get-all`, `--get-regexp`, or `--list`. A `remote` invocation
-      is a read with no subcommand, with or without `-v`, or with `get-url` or `show`. Every other `config` or `remote`
-      invocation, and every `init`, is a configuration change.
-    - A configuration change drops every remembered answer once it settles, whether it succeeds, fails, or is
-      cancelled, and whichever repository it wrote. An answer whose read overlapped the change is not served after it.
-      No case checks a failed or cancelled write, since no lookup after one can show whether it dropped answers: such a
-      write ends the call or restarts it, which drops answers itself, and the one failed write a call continues past,
-      `clearBackingPushUrls`' exit 5, follows successful writes that already dropped every answer, with no lookup
-      between.
-    - The scope wraps `lock` and records each acquisition in order and its release. A lookup counts as read under a
-      lock only if its read began after the newest held acquisition; after the release the fresher answer stays
-      remembered. `withRefLocks`, `withRefFetchKeepers`' leases, and `bindDeadline`'s lock all reach the wrapped port;
-      `prepareRefCopy`'s no-op lock records nothing.
-    - Forward `lock`'s optional `waitMs` unchanged, including zero. Add a public-call case proving that a zero wait
-      reaches the underlying port without falling back to its default wait.
-    - The restart refresh of 1.3.b and 2.1.b also drops every remembered answer.
-    - A sync call's configuration write through a context bound to the separate store is `installFirstBacking`'s
-      `remote add backing` (`designation-first.ts`), run through the store-bound `selected`, after which
-      `resolveFirstDesignation` reads designation again in the same pull. `follow-due.ts` (`physical`) and
-      `backing-configuration.ts` (`target`) also write through a store-bound context, but only commands reach them.
-    - Build `test-first` (one behavior at a time):
-        - A sync call's repeated lookups outside any lock start one Git process per key.
-        - A pull that installs the first backing: after `remote add backing`, the designation lookup reads Git and sees
-          the `backing` remote.
-        - A lookup under a newly taken lock, after another process changed its value, reads the new value; a repeat
-          under the same hold starts no process; after the release the fresher answer is served. Cover push's
-          comparison lock, where `captureComparisonWitness` re-reads designation and `publicationTargetMatches` re-reads
-          push transport, and a sync fetch's keeper lease.
-        - The layout move of 2.1.b carries a role setting: after each restart, during a pull and during a push, the role
-          lookup reads Git and sees the new role.
+- _Outcome:_ Parsed configuration and transport answers are remembered by lookup, arguments, and repository, with
+  common-directory designation shared across bindings. New locks set the freshness bound; settled configuration
+  writes and restarts drop answers, including overlapping reads, and failures are not retained. Public cases cover
+  repeated lookups, first-backing writes, comparison/keeper freshness, changed restart roles, and zero-wait forwarding.
 
 ## **Phase 3:** Commands hold one scope
 
