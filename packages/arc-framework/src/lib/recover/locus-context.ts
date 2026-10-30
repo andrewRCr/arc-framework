@@ -134,7 +134,7 @@ function workUnitContext(
   return {
     frame: RecoveryLocusFrameSchema.parse({
       kind: "resolved",
-      subject,
+      subject: { kind: subject.kind, key: subject.key },
       checkoutPath: row.checkout.path,
       parentCheckoutPath: null,
       workflow: recoveryWorkflowForWorkUnit(context),

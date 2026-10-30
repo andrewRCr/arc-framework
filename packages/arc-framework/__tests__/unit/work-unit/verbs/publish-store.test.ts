@@ -1,19 +1,58 @@
 /** Publication preserves Candidate authority and atomic record ordering off branch. */
+import { seedPausedCompletedWorkUnit } from "../../../helpers/store/paused-completed-work-unit.js";
+import { createClashDouble } from "../../../helpers/store/clash-double.js";
 import { describe, expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
-import { writeMetaPause, writeMetaCandidate } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { writeMetaPause, writeMetaCandidate, writeMetaTitle, writeMetaSessionContext } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { ParsedMetaRecordSchema } from "../../../../src/lib/active/meta-schema.js";
-import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { CandidateReviewResumeBoundarySchema } from "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { runPublish, type PublishParams } from "../../../../src/lib/work-unit/verbs/publish.js";
 import { buildStoreCurrentWuReconcile } from "../../../../src/lib/work-unit/store-current-wu-reconcile.js";
 import { batchLifecycleWrites, recordPut } from "../../../../src/lib/store/lifecycle-write.js";
-import { recordReferences } from "../../../../src/lib/store/identity.js";
+import { recordReferences, OwnerIdentitySchema } from "../../../../src/lib/store/identity.js";
 import { writeLineageRecord } from "../../../../src/lib/store/kinds/lineage/writer.js";
 import { runStoreRename } from "../../../../src/lib/work-unit/verbs/rename-store.js";
 import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lifecycle-executor.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
+import { seedCompletedErrandTie } from "../../../helpers/store/completed-errand-tie.js";
+
+it("publishes an attested Candidate whose notes mention a tied Errand slug", async () => {
+  const h = createLifecycleHarness();
+  await seedCompletedErrandTie(h, "tied");
+  const meta = await h.seedMeta("example", { candidateId }, { kind: "active" },
+    { branches: [{ repository: "project", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+  const notes = await h.seed(recordReferences["work-item/notes"](meta.reference.owner), "# Notes\n\nNarrative tied context.\n");
+  expect(await runPublish(context(h.store), parameters(async () => {}))).toMatchObject({ status: "published" });
+  expect(lifecycleSuccess(await h.store.read({ reference: notes.reference }))).toEqual(notes);
+});
 const candidateId = `sha256:${"a".repeat(64)}` as const, candidateSubjectDigest = `sha256:${"b".repeat(64)}` as const;
+it("publishes with a held former-name edge and stops only for genuine prose about that name", async () => {
+  for (const prose of ["none", "notes", "session-context"] as const) {
+    const h = createLifecycleHarness(), target = await h.seedMeta("former");
+    lifecycleSuccess(await h.store.write({ ...recordPut(target, { content: writeMetaTitle(target.content, SlugSchema.parse("current")) }),
+      reference: { ...target.reference, owner: OwnerIdentitySchema.parse({ ...target.reference.owner, name: "current" }) },
+      provenance: { verb: "rename", lifecycleAction: "rename" } }));
+    const current = lifecycleSuccess(await h.store.read({ reference: target.reference }));
+    const other = await h.seedMeta("other");
+    const meta = await h.seedMeta("example", { candidateId, dependsOn: ["former"] }, { kind: "active" },
+      { branches: [{ repository: "project", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+    if (prose === "session-context") lifecycleSuccess(await h.store.write({ ...recordPut(meta, {
+      content: writeMetaSessionContext(meta.content, "- **Depends On:** former needs review before publication."),
+    }), provenance: { verb: "edit", lifecycleAction: "edit" } }));
+    if (prose === "notes") await h.seed(recordReferences["work-item/notes"](meta.reference.owner), "# Notes\n\nReview former before continuing.\n");
+    const store = createClashDouble(h.store, { slug: "current", holders: [current.reference, other.reference] });
+    const result = await runPublish(context(store), parameters(async () => {}));
+    expect(result).toMatchObject({ status: prose === "none" ? "published" : "reconcile-pending" });
+    expect(lifecycleSuccess(await h.store.read({ reference: meta.reference })).fields).toMatchObject({
+      dependsOn: ["former"], state: prose === "none" ? "Integrating" : "Active",
+    });
+    if (result.status === "reconcile-pending") expect(result.reconcile.prepared.plan.advisories).toMatchObject([
+      { subject: "former", referenceKind: "narrative", context: prose === "notes"
+        ? "Review former before continuing." : "- **Depends On:** former needs review before publication." },
+    ]);
+  }
+});
 function context(store: Store) {
   const forbidden = async (): Promise<never> => { throw new Error("tracked artifact access"); };
   const ctx: ExecuteTransitionContext = { cwd: "/repo", store, indexFs: { readdir: forbidden, readFile: forbidden },
@@ -69,7 +108,7 @@ describe("store publish", () => {
     { verb: "decompose", lifecycleAction: "decompose" }));
     const immutable = lifecycleSuccess(await h.store.read({ reference: lineage }));
     const renamed = await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
-      locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+      locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
     { sourceSlug: "former-dependent", targetSlug: "example" });
     expect(renamed.status, JSON.stringify(renamed)).toBe("renamed");
     const current = lifecycleSuccess(await h.store.read({ reference: dependent.reference }));
@@ -128,7 +167,7 @@ it("a rerun after reconcile lands reaches the publication batch and preserves ig
   expect(claims).toBe(2);
 });
 
-it("preserves the resume remedy when a pause arrives after prepare, then publishes after resume", async () => {
+it("rejects stale preparation when a pause arrives after prepare, then publishes after resume", async () => {
   const h = createLifecycleHarness();
   const primary = await h.seedMeta("example", { candidateId }, { kind: "active" },
     { branches: [{ repository: "project", ref: "feat/example", linkedAs: "created", excluded: [] }] });
@@ -145,8 +184,8 @@ it("preserves the resume remedy when a pause arrives after prepare, then publish
     return apply(prepared);
   };
   const params = { ...parameters(async () => {}), claimPublicationBoundary: async () => { claims++; } };
-  expect(await runPublish(ctx, params)).toMatchObject({ status: "reconcile-failed", reason: "paused",
-    remedy: { argv: ["arc", "resume", "example"] } });
+  expect(await runPublish(ctx, params)).toMatchObject({ status: "reconcile-failed",
+    reconcile: { reason: "stale-content", refusal: { code: "version-conflict" } } });
   const paused = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
   expect(paused.fields).toMatchObject({ state: "Active", pause: expect.any(Object) });
   expect(claims).toBe(0);
@@ -224,4 +263,35 @@ it.each(["Active", "Integrating"] as const)("uses the logical work branch for %s
   expect(persisted.fields).toMatchObject({ state: "Integrating", currentWorkflow: "integrate-work-unit" });
   expect(persisted.links).toEqual(primary.links);
   if (state === "Integrating") expect(persisted).toEqual(primary);
+});
+
+it("publication reconciles only its live namesake's records", async () => {
+  const h = createLifecycleHarness();
+  await h.seedMeta("done", { state: "Integrating", currentWorkflow: "integrate-work-unit" });
+  const archived = await h.seedMeta("example", { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const primary = await h.seedMeta("example", { candidateId, dependsOn: ["done"] }, { kind: "active" },
+    { branches: [{ repository: "project", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+  expect(await runPublish(context(h.store), parameters(async () => {}))).toMatchObject({ status: "published" });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).fields).toMatchObject({ state: "Integrating", dependsOn: [] });
+  expect(lifecycleSuccess(await h.store.read({ reference: archived.reference }))).toEqual(archived);
+});
+
+it("publication rereads the selected primary after reconciliation when its name becomes clashed", async () => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("example", { candidateId }, { kind: "active" },
+    { branches: [{ repository: "project", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+  const other = await h.seedMeta("other");
+  const store = createClashDouble(h.store, { slug: "example", holders: [primary.reference, other.reference], mode: "mid-verb" });
+  expect(await runPublish(context(store), parameters(async () => {}))).toMatchObject({ status: "published" });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).fields).toMatchObject({ state: "Integrating" });
+  expect(lifecycleSuccess(await h.store.read({ reference: other.reference }))).toEqual(other);
+});
+
+it("publishes the unpaused live holder despite its paused completed namesake", async () => {
+  const h = createLifecycleHarness(), archived = await seedPausedCompletedWorkUnit(h, "example");
+  const primary = await h.seedMeta("example", { candidateId }, { kind: "active" },
+    { branches: [{ repository: "project", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+  expect(await runPublish(context(h.store), parameters(async () => {}))).toMatchObject({ status: "published" });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).fields).toMatchObject({ state: "Integrating", pause: null });
+  expect(lifecycleSuccess(await h.store.read({ reference: archived.reference }))).toEqual(archived);
 });

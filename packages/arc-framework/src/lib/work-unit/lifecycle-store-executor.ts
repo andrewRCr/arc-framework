@@ -1,4 +1,5 @@
 /** Lifecycle transition guards and atomic record writes over off-branch operational state. */
+import { checkCreationAdmission, renderCreationAdmissionRefusal } from "../store/creation-admission.js";
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import { checkCurrentWorkflowConsistency } from "../active/current-workflow-consistency.js";
 import { sameReference } from "../store/identity.js";
@@ -7,11 +8,13 @@ import { readLifecycleView } from "../store/lifecycle-view.js";
 import { requireCompleteInventory } from "../store/lifecycle-storage.js";
 import { readWorkUnit, recordPut, batchLifecycleWrites } from "../store/lifecycle-write.js";
 import { writeMetaState, writeMetaClass, writeMetaCurrentWorkflow, writeMetaNextAction } from "../store/kinds/meta/writers.js";
+import type { LifecycleEntry } from "../store/lifecycle-index.js";
+import type { LifecycleIndex } from "./lifecycle-index.js";
+import type { LifecyclePosition } from "./lifecycle-state.js";
 import type { Store } from "../store/contract.js";
 import type { StoreRecord } from "../store/read.js";
 import type { Mutation } from "../store/write.js";
 import type { WritePlacement } from "../store/placement.js";
-import { resolveSlugPosition } from "./lifecycle-resolver.js";
 import type { TransitionRecord, Verb } from "./lifecycle-transitions.js";
 import { DEFAULT_GUARD_VALIDATORS, resolveTransitionEdge, transitionLookupRejection,
   type ExecuteTransitionContext, type TransitionInputs, type TransitionOutcome } from "./lifecycle-executor.js";
@@ -32,24 +35,19 @@ export async function executeStoreTransition(
   ctx: ExecuteTransitionContext & { store: Store },
   params: { verb: Verb; slug: string; inputs: TransitionInputs },
 ): Promise<TransitionOutcome> {
-  const { verb, slug, inputs } = params;
+  const { verb, inputs } = params;
   const view = await readLifecycleView(ctx.store);
   if (view.status === "refused") return { status: "rejected", stage: "store", message: view.refusal.condition, refusal: view.refusal };
   try { requireCompleteInventory(ctx.store, view.result.listing); }
   catch (error) { return { status: "rejected", stage: "guard", message: String(error) }; }
-  const position = resolveSlugPosition(view.result.index, slug);
-  const edge = resolveTransitionEdge(verb, position, inputs.commitment);
-  if (edge === undefined) return { status: "rejected", stage: "lookup", message: transitionLookupRejection(verb, position) };
-  const basis = await selectPrimary(ctx.store, slug, inputs.storeTransition?.create, inputs.storeTransition?.primary);
-  if (basis !== undefined && "status" in basis) return basis;
-  if (!agreesWithInventory(basis, view.result.entries, slug)) {
-    return { status: "rejected", stage: "store", message: `The work unit changed during transition preparation; retry arc ${verb} ${slug}.` };
-  }
+  const selected = await selectTransitionSubject(ctx.store, params, view.result);
+  if ("status" in selected) return selected;
+  const { basis, slug, position, edge } = selected;
   const guardFailure = await validateStoreGuards(ctx, edge, view.result.index, slug, position, inputs, basis);
   if (guardFailure !== undefined) return guardFailure;
   const inputFailure = validateStoreInputs(edge, inputs);
   if (inputFailure !== undefined) return inputFailure;
-  const effects = await prepareStoreSideEffects(ctx, edge, slug, inputs);
+  const effects = await prepareStoreSideEffects(ctx, edge, slug, inputs, basis);
   if ("status" in effects) return effects;
   const prepared = prepareWrites(edge, inputs, basis);
   if ("status" in prepared) return prepared;
@@ -69,10 +67,33 @@ export async function executeStoreTransition(
     ...((sequence.continuation ?? continuation) === undefined ? {} : { continuation: sequence.continuation ?? continuation }) };
 }
 
-function agreesWithInventory(basis: StoreRecord | undefined, entries: readonly import("../store/lifecycle-index.js").LifecycleEntry[], slug: string): boolean {
-  if (basis === undefined) return true;
-  const indexed = entries.find((entry) => entry.reference.owner.name === slug);
-  return indexed !== undefined && sameReference(indexed.reference, basis.reference) && indexed.version === basis.version;
+async function selectTransitionSubject(store: Store, params: { verb: Verb; slug: string; inputs: TransitionInputs },
+  view: { entries: readonly LifecycleEntry[]; index: LifecycleIndex }): Promise<Rejected | {
+    basis: StoreRecord | undefined; slug: string; position: LifecyclePosition | null; edge: TransitionRecord;
+  }> {
+  const { verb, inputs } = params;
+  const basis = await selectPrimary(store, params.slug, inputs.storeTransition?.create, inputs.storeTransition?.primary);
+  if (basis !== undefined && "status" in basis) return basis;
+  const slug = basis?.reference.owner.name ?? params.slug;
+  const entry = basis === undefined ? undefined : view.entries.find(candidate => sameReference(candidate.reference, basis.reference));
+  if (basis !== undefined && (entry === undefined || entry.version !== basis.version)) return {
+    status: "rejected", stage: "store", message: `The work unit changed during transition preparation; retry arc ${verb} ${slug}.`,
+  };
+  const selectedPosition = await selectTransitionPosition(store, inputs, slug, entry);
+  if ("status" in selectedPosition) return selectedPosition;
+  const { position } = selectedPosition;
+  const edge = resolveTransitionEdge(verb, position, inputs.commitment);
+  if (edge === undefined) return { status: "rejected", stage: "lookup", message: transitionLookupRejection(verb, position) };
+  return { basis, slug, position, edge };
+}
+
+async function selectTransitionPosition(store: Store, inputs: TransitionInputs,
+  slug: string, entry?: LifecycleEntry): Promise<{ position: LifecyclePosition | null } | Rejected> {
+  if (inputs.storeTransition?.create === undefined) return { position: entry === undefined ? null : { phase: entry.phase, location: entry.location } };
+  const admission = await checkCreationAdmission(store, slug);
+  if (admission.kind === "free") return { position: null };
+  const refusal = renderCreationAdmissionRefusal(slug, admission);
+  return { status: "rejected", stage: "guard", message: `${refusal.condition} ${refusal.remedy.text}` };
 }
 
 function validateStoreInputs(edge: TransitionRecord, inputs: TransitionInputs): Rejected | undefined {
@@ -138,7 +159,7 @@ async function validateStoreGuards(ctx: ExecuteTransitionContext & { store: Stor
   for (const name of edge.guards) {
     const guard = guards[name];
     if (guard === undefined) return { status: "rejected", stage: "guard", message: `guard \`${name}\` is not wired.` };
-    const result = await guard({ index: index, slug, position, inputs, store: ctx.store });
+    const result = await guard({ index: index, slug, position, inputs, store: ctx.store, primary });
     if (!result.ok) return { status: "rejected", stage: "guard", message: result.message, ...(result.remedy === undefined ? {} : { remedy: result.remedy }) };
   }
   return undefined;
@@ -147,8 +168,9 @@ async function validateStoreGuards(ctx: ExecuteTransitionContext & { store: Stor
 type PreparedStoreSideEffect = { id: TransitionRecord["sideEffects"][number]; step: LifecycleGitStep };
 
 async function prepareStoreSideEffects(ctx: ExecuteTransitionContext, edge: TransitionRecord, slug: string,
-  inputs: TransitionInputs): Promise<PreparedStoreSideEffect[] | Rejected> {
+  inputs: TransitionInputs, primary?: StoreRecord): Promise<PreparedStoreSideEffect[] | Rejected> {
   const prepared: PreparedStoreSideEffect[] = [];
+  const selectedInputs = primary === undefined ? inputs : { ...inputs, storeTransition: { ...inputs.storeTransition, primary } };
   for (const id of edge.fromFlip.sideEffects) {
     const handler = ctx.sideEffects?.[id];
     const fail = (message: string): Rejected => ({ status: "rejected", stage: "inputs", message });
@@ -156,7 +178,8 @@ async function prepareStoreSideEffects(ctx: ExecuteTransitionContext, edge: Tran
     const prepare = (handler as Partial<RecoverablePrWithdrawalHandler>).prepareWithdrawal;
     if (id !== "withdraw-pr" || typeof prepare !== "function") return fail(`side effect \`${id}\` requires its recoverable physical preparation.`);
     try {
-      const step = await prepare({ cwd: ctx.cwd, slug, from: edge.from, to: edge.to, inputs });
+      const step = await prepare({ cwd: ctx.cwd, slug, from: edge.from, to: edge.to,
+        inputs: selectedInputs });
       if (step.retryCommand.length === 0) return fail(`side effect \`${id}\` requires its executable continuation.`);
       prepared.push({ id, step });
     } catch (error) { return fail(`Cannot prepare side effect \`${id}\`: ${String(error)}`); }
@@ -187,11 +210,12 @@ async function selectPrimary(store: Store, slug: string, creation: Extract<Mutat
     if (primary !== undefined || creation.reference.kind !== "work-item/meta" || creation.reference.owner.name !== slug
       || creation.expected !== null) return { status: "rejected", stage: "inputs", message: "Creation must name the selected work unit's absent meta." };
   } else {
-    const read = await readWorkUnit(store, slug);
-    if (read.status === "refused") return { status: "rejected", stage: "store", message: read.refusal.condition, refusal: read.refusal };
-    if (primary !== undefined && !sameReference(primary.reference, read.result.reference)) {
+    if (primary !== undefined && (primary.reference.kind !== "work-item/meta"
+      || (primary.reference.owner.name !== slug && !primary.aliases?.some(alias => alias === slug)))) {
       return { status: "rejected", stage: "inputs", message: "The prepared primary does not belong to the selected work unit." };
     }
+    const read = primary === undefined ? await readWorkUnit(store, slug) : await store.read({ reference: primary.reference });
+    if (read.status === "refused") return { status: "rejected", stage: "store", message: read.refusal.condition, refusal: read.refusal };
     if (primary !== undefined && primary.version !== read.result.version) {
       return { status: "rejected", stage: "store", message: "The prepared primary changed; restart the lifecycle command to prepare it again." };
     }
@@ -206,7 +230,9 @@ export async function resumeStoreTransitionFinalization(ctx: ExecuteTransitionCo
   if (view.status === "refused") return { status: "rejected", stage: "store", message: view.refusal.condition, refusal: view.refusal };
   try { requireCompleteInventory(ctx.store, view.result.listing); }
   catch (error) { return { status: "rejected", stage: "guard", message: String(error) }; }
-  const entry = view.result.entries.find((candidate) => candidate.reference.owner.name === slug);
+  const selected = await readWorkUnit(ctx.store, slug);
+  if (selected.status === "refused") return { status: "rejected", stage: "store", message: selected.refusal.condition, refusal: selected.refusal };
+  const entry = view.result.entries.find((candidate) => sameReference(candidate.reference, selected.result.reference));
   if (entry === undefined) return null;
   const fields = ParsedMetaRecordSchema.parse(entry.fields);
   const problems = checkCurrentWorkflowConsistency(fields);

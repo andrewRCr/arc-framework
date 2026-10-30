@@ -246,3 +246,14 @@ describe("deriveCurrentHuskAdvisory", () => {
     })).toBeNull();
   });
 });
+
+it("preserves manual orientation for a pre-store husk whose Git evidence cannot revalidate", async () => {
+  const marker: WorktreeMarkerReadResult = { kind: "present", marker: { ...stampedMarker.marker,
+    husk: { ...stampedMarker.marker.husk!, authorization: "discard-confirmed", remoteRef: null,
+      evidence: { kind: "git-transition", transition: "abandon", resultDigest: `sha256:${"a".repeat(64)}` } } } };
+  const result = await resolveCurrentHuskAdvisory({ worktreePath: "/wt/shipped-widget", branch: null, head: "abc123",
+    marker, stateOffBranch: true }, async () => false);
+  expect(result).toEqual({ worktreePath: "/wt/shipped-widget", subject: { kind: "work-unit", name: "shipped-widget" },
+    branch: "feat/shipped-widget", stamp: { kind: "manual-only", reason: "pre-store-husk" } });
+  assertSchemaAccepts(CurrentHuskAdvisorySchema, result);
+});

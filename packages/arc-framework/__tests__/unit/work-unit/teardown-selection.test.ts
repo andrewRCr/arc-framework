@@ -76,3 +76,16 @@ describe("folderless branch selection", () => {
     expect(decide({ marker: { kind: "absent" }, folderPresent: true, expectedBranch: "feat/demo" })).toMatchObject({ kind: "manual", reason: "markerless" });
   });
 });
+
+const retiredUid = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const liveUid = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+it("matches an owner-bound request by UID even after its display name changes", () => {
+  expect(decide({ subject: { kind: "work-unit", name: "current", uid: retiredUid },
+    marker: { ...marker, marker: { ...marker.marker, createdFor: { kind: "work-unit", name: "demo", uid: retiredUid } } } }))
+    .toMatchObject({ kind: "clear" });
+});
+it.each([liveUid, undefined])("refuses a same-name marker outside the requested UID, marker UID=%s", uid => {
+  expect(decide({ subject: { kind: "work-unit", name: "demo", uid: retiredUid },
+    marker: { ...marker, marker: { ...marker.marker, createdFor: { kind: "work-unit", name: "demo", ...(uid === undefined ? {} : { uid }) } } } }))
+    .toMatchObject({ kind: "manual", reason: "subject-mismatch" });
+});

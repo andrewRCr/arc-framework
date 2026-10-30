@@ -1,4 +1,5 @@
 /** The selected checkout frame carries the same uncaptured commits as task close. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { expect, it } from "vitest";
 import { makeUnclosedTaskFixture } from "../helpers/unclosed-task-commits.js";
 import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-state-probe.js";
@@ -9,7 +10,7 @@ it("includes the entering work unit's open-task commits in its frame", async () 
   const h = await makeUnclosedTaskFixture();
   const sha = await h.commit("unclosed work\n");
   await createWorktreeMarkerGeneration(h.cwd, { spawnedByArc: false, spawningIdentity: "test-user",
-    createdAt: "2026-10-16T00:00:00.000Z", createdFor: { kind: "work-unit", name: "demo" } });
+    createdAt: "2026-10-16T00:00:00.000Z", createdFor: boundWorkUnitSubject(await h.readMeta()) });
   const frame = await runDerivedLocusStateProbe({ ...h.input, exec: (command, args, options) => h.input.exec(command, args, { cwd: h.cwd, ...options }), identity: "test-user", archiveCadence: "manual" });
   expect(frame.entering).toMatchObject({ kind: "selected", row: { kind: "work-unit" } });
   expect(frame.active?.subject.key).toBe("demo");

@@ -41,7 +41,7 @@ export async function acquireDecomposeOriginRecords(store: DecomposeReadStore, s
 ): Promise<DecomposeResult<DecomposeOriginRecords>> {
   const selected = await readWorkUnit(store, slug);
   if (selected.status === "refused") return decomposeStoreRefusal(selected.refusal);
-  const group = await acquireLifecycleRecords(store, selected.result.reference.owner.name);
+  const group = await acquireLifecycleRecords(store, selected.result.reference);
   if (group.status === "refused") return decomposeStoreRefusal(group.refusal);
   const primary = group.result.find(record => sameReference(record.reference, selected.result.reference));
   if (primary === undefined) return { status: "refused", reason: "source-artifact", class: "recoverable",

@@ -1,20 +1,23 @@
 /** Placement and exact marker claims select off-branch cleanup candidates. */
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
+import type { OwnerIdentity } from "../store/identity.js";
 import type { Store } from "../store/contract.js";
 import { listLifecycleIndex } from "../store/lifecycle-index.js";
 import { LineageRecordSchema } from "../store/kinds/lineage/index.js";
-import { SlugSchema } from "../kernel/index.js";
-import { decodeWorktreeMarkerOwnership, type WorktreeMarkerReadResult } from "../git/worktree-marker.js";
+import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
+import { decodeWorktreeMarkerOwnership, type WorktreeMarker, type WorktreeMarkerReadResult } from "../git/worktree-marker.js";
 import type { RegisteredWorktree } from "../git/worktree-roster.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
 import type { StaleWorktreeReport } from "./stale-worktree-sweep.js";
+import type { SessionAction } from "./actions.js";
+import { classifyUnboundMarker } from "../locus/unbound-marker.js";
 type SelectionInput = { store: Store; topology: readonly RegisteredWorktree[]; derivedRoster: readonly DerivedCheckoutRow[];
   readMarker: (path: string) => Promise<WorktreeMarkerReadResult>; identity?: string | null; excludeWorktreePath?: string };
-type Selected = { kind: "ended"; name: string } | { kind: "release"; name: string } | null;
+type Selected = { kind: "ended"; owner: OwnerIdentity } | { kind: "release"; name: string; actions?: readonly SessionAction[] } | null;
 /** Read complete authority before treating a missing claim as a marker with no record. */
 export async function selectStoreWorktreeCleanup(input: SelectionInput): Promise<{
-  ended: { checkout: RegisteredWorktree; name: string }[]; releases: StaleWorktreeReport[]; warnings: string[] }> {
-  const result: { ended: { checkout: RegisteredWorktree; name: string }[]; releases: StaleWorktreeReport[]; warnings: string[] } = { ended: [], releases: [], warnings: [] };
+  ended: { checkout: RegisteredWorktree; owner: OwnerIdentity }[]; releases: StaleWorktreeReport[]; warnings: string[] }> {
+  const result: { ended: { checkout: RegisteredWorktree; owner: OwnerIdentity }[]; releases: StaleWorktreeReport[]; warnings: string[] } = { ended: [], releases: [], warnings: [] };
   const listing = await listLifecycleIndex(input.store);
   if (listing.status === "refused" || listing.result.status === "unreadable" || (listing.result.status === "complete" && (listing.result.missed || listing.result.diagnostics.length > 0))) {
     result.warnings.push(incompleteInventoryMessage(listing));
@@ -24,8 +27,8 @@ export async function selectStoreWorktreeCleanup(input: SelectionInput): Promise
     if (checkout.path === input.excludeWorktreePath) continue;
     try {
       const selected = await selectCheckout(input, checkout);
-      if (selected?.kind === "ended") result.ended.push({ checkout, name: selected.name });
-      if (selected?.kind === "release") result.releases.push(release(checkout, selected.name));
+      if (selected?.kind === "ended") result.ended.push({ checkout, owner: selected.owner });
+      if (selected?.kind === "release") result.releases.push(release(checkout, selected.name, selected.actions));
     } catch (error) { result.warnings.push(`Cannot select checkout ${checkout.path}: ${error instanceof Error ? error.message : String(error)}`); }
   }
   return result;
@@ -42,11 +45,12 @@ async function selectCheckout(input: SelectionInput, checkout: RegisteredWorktre
   const owner = decodeWorktreeMarkerOwnership(marker.marker);
   if (owner.kind !== "current" || owner.subject.kind !== "work-unit") return null;
   const name = owner.subject.name;
-  if (row.subject?.kind !== "work-unit" || row.subject.key !== name) throw new Error("The marker no longer matches derived checkout authority. Refresh and retry cleanup.");
-  const found = await input.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(name) } });
+  if (!matchesWorkUnitMarker(row, owner.subject)) throw new Error("The marker no longer matches derived checkout authority. Refresh and retry cleanup.");
+  if (owner.subject.uid === undefined) return selectUnboundCheckout(input, checkout.path, marker.marker);
+  const found = await input.store.lookup({ kind: "claim", claim: workUnitCheckoutClaim(input.store, name, owner.subject.uid) });
   if (found.status === "refused") {
     if (found.refusal.code !== "not-found") throw new Error(`${found.refusal.condition} ${found.refusal.remedy.text}`);
-    return await releaseMissingClaim(input.store, name, checkout.branch) ? { kind: "release", name } : null;
+    return await releaseMissingClaim(input.store, owner.subject.uid ?? name, checkout.branch) ? { kind: "release", name } : null;
   }
   if (row.kind === "unresolved-checkout") throw new Error("The missing-record release basis changed. Refresh checkout authority and retry cleanup.");
   const read = await input.store.read({ reference: found.result.reference });
@@ -55,13 +59,24 @@ async function selectCheckout(input: SelectionInput, checkout: RegisteredWorktre
     `The work-unit primary has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry checkout cleanup.`);
   const fields = ParsedMetaRecordSchema.parse(read.result.fields);
   if ((input.identity != null && fields.owner !== input.identity) || read.result.placement?.kind === "backlog") return { kind: "release", name };
-  return read.result.placement?.kind === "completed" ? { kind: "ended", name: read.result.reference.owner.name } : null;
+  return read.result.placement?.kind === "completed" ? { kind: "ended", owner: read.result.reference.owner } : null;
+}
+function matchesWorkUnitMarker(row: DerivedCheckoutRow, marker: { name: string; uid?: string }): boolean {
+  return row.subject?.kind === "work-unit" && (marker.uid === undefined
+    ? row.subject.key === marker.name : row.subject.uid === marker.uid);
+}
+async function selectUnboundCheckout(input: SelectionInput, cwd: string, marker: WorktreeMarker): Promise<Selected> {
+  const unbound = await classifyUnboundMarker({ store: input.store, cwd, marker,
+    ...(input.identity == null ? {} : { identity: input.identity }) });
+  if (unbound.kind === "unreadable") throw new Error(unbound.reason);
+  return { kind: "release", name: unbound.slug, actions: unbound.exits };
 }
 function cleanupAuthorityRow(rows: readonly DerivedCheckoutRow[], path: string): DerivedCheckoutRow {
   const matches = rows.filter(row => row.checkout.path === path), row = matches[0];
   if (matches.length !== 1 || row === undefined) throw new Error(`Expected one derived checkout row; found ${matches.length}. Refresh checkout authority and retry cleanup.`);
   const missingRecordRelease = row.subject?.kind === "work-unit" && row.diagnostics.length > 0
-    && row.diagnostics.every(diagnostic => diagnostic.source === "lifecycle" && diagnostic.code === "work-unit-record-missing");
+    && row.diagnostics.every(diagnostic => diagnostic.source === "lifecycle"
+      && (diagnostic.code === "work-unit-record-missing" || diagnostic.code === "work-unit-marker-unbound"));
   if ((row.kind === "unresolved-checkout" || row.diagnostics.length > 0) && !missingRecordRelease) {
     throw new Error(`${row.diagnostics.map(item => `${item.code}: ${item.message}`).join(" ")} Repair checkout authority and retry cleanup.`);
   }
@@ -74,8 +89,8 @@ export function selectStoreCleanupTopology(rows: readonly DerivedCheckoutRow[], 
     catch (error) { warnings.push(`Cannot select checkout ${checkout.path}: ${error instanceof Error ? error.message : String(error)}`); return false; }
   });
 }
-async function releaseMissingClaim(store: Store, name: string, branch: string | null): Promise<boolean> {
-  const lineage = await store.lookup({ kind: "lineage", origin: SlugSchema.parse(name) });
+async function releaseMissingClaim(store: Store, origin: string, branch: string | null): Promise<boolean> {
+  const lineage = await store.lookup({ kind: "lineage", origin });
   if (lineage.status === "ok") {
     const read = await store.read({ reference: lineage.result.reference });
     if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
@@ -86,7 +101,7 @@ async function releaseMissingClaim(store: Store, name: string, branch: string | 
   if (lineage.refusal.code !== "not-found") throw new Error(`${lineage.refusal.condition} ${lineage.refusal.remedy.text}`);
   return true;
 }
-function release(checkout: RegisteredWorktree, name: string): StaleWorktreeReport {
-  const common = { worktreePath: checkout.path, decision: { action: "external" as const }, actions: [{ text: `arc locus release ${name}`, argv: ["arc", "locus", "release", name] }] };
+function release(checkout: RegisteredWorktree, name: string, actions?: readonly SessionAction[]): StaleWorktreeReport {
+  const common = { worktreePath: checkout.path, decision: { action: "external" as const }, actions: [...(actions ?? [{ text: "arc locus release", argv: ["arc", "locus", "release"], checkout: checkout.path }])] };
   return checkout.branch === null ? { ...common, kind: "detached", branch: null, workUnit: name } : { ...common, kind: "branched", branch: checkout.branch };
 }

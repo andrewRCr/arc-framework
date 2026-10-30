@@ -1,4 +1,5 @@
 /** Session repairs use registered CLI inputs and preserve real checkout contents. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
@@ -12,7 +13,7 @@ import { readWorktreeMarker, writeWorktreeMarker, ensureWorktreeMarkerIgnored, n
 it("overwrites handoff context, refuses a boundary without writing, then accepts repaired stdin", async () => {
   const f = await repairCliFixture(), meta = await f.h.workUnit();
   await ensureWorktreeMarkerIgnored(f.cwd, f.exec, nodeWorktreeMarkerIgnoreFs);
-  await writeWorktreeMarker(f.cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: new Date(0).toISOString(), createdFor: { kind: "work-unit", name: meta.reference.owner.name } });
+  await writeWorktreeMarker(f.cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: new Date(0).toISOString(), createdFor: boundWorkUnitSubject(meta) });
   const file = join(f.cwd, ".git/handoff.json");
   await writeFile(file, JSON.stringify({ schemaVersion: 1, sessionContext: "Prior session context", nextAction: "Continue", sessionType: "execution" }));
   expect(await repairCli(f, ["handoff", "write", file])).toMatchObject({ result: { status: "written" } });
@@ -35,7 +36,7 @@ it("overwrites handoff context, refuses a boundary without writing, then accepts
 it("refuses no-slug release of owned live work, then pauses it and releases only its marker", async () => {
   const f = await repairCliFixture(), meta = await f.h.workUnit("release", "test-user", "active", "", "Planning");
   await ensureWorktreeMarkerIgnored(f.cwd, f.exec, nodeWorktreeMarkerIgnoreFs);
-  await writeWorktreeMarker(f.cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: new Date(0).toISOString(), createdFor: { kind: "work-unit", name: meta.reference.owner.name } });
+  await writeWorktreeMarker(f.cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: new Date(0).toISOString(), createdFor: boundWorkUnitSubject(meta) });
   const dirty = join(f.cwd, "personal-change"); await writeFile(dirty, "Keep this local edit\n");
   expect(await repairCli(f, ["locus", "release", "--json"])).toMatchObject({ result: { status: "refused", reason: expect.stringContaining(`arc pause ${meta.reference.owner.name} --reason <text>`) } });
   expect(await readWorktreeMarker(f.cwd)).toMatchObject({ kind: "present" });

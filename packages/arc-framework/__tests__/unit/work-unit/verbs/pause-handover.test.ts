@@ -9,7 +9,7 @@ import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store
 import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
 import type { LocusPorts } from "../../../../src/lib/work-unit/locus-ports.js";
-const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async () => null,
+const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async () => ({ kind: "none" as const }),
   writeAnchoredMarker: async () => ({ kind: "unadmitted" }) };
 function context(store: Store) { return { store, identity: "test-user", cwd: "/checkout", baseBranch: "main", locusPorts,
   now: () => new Date("2026-10-14T07:00:00Z"), exec: scriptGitExec([{ match: ["remote"], responses: [{ stdout: "" }, { stdout: "" }, { stdout: "" }] }]).exec }; }
@@ -73,7 +73,7 @@ it.each(["another-person", undefined])("handover refuses invoking identity %s be
   const { store, seedMeta } = createLifecycleHarness(); const record = await seedMeta("example");
   let observations = 0;
   const ctx = { ...context(store), identity: identity!, exec: async () => { observations++; return { stdout: "" }; },
-    locusPorts: { ...locusPorts, findHoldingCheckout: async () => { observations++; return null; } } };
+    locusPorts: { ...locusPorts, findHoldingCheckout: async () => { observations++; return { kind: "none" as const }; } } };
   expect(await runHandover(ctx, { name: "example", to: "another-person" })).toMatchObject({ status: "rejected" });
   expect(lifecycleSuccess(await store.read({ reference: record.reference }))).toEqual(record);
   expect(observations).toBe(0);

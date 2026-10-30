@@ -56,7 +56,7 @@ async function harness(mode: "shipped" | "abandoned", options: { anchored?: bool
 describe("teardown checkout disposition", () => {
   it.each(["shipped", "abandoned"] as const)("releases a dirty anchored checkout in %s mode while keeping its branch", async (mode) => {
     const h = await harness(mode, { anchored: true, dirty: true });
-    const result = await runTeardown(h.ctx, { name: "demo", base: "main", mode });
+    const result = await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", mode });
     expect(result).toMatchObject({ status: "torn-down", worktreeRemoved: null, branchDeleted: false });
     expect(h.state()).toEqual({ registered: true, branchPresent: true, markerReleased: true });
     expect((await stat(h.checkout)).isDirectory()).toBe(true);
@@ -65,19 +65,19 @@ describe("teardown checkout disposition", () => {
   it("leaves the marker intact when the projection release refuses", async () => {
     const h = await harness("shipped", { anchored: true, dirty: true });
     h.ctx.projectionRemovalSlots = { ...passingProjectionRemovalSlots, release: async () => ({ kind: "refused", remedy: { text: "resolve projection conflict" } }) };
-    expect(await runTeardown(h.ctx, { name: "demo", base: "main" })).toMatchObject({ status: "rejected", reason: "resolve projection conflict" });
+    expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "rejected", reason: "resolve projection conflict" });
     expect(await readFile(resolveWorktreeMarkerPath(h.checkout), "utf8")).toBe("original marker\n");
     expect(h.state()).toEqual({ registered: true, branchPresent: true, markerReleased: false });
   });
   it("keeps an authorized primary branch when its projection release refuses", async () => {
     const h = await harness("abandoned", { primaryHeld: true });
     h.ctx.projectionRemovalSlots = { ...passingProjectionRemovalSlots, release: async () => ({ kind: "refused", remedy: { text: "resolve projection conflict" } }) };
-    expect(await runTeardown(h.ctx, { name: "demo", base: "main", mode: "abandoned" })).toMatchObject({ status: "torn-down", branchDeleted: false, notices: expect.arrayContaining([expect.stringContaining("resolve projection conflict")]) });
+    expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", mode: "abandoned" })).toMatchObject({ status: "torn-down", branchDeleted: false, notices: expect.arrayContaining([expect.stringContaining("resolve projection conflict")]) });
     expect(h.state()).toEqual({ registered: true, branchPresent: true, markerReleased: false });
   });
   it("prunes a missing abandoned checkout directly without stamping a husk", async () => {
     const h = await harness("abandoned", { missing: true });
-    expect(await runTeardown(h.ctx, { name: "demo", base: "main", mode: "abandoned" })).toMatchObject({ status: "torn-down", worktreeRemoved: h.checkout, husk: null });
+    expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main", mode: "abandoned" })).toMatchObject({ status: "torn-down", worktreeRemoved: h.checkout, husk: null });
     expect(h.state()).toEqual({ registered: false, branchPresent: false, markerReleased: false });
   });
 });

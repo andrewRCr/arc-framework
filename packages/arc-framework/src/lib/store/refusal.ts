@@ -51,7 +51,8 @@ export const LocalRefusalSchema = z.discriminatedUnion("code", [
     historyRefs: z.array(HistoryRefSchema), reference: RecordReferenceSchema.optional(), field: z.string().min(1).optional() }),
   z.strictObject({ code: z.literal("record-malformed"), ...recoverable, reference: RecordReferenceSchema.optional(), rule: z.string().min(1) }),
   z.strictObject({ code: z.literal("identity-mismatch"), ...recoverable, expected: RecordReferenceSchema, actual: RecordReferenceSchema }),
-  z.strictObject({ code: z.literal("ambiguous-match"), ...recoverable, candidates: z.array(RecordReferenceSchema).min(2) }),
+  z.strictObject({ code: z.literal("ambiguous-match"), ...recoverable, candidates: z.array(RecordReferenceSchema).min(2),
+    tie: z.strictObject({ liveness: z.enum(["live", "completed"]), name: z.enum(["current", "former"]).optional() }).optional() }),
   z.strictObject({ code: z.literal("lock-held"), ...recoverable, lock: z.string().min(1) }),
   z.strictObject({ code: z.literal("namespace-corrupt"), ...terminal, namespace: z.string().min(1) }),
   z.strictObject({ code: z.literal("checkout-not-writable"), ...recoverable, checkout: z.string().min(1) }),
@@ -62,6 +63,14 @@ export const LocalRefusalSchema = z.discriminatedUnion("code", [
 export const StoreRefusalSchema = z.union([LocalRefusalSchema, PublishFailureSchema]);
 /** A refusal is a value; defects and unclassifiable environment failures throw. */
 export type StoreRefusal = z.infer<typeof StoreRefusalSchema>;
+/** Carry structured store evidence through a throwing boundary while retaining its human diagnostic. */
+export class StoreRefusalError extends Error {
+  constructor(readonly refusal: StoreRefusal) {
+    super(`${refusal.condition} ${refusal.remedy.text}`);
+    this.name = "StoreRefusalError";
+  }
+}
+
 /** Every refused outcome code, used to make recovery coverage exhaustive. */
 export type RefusalCode = StoreRefusal["code"];
 

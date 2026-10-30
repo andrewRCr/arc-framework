@@ -1,4 +1,5 @@
 /** Recovery exposes actual close evidence beside a matching cursor and preserves cursor stops. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { expect, it } from "vitest";
 import { makeUnclosedTaskFixture, unclosedTaskList } from "../helpers/unclosed-task-commits.js";
 import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-state-probe.js";
@@ -13,7 +14,7 @@ const ok = <T>(value: T) => ({ ok: true as const, value });
 async function fixture() {
   const h = await makeUnclosedTaskFixture();
   await writeWorktreeMarker(h.cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-16T00:00:00Z",
-    createdFor: { kind: "work-unit", name: "demo" } });
+    createdFor: boundWorkUnitSubject(await h.readMeta()) });
   const exec: typeof h.input.exec = (command, args, options) => h.input.exec(command, args, { ...options, cwd: h.cwd });
   const frame = () => runDerivedLocusStateProbe({ ...h.input, exec, identity: "test-user", archiveCadence: "manual" });
   const initial = await frame();

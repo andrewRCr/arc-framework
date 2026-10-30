@@ -1,8 +1,9 @@
 /** Store-held backlog graduation with reversible branchless checkout occupation. */
+import { sameReference } from "../lib/store/identity.js";
 import type { ExecuteTransitionContext, TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
 import { executeTransition } from "../lib/work-unit/lifecycle-executor.js";
 import { occupyStoreGraduation, type StoreGraduationOccupation } from "../lib/work-unit/atomic-graduation.js";
-import { requireMarkerExclusivity } from "../lib/work-unit/locus-ports.js";
+import { ownerHolderRequest, requireMarkerExclusivity } from "../lib/work-unit/locus-ports.js";
 import { readLifecycleView } from "../lib/store/lifecycle-view.js";
 import { lifecycleArtifactPath, requireCompleteInventory } from "../lib/store/lifecycle-storage.js";
 import { readWorkUnit } from "../lib/store/lifecycle-write.js";
@@ -19,12 +20,13 @@ export async function runStoreGraduate(ctx: ExecuteTransitionContext, params: Gr
 async function graduate(ctx: ExecuteTransitionContext, params: GraduateParams): Promise<GraduateResult> {
   if (ctx.store === undefined || ctx.exec === undefined || params.spawningIdentity === undefined) return { status: "rejected", reason: "Store graduation requires the store, Git executor, and starter identity." };
   const view = await readLifecycleView(ctx.store);
-  if (view.status === "refused") return { status: "rejected", reason: `${view.refusal.condition} ${view.refusal.remedy.text}` };
+  if (view.status === "refused") return { status: "rejected", reason: view.refusal.condition, refusal: view.refusal };
   try { requireCompleteInventory(ctx.store, view.result.listing); } catch (error) { return { status: "rejected", reason: String(error) }; }
   const read = await readWorkUnit(ctx.store, params.name);
-  if (read.status === "refused") return { status: "rejected", reason: `${read.refusal.condition} ${read.refusal.remedy.text}` };
+  if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
   const name = read.result.reference.owner.name;
-  const entry = view.result.entries.find((candidate) => candidate.reference.owner.name === read.result.reference.owner.name);
+  const holder = ownerHolderRequest(read.result);
+  const entry = view.result.entries.find((candidate) => sameReference(candidate.reference, read.result.reference));
   if (entry === undefined || (entry.location !== "planned" && entry.location !== "provisional")) return { status: "rejected", reason: `${name} is not a backlog stub that can graduate.` };
   if (entry.version !== read.result.version) return { status: "rejected", reason: `${name} changed after its inventory read; retry start to use its current Class and ownership.` };
   const recordedClass = WorkClassSchema.safeParse(entry.fields.workClass);
@@ -47,12 +49,12 @@ async function graduate(ctx: ExecuteTransitionContext, params: GraduateParams): 
     storeTransition: { primary: read.result, content, placement: { kind: "active" }, gitSteps: [{
       name: "occupy-planning-checkout", retryCommand,
       run: async () => {
-        await requireMarkerExclusivity(ctx.locusPorts, { name });
+        await requireMarkerExclusivity(ctx.locusPorts, holder);
         occupation = await occupyStoreGraduation({ cwd: ctx.cwd, exec, inPlace: params.inPlace === true,
           onOccupied: (prepared) => { occupation = prepared; },
           occupy: () => ctx.reconcileWorkUnitWorktree(params.inPlace
-            ? { mutation: "spawn", inPlace: true, preserveHead: true, wuName: name, spawningIdentity: starter }
-            : { mutation: "spawn", detached: true, base: params.baseBranch, wuName: name,
+            ? { mutation: "spawn", inPlace: true, preserveHead: true, wuName: name, holder, spawningIdentity: starter }
+            : { mutation: "spawn", detached: true, base: params.baseBranch, wuName: name, holder,
                 locationTemplate: params.locationTemplate, repo: params.repo, spawningIdentity: starter,
                 primaryWorktreePath: params.primaryWorktreePath, postCreateScript: params.postCreateScript, registeredHarnessDirs: params.registeredHarnessDirs }),
         });
@@ -74,5 +76,6 @@ function graduationWorkflow(fields: { currentWorkflow: string | null; design: re
 
 function graduationRejection(outcome: Exclude<TransitionOutcome, { status: "ok" }>): Extract<GraduateResult, { status: "rejected" }> {
   return { status: "rejected", reason: outcome.message,
+    ...(outcome.status === "rejected" && outcome.refusal !== undefined ? { refusal: outcome.refusal } : {}),
     ...(outcome.status === "rejected" && outcome.recovery !== undefined ? { recovery: outcome.recovery } : {}) };
 }

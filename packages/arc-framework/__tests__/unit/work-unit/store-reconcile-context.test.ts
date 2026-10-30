@@ -1,9 +1,11 @@
 /** Current-WU reconciliation reads dependency truth and companions through the store. */
+import { createClashDouble } from "../../helpers/store/clash-double.js";
+import { readWorkUnit } from "../../../src/lib/store/lifecycle-write.js";
 import { describe, expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { recordReferences, OwnerIdentitySchema } from "../../../src/lib/store/identity.js";
 import { recordPut, batchLifecycleWrites } from "../../../src/lib/store/lifecycle-write.js";
-import { writeMetaTitle, writeMetaDesign, writeMetaDependsOn } from "../../../src/lib/store/kinds/meta/writers.js";
+import { writeMetaTitle, writeMetaDesign, writeMetaDependsOn, writeMetaPause } from "../../../src/lib/store/kinds/meta/writers.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { writeLineageRecord } from "../../../src/lib/store/kinds/lineage/writer.js";
 import { runStoreRename } from "../../../src/lib/work-unit/verbs/rename-store.js";
@@ -11,6 +13,26 @@ import { buildStoreCurrentWuReconcile } from "../../../src/lib/work-unit/store-c
 import { createStoreReconcilePrepareContext } from "../../../src/lib/work-unit/store-reconcile-context.js";
 import { prepareCurrentWuReconcile } from "../../../src/lib/work-unit/side-effects/discharge-dep-edges.js";
 import { workUnitMetaPath } from "../../../src/lib/store/lifecycle-write.js";
+import { seedCompletedErrandTie } from "../../helpers/store/completed-errand-tie.js";
+
+it("leaves a tied word unchanged while preserving other lookup refusals and recovery", async () => {
+  const h = createLifecycleHarness();
+  await seedCompletedErrandTie(h, "tied");
+  const meta = await h.seedMeta("example");
+  const notes = await h.seed(recordReferences["work-item/notes"](meta.reference.owner), "# Notes\n\nNarrative tied context.\n");
+  const lookup = h.store.lookup.bind(h.store);
+  h.store.lookup = input => input.kind === "slug" && input.slug === "tied"
+    ? Promise.resolve({ status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: "work-item",
+      condition: "Word lookup unavailable.", remedy: { text: "Restore lookup and retry." } } }) : lookup(input);
+  expect(await createStoreReconcilePrepareContext(h.store, "example")).toMatchObject({ status: "refused",
+    refusal: { code: "namespace-corrupt", condition: "Word lookup unavailable." } });
+  h.store.lookup = lookup;
+  const acquired = lifecycleSuccess(await createStoreReconcilePrepareContext(h.store, "example"));
+  expect(acquired.context.additionalReferenceTransitions).toEqual([]);
+  expect(await buildStoreCurrentWuReconcile(h.store).prepare({ slug: "example", metaPath: workUnitMetaPath(meta) }))
+    .toMatchObject({ status: "clean", prepared: { edits: [], plan: { advisories: [] } } });
+  expect(lifecycleSuccess(await h.store.read({ reference: notes.reference }))).toEqual(notes);
+});
 
 describe("store reconcile context", () => {
   it.each(["uid", "former-name", "ambiguous", "namespace-corrupt"] as const)("retains or refuses a renamed dependent's immutable cut disposition: %s", async (scenario) => {
@@ -29,7 +51,7 @@ describe("store reconcile context", () => {
     { verb: "decompose", lifecycleAction: "decompose" }));
     const immutable = lifecycleSuccess(await h.store.read({ reference: lineage }));
     expect(await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
-      locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+      locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
     { sourceSlug: "former-dependent", targetSlug: "current-dependent" })).toMatchObject({ status: "renamed" });
     const current = lifecycleSuccess(await h.store.read({ reference: dependent.reference }));
     const lookup = h.store.lookup.bind(h.store);
@@ -97,7 +119,7 @@ describe("store reconcile context", () => {
       provenance: { verb: "rename", lifecycleAction: "rename" } }));
     await h.seedMeta("example", { dependsOn: ["old"] });
     const acquired = lifecycleSuccess(await createStoreReconcilePrepareContext(h.store, "example"));
-    expect(await acquired.context.queryDisposition?.({ origin: "old", dependentSlug: "example" })).toEqual({ status: "unique", disposition: { kind: "retarget", targetSlug: "new" } });
+    expect(await acquired.context.resolveDependency?.("old")).toMatchObject({ kind: "work-unit", reference: { ...prior.reference, owner: { ...prior.reference.owner, name: "new" } }, state: "active" });
   });
 
   it("reads abandoned and cut dependency dispositions from terminal lineage", async () => {
@@ -111,7 +133,7 @@ describe("store reconcile context", () => {
           disposition: { kind: "replace", replacementTargets: [{ name: SlugSchema.parse("member") }] } }], outgoing: [] }));
     const acquired = lifecycleSuccess(await createStoreReconcilePrepareContext(h.store, "example"));
     expect(await acquired.context.queryDisposition?.({ origin: "abandoned", dependentSlug: "example" })).toEqual({ status: "unique", disposition: { kind: "abandoned" } });
-    expect(await acquired.context.queryDisposition?.({ origin: "cut", dependentSlug: "example" })).toEqual({ status: "unique", disposition: { kind: "replace", replacementTargets: ["member"] } });
+    expect(await acquired.context.queryDisposition?.({ origin: "cut", dependentSlug: "example" })).toEqual({ status: "unique", disposition: { kind: "replace", replacementTargets: ["member"], references: [{ name: "member" }] } });
   });
   it("discharges an integrating prerequisite while retaining live dependencies and acquiring prose", async () => {
     const h = createLifecycleHarness();
@@ -134,7 +156,7 @@ it.each([false, true])("owner reconcile repairs alias-backed artifact references
   const content = "# Notes\n\nRead `spec-origin.md`. Narrative origin context.\n";
   const notes = await h.seed(recordReferences["work-item/notes"](dependent.reference.owner), content);
   expect(await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
-    locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+    locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
   { sourceSlug: "origin", targetSlug: "successor" })).toMatchObject({ status: "renamed" });
   expect(lifecycleSuccess(await h.store.read({ reference: notes.reference })).content).toBe(content);
   const ceremony = buildStoreCurrentWuReconcile(h.store);
@@ -153,7 +175,7 @@ it.each([false, true])("retains authenticated former-name retirement evidence, d
   const content = "# Notes\n\nRead `spec-origin.md`. Narrative origin context.\n";
   const notes = await h.seed(recordReferences["work-item/notes"](dependent.reference.owner), content);
   expect(await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
-    locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+    locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
   { sourceSlug: "origin", targetSlug: "successor" })).toMatchObject({ status: "renamed" });
   const renamed = lifecycleSuccess(await h.store.read({ reference: origin.reference }));
   if (renamed.reference.owner.type !== "work-item") throw new Error("Expected a work item");
@@ -180,7 +202,7 @@ it.each(["prd", "rfc"])("owner reconcile preserves a renamed paired spec's %s su
   const dependent = await h.seedMeta("dependent");
   const notes = await h.seed(recordReferences["work-item/notes"](dependent.reference.owner), `# Notes\n\nRead \`spec-origin-${half}.md\`.\n`);
   expect(await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
-    locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+    locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
   { sourceSlug: "origin", targetSlug: "successor" })).toMatchObject({ status: "renamed" });
   const ceremony = buildStoreCurrentWuReconcile(h.store);
   const prepared = await ceremony.prepare({ slug: "dependent", metaPath: workUnitMetaPath(dependent) });
@@ -195,11 +217,41 @@ it("refuses ambiguous paired-suffix ownership before rewriting an active owner's
   const dependent = await h.seedMeta("dependent");
   const notes = await h.seed(recordReferences["work-item/notes"](dependent.reference.owner), "# Notes\n\nRead `spec-origin-prd.md`.\n");
   expect(await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
-    locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+    locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
   { sourceSlug: "origin", targetSlug: "successor" })).toMatchObject({ status: "renamed" });
   const ceremony = buildStoreCurrentWuReconcile(h.store);
   const prepared = await ceremony.prepare({ slug: "dependent", metaPath: workUnitMetaPath(dependent) });
   expect(prepared.status).toBe("conflict");
   expect(prepared.prepared.edits).toEqual([]);
   expect(lifecycleSuccess(await h.store.read({ reference: notes.reference }))).toEqual(notes);
+});
+
+it.each([false, true])("acquires the selected reconcile group after a mid-verb clash, ceremony=%s", async ceremony => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("subject"), other = await h.seedMeta("other");
+  const notes = await h.seed(recordReferences["work-item/notes"](primary.reference.owner), "# Notes\n\nNarrative.\n");
+  const store = createClashDouble(h.store, { slug: "subject", holders: [primary.reference, other.reference], mode: "mid-verb" });
+  const selected = lifecycleSuccess(await readWorkUnit(store, "subject"));
+  if (ceremony) {
+    expect(await buildStoreCurrentWuReconcile(store).prepare({ slug: "subject", metaPath: workUnitMetaPath(selected), reference: selected.reference }))
+      .toMatchObject({ status: "clean", prepared: { storePlan: { records: [primary, notes] } } });
+  } else expect(await createStoreReconcilePrepareContext(store, "subject", selected.reference))
+    .toMatchObject({ status: "ok", result: { primary, records: [primary, notes] } });
+});
+
+it.each([false, true])("applies the prepared primary's pause without reranking its clashed name, paused=%s", async paused => {
+  const h = createLifecycleHarness();
+  let primary = await h.seedMeta("subject");
+  const other = await h.seedMeta("other");
+  if (paused) {
+    lifecycleSuccess(await h.store.write({ ...recordPut(primary, { content: writeMetaPause(primary.content, {
+      pausedBy: SlugSchema.parse("test-user"), since: "2026-10-14T00:00:00Z", reason: "Wait", waitsOn: null, resumeNotes: null, open: false,
+    }) }), provenance: { verb: "pause", lifecycleAction: "pause" } }));
+    primary = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
+  }
+  const prepared = await buildStoreCurrentWuReconcile(h.store).prepare({ slug: "subject", metaPath: workUnitMetaPath(primary), reference: primary.reference });
+  const store = createClashDouble(h.store, { slug: "subject", holders: [primary.reference, other.reference] });
+  const result = await buildStoreCurrentWuReconcile(store).apply(prepared.prepared);
+  expect(result).toMatchObject(paused ? { status: "conflict", reason: "paused", remedy: { argv: ["arc", "resume", "subject"] } } : { status: "clean" });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference }))).toEqual(primary);
 });

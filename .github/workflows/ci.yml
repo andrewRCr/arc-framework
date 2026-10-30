@@ -28,6 +28,10 @@ on:
         description: 'Run every store suite in its per-change form instead of the full run'
         type: boolean
         default: false
+      run_git_floor:
+        description: 'Also run integration and store suites at the supported Git floor'
+        type: boolean
+        default: false
   # Weekly full-tier duration refresh and cross-platform portability. The pair fires only here or
   # on an explicit dispatch opt-in — never from PR synchronizes — so the weekly
   # cadence is a post-merge backstop against OS-specific concurrency-guard
@@ -957,6 +961,195 @@ jobs:
       run: node --import tsx scripts/run-ci-checks.mjs run portability-cross-platform macos
       env:
         ARC_E2E_SKIP_BUILD: '1'
+
+  git-floor-integration:
+    name: Git floor (integration, ${{ matrix.shard }})
+    permissions:
+      contents: read
+      actions: read
+    needs: [setup, build]
+    if: ${{ !cancelled() && !inputs.portability_timing_only && needs.setup.result == 'success' && needs.build.result == 'success' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_git_floor)) }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    defaults:
+      run:
+        shell: bash
+    env:
+      GIT_FLOOR_VERSION: '2.47.0'
+      # https://www.kernel.org/pub/software/scm/git/sha256sums.asc
+      GIT_FLOOR_SHA256: '1ce114da88704271b43e027c51e04d9399f8c88e9ef7542dae7aebae7d87bc4e'
+    steps:
+    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      with:
+        node-version: 24
+        cache: 'npm'
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      id: nm-cache
+      with:
+        path: |
+          node_modules
+          packages/arc-framework/node_modules
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
+    - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
+      run: npm ci
+    - name: Initialize approved dependency tools
+      run: npm run setup
+    - name: Check the Git pin against the package floor
+      run: |
+        if [ "$(node -p "require('./packages/arc-framework/package.json').engines.git")" != ">=${GIT_FLOOR_VERSION%.*}" ]; then
+          echo "::error::Update the Git-floor pin to match packages/arc-framework/package.json engines.git"
+          exit 1
+        fi
+    - name: Restore the minimum Git build
+      id: git-cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: ~/.local/arc-ci-git/${{ env.GIT_FLOOR_VERSION }}
+        key: ubuntu-24.04-${{ runner.arch }}-git-floor-v1-${{ env.GIT_FLOOR_VERSION }}-${{ env.GIT_FLOOR_SHA256 }}
+    - name: Build the minimum Git
+      if: ${{ steps.git-cache.outputs.cache-hit != 'true' }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install --yes --no-install-recommends \
+          build-essential gettext libcurl4-openssl-dev libexpat1-dev libssl-dev zlib1g-dev
+        git_floor_archive="$RUNNER_TEMP/git-$GIT_FLOOR_VERSION.tar.xz"
+        git_floor_prefix="$HOME/.local/arc-ci-git/$GIT_FLOOR_VERSION"
+        curl --fail --location --retry 3 \
+          "https://www.kernel.org/pub/software/scm/git/git-$GIT_FLOOR_VERSION.tar.xz" \
+          --output "$git_floor_archive"
+        printf '%s  %s\n' "$GIT_FLOOR_SHA256" "$git_floor_archive" | sha256sum --check
+        tar --extract --xz --file "$git_floor_archive" --directory "$RUNNER_TEMP"
+        make -C "$RUNNER_TEMP/git-$GIT_FLOOR_VERSION" -j 2 prefix="$git_floor_prefix" NO_TCLTK=YesPlease all
+        make -C "$RUNNER_TEMP/git-$GIT_FLOOR_VERSION" prefix="$git_floor_prefix" NO_TCLTK=YesPlease install
+    - name: Select the minimum Git
+      run: echo "$HOME/.local/arc-ci-git/$GIT_FLOOR_VERSION/bin" >> "$GITHUB_PATH"
+    - name: Verify the Git under test
+      run: |
+        command -v git
+        git --version
+        test "$(git --version)" = "git version $GIT_FLOOR_VERSION"
+        git --exec-path
+        printf 'Git under test: %s\n' "$(git --version)" >> "$GITHUB_STEP_SUMMARY"
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: arc-framework-dist
+        path: packages/arc-framework/dist
+    - name: Download check forecast
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: arc-check-forecast
+        path: .
+    - id: runtime-preflight
+      run: node --import tsx packages/arc-framework/src/scripts/run-build.ts prepare
+      env:
+        ARC_E2E_SKIP_BUILD: ''
+    - name: Run integration suites at the Git floor
+      id: integration
+      run: node --import tsx scripts/run-ci-checks.mjs run git-floor-integration integration --shard ${{ matrix.shard }}
+      env:
+        ARC_E2E_SKIP_BUILD: '1'
+
+  git-floor-store:
+    name: Git floor (store, ${{ matrix.shard }})
+    permissions:
+      contents: read
+      actions: read
+    needs: [setup, build]
+    if: ${{ !cancelled() && !inputs.portability_timing_only && needs.setup.result == 'success' && needs.build.result == 'success' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_git_floor)) }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+    defaults:
+      run:
+        shell: bash
+    env:
+      GIT_FLOOR_VERSION: '2.47.0'
+      # https://www.kernel.org/pub/software/scm/git/sha256sums.asc
+      GIT_FLOOR_SHA256: '1ce114da88704271b43e027c51e04d9399f8c88e9ef7542dae7aebae7d87bc4e'
+    steps:
+    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      with:
+        node-version: 24
+        cache: 'npm'
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      id: nm-cache
+      with:
+        path: |
+          node_modules
+          packages/arc-framework/node_modules
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
+    - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
+      run: npm ci
+    - name: Initialize approved dependency tools
+      run: npm run setup
+    - name: Check the Git pin against the package floor
+      run: |
+        if [ "$(node -p "require('./packages/arc-framework/package.json').engines.git")" != ">=${GIT_FLOOR_VERSION%.*}" ]; then
+          echo "::error::Update the Git-floor pin to match packages/arc-framework/package.json engines.git"
+          exit 1
+        fi
+    - name: Restore the minimum Git build
+      id: git-cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: ~/.local/arc-ci-git/${{ env.GIT_FLOOR_VERSION }}
+        key: ubuntu-24.04-${{ runner.arch }}-git-floor-v1-${{ env.GIT_FLOOR_VERSION }}-${{ env.GIT_FLOOR_SHA256 }}
+    - name: Build the minimum Git
+      if: ${{ steps.git-cache.outputs.cache-hit != 'true' }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install --yes --no-install-recommends \
+          build-essential gettext libcurl4-openssl-dev libexpat1-dev libssl-dev zlib1g-dev
+        git_floor_archive="$RUNNER_TEMP/git-$GIT_FLOOR_VERSION.tar.xz"
+        git_floor_prefix="$HOME/.local/arc-ci-git/$GIT_FLOOR_VERSION"
+        curl --fail --location --retry 3 \
+          "https://www.kernel.org/pub/software/scm/git/git-$GIT_FLOOR_VERSION.tar.xz" \
+          --output "$git_floor_archive"
+        printf '%s  %s\n' "$GIT_FLOOR_SHA256" "$git_floor_archive" | sha256sum --check
+        tar --extract --xz --file "$git_floor_archive" --directory "$RUNNER_TEMP"
+        make -C "$RUNNER_TEMP/git-$GIT_FLOOR_VERSION" -j 2 prefix="$git_floor_prefix" NO_TCLTK=YesPlease all
+        make -C "$RUNNER_TEMP/git-$GIT_FLOOR_VERSION" prefix="$git_floor_prefix" NO_TCLTK=YesPlease install
+    - name: Select the minimum Git
+      run: echo "$HOME/.local/arc-ci-git/$GIT_FLOOR_VERSION/bin" >> "$GITHUB_PATH"
+    - name: Verify the Git under test
+      run: |
+        command -v git
+        git --version
+        test "$(git --version)" = "git version $GIT_FLOOR_VERSION"
+        git --exec-path
+        printf 'Git under test: %s\n' "$(git --version)" >> "$GITHUB_STEP_SUMMARY"
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: arc-framework-dist
+        path: packages/arc-framework/dist
+    - name: Download check forecast
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: arc-check-forecast
+        path: .
+    - id: runtime-preflight
+      run: node --import tsx packages/arc-framework/src/scripts/run-build.ts prepare
+      env:
+        ARC_E2E_SKIP_BUILD: ''
+    - name: Run store suites at the Git floor
+      id: store
+      run: node --import tsx scripts/run-ci-checks.mjs run git-floor-store store --shard ${{ matrix.shard }}
+      env:
+        ARC_E2E_SKIP_BUILD: '1'
+        ARC_STORE_CHECK: full
 
   ci_ok:
     name: ci-ok

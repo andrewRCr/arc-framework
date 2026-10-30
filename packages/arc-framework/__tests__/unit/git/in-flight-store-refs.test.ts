@@ -1,3 +1,4 @@
+import { boundHolderLookup } from "../../helpers/store/bound-checkout.js";
 /** Failed local ref reads preserve Store membership without inventing branch absence. */
 import { expect, it } from "vitest";
 import { deriveStoreInFlight } from "../../../src/lib/git/in-flight-store.js";
@@ -38,11 +39,11 @@ it("keeps active work and Errands indeterminate on a failed ref read, then clear
 
 it("retains independently known holders and branchless work when the ref inventory is unavailable", async () => {
   const h = createLifecycleHarness();
-  await h.seedMeta("held", {}, { kind: "active" }, { branches: [{ repository: "project", ref: "feat/held", linkedAs: "created", excluded: [] }] });
+  const held = await h.seedMeta("held", {}, { kind: "active" }, { branches: [{ repository: "project", ref: "feat/held", linkedAs: "created", excluded: [] }] });
   await h.seedMeta("planning", { state: "Planning", currentWorkflow: "draft-design" });
   const fake = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [{ failure: { exitCode: 128 } }] }]);
   const result = await deriveStoreInFlight({ store: h.store, exec: fake.exec, identity: "alice", teamMode: false,
-    projectId: async () => "project", findHoldingCheckout: async name => name === "held" ? "/holder" : null });
+    projectId: async () => "project", findHoldingCheckout: boundHolderLookup(held, () => "/holder") });
   expect(result.entries).toEqual(expect.arrayContaining([
     expect.objectContaining({ name: "held", worktreePath: "/holder", branch: "feat/held", remoteOnly: false }),
     expect.objectContaining({ name: "planning", remoteOnly: false }),

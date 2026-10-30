@@ -3,11 +3,11 @@ import type { DerivedLocusFrame } from "./derived-reader.js";
 import { computeUnclosedTaskCommits, type ComputeUnclosedTaskCommitsInput } from "./unclosed-task-commits.js";
 /** Preserve role authority when the advisory computation is absent or fails. */
 export async function withEnteringUnclosedTaskCommits(frame: DerivedLocusFrame,
-  input: Omit<ComputeUnclosedTaskCommitsInput, "slug">): Promise<DerivedLocusFrame> {
+  input: Omit<ComputeUnclosedTaskCommitsInput, "slug" | "uid">): Promise<DerivedLocusFrame> {
   if (!input.store?.capabilities.stateOffBranch || frame.active === null) return frame;
   const active = frame.active;
   let evidence;
-  try { evidence = await computeUnclosedTaskCommits({ ...input, slug: active.subject.key }); }
+  try { evidence = await computeUnclosedTaskCommits({ ...input, slug: active.subject.key, uid: active.subject.uid }); }
   catch (error) {
     evidence = { status: "refused" as const, code: "observation-failed", reason: error instanceof Error ? error.message : String(error),
       remedy: { text: "Repair the reported commit observation, then run session status again." },

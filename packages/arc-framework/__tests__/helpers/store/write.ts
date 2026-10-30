@@ -182,9 +182,10 @@ function land(context: ReferenceContext, write: WriteInput, batchId?: string, va
   };
   if (write.action === "remove") context.state.records.delete(key);
   else {
-    const formerSlugs = primary(write) && write.resolves?.length ? generationAliases(context.state, reference)
+    const namedHolder = primary(write) || reference.kind === "cohort/document";
+    const formerSlugs = namedHolder && write.resolves?.length ? generationAliases(context.state, reference)
       : [...(prior?.formerSlugs ?? [])];
-    if (primary(write) && prior && prior.reference.owner.name !== reference.owner.name) {
+    if (namedHolder && prior && prior.reference.owner.name !== reference.owner.name) {
       formerSlugs.push(prior.reference.owner.name);
       for (const record of context.state.records.values()) {
         if (record.reference.owner.type !== "person" && reference.owner.type !== "person"

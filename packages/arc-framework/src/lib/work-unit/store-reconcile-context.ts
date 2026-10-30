@@ -1,9 +1,11 @@
 /** Complete store-backed context and version bases for current-work-unit reconciliation. */
-import { SlugSchema } from "../kernel/index.js";
+import { readWorkUnit } from "../store/lifecycle-write.js";
+import { createDependencyResolver } from "./side-effects/store-dependency-resolution.js";
+import { SlugSchema, type Slug } from "../kernel/index.js";
 import type { Store } from "../store/contract.js";
 import type { StoreRecord } from "../store/read.js";
 import type { StoreResult } from "../store/refusal.js";
-import { sameOwner, type OwnerIdentity } from "../store/identity.js";
+import { sameOwner, sameReference, type OwnerIdentity, type RecordReference } from "../store/identity.js";
 import type { WorkItemRef } from "../store/kinds/lineage/schema.js";
 import { readLifecycleView } from "../store/lifecycle-view.js";
 import { requireCompleteInventory } from "../store/lifecycle-storage.js";
@@ -18,11 +20,13 @@ import type { ReachableReferenceTransition } from "./reference-reconcile.js";
 /** Every reported artifact path resolves only through its already-acquired record. */
 export interface StoreReconcilePreparation { primary: StoreRecord; context: CurrentWuReconcilePrepareContext; records: readonly StoreRecord[]; byPath: ReadonlyMap<string, StoreRecord> }
 /** Acquire complete lifecycle, lineage, and artifact evidence before planning edits. */
-export async function createStoreReconcilePrepareContext(store: Store, slug: string): Promise<StoreResult<StoreReconcilePreparation>> {
+export async function createStoreReconcilePrepareContext(store: Store, slug: string, reference?: RecordReference): Promise<StoreResult<StoreReconcilePreparation>> {
   const view = await readLifecycleView(store);
   if (view.status === "refused") return view;
   requireCompleteInventory(store, view.result.listing);
-  const acquired = await acquireLifecycleRecords(store, slug);
+  const selected = reference === undefined ? await readWorkUnit(store, slug) : { status: "ok" as const, result: { reference } };
+  if (selected.status === "refused") return selected;
+  const acquired = await acquireLifecycleRecords(store, selected.result.reference);
   if (acquired.status === "refused") return acquired;
   const primary = acquired.result.find((record) => record.reference.kind === "work-item/meta");
   if (primary === undefined) throw new Error("The acquired work-unit group lacks its primary");
@@ -41,18 +45,12 @@ export async function createStoreReconcilePrepareContext(store: Store, slug: str
   if (artifactOwners.status === "refused") return artifactOwners;
   return { status: "ok", result: { primary, records: acquired.result, byPath, context: {
     index: view.result.index,
+    resolveDependency: createDependencyResolver(store, view.result.entries, primary.reference),
     additionalReferenceTransitions: aliases.result,
     artifactReferenceOwners: artifactOwners.result,
     enumerateTransitionRecords: () => Promise.resolve(lineage.result.enumeration),
     queryDisposition: async (input) => {
-      const lookup = await store.lookup({ kind: "slug", slug: SlugSchema.parse(input.origin) });
-      if (lookup.status === "ok" && lookup.result.reference.owner.name !== input.origin) {
-        return { status: "unique", disposition: { kind: "retarget", targetSlug: lookup.result.reference.owner.name } };
-      }
-      if (lookup.status === "refused" && lookup.refusal.code !== "not-found") return { status: "namespace-corrupt" };
-      const disposition = lookup.status === "refused"
-        ? await queryRetiredOriginDisposition(store, primary.reference.owner, lineage.result, input)
-        : await queryStoreDisposition(store, primary.reference.owner, lineage.result.enumeration, input);
+      const disposition = await queryRetiredOriginDisposition(store, primary.reference.owner, lineage.result, input);
       return disposition.status === "ok" ? disposition.result
         : { status: disposition.refusal.code === "ambiguous-match" ? "ambiguous" : "namespace-corrupt" };
     },
@@ -69,14 +67,41 @@ async function queryStoreDisposition(store: Store, dependentOwner: OwnerIdentity
   if (enumeration.status !== "valid") return { status: "ok", result: { status: "namespace-corrupt" } };
   const group = enumeration.groups.find(({ origin }) => origin === input.origin);
   const record = group?.records.length === 1 ? group.records[0] : undefined;
-  if (record?.kind !== "decompose") return { status: "ok", result: queryTransitionDisposition(enumeration, input) };
+  if (record?.kind !== "decompose") {
+    const result = queryTransitionDisposition(enumeration, input);
+    return { status: "ok", result: result.status === "unique" && result.disposition.kind === "retarget" && record !== undefined
+      ? { ...result, disposition: { ...result.disposition, references: record.successors } } : result };
+  }
   const matches = new Set<string>();
   for (const { dependent } of record.incoming) {
     const match = await readDependentMatch(store, dependentOwner, input.dependentSlug, dependent);
     if (match.status === "refused") return match;
     if (match.result) matches.add(dependent.name);
   }
-  return { status: "ok", result: queryTransitionDisposition(enumeration, input, (dependent) => matches.has(dependent.name)) };
+  const result = queryTransitionDisposition(enumeration, input, (dependent) => matches.has(dependent.name));
+  const edge = record.incoming.find(({ dependent }) => matches.has(dependent.name));
+  return { status: "ok", result: result.status === "unique" && result.disposition.kind === "replace" && edge?.disposition.kind === "replace"
+    ? { ...result, disposition: { ...result.disposition, references: edge.disposition.replacementTargets } } : result };
+}
+async function queryUidDisposition(store: Store, dependent: OwnerIdentity, input: TransitionDispositionQuery): Promise<StoreResult<TransitionDispositionQueryResult>> {
+  const uid = input.reference?.uid;
+  if (uid === undefined) throw new Error("Exact lineage query requires a UID");
+  const lookup = await store.lookup({ kind: "lineage", origin: uid });
+  if (lookup.status === "refused") return lookup.refusal.code === "not-found" ? { status: "ok", result: { status: "absent" } } : lookup;
+  const read = await store.read({ reference: lookup.result.reference });
+  if (read.status === "refused") return read;
+  const record = read.result, owner = record.reference.owner;
+  if (record.conflicts.length > 0) return { status: "ok", result: { status: "ambiguous" } };
+  if (record.reference.kind !== "lineage/transition" || owner.type !== "work-item" || owner.uid !== uid
+    || !sameReference(record.reference, lookup.result.reference)) {
+    return { status: "ok", result: { status: "namespace-corrupt" } };
+  }
+  const enumeration = validateTransitionRecordEnumeration([{ filename: `${owner.name}.json`, mode: "100644", type: "blob", content: Buffer.from(record.content) }]);
+  if (enumeration.status === "valid" && enumeration.groups.some(group => group.origin !== owner.name
+    || group.records.some(lineage => lineage.origin.uid !== undefined && lineage.origin.uid !== uid))) {
+    return { status: "ok", result: { status: "namespace-corrupt" } };
+  }
+  return queryStoreDisposition(store, dependent, enumeration, { ...input, origin: owner.name });
 }
 async function readDependentMatch(store: Store, owner: OwnerIdentity, slug: string, dependent: WorkItemRef): Promise<StoreResult<boolean>> {
   if (dependent.uid !== undefined && owner.type === "work-item" && owner.uid !== undefined) {
@@ -93,19 +118,22 @@ async function artifactAliasTransitions(store: Store, records: readonly StoreRec
   for (const candidate of candidates) {
     const slug = SlugSchema.safeParse(candidate);
     if (!slug.success || index.has(candidate)) continue;
-    const lookup = await store.lookup({ kind: "slug", slug: slug.data });
-    if (lookup.status === "refused") {
-      if (lookup.refusal.code === "not-found") {
-        for (const targetSlug of terminalAliases.get(candidate) ?? []) transitions.push({ subject: candidate, outcome: { kind: "rename", targetSlug } });
-        continue;
-      }
-      return lookup;
-    }
-    if (lookup.result.reference.kind === "work-item/meta" && lookup.result.reference.owner.name !== candidate) {
-      transitions.push({ subject: candidate, outcome: { kind: "rename", targetSlug: lookup.result.reference.owner.name } });
-    }
+    const resolved = await artifactAliasLookup(store, slug.data, terminalAliases.get(candidate) ?? []);
+    if (resolved.status === "refused") return resolved;
+    transitions.push(...resolved.result);
   }
   return { status: "ok", result: transitions };
+}
+async function artifactAliasLookup(store: Store, slug: Slug, retiredTargets: readonly string[]): Promise<StoreResult<ReachableReferenceTransition[]>> {
+  const lookup = await store.lookup({ kind: "slug", slug });
+  if (lookup.status === "refused") {
+    if (lookup.refusal.code === "ambiguous-match") return { status: "ok", result: [] };
+    if (lookup.refusal.code !== "not-found") return lookup;
+    return { status: "ok", result: retiredTargets.map(targetSlug => ({ subject: slug, outcome: { kind: "rename", targetSlug } })) };
+  }
+  const reference = lookup.result.reference;
+  return { status: "ok", result: reference.kind === "work-item/meta" && reference.owner.name !== slug
+    ? [{ subject: slug, outcome: { kind: "rename", targetSlug: reference.owner.name } }] : [] };
 }
 function artifactAliasCandidates(records: readonly StoreRecord[]): Set<string> {
   const candidates = new Set<string>();
@@ -154,6 +182,8 @@ export async function storeLineageEnumeration(store: Store): Promise<StoreResult
 export async function queryRetiredOriginDisposition(
   store: Store, dependent: OwnerIdentity, lineage: StoreLineageEnumeration, input: TransitionDispositionQuery,
 ): Promise<StoreResult<TransitionDispositionQueryResult>> {
+  if (lineage.enumeration.status !== "valid") return { status: "ok", result: { status: "namespace-corrupt" } };
+  if (input.reference?.uid !== undefined) return queryUidDisposition(store, dependent, input);
   const targets = lineage.aliases.get(input.origin);
   if (targets !== undefined && targets.length !== 1) return { status: "ok", result: { status: "ambiguous" } };
   return queryStoreDisposition(store, dependent, lineage.enumeration, { ...input, origin: targets?.[0] ?? input.origin });

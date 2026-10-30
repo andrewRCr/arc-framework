@@ -20,7 +20,7 @@ async function fixture(link = true) {
   await exec("git", ["add", "base"]); await exec("git", ["commit", "-m", "base"]);
   const h = createLifecycleHarness(); const meta = await h.seedMeta("demo", { state: "Planning", owner: "starter", currentWorkflow: "draft-design" }, { kind: "active" }, link ? { branches: [{ repository: "repo", ref: "feat/demo", linkedAs: "created", excluded: [] }] } : undefined);
   let marker: WorktreeMarker | undefined;
-  const ports = { ...createDefaultLocusPorts(), findHoldingCheckout: () => Promise.resolve(null), writeAnchoredMarker: (_cwd: string, value: WorktreeMarker) => { marker = value; return Promise.resolve({ kind: "created" as const, bytes: Buffer.from(JSON.stringify(value)) }); } };
+  const ports = { ...createDefaultLocusPorts(), findHoldingCheckout: () => Promise.resolve({ kind: "none" as const }), writeAnchoredMarker: (_cwd: string, value: WorktreeMarker) => { marker = value; return Promise.resolve({ kind: "created" as const, bytes: Buffer.from(JSON.stringify(value)) }); } };
   const contextAt = (cwd: string) => buildExecutorContext({ cwd, io: { ...createUserIOContext(), exec: makeGitExec(cwd) }, store: h.store, locusPorts: ports, projectId: async () => "repo", identity: "starter", teamMode: false, internalTemplateDir: "/templates" });
   const ctx = contextAt(root);
   const path = join(root, "checkout"), remote = join(root, "origin.git");

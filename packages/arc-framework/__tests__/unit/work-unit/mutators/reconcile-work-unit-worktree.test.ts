@@ -981,7 +981,7 @@ describe("store-arm marker boundary", () => {
     const { ctx, events } = buildCtx();
     ctx.store = createLifecycleHarness().store;
     ctx.locusPorts = { ...createDefaultLocusPorts(), checkMarkerExclusivity: async () => ({ kind: "refused", checkoutPath: "/holding", reason: "Claim conflict." }) };
-    await expect(reconcileWorkUnitWorktree(ctx, { mutation: "spawn", branch: "feat/demo", base: "main", locationTemplate: "/spawn/{name}", repo: "repo", wuName: "demo", spawningIdentity: "andrew" })).rejects.toThrow("Claim conflict.");
+    await expect(reconcileWorkUnitWorktree(ctx, { mutation: "spawn", branch: "feat/demo", base: "main", locationTemplate: "/spawn/{name}", repo: "repo", wuName: "demo", holder: { kind: "creation", slug: "demo" }, spawningIdentity: "andrew" })).rejects.toThrow("Claim conflict.");
     expect(events.filter(event => !event.includes("rev-parse"))).toEqual([]);
   });
   it("writes the in-place claim through the anchored writer and keeps default unadmission non-writing", async () => {
@@ -989,7 +989,7 @@ describe("store-arm marker boundary", () => {
     ctx.store = createLifecycleHarness().store;
     let recorded: unknown;
     ctx.locusPorts = { ...createDefaultLocusPorts(), writeAnchoredMarker: async (_cwd, marker) => { recorded = marker; return { kind: "created", bytes: Buffer.from("claim") }; } };
-    expect(await reconcileWorkUnitWorktree(ctx, { mutation: "spawn", inPlace: true, branch: "feat/demo", wuName: "demo", createBranch: false, spawningIdentity: "andrew", now: 0 })).toMatchObject({ worktreePath: "/checkout" });
+    expect(await reconcileWorkUnitWorktree(ctx, { mutation: "spawn", inPlace: true, branch: "feat/demo", wuName: "demo", holder: { kind: "creation", slug: "demo" }, createBranch: false, spawningIdentity: "andrew", now: 0 })).toMatchObject({ worktreePath: "/checkout" });
     expect(recorded).toMatchObject({ spawnedByArc: false, wuName: "demo", spawningIdentity: "andrew", createdAt: "1970-01-01T00:00:00.000Z" });
   });
 });
@@ -1000,7 +1000,7 @@ describe("marker-only in-place materialize", () => {
     const original = ctx.exec; let head = "person-branch"; let marker: unknown;
     ctx.exec = async (command, args, options) => { if (args[0] === "checkout" || args[0] === "switch") head = "changed"; return original(command, args, options); };
     ctx.locusPorts = { ...createDefaultLocusPorts(), writeAnchoredMarker: async (_cwd, value) => { marker = value; return { kind: "created", bytes: Buffer.from("marker") }; } };
-    expect(await reconcileWorkUnitWorktree(ctx, { mutation: "spawn", inPlace: true, preserveHead: true, wuName: "demo", spawningIdentity: "andrew" })).toMatchObject({ worktreePath: "/checkout", branch: null });
+    expect(await reconcileWorkUnitWorktree(ctx, { mutation: "spawn", inPlace: true, preserveHead: true, wuName: "demo", holder: { kind: "creation", slug: "demo" }, spawningIdentity: "andrew" })).toMatchObject({ worktreePath: "/checkout", branch: null });
     expect(head).toBe("person-branch"); expect(marker).toMatchObject({ spawnedByArc: false, wuName: "demo" });
   });
 });

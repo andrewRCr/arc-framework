@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { createRefReadFixture } from "../helpers/store/ref-read.js";
-import { plantRef, removeLooseObject } from "../helpers/store/ref-plant.js";
+import { plantRef, removeLooseObject, type PlantTreeEntry } from "../helpers/store/ref-plant.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { createRefFixture } from "../helpers/store/ref-fixture.js";
+import { makeGitExec } from "../helpers/integration.js";
+import { seed, update } from "../helpers/store/suite-tools.js";
+import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { createRefStore } from "../../src/lib/store/create.js";
 
 const firstUid = "00000000-0000-4000-8000-000000000001";
@@ -31,14 +35,18 @@ describe("lookup over live state refs", () => {
     expect(success(await f.store.lookup({ kind: "slug", slug }))).toEqual({ reference });
   });
 
-  it("returns a work item by its former slug beside a cohort holding it, and never the cohort alone", async () => {
+  it("ranks a cohort current slug above a work item's former slug", async () => {
     const f = await createRefReadFixture();
-    const reference = await plantOwner(f.root, firstUid, "alpha", ["beta"]);
-    await plantOwner(f.root, secondUid, "beta", [], "cohort/document");
-    await plantOwner(f.root, thirdUid, "gamma", [], "cohort/document");
+    await plantOwner(f.root, firstUid, "alpha", ["beta"]);
+    const reference = await plantOwner(f.root, secondUid, "beta", [], "cohort/document");
     expect(success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("beta") }))).toEqual({ reference });
-    expect(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("gamma") }))
-      .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  });
+
+  it.each(["current", "former"])("resolves a cohort-only %s slug", async (match) => {
+    const f = await createRefReadFixture();
+    const reference = await plantOwner(f.root, thirdUid, "gamma", ["before-gamma"], "cohort/document");
+    const slug = SlugSchema.parse(match === "current" ? "gamma" : "before-gamma");
+    expect(success(await f.store.lookup({ kind: "slug", slug }))).toEqual({ reference });
   });
 
   it("does not claim a live slug from retained metadata without its primary path", async () => {
@@ -57,7 +65,7 @@ describe("lookup over live state refs", () => {
     const first = await plantOwner(f.root, firstUid, tier === "current" ? "shared" : "alpha", ["shared"]);
     const second = await plantOwner(f.root, secondUid, tier === "current" ? "shared" : "beta", ["shared"]);
     expect(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("shared") })).toMatchObject({ status: "refused", refusal: {
-      code: "ambiguous-match", candidates: expect.arrayContaining([first, second]),
+      code: "ambiguous-match", tie: { liveness: "live", name: tier }, candidates: expect.arrayContaining([first, second]),
     } });
   });
 
@@ -110,4 +118,31 @@ describe("lookup over live state refs", () => {
     await f.execInput(["hash-object", "-w", "--stdin"], metadata);
     expect(success(await f.store.lookup(input))).toEqual({ reference });
   });
+  it.each([
+    { name: "live cohort above completed current name", metaCompleted: true, cohortCompleted: false, winner: "cohort" },
+    { name: "live current name above live cohort", metaCompleted: false, cohortCompleted: false, winner: "meta" },
+    { name: "completed current name above completed cohort", metaCompleted: true, cohortCompleted: true, winner: "meta" },
+  ] as const)("cohort former-name priority: $name", async ({ metaCompleted, cohortCompleted, winner }) => {
+    const f = await createRefFixture(), git = makeGitExec(f.root), quarter = ArchiveQuarterSchema.parse("2026-q4");
+    const meta = await seed(f, f.reference("work-item/meta", "shared"));
+    if (metaCompleted) success(await f.store.write({ ...update(f, meta, meta.content), placement: { kind: "completed", quarter } }));
+    let cohort = await seed(f, f.reference("cohort/document", "renamed"));
+    if (cohort.reference.owner.type !== "cohort" || !cohort.reference.owner.uid) throw new Error("Expected an allocated cohort UID");
+    const ref = `refs/arc/cohort/${cohort.reference.owner.uid}`, metadataPath = `metadata-${cohort.reference.owner.uid}.json`;
+    const parent = (await git("git", ["rev-parse", ref])).stdout;
+    const metadata = JSON.parse((await git("git", ["show", `${ref}:${metadataPath}`])).stdout) as Record<string, unknown>;
+    metadata.formerSlugs = [meta.reference.owner.name];
+    const rows = (await git("git", ["ls-tree", "-r", "--format=%(objectmode)%x09%(objectname)%x09%(path)", ref])).stdout.split("\n").filter(Boolean);
+    const entries = rows.map((row): PlantTreeEntry => {
+      const [mode, oid, path] = row.split("\t");
+      if (mode !== "100644" || !oid || !path) throw new Error("Expected a regular stored file in the Git tree");
+      return path === metadataPath ? { path, content: JSON.stringify(metadata) } : { path, oid, mode };
+    });
+    await plantRef(f.root, ref, entries, { parents: [parent] });
+    cohort = success(await f.store.read({ reference: cohort.reference }));
+    if (cohortCompleted) success(await f.store.write({ ...update(f, cohort, cohort.content), placement: { kind: "completed", quarter } }));
+    expect(success(await f.store.lookup({ kind: "slug", slug: meta.reference.owner.name })).reference)
+      .toEqual(winner === "cohort" ? cohort.reference : meta.reference);
+  });
+
 });
