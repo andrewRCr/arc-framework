@@ -9,6 +9,7 @@ import { reviewOutcomeKey } from "./outcome/key.js";
 import { mapReviewLaneDecisions, mappedReviewDecision } from "./mapping-decisions.js";
 import type { MappedReviewOutcome } from "./mapping-source-listing.js";
 import type { ReviewMappingResult } from "./mapping-types.js";
+import { mapReviewSource } from "./mapping-error.js";
 
 function mapLane(source: string, state: LaneProgressState, indexed: ReviewMappingSources,
   resolveOwner: ReturnType<typeof createReviewMappingWorkItemResolver>): {
@@ -57,11 +58,11 @@ export function mapReviewOperations(indexed: ReviewMappingSources,
   const decisions: ReviewMappingResult["records"] = [];
   for (const [source, state] of indexed.operations) {
     if (state.kind === "lane-progress") {
-      const mapped = mapLane(source, state, indexed, resolveOwner);
+      const mapped = mapReviewSource(source, () => mapLane(source, state, indexed, resolveOwner));
       outcomes.push(...mapped.records);
       sourceListings.set(source, mapped.listing);
     } else if (state.kind === "frontline-phase") {
-      const mapped = mapSkip(source, state, resolveOwner);
+      const mapped = mapReviewSource(source, () => mapSkip(source, state, resolveOwner));
       decisions.push(...mapped.records);
       sourceListings.set(source, mapped.listing);
     }
@@ -69,7 +70,7 @@ export function mapReviewOperations(indexed: ReviewMappingSources,
   for (const [source, state] of indexed.operations) {
     const listing = sourceListings.get(source);
     if (state.kind !== "lane-progress" || listing?.outcome !== "mapped") continue;
-    const mapped = mapReviewLaneDecisions(state, outcomes);
+    const mapped = mapReviewSource(source, () => mapReviewLaneDecisions(state, outcomes));
     decisions.push(...mapped);
     listing.records.push(...mapped.map(({ reference }) => reference));
   }

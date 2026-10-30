@@ -1,6 +1,6 @@
 /** Review mapping consumes opaque legacy sources and determines imported review records. */
 import { expect, it } from "vitest";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { importFixture } from "../helpers/store/import-fixture.js";
 import { opaqueReviewRegistry } from "../helpers/store/opaque-review.js";
@@ -598,4 +598,21 @@ it("passes the review mapping into the import from arc store migrate and covers 
   expect(success(await store.read({ reference })).content).toBe(candidate);
   const stored = success(await store.read({ reference: RecordReferenceSchema.parse({ ...reference, kind: "review/integration-boundary" }) }));
   expect(JSON.parse(stored.content)).toMatchObject({ schemaVersion: 2, workUnit: "alpha", candidateId: attestation.candidateId });
+}, 60_000);
+
+it("refuses a trial over an unmappable review source through its report and imports once it is removed", async () => {
+  const h = await importFixture();
+  const common = await resolveGitCommonDir(h.git, h.root);
+  const broken = "arc/review-gate/operations/broken.json";
+  await mkdir(dirname(join(common, broken)), { recursive: true });
+  await writeFile(join(common, broken), "{}");
+  const trial = await h.migrateCommand(true);
+  if (trial.status !== "ok") throw new Error(JSON.stringify(trial));
+  expect(trial.result.notices).toContainEqual({
+    condition: expect.stringContaining(`Review source ${broken} cannot be mapped`),
+    remedy: { text: `Repair or remove ${broken}, then retry arc store migrate --import.` } });
+  expect(await h.migrateCommand()).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
+  await rm(join(common, broken));
+  expect(await h.migrateCommand()).toMatchObject({ status: "ok" });
 }, 60_000);

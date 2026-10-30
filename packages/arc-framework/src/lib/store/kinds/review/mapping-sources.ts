@@ -6,6 +6,7 @@ import type { FrontlineOutcomeRecord } from "../../../../scripts/review-gate/cor
 import type { ReviewOperationState, LocalReviewState } from "../../../../scripts/review-gate/core/operation-state-schema.js";
 import type { ReviewReceiptV2 } from "../../../../scripts/review-gate/core/gate-contract-v2-schema.js";
 import type { ReviewMappingSource } from "./mapping-listing.js";
+import { mapReviewSource } from "./mapping-error.js";
 
 const FrontlineIdentityHeaderSchema = FrontlineOutcomeStoreRecordSchema.extend({ record: z.object({
   operationId: FrontlineOutcomeStoreRecordSchema.shape.record.shape.operationId,
@@ -66,9 +67,11 @@ export function indexReviewMappingSources(sources: readonly ReviewMappingSource[
   const index: ReviewMappingSources = { discarded: new Map(), operations: new Map(), operationVersions: new Map(), frontline: new Map(), receipts: [] };
   for (const source of sources) {
     if (source.kind !== "gate" || !source.source.endsWith(".json")) continue;
-    if (source.source.startsWith("arc/review-gate/operations/")) indexOperation(source, projectId, index);
-    else if (source.source.startsWith("arc/review-gate/outcomes/")) indexFrontline(source, projectId, index);
-    else if (source.source === "arc/review-gate/evidence/receipts-v2.json") indexReceipts(source, projectId, index);
+    mapReviewSource(source.source, () => {
+      if (source.source.startsWith("arc/review-gate/operations/")) indexOperation(source, projectId, index);
+      else if (source.source.startsWith("arc/review-gate/outcomes/")) indexFrontline(source, projectId, index);
+      else if (source.source === "arc/review-gate/evidence/receipts-v2.json") indexReceipts(source, projectId, index);
+    });
   }
   return index;
 }

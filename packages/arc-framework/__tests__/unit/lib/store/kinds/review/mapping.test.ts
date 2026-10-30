@@ -98,7 +98,17 @@ it("maps a frontline command's original response-bound source identity without a
 it("refuses a joined frontline run whose original source-binding digest differs", async () => {
   const { fixture, input } = await createFrontlineMappingFixture();
   input.gate.push(mappingOperation({ ...fixture.run, sourceBindingId: `sha256:${"9".repeat(64)}` }));
-  expect(() => mapReviewRecords(input)).toThrow(/Frontline source binding mismatch/u);
+  expect(() => mapReviewRecords(input)).toThrow(expect.objectContaining({ name: "ReviewMappingSourceError",
+    source: expect.stringMatching(/^arc\/review-gate\/operations\/operation-/u),
+    message: expect.stringMatching(/Frontline source binding mismatch/u) }));
+});
+
+it("names an undecodable gate source in its mapping failure", async () => {
+  const { input } = await createFrontlineMappingFixture();
+  input.gate.push({ path: "arc/review-gate/operations/broken.json", bytes: new TextEncoder().encode("{}") });
+  expect(() => mapReviewRecords(input)).toThrow(expect.objectContaining({ name: "ReviewMappingSourceError",
+    source: "arc/review-gate/operations/broken.json",
+    message: expect.stringContaining("Review source arc/review-gate/operations/broken.json cannot be mapped") }));
 });
 
 

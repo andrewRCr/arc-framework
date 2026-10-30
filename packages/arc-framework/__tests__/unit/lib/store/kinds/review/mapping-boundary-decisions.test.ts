@@ -13,6 +13,7 @@ import { candidateRecordFixture } from "../../../../../fixtures/review-candidate
 import { mappingErrand } from "../../../../../fixtures/review-mapping.js";
 import { assertReviewMapping } from "../../../../../helpers/store/assert-review-mapping.js";
 import type { ReviewMappingInput } from "../../../../../../src/lib/store/kinds/review/mapping-types.js";
+import { resolveSubmissionBoundaryPath } from "../../../../../../src/lib/store/kinds/review/paths.js";
 
 function boundaryInput() {
   const { record: original } = candidateRecordFixture();
@@ -189,7 +190,9 @@ it("refuses replay lane judgments that their original authority rejects", () => 
   input.candidates[0]!.boundary = JSON.stringify(IntegrationBoundaryLocusSchema.parse({ ...boundary,
     nextAction: { kind: "continue-pre-publication-review", command: `arc review pre-publication example --resume ${token}`,
       interactionText: "Resume review." } }));
-  expect(() => mapReviewRecords(input)).toThrow("frontline invocation override cannot be applied to the standard lane");
+  expect(() => mapReviewRecords(input)).toThrow(expect.objectContaining({ name: "ReviewMappingSourceError",
+    source: resolveSubmissionBoundaryPath("example"),
+    message: expect.stringContaining("frontline invocation override cannot be applied to the standard lane") }));
 });
 
 it.each(["response", "post-attestation", "both", "convergence"])("recovers saved replay choices once from %s", async (location) => {

@@ -9,6 +9,8 @@ import { readImportReviewGate, inspectUnmappedReviewGate } from "./review-gate.j
 import { inspectReviewCoverage } from "./review-coverage.js";
 import { importReviewWorkItems } from "./review-work-items.js";
 import { RecordReferenceSchema } from "../../identity.js";
+import { ReviewMappingSourceError } from "../../kinds/review/mapping-error.js";
+import type { ReviewMappingInput, ReviewMappingResult } from "../../ports.js";
 
 /** Replace live review bytes only after the mapping has accounted for the supplied sources. */
 export async function mapImportReview(context: RefBackendContext, source: ImportSource, report: MigrateReport, projectId: string): Promise<ImportSource> {
@@ -26,7 +28,8 @@ export async function mapImportReview(context: RefBackendContext, source: Import
     return current !== null || versions.length || boundary
       ? [{ workItem: item.uid, versions, current, boundary: boundary?.content ?? null }] : [];
   });
-  const mapped = context.reviewMapping({ projectId, gate, workItems, candidates });
+  const mapped = runReviewMapping(context.reviewMapping, { projectId, gate, workItems, candidates }, report);
+  if (mapped === null) return source;
   report.reviewMapping = mapped.listing;
   const sources = [...gate.map(file => file.path), ...source.candidates.filter(candidate => candidate.reference.owner.type === "work-item"
     && live.has(candidate.reference.owner.uid ?? "")).flatMap(candidate => [
@@ -65,3 +68,15 @@ export async function mapImportReview(context: RefBackendContext, source: Import
     || !live.has(candidate.reference.owner.uid ?? "")) };
 }
 
+/** Report a mapping failure as the import's refusal, naming the source to repair when the mapping attributes one. */
+function runReviewMapping(mapping: (input: ReviewMappingInput) => ReviewMappingResult, input: ReviewMappingInput,
+  report: MigrateReport): ReviewMappingResult | null {
+  try {
+    return mapping(input);
+  } catch (error) {
+    report.notices.push({ condition: error instanceof Error ? error.message : String(error), remedy: { text: error instanceof ReviewMappingSourceError
+      ? `Repair or remove ${error.source}, then retry arc store migrate --import.`
+      : "Repair the review sources the mapping reads, then retry arc store migrate --import." } });
+    return null;
+  }
+}

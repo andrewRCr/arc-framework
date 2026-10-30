@@ -9,6 +9,7 @@ import { coalesceReviewDecisionRecords } from "./mapping-decisions.js";
 import { mapReviewEvidenceSource } from "./mapping-evidence.js";
 import { reviewMappingJoinedSourceListing } from "./mapping-source-listing.js";
 import type { ReviewMappingInput, ReviewMappingResult } from "./mapping-types.js";
+import { mapReviewSource } from "./mapping-error.js";
 
 /** Map supplied review bytes without reading or writing repository state. */
 export function mapReviewRecords(input: ReviewMappingInput): ReviewMappingResult {
@@ -17,7 +18,7 @@ export function mapReviewRecords(input: ReviewMappingInput): ReviewMappingResult
   const resolveOwner = createReviewMappingWorkItemResolver(input);
   const { outcomes, records, sourceListings } = mapReviewOperations(indexed, resolveOwner);
   for (const source of sources) {
-    const evidence = mapReviewEvidenceSource(source, input.projectId, outcomes, indexed);
+    const evidence = mapReviewSource(source.source, () => mapReviewEvidenceSource(source, input.projectId, outcomes, indexed));
     if (evidence === null) continue;
     records.push(...evidence.records);
     sourceListings.set(source.source, evidence.listing);
@@ -27,7 +28,7 @@ export function mapReviewRecords(input: ReviewMappingInput): ReviewMappingResult
   for (const entry of candidates.listing) sourceListings.set(entry.source, entry);
   for (const source of sources) {
     if (source.kind !== "boundary") continue;
-    const mapped = mapReviewBoundarySource(source, { input, outcomes, records, indexed });
+    const mapped = mapReviewSource(source.source, () => mapReviewBoundarySource(source, { input, outcomes, records, indexed }));
     records.push(...mapped.records);
     sourceListings.set(source.source, mapped.listing);
   }
