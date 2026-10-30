@@ -49,13 +49,15 @@ permissions:
 env:
   VITEST_MAX_WORKERS: ${{ vars.ARC_CI_VITEST_MAX_WORKERS || '' }}
 
-# Cancel superseded work for the same ref. Push and pull_request runs never
-# cancel each other, because a branch ref and a pull-request merge ref are
-# different groups.
+# Cancel superseded work for the same event and ref. Push and pull_request runs
+# never cancel each other, because a branch ref and a pull-request merge ref are
+# different groups. Dispatched and scheduled runs take their own groups, so a
+# push to main never cancels a full-tier run that refreshes the duration cache,
+# and a dispatch on main never cancels main's push run.
 # Duplicate push runs skip downstream jobs after classification when an open PR
 # already owns the same branch head.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
