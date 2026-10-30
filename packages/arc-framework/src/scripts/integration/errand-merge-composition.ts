@@ -207,6 +207,7 @@ export function createErrandMergeDependencies(input: {
   const common = createIntegrationMergeDependencies({
     cwd: input.cwd,
     exec: input.exec,
+    store,
     workUnit: slug,
     hostedRunner: runner,
     ...(input.changeRequestPort === undefined ? {} : { changeRequestPort: input.changeRequestPort }),

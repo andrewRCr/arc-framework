@@ -716,6 +716,7 @@ export function createHostedReservationDischargeReader(options: ReviewInvocation
     };
     const nextPassInputs = {
       readPassCounts: (currentLineage: LaneSubjectLineage) => readStandardPassCounts({ ...input, store,
+        reviewRecordStore: input.store, workItem: input.workItem,
         repositoryId: currentRepositoryId, headSha: approvedHead, lineage: currentLineage, candidate }),
       target: currentTarget, lineage, standardReview: reservation.obligation,
       configuredSources: reservation.sources,

@@ -2941,6 +2941,7 @@ describe("hosted review fan-out lifecycle", () => {
       currentTarget: requested.handle.admission.reviewTarget,
       currentLineage: requested.handle.admission.lineage,
       ...await readStandardPassCounts({ cwd: harness.root, exec: harness.exec, store: harness.store,
+        reviewRecordStore: undefined, workItem: undefined,
         repositoryId: harness.repositoryId, headSha: requested.handle.target.headSha,
         lineage: requested.handle.admission.lineage }),
       standardReview: policy.standardReview, resultReader, dispositionStore,

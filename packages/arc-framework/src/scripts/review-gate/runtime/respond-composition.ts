@@ -424,7 +424,7 @@ async function readRespondPolicyNextPassContext(context: {
   const selected = predecessor === null ? null : await readRespondCandidate(input, predecessor);
   const lineage = predecessor?.admission.lineage ?? { kind: "head-bound" as const, vehicleKind: "review-target" as const,
     vehicleIdentity: confirmedProducerTarget.targetId, headSha: confirmedProducerTarget.headSha };
-  const { completePasses } = await readStandardPassCounts({ ...input, store: prepare.operationStore, reviewRecordStore: input.store,
+  const { completePasses } = await readStandardPassCounts({ ...input, store: prepare.operationStore, reviewRecordStore: input.store, workItem: input.workItem,
     repositoryId: confirmedProducerTarget.repositoryId, headSha: confirmedProducerTarget.headSha,
     lineage, candidate: selected?.record });
   return deriveReviewNextPassContext({ predecessor, completePasses, completedPasses: request.completedPasses,
@@ -515,7 +515,7 @@ async function readRespondProvisionalPassFacts(context: RespondPolicyContext,
     resolveSupersessionAncestors: createLocalReviewCandidateReader(input).readSupersessionAncestors,
     repositoryId: result.repositoryId, headSha: result.target.headSha, lineage: result.admission.lineage,
     workUnitId: selected?.workUnit });
-  const counts = await readStandardPassCounts({ ...input, store: prepare.operationStore, reviewRecordStore: input.store,
+  const counts = await readStandardPassCounts({ ...input, store: prepare.operationStore, reviewRecordStore: input.store, workItem: input.workItem,
     repositoryId: result.repositoryId, headSha: result.target.headSha, lineage: result.admission.lineage, candidate: selected?.record });
   const { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } = result.requirement;
   const nextPassContext = await deriveReviewNextPassContext({ ...counts, predecessor: result,

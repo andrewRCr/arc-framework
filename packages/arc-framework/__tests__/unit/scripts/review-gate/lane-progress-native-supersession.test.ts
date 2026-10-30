@@ -16,6 +16,7 @@ import { livePredecessorReviewAttempt } from "../../../../src/scripts/review-gat
 import { reviewEvidenceFixture } from "../../../fixtures/review-evidence.js";
 import { composeReviewDispositionRecord } from "../../../../src/lib/store/kinds/review/evidence/composed-record.js";
 import { publishNativeReviewApproval } from "../../../../src/scripts/review-gate/runtime/native-review-approval.js";
+import { readStandardPassCounts } from "../../../../src/scripts/review-gate/runtime/lane-pass-counts.js";
 
 it("keeps a late unsettled predecessor result without inheriting its findings or pass on another clone", async () => {
   const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
@@ -91,4 +92,25 @@ it("settles a current Candidate's deferred findings before inheriting its pass a
     headSha: target.headSha, ancestors })).toMatchObject({ inheritedCompletedPasses: 1, inheritedCompletePasses: 1,
     ancestorOwners: [{ owner: { attempts: [{ attemptId: outcome.attemptId, outcome: "settled-findings" }] } }] });
   expect(await family.ports.outcomes.read(outcome.attemptId)).toEqual(stored);
+});
+
+it("counts a superseded native Candidate's passes through the invocation's review-record store and work item", async () => {
+  const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
+  await h.seedProject(projectId);
+  const primary = await h.seedMeta("example"), original = candidateFixture();
+  const candidate = await h.seedCandidate(primary.reference.owner, original);
+  const checkout = await createReviewCheckout(h);
+  onTestFinished(checkout.cleanup);
+  const { family } = createReviewCompositionContext({ ...checkout, workItem: primary.reference.owner });
+  const target = createHostedHandleFixture({ repositoryId: projectId }).admission.reviewTarget;
+  await createReviewOutcomePort(h.store, primary.reference.owner).create(ReviewOutcomeSchema.parse(localOutcome({ target,
+    lineage: { kind: "candidate", candidateId: original.attestation.candidateId } })));
+  const current = { ...original, attestation: createCandidateAttestation({ ...original.attestation,
+    subject: original.subject, baseRevision: "e".repeat(40), attestedAt: "2026-10-20T12:00:00Z",
+    supersedes: original.attestation.candidateId }) };
+  await writeCandidateRecord(checkout.cwd, "example", current, candidate.version, { store: h.store, owner: primary.reference.owner });
+  expect(await readStandardPassCounts({ cwd: checkout.cwd, exec: checkout.exec, store: family.ports.inFlight,
+    reviewRecordStore: h.store, workItem: primary.reference.owner, repositoryId: projectId, headSha: target.headSha,
+    lineage: { kind: "candidate", candidateId: current.attestation.candidateId }, candidate: current }))
+    .toEqual({ completedPasses: 1, completePasses: 1 });
 });

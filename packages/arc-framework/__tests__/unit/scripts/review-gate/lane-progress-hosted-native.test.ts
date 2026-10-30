@@ -127,7 +127,7 @@ it("admits hosted logical pass three after a complete and incremental verdict wh
     const indexed = await index.read(repositoryId, request);
     expect(indexed).toMatchObject({ logicalPass: pass, completedPassesAtAdmission: pass - 1, phase: "admitted" });
     if (pass === 3) {
-      expect(await readStandardPassCounts({ ...h, store: h.operations, repositoryId,
+      expect(await readStandardPassCounts({ ...h, store: h.operations, reviewRecordStore: h.store, workItem: h.primary.reference.owner, repositoryId,
         headSha: template.target.headSha, lineage })).toEqual({ completedPasses: 2, completePasses: 1 });
       const listing = await h.outcomes.list();
       expect(listing.status === "complete" && listing.records.map(record => record.value.logicalPass).sort()).toEqual([1, 2]);

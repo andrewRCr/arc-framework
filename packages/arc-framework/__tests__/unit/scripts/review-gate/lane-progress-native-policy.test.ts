@@ -147,6 +147,7 @@ it("numbers a conditional grant after an incremental fix check by logical passes
   const { family } = createReviewCompositionContext({ ...checkout, workItem: f.primary.reference.owner });
   if (family.mode !== "stored") throw new Error("Expected native review facts");
   const counts = await readStandardPassCounts({ ...checkout, store: family.ports.inFlight,
+    reviewRecordStore: f.h.store, workItem: f.primary.reference.owner,
     repositoryId: target.repositoryId, headSha: target.headSha, lineage });
   expect(counts).toEqual({ completedPasses: 2, completePasses: 1 });
   const capture = { lane: "standard" as const, repositoryId: target.repositoryId, headSha: target.headSha, lineage,

@@ -411,7 +411,8 @@ async function projectCandidateIntegrationBoundary(
   const match = /^meta-(.+)\.md$/u.exec(candidate.filename);
   const slug = match?.[1];
   if (slug === undefined || !SlugSchema.safeParse(slug).success) return candidate;
-  const record = selected.record === undefined ? await readCandidateRecord(cwd, slug) : selected.record;
+  const accessOptions = { store: authority.access.store, owner: selected.owner };
+  const record = selected.record === undefined ? await readCandidateRecord(cwd, slug, accessOptions) : selected.record;
   if (record === null || record.attestation.candidateId !== candidate.candidateId) {
     warnings.push(
       `Candidate authority for ${candidate.filename} is unavailable or does not match its managed record.`,
@@ -423,8 +424,6 @@ async function projectCandidateIntegrationBoundary(
       projectId: authority.access.projectId, workItem: selected.owner }));
   if (target === null) return { ...candidate, integrationBoundary: null };
   const { candidateSubjectDigest, requireExactDurableBoundary, pendingCandidateFix } = target;
-  const accessOptions = authority.access.store.capabilities.stateOffBranch
-    ? { store: authority.access.store, owner: selected.owner } : undefined;
   const schemaVersion = authority.access.store.capabilities.stateOffBranch ? 2 : 1;
   if (candidate.state === "Integrating") {
     const stored = await readSubmissionBoundary(cwd, slug, accessOptions);
