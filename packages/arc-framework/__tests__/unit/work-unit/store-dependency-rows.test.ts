@@ -88,7 +88,7 @@ it.each([false, true])("follows a live former name only when the current name se
     candidates: [target.reference, cohort], tie: { liveness: "live", name: "current" },
     repair: { text: "Rename the cohort holder with `arc rename 10000000-0000-4000-8000-000000000001 <new-slug>`.", argv: ["arc", "status", "--json"] } }]);
   if (clash) {
-    const prepared = await prepareCurrentWuReconcile({ ...context, additionalReferenceTransitions: [] },
+    const prepared = await prepareCurrentWuReconcile(context,
       { slug: "dependent", metaPath: workUnitMetaPath(dependent) });
     prepared.prepared.storePlan = { records: acquired.records, writes: [] };
     expect(prepared).toMatchObject({ status: "pending", prepared: { edits: [], plan: { advisories: [], dependency: { held: plan.dependency.held } } } });

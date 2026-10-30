@@ -27,6 +27,7 @@ import {
   enumerateTransitionReferenceTransitions,
   planReferenceReconcile,
   type ReferenceAdvisory,
+  type ReferenceArtifactSnapshot,
   type ReferenceTransitionConflict,
   type TrackedReferenceReplacement,
   type ReachableReferenceTransition,
@@ -479,7 +480,9 @@ export async function prepareCurrentWuReconcile(
     path,
     content: path === op.metaPath ? content : await ctx.readFile(path),
   })));
-  const referencePlan = await prepareReferencePlan(ctx, artifacts);
+  const heldDependencyEdges = plan.dependency.held?.map(item => item.edge);
+  const referencePlan = await prepareReferencePlan(ctx, artifacts.map(artifact => artifact.path === op.metaPath
+    && heldDependencyEdges !== undefined ? { ...artifact, heldDependencyEdges } : artifact));
   const combinedPlan: CurrentWuReconcilePlan = {
     status: plan.status === "conflict" || referencePlan.status === "conflict" ? "conflict" : "ready",
     dependency: plan.dependency,
@@ -632,7 +635,7 @@ function invalidPrepared(
 
 async function prepareReferencePlan(
   ctx: CurrentWuReconcilePrepareContext,
-  artifacts: ReadonlyArray<{ path: string; content: string }>,
+  artifacts: readonly ReferenceArtifactSnapshot[],
 ): Promise<ReturnType<typeof planReferenceReconcile>> {
   if (ctx.enumerateTransitionRecords === undefined || ctx.listArtifactPaths === undefined) {
     return planReferenceReconcile({ transitions: [], artifacts });

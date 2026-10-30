@@ -3,14 +3,14 @@ import { seedPausedCompletedWorkUnit } from "../../../helpers/store/paused-compl
 import { createClashDouble } from "../../../helpers/store/clash-double.js";
 import { describe, expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
-import { writeMetaPause, writeMetaCandidate } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { writeMetaPause, writeMetaCandidate, writeMetaTitle, writeMetaSessionContext } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { ParsedMetaRecordSchema } from "../../../../src/lib/active/meta-schema.js";
 import { ArchiveQuarterSchema, SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { CandidateReviewResumeBoundarySchema } from "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { runPublish, type PublishParams } from "../../../../src/lib/work-unit/verbs/publish.js";
 import { buildStoreCurrentWuReconcile } from "../../../../src/lib/work-unit/store-current-wu-reconcile.js";
 import { batchLifecycleWrites, recordPut } from "../../../../src/lib/store/lifecycle-write.js";
-import { recordReferences } from "../../../../src/lib/store/identity.js";
+import { recordReferences, OwnerIdentitySchema } from "../../../../src/lib/store/identity.js";
 import { writeLineageRecord } from "../../../../src/lib/store/kinds/lineage/writer.js";
 import { runStoreRename } from "../../../../src/lib/work-unit/verbs/rename-store.js";
 import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lifecycle-executor.js";
@@ -27,6 +27,32 @@ it("publishes an attested Candidate whose notes mention a tied Errand slug", asy
   expect(lifecycleSuccess(await h.store.read({ reference: notes.reference }))).toEqual(notes);
 });
 const candidateId = `sha256:${"a".repeat(64)}` as const, candidateSubjectDigest = `sha256:${"b".repeat(64)}` as const;
+it("publishes with a held former-name edge and stops only for genuine prose about that name", async () => {
+  for (const prose of ["none", "notes", "session-context"] as const) {
+    const h = createLifecycleHarness(), target = await h.seedMeta("former");
+    lifecycleSuccess(await h.store.write({ ...recordPut(target, { content: writeMetaTitle(target.content, SlugSchema.parse("current")) }),
+      reference: { ...target.reference, owner: OwnerIdentitySchema.parse({ ...target.reference.owner, name: "current" }) },
+      provenance: { verb: "rename", lifecycleAction: "rename" } }));
+    const current = lifecycleSuccess(await h.store.read({ reference: target.reference }));
+    const other = await h.seedMeta("other");
+    const meta = await h.seedMeta("example", { candidateId, dependsOn: ["former"] }, { kind: "active" },
+      { branches: [{ repository: "project", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+    if (prose === "session-context") lifecycleSuccess(await h.store.write({ ...recordPut(meta, {
+      content: writeMetaSessionContext(meta.content, "- **Depends On:** former needs review before publication."),
+    }), provenance: { verb: "edit", lifecycleAction: "edit" } }));
+    if (prose === "notes") await h.seed(recordReferences["work-item/notes"](meta.reference.owner), "# Notes\n\nReview former before continuing.\n");
+    const store = createClashDouble(h.store, { slug: "current", holders: [current.reference, other.reference] });
+    const result = await runPublish(context(store), parameters(async () => {}));
+    expect(result).toMatchObject({ status: prose === "none" ? "published" : "reconcile-pending" });
+    expect(lifecycleSuccess(await h.store.read({ reference: meta.reference })).fields).toMatchObject({
+      dependsOn: ["former"], state: prose === "none" ? "Integrating" : "Active",
+    });
+    if (result.status === "reconcile-pending") expect(result.reconcile.prepared.plan.advisories).toMatchObject([
+      { subject: "former", referenceKind: "narrative", context: prose === "notes"
+        ? "Review former before continuing." : "- **Depends On:** former needs review before publication." },
+    ]);
+  }
+});
 function context(store: Store) {
   const forbidden = async (): Promise<never> => { throw new Error("tracked artifact access"); };
   const ctx: ExecuteTransitionContext = { cwd: "/repo", store, indexFs: { readdir: forbidden, readFile: forbidden },
