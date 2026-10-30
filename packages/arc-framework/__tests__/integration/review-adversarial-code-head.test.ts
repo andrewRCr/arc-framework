@@ -1,4 +1,6 @@
 /** A code adversarial pass binds the HEAD of the checkout holding its work unit, and no other checkout's. */
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import { createReviewRepositoryHarness } from "../helpers/store/review-differential.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
@@ -39,6 +41,11 @@ it("binds a code pass to the HEAD of the checkout holding its work unit and refu
       code: "invalid-input", message: expect.stringContaining("work unit `example`'s checkout") } } });
     expect(await store.version()).toEqual(before);
   }
+  await writeFile(join(cwd, ".arc/system/.internal/worktree-marker.json"), "{");
+  expect(await run("verification")).toMatchObject({ exitCode: 1, envelope: { error: { code: "corrupt-state",
+    message: expect.stringContaining("Inspect and repair or remove the marker, then retry.") } } });
+  expect((await run("verification")).envelope.error.message).not.toContain("work unit `example`'s checkout");
+  expect(await store.version()).toEqual(before);
   await occupy("example");
   const head = (await exec("git", ["rev-parse", "HEAD"], { cwd })).stdout.trim();
   for (const activity of ["verification", "criteria"] as const) {

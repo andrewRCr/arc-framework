@@ -13,6 +13,13 @@ export async function selectedSourceOwner(input: ReviewInvocationContext): Promi
   return { repositoryId, workItem: input.workItem };
 }
 
+/** The commands that emit a review source of this kind, for a remedy that resubmits the reference they emitted. */
+export function reviewSourceProducer(kind: BoundReviewSourceReference["kind"]): string {
+  return kind === "hosted" ? "arc review hosted await"
+    : kind === "frontline" ? "arc review frontline run or arc review reduce"
+    : "arc review local attest, arc review local resume, or arc review reduce";
+}
+
 function parseProducedSource(value: string, kind: BoundReviewSourceReference["kind"], native: boolean,
   producer: string): BoundReviewSourceReference {
   try { return parseReviewSourceReference(value, kind, native); }
@@ -34,9 +41,7 @@ export async function resolveReviewSourceInvocation(options: ReviewInvocationInp
     invocation: ReviewInvocationInput; reference: BoundReviewSourceReference;
   }> {
   const input = { ...options, ...resolveReviewInvocation(options) };
-  const producer = kind === "hosted" ? "arc review hosted await"
-    : kind === "frontline" ? "arc review frontline run or arc review reduce"
-    : "arc review local attest, arc review local resume, or arc review reduce";
+  const producer = reviewSourceProducer(kind);
   const native = input.store.capabilities.stateOffBranch;
   if (native) await input.projectId();
   const reference = parseProducedSource(value, kind, native, producer);

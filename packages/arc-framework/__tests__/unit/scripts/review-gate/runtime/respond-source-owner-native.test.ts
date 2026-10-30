@@ -13,7 +13,8 @@ const finding = { findingId: "finding-1", sourceVerification: "verified", verifi
   verifiedSeverity: "minor", disposition: "defer", title: "Known limitation", issue: "The reported behavior remains.",
   rationale: "Defer this bounded repair.", recommendation: "Track the deferred repair.", openQuestions: [] };
 
-it.each(["work item", "project"] as const)("refuses a source reference bound to another %s as invalid input", async foreign => {
+it.each(["work item", "project"] as const)("refuses a source reference bound to another %s as invalid input, naming its producer",
+  async foreign => {
   const f = await createNativeReviewApprovalFixture("local");
   const other = await f.h.seedMeta("another-work-item");
   const checkout = await createReviewCheckout(f.h);
@@ -30,6 +31,7 @@ it.each(["work item", "project"] as const)("refuses a source reference bound to 
     resolveLocalActors: async () => ({ approverIdentity: "author", proposerIdentity: "arc-cli/0.1.0" }) })
     .catch((caught: unknown) => caught);
   expect(error).toBeInstanceOf(RespondCommandError);
-  expect(error).toMatchObject({ code: "invalid-input", message: "review source reference owner mismatch" });
+  expect(error).toMatchObject({ code: "invalid-input", message: "review source reference owner mismatch; resubmit the matching "
+    + "reference emitted by arc review local attest, arc review local resume, or arc review reduce." });
   expect(await dependencies.parseSourceReference?.(bindReviewSourceReference(own), "attested-local")).toEqual(own);
 });

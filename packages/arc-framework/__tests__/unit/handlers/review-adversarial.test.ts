@@ -13,6 +13,7 @@ import { lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import type { ReviewInvocationOptions } from "../../../src/scripts/review-gate/runtime/invocation.js";
 import { adversarialPassFixture } from "../../fixtures/review-adversarial-pass.js";
 import type { Store } from "../../../src/lib/store/contract.js";
+import { TransientIdentityRecordSchema } from "../../../src/lib/errand/identity-record.js";
 
 function request(activity: Parameters<typeof adversarialPassFixture>[0] = "draft-readiness") {
   const { artifacts, codeHead, ...header } = adversarialPassFixture(activity);
@@ -100,6 +101,34 @@ it.each(["unreadable", "diagnostic"] as const)("refuses an %s listing and contin
   expect(await h.store.version()).toEqual(before);
   h.store.state.unreadable.clear(); h.store.state.faults.clear();
   expect(await record(h.store, input)).toMatchObject({ exitCode: 0, envelope: { payload: { key: { number: 2 } } } });
+});
+it("reports a stored artifact that does not decode as the store's refusal, not the caller's input, and records once repaired",
+  async () => {
+    const h = await nativeFixture(), input = request(), before = await h.store.version(), read = h.store.read.bind(h.store);
+    // The ref backend's point read refuses a record it cannot decode in this shape, its rule the decoder's condition.
+    const condition = "The stored draft is not valid UTF-8.", refusal = { code: "record-malformed" as const,
+      class: "recoverable" as const, reference: h.draft.reference, rule: condition, condition,
+      remedy: { text: "Restore the record from history, then retry." } };
+    let corrupt = true;
+    h.store.read = async input => corrupt && input.reference.kind === "work-item/draft" ? { status: "refused", refusal } : read(input);
+    const refused = await record(h.store, input);
+    expect(refused).toMatchObject({ exitCode: 1, envelope: { error: { code: "store-refused" },
+      refusal: { code: "record-malformed", reference: h.draft.reference } } });
+    expect(ReviewCommandErrorEnvelopeSchema.safeParse(refused.envelope).success).toBe(true);
+    expect(await h.store.version()).toEqual(before);
+    corrupt = false;
+    expect(await record(h.store, input)).toMatchObject({ exitCode: 0, envelope: { payload: { key: { number: 1 } } } });
+  });
+it("keeps a slug naming an Errand as the caller's input to correct", async () => {
+  const h = await nativeFixture();
+  const errand = TransientIdentityRecordSchema.parse({ version: 3, kind: "errand", purpose: "errand", slug: "repair",
+    claimId: "1".repeat(32), intent: "Repair an issue", owner: "test-user", origin: "description", originEntry: null,
+    branch: "chore/repair", state: "open", savedHead: null, changeRequest: null,
+    createdAt: "2026-10-19T12:00:00Z", updatedAt: "2026-10-19T12:00:00Z" });
+  if (errand.kind !== "errand") throw new Error("Expected an Errand");
+  await h.seedErrand(errand);
+  expect(await record(h.store, { ...request(), workUnit: "repair" })).toMatchObject({ exitCode: 1, envelope: { error: {
+    code: "invalid-input", message: expect.stringContaining("resolves to an Errand") } } });
 });
 it("names the expected request shape for malformed JSON and resumes with valid input", async () => {
   const h = await nativeFixture(), before = await h.store.version();

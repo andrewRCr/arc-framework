@@ -28,7 +28,7 @@ export async function recordApprovedAdversarialPass(request: ReviewAdversarialRe
     throw new AdversarialRecordError("unsupported", "Adversarial pass records require off-branch state.",
       { text: `Keep this approved pass in ${location} until off-branch state is enabled.` });
   }
-  const primary = requireResult(input.store, await readWorkUnit(input.store, request.workUnit), `Work unit \`${request.workUnit}\`: `);
+  const primary = requireRead(input.store, await readWorkUnit(input.store, request.workUnit), `Work unit \`${request.workUnit}\`: `);
   if (primary.conflicts.length > 0) throw new AdversarialRecordError("corrupt-state", "Resolve the work unit's metadata conflicts, then retry.");
   const owner = primary.reference.owner;
   if (input.workItem !== undefined && !sameOwner(input.workItem, owner)) {
@@ -43,35 +43,55 @@ export async function recordApprovedAdversarialPass(request: ReviewAdversarialRe
   void workUnit;
   const content = canonicalize(ReviewAdversarialPassSchema.parse({ ...header, artifacts,
     ...(codeHead === undefined ? {} : { codeHead }) }));
-  const written = requireResult(input.store, await input.store.write({ action: "put", reference: recordReferences["review/adversarial-pass"](owner, key),
+  const written = requireWrite(input.store, await input.store.write({ action: "put", reference: recordReferences["review/adversarial-pass"](owner, key),
     expected: null, content, provenance: { verb: "review-adversarial-record", lifecycleAction: "create",
       ...(codeHead === undefined ? {} : { codeHead }) } }));
   return ReviewAdversarialRecordEnvelopeSchema.parse({ schemaVersion: 1, mode: "review-adversarial-record", diagnostics: [],
     state: "recorded", nextAction: "none", payload: { key, version: written.version } });
 }
 
-// A code pass binds the checkout's HEAD, which is the work unit's code only in the checkout holding that work unit.
+// A code pass binds the checkout's HEAD, which is the work unit's code only in the checkout holding that work unit. A
+// claim the checkout could not read, or one naming several work units, is the checkout's state to repair, not a
+// direction to move.
 async function requireCheckoutHolds(store: Store, cwd: string, owner: OwnerIdentity, workUnit: string): Promise<void> {
   const current = await resolveCurrentWorkUnit({ cwd, store });
   if (current.status === "resolved" && sameOwner(current.candidate.reference.owner, owner)) return;
+  if (current.status !== "resolved" && current.warnings.length > 0) {
+    throw new AdversarialRecordError("corrupt-state", `This checkout's work-unit claim could not be read. ${current.warnings.join(" ")}`);
+  }
+  if (current.status === "ambiguous") {
+    throw new AdversarialRecordError("corrupt-state", "This checkout's claim names more than one work unit ("
+      + `${current.candidates.map(({ reference }) => `\`${reference.owner.name}\``).join(", ")}). Repair the checkout's claim, then retry.`);
+  }
   throw new AdversarialRecordError("invalid-input", `This checkout does not hold work unit \`${workUnit}\`, so its HEAD is not `
     + `that work unit's code. Run the command from work unit \`${workUnit}\`'s checkout, then retry.`);
 }
 
-// Absence and a refused write check are the caller's input to correct; every other refusal reports as the store's.
-function requireResult<T>(store: Store, result: StoreResult<T>, context = ""): T {
+// Absence and a slug naming an Errand are the caller's input to correct; a stored record that does not decode, and every
+// other refusal, report as the store's.
+function requireRead<T>(store: Store, result: StoreResult<T>, context = ""): T {
   if (result.status === "ok") return result.result;
-  if (result.refusal.code !== "not-found" && result.refusal.code !== "record-malformed") {
-    throw new StoreRefusalError(result.refusal, store.capabilities.stateOffBranch);
+  const refusal = result.refusal;
+  if (refusal.code === "not-found" || (refusal.code === "record-malformed" && refusal.rule === "lifecycle.work-unit")) {
+    throw new AdversarialRecordError("invalid-input", `${context}${refusal.condition} ${refusal.remedy.text}`);
   }
-  throw new AdversarialRecordError("invalid-input", `${context}${result.refusal.condition} ${result.refusal.remedy.text}`);
+  throw new StoreRefusalError(refusal, store.capabilities.stateOffBranch);
+}
+
+// A refused write check is the caller's approved pass to correct; every other refusal reports as the store's.
+function requireWrite<T>(store: Store, result: StoreResult<T>): T {
+  if (result.status === "ok") return result.result;
+  if (result.refusal.code === "not-found" || result.refusal.code === "record-malformed") {
+    throw new AdversarialRecordError("invalid-input", `${result.refusal.condition} ${result.refusal.remedy.text}`);
+  }
+  throw new StoreRefusalError(result.refusal, store.capabilities.stateOffBranch);
 }
 
 async function artifactVersion(store: Store, owner: OwnerIdentity, artifact: "draft" | "spec" | "task-list",
   optional = false): Promise<RecordVersion | undefined> {
   const read = await store.read({ reference: recordReferences[`work-item/${artifact}`](owner) });
   if (optional && read.status === "refused" && read.refusal.code === "not-found") return undefined;
-  const record = requireResult(store, read);
+  const record = requireRead(store, read);
   if (record.conflicts.length > 0) throw new AdversarialRecordError("corrupt-state", `Resolve the ${artifact} conflicts, then retry.`);
   return record.version;
 }
@@ -87,7 +107,7 @@ async function readArtifactVersions(store: Store, owner: OwnerIdentity, activity
 }
 
 async function nextPassNumber(store: Store, owner: OwnerIdentity, activity: ReviewAdversarialRecordRequest["activity"]): Promise<number> {
-  const listing = requireResult(store, await store.list({ family: "review", kind: "review/adversarial-pass", owner }));
+  const listing = requireRead(store, await store.list({ family: "review", kind: "review/adversarial-pass", owner }));
   if (listing.status === "absent") return 1;
   if (listing.status === "unreadable") throw new AdversarialRecordError("corrupt-state", `${listing.condition} ${listing.remedy.text}`);
   if (listing.missed || listing.diagnostics.length > 0) {

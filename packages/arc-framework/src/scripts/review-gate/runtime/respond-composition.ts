@@ -24,7 +24,8 @@ import {
 import type { GitExec } from "../../../lib/git/exec.js";
 import type { ApprovedDispositionRecordReader } from "../core/ports.js";
 import { parseReviewSourceReferenceForOwner } from "../core/review-source-reference.js";
-import { selectedSourceOwner } from "./source-invocation.js";
+import { reviewSourceProducer, selectedSourceOwner } from "./source-invocation.js";
+import { ReviewContinuationReferenceError } from "./continuation-invocation.js";
 import type { RawGitExec } from "../../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
@@ -570,7 +571,15 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
   };
   const policyContext = { input, publisher, prepare, settings, readConfiguredLanePolicy, rawGit, deliveryMembers, privateDeliveryTargets };
   return {
-    parseSourceReference: async (value, kind) => parseReviewSourceReferenceForOwner(value, kind, await selectedSourceOwner(input)),
+    parseSourceReference: async (value, kind) => {
+      const owner = await selectedSourceOwner(input);
+      if (owner === undefined) return parseReviewSourceReferenceForOwner(value, kind);
+      try { return parseReviewSourceReferenceForOwner(value, kind, owner); }
+      catch (error) {
+        throw new ReviewContinuationReferenceError(error instanceof Error ? error.message : "malformed review source reference",
+          reviewSourceProducer(kind));
+      }
+    },
     withOperationLock: (operationId, action) => withRepositoryReviewOperationLock(
       input.exec,
       input.cwd,
