@@ -20,7 +20,7 @@ export async function nativeDecomposeFixture(layout: RefFixtureLayout, options: 
   const f = await createRefFixture({}, layout);
   const ports = { ...f.ports, registry: createKindRegistry(PRODUCTION_REGISTRATIONS) };
   const store = createRefStore(ports), ctx = decomposeContext(store);
-  ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" }) };
   const seed = async (reference: RecordReference, content: string, placement?: WritePlacement): Promise<StoreRecord> => {
     const written = success(await store.write({ action: "put", reference, expected: null, content,
       ...(placement === undefined ? {} : { placement }), provenance: { verb: "seed-lifecycle", lifecycleAction: "create" } }));

@@ -51,7 +51,7 @@ async function rename(ctx: StoreRenameContext, params: { sourceSlug: string; tar
   const subject = selected.result;
   await ctx.onPreparedAdvisories?.(subject.advisories);
   const passive = subject.primary.placement?.kind !== "active";
-  const holder = passive ? null : await findWorkUnitHoldingCheckout(ctx, subject.primary.reference.owner.name);
+  const holder = passive ? null : await findWorkUnitHoldingCheckout(ctx, subject.primary);
   const branch = passive ? undefined : await branchRename(ctx, subject, target);
   const state: RenameRuntime = { cwd: ctx.cwd };
   const exec: GitExec = (command, args, options) => ctx.exec(command, args, { cwd: state.cwd, ...options });

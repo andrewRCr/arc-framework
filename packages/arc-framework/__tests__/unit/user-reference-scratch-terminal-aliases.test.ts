@@ -79,7 +79,7 @@ it("withholds conflicted terminal history and retries after explicit resolution"
   const exec = async () => { throw new Error("No checkout artifacts apply"); };
   const executor = buildExecutorContext({ cwd: "/absent", store: writer, io: { ...createUserIOContext(), exec },
     identity: "andrew", teamMode: false, internalTemplateDir: "/templates", projectId: async () => "project",
-    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null } });
+    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) } });
   expect(await runStoreAbandon({ executor }, { name: "current", confirmed: true })).toMatchObject({ status: "abandoned" });
   ok(await h.store.push());
   const disputed = ok(await h.store.read({ reference: h.terminal.reference })); expect(disputed.conflicts.length).toBeGreaterThan(0);

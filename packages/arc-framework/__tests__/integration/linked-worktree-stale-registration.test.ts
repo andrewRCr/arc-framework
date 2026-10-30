@@ -75,7 +75,8 @@ describe("stale branch registrations", () => {
     await h.exec("git", ["worktree", "lock", "--reason", lock, h.path]); await rm(h.path, { recursive: true });
     const store = createLifecycleHarness().store;
     const attempt = reconcileWorkUnitWorktree({ exec: h.exec, store, fs: nodeReconcileWorkUnitWorktreeFs, chdir: () => { throw Error("no process hop"); } },
-      { mutation: "spawn", inPlace: true, branch: "feat/demo", wuName: "demo", spawningIdentity: "starter" });
+      { mutation: "spawn", inPlace: true, branch: "feat/demo", wuName: "demo", spawningIdentity: "starter",
+        holder: { kind: "creation", slug: "demo" } });
     if (lock === "operator") {
       await expect(attempt).rejects.toThrow(`git worktree unlock ${h.path}`);
       expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"])).stdout).toBe("main");

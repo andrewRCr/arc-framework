@@ -94,7 +94,7 @@ export async function runSetStage(
   if (ctx.store !== undefined && usesOffBranchState(ctx.store)) {
     const read = await readWorkUnit(ctx.store, name);
     if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
-    const pause = await checkAdvancingPause(ctx.store, name);
+    const pause = await checkAdvancingPause(ctx.store, name, read.result);
     if (pause.status === "rejected") return pause;
     const metaPath = workUnitMetaPath(read.result);
     let content = writeMetaCurrentWorkflow(read.result.content, stage);

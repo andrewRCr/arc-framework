@@ -18,6 +18,8 @@
  *
  * @module
  */
+import { runTeardownForOperand } from "./teardown-operand.js";
+import type { UnboundMarkerClassification } from "../lib/locus/unbound-marker.js";
 import { handleStoreAbandon } from "./abandon-store.js";
 
 
@@ -99,10 +101,10 @@ import { runReopen } from "../lib/work-unit/verbs/reopen.js";
 import { runArchive } from "../lib/work-unit/verbs/archive.js";
 import {
   runBranchTeardown,
-  runTeardown,
   type TeardownResult,
 } from "../lib/work-unit/verbs/teardown.js";
-import type { StoreRefusal } from "../lib/store/refusal.js";
+import type { StoreRecord } from "../lib/store/read.js";
+import type { StoreRefusal, StoreResult } from "../lib/store/refusal.js";
 import { handleStoreMaterialize } from "./materialize-store.js";
 import { usesOffBranchState, readWorkUnit } from "../lib/store/lifecycle-write.js";
 import type { Store } from "../lib/store/contract.js";
@@ -137,6 +139,7 @@ import {
   parseLifecycleCommand,
   refuse,
   refuseWithRemedy,
+  refuseUnboundTarget,
   reportOutcome,
   resolveVerbBase,
   type VerbBase,
@@ -144,9 +147,17 @@ import {
 import { permitDeliveryReopen, publishCandidateWithReviewBoundary } from "./lifecycle-delivery-review.js";
 
 /** Resolve this checkout's identity through the invocation's operational store. */
-async function resolveCurrentWuSlug(cwd: string, store?: Store): Promise<string | null> {
+async function resolveCurrentWuSlug(cwd: string, store?: Store): Promise<string | UnboundMarkerClassification | null> {
   const current = await resolveCurrentWorkUnit({ cwd, store });
+  if (current.status === "unbound") return current.unbound;
   return current.status === "resolved" ? current.candidate.reference.owner.name : null;
+}
+
+async function resolveStageWorkUnit(base: VerbBase, store: Store | undefined, verb: string): Promise<string | null> {
+  const slug = await resolveCurrentWuSlug(base.cwd, usesOffBranchState(store) ? store : base.store);
+  if (slug !== null && typeof slug !== "string") { refuseUnboundTarget(slug); return null; }
+  if (slug === null) refuse(`\`arc ${verb}\` needs exactly one active work unit to target — none resolved in this worktree.`);
+  return slug;
 }
 
 /**
@@ -170,13 +181,14 @@ export async function resolveVerbTargetOrReport(
 ): Promise<string | null> {
   const needsCurrentWu = !slugArg?.trim() && DISPATCH_MODE[verb] === "context-defaulting";
   const currentWuSlug = needsCurrentWu ? await resolveCurrentWuSlug(cwd, store) : null;
+  if (currentWuSlug !== null && typeof currentWuSlug !== "string") { refuseUnboundTarget(currentWuSlug, json); return null; }
 
   const target = selectVerbTarget(verb, slugArg, currentWuSlug);
   if (target.kind === "resolved") return canonicalVerbTarget(target.slug, store, json);
 
   const view = usesOffBranchState(store) && store !== undefined ? await readLifecycleView(store) : undefined;
   if (view?.status === "refused") {
-    refuseWithRemedy(view.refusal.condition, view.refusal.remedy, json);
+    refuseWithRemedy(view.refusal.condition, view.refusal.remedy, json, view.refusal);
     return null;
   }
   const index = view?.status === "ok" ? view.result.index : await buildLifecycleIndex({ cwd, fs: lifecycleFs });
@@ -204,7 +216,7 @@ async function canonicalVerbTarget(slug: string, store: Store | undefined, json:
   const read = await readWorkUnit(store, slug);
   if (read.status === "ok") return read.result.reference.owner.name;
   if (read.refusal.code === "not-found") return slug;
-  refuseWithRemedy(read.refusal.condition, read.refusal.remedy, json);
+  refuseWithRemedy(read.refusal.condition, read.refusal.remedy, json, read.refusal);
   return null;
 }
 
@@ -367,7 +379,7 @@ export const ArchiveCommandInputSchema = z.object({
   completed: z.iso.date().optional(),
 }).strict();
 export const TeardownCommandInputSchema = z.object({
-  name: SlugSchema.optional(),
+  name: z.union([SlugSchema, z.uuid()]).optional(),
   branch: z.string().regex(
     /^[a-z][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/u,
     "Branch must use a type/slug-safe-name shape.",
@@ -1393,21 +1405,36 @@ export async function handlePublish(
   const target = await resolvePublicationTarget(bound, "publish", input.slug, input.json === true);
   if (target === null) return;
 
-  await publishCandidateWithReviewBoundary(bound, target, input);
+  await publishCandidateWithReviewBoundary(bound, target.name, input, target.record, input.slug === undefined ? undefined : target.record?.reference);
 }
 
 // ---------------------------------------------------------------------------
 // Phase move (withdrawal) — `reopen`
 // ---------------------------------------------------------------------------
 
+type PublicationTarget = { name: string; record?: StoreRecord };
+
 /** Resolve publication through the selected work-unit identity before reading its evidence. */
-export async function resolvePublicationTarget(base: Pick<VerbBase, "cwd" | "store">, verb: "publish" | "reopen", slug?: string, json = false): Promise<string | null> {
-  if (!usesOffBranchState(base.store)) return resolveVerbTargetOrReport(verb, slug, base.cwd, json);
-  if (slug !== undefined) return canonicalVerbTarget(slug, base.store, json);
-  const current = await resolveCurrentWorkUnit({ cwd: base.cwd, store: base.store });
-  if (current.status === "resolved") return current.candidate.reference.owner.name;
+export async function resolvePublicationTarget(base: Pick<VerbBase, "cwd" | "store">, verb: "publish" | "reopen", slug?: string, json = false): Promise<PublicationTarget | null> {
+  const store = base.store;
+  if (!usesOffBranchState(store) || store === undefined) {
+    const name = await resolveVerbTargetOrReport(verb, slug, base.cwd, json);
+    return name === null ? null : { name };
+  }
+  if (slug !== undefined) {
+    const read = await readWorkUnit(store, slug);
+    return read.status === "refused" && read.refusal.code === "not-found" ? { name: slug } : publicationRecordTarget(read, json);
+  }
+  const current = await resolveCurrentWorkUnit({ cwd: base.cwd, store });
+  if (current.status === "unbound") { refuseUnboundTarget(current.unbound, json); return null; }
+  if (current.status === "resolved") return publicationRecordTarget(await store.read({ reference: current.candidate.reference }), json);
   refuseWithRemedy(`Supply a work-unit slug; this checkout's current work unit is ${current.status}.`,
     spineRemedy("Publication requires one selected work unit", "Inspect the current work unit", ["arc", "status", "--json"]), json);
+  return null;
+}
+function publicationRecordTarget(read: StoreResult<StoreRecord>, json: boolean): PublicationTarget | null {
+  if (read.status === "ok") return { name: read.result.reference.owner.name, record: read.result };
+  refuseWithRemedy(read.refusal.condition, read.refusal.remedy, json, read.refusal);
   return null;
 }
 
@@ -1425,11 +1452,11 @@ export interface ReopenOptions {
  * than risk reopening a WU whose merge state can't be confirmed. Only a
  * positively-unmerged PR (`false`) clears the guard.
  */
-async function resolvePrMerged(base: VerbBase, slug: string, executor: Awaited<ReturnType<typeof buildExecutor>>["executor"]): Promise<boolean | undefined> {
+async function resolvePrMerged(base: VerbBase, slug: string, executor: Awaited<ReturnType<typeof buildExecutor>>["executor"], record?: StoreRecord): Promise<boolean | undefined> {
   let branch: string | null;
   try {
     if (base.store !== undefined && usesOffBranchState(base.store)) {
-      const read = await readWorkUnit(base.store, slug);
+      const read = record === undefined ? await readWorkUnit(base.store, slug) : { status: "ok" as const, result: record };
       if (read.status === "refused") return undefined;
       branch = await linkedWorkBranch({ exec: base.io.exec, cwd: base.cwd, projectId: executor.projectId }, read.result);
     } else branch = parseMetaRecord(await base.io.readFile(materializeActiveMetaPath(base.cwd, slug))).branch;
@@ -1477,17 +1504,19 @@ export async function handleReopen(
 
   const { executor, settings } = await buildExecutor(base);
   const bound = { ...base, store: executor.store };
-  const target = await resolvePublicationTarget(bound, "reopen", input.slug);
-  if (target === null) return;
+  const selected = await resolvePublicationTarget(bound, "reopen", input.slug);
+  if (selected === null) return;
+  const { name: target, record } = selected;
   if (executor.store !== undefined && usesOffBranchState(executor.store)) {
-    const pause = await checkAdvancingPause(executor.store, target);
+    const pause = await checkAdvancingPause(executor.store, target, record);
     if (pause.status === "rejected") { refuse(pause.reason, pause.refusal, pause.remedy); return; }
   }
-  if (!await permitDeliveryReopen(bound, target, settings)) return;
+  if (!await permitDeliveryReopen(bound, target, settings, record)) return;
 
-  const prMerged = await resolvePrMerged(bound, target, executor);
+  const prMerged = await resolvePrMerged(bound, target, executor, record);
   const result = await runReopen(executor, {
     name: target,
+    ...(input.slug === undefined || record === undefined ? {} : { reference: record.reference }),
     prMerged,
     withdrawMode: input.keepPr === true ? "draft" : "close",
     nextTask: input.task,
@@ -1826,7 +1855,7 @@ export async function handleTeardown(
   }
 
   const operational = usesOffBranchState(base.store) ? await buildExecutor(base) : undefined;
-  const result = await runTeardown(
+  const result = await runTeardownForOperand(
     {
       store: operational?.executor.store, execInput: base.io.execInput,
       projectId: operational?.executor.projectId, locusPorts: operational?.executor.locusPorts,
@@ -1851,7 +1880,7 @@ export async function handleTeardown(
     if (result.huskRefusal !== undefined) {
       refuse(`Cannot husk: ${result.reason}. The worktree remains branched and unchanged.`);
     } else {
-      refuse(result.reason, undefined, result.remedy);
+      refuse(result.reason, result.refusal, result.remedy);
     }
     return;
   }
@@ -1918,14 +1947,8 @@ export async function handleSetStage(
   const stageArg = input.stage;
 
   const { executor } = await buildExecutor(base);
-  const current = executor.store !== undefined && usesOffBranchState(executor.store)
-    ? await resolveCurrentWorkUnit({ cwd: base.cwd, store: executor.store }) : undefined;
-  const slug = current === undefined ? await resolveCurrentWuSlug(base.cwd, base.store)
-    : current.status === "resolved" ? current.candidate.reference.owner.name : null;
-  if (slug === null) {
-    refuse("`arc set-stage` needs exactly one active work unit to target — none resolved in this worktree.");
-    return;
-  }
+  const slug = await resolveStageWorkUnit(base, executor.store, "set-stage");
+  if (slug === null) return;
 
   const result = await runSetStage(executor, { name: slug, stage: stageArg, advance: input.advance ?? false });
   if (result.status === "rejected") {
@@ -1973,14 +1996,8 @@ export async function handleFinalizeStage(
   const firePointArg = input.firePoint;
 
   const { executor } = await buildExecutor(base);
-  const current = executor.store !== undefined && usesOffBranchState(executor.store)
-    ? await resolveCurrentWorkUnit({ cwd: base.cwd, store: executor.store }) : undefined;
-  const slug = current === undefined ? await resolveCurrentWuSlug(base.cwd, base.store)
-    : current.status === "resolved" ? current.candidate.reference.owner.name : null;
-  if (slug === null) {
-    refuse("`arc finalize` needs exactly one active work unit to target — none resolved in this worktree.");
-    return;
-  }
+  const slug = await resolveStageWorkUnit(base, executor.store, "finalize");
+  if (slug === null) return;
 
   // `writeClassField` is an optional direct-invoke seam on the executor (like the
   // archive / reconcile seams); the production binder always provides it, so a miss
@@ -2039,14 +2056,8 @@ export async function handleRepointDesign(
   const eventArg = input.event;
 
   const { executor } = await buildExecutor(base);
-  const current = executor.store !== undefined && usesOffBranchState(executor.store)
-    ? await resolveCurrentWorkUnit({ cwd: base.cwd, store: executor.store }) : undefined;
-  const slug = current === undefined ? await resolveCurrentWuSlug(base.cwd, base.store)
-    : current.status === "resolved" ? current.candidate.reference.owner.name : null;
-  if (slug === null) {
-    refuse("`arc repoint-design` needs exactly one active work unit to target — none resolved in this worktree.");
-    return;
-  }
+  const slug = await resolveStageWorkUnit(base, executor.store, "repoint-design");
+  if (slug === null) return;
 
   const currentDesign = usesOffBranchState(executor.store) ? undefined
     : parseMetaRecord(await readFile(materializeActiveMetaPath(base.cwd, slug), "utf8")).design;

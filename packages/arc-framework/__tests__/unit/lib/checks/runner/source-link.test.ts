@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { freezeSourcePresentation } from "../../../../../src/lib/checks/runner/source-presentation.js";
 import { nodeSourcePresentationIO, type SourcePresentationIO } from "../../../../../src/lib/checks/runner/source-io.js";
+import { verifySourceLink } from "../../../../../src/lib/checks/runner/source-link.js";
 
 const directories: string[] = [];
 afterEach(async () => { await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true }))); });
@@ -77,6 +78,22 @@ it.each(["changed source link", "replaced copied link", "invalid UTF-8 target"])
   await expect(freezeSourcePresentation(root, Buffer.from("link\0"), coordinates, io))
     .rejects.toThrow(/(?:link.*(?:changed|preserv)|UTF-8).*repair.*retry.*local/iu);
   for (const directory of owned) await expect(access(directory)).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("refuses raw Windows target spelling drift even when both spellings match the manifest", async () => {
+  const { root, io } = await fixture();
+  const source = join(root, "link");
+  await symlink("./target.txt", source, "file");
+  io.platform = "win32";
+  let reads = 0;
+  io.readlink = async path => {
+    const bytes = await nodeSourcePresentationIO.readlink(path);
+    if (path !== source || ++reads !== 2) return bytes;
+    const target = Buffer.from(bytes).toString("utf8");
+    return Buffer.from(target.includes("\\") ? target.replaceAll("\\", "/") : target.replaceAll("/", "\\"));
+  };
+  await expect(verifySourceLink(io, root, source, { path: "link", kind: "symlink", target: "./target.txt" }))
+    .rejects.toThrow("Source link changed during verification");
 });
 
 function boundFilesystem(io: SourcePresentationIO): void {

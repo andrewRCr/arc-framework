@@ -18,6 +18,7 @@ and gitignored, while the normalized evidence below is the durable record.
 - [Diagnosing a wall-clock change](#diagnosing-a-wall-clock-change)
 - [Tracing which tests read a file](#tracing-which-tests-read-a-file)
 - [Routed check capture cost](#routed-check-capture-cost)
+- [Store-suite process cost](#store-suite-process-cost)
 - [Tier baselines](#tier-baselines)
 - [Post-cost baseline](#post-cost-baseline)
 - [Where the time concentrates](#where-the-time-concentrates)
@@ -417,6 +418,118 @@ that lock exists, automatic maintenance and a manual `git maintenance run` both 
 anything. Scheduled maintenance (`git maintenance start`) runs from the scheduler, outside any sandbox, and turns off
 commit-triggered maintenance for the repository. Read `git count-objects -v` and look for that lock before
 attributing a capture or fetch slowdown to ARC.
+
+## Store-suite process cost
+
+The store suites (`test:store`, the 321 `store-ref-*` integration files) ran in CI as four shards, which took 13–22
+minutes each on the ref backend's last three branch runs. A 2026-10-29 measurement at `f663af671` found where the ten
+slowest files spend their time. The method below repeats it; the results are that day's observations.
+
+### Process measurement method
+
+- **Runs** — run each file alone under `nicecap -n 19 -r 8`, with a preload in every Node process, and keep the JSON
+  report, which gives each case's duration:
+
+  ```bash
+  . ~/.memcap.sh && NODE_OPTIONS="--import <preload.mjs>" SPAWN_LOG=<dir>/spawn.log nicecap -n 19 -r 8 \
+    npm run -s test:file -- <file> --reporter=json --outputFile=<dir>/vitest.json
+  ```
+
+- **Spawn timing** — the preload wraps `ChildProcess.prototype.spawn` and logs, for each call, how long the call
+  blocks its caller, the time until the child's `exit`, and the child's working directory and first arguments:
+
+  ```js
+  import cp from "node:child_process";
+  import { appendFileSync } from "node:fs";
+
+  const proto = cp.ChildProcess.prototype, original = proto.spawn;
+  proto.spawn = function timedSpawn(options) {
+    const t0 = performance.now();
+    try { return original.call(this, options); }
+    finally {
+      const blocked = performance.now() - t0;
+      const args = options.args.slice(1, 7).join(" ");
+      this.once("exit", () => appendFileSync(process.env.SPAWN_LOG,
+        `${process.pid}\t${blocked}\t${performance.now() - t0}\t${options.cwd}\t${args}\n`));
+    }
+  };
+  ```
+
+- **Attribution** — a second run of the same files uses a preload that calls `Error.captureStackTrace` at each spawn
+  and keeps the first source frames outside the Git execution plumbing (`lib/git/process-executor.ts`,
+  `process-cancellation.ts`, `batch-reader.ts`, `version-floor.ts`, `exec.ts`, and the ref context's wrappers).
+- **Git's own run time** — a `git` shim first on `PATH` logs each call's start and end from `$EPOCHREALTIME`, forwards
+  `TERM`, `INT` and `HUP` to Git, and re-raises a fatal signal so the caller sees the same exit. It adds about 1.8 ms
+  a call, so use it for Git's run time and counts, not for wall time.
+- **CPU profiles** — Vitest's default `forks` pool stops its workers before `--cpu-prof` writes their profiles.
+  `--pool=threads` writes one per worker thread, but a thread worker lives in Vitest's main process, so its spawn cost
+  is not the `forks` worker's.
+
+### Result at `f663af671`
+
+| File                          | Cases | Case time | Git processes | Per case | Blocked in spawn |
+| ----------------------------- | ----: | --------: | ------------: | -------: | ---------------: |
+| `cleanup-report`              |    30 |   140.9 s |        18,320 |      611 |              60% |
+| `conformance-reads`           |   558 |    99.7 s |        18,690 |       33 |              43% |
+| `conformance-sync`            |   139 |   193.1 s |        29,037 |      209 |              48% |
+| `follow-copy-handoff`         |    24 |   147.2 s |        24,605 |    1,025 |              58% |
+| `follow-restart`              |    29 |   131.7 s |        24,642 |      850 |              58% |
+| `import-errands`              |    60 |   171.0 s |        21,525 |      359 |              54% |
+| `import-observation-failures` |    48 |   307.8 s |        42,416 |      884 |              63% |
+| `remote-delete`               |    40 |   163.6 s |        21,046 |      526 |              59% |
+| `separate-conformance-reads`  |   558 |   215.7 s |        19,282 |       35 |              41% |
+| `withdraw-entry-inverse`      |    92 |   188.9 s |        47,612 |      518 |              45% |
+| All ten                       | 1,578 | 1,759.6 s |       267,175 |      169 |              53% |
+
+- **Process cost dominates.** In the `forks` worker a spawn blocks its caller for a median 3.2 ms; from a bare Node
+  process it blocks for 1.1–1.9 ms at heaps up to 1 GB. Git itself runs for about 2 ms a call. From spawn to exit,
+  child processes account for about 86% of case time, an upper bound since concurrent calls count twice. JavaScript
+  takes the rest.
+- **Subcommands** — `for-each-ref` 71,440, `config` 40,362, `cat-file` 32,854, `update-ref` 17,778, `ls-tree` 14,485,
+  `diff-tree` 12,097, `remote` 10,547, `show` 10,202.
+- **Per-file outliers** — the import files read the old layout: in a 12-case sample of `import-observation-failures`,
+  about 70% of processes come from `store/in-repo/meta.ts`, which scans every branch through `remote-ref-reader.ts`
+  (29%), lists worktrees (15%), and snapshots Errand identity (7%) on each meta read.
+
+### Where the processes come from
+
+Attribution over the nine files other than `import-observation-failures`, 224,996 processes:
+
+| Source                    |     Share | What it runs                                                     |
+| ------------------------- | --------: | ---------------------------------------------------------------- |
+| `store/ref/batch-read.ts` |     23.5% | per read: a tips `for-each-ref`, `cat-file --batch`, `diff-tree` |
+| `store/ref/sync-graph.ts` |     19.9% | a `readSyncRefs` capture per reconciliation step                 |
+| Config and remote lookups | about 19% | `config` (34k), `remote show -n` (9k), re-read per call          |
+| Writes                    | about 16% | `update-ref`, `hash-object`, `mktree`, `commit-tree`             |
+| Test assertions, fixtures |     10.6% | reading state back to check it                                   |
+| `store/in-repo/`          |      3.3% | meta reads and file listings                                     |
+
+- **Already batched within a read** — `batch-read.ts` sends each read's objects through one `cat-file --batch`; the
+  cost is that every read starts its own listing and reader.
+- **Exact by design** — `readSyncRefs` captures the ref set fresh at each reconciliation step, which reconciliation's
+  correctness relies on.
+- **Re-read per call** — configuration, remote transport, designation and identity are read again for each call
+  within one operation.
+
+### Blind spots
+
+- **Callers past the first store module** — async stack traces drop a caller that returns a promise without awaiting
+  it, so about 37,800 `readSyncRefs` and 22,000 transport calls show no source caller beyond their own module.
+- **Host** — local runs at niceness 19 beside other work; CI runs each shard on a hosted Linux runner.
+- **Later codecs** — the measurement predates any change to the store's codec registry; codecs added to it later add
+  parse cost to every read and listing they decode.
+
+### Shard balance
+
+On run `40928051907` (2026-10-29, four shards), the 319 store files that ran took 197.9 minutes of file time between
+them. CI's duration input held a recorded duration for 175 of them, and their measured times ran a median 1.31 times
+the recorded ones (10th percentile 0.84, 90th 2.15). The shards carried 41.3, 43.5, 53.7 and 59.5 minutes of file
+time, 79 or 80 files each, and their jobs took 17.6, 16.2, 19.6 and 21.7 minutes.
+
+Placed on those measured durations, longest first onto the lightest shard, the heaviest shard carries 49.5 minutes of
+file time at four shards, 39.6 at five, 33.0 at six and 24.7 at eight. At four shards the total alone sets that
+49.5-minute floor, so balancing cannot go below it. A straight-line fit of the run's four jobs against their file time
+puts a 33-minute shard at about 14.5 minutes of job time.
 
 ## Tier baselines
 

@@ -31,6 +31,43 @@ example does not reset the view or prepare mutable dependency installations. Pro
 preserve fixed inputs and source absence through isolation or equivalent controls. Every planned command directory
 must exist inside the captured source before ready.
 
+## Play an opted-in shard plan serially
+
+After configuring `local.mjs` above, an existing self-contained command may opt its native shard arguments into routed
+playback. This declaration assumes `scripts/verify.mjs` already implements `--shard=INDEX/COUNT` and reads the two
+explicit inputs; substitute your existing native command and declare only the inputs it actually reads:
+
+```yaml
+checks:
+  verify:
+    command: ["node", "scripts/verify.mjs"]
+    mode: project
+    runner: true
+    environment_inputs:
+      CHECK_MODE: value
+      CHECK_WEIGHTS_FILE: file
+    shards:
+      routed: true
+      count: 2
+      argument: "--shard={index}/{count}"
+```
+
+Run `arc check run verify`. ARC captures source and both bindings once, prepares one context and sends the two native
+invocations through `check/run` in order. The basic example still advertises `runGroup: false`: opted-in shards run
+serially at their native overhead. Without `shards.routed: true` or a configured eligible runner, ordinary execution
+keeps the unsharded command. CI's declared matrix remains unchanged.
+
+Unset inputs remove ambient worker values; an empty string stays empty. A nonempty file binding freezes regular-file
+bytes and is rebound to an execution-local path; an existing zero-byte file differs from an empty binding. Original
+host paths and later caller edits do not alter siblings. Declare a partitioner's duration file this way when it reads
+one. The example installs no dependencies and refuses source additions or mutations between invocations; choose a
+provider with suitable preparation/output isolation when the native command needs more.
+
+The [group contract][guide] separately allows an adapter to advertise optional `runGroup` and accept the complete
+matrix in one request. This example demonstrates serial conformance and recovery, not distributed membership or
+performance qualification. Default unknown runtime permits execution without reusable lookup/publication; named,
+measured execution profiles are the boundary for broader compatibility or performance claims.
+
 ## Runtime qualification
 
 Default mode reports unknown runtime: compatible live execution remains possible, with reusable lookup/publication
@@ -72,7 +109,7 @@ records introduce no automatic reconnect, replacement execution or ARC job datab
 
 ## Implementation size
 
-The four runtime modules and their declaration companion total 842 lines, including comments and blank lines and
+The four runtime modules and their declaration companion total 856 lines, including comments and blank lines and
 excluding READMEs:
 
 | Module              | Responsibility                                  |

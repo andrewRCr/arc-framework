@@ -304,3 +304,16 @@ it("preserves a qualified inbox origin's null digest through role change and his
   expect(await f.steps.replaceFrame(read.record)).toMatchObject({ kind: "applied", originEntry: "personal:abcd1234", originEntrySourceDigest: null });
   expect(await f.steps.recoverPromoted()).toMatchObject({ kind: "idempotent", originEntry: "personal:abcd1234", originEntrySourceDigest: null });
 });
+
+it("refuses a live promotion target before changing either owner", async () => {
+  const f = await fixture(), held = await f.seedMeta("example");
+  const before = lifecycleSuccess(await f.store.version());
+  const result = await f.run();
+  expect(result).toMatchObject({ outcome: "refused", recommendedPromptText: expect.stringMatching(/choose another name/iu) });
+  if (held.reference.owner.type === "person" || held.reference.owner.uid === undefined) throw new Error("Expected work-item UUID");
+  expect(JSON.stringify(result)).toContain(held.reference.owner.uid);
+  expect(JSON.stringify(result)).not.toMatch(/rename/iu);
+  expect(lifecycleSuccess(await f.store.version())).toBe(before);
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference }))).toEqual(f.primary);
+  expect(lifecycleSuccess(await f.store.read({ reference: held.reference }))).toEqual(held);
+});

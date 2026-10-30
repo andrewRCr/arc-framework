@@ -1,10 +1,10 @@
 /** Store lineage selects abandoned checkouts independently of committed Git receipts. */
 import { LineageRecordSchema } from "../store/kinds/lineage/index.js";
-import { SlugSchema } from "../kernel/index.js";
-import { readWorkUnit } from "../store/lifecycle-write.js";
+import { OwnerIdentitySchema, recordReferences, type OwnerIdentity } from "../store/identity.js";
+import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
 import { createProjectIdentityReader, resolveProjectIdentity } from "../store/project-identity.js";
 import { workBranchName } from "../store/lifecycle-branch.js";
-import { readStoreRetirementEvidence } from "../work-unit/store-retirement-evidence.js";
+import { readStoreRetirementEvidence, teardownOperand, teardownSubjectOperand } from "../work-unit/store-retirement-evidence.js";
 import { checkWorktreeRemoval } from "../git/worktree-removal.js";
 import { projectSuccessorReadiness } from "../work-unit/retirement-lifecycle-result.js";
 import { projectCleanupRemoteEvidence } from "./cleanup-remote-evidence.js";
@@ -18,29 +18,40 @@ export async function runStoreRetirementSweep(options: StoreSweepOptions): Promi
   const remote = projectCleanupRemoteEvidence(options.baseBranch, options.baseEvidence);
   const retirements: LandedRetirementResidue[] = [];
   for (const checkout of options.topology) {
-    const name = candidateName(options, checkout);
-    if (name === null || checkout.branch === null) continue;
+    if (checkout.branch === null) continue;
     const branched = { ...checkout, branch: checkout.branch };
     try {
-      const residue = await inspectAbandonment(options, branched, name, remote.remoteEvidence === "exact");
+      const owner = await candidateOwner(options, checkout);
+      if (owner === null) continue;
+      const residue = await inspectAbandonment(options, branched, owner, remote.remoteEvidence === "exact");
       if (residue !== null) retirements.push(residue);
     } catch (error) {
       const repair = error instanceof Error ? error.message : String(error);
-      retirements.push({ ...blocked(branched, name, "repair-required"), repair, actions: [{ text: repair }] });
+      retirements.push({ ...blocked(branched, markerName(options, checkout), "repair-required"), repair, actions: [{ text: repair }] });
     }
   }
   return { ...remote, retirements, warnings: [] };
 }
-function candidateName(options: StoreSweepOptions, checkout: RegisteredWorktree): string | null {
+function markerName(options: StoreSweepOptions, checkout: RegisteredWorktree): string {
+  const marker = options.markers.get(checkout.path);
+  return marker?.kind === "present" ? marker.marker.wuName ?? checkout.branch ?? checkout.path : checkout.path;
+}
+async function candidateOwner(options: StoreSweepOptions, checkout: RegisteredWorktree): Promise<OwnerIdentity | null> {
   const marker = options.markers.get(checkout.path);
   if (checkout.branch === null || checkout.detached || marker?.kind !== "present" || !marker.marker.spawnedByArc
     || marker.marker.createdFor?.kind !== "work-unit" || marker.marker.wuName !== marker.marker.createdFor.name
     || marker.marker.husk !== undefined || marker.marker.renameMovePending !== undefined) return null;
-  return marker.marker.createdFor.name;
+  const subject = marker.marker.createdFor;
+  if (subject.uid === undefined) return null;
+  const selected = await options.store.lookup({ kind: "claim", claim: workUnitCheckoutClaim(options.store, subject.name, subject.uid) });
+  if (selected.status === "ok") return selected.result.reference.owner;
+  if (selected.refusal.code !== "not-found") throw new Error(`${selected.refusal.condition} ${selected.refusal.remedy.text}`);
+  return OwnerIdentitySchema.parse({ type: "work-item", name: subject.name, uid: subject.uid });
 }
-async function inspectAbandonment(options: StoreSweepOptions, checkout: BranchedCheckout, name: string, exact: boolean): Promise<LandedRetirementResidue | null> {
-  if (!await hasAbandonment(options.store, name)) return null;
-  const evidence = await readStoreRetirementEvidence(options.store, name, checkout.head);
+async function inspectAbandonment(options: StoreSweepOptions, checkout: BranchedCheckout, owner: OwnerIdentity, exact: boolean): Promise<LandedRetirementResidue | null> {
+  const name = owner.name, subject = recordReferences["work-item/meta"](owner);
+  if (!await hasAbandonment(options.store, owner)) return null;
+  const evidence = await readStoreRetirementEvidence(options.store, subject, checkout.head);
   if (evidence.rule !== "discard" || evidence.evidence.kind !== "lineage" || evidence.evidence.transition !== "abandon") return null;
   const project = await resolveProjectIdentity(options.projectId ?? createProjectIdentityReader(options.store));
   if (project.status !== "ready") throw new Error(`${project.reason} ${project.remedy.text}`);
@@ -52,23 +63,23 @@ async function inspectAbandonment(options: StoreSweepOptions, checkout: Branched
     disposition: "remove", check: options.projectionRemovalSlots?.check }));
   if (removal.kind === "missing") return null;
   if (removal.kind === "refused") return blocked(checkout, name, removal.reason === "dirty" || removal.reason === "persist-would-refuse" ? "uncommitted" : removal.reason);
-  return actionable(checkout, name);
+  return actionable(checkout, name, await teardownOperand(options.store, owner));
 }
 function hasPhysicalEvidence(options: StoreSweepOptions): boolean {
   const supplied = options.baseEvidence;
   return supplied?.history.kind === "complete" && supplied.snapshot.kind === "available" && supplied.snapshot.tips[options.baseBranch] !== undefined;
 }
-function actionable(checkout: BranchedCheckout, name: string): LandedRetirementResidue {
+function actionable(checkout: BranchedCheckout, name: string, operand: string): LandedRetirementResidue {
   const pending = { status: "pending" } as const;
   return { status: "actionable", worktreePath: checkout.path, lifecycle: { subject: { slug: name, branch: checkout.branch }, transition: "abandon",
     cleanup: { branch: pending, worktree: pending, userWorkspace: pending }, successorReadiness: projectSuccessorReadiness([], true) },
-    teardown: { argv: ["arc", "teardown", name], text: `arc teardown ${name}` }, actions: [{ argv: ["arc", "teardown", name], text: `arc teardown ${name}` }] };
+    teardown: { argv: ["arc", "teardown", operand], text: `arc teardown ${operand}` }, actions: [{ argv: ["arc", "teardown", operand], text: `arc teardown ${operand}` }] };
 }
-async function hasAbandonment(store: Store, name: string): Promise<boolean> {
-  const primary = await readWorkUnit(store, name);
+async function hasAbandonment(store: Store, owner: OwnerIdentity): Promise<boolean> {
+  const primary = await store.read({ reference: recordReferences["work-item/meta"](owner) });
   if (primary.status === "ok") return false;
   if (primary.refusal.code !== "not-found") throw new Error(`${primary.refusal.condition} ${primary.refusal.remedy.text}`);
-  const found = await store.lookup({ kind: "lineage", origin: SlugSchema.parse(name) });
+  const found = await store.lookup({ kind: "lineage", origin: teardownSubjectOperand({ kind: "owner", owner }) });
   if (found.status === "refused") {
     if (found.refusal.code === "not-found") return false;
     throw new Error(`${found.refusal.condition} ${found.refusal.remedy.text}`);

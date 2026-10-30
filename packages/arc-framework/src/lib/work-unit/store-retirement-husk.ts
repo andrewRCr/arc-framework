@@ -6,6 +6,7 @@ import { decideHuskCleanup, isWorktreeClean } from "../git/worktree-cleanup.js";
 import { isContainedIn, isLandedInBase } from "../git/branch-containment.js";
 import { scanRegisteredWorktrees, type RegisteredWorktree } from "../git/worktree-roster.js";
 import type { StoreRetirementEvidence } from "./store-retirement-evidence.js";
+import { teardownSubjectOperand } from "./store-retirement-evidence.js";
 import type { TeardownContext } from "./verbs/teardown.js";
 /** Captured exact selection rechecked while the existing physical lock is held. */
 export interface SelectedStoreRetirementHusk { path: string; revalidate: () => Promise<void> }
@@ -34,7 +35,7 @@ async function readHusk(input: HuskInput, worktrees: readonly RegisteredWorktree
   if (decision.action !== "removable") throw Error(`Selected husk cleanup is blocked (${decision.reason}); preserve or discard changes, restore its stamped HEAD if appropriate, then retry.`);
   const stamp = marker.marker.husk;
   if (input.evidence.rule === "landed" && !await stampedHeadPreserved(input, stamp.sha, stamp.branch)) {
-    throw Error(`The selected husk's stamped commit ${stamp.sha} is not proven landed in base or preserved on its upstream. Preserve that exact commit on base or origin/${stamp.branch}, refresh those refs, then retry arc teardown ${input.evidence.name} --husk ${input.path}.`);
+    throw Error(`The selected husk's stamped commit ${stamp.sha} is not proven landed in base or preserved on its upstream. Preserve that exact commit on base or origin/${stamp.branch}, refresh those refs, then retry arc teardown ${teardownSubjectOperand({ kind: "owner", owner: input.evidence.record.reference.owner })} --husk ${input.path}.`);
   }
   return { path: checkout.path, head: checkout.head, marker: marker.marker };
 }

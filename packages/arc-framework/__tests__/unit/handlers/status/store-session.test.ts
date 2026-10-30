@@ -12,7 +12,7 @@ function fixture() {
   const { exec } = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [{ stdout: "" }] }]);
   const probes = createStoreSessionProbes({ store: h.store, cwd: "/unprojected", exec, identity: "alice",
     readFrame: async () => null, readSettings: async () => ({}), projectId: async () => "project",
-    findHoldingCheckout: async () => null, readUserInbox: id => readUserInboxFromStore(h.store, id) });
+    findHoldingCheckout: async () => ({ kind: "none" as const }), readUserInbox: id => readUserInboxFromStore(h.store, id) });
   return { ...h, probes };
 }
 it("offers released branchless work without code-remote evidence", async () => {

@@ -11,6 +11,7 @@ import { prepareDecomposeRevision } from "../../../../src/lib/decompose/revision
 import { decomposeApplyAuthority } from "../../../../src/lib/decompose/apply-authority.js";
 import { readLifecycleMetaFields } from "../../../../src/lib/store/lifecycle-write.js";
 import { recordReferences } from "../../../../src/lib/store/identity.js";
+import { writeMetaDependsOn } from "../../../../src/lib/store/kinds/meta/writers.js";
 import type { CutMap } from "../../../../src/lib/decompose/cut-map-schema.js";
 
 function success<T>(input: { status: "ok"; result: T } | { status: "refused" }): T {
@@ -26,12 +27,13 @@ function reuseMember(map: CutMap) {
   for (const edge of map.authoring.outgoingDispositions) edge.disposition = { kind: "targets", targets: ["reused"] };
 }
 
-async function fixture(mode: "additive" | "revision") {
+async function fixture(mode: "additive" | "revision", parked = false) {
   const h = await createDecomposePlanFixture();
   const map = completeCutMapFixture(success(await prepareDecomposePreflight(h.ctx, "origin")).machine);
   if (mode === "revision") success(await runStoreDecomposeAdditive(h.ctx, "origin", "execute", { cutMap: map, cutMapPath: "cut.json" }));
   const prior = await h.seedStub("reused");
-  const consumer = await h.seedMeta("consumer", { state: "Planning", currentWorkflow: null, dependsOn: ["reused"], design: ["draft-consumer.md"] },
+  const consumer = await h.seedMeta("consumer", { state: parked ? "Active" : "Planning",
+    currentWorkflow: parked ? "process-task-loop" : null, dependsOn: ["reused"], design: ["draft-consumer.md"] },
     { kind: "backlog", commitment: "planned" });
   await h.seed(recordReferences["work-item/draft"](consumer.reference.owner), "# Consumer\n\n## Scope\n\nWork.\n");
   await h.seedRetiredWorkUnit(prior);
@@ -48,6 +50,25 @@ async function fixture(mode: "additive" | "revision") {
   };
   return { ...h, map, consumer, compete, input: { cutMap: map, cutMapPath: "cut.json" } };
 }
+
+it.each(["additive", "revision"] as const)("preserves a parked dependent through %s reuse until its owner repairs the edge", async mode => {
+  const h = await fixture(mode, true);
+  const apply = async () => {
+    if (mode === "additive") return runStoreDecomposeAdditive(h.ctx, "origin", "execute", h.input);
+    const preview = success(await runStoreDecomposeRevision(h.ctx, "origin", h.input));
+    if (preview.kind !== "preview") throw new Error("Expected revision preview.");
+    return runStoreDecomposeRevision(h.ctx, "origin", h.input, { applyAuthority: preview.applyAuthority });
+  };
+  const before = structuredClone([...h.store.state.records.entries()]);
+  expect(await apply()).toMatchObject({ status: "refused", reason: "store", storeRefusal: { rule: "work-item.slug-edges" } });
+  expect([...h.store.state.records.entries()]).toEqual(before);
+  expect(success(await h.store.read({ reference: h.consumer.reference }))).toEqual(h.consumer);
+  await h.handEdit(h.consumer, writeMetaDependsOn(h.consumer.content, []));
+  expect(await apply()).toMatchObject({ status: "ok" });
+  expect(success(readLifecycleMetaFields(success(await h.store.read({ reference: h.consumer.reference }))))).toMatchObject({
+    state: "Active", dependsOn: [],
+  });
+});
 
 it.each(["additive", "revision"] as const)("refuses a competing recipient cut at the %s batch boundary, then retries after discard", async mode => {
   const h = await fixture(mode);

@@ -45,6 +45,38 @@ repair or removal remedy. An executable that cannot start is unavailable. ARC ne
 run locally. Removing the key disables the adapter. Invalid project opt-ins remain invalid even when no adapter is
 configured.
 
+## Opt in to routed native shards
+
+Ordinary execution keeps the native unsharded command. To expand a declared matrix through a configured runner, the
+check must also set `shards.routed: true`. For an existing command that supports the shown native shard argument:
+
+```yaml
+checks:
+  verify:
+    command: ["node", "scripts/verify.mjs"]
+    mode: project
+    runner: true
+    shards:
+      routed: true
+      count: 2
+      argument: "--shard={index}/{count}"
+```
+
+`count` is positive; `{index}` expands from 1 through `{count}`. The command owns discovery and partitioning. ARC fixes
+every expected file-batch/shard pair before preparation, preserving command arguments, cwd and selected-path order.
+Shard metadata without the routed opt-in, or without an eligible configured runner, creates no local fan-out. CI keeps
+its declared matrix and placement independently of this opt-in.
+
+For this routed plan, ARC submits the complete expected matrix once through `check/runGroup` when preparation
+advertises that capability. A basic adapter receives the same plan through mandatory `check/run` calls in order.
+Serial playback remains sharded and pays the native sharding overhead; it does not substitute the unsharded command
+or promise a parallel speedup. The [standalone example][local-example] demonstrates basic playback without dependency
+installation. Provider names, inventory, admission and fallback settings stay outside the check declaration.
+
+Declared value/file inputs are captured once for all siblings and probes, including uncached execution. If a native
+partitioner reads a duration or weights file, declare that name as a `file` input and keep it separate from writable
+result caches. The binding table below distinguishes absent, empty and captured-file states.
+
 ## Explicit environment inputs
 
 Names match `[A-Za-z_][A-Za-z0-9_]*`; case-insensitive duplicates are rejected. Each kind is exactly `value` or `file`.
@@ -158,13 +190,21 @@ component. Preserve literal names without Unicode normalization. Sort entries by
 ordering. Windows capture rejects catalog backslashes before native path interpretation; POSIX backslashes remain
 literal filename characters. Routed cwd must remain contained lexically and through directory links; `.` means root.
 
+Symlink targets preserve literal text on POSIX. Windows-native target separators are encoded as "/" in the manifest,
+without changing case, reducing dot components or collapsing repeated separators. For index/commit source, this target
+must still equal the selected Git link blob exactly; a literal backslash in that blob is not rewritten.
+
+Adapters recreating links across platforms must use the manifest target rather than a Windows-native link spelling.
+When verifying on Windows, replace native target backslashes with "/" before comparing with the manifest. Preserve
+literal comparisons on POSIX, and compare raw native spellings before and after verification to detect link changes.
+
 Canonical encoding is UTF-8 JSON without whitespace or trailing newline, equivalent to `JSON.stringify` of these fields
 in this exact order: `version`, `coordinates`, `entries`; coordinates `tree`, optional `head`, optional `base`,
 `merged`; file entry `path`, `kind`, `mode`, `digest`, `bytes`; symlink entry `path`, `kind`, `target`. Omit absent
 optional fields. Hash that encoding with SHA-256. Generated pack names or administrative timestamps do not define
 source identity.
 
-Verify canonical bytes/digest, coordinate agreement, every entry's bytes/mode or literal target, spelling and
+Verify canonical bytes/digest, coordinate agreement, every entry's bytes/mode or target, spelling and
 containment before confirming source identity. Verify frozen inputs before every invocation. Preserve source absence as
 well as listed inputs: a previous command's new source files cannot silently become another command's inputs.
 Isolate/reset writable views or refuse execution. Provider-generated dependencies/outputs are allowed when they do not
@@ -350,6 +390,25 @@ adapter stderr, parent terminal display or optional local report persistence. If
 than claiming true; retain already observed outcomes. No framework test counts, report paths or shard grammar belong in
 this protocol.
 
+### Complete parents and native qualification
+
+Reuse covers the complete parent plan. Every expected invocation needs applicable known runtime coverage; unknown
+runtime executes without lookup or publication. A hit skips execution and still closes its context. ARC publishes
+one parent pass only after all required outcomes/output, settlement and normal closure; shards publish no independent
+passes. Attempt IDs, provider labels and materialization paths do not define reusable identity.
+
+After an ordinary failure, serial playback continues and group execution collects the remaining planned results.
+Diagnostics identify each batch/shard coordinate that is incomplete or unavailable. An independently valid completed
+failure remains a failure beside missing work; missing required work cannot become a pass. Declared no-evidence
+results can coexist with useful acceptable results, but an entirely no-evidence check cannot pass.
+
+Native membership needs complete/disjoint coverage against the unsharded selection under the same source, filters,
+shard count and captured partitioning inputs. Zero exits alone establish no such coverage. Preserve each command's
+proved selection no-op or empty-share contract and ordinary unmatched/all-skipped failures. A native controller-close
+failure remains a check failure. Qualification applies to the named tiers and execution profiles actually measured.
+Measure full capture, preparation, admission, execution and collection before claiming a benefit; unmeasured
+deployments inherit no speedup or compatibility claim. Basic serial playback makes no speedup promise.
+
 ### Closure, interruption and recovery
 
 The normal sequence is capture, prepare, optional reusable lookup, execution, settlement, release and drained exit
@@ -415,10 +474,10 @@ reusable passes. Supervisors record identity before accepting work, stop process
 descendants even after the original process exits or closes pipes. Termination escalates after one second. Inspect must
 report settled before retained captures are removed; recovered leftover records may then be removed manually.
 
-The example is under 600 lines across four `.mjs` modules — conversation, input verification and environment,
-process supervision and recovery, and runtime qualification — counting comments and blank lines. That describes
-implementation size rather than runtime cost or a minimum adapter size. Deployment, remote transport and
-provider-specific dependency qualification are additional implementation responsibilities for providers that need them.
+The example separates conversation, input verification and environment, process supervision and recovery, and
+runtime qualification into four `.mjs` modules. Its [implementation-size table][local-example] includes the declaration
+companion; implementation size describes neither runtime cost nor a minimum adapter size. Deployment, remote transport
+and provider-specific dependency qualification are additional implementation responsibilities for providers that need them.
 
 ---
 

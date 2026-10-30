@@ -39,6 +39,12 @@ export async function repairCliFixture(protection: "full" | "partial" = "full") 
   return fixture;
 }
 export type RepairCliFixture = Awaited<ReturnType<typeof repairCliFixture>>;
+/** Exercise a reader against the same operational Store boundary used by CLI dispatch. */
+export async function withRepairStore<T>(store: Store, read: () => Promise<T>): Promise<T> {
+  const previous = binding.store;
+  try { binding.store = store; return await read(); }
+  finally { binding.store = previous; }
+}
 export async function repairCli(f: RepairCliFixture, args: readonly string[], options: { stdin?: string; store?: Store } = {}) {
   const oldCwd = process.cwd(), oldExit = process.exitCode;
   let stdout = "", stderr = "";

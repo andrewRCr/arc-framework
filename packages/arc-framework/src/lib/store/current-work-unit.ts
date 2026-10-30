@@ -4,11 +4,12 @@ import type { Store } from "./contract.js";
 import { recordReferences, OwnerIdentitySchema, type RecordReference } from "./identity.js";
 import { identifyWorkUnitArtifactPath, resolveArcPath } from "../layout/index.js";
 import { parseMetaFile } from "../active/meta-reader.js";
-import { readClaimedCurrentWorkUnit } from "./current-work-unit-marker.js";
+import { readClaimedCurrentWorkUnit, type ClaimedCurrentWorkUnit } from "./current-work-unit-marker.js";
 import { createStore } from "./create.js";
 import { createDefaultStorePorts } from "./default-ports.js";
 import type { StoreRecord } from "./read.js";
 import type { ListingDiagnostic } from "./read.js";
+import type { UnboundMarkerClassification } from "../locus/unbound-marker.js";
 
 /** One readable current candidate, retaining its identity when semantic parsing fails. */
 export interface CurrentWorkUnitCandidate {
@@ -18,18 +19,20 @@ export interface CurrentWorkUnitCandidate {
 }
 /** Distinct checkout occupancy outcomes with actionable read warnings. */
 export type CurrentWorkUnitResolution =
+  | { status: "unbound"; candidates: []; warnings: string[]; unbound: UnboundMarkerClassification }
   | { status: "none"; candidates: []; warnings: string[] }
   | { status: "resolved"; candidate: CurrentWorkUnitCandidate; candidates: [CurrentWorkUnitCandidate]; warnings: string[] }
   | { status: "ambiguous"; candidates: CurrentWorkUnitCandidate[]; warnings: string[] };
 /** Resolve this checkout's current work-unit identity without reading other branches.
  * @param input - Checkout root and an optional already-bound operational store.
- * @returns Resolved, absent, or ambiguous candidates with their read diagnostics.
+ * @returns Resolved, unbound, absent, or ambiguous candidates with their read diagnostics.
  */
 export async function resolveCurrentWorkUnit(input: { cwd: string; store?: Store }): Promise<CurrentWorkUnitResolution> {
   const store = input.store ?? createStore(createDefaultStorePorts({ checkoutRoot: input.cwd }));
   const listing = await store.list({ family: "work-item", kind: "work-item/meta", filter: { locations: ["active"], heldHere: true } });
   const warnings: string[] = [];
   const candidates: CurrentWorkUnitCandidate[] = [];
+  let marker: ClaimedCurrentWorkUnit | undefined;
   if (listing.status === "ok" && listing.result.status === "complete") {
     for (const value of listing.result.records) {
       const candidate = readableCandidate(value, warnings);
@@ -41,14 +44,14 @@ export async function resolveCurrentWorkUnit(input: { cwd: string; store?: Store
     }
   } else if (listing.status === "refused") {
     if (listing.refusal.code === "unsupported" && listing.refusal.class === "recoverable" && listing.refusal.case === "held-here") {
-      const value = await readClaimedCurrentWorkUnit({ cwd: input.cwd, store }, warnings);
-      const candidate = value === undefined ? undefined : readableCandidate(value, warnings);
+      marker = await readClaimedCurrentWorkUnit({ cwd: input.cwd, store }, warnings);
+      const candidate = marker.kind === "present" ? readableCandidate(marker.record, warnings) : undefined;
       if (candidate !== undefined) candidates.push(candidate);
     } else warnings.push(listing.refusal.condition);
   }
   else if (listing.result.status === "unreadable") warnings.push(listing.result.condition);
   candidates.sort((left, right) => left.reference.owner.name < right.reference.owner.name ? -1 : left.reference.owner.name > right.reference.owner.name ? 1 : 0);
-  return resolution(candidates, warnings);
+  return resolution(candidates, warnings, marker);
 }
 
 function readableCandidate(value: StoreRecord, warnings: string[], diagnostic?: ListingDiagnostic): CurrentWorkUnitCandidate | undefined {
@@ -57,7 +60,8 @@ function readableCandidate(value: StoreRecord, warnings: string[], diagnostic?: 
   const parsed = ParsedMetaRecordSchema.safeParse(value.fields);
   return { reference: value.reference, ...(parsed.success ? { record: parsed.data } : {}), ...(diagnostic === undefined ? {} : { diagnostic }) };
 }
-function resolution(candidates: CurrentWorkUnitCandidate[], warnings: string[]): CurrentWorkUnitResolution {
+function resolution(candidates: CurrentWorkUnitCandidate[], warnings: string[], marker?: ClaimedCurrentWorkUnit): CurrentWorkUnitResolution {
+  if (marker?.kind === "unbound") return { status: "unbound", candidates: [], warnings, unbound: marker };
   if (candidates.length === 0) return { status: "none", candidates: [], warnings };
   const [candidate] = candidates;
   if (candidates.length === 1 && candidate !== undefined) return { status: "resolved", candidate, candidates: [candidate], warnings };

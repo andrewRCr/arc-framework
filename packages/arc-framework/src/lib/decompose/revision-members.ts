@@ -36,7 +36,7 @@ export async function prepareDecomposeRevisionMembers(ctx: DecomposeContext, inp
     records.push(primary);
     const seed = desired.get(member.slug);
     if (seed === undefined) {
-      const group = await acquireLifecycleRecords(ctx.executor.store, member.slug);
+      const group = await acquireLifecycleRecords(ctx.executor.store, primary.reference);
       if (group.status === "refused") return decomposeStoreRefusal(group.refusal);
       records.push(...group.result);
       writes.push(...decomposeRemovalWrites(group.result));

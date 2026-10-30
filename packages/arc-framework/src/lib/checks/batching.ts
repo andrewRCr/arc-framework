@@ -30,11 +30,12 @@ export function checkArgumentBudget(platform: NodeJS.Platform): number {
  * @param command - Program and fixed arguments
  * @param paths - Received paths relative to the check's working directory
  * @param platform - Operating-system identifier
+ * @param shell - Budget shell text without executable-path normalization
  * @returns Ordered path batches
  * @throws When the fixed command alone, or with any single path, exceeds the platform's argument budget
  */
-export function batchCheckPaths(command: readonly string[], paths: readonly string[], platform: NodeJS.Platform): string[][] {
-  return batchPaths(command, paths, [platform]);
+export function batchCheckPaths(command: readonly string[], paths: readonly string[], platform: NodeJS.Platform, shell = false): string[][] {
+  return batchPaths(command, paths, [platform], shell);
 }
 
 /**

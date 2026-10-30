@@ -1,4 +1,5 @@
 /** Subject-keyed lifecycle queries and their operational boundary rendering. */
+import { ownerHolderRequest } from "../../lib/work-unit/locus-ports.js";
 
 import { pullStoreStatus, readStoreStatusLocus, type StoreLifecycleStatusPorts } from "./store-locus.js";
 import * as p from "../../lib/terminal.js";
@@ -11,8 +12,8 @@ import type { StoreRefusal } from "../../lib/store/refusal.js";
 import type { LifecycleIndexOutcome } from "../../lib/store/lifecycle-index.js";
 import type { Store } from "../../lib/store/contract.js";
 import type { StoreSyncPort } from "../../lib/store/operational-sync.js";
-import { readLifecycleView, buildLifecycleViewIndex } from "../../lib/store/lifecycle-view.js";
-import { selectStandingLifecycleEntries } from "../../lib/status/store-project-standing.js";
+import { readLifecycleView } from "../../lib/store/lifecycle-view.js";
+import { renderLifecycleClashWarnings } from "../../lib/status/store-project-standing.js";
 import { readLifecycleDesign } from "../../lib/store/lifecycle-design.js";
 import { readWorkUnit, usesOffBranchState } from "../../lib/store/lifecycle-write.js";
 import { MetaPauseSchema, ParsedMetaRecordSchema, type MetaPause, type ParsedMetaRecord } from "../../lib/active/meta-schema.js";
@@ -252,17 +253,17 @@ async function handleStoreLifecycleStatus(store: Store, slug: string, opts: Stat
       remedy: { text: "Resolve the named conflict records, then retry this status query." } }, opts, refreshWarnings);
     return;
   }
-  const standing = selectStandingLifecycleEntries(view.result.entries,
-    view.result.listing.status === "complete" ? view.result.listing.diagnostics : []);
-  const query = resolveSlugQuery(buildLifecycleViewIndex(standing.entries), record.status === "ok" ? record.result.reference.owner.name : slug);
+  const standing = view.result.standing;
+  const query = resolveSlugQuery(view.result.index, record.status === "ok" ? record.result.reference.owner.name : slug);
   const fields = storeQueryMetaFields(record);
   const design = record.status === "ok" ? await readLifecycleDesign(store, record.result) : { record: null, content: null, warnings: [] };
-  const locus = await readStoreStatusLocus({ ...local, store, slug: query.slug }, ports);
-  const derived = await readDerivedSlugPosition({ slug: query.slug, worktreePath: locus.worktreePath, identity: local.identity,
+  const selected = record.status === "ok" ? { record: record.result, uid: ownerHolderRequest(record.result).uid } : undefined;
+  const locus = await readStoreStatusLocus({ ...local, store, slug: query.slug, record: selected?.record }, ports);
+  const derived = await readDerivedSlugPosition({ slug: query.slug, uid: selected?.uid, worktreePath: locus.worktreePath, identity: local.identity,
     readRoster: ports?.readRoster ?? (identity => readStatusCheckoutRoster({ ...local, store }, identity)) });
   const scopeWindow = projectScopeWindow(query.state, derived.position, storeQueryPause(fields));
   const warnings = [...design.warnings, ...lifecycleListingWarnings(view.result.listing),
-    ...standing.warnings.map(warning => warning.rendered), ...locus.warnings, ...derived.warnings, ...refreshWarnings];
+    ...renderLifecycleClashWarnings(standing.clashes, view.result.entries).map(warning => warning.rendered), ...locus.warnings, ...derived.warnings, ...refreshWarnings];
   const designFields = ParsedDesignRecordSchema.safeParse(design.record?.fields);
   const purpose = extractPurposeSentence(designFields.success ? designFields.data.purpose : null);
   const output = { ...query, purpose, owner: fields?.owner ?? null,

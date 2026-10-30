@@ -15,7 +15,6 @@ import {
   createTempRepo,
   cleanupTempDir,
   makeIOContext,
-  loadRecipe,
   DEFAULT_PROMPTS,
   listFiles,
   sha256,
@@ -25,12 +24,11 @@ import {
   rm,
   fileExists,
   execFileAsync,
-  getArcTemplatePath,
-  getInternalTemplatePath,
   readManifestFile,
   readPristineStore,
   manifestPath,
 } from "../helpers/integration.js";
+import { loadRecipe, getArcTemplatePath, getInternalTemplatePath } from "../helpers/init-temp-repo.js";
 import { runInit, buildPostInitMessage } from "../../src/commands/init.js";
 import type { InitResult } from "../../src/commands/init.js";
 import type { Recipe } from "../../src/lib/types.js";

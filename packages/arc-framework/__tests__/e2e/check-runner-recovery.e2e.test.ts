@@ -22,8 +22,9 @@ it("reports pre-context recovery after disconnect and permits an explicit fresh 
   const receipt = join(machine.home, "executed");
   await writeFile(adapter, preparedAdapterScript("disappeared", undefined, machine.home));
   await writeFile(join(machine.home, ".arc/config.yml"), JSON.stringify({ "checks.runner": [process.execPath, adapter] }));
-  const root = await createDeclaredCheckRepository({ example: { runner: true, command: [process.execPath, "-e",
-    `require('node:fs').appendFileSync(${JSON.stringify(receipt)},'run\\n')`] } });
+  const root = await createDeclaredCheckRepository({ example: { runner: true,
+    shards: { count: 3, argument: "--shard={index}/{count}", routed: true }, command: [process.execPath, "-e",
+    `require('node:fs').appendFileSync(${JSON.stringify(receipt)},'run\\n')`, "--"] } });
   directories.push(root);
   const result = await runArc(["check", "run", "example", "--json"], root, { env: machine.environment });
   await registerRunnerFixtureSources(directories, join(machine.home, "source"));
@@ -56,7 +57,8 @@ it("reports pre-context recovery after disconnect and permits an explicit fresh 
   const repaired = await runArc(["check", "run", "example", "--json"], root, { env: machine.environment });
   expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
   expect(JSON.parse(repaired.stdout).result.checks[0]).toMatchObject({ outcome: "passed" });
-  expect(await readFile(receipt, "utf8")).toBe("run\n");
+  expect(JSON.parse(repaired.stdout).result.checks[0].invocations).toHaveLength(3);
+  expect(await readFile(receipt, "utf8")).toBe("run\n".repeat(3));
   const fresh = JSON.parse(await readFile(join(machine.home, "preparing"), "utf8")) as { planId: string; source: { root: string } };
   expect(fresh.planId).not.toBe(preparation.planId);
   expect(fresh.source.root).not.toBe(preparation.source.root);
@@ -109,7 +111,7 @@ it.runIf(process.platform === "linux")("preserves native failure with recovery a
   const child = `const fs=require('node:fs');process.on('SIGTERM',()=>{});
 fs.writeFileSync(${JSON.stringify(childMarker)},String(process.pid));
 setInterval(()=>{if(fs.existsSync(${JSON.stringify(gate)}))process.exit(0);},10);`;
-  const root = await createDeclaredCheckRepository({ example: { runner: true, inputs: ["src/**"], command: [process.execPath, "capture.cjs"] } },
+  const root = await createDeclaredCheckRepository({ example: { runner: true, shards: { count: 3, argument: "--shard={index}/{count}", routed: true }, inputs: ["src/**"], command: [process.execPath, "capture.cjs"] } },
     { global_inputs: ["capture.cjs"] });
   directories.push(root);
   await writeFile(join(root, "capture.cjs"), `const fs=require('node:fs');
@@ -127,6 +129,8 @@ setInterval(()=>{if(fs.existsSync(${JSON.stringify(childMarker)})){process.stdou
     expect(result.exitCode, result.stdout + result.stderr).toBe(1);
     const check = JSON.parse(result.stdout).result.checks[0];
     expect(check).toMatchObject({ outcome: "failed", output: "native failure" });
+    expect(check.invocations).toHaveLength(3);
+    expect(check.invocations.slice(1).map((detail: { outcome: { kind: string } }) => detail.outcome.kind)).toEqual(["unavailable", "unavailable"]);
     expect(check.reason).toMatch(/closed|settle|protocol/iu);
     expect(check.remedy).toContain(attempt.planId);
     expect(check.remedy).toContain(attempt.contextId);
@@ -144,8 +148,8 @@ setInterval(()=>{if(fs.existsSync(${JSON.stringify(childMarker)})){process.stdou
     await writeFile(join(machine.home, ".arc/config.yml"), JSON.stringify({ "checks.runner": [process.execPath, example, "--known-node-runtime", "--state-root", state] }));
     const repaired = await runArc(["check", "run", "example", "--json"], root, { env: machine.environment });
     expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
-    expect(JSON.parse(repaired.stdout).result.checks[0]).toMatchObject({ outcome: "passed", output: "repaired", record: { status: "recorded" } });
-    expect(await readFile(receipt, "utf8")).toBe("run\nrun\n");
+    expect(JSON.parse(repaired.stdout).result.checks[0]).toMatchObject({ outcome: "passed", output: "repaired".repeat(3), record: { status: "recorded" } });
+    expect(await readFile(receipt, "utf8")).toBe("run\n".repeat(4));
   } finally {
     await writeFile(gate, "settle");
     await settle();

@@ -38,14 +38,12 @@ vi.mock("@clack/prompts", () => ({
 }));
 import {
   DEFAULT_PROMPTS,
-  loadRecipe,
   makeIOContext,
   makeUserIO,
   makeGitExec,
   makeGitExecInput,
-  getArcTemplatePath,
-  getInternalTemplatePath,
 } from "../helpers/integration.js";
+import { loadRecipe, getArcTemplatePath, getInternalTemplatePath } from "../helpers/init-temp-repo.js";
 import { runInit } from "../../src/commands/init.js";
 import { handleSync } from "../../src/handlers/sync.js";
 import { runUserPull, runUserSessionInitStatus } from "../../src/commands/user.js";

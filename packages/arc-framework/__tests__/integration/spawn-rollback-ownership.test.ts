@@ -154,7 +154,7 @@ it.each(["created", "existing"] as const)("preserves a %s branch advanced before
   };
   const input = StartCommandInputSchema.parse({ name: "demo" });
   const op = { mutation: "spawn" as const, branch: `feat/${input.name}`, createBranch: branchMode === "created",
-    base: "main", locationTemplate: h.path, repo: "repo", wuName: input.name!, spawningIdentity: "starter" };
+    base: "main", locationTemplate: h.path, repo: "repo", wuName: input.name!, holder: { kind: "creation" as const, slug: input.name! }, spawningIdentity: "starter" };
   const ctx = { exec, store: h.store, fs: nodeReconcileWorkUnitWorktreeFs, chdir: () => undefined };
   await expect(reconcileWorkUnitWorktree(ctx, { ...op, postCreateScript: "exit 7" }))
     .rejects.toBeInstanceOf(IncompleteWorktreePreparationError);
@@ -218,7 +218,7 @@ it.each(["untracked", "commit"] as const)("preserves %s work and its created bra
   };
   const input = StartCommandInputSchema.parse({ name: "demo" });
   const op = { mutation: "spawn" as const, branch: `feat/${input.name}`, base: "main", locationTemplate: h.path,
-    repo: "repo", wuName: input.name!, spawningIdentity: "starter", primaryWorktreePath: h.cwd };
+    repo: "repo", wuName: input.name!, holder: { kind: "creation" as const, slug: input.name! }, spawningIdentity: "starter", primaryWorktreePath: h.cwd };
   const ctx = { exec, store: h.store, fs: nodeReconcileWorkUnitWorktreeFs, chdir: () => undefined };
   await expect(reconcileWorkUnitWorktree(ctx, { ...op, postCreateScript: "exit 7" })).rejects.toBeInstanceOf(IncompleteWorktreePreparationError);
   await h.retained(marker!);
@@ -244,19 +244,19 @@ it("preserves a created branch advanced between checkout cleanup and ref deletio
   const input = StartCommandInputSchema.parse({ name: "demo" });
   const ctx = { exec, store: h.store, fs: nodeReconcileWorkUnitWorktreeFs, chdir: () => undefined };
   await expect(reconcileWorkUnitWorktree(ctx, { mutation: "spawn", branch: `feat/${input.name}`, base: "main",
-    locationTemplate: h.path, repo: "repo", wuName: input.name!, spawningIdentity: "starter", postCreateScript: "exit 7" }))
+    locationTemplate: h.path, repo: "repo", wuName: input.name!, holder: { kind: "creation" as const, slug: input.name! }, spawningIdentity: "starter", postCreateScript: "exit 7" }))
     .rejects.toThrow();
   expect(moved).toBe(true);
   expect((await h.exec("git", ["rev-parse", "refs/heads/feat/demo"])).stdout).toBe(tip);
   await h.exec("git", ["branch", "-D", "feat/demo"]);
   expect(await reconcileWorkUnitWorktree({ ...ctx, exec: h.exec }, { mutation: "spawn", branch: "feat/demo", base: "main",
-    locationTemplate: h.path, repo: "repo", wuName: "demo", spawningIdentity: "starter" })).toMatchObject({ mutation: "spawn" });
+    locationTemplate: h.path, repo: "repo", wuName: "demo", holder: { kind: "creation", slug: "demo" }, spawningIdentity: "starter" })).toMatchObject({ mutation: "spawn" });
 }, TIMEOUT_MS);
 
 it("removes an unchanged failed spawn and its created branch, then provisions on retry", async () => {
   const h = await fixture(), input = StartCommandInputSchema.parse({ name: "demo" });
   const op = { mutation: "spawn" as const, branch: `feat/${input.name}`, base: "main", locationTemplate: h.path,
-    repo: "repo", wuName: input.name!, spawningIdentity: "starter" };
+    repo: "repo", wuName: input.name!, holder: { kind: "creation" as const, slug: input.name! }, spawningIdentity: "starter" };
   const ctx = { exec: h.exec, store: h.store, fs: nodeReconcileWorkUnitWorktreeFs, chdir: () => undefined };
   await expect(reconcileWorkUnitWorktree(ctx, { ...op, postCreateScript: "exit 7" })).rejects.toThrow("post_create failed");
   expect(await stat(h.path).catch(() => null)).toBeNull();
@@ -344,7 +344,7 @@ it.each(["create-new", "materialize"] as const)("reports retained cleanup and re
   else expect(h.store.state.records.size).toBe(0);
   expect(await run("exit 7")).toMatchObject(verb === "create-new"
     ? { reason: expect.stringMatching(/collision|already held/isu) }
-    : { status: "rejected", reason: expect.stringContaining("run arc pause demo --reason <text>, then arc locus release demo") });
+    : { status: "rejected", reason: expect.stringContaining("run arc pause demo --reason <text>, then arc locus release") });
   blocked = false; await h.repair(); await h.configure();
   expect(await run()).toMatchObject(verb === "create-new" ? { ok: true } : { status: "materialized" });
 }, TIMEOUT_MS);

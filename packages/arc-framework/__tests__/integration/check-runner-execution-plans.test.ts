@@ -4,6 +4,7 @@ import { access, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { prepareSelectedCheckExecution } from "../../src/lib/checks/runner/execution.js";
+import type { CheckInvocationCoordinate } from "../../src/lib/checks/shards.js";
 import type { Invocation, Probe } from "../../src/lib/checks/runner/contract.js";
 import { selectedExecutionFixture, preparedAdapterScript } from "../fixtures/checks/prepared-execution.js";
 
@@ -12,7 +13,7 @@ afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 
 it("forms the whole plan from captured selection and bindings, then preserves it against later producer mutation", async () => {
   const fixture = await selectedExecutionFixture(directories, "known");
-  let producerPlan: { invocations: Invocation[]; probes: { global: Probe[]; check: Probe[] } } | undefined;
+  let producerPlan: { coordinates: CheckInvocationCoordinate[]; invocations: Invocation[]; probes: { global: Probe[]; check: Probe[] } } | undefined;
   let displayed = false;
   const result = await prepareSelectedCheckExecution({ ...fixture.input,
     configuration: { ...fixture.input.configuration,
@@ -21,16 +22,25 @@ it("forms the whole plan from captured selection and bindings, then preserves it
       const scalar = context.environment.SCALAR;
       if (scalar?.kind !== "value" || scalar.state !== "set") throw new Error("Expected captured scalar");
       const { tree, base, merged } = context.source.manifest.coordinates;
-      producerPlan = { invocations: [0, 1].map(index => ({ id: `planned:${index}`, cwd: ".", shell: false,
+      producerPlan = { coordinates: [1, 2].map(index => ({ batch: 1, shard: { index, count: 2 } })), invocations: [0, 1].map(index => ({ id: `planned:${index}`, cwd: ".", shell: false,
         argv: [process.execPath, "-e", "process.exit(0)", ...context.paths, scalar.value],
         commandContent: { tree, ...(base === undefined ? {} : { base }), ...(merged.length === 0 ? {} : { merged }) } })),
       probes: { global: [{ id: "provided-probe", argv: [process.execPath, "-e", `process.stdout.write(${JSON.stringify(" \nprovided-probe\r\n")})`], cwd: "." }], check: [] } };
       return producerPlan;
-    }, onDiagnostic: () => { displayed = true; producerPlan?.invocations[0]?.argv.push("later producer mutation"); },
+    }, onDiagnostic: () => {
+      displayed = true;
+      producerPlan?.invocations[0]?.argv.push("later producer mutation");
+      if (producerPlan !== undefined) Object.assign(producerPlan.coordinates[0]!, { batch: 99 });
+    },
   }, fixture.io);
   expect(result.status).toBe("ready");
   if (result.status !== "ready") throw new Error(result.reason);
   try {
+    expect(result.execution.plan.coordinates).toEqual([
+      { batch: 1, shard: { index: 1, count: 2 } }, { batch: 1, shard: { index: 2, count: 2 } },
+    ]);
+    expect(() => Object.assign(result.execution.plan.coordinates![0]!, { batch: 99 })).toThrow();
+    expect(() => Object.assign(result.execution.plan.coordinates![0]!.shard!, { index: 99 })).toThrow();
     expect(result.execution.runtime?.size).toBe(2);
     expect([...result.execution.runtime?.keys() ?? []]).toEqual(["planned:0", "planned:1"]);
     expect(result.execution.runtime?.get("planned:1")?.probes.get("provided-probe")).toBe(" \nprovided-probe\r\n");

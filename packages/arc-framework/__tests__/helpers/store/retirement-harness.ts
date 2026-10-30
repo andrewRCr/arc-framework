@@ -1,4 +1,5 @@
 /** Scripted retirement repository over the checked reference backend. */
+import { boundWorkUnitSubject } from "./bound-checkout.js";
 import { createLifecycleHarness, lifecycleSuccess } from "./lifecycle-harness.js";
 import { makeGitProcessError } from "../git-exec-fake.js";
 import { recordReferences } from "../../../src/lib/store/identity.js";
@@ -47,7 +48,7 @@ export async function createRetirementHarness(options: { harness?: ReturnType<ty
     },
     indexFs: { readdir: async () => { throw Error("no checkout index"); }, readFile: async () => { throw Error("no checkout artifact"); } },
     readBlob: async () => { throw Error("no Git lifecycle proof"); }, chdir: () => { throw Error("primary should not hop"); },
-    readMarker: () => Promise.resolve(options.held ? { kind: "present" as const, marker: { spawnedByArc: options.spawned ?? false, wuName: "demo", createdFor: { kind: "work-unit" as const, name: "demo" }, spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00.000Z" } } : { kind: "absent" as const }),
+    readMarker: () => Promise.resolve(options.held ? { kind: "present" as const, marker: { spawnedByArc: options.spawned ?? false, wuName: "demo", createdFor: boundWorkUnitSubject(meta), spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00.000Z" } } : { kind: "absent" as const }),
     worktreeFs: { ...nodeReconcileWorkUnitWorktreeFs, directoryExists: () => Promise.resolve(true), removeFile: () => Promise.resolve() },
     scanWorktrees: (exec) => scanRegisteredWorktrees(exec, async (path) => {
       if (await ctx.worktreeFs!.directoryExists(path)) return {};

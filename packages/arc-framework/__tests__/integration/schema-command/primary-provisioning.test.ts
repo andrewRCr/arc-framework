@@ -5,9 +5,9 @@ import { runUpdate } from "../../../src/commands/update.js";
 import { runJoin } from "../../../src/commands/join.js";
 import { EditorDocumentsWriteError } from "../../../src/lib/schema-command/editor-documents.js";
 import {
-  createTempRepo, cleanupTempDir, commitAll, makeIOContext, loadRecipe, DEFAULT_PROMPTS,
-  getArcTemplatePath, getInternalTemplatePath,
+  createTempRepo, cleanupTempDir, commitAll, makeIOContext, DEFAULT_PROMPTS,
 } from "../../helpers/integration.js";
+import { loadRecipe, getArcTemplatePath, getInternalTemplatePath } from "../../helpers/init-temp-repo.js";
 
 async function initialize(root: string, io: IOContext) {
   return runInit({ cwd: root, io, templateDir: getArcTemplatePath(), internalTemplateDir: getInternalTemplatePath(),

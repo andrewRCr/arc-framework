@@ -47,7 +47,7 @@ export const COMMAND_SUMMARIES: Readonly<Record<string, string>> = {
   "reopen": "Return an integrating work unit to active",
   "abandon": "Destroy a pre-merge work unit",
   "archive": "Archive a shipped work unit",
-  "teardown": "Clean up a retired work unit",
+  "teardown": "Clean up a retired work unit by slug or UID",
   "set-class": "Set a work unit's Class",
   "set-stage": "Set the current planning stage",
   "finalize": "Record planning ceremony completion facts",

@@ -8,6 +8,7 @@ import { verifyCapturedEnvironment } from "./environment-verify.js";
 import { indexSourcePresentation } from "./source-scope.js";
 import { createExecutionLifetime, disposeSettledExecutionInputs, type ExecutionLifetime } from "./execution-lifetime.js";
 import { runPreparedInvocations } from "./execution-run.js";
+import type { CheckExecutionPlan } from "./planning.js";
 import type { ExecutionAttemptControl } from "./execution-attempt.js";
 import type { CapturedCheckExecutionInputs } from "./execution-inputs.js";
 import type { CheckExecutionIO, CheckExecutionPreparation, PrepareSelectedCheckExecutionInput,
@@ -25,7 +26,8 @@ export async function prepareCapturedCheckExecution(inputs: CapturedCheckExecuti
   const dispose = async () => { await inputs.dispose(); control.releaseCaptured(); };
   try {
     control.signal.throwIfAborted();
-    const params = fixedPreparation(inputs, planId);
+    const fixed = fixedPreparation(inputs, planId);
+    const { params } = fixed;
     await verifySourcePresentation(params.source, io.source);
     await verifyCapturedEnvironment(params.environment, io.source);
     control.signal.throwIfAborted();
@@ -48,7 +50,7 @@ export async function prepareCapturedCheckExecution(inputs: CapturedCheckExecuti
       control.signal.throwIfAborted();
       // A protocol failure during re-verification revokes the granted context before callers can use it.
       if (session.failure !== undefined) throw session.failure;
-      const execution = preparedExecution(inputs, params, result, session, lifetime, manifest, control);
+      const execution = preparedExecution(inputs, fixed, result, session, lifetime, manifest, control);
       return { status: "ready", execution };
     }
     const closure = await lifetime.close();
@@ -80,7 +82,7 @@ async function failedPreparation(failure: { cause: unknown; lifetime: ExecutionL
     ...(cleanupWarning === undefined ? {} : { cleanupWarning }) };
 }
 
-function fixedPreparation(inputs: CapturedCheckExecutionInputs, planId: string): PrepareParams {
+function fixedPreparation(inputs: CapturedCheckExecutionInputs, planId: string): { params: PrepareParams; plan: CheckExecutionPlan } {
   const source = inputs.source;
   const parsed = PrepareParamsSchema.safeParse({ protocolVersion: 1, planId,
     source: { root: source.root, manifest: source.manifestPath, digest: source.digest, coordinates: source.manifest.coordinates },
@@ -102,15 +104,20 @@ function fixedPreparation(inputs: CapturedCheckExecutionInputs, planId: string):
   Object.freeze(params.invocations); Object.freeze(params.probes.global); Object.freeze(params.probes.check); Object.freeze(params.probes);
   Object.freeze(params.source.coordinates.merged); Object.freeze(params.source.coordinates); Object.freeze(params.source);
   Object.values(params.environment).forEach(Object.freeze); Object.freeze(params.environment);
-  return Object.freeze(params);
+  const coordinates = inputs.plan.coordinates?.map(({ batch, shard }) => Object.freeze({ batch,
+    ...(shard === undefined ? {} : { shard: Object.freeze({ ...shard }) }),
+  }));
+  return { params: Object.freeze(params), plan: Object.freeze({ invocations: params.invocations, probes: params.probes,
+    ...(coordinates === undefined ? {} : { coordinates: Object.freeze(coordinates) }) }) };
 }
 
-function preparedExecution(inputs: CapturedCheckExecutionInputs, params: PrepareParams,
+function preparedExecution(inputs: CapturedCheckExecutionInputs, fixed: { params: PrepareParams; plan: CheckExecutionPlan },
   result: Extract<PrepareResult, { status: "ready" }>, session: CheckRunnerSession, lifetime: ExecutionLifetime,
   manifest: Awaited<ReturnType<typeof verifySourcePresentation>>, control: ExecutionAttemptControl): PreparedCheckExecution {
+  const { params, plan } = fixed;
   return Object.freeze({ planId: params.planId, contextId: result.contextId, source: params.source,
     sourceIndex: indexSourcePresentation({ manifest, codePaths: inputs.source.codePaths }),
-    plan: Object.freeze({ invocations: params.invocations, probes: params.probes }),
+    plan,
     environment: params.environment, environmentIdentity: inputs.environment.identity,
     runtime: session.runtime, supportsRunGroup: result.capabilities.runGroup,
     get observedOutcomes() { return session.observedOutcomes; }, close: () => lifetime.close(),
