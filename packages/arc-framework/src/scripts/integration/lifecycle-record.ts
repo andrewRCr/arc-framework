@@ -2,6 +2,7 @@
 import type { StoreRefusal } from "../../lib/store/refusal.js";
 import type { Store } from "../../lib/store/contract.js";
 import type { OwnerIdentity } from "../../lib/store/identity.js";
+import { recordConflictRefusal } from "../../lib/store/conflict-diagnostics.js";
 import { readLifecycleMetaFields, readWorkUnit, workUnitMetaPath } from "../../lib/store/lifecycle-write.js";
 import { WorkUnitReadPlacementSchema } from "../../lib/store/placement.js";
 import { WorkUnitStateSchema } from "../../lib/kernel/index.js";
@@ -16,6 +17,9 @@ export async function readStoredLifecycleSummary(input: {
   const read = await readWorkUnit(input.store, input.workUnit, input.owner);
   if (read.status === "refused") return refusedSummary(input, read.refusal);
   const record = read.result;
+  if (record.conflicts.length > 0) {
+    return refusedSummary(input, recordConflictRefusal(record, `Metadata for \`${input.workUnit}\``, "lifecycle.meta-conflict"));
+  }
   const parsed = readLifecycleMetaFields(record);
   if (parsed.status === "refused") return refusedSummary(input, parsed.refusal);
   const placement = WorkUnitReadPlacementSchema.safeParse(record.placement);

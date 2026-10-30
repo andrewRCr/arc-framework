@@ -2,6 +2,7 @@
 import { z } from "zod";
 import type { Store } from "../../lib/store/contract.js";
 import type { OwnerIdentity } from "../../lib/store/identity.js";
+import { recordConflictRefusal } from "../../lib/store/conflict-diagnostics.js";
 import { mergeLifecycleLinks, readWorkUnit, recordPut } from "../../lib/store/lifecycle-write.js";
 import { SpineRemedySchema, spineRemedy } from "./spine-refusal.js";
 
@@ -19,6 +20,10 @@ export async function writeWorkUnitLandingCommit(input: {
 }): Promise<void> {
   const selected = await readWorkUnit(input.store, input.workUnit, input.owner);
   if (selected.status === "refused") throw new Error(`${selected.refusal.condition} ${selected.refusal.remedy.text}`);
+  if (selected.result.conflicts.length > 0) {
+    const refusal = recordConflictRefusal(selected.result, `Metadata for \`${input.workUnit}\``, "lifecycle.meta-conflict");
+    throw new Error(`${refusal.condition} ${refusal.remedy.text}`);
+  }
   const record = selected.result, repository = await input.projectId();
   const prior = record.links?.landingCommit;
   if (prior?.repository === repository && prior.sha === input.sha && prior.copyKey === undefined) return;

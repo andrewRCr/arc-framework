@@ -8,6 +8,7 @@ import type { Store } from "../store/contract.js";
 import { recordReferences, type OwnerIdentity } from "../store/identity.js";
 import { readWorkUnit, usesOffBranchState, workUnitArtifactName } from "../store/lifecycle-write.js";
 import { StoreRefusalError } from "../store/refusal-error.js";
+import { recordConflictRefusal } from "../store/conflict-diagnostics.js";
 
 /** A review copy written from its stored specification. */
 export interface DesignExportResult { path: string; overwritten: boolean }
@@ -23,17 +24,28 @@ interface DesignExportInput {
   fs?: Pick<typeof filesystem, "readFile" | "mkdir" | "writeFile" | "rm">;
 }
 
+// The stored specification's content, absent when none is stored; a conflicted one exports neither side.
+async function readStoredSpec(store: Store, slug: string, owner?: OwnerIdentity): Promise<string | null> {
+  const offBranch = store.capabilities.stateOffBranch;
+  const meta = await readWorkUnit(store, slug, owner);
+  if (meta.status === "refused") throw new StoreRefusalError(meta.refusal, offBranch);
+  const spec = await store.read({ reference: recordReferences["work-item/spec"](meta.result.reference.owner) });
+  if (spec.status === "refused") {
+    if (spec.refusal.code === "not-found") return null;
+    throw new StoreRefusalError(spec.refusal, offBranch);
+  }
+  if (spec.result.conflicts.length > 0) {
+    throw new StoreRefusalError(recordConflictRefusal(spec.result, `The stored specification for \`${slug}\``, "design-export.spec-conflict"), offBranch);
+  }
+  return spec.result.content;
+}
+
 /** Write and stage the stored specification, skipping matching response replays. */
 export async function exportWorkUnitSpec(input: DesignExportInput): Promise<DesignExportResult | null> {
   if (!usesOffBranchState(input.store) || input.store === undefined || input.trackDesignDocs !== "specs") return null;
   const slug = SlugSchema.parse(input.workUnit);
-  const meta = await readWorkUnit(input.store, slug, input.owner);
-  if (meta.status === "refused") throw new StoreRefusalError(meta.refusal, input.store.capabilities.stateOffBranch);
-  const spec = await input.store.read({ reference: recordReferences["work-item/spec"](meta.result.reference.owner) });
-  if (spec.status === "refused") {
-    if (spec.refusal.code === "not-found") return null;
-    throw new StoreRefusalError(spec.refusal, input.store.capabilities.stateOffBranch);
-  }
+  const content = await readStoredSpec(input.store, slug, input.owner);
+  if (content === null) return null;
   const path = posix.join(resolveArcPath({ kind: "work-unit-export", slug }), workUnitArtifactName(slug, "spec"));
   const fs = input.fs ?? filesystem;
   let prior: string | null;
@@ -42,12 +54,12 @@ export async function exportWorkUnitSpec(input: DesignExportInput): Promise<Desi
     if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
     prior = null;
   }
-  if (prior === spec.result.content) {
+  if (prior === content) {
     if (input.stageMatching === true) await input.exec("git", ["add", "--", path], { cwd: input.cwd });
     return null;
   }
   await fs.mkdir(join(input.cwd, posix.dirname(path)), { recursive: true });
-  await fs.writeFile(join(input.cwd, path), spec.result.content, "utf8");
+  await fs.writeFile(join(input.cwd, path), content, "utf8");
   try { await input.exec("git", ["add", "--", path], { cwd: input.cwd }); }
   catch (error) {
     if (prior === null) await fs.rm(join(input.cwd, path));

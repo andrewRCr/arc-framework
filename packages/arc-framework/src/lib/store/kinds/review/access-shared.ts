@@ -7,7 +7,7 @@ import { retryEndedItemHistory } from "../../history-retry.js";
 import { OwnerIdentitySchema, type RecordReference, type OwnerIdentity } from "../../identity.js";
 import type { StoreRecord } from "../../read.js";
 import type { StoreResult } from "../../refusal.js";
-import { listRecordConflicts, RESOLVE_RECORD_CONFLICTS } from "../../conflict-diagnostics.js";
+import { recordConflictRefusal } from "../../conflict-diagnostics.js";
 import { StoreRefusalError } from "../../refusal-error.js";
 
 /** An explicit filesystem port retains direct adapter semantics. */
@@ -57,9 +57,8 @@ export async function readReviewRecord(store: Store, reference: RecordReference)
   const result = await store.read({ reference });
   if (result.status === "refused" && result.refusal.code === "not-found") return null;
   const record = unwrapReviewRecordResult(store, result);
-  if (record.conflicts.length > 0) throw new StoreRefusalError({ code: "record-malformed", class: "recoverable",
-    reference: record.reference, rule: "review.record-conflict",
-    condition: `Review record has unresolved conflicts. ${listRecordConflicts(record.conflicts)}`, remedy: { text: RESOLVE_RECORD_CONFLICTS } },
-  store.capabilities.stateOffBranch);
+  if (record.conflicts.length > 0) {
+    throw new StoreRefusalError(recordConflictRefusal(record, "Review record", "review.record-conflict"), store.capabilities.stateOffBranch);
+  }
   return record;
 }
