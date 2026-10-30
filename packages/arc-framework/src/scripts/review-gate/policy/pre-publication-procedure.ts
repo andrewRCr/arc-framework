@@ -425,7 +425,7 @@ function envelope(
     ...projection,
     ...(nativeBoundary === undefined ? {} : { terminus: nativeBoundary.terminus,
       ...(projection.locus === "candidate-publish-ready"
-        ? { readinessBinding: CanonicalDigestSchema.parse(nativeBoundary.readinessBinding) } : {}) }),
+        ? { readinessBinding: nativeBoundary.readinessBinding } : {}) }),
   });
 }
 

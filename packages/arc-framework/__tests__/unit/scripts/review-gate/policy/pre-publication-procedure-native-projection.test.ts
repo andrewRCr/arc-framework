@@ -46,8 +46,9 @@ it("projects native readiness with the supplied binding", () => {
   expect(prePublicationBoundary(envelope)).toHaveProperty("readinessBinding", authority.readinessBinding);
 });
 
-it("refuses to project native readiness without a binding", () => {
-  expect(() => projectPrePublicationReview(request, boundaryContinuation, { ...authority, readinessBinding: null })).toThrow();
+it("projects native readiness with no binding, leaving the caller to refuse it", () => {
+  const envelope = projectPrePublicationReview(request, boundaryContinuation, { ...authority, readinessBinding: null });
+  expect(envelope).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", readinessBinding: null });
 });
 
 it.each(["focused", "full"] as const)("projects native %s convergence without projection bookkeeping", (convergenceScope) => {

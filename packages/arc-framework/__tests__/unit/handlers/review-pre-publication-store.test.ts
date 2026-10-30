@@ -82,16 +82,18 @@ async function fixture(project = true) {
       nextAction: { kind: "run-self-review", command: "self-review", interactionText: "Review the Candidate." } }));
     return primary.reference.owner;
   };
-  const invoke = async (options: Parameters<typeof handleReviewPrePublication>[1], lanes: unknown) => {
+  const invoke = async (options: Parameters<typeof handleReviewPrePublication>[1], lanes: unknown,
+    overrides: Parameters<typeof handleReviewPrePublication>[2] = {}) => {
     let output = "";
     await handleReviewPrePublication("example", options, { resolveRoot: () => checkout.cwd,
-      readText: async () => JSON.stringify(lanes), write: text => { output += text; }, setExitCode: () => {} }, undefined,
+      readText: async () => JSON.stringify(lanes), write: text => { output += text; }, setExitCode: () => {}, ...overrides }, undefined,
     { ...checkout, projectId: createProjectIdentityReader(checkout.store) });
     return JSON.parse(output) as unknown;
   };
   return { ...checkout, seedCandidate,
-    run: (settled = false, lanes: unknown = { frontline: { invocation: { mode: "skip" } } }, resume?: string) => invoke(
-      resume === undefined ? settled ? { selfReview: "settled", lanes: "lanes.json" } : {} : { resume }, lanes),
+    run: (settled = false, lanes: unknown = { frontline: { invocation: { mode: "skip" } } }, resume?: string,
+      overrides?: Parameters<typeof handleReviewPrePublication>[2]) => invoke(
+      resume === undefined ? settled ? { selfReview: "settled", lanes: "lanes.json" } : {} : { resume }, lanes, overrides),
     runPendingJudgment: (lanes: unknown) => invoke({ lanes: "lanes.json" }, lanes),
   };
 }
@@ -235,6 +237,18 @@ it.each(["candidate-publish-ready", "publication-pending"] as const)("re-enters 
   const before = await h.store.version();
   expect(await h.run()).toMatchObject({ ...expected });
   expect(await h.store.version()).toEqual(before);
+});
+
+it("refuses native readiness when the Candidate became current during composition, then records it on retry", async () => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const lanes = { frontline: { invocation: { mode: "skip" } }, standard: { terminus: { mode: "owner-accepted" } } };
+  const before = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  expect(await h.run(true, lanes, undefined, { readCandidate: async () => ({ status: "missing" }) })).toMatchObject({
+    error: { code: "invalid-input", message: "Standard review progress changed while publication readiness was being composed." } });
+  expect(await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).toEqual(before);
+  expect(await h.run(true, lanes)).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready" });
+  expect((await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).boundary)
+    .toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", readinessBinding: expect.stringMatching(/^sha256:/u) });
 });
 
 it("retains native advanced authority by Candidate and subject without a checkout-head binding", async () => {
