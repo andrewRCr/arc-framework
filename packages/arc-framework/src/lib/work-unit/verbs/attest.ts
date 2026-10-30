@@ -182,7 +182,7 @@ export const AttestResultSchema = z.union([
   z.strictObject({
     status: z.literal("attested"),
     operation: z.enum(["root", "re-root"]),
-    recordPath: z.string().trim().min(1),
+    recordPath: z.string().trim().min(1).optional(),
     metaPath: z.string().trim().min(1),
     locus: PublishedIntegrationBoundaryLocusSchema,
   }),
@@ -191,7 +191,7 @@ export const AttestResultSchema = z.union([
     operation: z.literal("convergence"),
     scope: AttestScopeSchema,
     verificationEvidenceRef: z.string().trim().min(1),
-    recordPath: z.string().trim().min(1),
+    recordPath: z.string().trim().min(1).optional(),
     metaPath: z.string().trim().min(1),
     locus: PublishedIntegrationBoundaryLocusSchema,
   }),
@@ -272,7 +272,7 @@ export interface AttestContext {
     nextAction: string;
     expectedRecordVersion: string | null;
     repairCurrent: boolean;
-  }): Promise<{ recordPath: string; metaPath: string; locus: PublishedIntegrationBoundaryLocus }>;
+  }): Promise<{ recordPath?: string; metaPath: string; locus: PublishedIntegrationBoundaryLocus }>;
 }
 
 /**

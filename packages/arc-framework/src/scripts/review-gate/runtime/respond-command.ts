@@ -288,6 +288,11 @@ export interface CandidateLineageBinding {
   unstagedReviewablePaths: readonly string[];
 }
 
+/** The tracked file holding a written Candidate record, absent where the record is stored off the branch. */
+interface CandidateResponseRecordPath {
+  recordPath?: string;
+}
+
 interface HostedDispositionFindingBinding {
   readonly findingId: string;
   readonly disposition: "fix" | "defer" | "reject";
@@ -338,8 +343,8 @@ export interface RespondCommandDependencies {
     workUnit: string;
     record: CandidateManagedRecordV1;
     expectedRecordVersion: string;
-  }): Promise<{ recordPath: string }>;
-  stageCandidateResponse(workUnit: string): Promise<{ recordPath: string }>;
+  }): Promise<CandidateResponseRecordPath>;
+  stageCandidateResponse(workUnit: string): Promise<CandidateResponseRecordPath>;
   /** Re-export a Candidate's changed stored specification after its performed response. */
   exportCandidateDesign?(workUnit: string): Promise<DesignExportResult | null>;
   rebindSingletonPublicationResponse(input: {
@@ -995,7 +1000,7 @@ async function replayCandidateResponse(
       payload: {
         operationId: source.operationId,
         candidateId: currentness.candidateId,
-        recordPath,
+        ...(recordPath === undefined ? {} : { recordPath }),
         implementationChanged: currentness.implementationChanged,
         dispositionReportText,
         ...continuation,
@@ -1160,7 +1165,7 @@ async function persistCandidateResponse(
       operationId: source.operationId,
       candidateId: response.candidateId,
       responseId: response.responseId,
-      recordPath,
+      ...(recordPath === undefined ? {} : { recordPath }),
       implementationChanged: response.implementationChanged,
       dispositionReportText,
       ...continuation,

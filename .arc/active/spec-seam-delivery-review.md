@@ -150,6 +150,10 @@ remain unchanged.
 Amended 2026-10-30 — A23 admits the review error code `store-refused` in § 3.5 before the flip, extending Goal 8's
 schema exceptions and Criterion 2's pinned-schema test exceptions; in-repo refusals and emissions remain unchanged.
 
+Amended 2026-10-30 — A24 lets native attest and respond results omit the Candidate record's path in § 3.5 before the
+flip, extending Goal 8's schema exceptions and Criterion 2's pinned-schema test exceptions; in-repo emissions remain
+unchanged.
+
 ## Proposed Design
 
 § 1 sets the rule every field answers to and § 2 the family it produces. § 3 is everything that changes before the flip.
@@ -503,6 +507,11 @@ both, and nothing it emits changes until the flip (A2, A4):
   and delivery's acknowledged verification result (`ResultSchema`'s `acknowledged` and `already-acknowledged` arm,
   `handlers/delivery-execution.ts`) admits no `candidate.recordPath`, `boundaryCarry.path`, or `recordEffects`, which
   name files and their bytes that no commit carries from the flip (§ 14.3).
+- **Native results naming no Candidate record file (A24).** Attest's attested results (`AttestResultSchema`,
+  `lib/work-unit/verbs/attest.ts`) and respond's `candidate-advanced` and `candidate-current` payloads
+  (`rg/core/review-command-envelope.ts`) admit no `recordPath`, as delivery's acknowledged result admits no
+  `candidate.recordPath`: a store keeping state off the branch holds the Candidate record in no file a commit carries
+  (§ 14.3). The in-repo arm still names the tracked record's path in each. No clone omits it before the flip.
 
 Two additions besides a schema's widening are observable before the flip too, with nothing they do changing until it:
 
@@ -2678,5 +2687,8 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
 
 - **A23** — 2026-10-30 — design: report a native store refusal through review commands with its code and remedy.
   _Supersedes:_ § 3.5, Goal 8, Criterion 2. _Trigger:_ F5 review. _Work:_ review-fix. _Revalidated:_ pending → 8.1.
+
+- **A24** — 2026-10-30 — design: omit the Candidate record's path from native attest and respond results.
+  _Supersedes:_ § 3.5, Goal 8, Criterion 2. _Trigger:_ F25 review. _Work:_ review-fix. _Revalidated:_ pending → 8.1.
 
 ---

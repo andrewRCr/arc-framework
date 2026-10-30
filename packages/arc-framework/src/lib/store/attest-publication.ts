@@ -8,7 +8,6 @@ import { readLifecycleMetaFields, recordPut, workUnitMetaPath, batchLifecycleWri
 import { writeMetaCurrentWorkflow, writeMetaNextAction } from "./kinds/meta/writers.js";
 import { prepareCandidateRecordPut } from "./kinds/review/candidate/access.js";
 import { prepareSubmissionBoundaryPut } from "./kinds/review/integration-boundary/access.js";
-import { resolveCandidateRecordRelativePath } from "./kinds/review/paths.js";
 
 type Publication = Parameters<AttestContext["publish"]>[0];
 type PublishedAttestation = Awaited<ReturnType<AttestContext["publish"]>>;
@@ -38,6 +37,5 @@ export async function writeStoredAttestation(input: StoredAttestationInput): Pro
     prepareSubmissionBoundaryPut(boundary, input.expectedBoundaryVersion, primary.reference.owner), recordPut(primary, { content })];
   const written = await batchLifecycleWrites(store, writes, { verb: "attest", lifecycleAction: "attest" });
   if (written.status === "refused") return written;
-  return { status: "ok", result: { recordPath: resolveCandidateRecordRelativePath(publication.name),
-    metaPath: workUnitMetaPath(primary), locus: boundary } };
+  return { status: "ok", result: { metaPath: workUnitMetaPath(primary), locus: boundary } };
 }

@@ -730,7 +730,7 @@ export const RespondEnvelopeSchema = z.union([
       operationId: IdentifierSchema,
       candidateId: CanonicalDigestSchema,
       responseId: CanonicalDigestSchema,
-      recordPath: DurableReferenceSchema,
+      recordPath: DurableReferenceSchema.optional(),
       implementationChanged: z.boolean(),
       dispositionReportText: z.string().trim().min(1),
       policyRequest: ReviewPolicyCommandRequestSchema,
@@ -744,7 +744,7 @@ export const RespondEnvelopeSchema = z.union([
     z.strictObject({
       operationId: IdentifierSchema,
       candidateId: CanonicalDigestSchema,
-      recordPath: DurableReferenceSchema,
+      recordPath: DurableReferenceSchema.optional(),
       implementationChanged: z.boolean(),
       dispositionReportText: z.string().trim().min(1),
       policyRequest: ReviewPolicyCommandRequestSchema,

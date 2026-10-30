@@ -37,7 +37,7 @@ it("withdraws conditional authority against the supplied Store's current approve
     authorizationId: captured.authorizationId, withdrawnBy: source.authorizedBy })).toMatchObject({ state: "withdrawn" });
 });
 
-it.each(["append", "replay"] as const)("persists a native Candidate response on %s without staging a record", async mode => {
+it.each(["append", "replay"] as const)("persists a native Candidate response on %s without staging or naming a record path", async mode => {
   const h = createReviewHarness(), { record } = candidateRecordFixture();
   const projectId = "123e4567-e89b-42d3-a456-426614174099";
   await h.seedProject(projectId);
@@ -51,7 +51,9 @@ it.each(["append", "replay"] as const)("persists a native Candidate response on 
   await checkout.occupy("feat/example", { kind: "work-unit", name: "example" });
   const dependencies = createRespondDependencies({ cwd: checkout.cwd, exec: checkout.exec,
     store: h.store, workItem: primary.reference.owner, projectId: h.projectId });
-  if (mode === "append") await dependencies.appendCandidateResponse({ workUnit: "example", record, expectedRecordVersion: saved.version });
-  else await dependencies.stageCandidateResponse("example");
+  const result = mode === "append"
+    ? await dependencies.appendCandidateResponse({ workUnit: "example", record, expectedRecordVersion: saved.version })
+    : await dependencies.stageCandidateResponse("example");
+  expect(result).toEqual({});
   expect(await readCandidateRecord(checkout.cwd, "example", { store: h.store, owner: primary.reference.owner })).toEqual(record);
 });

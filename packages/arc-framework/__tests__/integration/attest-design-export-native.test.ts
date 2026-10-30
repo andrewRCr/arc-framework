@@ -55,7 +55,8 @@ it("stages the stored spec before the Candidate write and preserves its subject 
     return batch(input);
   };
   const result = AttestResultSchema.parse(await h.attest());
-  expect(result.status).toBe("attested");
+  expect(result).toMatchObject({ status: "attested", metaPath: ".arc/active/meta-example.md" });
+  expect(result).not.toHaveProperty("recordPath");
   expect(atWrite).toBe("# Stored specification");
   expect(await readFile(join(h.cwd, path), "utf8")).toBe("# Stored specification\n");
   expect((await collectCandidateSubjectTarget({ cwd: h.cwd, name: "example", baseBranch: "main", exec: h.exec }))

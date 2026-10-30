@@ -97,6 +97,7 @@ it("writes the native Candidate and boundary while preserving retired metadata f
   const result = await h.attest();
   expect(result).toMatchObject({ status: "attested", locus: { schemaVersion: 2, locus: "candidate-review-pending" } });
   if (result.status !== "attested") throw new Error("Expected root attestation");
+  expect(result).not.toHaveProperty("recordPath");
   const meta = lifecycleSuccess(await h.store.read({ reference: h.primary.reference }));
   expect(ParsedMetaRecordSchema.parse(meta.fields)).toMatchObject({ currentWorkflow: "prepare-work-unit",
     nextAction: result.locus.nextAction.interactionText, lastCompleted: "Legacy completed pointer",
