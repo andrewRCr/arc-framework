@@ -39,6 +39,14 @@ export async function composePrePublicationLaneJudgment(input: {
     extraPassAuthority: dependencies.resolveExtraPassJudgment === undefined ? {} : bindLaneExtraPassJudgment(judgment, policyTarget, lane) };
 }
 
+/** Keep a judgment's routing choices without the extra-pass grants the Owner bound to one subject. */
+export function withoutExtraPassGrants(judgment: ReviewLaneJudgment | undefined): ReviewLaneJudgment | undefined {
+  if (judgment === undefined) return undefined;
+  const { ceilingOverride, additionalPassAuthorization, ...routing } = judgment;
+  void ceilingOverride; void additionalPassAuthorization;
+  return routing;
+}
+
 /** Preserve in-repository token-carried grants while native composition uses its resolved decisions. */
 export function applyPrePublicationExtraPassJudgment<Request extends ReviewPolicyBoundRequest>(request: Request, input: {
   native: boolean; lane: ReviewLane; policyTarget: ReviewPolicyTarget; judgment?: ReviewLaneJudgment; frontlineCeilingHeadSha?: string;

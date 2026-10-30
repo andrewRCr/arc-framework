@@ -1,7 +1,7 @@
 /** Lane policy-request composition for the typed pre-publication review procedure. */
 import type { PreparedNativeReviewTerminus } from "../runtime/native-terminus-write.js";
 import { projectPrePublicationTerminus, preparePrePublicationTerminusDecision } from "./pre-publication-owner-judgments.js";
-import { composePrePublicationLaneJudgment, applyPrePublicationExtraPassJudgment } from "./pre-publication-lane-judgments.js";
+import { composePrePublicationLaneJudgment, withoutExtraPassGrants, applyPrePublicationExtraPassJudgment } from "./pre-publication-lane-judgments.js";
 import { deriveReviewNextPassContextFromAttempts, latestCompletedLaneAttempt } from "./review-next-pass.js";
 import type { PerformedResponseProofInput } from "./performed-response-proof.js";
 
@@ -771,6 +771,7 @@ export async function composePrePublicationReviewRequest(
     exactTarget: ReviewTarget | null,
     lineageHeadShas: readonly string[],
     lineage?: LaneSubjectLineage,
+    callerJudgment = lanes.data[lane],
   ) => {
     const [policy, rawProgress] = [
       lane === "frontline" ? frontlinePolicy : standardPolicy,
@@ -786,7 +787,7 @@ export async function composePrePublicationReviewRequest(
     if (progress.status === "unrecorded") advisories.push(unrecordedLaneAdvisory(lane));
     const { completedPasses, currentLineage, judgment, invocation, frontlinePhaseClosed, extraPassAuthority, terminus } =
       await composePrePublicationLaneJudgment({ candidate, lane, lineage, policyTarget, exactTarget, progress,
-        judgment: lanes.data[lane], dependencies });
+        judgment: callerJudgment, dependencies });
     const historicalAttempt = await applicableHistoricalAttempt({
       lane, progress, sameHeadCandidate, exactTarget, lineage,
       workUnit: input.workUnit, policyTarget, dependencies,
@@ -879,6 +880,9 @@ export async function composePrePublicationReviewRequest(
       frontline: Awaited<ReturnType<typeof composeLane>>;
       vehicle: PreBindingDeliveryReviewTarget["vehicle"];
     } | null = null;
+    // Natively, members select on their stored decisions; the caller's grants then bind to the selected member alone.
+    const native = dependencies.resolveExtraPassJudgment !== undefined;
+    const selectionJudgment = native ? withoutExtraPassGrants(lanes.data.frontline) : lanes.data.frontline;
     for (const member of deliveryTargets.targets) {
       const memberPolicyTarget = {
         repository: target.repository,
@@ -898,6 +902,7 @@ export async function composePrePublicationReviewRequest(
             deliverableId: member.vehicle.deliverableId,
             workUnitId: member.vehicle.workUnitId,
           },
+          selectionJudgment,
         );
       } catch (error) {
         return evidenceCompositionRefusal(error);
@@ -923,6 +928,16 @@ export async function composePrePublicationReviewRequest(
         status: "refused",
         reason: "The canonical delivery plan produced no private review members.",
       };
+    }
+    if (native) {
+      const recorded = advisories.length;
+      try {
+        selected.frontline = await composeLane("frontline", selected.policyTarget, selected.exactTarget,
+          [selected.exactTarget.headSha], selected.lineage);
+      } catch (error) {
+        return evidenceCompositionRefusal(error);
+      }
+      advisories.length = recorded;
     }
     exactTarget = selected.exactTarget;
     policyTarget = selected.policyTarget;
