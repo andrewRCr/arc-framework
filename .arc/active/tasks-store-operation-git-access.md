@@ -90,57 +90,16 @@ answers in every scoped call with all the refresh rules that keep them current.
 _Purpose:_ Give the migrate and remote commands a scope and one identity resolution, with the refresh their nested
 public calls and store-directory moves need.
 
-### `[ ]` **3.1 The migrate and remote commands hold one scope that nested calls and moves refresh — D1, D2, D3**
+### `[x]` **3.1 The migrate and remote commands hold one scope that nested calls and moves refresh — D1, D2, D3**
 
 - _Goal:_ `runRefBackendMigrate` and `runRefBackendRemote` each run in one scope whose identity resolves once, whose
   nested public calls on the second backend instance are operations of their own, and whose store-directory renames
   and removals close its readers and drop its answers first.
 
-- _Note:_ The scope and its refreshes land as one task. A command holding a scope without them would keep the build's
-  reader open past its rename and serve the role a nested push replaced, since the nested backend instance runs on the
-  unwrapped ports. Open the scope first, behind the identity and one-reader cases and the nested-call case's
-  repeated-lookup assertion, which fail today. Until the scope opens, the commands hold no reader and remember nothing,
-  so the nested-call case's role and reader-order assertions hold and the directory case finds no reader open at the
-  rename: add those once the scope is open, where each fails until its refresh lands.
-
-    - `runRefBackendMigrate` and `runRefBackendRemote` (`backend.ts`) apply `withOperationIdentity` to the context
-      `createRefBackendContext` builds and open a scope around `runRefMigrate` and `runRefRemote`.
-    - The import's source reads go around the wrapped ports. `import/personal-notes.ts`, `import/parked-source.ts`, and
-      `import/code-captures.ts` give `readBatchObjects` the source's `rawExec` on a copy of the command context, so once
-      the scope opens they carry its `batchReader`, whose readers close with the scope.
-    - `runRefBackendConflict` builds no context, so each store call it makes stays its own operation.
-    - The scope wraps the `Store` handed to `runRefMigrate` and `runRefRemote` so that each of its methods closes the
-      command's readers before the call and drops the command's remembered answers after it. The nested call opens its
-      own scope through its own coordinator.
-    - The scope wraps `fs.rename` and `fs.removeDirectory`. Before a rename to or from, or a removal of, `arc/store`,
-      `arc/store-migrate-build`, or `arc/store-migrate-old` under the common Git directory, it closes its readers and
-      drops its remembered answers. The `object-stage-*` directory `flushRefBlobStage` removes and the `store-init-*`
-      temporary `createStoreDirectory` removes refresh nothing; `createStoreDirectory`'s rename into `arc/store`
-      refreshes.
-    - Spread the filesystem port and replace only the wrapped methods. Preserve `lstat` and its complete result,
-      including additional fields such as `mtimeMs`.
-    - `switchLayout` renames through `code.fs`, from `migrationCodeContext` (`migrate-record.ts`), which binds through
-      `bindRefRepository` and keeps the scoped command context as its `source`. `deleteLayoutSource` removes the
-      set-aside and build directories through the move's own `context.fs`. Both reach the wrapped `fs`.
-    - The directory cases go in `store-ref-reader-lifetime.test.ts`. Their outcome checks are guards, since each move
-      completes today: the move the other way completes, and on Windows the move completes in each direction.
-    - Build `test-first` (one behavior at a time):
-        - A migrate command and a remote command each resolve identity through their identity port once.
-        - Each command starts at most one reader per bound repository between refresh events and closes every reader
-          before it returns, through a move whose copy reads once per ref it merges, with at least two records: the
-          migrate command's layout move from the default layout to the separate one, and the remote command's role
-          setting on a code remote that moves the layout (`applyCodeSetting` through `moveDesignatedLayout`). Today each
-          of those reads starts its own `cat-file`.
-        - A migration whose nested push makes the clone's first automatic role assignment: a repeated command lookup
-          before the nested call starts no process, which fails today; then, failing until the `Store` wrapper lands, a
-          lookup the command makes afterwards sees the new role, and the command's reader `exit` precedes the nested
-          call's first Git process.
-        - The command's layout move from the default layout to the separate one, failing until the `fs` wrapper lands:
-          `prepareRefCopy`'s reader on the build is still open when `switchLayout` renames the build into `arc/store`,
-          and its `exit` precedes the `rename` in the `fs` port the case supplies.
-
-    - After 3.1, dispatch CI at the pushed head with `run_portability_pair` set for Windows feedback. The run that
-      attests belongs to verification.
+- _Outcome:_ Both commands share scoped identity, parsed lookups, and readers. Every method on their second backend
+  yields command readers before calling and drops command answers on settlement. The filesystem wrapper preserves
+  the complete port and refreshes before store-directory renames and removals. Public cases cover command reuse,
+  nested push designation and remote cleanup, and reader release through layout moves in both directions.
 
 ## **Phase 4:** The measured cost
 

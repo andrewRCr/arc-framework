@@ -1,5 +1,8 @@
 /** Own native object readers for one public ref-store operation. */
 import { GitBatchReadScope } from "../../git/batch-reader.js";
+import { basename, dirname, join, resolve } from "node:path";
+import { readGitDirectories } from "../../git/directories.js";
+import type { Store } from "../contract.js";
 import type { RefBackendContext } from "./context.js";
 
 interface RememberedAnswer { began: number; result: Promise<unknown> }
@@ -33,6 +36,10 @@ export class RefOperationScope {
       execInput: (...args) => this.invoke(args[0], () => context.execInput(...args)),
       rawExec: (...args) => this.invoke(args[0], () => context.rawExec(...args)),
       lock: (...args) => this.acquire(context, args),
+      fs: { ...context.fs,
+        rename: (...args) => this.directoryEvent(context, args, () => context.fs.rename(...args)),
+        removeDirectory: (...args) => this.directoryEvent(context, args, () => context.fs.removeDirectory(...args)),
+      },
     };
   }
 
@@ -51,8 +58,47 @@ export class RefOperationScope {
 
   private forget(): void { this.generation++; this.answers.clear(); }
 
+  private async directoryEvent<T>(context: RefBackendContext, paths: readonly string[], operation: () => Promise<T>): Promise<T> {
+    const candidates = paths.map((path) => resolve(path)).filter((path) => basename(dirname(path)) === "arc"
+      && ["store", "store-migrate-build", "store-migrate-old"].includes(basename(path)));
+    if (candidates.length) {
+      const { commonDir } = await readGitDirectories(context.checkoutRoot, context.fs);
+      if (candidates.some((path) => dirname(path) === join(commonDir, "arc"))) await this.refresh();
+    }
+    return operation();
+  }
+
+  /** Let a second backend own its call while the command yields readers and then refreshes evidence. */
+  wrapStore(store: Store): Store {
+    return {
+      capabilities: store.capabilities,
+      read: (...args) => this.nested(() => store.read(...args)),
+      list: (...args) => this.nested(() => store.list(...args)),
+      write: (...args) => this.nested(() => store.write(...args)),
+      batch: (...args) => this.nested(() => store.batch(...args)),
+      version: (...args) => this.nested(() => store.version(...args)),
+      history: (...args) => this.nested(() => store.history(...args)),
+      changes: (...args) => this.nested(() => store.changes(...args)),
+      lookup: (...args) => this.nested(() => store.lookup(...args)),
+      pull: (...args) => this.nested(() => store.pull(...args)),
+      push: (...args) => this.nested(() => store.push(...args)),
+      maintain: (...args) => this.nested(() => store.maintain(...args)),
+    };
+  }
+
+  private async nested<T>(operation: () => Promise<T>): Promise<T> {
+    await this.batchReader.reset();
+    try { return await operation(); }
+    finally { this.forget(); }
+  }
+
   /** Release the abandoned attempt's readers before resolving a new one. */
   async refresh(): Promise<void> { this.forget(); await this.batchReader.reset(); }
+}
+
+/** Give a command's second backend independent operations without retaining command evidence across them. */
+export function wrapRefCommandStore(context: RefBackendContext, store: Store): Store {
+  return context.operationScope?.wrapStore(store) ?? store;
 }
 
 /** Reuse a supplied scope, or close an operation's own readers before returning. */

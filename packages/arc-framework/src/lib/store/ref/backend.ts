@@ -19,7 +19,7 @@ import { pullRefStore } from "./pull.js";
 import { readSourceContext } from "./read-source-namespace.js";
 import { runRefMigrate, runRefRemote } from "./commands.js";
 import { runRefConflict } from "./conflict-command.js";
-import { withRefOperation } from "./operation-scope.js";
+import { withRefOperation, wrapRefCommandStore } from "./operation-scope.js";
 import { createRefReadCoordinator } from "./read-operation.js";
 import { maintainRefStore } from "./maintain.js";
 import { withOperationIdentity as scoped } from "./operation-identity.js";
@@ -73,12 +73,12 @@ function refReadOperations(context: RefBackendContext, operations = createRefRea
 
 /** Enter the ref backend's explicit migration command. */
 export async function runRefBackendMigrate(ports: RefStorePorts, input: StoreMigrateInput): Promise<StoreMigrateResult> {
-  return runRefMigrate(createRefBackendContext(ports), createRefBackend(ports), input);
+  return withRefOperation(scoped(createRefBackendContext(ports)), (context) => runRefMigrate(context, wrapRefCommandStore(context, createRefBackend(ports)), input));
 }
 
 /** Enter the ref backend's explicit designation command. */
 export async function runRefBackendRemote(ports: RefStorePorts, input: StoreRemoteInput): Promise<StoreRemoteResult> {
-  return runRefRemote(createRefBackendContext(ports), createRefBackend(ports), input);
+  return withRefOperation(scoped(createRefBackendContext(ports)), (context) => runRefRemote(context, wrapRefCommandStore(context, createRefBackend(ports)), input));
 }
 
 /** Inspect an exact conflict without changing operational backend selection. */

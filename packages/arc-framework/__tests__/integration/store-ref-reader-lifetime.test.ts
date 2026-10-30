@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { createReadSourceStore, createRefStore } from "../../src/lib/store/create.js";
+import { createReadSourceStore, createRefStore, runStoreMigrate, runStoreRemote } from "../../src/lib/store/create.js";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
@@ -10,9 +10,12 @@ import { createRefReadFixture } from "../helpers/store/ref-read.js";
 import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
-import type { Store, WriteInput } from "../../src/lib/store/index.js";
+import type { Store, WriteInput, RefStorePorts } from "../../src/lib/store/index.js";
 
 interface TraceEvent { event: string; sid: string; argv?: string[] }
+import { importFixture } from "../helpers/store/import-fixture.js";
+import { ordinaryErrand, seedTransients, transientSourceRef, keptPrefix } from "../helpers/store/import-transients.js";
+
 const provenance = { verb: "test-read", lifecycleAction: "update" };
 afterEach(() => vi.unstubAllEnvs());
 
@@ -278,3 +281,142 @@ it("closes the pull reader before a history fetch performs due store maintenance
   expect(success(await h.b.store.read({ reference: made.reference })).placement?.kind).toBe("completed");
   expect(success(await h.b.store.read({ reference: personal })).content).toBe("Retained personal bytes.\n");
 }, 60_000);
+
+function expectCommandReaders(events: TraceEvent[], checkout: string) {
+  const depth = Math.min(...events.filter(({ event }) => event === "start").map(({ sid }) => sid.split("/").length));
+  const started = new Set<string>();
+  let count = 0;
+  for (const event of events) {
+    if (event.event !== "start") continue;
+    if (event.sid.split("/").length === depth && event.argv?.some((arg) => ["fetch", "maintenance", "gc"].includes(arg))) started.clear();
+    if (!event.argv?.includes("cat-file") || !event.argv.includes("--batch")) continue;
+    count++;
+    const repository = event.argv.find((arg) => arg.startsWith("--git-dir=")) ?? checkout;
+    expect.soft(started.has(repository)).toBe(false);
+    started.add(repository);
+    expect.soft(events.some(({ event: kind, sid }) => kind === "exit" && sid === event.sid)).toBe(true);
+  }
+  expect(count).toBeGreaterThan(0);
+}
+
+describe.each(["migrate", "remote"] as const)("command reader (%s)", (command) => {
+  it("resolves identity once while moving distinct work refs to a separate store", async () => {
+    const h = await refSyncFixture("default");
+    const records = [];
+    for (const name of ["alpha", "beta"]) records.push(success(await h.a.store.write({
+      action: "put", expected: null, content: makeMetaFixture(name),
+      reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name } }),
+      placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "seed" },
+    })));
+    if (command === "migrate") await h.a.git(["config", "remote.origin.arc-state", "off"]);
+    let identities = 0;
+    const ports = { ...h.a.ports, identity: async () => { identities++; return h.a.ports.identity(); },
+      migrateStep: async function (this: RefStorePorts, step: string) {
+        if (step !== "layout.build") return;
+        expect(await this.identity()).toBe("andrew");
+        expect(await this.identity()).toBe("andrew");
+      },
+    };
+    const path = join(h.a.root, "command-reader-trace.json");
+    vi.stubEnv("GIT_TRACE2_EVENT", path);
+    try {
+      const result = command === "migrate" ? await runStoreMigrate(ports, {})
+        : await runStoreRemote(ports, { remote: "origin", role: "off" });
+      expect(result).toMatchObject({ status: "ok" });
+      expect.soft(identities).toBe(1);
+      expectCommandReaders(await trace(path), h.a.root);
+    } finally { vi.unstubAllEnvs(); }
+    for (const record of records) expect(success(await h.a.store.read({ reference: record.reference })).content)
+      .toBe(makeMetaFixture(record.reference.owner.name));
+    expect((await h.a.ports.fs.lstat(join(h.a.root, ".git", "arc", "store"))).isDirectory()).toBe(true);
+  }, 60_000);
+});
+
+it("refreshes the import command around a nested push that first designates origin", async () => {
+  const h = await importFixture("default");
+  await seedTransients(h, [ordinaryErrand]);
+  await h.git("git", ["push", "origin", `${transientSourceRef}:${transientSourceRef}`]);
+  const path = join(h.root, "nested-push-reader-trace.json");
+  let configReads = 0, boundary = -1;
+  const rawExec = h.ports.rawExec;
+  h.ports.rawExec = async (...args) => {
+    if (args[0].includes("config") && args[0].includes("--includes")) configReads++;
+    return rawExec(...args);
+  };
+  h.ports.migrateStep = async function (this: RefStorePorts, step) {
+    if (step !== "import.publish") return;
+    await h.git("git", ["push", "origin", "refs/arc/project/*:refs/arc/project/*"]);
+    await this.exec("git", ["config", "--unset", "remote.origin.arc-state"]);
+    const first = await runStoreRemote(this, {}), before = configReads;
+    expect(await runStoreRemote(this, {})).toEqual(first);
+    expect(configReads).toBe(before);
+    expect(first).toMatchObject({ status: "ok", result: { remotes: [expect.objectContaining({ name: "origin" })] } });
+    if (first.status !== "ok") throw new Error("No remote view");
+    expect(first.result.remotes.find(({ name }) => name === "origin")).not.toHaveProperty("role");
+    expect(success(await createRefStore(this).list({ family: "work-item" }))).toMatchObject({ status: "complete" });
+    boundary = (await trace(path)).length;
+  };
+  vi.stubEnv("GIT_TRACE2_EVENT", path);
+  const result = await h.migrate();
+  expect(result, JSON.stringify(result)).toMatchObject({ status: "ok" });
+  const events = await trace(path);
+  expect(boundary).toBeGreaterThan(0);
+  const before = events.slice(0, boundary);
+  const readers = before.filter(({ event, argv }) => event === "start" && argv?.includes("cat-file") && argv.includes("--batch"));
+  expect(readers.length).toBeGreaterThan(0);
+  const nestedStart = events.findIndex(({ event }, index) => index >= boundary && event === "start");
+  expect(nestedStart).toBeGreaterThanOrEqual(boundary);
+  for (const reader of readers) {
+    const exit = events.findIndex(({ event, sid }) => event === "exit" && sid === reader.sid);
+    expect(exit).toBeGreaterThan(0);
+    expect.soft(exit).toBeLessThan(nestedStart);
+  }
+  for (const reader of events.filter(({ event, argv }) => event === "start" && argv?.includes("cat-file") && argv.includes("--batch")))
+    expect(events.some(({ event, sid }) => event === "exit" && sid === reader.sid)).toBe(true);
+  vi.unstubAllEnvs();
+  expect((await h.git("git", ["config", "--get", "remote.origin.arc-state"])).stdout.trim()).toBe("push");
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", transientSourceRef])).stdout).toBe("");
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", keptPrefix])).stdout).toBe("");
+});
+
+it.each(["default", "separate"] as const)("releases command readers before moving the %s layout", async (layout) => {
+  const h = await refSyncFixture(layout);
+  const record = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("moving"),
+    reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "moving" } }),
+    placement: { kind: "active" }, provenance }));
+  if (layout === "separate") {
+    await h.a.git(["config", "remote.backing.arc-state", "off"]);
+    await h.a.exec("git", ["config", "remote.origin.arc-state", "push"]);
+  }
+  const path = join(h.a.root, "layout-reader-trace.json");
+  let renamed = false, cleaning = false, removed = 0;
+  const fs = { ...h.a.ports.fs, rename: async (from: string, to: string) => {
+    await expectCommandReadersClosed(path);
+    renamed = true;
+    return h.a.ports.fs.rename(from, to);
+  }, removeDirectory: async (directory: string) => {
+    if (cleaning) { await expectCommandReadersClosed(path); removed++; }
+    return h.a.ports.fs.removeDirectory(directory);
+  } };
+  const ports = { ...h.a.ports, fs, migrateStep: async function (this: RefStorePorts, step: string) {
+    if (step !== "layout.delete") return;
+    expect(success(await createRefStore(this).read({ reference: record.reference })).content).toBe(makeMetaFixture("moving"));
+    cleaning = true;
+  } };
+  vi.stubEnv("GIT_TRACE2_EVENT", path);
+  expect(layout === "default" ? await runStoreRemote(ports, { remote: "origin", role: "off" })
+    : await runStoreMigrate(ports, {}))
+    .toMatchObject({ status: "ok" });
+  expect(renamed).toBe(true);
+  expect(removed).toBeGreaterThan(0);
+  vi.unstubAllEnvs();
+  expect(success(await h.a.store.read({ reference: record.reference })).content).toBe(makeMetaFixture("moving"));
+  expect((await runStoreRemote(h.a.ports, {}))).toMatchObject({ status: "ok", result: { layout: layout === "default" ? "separate" : "default" } });
+}, 60_000);
+
+async function expectCommandReadersClosed(path: string): Promise<void> {
+  const events = await trace(path);
+  const readers = events.filter(({ event, argv }) => event === "start" && argv?.includes("cat-file") && argv.includes("--batch"));
+  expect(readers.length).toBeGreaterThan(0);
+  for (const reader of readers) expect(events.some(({ event, sid }) => event === "exit" && sid === reader.sid)).toBe(true);
+}
