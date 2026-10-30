@@ -216,10 +216,9 @@ it.each([false, true])("records a hosted additional grant with the active identi
   expect(lifecycleSuccess(await h.store.version())).toBe(version);
 });
 
-it("refuses a native work unit's hosted request after its completed pass at a one-pass ceiling, and admits it with "
-  + "its owner's additional-pass grant", async () => {
+it("refuses a native work unit's plain hosted request after its completed pass, and admits the next pass with its "
+  + "owner's additional-pass grant", async () => {
   const h = await completedHostedPass(true);
-  await appendFile(join(h.cwd, ".arc", "system", "arc-config.yml"), "review.standard_max_passes: 1\n");
   const version = lifecycleSuccess(await h.store.version());
   expect(await h.runRequest(h.request)).toMatchObject({ error: {
     message: "Hosted Candidate request no longer matches the fresh discharge position." } });
