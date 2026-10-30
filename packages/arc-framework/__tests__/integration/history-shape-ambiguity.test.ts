@@ -48,9 +48,9 @@ import { runHandlerAt } from "../helpers/handler.js";
 import {
   cleanupTempDir,
   DEFAULT_PROMPTS,
-  initInTempRepo,
   makeGitExec,
 } from "../helpers/integration.js";
+import { initInTempRepo } from "../helpers/init-temp-repo.js";
 import { setupMultiClone } from "../helpers/multi-clone.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 

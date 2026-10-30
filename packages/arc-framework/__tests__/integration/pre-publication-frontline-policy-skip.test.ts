@@ -14,7 +14,8 @@ import { composePrePublicationReviewRequest } from "../../src/scripts/review-gat
 import { PrePublicationReviewEnvelopeSchema } from "../../src/scripts/review-gate/policy/pre-publication-procedure.js";
 import { runHandlerAt } from "../helpers/handler.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
-import { cleanupTempDir, DEFAULT_PROMPTS, execFileAsync, initInTempRepo, makeGitExec } from "../helpers/integration.js";
+import { cleanupTempDir, DEFAULT_PROMPTS, execFileAsync, makeGitExec } from "../helpers/integration.js";
+import { initInTempRepo } from "../helpers/init-temp-repo.js";
 
 const roots: string[] = [];
 const workUnit = "example";

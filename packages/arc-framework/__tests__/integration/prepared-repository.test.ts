@@ -11,7 +11,6 @@ import {
   addBareRemote,
   DEFAULT_PROMPTS,
   execFileAsync,
-  initInTempRepo,
   join,
   makeCommit,
   mkdir,
@@ -19,6 +18,7 @@ import {
   readFile,
   writeFile,
 } from "../helpers/integration.js";
+import { initInTempRepo } from "../helpers/init-temp-repo.js";
 import {
   copyPreparedRepository,
   prepareRepositoryTemplate,
