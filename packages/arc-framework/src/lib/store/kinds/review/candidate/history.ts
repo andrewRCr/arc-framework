@@ -29,7 +29,7 @@ export async function readRepositoryCandidateSupersessionChain(input: {
     revisions = result.stdout.split(/\r?\n/u).filter((revision) => revision !== "");
   } catch (error) {
     throw new CandidateSupersessionResolutionError(
-      `Candidate record history cannot be read (${error instanceof Error ? error.message : String(error)}). Restore Git history and retry pre-publication review.`,
+      `Candidate record history cannot be read (${error instanceof Error ? error.message : String(error)}). Restore Git history, then retry the command.`,
     );
   }
   const historical: CandidateManagedRecordV1[] = [];
@@ -111,20 +111,20 @@ async function readLinkedHistoricalCandidate(input: { cwd: string; workUnit: str
     })).stdout;
   } catch (error) {
     throw new CandidateSupersessionResolutionError(
-      `Candidate record at ${revision} cannot be read (${error instanceof Error ? error.message : String(error)}). Restore Git history and retry pre-publication review.`,
+      `Candidate record at ${revision} cannot be read (${error instanceof Error ? error.message : String(error)}). Restore Git history, then retry the command.`,
     );
   }
   const record = parseCandidateManagedRecord(content);
   if (record === null) {
     if (claimedCandidateId(content) !== expectedId) return null;
     throw new CandidateSupersessionResolutionError(
-      `Superseded Candidate record at ${revision} is malformed. Repair the record history and retry pre-publication review.`,
+      `Superseded Candidate record at ${revision} is malformed. Repair the record history, then retry the command.`,
     );
   }
   if (record.attestation.candidateId !== expectedId) return null;
   if (record.attestation.workUnit !== input.workUnit) {
     throw new CandidateSupersessionResolutionError(
-      `Superseded Candidate at ${revision} belongs to another work unit. Repair the record history and retry pre-publication review.`,
+      `Superseded Candidate at ${revision} belongs to another work unit. Repair the record history, then retry the command.`,
     );
   }
   return record;

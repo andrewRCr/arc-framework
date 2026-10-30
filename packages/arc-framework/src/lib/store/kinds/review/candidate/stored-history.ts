@@ -17,7 +17,7 @@ function historicalCandidate(entry: HistoryEntry, workUnit: string): { record: C
   const record = parseCandidateManagedRecord(entry.content);
   if (record === null || record.attestation.workUnit !== workUnit) {
     throw new CandidateSupersessionResolutionError(`Candidate record at store version ${entry.version} is malformed or belongs to another work unit. `
-      + "Repair its record history and retry review.");
+      + "Repair its record history, then retry the command.");
   }
   return { record, version: entry.version };
 }

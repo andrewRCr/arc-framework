@@ -154,3 +154,21 @@ it("names the clone's pending predecessor and inherits its pass after the review
   await expect(readCandidateInheritedLaneProgress(family.ports.inFlight, input))
     .resolves.toMatchObject({ inheritedCompletedPasses: 1, inheritedCompletePasses: 1 });
 });
+
+it.each([
+  ["unreadable history", { failure: { exitCode: 128, stderr: "fatal: bad object" } }, "Restore Git history"],
+  ["an absent predecessor", { stdout: "" }, "is absent from reachable record history"],
+  ["a malformed predecessor", { stdout: `${merge}\n` }, "is malformed"],
+] as const)("names no other command when the repository chain has %s", async (_case, log, condition) => {
+  const h = fixture();
+  const malformed = JSON.stringify({ attestation: { candidateId: h.predecessor.attestation.candidateId } });
+  const { exec } = scriptGitExec([
+    { match: ["log", "HEAD", "--format=%H", "--", path], responses: [log] },
+    { match: ["show", `${merge}:${path}`], responses: [{ stdout: malformed }] },
+  ]);
+  const error = await readRepositoryCandidateSupersessionChain({ cwd: "/candidate", workUnit: "example", record: h.current, exec })
+    .catch((caught: unknown) => caught);
+  expect((error as Error).message).toContain(condition);
+  expect((error as Error).message).toMatch(/retry the command\.$/u);
+  expect((error as Error).message).not.toContain("pre-publication");
+});
