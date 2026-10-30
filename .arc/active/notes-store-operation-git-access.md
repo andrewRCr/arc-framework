@@ -15,6 +15,11 @@ at a later fetch of a call therefore keeps Git's default thresholds until that f
 port recognizes a history fetch by the `refs/arc/history/` refspecs in its input. `verify-integrity.test.ts` runs
 maintenance explicitly (`maintenance run --auto --task=gc`), so only its detach settings carry over.
 
+The main fetch must receive fresh objects before the history fetch makes maintenance due. Archiving alone does not
+establish that the earlier main fetch adds a pack. The case also publishes a fresh personal record, so that fetch
+keeps another pack under `fetch.unpackLimit 1`; the history-fetch observer then lowers the maintenance thresholds.
+Reader-release ordering, removal of the superseded packs, and retained record contents are all asserted.
+
 ## Reading the after-measurement
 
 - The largest `cat-file` callers before this work were `namespace-health.ts` (4,957), `sync-merge.ts` (3,468),

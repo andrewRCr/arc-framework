@@ -251,6 +251,9 @@ it("closes the pull reader before a history fetch performs due store maintenance
   const before = success(await h.a.store.read({ reference: made.reference }));
   success(await h.a.store.write({ action: "put", reference: before.reference, expected: before.version,
     content: before.content, placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance }));
+  const packed = RecordReferenceSchema.parse({ kind: "personal/document", key: "fetch-pack.md", owner: { type: "person", name: "andrew" } });
+  success(await h.a.store.write({ action: "put", reference: packed, expected: null,
+    content: "Objects for the final main fetch.\n", provenance }));
   success(await h.a.store.push());
   const packDirectory = join(h.b.gitDir!, "objects", "pack");
   const path = join(h.b.root, "history-fetch-maintenance-trace.json");
@@ -280,6 +283,7 @@ it("closes the pull reader before a history fetch performs due store maintenance
   vi.unstubAllEnvs();
   expect(success(await h.b.store.read({ reference: made.reference })).placement?.kind).toBe("completed");
   expect(success(await h.b.store.read({ reference: personal })).content).toBe("Retained personal bytes.\n");
+  expect(success(await h.b.store.read({ reference: packed })).content).toBe("Objects for the final main fetch.\n");
 }, 60_000);
 
 function expectCommandReaders(events: TraceEvent[], checkout: string) {
