@@ -563,6 +563,56 @@ costs and resource audit. Initial dependency installation/preparation is outside
 is retained rather than represented as a cold-install benchmark. The result covers the frozen source, provider and
 observed Linux profiles, without extrapolation to another deployment or final-head verification.
 
+### Observed named-workload completion and admission
+
+The same v5 freeze completes all eighteen named-workload gates and nine equivalent native pairs. Each arm launches
+two forced merge gates selecting store and one push gate concurrently, with independent prepared clones and local
+nice-15 controllers. Three interleaved rounds retain the unchanged speed mode, registry and resource ceilings.
+
+| Round | Unsharded complete set, seconds | Distributed complete set, seconds | Elapsed reduction |
+| ----- | ------------------------------- | --------------------------------- | ----------------- |
+| 1     | 2,862.848                       | 1,443.003                         | 49.596%           |
+| 2     | 2,938.562                       | 1,356.588                         | 53.835%           |
+| 3     | 2,941.214                       | 1,406.527                         | 52.179%           |
+
+Unsharded complete-set median is 2,938.562 seconds, range 2,862.848–2,941.214; distributed median is 1,406.527 seconds,
+range 1,356.588–1,443.003. Paired elapsed reduction has median 52.179%, range 49.596–53.835%. All three complete sets
+improve; none crosses the 10% slowdown boundary. Completion uses the local controller's final collection timestamps;
+per-gate monotonic intervals agree within 0.6 seconds, without cross-runner clock arithmetic.
+
+| Gate  | Unsharded median (range), seconds | Distributed median (range), seconds | Samples per arm |
+| ----- | --------------------------------- | ----------------------------------- | --------------- |
+| Merge | 2,848.926 (1,584.245–2,939.218)   | 1,266.940 (959.395–1,443.303)       | 6               |
+| Push  | 1,615.447 (661.309–2,941.795)     | 251.433 (226.510–340.716)           | 3               |
+
+These per-gate distributions include admission and overlap, so the acceptance comparison uses each complete set.
+Every measured gate supplies its own native outcomes and normal SDK closure with no errors, coverage gaps or retained
+captures. Unit selections contain 1,369 modules; store contains 316, with four disjoint 79-module distributed shares.
+The same genuine homogeneous witnesses corroborate membership only; no previous timing or passing gate is reused.
+
+Admission snapshots retain an unsharded store occupying M4's heavy permit and nine memory tokens, a second store
+waiting for that permit, and fifteen-token unit plans waiting with eleven tokens free. Distributed snapshots show
+ordinary concurrent M4, M2, M5 and local placements; a second group waits normally. Available resource observations
+across twelve idle gates and six workload arms contain no visible foreign run IDs or truncated observations. This is
+sampled evidence, not a reservation or continuous-idle guarantee; placement behavior is observed, not diagnosed as a bug.
+
+Named-workload public store SDK preparation spans 218.273–1,724.228 seconds unsharded and 297.019–843.934 distributed.
+Unsharded store admission spans 95.872–1,603.700 seconds and native execution 1,200.853–1,297.496. The twenty-four
+distributed placement records span 0.001–720.200 seconds of admission, 0–138.228 transfer, 9.987–19.565 preparation
+and 315.939–413.416 native execution. Initial placement is inside SDK preparation; later group placement can occur
+inside its run interval. These advisory service spans must not be summed as parallel gate elapsed time.
+
+`comparison-results-at-owner-pause/` retains summary, phase-cost arithmetic, resource audit, preservation record and
+file hashes. The frozen full report's SHA-256 is `8ca40e094d4025e539c15a354a309446421b153eeb9465661a8254476741eedd`.
+`operator-checkpoint-30-comparisons.json` binds all ninety child request/gate/sample files and the original study
+state/config. The observed source, provider, clone trees, registry and mode remain unchanged at the preservation check.
+
+At the requested pause, all thirty comparison gates are complete and all fifteen pairs qualify. The two planned
+native-local context slots remain unstarted. The local coordinator was suspended at the collection boundary and then
+deliberately stopped after every child had closed; its exit 137 records that operator action, not a native failure or
+OOM. The original study remains thirty of thirty-two, with no active children; it is not rewritten as complete.
+The separate operator-pause records retain that distinction. Task 6.4, segment closure and Phase 7 remain open.
+
 ## Amendment reasoning
 
 ### A2 — store dependency

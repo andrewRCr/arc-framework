@@ -422,20 +422,15 @@ variation, and a named-workload slowdown above 10% keeps qualification open.
   push timings overlap within variation. Actual inputs, ranges, phase costs and limits are retained in
   `notes-distributed-check-shards.md`.
 
-### `[ ]` **6.3 Qualify named-workload aggregate completion and admission — D10**
+### `[x]` **6.3 Qualify named-workload aggregate completion and admission — D10**
 
 - _Goal:_ The intended concurrent workload completes equivalent useful gates without hiding an aggregate throughput
   regression behind a single faster gate or bypassing shared resource admission.
 
-    - Repeat the interleaved baseline/distributed experiment under the named workload: two concurrent forced merge
-      gates that each select store, plus one concurrent push gate, recording the routing mode in force. Record
-      per-gate median/range, complete-set makespan, aggregate completion, native coverage and queue/admission behavior.
-    - Keep controllers local under the host CPU-yielding policy and all heavy work pool-routed under the current mode,
-      registry and ceilings. Check/gate any separately launched memory-heavy local process under host policy; do not
-      defeat shared admission or the local serial guard to create benchmark concurrency.
-    - Retain all failures/incomplete runs. Report the aggregate slowdown or gain against the routed-unsharded
-      baseline with its measured size, and address a slowdown above 10% before claiming completed qualification. Do
-      not change shard counts, fairness, timeout policy or routing mode to conceal the result.
+- _Outcome:_ Three interleaved rounds complete all eighteen gates and nine equivalent native pairs under ordinary
+  speed-mode admission. Complete-set median falls from 2,938.562 to 1,406.527 seconds; every round improves, with
+  paired elapsed reduction of 49.596–53.835%. Full per-gate ranges, preparation/admission costs, preserved evidence
+  and the thirty-of-thirty-two operator pause are recorded in `notes-distributed-check-shards.md`.
 
 ### `[ ]` **6.4 Validate integrated execution and measured benefit** — validate exit criterion at segment scope
 
