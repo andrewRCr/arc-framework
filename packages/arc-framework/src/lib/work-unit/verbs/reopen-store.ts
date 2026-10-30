@@ -7,6 +7,7 @@ import { IntegrationBoundaryLocusV2Schema } from "../../../scripts/review-gate/p
 import { projectCandidateReviewBoundary } from "../../../scripts/review-gate/policy/integration-boundary-locus.js";
 import type { StoreTransitionInputs } from "../store-transition-types.js";
 import { recordReferences } from "../../store/identity.js";
+import { listRecordConflicts } from "../../store/conflict-diagnostics.js";
 import { checkAdvancingPause } from "../../store/lifecycle-pause.js";
 import { readWorkUnit, readLifecycleMetaFields, workUnitMetaPath, recordPut } from "../../store/lifecycle-write.js";
 import { lifecycleRecordPath } from "../../store/lifecycle-record-path.js";
@@ -49,7 +50,8 @@ async function storedReviewWithdrawal(store: Store, primary: StoreRecord): Promi
     : { status: "rejected", reason: read.refusal.condition, refusal: read.refusal, remedy: read.refusal.remedy };
   const saved = read.result;
   if (saved.conflicts.length > 0) return { status: "rejected",
-    reason: "Resolve the integration boundary's conflicts, then retry reopening the work unit." };
+    reason: `The integration boundary has unresolved conflicts. ${listRecordConflicts(saved.conflicts)}`,
+    remedy: { text: "Resolve the named conflict records, then retry reopening the work unit." } };
   try {
     const boundary = IntegrationBoundaryLocusV2Schema.parse(JSON.parse(saved.content));
     if (boundary.workUnit !== primary.reference.owner.name) throw new Error("The integration boundary names another work unit.");
@@ -60,7 +62,8 @@ async function storedReviewWithdrawal(store: Store, primary: StoreRecord): Promi
     });
     return { status: "ready", records: [saved], writes: [recordPut(saved, { content: canonicalize(withdrawn) })] };
   } catch (error) {
-    return { status: "rejected", reason: `Repair the integration boundary before reopening, then retry: ${String(error)}` };
+    return { status: "rejected", reason: `Repair the integration boundary before reopening, then retry: ${String(error)}`,
+      remedy: { text: "Repair the integration boundary record, then retry reopening the work unit." } };
   }
 }
 

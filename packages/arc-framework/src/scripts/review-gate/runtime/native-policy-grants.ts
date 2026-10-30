@@ -16,6 +16,7 @@ import type { ReviewInvocationInput } from "./invocation.js";
 import { resolveNativeInvocationExtraPassJudgment } from "./native-extra-pass.js";
 import { nativeBoundaryTerminusReference, resolveNativeReviewTerminus } from "./native-terminus.js";
 import type { NativeExtraPassResolution } from "./native-extra-pass.js";
+import { reviewFactListingError } from "../../../lib/store/kinds/review/fact-access.js";
 
 /** Bind resolved targetless projections at use while leaving explicit incremental grants subject to policy refusal. */
 export function projectNativePolicyGrants<Request extends Pick<ReviewPolicyCommandRequest,
@@ -60,7 +61,7 @@ export async function composeNativePolicyGrants(input: ReviewInvocationInput & {
   if (input.operationStore.stateOffBranch !== true) return input.request;
   if (facts === undefined) throw new Error("Restore the selected native review facts and retry the policy request.");
   const listing = await facts.decisions.list();
-  if (listing.status !== "complete") throw new Error(listing.reason);
+  if (listing.status !== "complete") throw reviewFactListingError(listing);
   if (input.request.ceilingOverride === undefined && input.request.additionalPassAuthorization === undefined
     && !listing.records.some(({ value }) => (value.choice.kind === "extra-pass"
       && value.choice.precondition.kind !== "approved-fix")

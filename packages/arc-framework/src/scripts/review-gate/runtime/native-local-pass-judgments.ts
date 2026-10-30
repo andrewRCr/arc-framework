@@ -13,6 +13,7 @@ import { resolveNativeInvocationExtraPassJudgment, type NativeExtraPassInput } f
 import { readNativeDecisionSubject, projectNativePolicyGrants } from "./native-policy-grants.js";
 import type { LocalReviewInvocationInput } from "./local-review-invocation.js";
 import type { LocalPrepareDependencies, LocalPrepareRequest } from "./local-prepare.js";
+import { reviewFactListingError } from "../../../lib/store/kinds/review/fact-access.js";
 
 interface LocalPassJudgmentContext {
   input: LocalReviewInvocationInput;
@@ -29,7 +30,7 @@ export function createNativeLocalPassJudgmentResolver(context: LocalPassJudgment
     const facts = context.operationStore.nativeFacts;
     if (facts === undefined) throw new Error("Restore the selected native review facts and retry local preparation.");
     const listing = await facts.decisions.list();
-    if (listing.status !== "complete") throw new Error(listing.reason);
+    if (listing.status !== "complete") throw reviewFactListingError(listing);
     if (request.policyJudgment?.ceilingOverride === undefined && request.policyJudgment?.additionalPassAuthorization === undefined
       && request.deliveryAdmission?.ceilingOverride === undefined && request.deliveryAdmission?.additionalPassAuthorization === undefined
       && !listing.records.some(({ value }) => value.choice.kind === "extra-pass" && value.choice.precondition.kind !== "approved-fix")) return request;

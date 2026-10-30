@@ -8,6 +8,7 @@ import type { NativeReviewFactPorts } from "../core/ports.js";
 import type { ReviewInvocationInput } from "./invocation.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { ConfirmResponseHeadContinuation } from "../core/response-head-continuation.js";
+import { reviewFactListingError } from "../../../lib/store/kinds/review/fact-access.js";
 
 /** Bind the native skip writer only when this invocation selected native facts. */
 export function createNativeFrontlineSkipRecorder(invocation: ReviewInvocationInput, facts?: NativeReviewFactPorts):
@@ -58,7 +59,7 @@ export async function nativeFrontlineWindowSkipped(facts: NativeReviewFactPorts,
     throw new Error("Restore the review subject's project identity before reading its frontline window.");
   }
   const listing = await facts.decisions.list();
-  if (listing.status !== "complete") throw new Error(listing.reason);
+  if (listing.status !== "complete") throw reviewFactListingError(listing);
   return listing.records.some(({ value }) => value.lane === "frontline" && value.choice.kind === "lane-skip"
     && input.lineages.some(lineage => laneSubjectOwnerMatches(value.subject.lineage, lineage)));
 }
@@ -72,7 +73,7 @@ export async function nativeFrontlineCapContinues(facts: NativeReviewFactPorts, 
     throw new Error("Restore the review subject's project identity before reading its frontline continuation.");
   }
   const listing = await facts.decisions.list();
-  if (listing.status !== "complete") throw new Error(listing.reason);
+  if (listing.status !== "complete") throw reviewFactListingError(listing);
   for (const { value } of listing.records) {
     if (value.lane !== "frontline" || value.choice.kind !== "extra-pass"
       || value.choice.precondition.kind !== "approved-fix" || value.choice.passCount !== input.passCount

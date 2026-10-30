@@ -5,6 +5,7 @@ import { optionalReviewStatusJudgment, type ReviewStatusPolicyJudgment } from ".
 import type { ReviewPolicyCommandRequest } from "../policy/review-policy-driver.js";
 import type { ReviewInvocationInput } from "./invocation.js";
 import { createHostedPassJudgmentContext } from "./native-hosted-pass-judgments.js";
+import { reviewFactListingError } from "../../../lib/store/kinds/review/fact-access.js";
 
 type StatusPassSubject = Omit<Parameters<typeof createHostedPassJudgmentContext>[0], keyof ReviewInvocationInput | "operationStore">
   & { policyTarget: ReviewPolicyCommandRequest["target"]; requestedCoverage?: "complete" | "incremental" };
@@ -17,7 +18,7 @@ export async function resolveNativeStatusPassJudgment(input: ReviewInvocationInp
   const facts = operationStore.nativeFacts;
   if (facts === undefined) throw new Error("Restore the selected native review facts and retry status.");
   const listing = await facts.decisions.list();
-  if (listing.status !== "complete") throw new Error(listing.reason);
+  if (listing.status !== "complete") throw reviewFactListingError(listing);
   if (judgment?.ceilingOverride === undefined && judgment?.additionalPassAuthorization === undefined
     && !listing.records.some(({ value }) => value.choice.kind === "extra-pass"
       && value.choice.precondition.kind !== "approved-fix")) return judgment;

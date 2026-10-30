@@ -8,6 +8,7 @@ import { ArchiveQuarterSchema } from "../../../../../../src/lib/kernel/index.js"
 import { recordReferences, type Store } from "../../../../../../src/lib/store/index.js";
 import { createCandidateAttestation } from "../../../../../../src/lib/work-unit/candidate-attestation.js";
 import { readCandidateRecord, writeCandidateRecord } from "../../../../../../src/lib/store/kinds/review/candidate/access.js";
+import { StoreRefusalError } from "../../../../../../src/lib/store/refusal-error.js";
 
 const binding = vi.hoisted(() => ({ store: null as Store | null }));
 vi.mock("../../../../../../src/lib/store/create.js", async importOriginal => {
@@ -32,4 +33,18 @@ it("writes an archived item's Candidate through the store it opens after pulling
   expect(await readCandidateRecord("/no-projected-files", "example", { store: h.store, owner })).toEqual(next);
   expect(lifecycleSuccess(await h.store.read({ reference: recordReferences["review/candidate"](owner) })).version)
     .not.toBe(saved.version);
+});
+
+it("carries the whole store refusal through typed access, with today's message", async () => {
+  const h = createReviewHarness(), record = candidateFixture();
+  const owner = (await h.seedMeta("example", { state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") })).reference.owner;
+  const saved = await h.seedCandidate(owner, record);
+  const error = await writeCandidateRecord("/no-projected-files", "example", { ...record, attestation: createCandidateAttestation({
+    ...record.attestation, subject: record.subject, attestedAt: "2026-08-14T14:00:00Z", supersedes: record.attestation.candidateId }) },
+  saved.version, { store: lackingEndedHistory(h.store, owner), owner }).then(() => null, (caught: unknown) => caught);
+  expect(error).toBeInstanceOf(StoreRefusalError);
+  const { refusal } = error as StoreRefusalError;
+  expect(refusal).toMatchObject({ code: "state-unresolvable", class: "recoverable" });
+  expect((error as Error).message).toBe(`${refusal.condition} ${refusal.remedy.text}`);
 });

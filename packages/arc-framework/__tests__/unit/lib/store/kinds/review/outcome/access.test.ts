@@ -67,7 +67,8 @@ describe("work-item outcome access", () => {
     await port.create(outcome);
     harness.store.state.corrupt = true;
     expect(await port.list()).toEqual({ status: "unavailable",
-      reason: expect.stringMatching(/structurally corrupt.*Rebuild the namespace index/u) });
+      reason: expect.stringMatching(/structurally corrupt.*Rebuild the namespace index/u),
+      refusal: expect.objectContaining({ code: "namespace-corrupt", class: "terminal" }) });
     harness.store.state.corrupt = false;
     const listing = await port.list();
     expect(listing.status).toBe("complete");

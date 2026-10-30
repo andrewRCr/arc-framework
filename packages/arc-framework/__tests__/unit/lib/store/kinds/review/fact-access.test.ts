@@ -13,6 +13,9 @@ import { createReviewEvidencePort } from "../../../../../../src/lib/store/kinds/
 import { createReviewDecisionPort } from "../../../../../../src/lib/store/kinds/review/decision/access.js";
 import { ReviewOutcomeSchema } from "../../../../../../src/lib/store/kinds/review/outcome/schema.js";
 import type { RecordReference } from "../../../../../../src/lib/store/identity.js";
+import { describeRecordConflicts } from "../../../../../../src/lib/store/conflict-diagnostics.js";
+import { StoreRefusalError } from "../../../../../../src/lib/store/refusal-error.js";
+import { ReviewFactVersionConflictError } from "../../../../../../src/lib/store/kinds/review/errors.js";
 
 type Kind = "outcome" | "evidence" | "decision";
 async function conflicted(kind: Kind) {
@@ -77,4 +80,31 @@ it.each(["single", "listing"] as const)("keeps conflicted evidence out of the %s
   await h.repair();
   const expected = { operationId: h.outcome.attemptId };
   expect(await read()).toMatchObject(mode === "single" ? expected : [expected]);
+});
+
+it("keeps a conflicted single read's store refusal typed, with today's message", async () => {
+  const h = await conflicted("evidence");
+  const key = (JSON.parse(h.record.content) as { dispositionSet: { dispositionSetId: string } }).dispositionSet.dispositionSetId;
+  const error = await h.evidence.read(key).catch((caught: unknown) => caught);
+  expect(error).toBeInstanceOf(StoreRefusalError);
+  const refusal = (error as StoreRefusalError).refusal;
+  expect(refusal).toMatchObject({ code: "record-malformed", class: "recoverable", reference: h.record.reference });
+  expect((error as Error).message).toBe(`Review record has unresolved conflicts.${describeRecordConflicts(h.record.conflicts)}`);
+});
+
+it.each(["create", "advance"] as const)("refuses a stale fact %s with its typed version conflict", async write => {
+  const h = createReviewHarness(), candidate = candidateFixture(), owner = (await h.seedMeta("example")).reference.owner;
+  await h.seedCandidate(owner, candidate);
+  const outcome = ReviewOutcomeSchema.parse(localOutcome({ lineage: { kind: "candidate", candidateId: candidate.attestation.candidateId },
+    vehicle: { kind: "work-unit", identity: "example" }, outcome: "findings", findings: [{ findingId: "finding-1",
+      severity: "major", locus: "src/main.ts:1", evidenceUrlOrId: "finding:1", sourceOrdinal: 1 }] }));
+  await createReviewOutcomePort(h.store, owner).create(outcome);
+  const evidence = createReviewEvidencePort(h.store, owner), value = reviewEvidenceFixture(outcome);
+  const created = await evidence.create(value);
+  const at = (approvedAt: string) => ({ ...value, approval: { ...value.approval, approvedAt } });
+  if (write === "advance") await evidence.advance(at("2026-10-19T13:00:00Z"), created.version);
+  const stale = write === "create" ? evidence.create(value) : evidence.advance(at("2026-10-19T14:00:00Z"), created.version);
+  const error = await stale.then(() => null, (caught: unknown) => caught);
+  expect(error).toBeInstanceOf(ReviewFactVersionConflictError);
+  expect((error as ReviewFactVersionConflictError).refusal).toMatchObject({ code: "version-conflict", class: "recoverable" });
 });

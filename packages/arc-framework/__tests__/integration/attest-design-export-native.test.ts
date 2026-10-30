@@ -77,3 +77,19 @@ it("stages an already matching untracked copy at attestation", async () => {
   expect(await h.attest()).toMatchObject({ status: "attested" });
   expect((await h.exec("git", ["show", `:${path}`], { cwd: h.cwd })).stdout).toBe("# Stored specification");
 }, 30_000);
+
+it.each(["review/integration-boundary", "review/candidate", "work-item/spec"] as const)(
+  "refuses through attestation's typed refusal when the %s read refuses, and attests once repaired", async kind => {
+    const h = await fixture();
+    const refusal = { code: "lock-held" as const, class: "recoverable" as const, lock: "review", condition: "The review lock is held.",
+      remedy: { text: "Wait for the holder to finish, then retry.", argv: ["arc", "attest", "example"] } };
+    const read = h.reference.store.read.bind(h.reference.store);
+    let held = true;
+    h.reference.store.read = async input => held && input.reference.kind === kind ? { status: "refused", refusal } : read(input);
+    expect(await h.attest()).toMatchObject({ status: "rejected", reason: refusal.condition,
+      remedy: { invariant: refusal.condition, argv: refusal.remedy.argv, text: expect.stringContaining(refusal.remedy.text) } });
+    expect(process.exitCode).toBe(1);
+    held = false;
+    process.exitCode = 0;
+    expect(await h.attest()).toMatchObject({ status: "attested" });
+  }, 30_000);

@@ -11,6 +11,7 @@ import type { ReviewReduceEnvelope } from "./review-command-envelope.js";
 import type { ReviewResult } from "./review-result.js";
 import type { RecordReference, RecordVersion } from "../../../lib/store/identity.js";
 import type { Mutation } from "../../../lib/store/write.js";
+import type { StoreRefusal } from "../../../lib/store/refusal.js";
 import type { ReviewOutcome } from "../../../lib/store/kinds/review/outcome/schema.js";
 import type { ReviewEvidence } from "../../../lib/store/kinds/review/evidence/schema.js";
 import type { ReviewDecision } from "../../../lib/store/kinds/review/decision/schema.js";
@@ -26,7 +27,7 @@ export interface StoredReviewFact<T> {
 /** A complete fact selection or an explicit failure to establish completeness. */
 export type ReviewFactListing<T> =
   | { status: "complete"; records: readonly StoredReviewFact<T>[] }
-  | { status: "incomplete" | "unavailable"; reason: string };
+  | { status: "incomplete" | "unavailable"; reason: string; refusal?: StoreRefusal };
 
 /** One durable put, ready to join an invocation's atomic batch. */
 export type ReviewFactPut = Extract<Mutation, { action: "put" }>;

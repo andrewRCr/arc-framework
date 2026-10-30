@@ -7,6 +7,7 @@ import { boundaryV2Fixture } from "../../../fixtures/review-boundary.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import { PublishedIntegrationBoundaryLocusSchema, ContinuePrePublicationActionSchema } from "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { canonicalDigest } from "../../../../src/lib/kernel/index.js";
+import type { Store } from "../../../../src/lib/store/index.js";
 
 afterEach(() => { vi.restoreAllMocks(); process.exitCode = undefined; });
 
@@ -53,4 +54,37 @@ it.each(["Active", "Planning"] as const)("restricts native boundary reporting fo
     const boundary = PublishedIntegrationBoundaryLocusSchema.parse(result.integrationBoundary);
     expect(ContinuePrePublicationActionSchema.parse(boundary.nextAction)).toEqual(h.boundary.nextAction);
   }
+});
+
+it("renders a refused native boundary read through status's typed refusal, and reports it once repaired", async () => {
+  const h = createReviewHarness();
+  const meta = await h.seedMeta("example", { state: "Integrating", currentWorkflow: "integrate-work-unit" });
+  const boundary = IntegrationBoundaryLocusV2Schema.parse({ ...boundaryV2Fixture("publication-pending"),
+    readinessBinding: canonicalDigest({ readiness: 1 }) });
+  await h.seedBoundary(meta.reference.owner, boundary);
+  let held = true;
+  const refusal = { code: "lock-held" as const, class: "recoverable" as const, lock: "review", condition: "The review lock is held.",
+    remedy: { text: "Wait for the holder to finish, then retry.", argv: ["arc", "status", "example"] } };
+  const base = h.store;
+  const store: Store = { capabilities: base.capabilities, list: input => base.list(input), write: input => base.write(input),
+    batch: input => base.batch(input), version: () => base.version(), history: input => base.history(input),
+    changes: input => base.changes(input), lookup: input => base.lookup(input), push: input => base.push(input),
+    pull: input => base.pull(input), maintain: () => base.maintain(),
+    read: async input => held && input.reference.kind === "review/integration-boundary"
+      ? { status: "refused", refusal } : base.read(input) };
+  const context = await createTestStatusContext({ store });
+  let output = "";
+  vi.spyOn(process.stdout, "write").mockImplementation(chunk => { output += String(chunk); return true; });
+  const run = async () => {
+    output = "";
+    await handleLifecycleStatus(context, "example", { json: true }, {
+      findHoldingCheckout: async () => null, readInFlightWarnings: async () => [], readRoster: async () => [] });
+    return JSON.parse(output) as Record<string, unknown>;
+  };
+  expect(await run()).toEqual({ status: "refused", refusal });
+  expect(process.exitCode).toBe(1);
+  held = false;
+  process.exitCode = undefined;
+  expect(await run()).toMatchObject({ state: "integrating", integrationBoundary: boundary });
+  expect(process.exitCode).toBeUndefined();
 });

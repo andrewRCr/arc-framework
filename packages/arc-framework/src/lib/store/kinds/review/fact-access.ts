@@ -5,6 +5,13 @@ import type { Store } from "../../contract.js";
 import { RecordVersionSchema, type RecordReference, type RecordVersion } from "../../identity.js";
 import type { ReviewFactListing, ReviewFactPut, StoredReviewFact } from "../../../../scripts/review-gate/core/ports.js";
 import { readReviewRecord, unwrapReviewRecordResult } from "./access-shared.js";
+import { ReviewFactVersionConflictError } from "./errors.js";
+import { StoreRefusalError } from "../../refusal-error.js";
+
+/** A listing that could not complete, thrown with its store refusal whole when one caused it. */
+export function reviewFactListingError(listing: Exclude<ReviewFactListing<unknown>, { status: "complete" }>): Error {
+  return listing.refusal === undefined ? new Error(listing.reason) : new StoreRefusalError(listing.refusal);
+}
 
 interface ReviewFactAccess<T> {
   prepare: (value: T, expected: RecordVersion | null) => ReviewFactPut;
@@ -26,7 +33,7 @@ export function createReviewFactAccess<T>(store: Store, reference: (key: string)
       const scope = reference("listing");
       const result = await store.list({ family: "review", kind: scope.kind, owner: scope.owner });
       if (result.status === "refused") return { status: "unavailable",
-        reason: `${result.refusal.condition} ${result.refusal.remedy.text}` };
+        reason: `${result.refusal.condition} ${result.refusal.remedy.text}`, refusal: result.refusal };
       const listing = result.result;
       if (listing.status === "absent") return { status: "complete", records: [] };
       if (listing.status === "unreadable") return { status: "unavailable", reason: `${listing.condition} ${listing.remedy.text}` };
@@ -47,8 +54,9 @@ export function createReviewFactAccess<T>(store: Store, reference: (key: string)
     },
     async write(value: T, expected: RecordVersion | null): Promise<StoredReviewFact<T>> {
       const put = prepare(value, expected);
-      const result = unwrapReviewRecordResult(await store.write({ ...put,
-        provenance: { verb: "review", lifecycleAction: "edit" } }));
+      const written = await store.write({ ...put, provenance: { verb: "review", lifecycleAction: "edit" } });
+      if (written.status === "refused" && written.refusal.code === "version-conflict") throw new ReviewFactVersionConflictError(written.refusal);
+      const result = unwrapReviewRecordResult(written);
       return { reference: result.reference, version: RecordVersionSchema.parse(result.version),
         value: schema.parse(JSON.parse(put.content)) };
     },

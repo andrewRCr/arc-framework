@@ -7,6 +7,7 @@ import type { GitExec } from "../git/exec.js";
 import type { Store } from "../store/contract.js";
 import { recordReferences, type OwnerIdentity } from "../store/identity.js";
 import { readWorkUnit, usesOffBranchState, workUnitArtifactName } from "../store/lifecycle-write.js";
+import { StoreRefusalError } from "../store/refusal-error.js";
 
 /** A review copy written from its stored specification. */
 export interface DesignExportResult { path: string; overwritten: boolean }
@@ -27,11 +28,11 @@ export async function exportWorkUnitSpec(input: DesignExportInput): Promise<Desi
   if (!usesOffBranchState(input.store) || input.store === undefined || input.trackDesignDocs !== "specs") return null;
   const slug = SlugSchema.parse(input.workUnit);
   const meta = await readWorkUnit(input.store, slug, input.owner);
-  if (meta.status === "refused") throw new Error(`${meta.refusal.condition} ${meta.refusal.remedy.text}`);
+  if (meta.status === "refused") throw new StoreRefusalError(meta.refusal);
   const spec = await input.store.read({ reference: recordReferences["work-item/spec"](meta.result.reference.owner) });
   if (spec.status === "refused") {
     if (spec.refusal.code === "not-found") return null;
-    throw new Error(`${spec.refusal.condition} ${spec.refusal.remedy.text}`);
+    throw new StoreRefusalError(spec.refusal);
   }
   const path = posix.join(resolveArcPath({ kind: "work-unit-export", slug }), workUnitArtifactName(slug, "spec"));
   const fs = input.fs ?? filesystem;

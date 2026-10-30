@@ -4,6 +4,7 @@ import { laneSubjectOwnerMatches } from "../core/lane-admission.js";
 import { reviewDecisionKey } from "../../../lib/store/kinds/review/decision/key.js";
 import type { NativeReviewFactPorts, ReviewOperationStateSnapshotIndex } from "../core/ports.js";
 import type { inspectConditionalNextPassInvalidation } from "../lane-progress-conditional.js";
+import { reviewFactListingError } from "../../../lib/store/kinds/review/fact-access.js";
 
 /** Proposed response succession and the invocation's complete native authority readers. */
 export interface NativeConditionalSupersessionInput extends NativeReviewFactPorts {
@@ -19,7 +20,7 @@ export async function inspectNativeConditionalPassSupersession(input: NativeCond
     throw new Error("Restore the response's project identity before retrying conditional supersession.");
   }
   const listing = await input.decisions.list();
-  if (listing.status !== "complete") throw new Error(listing.reason);
+  if (listing.status !== "complete") throw reviewFactListingError(listing);
   const keys = listing.records.flatMap(({ value }) => {
     const choice = value.choice;
     return choice.kind === "extra-pass" && choice.precondition.kind === "approved-fix"

@@ -2,7 +2,7 @@
 import type { Store } from "../../../contract.js";
 import { recordReferences, type OwnerIdentity } from "../../../identity.js";
 import type { ReviewEvidencePort } from "../../../../../scripts/review-gate/core/ports.js";
-import { createReviewFactAccess } from "../fact-access.js";
+import { createReviewFactAccess, reviewFactListingError } from "../fact-access.js";
 import { ReviewEvidenceSchema, type ReviewEvidence } from "./schema.js";
 import { createReviewOutcomePort } from "../outcome/access.js";
 import { composeReviewDispositionRecord } from "./composed-record.js";
@@ -14,7 +14,7 @@ export function createReviewEvidencePort(store: Store, owner: OwnerIdentity): Re
   const outcomes = createReviewOutcomePort(store, owner);
   const completeEvidence = async (): Promise<readonly ReviewEvidence[]> => {
     const listing = await access.list();
-    if (listing.status !== "complete") throw new Error(listing.reason);
+    if (listing.status !== "complete") throw reviewFactListingError(listing);
     return listing.records.map(({ value }) => value);
   };
   const composeProducer = async (producerId: string, records: readonly ReviewEvidence[]) => {

@@ -139,3 +139,28 @@ it("retires an archived Candidate from live listings through its owner without a
   const changes = lifecycleSuccess(await h.store.changes({ from: before, to: lifecycleSuccess(await h.store.version()) }));
   expect(changes.map(change => change.reference.kind)).toEqual(["work-item/meta"]);
 });
+
+it("refuses a conflicted boundary naming its conflicts and remedy, and reopens once they are resolved", async () => {
+  const h = await fixture(), read = h.store.read.bind(h.store), before = await h.store.version();
+  let conflicted = true;
+  h.store.read = async input => {
+    const result = await read(input);
+    return conflicted && result.status === "ok" && input.reference.kind === "review/integration-boundary"
+      ? { status: "ok", result: { ...result.result, conflicts: [result.result.reference] } } : result;
+  };
+  const refused = await runReopen(h.ctx, { name: "example", prMerged: false });
+  expect(refused).toMatchObject({ status: "rejected", reason: expect.stringContaining(JSON.stringify(h.savedBoundary?.reference)),
+    remedy: { text: expect.stringContaining("Resolve the named conflict records") } });
+  expect(await h.store.version()).toEqual(before);
+  conflicted = false;
+  expect(await runReopen(h.ctx, { name: "example", prMerged: false })).toMatchObject({ status: "reopened" });
+});
+
+it("names a remedy when a malformed boundary refuses reopening", async () => {
+  const h = await fixture();
+  const raw = [...h.store.state.records.values()].find(record => record.reference.kind === "review/integration-boundary");
+  if (raw === undefined) throw new Error("Expected the saved boundary");
+  raw.content = "{invalid boundary";
+  expect(await runReopen(h.ctx, { name: "example", prMerged: false })).toMatchObject({ status: "rejected",
+    remedy: { text: expect.stringContaining("Repair the integration boundary") } });
+});

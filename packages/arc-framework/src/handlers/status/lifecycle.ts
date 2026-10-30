@@ -10,7 +10,6 @@ import { readGitBlobEntry } from "../../lib/io-context.js";
 import type { StoreRefusal } from "../../lib/store/refusal.js";
 import type { LifecycleIndexOutcome } from "../../lib/store/lifecycle-index.js";
 import type { Store } from "../../lib/store/contract.js";
-import type { StoreRecord } from "../../lib/store/read.js";
 import type { StoreSyncPort } from "../../lib/store/operational-sync.js";
 import { readLifecycleView, buildLifecycleViewIndex } from "../../lib/store/lifecycle-view.js";
 import { selectStandingLifecycleEntries } from "../../lib/status/store-project-standing.js";
@@ -34,6 +33,7 @@ import {
   type PublishedIntegrationBoundaryLocus,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import { readIdentityPointers } from "../identity-pointers.js";
+import { StoreRefusalError } from "../../lib/store/refusal-error.js";
 import type { StatusCliOptions } from "./input.js";
 import type { SessionStatusContext } from "./session-context.js";
 
@@ -253,8 +253,12 @@ async function handleStoreLifecycleStatus(store: Store, slug: string, opts: Stat
     view.result.listing.status === "complete" ? view.result.listing.diagnostics : []);
   const query = resolveSlugQuery(buildLifecycleViewIndex(standing.entries), record.status === "ok" ? record.result.reference.owner.name : slug);
   const fields = storeQueryMetaFields(record);
-  const integrationBoundary = record.status === "ok"
-    ? await readStoreStatusBoundary({ store, cwd: local.cwd, record: record.result, fields }) : null;
+  const boundaryRead = await readStoreStatusBoundary({ store, cwd: local.cwd, record, fields });
+  if ("refusal" in boundaryRead) {
+    renderStoreQueryRefusal(boundaryRead.refusal, opts, refreshWarnings);
+    return;
+  }
+  const integrationBoundary = boundaryRead.boundary;
   const design = record.status === "ok" ? await readLifecycleDesign(store, record.result) : { record: null, content: null, warnings: [] };
   const locus = await readStoreStatusLocus({ ...local, store, slug: query.slug }, ports);
   const derived = await readDerivedSlugPosition({ slug: query.slug, worktreePath: locus.worktreePath, identity: local.identity,
@@ -276,10 +280,16 @@ async function handleStoreLifecycleStatus(store: Store, slug: string, opts: Stat
   }
 }
 
-async function readStoreStatusBoundary(input: { store: Store; cwd: string; record: StoreRecord; fields?: ParsedMetaRecord }):
-  Promise<PublishedIntegrationBoundaryLocus | null> {
-  if (input.fields?.state !== "Active" && input.fields?.state !== "Integrating") return null;
-  return readSubmissionBoundary(input.cwd, input.record.reference.owner.name, { store: input.store, owner: input.record.reference.owner });
+// A refused boundary read stops the query through its typed refusal rather than an untyped throw.
+async function readStoreStatusBoundary(input: { store: Store; cwd: string; record: Awaited<ReturnType<typeof readWorkUnit>>;
+  fields?: ParsedMetaRecord }): Promise<{ boundary: PublishedIntegrationBoundaryLocus | null } | { refusal: StoreRefusal }> {
+  if (input.record.status !== "ok" || (input.fields?.state !== "Active" && input.fields?.state !== "Integrating")) return { boundary: null };
+  const { owner } = input.record.result.reference;
+  try { return { boundary: await readSubmissionBoundary(input.cwd, owner.name, { store: input.store, owner }) }; }
+  catch (error) {
+    if (error instanceof StoreRefusalError) return { refusal: error.refusal };
+    throw error;
+  }
 }
 
 // A missing primary still reports its listing position; any other refusal or a conflicted primary stops the query.

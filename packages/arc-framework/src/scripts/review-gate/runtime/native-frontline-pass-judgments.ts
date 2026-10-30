@@ -12,6 +12,7 @@ import { resolveLocalPolicyTarget } from "./local-correction-context.js";
 import { requestedExtraPasses } from "./native-extra-pass-input.js";
 import { resolveNativeInvocationExtraPassJudgment } from "./native-extra-pass.js";
 import { readNativeDecisionSubject } from "./native-policy-grants.js";
+import { reviewFactListingError } from "../../../lib/store/kinds/review/fact-access.js";
 
 /** Preserve repository resolution and bind native authority before any pending-admission shortcut. */
 export function createNativeFrontlinePassJudgmentResolver(input: ReviewInvocationInput,
@@ -22,7 +23,7 @@ export function createNativeFrontlinePassJudgmentResolver(input: ReviewInvocatio
     const facts = operationStore.nativeFacts;
     if (facts === undefined) throw new Error("Restore the selected native review facts and retry frontline resolution.");
     const listing = await facts.decisions.list();
-    if (listing.status !== "complete") throw new Error(listing.reason);
+    if (listing.status !== "complete") throw reviewFactListingError(listing);
     if (request.policyJudgment?.ceilingOverride === undefined
       && !listing.records.some(({ value }) => value.choice.kind === "extra-pass" && value.choice.precondition.kind === "ceiling")) return request;
     const repositoryId = await facts.readProjectId();

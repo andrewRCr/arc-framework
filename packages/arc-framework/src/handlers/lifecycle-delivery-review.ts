@@ -8,7 +8,7 @@ import { checkCurrentWorkflowConsistency } from "../lib/active/current-workflow-
 import { checkAdvancingPause } from "../lib/store/lifecycle-pause.js";
 import { writeStoredAttestation, type StoredAttestationInput } from "../lib/store/attest-publication.js";
 import type { StoreRecord } from "../lib/store/read.js";
-import type { StoreRefusal } from "../lib/store/refusal.js";
+import { StoreRefusalError } from "../lib/store/refusal-error.js";
 import type { Store } from "../lib/store/contract.js";
 import { retryEndedItemHistory } from "../lib/store/history-retry.js";
 import { usesOffBranchState, readWorkUnit } from "../lib/store/lifecycle-write.js";
@@ -89,10 +89,6 @@ class DeliveryCandidateRenewalRefusal extends Error {}
 
 class CandidateReviewRecoveryRefusal extends Error {}
 
-class AttestationStoreWriteRefusal extends Error {
-  constructor(readonly refusal: StoreRefusal) { super(refusal.condition); }
-}
-
 function refuseProjectIdentityFailure(error: unknown, json: boolean): boolean {
   if (!(error instanceof ProjectIdentityError)) return false;
   refuseWithRemedy(error.failure.reason, error.failure.remedy, json);
@@ -100,7 +96,7 @@ function refuseProjectIdentityFailure(error: unknown, json: boolean): boolean {
 }
 
 function refuseAttestationStateFailure(error: unknown, json: boolean): boolean {
-  if (!(error instanceof AttestationStoreWriteRefusal)) return refuseProjectIdentityFailure(error, json);
+  if (!(error instanceof StoreRefusalError)) return refuseProjectIdentityFailure(error, json);
   refuseWithRemedy(error.refusal.condition, error.refusal.remedy, json);
   return true;
 }
@@ -112,7 +108,7 @@ async function publishStoredAttestation(store: Store | undefined, primary: Store
     throw new Error("Native attestation requires its selected metadata record and Store.");
   }
   const written = await writeStoredAttestation({ ...input, store, primary });
-  if (written.status === "refused") throw new AttestationStoreWriteRefusal(written.refusal);
+  if (written.status === "refused") throw new StoreRefusalError(written.refusal);
   return written.result;
 }
 
@@ -227,6 +223,16 @@ export async function handleAttest(
 /** Execute attestation using the command's resolved checkout, identity, and operational Store. */
 export async function attestCandidateWithReviewBoundary(base: VerbBase,
   input: z.infer<typeof AttestCommandInputSchema>): Promise<void> {
+  await refusingStoreFailures(input.json === true, () => attestCandidate(base, input));
+}
+
+/** Render a store refusal from any of a verb's reads or writes through its typed refusal. */
+async function refusingStoreFailures(json: boolean, run: () => Promise<void>): Promise<void> {
+  try { await run(); }
+  catch (error) { if (!(error instanceof StoreRefusalError) || !refuseAttestationStateFailure(error, json)) throw error; }
+}
+
+async function attestCandidate(base: VerbBase, input: z.infer<typeof AttestCommandInputSchema>): Promise<void> {
   const attesting = base.store === undefined ? base : { ...base, store: retryEndedItemHistory(base.store) };
   const { executor, settings } = await buildExecutor(attesting);
   const boundarySchemaVersion = executor.store?.capabilities.stateOffBranch === true ? 2 : 1;
@@ -597,6 +603,10 @@ export async function publishCandidateWithReviewBoundary(
   target: string,
   input: PublishOptions,
 ): Promise<void> {
+  await refusingStoreFailures(input.json === true, () => publishCandidate(base, target, input));
+}
+
+async function publishCandidate(base: VerbBase, target: string, input: PublishOptions): Promise<void> {
   const { lastCompleted, action } = input;
 
   const { executor, settings } = await buildExecutor(base);

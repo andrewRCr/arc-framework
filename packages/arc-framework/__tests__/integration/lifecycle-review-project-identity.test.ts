@@ -77,8 +77,7 @@ it("refuses re-root with the project port's remedy and attests the corrected nat
   expect(saved.record?.attestation.supersedes).toBe(h.initial.locus.candidateId);
 }, 30_000);
 
-it("repairs publication identity and retains an unchanged native hosted boundary without projected files", async () => {
-  const h = await fixture("Integrating");
+async function seedHostedBoundary(h: Awaited<ReturnType<typeof fixture>>) {
   const head = (await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.cwd })).stdout.trim();
   const handle = createHostedHandleFixture({ repositoryId: projectId,
     target: { repository: "owner/repo", pullRequest: 42, headSha: head },
@@ -91,6 +90,11 @@ it("repairs publication identity and retains an unchanged native hosted boundary
     candidateId: h.initial.locus.candidateId, candidateSubjectDigest: h.initial.locus.candidateSubjectDigest,
     reservation, terminus: null, readinessBinding: null, changeRequest: { repository: "owner/repo", pullRequest: 42 } }, 2);
   await writeSubmissionBoundary(h.cwd, boundary, snapshot.version, { store: h.reference.store, owner: h.primary.reference.owner });
+  return boundary;
+}
+
+it("repairs publication identity and retains an unchanged native hosted boundary without projected files", async () => {
+  const h = await fixture("Integrating"), boundary = await seedHostedBoundary(h);
   const before = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.reference.store, owner: h.primary.reference.owner });
   await expect(h.publish()).resolves.toMatchObject({ status: "rejected",
     remedy: { text: expect.stringContaining("Restore the project's unique, valid identity record") } });
@@ -99,6 +103,23 @@ it("repairs publication identity and retains an unchanged native hosted boundary
   expect(await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.reference.store, owner: h.primary.reference.owner })).toEqual(before);
   expect((await h.exec("git", ["status", "--porcelain"], { cwd: h.cwd })).stdout.trim()).toBe("");
 }, 30_000);
+
+it.each(["review/candidate", "review/integration-boundary"] as const)(
+  "refuses publication through its typed refusal when the %s read refuses, and publishes once repaired", async kind => {
+    const h = await fixture("Integrating"), boundary = await seedHostedBoundary(h);
+    await h.reference.seedProject(projectId);
+    const refusal = { code: "lock-held" as const, class: "recoverable" as const, lock: "review", condition: "The review lock is held.",
+      remedy: { text: "Wait for the holder to finish, then retry.", argv: ["arc", "publish", "example"] } };
+    const read = h.reference.store.read.bind(h.reference.store);
+    let held = true;
+    h.reference.store.read = async input => held && input.reference.kind === kind ? { status: "refused", refusal } : read(input);
+    expect(await h.publish()).toMatchObject({ status: "rejected", reason: refusal.condition,
+      remedy: { invariant: refusal.condition, argv: refusal.remedy.argv, text: expect.stringContaining(refusal.remedy.text) } });
+    expect(process.exitCode).toBe(1);
+    held = false;
+    process.exitCode = 0;
+    expect(await h.publish()).toMatchObject({ status: "unchanged", boundary });
+  }, 30_000);
 
 it("names the native Candidate version during live-review recovery and re-roots after that review ends", async () => {
   const h = await fixture(), originalCwd = process.cwd();
