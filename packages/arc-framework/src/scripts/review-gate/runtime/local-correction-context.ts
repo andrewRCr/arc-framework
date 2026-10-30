@@ -8,6 +8,7 @@ import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import { deriveLocalReviewTarget } from "../hosts/local/repository-target.js";
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import type { ApprovedDispositionRecordReader, ReviewOperationStateStore } from "../core/ports.js";
+import { resolveReviewInvocation, type ReviewInvocationInput } from "./invocation.js";
 import { createGhChangeRequestResolutionPort } from "../hosts/github/change-request.js";
 import { resolveChangeRequest } from "../change-request.js";
 import { readLaneResponsePerformance } from "../lane-progress.js";
@@ -54,7 +55,7 @@ export async function resolveLocalPolicyTarget(
 /** Bind the exact Errand fix-response bridge and ordinary contribution proof to one live target. */
 export function createLocalContributionConfirmation(input: {
   context: {
-    input: { cwd: string; exec: GitExec };
+    input: ReviewInvocationInput;
     dispositionStore: ApprovedDispositionRecordReader;
     operationStore: ReviewOperationStateStore;
   };
@@ -104,6 +105,7 @@ export function createLocalContributionConfirmation(input: {
       });
     }
     return confirmNonDeliveryIncrementalApplicability({
+      stateOffBranch: resolveReviewInvocation(input.context.input).store.capabilities.stateOffBranch,
       predecessor,
       currentTarget,
       currentLineage,
