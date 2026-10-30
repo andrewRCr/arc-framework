@@ -2,7 +2,7 @@
 import type { Store } from "../../lib/store/contract.js";
 import type { OwnerIdentity } from "../../lib/store/identity.js";
 import { acquireStoreErrands } from "../../lib/errand/store-discovery.js";
-import { deserializeTransientIdentityRecord, type TransientIdentityRecord } from "../../lib/errand/identity-record.js";
+import type { TransientIdentityRecord } from "../../lib/errand/identity-record.js";
 
 type StatusTarget = { readonly repository: string; readonly headRef: string; readonly headSha: string };
 /** Exact positive claim, authoritative absence, or the existing status refusal. */
@@ -37,20 +37,22 @@ export function matchingOrdinaryErrand(
   return { kind: "matched", record };
 }
 
-/** Read this identity's stored claims while retaining the selected primary's exact generation. */
+/**
+ * Read this identity's stored claims while retaining the selected primary's exact generation. Another owner's
+ * unreadable record never blocks a matched claim; it blocks only absence, which an incomplete listing cannot establish.
+ */
 export async function readStoredStatusErrandSelection(store: Store, identity: string, target: StatusTarget): Promise<ErrandStatusSelection> {
   const inventory = await acquireStoreErrands(store);
   if (inventory.kind === "absent") return { kind: "none" };
   if (inventory.kind === "error") return { kind: "blocked", detail: inventory.message };
-  if (inventory.missed || inventory.diagnostics.length > 0) return { kind: "blocked",
-    detail: `The stored Errand inventory is incomplete. ${inventory.diagnostics.map(item => `${item.condition} ${item.remedy.text}`).join("; ") || "Restore the complete Errand inventory, then retry."}` };
-  const claims: { record: TransientIdentityRecord; workItem: OwnerIdentity }[] = [];
-  for (const saved of inventory.records) {
-    const decoded = deserializeTransientIdentityRecord(saved.content, saved.reference.owner.name);
-    if (decoded.kind !== "valid") return { kind: "blocked", detail: `The stored Errand ${saved.reference.owner.name} is unreadable. Repair its record, then retry.` };
-    if (decoded.record.kind === "errand" && decoded.record.purpose === "errand" && decoded.record.owner === identity) claims.push({ record: decoded.record, workItem: saved.reference.owner });
-  }
+  const claims = inventory.records.flatMap((saved) => {
+    const record = inventory.decoded.get(saved.reference.owner.name);
+    return record?.kind === "errand" && record.purpose === "errand" && record.owner === identity
+      ? [{ record, workItem: saved.reference.owner }] : [];
+  });
   const selected = matchingOrdinaryErrand(claims.map(claim => claim.record), target);
+  if (selected.kind === "none" && (inventory.missed || inventory.diagnostics.length > 0)) return { kind: "blocked",
+    detail: `The stored Errand inventory is incomplete. ${inventory.diagnostics.map(item => `${item.condition} ${item.remedy.text}`).join("; ") || "Restore the complete Errand inventory, then retry."}` };
   if (selected.kind !== "matched") return selected;
   const claim = claims.find(claim => claim.record === selected.record);
   if (claim === undefined) throw new Error("The selected Errand primary is unavailable. Retry status.");

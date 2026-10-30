@@ -8,6 +8,7 @@ import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 import { createReviewCheckout } from "../../../helpers/store/review-checkout.js";
 import { scriptRawGitExec } from "../../../helpers/git-exec-fake.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
+import { recordKey } from "../../../helpers/store/model.js";
 import { createReviewDecisionPort } from "../../../../src/lib/store/kinds/review/decision/access.js";
 import { reviewDecisionKey } from "../../../../src/lib/store/kinds/review/decision/key.js";
 import type { ReviewCeilingOverride, ReviewAdditionalPassAuthorization } from "../../../../src/scripts/review-gate/policy/review-policy-driver.js";
@@ -97,4 +98,22 @@ it("retains the exact primary generation returned by stored claim selection", as
 it("keeps claim selection scoped to the current identity", async () => {
   const h = await fixture(true, "another-user");
   expect(await h.run()).toBeNull();
+});
+
+it("selects this identity's Errand past another owner's malformed record, refusing absence only while it stays malformed", async () => {
+  const h = await fixture();
+  const foreign = TransientIdentityRecordSchema.parse({ ...h.record, slug: "elsewhere", claimId: "2".repeat(32),
+    owner: "other-user", branch: "chore/elsewhere" });
+  if (foreign.kind !== "errand") throw new Error("Expected ordinary Errand");
+  const { reference } = await h.seedErrand(foreign);
+  const saved = h.store.state.snapshots.get(lifecycleSuccess(await h.store.version()))?.get(recordKey(reference));
+  if (saved === undefined) throw new Error("Expected the foreign Errand in the saved state");
+  const original = saved.content;
+  saved.content = "{not an Errand";
+  const target = { repository: "owner/repository", headRef: branch, headSha: head };
+  expect(await readStoredStatusErrandSelection(h.store, "test-user", target)).toMatchObject({ kind: "matched", record: h.record });
+  expect(await readStoredStatusErrandSelection(h.store, "someone-else", target)).toMatchObject({ kind: "blocked",
+    detail: expect.stringContaining("incomplete") });
+  saved.content = original;
+  expect(await readStoredStatusErrandSelection(h.store, "someone-else", target)).toEqual({ kind: "none" });
 });
