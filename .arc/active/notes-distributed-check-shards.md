@@ -1,5 +1,43 @@
 # Distributed Check Shards — Notes
 
+## Contents
+
+- Context
+    - [Historical performance context](#historical-performance-context)
+    - [Supplemental investigation](#supplemental-investigation)
+    - [Implementation starting points](#implementation-starting-points)
+- Native qualification
+    - [Native qualification evidence](#native-qualification-evidence)
+    - [Re-grounding against the landed store backend](#re-grounding-against-the-landed-store-backend)
+    - [Store qualification and prepared timing output](#store-qualification-and-prepared-timing-output)
+    - [Native reach no-ops and closed empty shares](#native-reach-no-ops-and-closed-empty-shares)
+    - [Six-shard store qualification after the merge](#six-shard-store-qualification-after-the-merge)
+- External integration
+    - [External group qualification evidence](#external-group-qualification-evidence)
+- Whole-gate measurement
+    - [Whole-gate experiment inputs](#whole-gate-experiment-inputs)
+    - [Branch-range comparison after the all-scope gate failure](#branch-range-comparison-after-the-all-scope-gate-failure)
+    - [First range pair and remote upload failure](#first-range-pair-and-remote-upload-failure)
+    - [Profile corroboration for whole-gate analysis](#profile-corroboration-for-whole-gate-analysis)
+    - [Upload deadline repair and fresh comparison](#upload-deadline-repair-and-fresh-comparison)
+    - [First repaired-provider pair before profile witnesses](#first-repaired-provider-pair-before-profile-witnesses)
+    - [Completed profile witnesses and availability interruption](#completed-profile-witnesses-and-availability-interruption)
+    - [Fresh comparison after the availability interruption](#fresh-comparison-after-the-availability-interruption)
+    - [Observed idle-pool gate latency](#observed-idle-pool-gate-latency)
+    - [Observed named-workload completion and admission](#observed-named-workload-completion-and-admission)
+    - [Segment closure and observed limits](#segment-closure-and-observed-limits)
+- [Amendment reasoning](#amendment-reasoning)
+    - [A2 — store dependency](#a2--store-dependency)
+    - [A3 — E2E leaves routed qualification](#a3--e2e-leaves-routed-qualification)
+    - [A5 — cache placement and the external group design](#a5--cache-placement-and-the-external-group-design)
+    - [A6 — group execution across runners](#a6--group-execution-across-runners)
+    - [A7 — routed shard opt-in](#a7--routed-shard-opt-in)
+    - [A8 — named workload and bounded slowdown](#a8--named-workload-and-bounded-slowdown)
+    - [A9 — native local context runs](#a9--native-local-context-runs)
+    - [A11 — first-placement pre-launch refusals](#a11--first-placement-pre-launch-refusals)
+    - [A12 — four-shard benefit scope](#a12--four-shard-benefit-scope)
+- [Prior-art references](#prior-art-references)
+
 ## Historical performance context
 
 Earlier runner-pool measurements put a complete store run at approximately ten minutes on the primary mini and
@@ -9,7 +47,7 @@ predict performance at a newer head or qualify distributed execution.
 
 ## Supplemental investigation
 
-Local harnesses and results live under `.arc/user/andrew/.internal/distributed-check-shards-recon/` in this checkout:
+Local harnesses and results live under `~/dev/arc-evidence/distributed-check-shards/distributed-check-shards-recon/`:
 
 - `probe.py` and `input-transport-result.json`: one frozen tiny repository and static two-way manifest, with one
   direct WSL sibling and one admitted remote sibling. Source, duration, manifest and HEAD identities matched after
@@ -54,7 +92,7 @@ The runner foundation has landed. Its package-relative seams:
   advertises `runGroup: false` and unknown runtime. The distributed consumer extends it rather than adding another.
 
 The 2026-10-28 reground fact sheet, with source loci for every claim, is
-`.arc/user/andrew/.internal/distributed-check-shards-recon/reground-2026-10-28.md` in this checkout.
+`~/dev/arc-evidence/distributed-check-shards/distributed-check-shards-recon/reground-2026-10-28.md`.
 
 Current `resolveCheckForecast` in `src/lib/checks/forecast.ts` appends shard arguments after batching. Its
 `checkArgumentBatches`/`batchCheckPaths` inputs in `src/lib/checks/batching.ts` therefore need the complete final
@@ -116,8 +154,8 @@ It preserves npm prefixes, configured pool admission, native setup/closing and p
 in-memory unit clone enables the qualification matrix; the shipping unit declaration stays opted out. Native
 observations and the parent/closure results are retained together, without cache reuse.
 
-The first unit qualification records live under the gitignored identity directory
-`.arc/user/andrew/.internal/distributed-check-shards-qualification/`:
+The first unit qualification records live under
+`~/dev/arc-evidence/distributed-check-shards/distributed-check-shards-qualification/`:
 
 - `unit-full-unset.json`: Linux arm64, Node 26.3.0, Vitest 4.1.11; 1,321 selected modules (1,280 `unit`, 41
   `unit-mocks`), assigned 659/662 with exact complete/disjoint union and successful parent/closure.
@@ -281,6 +319,24 @@ History `4eb7cbcb32004627a946f7e3d034b983`, plan `5bca6fa3-72ab-4d8e-bd20-9e6ac0
 with the unit/store cases above and hosted portability status run `40781020166`, these are captured case/profile
 qualifications; no exact-head work-unit verification or unmeasured deployment claim follows from them.
 
+### Six-shard store qualification after the merge
+
+The merged store declaration routes six shards. At `c33194fadb2744697d71c820cf1446847074a6e3`, with
+`ARC_STORE_CHECK=every` and a zero-byte handed duration file, one captured basis (source `sha256:a6441bdd…`,
+environment `sha256:aced7588…`) qualifies it three ways. Each run selects 316 native members, assigned
+53/53/53/53/52/52 with every native exit zero, on Node 26.3.0 and Vitest 4.1.11:
+
+- Plan `b79a7783-e7b0-4d5a-add2-86c52e99d687` fanned out under the routing mode in force: the baseline and shards 1,
+  3, 4 and 5 on Linux arm64, shards 2 and 6 on Linux x64. Its parent and closure succeed; the single-profile
+  qualifier refuses it as mixed.
+- Witness plans `bf8d899c-653e-42b1-82f1-cdbbc8c0db3c` (m4-mini, Linux arm64) and
+  `ec5252b2-f7d3-4967-ac00-00ab15564132` (the local WSL host, Linux x64) each qualify on one profile.
+- `qualifyCorroboratedNativeShardMembership` accepts the fan-out run against both witnesses: each actual shard matches
+  its same-profile witness, and the union equals the 316-member baseline.
+
+The records are `store-six-*.json` under `~/dev/arc-evidence/distributed-check-shards/verification/`, beside the
+first fan-out attempt, which lost its m5-air transport.
+
 ## External group qualification evidence
 
 The provider implementation is isolated in `arc-offload.distributed-check-shards`, branch
@@ -355,7 +411,7 @@ setup establishes no latency, throughput or performance qualification by itself.
 The first attempt, `measurements-f5b4ac8b-0cd0-447d-8c0f-ee363dcf0665/experiment.json`, stops before any gate
 launches: zero samples and no performance result. Its pool snapshot and retained histories identify active/queued
 checks from `lifecycle-slug-selection` and a separate Errand. A fresh pool snapshot still observes other work.
-Idle-pool and named-workload qualification therefore remain open pending a quiet measurement window.
+Idle-pool and named-workload qualification therefore remained open pending a quiet measurement window.
 
 `experiment-harness-capacity-v2/` and `experiment-config-capacity-v2.json` preserve the same fixed requests and
 schedule for the next fresh attempt. The private driver corrects one status classification: guard deferral means
@@ -458,7 +514,7 @@ slots are skipped, and original attempt/wall budgets persist. Strict and compose
 The collector and nonempty receipt loader still require validation against actual fresh full-native witnesses.
 Prelaunch setup establishes no new latency, throughput or mixed-profile qualification by itself.
 
-### First repaired-provider pair and pending profile witnesses
+### First repaired-provider pair before profile witnesses
 
 The first v4 routed-unsharded merge gate completes successfully in 1,359.647 seconds; its distributed partner completes
 in 682.51 seconds. All six captured contexts close normally in each gate, with no retained capture, reported execution
@@ -480,8 +536,8 @@ outside measured gate clocks and remain unfinished evidence.
 
 Witness archives are `~/dev/arc-evidence/distributed-check-shards/native-store-arm-range-v4-a/` and
 `native-store-x64-range-v4-a/`. The collector must still prove every native row, homogeneous membership, normal SDK
-closure, exact registered-backend settlement and unchanged provider/source/policy. The receipt reader has not yet
-accepted a nonempty real witness set; absent or invalid proof keeps the measured pair unqualified.
+closure, exact registered-backend settlement and unchanged provider/source/policy. The receipt reader had not yet
+accepted a nonempty real witness set; absent or invalid proof kept the measured pair unqualified.
 
 ### Completed profile witnesses and availability interruption
 
@@ -674,11 +730,11 @@ path outside the roots established during preparation; the standalone example re
 each plan has a private copy, but returns if the adapter shares dependency installations across views to avoid
 repeated preparation. Placement is therefore decided with the external group design.
 
-That design is reopened pending measurement. Locally placed plans spend a median of about 24 s from adapter start to
-first command (66 journals), including copy, dependency preparation and verification; remote preparation was not
-recorded. Remote runners admit one heavy job per machine, and same-worktree captured plans serialize on the checkout
-lock. The measurement covers real remote preparation cost, native shard execution splits for unit, integration and
-store, and whether same-worktree plans can overlap, before Phase 5's tasks are rewritten.
+That design reopened pending measurement, which A6 settled. Locally placed plans spend a median of about 24 s from
+adapter start to first command (66 journals), including copy, dependency preparation and verification; remote
+preparation was not recorded. Remote runners admit one heavy job per machine, and same-worktree captured plans serialize
+on the checkout lock. The measurement covers real remote preparation cost, native shard execution splits for unit,
+integration and store, and whether same-worktree plans can overlap, before Phase 5's tasks are rewritten.
 
 ### A6 — group execution across runners
 

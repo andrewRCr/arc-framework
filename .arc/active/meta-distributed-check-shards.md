@@ -11,14 +11,14 @@
 - **Design:** `spec-distributed-check-shards.md`
 - **Task List:** `tasks-distributed-check-shards.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:af74a0bb38b90dab40c0c713c3eb3e7fc163d4a8d13fb6c21739addecddc3d89`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 6.3 — Qualify named-workload aggregate completion and admission
-- **Next Task:** Task 6.4 — Validate integrated execution and measured benefit (line ~435)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 7.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Paused after the comparison results; on resumption, complete the two native-local context slots,
-  then Task 6.4's evidence walk and segment check. Phase 7 remains unopened.
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]

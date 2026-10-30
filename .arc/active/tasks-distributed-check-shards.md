@@ -477,119 +477,140 @@ variation, and a named-workload slowdown above 10% keeps qualification open.
 
 _Purpose:_ Verify the complete implementation against its success criteria and required project checks.
 
-### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ Every success criterion is backed by evidence at the final implementation head, with required checks and
   integration readiness established through the work-unit verification workflow.
+- _Quality gates:_ the merge gate (`arc check gate merge --force`) at `900e5d988` passes 19 checks, with 4 CI-only
+  checks not selected; the store suites ran as one routed group of six shards in three placements on arc-offload
+  `3a74613`. Hosted dispatch `41106204008` at that head passes every job, the Windows/macOS pair included. Dispatch
+  `41087259940` at `c33194fad` failed only the Windows pair job, on shard fixtures named through an 8.3 temporary
+  alias; 4.R (A13) corrected them, red then green on a local Windows runner. The provider behavior criteria 23, 27 and
+  28 rest on landed on arc-offload `main` as `082f270`.
+- _Success criteria:_ 30 criteria: 25 met, one of them with a Deviation note (16), and 5 superseded (13 by A3, 17 by
+  A4, 19 by A8, 25 by A12, 26 by A11). Criterion 21 also holds for the merged six-shard store declaration
+  (`notes-distributed-check-shards.md` § Six-shard store qualification after the merge). Two independent review passes
+  closed with the A1/C1 fixes and the A11/A12 amendments; A13 followed the pass cap.
 
 ## Success Criteria
 
-- `[ ]` Native/unconfigured checks retain their single command without source preparation; routed dry-run performs
+- `[x]` Native/unconfigured checks retain their single command without source preparation; routed dry-run performs
   no capture, adapter launch or runtime probe. Configured-runner failure never triggers an ARC bypass.
 
-- `[ ]` Complete canonical batch/shard plans precede prepare/reuse, retain command/cwd/selection semantics and fit
+- `[x]` Complete canonical batch/shard plans precede prepare/reuse, retain command/cwd/selection semantics and fit
   compatible POSIX/Windows final-argument limits. Oversize/escaping-cwd refusals succeed after explicit repair.
 
-- `[ ]` Group dispatch submits the complete plan once; mandatory serial playback executes the identical plan in order
+- `[x]` Group dispatch submits the complete plan once; mandatory serial playback executes the identical plan in order
   and continues ordinary failures. Every expected pair executes at most once with distinct correlation identity.
 
-- `[ ]` Source bytes/coordinates, selection and explicit absent/empty/value/file bindings stay fixed across siblings,
+- `[x]` Source bytes/coordinates, selection and explicit absent/empty/value/file bindings stay fixed across siblings,
   probes and disabled-cache runs after original edits; relative/symlink file behavior follows the native boundary.
 
-- `[ ]` Identical-argv project/files commands and probes retain their distinct engine-owned content bindings. Poisoned
+- `[x]` Identical-argv project/files commands and probes retain their distinct engine-owned content bindings. Poisoned
   caller/worker Git selectors cannot redirect execution; every reserved name/case variant refuses explicit replay,
   and removing the conflict restores successful captured-source execution with ordinary explicit inputs.
 
-- `[ ]` Parent reuse covers the complete scoped input/matrix/runtime vector. Relevant changes miss while unrelated
+- `[x]` Parent reuse covers the complete scoped input/matrix/runtime vector. Relevant changes miss while unrelated
   source/state, host paths, provider labels and attempt IDs do not. Unknown runtime executes without reuse;
   malformed claimed coverage refuses, and changed known placement requires fresh qualification before work.
 
-- `[ ]` A complete hit launches no invocation and closes/releases its context. A successful miss publishes one parent
+- `[x]` A complete hit launches no invocation and closes/releases its context. A successful miss publishes one parent
   only after complete acceptable evidence, required output, settlement and normal closure; failed/incomplete/unknown
   parents publish none. Disposable pass read/write failures retain their miss/advisory semantics.
 
-- `[ ]` Missing/duplicate/conflicting/unknown IDs, wrong source, cancellation, transport loss, killed work or required
+- `[x]` Missing/duplicate/conflicting/unknown IDs, wrong source, cancellation, transport loss, killed work or required
   output loss never pass. Valid native failures survive beside incomplete work, including exact unsigned 32-bit
   statuses; no-evidence/137/notice precedence stays native and all-no-evidence work never gains a pass.
 
-- `[ ]` Human/JSON output retains parent conventions and attributable batch/shard outcomes, exact native statuses and
+- `[x]` Human/JSON output retains parent conventions and attributable batch/shard outcomes, exact native statuses and
   incomplete reasons. Progress, adapter exit and optional log persistence never substitute for terminal evidence.
 
-- `[ ]` Settled no-context preparation refusal drains and exits normally without release, including a cancellation
+- `[x]` Settled no-context preparation refusal drains and exits normally without release, including a cancellation
   race and successful explicit retry after repair. Abnormal closure or absent settlement retains uncertainty.
 
-- `[ ]` Interruption waits for actual settlement; acknowledgement or second interruption is insufficient. Lost
+- `[x]` Interruption waits for actual settlement; acknowledgement or second interruption is insufficient. Lost
   preparation/execution conversations retain capture and usable pre-work recovery guidance by plan ID; failed
   guidance writes launch no work. ARC performs no automatic recovery, replacement or retry.
 
-- `[ ]` Settled leftover-directory/log disposal is advisory, while missing required output, unsettled children and
+- `[x]` Settled leftover-directory/log disposal is advisory, while missing required output, unsettled children and
   native controller-close errors remain substantive. Capture and build/test ownership survive required closing.
 
-- `[ ]` Actual unit, integration, landed reach-store and E2E shard assignments have complete/disjoint native union
+- `[~]` Actual unit, integration, landed reach-store and E2E shard assignments have complete/disjoint native union
   across qualified profiles, filters, deletion/widening and frozen available/absent/empty duration states. The landed
   store declaration uses ordinary eligible argv and captured selector gates; its catalogue works without the retired
   wrapper, including when native store adoption occurs after the foundation closes.
+    - **Superseded:** A3 removed E2E from routed qualification; criterion 21 replaces this one, with E2E native
+      and CI-only.
 
-- `[ ]` Actual reach no-affected-suite and empty-share successes retain native meaning, while ordinary unmatched,
+- `[x]` Actual reach no-affected-suite and empty-share successes retain native meaning, while ordinary unmatched,
   all-skipped and empty-execution cases remain nonpassing through native controllers and closing.
 
-- `[ ]` Concurrent views sharing dependencies do not alias mutable native cache/report writers; private native
+- `[x]` Concurrent views sharing dependencies do not alias mutable native cache/report writers; private native
   `results.json` artifacts merge correctly and existing artifact leases remain held through closing.
 
-- `[ ]` Forecasts describe binding names/kinds without payloads or setup-time capture. Native CI binds after artifact
+- `[x]` Forecasts describe binding names/kinds without payloads or setup-time capture. Native CI binds after artifact
   delivery, mismatch/regeneration repairs successfully, and native placement/shards/artifact names remain intact
   with the private clear/upload paths. Consumer portability selectors/classifiers cover the changed surface.
+    - **Deviation:** A6 kept the native cache locations, so CI's unchanged clear/upload paths serve in place of
+      private ones.
 
-- `[ ]` A completed native Windows run proves exact 256/high-bit parent failure handling; other supported-platform
+- `[~]` A completed native Windows run proves exact 256/high-bit parent failure handling; other supported-platform
   budget/path/result cases execute through their selected portability routes rather than classification alone.
+    - **Superseded:** A4 moved Windows status evidence to the consumer's fixture-backed cases on the portability
+      pair; criterion 22 replaces this one.
 
-- `[ ]` Independent public fixtures and real local/remote personal placements meet the same contract and qualified
+- `[x]` Independent public fixtures and real local/remote personal placements meet the same contract and qualified
   native profiles. Generic external use, current registry/routing/admission, memory ceilings and caller CPU policy
   remain effective without provider deployment settings or test grammar entering ARC.
 
-- `[ ]` Repeated fresh complete-gate comparisons report idle and five-or-six-gate median/range, raw samples, aggregate
+- `[~]` Repeated fresh complete-gate comparisons report idle and five-or-six-gate median/range, raw samples, aggregate
   completion, native coverage and admission including capture through collection. Claimed improvement exceeds
   observed variation; any concurrent regression or missing required evidence remains unresolved qualification.
+    - **Superseded:** A8 replaced the five-or-six-gate comparison with a named workload and bounded slowdown
+      (criterion 25), which A12 in turn bound to the four-shard store plan (criterion 28).
 
-- `[ ]` Public guidance/examples explain generic runner use, native defaults, evidence/recovery and qualification
+- `[x]` Public guidance/examples explain generic runner use, native defaults, evidence/recovery and qualification
   limits, and match executable scenarios without depending on the personal provider.
 
-- `[ ]` Actual unit, integration and landed reach-store shard assignments have complete/disjoint native union across
+- `[x]` Actual unit, integration and landed reach-store shard assignments have complete/disjoint native union across
   qualified profiles, filters, deletion/widening and frozen available/absent/empty duration states. E2E stays native
   and CI-only with its existing membership validation. The store declaration uses ordinary eligible argv and captured
   selector gates and works without the retired wrapper.
 
-- `[ ]` A completed Windows/macOS portability-pair run executes the consumer's fixture-backed 256/high-bit parent
+- `[x]` A completed Windows/macOS portability-pair run executes the consumer's fixture-backed 256/high-bit parent
   reduction cases; other supported-platform budget/path/result cases execute through their selected portability
   routes rather than classification alone.
 
-- `[ ]` The external adapter runs a complete group from one local materialization uploaded to each placement that
+- `[x]` The external adapter runs a complete group from one local materialization uploaded to each placement that
   takes a sibling. Each placement prepares a private copy, existing admission keeps at most one heavy sibling per
   machine, and a placement's further siblings run serially in its prepared copy.
 
-- `[ ]` Only checks whose declaration sets `shards.routed: true` expand on the routed path. An opted-out check with
+- `[x]` Only checks whose declaration sets `shards.routed: true` expand on the routed path. An opted-out check with
   shards routes one unsharded command, and CI's declared matrix and forecast are unchanged.
 
-- `[ ]` Repeated forced comparisons against the same gates routed unsharded show an idle-pool per-gate gain beyond
+- `[~]` Repeated forced comparisons against the same gates routed unsharded show an idle-pool per-gate gain beyond
   observed variation. Under two concurrent store-selecting merge gates plus one push gate, aggregate completion is at
   most 10% slower than that baseline and is reported with its measured size.
+    - **Superseded:** A12 bound the measured benefit to the four-shard store plan; criterion 28 replaces this one.
 
-- `[ ]` Two groups racing for one placement both complete; a refusal before a backend starts leads to waiting or
+- `[~]` Two groups racing for one placement both complete; a refusal before a backend starts leads to waiting or
   another placement, never an unavailable sibling. Recovery guidance from a group reaches every remote placement it
   used.
+    - **Superseded:** A11 limits waiting or moving at a group's first placement to a busy refusal; criterion 27
+      replaces this one.
 
-- `[ ]` Two groups racing for one placement both complete. A refusal before a backend starts leads to waiting or
+- `[x]` Two groups racing for one placement both complete. A refusal before a backend starts leads to waiting or
   another placement, never an unavailable sibling, except that a non-busy refusal at the group's first placement
   settles the check unavailable and retryable, as a single plan's refusal does. Recovery guidance from a group
   reaches every remote placement it used.
 
-- `[ ]` Repeated forced comparisons of the four-shard store plan against the same gates routed unsharded show an
+- `[x]` Repeated forced comparisons of the four-shard store plan against the same gates routed unsharded show an
   idle-pool per-gate gain beyond observed variation. Under two concurrent store-selecting merge gates plus one push
   gate, aggregate completion is at most 10% slower than that baseline and is reported with its measured size. Another
   declared shard count claims no benefit until it is compared the same way.
 
-- `[ ]` All quality gates pass.
+- `[x]` All quality gates pass.
 
-- `[ ]` Ready for integration.
+- `[x]` Ready for integration.
 
 ---
