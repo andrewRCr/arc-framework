@@ -84,8 +84,8 @@ function reviewStoreRefusalError(mode: ReviewFamilyMode, error: unknown, errorSc
   const code = "store-refused" as const;
   const fallback = remedyFor?.(code);
   return errorSchema.parse({ schemaVersion: 1, mode, diagnostics: [], error: { code, message: error.message }, refusal: error.refusal,
-    remedy: reviewFailureSpineRemedy(error.refusal.condition, error.refusal.remedy, fallback?.argv ?? reviewRequestRetryArgv(parsed.data),
-      fallback?.stdin) });
+    remedy: reviewFailureSpineRemedy(error.refusal.condition, error.refusal.remedy,
+      fallback?.argv ?? reviewRequestRetryArgv(parsed.data) ?? ["arc", "review", "--help"], fallback?.stdin) });
 }
 
 /** Project one failure through the error schema owned by its command family. */

@@ -5,13 +5,14 @@ import type { Remedy } from "../../../lib/store/refusal.js";
 import { spineRemedy, type SpineRemedy } from "../../integration/spine-refusal.js";
 import { ReviewCommandModeSchema, type ReviewCommandMode } from "../core/review-command-envelope.js";
 
-const COMMAND_PATHS: Record<ReviewCommandMode, readonly string[]> = {
+// Pre-publication takes its work unit as an operand, not a request, and supplies its own retry.
+const COMMAND_PATHS: Record<Exclude<ReviewCommandMode, "review-pre-publication">, readonly string[]> = {
   "review-readiness": ["readiness"],
   "review-lane-read": ["lane", "read"],
   "review-adversarial-record": ["adversarial", "record"],
   "review-resolve": ["resolve"],
   "review-frontline-resolve": ["frontline", "resolve"],
-  "review-chunking-resolve": ["chunking", "resolve"],
+  "review-chunking-resolve": ["changeset", "resolve"],
   "review-planning-grooming-resolve": ["planning-grooming", "resolve"],
   "review-frontline-run": ["frontline", "run"],
   "review-local-prepare": ["local", "prepare"],
@@ -25,7 +26,6 @@ const COMMAND_PATHS: Record<ReviewCommandMode, readonly string[]> = {
   "review-hosted-settle": ["hosted", "settle"],
   "review-hosted-dismiss": ["hosted", "dismiss"],
   "review-terminus-accept": ["terminus", "accept"],
-  "review-pre-publication": ["pre-publication"],
 };
 
 /** Keep a failure's own command when present; otherwise retain the caller's exact retry input. */
@@ -41,9 +41,9 @@ export function projectIdentitySpineRemedy(error: ProjectIdentityError, retryArg
   return reviewFailureSpineRemedy(error.failure.reason, error.failure.remedy, retryArgv, submittedRequest);
 }
 
-/** The review command's own request-bearing retry. */
-export function reviewRequestRetryArgv(mode: ReviewCommandMode): readonly string[] {
-  return ["arc", "review", ...COMMAND_PATHS[mode], "-"];
+/** The review command's own request-bearing retry, absent for pre-publication. */
+export function reviewRequestRetryArgv(mode: ReviewCommandMode): readonly string[] | undefined {
+  return mode === "review-pre-publication" ? undefined : ["arc", "review", ...COMMAND_PATHS[mode], "-"];
 }
 
 /** Build a request-bearing review retry without changing unrelated command families. */
@@ -51,14 +51,14 @@ export function reviewProjectIdentityRequestRemedy(mode: string, error: unknown,
   submittedRequest?: unknown): SpineRemedy | undefined {
   if (!(error instanceof ProjectIdentityError)) return undefined;
   const parsed = ReviewCommandModeSchema.safeParse(mode);
-  if (!parsed.success) return undefined;
-  return projectIdentitySpineRemedy(error, reviewRequestRetryArgv(parsed.data), submittedRequest);
+  const argv = parsed.success ? reviewRequestRetryArgv(parsed.data) : undefined;
+  return argv === undefined ? undefined : projectIdentitySpineRemedy(error, argv, submittedRequest);
 }
 
 /** Build the request-bearing retry for a project-identity failure or an off-branch store's refusal. */
 export function reviewFailureRequestRemedy(mode: string, error: unknown, submittedRequest?: unknown): SpineRemedy | undefined {
   if (!(error instanceof StoreRefusalError) || !error.offBranch) return reviewProjectIdentityRequestRemedy(mode, error, submittedRequest);
   const parsed = ReviewCommandModeSchema.safeParse(mode);
-  return parsed.success ? reviewFailureSpineRemedy(error.refusal.condition, error.refusal.remedy,
-    reviewRequestRetryArgv(parsed.data), submittedRequest) : undefined;
+  const argv = parsed.success ? reviewRequestRetryArgv(parsed.data) : undefined;
+  return argv === undefined ? undefined : reviewFailureSpineRemedy(error.refusal.condition, error.refusal.remedy, argv, submittedRequest);
 }
