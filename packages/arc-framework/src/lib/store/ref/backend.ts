@@ -19,6 +19,7 @@ import { pullRefStore } from "./pull.js";
 import { readSourceContext } from "./read-source-namespace.js";
 import { runRefMigrate, runRefRemote } from "./commands.js";
 import { runRefConflict } from "./conflict-command.js";
+import { withRefOperation } from "./operation-scope.js";
 import { createRefReadCoordinator } from "./read-operation.js";
 import { maintainRefStore } from "./maintain.js";
 import { withOperationIdentity as scoped } from "./operation-identity.js";
@@ -33,13 +34,13 @@ export function createRefBackend(ports: RefStorePorts): Store {
     batch: (input) => operations.read((reader) => batchRefRecords(scoped(reader), input)),
     pull: (input) => {
       const parsed = PullInputSchema.safeParse(input ?? {});
-      return parsed.success ? operations.maintenance(() => pullRefStore(scoped(context), parsed.data)) : syncInputRefusal("pull", parsed.error);
+      return parsed.success ? operations.maintenance(() => withRefOperation(scoped(context), (reader) => pullRefStore(reader, parsed.data))) : syncInputRefusal("pull", parsed.error);
     },
     push: (input) => {
       const parsed = PushInputSchema.safeParse(input ?? {});
-      return parsed.success ? operations.maintenance(() => pushRefStore(scoped(context), parsed.data)) : syncInputRefusal("push", parsed.error);
+      return parsed.success ? operations.maintenance(() => withRefOperation(scoped(context), (reader) => pushRefStore(reader, parsed.data))) : syncInputRefusal("push", parsed.error);
     },
-    maintain: () => operations.maintenance(() => maintainRefStore(scoped(context))),
+    maintain: () => operations.maintenance(() => withRefOperation(scoped(context), maintainRefStore)),
   };
 }
 

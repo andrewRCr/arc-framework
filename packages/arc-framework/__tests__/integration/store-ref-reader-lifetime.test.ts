@@ -1,8 +1,11 @@
 /** Native reader reuse, operation isolation, and pack-handle release through public storage calls. */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { createReadSourceStore, createRefStore } from "../../src/lib/store/create.js";
+import { refSyncFixture } from "../helpers/store/ref-sync.js";
+import { success } from "../helpers/store/suite-tools.js";
+import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { createRefReadFixture } from "../helpers/store/ref-read.js";
 import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
@@ -232,3 +235,46 @@ describe.each(["default", "separate"] as const)("operation reader (%s)", (layout
   }, 30_000);
 
 });
+
+it("closes the pull reader before a history fetch performs due store maintenance", async () => {
+  const h = await refSyncFixture("separate");
+  for (const [key, value] of [["fetch.unpackLimit", "1"], ["transfer.unpackLimit", "1"]]) await h.b.git(["config", key!, value!]);
+  const made = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("fetch-end"),
+    reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "fetch-end" } }),
+    placement: { kind: "active" }, provenance }));
+  const personal = RecordReferenceSchema.parse({ kind: "personal/document", key: "notice.md", owner: { type: "person", name: "andrew" } });
+  success(await h.a.store.write({ action: "put", reference: personal, expected: null, content: "Retained personal bytes.\n", provenance }));
+  success(await h.a.store.push()); success(await h.b.store.pull());
+  const before = success(await h.a.store.read({ reference: made.reference }));
+  success(await h.a.store.write({ action: "put", reference: before.reference, expected: before.version,
+    content: before.content, placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance }));
+  success(await h.a.store.push());
+  const packDirectory = join(h.b.gitDir!, "objects", "pack");
+  const path = join(h.b.root, "history-fetch-maintenance-trace.json");
+  let packsBefore: string[] = [], packsAfter: string[] = [], readersBefore: TraceEvent[] = [], exitsAtFetch: TraceEvent[] = [];
+  const store = createRefStore({ ...h.b.ports, exec: async (command, args, options) => {
+    const historyFetch = args.includes("fetch") && options?.input?.includes("refs/arc/history/");
+    if (historyFetch) {
+      const events = await trace(path);
+      readersBefore = events.filter(({ event, argv }) => event === "start" && argv?.includes("cat-file") && argv.includes("--batch"));
+      exitsAtFetch = events.filter(({ event }) => event === "exit");
+      packsBefore = (await readdir(packDirectory)).filter((name) => name.endsWith(".pack"));
+      await h.b.git(["config", "gc.auto", "1"]); await h.b.git(["config", "gc.autoPackLimit", "1"]);
+      if (process.platform !== "win32") {
+        await h.b.git(["config", "gc.autoDetach", "false"]); await h.b.git(["config", "maintenance.autoDetach", "false"]);
+      }
+    }
+    const result = await h.b.ports.exec(command, args, options);
+    if (historyFetch) packsAfter = (await readdir(packDirectory)).filter((name) => name.endsWith(".pack"));
+    return result;
+  } });
+  vi.stubEnv("GIT_TRACE2_EVENT", path);
+  expect(await store.pull()).toMatchObject({ status: "ok" });
+  expect(readersBefore.length).toBeGreaterThan(0);
+  for (const reader of readersBefore) expect(exitsAtFetch.some(({ sid }) => sid === reader.sid)).toBe(true);
+  expect(packsBefore.length).toBeGreaterThan(1);
+  for (const pack of packsBefore) expect(packsAfter).not.toContain(pack);
+  vi.unstubAllEnvs();
+  expect(success(await h.b.store.read({ reference: made.reference })).placement?.kind).toBe("completed");
+  expect(success(await h.b.store.read({ reference: personal })).content).toBe("Retained personal bytes.\n");
+}, 60_000);

@@ -58,67 +58,21 @@ process drop measured.
 _Purpose:_ Open the scope for `pull`, `push`, and `maintain`, which hold no reader today, then remember configuration
 answers in every scoped call with all the refresh rules that keep them current.
 
-### `[ ]` **2.1 `pull`, `push`, and `maintain` hold one scope that fetches and restarts refresh — D2, D3, D4**
+### `[x]` **2.1 `pull`, `push`, and `maintain` hold one scope that fetches and restarts refresh — D2, D3, D4**
 
 - _Goal:_ A `pull`, `push`, or `maintain` reads every object through one reader per bound repository between refresh
   events: its readers close before each `fetch`, `maintenance`, or `gc` invocation and at each restart, and its merges
   read through the call's reader across their locks.
 
-- _Note:_ 2.1.a and 2.1.b are coupled: a sync call holding a reader with no restart refresh carries the abandoned
-  attempt's reader into the restarted one, so propose reviewing them as one increment. Today these calls hold no
-  reader, and each read's `cat-file` exits after it, so a refresh case fails only once the scope holds a reader:
-  2.1.a's fetch case after its scope opens, and 2.1.b's cases once 2.1.a lands.
+    - `[x]` **2.1.a The scope opens inside the coordinator's maintenance, and a fetch closes its readers**
+        - Sync calls own a scope inside the maintenance coordinator. Wrapped executors drain readers before fetch,
+          maintenance, or gc and forward every option unchanged. Public traces cover shared readers, their own new
+          commits, due history-fetch maintenance, and preservation of an unknown `execInput` option in both layouts.
 
-    - `[ ]` **2.1.a The scope opens inside the coordinator's maintenance, and a fetch closes its readers**
-        - `createRefBackend`'s `pull`, `push`, and `maintain` open the scope inside `operations.maintenance`, on the
-          `withOperationIdentity` context. Open it first: the one-reader case below fails today, since each of these
-          calls' reads starts its own `cat-file`.
-        - The scope wraps `exec`, `execInput`, and `rawExec`, and classifies each invocation by its subcommand: the
-          first argument after Git's leading options, where `-c` also takes the argument after it. Store code puts
-          options first: `refFetchArgs`' `-c` pairs, `bindRefRepository`'s `--git-dir=<path>`, and a leading
-          `--no-replace-objects`. Before a `fetch`, `maintenance`, or `gc` invocation, the scope closes its readers.
-        - The scope wraps the context before any binding, so every derived context calls the wrapped ports:
-          `bindRefRepository` keeps the `source` it was given, and `bindDeadline` and `refSyncCleanupContext` derive
-          from the scoped context. Every store fetch reaches the wrapped executors: `runRefFetch` (`fetch.ts`) runs
-          `refFetchArgs` through `context.exec`, and `fetchLayoutObjects` (`migrate-layout-build.ts`) runs `fetch`
-          through `context.execInput`.
-        - Merges read through the call's reader with no edit: `mergeCapturedSyncRef` (`sync-merge.ts`) spreads the
-          call's context into `withRefLocks`, and its re-check of the tip and history quarters under the lock makes the
-          crossing safe. `sync-withdraw-commit.ts` keeps clearing `batchReader` and `writeEvidence` under its lock.
-        - Guard cases, which pass once the scope opens: a sync call writes an object, then reads it through the same
-          reader; and a `maintain` closes every reader before returning. `maintain` opens no reader before
-          `git maintenance run --auto`, since `maintainBoundStore` reads its tips with `for-each-ref`, so the fetch
-          case below carries the event.
-        - _Note:_ See `notes-store-operation-git-access.md` § Making maintenance due in a case.
-        - Build `test-first` (one behavior at a time):
-            - A `pull` and a `push` each start at most one reader per bound repository between refresh events and close
-              every reader before returning.
-            - In `store-ref-reader-lifetime.test.ts`, a pull in the separate layout from its push remote, after another
-              clone ended an item this clone holds and published the end. The pull's merge reads the fetched state
-              through the reader, then `acquireHistories` fetches the item's history into the store while the call holds
-              that reader. The case asserts that a reader started before that fetch and that the reader's `exit`
-              precedes the fetch's `start`; with the scope open and no close before a fetch, it fails. The store keeps
-              every fetched pack (`fetch.unpackLimit 1`, `transfer.unpackLimit 1`) and Git's default maintenance
-              thresholds through the pull's first fetch. When the history fetch starts, the port the case supplies sets
-              `gc.auto 1` and `gc.autoPackLimit 1` in the store, recognizing that fetch by the `refs/arc/history/`
-              refspecs on its input, so its maintenance is the store's first due run. On Linux set `gc.autoDetach` and
-              `maintenance.autoDetach` to `false`; on Windows leave them at their defaults and assert that the packs the
-              maintenance replaced are gone when the fetch returns.
-
-    - `[ ]` **2.1.b A sync call's restart starts with a fresh reader**
-        - Refresh the scope at `pullRefStoreOnce`'s recursion (`pull.ts`) and before each retry of `publishRefStore`'s
-          loop (`push.ts`).
-        - Write the cases once 2.1.a lands. They fail there, since the call's scope keeps the abandoned attempt's reader
-          open across the restart.
-        - `store-ref-layout-vanish.test.ts`'s `pausing` and `across` run another process's move beneath a pull or a
-          write that deletes the store mid-call, which gives the vanished-store restart.
-          `store-ref-layout-lock.test.ts`'s lock-port hook moves the store before the commit step takes the layout lock,
-          in either direction, which gives the `layout-changed` restart.
-        - Build `test-first` (one behavior at a time):
-            - Another process's layout move during a pull, through its `layout-changed` restart and through its
-              vanished-store restart: the abandoned attempt's reader `exit` precedes the restarted attempt's first Git
-              process.
-            - The same move during a push, through both restarts.
+    - `[x]` **2.1.b A sync call's restart starts with a fresh reader**
+        - Pull restarts and publication retries refresh the scope. Public pull/push traces cover vanished stores and
+          changed layouts, require the abandoned readers to exit before fresh designation reads, and require push
+          retries to release readers before backoff. Resumed calls observe the moved store's role.
 
 ### `[ ]` **2.2 A call answers each configuration lookup once until something can change it — D3, D6**
 
@@ -158,6 +112,8 @@ answers in every scoped call with all the refresh rules that keep them current.
       lock only if its read began after the newest held acquisition; after the release the fresher answer stays
       remembered. `withRefLocks`, `withRefFetchKeepers`' leases, and `bindDeadline`'s lock all reach the wrapped port;
       `prepareRefCopy`'s no-op lock records nothing.
+    - Forward `lock`'s optional `waitMs` unchanged, including zero. Add a public-call case proving that a zero wait
+      reaches the underlying port without falling back to its default wait.
     - The restart refresh of 1.3.b and 2.1.b also drops every remembered answer.
     - A sync call's configuration write through a context bound to the separate store is `installFirstBacking`'s
       `remote add backing` (`designation-first.ts`), run through the store-bound `selected`, after which
@@ -206,6 +162,8 @@ public calls and store-directory moves need.
       drops its remembered answers. The `object-stage-*` directory `flushRefBlobStage` removes and the `store-init-*`
       temporary `createStoreDirectory` removes refresh nothing; `createStoreDirectory`'s rename into `arc/store`
       refreshes.
+    - Spread the filesystem port and replace only the wrapped methods. Preserve `lstat` and its complete result,
+      including additional fields such as `mtimeMs`.
     - `switchLayout` renames through `code.fs`, from `migrationCodeContext` (`migrate-record.ts`), which binds through
       `bindRefRepository` and keeps the scoped command context as its `source`. `deleteLayoutSource` removes the
       set-aside and build directories through the move's own `context.fs`. Both reach the wrapped `fs`.
