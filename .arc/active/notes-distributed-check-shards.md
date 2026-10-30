@@ -242,6 +242,32 @@ re-grounded through `cb46a71`, including memory-stall attribution, peak-token ch
 unchanged baseline passed its adapter checks before group implementation. Independent implementation worktrees
 isolate transport, placement and recorder changes; the configured live runner checkout remains untouched.
 
+### Native reach no-ops and closed empty shares
+
+`store-no-affected.json` qualifies the actual staged no-change selection against its captured declaration, Git
+coordinates and explicit selector bindings. The native parent and all five invocations succeed, with no execution
+observations and successful closure. Changing the original empty selector to `full` after capture does not alter
+playback. The previous helper's rejection of these same native successes is retained as `store-no-affected-red.json`.
+No controller exists for this path, so it claims no observed native runtime profile.
+
+`store-small-empty-shares.json` qualifies the actual anchors and as-of suites on Linux x64, Node 26.3.0 and Vitest
+4.1.11. Recorded duration bytes produce assignments 1/1/0/0; every invocation and the parent succeed and close. An
+unreachable comparison commit names the unchanged working content before the two selected suite edits, so the
+captured reach diff contains only those suite paths without changing the branch or real index. Its coordinates live
+in `store-small-empty-comparison.json`; original suite files are restored after collection.
+
+An empty native share records the existing observation prefix only after its real controller's close fulfills. It
+has a nonempty preflight selection, empty assignment, zero execution cycles and no worker events. Qualification
+checks this narrow shape, the complete disjoint union, duration identity and matching observed profiles. A real
+three-project fixture proves the previous missing observation, the repaired close witness, ordinary-empty rejection
+and a synchronous native close-hook failure that retains exit one without emitting an empty-share observation.
+
+The merged full-integration refresh first ran on m2-mini as history `f8a9e6fd54274f07b16ef88b7b80795e`. Its retained
+`integration-full-merged-unset-first-refusal.json` has no native terminal outcomes and uncertain conversation closure;
+history explicitly names an OOM kill under the runner's 3,072 MiB limit. Public inspection subsequently proves plan
+`7a147032-7bfd-466d-960d-e06477687894` settled. The single fresh qualification retry uses the existing m4-mini pin;
+the failed capture remains retained, and this refresh does not close the segment until native qualification succeeds.
+
 ## Amendment reasoning
 
 ### A2 — store dependency

@@ -11,7 +11,7 @@ export { readNativeShardObservations, type NativeMember, type NativeShardObserva
 import { HeavyFirstSequencer } from "./heavy-first-sequencer.js";
 
 const packageRoot = fileURLToPath(new URL("../..", import.meta.url));
-const recordings = new WeakMap<Vitest, { cycles: number; current?: NativeShardObservation;
+const recordings = new WeakMap<Vitest, { cycles: number; emptyReported?: boolean; current?: NativeShardObservation;
   preflight?: NativeShardObservation["preflight"] }>();
 
 function identity(module: Pick<TestSpecification, "project" | "moduleId">): NativeMember {
@@ -55,6 +55,22 @@ class MembershipReporter implements Reporter {
   onInit(controller: Vitest): void {
     this.controller = controller;
     recordings.set(controller, { cycles: 0 });
+    const close = controller.close.bind(controller);
+    controller.close = async () => {
+      await close();
+      const state = recordings.get(controller)!;
+      const preflight = state.preflight;
+      const shard = controller.config.shard;
+      if (state.emptyReported || state.cycles !== 0 || state.current !== undefined || shard === undefined
+        || preflight === undefined || preflight.shardCalls !== 1
+        || preflight.selected.length === 0 || preflight.assigned.length !== 0) return;
+      state.emptyReported = true;
+      const record: NativeShardObservation = { cycle: 0, closed: true,
+        runtime: { node: process.version, vitest: controller.version, platform: process.platform, arch: process.arch },
+        duration: observedDuration(), shard: { ...shard }, selected: preflight.selected,
+        assigned: [], ordered: [], queued: [], ended: [], shardCalls: 0, sortCalls: 0, preflight };
+      process.stdout.write(`\n${nativeObservationPrefix}${JSON.stringify(record)}\n`);
+    };
   }
 
   onTestRunStart(specifications: readonly TestSpecification[]): void {

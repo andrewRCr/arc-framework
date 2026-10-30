@@ -7,7 +7,8 @@ const duration = z.union([
   z.object({ kind: z.literal("file"), state: z.literal("file"), digest: z.string().regex(/^sha256:[a-f0-9]{64}$/u), bytes: z.int().nonnegative() }),
 ]);
 export const NativeShardObservationSchema = z.object({
-  cycle: z.int().positive(),
+  cycle: z.int().nonnegative(),
+  closed: z.literal(true).optional(),
   shard: z.object({ index: z.int().positive(), count: z.int().positive() }).optional(),
   runtime: z.object({ node: z.string().regex(/^v\d+\.\d+\.\d+/u), vitest: z.string().regex(/^\d+\.\d+\.\d+/u),
     platform: z.string().min(1), arch: z.string().min(1) }),

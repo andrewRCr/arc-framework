@@ -1,6 +1,6 @@
 /** Run native membership qualification through the configured consumer facade and its ordinary pool admission. */
 import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readTypedProjectFile } from "../../src/lib/config/typed-file-reader.js";
 import { CheckDeclarationSchema } from "../../src/lib/checks/declaration.js";
@@ -11,6 +11,8 @@ import { prepareSelectedCheckExecution, type CheckExecutionClosure } from "../..
 import { planCheckExecution } from "../../src/lib/checks/runner/planning.js";
 import { executePreparedCheckPlan } from "../../src/lib/checks/runner/dispatch.js";
 import type { CheckScope } from "../../src/lib/checks/request.js";
+import { bindCapturedEnvironment } from "../../src/lib/checks/environment-inputs.js";
+import { readReachDeclaration, selectReachCheck } from "../../src/lib/reach-check.js";
 import { readNativeShardObservations, type NativeDurationInput, type NativeMember } from "./native-shard-evidence.js";
 import { qualifyNativeShardMembership, type NativeMembershipRun } from "./native-shard-qualification.js";
 
@@ -59,9 +61,19 @@ export async function qualifyNativeCheck(root: string, checkId: "test:unit" | "t
   let closure: CheckExecutionClosure | undefined;
   let selected: NativeMember[] | undefined;
   let failure: string | undefined;
+  let reachSelection: Awaited<ReturnType<typeof selectReachCheck>> | undefined;
   let parent;
   const runs: NativeMembershipRun[] = [];
   try {
+    if (checkId === "test:store") {
+      const declarationPath = "packages/arc-framework/__tests__/reach/store-suites.json";
+      const declaration = await readReachDeclaration(join(execution.source.root, declarationPath));
+      const content = execution.plan.invocations[0]?.commandContent;
+      if (content === undefined) throw new Error("Native store qualification is missing captured content coordinates.");
+      reachSelection = await selectReachCheck(declaration, { checkoutRoot: execution.source.root, declarationPath,
+        git: createExecaGitExec(), env: { ...bindCapturedEnvironment(execution.environment, {}),
+          ARC_CHECK_TREE: content.tree, ...(content.base === undefined ? {} : { ARC_CHECK_BASE: content.base }) } });
+    }
     await options.afterCapture?.();
     parent = await executePreparedCheckPlan(execution, check);
     const binding = execution.environment.ARC_TEST_DURATION_FILE;
@@ -78,7 +90,12 @@ export async function qualifyNativeCheck(root: string, checkId: "test:unit" | "t
         basis, observations: readNativeShardObservations(text) });
     }
     if (parent.evidence.kind !== "success") throw new Error(`Native parent did not complete successfully: ${parent.evidence.kind}.`);
-    selected = qualifyNativeShardMembership(runs[0]!, runs.slice(1), check.shards.count);
+    if (reachSelection?.suites.length === 0) {
+      if (runs.length !== check.shards.count + 1 || runs.some(run => run.exitCode !== 0 || run.observations.length !== 0)) {
+        throw new Error("Native reach no-op did not retain successful exits without execution observations.");
+      }
+      selected = [];
+    } else selected = qualifyNativeShardMembership(runs[0]!, runs.slice(1), check.shards.count);
   } catch (cause) { failure = cause instanceof Error ? cause.message : String(cause); }
   finally {
     closure = await execution.close();
@@ -92,7 +109,7 @@ export async function qualifyNativeCheck(root: string, checkId: "test:unit" | "t
     coordinates: execution.source.coordinates, environment: execution.environment,
     runnerConfigurationOverride: options.configuration !== undefined,
     declaredRouted: declared.shards.routed, runtimeBinding: execution.runtime === undefined ? "unknown" : "known",
-    parent, closure, selected, runs };
+    parent, closure, reachSelection, selected, runs };
   await writeFile(output, JSON.stringify(report, null, 2));
   process.stdout.write(`${checkId}: ${report.status}; ${selected?.length ?? 0} native members; evidence ${output}\n`);
   if (failure !== undefined) throw new Error(failure);

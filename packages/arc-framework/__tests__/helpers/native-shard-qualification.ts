@@ -47,7 +47,13 @@ function equalMembers(actual: readonly NativeMember[], expected: readonly Native
 function checkedRun(run: NativeMembershipRun, sharded: boolean): NativeShardObservation {
   if (run.exitCode !== 0 || run.observations.length !== 1) throw new Error("Native command failed or has incomplete run observations.");
   const record = NativeShardObservationSchema.parse(run.observations[0]);
-  if (record.cycle !== 1 || record.sortCalls !== 1 || record.shardCalls !== (sharded ? 1 : 0)
+  if (record.cycle === 0) {
+    if (!sharded || record.closed !== true || record.shard === undefined || record.preflight === undefined
+      || record.selected.length === 0 || record.assigned.length !== 0 || record.shardCalls !== 0 || record.sortCalls !== 0) {
+      throw new Error("Missing closed native empty-dispatch witness.");
+    }
+  } else if (record.cycle !== 1 || record.closed !== undefined || record.assigned.length === 0
+    || record.sortCalls !== 1 || record.shardCalls !== (sharded ? 1 : 0)
     || (record.shard !== undefined) !== sharded) throw new Error("Unexpected native sequencing cycle.");
   if (durationIdentity(record.duration) !== durationIdentity(run.basis.duration)) throw new Error("Native duration input differs from capture.");
   if (record.preflight !== undefined) {

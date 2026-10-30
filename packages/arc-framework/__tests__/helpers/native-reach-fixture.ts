@@ -5,7 +5,7 @@ import { copyLiveDependencies } from "./copy-live-dependencies.js";
 import { makeNativeShardFixture } from "./native-shard-fixture.js";
 
 /** Compose the native reach entry with three projects sharing filenames across distinct execution groups. */
-export async function makeNativeReachFixture() {
+export async function makeNativeReachFixture(selectedNames: readonly string[] = ["a", "b", "c"]) {
   const fixture = await makeNativeShardFixture();
   await copyLiveDependencies(resolve(import.meta.dirname, "../.."), fixture.packageRoot, ["src/lib/reach-check.ts"]);
   for (const name of ["a", "b", "c"]) {
@@ -26,7 +26,7 @@ import { runReachSuites } from "./src/lib/reach-check.ts";
 try {
   await runReachSuites({ checkoutRoot: ${JSON.stringify(fixture.root)}, packageRoot: process.cwd(),
     declaration: { name: "fixture suites" }, arguments: process.argv.slice(2), env: process.env },
-    ["a", "b", "c"].map(name => "packages/arc-framework/tests/" + name + ".test.mjs"));
+    ${JSON.stringify(selectedNames)}.map(name => "packages/arc-framework/tests/" + name + ".test.mjs"));
 } catch (error) { console.error(error); process.exitCode = 1; }
 `);
   return { ...fixture, entry };

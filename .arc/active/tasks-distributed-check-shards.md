@@ -285,17 +285,10 @@ through controller closing. Store qualification uses the native reach command la
           Gated closing retains artifact ownership through success and teardown failure; separate copies finish
           independently and merge their native durations without altering handed inputs.
 
-### `[ ]` **4.3 Qualify landed store reach no-ops and empty shares — D7**
+### `[x]` **4.3 Qualify landed store reach no-ops and empty shares — D7**
 
 - _Goal:_ The landed store command uses the public runner with fixed selection inputs and retains its proved no-op
   and empty-share successes without granting success to incomplete, unmatched or all-skipped native work.
-
-- _Note:_ The store check lands with `storage-ref-backend`, and 4.3 is the first task that needs it; Phases 1–3, 4.1
-  and 4.2 do not. Before starting 4.3, confirm with `arc status storage-ref-backend` that it has landed, then merge
-  `main` into this branch. If it has not landed, stop and report rather than simulating store: 4.4, 5.2.a and Phase 6
-  depend on it too, and whether 5.1 proceeds meanwhile is the Owner's call. Re-ground its landed reach implementation
-  first, converting any remaining wrapper prefix or probe-supplied selectors to `runner: true` and
-  `environment_inputs`; copied/simulated source does not fulfill store qualification.
 
     - `[x]` **4.3.a Complete native store declaration and catalogue adoption**
         - The landed native entry opts into four routed shards and captures its handed duration file alongside the
@@ -315,11 +308,10 @@ through controller closing. Store qualification uses the native reach command la
           Linux arm64, Node 26.3.0 and Vitest 4.1.11. Native unsharded/sharded unions retain captured duration states
           despite original source, catalogue and selector edits; preflight and execution assignments agree.
 
-    - `[ ]` **4.3.c Preserve successful reach no-ops and empty native shares**
-        - Exercise the real reach controllers and their closing path with a validated no-affected-suite selection
-          and a small selection that assigns legitimate empty shares.
-        - Retain their native success/evidence meaning, alongside ordinary unmatched/all-skipped/incomplete and
-          controller-close failures. No new empty-share result file, exit code or output parser is introduced.
+    - `[x]` **4.3.c Preserve successful reach no-ops and empty native shares**
+        - Captured native reach derivation qualifies a no-affected selection without controller observations. Two
+          actual suites qualify across four shares on Linux x64, including two empty controllers observed only after
+          awaited close. Existing observations reject ordinary empty runs and native close failures.
 
 ### `[ ]` **4.4 Prove native membership, writers and completion** — validate exit criterion at segment scope
 
