@@ -9,7 +9,8 @@ import { reviewOutcomeKey } from "./key.js";
 
 /** Check an outcome against its key and every proposed outcome of the same lane owner. */
 export async function checkReviewOutcome(input: WriteCheckInput): Promise<readonly BrokenRule[]> {
-  if (input.next === undefined) return [];
+  if (input.next === undefined) return [brokenRule("review.outcome.removal", "Review outcomes cannot be removed.",
+    "Preserve this outcome; later attempts and decisions cite it.")];
   const value = parseReviewOutcome(input.next.content);
   if (value === null) return [];
   const rules = input.reference.key === reviewOutcomeKey(value) ? [] : [brokenRule("review.outcome.key",

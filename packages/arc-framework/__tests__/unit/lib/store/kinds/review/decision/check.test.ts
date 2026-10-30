@@ -143,3 +143,10 @@ describe("decision write check", () => {
     expect(await check(withdrawal(target), records, undefined, after)).toEqual([]);
   });
 });
+
+it("refuses removing a stored record, which later records cite", async () => {
+  const reference = recordReferences["review/decision"](OwnerIdentitySchema.parse({ type: "work-item", name: "example" }), reviewDecisionKey(terminusDecision()));
+  expect(await checkReviewDecision({ reference, prior: { content: JSON.stringify(terminusDecision()) }, observations: [],
+    writer: { kind: "hand-edit" }, before: ruleView(), after: ruleView() }))
+    .toEqual([expect.objectContaining({ rule: "review.decision.removal" })]);
+});

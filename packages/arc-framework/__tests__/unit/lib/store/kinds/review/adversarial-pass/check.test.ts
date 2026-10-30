@@ -20,3 +20,10 @@ describe("adversarial pass write check", () => {
     expect(await check("draft-readiness", 9)).toEqual([]);
   });
 });
+
+it("refuses removing a stored record, which later records cite", async () => {
+  const reference = recordReferences["review/adversarial-pass"](OwnerIdentitySchema.parse({ type: "work-item", name: "example" }), { activity: "draft-readiness", number: 1 });
+  expect(await checkReviewAdversarialPass({ reference, prior: { content: JSON.stringify(adversarialPassFixture()) }, observations: [],
+    writer: { kind: "hand-edit" }, before: ruleView(), after: ruleView() }))
+    .toEqual([expect.objectContaining({ rule: "review.adversarial-pass.removal" })]);
+});

@@ -10,7 +10,8 @@ import { laneSubjectOwnerMatches } from "../../../../../scripts/review-gate/core
 
 /** Check the decision's key, producer, and withdrawal authority against the proposed record set. */
 export async function checkReviewDecision(input: WriteCheckInput): Promise<readonly BrokenRule[]> {
-  if (input.next === undefined) return [];
+  if (input.next === undefined) return [brokenRule("review.decision.removal", "Review decisions cannot be removed.",
+    "Preserve this decision and record a withdrawal decision to retract it.")];
   const value = parseReviewDecision(input.next.content);
   if (value === null) return [];
   const rules = input.reference.key === reviewDecisionKey(value) ? [] : [brokenRule("review.decision.key",

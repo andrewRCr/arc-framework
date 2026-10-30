@@ -158,3 +158,10 @@ it("refuses malformed entries in an otherwise complete listing", async () => {
     expect.objectContaining({ rule: "review.outcome.complete-listing", condition: expect.stringContaining("malformed-entry") }),
   ]));
 });
+
+it("refuses removing a stored record, which later records cite", async () => {
+  const reference = recordReferences["review/outcome"](OwnerIdentitySchema.parse({ type: "work-item", name: "example" }), reviewOutcomeKey(ReviewOutcomeSchema.parse(localOutcome())));
+  expect(await checkReviewOutcome({ reference, prior: { content: JSON.stringify(localOutcome()) }, observations: [],
+    writer: { kind: "hand-edit" }, before: ruleView(), after: ruleView() }))
+    .toEqual([expect.objectContaining({ rule: "review.outcome.removal" })]);
+});

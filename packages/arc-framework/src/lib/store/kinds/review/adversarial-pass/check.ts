@@ -5,7 +5,8 @@ import { parseReviewAdversarialPass } from "./parser.js";
 
 /** Check the activity in the global pass key independently of the within-loop pass ordinal. */
 export function checkReviewAdversarialPass(input: WriteCheckInput): Promise<readonly BrokenRule[]> {
-  if (input.next === undefined) return Promise.resolve([]);
+  if (input.next === undefined) return Promise.resolve([brokenRule("review.adversarial-pass.removal",
+    "Adversarial passes cannot be removed.", "Preserve this pass and record the activity's next pass instead.")]);
   const value = parseReviewAdversarialPass(input.next.content);
   if (value === null) return Promise.resolve([]);
   const key = input.reference.key;
