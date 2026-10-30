@@ -611,7 +611,43 @@ At the requested pause, all thirty comparison gates are complete and all fifteen
 native-local context slots remain unstarted. The local coordinator was suspended at the collection boundary and then
 deliberately stopped after every child had closed; its exit 137 records that operator action, not a native failure or
 OOM. The original study remains thirty of thirty-two, with no active children; it is not rewritten as complete.
-The separate operator-pause records retain that distinction. Task 6.4, segment closure and Phase 7 remain open.
+The separate operator-pause records retain that distinction. The segment closes without those slots (A9).
+
+### Segment closure and observed limits
+
+The Phase 5–6 slice closes on the evidence above. External provider cases on real placements cover a complete native
+store group (`807f105`), generic loss and recovery across three backends, settled input refusal with a separate fresh
+repair (`6ffe3cf`), and the concurrent remote upload that failed at the former 120-second deadline and completes on
+`cf08920`. Four genuine homogeneous witnesses establish unit and store membership for Linux arm64 and x64 with Node
+26.3.0 and Vitest 4.1.11. Every cited artifact remains under the evidence root. These cases qualify execution,
+settlement and membership; provider runtime stays unknown and grants no reusable pass.
+
+The frozen full report still matches its recorded SHA-256. Its summary returns thirty completed rows with no integrity
+gap, launch failure or context refusal. Six idle and nine named-workload pairs qualify with equivalent native coverage:
+1,369 unit modules, a 316-module store baseline and four disjoint 79-module distributed shares. The idle merge gain of
+about 701 seconds exceeds the largest within-arm range of 26.645 seconds; no push gain is claimed. Every
+named-workload round improves by 49.596–53.835%, so the 10% slowdown bound is not approached, and admission snapshots
+show ordinary shared admission in both arms. The context phase holds no pairs (A9).
+
+Both arms share the following costs, so they are limits of the current provider's placement and transport, not of the
+consumer contract. Per-placement figures come from each gate's retained sample.
+
+- **Placement concentrates on m4-mini.** On the idle pool, the distributed merges' `test:arc-contracts` waited about
+  404 seconds to run for 7. Under the named workload, `test:unit` waited 948–2,781 seconds for a 39-second run, and
+  m4-mini's store share waited 228–720 seconds while the other three placements started without waiting. No sample
+  places work on the Intel MacBook.
+- **Store shares are equal file counts on unequal machines.** With no duration file, idle executions run local
+  305–309 seconds, m5-air 323–324, m4-mini 391–396 and m2-mini 444–449.
+- **Every placement uploads the full materialization.** Each 192 MB upload takes about 3 seconds to m4-mini and
+  110–139 seconds to m2-mini or m5-air. m2-mini's 595–599-second placement is the critical path of every 667–670-second
+  idle distributed merge.
+- **Fixed costs.** A remote check pays about 30 seconds of transfer, preparation and verification on the idle pool,
+  and a gate's first check starts 27–81 seconds after launch.
+
+The result covers frozen source `acf51cc07`, provider `cf08920` and the observed Linux profiles. It does not extend to
+another deployment, establishes no push acceleration, and is not final-head verification. The last hosted CI run on
+this branch, `40781020166` at `a84c27919`, predates later base merges, so the public fixture tiers at the final head
+rest on the verification run.
 
 ## Amendment reasoning
 

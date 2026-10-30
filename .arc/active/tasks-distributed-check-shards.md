@@ -432,15 +432,17 @@ variation, and a named-workload slowdown above 10% keeps qualification open.
   paired elapsed reduction of 49.596–53.835%. Full per-gate ranges, preparation/admission costs, preserved evidence
   and the thirty-of-thirty-two operator pause are recorded in `notes-distributed-check-shards.md`.
 
-### `[ ]` **6.4 Validate integrated execution and measured benefit** — validate exit criterion at segment scope
+### `[x]` **6.4 Validate integrated execution and measured benefit** — validate exit criterion at segment scope
 
 - _Goal:_ The external integration and measured workloads demonstrate the stated public contract and useful gate
   behavior, with explicit limits for profiles or deployments not actually exercised.
 
-    - Walk the public independent/external adapter scenarios and native profile evidence, then the repeated idle and
-      named-workload observations; verify equivalent coverage, full timing costs, aggregate completion and admission.
-    - Request `arc check segment`; record actual evidence and unresolved measurements. A concurrent regression or
-      missing required qualification keeps this exit criterion open and needs separate corrective work.
+- _Outcome:_ The exit criterion holds. External cases and native witnesses qualify the public contract on real
+  local and remote placements; six idle and nine named-workload pairs keep equivalent native coverage. The idle merge
+  gain of about 701 seconds exceeds 26.645 seconds of variation, and every named-workload round improves by
+  49.596–53.835% under ordinary admission. Native local context runs are not part of the comparison (A9). The
+  provider's placement, shard-balance and upload limits and the unclaimed push gain are in
+  `notes-distributed-check-shards.md`.
 
 ## **Phase 7:** Verification
 
