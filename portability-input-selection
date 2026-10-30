@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "portability-input-selection",
+  "claimId": "73bc23818e6c735f1c80537e96cb34a9",
+  "createdAt": "2026-10-30T00:11:38.279Z",
+  "updatedAt": "2026-10-30T00:11:38.279Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Select explicit-input and repository-selector suites in the portability tier and qualify them on Windows and macOS",
+  "branch": "chore/portability-input-selection",
+  "origin": "inbox",
+  "originEntry": "Select explicit-input and repository-selector suites in the portability tier",
+  "originEntrySourceDigest": "sha256:09e9c4dc8cb482cfd4c3856a3f46b26b8584f6cef3891adee9800d308d1c08be",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
