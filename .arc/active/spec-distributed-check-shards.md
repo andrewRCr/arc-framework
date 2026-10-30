@@ -461,8 +461,9 @@ durations.
 
 Measure the complete selected gate with fixed source, native selection, duration inputs and requested check set.
 Compare the same gate routed unsharded with the declared shard plan using fresh runs (A8); fully native local gate
-runs are not part of the comparison (A9). A qualification harness may vary its in-memory plan without editing the
-source or adding a production sharding-toggle setting.
+runs are not part of the comparison (A9). The recorded comparison measured the store's four-shard declaration; a later
+declared count is unmeasured and claims no benefit until it is compared the same way (A12). A qualification harness
+may vary its in-memory plan without editing the source or adding a production sharding-toggle setting.
 
 Interleave repeated baselines and distributed runs with an idle pool, then repeat under the named workload: two
 concurrent forced merge gates that each select store, plus one concurrent push gate, under the routing mode in force,
@@ -604,6 +605,10 @@ repairing a refusal, not only the initial rejection.
     starts leads to waiting or another placement, never an unavailable sibling, except that a non-busy refusal at the
     group's first placement settles the check unavailable and retryable, as a single plan's refusal does. Recovery
     guidance from a group reaches every remote placement it used.
+17. **Named-workload benefit (A12):** Repeated forced comparisons of the four-shard store plan against the same gates
+    routed unsharded show an idle-pool per-gate gain beyond observed variation. Under two concurrent store-selecting
+    merge gates plus one push gate, aggregate completion is at most 10% slower than that baseline and is reported
+    with its measured size. Another declared shard count claims no benefit until it is compared the same way.
 
 ## Open Questions
 
@@ -635,5 +640,7 @@ implementation rather than becoming an undocumented task decision.
   _Supersedes:_ none. _Trigger:_ 7.1 terminal. _Work:_ 2.R. _Revalidated:_ pending → 7.1.
 - **A11** — 2026-10-30 — design: a group's first placement waits or moves only on a busy refusal. _Supersedes:_
   § Proposed Design 10 ¶5, § Success Criteria 15. _Trigger:_ D2 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A12** — 2026-10-30 — design: the measured benefit claim binds to the four-shard store plan. _Supersedes:_
+  § Proposed Design 10 ¶7, § Success Criteria 14. _Trigger:_ P2.1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

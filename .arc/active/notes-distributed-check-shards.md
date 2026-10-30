@@ -822,6 +822,27 @@ Superseded § Success Criteria 15:
 > Two groups racing for one placement both complete; a refusal before a backend starts leads to waiting or another
 > placement, never an unavailable sibling. Recovery guidance from a group reaches every remote placement it used.
 
+### A12 — four-shard benefit scope
+
+main moved the store declaration from four shards to six after the comparison, to balance CI, and the routed store
+declaration took six with the merge. The second independent review pass (P2.1) found that § Proposed Design 10 ¶7
+ties the comparison to the declared shard plan, which now names six shards no comparison measured, while the recorded
+benefit was measured on four at source `acf51cc07` with provider `cf08920`. The benefit claim now binds to that
+four-shard measurement, and another declared count claims none until it is compared the same way. Re-measuring at six
+would repeat the thirty-gate comparison on a quiet pool; the measured 49.6–53.8% named-workload margin makes a
+regression past the 10% bound unlikely, so the record is scoped instead.
+
+Superseded § Proposed Design 10 ¶7, the sentence A12 scopes:
+
+> Compare the same gate routed unsharded with the declared shard plan using fresh runs (A8); fully native local gate
+> runs are not part of the comparison (A9).
+
+Superseded § Success Criteria 14:
+
+> Repeated forced comparisons against the same gates routed unsharded show an idle-pool per-gate gain beyond observed
+> variation. Under two concurrent store-selecting merge gates plus one push gate, aggregate completion is at most 10%
+> slower than that baseline and is reported with its measured size.
+
 ## Prior-art references
 
 - [Cargo runner configuration][cargo-runner]: executable/argument configuration.

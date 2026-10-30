@@ -568,6 +568,11 @@ _Purpose:_ Verify the complete implementation against its success criteria and r
   settles the check unavailable and retryable, as a single plan's refusal does. Recovery guidance from a group
   reaches every remote placement it used.
 
+- `[ ]` Repeated forced comparisons of the four-shard store plan against the same gates routed unsharded show an
+  idle-pool per-gate gain beyond observed variation. Under two concurrent store-selecting merge gates plus one push
+  gate, aggregate completion is at most 10% slower than that baseline and is reported with its measured size. Another
+  declared shard count claims no benefit until it is compared the same way.
+
 - `[ ]` All quality gates pass.
 
 - `[ ]` Ready for integration.
