@@ -2,8 +2,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import { composeErrandFinalPlan, selectCurrentErrandMergeIdentity } from
+import { composeErrandFinalPlan, createErrandMergeDependencies, selectCurrentErrandMergeIdentity } from
   "../../../../src/scripts/integration/errand-merge-composition.js";
+import { createReviewHarness } from "../../../helpers/store/review-harness.js";
+import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 
 const oid = (character: string): string => character.repeat(40);
 const markerDigest = `sha256:${"d".repeat(64)}`;
@@ -255,4 +257,15 @@ describe("Errand terminal identity composition", () => {
       );
     },
   );
+});
+
+describe("Errand merge dependencies over the native store", () => {
+  it("composes without a bound work item, since an Errand merge settles no review response", () => {
+    const { store } = createReviewHarness();
+    expect(store.capabilities.stateOffBranch).toBe(true);
+    const compose = () => createErrandMergeDependencies({ cwd: "/unavailable", exec: scriptGitExec([]).exec,
+      identity: "test-user", slug: "example-errand", store });
+    expect(compose).not.toThrow();
+    expect(compose()).toMatchObject({ readCurrentIdentity: expect.any(Function), mergePinned: expect.any(Function) });
+  });
 });

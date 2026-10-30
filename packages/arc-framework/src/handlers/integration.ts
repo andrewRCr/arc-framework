@@ -100,8 +100,13 @@ function stableOperationFailureDetail(error: unknown): string {
 
 async function resolveIntegrationReviewInvocation(options: ReviewInvocationInput, workUnit: string): Promise<ReviewInvocationInput> {
   const input = { ...options, ...resolveReviewInvocation(options) };
-  if (input.store.capabilities.stateOffBranch) await input.projectId();
-  return resolveNamedReviewWorkUnitInvocation(input, workUnit);
+  if (!input.store.capabilities.stateOffBranch) return input;
+  await input.projectId();
+  const selected = await resolveNamedReviewWorkUnitInvocation(input, workUnit);
+  if (selected.workItem === undefined) {
+    throw new Error(`No stored work unit is named \`${workUnit}\`. Name the work unit to integrate, then retry.`);
+  }
+  return selected;
 }
 
 /** Run the integration checkpoint for one exact work-unit name. */

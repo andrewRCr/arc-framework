@@ -150,7 +150,9 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
   const changeRequestPort = input.changeRequestPort
     ?? createGhChangeRequestResolutionPort(input.exec, input.cwd);
   const mergeObservationPort = createGhChangeRequestMergeObservationPort(runner);
-  const respondDependencies = createRespondDependencies(input);
+  // Settlement alone binds the review family, so a merge that settles no response needs no bound work item.
+  let respondDependencies: ReturnType<typeof createRespondDependencies> | undefined;
+  const respond = () => respondDependencies ??= createRespondDependencies(input);
   const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec: input.exec, cwd: input.cwd });
   const rootExec: GitExec = (command, args, options) => input.exec(command, args, {
     ...options,
@@ -283,7 +285,7 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
       settleHosted: (request) => settleHostedFinding(request, { port: hostedPort }),
       settleReviewResponse: ({ request, fixTarget }) => respondToReviewCommand(
         fixTarget === null ? request : { ...request, settledFixTarget: fixTarget },
-        respondDependencies,
+        respond(),
       ),
       confirmCandidateResponse: (action) => confirmCandidateResponseAction({
         ...input,

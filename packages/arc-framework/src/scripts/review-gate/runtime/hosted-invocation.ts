@@ -29,7 +29,11 @@ export async function resolveHostedRequestInvocation(options: ReviewInvocationIn
   }
   if (input.workItem !== undefined) return input;
   if (request.vehicle?.kind === "delivery-member") {
-    return resolveNamedReviewWorkUnitInvocation(input, request.vehicle.workUnitId);
+    const workUnitId = request.vehicle.workUnitId;
+    const selected = await resolveNamedReviewWorkUnitInvocation(input, workUnitId);
+    if (selected.workItem === undefined) throw Object.assign(new Error(`The delivery member's work unit \`${workUnitId}\` `
+      + "is not stored. Name the member's stored work unit, then retry arc review hosted request -."), { code: "invalid-input" });
+    return selected;
   }
   const live = await readLocalReviewLiveContext(input);
   if (live.workItem === undefined) throw new Error("Hosted review progress requires one active work unit or an explicit vehicle.");

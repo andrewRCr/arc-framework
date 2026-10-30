@@ -229,7 +229,10 @@ import {
 } from "../lib/kernel/index.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { resolveTaskListCursor } from "../lib/task-list/cursor.js";
-import { createDeliveryReviewFixEntry } from "./delivery-review-fix-entry.js";
+import { bindDeliveryWorkItem, createDeliveryReviewFixEntry } from "./delivery-review-fix-entry.js";
+import { StoreRefusalError } from "../lib/store/refusal-error.js";
+import { ProjectIdentityError } from "../lib/store/project-identity.js";
+import { ReviewOwnerSelectionError } from "../lib/store/kinds/review/errors.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
 import {
   readCandidateRecord,
@@ -1633,6 +1636,12 @@ const ResultSchema = z.union([
 export const DeliveryExecutionResultSchema = ResultSchema;
 export type DeliveryExecutionResult = z.infer<typeof ResultSchema>;
 
+/** A native owner, project-identity, or store refusal's condition and remedy; other failures keep a bare reason. */
+function nativeRecordRefusalText(error: unknown): string | null {
+  if (error instanceof ReviewOwnerSelectionError || error instanceof ProjectIdentityError) return error.message;
+  return error instanceof StoreRefusalError && error.offBranch ? error.message : null;
+}
+
 function invalidServiceResult(result: unknown): z.infer<typeof InvalidServiceResultRefusalSchema> {
   const record = typeof result === "object" && result !== null && !Array.isArray(result)
     ? result as Record<string, unknown>
@@ -2238,7 +2247,9 @@ async function executeDeliveryCommand(
   const exec = internalContext?.exec ?? createGitExec(interaction?.subprocess);
   const invocation = resolveReviewInvocation({ ...internalContext, cwd, exec });
   const reviewRecordStore = invocation.store;
-  const review = createDeliveryReviewRecordContext({ ...invocation, cwd, exec });
+  let reviewContext: ReturnType<typeof createDeliveryReviewRecordContext> | undefined;
+  // Opened at first use, after a command binds its work unit, so one invocation reads review records under one owner.
+  const review = () => (reviewContext ??= createDeliveryReviewRecordContext({ ...invocation, cwd, exec }))();
   const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
@@ -3637,7 +3648,7 @@ async function executeDeliveryCommand(
             commands[action.kind],
             action.input,
             interaction,
-            { ...invocation, settledRecordEffectHead: context.settledRecordEffectHead },
+            { ...invocation, cwd, exec, settledRecordEffectHead: context.settledRecordEffectHead },
           );
         }
         if (typeof result !== "object" || result === null || !("status" in result)
@@ -3783,6 +3794,7 @@ async function executeDeliveryCommand(
       if (owner.status !== "owned" || owner.workUnit !== workUnitId) {
         return { status: "refused", reason: "candidate-mutation-unowned" };
       }
+      await bindDeliveryWorkItem(cwd, exec, invocation, workUnitId);
       const verifiedAt = new Date().toISOString();
       const dispositionStore = (await review()).family.ports.dispositions;
       const dispositionRecords = await dispositionStore.listDispositionRecords();
@@ -4051,8 +4063,10 @@ async function executeDeliveryCommand(
         },
         ...(reviewRecordStore.capabilities.stateOffBranch ? {} : { recordEffects }),
       };
-    } catch {
-      return { status: "refused", reason: "candidate-verification-unavailable" };
+    } catch (error) {
+      const recommendedActionText = nativeRecordRefusalText(error);
+      return { status: "refused", reason: "candidate-verification-unavailable",
+        ...(recommendedActionText === null ? {} : { recommendedActionText }) };
     }
   }
   if (command === "authoring-locate") {
@@ -5784,6 +5798,7 @@ async function executeDeliveryCommand(
         return { status: "refused", reason: "terminal-binding-missing" };
       }
       try {
+        await bindDeliveryWorkItem(cwd, exec, invocation, currentPlan.workUnitId);
         const [record, boundary] = await Promise.all([
           readCandidateRecord(cwd, currentPlan.workUnitId, { store: reviewRecordStore, owner: invocation.workItem }),
           readSubmissionBoundary(cwd, currentPlan.workUnitId, { store: reviewRecordStore, owner: invocation.workItem }),
@@ -6023,7 +6038,9 @@ async function executeDeliveryCommand(
               .slice(0, 1_000),
           };
         }
-        return { status: "refused", reason: "terminal-rebind-unavailable" };
+        const recommendedActionText = nativeRecordRefusalText(error);
+        return { status: "refused", reason: "terminal-rebind-unavailable",
+          ...(recommendedActionText === null ? {} : { recommendedActionText }) };
       }
     }
     const activeOperation = currentState.value.activeOperation;

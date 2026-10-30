@@ -7,9 +7,16 @@ import { readCompletedDeliveryLocus, readDeliveryReviewFixTaskInput } from "../l
 import { inspectRepositoryDeliveryEntry, readInspectionTaskList } from "../lib/delivery/repository-entry.js";
 import type { DeliveryEntryInspectionResult } from "../lib/delivery/entry-inspection.js";
 import type { ReviewInvocationContext } from "../scripts/review-gate/runtime/invocation.js";
+import { resolveNamedReviewWorkUnitInvocation } from "../scripts/review-gate/runtime/review-work-unit.js";
 import { resolveCandidateMutationOwner, resolveCompletedCandidateWorkUnits } from "./candidate-mutation-owner.js";
 
 interface ReviewFixWorkUnitLocus { name: string; path: string; branch: string | null; baseBranch: string }
+
+function readCheckoutBranch(cwd: string, exec: GitExec): Promise<string | null> {
+  return exec("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], {
+    cwd, objectAccess: "local-only",
+  }).then(({ stdout }) => stdout.trim(), () => null);
+}
 
 async function resolveLocus(cwd: string, exec: GitExec, invocation: ReviewInvocationContext): Promise<ReviewFixWorkUnitLocus | null> {
   const [{ settings }, active] = await Promise.all([
@@ -20,13 +27,26 @@ async function resolveLocus(cwd: string, exec: GitExec, invocation: ReviewInvoca
   if (owner.status !== "owned") return null;
   if (invocation.store.capabilities.stateOffBranch
     && !(await resolveCompletedCandidateWorkUnits(cwd, invocation.store)).includes(owner.workUnit)) return null;
-  const completed = await readCompletedDeliveryLocus(invocation.store, cwd, owner.workUnit);
+  const branch = await readCheckoutBranch(cwd, exec);
+  const completed = await readCompletedDeliveryLocus(invocation.store, cwd, owner.workUnit,
+    { owner: invocation.workItem, branch, projectId: invocation.projectId });
   if (completed === null) return null;
   if (invocation.workItem === undefined && completed.workItem !== undefined) invocation.workItem = completed.workItem;
-  const branch = await exec("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], {
-    cwd, objectAccess: "local-only",
-  }).then(({ stdout }) => stdout.trim(), () => null);
   return { ...completed, branch, baseBranch: settings["branch.base"] };
+}
+
+/**
+ * Bind a delivery command's work unit before any native record access: a completed one by the checkout's branch
+ * generation, otherwise the named live one. The repository arm and an already bound invocation are left as they are.
+ */
+export async function bindDeliveryWorkItem(cwd: string, exec: GitExec, invocation: ReviewInvocationContext,
+  workUnitId: string): Promise<void> {
+  if (!invocation.store.capabilities.stateOffBranch || invocation.workItem !== undefined) return;
+  const completed = await readCompletedDeliveryLocus(invocation.store, cwd, workUnitId,
+    { branch: await readCheckoutBranch(cwd, exec), projectId: invocation.projectId });
+  const workItem = completed?.workItem
+    ?? (await resolveNamedReviewWorkUnitInvocation({ ...invocation, cwd, exec }, workUnitId)).workItem;
+  if (workItem !== undefined) invocation.workItem = workItem;
 }
 
 async function taskListPath(cwd: string, locus: ReviewFixWorkUnitLocus, invocation: ReviewInvocationContext): Promise<string | null> {

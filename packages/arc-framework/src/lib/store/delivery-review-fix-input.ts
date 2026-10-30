@@ -8,14 +8,34 @@ import { readStoredDeliveryEntryInput } from "./delivery-entry-input.js";
 import type { OwnerIdentity } from "./identity.js";
 import { readWorkUnit, workUnitMetaPath } from "./lifecycle-write.js";
 import { unwrapReviewRecordResult } from "./kinds/review/access-shared.js";
+import { readReviewWorkUnitByRef } from "./review-work-unit.js";
+import type { StoreRecord } from "./read.js";
 import { buildLifecycleIndex } from "../work-unit/lifecycle-index.js";
 
+/** How a native read selects one generation of a slug that a live namesake or another ended item may share. */
+export interface CompletedDeliverySelection {
+  /** The exact generation an invocation already bound. */
+  owner?: OwnerIdentity;
+  /** The checkout's branch, which links exactly one generation where the slug alone may not. */
+  branch?: string | null;
+  projectId?: () => Promise<string>;
+}
+
+async function readSelectedPrimary(store: Store, name: string, selection: CompletedDeliverySelection): Promise<StoreRecord | null> {
+  if (selection.owner !== undefined) return unwrapReviewRecordResult(store, await readWorkUnit(store, name, selection.owner));
+  if (selection.branch !== undefined && selection.branch !== null) {
+    const linked = await readReviewWorkUnitByRef({ store, projectId: selection.projectId }, selection.branch);
+    if (linked !== null) return linked.name === name ? linked.record : null;
+  }
+  return unwrapReviewRecordResult(store, await readWorkUnit(store, name));
+}
+
 /** Confirm a completed owner and report its metadata coordinate without reading a projected native file. */
-export async function readCompletedDeliveryLocus(store: Store, cwd: string, name: string):
+export async function readCompletedDeliveryLocus(store: Store, cwd: string, name: string, selection: CompletedDeliverySelection = {}):
   Promise<{ name: string; path: string; workItem?: OwnerIdentity } | null> {
   if (store.capabilities.stateOffBranch) {
-    const primary = unwrapReviewRecordResult(store, await readWorkUnit(store, name));
-    return primary.placement?.kind === "completed"
+    const primary = await readSelectedPrimary(store, name, selection);
+    return primary?.placement?.kind === "completed"
       ? { name: primary.reference.owner.name, path: workUnitMetaPath(primary), workItem: primary.reference.owner } : null;
   }
   const index = await buildLifecycleIndex({ cwd, fs: {

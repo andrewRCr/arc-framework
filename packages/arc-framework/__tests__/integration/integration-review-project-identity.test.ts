@@ -54,16 +54,16 @@ async function fixture() {
   return { ...h, cwd, primary, bin };
 }
 
-it.each(["checkpoint", "merge"] as const)("preserves %s project repair and returns its ordinary verdict after restoration", async command => {
+it.each(["checkpoint", "merge"] as const)("preserves %s project repair, names an unstored work unit, and returns its ordinary verdict after restoration", async command => {
   const h = await fixture(), originalCwd = process.cwd(), originalPath = process.env.PATH;
-  const run = async (projectIdReader?: () => Promise<string>) => {
+  const run = async (projectIdReader?: () => Promise<string>, name = "example") => {
     const output: string[] = [];
     let exitCode = 0;
     const boundary = { resolveRoot: () => h.cwd, write: (value: string) => { output.push(value); },
       setExitCode: (value: number) => { exitCode = value; } };
     const invocation = { store: h.reference.store, projectId: projectIdReader };
-    if (command === "checkpoint") await handleIntegrationCheckpoint("example", {}, undefined, boundary, invocation);
-    else await handleIntegrationMerge("example", { checkpoint: `checkpoint-v1:${"a".repeat(40)}:sha256:${"b".repeat(64)}` },
+    if (command === "checkpoint") await handleIntegrationCheckpoint(name, {}, undefined, boundary, invocation);
+    else await handleIntegrationMerge(name, { checkpoint: `checkpoint-v1:${"a".repeat(40)}:sha256:${"b".repeat(64)}` },
       undefined, boundary, invocation);
     const value: unknown = JSON.parse(output.join(""));
     const result = command === "checkpoint" ? IntegrationCheckpointResultSchema.parse(value) : IntegrationMergeResultSchema.parse(value);
@@ -82,6 +82,8 @@ it.each(["checkpoint", "merge"] as const)("preserves %s project repair and retur
     expect(fetchRequired).toMatchObject({ exitCode: 1,
       result: { detail: expect.stringContaining("git fetch origin") } });
     await h.reference.seedProject(projectId);
+    expect(await run(undefined, "missing")).toMatchObject({ exitCode: 1, result: {
+      detail: "No stored work unit is named `missing`. Name the work unit to integrate, then retry." } });
     const repaired = await run();
     expect(repaired, JSON.stringify(repaired)).toMatchObject({ exitCode: 0,
       result: { reason: command === "checkpoint" ? "lifecycle-incomplete" : "checkpoint-missing" } });

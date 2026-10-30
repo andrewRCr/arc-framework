@@ -90,7 +90,7 @@ it("acknowledges and replays a native delivery correction with no record paths o
     const exits: number[] = [];
     await handleDeliveryExecution("review-fix-acknowledge", { input: "-" }, undefined, { readText: async () => JSON.stringify(input),
       write: text => { output += text; }, setExitCode: code => exits.push(code) },
-    { ...h.native, workItem: primary.reference.owner });
+    { ...h.native });
     return { result: JSON.parse(output), exits, output };
   };
   const invoke = async () => {
