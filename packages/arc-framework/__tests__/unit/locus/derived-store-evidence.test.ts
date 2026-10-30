@@ -23,7 +23,7 @@ import { deriveStoreInFlight } from "../../../src/lib/git/in-flight-store.js";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import { batchLifecycleWrites } from "../../../src/lib/store/lifecycle-write.js";
 
-async function fixture(bound = true) {
+async function fixture(bound = true, markerName?: string) {
   const fixture = createReferenceFixture({}, { "cohort/document": { parser: parseCohortDocument },
     "work-item/task-list": { parser: content => ({ success: true, data: parseTaskListRecord(content) }) } });
   const reference = fixture.reference("work-item/meta");
@@ -40,7 +40,7 @@ async function fixture(bound = true) {
       detached: false, branch: "main", folderPresent: true }] }),
     readMarker: async () => {
       const marker: WorktreeMarker = { spawnedByArc: false, spawningIdentity: "andrew", createdAt: "2026-10-16T12:00:00.000Z",
-        createdFor: { kind: "work-unit", name: reference.owner.name, ...(bound ? { uid } : {}) } };
+        createdFor: { kind: "work-unit", name: markerName ?? reference.owner.name, ...(bound ? { uid } : {}) } };
       return { kind: "present", bytes: Buffer.from(`${JSON.stringify(marker, null, 2)}\n`), marker };
     },
     listDirectory: async () => { throw new Error("Checkout files are stale"); },
@@ -88,6 +88,29 @@ async function frame(io: DerivedLocusEvidenceIO, metaIO: SubjectMetaIO = subject
   return readDerivedLocusFrame({ ...evidence, store: io.store, identity: "andrew", enteringCheckoutPath: "/repo",
     canonicalizePath: async path => path, subjectMetaIO: metaIO });
 }
+
+it.each(["live", "completed", "abandoned"] as const)("derives a %s UID holder despite a stale marker display name", async state => {
+  const h = await fixture(true, "former-name");
+  if (state === "completed") {
+    await changeMeta(h, { state: "Shipped", currentWorkflow: null }, undefined, true);
+    h.io.archiveCadence = "manual";
+  }
+  if (state === "abandoned") {
+    const record = success(await h.fixture.store.read({ reference: h.reference }));
+    const origin = { name: record.reference.owner.name, uid: h.uid };
+    success(await batchLifecycleWrites(h.fixture.store, [
+      { action: "remove", reference: record.reference, expected: record.version },
+      { action: "put", reference: recordReferences["lineage/transition"](record.reference.owner), expected: null,
+        content: writeLineageRecord({ schemaVersion: 2, kind: "abandon", origin, successors: [], incoming: [] }) },
+    ], { verb: "abandon", lifecycleAction: "abandon" }));
+  }
+  const result = await frame(h.io);
+  expect(result.roster[0]).toMatchObject({ kind: state === "live" ? "work-unit" : "retired",
+    subject: { kind: "work-unit", key: h.reference.owner.name, uid: h.uid }, diagnostics: [] });
+  if (state === "live") expect(result.active).toMatchObject({ subject: { key: h.reference.owner.name, uid: h.uid },
+    context: { metaPath: `.arc/active/meta-${h.reference.owner.name}.md` } });
+  else expect(result.active).toBeNull();
+});
 
 it.each([false, true])("carries only a bound marker's UUID through row validation, bound=%s", async bound => {
   const h = await fixture(bound), result = await frame(h.io);

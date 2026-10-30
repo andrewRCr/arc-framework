@@ -84,6 +84,10 @@ it("binds a former-name marker by adding its live owner's UID while retaining th
   const resumed = await repairCli({ ...h, cwd: h.path }, ["set-stage", "create-spec"], { store: h.store });
   expect(resumed.exitCode ?? 0, resumed.stdout + resumed.stderr).toBe(0);
   expect(lifecycleSuccess(await h.store.read({ reference: h.live.reference })).fields).toMatchObject({ currentWorkflow: "create-spec" });
+  const locus = await repairCli({ ...h, cwd: h.path }, ["locus", "--json"], { store: h.store });
+  expect(locus.exitCode ?? 0, locus.stdout + locus.stderr).toBe(0);
+  expect(locus.result).toMatchObject({ entering: { kind: "selected", row: { kind: "work-unit",
+    subject: { kind: "work-unit", key: h.name, uid: boundWorkUnitSubject(h.live).uid }, diagnostics: [] } } });
 }, 30_000);
 
 it("binds the selected owner while another owned checkout remains unbound", async () => {

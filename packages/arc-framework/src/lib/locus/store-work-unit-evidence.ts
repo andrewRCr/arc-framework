@@ -39,7 +39,7 @@ export async function readStoreWorkUnitEvidence(input: StoreWorkUnitInput): Prom
     const fields = ParsedMetaRecordSchema.parse(record.fields);
     WorkUnitStateSchema.parse(fields.state);
     const branch = await readWorkUnitBranch(input, record);
-    const subject = { kind: "work-unit" as const, key: record.reference.owner.name };
+    const subject = workUnitSubject(input.store, record);
     if (record.placement === undefined) throw new Error("The marker's work-unit record has no lifecycle placement.");
     const completed = record.placement.kind === "completed";
     const retired = completed && await completedWorkUnitRetired(input, record);
@@ -75,8 +75,13 @@ async function readRemovedWorkUnit(input: StoreWorkUnitInput): Promise<StoreWork
   catch (error) { throw new SubjectClaimUnavailable(error instanceof Error ? error.message : String(error), { cause: error }); }
   if (lineage === null) throw new MissingWorkUnitRecord(`Work unit '${input.slug}' has no primary or authenticated terminal lineage. Restore its record or repair the marker's subject, then retry.`);
   if (parseLineageRecord(lineage.content)?.kind === "rename") throw new SubjectClaimUnavailable(`Work unit '${input.slug}' has rename lineage but no current primary. Restore its current record or repair the marker, then retry.`);
-  const subject = { kind: "work-unit" as const, key: lineage.reference.owner.name };
+  const subject = workUnitSubject(input.store, lineage);
   return { kind: "terminal", subject, lifecycle: { kind: "present", subject, state: "retired", expectedTopology: {} } };
+}
+function workUnitSubject(store: Store, record: StoreRecord): DerivedWorkUnitSubject {
+  const owner = record.reference.owner;
+  const uid = store.capabilities.stateOffBranch && owner.type === "work-item" ? owner.uid : undefined;
+  return { kind: "work-unit", key: owner.name, ...(uid === undefined ? {} : { uid }) };
 }
 async function readWorkUnitBranch(input: StoreWorkUnitInput, record: StoreRecord): Promise<string | null> {
   try {
