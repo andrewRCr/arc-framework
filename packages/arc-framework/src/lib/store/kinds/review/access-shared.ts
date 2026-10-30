@@ -2,7 +2,7 @@
 import type { GitExec } from "../../../git/exec.js";
 import type { Store } from "../../contract.js";
 import { createStore } from "../../create.js";
-import { createDefaultStorePorts } from "../../default-ports.js";
+import { createDefaultStorePorts } from "../../default-store-ports.js";
 import { retryEndedItemHistory } from "../../history-retry.js";
 import { OwnerIdentitySchema, type RecordReference, type OwnerIdentity } from "../../identity.js";
 import type { StoreRecord } from "../../read.js";

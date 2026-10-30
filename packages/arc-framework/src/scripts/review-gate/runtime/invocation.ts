@@ -4,7 +4,7 @@ import type { GitExec } from "../../../lib/git/exec.js";
 import type { Store } from "../../../lib/store/contract.js";
 import type { OwnerIdentity } from "../../../lib/store/identity.js";
 import { createStore } from "../../../lib/store/create.js";
-import { createDefaultStorePorts } from "../../../lib/store/default-ports.js";
+import { createDefaultStorePorts } from "../../../lib/store/default-store-ports.js";
 import { retryEndedItemHistory } from "../../../lib/store/history-retry.js";
 import { createProjectIdentityReader } from "../../../lib/store/project-identity.js";
 

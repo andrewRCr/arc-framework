@@ -22,7 +22,7 @@ import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { createStore } from "../lib/store/create.js";
 import type { Store } from "../lib/store/contract.js";
 import type { GitExec } from "../lib/git/exec.js";
-import { createDefaultStorePorts } from "../lib/store/default-ports.js";
+import { createDefaultStorePorts } from "../lib/store/default-store-ports.js";
 import { retryEndedItemHistory } from "../lib/store/history-retry.js";
 import type { ReviewInvocationInput } from "../scripts/review-gate/runtime/invocation.js";
 import { resolveCandidateRecordRelativePath } from "../lib/store/kinds/review/paths.js";
