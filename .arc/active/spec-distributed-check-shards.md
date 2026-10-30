@@ -458,9 +458,9 @@ usually holds none, so the binding is absent and the partitioner's fallback esti
 durations.
 
 Measure the complete selected gate with fixed source, native selection, duration inputs and requested check set.
-Compare the same gate routed unsharded with the declared shard plan using fresh runs, and report fully native local
-runs as context (A8). A qualification harness may vary its in-memory plan without editing the source or adding a
-production sharding-toggle setting.
+Compare the same gate routed unsharded with the declared shard plan using fresh runs (A8); fully native local gate
+runs are not part of the comparison (A9). A qualification harness may vary its in-memory plan without editing the
+source or adding a production sharding-toggle setting.
 
 Interleave repeated baselines and distributed runs with an idle pool, then repeat under the named workload: two
 concurrent forced merge gates that each select store, plus one concurrent push gate, under the routing mode in force,
@@ -623,5 +623,7 @@ implementation rather than becoming an undocumented task decision.
   Design 2 ¶2. _Trigger:_ door. _Work:_ 1.1, 4.2, 4.3. _Revalidated:_ pending → 2.5.
 - **A8** — 2026-10-28 — design: concurrent benefit uses a named workload and a bounded slowdown. _Supersedes:_ § Goals
   7, § Proposed Design 10 ¶4–5, § Success Criteria 10. _Trigger:_ door. _Work:_ 6.1–6.3. _Revalidated:_ pending → 6.4.
+- **A9** — 2026-10-30 — design: the gate comparison reports no fully native local context runs.
+  _Supersedes:_ § Proposed Design 10 ¶7. _Trigger:_ door. _Work:_ 6.4. _Revalidated:_ pending → 6.4.
 
 ---

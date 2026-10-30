@@ -753,6 +753,20 @@ Superseded § Proposed Design 10 ¶5:
 > faster gate does not conceal it. Serial basic adapters need no speedup claim, and unmeasured deployments gain none
 > by implication.
 
+### A9 — native local context runs
+
+The Owner decided on 2026-10-30 not to run the two fully native local context slots. They were context only: no
+success criterion, exit criterion or task rests on them. This machine's store speed is already observed through the
+distributed arm: in each idle merge gate, local executed its 79-module store share in 305–309 seconds, beside m5-air at
+323–324, m4-mini at 391–396 and m2-mini at 444–449. The slots were also the last measurement that needed a quiet pool.
+The v5 study stays recorded as thirty of thirty-two attempts, with both slots unstarted rather than failed; no
+qualification rests on them, so none is lost.
+
+Superseded § Proposed Design 10 ¶7, second sentence, in its A8 form:
+
+> Compare the same gate routed unsharded with the declared shard plan using fresh runs, and report fully native local
+> runs as context (A8).
+
 ## Prior-art references
 
 - [Cargo runner configuration][cargo-runner]: executable/argument configuration.
