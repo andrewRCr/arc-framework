@@ -337,10 +337,9 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
       if (resolved.state !== "merged-at-head"
         || resolved.targetRef.repository !== target.repository
         || resolved.candidate.number !== target.pullRequest) return { merged: false, providerMergeId: null };
+      if (!input.store.capabilities.stateOffBranch) return { merged: true, providerMergeId: null };
       const confirmed = await confirmPinned(target);
-      if (confirmed.state === "merged") return { merged: true, providerMergeId: confirmed.providerMergeId };
-      if (confirmed.state === "unmerged") return { merged: false, providerMergeId: null };
-      throw new Error(confirmed.detail);
+      return { merged: true, providerMergeId: confirmed.state === "merged" ? confirmed.providerMergeId : null };
     },
     refreshTarget: async (target) => {
       const current = await liveTarget(target);

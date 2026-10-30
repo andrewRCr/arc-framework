@@ -11,6 +11,7 @@ import { HostedProcessError } from
   "../../../../src/scripts/review-gate/hosted/gh-process.js";
 import { composeIntegrationFinalPlan, createIntegrationMergeDependencies } from
   "../../../../src/scripts/integration/merge-composition.js";
+import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 
 const oid = (character: string): string => character.repeat(40);
 
@@ -400,5 +401,39 @@ describe("integration merge composition", () => {
       headRef: "feat/example",
       headSha: oid("c"),
     })).rejects.toThrow(/no longer open/u);
+  });
+
+  describe("an already-merged change request", () => {
+    const target = { repository: "owner/repo", pullRequest: 42, baseRef: "main", headRef: "feat/example", headSha: oid("c") };
+    const merged: ChangeRequestResolutionPort = { ...port(target.headSha), listByHead: async () => [{
+      number: 42, url: "https://example.test/owner/repo/pull/42", state: "MERGED", baseRefName: "main",
+      headRefName: "feat/example", headRefOid: target.headSha }] };
+    const confirmation = (head: string) => async () => ({ stderr: "", stdout: JSON.stringify({ number: 42, merged: true,
+      merge_commit_sha: oid("d"), base: { ref: "main" }, head: { ref: "feat/example", sha: head } }) });
+    const unavailable = async () => { throw new Error("confirmation unavailable"); };
+    const dependencies = async (run: () => Promise<{ stdout: string; stderr: string }>, native: boolean) => {
+      const harness = createReviewHarness();
+      const owner = native ? { store: harness.store, workItem: (await harness.seedMeta("example")).reference.owner } : {};
+      return createIntegrationMergeDependencies({ cwd: "/candidate", exec: vi.fn() as unknown as GitExec,
+        workUnit: "example", changeRequestPort: merged, hostedRunner: { run }, ...owner });
+    };
+
+    it("reads in-repo merged state from the change request alone, reporting no merge identity", async () => {
+      await expect((await dependencies(confirmation(target.headSha), false)).readMerged(target))
+        .resolves.toEqual({ merged: true, providerMergeId: null });
+      await expect((await dependencies(unavailable, false)).readMerged(target))
+        .resolves.toEqual({ merged: true, providerMergeId: null });
+    });
+
+    it("fills the native merge identity from exact confirmation", async () => {
+      await expect((await dependencies(confirmation(target.headSha), true)).readMerged(target))
+        .resolves.toEqual({ merged: true, providerMergeId: oid("d") });
+    });
+
+    it.each([["unavailable", unavailable], ["reports a moved head", confirmation(oid("f"))]] as const)(
+      "keeps a native merge when its confirmation is %s, leaving the merge identity unknown", async (_case, run) => {
+        await expect((await dependencies(run, true)).readMerged(target)).resolves.toEqual({ merged: true, providerMergeId: null });
+      },
+    );
   });
 });
