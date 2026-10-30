@@ -12,11 +12,11 @@ const PREFIX = "arc-review-source:v1:";
 const NATIVE_PREFIX = "arc-review-source:v2:";
 
 /** Portable result coordinates retain their selected owner outside every stable identifier. */
-export const NativeReviewSourceReferenceSchema = NativeReviewOperationReferenceSchema.extend({
+const NativeReviewSourceReferenceSchema = NativeReviewOperationReferenceSchema.extend({
   kind: z.enum(["attested-local", "frontline", "hosted"]),
   durableRef: DurableReferenceSchema,
 });
-export type NativeReviewSourceReference = z.infer<typeof NativeReviewSourceReferenceSchema>;
+type NativeReviewSourceReference = z.infer<typeof NativeReviewSourceReferenceSchema>;
 
 export type BoundReviewSourceReference = NativeReviewSourceReference | {
   kind: "attested-local" | "frontline" | "hosted";

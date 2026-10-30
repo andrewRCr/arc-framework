@@ -5,7 +5,8 @@
  * Command logic lives in `src/handlers/`, orchestrators in `src/commands/`,
  * and I/O adapters in `src/lib/io-context.ts`.
  */
-import { rejectUnsupportedReviewJson, rejectUnsupportedReviewOutputJson, formatCommandPath } from "./lib/command-input/review-json-option.js";
+import { rejectUnsupportedReviewJson, rejectUnsupportedReviewOutputJson } from "./lib/command-input/review-json-option.js";
+import { formatCommandPath } from "./lib/command-input/command-path.js";
 
 import { fileURLToPath } from "node:url";
 

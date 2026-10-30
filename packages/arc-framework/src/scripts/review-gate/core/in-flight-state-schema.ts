@@ -17,7 +17,7 @@ const ReviewInFlightAttemptSchema = z.strictObject({
   local: attempt.local, frontline: attempt.frontline, hosted: HostedInFlightBindingSchema.optional(),
   admittedBy: z.string().trim().min(1).optional(),
 });
-export type ReviewInFlightAttempt = z.infer<typeof ReviewInFlightAttemptSchema>;
+type ReviewInFlightAttempt = z.infer<typeof ReviewInFlightAttemptSchema>;
 const lane = LaneProgressStateSchema.shape;
 export const ReviewInFlightLaneSchema = z.strictObject({ schemaVersion: lane.schemaVersion,
   semanticsVersion: lane.semanticsVersion, operationId: lane.operationId, updatedAt: lane.updatedAt, workItem: owner,
@@ -33,7 +33,7 @@ const ReviewInFlightStateSchema = z.discriminatedUnion("kind", [ReviewInFlightLa
   FrontlineRunStateSchema.safeExtend({ workItem: owner, outcome: z.literal("pending") }),
   ReviewSuspensionStateSchema.safeExtend({ workItem: owner }),
 ]);
-export type ReviewInFlightState = z.infer<typeof ReviewInFlightStateSchema>;
+type ReviewInFlightState = z.infer<typeof ReviewInFlightStateSchema>;
 export const ReviewInFlightRecordSchema = z.strictObject({ schemaVersion: z.literal(1),
   semanticsVersion: z.literal("review-in-flight/v1"), operationId: lane.operationId,
   version: z.number().int().positive(), state: ReviewInFlightStateSchema });

@@ -41,7 +41,7 @@ const OptionsSchema = z.strictObject({ input: z.string().min(1) });
 export interface DeliveryEntryInspectOptions { readonly input?: string }
 
 /** Operational authority and optional external execution boundaries for repository inspection. */
-export interface DeliveryEntryInvocationOptions extends ReviewInvocationOptions { cwd?: string; exec?: GitExec }
+interface DeliveryEntryInvocationOptions extends ReviewInvocationOptions { cwd?: string; exec?: GitExec }
 
 export const deliveryEntryCommandInputRegistration = {
   commandPath: "delivery entry inspect",

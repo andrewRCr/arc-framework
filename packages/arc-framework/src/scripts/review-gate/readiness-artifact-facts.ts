@@ -148,7 +148,8 @@ export function lifecycleArtifactFacts(content: string, path: string): ReviewRea
   return [...completionFacts(content, path), ...releaseNotesFacts(content, path)];
 }
 
-function escapeRegExp(value: string): string {
+/** Match a value literally inside a regular expression. */
+export function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 

@@ -13,7 +13,7 @@ import type { ReviewInvocationInput } from "./invocation.js";
 import { resolveReviewInvocation } from "./invocation.js";
 
 /** Recoverable input or storage failure at the adversarial recording boundary. */
-export class AdversarialRecordError extends Error {
+class AdversarialRecordError extends Error {
   constructor(readonly code: "unsupported" | "invalid-input" | "corrupt-state", message: string,
     readonly remedy?: { text: string }) { super(message); this.name = "AdversarialRecordError"; }
 }

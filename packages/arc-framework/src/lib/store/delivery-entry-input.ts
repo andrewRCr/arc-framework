@@ -2,20 +2,19 @@
 import type { Store } from "./contract.js";
 import type { StoreRecord } from "./read.js";
 import type { StoreResult } from "./refusal.js";
-import { recordReferences, type OwnerIdentity } from "./identity.js";
+import type { OwnerIdentity } from "./identity.js";
 import { readWorkUnit, readLifecycleMetaFields } from "./lifecycle-write.js";
 import { WorkUnitReadPlacementSchema } from "./placement.js";
 import { workItemArtifactPath } from "./lifecycle-storage.js";
 import { describeRecordConflicts } from "./conflict-diagnostics.js";
 
 /** Exact work-item generation and its task kind's projected path, never a file-read authority. */
-export interface StoredDeliveryEntryInput { primary: StoreRecord; taskListPath: string }
+interface StoredDeliveryEntryInput { primary: StoreRecord; taskListPath: string }
 
 /** Read delivery's selected primary and require a task-list binding without following a metadata path. */
 export async function readStoredDeliveryEntryInput(store: Store, name: string,
   owner?: OwnerIdentity): Promise<StoreResult<StoredDeliveryEntryInput>> {
-  const read = owner === undefined ? await readWorkUnit(store, name)
-    : await store.read({ reference: recordReferences["work-item/meta"](owner) });
+  const read = await readWorkUnit(store, name, owner);
   if (read.status === "refused") return read;
   const primary = read.result, fields = readLifecycleMetaFields(primary);
   if (fields.status === "refused") return fields;

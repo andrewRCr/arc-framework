@@ -1632,7 +1632,7 @@ const ResultSchema = z.union([
     detail: z.string().min(1).max(1_000).optional(),
   }),
 ]);
-/** Published result contract shared by delivery execution and its callers. */
+/** The result contract delivery execution publishes. */
 export const DeliveryExecutionResultSchema = ResultSchema;
 export type DeliveryExecutionResult = z.infer<typeof ResultSchema>;
 
@@ -1787,7 +1787,7 @@ async function pathExists(path: string): Promise<boolean> {
 }
 
 /** Operational authority and optional external boundaries for delivery execution. */
-export interface DeliveryExecutionInvocationOptions extends ReviewInvocationOptions { cwd?: string; exec?: GitExec }
+interface DeliveryExecutionInvocationOptions extends ReviewInvocationOptions { cwd?: string; exec?: GitExec }
 
 export interface DeliveryExecutionHandlerDependencies {
   readText(source: string): Promise<string>;

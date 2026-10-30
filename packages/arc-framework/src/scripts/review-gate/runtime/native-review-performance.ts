@@ -11,7 +11,7 @@ import { ReviewEvidencePerformanceSchema, type ReviewEvidence } from "../../../l
 import type { StoredReviewFact } from "../core/ports.js";
 
 /** Producer-bound approval and complete performance supplied by the verified response. */
-export interface NativeReviewPerformanceInput extends Omit<NativeReviewApprovalInput, "now"> {
+interface NativeReviewPerformanceInput extends Omit<NativeReviewApprovalInput, "now"> {
   performance: LaneResponsePerformance;
   confirmResponseHeadContinuation?: ConfirmResponseHeadContinuation;
 }

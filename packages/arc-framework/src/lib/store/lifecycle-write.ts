@@ -20,6 +20,7 @@ export function usesOffBranchState(store?: Store): boolean { return store?.capab
 /** Read a selected work-unit generation, or resolve its logical slug when no owner is supplied.
  * @param store - Operational store.
  * @param slug - Current or former work-unit slug.
+ * @param owner - The exact selected generation, read directly; the slug then only names it.
  * @returns The metadata record, or the store's refusal.
  */
 export async function readWorkUnit(store: Pick<Store, "lookup" | "read">, slug: string, owner?: OwnerIdentity): Promise<StoreResult<StoreRecord>> {

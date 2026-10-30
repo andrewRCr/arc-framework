@@ -12,7 +12,7 @@ import { StoreRefusalError } from "../../refusal-error.js";
 import { ReviewOwnerSelectionError } from "./errors.js";
 
 /** An explicit filesystem port retains direct adapter semantics. */
-export interface ReviewRecordReader { readFile(path: string): Promise<string> }
+interface ReviewRecordReader { readFile(path: string): Promise<string> }
 
 /** An invocation may supply its existing store, Git runner, or explicit filesystem adapter. */
 export interface ReviewRecordAccessOptions<TFs extends ReviewRecordReader> {

@@ -1,4 +1,4 @@
-/** Stage the published singleton boundary that follows one verified Candidate review response. */
+/** Record the published singleton boundary that follows one verified Candidate review response. */
 
 import { resolveReviewInvocation, type ReviewInvocationInput } from "./invocation.js";
 import type { CandidateReviewResponseEvidenceV1 } from
@@ -13,10 +13,11 @@ import { rebindSingletonPublicationResponseBoundary } from
   "../policy/integration-boundary-locus.js";
 
 /**
- * Bind an approved review response to the public singleton record and stage its exact boundary.
+ * Bind an approved review response to the public singleton record and write its exact boundary, staging the tracked
+ * file for the fix commit where the backend keeps one.
  *
  * @param input - Checkout, Git adapter, work unit, response, and hosted-publication requirement.
- * @returns After the boundary has been written when needed and staged for the fix commit.
+ * @returns After the boundary has been written when needed, and staged when it is a tracked file.
  */
 export async function stageSingletonPublicationResponse(input: ReviewInvocationInput & {
   workUnit: string;

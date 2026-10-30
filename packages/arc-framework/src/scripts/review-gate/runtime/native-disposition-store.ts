@@ -8,7 +8,7 @@ import type { ApprovedDispositionRecord } from "../core/advisory-records.js";
 import { publishNativeReviewSuccessor, type NativeReviewSuccessorInput } from "./native-review-successor.js";
 
 /** One invocation's checked store, producer facts, and execution reader. */
-export type NativeDispositionStoreInput = Omit<NativeReviewSuccessorInput, "record"> & { confirmResponseHeadContinuation?: ConfirmResponseHeadContinuation };
+type NativeDispositionStoreInput = Omit<NativeReviewSuccessorInput, "record"> & { confirmResponseHeadContinuation?: ConfirmResponseHeadContinuation };
 
 /** Persist complete response facts while composing existing command reads from portable evidence. */
 export class NativeApprovedDispositionRecordStore implements ApprovedDispositionRecordStore, ApprovedDispositionRecordIndex {

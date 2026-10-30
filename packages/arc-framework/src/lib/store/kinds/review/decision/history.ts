@@ -2,7 +2,7 @@
 import type { BrokenRule, WriteCheckInput } from "../../../write-check.js";
 import { brokenRule, observeRecords } from "../../rule-support.js";
 
-export type DecisionCheckHistory<T> = { status: "known"; entries: readonly { key: string; value: T }[] }
+type DecisionCheckHistory<T> = { status: "known"; entries: readonly { key: string; value: T }[] }
   | { status: "unavailable"; rule: BrokenRule };
 
 /** Read every related record or retain an actionable refusal instead of inventing an empty history. */

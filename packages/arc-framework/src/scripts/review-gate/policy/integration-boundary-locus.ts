@@ -90,7 +90,7 @@ function validateConvergenceAction(action: { requiredScope: "focused" | "full"; 
 }
 export const RunConvergenceVerificationActionSchema = RunConvergenceVerificationActionFieldsSchema.superRefine(validateConvergenceAction);
 /** Published actions accept either backend's verification kind and projection-independent continuation. */
-export const PublishedPostAttestContinuationSchema = PostAttestContinuationSchema.partial({ projectionDisposition: true });
+const PublishedPostAttestContinuationSchema = PostAttestContinuationSchema.partial({ projectionDisposition: true });
 export type PublishedPostAttestContinuation = z.infer<typeof PublishedPostAttestContinuationSchema>;
 /** Widened transport contract; persisted boundary versions retain their own strict schemas. */
 export const PublishedRunConvergenceVerificationActionSchema = RunConvergenceVerificationActionFieldsSchema.extend({

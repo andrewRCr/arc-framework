@@ -25,7 +25,7 @@ export interface AttestInputPorts {
   activeMetaPath(name: string): ManagedPath;
 }
 /** Exact input basis retained for the publication batch. */
-export type AttestInputResult = { status: "ready"; primary?: StoreRecord; metaPath: ManagedPath; metaContent: string;
+type AttestInputResult = { status: "ready"; primary?: StoreRecord; metaPath: ManagedPath; metaContent: string;
   meta: ParsedMetaRecord; lifecycle: "Active" | "Integrating" | "Shipped"; taskListPath: string; taskList: string;
   lastCompleted: string | null } | { status: "rejected"; reason: string; remedy: Remedy };
 type Metadata = { primary?: StoreRecord; metaPath: ManagedPath; metaContent: string; meta: ParsedMetaRecord };

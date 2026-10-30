@@ -3,7 +3,7 @@ import type { RecordReference } from "./identity.js";
 import type { StoreRefusal } from "./refusal.js";
 
 /** The resolution route for every named conflict record. */
-export const RESOLVE_RECORD_CONFLICTS = "Resolve the named conflict records, then retry.";
+const RESOLVE_RECORD_CONFLICTS = "Resolve the named conflict records, then retry.";
 
 /** Name every returned conflict reference. */
 export function listRecordConflicts(conflicts: readonly RecordReference[]): string {

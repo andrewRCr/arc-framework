@@ -35,7 +35,7 @@
  * @module
  */
 
-import { lifecycleArtifactFacts, validCohortCloseout } from "./readiness-artifact-facts.js";
+import { escapeRegExp, lifecycleArtifactFacts, validCohortCloseout } from "./readiness-artifact-facts.js";
 export { lifecycleArtifactFacts } from "./readiness-artifact-facts.js";
 import { evaluateStoredWorkUnitReadiness } from "./readiness-store.js";
 import type { Store } from "../../lib/store/contract.js";
@@ -615,10 +615,6 @@ async function findArchiveCandidates(
     }
   }
   return { candidates, facts };
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 function archivedPrUrlMatches(value: string | null, repository: string, pullRequest: number): boolean {

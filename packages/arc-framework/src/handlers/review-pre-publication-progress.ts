@@ -14,7 +14,7 @@ export interface PrePublicationProgressAccess {
 export type PrePublicationProgress = { schemaVersion: 1; version: number }
   | { schemaVersion: 2; digest: CanonicalDigest };
 /** An incomplete observation must be repaired before it can bind readiness. */
-export class PrePublicationProgressError extends Error {
+class PrePublicationProgressError extends Error {
   readonly code = "invalid-input";
 }
 

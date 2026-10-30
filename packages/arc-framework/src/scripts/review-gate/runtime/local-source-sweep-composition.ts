@@ -8,7 +8,7 @@ import { createNativeLocalSourceSweepRecords } from "../hosts/local/source-sweep
 import { sweepLocalReviewSources } from "../core/local-source-sweep.js";
 
 /** Cleanup observations and actions retained by one local preparation composition. */
-export interface LocalReviewSourceSweepContext {
+interface LocalReviewSourceSweepContext {
   publisher: GitCommonStatePublisher;
   operationStore: ReviewOperationStateStore;
   readReceipts(targetId: string): Promise<ForwardReceiptLedger>;

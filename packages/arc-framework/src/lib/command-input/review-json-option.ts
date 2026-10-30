@@ -1,5 +1,6 @@
 /** Shared diagnostics for automatic JSON review commands. */
 import type { Command } from "commander";
+import { formatCommandPath } from "./command-path.js";
 /** Reject a redundant output flag on JSON request commands. */
 export function rejectUnsupportedReviewJson(_command: Command, actionCommand: Command): void {
   if (actionCommand.opts().json !== true) return;
@@ -18,15 +19,4 @@ export function rejectUnsupportedReviewOutputJson(this: Command): void {
       + `See '${commandPath} --help' for accepted inputs.`,
     { exitCode: 1, code: "arc.review.unsupportedJsonOption" },
   );
-}
-
-/** Render the complete Commander path for a diagnostic. */
-export function formatCommandPath(cmd: Command): string {
-  const parts: string[] = [];
-  let cur: Command | null = cmd;
-  while (cur !== null) {
-    parts.unshift(cur.name());
-    cur = cur.parent;
-  }
-  return parts.join(" ");
 }

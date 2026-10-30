@@ -8,7 +8,7 @@ import { StoredReviewResultReader } from "../hosts/local/stored-result-reader.js
 import type { captureConditionalNextPassAuthorization } from "../lane-progress-conditional.js";
 
 /** Producer-bound capture request and one invocation's selected native ports. */
-export interface NativeConditionalPassCaptureInput {
+interface NativeConditionalPassCaptureInput {
   capture: Parameters<typeof captureConditionalNextPassAuthorization>[1];
   outcomes: ReviewOutcomePort;
   evidence: ReviewEvidencePort;

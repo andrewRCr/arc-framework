@@ -215,7 +215,7 @@ async function validateLocalPolicyAdmission(
         incrementalBasis: nextPassContext.incremental?.basis };
 }
 
-/** Bind Candidate reads at the existing repository storage boundary. */
+/** Bind Candidate reads to the invocation's selected store. */
 export function createLocalReviewCandidateReader(options: ReviewInvocationInput): LocalReviewCandidateReader {
   const input = { ...options, ...resolveReviewInvocation(options) };
   const reviewRecordStore = input.store;

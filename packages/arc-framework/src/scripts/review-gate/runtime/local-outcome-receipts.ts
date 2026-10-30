@@ -9,7 +9,7 @@ import type { LocalReviewState } from "../core/operation-state-schema.js";
 import type { ReviewReceiptV2 } from "../core/gate-contract-v2-schema.js";
 
 /** Selected local receipt access and its admitted execution owner. */
-export interface LocalReceiptPublicationContext {
+interface LocalReceiptPublicationContext {
   operationStore: ReviewOperationStateStore;
   receiptStore: ForwardReviewReceiptStore;
   outcomes?: ReviewOutcomePort;

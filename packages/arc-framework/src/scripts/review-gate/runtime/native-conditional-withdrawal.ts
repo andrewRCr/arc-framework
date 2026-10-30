@@ -10,13 +10,13 @@ type WithdrawalRequest = Parameters<typeof withdrawConditionalNextPassAuthorizat
 type RefusedWithdrawal = Extract<ConditionalPassWithdrawalResult, { state: "refused" }>;
 
 /** Exact withdrawal request with the invocation's selected fact ports and execution inventory. */
-export interface NativeConditionalWithdrawalInput extends NativeReviewFactPorts {
+interface NativeConditionalWithdrawalInput extends NativeReviewFactPorts {
   withdrawal: WithdrawalRequest;
   inFlight: ReviewOperationStateSnapshotIndex;
 }
 
 /** A stored withdrawal or a refusal that leaves the original authority intact. */
-export type NativeConditionalWithdrawalResult = RefusedWithdrawal | {
+type NativeConditionalWithdrawalResult = RefusedWithdrawal | {
   state: "withdrawn" | "already-withdrawn";
   authorizationId: WithdrawalRequest["authorizationId"];
   dispositionSetId: WithdrawalRequest["dispositionSetId"];

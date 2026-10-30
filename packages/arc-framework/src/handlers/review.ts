@@ -2967,15 +2967,15 @@ export async function handleReviewFrontlineRun(
 export { handleReviewRequestSchema, type ReviewPublicRequestSchemaId } from "./review-request-schema.js";
 
 /** Operational authority and optional external Git boundaries for review handlers. */
-export interface ReviewHandlerInvocationOptions extends ReviewInvocationOptions { exec?: GitExec; rawGit?: RawGitExec }
+interface ReviewHandlerInvocationOptions extends ReviewInvocationOptions { exec?: GitExec; rawGit?: RawGitExec }
 
 /** External CodeRabbit process seams for the default frontline handler. */
-export interface FrontlineReviewHandlerInvocationOptions extends ReviewHandlerInvocationOptions {
+interface FrontlineReviewHandlerInvocationOptions extends ReviewHandlerInvocationOptions {
   codeRabbit?: CodeRabbitProcessOptions;
 }
 
 /** Originating checkout and GitHub process boundaries for hosted handlers. */
-export interface HostedReviewHandlerInvocationOptions extends ReviewHandlerInvocationOptions {
+interface HostedReviewHandlerInvocationOptions extends ReviewHandlerInvocationOptions {
   cwd?: string;
   hostedRunner?: HostedProcessRunner;
 }

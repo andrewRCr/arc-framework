@@ -15,7 +15,7 @@ import {
   type ReviewReductionAdapterDependencies,
 } from "./reduce-command.js";
 
-/** Bind reduction to repository-common read stores and trusted target confirmation. */
+/** Bind reduction to the selected backend's review stores and trusted target confirmation. */
 export function createReduceDependencies(options: ReviewInvocationInput): ReduceCommandDependencies {
   const context = createReviewCompositionContext(options);
   const input = { ...options, ...context };

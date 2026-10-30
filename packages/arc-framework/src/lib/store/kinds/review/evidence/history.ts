@@ -5,7 +5,7 @@ import { decodeReviewEvidence } from "./parser.js";
 import type { ReviewEvidence } from "./schema.js";
 
 export type EvidenceHistory = ReadonlyMap<string, ReviewEvidence>;
-export type EvidenceHistoryObservation = { status: "known"; value: EvidenceHistory } | { status: "unavailable"; rule: BrokenRule };
+type EvidenceHistoryObservation = { status: "known"; value: EvidenceHistory } | { status: "unavailable"; rule: BrokenRule };
 
 /** Require a complete, uniquely keyed and parseable response history for this work item. */
 export async function readEvidenceHistory(input: WriteCheckInput, view: StoreView): Promise<EvidenceHistoryObservation> {

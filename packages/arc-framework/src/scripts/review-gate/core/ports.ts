@@ -33,7 +33,7 @@ export type ReviewFactListing<T> =
 export type ReviewFactPut = Extract<Mutation, { action: "put" }>;
 
 /** Create-only access to a work item's immutable review facts. */
-export interface ReviewFactPort<T> {
+interface ReviewFactPort<T> {
   read(key: string): Promise<StoredReviewFact<T> | null>;
   list(): Promise<ReviewFactListing<T>>;
   create(value: T): Promise<StoredReviewFact<T>>;

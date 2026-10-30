@@ -11,10 +11,9 @@ import { ActionFields, BoundaryIdentityShape, RunSelfReviewActionSchema, Continu
   PublishCandidateActionSchema, ContinuePublicationActionSchema, ResolveDeliveryStatusActionSchema,
   StandardReviewReservationV1Schema, validateUniqueDeliveryTerminusVehicles } from "./integration-boundary-locus-shared.js";
 
-export const PostAttestContinuationV2Schema = z.strictObject({
+const PostAttestContinuationV2Schema = z.strictObject({
   reviewedHead: GitObjectIdSchema, nextAction: ContinuePrePublicationActionSchema,
 });
-export type PostAttestContinuationV2 = z.infer<typeof PostAttestContinuationV2Schema>;
 export const RunConvergenceVerificationActionV2Schema = z.strictObject({
   kind: z.literal("run-convergence-verification"), requiredScope: z.enum(["focused", "full"]),
   verificationKind: z.enum(["focused", "merge"]), verificationEvidenceRefRequired: z.literal(true),
@@ -39,7 +38,7 @@ const review = { ...common, locus: z.literal("candidate-review-pending") };
 export const CandidateSelfReviewBoundaryV2Schema = z.strictObject({ ...review, nextAction: RunSelfReviewActionSchema, reservation: z.null() });
 export const CandidateReviewResumeBoundaryV2Schema = z.strictObject({ ...review, nextAction: ContinuePrePublicationActionSchema,
   reservation: StandardReviewReservationV1Schema.nullable(), postAttestContinuation: PostAttestContinuationV2Schema.optional() });
-export const CandidateReviewBoundaryV2Schema = z.union([CandidateSelfReviewBoundaryV2Schema, CandidateReviewResumeBoundaryV2Schema]);
+const CandidateReviewBoundaryV2Schema = z.union([CandidateSelfReviewBoundaryV2Schema, CandidateReviewResumeBoundaryV2Schema]);
 export const CandidateFixBoundaryV2Schema = z.strictObject({ ...common, locus: z.literal("candidate-fix-pending"),
   nextAction: ContinuePrePublicationActionSchema, reservation: z.null() });
 export const CandidateConvergenceBoundaryV2Schema = z.strictObject({ ...common, locus: z.literal("candidate-convergence-verification-pending"),
@@ -50,15 +49,15 @@ export const CandidateConvergenceBoundaryV2Schema = z.strictObject({ ...common, 
 });
 export const CandidatePublishReadyBoundaryV2Schema = z.strictObject({ ...common, locus: z.literal("candidate-publish-ready"),
   nextAction: PublishCandidateActionSchema, reservation: StandardReviewReservationV1Schema.nullable(), readinessBinding: CanonicalDigestSchema.nullable() });
-export const PublicationPendingBoundaryV2Schema = z.strictObject({ ...common, mode: z.literal("integration-boundary"), locus: z.literal("publication-pending"),
+const PublicationPendingBoundaryV2Schema = z.strictObject({ ...common, mode: z.literal("integration-boundary"), locus: z.literal("publication-pending"),
   nextAction: ContinuePublicationActionSchema, reservation: StandardReviewReservationV1Schema.nullable(), readinessBinding: CanonicalDigestSchema.nullable() });
-export const HostedReviewPendingBoundaryV2Schema = z.strictObject({ ...common, mode: z.literal("integration-boundary"), locus: z.literal("hosted-review-pending"),
+const HostedReviewPendingBoundaryV2Schema = z.strictObject({ ...common, mode: z.literal("integration-boundary"), locus: z.literal("hosted-review-pending"),
   nextAction: ContinuePrePublicationActionSchema, reservation: StandardReviewReservationV1Schema,
 }).superRefine((boundary, context) => {
   if (boundary.reservation.target.kind !== "pinned-head") context.addIssue({ code: "custom", path: ["reservation", "target", "kind"],
     message: "hosted-review-pending is reserved for a pinned singleton target" });
 });
-export const DeliveryStatusRequiredBoundaryV2Schema = z.strictObject({ ...common, mode: z.literal("integration-boundary"), locus: z.literal("delivery-status-required"),
+const DeliveryStatusRequiredBoundaryV2Schema = z.strictObject({ ...common, mode: z.literal("integration-boundary"), locus: z.literal("delivery-status-required"),
   nextAction: ResolveDeliveryStatusActionSchema, reservation: StandardReviewReservationV1Schema,
   deliveryContinuation: DeliveryPublicReviewContinuationV1Schema.optional(),
 }).superRefine((boundary, context) => {

@@ -9,7 +9,7 @@ import { readLaneProgressOwner } from "../lane-progress.js";
 import type { ReviewInFlightPort } from "../core/ports.js";
 
 /** Invocation-selected authority and the Candidate whose standard lane is being bound. */
-export interface ReviewReadinessReadInput {
+interface ReviewReadinessReadInput {
   store: Store;
   workItem: OwnerIdentity;
   inFlight: Pick<ReviewInFlightPort, "readOperation">;

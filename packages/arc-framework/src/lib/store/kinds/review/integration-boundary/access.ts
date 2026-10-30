@@ -19,7 +19,7 @@ export type { SubmissionBoundaryReader, SubmissionBoundaryStoreFs };
 /** Boundary reads accept a minimal file reader or the invocation's store and Git runner. */
 export type SubmissionBoundaryReadOptions = ReviewRecordAccessOptions<SubmissionBoundaryReader>;
 /** Boundary writes accept a locking file adapter or the invocation's store and Git runner. */
-export type SubmissionBoundaryWriteOptions = ReviewRecordAccessOptions<SubmissionBoundaryStoreFs>;
+type SubmissionBoundaryWriteOptions = ReviewRecordAccessOptions<SubmissionBoundaryStoreFs>;
 
 /** Read a boundary paired with its exact backend version. */
 export async function readSubmissionBoundaryVersioned(cwd: string, name: string,

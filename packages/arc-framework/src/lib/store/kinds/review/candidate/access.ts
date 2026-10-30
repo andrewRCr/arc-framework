@@ -17,7 +17,7 @@ export { CandidateRecordVersionConflictError };
 export type { CandidateRecordStoreFs };
 
 /** Candidate access accepts the invocation's store, Git runner, or explicit file adapter. */
-export type CandidateRecordAccessOptions = ReviewRecordAccessOptions<CandidateRecordStoreFs>;
+type CandidateRecordAccessOptions = ReviewRecordAccessOptions<CandidateRecordStoreFs>;
 
 /** Read a Candidate with the backend's opaque version. */
 export async function readCandidateRecordVersioned(cwd: string, name: string,

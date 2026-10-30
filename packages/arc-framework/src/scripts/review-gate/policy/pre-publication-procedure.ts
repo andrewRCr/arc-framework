@@ -242,7 +242,7 @@ export function projectPrePublicationReview(
 }
 
 /** Already-resolved native authority carried by the emitted boundary. */
-export interface NativePrePublicationBoundary {
+interface NativePrePublicationBoundary {
   terminus: z.infer<typeof CanonicalDigestSchema> | null;
   readinessBinding: z.infer<typeof CanonicalDigestSchema> | null;
 }

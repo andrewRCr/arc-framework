@@ -6,7 +6,7 @@ import { candidateRevisionContents } from "./mapping-candidates.js";
 import type { ReviewMappingInput, ReviewMappingWorkItem } from "./mapping-types.js";
 
 /** Liveness is resolved before a fact's attempt or continuation state matters. */
-export type ReviewMappingOwner =
+type ReviewMappingOwner =
   | { outcome: "live"; workItem: ReviewMappingWorkItem }
   | { outcome: "left-behind"; reason: string };
 

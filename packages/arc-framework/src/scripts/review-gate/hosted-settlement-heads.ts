@@ -3,7 +3,7 @@ import type { LaneProgressState, HostedSettlementEvidence, LaneResponsePerforman
 import type { ResponseContinuationContext } from "./hosted-response-completion.js";
 
 /** The recorded facts needed to prove the heads of a completed hosted fix settlement. */
-export interface HostedFixSettlementHeadsInput {
+interface HostedFixSettlementHeadsInput {
   producerId: string;
   dispositionSetId: string | null;
   performance: LaneResponsePerformance;

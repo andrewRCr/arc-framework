@@ -513,7 +513,7 @@ async function readRespondProvisionalPassFacts(context: RespondPolicyContext,
       && (routeSources.length === 0 || routeSources.includes("delegated-agent")) };
 }
 
-/** Bind respond to repository-common records and trusted local/runtime identities. */
+/** Bind respond to the selected backend's review records and trusted local/runtime identities. */
 export function createRespondDependencies(input: ReviewInvocationInput & { rawGit?: RawGitExec }): RespondCommandDependencies {
   return createBoundRespondDependencies({ ...input, ...resolveReviewInvocation(input) });
 }

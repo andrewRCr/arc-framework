@@ -11,7 +11,7 @@ import type { Store } from "./contract.js";
 export interface ReviewWorkUnitLookup { store: Store; projectId?: () => Promise<string> }
 
 /** Exact linked metadata retained independently of any projected file. */
-export interface ReviewLinkedWorkUnit {
+interface ReviewLinkedWorkUnit {
   name: string;
   path: string;
   branch: string;

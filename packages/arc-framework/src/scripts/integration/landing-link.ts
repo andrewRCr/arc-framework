@@ -12,7 +12,7 @@ export const LandingLinkStateSchema = z.discriminatedUnion("state", [
   z.strictObject({ state: z.literal("not-written"), detail: z.string().min(1).max(4_096), remedy: SpineRemedySchema }),
 ]);
 /** Reported landing-link persistence outcome. */
-export type LandingLinkState = z.infer<typeof LandingLinkStateSchema>;
+type LandingLinkState = z.infer<typeof LandingLinkStateSchema>;
 
 /** Add the host's merge commit to the current work item using its exact observed record version. */
 export async function writeWorkUnitLandingCommit(input: {

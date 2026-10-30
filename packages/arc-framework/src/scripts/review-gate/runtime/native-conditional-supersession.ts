@@ -7,7 +7,7 @@ import type { inspectConditionalNextPassInvalidation } from "../lane-progress-co
 import { reviewFactListingError } from "../../../lib/store/kinds/review/fact-access.js";
 
 /** Proposed response succession and the invocation's complete native authority readers. */
-export interface NativeConditionalSupersessionInput extends NativeReviewFactPorts {
+interface NativeConditionalSupersessionInput extends NativeReviewFactPorts {
   inFlight: ReviewOperationStateSnapshotIndex;
   supersession: Parameters<typeof inspectConditionalNextPassInvalidation>[1];
 }

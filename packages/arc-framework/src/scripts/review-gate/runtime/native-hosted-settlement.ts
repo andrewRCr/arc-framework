@@ -9,7 +9,7 @@ import type { StoredReviewFact } from "../core/ports.js";
 import type { ReviewEvidence } from "../../../lib/store/kinds/review/evidence/schema.js";
 
 /** One completed host action supplied by the selected invocation. */
-export interface NativeHostedSettlementInput extends Omit<NativeReviewApprovalInput, "record" | "now"> {
+interface NativeHostedSettlementInput extends Omit<NativeReviewApprovalInput, "record" | "now"> {
   producerId: string;
   confirmResponseHeadContinuation?: ConfirmResponseHeadContinuation;
   settlement: Extract<HostedSettlementEvidence, { channelAction: "reply-and-resolve" }>;

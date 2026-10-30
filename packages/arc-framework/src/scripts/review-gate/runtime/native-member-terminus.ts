@@ -16,7 +16,7 @@ function memberSubject(vehicle: DeliveryReviewMemberVehicle) {
 }
 
 /** Resolve an exact boundary entry without changing its author, pass-count basis, or member reach. */
-export async function resolveNativeMemberTerminus(facts: Pick<NativeReviewFactPorts, "decisions">,
+async function resolveNativeMemberTerminus(facts: Pick<NativeReviewFactPorts, "decisions">,
   entry: { vehicle: DeliveryReviewMemberVehicle; terminus: CanonicalDigest }): Promise<ResolvedDeliveryReviewMemberTerminus> {
   const terminus = await resolveNativeReviewTerminus({ facts, subject: memberSubject(entry.vehicle), decisionKey: entry.terminus });
   if (terminus === undefined) throw new Error("Restore the retained native member terminus and re-run review status.");

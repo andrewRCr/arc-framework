@@ -13,7 +13,7 @@ import { StoreRefusalError } from "../../../../lib/store/refusal-error.js";
 /** An ordinary Errand whose exact generation was corroborated by its stored primary. */
 export type ReviewCheckoutErrand = Extract<TransientIdentityRecord, { kind: "errand"; purpose: "errand" }>;
 /** Authenticated claim content and the exact primary generation returned by its lookup. */
-export interface ReviewCheckoutErrandSelection { record: ReviewCheckoutErrand; workItem: OwnerIdentity }
+interface ReviewCheckoutErrandSelection { record: ReviewCheckoutErrand; workItem: OwnerIdentity }
 type ErrandClaim = { kind: "errand"; slug: string; claimId: string };
 
 async function missingClaim(store: Store, claim: ErrandClaim): Promise<null> {

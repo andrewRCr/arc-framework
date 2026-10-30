@@ -7,7 +7,7 @@ import type { IntegrationBoundaryLocusV2 } from "./schema.js";
 import type { ReviewReadinessBinding } from "./readiness.js";
 import { prepareSubmissionBoundaryPut, readSubmissionBoundaryVersioned, SubmissionBoundaryVersionConflictError } from "./access.js";
 
-export interface NativePublicationClaimInput {
+interface NativePublicationClaimInput {
   store: Store;
   cwd: string;
   owner: OwnerIdentity;
