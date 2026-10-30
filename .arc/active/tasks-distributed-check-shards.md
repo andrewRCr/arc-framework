@@ -487,10 +487,9 @@ _Purpose:_ Verify the complete implementation against its success criteria and r
   `41087259940` at `c33194fad` failed only the Windows pair job, on shard fixtures named through an 8.3 temporary
   alias; 4.R (A13) corrected them, red then green on a local Windows runner. The provider behavior criteria 23, 27 and
   28 rest on landed on arc-offload `main` as `082f270`.
-- _Success criteria:_ 30 criteria: 25 met, one of them with a Deviation note (16), and 5 superseded (13 by A3, 17 by
-  A4, 19 by A8, 25 by A12, 26 by A11). Criterion 21 also holds for the merged six-shard store declaration
-  (`notes-distributed-check-shards.md` § Six-shard store qualification after the merge). Two independent review passes
-  closed with the A1/C1 fixes and the A11/A12 amendments; A13 followed the pass cap.
+- _Success criteria:_ 30 criteria: 25 met, two of them with a Deviation note (16, 21), and 5 superseded (13 by A3, 17
+  by A4, 19 by A8, 25 by A12, 26 by A11). Two independent review passes closed with the A1/C1 fixes and the A11/A12
+  amendments; A13 followed the pass cap.
 
 ## Success Criteria
 
@@ -576,6 +575,11 @@ _Purpose:_ Verify the complete implementation against its success criteria and r
   qualified profiles, filters, deletion/widening and frozen available/absent/empty duration states. E2E stays native
   and CI-only with its existing membership validation. The store declaration uses ordinary eligible argv and captured
   selector gates and works without the retired wrapper.
+    - **Deviation:** The store matrix ran at the four-shard declaration. After the merge moved the store to six
+      shards, one full-selection qualification with a zero-byte duration file covered the merged declaration on both
+      profiles and corroborated a run split across them (`notes-distributed-check-shards.md` § Six-shard store
+      qualification after the merge). The filtered, deleted and widened selections, the absent and available duration
+      states, and empty shares were not rerun at six.
 
 - `[x]` A completed Windows/macOS portability-pair run executes the consumer's fixture-backed 256/high-bit parent
   reduction cases; other supported-platform budget/path/result cases execute through their selected portability
