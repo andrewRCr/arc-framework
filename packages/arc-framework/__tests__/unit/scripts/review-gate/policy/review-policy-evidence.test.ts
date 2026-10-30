@@ -671,8 +671,7 @@ describe("evidence-bound review policy", () => {
       .resolves.toMatchObject({ state: "ready", nextAction: "local-prepare", payload: { pass: 4, ceilingOverrideApplied: false } });
   });
 
-  it("retains an unspent conditional authorization on the fresh fix-check route", async () => {
-    const native = true;
+  it.each([false, true])("retains an unspent conditional authorization on the fresh fix-check route, native=%s", async (native) => {
     const original = findingsHostedResult(["major"]);
     const result = { ...original, admission: { ...original.admission, logicalPass: 3 } };
     const record = approvedRecord(result, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);
