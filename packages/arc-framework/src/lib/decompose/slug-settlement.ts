@@ -60,6 +60,7 @@ async function planStub(ctx: DecomposeContext, reference: StoreRecord["reference
   if (cut.refusal.code !== "not-found") return decomposeStoreRefusal(cut.refusal);
   const fields = readLifecycleMetaFields(current.result);
   if (fields.status === "refused") return decomposeStoreRefusal(fields.refusal);
+  if (fields.result.state !== "Planning") return empty;
   const settlements: DecomposeSlugSettlement[] = [], guards: StoreRecord[] = [];
   for (const edge of fields.result.dependsOn.filter(target => slugs.has(target))) {
     const resolved = await resolveDecomposeRetiredEdge(ctx.executor.store, edge, current.result.reference.owner);
