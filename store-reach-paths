@@ -3,7 +3,7 @@
   "slug": "store-reach-paths",
   "claimId": "28f330b8b7d8aeaaa671f91d16f8db3e",
   "createdAt": "2026-10-29T23:43:00.959Z",
-  "updatedAt": "2026-10-29T23:43:00.959Z",
+  "updatedAt": "2026-10-30T00:31:57.889Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Narrow which store suites a shipped-content change reaches through paths.ts",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Narrow what `paths.ts` reaches in the store suites' reach declaration",
   "originEntrySourceDigest": "sha256:e62c3ab0f88452b7677caa717401661bd245acbaf747a6367ae1f6f0492d58a0",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/store-reach-paths",
+    "headSha": "679e131af4a49229f510caafb46cba664f402c65"
+  }
 }
