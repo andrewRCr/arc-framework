@@ -9,8 +9,6 @@ import {
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
 import type {
-  ReviewOutcomePort,
-  FrontlineOutcomeStore,
   ReviewOperationStateStore,
 } from "../core/ports.js";
 import {
@@ -22,6 +20,7 @@ import { bindReviewSourceReference, type ReviewSourceReferenceBinding } from "..
 import {
   executeFrontlineRun,
   type FrontlineRunExecutionDependencies,
+  type FrontlineRunResultStores,
 } from "../policy/frontline-operation.js";
 import {
   normalizeFrontlineOutcome,
@@ -44,12 +43,10 @@ import { withFrontlineRetryAuthorization } from "./frontline-retry-remedy.js";
 const MAX_TIMER_DELAY_MS = 2_147_483_647;
 const OPERATION_LOCK_COMPLETION_MARGIN_MS = 30_000;
 
-export interface FrontlineRunCommandDependencies {
-  outcomes?: ReviewOutcomePort;
+interface FrontlineRunCommandPorts {
   /** Encode source locators under the invocation's selected storage arm. */
   bindSourceReference?: ReviewSourceReferenceBinding;
   operationStore: ReviewOperationStateStore;
-  outcomeStore: FrontlineOutcomeStore;
   withOperationLock<T>(
     operationId: string,
     maxWaitMs: number,
@@ -72,6 +69,9 @@ export interface FrontlineRunCommandDependencies {
   }): ReturnType<FrontlineRunExecutionDependencies["execute"]>;
   now(): string;
 }
+
+/** The run command's ports, with its storage arm's result store. */
+export type FrontlineRunCommandDependencies = FrontlineRunCommandPorts & FrontlineRunResultStores;
 
 /** Stable caller-input failure at the frontline run boundary. */
 export class FrontlineRunCommandError extends Error {
@@ -180,8 +180,8 @@ export async function runFrontlineReviewCommand(
   };
   const terminal = await withFrontlineRetryAuthorization(owner, admission, () => executeFrontlineRun({
     operationStore: dependencies.operationStore,
-    ...(dependencies.outcomes === undefined ? {} : { outcomes: dependencies.outcomes }),
-    outcomeStore: dependencies.outcomeStore,
+    ...(dependencies.outcomes === undefined ? { outcomeStore: dependencies.outcomeStore }
+      : { outcomes: dependencies.outcomes }),
     withOperationLock: (operationId, maxWaitMs, action) => dependencies.withOperationLock(
       operationId,
       maxWaitMs,

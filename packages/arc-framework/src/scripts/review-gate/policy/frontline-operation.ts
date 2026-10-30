@@ -193,10 +193,13 @@ export async function persistFrontlineRunOutcome(
   return { version: published.version, state };
 }
 
-export interface FrontlineRunExecutionDependencies {
-  outcomes?: ReviewOutcomePort;
+/** A run records its result natively as an outcome or in the repository's frontline outcome ledger, never both. */
+export type FrontlineRunResultStores =
+  | { outcomes: ReviewOutcomePort; outcomeStore?: undefined }
+  | { outcomes?: undefined; outcomeStore: FrontlineOutcomeStore };
+
+interface FrontlineRunExecutionPorts {
   operationStore: ReviewOperationStateStore;
-  outcomeStore: FrontlineOutcomeStore;
   withOperationLock<T>(
     operationId: string,
     maxWaitMs: number,
@@ -208,6 +211,11 @@ export interface FrontlineRunExecutionDependencies {
   }>;
   now(): string;
 }
+
+/** The ports one run executes through, with its arm's result store. */
+export type FrontlineRunExecutionDependencies = FrontlineRunExecutionPorts & FrontlineRunResultStores;
+type RepositoryFrontlineRunDependencies = FrontlineRunExecutionPorts
+  & Extract<FrontlineRunResultStores, { outcomeStore: FrontlineOutcomeStore }>;
 
 export interface FrontlineRunExecutionInput extends FrontlineRunBindingInput {
   lockWaitMs: number;
@@ -385,18 +393,26 @@ function recoveredPriorOutcomeMatches(
     && matchesPriorOutcomeBinding(record, priorState);
 }
 
+// A retry's in-flight prior must be this admission's fresh predecessor and must not have reached a verdict.
+async function readExplicitRetryPrior(operationStore: ReviewOperationStateStore, retryOfOperationId: string,
+  binding: FrontlineRunBinding): Promise<{ version: number; state: FrontlineRunState }> {
+  const prior = await operationStore.readOperation(retryOfOperationId);
+  const priorState = prior.state?.kind === "frontline-run" ? prior.state : null;
+  assertFreshRetryAdmission(priorState, binding, retryOfOperationId);
+  if (priorState.outcome === "clean" || priorState.outcome === "findings") {
+    throw new FrontlineOperationRetryError("retry requires an inconclusive prior operation");
+  }
+  return { version: prior.version, state: priorState };
+}
+
 async function validateExplicitRetry(
-  dependencies: FrontlineRunExecutionDependencies,
+  dependencies: RepositoryFrontlineRunDependencies,
   input: FrontlineRunExecutionInput,
   binding: FrontlineRunBinding,
 ): Promise<void> {
   if (input.retryOfOperationId === undefined) return;
-  const prior = await dependencies.operationStore.readOperation(input.retryOfOperationId);
-  const priorState = prior.state?.kind === "frontline-run" ? prior.state : null;
-  assertFreshRetryAdmission(priorState, binding, input.retryOfOperationId);
-  if (priorState.outcome === "clean" || priorState.outcome === "findings") {
-    throw new FrontlineOperationRetryError("retry requires an inconclusive prior operation");
-  }
+  const { version: priorVersion, state: priorState } = await readExplicitRetryPrior(dependencies.operationStore,
+    input.retryOfOperationId, binding);
   if (priorState.outcome !== "pending") return;
   const priorOutcome = await dependencies.outcomeStore.readOutcome(input.retryOfOperationId);
   if (priorOutcome.record === null) return;
@@ -408,7 +424,7 @@ async function validateExplicitRetry(
     ...priorState,
     updatedAt: dependencies.now(),
     outcome: record.outcome.outcome,
-  }), prior.version);
+  }), priorVersion);
   if (record.outcome.outcome === "clean" || record.outcome.outcome === "findings") {
     throw new FrontlineOperationRetryError("retry requires an inconclusive prior operation");
   }
@@ -497,7 +513,7 @@ async function executeAndPersistFrontlineRun(
 
 /** Publish pending, execute, durably record the result, then publish terminal operation state. */
 async function executeFrontlineRunFromWorkingState(
-  dependencies: FrontlineRunExecutionDependencies,
+  dependencies: RepositoryFrontlineRunDependencies,
   input: FrontlineRunExecutionInput,
 ): Promise<FrontlineRunTerminal> {
   const binding = bindFrontlineRun(input);
@@ -574,7 +590,10 @@ async function validateNativeExplicitRetry(dependencies: FrontlineRunExecutionDe
   outcomes: ReviewOutcomePort, input: FrontlineRunExecutionInput, binding: FrontlineRunBinding): Promise<void> {
   if (input.retryOfOperationId === undefined) return;
   const stored = await outcomes.read(input.retryOfOperationId);
-  if (stored === null) return validateExplicitRetry(dependencies, input, binding);
+  if (stored === null) {
+    await readExplicitRetryPrior(dependencies.operationStore, input.retryOfOperationId, binding);
+    return;
+  }
   if (stored.value.frontline === undefined) throw new FrontlineOperationCorruptStateError("retry prior is not a frontline outcome");
   const outcome = projectStoredFrontlineOutcome(stored.value);
   const prior = { repositoryId: stored.value.target.repositoryId, targetId: stored.value.target.targetId,

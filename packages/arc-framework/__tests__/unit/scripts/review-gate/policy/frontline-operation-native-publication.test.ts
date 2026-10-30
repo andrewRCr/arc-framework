@@ -2,7 +2,6 @@
 import { expect, it } from "vitest";
 import { recordFrontlineAttempt } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { createFrontlineAdmission } from "../../../../../src/scripts/review-gate/core/frontline-admission.js";
-import { LocalFrontlineOutcomeStore } from "../../../../../src/scripts/review-gate/hosts/local/frontline-outcome-store.js";
 import { executeFrontlineRun } from "../../../../../src/scripts/review-gate/policy/frontline-operation.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 import { createFrontlineOutcomeRecord } from "../../../../../src/scripts/review-gate/core/advisory-records.js";
@@ -21,7 +20,7 @@ it.each(["clean", "findings", "failed"] as const)("publishes one portable %s res
     void ignored;
     const original = createFrontlineOutcomeRecord({ ...recordInput, outcome });
     const terminal = await executeFrontlineRun({ operationStore: operations,
-      outcomeStore: new LocalFrontlineOutcomeStore(publisher), outcomes,
+      outcomes,
       withOperationLock: async (_id, _wait, action) => action(),
       execute: async () => ({ outcome, executableIdentity: original.executableIdentity }),
       now: () => "2026-10-20T12:01:00Z" }, { admission,
@@ -52,8 +51,8 @@ it.each(["clean", "findings", "failed"] as const)("publishes one portable %s res
 
 async function finishRun(h: Awaited<ReturnType<typeof pendingFrontline>>) {
   const { admission, outcomeRecord } = h.fixture;
-  return executeFrontlineRun({ operationStore: h.operations, outcomeStore: new LocalFrontlineOutcomeStore(h.publisher),
-    outcomes: h.outcomes, withOperationLock: async (_id, _wait, action) => action(),
+  return executeFrontlineRun({ operationStore: h.operations, outcomes: h.outcomes,
+    withOperationLock: async (_id, _wait, action) => action(),
     execute: async () => ({ outcome: outcomeRecord.outcome, executableIdentity: outcomeRecord.executableIdentity }),
     now: () => "2026-10-20T12:01:00Z" }, { admission, responseBinding: outcomeRecord.responseBinding, lockWaitMs: 1 });
 }

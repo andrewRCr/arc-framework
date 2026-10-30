@@ -39,7 +39,7 @@ export interface CodeRabbitProcessOptions {
   run?: typeof runCodeRabbitProcess;
 }
 
-/** Bind frontline run to exact Git materialization, repository-common stores, and CodeRabbit. */
+/** Bind frontline run to exact Git materialization, the invocation's result store, and CodeRabbit. */
 export function createFrontlineRunDependencies(options: ReviewInvocationInput & {
   interaction: InteractionContext["subprocess"];
   codeRabbit?: CodeRabbitProcessOptions;
@@ -51,8 +51,8 @@ export function createFrontlineRunDependencies(options: ReviewInvocationInput & 
   return {
     bindSourceReference: reference => bindReviewSourceReferenceForInvocation(input, reference),
     operationStore: family.ports.inFlight,
-    ...(family.mode === "stored" ? { outcomes: family.ports.outcomes } : {}),
-    outcomeStore: new LocalFrontlineOutcomeStore(publisher),
+    ...(family.mode === "stored" ? { outcomes: family.ports.outcomes }
+      : { outcomeStore: new LocalFrontlineOutcomeStore(publisher) }),
     withOperationLock: (operationId, maxWaitMs, action) => withRepositoryReviewOperationLock(
       input.exec,
       input.cwd,

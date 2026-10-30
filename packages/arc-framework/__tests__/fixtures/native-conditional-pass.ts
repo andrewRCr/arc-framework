@@ -17,7 +17,6 @@ import { createFrontlineFixture } from "./frontline-review.js";
 import { createFrontlineAdmission } from "../../src/scripts/review-gate/core/frontline-admission.js";
 import { normalizeFrontlineOutcome } from "../../src/scripts/review-gate/policy/frontline-outcome.js";
 import { executeFrontlineRun } from "../../src/scripts/review-gate/policy/frontline-operation.js";
-import { LocalFrontlineOutcomeStore } from "../../src/scripts/review-gate/hosts/local/frontline-outcome-store.js";
 import { recordFrontlineAttempt } from "../../src/scripts/review-gate/lane-progress.js";
 import { createDispositionSet, approveDispositionSet } from "../../src/scripts/review-gate/core/dispositions.js";
 import { publishNativeReviewSuccessor } from "../../src/scripts/review-gate/runtime/native-review-successor.js";
@@ -77,8 +76,8 @@ export async function completeNativeConditionalFrontline(h: Awaited<ReturnType<t
   const outcome = normalizeFrontlineOutcome({ providerResult: result === "clean" ? { kind: "clean" } : { kind: "malformed" },
     source: h.fixture.outcomeRecord.outcome.source, target: h.admission.target,
     pass: h.admission.logicalPass, maxPasses: h.admission.maxPasses });
-  await executeFrontlineRun({ operationStore: h.operations, outcomeStore: new LocalFrontlineOutcomeStore(h.publisher),
-    outcomes: h.f.input.outcomes, withOperationLock: async (_id, _wait, action) => action(),
+  await executeFrontlineRun({ operationStore: h.operations, outcomes: h.f.input.outcomes,
+    withOperationLock: async (_id, _wait, action) => action(),
     execute: async () => ({ outcome, executableIdentity: h.fixture.outcomeRecord.executableIdentity }),
     now: () => "2026-10-20T14:01:00Z" }, { admission: h.admission, lockWaitMs: 1,
     ...(retryOfOperationId === undefined ? {} : { retryOfOperationId }) });

@@ -13,7 +13,6 @@ import { createFrontlineAdmission } from "../../../../../src/scripts/review-gate
 import { recordLaneAttempt, recordFrontlineAttempt } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { executeFrontlineRun } from "../../../../../src/scripts/review-gate/policy/frontline-operation.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
-import { LocalFrontlineOutcomeStore } from "../../../../../src/scripts/review-gate/hosts/local/frontline-outcome-store.js";
 
 async function conditionalAdmission(perform = true) {
   const h = await createNativeConditionalFrontlineFixture(perform);
@@ -22,13 +21,13 @@ async function conditionalAdmission(perform = true) {
 }
 
 it("cites an approved-fix decision on admission and keeps that citation after frontline execution ends", async () => {
-  const { f, decision, authorizationId, target, fixture, admission, publisher, operations, pendingInput } = await conditionalAdmission();
+  const { f, decision, authorizationId, target, fixture, admission, operations, pendingInput } = await conditionalAdmission();
   const pending = await recordLaneAttempt(operations, pendingInput);
   expect(pending.attempts.find(attempt => attempt.attemptId === admission.operationId)?.admittedBy).toBe(authorizationId);
   const outcome = normalizeFrontlineOutcome({ providerResult: { kind: "clean" }, source: fixture.outcomeRecord.outcome.source,
     target, pass: admission.logicalPass, maxPasses: admission.maxPasses });
-  await executeFrontlineRun({ operationStore: operations, outcomeStore: new LocalFrontlineOutcomeStore(publisher),
-    outcomes: f.input.outcomes, withOperationLock: async (_id, _wait, action) => action(),
+  await executeFrontlineRun({ operationStore: operations, outcomes: f.input.outcomes,
+    withOperationLock: async (_id, _wait, action) => action(),
     execute: async () => ({ outcome, executableIdentity: fixture.outcomeRecord.executableIdentity }),
     now: () => "2026-10-20T14:01:00Z" }, { admission, lockWaitMs: 1 });
   await recordFrontlineAttempt(operations, { admission, outcome, now: "2026-10-20T14:02:00Z" });

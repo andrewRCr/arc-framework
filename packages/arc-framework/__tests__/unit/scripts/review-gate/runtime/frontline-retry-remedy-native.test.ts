@@ -4,7 +4,6 @@ import { createNativeConditionalFrontlineFixture, completeNativeConditionalFront
 import { createReviewCheckout } from "../../../../helpers/store/review-checkout.js";
 import { RepositoryGitCommonStatePublisher } from "../../../../../src/lib/git-common-state.js";
 import { NativeReviewInFlightStateStore } from "../../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
-import { LocalFrontlineOutcomeStore } from "../../../../../src/scripts/review-gate/hosts/local/frontline-outcome-store.js";
 import { recordLaneAttempt, laneProgressOperationId } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { createFrontlineAdmission } from "../../../../../src/scripts/review-gate/core/frontline-admission.js";
 import { executeFrontlineRun, FrontlineOperationRetryError } from "../../../../../src/scripts/review-gate/policy/frontline-operation.js";
@@ -28,8 +27,7 @@ it.each([false, true])("recovers a consumed decision for a stale retry with a fr
   let failure: unknown;
   try {
     await withFrontlineRetryAuthorization(owner.state, h.admission, () => executeFrontlineRun({ operationStore: operations,
-      outcomes: h.f.input.outcomes, outcomeStore: new LocalFrontlineOutcomeStore(publisher),
-      withOperationLock: async (_id, _wait, action) => action(), now: () => "2026-10-20T14:03:00Z",
+      outcomes: h.f.input.outcomes, withOperationLock: async (_id, _wait, action) => action(), now: () => "2026-10-20T14:03:00Z",
       execute: async () => { throw new Error("A stale retry must not invoke its provider"); } },
     { admission: h.admission, retryOfOperationId: h.admission.operationId, lockWaitMs: 1 }), operations.nativeFacts);
   } catch (error) { failure = error; }

@@ -11,7 +11,6 @@ import { bindReviewSourceReferenceForInvocation } from "../../../../../src/scrip
 import { parseReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import { RepositoryGitCommonStatePublisher } from "../../../../../src/lib/git-common-state.js";
 import { NativeReviewInFlightStateStore } from "../../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
-import { LocalFrontlineOutcomeStore } from "../../../../../src/scripts/review-gate/hosts/local/frontline-outcome-store.js";
 
 async function nativeRun() {
   const h = await nativeFrontlineReview();
@@ -31,7 +30,6 @@ async function nativeRun() {
     readMaxPasses: async () => 2, now: () => "2026-10-20T12:00:00Z" });
   if (resolution.state !== "ready") throw new Error("Expected actual ready resolution");
   const dependencies = { operationStore: h.operations, outcomes: h.outcomes,
-    outcomeStore: new LocalFrontlineOutcomeStore(h.publisher),
     withOperationLock: async <T>(_id: string, _wait: number, action: () => Promise<T>) => action(),
     bindSourceReference: (reference: Parameters<typeof bindReviewSourceReferenceForInvocation>[1]) =>
       bindReviewSourceReferenceForInvocation({ ...h, workItem: h.primary.reference.owner }, reference),
@@ -60,7 +58,6 @@ it("emits an owner-bearing outcome key and replays that result from a fresh chec
   const operations = new NativeReviewInFlightStateStore({ publisher, workItem: reference.workItem,
     outcomes: h.outcomes, projectId: h.projectId });
   const replay = await runFrontlineReviewCommand(request, { ...dependencies, operationStore: operations,
-    outcomeStore: new LocalFrontlineOutcomeStore(publisher),
     bindSourceReference: value => bindReviewSourceReferenceForInvocation({ ...checkout, workItem: reference.workItem }, value),
     confirmSource: async () => { throw new Error("Ended replay must not rebind the provider"); },
     prepareExecutionTarget: async () => { throw new Error("Ended replay must not materialize the target"); },

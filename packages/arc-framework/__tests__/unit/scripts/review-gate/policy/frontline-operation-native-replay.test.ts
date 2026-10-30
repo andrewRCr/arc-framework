@@ -19,8 +19,7 @@ async function completedFrontline(result: "clean" | "findings" | "failed" | "una
     providerResult: result === "unavailable" ? { kind: "rate-limited" } : result === "timed-out" ? { kind: "timed-out" }
       : result === "stale-target" ? { kind: "stale-head", expectedHeadSha: admission.target.headSha, observedHeadSha: "e".repeat(40) }
       : { kind: "malformed" } });
-  const dependencies = { operationStore: h.operations, outcomeStore: new LocalFrontlineOutcomeStore(h.publisher),
-    outcomes: h.outcomes, withOperationLock: async <T>(_id: string, _wait: number, action: () => Promise<T>) => action(),
+  const dependencies = { operationStore: h.operations, outcomes: h.outcomes, withOperationLock: async <T>(_id: string, _wait: number, action: () => Promise<T>) => action(),
     execute: async () => ({ outcome, executableIdentity: outcomeRecord.executableIdentity }),
     now: () => "2026-10-20T12:01:00Z" };
   const input = { admission, responseBinding: outcomeRecord.responseBinding, lockWaitMs: 1 };
@@ -49,8 +48,7 @@ it("replays an ended frontline run in a fresh checkout without creating executio
   const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
   const operations = new NativeReviewInFlightStateStore({ publisher, workItem: h.primary.reference.owner,
     outcomes: h.outcomes, projectId: h.projectId });
-  expect(await executeFrontlineRun({ ...dependencies, operationStore: operations,
-    outcomeStore: new LocalFrontlineOutcomeStore(publisher) }, input)).toMatchObject({ operationId: terminal.operationId,
+  expect(await executeFrontlineRun({ ...dependencies, operationStore: operations }, input)).toMatchObject({ operationId: terminal.operationId,
     persistedVersion: 0, outcomeRef: terminal.outcomeRef, outcomeDigest: terminal.outcomeDigest,
     executableIdentity: terminal.executableIdentity, outcome: { outcome: "findings", findings: terminal.outcome.findings } });
   for (const namespace of ["in-flight", "outcomes"] as const) {
@@ -106,4 +104,26 @@ it("refuses changed response authority on ended replay and succeeds with the ori
     .rejects.toMatchObject({ code: "corrupt-state", message: "frontline outcome does not match its operation binding" });
   expect(await h.outcomes.read(input.admission.operationId)).toEqual(stored);
   expect(await executeFrontlineRun(dependencies, input)).toMatchObject({ outcomeDigest: stored?.value.frontline?.outcomeDigest });
+});
+
+it("retries a native prior with no stored outcome from its in-flight state alone", async () => {
+  const h = await nativeFrontlineReview();
+  onTestFinished(h.cleanup);
+  const { admission, outcomeRecord } = h.fixture;
+  const legacy = new LocalFrontlineOutcomeStore(h.publisher);
+  const dependencies = { operationStore: h.operations, outcomes: h.outcomes,
+    withOperationLock: async <T>(_id: string, _wait: number, action: () => Promise<T>) => action(),
+    execute: async (): Promise<never> => { throw new Error("provider ended before reporting"); },
+    now: () => "2026-10-20T12:01:00Z" };
+  const input = { admission, responseBinding: outcomeRecord.responseBinding, lockWaitMs: 1 };
+  await expect(executeFrontlineRun(dependencies, input)).rejects.toThrow("provider ended before reporting");
+  await legacy.appendOutcome(outcomeRecord, (await legacy.readOutcome(admission.operationId)).version);
+  const { operationId: ignoredId, policyVersion: ignoredPolicy, ...prior } = admission;
+  void ignoredId; void ignoredPolicy;
+  const retry = { ...input, admission: createFrontlineAdmission({ ...prior, retryGeneration: prior.retryGeneration + 1 }),
+    retryOfOperationId: admission.operationId };
+  const clean = normalizeFrontlineOutcome({ providerResult: { kind: "clean" }, source: outcomeRecord.outcome.source,
+    target: retry.admission.target, pass: retry.admission.logicalPass, maxPasses: retry.admission.maxPasses });
+  expect(await executeFrontlineRun({ ...dependencies, execute: async () => ({ outcome: clean,
+    executableIdentity: outcomeRecord.executableIdentity }) }, retry)).toMatchObject({ outcome: { outcome: "clean" } });
 });
