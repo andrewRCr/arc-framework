@@ -29,6 +29,7 @@ import { readCandidateRecordVersioned, writeCandidateRecord } from "../../../../
 import { runPublish } from "../../../../src/lib/work-unit/verbs/publish.js";
 import { buildStoreCurrentWuReconcile } from "../../../../src/lib/work-unit/store-current-wu-reconcile.js";
 import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lifecycle-executor.js";
+import { StoreRefusalError } from "../../../../src/lib/store/refusal-error.js";
 
 async function fixture() {
   const h = createReviewHarness(), repositoryId = "123e4567-e89b-42d3-a456-426614174099", candidate = candidateFixture();
@@ -133,6 +134,35 @@ it("refuses new standard outcomes at claim time and publishes after readiness is
   const snapshot = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner: h.primary.reference.owner });
   await writeSubmissionBoundary(h.cwd, ready, snapshot.version, { store: h.store, owner: h.primary.reference.owner });
   expect(await runPublish(h.ctx, await refreshedParameters(h, ready))).toMatchObject({ status: "published" });
+});
+
+it("refuses a claim-time progress change through publish naming pre-publication review, and publishes once readiness is recorded again", async () => {
+  const h = await fixture();
+  const recorded = await h.params.readReadinessBinding();
+  const target = createReviewTarget({ schemaVersion: 2, semanticsVersion: "review-gate/v2", kind: "change-set",
+    repositoryId: await h.projectId(), baseRef: "main", diffBaseSha: "b".repeat(40), diffBaseTree: "c".repeat(40),
+    headSha: "a".repeat(40), headTree: "d".repeat(40) });
+  await createReviewOutcomePort(h.store, h.primary.reference.owner).create(ReviewOutcomeSchema.parse(localOutcome({ target,
+    lineage: { kind: "candidate", candidateId: h.params.candidateId } })));
+  const before = await h.store.version();
+  expect(await runPublish(h.ctx, { ...h.params, readReadinessBinding: () => Promise.resolve(recorded) })).toMatchObject({
+    status: "rejected", reason: "Standard review progress changed after publication readiness.",
+    remedy: { argv: ["arc", "review", "pre-publication", "example"] } });
+  expect(await h.store.version()).toEqual(before);
+  const binding = await h.params.readReadinessBinding();
+  if (binding.status !== "complete") throw new Error(binding.condition);
+  const ready = IntegrationBoundaryLocusV2Schema.parse({ ...h.params.boundary, readinessBinding: binding.digest });
+  const snapshot = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner: h.primary.reference.owner });
+  await writeSubmissionBoundary(h.cwd, ready, snapshot.version, { store: h.store, owner: h.primary.reference.owner });
+  expect(await runPublish(h.ctx, await refreshedParameters(h, ready))).toMatchObject({ status: "published" });
+});
+it("reports a store refusal from claim preparation with its own remedy, and publishes once the claim prepares", async () => {
+  const h = await fixture();
+  const refusal = { code: "lock-held" as const, class: "recoverable" as const, lock: "review",
+    condition: "The review lock is held.", remedy: { text: "Wait for the holder to finish, then retry.", argv: ["arc", "store", "pull"] } };
+  expect(await runPublish(h.ctx, { ...h.params, preparePublicationClaim: () => Promise.reject(new StoreRefusalError(refusal, true)) }))
+    .toMatchObject({ status: "rejected", reason: refusal.condition, refusal, remedy: { argv: ["arc", "store", "pull"] } });
+  expect(await runPublish(h.ctx, h.params)).toMatchObject({ status: "published" });
 });
 
 async function defaultAccess(h: Awaited<ReturnType<typeof fixture>>) {

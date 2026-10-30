@@ -13,7 +13,8 @@ async function check(value: unknown) {
 describe("publication boundary write check", () => {
   it("refuses retained version one on write and admits current version two", async () => {
     expect(await check(boundaryV1Fixture())).toEqual(expect.arrayContaining([
-      expect.objectContaining({ rule: "review.integration-boundary.version" }),
+      expect.objectContaining({ rule: "review.integration-boundary.version",
+        remedy: expect.objectContaining({ argv: ["arc", "review", "pre-publication", boundaryV1Fixture().workUnit] }) }),
     ]));
     expect(await check(boundaryV2Fixture())).toEqual([]);
   });

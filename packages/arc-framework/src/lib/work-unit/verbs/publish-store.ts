@@ -15,6 +15,8 @@ import { spineRemedy } from "../../../scripts/integration/spine-refusal.js";
 import { recordReferences } from "../../store/identity.js";
 import { CandidateManagedRecordV1Schema } from "../../store/kinds/review/candidate/schema.js";
 import { describeRecordConflicts } from "../../store/conflict-diagnostics.js";
+import { isOffBranchStoreRefusal } from "../../store/refusal-error.js";
+import { PublicationClaimRefusal } from "../../store/kinds/review/integration-boundary/publication.js";
 
 type PublicationReject = (reason: string, refusal?: StoreRefusal, remedy?: Remedy) => Extract<PublishResult, { status: "rejected" }>;
 
@@ -49,10 +51,17 @@ export async function runStorePublish(ctx: ExecuteTransitionContext & CurrentWuR
   if (params.preparePublicationClaim === undefined) return reject("Native publication claim preparation is unavailable. Re-enter publication through the lifecycle command.");
   let claim: Mutation;
   try { claim = await params.preparePublicationClaim(boundary); }
-  catch (error) { return reject(`The publication claim failed: ${String(error)}`); }
+  catch (error) { return rejectPublicationClaim(error, reject); }
   const outcome = await executeTransition(ctx, { verb: "publish", slug: params.name,
     inputs: { storeTransition: { primary, additionalWrites: [claim] }, softFields: { nextAction: params.nextAction ?? boundary.nextAction.interactionText } } });
   return outcome.status === "ok" ? { status: "published", outcome, metaPath, reconcile: applied, boundary } : outcome.status === "rejected" ? reject(outcome.message, outcome.refusal, outcome.remedy) : reject(outcome.message);
+}
+
+/** Reject a refused claim with its own remedy, an off-branch store's refusal whole, or any other failure as it is. */
+function rejectPublicationClaim(error: unknown, reject: PublicationReject): Extract<PublishResult, { status: "rejected" }> {
+  if (error instanceof PublicationClaimRefusal) return reject(error.condition, undefined, error.remedy);
+  if (isOffBranchStoreRefusal(error)) return reject(error.refusal.condition, error.refusal);
+  return reject(`The publication claim failed: ${String(error)}`);
 }
 
 type ReconciledPublication = { status: "ready"; reconcile: Extract<PublishResult, { status: "published" }>["reconcile"] }
