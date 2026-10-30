@@ -17,7 +17,6 @@ import {
   commitAll,
   makeIOContext,
   makeGitExec,
-  loadRecipe,
   sha256,
   ensureDir,
   fileExists,
@@ -28,14 +27,13 @@ import {
   rm,
   join,
   dirname,
-  getArcTemplatePath,
-  getInternalTemplatePath,
   DEFAULT_PROMPTS,
   readManifestFile,
   readPristineStore,
   writePristineStore,
   manifestPath,
 } from "../helpers/integration.js";
+import { loadRecipe, getArcTemplatePath, getInternalTemplatePath } from "../helpers/init-temp-repo.js";
 import { runUpdate, buildUpdateSummary } from "../../src/commands/update.js";
 import type { UpdateOptions, UpdateResult } from "../../src/commands/update.js";
 import { runInit } from "../../src/commands/init.js";

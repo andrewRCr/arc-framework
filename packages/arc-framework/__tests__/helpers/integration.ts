@@ -1,8 +1,8 @@
 /**
  * Shared helpers for integration tests.
  *
- * Provides temp git repo setup, real I/O context construction, and
- * a full `arc init` runner for tests that need a working installation.
+ * Provides temp git repo setup and real I/O context construction. The full `arc init` runner lives in
+ * `init-temp-repo.ts`.
  */
 
 import {
@@ -23,13 +23,11 @@ import { promisify } from "node:util";
 import { createHash } from "node:crypto";
 import { onTestFinished } from "vitest";
 
-import { runInit } from "../../src/commands/init.js";
 import type { IOContext } from "../../src/commands/init.js";
 import type { GitExec } from "../../src/lib/git/index.js";
 import type { GitExecInput } from "../../src/lib/errand/index.js";
-import type { Recipe, Manifest, FileEntry, Classification, Layer } from "../../src/lib/types.js";
+import type { Manifest, FileEntry, Classification, Layer } from "../../src/lib/types.js";
 import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
-import { getArcTemplatePath, getInternalTemplatePath } from "../../src/lib/paths.js";
 import { MANIFEST_SCHEMA_VERSION } from "../../src/lib/constants.js";
 import {
   NOTES_COMPACTION_MANIFEST_PATH,
@@ -187,16 +185,6 @@ export function cleanupTempDir(dir: string): Promise<void> {
   return removeGitBackedDir(dir);
 }
 
-/** Load the real init recipe from the template directory. */
-export async function loadRecipe(): Promise<Recipe> {
-  const templateDir = getArcTemplatePath();
-  const content = await readFile(
-    join(templateDir, "..", "init-recipe.json"),
-    "utf-8",
-  );
-  return JSON.parse(content) as Recipe;
-}
-
 /** Sensible defaults for InitPromptResult. Override only what matters per test. */
 export const DEFAULT_PROMPTS: InitPromptResult = {
   project_name: "Test Project",
@@ -204,33 +192,6 @@ export const DEFAULT_PROMPTS: InitPromptResult = {
   pm_mode: "none",
   team_mode: false,
 };
-
-/**
- * Run a full `arc init` in a temp repo with the given prompt values.
- *
- * Returns the temp directory path. Caller is responsible for cleanup.
- */
-export async function initInTempRepo(
-  prompts: InitPromptResult,
-  identity = "test-user",
-): Promise<string> {
-  const dir = await createTempRepo();
-  const templateDir = getArcTemplatePath();
-  const recipe = await loadRecipe();
-  const io = makeIOContext(dir);
-
-  await runInit({
-    cwd: dir,
-    io,
-    templateDir,
-    internalTemplateDir: getInternalTemplatePath(),
-    recipe,
-    prompts,
-    identityResult: identity,
-  });
-
-  return dir;
-}
 
 /**
  * Recursively list files under a directory (relative paths).
@@ -527,5 +488,4 @@ export type {
   PreparedRepositoryTemplate,
 } from "./prepared-repository.js";
 export { execFileAsync };
-export { getArcTemplatePath, getInternalTemplatePath };
-export type { IOContext, GitExec, GitExecInput, Recipe, InitPromptResult, Manifest, DirEntry, UserIOContext };
+export type { IOContext, GitExec, GitExecInput, InitPromptResult, Manifest, DirEntry, UserIOContext };
