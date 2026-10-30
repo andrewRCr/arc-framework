@@ -280,7 +280,7 @@ it("rejects native hosted locators at a repository root", async () => {
   if (requested.state !== "requested") throw new Error(JSON.stringify(requested));
   const store = createStore(createDefaultStorePorts({ checkoutRoot: h.cwd, exec: h.exec }));
   expect(await h.awaitResult(requested.action, { store })).toMatchObject({ error: {
-    code: "invalid-input", message: expect.stringContaining("matching reference"),
+    code: "invalid-input", message: expect.stringContaining("omit `operationRef`"),
   } });
 });
 

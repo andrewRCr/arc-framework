@@ -482,7 +482,7 @@ it.each(["resume", "attest", "reduce"] as const)("rejects native locators at rep
   if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
   const store = createStore(createDefaultStorePorts({ checkoutRoot: h.cwd, exec: h.exec }));
   expect(await h[command](prepared.payload.operationId, { operationRef: prepared.payload.operationRef, store }))
-    .toMatchObject({ error: { code: "invalid-input", message: expect.stringContaining("matching reference") } });
+    .toMatchObject({ error: { code: "invalid-input", message: expect.stringContaining("omit `operationRef`") } });
 });
 
 it.each(["resume", "attest", "reduce"] as const)("retains an already bound internal owner for native %s", async command => {

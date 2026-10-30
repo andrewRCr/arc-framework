@@ -317,7 +317,7 @@ it("rejects a native frontline locator at a repository root", async () => {
   if (resolution.state !== "ready") throw new Error(JSON.stringify(resolution));
   const store = createStore(createDefaultStorePorts({ checkoutRoot: h.cwd, exec: h.exec }));
   expect(await h.run(resolution, { store })).toMatchObject({ error: {
-    code: "invalid-input", message: expect.stringContaining("matching reference"),
+    code: "invalid-input", message: expect.stringContaining("omit `operationRef`"),
   } });
 });
 
