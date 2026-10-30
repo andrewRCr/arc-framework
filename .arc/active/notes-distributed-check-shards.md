@@ -458,6 +458,31 @@ slots are skipped, and original attempt/wall budgets persist. Strict and compose
 The collector and nonempty receipt loader still require validation against actual fresh full-native witnesses.
 Prelaunch setup establishes no new latency, throughput or mixed-profile qualification by itself.
 
+### First repaired-provider pair and pending profile witnesses
+
+The first v4 routed-unsharded merge gate completes successfully in 1,359.647 seconds; its distributed partner completes
+in 682.51 seconds. All six captured contexts close normally in each gate, with no retained capture, reported execution
+error or native parse gap. Unit observes 1,369 modules on Linux x64 in both arms. Store observes 316 modules on arm64 in
+the baseline, then 79 in each of four declared shares: three arm64 and one x64. Node 26.3.0 and Vitest 4.1.11 match
+across the observed rows. Available resource observations identify no foreign run IDs during either gate.
+
+The strict runtime check leaves this pair unqualified, so no performance distribution or improvement claim follows from
+these raw timings. The controller stops before the next slot with both original samples hashed and unchanged.
+`analysis-range-v4-first-pair-unqualified.json` preserves that state. Three repetitions and actual homogeneous profile
+corroboration remain required.
+
+Two fresh public SDK witness contexts now match the measured captured source/environment/selection/duration basis before
+native work. ARM plan `6d6e26a0-1270-4f3b-bbee-2a1be57c777c` uses the permitted M4 pin; plan
+`6befd5b1-eaa4-4361-8b76-b1f315c0d5bc` uses the normal unpinned chooser and selects local while M4 owns the necessary
+ARM work. Each complete plan has one unsharded store baseline and the four declared shards, submitted as mandatory
+serial singles. The explicit caller budget is two hours per witness, plus bounded closing and inspection. These runs are
+outside measured gate clocks and remain unfinished evidence.
+
+Witness archives are `~/dev/arc-evidence/distributed-check-shards/native-store-arm-range-v4-a/` and
+`native-store-x64-range-v4-a/`. The collector must still prove every native row, homogeneous membership, normal SDK
+closure, exact registered-backend settlement and unchanged provider/source/policy. The receipt reader has not yet
+accepted a nonempty real witness set; absent or invalid proof keeps the measured pair unqualified.
+
 ## Amendment reasoning
 
 ### A2 — store dependency
