@@ -12,6 +12,9 @@ export type PreparedCheckKeyContext = Pick<PreparedCheckExecution, "plan" | "run
 export function composePreparedCheckKey(material: CheckKeyMaterial | null, execution: PreparedCheckKeyContext): string | null {
   if (material === null || material.materializedInputs === undefined || execution.runtime === undefined) return null;
   return checkContentKey({ ...material, environmentIdentity: execution.environmentIdentity,
+    preparedPlan: execution.plan.invocations.map(({ argv, cwd, shell }, index) => ({
+      coordinate: execution.plan.coordinates?.[index] ?? { batch: index + 1 }, argv, cwd, shell,
+    })),
     preparedRuntime: preparedRuntimeIdentity(execution.plan, execution.runtime) });
 }
 

@@ -17,7 +17,7 @@ it.runIf(process.platform !== "win32")("cancels preparation by plan UUID on a te
   const adapter = join(machine.home, "adapter.cjs");
   await writeFile(adapter, preparedAdapterScript("wait-prepare", gate, machine.home));
   await writeFile(join(machine.home, ".arc/config.yml"), JSON.stringify({ "checks.runner": [process.execPath, adapter] }));
-  const root = await createDeclaredCheckRepository({ example: { runner: true, command: [process.execPath, "-e", "process.exit(0)"] } });
+  const root = await createDeclaredCheckRepository({ example: { runner: true, shards: { count: 3, argument: "--shard={index}/{count}", routed: true }, command: [process.execPath, "-e", "process.exit(0)", "--"] } });
   directories.push(root);
   const cli = startRunnerCli(root, machine.environment);
   try {
@@ -57,7 +57,7 @@ it.runIf(process.platform !== "win32")("cancels a ready context and drains its r
 process.on('SIGTERM',()=>fs.writeFileSync(${JSON.stringify(stopped)},'cancelled'));
 fs.writeFileSync(${JSON.stringify(started)},'started');
 setInterval(()=>{if(fs.existsSync(${JSON.stringify(gate)})){process.stdout.write('drained output');process.exit(0);}},10);`;
-  const root = await createDeclaredCheckRepository({ example: { runner: true, command: [process.execPath, "-e", program] } });
+  const root = await createDeclaredCheckRepository({ example: { runner: true, shards: { count: 3, argument: "--shard={index}/{count}", routed: true }, command: [process.execPath, "-e", program, "--"] } });
   directories.push(root);
   const cli = startRunnerCli(root, machine.environment);
   try {
@@ -92,7 +92,7 @@ it.runIf(process.platform !== "win32")("terminates only the local adapter on a s
   const adapter = join(machine.home, "adapter.cjs");
   await writeFile(adapter, preparedAdapterScript("wait-prepare", gate, machine.home));
   await writeFile(join(machine.home, ".arc/config.yml"), JSON.stringify({ "checks.runner": [process.execPath, adapter] }));
-  const root = await createDeclaredCheckRepository({ example: { runner: true, command: [process.execPath, "-e", "process.exit(0)"] } });
+  const root = await createDeclaredCheckRepository({ example: { runner: true, shards: { count: 3, argument: "--shard={index}/{count}", routed: true }, command: [process.execPath, "-e", "process.exit(0)", "--"] } });
   directories.push(root);
   const cli = startRunnerCli(root, machine.environment);
   try {
@@ -139,7 +139,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line',line=>
 });
 setInterval(()=>undefined,1000);`);
   await writeFile(join(machine.home, ".arc/config.yml"), JSON.stringify({ "checks.runner": [process.execPath, adapter] }));
-  const root = await createDeclaredCheckRepository({ example: { runner: true, command: [process.execPath, "-e", "process.exit(0)"] } });
+  const root = await createDeclaredCheckRepository({ example: { runner: true, shards: { count: 3, argument: "--shard={index}/{count}", routed: true }, command: [process.execPath, "-e", "process.exit(0)", "--"] } });
   directories.push(root);
   const cli = startRunnerCli(root, machine.environment);
   let pid: number | undefined;

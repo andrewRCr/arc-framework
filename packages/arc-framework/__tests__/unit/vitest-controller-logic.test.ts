@@ -87,13 +87,21 @@ it("retains each native portability boundary on the portability tier", () => {
     "build-coordinator.test.ts", "build-publication.test.ts", "build-inventory.test.ts", "build-ownership.test.ts",
     "ci-build-transfer.test.ts", "ci-build-recovery.test.ts", "local-test-admission.test.ts", "worktree-marker.test.ts",
     "commit-message-retry-store.test.ts", "advisory-lock", "user-sync-notes-lock", "ref-tree-cas", "state-ref-race.e2e",
-    "git-executor", "delivery-transfer.e2e", "store-ref-bursts.test.ts",
+    "git-executor", "delivery-transfer.e2e", "check-symlink-cwd.test.ts",
+    "lib/checks/batching.test.ts", "lib/checks/forecast.test.ts",
+    "lib/checks/key.test.ts", "handlers/check/run-output", "check-runner-shard",
+    "ci-check-runner.test.ts", "heavy-first-sequencer.test.ts", "duration-artifacts.test.ts",
+    "duration-layout-workflow.test.ts", "vitest-discovery.test.ts", "vitest-completion",
+    "vitest-mixed-shard.test.ts", "vitest-native-writers.test.ts", "vitest-native-closing.test.ts",
+    "vitest-runtime-ownership.test.ts",
+    "vitest-shard-",
+    "store-ref-bursts.test.ts",
     "store-ref-directory.test.ts", "store-ref-write-batching.test.ts", "store-ref-reader-lifetime.test.ts",
     "store-ref-archive-acquisition.test.ts",
     "store-ref-named-acquisition.test.ts", "store-ref-publication.test.ts",
     "git-batch-reader.test.ts", "store-ref-separate-conformance-records.test.ts",
     "store-ref-separate-conformance-reads.test.ts", "store-ref-separate-conformance-sync.test.ts",
-    "store-ref-timing.test.ts", "store-ref-timing-isolation.test.ts", "check-symlink-cwd.test.ts",
+    "store-ref-timing.test.ts", "store-ref-timing-isolation.test.ts",
   ]));
 });
 

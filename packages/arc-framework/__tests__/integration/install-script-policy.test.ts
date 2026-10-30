@@ -110,8 +110,10 @@ it.each(["install", "ci", "audit fix"])(
     await absent(".unreviewed-ran");
     await absent(".esbuild-built");
     await absent(".prepared");
-    await writeFile(join(directory, "scripts/check-install-policy.mjs"),
-      await readFile(join(repositoryRoot, "scripts/check-install-policy.mjs"), "utf8"));
+    for (const script of ["check-install-policy.mjs", "prepare-check-outputs.mjs"]) {
+      await writeFile(join(directory, "scripts", script),
+        await readFile(join(repositoryRoot, "scripts", script), "utf8"));
+    }
     await execute(npm, ["run", "setup"], { cwd: directory, env: environment });
     expect(await readFile(join(directory, ".esbuild-built"), "utf8")).toBe("ran");
     expect(await readFile(join(directory, ".prepared"), "utf8")).toBe("ran");

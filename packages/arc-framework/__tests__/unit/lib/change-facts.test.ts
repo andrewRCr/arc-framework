@@ -66,6 +66,28 @@ describe("runner foundation portability surface", () => {
   });
 });
 
+describe("routed shard and native writer portability surface", () => {
+  it.each([
+    "src/lib/checks/shards.ts", "src/lib/checks/key.ts", "src/lib/build-ownership.ts",
+    "src/lib/vitest-discovery.ts", "src/lib/vitest-execution.ts", "src/lib/vitest-closing.ts", "src/lib/vitest-completion.ts",
+    "__tests__/helpers/sharded-check-fixture.ts", "__tests__/helpers/native-writer-fixture.ts",
+    "__tests__/helpers/vitest-controller-fixture.ts", "__tests__/helpers/heavy-first-sequencer.ts",
+    "__tests__/helpers/heavy-first-durations.ts", "__tests__/helpers/duration-artifacts.ts",
+    "__tests__/helpers/merge-test-durations.ts", "__tests__/unit/heavy-first-sequencer.test.ts",
+    "__tests__/unit/lib/checks/batching.test.ts", "__tests__/unit/lib/checks/forecast.test.ts",
+    "__tests__/unit/lib/checks/key.test.ts",
+    "__tests__/unit/handlers/check/run-output.test.ts", "__tests__/unit/handlers/check/run-output-json.test.ts",
+    "__tests__/unit/duration-artifacts.test.ts", "__tests__/unit/vitest-controller-logic.test.ts",
+    "__tests__/integration/ci-check-runner.test.ts", "__tests__/unit/lib/ci-check-runner.test.ts",
+    "__tests__/integration/duration-layout-workflow.test.ts", "__tests__/integration/vitest-native-writers.test.ts",
+    "__tests__/integration/vitest-native-closing.test.ts", "__tests__/integration/vitest-runtime-ownership.test.ts",
+    "__tests__/integration/vitest-discovery.test.ts", "__tests__/integration/vitest-mixed-shard.test.ts",
+    "__tests__/integration/vitest-completion.test.ts",
+  ])("targets native shard consumer path %s", path => {
+    expect(isPortabilitySurfacePath(`packages/arc-framework/${path}`)).toBe(true);
+  });
+});
+
 describe("retired unmanaged content", () => {
   it("does not select code or sensitive-content gates for inert residue", () => {
     expect(isCodeSurfacePath(".arc/system/extensions/inert.md")).toBe(false);

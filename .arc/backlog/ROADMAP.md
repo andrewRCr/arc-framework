@@ -1,7 +1,6 @@
 # Roadmap: Project Status
 
 > **Generated from meta files — re-render at ceremony boundaries.**
-> Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -17,7 +16,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | ------------- | ------------------------------- | -------- | ------ | --------------- | ------------- |
 | `Planning`    | storage-projection              | P1       | andrew | —               | state-storage |
 | `Planning`    | storage-ref-hardening           | P1       | andrew | —               | state-storage |
-| `Planning`    | store-operation-git-access      | P1       | andrew | —               | state-storage |
+| `Active`      | store-operation-git-access      | P1       | andrew | —               | state-storage |
 | `Planning`    | cohort-identity-verbs           | P1       | andrew | —               | storage-seam  |
 | `Active`      | seam-delivery-review            | P1       | andrew | —               | storage-seam  |
 | `Planning`    | adopter-install-authority       | P1       | andrew | storage-cutover | —             |
