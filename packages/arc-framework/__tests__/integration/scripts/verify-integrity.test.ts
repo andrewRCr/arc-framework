@@ -9,7 +9,8 @@ import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { DEFAULT_PROMPTS, createTempRepo, initInTempRepo, makeGitExecInput, removeGitBackedDir } from "../../helpers/integration.js";
+import { DEFAULT_PROMPTS, createTempRepo, makeGitExecInput, removeGitBackedDir } from "../../helpers/integration.js";
+import { initInTempRepo } from "../../helpers/init-temp-repo.js";
 import { runScript } from "../../helpers/run-script.js";
 
 const execFileAsync = promisify(execFile);

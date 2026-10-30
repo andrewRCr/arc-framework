@@ -1,10 +1,11 @@
 /** Contract proof for the shared retirement and extraction boundary. */
 
 import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { shippedMethodForm } from "../../helpers/shipped-method-form.js";
 import { softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
 
 const PACKAGE_ROOT = resolve(import.meta.dirname, "../../..");
@@ -30,7 +31,7 @@ describe("decomposition doctrine contract", () => {
     for (const relativePath of relativePaths) {
       const packaged = readFileSync(join(PACKAGE_ROOT, "arc", relativePath), "utf8");
       const installed = readFileSync(join(PROJECT_ROOT, ".arc", relativePath), "utf8");
-      expect(installed, relativePath).toBe(packaged);
+      expect(shippedMethodForm(installed, basename(relativePath, ".md")), relativePath).toBe(packaged);
     }
   });
 

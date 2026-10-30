@@ -10,6 +10,7 @@ import {
   type V3TopologyPlanInput,
   type V3TopologyTreeState,
 } from "../../../src/lib/work-unit/decompose-v3-topology.js";
+import { shippedMethodForm } from "../../helpers/shipped-method-form.js";
 
 const packageRoot = resolve(import.meta.dirname, "../../..");
 const repositoryRoot = resolve(packageRoot, "../..");
@@ -301,7 +302,7 @@ describe("decomposition cohort doctrine projection", () => {
       "utf8",
     );
 
-    expect(projectMethod).toBe(packageMethod);
+    expect(shippedMethodForm(projectMethod, "assess-boundary-fit")).toBe(packageMethod);
     expect(packageMethod).toMatch(
       /Every decomposition with more than one new\s+member must select `cohort`, `subcohort`, or `at-cap`/u,
     );

@@ -1,11 +1,11 @@
-/** The portability npm route executes installation, cancellation, and publication coverage. */
+/** The portability npm route executes build, runner, and repository environment coverage. */
 import { execa } from "execa";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { expect, it } from "vitest";
 import { makeVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
 
-it("selects the build and prebuilt recovery suites alongside existing portability cases", async () => {
+it("executes the required build, runner, and repository environment suites", async () => {
   const fixture = await makeVitestControllerFixture();
   const required = ["unit/paths.test.ts", "check-runner-home.e2e.test.ts", "fs.test.ts", "build-context.test.ts", "build-cancellation.test.ts", "build-generation-lifetime.test.ts",
     "build-coordinator.test.ts", "build-publication.test.ts",
@@ -19,12 +19,14 @@ it("selects the build and prebuilt recovery suites alongside existing portabilit
     "lib/checks/batching.test.ts", "lib/checks/forecast.test.ts",
     "lib/checks/key.test.ts", "handlers/check/run-output.test.ts", "handlers/check/run-output-json.test.ts",
     "check-runner-shards.e2e.test.ts", "check-runner-shard-loss.e2e.test.ts", "check-runner-shard-inputs.test.ts",
-    "ci-check-runner.test.ts", "heavy-first-sequencer.test.ts", "duration-artifacts.test.ts",
+    "heavy-first-sequencer.test.ts", "duration-artifacts.test.ts",
     "duration-layout-workflow.test.ts", "vitest-discovery.test.ts", "vitest-completion.test.ts",
     "vitest-mixed-shard.test.ts", "vitest-native-writers.test.ts", "vitest-native-closing.test.ts",
     "vitest-runtime-ownership.test.ts", "vitest-shard-observation.test.ts",
     "vitest-shard-captured-inputs.test.ts", "vitest-shard-qualification.test.ts",
-    "check-process.test.ts", "check-execution.e2e.test.ts"];
+    "check-process.test.ts", "check-execution.e2e.test.ts",
+    "unit/lib/checks/environment-inputs.test.ts", "unit/git/repository-environment.test.ts",
+    "unit/lib/ci-check-runner.test.ts", "integration/ci-check-runner.test.ts"];
   try {
     const config = join(fixture.packageRoot, "vitest.config.mjs");
     await writeFile(config, (await readFile(config, "utf8")).replace('["tests/unit*.test.mjs"]', '["tests/**/*.test.ts"]'));
