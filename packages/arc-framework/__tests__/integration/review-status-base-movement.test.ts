@@ -58,10 +58,10 @@ import {
   cleanupTempDir,
   DEFAULT_PROMPTS,
   execFileAsync,
-  initInTempRepo,
   makeGitExec,
   removeGitBackedDir,
 } from "../helpers/integration.js";
+import { initInTempRepo } from "../helpers/init-temp-repo.js";
 
 const WORK_UNIT = "example";
 const HEAD_REF = `feat/${WORK_UNIT}`;

@@ -1,8 +1,9 @@
 /** Relocated source Git metadata resolves code without original repository administration. */
 import { afterEach, expect, it } from "vitest";
-import { cp, lstat, mkdtemp, readFile, readdir, symlink, unlink, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdir, mkdtemp, readFile, readdir, symlink, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
 import { createTempRepoCore, removeGitBackedDir, removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { createExecaGitExec, createExecaRawGitExec } from "../../src/lib/git/process-executor.js";
 import { resolveCheckRequest } from "../../src/lib/checks/resolve-request.js";
@@ -23,6 +24,52 @@ async function commit(root: string, name: string): Promise<string> {
   await git("git", ["commit", "-m", name], { cwd: root });
   return (await git("git", ["rev-parse", "HEAD"], { cwd: root })).stdout;
 }
+
+const LINK_CAPTURE_TIMEOUT = 60_000;
+const sourceModes = ["worktree", "index", "commit"] as const;
+const linkSpellings = ["flat", "forward-slash", "backslash"] as const;
+
+it.each(sourceModes.flatMap(basis => linkSpellings.map(spelling => ({ basis, spelling }))))(
+  "preserves $basis symlink targets written with $spelling", async ({ basis, spelling }) => {
+    const root = await createTempRepoCore({ prefix: "arc-source-link-target-" });
+    directories.push(root);
+    await git("git", ["config", "core.symlinks", "true"], { cwd: root });
+    const target = spelling === "flat" ? "target" : ["nested", "target"].join(spelling === "backslash" ? "\\" : "/");
+    await mkdir(join(root, "nested"));
+    await writeFile(join(root, target), "captured target");
+    await symlink(target, join(root, "link"), "file");
+    expect((await lstat(join(root, "link"))).isSymbolicLink()).toBe(true);
+    const tip = await commit(root, "link qualification");
+    await git("git", ["update-ref", "refs/heads/topic", tip], { cwd: root });
+    const mode = Buffer.from((await io.gitRaw(["ls-files", "--stage", "-z", "--", "link"], { cwd: root })).stdout).toString("utf8");
+    expect(mode).toMatch(/^120000 [0-9a-f]+ 0\tlink\0$/u);
+    const gitTarget = Buffer.from((await io.gitRaw(["show", basis === "index" ? ":link" : tip + ":link"], { cwd: root })).stdout).toString("utf8");
+    const result = await resolveCheckRequest(git, root, basis === "worktree" ? { form: { kind: "run", ids: ["check"] } }
+      : basis === "index" ? { form: { kind: "pre-commit" } }
+      : { form: { kind: "pre-push", ref: "refs/heads/topic", old: tip, tip } });
+    if (result.status !== "resolved") throw new Error(result.message);
+    const boundary = await acquireSourceBoundary(io, root, result.request);
+    try {
+      const frozen = await freezeSelectedSource(io, root, result.request, boundary);
+      try {
+        const entry = frozen.manifest.entries.find(candidate => candidate.path === "link");
+        expect(entry).toEqual({ path: "link", kind: "symlink", target: gitTarget });
+        const source = { root: frozen.root, manifest: frozen.manifestPath,
+          digest: frozen.digest, coordinates: frozen.manifest.coordinates };
+        expect(await verifySourcePresentation(source)).toEqual(frozen.manifest);
+        expect(await readFile(join(frozen.root, "link"), "utf8")).toBe("captured target");
+        if (spelling === "forward-slash") {
+          await addSourceGitMetadata(io, root, frozen);
+          const example: unknown = await import(fileURLToPath(new URL("../../examples/check-runner/local-inputs.mjs", import.meta.url)));
+          if (typeof example !== "object" || example === null || !("verifyInputs" in example) || typeof example.verifyInputs !== "function") {
+            throw new Error("Independent runner example verifier is unavailable");
+          }
+          await example.verifyInputs({ source, environment: {} });
+        }
+      } finally { await frozen.remove(); }
+    } finally { await boundary.remove(); }
+  }, LINK_CAPTURE_TIMEOUT,
+);
 
 it("retains HEAD, checked tree, base, merge and code history after original removal, excluding private administration", async () => {
   const root = await createTempRepoCore({ prefix: "arc-source-git-closure-" });

@@ -288,6 +288,9 @@ export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "check-runner-platform.e2e.test.ts",
         "check-symlink-cwd.test.ts",
         "check-process.test.ts",
+        "environment-inputs.test.ts",
+        "repository-environment.test.ts",
+        "ci-check-runner.test.ts",
         "check-execution.e2e.test.ts",
       ];
     case "portability-macos":
