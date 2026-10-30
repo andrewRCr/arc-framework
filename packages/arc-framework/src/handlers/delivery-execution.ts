@@ -1051,7 +1051,7 @@ const ReviewFixDriveEffectSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({
     kind: z.literal("boundary-carry"),
-    path: z.string().min(1),
+    path: z.string().min(1).optional(),
     candidateId: DeliveryCanonicalDigestSchema,
     stateRevision: z.number().int().positive(),
   }),
