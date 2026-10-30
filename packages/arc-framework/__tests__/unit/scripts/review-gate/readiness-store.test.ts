@@ -8,6 +8,7 @@ import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { ListingOutcomeSchema } from "../../../../src/lib/store/read.js";
 import { batchLifecycleWrites, recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
+import { ProjectIdentityError } from "../../../../src/lib/store/project-identity.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 const root = "/tree", head = "a".repeat(40);
@@ -21,9 +22,9 @@ const fs: ReviewReadinessFs = {
 };
 
 async function fixture(options: { state?: "Active" | "Integrating" | "Shipped"; notes?: string | null;
-  branch?: string | null; changeRequest?: number; cohort?: string } = {}) {
+  branch?: string | null; changeRequest?: number; cohort?: string; project?: boolean } = {}) {
   const h = createReviewHarness();
-  await h.seedProject(projectId);
+  if (options.project !== false) await h.seedProject(projectId);
   const cohorts: Awaited<ReturnType<typeof h.seed>>[] = [];
   const parts = options.cohort?.split("/") ?? [];
   for (const [index, name] of parts.entries()) cohorts.push(await h.seed(
@@ -50,6 +51,15 @@ async function fixture(options: { state?: "Active" | "Integrating" | "Shipped"; 
 
 it("accepts an Integrating stored work unit on its opaque adopted branch without projected metadata", async () => {
   const h = await fixture();
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready", diagnostics: [] });
+});
+
+it("refuses a clone holding no project ID with the port's typed failure, and is ready once the clone holds it", async () => {
+  const h = await fixture({ project: false });
+  const refused = await evaluateReviewReadiness(h.request, { fs, store: h.store }).catch((error: unknown) => error);
+  expect(refused).toBeInstanceOf(ProjectIdentityError);
+  expect(refused).toMatchObject({ failure: { remedy: { text: expect.any(String) } } });
+  await h.seedProject(projectId);
   expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready", diagnostics: [] });
 });
 

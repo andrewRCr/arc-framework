@@ -4,7 +4,7 @@ import type { Store } from "../../lib/store/contract.js";
 import type { StoreRecord } from "../../lib/store/read.js";
 import { readWorkUnit, readLifecycleMetaFields, workUnitMetaPath } from "../../lib/store/lifecycle-write.js";
 import { selectWorkBranchLink, workBranchName } from "../../lib/store/lifecycle-branch.js";
-import { createProjectIdentityReader, resolveProjectIdentity } from "../../lib/store/project-identity.js";
+import { createProjectIdentityReader, ProjectIdentityError, resolveProjectIdentity } from "../../lib/store/project-identity.js";
 import { lifecycleArtifactFacts } from "./readiness-artifact-facts.js";
 import { listLifecycleIndex, type LifecycleEntry } from "../../lib/store/lifecycle-index.js";
 import { storedCohortReadinessFacts } from "./readiness-store-cohort.js";
@@ -46,7 +46,7 @@ function storedPositionFacts(record: StoreRecord, state: string | null, manual: 
 async function storedLinkFacts(request: WorkUnitRequest, record: StoreRecord, store: Store): Promise<ReviewReadinessFact[]> {
   const facts: ReviewReadinessFact[] = [];
   const project = await resolveProjectIdentity(createProjectIdentityReader(store));
-  if (project.status !== "ready") return [fact("unreadable-artifact", "project-registry/identity", project.reason)];
+  if (project.status !== "ready") throw new ProjectIdentityError(project);
   const branch = selectWorkBranchLink(record, { repository: project.id });
   if (branch.kind !== "linked" || workBranchName(branch.link.ref) !== workBranchName(request.pullRequest.headBranch)) {
     facts.push(fact("vehicle-branch-mismatch", "pullRequest.headBranch", branch.kind === "ambiguous" ? branch.reason
