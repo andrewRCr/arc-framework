@@ -845,8 +845,9 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
     appendCandidateResponse: async ({ workUnit, record, expectedRecordVersion }) => {
       await requireCandidateMutationOwner(workUnit);
       const recordPath = await writeCandidateRecord(input.cwd, workUnit, record, expectedRecordVersion, { store: input.store, owner: input.workItem });
-      if (!input.store.capabilities.stateOffBranch) await input.exec("git", ["add", "--", recordPath], { cwd: input.cwd });
-      return { recordPath };
+      if (recordPath !== null) await input.exec("git", ["add", "--", recordPath], { cwd: input.cwd });
+      // The response envelope names the record's path on both storage arms.
+      return { recordPath: recordPath ?? resolveCandidateRecordRelativePath(workUnit) };
     },
     stageCandidateResponse: async (workUnit) => {
       await requireCandidateMutationOwner(workUnit);

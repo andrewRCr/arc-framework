@@ -70,9 +70,9 @@ export function prepareCandidateRecordPut(name: string, record: CandidateManaged
     content: serializeCandidateManagedRecord(record) };
 }
 
-/** Version-check and persist one Candidate through the selected writer. */
+/** Version-check and persist one Candidate, returning its tracked path, or null where no tracked file holds it. */
 export async function writeCandidateRecord(cwd: string, name: string, record: CandidateManagedRecordV1,
-  expectedVersion: string | null, options?: CandidateRecordStoreFs | CandidateRecordAccessOptions): Promise<string> {
+  expectedVersion: string | null, options?: CandidateRecordStoreFs | CandidateRecordAccessOptions): Promise<string | null> {
   const access = resolveReviewRecordAccess(cwd, options);
   if ("fs" in access) return writeFileCandidateRecord(cwd, name, record, expectedVersion, access.fs);
   const owner = selectReviewRecordOwner(access.store, SlugSchema.parse(name), access.owner);
@@ -80,5 +80,5 @@ export async function writeCandidateRecord(cwd: string, name: string, record: Ca
     provenance: { verb: "write-candidate-record", lifecycleAction: "edit" } });
   if (result.status === "refused" && result.refusal.code === "version-conflict") throw new CandidateRecordVersionConflictError();
   unwrapReviewRecordResult(access.store, result);
-  return resolveCandidateRecordRelativePath(name);
+  return access.store.capabilities.stateOffBranch ? null : resolveCandidateRecordRelativePath(name);
 }

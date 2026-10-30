@@ -44,13 +44,12 @@ it.each(["malformed", "wrong-owner"])("rejects %s Candidate content returned by 
     .rejects.toThrow(fault === "malformed" ? /Candidate record is malformed/u : /work unit does not match its path/u);
 });
 
-it("writes through the supplied store and returns the established record path", async () => {
+it("writes through the supplied store and returns no tracked path, since no tracked file holds the record", async () => {
   const h = createLifecycleHarness();
   const { owner } = (await h.seedMeta("example")).reference;
   const record = candidateFixture();
   const options = { store: h.store, owner };
-  await expect(writeCandidateRecord("/unavailable", "example", record, null, options))
-    .resolves.toBe(".arc/system/.internal/candidates/example.json");
+  await expect(writeCandidateRecord("/unavailable", "example", record, null, options)).resolves.toBeNull();
   await expect(readCandidateRecord("/unavailable", "example", options)).resolves.toEqual(record);
 });
 
@@ -69,8 +68,7 @@ it("preserves a newer Candidate when a writer holds a stale version, then permit
   await expect(writeCandidateRecord("/unavailable", "example", record, stale.version, options))
     .rejects.toBeInstanceOf(CandidateRecordVersionConflictError);
   await expect(readCandidateRecordVersioned("/unavailable", "example", options)).resolves.toEqual(current);
-  await expect(writeCandidateRecord("/unavailable", "example", record, current.version, options))
-    .resolves.toBe(".arc/system/.internal/candidates/example.json");
+  await expect(writeCandidateRecord("/unavailable", "example", record, current.version, options)).resolves.toBeNull();
 });
 
 it("puts a Candidate in the caller's atomic batch beside a primary update", async () => {
@@ -129,7 +127,7 @@ it("retains the selected work-item generation after its slug is reused", async (
   expect(await readCandidateRecordVersion("/unavailable", "example", options)).toBe(stored.version);
   const updated = { ...record, attestation: createCandidateAttestation({ ...record.attestation,
     subject: record.subject, attestedAt: "2026-08-14T14:00:00.000Z" }) };
-  await writeCandidateRecord("/unavailable", "example", updated, stored.version, options);
+  await expect(writeCandidateRecord("/unavailable", "example", updated, stored.version, options)).resolves.toBeNull();
   expect(await readCandidateRecord("/unavailable", "example", options)).toEqual(updated);
   expect(await readCandidateRecord("/unavailable", "example", { store: h.store, owner: second.reference.owner }))
     .toEqual(replacement);

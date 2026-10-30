@@ -77,7 +77,7 @@ export function createPublicationBoundaryAccess(input: PublicationBoundaryInput)
     }
     const path = await writeSubmissionBoundary(input.cwd, next, version,
       { store: input.invocation.store, owner: input.invocation.workItem });
-    await input.exec("git", ["add", "--", path], { cwd: input.cwd });
+    if (path !== null) await input.exec("git", ["add", "--", path], { cwd: input.cwd });
   };
   const ports: Pick<PublishParams, "claimPublicationBoundary" | "preparePublicationClaim"> = {
     ...(input.invocation.store.capabilities.stateOffBranch ? { preparePublicationClaim: prepareNative } : {}),

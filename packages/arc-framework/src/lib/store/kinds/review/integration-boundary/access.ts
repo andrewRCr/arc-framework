@@ -56,9 +56,9 @@ export function prepareSubmissionBoundaryPut(boundary: ReviewIntegrationBoundary
     expected: expectedVersion === null ? null : RecordVersionSchema.parse(expectedVersion), content: canonicalize(value) };
 }
 
-/** Version-check and persist one integration boundary. */
+/** Version-check and persist one integration boundary, returning its tracked path, or null where no tracked file holds it. */
 export async function writeSubmissionBoundary(cwd: string, boundary: ReviewIntegrationBoundary, expectedVersion: string | null,
-  input?: SubmissionBoundaryStoreFs | SubmissionBoundaryWriteOptions): Promise<string> {
+  input?: SubmissionBoundaryStoreFs | SubmissionBoundaryWriteOptions): Promise<string | null> {
   const access = resolveReviewRecordAccess(cwd, input);
   if ("fs" in access) return writeFileBoundary(cwd, parseIntegrationBoundaryLocus(boundary), expectedVersion, access.fs);
   const value = access.store.capabilities.stateOffBranch ? boundary : parseIntegrationBoundaryLocus(boundary);
@@ -67,5 +67,5 @@ export async function writeSubmissionBoundary(cwd: string, boundary: ReviewInteg
     provenance: { verb: "write-submission-boundary", lifecycleAction: "edit" } });
   if (result.status === "refused" && result.refusal.code === "version-conflict") throw new SubmissionBoundaryVersionConflictError();
   unwrapReviewRecordResult(access.store, result);
-  return resolveSubmissionBoundaryPath(boundary.workUnit);
+  return access.store.capabilities.stateOffBranch ? null : resolveSubmissionBoundaryPath(boundary.workUnit);
 }

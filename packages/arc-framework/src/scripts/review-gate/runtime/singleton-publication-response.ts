@@ -33,7 +33,7 @@ export async function stageSingletonPublicationResponse(input: ReviewInvocationI
     requirePublished: input.requirePublished,
   });
   if (rebound === null) return;
-  let path = resolveSubmissionBoundaryPath(input.workUnit);
+  let path = invocation.store.capabilities.stateOffBranch ? null : resolveSubmissionBoundaryPath(input.workUnit);
   if (rebound !== snapshot.boundary) {
     try {
       path = await writeSubmissionBoundary(input.cwd, rebound, snapshot.version, access);
@@ -45,7 +45,5 @@ export async function stageSingletonPublicationResponse(input: ReviewInvocationI
       throw error;
     }
   }
-  if (!invocation.store.capabilities.stateOffBranch) {
-    await input.exec("git", ["add", "--", path], { cwd: input.cwd });
-  }
+  if (path !== null) await input.exec("git", ["add", "--", path], { cwd: input.cwd });
 }

@@ -28,8 +28,9 @@ it.each(["supplied", "opened"])("round-trips Candidate bytes through the %s repo
   const record = candidateFixture();
   await expect(candidate.readCandidateRecordVersioned(cwd, "example", options)).resolves.toEqual({ record: null, version: null });
   const path = await candidate.writeCandidateRecord(cwd, "example", record, null, options);
-  expect(path).toBe(".arc/system/.internal/candidates/example.json");
-  const version = digestBytes(Buffer.from(await readFile(join(h.root, path))));
+  const tracked = ".arc/system/.internal/candidates/example.json";
+  expect(path).toBe(tracked);
+  const version = digestBytes(Buffer.from(await readFile(join(h.root, tracked))));
   await expect(candidate.readCandidateRecordVersioned(cwd, "example", options)).resolves.toEqual({ record, version });
   await expect(candidate.readCandidateRecordVersion(cwd, "example", options)).resolves.toBe(version);
   await expect(candidate.writeCandidateRecord(cwd, "example", record, null, options))
@@ -45,8 +46,9 @@ it.each(["supplied", "opened"])("round-trips boundary bytes through the %s repos
   const value = parseIntegrationBoundaryLocus(boundaryFixture());
   await expect(boundary.readSubmissionBoundaryVersioned(cwd, "example", options)).resolves.toEqual({ boundary: null, version: null });
   const path = await boundary.writeSubmissionBoundary(cwd, value, null, options);
-  expect(path).toBe(".arc/system/.internal/candidates/example.boundary.json");
-  const version = digestBytes(Buffer.from(await readFile(join(h.root, path))));
+  const tracked = ".arc/system/.internal/candidates/example.boundary.json";
+  expect(path).toBe(tracked);
+  const version = digestBytes(Buffer.from(await readFile(join(h.root, tracked))));
   await expect(boundary.readSubmissionBoundaryVersioned(cwd, "example", options)).resolves.toEqual({ boundary: value, version });
   await expect(boundary.writeSubmissionBoundary(cwd, value, null, options))
     .rejects.toBeInstanceOf(SubmissionBoundaryVersionConflictError);

@@ -66,21 +66,21 @@ it.each(["malformed", "wrong-owner"])("rejects %s boundary content returned by t
   else await expect(read).rejects.toThrow(/work unit does not match its path/u);
 });
 
-it("writes a native boundary through checked storage with its opaque compare-and-swap version", async () => {
+it("writes a native boundary through checked storage with its opaque compare-and-swap version and no tracked path", async () => {
   const h = createReviewHarness(), candidate = candidateFixture();
   const primary = await h.seedMeta("example");
   await h.seedCandidate(primary.reference.owner, candidate);
   const boundary = IntegrationBoundaryLocusV2Schema.parse({ ...boundaryV2Fixture(),
     candidateId: candidate.attestation.candidateId, candidateSubjectDigest: candidate.subject.subjectDigest });
   const input = { store: h.store, owner: primary.reference.owner };
-  await expect(writeSubmissionBoundary("/unavailable", boundary, null, input)).resolves.toContain("example.boundary.json");
+  await expect(writeSubmissionBoundary("/unavailable", boundary, null, input)).resolves.toBeNull();
   const reference = recordReferences["review/integration-boundary"](primary.reference.owner);
   const stored = await h.store.read({ reference });
   if (stored.status !== "ok") throw new Error("Expected stored boundary");
   expect(JSON.parse(stored.result.content)).toEqual(boundary);
   expect(stored.result.version).not.toMatch(/^sha256:/u);
   await expect(writeSubmissionBoundary("/unavailable", boundary, null, input)).rejects.toBeInstanceOf(SubmissionBoundaryVersionConflictError);
-  await expect(writeSubmissionBoundary("/unavailable", boundary, stored.result.version, input)).resolves.toContain("example.boundary.json");
+  await expect(writeSubmissionBoundary("/unavailable", boundary, stored.result.version, input)).resolves.toBeNull();
 });
 
 it.each(boundaryLoci)("reads native %s content with the exact opaque store version", async (locus) => {

@@ -463,7 +463,7 @@ async function attestCandidate(base: VerbBase, input: z.infer<typeof AttestComma
           { store: executor.store, owner: reviewInvocation.workItem },
         );
         await base.io.writeFile(absoluteMetaPath, metaContent);
-        await base.io.exec("git", ["add", "--", recordPath, metaPath, boundaryPath], { cwd: base.cwd });
+        await base.io.exec("git", ["add", "--", recordPath, metaPath, ...(boundaryPath === null ? [] : [boundaryPath])], { cwd: base.cwd });
         return { recordPath, metaPath, locus };
       },
     }, {
@@ -519,9 +519,7 @@ async function attestCandidate(base: VerbBase, input: z.infer<typeof AttestComma
         currentBoundary.version,
         { store: executor.store, owner: reviewInvocation.workItem },
       );
-      if (executor.store?.capabilities.stateOffBranch !== true) {
-        await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
-      }
+      if (boundaryPath !== null) await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
     }
   }
 

@@ -1139,10 +1139,8 @@ async function acceptDeliveryReviewTerminus(
           else await writeSubmissionBoundary(root, boundary, expectedVersion, { store: reviewRecordStore, owner: bound.workItem });
           return { status: "written" };
         }
-        return {
-          status: "written",
-          path: await writeSubmissionBoundary(root, boundary, expectedVersion, { store: reviewRecordStore, owner: bound.workItem }),
-        };
+        const path = await writeSubmissionBoundary(root, boundary, expectedVersion, { store: reviewRecordStore, owner: bound.workItem });
+        return { status: "written", ...(path === null ? {} : { path }) };
       } catch (error) {
         if (error instanceof SubmissionBoundaryVersionConflictError) return { status: "version-conflict" };
         throw error;
@@ -4247,7 +4245,7 @@ async function persistPrePublicationBoundary(input: ReviewInvocationInput, value
   const boundary = native ? IntegrationBoundaryLocusV2Schema.parse(value) : parseIntegrationBoundaryLocus(value);
   if (native && decision !== undefined) return persistNativeTerminusBoundary(input, boundary, expectedVersion, decision);
   const path = await writeSubmissionBoundary(input.cwd, boundary, expectedVersion, { store: bound.store, owner: bound.workItem });
-  if (!native) await input.exec("git", ["add", "--", path], { cwd: input.cwd });
+  if (path !== null) await input.exec("git", ["add", "--", path], { cwd: input.cwd });
 }
 
 async function persistAcceptedFrontlineSkip(input: ReviewInvocationOptions & {

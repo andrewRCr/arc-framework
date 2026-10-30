@@ -3714,11 +3714,11 @@ async function executeDeliveryCommand(
         });
         if (carried.status === "refused") return carried;
         const path = await writeSubmissionBoundary(cwd, carried.boundary, boundary.version, { store: reviewRecordStore, owner: invocation.workItem });
-        if (!reviewRecordStore.capabilities.stateOffBranch) await exec("git", ["add", "--", path], { cwd });
-        await captureExpectedRecordEffects([path]);
+        if (path !== null) await exec("git", ["add", "--", path], { cwd });
+        await captureExpectedRecordEffects(path === null ? [] : [path]);
         return {
           status: "carried" as const,
-          ...(reviewRecordStore.capabilities.stateOffBranch ? {} : { path }),
+          ...(path === null ? {} : { path }),
           candidateId: carried.candidateId,
           stateRevision: carried.stateRevision,
         };
@@ -4016,8 +4016,8 @@ async function executeDeliveryCommand(
             candidate.version,
             { store: reviewRecordStore, owner: invocation.workItem },
           )
-        : resolveCandidateRecordRelativePath(planRead.value.workUnitId);
-      if (!reviewRecordStore.capabilities.stateOffBranch) await exec("git", ["add", "--", recordPath], { cwd });
+        : reviewRecordStore.capabilities.stateOffBranch ? null : resolveCandidateRecordRelativePath(planRead.value.workUnitId);
+      if (recordPath !== null) await exec("git", ["add", "--", recordPath], { cwd });
       const acknowledged = await acknowledgeDeliveryReviewFixVerification({
         plan: planRead.value,
         current: stateRead.value,
@@ -4034,18 +4034,18 @@ async function executeDeliveryCommand(
         boundarySnapshot.version,
         { store: reviewRecordStore, owner: invocation.workItem },
       );
-      if (!reviewRecordStore.capabilities.stateOffBranch) await exec("git", ["add", "--", boundaryPath], { cwd });
-      const recordEffects = await readExpectedRecordEffects([recordPath, boundaryPath]);
+      if (boundaryPath !== null) await exec("git", ["add", "--", boundaryPath], { cwd });
+      const recordEffects = await readExpectedRecordEffects([recordPath, boundaryPath].filter(path => path !== null));
       return {
         ...acknowledged,
         candidate: {
           candidateId: recorded.record.attestation.candidateId,
           verificationId: recorded.transition.verificationId,
-          ...(reviewRecordStore.capabilities.stateOffBranch ? {} : { recordPath }),
+          ...(recordPath === null ? {} : { recordPath }),
         },
         nextAction: "resolve-delivery-status" as const,
         boundaryCarry: {
-          ...(reviewRecordStore.capabilities.stateOffBranch ? {} : { path: boundaryPath }),
+          ...(boundaryPath === null ? {} : { path: boundaryPath }),
           candidateId: carried.candidateId,
           stateRevision: carried.stateRevision,
         },
