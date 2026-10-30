@@ -6,9 +6,10 @@ import { openDefaultStore } from "./lifecycle-shared.js";
 import { gitExec } from "../lib/io-context.js";
 import { listLifecycleIndex } from "../lib/store/lifecycle-index.js";
 import { readWorkUnit } from "../lib/store/lifecycle-write.js";
-import { OwnerIdentitySchema, recordReferences, sameOwner, type OwnerIdentity } from "../lib/store/identity.js";
+import { OwnerIdentitySchema, sameOwner, type OwnerIdentity } from "../lib/store/identity.js";
 import { StoreRefusalError } from "../lib/store/refusal-error.js";
 import { ReviewOwnerSelectionError } from "../lib/store/kinds/review/errors.js";
+import { readCandidateRecord } from "../lib/store/kinds/review/candidate/access.js";
 import type { Store } from "../lib/store/contract.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
@@ -101,16 +102,17 @@ async function readCompletedOwners(store: Store): Promise<readonly OwnerIdentity
 
 /**
  * Resolve the exact generation a Candidate mutation writes natively: the checkout's own live work unit, or from a free
- * primary the one completed generation of its slug, never a live namesake reusing it.
+ * primary the completed generation of its slug holding the mutated Candidate, never a live namesake reusing it.
  *
  * @param store - The invocation's store; in-repo records are keyed by slug and resolve no owner
  * @param workUnit - The work unit the mutation names
  * @param scope - Whether the entering checkout owns the work unit or continues a completed one
+ * @param candidate - The repository root and the Candidate the mutation names
  * @param bound - An owner the invocation already selected for this work unit
  * @returns The owner every read and write of the mutation uses
  */
 export async function resolveCandidateMutationGeneration(store: Store, workUnit: string, scope: "owned" | "unowned",
-  bound?: OwnerIdentity): Promise<OwnerIdentity | undefined> {
+  candidate: { cwd: string; candidateId: string }, bound?: OwnerIdentity): Promise<OwnerIdentity | undefined> {
   if (!store.capabilities.stateOffBranch) return undefined;
   if (scope === "owned") {
     if (bound !== undefined && bound.name === workUnit) return bound;
@@ -124,16 +126,26 @@ export async function resolveCandidateMutationGeneration(store: Store, workUnit:
     throw new ReviewOwnerSelectionError("invalid-input", `The selected \`${workUnit}\` work item is not a completed generation.`,
       { text: `Run the command from \`${workUnit}\`'s checkout.` });
   }
-  if (completed.length > 1) {
-    throw new StoreRefusalError({ code: "ambiguous-match", class: "recoverable",
-      candidates: completed.map(owner => recordReferences["work-item/meta"](owner)),
-      condition: `\`${workUnit}\` names more than one completed work unit.`,
-      remedy: { text: "Rename one of them to a free slug, then retry." } }, true);
-  }
-  const [owner] = completed;
+  const [owner] = completed.length > 1 ? await holdingCandidate(store, workUnit, completed, candidate) : completed;
   if (owner === undefined) {
     throw new ReviewOwnerSelectionError("invalid-input", `\`${workUnit}\` is not a completed work unit.`,
       { text: "Run the command from its checkout." });
   }
   return owner;
+}
+
+// Several completed generations share the slug: the one whose stored Candidate the mutation names is the one it writes.
+async function holdingCandidate(store: Store, workUnit: string, completed: readonly OwnerIdentity[],
+  candidate: { cwd: string; candidateId: string }): Promise<readonly OwnerIdentity[]> {
+  const holders: OwnerIdentity[] = [];
+  for (const owner of completed) {
+    const record = await readCandidateRecord(candidate.cwd, workUnit, { store, owner });
+    if (record?.attestation.candidateId === candidate.candidateId) holders.push(owner);
+  }
+  if (holders.length === 1) return holders;
+  throw new ReviewOwnerSelectionError(holders.length === 0 ? "invalid-input" : "corrupt-state", holders.length === 0
+    ? `No completed \`${workUnit}\` work unit holds Candidate \`${candidate.candidateId}\`.`
+    : `More than one completed \`${workUnit}\` work unit holds Candidate \`${candidate.candidateId}\`.`,
+  { text: holders.length === 0 ? "Name the Candidate the work unit holds, then retry."
+    : `Inspect the completed \`${workUnit}\` work units' Candidate records, then retry.` });
 }

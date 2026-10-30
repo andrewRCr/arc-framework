@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
-import { RecordReferenceSchema, recordReferences, type OwnerIdentity, type Store, type WritePlacement }
+import { RecordReferenceSchema, type OwnerIdentity, type Store, type WritePlacement }
   from "../../src/lib/store/index.js";
 import { createProjectIdentityReader } from "../../src/lib/store/project-identity.js";
 import { renderMetaFile } from "../../src/lib/store/kinds/meta/writers.js";
@@ -58,25 +58,31 @@ function applicabilityRequest() {
     residualDigest: canonicalDigest({ residual: 1 }), selectedBy: "andrew", choice: "covered" };
 }
 
-it("refuses from a free primary a slug two completed generations share, and continues the other once one is renamed",
-  async () => {
-    const { store, invocation } = await primaryCheckout();
-    const first = await generation(store, "example"), second = await generation(store, "example");
-    const request = applicabilityRequest();
-    let output = "";
-    await handleCandidateApplicabilityResolve("example", "-", undefined, { readText: async () => JSON.stringify(request),
-      write: text => { output += text; }, setExitCode: () => undefined }, invocation);
-    expect(JSON.parse(output)).toMatchObject({ state: "execution-unavailable", reason: "execution-failed",
-      detail: "`example` names more than one completed work unit.",
-      remedy: { argv: ["arc", "candidate", "applicability", "resolve", "example", "-"], stdin: request,
-        text: expect.stringContaining("Rename one of them to a free slug, then retry") } });
+it("refuses from a free primary a Candidate no completed generation of its slug holds, and selects the generation "
+  + "holding the named one", async () => {
+  const { cwd, store, invocation } = await primaryCheckout();
+  const first = await generation(store, "example"), second = await generation(store, "example");
+  const subject = createCandidateSubjectSnapshot([]);
+  const hold = async (owner: OwnerIdentity, attestedAt: string) => {
+    const record = { schemaVersion: 1 as const, semanticsVersion: "candidate-attestation/v1" as const, subject,
+      attestation: createCandidateAttestation({ workUnit: "example", subject, baseRevision: "a".repeat(40),
+        attestedBy: "andrew", attestedAt, verificationEvidenceRef: "test://verified" }), transitions: [], lineageAttestations: [] };
+    await writeCandidateRecord(cwd, "example", record, null, { store, owner });
+    return { cwd, candidateId: record.attestation.candidateId };
+  };
+  const held = [await hold(first, "2026-10-30T12:00:00Z"), await hold(second, "2026-10-30T13:00:00Z")];
+  const request = applicabilityRequest();
+  let output = "";
+  await handleCandidateApplicabilityResolve("example", "-", undefined, { readText: async () => JSON.stringify(request),
+    write: text => { output += text; }, setExitCode: () => undefined }, invocation);
+  expect(JSON.parse(output)).toMatchObject({ state: "execution-unavailable", reason: "execution-failed",
+    detail: `No completed \`example\` work unit holds Candidate \`${request.candidateId}\`.`,
+    remedy: { argv: ["arc", "candidate", "applicability", "resolve", "example", "-"], stdin: request,
+      text: expect.stringContaining("Name the Candidate the work unit holds, then retry") } });
 
-    const stored = success(await store.read({ reference: recordReferences["work-item/meta"](first) }));
-    success(await store.write({ action: "put", expected: stored.version, placement: completed, content: stored.content,
-      reference: RecordReferenceSchema.parse({ ...stored.reference, owner: { ...stored.reference.owner, name: "renamed" } }),
-      provenance: { verb: "rename", lifecycleAction: "rename" } }));
-    expect(await resolveCandidateMutationGeneration(store, "example", "unowned")).toEqual(second);
-  }, 60_000);
+  expect(await resolveCandidateMutationGeneration(store, "example", "unowned", held[0]!)).toEqual(first);
+  expect(await resolveCandidateMutationGeneration(store, "example", "unowned", held[1]!)).toEqual(second);
+}, 60_000);
 
 it("reads from a free primary the bound completed generation's Candidate beside another completed work unit's, and "
   + "never a live namesake's", async () => {

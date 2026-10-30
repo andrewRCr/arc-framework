@@ -154,7 +154,8 @@ async function executeCandidateApplicabilityResolution(
   const baseBranch = settings["branch.base"];
   const git = invocation?.exec ?? createGitExec(interaction?.subprocess);
   const store = retryEndedItemHistory(invocation?.store ?? createStore(createDefaultStorePorts({ checkoutRoot: root, exec: git })));
-  const owner = await resolveCandidateMutationGeneration(store, name, scope, invocation?.workItem);
+  const owner = await resolveCandidateMutationGeneration(store, name, scope,
+    { cwd: root, candidateId: "kind" in input ? input.offer.candidateId : input.candidateId }, invocation?.workItem);
   const rawGit = createRawGitExec(root);
   const readObjectId = async (expression: string): Promise<string> => (
     await git("git", ["rev-parse", "--verify", expression], {
