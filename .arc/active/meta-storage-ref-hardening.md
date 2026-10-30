@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | `plan/storage-ref-hardening` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage`
-- **Depends On:** `storage-ref-backend`
+- **Depends On:** [none]
 
 - **Origin:** [internal] — routed from `storage-ref-backend`'s review (2026-10-29)
 - **Design:** `draft-storage-ref-hardening.md`
