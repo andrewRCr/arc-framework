@@ -51,6 +51,7 @@ it.each(["lookup", "read"] as const)("names the exact Errand when its %s refuses
   const input = { ...h, store };
   const detail = /Errand repair.*Exact claim reader is unavailable.*Restore the exact claim reader/u;
   await expect(readLocalReviewLiveContext(input)).rejects.toThrow(detail);
+  await expect(readLocalReviewLiveContext(input)).rejects.toMatchObject({ refusal: { code: "namespace-corrupt", class: "terminal" } });
   await expect(createRespondDependencies(input).resolveActiveErrand()).rejects.toThrow(detail);
   unavailable = false;
   expect(await readLocalReviewLiveContext(input)).toMatchObject({ context: { errand: { identity: "repair", claimId: h.claimId } } });

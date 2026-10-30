@@ -80,7 +80,8 @@ it("refuses conflicted hosted evidence and returns the result after resolution",
   const record = lifecycleSuccess(await h.store.read({ reference: stored.reference }));
   expect(record.conflicts.length).toBeGreaterThan(0);
   const reader = new StoredReviewResultReader({ outcomes, evidence, readProjectId: h.projectId });
-  await expect(reader.readResult(fixture.ended.attemptId)).rejects.toMatchObject({ code: "corrupt-result",
+  await expect(reader.readResult(fixture.ended.attemptId)).rejects.toMatchObject({
+    refusal: { code: "record-malformed", class: "recoverable", rule: "review.record-conflict" },
     message: expect.stringContaining("Resolve the named conflict records") });
   for (const reference of record.conflicts) {
     const conflict = lifecycleSuccess(await h.store.read({ reference }));

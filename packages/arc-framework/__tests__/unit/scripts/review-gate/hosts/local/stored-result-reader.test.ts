@@ -25,7 +25,8 @@ describe("stored review result reader", () => {
     const reader = new StoredReviewResultReader({ outcomes: createReviewOutcomePort(h.harness.store, h.owner),
       evidence: h.evidence, readProjectId: createProjectIdentityReader(h.harness.store) });
     h.harness.store.state.unreadable.add("review");
-    await expect(reader.readResult(h.outcome.attemptId)).rejects.toMatchObject({ code: "corrupt-result",
+    await expect(reader.readResult(h.outcome.attemptId)).rejects.toMatchObject({
+      refusal: { code: "record-malformed", class: "recoverable", rule: "review.listing-unreadable" },
       message: "The family index cannot be read. Restore the family index from a saved state." });
     h.harness.store.state.unreadable.delete("review");
     expect(await reader.readResult(h.outcome.attemptId)).toMatchObject({ producerId: h.outcome.attemptId });

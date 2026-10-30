@@ -52,8 +52,8 @@ describe("work-item outcome access", () => {
         }] : [],
       } };
     };
-    expect(await port.list()).toEqual({ status: "incomplete",
-      reason: expect.stringContaining("incomplete") });
+    expect(await port.list()).toEqual({ status: "incomplete", reason: expect.stringContaining("incomplete"),
+      refusal: expect.objectContaining({ code: "record-malformed", class: "recoverable", rule: "review.listing-incomplete" }) });
   });
 
   it("retains an unavailable listing's remedy and succeeds after repair", async () => {

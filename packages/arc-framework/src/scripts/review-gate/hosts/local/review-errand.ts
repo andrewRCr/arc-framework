@@ -38,8 +38,9 @@ function decodeClaim(record: StoreRecord, reference: RecordReference, claim: Err
 }
 
 function claimRefusal(store: Store, claim: ErrandClaim, refusal: StoreRefusal): Error {
-  if (store.capabilities.stateOffBranch) return new StoreRefusalError(refusal, true);
-  return new Error(`Errand ${claim.slug} (${claim.claimId}): ${refusal.condition} ${refusal.remedy.text}`);
+  const condition = `Errand ${claim.slug} (${claim.claimId}): ${refusal.condition}`;
+  if (store.capabilities.stateOffBranch) return new StoreRefusalError({ ...refusal, condition }, true);
+  return new Error(`${condition} ${refusal.remedy.text}`);
 }
 
 async function readClaim(store: Store, reference: RecordReference, claim: ErrandClaim): Promise<ReviewCheckoutErrandSelection | null> {
