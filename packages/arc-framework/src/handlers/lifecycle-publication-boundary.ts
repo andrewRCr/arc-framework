@@ -71,7 +71,7 @@ export function createPublicationBoundaryAccess(input: PublicationBoundaryInput)
     if (input.invocation.store.capabilities.stateOffBranch) {
       if (next.schemaVersion !== 2) throw new Error("Native publication requires a version-two boundary.");
       const mutation = await prepareNative(next);
-      unwrapReviewRecordResult(await input.invocation.store.write({ ...mutation,
+      unwrapReviewRecordResult(input.invocation.store, await input.invocation.store.write({ ...mutation,
         provenance: { verb: "publish", lifecycleAction: "publish" } }));
       return;
     }

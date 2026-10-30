@@ -12,6 +12,7 @@ export { ReviewCommandModeSchema, ReviewCommandDiagnosticSchema } from "./review
 export type { ReviewCommandMode } from "./review-command-envelope-base.js";
 
 import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
+import { StoreRefusalSchema } from "../../../lib/store/refusal.js";
 
 import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
 import { FixNotPerformedPayloadSchema } from "./fix-not-performed-envelope.js";
@@ -936,15 +937,18 @@ export const ReviewCommandErrorEnvelopeSchema = z.union([
   ...ReviewCommandModeSchema.options
     .filter((mode) => mode !== "review-pre-publication")
     .flatMap((mode) => ReviewCommandErrorCodeSchema.options
-      .filter((code) => code !== "project-identity-unavailable")
+      .filter((code) => code !== "project-identity-unavailable" && code !== "store-refused")
       .map((code) => errorVariant(mode, code))),
   ...ReviewCommandModeSchema.options
     .filter((mode) => mode !== "review-pre-publication")
     .map((mode) => remedialErrorVariant(mode, "project-identity-unavailable")),
+  // An off-branch store's refusal keeps its code, class, and remedy whole beside the command's corrective route.
+  ...ReviewCommandModeSchema.options
+    .map((mode) => remedialErrorVariant(mode, "store-refused").extend({ refusal: StoreRefusalSchema })),
   // The pre-publication verb is the review spine's middle verb, so its refusals carry the same
   // corrective guidance the checkpoint and merge verbs do.
   ...ReviewPrePublicationRefusalCodeSchema.options
-    .filter((code) => code !== "scope-judgment-required")
+    .filter((code) => code !== "scope-judgment-required" && code !== "store-refused")
     .map((code) => remedialErrorVariant("review-pre-publication", code)),
   remedialErrorVariant("review-pre-publication", "scope-judgment-required")
     .extend({ scopeMismatch: PrePublicationScopeMismatchSchema }),

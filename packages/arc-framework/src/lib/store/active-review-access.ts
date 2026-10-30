@@ -26,7 +26,7 @@ export function createActiveReviewAccess(input: ReviewInvocationInput): ActiveRe
     if (!invocation.store.capabilities.stateOffBranch) return { candidate };
     const slug = identifyWorkUnitArtifactPath(candidate.path)?.slug;
     if (slug === undefined) throw new Error(`Cannot identify ${candidate.filename}`);
-    const primary = unwrapReviewRecordResult(owner === undefined ? await readWorkUnit(invocation.store, slug)
+    const primary = unwrapReviewRecordResult(invocation.store, owner === undefined ? await readWorkUnit(invocation.store, slug)
       : await invocation.store.read({ reference: recordReferences["work-item/meta"](owner) }));
     const selected = primary.reference.owner;
     const record = await readCandidateRecord(input.cwd, selected.name, { store: invocation.store, owner: selected });

@@ -22,5 +22,5 @@ export async function resolveNamedReviewWorkUnitInvocation(options: ReviewInvoca
   if (!input.store.capabilities.stateOffBranch || input.workItem !== undefined) return input;
   const read = await readWorkUnit(input.store, name);
   if (read.status === "refused" && read.refusal.code === "not-found") return input;
-  return { ...input, workItem: unwrapReviewRecordResult(read).reference.owner };
+  return { ...input, workItem: unwrapReviewRecordResult(input.store, read).reference.owner };
 }

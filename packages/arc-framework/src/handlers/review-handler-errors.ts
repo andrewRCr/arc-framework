@@ -2,7 +2,9 @@
 import { RemedySchema } from "../lib/store/refusal.js";
 import { ZodError, type ZodType } from "zod";
 import { ProjectIdentityError } from "../lib/store/project-identity.js";
-import { projectIdentitySpineRemedy, reviewProjectIdentityRequestRemedy } from "../scripts/review-gate/runtime/project-identity-remedy.js";
+import { projectIdentitySpineRemedy, reviewFailureSpineRemedy, reviewProjectIdentityRequestRemedy, reviewRequestRetryArgv }
+  from "../scripts/review-gate/runtime/project-identity-remedy.js";
+import { StoreRefusalError } from "../lib/store/refusal-error.js";
 import { LocalTargetDerivationError, type LocalTargetInvalidReason } from "../scripts/review-gate/hosts/local/repository-target.js";
 import { LocalReviewResultReaderError } from "../scripts/review-gate/hosts/local/review-result-reader.js";
 import { FrontlineAdmissionError } from "../scripts/review-gate/core/frontline-admission-error.js";
@@ -74,6 +76,18 @@ function reviewProjectIdentityError(mode: ReviewFamilyMode, error: unknown, erro
     remedy: projectIdentitySpineRemedy(error, fallback?.argv ?? ["arc", "review", "--help"], fallback?.stdin) });
 }
 
+// An in-repo store's refusal keeps today's code and message; only an off-branch store's reports as itself.
+function reviewStoreRefusalError(mode: ReviewFamilyMode, error: unknown, errorSchema: ZodType,
+  remedyFor?: (code: ReviewCommandErrorCode) => SpineRemedy): unknown {
+  const parsed = ReviewCommandModeSchema.safeParse(mode);
+  if (!(error instanceof StoreRefusalError) || !error.offBranch || !parsed.success) return undefined;
+  const code = "store-refused" as const;
+  const fallback = remedyFor?.(code);
+  return errorSchema.parse({ schemaVersion: 1, mode, diagnostics: [], error: { code, message: error.message }, refusal: error.refusal,
+    remedy: reviewFailureSpineRemedy(error.refusal.condition, error.refusal.remedy, fallback?.argv ?? reviewRequestRetryArgv(parsed.data),
+      fallback?.stdin) });
+}
+
 /** Project one failure through the error schema owned by its command family. */
 export function reviewCommandError(
   mode: ReviewFamilyMode,
@@ -90,7 +104,8 @@ export function reviewCommandError(
     return errorSchema.parse({ schemaVersion: 1, mode, diagnostics: [], error: { code: "unsupported", message },
       remedy: RemedySchema.parse(remedy) });
   }
-  const identityFailure = reviewProjectIdentityError(mode, error, errorSchema, remedyFor);
+  const identityFailure = reviewProjectIdentityError(mode, error, errorSchema, remedyFor)
+    ?? reviewStoreRefusalError(mode, error, errorSchema, remedyFor);
   if (identityFailure !== undefined) return identityFailure;
   const code = reviewFailureCode(mode, error, phase);
   const diagnostics = reviewCommandDiagnostics(error, message);

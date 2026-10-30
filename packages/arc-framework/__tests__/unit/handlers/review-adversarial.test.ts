@@ -110,3 +110,23 @@ it("names the expected request shape for malformed JSON and resumes with valid i
   expect(ReviewAdversarialRecordRequestSchema.safeParse(request()).success).toBe(true);
   expect(await record(h.store, request())).toMatchObject({ exitCode: 0 });
 });
+it.each([
+  { code: "lock-held" as const, envelope: "store-refused" },
+  { code: "record-malformed" as const, envelope: "invalid-input" },
+])("reports a $code write refusal as $envelope and records once repaired", async ({ code, envelope }) => {
+  const h = await nativeFixture(), write = h.store.write.bind(h.store), input = request();
+  const refusal = code === "lock-held"
+    ? { code, class: "recoverable" as const, lock: "review", condition: "The review lock is held.",
+      remedy: { text: "Wait for the holder to finish, then retry.", argv: ["arc", "store", "pull"] } }
+    : { code, class: "recoverable" as const, rule: "review.adversarial-pass.findings", condition: "The pass repeats a finding.",
+      remedy: { text: "Correct the approved pass, then retry." } };
+  let held = true;
+  h.store.write = async put => held && put.reference.kind === "review/adversarial-pass" ? { status: "refused", refusal } : write(put);
+  const refused = await record(h.store, input);
+  expect(refused).toMatchObject({ exitCode: 1, envelope: { error: { code: envelope,
+    message: expect.stringContaining(refusal.condition) } } });
+  if (envelope === "store-refused") expect(refused.envelope).toMatchObject({ refusal, remedy: { argv: ["arc", "store", "pull"] } });
+  expect(ReviewCommandErrorEnvelopeSchema.safeParse(refused.envelope).success).toBe(true);
+  held = false;
+  expect(await record(h.store, input)).toMatchObject({ exitCode: 0, envelope: { payload: { key: { number: 1 } } } });
+});

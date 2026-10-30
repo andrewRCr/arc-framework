@@ -9,7 +9,7 @@ interface StoredHistoryInput { store: Store; workUnit: string; workItem?: OwnerI
 
 async function history(input: StoredHistoryInput): Promise<HistoryEntry[]> {
   const owner = selectReviewRecordOwner(input.store, input.workUnit, input.workItem);
-  return unwrapReviewRecordResult(await input.store.history({ reference: recordReferences["review/candidate"](owner) }));
+  return unwrapReviewRecordResult(input.store, await input.store.history({ reference: recordReferences["review/candidate"](owner) }));
 }
 
 function historicalCandidate(entry: HistoryEntry, workUnit: string): { record: CandidateManagedRecordV1; version: string } | null {

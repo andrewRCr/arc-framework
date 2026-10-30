@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { z, type ZodType } from "zod";
 import { resolveArcRoot } from "../lib/paths.js";
 import { ReviewCommandErrorEnvelopeSchema } from "../scripts/review-gate/core/review-command-envelope.js";
-import { reviewProjectIdentityRequestRemedy } from "../scripts/review-gate/runtime/project-identity-remedy.js";
+import { reviewFailureRequestRemedy } from "../scripts/review-gate/runtime/project-identity-remedy.js";
 import { reviewContinuationRequestError } from "../scripts/review-gate/runtime/continuation-invocation.js";
 import type { SpineRemedy } from "../scripts/integration/spine-refusal.js";
 import { reviewCommandError, type ReviewFamilyMode, type ReviewHandlerErrorPhase } from "./review-handler-errors.js";
@@ -96,7 +96,7 @@ export async function executeReviewHandler(input: {
   try {
     rawResult = await input.execute(request, root);
   } catch (error) {
-    const remedy = reviewProjectIdentityRequestRemedy(input.mode, error, submittedRequest)
+    const remedy = reviewFailureRequestRemedy(input.mode, error, submittedRequest)
       ?? input.remedyFor?.(error, submittedRequest);
     emitReviewCommandError(input.mode, error, "execution", input.dependencies, errorSchema, remedy);
     return;

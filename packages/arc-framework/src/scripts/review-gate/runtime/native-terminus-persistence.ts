@@ -20,7 +20,7 @@ export async function persistNativeTerminusBoundary(input: ReviewInvocationInput
     && result.refusal.records.every(reference => reference.kind === "review/integration-boundary")) {
     throw new SubmissionBoundaryVersionConflictError();
   }
-  unwrapReviewRecordResult(result);
+  unwrapReviewRecordResult(bound.store, result);
 }
 
 /** Record an accepted decision when the current call leaves its publication boundary unfinished. */
@@ -29,5 +29,5 @@ export async function persistNativeTerminusDecision(input: ReviewInvocationInput
   if (!bound.store.capabilities.stateOffBranch || bound.workItem === undefined) {
     throw new Error("Resolve the native owning work item before recording its review terminus, then retry.");
   }
-  unwrapReviewRecordResult(await bound.store.write({ ...decision, provenance: { verb: "review", lifecycleAction: "edit" } }));
+  unwrapReviewRecordResult(bound.store, await bound.store.write({ ...decision, provenance: { verb: "review", lifecycleAction: "edit" } }));
 }

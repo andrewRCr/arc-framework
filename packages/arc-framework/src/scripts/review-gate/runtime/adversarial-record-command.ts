@@ -4,6 +4,7 @@ import { readWorkUnit } from "../../../lib/store/lifecycle-write.js";
 import { recordReferences, sameOwner, type OwnerIdentity, type RecordVersion } from "../../../lib/store/identity.js";
 import type { Store } from "../../../lib/store/contract.js";
 import type { StoreResult } from "../../../lib/store/refusal.js";
+import { StoreRefusalError } from "../../../lib/store/refusal-error.js";
 import { ReviewAdversarialPassSchema } from "../../../lib/store/kinds/review/adversarial-pass/schema.js";
 import { ReviewAdversarialRecordEnvelopeSchema } from "../core/adversarial-record-schema.js";
 import type { ReviewAdversarialRecordRequest, ReviewAdversarialRecordEnvelope } from "../core/adversarial-record-schema.js";
@@ -26,7 +27,7 @@ export async function recordApprovedAdversarialPass(request: ReviewAdversarialRe
     throw new AdversarialRecordError("unsupported", "Adversarial pass records require off-branch state.",
       { text: `Keep this approved pass in ${location} until off-branch state is enabled.` });
   }
-  const primary = requireResult(await readWorkUnit(input.store, request.workUnit), `Work unit \`${request.workUnit}\`: `);
+  const primary = requireResult(input.store, await readWorkUnit(input.store, request.workUnit), `Work unit \`${request.workUnit}\`: `);
   if (primary.conflicts.length > 0) throw new AdversarialRecordError("corrupt-state", "Resolve the work unit's metadata conflicts, then retry.");
   const owner = primary.reference.owner;
   if (input.workItem !== undefined && !sameOwner(input.workItem, owner)) {
@@ -40,15 +41,19 @@ export async function recordApprovedAdversarialPass(request: ReviewAdversarialRe
   void workUnit;
   const content = canonicalize(ReviewAdversarialPassSchema.parse({ ...header, artifacts,
     ...(codeHead === undefined ? {} : { codeHead }) }));
-  const written = requireResult(await input.store.write({ action: "put", reference: recordReferences["review/adversarial-pass"](owner, key),
+  const written = requireResult(input.store, await input.store.write({ action: "put", reference: recordReferences["review/adversarial-pass"](owner, key),
     expected: null, content, provenance: { verb: "review-adversarial-record", lifecycleAction: "create",
       ...(codeHead === undefined ? {} : { codeHead }) } }));
   return ReviewAdversarialRecordEnvelopeSchema.parse({ schemaVersion: 1, mode: "review-adversarial-record", diagnostics: [],
     state: "recorded", nextAction: "none", payload: { key, version: written.version } });
 }
 
-function requireResult<T>(result: StoreResult<T>, context = ""): T {
+// Absence and a refused write check are the caller's input to correct; every other refusal reports as the store's.
+function requireResult<T>(store: Store, result: StoreResult<T>, context = ""): T {
   if (result.status === "ok") return result.result;
+  if (result.refusal.code !== "not-found" && result.refusal.code !== "record-malformed") {
+    throw new StoreRefusalError(result.refusal, store.capabilities.stateOffBranch);
+  }
   throw new AdversarialRecordError("invalid-input", `${context}${result.refusal.condition} ${result.refusal.remedy.text}`);
 }
 
@@ -56,7 +61,7 @@ async function artifactVersion(store: Store, owner: OwnerIdentity, artifact: "dr
   optional = false): Promise<RecordVersion | undefined> {
   const read = await store.read({ reference: recordReferences[`work-item/${artifact}`](owner) });
   if (optional && read.status === "refused" && read.refusal.code === "not-found") return undefined;
-  const record = requireResult(read);
+  const record = requireResult(store, read);
   if (record.conflicts.length > 0) throw new AdversarialRecordError("corrupt-state", `Resolve the ${artifact} conflicts, then retry.`);
   return record.version;
 }
@@ -72,7 +77,7 @@ async function readArtifactVersions(store: Store, owner: OwnerIdentity, activity
 }
 
 async function nextPassNumber(store: Store, owner: OwnerIdentity, activity: ReviewAdversarialRecordRequest["activity"]): Promise<number> {
-  const listing = requireResult(await store.list({ family: "review", kind: "review/adversarial-pass", owner }));
+  const listing = requireResult(store, await store.list({ family: "review", kind: "review/adversarial-pass", owner }));
   if (listing.status === "absent") return 1;
   if (listing.status === "unreadable") throw new AdversarialRecordError("corrupt-state", `${listing.condition} ${listing.remedy.text}`);
   if (listing.missed || listing.diagnostics.length > 0) {

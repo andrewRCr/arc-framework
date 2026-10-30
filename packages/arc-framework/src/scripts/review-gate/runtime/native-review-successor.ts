@@ -14,7 +14,7 @@ import type { NativeReviewApprovalInput } from "./native-review-approval.js";
 
 /** Successor approval and the selected invocation's atomic store and lane reader. */
 export interface NativeReviewSuccessorInput extends NativeReviewApprovalInput {
-  store: Pick<Store, "batch">;
+  store: Pick<Store, "batch" | "capabilities">;
   inFlight: ReviewOperationStateStore;
 }
 
@@ -52,7 +52,7 @@ export async function publishNativeReviewSuccessor(input: NativeReviewSuccessorI
       ?.hosted?.settlementEvidence.filter(entry => entry.dispositionSetId === id) ?? [];
   }
   const put = input.evidence.prepareCreate(next);
-  const batch = unwrapReviewRecordResult(await input.store.batch({ writes: [
+  const batch = unwrapReviewRecordResult(input.store, await input.store.batch({ writes: [
     input.evidence.prepareAdvance({ ...prior.value, successorDispositionSetId: id }, prior.version), put],
     provenance: { verb: "review", lifecycleAction: "edit" } }));
   const written = batch.writes[1];

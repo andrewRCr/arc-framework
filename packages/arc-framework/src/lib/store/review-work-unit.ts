@@ -26,11 +26,11 @@ export async function readReviewWorkUnitByRef(input: ReviewWorkUnitLookup,
   const branch = workBranchName(headRef);
   const lookup = await input.store.lookup({ kind: "ref", repository, ref: branch });
   if (lookup.status === "refused" && lookup.refusal.code === "not-found") return null;
-  const { reference } = unwrapReviewRecordResult(lookup);
+  const { reference } = unwrapReviewRecordResult(input.store, lookup);
   if (reference.kind !== "work-item/meta") return null;
   const record = await readReviewRecord(input.store, reference);
   if (record === null) throw new Error(`The linked work-unit metadata is missing: ${JSON.stringify(reference)}.`);
-  const meta = toMetaRecord(unwrapReviewRecordResult(readLifecycleMetaFields(record)));
+  const meta = toMetaRecord(unwrapReviewRecordResult(input.store, readLifecycleMetaFields(record)));
   if (meta === null) throw new Error(`The linked work-unit metadata is incomplete: ${JSON.stringify(reference)}.`);
   const selected = selectWorkBranchLink(record, { repository, currentBranch: branch });
   if (selected.kind === "ambiguous") throw new Error(selected.reason);

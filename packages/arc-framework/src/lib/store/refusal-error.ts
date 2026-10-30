@@ -3,7 +3,11 @@ import type { StoreRefusal } from "./refusal.js";
 
 /** Throw a refusal with its class, code, and remedy intact; its message is the condition and remedy text. */
 export class StoreRefusalError extends Error {
-  constructor(readonly refusal: StoreRefusal) {
+  /**
+   * @param refusal - The store's refusal, unchanged
+   * @param offBranch - Whether a store keeping state off the branch refused; an in-repo refusal reports as before
+   */
+  constructor(readonly refusal: StoreRefusal, readonly offBranch: boolean) {
     super(`${refusal.condition} ${refusal.remedy.text}`);
     this.name = "StoreRefusalError";
   }

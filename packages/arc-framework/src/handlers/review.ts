@@ -7,7 +7,7 @@ import { defaultReviewHandlerBoundary, executeReviewHandler, ReviewCommandInputS
 import { reviewCommandError, type ReviewHandlerErrorPhase } from "./review-handler-errors.js";
 export { ReviewCommandInputSchema } from "./review-handler.js";
 import { ProjectIdentityError } from "../lib/store/project-identity.js";
-import { projectIdentitySpineRemedy, reviewProjectIdentityRequestRemedy } from "../scripts/review-gate/runtime/project-identity-remedy.js";
+import { projectIdentitySpineRemedy, reviewFailureRequestRemedy } from "../scripts/review-gate/runtime/project-identity-remedy.js";
 import { decodePrePublicationReplay, encodePrePublicationReplay, replayTokenFromAction } from "../scripts/review-gate/policy/pre-publication-replay.js";
 import { ReviewLaneReadRequestSchema, ReviewLaneReadEnvelopeSchema, type ReviewLaneReadRequest } from "../scripts/review-gate/lane-read-schema.js";
 import { createReviewInvocationResolver, resolveReviewInvocation, type ReviewInvocationOptions, type ReviewInvocationContext, type ReviewInvocationInput } from "../scripts/review-gate/runtime/invocation.js";
@@ -2103,7 +2103,7 @@ async function executeHostedReviewHandler(input: {
     rawResult = await input.execute(request);
   } catch (error) {
     emitHostedReviewError(input.mode, error, "execution", input.dependencies,
-      reviewProjectIdentityRequestRemedy(input.mode, error, submittedRequest) ?? input.remedyFor?.(error));
+      reviewFailureRequestRemedy(input.mode, error, submittedRequest) ?? input.remedyFor?.(error));
     return;
   }
 

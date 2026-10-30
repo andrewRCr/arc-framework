@@ -14,7 +14,7 @@ import { buildLifecycleIndex } from "../work-unit/lifecycle-index.js";
 export async function readCompletedDeliveryLocus(store: Store, cwd: string, name: string):
   Promise<{ name: string; path: string; workItem?: OwnerIdentity } | null> {
   if (store.capabilities.stateOffBranch) {
-    const primary = unwrapReviewRecordResult(await readWorkUnit(store, name));
+    const primary = unwrapReviewRecordResult(store, await readWorkUnit(store, name));
     return primary.placement?.kind === "completed"
       ? { name: primary.reference.owner.name, path: workUnitMetaPath(primary), workItem: primary.reference.owner } : null;
   }
@@ -29,7 +29,7 @@ export async function readCompletedDeliveryLocus(store: Store, cwd: string, name
 export async function readDeliveryReviewFixTaskInput(store: Store, cwd: string, locus: { name: string; path: string },
   owner?: OwnerIdentity): Promise<{ taskListPath: string | null; workItem?: OwnerIdentity }> {
   if (store.capabilities.stateOffBranch) {
-    const stored = unwrapReviewRecordResult(await readStoredDeliveryEntryInput(store, locus.name, owner));
+    const stored = unwrapReviewRecordResult(store, await readStoredDeliveryEntryInput(store, locus.name, owner));
     return { taskListPath: stored.taskListPath, workItem: stored.primary.reference.owner };
   }
   const meta = parseMetaFile(await readFile(resolve(cwd, locus.path), "utf8"));

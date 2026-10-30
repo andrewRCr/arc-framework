@@ -69,6 +69,6 @@ export async function writeCandidateRecord(cwd: string, name: string, record: Ca
   const result = await access.store.write({ ...prepareCandidateRecordPut(name, record, expectedVersion, owner),
     provenance: { verb: "write-candidate-record", lifecycleAction: "edit" } });
   if (result.status === "refused" && result.refusal.code === "version-conflict") throw new CandidateRecordVersionConflictError();
-  unwrapReviewRecordResult(result);
+  unwrapReviewRecordResult(access.store, result);
   return resolveCandidateRecordRelativePath(name);
 }

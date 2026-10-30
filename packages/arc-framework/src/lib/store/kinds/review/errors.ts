@@ -20,8 +20,8 @@ export class SubmissionBoundaryVersionConflictError extends Error {
 
 /** A review fact writer's exact mutation basis no longer matches the stored record. */
 export class ReviewFactVersionConflictError extends StoreRefusalError {
-  constructor(refusal: Extract<StoreRefusal, { code: "version-conflict" }>) {
-    super(refusal);
+  constructor(refusal: Extract<StoreRefusal, { code: "version-conflict" }>, offBranch: boolean) {
+    super(refusal, offBranch);
     this.name = "ReviewFactVersionConflictError";
   }
 }

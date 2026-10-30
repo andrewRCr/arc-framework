@@ -27,6 +27,7 @@ export interface StoredReviewFact<T> {
 /** A complete fact selection or an explicit failure to establish completeness. */
 export type ReviewFactListing<T> =
   | { status: "complete"; records: readonly StoredReviewFact<T>[] }
+  /** `refusal` is the off-branch store's refusal that left the listing unavailable, when one did. */
   | { status: "incomplete" | "unavailable"; reason: string; refusal?: StoreRefusal };
 
 /** One durable put, ready to join an invocation's atomic batch. */

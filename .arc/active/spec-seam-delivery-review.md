@@ -147,6 +147,9 @@ Amended 2026-10-20 — A17 admits the native resolved-terminus output arm in § 
 Goal 8's schema exceptions and Criterion 2's pinned-schema test exceptions; caller inputs and in-repo emissions
 remain unchanged.
 
+Amended 2026-10-30 — A23 admits the review error code `store-refused` in § 3.5 before the flip, extending Goal 8's
+schema exceptions and Criterion 2's pinned-schema test exceptions; in-repo refusals and emissions remain unchanged.
+
 ## Proposed Design
 
 § 1 sets the rule every field answers to and § 2 the family it produces. § 3 is everything that changes before the flip.
@@ -481,6 +484,11 @@ both, and nothing it emits changes until the flip (A2, A4):
 - **The review error code `project-identity-unavailable`** (§ 2.4), which the review error schema, closed at four codes
   today (`ReviewCommandErrorCodeSchema`, `rg/core/review-command-error-codes.ts`), gains with a remedy-carrying variant
   for each mode (`remedialErrorVariant`, `rg/core/review-command-envelope.ts`). No clone reports it before the flip.
+- **The review error code `store-refused` (A23)**, which the review error schema gains with a variant for each mode
+  carrying the store's whole refusal (`StoreRefusalSchema`, `lib/store/refusal.ts`) beside a spine remedy built as
+  § 2.4 builds the project-identity one: the refusal's condition and remedy text, and its argv where it carries one,
+  else the command's own retry with the submitted request. A review command reports it only for a refusal from a store
+  keeping state off the branch; an in-repo refusal reports as today. No clone reports it before the flip.
 - **Merge's landing-link state** (§ 12.3): the `merged` arm of `IntegrationMergeResultSchema`
   (`scripts/integration/merge.ts`), whose next action is always `complete`, admits whether the landing-commit link was
   written and, where it was not, the rerun's remedy. In-repo merge writes no link and reports no link state.
@@ -2667,5 +2675,8 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
 
 - **A22** — 2026-10-29 — task: give `arc review local cancel` its native owner and outcome. _Supersedes:_ none.
   _Trigger:_ 7.5 must-stop. _Work:_ 4.R5. _Revalidated:_ pending → 8.1.
+
+- **A23** — 2026-10-30 — design: report a native store refusal through review commands with its code and remedy.
+  _Supersedes:_ § 3.5, Goal 8, Criterion 2. _Trigger:_ F5 review. _Work:_ review-fix. _Revalidated:_ pending → 8.1.
 
 ---

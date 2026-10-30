@@ -96,7 +96,7 @@ function refuseProjectIdentityFailure(error: unknown, json: boolean): boolean {
 }
 
 function refuseAttestationStateFailure(error: unknown, json: boolean): boolean {
-  if (!(error instanceof StoreRefusalError)) return refuseProjectIdentityFailure(error, json);
+  if (!(error instanceof StoreRefusalError) || !error.offBranch) return refuseProjectIdentityFailure(error, json);
   refuseWithRemedy(error.refusal.condition, error.refusal.remedy, json);
   return true;
 }
@@ -108,7 +108,7 @@ async function publishStoredAttestation(store: Store | undefined, primary: Store
     throw new Error("Native attestation requires its selected metadata record and Store.");
   }
   const written = await writeStoredAttestation({ ...input, store, primary });
-  if (written.status === "refused") throw new StoreRefusalError(written.refusal);
+  if (written.status === "refused") throw new StoreRefusalError(written.refusal, store.capabilities.stateOffBranch);
   return written.result;
 }
 
@@ -226,7 +226,7 @@ export async function attestCandidateWithReviewBoundary(base: VerbBase,
   await refusingStoreFailures(input.json === true, () => attestCandidate(base, input));
 }
 
-/** Render a store refusal from any of a verb's reads or writes through its typed refusal. */
+/** Render an off-branch store's refusal from any of a verb's reads or writes through its typed refusal. */
 async function refusingStoreFailures(json: boolean, run: () => Promise<void>): Promise<void> {
   try { await run(); }
   catch (error) { if (!(error instanceof StoreRefusalError) || !refuseAttestationStateFailure(error, json)) throw error; }

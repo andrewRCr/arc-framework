@@ -47,8 +47,8 @@ export function selectReviewRecordOwner(store: Store, name: string, owner: Owner
 }
 
 /** Carry every non-absence refusal whole, its message the store's condition and retry remedy. */
-export function unwrapReviewRecordResult<T>(result: StoreResult<T>): T {
-  if (result.status === "refused") throw new StoreRefusalError(result.refusal);
+export function unwrapReviewRecordResult<T>(store: Pick<Store, "capabilities">, result: StoreResult<T>): T {
+  if (result.status === "refused") throw new StoreRefusalError(result.refusal, store.capabilities.stateOffBranch);
   return result.result;
 }
 
@@ -56,9 +56,10 @@ export function unwrapReviewRecordResult<T>(result: StoreResult<T>): T {
 export async function readReviewRecord(store: Store, reference: RecordReference): Promise<StoreRecord | null> {
   const result = await store.read({ reference });
   if (result.status === "refused" && result.refusal.code === "not-found") return null;
-  const record = unwrapReviewRecordResult(result);
+  const record = unwrapReviewRecordResult(store, result);
   if (record.conflicts.length > 0) throw new StoreRefusalError({ code: "record-malformed", class: "recoverable",
     reference: record.reference, rule: "review.record-conflict",
-    condition: `Review record has unresolved conflicts. ${listRecordConflicts(record.conflicts)}`, remedy: { text: RESOLVE_RECORD_CONFLICTS } });
+    condition: `Review record has unresolved conflicts. ${listRecordConflicts(record.conflicts)}`, remedy: { text: RESOLVE_RECORD_CONFLICTS } },
+  store.capabilities.stateOffBranch);
   return record;
 }

@@ -62,6 +62,6 @@ export async function writeSubmissionBoundary(cwd: string, boundary: ReviewInteg
   const result = await access.store.write({ ...prepareSubmissionBoundaryPut(value, expectedVersion, owner),
     provenance: { verb: "write-submission-boundary", lifecycleAction: "edit" } });
   if (result.status === "refused" && result.refusal.code === "version-conflict") throw new SubmissionBoundaryVersionConflictError();
-  unwrapReviewRecordResult(result);
+  unwrapReviewRecordResult(access.store, result);
   return resolveSubmissionBoundaryPath(boundary.workUnit);
 }

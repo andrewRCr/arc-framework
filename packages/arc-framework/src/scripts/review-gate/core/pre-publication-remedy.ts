@@ -22,6 +22,11 @@ const PRE_PUBLICATION_REMEDIES: Record<
     "Restore the project identity record, then re-run",
     prePublicationResumeArgv(workUnit),
   ),
+  "store-refused": (workUnit) => spineRemedy(
+    "Pre-publication reads and writes only through a store that serves its review records.",
+    "Apply the store's reported remedy, then re-run",
+    prePublicationResumeArgv(workUnit),
+  ),
   "corrupt-state": (workUnit) => spineRemedy(
     "Pre-publication reduces only intact durable review evidence.",
     "Repair the reported durable record, then re-run",

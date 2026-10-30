@@ -8,9 +8,9 @@ import { readReviewRecord, unwrapReviewRecordResult } from "./access-shared.js";
 import { ReviewFactVersionConflictError } from "./errors.js";
 import { StoreRefusalError } from "../../refusal-error.js";
 
-/** A listing that could not complete, thrown with its store refusal whole when one caused it. */
+/** A listing that could not complete, thrown with an off-branch store's refusal whole when one caused it. */
 export function reviewFactListingError(listing: Exclude<ReviewFactListing<unknown>, { status: "complete" }>): Error {
-  return listing.refusal === undefined ? new Error(listing.reason) : new StoreRefusalError(listing.refusal);
+  return listing.refusal === undefined ? new Error(listing.reason) : new StoreRefusalError(listing.refusal, true);
 }
 
 interface ReviewFactAccess<T> {
@@ -32,8 +32,8 @@ export function createReviewFactAccess<T>(store: Store, reference: (key: string)
     async list(): Promise<ReviewFactListing<T>> {
       const scope = reference("listing");
       const result = await store.list({ family: "review", kind: scope.kind, owner: scope.owner });
-      if (result.status === "refused") return { status: "unavailable",
-        reason: `${result.refusal.condition} ${result.refusal.remedy.text}`, refusal: result.refusal };
+      if (result.status === "refused") return { status: "unavailable", reason: `${result.refusal.condition} ${result.refusal.remedy.text}`,
+        ...(store.capabilities.stateOffBranch ? { refusal: result.refusal } : {}) };
       const listing = result.result;
       if (listing.status === "absent") return { status: "complete", records: [] };
       if (listing.status === "unreadable") return { status: "unavailable", reason: `${listing.condition} ${listing.remedy.text}` };
@@ -55,8 +55,8 @@ export function createReviewFactAccess<T>(store: Store, reference: (key: string)
     async write(value: T, expected: RecordVersion | null): Promise<StoredReviewFact<T>> {
       const put = prepare(value, expected);
       const written = await store.write({ ...put, provenance: { verb: "review", lifecycleAction: "edit" } });
-      if (written.status === "refused" && written.refusal.code === "version-conflict") throw new ReviewFactVersionConflictError(written.refusal);
-      const result = unwrapReviewRecordResult(written);
+      if (written.status === "refused" && written.refusal.code === "version-conflict") throw new ReviewFactVersionConflictError(written.refusal, store.capabilities.stateOffBranch);
+      const result = unwrapReviewRecordResult(store, written);
       return { reference: result.reference, version: RecordVersionSchema.parse(result.version),
         value: schema.parse(JSON.parse(put.content)) };
     },

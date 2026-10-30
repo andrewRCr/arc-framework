@@ -28,11 +28,11 @@ export async function exportWorkUnitSpec(input: DesignExportInput): Promise<Desi
   if (!usesOffBranchState(input.store) || input.store === undefined || input.trackDesignDocs !== "specs") return null;
   const slug = SlugSchema.parse(input.workUnit);
   const meta = await readWorkUnit(input.store, slug, input.owner);
-  if (meta.status === "refused") throw new StoreRefusalError(meta.refusal);
+  if (meta.status === "refused") throw new StoreRefusalError(meta.refusal, input.store.capabilities.stateOffBranch);
   const spec = await input.store.read({ reference: recordReferences["work-item/spec"](meta.result.reference.owner) });
   if (spec.status === "refused") {
     if (spec.refusal.code === "not-found") return null;
-    throw new StoreRefusalError(spec.refusal);
+    throw new StoreRefusalError(spec.refusal, input.store.capabilities.stateOffBranch);
   }
   const path = posix.join(resolveArcPath({ kind: "work-unit-export", slug }), workUnitArtifactName(slug, "spec"));
   const fs = input.fs ?? filesystem;
