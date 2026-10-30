@@ -9,6 +9,7 @@ export function createClashDouble(store: Store, input: {
   mode?: "clash" | "mid-verb";
 }): Store {
   const wrapped = Object.create(store) as Store;
+  let lookups = 0;
   const project = (reference: RecordReference) => RecordReferenceSchema.parse({ ...reference,
     owner: { ...reference.owner, name: input.slug } });
   const holderFor = (uid?: string) => uid === undefined ? undefined : input.holders.find(reference =>
@@ -39,12 +40,11 @@ export function createClashDouble(store: Store, input: {
       return { status: "ok", result: { ...result.result, records } };
     }
     if (query.kind !== "work-item/meta") return result;
-    const records = result.result.records.filter(record => input.mode !== "mid-verb" || !sameReference(record.reference, input.holders[1]))
+    const records = result.result.records.filter(record => input.mode !== "mid-verb" || lookups > 0 || !sameReference(record.reference, input.holders[1]))
       .map(record => input.holders.some(reference => sameReference(record.reference, reference))
         ? { ...record, reference: project(record.reference) } : record);
     return { status: "ok", result: { ...result.result, records } };
   };
-  let lookups = 0;
   wrapped.lookup = async query => {
     if (query.kind === "claim" && query.claim.kind === "work-unit") {
       const holder = holderFor(query.claim.uid);

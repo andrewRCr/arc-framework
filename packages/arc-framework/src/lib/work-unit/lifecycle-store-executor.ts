@@ -15,7 +15,6 @@ import type { Store } from "../store/contract.js";
 import type { StoreRecord } from "../store/read.js";
 import type { Mutation } from "../store/write.js";
 import type { WritePlacement } from "../store/placement.js";
-import { resolveSlugPosition } from "./lifecycle-resolver.js";
 import type { TransitionRecord, Verb } from "./lifecycle-transitions.js";
 import { DEFAULT_GUARD_VALIDATORS, resolveTransitionEdge, transitionLookupRejection,
   type ExecuteTransitionContext, type TransitionInputs, type TransitionOutcome } from "./lifecycle-executor.js";
@@ -76,30 +75,25 @@ async function selectTransitionSubject(store: Store, params: { verb: Verb; slug:
   const basis = await selectPrimary(store, params.slug, inputs.storeTransition?.create, inputs.storeTransition?.primary);
   if (basis !== undefined && "status" in basis) return basis;
   const slug = basis?.reference.owner.name ?? params.slug;
-  const selectedPosition = await selectTransitionPosition(store, inputs, view.index, slug);
+  const entry = basis === undefined ? undefined : view.entries.find(candidate => sameReference(candidate.reference, basis.reference));
+  if (basis !== undefined && (entry === undefined || entry.version !== basis.version)) return {
+    status: "rejected", stage: "store", message: `The work unit changed during transition preparation; retry arc ${verb} ${slug}.`,
+  };
+  const selectedPosition = await selectTransitionPosition(store, inputs, slug, entry);
   if ("status" in selectedPosition) return selectedPosition;
   const { position } = selectedPosition;
   const edge = resolveTransitionEdge(verb, position, inputs.commitment);
   if (edge === undefined) return { status: "rejected", stage: "lookup", message: transitionLookupRejection(verb, position) };
-  if (!agreesWithInventory(basis, view.entries)) return {
-    status: "rejected", stage: "store", message: `The work unit changed during transition preparation; retry arc ${verb} ${slug}.`,
-  };
   return { basis, slug, position, edge };
 }
 
-async function selectTransitionPosition(store: Store, inputs: TransitionInputs, index: LifecycleIndex,
-  slug: string): Promise<{ position: LifecyclePosition | null } | Rejected> {
-  if (inputs.storeTransition?.create === undefined) return { position: resolveSlugPosition(index, slug) };
+async function selectTransitionPosition(store: Store, inputs: TransitionInputs,
+  slug: string, entry?: LifecycleEntry): Promise<{ position: LifecyclePosition | null } | Rejected> {
+  if (inputs.storeTransition?.create === undefined) return { position: entry === undefined ? null : { phase: entry.phase, location: entry.location } };
   const admission = await checkCreationAdmission(store, slug);
   if (admission.kind === "free") return { position: null };
   const refusal = renderCreationAdmissionRefusal(slug, admission);
   return { status: "rejected", stage: "guard", message: `${refusal.condition} ${refusal.remedy.text}` };
-}
-
-function agreesWithInventory(basis: StoreRecord | undefined, entries: readonly LifecycleEntry[]): boolean {
-  if (basis === undefined) return true;
-  const indexed = entries.find((entry) => sameReference(entry.reference, basis.reference));
-  return indexed !== undefined && indexed.version === basis.version;
 }
 
 function validateStoreInputs(edge: TransitionRecord, inputs: TransitionInputs): Rejected | undefined {

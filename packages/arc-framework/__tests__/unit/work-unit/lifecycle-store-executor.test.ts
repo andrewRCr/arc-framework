@@ -161,8 +161,8 @@ it("keeps a prepared primary after the name becomes clashed during the verb", as
   const h = createLifecycleHarness();
   const first = await h.seedMeta("shared", { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "provisional" });
   const second = await h.seedMeta("second");
-  const store = createClashDouble(h.store, { slug: "shared", holders: [first.reference, second.reference], mode: "mid-verb" });
-  const primary = lifecycleSuccess(await readWorkUnit(store, "shared"));
+  const primary = lifecycleSuccess(await readWorkUnit(h.store, "shared"));
+  const store = createClashDouble(h.store, { slug: "shared", holders: [first.reference, second.reference] });
   expect(await executeTransition(context(store), { verb: "promote", slug: "shared", inputs: { class: "Light", storeTransition: { primary } } }))
     .toMatchObject({ status: "ok" });
   expect(lifecycleSuccess(await h.store.read({ reference: first.reference })).placement).toEqual({ kind: "backlog", commitment: "planned" });
