@@ -179,14 +179,30 @@ export async function projectCheckoutSubjectMeta(options: {
   const candidateStore = options.store?.capabilities.stateOffBranch === true ? options.store : null;
   const candidateAuthorityRequired = record.state === "Integrating"
     || (record.state === "Active" && record.currentWorkflow === "prepare-work-unit");
-  if ((candidateStore !== null || candidateId !== null) && candidateAuthorityRequired) {
+  // Off the branch the Candidate record alone carries Candidate authority, so a work unit holding none has no Candidate.
+  let storedCandidate: { path: string; content: string } | null = null;
+  if (candidateStore !== null && candidateAuthorityRequired) {
+    try {
+      if (options.workUnit === undefined) throw new Error("The work-unit authority for this Candidate is unavailable. Re-read the work unit through the Store, then retry.");
+      const content = await readStoreSubjectCandidate(candidateStore, options.workUnit.record.reference.owner);
+      storedCandidate = content === null ? null : { path: `review/candidate for ${options.workUnit.record.reference.owner.name}`, content };
+    } catch (error) {
+      return {
+        kind: "unresolved",
+        code: "subject-unresolved",
+        message: error instanceof Error ? error.message : String(error),
+        metaPath: expectedPath,
+      };
+    }
+    if (storedCandidate === null) candidateId = null;
+  }
+  if ((storedCandidate !== null || (candidateStore === null && candidateId !== null)) && candidateAuthorityRequired) {
     try {
       let candidatePath: string;
       let candidateContent: string;
-      if (candidateStore !== null) {
-        if (options.workUnit === undefined) throw new Error("The work-unit authority for this Candidate is unavailable. Re-read the work unit through the Store, then retry.");
-        candidatePath = `review/candidate for ${options.workUnit.record.reference.owner.name}`;
-        candidateContent = await readStoreSubjectCandidate(candidateStore, options.workUnit.record.reference.owner);
+      if (storedCandidate !== null) {
+        candidatePath = storedCandidate.path;
+        candidateContent = storedCandidate.content;
       } else {
         candidatePath = resolveCandidateRecordRelativePath(options.subjectKey);
         candidateContent = await options.io.readFile(join(options.cwd, candidatePath));

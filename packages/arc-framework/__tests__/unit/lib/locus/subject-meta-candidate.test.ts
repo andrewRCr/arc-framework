@@ -110,15 +110,28 @@ it("preserves the selected owner's generation after its name is reused", async (
   expect(await projectCheckoutSubjectMeta(h.options)).toMatchObject({ kind: "resolved", integrationBoundary: { candidateId: h.authoritative.id } });
 });
 
-it("reports the Store's missing-record condition and remedy, then resumes after repair", async () => {
+it("has no Candidate while the work unit holds no Candidate record, whatever its meta names, then takes the record", async () => {
   const h = await fixture();
   await writeFile(h.localCandidatePath, h.authoritative.content);
+  expect(await projectCheckoutSubjectMeta(h.options)).toMatchObject({ kind: "resolved", integrationBoundary: null });
+  await h.seed(h.reference, h.authoritative.content);
+  expect(await projectCheckoutSubjectMeta(h.options)).toMatchObject({ kind: "resolved", integrationBoundary: { candidateId: h.authoritative.id } });
+});
+
+it("reports the Store's Candidate read refusal with its condition and remedy, then resumes after repair", async () => {
+  const h = await fixture();
+  const saved = await h.seed(h.reference, h.authoritative.content);
+  await writeFile(h.localCandidatePath, h.authoritative.content);
+  // A record written by a newer build refuses its read below write admission.
+  const stored = h.store.state.records.get(recordKey(saved.reference));
+  if (stored === undefined) throw new Error("Expected the persisted Candidate");
+  stored.formatVersion += 1;
   const refusal = await h.store.read({ reference: h.reference });
-  if (refusal.status !== "refused") throw new Error("Expected missing Candidate");
+  if (refusal.status !== "refused" || refusal.refusal.code === "not-found") throw new Error(JSON.stringify(refusal));
   const result = await projectCheckoutSubjectMeta(h.options);
   expect(result).toMatchObject({ kind: "unresolved", code: "subject-unresolved", message: expect.stringContaining(refusal.refusal.condition) });
   expect(result.kind === "unresolved" ? result.message : "").toContain(refusal.refusal.remedy.text);
-  await h.seed(h.reference, h.authoritative.content);
+  stored.formatVersion -= 1;
   expect(await projectCheckoutSubjectMeta(h.options)).toMatchObject({ kind: "resolved", integrationBoundary: { candidateId: h.authoritative.id } });
 });
 
