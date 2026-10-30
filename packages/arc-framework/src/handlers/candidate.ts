@@ -25,7 +25,6 @@ import type { GitExec } from "../lib/git/exec.js";
 import { createDefaultStorePorts } from "../lib/store/default-store-ports.js";
 import { retryEndedItemHistory } from "../lib/store/history-retry.js";
 import { StoreRefusalError } from "../lib/store/refusal-error.js";
-import type { Remedy } from "../lib/store/refusal.js";
 import { ReviewOwnerSelectionError } from "../lib/store/kinds/review/errors.js";
 import { reviewFailureSpineRemedy } from "../scripts/review-gate/runtime/project-identity-remedy.js";
 import type { ReviewInvocationInput } from "../scripts/review-gate/runtime/invocation.js";
@@ -367,7 +366,6 @@ function uncollectableSubjectRemedy(workUnit: string): SpineRemedy {
  * @returns The closed execution-unavailable result.
  */
 function executionFailedResult(error: unknown, workUnit: string, request: unknown): CandidateApplicabilityCommandResult {
-  const refusal = nativeExecutionRefusal(error);
   return CandidateApplicabilityResolutionResultSchema.parse({
     schemaVersion: 1,
     mode: "candidate-applicability-resolve",
@@ -376,15 +374,16 @@ function executionFailedResult(error: unknown, workUnit: string, request: unknow
     reason: "execution-failed",
     ...(error instanceof CandidateSubjectUncollectableError
       ? { detail: error.message, remedy: uncollectableSubjectRemedy(workUnit) }
-      : refusal === undefined ? {} : { detail: refusal.condition.slice(0, 4_096), remedy: reviewFailureSpineRemedy(refusal.condition,
-        refusal.remedy, ["arc", "candidate", "applicability", "resolve", workUnit, "-"], request) }),
+      : nativeRefusalDetail(error, workUnit, request)),
   });
 }
 
 // A store keeping state off the branch refuses with its own cause and repair; an in-repo failure stays closed as before.
-function nativeExecutionRefusal(error: unknown): { condition: string; remedy: Remedy } | undefined {
-  if (error instanceof StoreRefusalError && error.offBranch) return error.refusal;
-  return error instanceof ReviewOwnerSelectionError ? error : undefined;
+function nativeRefusalDetail(error: unknown, workUnit: string, request: unknown): { detail?: string; remedy?: SpineRemedy } {
+  const refusal = error instanceof StoreRefusalError && error.offBranch ? error.refusal
+    : error instanceof ReviewOwnerSelectionError ? error : undefined;
+  return refusal === undefined ? {} : { detail: refusal.condition.slice(0, 4_096), remedy: reviewFailureSpineRemedy(
+    refusal.condition, refusal.remedy, ["arc", "candidate", "applicability", "resolve", workUnit, "-"], request) };
 }
 
 function emit(
@@ -403,7 +402,7 @@ async function resolveCandidateMutationScope(
   root: string,
   workUnit: string,
   interaction?: InteractionContext,
-): Promise<{ refusal: CandidateMutationRefusal } | { scope: CandidateMutationScope }> {
+): Promise<{ refusal: CandidateMutationRefusal; cause?: unknown } | { scope: CandidateMutationScope }> {
   let owner: CandidateMutationOwner;
   try {
     owner = await deps.resolveMutationOwner(root, interaction);
@@ -418,8 +417,8 @@ async function resolveCandidateMutationScope(
     return (await deps.resolveCompletedWorkUnits(root)).includes(workUnit)
       ? { scope: "unowned" }
       : { refusal: "active-work-unit-mismatch" };
-  } catch {
-    return { refusal: "active-work-unit-unavailable" };
+  } catch (error) {
+    return { refusal: "active-work-unit-unavailable", cause: error };
   }
 }
 
@@ -480,6 +479,7 @@ export async function handleCandidateApplicabilityResolve(
       state: "execution-unavailable",
       nextAction: "stop",
       reason: mutation.refusal,
+      ...nativeRefusalDetail(mutation.cause, commandInput.data.name, request),
     }));
     return;
   }
@@ -490,7 +490,9 @@ export async function handleCandidateApplicabilityResolve(
       commandInput.data.name,
       interaction,
     );
-    if ("refusal" in current) throw new Error(`Candidate mutation refused: ${current.refusal}`);
+    if ("refusal" in current) {
+      throw current.cause instanceof Error ? current.cause : new Error(`Candidate mutation refused: ${current.refusal}`);
+    }
   };
   let executed: unknown;
   try {
