@@ -642,5 +642,7 @@ implementation rather than becoming an undocumented task decision.
   § Proposed Design 10 ¶5, § Success Criteria 15. _Trigger:_ D2 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A12** — 2026-10-30 — design: the measured benefit claim binds to the four-shard store plan. _Supersedes:_
   § Proposed Design 10 ¶7, § Success Criteria 14. _Trigger:_ P2.1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A13** — 2026-10-30 — task: native shard fixtures work from the long form of a Windows temporary path.
+  _Supersedes:_ none. _Trigger:_ 7.1 terminal. _Work:_ 4.R. _Revalidated:_ pending → 7.1.
 
 ---

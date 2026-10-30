@@ -264,6 +264,7 @@ through controller closing. Store qualification uses the native reach command la
 
 - _Goal:_ Qualification can compare native unsharded selection with the actual executed shard assignments without
   changing native membership or partitioning the same selection twice.
+    - _Amended in:_ 4.R (A13)
 
     - `[x]` **4.1.a Collect native membership identities and actual assignments**
         - A qualification-only configuration observes full native discovery, one native shard/sort cycle and worker
@@ -326,6 +327,20 @@ through controller closing. Store qualification uses the native reach command la
         - Captured native reach derivation qualifies a no-affected selection without controller observations. Two
           actual suites qualify across four shares on Linux x64, including two empty controllers observed only after
           awaited close. Existing observations reject ordinary empty runs and native close failures.
+
+### `[x]` **4.R Keep native shard fixtures on one path spelling under Windows temporary aliases — D7**
+
+- _Goal:_ The native shard qualification suites hold on Windows hosts whose temporary directory carries an 8.3
+  alias, comparing fixture paths and native module ids in one spelling (A13).
+
+    - `[x]` **4.R.a Work from the long form of the fixture and captured playback roots**
+        - `makeNativeShardFixture` and `captureNativeShardFixture` take their roots through the native `realpath`.
+          Vite keeps the alias until its asynchronous `net use` probe settles and then expands it, so a short root
+          met module ids in either spelling depending on timing.
+
+    - `[x]` **4.R.b Reproduce and clear the failure under a hosted-shaped temporary path**
+        - On the local Windows runner, with the temporary path shortened as hosted `windows-latest` presents it, the
+          five shard suites failed varying cases in both runs at `c33194fad` and passed in both runs with the change.
 
 ### `[x]` **4.4 Prove native membership, writers and completion** — validate exit criterion at segment scope
 

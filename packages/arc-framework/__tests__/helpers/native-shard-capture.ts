@@ -41,7 +41,8 @@ export async function captureNativeShardFixture(fixture: { root: string; package
     },
   }, { git, gitRaw: createExecaRawGitExec(), source: nodeSourcePresentationIO });
   try {
-    const packageRoot = join(captured.source.root, "packages/arc-framework");
+    // Playback runs in place: take the long form Vitest's module ids may carry where Windows aliases the temp path.
+    const packageRoot = join(await realpath(captured.source.root), "packages/arc-framework");
     await symlink(await realpath(join(fixture.root, "node_modules")), join(captured.source.root, "node_modules"), "junction");
     await mkdir(join(packageRoot, "node_modules"));
     const binding = captured.environment.bindings.ARC_TEST_DURATION_FILE;

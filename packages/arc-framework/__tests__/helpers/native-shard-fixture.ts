@@ -1,12 +1,14 @@
 /** Disposable native unit projects with private writers and observable real sequencing. */
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { copyLiveDependencies } from "./copy-live-dependencies.js";
 import { makeNativeBuildFixture } from "./native-build-fixture.js";
 
 /** Build two named projects that deliberately share module filenames. */
 export async function makeNativeShardFixture() {
-  const fixture = await makeNativeBuildFixture();
+  const built = await makeNativeBuildFixture();
+  // Vitest's module ids may expand a Windows 8.3 alias in the temporary directory's path; work from the long form.
+  const fixture = { root: await realpath(built.root), packageRoot: await realpath(built.packageRoot) };
   await rm(join(fixture.packageRoot, "node_modules"));
   await mkdir(join(fixture.packageRoot, "node_modules"));
   await copyLiveDependencies(resolve(import.meta.dirname, "../.."), fixture.packageRoot, [
