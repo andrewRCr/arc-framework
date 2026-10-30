@@ -32,6 +32,11 @@ function contained(root, path) {
   return suffix !== ".." && !suffix.startsWith(`..${sep}`) && !isAbsolute(suffix);
 }
 
+/** @param {string} target */
+function manifestLinkTarget(target) {
+  return process.platform === "win32" ? target.replaceAll("\\", "/") : target;
+}
+
 // Follow a link target component by component: contained dangling and cyclic targets are accepted, while
 // escapes and the generated Git administration that replaced the repository's own are refused.
 /**
@@ -54,7 +59,7 @@ async function assertLinkContained(root, link, target) {
     const stat = await lstat(path).catch(/** @param {unknown} error */ error => { if (error instanceof Error && "code" in error && (error.code === "ENOENT" || error.code === "ENOTDIR")) return undefined; throw error; });
     if (stat === undefined) return;
     if (stat.isSymbolicLink()) {
-      const next = await readlink(path);
+      const next = manifestLinkTarget(await readlink(path));
       if (++hops > 256 || next === "" || isAbsolute(next)) throw new Error("Source symbolic link chain cannot be followed within its root");
       pending = [...next.split("/"), ...pending];
       cursor = dirname(path);
@@ -141,9 +146,18 @@ export async function verifyInputs(plan, expectedGit) {
     if (!contained(root, await realpath(dirname(path)))) throw new Error("Source entry parent escapes its root");
     if (entry.kind === "file") await verifyFile(path, entry);
     else {
-      if (entry.kind !== "symlink" || typeof entry.target !== "string" || !(await lstat(path)).isSymbolicLink() || await readlink(path) !== entry.target
-        || entry.target === "" || isAbsolute(entry.target)) throw new Error("Source symbolic link changed or escapes its root");
+      if (entry.kind !== "symlink" || typeof entry.target !== "string" || entry.target === "" || isAbsolute(entry.target)) {
+        throw new Error("Source symbolic link changed or escapes its root");
+      }
+      const before = await lstat(path, { bigint: true });
+      if (!before.isSymbolicLink()) throw new Error("Source symbolic link changed or escapes its root");
+      const target = await readlink(path);
+      if (manifestLinkTarget(target) !== entry.target) throw new Error("Source symbolic link changed or escapes its root");
       await assertLinkContained(root, path, entry.target);
+      const after = await lstat(path, { bigint: true });
+      if (!after.isSymbolicLink() || identityKeys.some(key => before[key] !== after[key]) || await readlink(path) !== target) {
+        throw new Error("Source symbolic link changed during verification");
+      }
     }
   }
   if (!(await lstat(resolve(root, ".git"))).isDirectory()) throw new Error("Independent source Git administration is unavailable");

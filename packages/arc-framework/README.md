@@ -158,13 +158,21 @@ component. Preserve literal names without Unicode normalization. Sort entries by
 ordering. Windows capture rejects catalog backslashes before native path interpretation; POSIX backslashes remain
 literal filename characters. Routed cwd must remain contained lexically and through directory links; `.` means root.
 
+Symlink targets preserve literal text on POSIX. Windows-native target separators are encoded as "/" in the manifest,
+without changing case, reducing dot components or collapsing repeated separators. For index/commit source, this target
+must still equal the selected Git link blob exactly; a literal backslash in that blob is not rewritten.
+
+Adapters recreating links across platforms must use the manifest target rather than a Windows-native link spelling.
+When verifying on Windows, replace native target backslashes with "/" before comparing with the manifest. Preserve
+literal comparisons on POSIX, and compare raw native spellings before and after verification to detect link changes.
+
 Canonical encoding is UTF-8 JSON without whitespace or trailing newline, equivalent to `JSON.stringify` of these fields
 in this exact order: `version`, `coordinates`, `entries`; coordinates `tree`, optional `head`, optional `base`,
 `merged`; file entry `path`, `kind`, `mode`, `digest`, `bytes`; symlink entry `path`, `kind`, `target`. Omit absent
 optional fields. Hash that encoding with SHA-256. Generated pack names or administrative timestamps do not define
 source identity.
 
-Verify canonical bytes/digest, coordinate agreement, every entry's bytes/mode or literal target, spelling and
+Verify canonical bytes/digest, coordinate agreement, every entry's bytes/mode or target, spelling and
 containment before confirming source identity. Verify frozen inputs before every invocation. Preserve source absence as
 well as listed inputs: a previous command's new source files cannot silently become another command's inputs.
 Isolate/reset writable views or refuse execution. Provider-generated dependencies/outputs are allowed when they do not
