@@ -494,13 +494,11 @@ alone.
           uncommitted record passes `mapReviewCandidateSources`' reader checks as the Candidate record's newest revision
           or is left behind with the reader's reason; committed versions with no current record are left behind. The
           import-level coverage check moves to 3.R2.b, since tests reach the import only through `runStoreMigrate`.
-    - `[ ]` **3.R2.b Pass the mapping into the import from `arc store migrate`**
-        - `handleStoreMigrate` (`commands/store-migrate.ts`) runs `runStoreMigrate` with `mapReviewRecords` as its
-          `reviewMapping` port; the follow path's `runStoreRemote` and `arc store remote` are unchanged, and the review
-          codecs stay outside the in-repo backend's static closure.
-        - Build `test-first`: an import trial through the handler over a repository holding a live work unit's
-          Candidate versions, current record, boundary, and gate files reports the mapping's listing with no review
-          coverage notice.
+    - `[x]` **3.R2.b Pass the mapping into the import from `arc store migrate`**
+        - `handleStoreMigrate` loads `mapReviewRecords` only for `--import` and adds it to the command's own ports;
+          supplied ports run the import as given, so the import suites keep exercising the unmapped port. Through the
+          command, a trial over a live work unit's Candidate versions, current record, boundary, and gate files lists
+          every source once with no review notice, and the import lands the mapped Candidate and version-2 boundary.
     - `[ ]` **3.R2.c Run the import's trial over this repository**
         - Run `arc store migrate --import --trial --json` over this repository through the handler, and record the
           listing's accounting and every remaining notice as the appended criterion's evidence.

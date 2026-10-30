@@ -82,10 +82,12 @@ export async function importFixture(layout: "default" | "separate" = "default", 
   await git("git", ["config", "remote.origin.arc-state", layout === "default" ? "push" : "off"]);
   const ports = createDefaultRefStorePorts({ checkoutRoot: root, backingRepository: async () => null });
   const origin = join(root, PREPARED_REMOTE_PATH);
-  return { root, git, ports, origin, remote: makeGitExec(origin), migrate: (trial = false) => invokeImport(ports, trial) };
+  return { root, git, ports, origin, remote: makeGitExec(origin), migrate: (trial = false) => invokeImport({ ports }, trial),
+    migrateCommand: (trial = false) => invokeImport({ cwd: root }, trial) };
 }
 
-async function invokeImport(ports: RefStorePorts, trial: boolean): Promise<StoreMigrateResult> {
+/** Injected ports run the import as given; a checkout alone runs it through the command's own production ports. */
+async function invokeImport(boundary: { ports: RefStorePorts } | { cwd: string }, trial: boolean): Promise<StoreMigrateResult> {
   const sourceText = await readFile(resolve(import.meta.dirname, "../../../src/cli.ts"), "utf8");
   const syntax = scanCommanderSource({ file: "cli.ts", sourceText }).commands.find(({ path }) => path === "store migrate");
   if (!syntax) throw new Error("The production migration command is absent");
@@ -95,7 +97,7 @@ async function invokeImport(ports: RefStorePorts, trial: boolean): Promise<Store
   command.action(withInteractionContext({ machineReadable: () => true,
     environment: { ci: false, promptInputIsTTY: false, promptOutputIsTTY: false } },
   async (context, options: StoreMigrateOptions) => {
-    result = await handleStoreMigrate(options, context, { ports, write: () => {}, setExitCode: () => {} });
+    result = await handleStoreMigrate(options, context, { ...boundary, write: () => {}, setExitCode: () => {} });
   }));
   await command.parseAsync(["--import", "--json", ...(trial ? ["--trial"] : [])], { from: "user" });
   if (!result) throw new Error("The migration handler produced no result");

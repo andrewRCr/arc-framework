@@ -22,6 +22,10 @@ import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { TransientIdentityRecordSchema, serializeTransientIdentityRecord } from "../../src/lib/errand/identity-record.js";
 import { hashBlob, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
 import { makeGitProcessError } from "../helpers/git-exec-fake.js";
+import { canonicalDigest } from "../../src/lib/kernel/index.js";
+import { CandidateManagedRecordV1Schema, createCandidateAttestation, createCandidateSubjectSnapshot,
+  serializeCandidateManagedRecord } from "../../src/lib/work-unit/candidate-attestation.js";
+import { projectCandidateReviewBoundary } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 // The stub mappings echo their input as record content, so the review family's codecs stay out of the import.
 async function opaqueReviewImport(...args: Parameters<typeof importFixture>): ReturnType<typeof importFixture> {
@@ -557,3 +561,41 @@ it.each(["work-item/meta", "work-item/notes"] as const)("refuses mapped %s bytes
     expect(success(await store.read({ reference })).content).toBe(content);
   }
 }, 40_000);
+
+it("passes the review mapping into the import from arc store migrate and covers every live review source once", async () => {
+  const h = await importFixture();
+  const subject = createCandidateSubjectSnapshot([{ path: "src/main.ts", mode: "100644", digest: canonicalDigest({ source: 1 }),
+    treatment: "reviewable" }]);
+  const attestation = createCandidateAttestation({ workUnit: "alpha", subject, baseRevision: "a".repeat(40), attestedBy: "andrew",
+    attestedAt: "2026-10-29T12:00:00Z", verificationEvidenceRef: "verification://root" });
+  const candidate = serializeCandidateManagedRecord(CandidateManagedRecordV1Schema.parse({ schemaVersion: 1,
+    semanticsVersion: "candidate-attestation/v1", attestation, subject, transitions: [], lineageAttestations: [] }));
+  const path = resolveCandidateRecordRelativePath("alpha");
+  const boundary = resolveArcPath({ kind: "integration-boundary-record", slug: SlugSchema.parse("alpha") });
+  await writeFile(join(h.root, path), candidate);
+  await mkdir(dirname(join(h.root, boundary)), { recursive: true });
+  await writeFile(join(h.root, boundary), JSON.stringify(projectCandidateReviewBoundary({ workUnit: "alpha",
+    candidateId: attestation.candidateId, candidateSubjectDigest: subject.subjectDigest })));
+  await h.git("git", ["add", ".arc"]);
+  await h.git("git", ["commit", "-m", "Attest alpha"]);
+  await h.git("git", ["update-ref", "refs/heads/feat/alpha", (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim()]);
+  const common = await resolveGitCommonDir(h.git, h.root);
+  const gate = ["arc/review-gate/retired/old.json", "arc/review-gate/.quarantine/evidence.bin"];
+  for (const file of gate) {
+    await mkdir(dirname(join(common, file)), { recursive: true });
+    await writeFile(join(common, file), "{}");
+  }
+  const commits = (await h.git("git", ["log", "--format=%H", "--", path])).stdout.trim().split("\n");
+  const trial = await h.migrateCommand(true);
+  if (trial.status !== "ok") throw new Error(JSON.stringify(trial));
+  expect(trial.result.reviewMapping.map(({ source }) => source).sort())
+    .toEqual([...gate, path, ...commits.map(commit => `${path}@${commit}`), boundary].sort());
+  expect(trial.result.reviewMapping.find(({ source }) => source === path)).toMatchObject({ outcome: "mapped" });
+  expect(trial.result.notices.filter(({ condition }) => condition.startsWith("Review "))).toEqual([]);
+  expect(await h.migrateCommand()).toMatchObject({ status: "ok" });
+  const store = createRefStore(h.ports);
+  const reference = RecordReferenceSchema.parse({ kind: "review/candidate", owner: { type: "work-item", name: "alpha" } });
+  expect(success(await store.read({ reference })).content).toBe(candidate);
+  const stored = success(await store.read({ reference: RecordReferenceSchema.parse({ ...reference, kind: "review/integration-boundary" }) }));
+  expect(JSON.parse(stored.content)).toMatchObject({ schemaVersion: 2, workUnit: "alpha", candidateId: attestation.candidateId });
+}, 60_000);
