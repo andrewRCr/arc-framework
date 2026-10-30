@@ -1,4 +1,5 @@
 /** Unavailable state anchors rebuild warm transient context without changing its checkout identity. */
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { expect, it } from "vitest";
 import { emitCompactionSeed } from "../../../src/lib/compaction-seed/emitter.js";
 import { resolveRecoveryStateBasis } from "../../../src/lib/recover/state-basis.js";
@@ -16,14 +17,14 @@ import { SessionRecoverProbeResultSchema } from "../../../src/commands/status/sc
 const ok = <T>(value: T) => ({ ok: true as const, value });
 const cursor = resolveTaskListCursor("### `[ ]` **2.1 Continue**\n");
 const noOpenCursor = resolveTaskListCursor("### `[x]` **2.1 Complete**\n");
-function transientState(kind: "errand" | "groom" | "housekeep", parentName = "subject", warm = true, phase: "tasks" | "verification" = "tasks") {
+function transientState(kind: "errand" | "groom" | "housekeep", parentName = "subject", warm = true, phase: "tasks" | "verification" = "tasks", uid?: string) {
   const loadSet = resolveLoadSetManifest({ identity: "andrew", stateOffBranch: true, activeWorkUnit: parentName,
     metaPath: `.arc/active/meta-${parentName}.md`, sessionType: "execution", planningStage: null,
     taskListPath: `.arc/active/tasks-${parentName}.md`, cohortDocPath: null,
     workUnitStage: phase === "verification" ? "verification-closeout" : "task-work" });
   const common = { markerGeneration: "generation", origin: null, identity: null, context: null, diagnostics: [], lifecycleLocation: null };
   const checkout = { path: "/parent", head: "a".repeat(40), branch: "feat/subject", detached: false, primary: true, folderPresent: true };
-  const parent = { ...common, checkout, kind: "work-unit", parentCheckoutPath: null, subject: { kind: "work-unit", key: parentName },
+  const parent = { ...common, checkout, kind: "work-unit", parentCheckoutPath: null, subject: { kind: "work-unit", key: parentName, ...(uid === undefined ? {} : { uid }) },
     context: { kind: "resolved", metaPath: `.arc/active/meta-${parentName}.md`, owner: "andrew", branch: "feat/subject", sessionType: "execution",
       workflow: phase === "verification" ? "verify-work-unit" : "process-task-loop", stage: null,
       taskListPath: `.arc/active/tasks-${parentName}.md`, taskCursor: phase === "verification" ? noOpenCursor : cursor,
@@ -39,8 +40,8 @@ function transientState(kind: "errand" | "groom" | "housekeep", parentName = "su
     primaryAvailability: { kind: "occupied", checkoutPath: "/parent", subject: parent.subject }, identityDiscovery: { kind: "absent" }, active: null });
 }
 async function emitted(kind: "errand" | "groom" | "housekeep", anchor: "null" | "expired" | "current", warm = true, phase: "tasks" | "verification" = "tasks") {
-  const h = createLifecycleHarness(); await h.seedMeta("subject");
-  const state = transientState(kind, "subject", warm, phase), recovery = deriveRecoveryLocusContext({ state, identity: "andrew", workingMemoryPath: null });
+  const h = createLifecycleHarness(); const primary = await h.seedMeta("subject");
+  const state = transientState(kind, "subject", warm, phase, boundWorkUnitSubject(primary).uid), recovery = deriveRecoveryLocusContext({ state, identity: "andrew", workingMemoryPath: null });
   const branch = state.entering.kind === "selected" ? state.entering.row.checkout.branch : null;
   if (branch === null) throw new Error("Expected a branched transient fixture");
   const selected: Store = Object.create(h.store) as Store;
@@ -53,7 +54,7 @@ async function emitted(kind: "errand" | "groom" | "housekeep", anchor: "null" | 
   if (result.status !== "written") throw new Error(JSON.stringify(result));
   if (anchor === "expired") selected.changes = async () => ({ status: "refused", refusal: missing });
   const recover = { derivedLocusState: ok(state), recoveryFrame: ok(recovery.frame), loadSet: ok(recovery.loadSet), taskCursor: recovery.taskCursor === null ? undefined : ok(recovery.taskCursor) };
-  return { ...h, original: result.seed, selected, recover, state };
+  return { ...h, primary, original: result.seed, selected, recover, state };
 }
 
 async function recoveryEnvelope(state: ReturnType<typeof transientState>) {
@@ -82,7 +83,7 @@ it.each((["errand", "groom", "housekeep"] as const).flatMap(kind => (["current",
 it.each(["task-work", "replacement-parent"] as const)("requires cursor comparison for %s after cursorless verification", async changed => {
   const h = await emitted("errand", "current", true, "verification");
   const state = transientState("errand", changed === "replacement-parent" ? "other" : "subject", true,
-    changed === "replacement-parent" ? "verification" : "tasks");
+    changed === "replacement-parent" ? "verification" : "tasks", changed === "replacement-parent" ? undefined : boundWorkUnitSubject(h.primary).uid);
   const recover = await recoveryEnvelope(state);
   expect(SessionRecoverProbeResultSchema.safeParse(recover).success).toBe(true);
   const verdict = await auditRecoveryState({ seed: h.original, recover, freshBranch: h.original.branch, freshHead: h.original.head,
@@ -109,7 +110,7 @@ it.each(["checkout", "parent", "work-unit"] as const)("refuses a changed warm tr
 });
 
 it.each(["null", "expired"] as const)("keeps a %s no-work-unit seed from adopting a new work unit", async anchor => {
-  const h = createLifecycleHarness(); await h.seedMeta("other", { state: "Planning", currentWorkflow: "draft-design" });
+  const h = createLifecycleHarness(); const primary = await h.seedMeta("other", { state: "Planning", currentWorkflow: "draft-design" });
   const head = "a".repeat(40), checkout = { path: "/repo", head, branch: "main", detached: false, primary: true, folderPresent: true };
   const common = { checkout, markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, context: null, diagnostics: [], lifecycleLocation: null };
   const free = { ...common, kind: "free-primary", subject: null };
@@ -127,7 +128,7 @@ it.each(["null", "expired"] as const)("keeps a %s no-work-unit seed from adoptin
     historyRefs: [], condition: "History expired.", remedy: { text: "Rebuild current state." } } });
   const loadSet = resolveLoadSetManifest({ identity: "andrew", stateOffBranch: true, activeWorkUnit: "other", metaPath: ".arc/active/meta-other.md",
     sessionType: "planning", planningStage: "draft-design", taskListPath: null, cohortDocPath: null });
-  const held = { ...common, kind: "work-unit", subject: { kind: "work-unit", key: "other" }, markerGeneration: "generation", lifecycleLocation: "active",
+  const held = { ...common, kind: "work-unit", subject: { kind: "work-unit", key: "other", uid: boundWorkUnitSubject(primary).uid }, markerGeneration: "generation", lifecycleLocation: "active",
     context: { kind: "resolved", metaPath: ".arc/active/meta-other.md", owner: "andrew", branch: null, sessionType: "planning", workflow: "planning",
       stage: "draft-design", taskListPath: null, taskCursor: null, cohortDocPath: null, loadSet, integrationBoundary: null } };
   const changedState = DerivedLocusFrameSchema.parse({ roster: [held], entering: { kind: "selected", row: held }, identityDiscovery: { kind: "absent" },
@@ -165,11 +166,11 @@ it.each((["errand", "groom", "housekeep"] as const).flatMap(kind => (["null", "e
       gitSnapshot: { branch: checkout.branch!, head: checkout.head, uncommittedFiles: [] }, writeSeed: async () => {} });
     if (emitted.status !== "written") throw new Error(JSON.stringify(emitted));
     expect(emitted.seed).toMatchObject({ activeWorkUnit: null, metaPath: null, locus: { parentCheckoutPath: "/parent" } });
-    await h.seedMeta("other");
+    const primary = await h.seedMeta("other");
     const selected = Object.create(h.store) as Store;
     if (anchor === "expired") selected.changes = async () => ({ status: "refused", refusal: { code: "state-unresolvable", class: "recoverable",
       historyRefs: [], condition: "History expired.", remedy: { text: "Rebuild current state." } } });
-    await expect(resolveRecoveryStateBasis({ seed: emitted.seed, recover: probe(transientState(kind, "other")), store: selected }))
+    await expect(resolveRecoveryStateBasis({ seed: emitted.seed, recover: probe(transientState(kind, "other", true, "tasks", boundWorkUnitSubject(primary).uid)), store: selected }))
       .rejects.toThrow(/fresh ARC session/iu);
     const rebuilt = await resolveRecoveryStateBasis({ seed: emitted.seed, recover: original, store: selected });
     expect(rebuilt.seed).toEqual({ ...emitted.seed, stateVersion: lifecycleSuccess(await h.store.version()) });

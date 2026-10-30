@@ -41,6 +41,7 @@ function targetFromMeta(cwd: string, meta: StoreRecord): ViewTargetResult {
 /** Refresh the resolved checkout claim by its exact reference, retaining identity across placement changes. */
 export async function resolveStoreAmbientViewTarget(input: { cwd: string; store: Store }): Promise<ViewTargetResult> {
   const current = await resolveCurrentWorkUnit(input);
+  if (current.status === "unbound") return { status: "unavailable", message: current.unbound.reason };
   if (current.status === "resolved") {
     const read = await input.store.read({ reference: current.candidate.reference });
     return read.status === "ok" ? targetFromMeta(input.cwd, read.result) : {

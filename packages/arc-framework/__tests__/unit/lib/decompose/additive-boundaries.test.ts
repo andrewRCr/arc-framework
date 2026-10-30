@@ -42,7 +42,7 @@ it.each(["started", "stored-cut", "unmapped", "pause-only"] as const)("leaves a 
     currentWorkflow: kind === "started" || kind === "pause-only" ? "process-task-loop" : null,
     dependsOn: kind === "pause-only" ? [] : ["reused"], ...(kind === "stored-cut" ? { design: ["draft-consumer.md"] } : {}) },
   kind === "started" || kind === "pause-only" ? { kind: "active" } : { kind: "backlog", commitment: "planned" });
-  const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async () => null,
+  const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async () => ({ kind: "none" as const }),
     writeAnchoredMarker: async () => ({ kind: "unadmitted" }) };
   const pauseContext = { store: h.store, cwd: "/checkout", baseBranch: "main", locusPorts,
     now: () => new Date("2026-10-19T00:00:00Z"), exec: scriptGitExec([{ match: ["remote"], responses: [{ stdout: "" }, { stdout: "" }] }]).exec };

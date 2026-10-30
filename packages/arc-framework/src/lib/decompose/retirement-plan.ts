@@ -35,7 +35,7 @@ export async function prepareDecomposeRetirement(ctx: DecomposeContext, origin: 
   const records = [...prepared.result.records, ...lineage.result.observations]
     .filter((record, index, all) => all.findIndex(other => sameReference(other.reference, record.reference)) === index);
   const primary = input.acquired.primary;
-  const checkout = await checkDecomposeRetirementCheckout(ctx, primary.reference.owner.name);
+  const checkout = await checkDecomposeRetirementCheckout(ctx, primary);
   if (checkout.status === "refused") return checkout;
   const writes: Mutation[] = [{ action: "remove", reference: primary.reference, expected: primary.version },
     lineage.result.write, ...recordPlan.writes];

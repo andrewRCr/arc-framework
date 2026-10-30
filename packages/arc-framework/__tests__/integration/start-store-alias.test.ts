@@ -10,30 +10,48 @@ import { runStoreRename } from "../../src/lib/work-unit/verbs/rename-store.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
 import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
-import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
 import { readLifecycleView } from "../../src/lib/store/lifecycle-view.js";
 import { resolveProcessInteractionContext } from "../../src/lib/command-input/interaction-context.js";
 import * as terminal from "../../src/lib/terminal.js";
+import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
+
+it("names a cohort when start requires a work unit", async () => {
+  const h = await fixture();
+  await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group" })),
+    "# Cohort: group\n\n**Purpose:** Coordinate members.\n");
+  const errors: string[] = [];
+  vi.spyOn(terminal.log, "error").mockImplementation(message => { errors.push(String(message)); });
+  await handleStoreStart(StartCommandInputSchema.parse({ name: "group" }), {
+    cwd: h.root, identity: "starter", executor: h.executor, io: h.io, interaction: h.interaction,
+  });
+  expect(process.exitCode).toBe(1);
+  expect(errors.join("\n")).toContain("`group` resolves to a cohort rather than a work unit");
+  expect(errors.join("\n")).toContain("cohort's own commands");
+  expect(await stat(h.path).catch(() => null)).toBeNull();
+}, 30_000);
 
 let root: string | undefined;
 const initialExitCode = process.exitCode;
 const START_TIMEOUT_MS = 30_000;
 afterEach(async () => { vi.restoreAllMocks(); process.exitCode = initialExitCode; if (root !== undefined) await cleanupTempDir(root); root = undefined; });
 
-async function fixture() {
+async function fixture(reused?: "backlog" | "active") {
   root = await createTempRepo(); const exec = makeGitExec(root);
   await exec("git", ["branch", "-M", "main"]); await exec("git", ["commit", "--allow-empty", "-m", "base"]);
   const path = join(root, "checkout"), system = join(root, ".arc", "system");
   await mkdir(system, { recursive: true });
   await writeFile(join(system, "arc-config.yml"), `branch.base: main\nworktree.location_template: ${path}\n`);
   const h = createLifecycleHarness();
-  const meta = await h.seedMeta("source", { state: "Planning", owner: "previous", currentWorkflow: "draft-design" }, { kind: "backlog", commitment: "planned" });
-  expect(await runStoreRename({ store: h.store, cwd: root, exec, baseBranch: "main" }, { sourceSlug: "source", targetSlug: "target" }))
+  const archived = reused === undefined ? undefined : await h.seedMeta("source", { state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const meta = await h.seedMeta("source", { state: "Planning", owner: "previous", currentWorkflow: "draft-design" }, reused === "active" ? { kind: "active" } : { kind: "backlog", commitment: "planned" });
+  if (reused === undefined) expect(await runStoreRename({ store: h.store, cwd: root, exec, baseBranch: "main" }, { sourceSlug: "source", targetSlug: "target" }))
     .toMatchObject({ status: "renamed" });
   const io = { ...createUserIOContext(), exec };
   const executor = buildExecutorContext({ cwd: root, io, store: h.store, identity: "starter", teamMode: false, internalTemplateDir: "/templates" });
   const interaction = resolveProcessInteractionContext({ noInput: true, machineReadable: false, yes: "absent" });
-  return { ...h, root, exec, io, executor, interaction, path, meta };
+  return { ...h, root, exec, io, executor, interaction, path, meta, archived };
 }
 
 it("dispatches a former name to its canonical stub while refusing explicit creation", async () => {
@@ -71,4 +89,31 @@ it("directs a spawning seeded start to in-place admission from the intended chec
   await handleStoreStart(StartCommandInputSchema.parse({ ...input, here: true }), ctx);
   expect(process.exitCode).toBe(0);
   expect(admitted).toEqual(["draft-fresh.md"]);
+}, START_TIMEOUT_MS);
+
+it("starts the live backlog namesake through dispatch and graduation", async () => {
+  const h = await fixture("backlog");
+  const errors: string[] = [];
+  vi.spyOn(terminal.log, "error").mockImplementation(message => { errors.push(String(message)); });
+  await handleStoreStart(StartCommandInputSchema.parse({ name: "source", here: true }), {
+    cwd: h.root, identity: "starter", executor: h.executor, io: h.io, interaction: h.interaction,
+  });
+  expect(errors).toEqual([]);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })))
+    .toMatchObject({ placement: { kind: "active" }, fields: { owner: "starter" } });
+  if (h.archived === undefined) throw Error("Expected completed namesake");
+  expect(lifecycleSuccess(await h.store.read({ reference: h.archived.reference }))).toEqual(h.archived);
+}, START_TIMEOUT_MS);
+
+it("reports a live Planning namesake already started when the archive was listed first", async () => {
+  const h = await fixture("active");
+  const errors: string[] = [];
+  vi.spyOn(terminal.log, "error").mockImplementation(message => { errors.push(String(message)); });
+  await handleStoreStart(StartCommandInputSchema.parse({ name: "source" }), {
+    cwd: h.root, identity: "starter", executor: h.executor, io: h.io, interaction: h.interaction,
+  });
+  expect(errors.join("\n")).toContain("source is already started; run arc materialize source");
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+  if (h.archived === undefined) throw Error("Expected completed namesake");
+  expect(lifecycleSuccess(await h.store.read({ reference: h.archived.reference }))).toEqual(h.archived);
 }, START_TIMEOUT_MS);

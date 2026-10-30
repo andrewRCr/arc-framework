@@ -44,21 +44,35 @@ describe("lookup across live and completed generations", () => {
     expect(success(await f.store.lookup({ kind: "slug", slug: target })).reference).toEqual(current);
   });
 
-  it.each(["current", "former"] as const)("names all ambiguous completed %s-slug holders", async (tier) => {
+  it.each([
+    ["current", 2], ["current", 3], ["former", 2], ["former", 3],
+  ] as const)("selects the latest archived work unit among %s-slug holders (%s generations)", async (tier, generations) => {
     const f = await createRefFixture();
     const target = SlugSchema.parse("shared");
     const references = [];
-    for (const name of ["one", "two"]) {
+    for (let generation = 0; generation < generations; generation++) {
       let record = await seed(f, RecordReferenceSchema.parse({ ...f.reference("work-item/meta"), owner: { type: "work-item", name: target } }));
       if (tier === "former") {
-        const renamed = RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, name } });
+        const renamed = RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, name: `holder-${generation}` } });
         success(await f.store.write({ ...update(f, record, record.content), reference: renamed }));
         record = success(await f.store.read({ reference: renamed }));
       }
-      success(await f.store.write({ ...update(f, record, record.content), placement: { kind: "completed", quarter } }));
+      success(await f.store.write({ ...update(f, record, record.content), placement: {
+        kind: "completed", quarter: generation === 1 ? ArchiveQuarterSchema.parse("2026-q3") : quarter,
+      } }));
       references.push(record.reference);
     }
-    expect(await f.store.lookup({ kind: "slug", slug: target })).toMatchObject({ status: "refused", refusal: { code: "ambiguous-match", candidates: expect.arrayContaining(references) } });
+    expect(success(await f.store.lookup({ kind: "slug", slug: target })).reference)
+      .toEqual(references[generations === 2 ? 0 : 2]);
+  });
+
+  it("prefers a completed work unit above a more recently archived Errand", async () => {
+    const f = await createRefFixture();
+    const meta = await seed(f, f.reference("work-item/meta", "shared"));
+    success(await f.store.write({ ...update(f, meta), placement: { kind: "completed", quarter } }));
+    const errand = await seed(f, f.reference("work-item/record", "shared"));
+    success(await f.store.write({ ...update(f, errand), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2027-q1") } }));
+    expect(success(await f.store.lookup({ kind: "slug", slug: meta.reference.owner.name })).reference).toEqual(meta.reference);
   });
 
   it("uses the same latest completed folder as read when an older copy survives", async () => {

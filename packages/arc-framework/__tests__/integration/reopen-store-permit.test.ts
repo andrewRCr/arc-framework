@@ -6,12 +6,14 @@ import { permitDeliveryReopen } from "../../src/handlers/lifecycle-delivery-revi
 import { createUserIOContext } from "../../src/lib/io-context.js";
 import { readConfigSettings } from "../../src/lib/config/status-reader.js";
 import { recordReferences } from "../../src/lib/store/identity.js";
-import { createLifecycleHarness } from "../helpers/store/lifecycle-harness.js";
+import { createClashDouble } from "../helpers/store/clash-double.js";
+import { readWorkUnit } from "../../src/lib/store/lifecycle-write.js";
+import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { createTempRepoCore, removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { makeGitExec } from "../helpers/integration.js";
 const roots: string[] = [];
 afterEach(async () => { process.exitCode = 0; await removeGitBackedDirs(roots.splice(0)); });
-it("permits an unbound reopen using only the projected task list at delivery's filesystem seam", async () => {
+it.each([false, true])("permits an unbound reopen using only the projected task list, selected=%s", async selected => {
   const root = await createTempRepoCore({ prefix: "arc-reopen-store-permit-", identity: "test-user" }); roots.push(root);
   const exec = makeGitExec(root), h = createLifecycleHarness();
   const meta = await h.seedMeta("example", { state: "Integrating", currentWorkflow: "integrate-work-unit", taskList: "tasks-example.md" });
@@ -22,5 +24,8 @@ it("permits an unbound reopen using only the projected task list at delivery's f
   const io = createUserIOContext(); io.exec = exec;
   io.readFile = async () => { throw new Error("Tracked metadata reads are unavailable"); };
   const { settings } = await readConfigSettings(root);
-  expect(await permitDeliveryReopen({ cwd: root, identity: "test-user", io, store: h.store }, "example", settings)).toBe(true);
+  const other = await h.seedMeta("other");
+  const store = selected ? createClashDouble(h.store, { slug: "example", holders: [meta.reference, other.reference], mode: "mid-verb" }) : h.store;
+  if (selected) lifecycleSuccess(await readWorkUnit(store, "example"));
+  expect(await permitDeliveryReopen({ cwd: root, identity: "test-user", io, store }, "example", settings, selected ? meta : undefined)).toBe(true);
 });

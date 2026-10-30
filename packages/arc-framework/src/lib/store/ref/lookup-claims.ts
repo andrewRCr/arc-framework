@@ -20,11 +20,17 @@ export function claimLookupCandidates(context: Pick<RefBackendContext, "registry
       continue;
     }
     const reference = lookupPrimary(context, ref, tree);
-    if (!reference || reference.owner.name !== claim.slug) continue;
-    if (claim.kind === "work-unit" && reference.kind === "work-item/meta"
-      || claim.kind === "errand" && reference.kind === "work-item/record" && storedClaimId(context, tree, reference) === claim.claimId) matches.push({ reference });
+    if (!reference) continue;
+    const matched = claim.kind === "work-unit" ? workUnitClaimMatches(reference, claim)
+      : reference.owner.name === claim.slug && reference.kind === "work-item/record" && storedClaimId(context, tree, reference) === claim.claimId;
+    if (matched) matches.push({ reference });
   }
   return matches;
+}
+
+function workUnitClaimMatches(reference: RecordReference, claim: Extract<CheckoutClaim, { kind: "work-unit" }>): boolean {
+  return reference.kind === "work-item/meta" && reference.owner.type === "work-item"
+    && claim.uid !== undefined && reference.owner.uid === claim.uid;
 }
 
 function personalClaimCandidates(context: Pick<RefBackendContext, "registry">, claim: Extract<CheckoutClaim, { kind: "groom" | "housekeep" }>,

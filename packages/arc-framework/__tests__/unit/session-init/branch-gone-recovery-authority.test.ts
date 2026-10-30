@@ -55,3 +55,23 @@ it.each([
   const narration = inferBranchGoneRecovery(repaired, { state: "clean", fileCount: 0 });
   expect(narration.recommendedAction).toBe(scenario.repairedAction === "removable" ? "prompt" : "switch");
 });
+
+it.each([undefined, "11111111-1111-4111-8111-111111111111"])("offers the derived holder's teardown operand (%s)", async uid => {
+  const exec: GitExec = async (_command, args) => {
+    if (args[0] === "worktree") return { stdout: worktreePorcelainZ("worktree /primary\nHEAD 1111111111111111111111111111111111111111\nbranch refs/heads/main\n") };
+    if (args[0] === "status" || args[0] === "cherry") return { stdout: "" };
+    throw new Error(`Unexpected Git: ${args.join(" ")}`);
+  };
+  const derived = row("/wt/one", false, false);
+  const result = await runBranchGoneRecovery({ currentBranch: "feat/gone", baseBranch: "main", recentBranches: [], exec,
+    roster: { entries: [{ worktreePath: "/wt/one", branch: "feat/one", workUnit: "demo", metaFilePath: "/wt/one/meta-demo.md" }], warnings: [] },
+    derivedRoster: [DerivedCheckoutRowSchema.parse({ ...derived, subject: { kind: "work-unit", key: "demo", ...(uid === undefined ? {} : { uid }) } })],
+    folderExists: async () => true,
+    readMarker: async () => ({ kind: "present", marker: { spawnedByArc: true, wuName: "demo", createdFor: { kind: "work-unit", name: "demo", ...(uid === undefined ? {} : { uid }) },
+      spawningIdentity: "andrew", createdAt: "2026-10-16T00:00:00Z" } }),
+    userSurfaceFs: { readDir: async () => [], readFile: async () => "", writeFile: async () => {}, mkdir: async () => {} } });
+  const operand = uid ?? "demo";
+  expect(result).toMatchObject({ kind: "resolved", candidate: { proposedAction: "removable", workUnitName: operand } });
+  expect(inferBranchGoneRecovery(result, { state: "clean", fileCount: 0 }).actions)
+    .toContainEqual({ argv: ["arc", "teardown", operand], text: `arc teardown ${operand}` });
+});

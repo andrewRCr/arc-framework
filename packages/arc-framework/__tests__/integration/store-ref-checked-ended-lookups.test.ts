@@ -31,7 +31,7 @@ describe.each(["default", "separate"] as const)("checked ended-owner lookups in 
       const found = await Promise.all([
         after.lookup({ kind: "ref", repository, ref }),
         after.lookup({ kind: "commit", repository, sha }),
-        after.lookup({ kind: "claim", claim: { kind: "work-unit", slug: reference.owner.name } }),
+        after.lookup({ kind: "claim", claim: { kind: "work-unit", slug: reference.owner.name, uid: "uid" in reference.owner ? reference.owner.uid : undefined } }),
       ]);
       expect(found).toEqual([
         { status: "ok", result: { reference } },

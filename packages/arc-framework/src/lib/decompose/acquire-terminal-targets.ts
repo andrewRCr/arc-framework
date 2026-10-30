@@ -31,7 +31,7 @@ export async function acquireDecomposeTerminalHomes(ctx: DecomposeContext, map: 
   }
   const acquired: DecomposeTerminalHome[] = [];
   for (const home of homes.result) {
-    const group = await acquireLifecycleRecords(ctx.executor.store, home.primary.reference.owner.name);
+    const group = await acquireLifecycleRecords(ctx.executor.store, home.primary.reference);
     if (group.status === "refused") return decomposeStoreRefusal(group.refusal);
     acquired.push({ ...home, records: group.result });
   }

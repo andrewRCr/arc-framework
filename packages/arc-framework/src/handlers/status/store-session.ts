@@ -1,4 +1,5 @@
 /** Store-backed session slots sharing invocation-scoped identity and checkout evidence. */
+import type { LocusPorts } from "../../lib/work-unit/locus-ports.js";
 import type { Store } from "../../lib/store/contract.js";
 import type { StoreSyncPort } from "../../lib/store/operational-sync.js";
 import type { GitExec } from "../../lib/git/exec.js";
@@ -28,13 +29,13 @@ export interface StoreSessionContext {
   readSettings: () => Promise<Record<string, string>>;
   readUserInbox: (identity: string) => Promise<string>;
   projectId?: () => Promise<string>;
-  findHoldingCheckout?: (name: string) => Promise<string | null>;
+  findHoldingCheckout?: LocusPorts["findHoldingCheckout"];
 }
 /** Bind operational session slots without consulting code-remote reachability. */
 export function createStoreSessionProbes(context: StoreSessionContext) {
   const projectId = context.projectId ?? createProjectIdentityReader(context.store);
   const ports = createLocusPorts(context);
-  const findHoldingCheckout = context.findHoldingCheckout ?? (name => ports.findHoldingCheckout({ name, resolveLegacy: () => Promise.resolve(null) }));
+  const findHoldingCheckout = context.findHoldingCheckout ?? ports.findHoldingCheckout;
   let oracle: ReturnType<typeof deriveStoreInFlight> | undefined;
   let errands: ReturnType<typeof acquireStoreErrands> | undefined;
   let markerless: ReturnType<typeof findMarkerlessWorkUnitCheckouts> | undefined;

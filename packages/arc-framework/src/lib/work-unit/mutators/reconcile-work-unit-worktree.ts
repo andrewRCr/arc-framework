@@ -17,9 +17,10 @@
  *       fresh-meta scaffold write. Branch creation rides this leg's `-b`.
  *     - *in place* (`--here`): no new worktree — `git checkout [-b] <branch>` in
  *       the **current** worktree (`-b` to cut a fresh branch for graduate /
- *       create-new, plain checkout to re-attach an existing branch for resume). No
- *       ownership marker (ARC did not mint this worktree). This is why branch
- *       creation is `reconcile-work-unit-worktree`'s in both modes, not `reconcile-branch`'s.
+ *       create-new, plain checkout to re-attach an existing branch for resume). No new
+ *       checkout is created. Operational placement claims an anchored marker;
+ *       materialize binds an existing unbound marker at its admitted generation.
+ *       Branch creation belongs to this mutator in both placement modes.
  * - `teardown` — `git worktree remove` (never `--force`; that stays the
  *   rollback-only path), gated on a clean worktree (`isWorktreeClean`). When the
  *   transition is tearing down the very worktree it executes from
@@ -39,14 +40,14 @@
  */
 
 import { IncompleteWorktreePreparationError } from "../incomplete-worktree-preparation.js";
-import { claimSpawnedWorktree, requireSpawnedWorktreeClaim, requireSpawnedCheckoutCoordinate, removeDisposableSpawn,
+import { claimSpawnedWorktree, workUnitMarkerSubject, requireSpawnedWorktreeClaim, requireSpawnedCheckoutCoordinate, removeDisposableSpawn,
   type SpawnedCheckoutCoordinate } from "../spawned-worktree-claim.js";
 import { access, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
 import type { Store } from "../../store/contract.js";
 import { usesOffBranchState } from "../../store/lifecycle-write.js";
-import { resolveWorktreeMarkerPath } from "../../git/worktree-marker.js";
+import { resolveWorktreeMarkerPath, readWorktreeMarkerGeneration, isWorktreeMarker, decodeWorktreeMarkerOwnership } from "../../git/worktree-marker.js";
 import { createDefaultLocusPorts, requireMarkerExclusivity, type LocusPorts } from "../locus-ports.js";
 import type { GitExec } from "../../git/exec.js";
 import {
@@ -139,13 +140,18 @@ export const nodeReconcileWorkUnitWorktreeFs: ReconcileWorkUnitWorktreeFs = {
   removeFile: (path) => rm(path, { force: true }),
 };
 
+/** Exact record owner or not-yet-created work unit requesting a checkout claim. */
+export type WorkUnitHolderRequest =
+  | { kind: "owner"; uid: string; names: { current: string; former: readonly string[] } }
+  | { kind: "creation"; slug: string };
+
 /**
  * The worktree operation to perform, as a discriminated union:
  *
  * - `spawn` (fresh worktree) — create the worktree + branch at the templated path
  *   and mark it.
  * - `spawn` (`inPlace`) — place the branch in the current worktree via
- *   `git checkout [-b]`; no new worktree, no marker.
+ *   `git checkout [-b]`; operational placement claims or binds its marker.
  * - `teardown` — remove `worktreePath`; `currentLocus` is the directory the
  *   transition executes from, used to detect a self-teardown.
  * - `move` — move one registered worktree root and preserve the process locus
@@ -173,6 +179,8 @@ export type ReconcileWorkUnitWorktreeOp =
       repo: string;
       /** Work-unit name — drives the ownership marker. */
       wuName: string;
+      /** Store-arm owner identity; absent for tracked in-repo placement. */
+      holder?: WorkUnitHolderRequest;
       /** Identity creating the worktree — the ownership marker. */
       spawningIdentity: string;
       /** Project-supplied post-create provisioning script, run inside the new worktree when configured. */
@@ -188,16 +196,20 @@ export type ReconcileWorkUnitWorktreeOp =
       mutation: "spawn";
       /** In-place placement: check the branch out in the current worktree, no spawn. */
       inPlace: true;
-      /** Identity bound to an anchored marker on the store arm. */
+      /** Identity recorded on a new anchored marker on the store arm. */
       spawningIdentity?: string;
       /** Injectable marker timestamp. */
       now?: number;
       /** A no-link materialize claims only the marker and leaves HEAD unchanged. */
       preserveHead?: boolean;
+      /** Materialize-only replacement of the observed unbound marker generation. */
+      bind?: { expected: Buffer };
       /** Branch to place, absent for a marker-only claim. */
       branch?: string;
       /** Work-unit whose trusted transition owns this checkout. */
       wuName: string;
+      /** Store-arm owner identity; absent for tracked in-repo placement. */
+      holder?: WorkUnitHolderRequest;
       /** `true` cuts a fresh branch (`-b`, graduate / create-new); `false` attaches an existing one (resume). */
       createBranch?: boolean;
       /** Exact selected commit for a newly created branch; omission retains Git's current-HEAD default. */
@@ -376,7 +388,7 @@ export async function provisionSpawnedWorktree(
  * Spawn or tear down a work unit's worktree per `op`.
  *
  * Spawn (fresh) creates the worktree + branch and writes the ownership marker;
- * spawn (`inPlace`) checks the branch out in the current worktree, no marker;
+ * spawn (`inPlace`) places the branch and claims or binds operational occupancy;
  * teardown refuses a dirty worktree, hops the locus to the primary checkout when
  * removing the worktree it runs from, and removes without `--force`.
  *
@@ -426,13 +438,10 @@ async function reconcileWorkUnitWorktreeUnlocked(
       locusHopped: selfMove,
     };
   }
-  if (op.mutation === "spawn" && offBranch) {
-    if (op.inPlace && op.spawningIdentity === undefined) throw new Error("anchored worktree claim requires a spawning identity");
-    await requireMarkerExclusivity(ctx.locusPorts, { name: op.wuName });
-  }
+  const inPlacePath = op.mutation === "spawn" && offBranch ? await requirePlacementExclusivity(ctx, op) : undefined;
   if (op.mutation === "spawn" && op.inPlace) {
-    // In place: cut/attach the branch in the current worktree — no `worktree add`,
-    // no ownership marker (ARC did not mint this checkout). `deferCheckout` skips
+    // In place: cut/attach the branch without adding a worktree. Operational
+    // placement claims a fresh marker or binds the admitted one. `deferCheckout` skips
     // the physical checkout — the caller (resume) re-attaches after committing the
     // pointer-record removal, since switching branches first would discard it.
     if (!op.deferCheckout && !op.preserveHead) {
@@ -449,18 +458,8 @@ async function reconcileWorkUnitWorktreeUnlocked(
         : ["checkout", op.branch];
       await ctx.exec("git", checkout);
     }
-    const { stdout } = await ctx.exec("git", ["rev-parse", "--show-toplevel"]);
-    const worktreePath = stdout.trim();
-    let markerGeneration: Buffer | undefined;
-    if (offBranch) {
-      const marker = await (ctx.locusPorts ?? createDefaultLocusPorts()).writeAnchoredMarker(worktreePath, {
-        spawnedByArc: false, wuName: op.wuName, createdFor: { kind: "work-unit", name: op.wuName },
-        spawningIdentity: op.spawningIdentity ?? "", createdAt: new Date(op.now ?? Date.now()).toISOString(),
-      });
-      if (marker.kind === "exists" || marker.kind === "generation-mismatch") throw new Error(
-        `Checkout ${worktreePath} already has a marker at ${resolveWorktreeMarkerPath(worktreePath)} (${marker.kind}). Inspect its marker, then rerun the command.`);
-      if (marker.kind === "created" || marker.kind === "replaced") markerGeneration = marker.bytes;
-    }
+    const worktreePath = inPlacePath ?? (await ctx.exec("git", ["rev-parse", "--show-toplevel"])).stdout.trim();
+    const markerGeneration = offBranch ? await stampInPlaceMarker(ctx, worktreePath, op) : undefined;
     return {
       mutation: "spawn",
       worktreePath,
@@ -625,6 +624,43 @@ async function reconcileWorkUnitWorktreeUnlocked(
     throw error;
   }
   return { mutation: "teardown", worktreePath, locusHopped };
+}
+
+async function requirePlacementExclusivity(ctx: ReconcileWorkUnitWorktreeContext,
+  op: Extract<ReconcileWorkUnitWorktreeOp, { mutation: "spawn" }>): Promise<string | undefined> {
+  if (op.inPlace && op.spawningIdentity === undefined) throw new Error("anchored worktree claim requires a spawning identity");
+  if (op.holder === undefined) throw new Error("Operational placement requires its owner or creation claim; repair the placement request, then retry.");
+  const checkoutPath = op.inPlace ? (await ctx.exec("git", ["rev-parse", "--show-toplevel"])).stdout.trim() : undefined;
+  await requireMarkerExclusivity(ctx.locusPorts, { ...op.holder, ...(checkoutPath === undefined ? {} : { checkoutPath }) });
+  if (op.inPlace && op.bind !== undefined && checkoutPath !== undefined) await readBindingMarker(checkoutPath, op.bind.expected);
+  return checkoutPath;
+}
+async function stampInPlaceMarker(ctx: ReconcileWorkUnitWorktreeContext, worktreePath: string,
+  op: Extract<ReconcileWorkUnitWorktreeOp, { mutation: "spawn"; inPlace: true }>): Promise<Buffer | undefined> {
+  const subject = workUnitMarkerSubject(op);
+  let marker: unknown = { spawnedByArc: false, wuName: op.wuName, createdFor: subject,
+    spawningIdentity: op.spawningIdentity ?? "", createdAt: new Date(op.now ?? Date.now()).toISOString() };
+  if (op.bind !== undefined) {
+    const current = await readBindingMarker(worktreePath, op.bind.expected);
+    if (subject.uid === undefined) throw new Error("Binding requires its work-unit owner UID; inspect the claim, then retry materialize.");
+    marker = { ...current.marker, createdFor: { ...current.subject, uid: subject.uid } };
+  }
+  if (!isWorktreeMarker(marker)) throw new Error("The work-unit marker cannot be bound; inspect its ownership, then retry materialize.");
+  const written = await (ctx.locusPorts ?? createDefaultLocusPorts()).writeAnchoredMarker(worktreePath, marker,
+    op.bind === undefined ? {} : { expected: op.bind.expected });
+  if (written.kind === "exists" || written.kind === "generation-mismatch") throw new Error(
+    `Checkout ${worktreePath} already has a marker at ${resolveWorktreeMarkerPath(worktreePath)} (${written.kind}). Inspect its marker, then rerun the command.`);
+  return written.kind === "created" || written.kind === "replaced" ? written.bytes : undefined;
+}
+async function readBindingMarker(worktreePath: string, expected: Buffer): Promise<{
+  marker: WorktreeMarker; subject: Extract<WorktreeSubject, { kind: "work-unit" }>;
+}> {
+  const current = await readWorktreeMarkerGeneration(worktreePath);
+  if (current.kind !== "present" || !current.bytes.equals(expected)) throw new Error(`Checkout ${worktreePath}'s marker generation changed; inspect its marker, then retry materialize.`);
+  const ownership = decodeWorktreeMarkerOwnership(current.marker);
+  if (current.marker.husk !== undefined || ownership.kind !== "current" || ownership.subject.kind !== "work-unit"
+    || ownership.subject.uid !== undefined) throw new Error("The observed marker is not an unbound work-unit claim; inspect it, then retry materialize.");
+  return { marker: current.marker, subject: ownership.subject };
 }
 
 async function rollbackFreshSpawn(

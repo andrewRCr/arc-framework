@@ -195,9 +195,14 @@ async function buildWorktreeCandidate(
     userSurfacesSafe, merged: merged ?? false });
   const candidate = { branch: entry.branch, worktreePath: entry.worktreePath };
   if (proposedAction !== "removable") return { ...candidate, proposedAction };
-  const workUnitName = marker.kind === "present" ? marker.marker.wuName : undefined;
+  const workUnitName = cleanupOperand(ctx.row, marker);
   return workUnitName === undefined ? { ...candidate, proposedAction: "external" }
     : { ...candidate, proposedAction, workUnitName };
+}
+
+function cleanupOperand(row: DerivedCheckoutRow, marker: WorktreeMarkerReadResult): string | undefined {
+  if (row.subject?.kind === "work-unit" && row.subject.uid !== undefined) return row.subject.uid;
+  return marker.kind === "present" ? marker.marker.wuName : undefined;
 }
 
 async function administrativeFolderAction(path: string, folderExists: CandidateContext["folderExists"]): Promise<"switch" | "external"> {

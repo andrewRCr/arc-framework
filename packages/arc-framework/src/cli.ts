@@ -635,7 +635,7 @@ program
 
 program
   .command("teardown [name]")
-  .description("Evidence-backed cleanup of a retired work unit: reap refs, remove or husk its worktree, and prune")
+  .description("Clean up a retired work unit by slug or UID: reap refs, remove or husk its worktree, and prune")
   .option("--branch <branch>", "Reap a merged recordless chore/<slug> branch by exact name")
   .option("--husk <absolute-path>", "Replay cleanup for one exact registered detached husk")
   .option(

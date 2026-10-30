@@ -51,9 +51,8 @@ import {
 import { prompt } from "../lib/command-input/prompter.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
-import { resolveCurrentWorkUnit } from "../lib/store/current-work-unit.js";
+import { resolveReconcileCurrentWorkUnit } from "./user-reference-current-work-unit.js";
 import type { Store } from "../lib/store/contract.js";
-import { branchToWorkUnitSlug } from "../lib/work-unit/work-unit-slug.js";
 import { resolveCurrentWuName } from "../lib/user-sync/index.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
 import { type ArcErrorCode } from "../lib/kernel/errors.js";
@@ -108,14 +107,14 @@ export async function handleUserReconcileReferences(
   const exec: GitExec = (cmd, args, options) => io.exec(cmd, args, { ...options, cwd });
   const store = selectedStore ?? openDefaultStore(cwd, exec);
   if (store.capabilities.stateOffBranch) {
-    const workUnit = await resolveReconcileCurrentWorkUnit(cwd, exec, store);
-    const result = await runStoreUserReferenceReconcileCommand({ cwd, identity, exec, store, workUnit, apply: opts.apply === true });
-    emitUserReferenceResult(opts, result);
+    const current = await resolveReconcileCurrentWorkUnit(cwd, exec, store);
+    const result = await runStoreUserReferenceReconcileCommand({ cwd, identity, exec, store, workUnit: current.workUnit, apply: opts.apply === true });
+    emitUserReferenceResult(opts, result, current.warning);
     if (result.status === "refused" || result.authority.status !== "ready") process.exitCode = 1;
     return;
   }
   const transitionExec = createRawGitExec(cwd);
-  const [{ settings }, surfaces, currentWuName] = await Promise.all([
+  const [{ settings }, surfaces, current] = await Promise.all([
     readConfigSettings(cwd),
     resolvePersonalPaths({ cwd, identity, exec }),
     resolveReconcileCurrentWorkUnit(cwd, exec, store),
@@ -128,15 +127,15 @@ export async function handleUserReconcileReferences(
     enumerateAt: (ref) => enumerateGitTransitionRecords(transitionExec, ref),
   });
   if (authority.status !== "ready") {
-    emitUserReferenceResult(opts, { status: authority.status, authority, plan: null });
+    emitUserReferenceResult(opts, { status: authority.status, authority, plan: null }, current.warning);
     process.exitCode = 1;
     return;
   }
   const result = await runLegacyStoreUserReferenceReconcile({ cwd, identity, exec, store, paths: surfaces,
-    workUnit: currentWuName, transitions: authority.transitions, apply: opts.apply === true });
+    workUnit: current.workUnit, transitions: authority.transitions, apply: opts.apply === true });
   emitUserReferenceResult(opts, { status: result.status, authority, plan: result.plan,
     ...(result.status === "refused" ? { refusal: result.refusal } : {}),
-  });
+  }, current.warning);
   if (result.status === "refused") process.exitCode = 1;
 }
 
@@ -148,6 +147,7 @@ function emitUserReferenceResult(
     plan: ReturnType<typeof planUserReferenceReconcile> | null;
     refusal?: StoreRefusal;
   },
+  warning?: string,
 ): void {
   const envelope = {
     schemaVersion: 1,
@@ -160,6 +160,7 @@ function emitUserReferenceResult(
     process.stdout.write(`${JSON.stringify(envelope)}\n`);
     return;
   }
+  if (warning !== undefined) p.log.warn(warning);
   if (result.authority.status !== "ready") {
     p.log.warn(result.authority.status === "unavailable" && result.authority.remoteEvidence === "not-applicable" && result.authority.reason === "state-unavailable"
       ? `${result.authority.condition} ${result.authority.remedy.text}` : `User-reference authority is ${result.authority.status} at \`${result.authority.ref}\`.`);
@@ -1271,12 +1272,4 @@ function emitStatusError(
     return;
   }
   output.log.error(formatSource ? formatError(formatSource) : message);
-}
-
-async function resolveReconcileCurrentWorkUnit(cwd: string, exec: GitExec, store: Store): Promise<string | undefined> {
-  const current = await resolveCurrentWorkUnit({ cwd, store });
-  if (current.status === "resolved") return current.candidate.reference.owner.name;
-  if (current.status === "ambiguous" || current.warnings.length > 0 || store.capabilities.stateOffBranch) return undefined;
-  try { const read = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"]); return branchToWorkUnitSlug(read.stdout.trim()) ?? undefined; }
-  catch { return undefined; }
 }

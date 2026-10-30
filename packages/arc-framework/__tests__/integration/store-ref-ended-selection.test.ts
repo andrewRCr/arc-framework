@@ -38,7 +38,7 @@ describe.each(["default", "separate"] as const)("ended-owner selection in %s", l
         { path: `meta-${name}.md`, content: makeMetaFixture(name) },
       ], { parents: [tip], gitDir: h.b.gitDir });
     }
-    const queries: LookupInput[] = [{ kind: "claim", claim: { kind: "work-unit", slug: owner.name } },
+    const queries: LookupInput[] = [{ kind: "claim", claim: { kind: "work-unit", slug: owner.name, uid: owner.uid } },
       { kind: "ref", repository, ref: branch }, { kind: "commit", repository, sha }];
     for (const query of queries) {
       const result = await h.b.store.lookup(query);

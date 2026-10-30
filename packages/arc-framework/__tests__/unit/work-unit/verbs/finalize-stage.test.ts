@@ -168,7 +168,7 @@ it("finalizes a former handle using the resolved owner's task filename", async (
   const primary = await h.seedMeta("source", { state: "Planning", currentWorkflow: "generate-tasks", design: ["spec-source.md"] });
   const forbidden = async (): Promise<never> => { throw new Error("Unexpected checkout access"); };
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: forbidden, baseBranch: "main",
-    locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }),
+    locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }),
       writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
   { sourceSlug: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
   expect(await runFinalizeStage({ store: h.store, writeClassField: forbidden, writeSoftFields: forbidden },

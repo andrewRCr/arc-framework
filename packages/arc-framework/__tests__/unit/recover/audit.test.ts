@@ -1,4 +1,5 @@
 import { StateVersionSchema } from "../../../src/lib/store/identity.js";
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { resolveRecoveryStateBasis } from "../../../src/lib/recover/state-basis.js";
 import type { Store } from "../../../src/lib/store/contract.js";
@@ -1264,13 +1265,14 @@ describe("auditRecoveryState", () => {
 
 it.each((["null", "expired"] as const).flatMap(anchor => (["execution", "planning"] as const).map(sessionType => ({ anchor, sessionType }))))(
   "rebuilds $anchor state from an emitted $sessionType seed into cursorless verification without replacing code evidence", async ({ anchor, sessionType }) => {
-    const h = createLifecycleHarness(); await h.seedMeta("demo");
+    const h = createLifecycleHarness(); const primary = await h.seedMeta("demo");
+    const subject = { kind: "work-unit" as const, key: "demo", uid: boundWorkUnitSubject(primary).uid };
     const beforeLoadSet = resolveLoadSetManifest({ identity: "andrew", stateOffBranch: true, activeWorkUnit: "demo", metaPath: ".arc/active/meta-demo.md",
       sessionType, planningStage: sessionType === "planning" ? "generate-tasks" : null, workUnitStage: "task-work", taskListPath: ".arc/active/tasks-demo.md", cohortDocPath: null });
-    const beforeRow = workUnitRow({ context: { ...workUnitRow().context!, sessionType, stage: sessionType === "planning" ? "generate-tasks" : null,
+    const beforeRow = workUnitRow({ subject, context: { ...workUnitRow().context!, sessionType, stage: sessionType === "planning" ? "generate-tasks" : null,
       workflow: sessionType === "planning" ? "planning" : "process-task-loop", loadSet: beforeLoadSet } });
     const before = derivedFrame({ roster: [beforeRow], entering: { kind: "selected", row: beforeRow },
-      active: { checkoutPath: "/repo", subject: { kind: "work-unit", key: "demo" }, context: beforeRow.context! } });
+      active: { checkoutPath: "/repo", subject, context: beforeRow.context! } });
     const missing = { code: "state-unresolvable" as const, class: "recoverable" as const, historyRefs: [], condition: "History expired.", remedy: { text: "Rebuild current state." } };
     const emitted = await emitCompactionSeed({ cwd: "/repo", envelope: { identity: { identity: "andrew" }, derivedLocusState: ok(before),
       worktree: ok({ branch: "fix/demo", identity: { kind: "primary" } }), active: ok({ path: ".arc/active/meta-demo.md", sessionType, currentWorkflow: "process-task-loop" }),
@@ -1281,10 +1283,10 @@ it.each((["null", "expired"] as const).flatMap(anchor => (["execution", "plannin
     if (anchor === "expired") selected.changes = async () => ({ status: "refused", refusal: missing });
     const afterLoadSet = resolveLoadSetManifest({ identity: "andrew", stateOffBranch: true, activeWorkUnit: "demo", metaPath: ".arc/active/meta-demo.md",
       sessionType: "execution", planningStage: null, workUnitStage: "verification-closeout", taskListPath: ".arc/active/tasks-demo.md", cohortDocPath: null });
-    const afterRow = workUnitRow({ context: { ...workUnitRow().context!, workflow: "verify-work-unit", workUnitStage: "verification-closeout",
+    const afterRow = workUnitRow({ subject, context: { ...workUnitRow().context!, workflow: "verify-work-unit", workUnitStage: "verification-closeout",
       taskCursor: { status: "no-open-task" }, loadSet: afterLoadSet } });
     const after = derivedFrame({ roster: [afterRow], entering: { kind: "selected", row: afterRow },
-      active: { checkoutPath: "/repo", subject: { kind: "work-unit", key: "demo" }, context: afterRow.context! } });
+      active: { checkoutPath: "/repo", subject, context: afterRow.context! } });
     const fresh = recover({ derivedLocusState: ok(after), recoveryFrame: ok(recoveryFrame({ workflow: "verify-work-unit" })), loadSet: ok(afterLoadSet), taskCursor: ok({ status: "no-open-task" }) });
     const basis = await resolveRecoveryStateBasis({ seed: emitted.seed, recover: fresh, store: selected });
     const verdict = await run({ seed: basis.seed, recover: fresh });

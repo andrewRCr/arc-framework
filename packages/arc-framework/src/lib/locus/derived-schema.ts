@@ -12,7 +12,7 @@ import { IntegrationBoundaryLocusSchema } from "../../scripts/review-gate/policy
 import { LocusIdentityV1Schema } from "./schema/identity.js";
 
 const text = z.string().min(1);
-const workUnit = z.strictObject({ kind: z.literal("work-unit"), key: text });
+const workUnit = z.strictObject({ kind: z.literal("work-unit"), key: text, uid: z.uuid().optional() });
 const subject = z.discriminatedUnion("kind", [
   workUnit,
   z.strictObject({ kind: z.literal("partial-errand"), key: text, claimId: z.null() }),

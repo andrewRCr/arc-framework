@@ -13,12 +13,14 @@ import { ArcError } from "../kernel/errors.js";
 import type { Store } from "../store/contract.js";
 import { ListingDiagnosticSchema } from "../store/read.js";
 import { workUnitMetaPath } from "../store/lifecycle-write.js";
+import { readClaimedCurrentWorkUnit } from "../store/current-work-unit-marker.js";
 import { createStoreReconcilePrepareContext } from "../work-unit/store-reconcile-context.js";
 import { CurrentWuReconcileSessionResultSchema } from "./current-wu-reconcile-schema.js";
 import {
   prepareCurrentWuReconcile,
   type CurrentWuReconcileOp,
   type CurrentWuReconcilePrepareContext,
+  type HeldDependencyEdge,
 } from "../work-unit/side-effects/discharge-dep-edges.js";
 /** Current-WU reconcile probe input. */
 export type CurrentWuReconcileSessionOp = Omit<CurrentWuReconcileOp, "apply"> & { checkoutPath: string };
@@ -38,8 +40,13 @@ export async function runCurrentWuReconcileSessionProbe(
   op: CurrentWuReconcileSessionOp,
 ): Promise<CurrentWuReconcileSessionResult> {
   if (!("store" in ctx)) return projectCurrentWuResult(await prepareCurrentWuReconcile(ctx, op), op);
+  const warnings: string[] = [];
+  const current = await readClaimedCurrentWorkUnit({ cwd: op.checkoutPath, store: ctx.store }, warnings);
+  if (current.kind === "unbound") return unavailable(op.slug, current.reason, [...current.exits]);
+  if (current.kind === "absent") return unavailable(op.slug, warnings.join("\n") || "The checkout does not hold an active work-unit claim.",
+    [{ text: "Inspect arc locus --json, repair the checkout's work-unit claim, then retry session status." }]);
   let acquired;
-  try { acquired = await createStoreReconcilePrepareContext(ctx.store, op.slug); }
+  try { acquired = await createStoreReconcilePrepareContext(ctx.store, op.slug, current.record.reference); }
   catch (error) {
     if (!(error instanceof ArcError) || (error.code !== "store.lifecycle-incomplete" && error.code !== "store.lifecycle-unreadable")) throw error;
     const diagnostics = z.array(ListingDiagnosticSchema).safeParse(error.cause);
@@ -88,12 +95,7 @@ function projectCurrentWuResult(result: Awaited<ReturnType<typeof prepareCurrent
       recommendedCommand: hasTrackedEdits
         ? ["arc", "wu", "reconcile", op.slug, "--apply", "--json"]
         : ["arc", "wu", "reconcile", op.slug, "--json"],
-      recommendedPromptText: hasTrackedEdits
-        ? `Current work unit \`${op.slug}\` has pending tracked reconcile edits. `
-          + `Apply them in its own review increment with `
-          + `\`arc wu reconcile ${op.slug} --apply --json\`.`
-        : `Current work unit \`${op.slug}\` has advisory reference findings. `
-          + `Inspect them with \`arc wu reconcile ${op.slug} --json\`.`,
+      recommendedPromptText: pendingPromptText(op.slug, hasTrackedEdits, result.prepared.plan.dependency.held),
     };
   }
   return {
@@ -110,6 +112,15 @@ function projectCurrentWuResult(result: Awaited<ReturnType<typeof prepareCurrent
       `Current work unit \`${op.slug}\` reconcile is blocked (${result.reason}). `
       + `Inspect with \`arc wu reconcile ${op.slug} --json\` before applying tracked repairs.`,
   };
+}
+
+function pendingPromptText(slug: string, hasTrackedEdits: boolean, held: readonly HeldDependencyEdge[] = []): string {
+  const heldNames = [...new Set(held.map(item => item.edge))].map(edge => `\`${edge}\``).join(", ");
+  if (hasTrackedEdits) return `Current work unit \`${slug}\` has pending tracked reconcile edits. `
+    + `Apply them in its own review increment with \`arc wu reconcile ${slug} --apply --json\`.`
+    + (heldNames === "" ? "" : ` It also has held dependency edges: ${heldNames}.`);
+  const findings = heldNames === "" ? "advisory reference findings" : `held dependency edges: ${heldNames}`;
+  return `Current work unit \`${slug}\` has ${findings}. Inspect them with \`arc wu reconcile ${slug} --json\`.`;
 }
 
 function unavailable(slug: string, condition: string, actions: { text: string }[]): CurrentWuReconcileSessionResult {

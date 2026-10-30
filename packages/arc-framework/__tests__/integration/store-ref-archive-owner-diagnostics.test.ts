@@ -51,8 +51,8 @@ describe.each(["default", "separate"] as const)("archive owner diagnostics in %s
     } else {
       completed = success(await f.store.read({ reference: other.reference }));
       const repaired = await capture();
-      // A slug held only by a cohort names no work item, so the repaired lookup finds none.
-      expect(repaired).toMatchObject(mode === "lookup" ? { status: "refused", refusal: { code: "not-found" } } : { status: "ok" });
+      expect(repaired).toMatchObject({ status: "ok" });
+      if (mode === "lookup") expect(repaired).toMatchObject({ result: { reference: other.reference } });
       if (mode === "history") expect(repaired).toMatchObject({ result: expect.arrayContaining([expect.objectContaining({ reference: other.reference })]) });
       if (mode === "write" || mode === "batch") expect(success(await f.store.read({ reference: other.reference })).content).toBe("# Changed\n");
     }

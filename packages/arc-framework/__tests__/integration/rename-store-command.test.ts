@@ -1,4 +1,6 @@
+import { boundHolderLookup } from "../helpers/store/bound-checkout.js";
 /** Record rename composes the production marker, worktree and command adapters. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { afterEach, expect, it } from "vitest";
 import { readFileSync, writeFileSync } from "node:fs";
 import { runStoreRename } from "../../src/lib/work-unit/verbs/rename-store.js";
@@ -22,9 +24,9 @@ async function fixture(spawned: boolean) {
   const checkout = spawned ? `${root}.source` : root, target = spawned ? `${root}.target` : root;
   if (spawned) await exec("git", ["worktree", "add", "-b", "feat/source", checkout]);
   else await exec("git", ["switch", "-c", "feat/source"]);
-  await writeWorktreeOwnershipMarker(checkout, { createdByArc: true, createdFor: { kind: "work-unit", name: "source" }, spawningIdentity: "test-user" });
   const h = createLifecycleHarness(); const primary = await h.seedMeta("source", {}, undefined,
     { branches: [{ repository: "repo", ref: "feat/source", linkedAs: "created", excluded: [] }] });
+  await writeWorktreeOwnershipMarker(checkout, { createdByArc: true, createdFor: boundWorkUnitSubject(primary), spawningIdentity: "test-user" });
   const io = createUserIOContext(); io.exec = exec; io.execInput = undefined;
   const command = { ...h, cwd: root, identity: "test-user", baseBranch: "main", io, projectId: async () => "repo",
     retirement: createInRepoRenameRetirementContext({ cwd: root, exec, readBlob: async () => { throw new Error("No tracked retirement applies"); } }),
@@ -229,7 +231,7 @@ it("retains compensation before the adapter's final marker observation and prese
   const adapter = storeRenameAdapters(f.command).renameCheckout!;
   let concurrent: Buffer | undefined;
   const result = await runStoreRename({ store: f.store, cwd: f.root, exec: f.exec, baseBranch: "main", projectId: async () => "repo",
-    locusPorts: { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async () => f.checkout,
+    locusPorts: { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: boundHolderLookup(f.primary, () => f.checkout),
       writeAnchoredMarker: async () => ({ kind: "unadmitted" }) },
     renameCheckout: (request, onPrepared) => adapter(request, (receipt) => {
       onPrepared?.(receipt);

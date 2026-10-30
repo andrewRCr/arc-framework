@@ -1,10 +1,14 @@
 /** Release machine-local work-unit occupancy without changing its operational lifecycle. */
+import { teardownOperand } from "../work-unit/store-retirement-evidence.js";
+import { ownerHolderRequest } from "../work-unit/locus-ports.js";
 import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 import { dirname, resolve } from "node:path";
 import { MetaPauseSchema, ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import { localPathContains } from "../local-path-identity.js";
-import { WorkUnitStateSchema } from "../kernel/index.js";
+import { SlugSchema, WorkUnitStateSchema } from "../kernel/index.js";
 import type { Store } from "../store/contract.js";
+import type { StoreRecord } from "../store/read.js";
+import type { StoreResult } from "../store/refusal.js";
 import type { GitExec } from "../git/exec.js";
 import { GitProcessError } from "../git/process-error.js";
 import { scanRegisteredWorktrees, type RegisteredWorktree } from "../git/worktree-roster.js";
@@ -13,6 +17,7 @@ import { releaseWorktreeCheckout, removeWorktreeCheckout, describeRemovalRefusal
 import type { LocusPorts } from "../work-unit/locus-ports.js";
 import { createLocusPorts } from "./lifecycle-ports.js";
 import { inspectCheckoutMarker, type PresentMarker } from "./marker-occupancy.js";
+import { ownedInFlight } from "./unbound-marker.js";
 import { withWorktreeOperationLock } from "../work-unit/worktree-operation-lock.js";
 export interface LocusReleaseContext {
   cwd: string; exec: GitExec; store: Store; identity: string; baseBranch: string;
@@ -31,12 +36,12 @@ export async function runLocusRelease(ctx: LocusReleaseContext, slug?: string): 
 async function releaseUnderLock(ctx: LocusReleaseContext, slug?: string): Promise<LocusReleaseResult> {
   const exec = ctx.exec;
   const ports = ctx.locusPorts ?? createLocusPorts({ cwd: ctx.cwd, exec, store: ctx.store });
-  const target = slug === undefined ? ctx.cwd : await ports.findHoldingCheckout({ name: slug, resolveLegacy: () => Promise.resolve(null) });
+  const target = slug === undefined ? ctx.cwd : await namedReleaseCheckout(ctx.store, ports, slug, ctx.identity);
   if (target === null) return refused(`No checkout here holds '${slug}'. Run arc locus --json to inspect this machine's checkouts.`);
   const occupancy = await inspectCheckoutMarker({ cwd: target, store: ctx.store, identity: ctx.identity });
   if (occupancy.kind === "clear") return refused(`Checkout ${target} has no work-unit marker to release. Run arc locus --json to inspect this machine's checkouts.`);
   if (occupancy.kind === "unreadable") return refused(occupancy.reason);
-  const authority = releaseAuthority(ctx.identity, occupancy);
+  const authority = await releaseAuthority(ctx.store, ctx.identity, occupancy);
   if (authority !== null) return refused(authority);
   const topology = await scanRegisteredWorktrees(exec);
   if (!topology.ok) return refused(`${topology.message}. Run again once Git lists the worktrees.`);
@@ -51,9 +56,33 @@ async function releaseUnderLock(ctx: LocusReleaseContext, slug?: string): Promis
   await releaseCheckout({ ...ctx, exec }, target, primary.path, spawned, occupancy.marker);
   return { status: "released", checkoutPath: target, spawned, ...(nextCheckoutPath === undefined ? {} : { nextCheckoutPath }) };
 }
-function releaseAuthority(identity: string, occupancy: Extract<Awaited<ReturnType<typeof inspectCheckoutMarker>>, { kind: "occupied" }>): string | null {
+async function namedReleaseCheckout(store: Store, ports: LocusPorts, slug: string, identity: string): Promise<string | null> {
+  const primary = await namedReleasePrimary(store, slug);
+  if (primary?.status === "refused" && primary.refusal.code !== "not-found") throw new Error(
+    `${primary.refusal.condition} ${primary.refusal.remedy.text} To release an unbound checkout, run arc locus release from inside that checkout.`);
+  if (primary?.status === "ok" && primary.result.placement?.kind !== "completed") {
+    const holder = await ports.findHoldingCheckout(ownerHolderRequest(primary.result));
+    if (holder.kind === "unbound") {
+      if (ownedInFlight(primary.result, identity)) throw new Error(holder.reason);
+      return holder.path;
+    }
+    if (holder.kind === "held") return holder.path;
+  }
+  const unbound = await ports.findHoldingCheckout({ kind: "creation", slug });
+  return unbound.kind === "held" ? unbound.path : null;
+}
+
+async function namedReleasePrimary(store: Store, slug: string): Promise<StoreResult<StoreRecord> | null> {
+  const lookup = await store.lookup({ kind: "slug", slug: SlugSchema.parse(slug) });
+  if (lookup.status === "refused") return lookup;
+  if (lookup.result.reference.kind !== "work-item/meta") return null;
+  return store.read({ reference: lookup.result.reference });
+}
+
+async function releaseAuthority(store: Store, identity: string, occupancy: Extract<Awaited<ReturnType<typeof inspectCheckoutMarker>>, { kind: "occupied" | "unbound" }>): Promise<string | null> {
   const ownership = decodeWorktreeMarkerOwnership(occupancy.marker.marker);
   if (ownership.kind !== "current" || ownership.subject.kind !== "work-unit" || occupancy.marker.marker.husk !== undefined) return occupancy.reason;
+  if (occupancy.kind === "unbound") return null;
   if (occupancy.missingRecord) return null;
   if (occupancy.workUnit === null) return occupancy.reason;
   if (occupancy.workUnit.conflicts.length > 0) return `The work-unit record has unresolved conflicts.${describeRecordConflicts(occupancy.workUnit.conflicts)}`;
@@ -61,7 +90,7 @@ function releaseAuthority(identity: string, occupancy: Extract<Awaited<ReturnTyp
   WorkUnitStateSchema.parse(fields.state);
   if (fields.owner === null) return "The work-unit owner is unavailable. Repair the owner before releasing its checkout.";
   if (fields.owner !== identity || occupancy.workUnit.placement?.kind === "backlog") return null;
-  if (occupancy.workUnit.placement?.kind === "completed" || fields.state === "Shipped") return `The work unit has ended; run arc teardown ${occupancy.workUnit.reference.owner.name}.`;
+  if (occupancy.workUnit.placement?.kind === "completed" || fields.state === "Shipped") return `The work unit has ended; run arc teardown ${await teardownOperand(store, occupancy.workUnit.reference.owner)}.`;
   if (fields.pause !== null) { MetaPauseSchema.parse(fields.pause); return null; }
   return occupancy.reason;
 }
@@ -92,9 +121,9 @@ async function releaseCheckout(ctx: LocusReleaseContext, target: string, primary
 }
 async function revalidateReleaseEligibility(ctx: LocusReleaseContext, target: string, expected: PresentMarker): Promise<void> {
   const occupancy = await inspectCheckoutMarker({ cwd: target, store: ctx.store, identity: ctx.identity });
-  if (occupancy.kind !== "occupied") throw new Error(occupancy.kind === "unreadable" ? occupancy.reason : `Checkout ${target}'s marker disappeared. Inspect arc locus --json and retry release.`);
+  if (occupancy.kind === "clear" || occupancy.kind === "unreadable") throw new Error(occupancy.kind === "unreadable" ? occupancy.reason : `Checkout ${target}'s marker disappeared. Inspect arc locus --json and retry release.`);
   if (!occupancy.marker.bytes.equals(expected.bytes)) throw new Error(`Checkout ${target}'s marker generation changed during release; inspect arc locus --json, then retry against its current marker.`);
-  const authority = releaseAuthority(ctx.identity, occupancy);
+  const authority = await releaseAuthority(ctx.store, ctx.identity, occupancy);
   if (authority !== null) throw new Error(authority);
   if (expected.marker.spawnedByArc) {
     const topology = await scanRegisteredWorktrees(ctx.exec);

@@ -29,6 +29,7 @@ import type { LocusPorts } from "./locus-ports.js";
 import type { RawGitExec } from "../git/exec.js";
 import { posix } from "node:path";
 import type { Store } from "../store/contract.js";
+import type { StoreRecord } from "../store/read.js";
 import type { StoreRefusal, Remedy } from "../store/refusal.js";
 import { executeStoreTransition, resumeStoreTransitionFinalization } from "./lifecycle-store-executor.js";
 import type { StoreTransitionInputs, LifecycleGitContinuation, LifecycleRollbackRecovery } from "./store-transition-types.js";
@@ -135,12 +136,16 @@ export interface TransitionInputs {
 // ---------------------------------------------------------------------------
 
 /** The outcome of validating one guard. */
-export type GuardResult = { ok: true } | { ok: false; message: string; remedy?: Remedy };
+export type GuardResult = { ok: true; bind?: { expected: Buffer } } | { ok: false; message: string; remedy?: Remedy };
 
 /** Everything a guard predicate reads — pure over the built index + inputs. */
 export interface GuardContext {
   /** Operational state bound at the invocation boundary. */
   store?: Store;
+  /** Exact selected primary, absent for creation. */
+  primary?: StoreRecord;
+  /** Materialize alone may bind an eligible unbound marker. */
+  admitUnbound?: boolean;
   index: LifecycleIndex;
   slug: string;
   position: LifecyclePosition | null;
