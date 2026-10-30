@@ -1,6 +1,7 @@
 /** Publish one caller-approved adversarial pass on its named work-unit generation. */
 import { canonicalize } from "../../../lib/kernel/index.js";
 import { readWorkUnit } from "../../../lib/store/lifecycle-write.js";
+import { resolveCurrentWorkUnit } from "../../../lib/store/current-work-unit.js";
 import { recordReferences, sameOwner, type OwnerIdentity, type RecordVersion } from "../../../lib/store/identity.js";
 import type { Store } from "../../../lib/store/contract.js";
 import type { StoreResult } from "../../../lib/store/refusal.js";
@@ -33,9 +34,10 @@ export async function recordApprovedAdversarialPass(request: ReviewAdversarialRe
   if (input.workItem !== undefined && !sameOwner(input.workItem, owner)) {
     throw new AdversarialRecordError("invalid-input", "The requested slug and selected work-item generation differ. Select the matching work unit, then retry.");
   }
+  const code = request.activity === "verification" || request.activity === "criteria";
+  if (code) await requireCheckoutHolds(input.store, options.cwd, owner, request.workUnit);
   const key = { activity: request.activity, number: await nextPassNumber(input.store, owner, request.activity) };
   const artifacts = await readArtifactVersions(input.store, owner, request.activity);
-  const code = request.activity === "verification" || request.activity === "criteria";
   const codeHead = code ? (await options.exec("git", ["rev-parse", "HEAD"], { cwd: options.cwd })).stdout.trim() : undefined;
   const { workUnit, ...header } = request;
   void workUnit;
@@ -46,6 +48,14 @@ export async function recordApprovedAdversarialPass(request: ReviewAdversarialRe
       ...(codeHead === undefined ? {} : { codeHead }) } }));
   return ReviewAdversarialRecordEnvelopeSchema.parse({ schemaVersion: 1, mode: "review-adversarial-record", diagnostics: [],
     state: "recorded", nextAction: "none", payload: { key, version: written.version } });
+}
+
+// A code pass binds the checkout's HEAD, which is the work unit's code only in the checkout holding that work unit.
+async function requireCheckoutHolds(store: Store, cwd: string, owner: OwnerIdentity, workUnit: string): Promise<void> {
+  const current = await resolveCurrentWorkUnit({ cwd, store });
+  if (current.status === "resolved" && sameOwner(current.candidate.reference.owner, owner)) return;
+  throw new AdversarialRecordError("invalid-input", `This checkout does not hold work unit \`${workUnit}\`, so its HEAD is not `
+    + `that work unit's code. Run the command from work unit \`${workUnit}\`'s checkout, then retry.`);
 }
 
 // Absence and a refused write check are the caller's input to correct; every other refusal reports as the store's.

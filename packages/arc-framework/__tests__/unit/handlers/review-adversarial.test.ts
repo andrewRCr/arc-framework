@@ -22,7 +22,7 @@ function request(activity: Parameters<typeof adversarialPassFixture>[0] = "draft
 async function record(store: Store, input: unknown, invocation: ReviewInvocationOptions = {}, raw?: string) {
   let output = "", exitCode = 0;
   await handleReviewAdversarialRecord("-", { resolveRoot: () => "/test", readText: () => Promise.resolve(raw ?? JSON.stringify(input)),
-    write: text => { output += text; }, setExitCode: code => { exitCode = code; } }, undefined, { store, ...scriptGitExec([{ match: ["rev-parse", "HEAD"], responses: [{ stdout: "c".repeat(40) }] }]), ...invocation });
+    write: text => { output += text; }, setExitCode: code => { exitCode = code; } }, undefined, { store, ...scriptGitExec([]), ...invocation });
   return { envelope: JSON.parse(output), exitCode };
 }
 it.each(["draft-readiness", "verification", "criteria"] as const)("refuses %s before the flip with its text-only remedy", async activity => {
@@ -43,9 +43,9 @@ async function nativeFixture() {
   const tasks = await h.seed(recordReferences["work-item/task-list"](primary.reference.owner), "# Tasks\n\n### `[ ]` **1.1 Implement behavior**\n\n- _Goal:_ Implement it.\n");
   return { ...h, primary, draft, spec, tasks };
 }
-it("records exact artifact versions and code heads, numbering each activity across loops", async () => {
+it("records exact artifact versions, numbering each activity across loops", async () => {
   const h = await nativeFixture();
-  for (const activity of ["draft-readiness", "spec-finalization", "task-generation", "design-amendment", "verification", "criteria"] as const) {
+  for (const activity of ["draft-readiness", "spec-finalization", "task-generation", "design-amendment"] as const) {
     for (let number = 1; number <= 2; number++) {
       const before = lifecycleSuccess(await h.store.version());
       const result = await record(h.store, request(activity));
@@ -57,8 +57,8 @@ it("records exact artifact versions and code heads, numbering each activity acro
       expect(result.envelope.payload.version).toEqual(saved.version);
       expect(value).toMatchObject({ ...adversarialPassFixture(activity), artifacts: activity === "draft-readiness"
         ? { draft: h.draft.version } : activity === "spec-finalization" ? { draft: h.draft.version, spec: h.spec.version }
-        : { spec: h.spec.version, taskList: h.tasks.version },
-        ...(activity === "verification" || activity === "criteria" ? { codeHead: "c".repeat(40) } : {}) });
+        : { spec: h.spec.version, taskList: h.tasks.version } });
+      expect(value).not.toHaveProperty("codeHead");
       expect(value.pass.number).toBe(1);
       expect(lifecycleSuccess(await h.store.changes({ from: before, to: lifecycleSuccess(await h.store.version()) })))
         .toEqual([expect.objectContaining({ reference: saved.reference, version: saved.version })]);
