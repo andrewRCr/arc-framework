@@ -411,6 +411,22 @@ The fresh full regression passes all 433 tests; failed and passing logs remain u
 `bb89d87` separately documents actual grouped placement, recovery ownership and advisory records. A fresh provider
 freeze and actual remote-path validation precede further measurements; the old pair remains unsuccessful evidence.
 
+### Profile corroboration for whole-gate analysis
+
+Whole-gate qualification can now consume actual homogeneous native witness matrices without changing measured
+samples, runtime observations or strict validators. Routed matrices use the existing mixed-profile composition.
+Ordinary unit rows remain ordinary: each unchanged row must pass the strict helper as the baseline against a
+complete matching-profile witness's declared native shards. Captured basis, duration and selected membership must
+agree across both measured arms and every supplied witness. Absent or invalid witnesses leave the pair unqualified;
+provider runtime remains unknown and grants no reusable ARC pass.
+
+The pure helper and gate-summary tests cover mixed routed matrices, ordinary cross-profile proof, missing or
+incomplete witnesses, different captured input and failed rows. Behavioral red runs `66c8f4b352084014b5c7d4abf5683a8a`
+and `da8f648a72ad4959a6b211c1f201699b` reject missing corroboration; green run
+`dd4c2287bb154705b02cfc8e02133a59` passes all 20 focused cases. The real gate integration scenarios also pass under
+`67b9ce89f5144ecdb95841434459f95d`. Synthetic profile rows are validation fixtures only; no full-gate mixed profile
+is qualified by these tests. Actual full native witnesses and their SDK closure/inspection evidence remain required.
+
 ## Amendment reasoning
 
 ### A2 — store dependency

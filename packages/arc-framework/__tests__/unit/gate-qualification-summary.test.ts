@@ -80,3 +80,20 @@ it("retains failed, partial, coverage-mismatched and incomparable gates without 
   expect(summary.batches.map(batch => batch.requested)).toEqual([7, 7]);
   expect(summary.batches.reduce((sum, batch) => sum + batch.completed, 0)).toBe(12);
 });
+
+it("counts a mixed-profile gate pair only with complete native witnesses and keeps failed gates ineligible", () => {
+  const samples = pair("corroborated", 100, 60, [0, 500]);
+  const baseline = structuredClone(produced[0]!.report!.native.routed![0]!);
+  const shards = structuredClone(produced[1]!.report!.native.routed!);
+  const alternate = structuredClone({ baseline, shards });
+  for (const run of [alternate.baseline, ...alternate.shards]) run.observations[0]!.runtime.arch = "x64";
+  samples[1]!.report!.native.routed![1]!.observations[0]!.runtime.arch = "x64";
+  // These alternate-profile rows are synthetic validation inputs, never deployment evidence.
+  const witnesses = { routed: [{ baseline, shards }, alternate] };
+  expect(qualifyGatePair(samples[0]!, samples[1]!).qualified).toBe(false);
+  expect(qualifyGatePair(samples[0]!, samples[1]!, witnesses)).toEqual({ qualified: true, reasons: [] });
+  expect(summarizeGateSamples(samples, witnesses).gates[0]?.distributed.count).toBe(1);
+  samples[1]!.report!.completed = false;
+  expect(qualifyGatePair(samples[0]!, samples[1]!, witnesses).qualified).toBe(false);
+  expect(summarizeGateSamples(samples, witnesses).gates[0]?.distributed.count).toBe(0);
+});

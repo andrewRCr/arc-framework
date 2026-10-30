@@ -1,31 +1,17 @@
 /** Conservative statistics over complete equivalent gates; every unsuccessful sample remains visible. */
-import { qualifyNativeShardMembership, type NativeMembershipRun } from "../native-shard-qualification.js";
-import { NativeShardObservationSchema, type NativeMember } from "../native-shard-evidence.js";
+import type { NativeMembershipMatrix } from "../native-shard-profile-qualification.js";
 import { checkInvocationArguments, checkShardArguments } from "../../../src/lib/checks/shards.js";
 import { identity, type GateSample } from "./model.js";
+import { qualifyGateNativeCoverage } from "./native-coverage.js";
 
-function members(values: readonly NativeMember[]): string {
-  const keys = values.map(value => JSON.stringify([value.project, value.file])).sort();
-  if (new Set(keys).size !== keys.length) throw new Error("Duplicated native member.");
-  return JSON.stringify(keys);
-}
-function ordinary(run: NativeMembershipRun): ReturnType<typeof NativeShardObservationSchema.parse> {
-  if (run.exitCode !== 0 || run.observations.length !== 1) throw new Error("Missing successful ordinary native observation.");
-  const record = NativeShardObservationSchema.parse(run.observations[0]);
-  if (record.cycle !== 1 || record.closed !== undefined || record.shard !== undefined || record.shardCalls !== 0
-    || record.sortCalls !== 1 || record.assigned.length === 0 || record.preflight !== undefined
-    || identity(record.duration) !== identity(run.basis.duration)) throw new Error("Invalid ordinary native observation.");
-  for (const actual of [record.selected, record.ordered, record.queued, record.ended]) {
-    if (members(actual) !== members(record.assigned)) throw new Error("Ordinary native membership was incomplete.");
-  }
-  return record;
-}
+export type GateNativeCorroborations = Readonly<Record<string, readonly NativeMembershipMatrix[]>>;
+
 function complete(sample: GateSample): boolean {
   return sample.processExit.exitCode === 0 && sample.processExit.signal === undefined && !sample.processExit.timedOut
     && sample.failure === undefined && sample.report?.completed === true;
 }
-/** Existing native strict runtime comparison remains authoritative; mixed profiles retain an explicit gap. */
-export function qualifyGatePair(baseline: GateSample, distributed: GateSample): { qualified: boolean; reasons: string[] } {
+/** Require complete gates and unchanged strict native checks, with optional actual homogeneous witnesses. */
+export function qualifyGatePair(baseline: GateSample, distributed: GateSample, corroborations: GateNativeCorroborations = {}): { qualified: boolean; reasons: string[] } {
   const reasons: string[] = [];
   if (!complete(baseline) || !complete(distributed)) reasons.push("One or both complete gate executions were unsuccessful.");
   if (baseline.request.arm !== "routed-unsharded" || distributed.request.arm !== "distributed") reasons.push("Comparison arms are not routed baseline and declaration-derived execution.");
@@ -67,15 +53,8 @@ export function qualifyGatePair(baseline: GateSample, distributed: GateSample): 
         continue;
       }
       try {
-        if (observedNative?.length !== 1 || candidateNative === undefined) throw new Error("Native baseline or complete matrix is missing.");
-        if (original.shards?.routed) qualifyNativeShardMembership(observedNative[0]!, candidateNative, original.shards.count);
-        else {
-          if (candidateNative.length !== 1) throw new Error("Unexpected ordinary native matrix.");
-          const first = ordinary(observedNative[0]!), second = ordinary(candidateNative[0]!);
-          if (identity(observedNative[0]!.basis) !== identity(candidateNative[0]!.basis)
-            || identity(first.runtime) !== identity(second.runtime) || identity(first.duration) !== identity(second.duration)
-            || members(first.assigned) !== members(second.assigned)) throw new Error("Ordinary native basis, profile or membership differs.");
-        }
+        if (observedNative === undefined || candidateNative === undefined) throw new Error("Native baseline or complete matrix is missing.");
+        qualifyGateNativeCoverage(observedNative, candidateNative, original.shards, corroborations[id]);
       } catch (cause) { reasons.push(`Native coverage unqualified for ${id}: ${String(cause)}`); }
     }
     if (Object.keys(left.native).length === 0 || Object.keys(right.native).length === 0) reasons.push("No observed native coverage; this execution is not a coverage-equivalent speedup sample.");
@@ -88,11 +67,11 @@ function distribution(values: readonly number[]) {
   return { count: ordered.length, median: ordered.length % 2 ? ordered[middle]! : (ordered[middle - 1]! + ordered[middle]!) / 2,
     min: ordered[0]!, max: ordered.at(-1)! };
 }
-export function summarizeGateSamples(samples: readonly GateSample[]) {
+export function summarizeGateSamples(samples: readonly GateSample[], corroborations: GateNativeCorroborations = {}) {
   const pairs = [...new Set(samples.map(sample => sample.request.pairId))].map(pairId => {
     const baseline = samples.filter(sample => sample.request.pairId === pairId && sample.request.arm === "routed-unsharded");
     const distributed = samples.filter(sample => sample.request.pairId === pairId && sample.request.arm === "distributed");
-    return { pairId, ...(baseline.length === 1 && distributed.length === 1 ? qualifyGatePair(baseline[0]!, distributed[0]!)
+    return { pairId, ...(baseline.length === 1 && distributed.length === 1 ? qualifyGatePair(baseline[0]!, distributed[0]!, corroborations)
       : { qualified: false, reasons: ["Missing or duplicated comparison arm."] }) };
   });
   const eligible = new Set(pairs.filter(pair => pair.qualified).map(pair => pair.pairId));
