@@ -5,6 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 import { createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-review.js";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import { ReviewDecisionSchema } from "../../../../../src/lib/store/kinds/review/decision/schema.js";
+import { reviewDecisionKey } from "../../../../../src/lib/store/kinds/review/decision/key.js";
+import { extraPassDecision } from "../../../../fixtures/review-decision.js";
 
 import {
   candidateReviewResponses,
@@ -2336,15 +2339,27 @@ Approve: 2 fixes → focused verification → commit → push?`,
     expect(await respondToReviewCommand(approval(ceilingOverride), deps)).toMatchObject({ state: "settled", nextAction: "reduce" });
   });
 
-  it("keeps no native decision reference in the stored response request off the branch", async () => {
+  it("checks a native decision reference against its recorded decision, then keeps none in the stored response request", async () => {
     const records = fixture();
-    const deps = { ...dependencies(records), stateOffBranch: true as const };
+    const recorded = ReviewDecisionSchema.parse({ ...extraPassDecision("ceiling"), choice: { kind: "extra-pass", passCount: 1,
+      precondition: { kind: "ceiling", targetBinding: { kind: "call-target" } } } });
+    const mismatched = ReviewDecisionSchema.parse({ ...recorded, choice: { ...recorded.choice, passCount: 2 } });
+    const decisions = new Map([recorded, mismatched].map(value => [reviewDecisionKey(value), value]));
+    const deps = { ...dependencies(records), stateOffBranch: true as const,
+      readExtraPassDecision: async (key: ReturnType<typeof canonicalDigest>) => decisions.get(key) ?? null };
     const base = policyRequest(records);
     const ceilingOverride = { target: base.target, lane: base.lane, exhaustedPassCount: 1, nextPass: 2 };
+    const approval = (decisionKey: ReturnType<typeof canonicalDigest>) => withReviewReport({ ...localRequest(records, "defer"),
+      policyRequest: { ...base, ceilingOverride: { ...ceilingOverride, decisionKey } },
+      conditionalNextPassAuthorization: { authorizedBy: records.authority.authorIdentity, exhaustedPassCount: 1, nextPass: 2 } });
 
-    expect(await respondToReviewCommand(withReviewReport({ ...localRequest(records, "defer"),
-      policyRequest: { ...base, ceilingOverride: { ...ceilingOverride, decisionKey: canonicalDigest({ grant: 1 }) } },
-      conditionalNextPassAuthorization: { authorizedBy: records.authority.authorIdentity, exhaustedPassCount: 1, nextPass: 2 } }), deps))
+    for (const [key, reason] of [[canonicalDigest({ grant: 1 }), "names no recorded decision"],
+      [reviewDecisionKey(mismatched), "does not match the supplied grant values"]] as const) {
+      await expect(respondToReviewCommand(approval(key), deps)).rejects.toMatchObject({ code: "invalid-input",
+        message: expect.stringContaining(reason) });
+      await expect(deps.dispositionStore.readDispositionRecord(records.operation.operationId)).resolves.toBeNull();
+    }
+    expect(await respondToReviewCommand(approval(reviewDecisionKey(recorded)), deps))
       .toMatchObject({ state: "settled", nextAction: "reduce" });
     const stored = await deps.dispositionStore.readDispositionRecord(records.operation.operationId);
     if (stored === null) throw new Error("expected the approved disposition record");
