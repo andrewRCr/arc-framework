@@ -14,6 +14,7 @@ import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/id
 import { serializeTransientIdentityRecord, TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { transientContent } from "../../helpers/store/in-repo-substrates.js";
 
 async function fixture() {
   const cwd = await mkdtemp(join(tmpdir(), "arc-locus-release-"));
@@ -54,6 +55,21 @@ it.each(["foreign", "missing", "backlog"])("releases an anchored %s occupant wit
     .toMatchObject({ status: "released", spawned: false });
   expect(await readWorktreeMarker(h.holder)).toEqual({ kind: "absent" });
   expect(await h.store.read({ reference: h.record.reference })).toEqual({ status: "ok", result: h.record });
+});
+
+it.each(["errand", "cohort"] as const)("releases an unbound marker by name when its slug resolves to a %s", async kind => {
+  const h = await fixture(), slug = "occupied";
+  const reference = kind === "cohort"
+    ? recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: slug }))
+    : recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: slug }));
+  const record = await h.seed(reference, kind === "cohort" ? "# Cohort: occupied\n\n**Purpose:** Coordinate work.\n"
+    : transientContent(reference), kind === "cohort" ? undefined : { kind: "active" });
+  await writeWorktreeMarker(h.holder, { ...h.marker, createdFor: { kind: "work-unit", name: slug } });
+  const before = lifecycleSuccess(await h.store.version());
+  expect(await runLocusRelease(h.ctx, slug)).toMatchObject({ status: "released", checkoutPath: h.holder, spawned: false });
+  expect(await readWorktreeMarker(h.holder)).toEqual({ kind: "absent" });
+  expect(lifecycleSuccess(await h.store.read({ reference: record.reference }))).toEqual(record);
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
 });
 
 it("preserves the marker when the projection refuses and clears it once the slot passes", async () => {

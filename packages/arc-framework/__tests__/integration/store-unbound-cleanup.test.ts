@@ -11,6 +11,8 @@ import { scanRegisteredWorktrees } from "../../src/lib/git/worktree-roster.js";
 import { selectStoreWorktreeCleanup } from "../../src/lib/session-init/store-worktree-selection.js";
 import { inspectCheckoutMarker } from "../../src/lib/locus/marker-occupancy.js";
 import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, readWorktreeMarker, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { recordReferences, OwnerIdentitySchema } from "../../src/lib/store/identity.js";
+import { transientContent } from "../helpers/store/in-repo-substrates.js";
 
 async function fixture(bound = false) {
   const h = await lifecycleReuseFixture(false, { state: "Planning", currentWorkflow: "draft-design" });
@@ -23,6 +25,26 @@ async function fixture(bound = false) {
     spawningIdentity: "test-user", createdAt: "2026-10-24T00:00:00Z" });
   return { ...h, path };
 }
+
+it.each(["errand", "cohort"] as const)("releases only the unbound checkout named by a %s-held slug", async kind => {
+  const h = await fixture(), slug = "occupied";
+  const reference = kind === "cohort"
+    ? recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: slug }))
+    : recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: slug }));
+  const record = await h.seed(reference, kind === "cohort" ? "# Cohort: occupied\n\n**Purpose:** Coordinate work.\n"
+    : transientContent(reference), kind === "cohort" ? undefined : { kind: "active" });
+  await writeWorktreeMarker(h.path, { spawnedByArc: false, createdFor: { kind: "work-unit", name: slug },
+    spawningIdentity: "test-user", createdAt: "2026-10-24T00:00:00Z" });
+  const before = lifecycleSuccess(await h.store.version());
+  const result = await repairCli(h, ["locus", "release", slug], { store: h.store });
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  expect(await readWorktreeMarker(h.path)).toEqual({ kind: "absent" });
+  expect(lifecycleSuccess(await h.store.read({ reference: record.reference }))).toEqual(record);
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.live.reference }))).toEqual(h.live);
+  const topology = await scanRegisteredWorktrees(h.exec);
+  expect(topology).toMatchObject({ ok: true, worktrees: expect.arrayContaining([expect.objectContaining({ path: h.path })]) });
+}, 30_000);
 
 it("reports checkout-bound recovery actions and frees the unbound checkout through its release exit", async () => {
   const h = await fixture(), before = lifecycleSuccess(await h.store.version());

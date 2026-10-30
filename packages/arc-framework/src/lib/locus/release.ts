@@ -1,13 +1,14 @@
 /** Release machine-local work-unit occupancy without changing its operational lifecycle. */
 import { teardownOperand } from "../work-unit/store-retirement-evidence.js";
 import { ownerHolderRequest } from "../work-unit/locus-ports.js";
-import { readWorkUnit } from "../store/lifecycle-write.js";
 import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 import { dirname, resolve } from "node:path";
 import { MetaPauseSchema, ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import { localPathContains } from "../local-path-identity.js";
-import { WorkUnitStateSchema } from "../kernel/index.js";
+import { SlugSchema, WorkUnitStateSchema } from "../kernel/index.js";
 import type { Store } from "../store/contract.js";
+import type { StoreRecord } from "../store/read.js";
+import type { StoreResult } from "../store/refusal.js";
 import type { GitExec } from "../git/exec.js";
 import { GitProcessError } from "../git/process-error.js";
 import { scanRegisteredWorktrees, type RegisteredWorktree } from "../git/worktree-roster.js";
@@ -56,10 +57,10 @@ async function releaseUnderLock(ctx: LocusReleaseContext, slug?: string): Promis
   return { status: "released", checkoutPath: target, spawned, ...(nextCheckoutPath === undefined ? {} : { nextCheckoutPath }) };
 }
 async function namedReleaseCheckout(store: Store, ports: LocusPorts, slug: string, identity: string): Promise<string | null> {
-  const primary = await readWorkUnit(store, slug);
-  if (primary.status === "refused" && primary.refusal.code !== "not-found") throw new Error(
+  const primary = await namedReleasePrimary(store, slug);
+  if (primary?.status === "refused" && primary.refusal.code !== "not-found") throw new Error(
     `${primary.refusal.condition} ${primary.refusal.remedy.text} To release an unbound checkout, run arc locus release from inside that checkout.`);
-  if (primary.status === "ok" && primary.result.placement?.kind !== "completed") {
+  if (primary?.status === "ok" && primary.result.placement?.kind !== "completed") {
     const holder = await ports.findHoldingCheckout(ownerHolderRequest(primary.result));
     if (holder.kind === "unbound") {
       if (ownedInFlight(primary.result, identity)) throw new Error(holder.reason);
@@ -69,6 +70,13 @@ async function namedReleaseCheckout(store: Store, ports: LocusPorts, slug: strin
   }
   const unbound = await ports.findHoldingCheckout({ kind: "creation", slug });
   return unbound.kind === "held" ? unbound.path : null;
+}
+
+async function namedReleasePrimary(store: Store, slug: string): Promise<StoreResult<StoreRecord> | null> {
+  const lookup = await store.lookup({ kind: "slug", slug: SlugSchema.parse(slug) });
+  if (lookup.status === "refused") return lookup;
+  if (lookup.result.reference.kind !== "work-item/meta") return null;
+  return store.read({ reference: lookup.result.reference });
 }
 
 async function releaseAuthority(store: Store, identity: string, occupancy: Extract<Awaited<ReturnType<typeof inspectCheckoutMarker>>, { kind: "occupied" | "unbound" }>): Promise<string | null> {
