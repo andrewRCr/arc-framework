@@ -1465,9 +1465,15 @@ prerequisites have landed, and every earlier task is independent of the remainin
   authority without projected files, and portable source references retain their producer after execution pruning and
   slug reuse, refusing a substituted owner and resuming with the matching reference.
 
-### `[ ]` **7.7 Delivery and integration at the flip** — validate exit criterion at segment scope
+### `[x]` **7.7 Delivery and integration at the flip** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
+
+- _Outcome:_ Base `5cadb46a3` is reconciled in `fba098895`. Over the reference backend, adding, rewriting, and
+  deleting the review copy leave the subject unchanged, and landed, already-merged, and recovered merges write the
+  landing link with the project ID. Status reports a stored boundary with no holder or from another checkout. Both
+  locks release under either cadence, an adopted branch included, and refuse on position, branch link, notes, and
+  change-request link. Ended-item writes pull and retry once, and the subject reads a stored Candidate without files.
 
 ## **Phase 8:** Verification
 
