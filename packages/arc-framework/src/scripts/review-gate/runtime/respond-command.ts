@@ -1,4 +1,5 @@
 /** Source-authoritative orchestration for `arc review respond`. */
+import { requireNativeReviewDecisionReferences, withoutReviewDecisionReferences } from "../policy/review-grant-references.js";
 import { isOffBranchStoreRefusal } from "../../../lib/store/refusal-error.js";
 import { ReviewFixTagsSchema, ReviewReportInputSchema } from "../core/review-report-inputs.js";
 import {
@@ -301,6 +302,8 @@ interface HostedDispositionFindingBinding {
 }
 
 export interface RespondCommandDependencies {
+  /** Present when the invocation's store keeps review state off the branch. */
+  stateOffBranch?: true;
   /** Decode source coordinates under the invocation's selected storage arm and owner. */
   parseSourceReference?: (reference: string, kind: BoundReviewSourceReference["kind"])
     => BoundReviewSourceReference | Promise<BoundReviewSourceReference>;
@@ -1682,7 +1685,7 @@ export async function respondToReviewCommand(
   requestInput: unknown,
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
-  const request = RespondRequestSchema.parse(requestInput);
+  const request = withoutResponseDecisionReferences(RespondRequestSchema.parse(requestInput), dependencies);
   let source: ResolvedResponseSource;
   try {
     source = request.source.kind === "attested-local"
@@ -1710,6 +1713,14 @@ export async function respondToReviewCommand(
     }),
     () => respondToResolvedReviewCommand(request, source, dependencies),
   );
+}
+
+/** Refuse a native decision reference in the repository arm; off the branch, drop it, since a stored response keeps none. */
+function withoutResponseDecisionReferences(request: z.infer<typeof RespondRequestSchema>,
+  dependencies: RespondCommandDependencies): z.infer<typeof RespondRequestSchema> {
+  if (!("policyRequest" in request)) return request;
+  requireNativeReviewDecisionReferences(dependencies.stateOffBranch === true, request.policyRequest);
+  return { ...request, policyRequest: withoutReviewDecisionReferences(request.policyRequest) };
 }
 
 async function withdrawConditionalResponseAuthority(

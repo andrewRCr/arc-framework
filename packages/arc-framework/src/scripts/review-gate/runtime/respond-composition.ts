@@ -571,6 +571,7 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
   };
   const policyContext = { input, publisher, prepare, settings, readConfiguredLanePolicy, rawGit, deliveryMembers, privateDeliveryTargets };
   return {
+    ...(prepare.operationStore.stateOffBranch === true ? { stateOffBranch: true as const } : {}),
     parseSourceReference: async (value, kind) => {
       const owner = await selectedSourceOwner(input);
       if (owner === undefined) return parseReviewSourceReferenceForOwner(value, kind);

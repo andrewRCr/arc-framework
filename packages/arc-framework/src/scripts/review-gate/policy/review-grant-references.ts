@@ -28,3 +28,17 @@ export function requireNativeReviewDecisionReferences(context: boolean | (() => 
     "Native review decision references require their native review context. Use the context that owns the recorded decision, "
     + "or omit decisionKey to supply a fresh judgment here, then retry."), { code: "invalid-input" });
 }
+
+function withoutKey<Value extends { readonly decisionKey?: CanonicalDigest }>(value: Value): Value {
+  const { decisionKey, ...rest } = value;
+  void decisionKey;
+  return rest as Value;
+}
+
+/** Drop transient decision references, which no stored request carries. */
+export function withoutReviewDecisionReferences<Request extends ReviewGrantReferences>(request: Request): Request {
+  return { ...request,
+    ...(request.ceilingOverride === undefined ? {} : { ceilingOverride: withoutKey(request.ceilingOverride) }),
+    ...(request.additionalPassAuthorization === undefined ? {} : {
+      additionalPassAuthorization: withoutKey(request.additionalPassAuthorization) }) };
+}

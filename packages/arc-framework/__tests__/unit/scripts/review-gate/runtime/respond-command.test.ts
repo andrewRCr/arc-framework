@@ -2321,6 +2321,36 @@ Approve: 2 fixes → focused verification → commit → push?`,
     await expect(deps.dispositionStore.readDispositionRecord(records.operation.operationId)).resolves.toBeNull();
   });
 
+  it("refuses a native decision reference on a repository approval before appending it, and settles without one", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const base = policyRequest(records);
+    const ceilingOverride = { target: base.target, lane: base.lane, exhaustedPassCount: 1, nextPass: 2 };
+    const approval = (override: typeof ceilingOverride & { decisionKey?: ReturnType<typeof canonicalDigest> }) => withReviewReport({
+      ...localRequest(records, "defer"), policyRequest: { ...base, ceilingOverride: override },
+      conditionalNextPassAuthorization: { authorizedBy: records.authority.authorIdentity, exhaustedPassCount: 1, nextPass: 2 } });
+
+    await expect(respondToReviewCommand(approval({ ...ceilingOverride, decisionKey: canonicalDigest({ grant: 1 }) }), deps))
+      .rejects.toMatchObject({ code: "invalid-input", message: expect.stringContaining("omit decisionKey") });
+    await expect(deps.dispositionStore.readDispositionRecord(records.operation.operationId)).resolves.toBeNull();
+    expect(await respondToReviewCommand(approval(ceilingOverride), deps)).toMatchObject({ state: "settled", nextAction: "reduce" });
+  });
+
+  it("keeps no native decision reference in the stored response request off the branch", async () => {
+    const records = fixture();
+    const deps = { ...dependencies(records), stateOffBranch: true as const };
+    const base = policyRequest(records);
+    const ceilingOverride = { target: base.target, lane: base.lane, exhaustedPassCount: 1, nextPass: 2 };
+
+    expect(await respondToReviewCommand(withReviewReport({ ...localRequest(records, "defer"),
+      policyRequest: { ...base, ceilingOverride: { ...ceilingOverride, decisionKey: canonicalDigest({ grant: 1 }) } },
+      conditionalNextPassAuthorization: { authorizedBy: records.authority.authorIdentity, exhaustedPassCount: 1, nextPass: 2 } }), deps))
+      .toMatchObject({ state: "settled", nextAction: "reduce" });
+    const stored = await deps.dispositionStore.readDispositionRecord(records.operation.operationId);
+    if (stored === null) throw new Error("expected the approved disposition record");
+    expect(currentApprovedDispositionNode(stored).responsePolicyRequest.ceilingOverride).not.toHaveProperty("decisionKey");
+  });
+
   it("returns the persisted conditional next-pass authorization with the response action", async () => {
     const records = fixture();
     const deps = dependencies(records);
