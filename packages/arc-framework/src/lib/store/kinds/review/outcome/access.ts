@@ -5,7 +5,6 @@ import type { ReviewOutcomePort } from "../../../../../scripts/review-gate/core/
 import { createReviewFactAccess } from "../fact-access.js";
 import { ReviewOutcomeSchema } from "./schema.js";
 import { reviewOutcomeKey } from "./key.js";
-import { laneSubjectLineageId } from "../../../../../scripts/review-gate/core/lane-admission.js";
 
 /** Open typed outcome access without opening another backend. */
 export function createReviewOutcomePort(store: Store, owner: OwnerIdentity): ReviewOutcomePort {
@@ -13,12 +12,7 @@ export function createReviewOutcomePort(store: Store, owner: OwnerIdentity): Rev
     ReviewOutcomeSchema, reviewOutcomeKey);
   return {
     read: access.read,
-    async list(selection) {
-      const listing = await access.list();
-      return selection === undefined || listing.status !== "complete" ? listing : { status: "complete",
-        records: listing.records.filter(({ value }) => value.lane === selection.lane
-          && laneSubjectLineageId(value.lineage) === laneSubjectLineageId(selection.lineage)) };
-    },
+    list: access.list,
     create: (value) => access.write(value, null),
     prepareCreate: (value) => access.prepare(value, null),
   };

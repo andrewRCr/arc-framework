@@ -20,7 +20,7 @@ describe("work-item outcome access", () => {
     if (stored.status === "ok") expect(JSON.parse(stored.result.content)).toEqual(outcome);
   });
 
-  it("lists only the bound work item's exact lineage and lane", async () => {
+  it("lists only the bound work item's outcomes", async () => {
     const harness = createLifecycleHarness();
     const meta = await harness.seedMeta("example");
     const other = await harness.seedMeta("other");
@@ -32,9 +32,6 @@ describe("work-item outcome access", () => {
       lineage: { kind: "candidate", candidateId: canonicalDigest({ candidate: "other" }) },
     })));
     await port.create(ReviewOutcomeSchema.parse(frontlineOutcome()));
-    const selection = await port.list({ lineage: outcome.lineage, lane: outcome.lane });
-    expect(selection.status).toBe("complete");
-    if (selection.status === "complete") expect(selection.records.map(({ value }) => value)).toEqual([outcome]);
     const all = await port.list();
     expect(all.status).toBe("complete");
     if (all.status === "complete") expect(all.records).toHaveLength(3);

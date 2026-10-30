@@ -97,8 +97,7 @@ async function inspectPublication(ctx: ExecuteTransitionContext & { store: Store
   if (pause.status === "rejected") return reject(pause.reason, pause.refusal, pause.remedy);
   const branch = await linkedWorkBranch(ctx, read.result);
   if (branch === null) return reject("The work unit has no unambiguous branch link; activate its work branch first.");
-  const candidate = ctx.store.capabilities.stateOffBranch
-    ? await readPublicationCandidate(ctx.store, read.result) : { status: "ok" as const, result: meta.candidateId };
+  const candidate = await readPublicationCandidate(ctx.store, read.result);
   if (candidate.status === "refused") return reject(candidate.refusal.condition, candidate.refusal);
   if (!params.candidateCurrent || candidate.result !== params.candidateId) return reject("The current Candidate identity is absent or stale; re-attest it.");
   if (meta.state === "Integrating" && meta.currentWorkflow === "integrate-work-unit") {

@@ -6,7 +6,7 @@ import type { IntegrationBoundaryLocus } from "../../../../scripts/review-gate/p
 import type { ReviewDecision } from "./decision/schema.js";
 
 /** Locate saved replay payloads on actions and post-attestation continuations. */
-export function readMappingReplays(boundary: IntegrationBoundaryLocus): PrePublicationReplayInput[] {
+function readMappingReplays(boundary: IntegrationBoundaryLocus): PrePublicationReplayInput[] {
   const actions = [boundary.nextAction];
   if (boundary.nextAction.kind === "run-convergence-verification") {
     actions.push(boundary.nextAction.postAttestContinuation.nextAction);

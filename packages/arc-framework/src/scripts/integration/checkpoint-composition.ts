@@ -1,7 +1,6 @@
 /** Production composition for the typed integration checkpoint. */
 
 import { resolve } from "node:path";
-import type { Store } from "../../lib/store/contract.js";
 import { readStoredLifecycleSummary } from "./lifecycle-record.js";
 
 import { resolveTaskListPath } from "../../commands/active/status.js";
@@ -443,7 +442,6 @@ async function readLifecycleArtifactFacts(
  * @param archiveCadence - Cadence selecting the required pre-merge lifecycle position.
  * @param storageVersion - Immutable version identifying the supplied filesystem view.
  * @param fs - Exact-version filesystem projection used by repository storage.
- * @param store - Optional store selecting current native metadata authority.
  * @returns A typed summary bound to the supplied storage version.
  */
 export async function readLifecycleSummary(
@@ -452,11 +450,7 @@ export async function readLifecycleSummary(
   archiveCadence: "with-integration" | "manual",
   storageVersion: string,
   fs: IntegrationLifecycleReadFs,
-  store?: Store,
 ): Promise<IntegrationLifecycleSummary> {
-  if (store?.capabilities.stateOffBranch) return (await readStoredLifecycleSummary({
-    store, workUnit, archiveCadence, storageVersion,
-  })).summary;
   const { index } = await resolveComposedLifecycleIndex({ cwd, fs });
   const query = resolveSlugQuery(index, workUnit);
   const positioned = archiveCadence === "with-integration"

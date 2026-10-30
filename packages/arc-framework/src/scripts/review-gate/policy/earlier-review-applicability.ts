@@ -1,5 +1,4 @@
 /** Compose earlier-attempt discovery, D4 projection, and canonical Candidate authority. */
-import { sameOwner } from "../../../lib/store/identity.js";
 import { bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
 import type { RawGitExec } from "../../../lib/git/exec.js";
 import {
@@ -194,10 +193,7 @@ export async function projectEarlierReviewApplicability(
 ): Promise<EarlierHostedAttemptApplicabilityRead> {
   const query = EarlierReviewAttemptQuerySchema.parse(input.query);
   const sourceOwner = input.sourceOwner;
-  const snapshot = sourceOwner === undefined || input.snapshot.status !== "complete" ? input.snapshot
-    : { ...input.snapshot, records: input.snapshot.records.filter(({ state }) => state.workItem !== undefined
-      && sameOwner(state.workItem, sourceOwner.workItem)) };
-  const queried = queryEarlierReviewAttempts(query, snapshot);
+  const queried = queryEarlierReviewAttempts(query, input.snapshot);
   if (queried.status === "unavailable") {
     if (queried.reason === "no-matching-attempt") return { status: "not-found" };
     return { status: "unavailable", detail: queried.detail };

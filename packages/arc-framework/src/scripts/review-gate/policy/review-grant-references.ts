@@ -16,7 +16,7 @@ export function consistentReviewDecisionReference(full: { readonly decisionKey?:
 }
 
 /** Identify a request that must read recorded native authority. */
-export function hasReviewDecisionReference(input: ReviewGrantReferences | undefined): boolean {
+function hasReviewDecisionReference(input: ReviewGrantReferences | undefined): boolean {
   return input?.ceilingOverride?.decisionKey !== undefined || input?.additionalPassAuthorization?.decisionKey !== undefined;
 }
 

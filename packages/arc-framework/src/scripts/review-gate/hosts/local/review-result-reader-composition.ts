@@ -69,7 +69,6 @@ function composeResultReader(publisher: GitCommonStatePublisher,
     readReceiptReference: async (reference) => (await receipts()).readReceiptReference(reference),
   };
   return new LocalReviewResultReader({
-    workItem: family.mode === "stored" ? invocation?.workItem : undefined,
     operationIndex: family.ports.inFlight,
     receiptIndex,
     outcomeStore: new LocalFrontlineOutcomeStore(publisher),

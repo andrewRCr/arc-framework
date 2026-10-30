@@ -49,19 +49,15 @@ export function replayTokenFromAction(command: string, workUnit: string): string
   return z.string().regex(/^[A-Za-z0-9_-]+$/u).parse(argv[5]);
 }
 
-
 const ReplayCallLaneSchema = ReviewLaneJudgmentSchema.unwrap().pick({ scopeMode: true, invocation: true });
 const ReplayCallLanesSchema = PrePublicationLaneJudgmentsSchema.pipe(z.strictObject({
   frontline: ReplayCallLaneSchema.optional(), standard: ReplayCallLaneSchema.optional(),
 }));
-export const AttestationOrderingRecoveryV2Schema = AttestationOrderingRecoverySchema.extend({
-  expectedBoundaryVersion: RecordVersionSchema,
-});
-export const PrePublicationReplayInputV2Schema = z.strictObject({
+const PrePublicationReplayInputV2Schema = z.strictObject({
   candidateId: CanonicalDigestSchema.optional(), candidateSubjectDigest: CanonicalDigestSchema.optional(),
   selfReview: z.literal("settled").optional(), changeSet: z.json().optional(),
   lanes: ReplayCallLanesSchema.optional(), scopeJudgmentTarget: ReviewTargetSchema.optional(),
-  attestationOrderingRecovery: AttestationOrderingRecoveryV2Schema.optional(),
+  attestationOrderingRecovery: AttestationOrderingRecoverySchema.optional(),
 }).refine((replay) => (replay.candidateId === undefined) === (replay.candidateSubjectDigest === undefined),
   "Candidate replay identity requires both Candidate ID and subject digest");
 export type PrePublicationReplayInputV2 = z.infer<typeof PrePublicationReplayInputV2Schema>;
@@ -75,7 +71,6 @@ export function encodePrePublicationReplayV2(input: unknown): string {
 export function decodePrePublicationReplayV2(token: string): PrePublicationReplayInputV2 {
   return PrePublicationReplayInputV2Schema.parse(JSON.parse(Buffer.from(token, "base64url").toString("utf8")));
 }
-
 
 /** Encode the selected replay contract without carrying native review decisions in a continuation. */
 export function encodePrePublicationReplay(input: unknown, schemaVersion: 1 | 2 = 1): string {

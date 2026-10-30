@@ -23,7 +23,7 @@ export interface ReviewMappingSources {
 }
 
 /** Decode JSON bytes from one supplied file. */
-export function decodeReviewMappingSource(source: Extract<ReviewMappingSource, { kind: "gate" }>): unknown {
+function decodeReviewMappingSource(source: Extract<ReviewMappingSource, { kind: "gate" }>): unknown {
   return JSON.parse(new TextDecoder().decode(source.bytes)) as unknown;
 }
 

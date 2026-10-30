@@ -475,7 +475,7 @@ const HostedDispositionSetLineageNodeSchema = z.strictObject({
   findingActions: z.array(HostedDispositionFindingActionSchema),
 });
 
-export const HostedResultDigestPreimageSchema = z.strictObject({
+const HostedResultDigestPreimageSchema = z.strictObject({
   attemptId: IdentifierSchema,
   admission: HostedAdmissionSchema,
   handle: HostedRequestHandleSchema,

@@ -15,7 +15,6 @@ import type { StoreRefusal } from "../../../lib/store/refusal.js";
 import type { ReviewOutcome } from "../../../lib/store/kinds/review/outcome/schema.js";
 import type { ReviewEvidence } from "../../../lib/store/kinds/review/evidence/schema.js";
 import type { ReviewDecision } from "../../../lib/store/kinds/review/decision/schema.js";
-import type { LaneSubjectLineage } from "./lane-admission.js";
 
 /** One portable review fact with its backend mutation basis. */
 export interface StoredReviewFact<T> {
@@ -41,10 +40,8 @@ export interface ReviewFactPort<T> {
   prepareCreate(value: T): ReviewFactPut;
 }
 
-/** Ended producer results, optionally selected by exact lineage and lane. */
-export interface ReviewOutcomePort extends Omit<ReviewFactPort<ReviewOutcome>, "list"> {
-  list(selection?: { lineage: LaneSubjectLineage; lane: ReviewOutcome["lane"] }): Promise<ReviewFactListing<ReviewOutcome>>;
-}
+/** Ended producer results. */
+export type ReviewOutcomePort = ReviewFactPort<ReviewOutcome>;
 
 /** Approved responses with version-bound monotonic advances and legacy composed reads. */
 export interface ReviewEvidencePort extends ReviewFactPort<ReviewEvidence> {

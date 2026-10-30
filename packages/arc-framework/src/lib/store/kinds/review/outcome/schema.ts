@@ -15,7 +15,7 @@ import { FrontlineOutcomeBindingSchema } from "./frontline.js";
 import { validateReviewOutcome } from "./validation.js";
 
 const hostedShape = LaneAttemptSchema.shape.hosted.unwrap().shape;
-export const HostedOutcomeBindingSchema = z.strictObject({
+const HostedOutcomeBindingSchema = z.strictObject({
   admission: hostedShape.admission,
   handle: hostedShape.handle,
   target: hostedShape.target,

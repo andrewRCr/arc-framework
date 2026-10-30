@@ -1,6 +1,5 @@
 /** Retain the operational owner selected by a frontline admission across run invocations. */
-import { sameOwner } from "../../../lib/store/identity.js";
-import { resolveReviewOperationInvocation, ReviewContinuationReferenceError } from "./continuation-invocation.js";
+import { resolveReviewOperationInvocation } from "./continuation-invocation.js";
 import { createReviewCompositionContext } from "./composition-context.js";
 import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
 import { FrontlineAdmissionError } from "../core/frontline-admission-error.js";
@@ -19,13 +18,9 @@ export async function resolveFrontlineRunInvocation(options: ReviewInvocationInp
     "arc review frontline resolve");
   if (!input.store?.capabilities.stateOffBranch || (options.workItem !== undefined && operationRef === undefined)) return input;
   const operations = createReviewCompositionContext(input).family.ports.inFlight;
-  const owner = await readValidatedFrontlineAdmission(operations, request.resolution.payload.admission, request.target).catch((error: unknown) => {
+  await readValidatedFrontlineAdmission(operations, request.resolution.payload.admission, request.target).catch((error: unknown) => {
     if (error instanceof FrontlineAdmissionError || error instanceof ProjectIdentityError) throw error;
     throw new FrontlineOperationCorruptStateError(`Restore the pending frontline admission and retry: ${error instanceof Error ? error.message : String(error)}`);
   });
-  if (owner.workItem === undefined) throw new FrontlineOperationCorruptStateError("frontline admission has no selected work item");
-  if (input.workItem === undefined || !sameOwner(owner.workItem, input.workItem)) {
-    throw new ReviewContinuationReferenceError("frontline reference names another work item", "arc review frontline resolve");
-  }
   return input;
 }

@@ -16,7 +16,6 @@ import { createLocalReviewSubjectResolver, type LocalReviewCandidateReader } fro
 import { readLocalDeltaAdmissionSurface, readReservedWorkUnitObligation } from "./local-reserved-obligation.js";
 import { deriveReviewNextPassContextFromAttempts } from "../policy/review-next-pass.js";
 
-
 import { createCandidateResponseHeadContinuationReader } from "./candidate-response-head-continuation.js";
 import { readFile } from "node:fs/promises";
 
@@ -313,7 +312,6 @@ function createBoundLocalPrepareDependencies(input: LocalReviewInvocationInput &
       cwd: input.cwd,
     })).stdout.trim(),
     deriveTarget,
-
     confirmTarget: (target) => confirmLocalReviewTarget({
       exec: input.exec,
       cwd: input.cwd,
@@ -376,7 +374,6 @@ function createBoundLocalPrepareDependencies(input: LocalReviewInvocationInput &
     ...localHistoryDependencies({ input, resultReader, dispositionStore, operationStore }),
     readReservedWorkUnitObligation: (vehicle, lineage) => readReservedWorkUnitObligation(input.cwd, vehicle, lineage, { store: input.store, exec: input.exec, owner: input.workItem }),
     validateDeliveryAdmission,
-
     describeSource: (operationId, target, coverageAdmission) => createLocalReviewSourceDescriptor({
       exec: input.exec,
       cwd: input.cwd,

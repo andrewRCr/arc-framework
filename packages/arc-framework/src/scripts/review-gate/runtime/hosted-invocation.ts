@@ -46,12 +46,8 @@ export async function resolveHostedAwaitInvocation(options: ReviewInvocationInpu
   const operations = createReviewCompositionContext(input).family.ports.inFlight;
   const { state } = await operations.readOperation(laneProgressOperationId({ lane: "standard", repositoryId: admission.repositoryId,
     headSha: admission.reviewTarget.headSha, lineage: admission.lineage }));
-  if (state === null) return input;
-  if (state.kind !== "lane-progress" || state.workItem === undefined) throw new Error(
-    "Hosted pending state has no selected lane owner. Restore the admitted working-state record, then retry.");
-  if (input.workItem === undefined || !sameOwner(state.workItem, input.workItem)) {
-    throw new ReviewContinuationReferenceError("hosted await reference names another work item", "arc review hosted request");
-  }
+  if (state !== null && state.kind !== "lane-progress") throw new Error(
+    "Hosted pending state is not lane progress. Restore the admitted working-state record, then retry.");
   return input;
 }
 

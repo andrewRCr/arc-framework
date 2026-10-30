@@ -11,7 +11,7 @@ const hosted = attempt.hosted.unwrap().shape;
 const HostedInFlightBindingSchema = z.strictObject({ admission: hosted.admission, handle: hosted.handle,
   target: hosted.target, requestedCoverage: hosted.requestedCoverage, effectiveCoverage: hosted.effectiveCoverage,
   vehicle: hosted.vehicle, reviewTarget: hosted.reviewTarget, requirement: hosted.requirement, actorIdentity: hosted.actorIdentity });
-export const ReviewInFlightAttemptSchema = z.strictObject({
+const ReviewInFlightAttemptSchema = z.strictObject({
   attemptId: attempt.attemptId, logicalPass: attempt.logicalPass, retryGeneration: attempt.retryGeneration,
   changeRequestId: attempt.changeRequestId, headSha: attempt.headSha, sourceId: attempt.sourceId,
   local: attempt.local, frontline: attempt.frontline, hosted: HostedInFlightBindingSchema.optional(),
@@ -28,7 +28,7 @@ export const ReviewInFlightLaneSchema = z.strictObject({ schemaVersion: lane.sch
   if (new Set(passes).size !== passes.length) context.addIssue({ code: "custom", path: ["attempts"],
     message: "One logical pass may have only one attempt in flight." });
 });
-export const ReviewInFlightStateSchema = z.discriminatedUnion("kind", [ReviewInFlightLaneSchema,
+const ReviewInFlightStateSchema = z.discriminatedUnion("kind", [ReviewInFlightLaneSchema,
   LocalReviewStateSchema.safeExtend({ workItem: owner }),
   FrontlineRunStateSchema.safeExtend({ workItem: owner, outcome: z.literal("pending") }),
   ReviewSuspensionStateSchema.safeExtend({ workItem: owner }),
@@ -48,7 +48,7 @@ export function projectReviewInFlightAttempt(value: z.infer<typeof LaneAttemptSc
 }
 
 /** Compose the existing pending attempt interface from execution-only fields. */
-export function composeReviewInFlightAttempt(value: ReviewInFlightAttempt): z.infer<typeof LaneAttemptSchema> {
+function composeReviewInFlightAttempt(value: ReviewInFlightAttempt): z.infer<typeof LaneAttemptSchema> {
   return LaneAttemptSchema.parse({ ...value, outcome: "pending", terminalProducer: false,
     ...(value.hosted === undefined ? {} : { hosted: { ...value.hosted, requestFailureReason: null,
       dispositionSetId: null, dispositionSetLineage: [], settledFindingIds: [], settlementEvidence: [] } }) });

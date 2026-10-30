@@ -1028,7 +1028,7 @@ describe("earlier review attempt query", () => {
     }
   });
 
-  it.each(["repository", "native", "foreign-owner"] as const)("projects an exact %s hosted response plan for an earlier findings attempt", async selection => {
+  it.each(["repository", "native"] as const)("projects an exact %s hosted response plan for an earlier findings attempt", async selection => {
     const clean = laneState();
     const findings = LaneProgressStateSchema.parse({
       ...clean,
@@ -1060,11 +1060,11 @@ describe("earlier review attempt query", () => {
     });
     const workItem = OwnerIdentitySchema.parse({ type: "work-item", name: "example", uid: "14bc6336-193b-4d7a-9380-1b4ca79a714b" });
     const sourceOwner = selection === "repository" ? undefined : { repositoryId: findings.repositoryId, workItem };
-    const read = (owner = workItem) => projectEarlierReviewApplicability({
+    const read = () => projectEarlierReviewApplicability({
       sourceOwner,
       query: selector(),
       currentBase: oid("2"),
-      snapshot: { status: "complete", records: [{ version: 1, state: sourceOwner === undefined ? findings : { ...findings, workItem: owner } }] },
+      snapshot: { status: "complete", records: [{ version: 1, state: sourceOwner === undefined ? findings : { ...findings, workItem } }] },
       candidate: candidateRecord(),
       exec: async () => { throw new Error("injected projection must own Git"); },
       observeEndpoints: stableEndpoints,
@@ -1074,8 +1074,6 @@ describe("earlier review attempt query", () => {
       ),
     });
 
-    if (selection === "foreign-owner") expect(await read(OwnerIdentitySchema.parse({ ...workItem,
-      uid: "24bc6336-193b-4d7a-9380-1b4ca79a714b" }))).toMatchObject({ status: "not-found" });
     const projected = await read();
     expect(projected).toMatchObject({
       status: "complete",

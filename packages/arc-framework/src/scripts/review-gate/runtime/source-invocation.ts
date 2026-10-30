@@ -1,7 +1,5 @@
 /** Select the exact native owner carried by a produced review source before opening family ports. */
 import { bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
-import { sameOwner } from "../../../lib/store/identity.js";
-import { createReviewCompositionContext } from "./composition-context.js";
 import { bindReviewSourceReference, parseReviewSourceReference, parseReviewSourceReferenceForOwner, type ReviewSourceReferenceOwner, type BoundReviewSourceReference,
   type ReviewSourceReferenceCoordinates } from "../core/review-source-reference.js";
 import { resolveReviewInvocation, type ReviewInvocationContext, type ReviewInvocationInput } from "./invocation.js";
@@ -50,14 +48,6 @@ export async function resolveReviewSourceInvocation(options: ReviewInvocationInp
   const invocation = await resolveReviewOperationInvocation(input, { operationId: reference.operationId,
     operationRef: bindNativeReviewOperationReference({ repositoryId: reference.repositoryId,
       workItem: reference.workItem, operationId: reference.operationId }) }, producer);
-  const operations = createReviewCompositionContext(invocation).family.ports.inFlight;
-  const { state } = await operations.readOperation(reference.operationId);
-  if (state !== null) {
-    if (state.workItem === undefined) throw new Error(
-      "Review source working state has no selected owner. Restore the admitted working-state record, then retry.");
-    if (!sameOwner(state.workItem, reference.workItem)) throw new ReviewContinuationReferenceError(
-      "review source reference names another work item", producer);
-  }
   return { invocation, reference };
 }
 

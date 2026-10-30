@@ -65,8 +65,3 @@ export async function readReviewCheckoutErrandSelection(input: { cwd: string; st
   if (found.status === "refused") throw claimRefusal(claim, found.refusal);
   return readClaim(input.store, found.result.reference, claim);
 }
-
-/** Read the authenticated Errand content without exposing storage coordinates to content-only callers. */
-export async function readReviewCheckoutErrand(input: { cwd: string; store: Store }): Promise<ReviewCheckoutErrand | null> {
-  return (await readReviewCheckoutErrandSelection(input))?.record ?? null;
-}

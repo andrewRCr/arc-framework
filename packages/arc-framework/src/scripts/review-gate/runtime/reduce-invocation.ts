@@ -1,5 +1,4 @@
 /** Bind native reduction from its portable owner locator while validating pending operation state. */
-import { sameOwner } from "../../../lib/store/identity.js";
 import { createReviewCompositionContext } from "./composition-context.js";
 import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
 import { ReduceCommandError, ReduceRequestSchema } from "./reduce-command.js";
@@ -17,11 +16,6 @@ export async function resolveReduceInvocation(options: ReviewInvocationInput, re
     if (state === null) return input;
     if (state.operationId !== request.operationId) throw new ReduceCommandError("review operation is unavailable");
     if (state.kind !== "local-review" && state.kind !== "frontline-run") throw new ReduceCommandError("operation kind is not reducible");
-    if (state.workItem === undefined) throw new ReduceCommandError("review operation has no selected work item");
-    if (input.workItem === undefined || !sameOwner(state.workItem, input.workItem)) {
-      throw new ReviewContinuationReferenceError("operation reference names another work item",
-        "arc review local prepare or arc review frontline resolve");
-    }
     return input;
   } catch (error) {
     if (error instanceof ReviewContinuationReferenceError || error instanceof ReduceCommandError || error instanceof ProjectIdentityError) throw error;

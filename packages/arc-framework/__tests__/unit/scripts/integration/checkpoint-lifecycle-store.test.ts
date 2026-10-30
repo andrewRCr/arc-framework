@@ -3,7 +3,8 @@ import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
-import { readLifecycleSummary, createIntegrationCheckpointDependencies } from "../../../../src/scripts/integration/checkpoint-composition.js";
+import { createIntegrationCheckpointDependencies } from "../../../../src/scripts/integration/checkpoint-composition.js";
+import { readStoredLifecycleSummary } from "../../../../src/scripts/integration/lifecycle-record.js";
 import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
@@ -31,9 +32,13 @@ async function fixture() {
   return { ...h, cwd, fs, primary };
 }
 
+async function readSummary(h: Awaited<ReturnType<typeof fixture>>, workUnit = "example") {
+  return (await readStoredLifecycleSummary({ store: h.store, workUnit, archiveCadence: "manual", storageVersion: "whole-state-v1" })).summary;
+}
+
 it("uses stored position and artifact facts while retaining the whole lifecycle snapshot version", async () => {
   const h = await fixture();
-  expect(await readLifecycleSummary(h.cwd, "example", "manual", "whole-state-v1", h.fs, h.store)).toMatchObject({
+  expect(await readSummary(h)).toMatchObject({
     storageVersion: "whole-state-v1", state: "integrating", position: { phase: "Integrating", location: "active" },
     artifactFacts: [], complete: true,
   });
@@ -46,13 +51,13 @@ it.each(["not-found", "record-malformed"] as const)("represents a stored %s refu
         condition: "Metadata is absent.", remedy: { text: "Restore the record." } }
     : { code, class: "recoverable", reference: h.primary.reference, rule: "meta.shape",
         condition: "Metadata is malformed.", remedy: { text: "Repair the record." } } });
-  const summary = await readLifecycleSummary(h.cwd, "example", "manual", "whole-state-v1", h.fs, h.store);
+  const summary = await readSummary(h);
   expect(summary).toMatchObject({ state: "nonexistent", position: null, complete: false });
   expect(summary.artifactFacts).toEqual(code === "not-found" ? [] : [expect.objectContaining({
     code: "malformed-artifact", message: expect.stringContaining("Metadata is malformed."),
   })]);
   h.store.lookup = lookup;
-  expect(await readLifecycleSummary(h.cwd, "example", "manual", "whole-state-v1", h.fs, h.store)).toHaveProperty("complete", true);
+  expect(await readSummary(h)).toHaveProperty("complete", true);
 });
 
 async function compositionFixture() {
@@ -108,7 +113,7 @@ it("reports an Errand slug as malformed work-unit authority", async () => {
     createdAt: "2026-10-19T12:00:00Z", updatedAt: "2026-10-19T12:00:00Z" });
   if (errand.kind !== "errand") throw new Error("Expected an Errand");
   await h.seedErrand(errand);
-  expect(await readLifecycleSummary(h.cwd, "repair", "manual", "whole-state-v1", h.fs, h.store)).toMatchObject({
+  expect(await readSummary(h, "repair")).toMatchObject({
     complete: false, artifactFacts: [{ code: "malformed-artifact", message: expect.stringContaining("resolves to an Errand") }],
   });
 });
@@ -117,10 +122,10 @@ it("retains other store refusals with their repair instructions and succeeds aft
   const h = await fixture(), lookup = h.store.lookup.bind(h.store);
   h.store.lookup = async () => ({ status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
     namespace: "project-state", condition: "Metadata namespace is corrupt.", remedy: { text: "Repair the namespace, then retry." } } });
-  await expect(readLifecycleSummary(h.cwd, "example", "manual", "whole-state-v1", h.fs, h.store))
+  await expect(readSummary(h))
     .rejects.toThrow("Metadata namespace is corrupt. Repair the namespace, then retry.");
   h.store.lookup = lookup;
-  expect(await readLifecycleSummary(h.cwd, "example", "manual", "whole-state-v1", h.fs, h.store)).toHaveProperty("complete", true);
+  expect(await readSummary(h)).toHaveProperty("complete", true);
 });
 
 it("reports an unpositioned stored meta as an artifact fact and resumes after repair", async () => {
@@ -130,9 +135,9 @@ it("reports an unpositioned stored meta as an artifact fact and resumes after re
   if (raw === undefined) throw new Error("Expected the stored meta");
   const original = raw.content;
   raw.content = original.replace("`Integrating`", "[none]");
-  expect(await readLifecycleSummary(h.cwd, "example", "manual", "whole-state-v1", h.fs, h.store)).toMatchObject({
+  expect(await readSummary(h)).toMatchObject({
     complete: false, artifactFacts: [expect.objectContaining({ code: "malformed-artifact", message: expect.stringMatching(/state|placement/iu) })],
   });
   raw.content = selected.content;
-  expect(await readLifecycleSummary(h.cwd, "example", "manual", "whole-state-v1", h.fs, h.store)).toHaveProperty("complete", true);
+  expect(await readSummary(h)).toHaveProperty("complete", true);
 });
