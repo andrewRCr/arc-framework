@@ -120,16 +120,10 @@ and explained.
 - **Additional Context:** `analysis-test-suite-cost-baseline.md` § Process measurement method and § Result at
   `f663af671`
 
-    - `[ ]` **4.1.a Measure the baseline at the merge base**
-        - Record the merge base's commit, and re-run the baseline if base is merged in before the after-measurement.
-        - The ten files are `store-ref-<name>.test.ts` for `cleanup-report`, `conformance-reads`, `conformance-sync`,
-          `follow-copy-handoff`, `follow-restart`, `import-errands`, `import-observation-failures`, `remote-delete`,
-          `separate-conformance-reads`, and `withdraw-entry-inverse`.
-        - Run each file alone with the spawn-timing preload and again with the attribution preload, under
-          `nicecap -n 19 -r 8` after checking `memcap_policy`, and write the runs under `~/dev/`.
-        - The prototype runs' script (`~/dev/scratch/store-op-git-access/bench/run-proto2.sh`), its attribution preload
-          (`~/dev/scratch/store-suite-cost/bench/spawn-origin.mjs`), and the `compare*.py` summaries beside the script
-          are machine-local working references.
+    - `[x]` **4.1.a Measure the baseline at the merge base**
+        - Measured `023a0636eddfc6f1862dcd0e801c4e8ab44ba246` in an independent checkout, with no base merge.
+          All twenty timing and attribution runs completed; process totals and case times are recorded in
+          `notes-store-operation-git-access.md`, and the machine-local logs remain beside the benchmark checkouts.
 
     - `[ ]` **4.1.b Measure at the head and record the comparison**
         - Repeat 4.1.a's runs at the head.

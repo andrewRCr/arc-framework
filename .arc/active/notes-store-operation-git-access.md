@@ -24,3 +24,26 @@ maintenance explicitly (`maintenance run --auto --task=gc`), so only its detach 
   unawaited promises. The first prototype removed about 13,000 `config` and `remote` starts within calls in four files.
 - `diff-tree --stdin` output is not length-framed, so tree enumeration cannot join the shared reader as it is. That
   bears on whether walking trees through the reader earns its own work after the measurement.
+
+## Baseline measurement
+
+Measured merge base `023a0636eddfc6f1862dcd0e801c4e8ab44ba246` in an independent checkout, before any base merge.
+Each file ran alone with the spawn-timing preload and again with the attribution preload, under
+`nicecap -n 19 -r 8`. All twenty runs completed successfully. Case time sums completed test-case durations;
+process counts select the attribution worker PID by the original analysis method.
+
+| File                          | Processes | Case seconds |
+| ----------------------------- | --------: | -----------: |
+| `cleanup-report`              |    18,320 |         89.3 |
+| `conformance-reads`           |    18,690 |        118.3 |
+| `conformance-sync`            |    29,037 |        115.7 |
+| `follow-copy-handoff`         |    24,605 |        108.8 |
+| `follow-restart`              |    24,642 |        111.8 |
+| `import-errands`              |    21,525 |        112.0 |
+| `import-observation-failures` |    42,416 |        198.1 |
+| `remote-delete`               |    21,046 |        101.9 |
+| `separate-conformance-reads`  |    19,282 |        116.6 |
+| `withdraw-entry-inverse`      |    47,849 |        196.6 |
+
+Machine-local reports, spawn logs, and the measurement script are retained under
+`arc-framework/.arc/user/andrew/store-operation-git-access-benchmark/` in the primary checkout.
