@@ -949,9 +949,6 @@ an ordering the spec records rather than a dependency edge.
 - _Goal:_ The ref backend resolves a reused slug's branch to its live holder and each work-unit claim to the owner with
   its UID, live or archived, and nothing without one.
 
-- **Additional Context:** `notes-lifecycle-slug-selection.md` § Regrounding after the ref backend landing
-  (2026-10-29).
-
     - `[x]` **8.2.a The `ref` arm**
 
         - `refCandidates` selects live linkers first and shares completed work-unit ordering with slug lookup;
@@ -977,7 +974,14 @@ an ordering the spec records rather than a dependency edge.
 
 ## **Phase 9:** Verification
 
-### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Local lint, both type checks, build, unit, contract checks, and focused repair checks passed.
+  Full Linux CI `41080123597` qualified `001cdec3d`, including integration, store, E2E, and portability checks.
+  Windows/macOS portability passed in CI `41071155379`; the two later test corrections leave that scope unchanged.
+- _Success criteria:_ All 20 met, with the additional fixture adaptations annotated. One independent criteria pass
+  and one fix-check round closed the six findings and minor follow-up; three stale test contracts were corrected.
+  Store-arm behavior is proven on the reference and ref backends; the live factory still selects the in-repo arm.
 
 ---
 
@@ -985,45 +989,45 @@ an ordering the spec records rather than a dependency edge.
 
 Each holds over the reference backend, and over the ref backend from Phase 8.
 
-- `[ ]` With a completed and a live holder of one slug, every store-arm lifecycle verb acts on the live holder:
+- `[x]` With a completed and a live holder of one slug, every store-arm lifecycle verb acts on the live holder:
   `arc activate` succeeds where it rejects "is not a Planning work unit held in active placement" today, and a former
   slug typed as the operand acts on its live holder.
 
-- `[ ]` The dependency reconcile resolves each name an edge meets once and decides by reference: an edge naming a reused
+- `[x]` The dependency reconcile resolves each name an edge meets once and decides by reference: an edge naming a reused
   slug classifies against the live holder and is not discharged; an edge on a completed work unit's former name is
   discharged with no self-dependency where the dependent has taken that work unit's current name; an edge on a live work
   unit's former name takes its current name only where that name's lookup returns the same work unit, and is held
   otherwise; and a decomposed origin's replacement target carrying a UID resolves to that work unit under its current
   name.
 
-- `[ ]` `arc stub`, `arc start <name> --new` spawned and `--here`, the nameless cold start, decomposition's work-item
+- `[x]` `arc stub`, `arc start <name> --new` spawned and `--here`, the nameless cold start, decomposition's work-item
   names, and Errand promotion admit a slug whose holders are all completed work units under it as their current name, a
   third generation included, or a completed work unit and a completed Errand; and refuse a live holder's slug, a
   completed Errand's or cohort's slug, and a completed holder's former slug, each with its remedy; a new cohort refuses
   a completed work unit's slug.
 
-- `[ ]` Creating onto a completed holder's slug settles a stub's edge naming it in the same batch, and an in-flight
+- `[x]` Creating onto a completed holder's slug settles a stub's edge naming it in the same batch, and an in-flight
   dependent's edge refuses through `work-item.slug-edges` with its remedy.
 
-- `[ ]` A cohort-held slug resolves to the cohort, and each reader that requires a work unit reports it as a cohort; a
+- `[x]` A cohort-held slug resolves to the cohort, and each reader that requires a work unit reports it as a cohort; a
   completed tie that includes a work unit resolves to its latest archived work unit, above a completed Errand, while a
   live tie and a completed tie that includes a cohort or holds only Errands refuse, each naming its tier; the `ref` arm
   resolves a reused slug's branch to its live holder; a work-unit claim resolves each holder by its own UID and nothing
   without one; and the lookup conformance suite pins each rule its shared fixture can build for both store-arm backends,
   each backend's own tests pinning the rest.
 
-- `[ ]` Lifecycle's view, status, and every slug-keyed map the store arms build take the standing holder: completed
+- `[x]` Lifecycle's view, status, and every slug-keyed map the store arms build take the standing holder: completed
   evidence omits a slug with a live holder, so the free primary gains no Candidate authority over it and a husk stamped
   for it reports no completed work unit; the lifecycle snapshot reads each holder's artifacts at its own path; paused
   work offers the clash repair alone for a paused holder of a clashed slug, review-due ones included, whatever the other
   holder's state; and the cohort consistency check counts each holder of a clash in its own cohort.
 
-- `[ ]` With a bound checkout or a husk of the archived holder on the same machine, session start resolves the live
+- `[x]` With a bound checkout or a husk of the archived holder on the same machine, session start resolves the live
   holder's checkout through its UID-bearing claim and its branch through the ranked `ref` arm, offers no branch cleanup
   while a live work unit links the branch, leaves the live holder's checkout resolved past the duplicate-marker guard,
   and the in-flight projection, status's slug position, and branch ownership each read the live holder's checkout alone.
 
-- `[ ]` A bound checkout of the archived holder still reads ended, session start offers its teardown by UID, and it
+- `[x]` A bound checkout of the archived holder still reads ended, session start offers its teardown by UID, and it
   tears down through its UID, leaving the live holder's checkout, local branch, and remote branch in place; a work-unit
   husk reports a manual decision at every exit, session start's primary-checkout sweep and its own checkout included,
   offers no command naming its slug, and never reads as holding it; `arc teardown --branch` still removes a branch husk;
@@ -1031,42 +1035,42 @@ Each holds over the reference backend, and over the ref backend from Phase 8.
   its lineage; and under `discard` teardown keeps and reports a remote whose advertised tip its local branch does not
   contain.
 
-- `[ ]` With two live holders of one slug, a verb naming the slug, or run without one in either holder's checkout,
+- `[x]` With two live holders of one slug, a verb naming the slug, or run without one in either holder's checkout,
   refuses `ambiguous-match` carrying both holders as typed references in its text refusal and in `--json` where the verb
   takes it, whichever site meets the clash first, naming the preferred move for their types; a reconcile in either
   holder's checkout, without an operand or naming its holder's current name, runs.
 
-- `[ ]` With two live holders of one slug, an edge naming it is held unsatisfied with both holders, never discharged, a
+- `[x]` With two live holders of one slug, an edge naming it is held unsatisfied with both holders, never discharged, a
   tie between an Integrating work unit and a cohort or Errand included, as is, under its own name, an edge a follow or a
   lineage disposition would move onto the slug; a dependent naming it and an unrelated work unit both activate; the last
   other open member of a cohort holding both archives; and status reports the `slug-clash` warning as today.
 
-- `[ ]` With two live holders that each hold a slug only as a former name, a verb naming it refuses with each holder's
+- `[x]` With two live holders that each hold a slug only as a former name, a verb naming it refuses with each holder's
   current name as the repair, and a work unit whose records mention the slug and a dependent whose edge names it both
   activate, the edge held with a diagnostic.
 
-- `[ ]` A work unit whose records mention a tied slug, as a word or in a paired spec's filename, activates, reconciles,
+- `[x]` A work unit whose records mention a tied slug, as a word or in a paired spec's filename, activates, reconciles,
   and publishes, whether the tie is a clash, a live tie among Errands or cohorts, or a completed tie the lookup leaves
   refusing; a rename runs while another record mentions a clashed slug's paired spec; and an unrelated work unit
   abandons while an Integrating work unit's held edge names a tied slug.
 
-- `[ ]` After the preferred repair, the slug never ties again and no work unit keeps it as a former name, both holders
+- `[x]` After the preferred repair, the slug never ties again and no work unit keeps it as a former name, both holders
   completed included: a work unit and a cohort clashed, once the cohort is renamed; a work unit and an Errand clashed,
   once the Errand is closed.
 
-- `[ ]` An edge on a name the lookup resolves to a cohort, under its current or a former name, or to a tie among cohorts
+- `[x]` An edge on a name the lookup resolves to a cohort, under its current or a former name, or to a tie among cohorts
   and Errands alone, is held unsatisfied, never discharged, and its dependent activates, unless a retired origin's
   lineage under that name settles it first as a drop or a replace; one the lookup ties between a cohort and a work unit
   is held with the clash diagnostic, and its dependent activates.
 
-- `[ ]` A work-unit marker without a UID, written before the flip or left by a creation interrupted between its claim
+- `[x]` A work-unit marker without a UID, written before the flip or left by a creation interrupted between its claim
   and its stamp, refuses the readers that act on its claim and acting holder matching, naming each holder of its slug
   and the exits its marker and slug select; `arc release commit` and `arc release push` refuse with the exits, delivery
   and the local review gate refuse with their generic refusal, and the notes sync uses the branch's slug;
   `arc active status` and `arc user reconcile-references` run with a warning naming the exits, the latter with no
   current work unit; and listing readers show its work unit as held there.
 
-- `[ ]` `arc materialize <slug> --here` binds an unbound marker to a live holder materialize admits, even while another
+- `[x]` `arc materialize <slug> --here` binds an unbound marker to a live holder materialize admits, even while another
   owned work unit's checkout is unbound too; the cold start's rerun admits an anchored one whose slug has no record or
   lineage; `arc locus release` from its checkout frees any; and each then succeeds. `arc locus release <slug>` frees the
   one unbound marker naming a slug from any checkout unless materialize admits the slug's live holder, and refuses,
@@ -1074,15 +1078,18 @@ Each holds over the reference backend, and over the ref backend from Phase 8.
   until one of them runs, and each exit that locates a checkout prints `arc locus release` to run in that checkout
   rather than a slug.
 
-- `[ ]` Status's output-pinning tests and the in-repo arm's tests pass unchanged but for the selection's import path,
+- `[x]` Status's output-pinning tests and the in-repo arm's tests pass unchanged but for the selection's import path,
   the standing test's warning assertions, which move to status's rendering, and the status handler fixtures that carry
   the owner's UID.
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+  **Deviation:** Lifecycle and locus test doubles also adopt the public port's tagged holder responses; status's
+  output-pinning assertions remain intact.
 
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` After UID claims are available, `arc wu reconcile <slug> --apply` from the live holder's bound checkout acts
+- `[x]` Ready for integration
+
+- `[x]` After UID claims are available, `arc wu reconcile <slug> --apply` from the live holder's bound checkout acts
   on that holder and preserves the completed holder's records and artifacts. The earlier operand-verification
   segment covers its former-name case with a unique current-name marker; the UID-claim segment closes current-name
   coverage (A1).

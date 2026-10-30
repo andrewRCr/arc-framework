@@ -11,13 +11,14 @@
 - **Design:** `spec-lifecycle-slug-selection.md`
 - **Task List:** `tasks-lifecycle-slug-selection.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:a44fdfa261ca9d226600f6fb77c627178ff70df2cc6c3d0741f0cf1754de4f9e`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 8.3 — Pin the lookup's rules in the conformance suite
-- **Next Task:** Task 9.1 — Complete verification (line ~980)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 9.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 9.1 — load and follow `verify-work-unit.md` in a fresh session
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]
