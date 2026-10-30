@@ -1,5 +1,6 @@
 /** Production adapter for the worktree-derived entering-checkout frame. */
 
+import type { OwnerIdentity } from "../lib/store/identity.js";
 import { access, lstat, readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveArcPath } from "../lib/layout/index.js";
@@ -107,6 +108,8 @@ export async function runDerivedLocusStateProbe(
     ? options.archiveCadence ?? (await readConfigSettings(options.cwd)).settings["archive.cadence"]
     : undefined;
   const archiveCadence = configuredCadence === "manual" ? "manual" : "with-integration";
+  // An in-repo store reads its own checkout, so a sibling's reads open their own; only an off-branch store is shared.
+  const siblingAccess = (workItem: OwnerIdentity | undefined) => store.capabilities.stateOffBranch ? { store, projectId, workItem } : {};
   const io = createDerivedLocusEvidenceIO({
     store, projectId, archiveCadence,
     exec: options.exec,
@@ -137,7 +140,7 @@ export async function runDerivedLocusStateProbe(
       projectDeliveryCorrection: async ({ cwd, workUnitId, taskListPath, workItem }) => {
         const result = await inspectRepositoryDeliveryEntry({
           cwd,
-          store, projectId, workItem,
+          ...siblingAccess(workItem),
           taskListPath,
           request: { workUnitId: SlugSchema.parse(workUnitId), entryMode: "integrating" },
           baseBranch: options.baseBranch,
@@ -156,7 +159,7 @@ export async function runDerivedLocusStateProbe(
       readPendingCandidateReviewFixAuthority: ({ cwd, workUnitId, candidate, workItem }) =>
         readPendingCandidateReviewFixAuthority({
           cwd,
-          store, projectId, workItem,
+          ...siblingAccess(workItem),
           exec: options.exec,
           workUnitId,
           candidate,
