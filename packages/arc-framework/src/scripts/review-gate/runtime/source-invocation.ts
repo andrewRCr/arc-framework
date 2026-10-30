@@ -7,7 +7,8 @@ import { bindReviewSourceReference, parseReviewSourceReference, parseReviewSourc
 import { resolveReviewInvocation, type ReviewInvocationContext, type ReviewInvocationInput } from "./invocation.js";
 import { resolveReviewOperationInvocation, ReviewContinuationReferenceError } from "./continuation-invocation.js";
 
-async function selectedSourceOwner(input: ReviewInvocationContext): Promise<ReviewSourceReferenceOwner | undefined> {
+/** The project and work item a native invocation's source references must name; none for the in-repo arm. */
+export async function selectedSourceOwner(input: ReviewInvocationContext): Promise<ReviewSourceReferenceOwner | undefined> {
   if (!input.store.capabilities.stateOffBranch) return undefined;
   const repositoryId = await input.projectId();
   if (input.workItem === undefined) throw new Error("Resolve the native source owner before accessing its reference.");

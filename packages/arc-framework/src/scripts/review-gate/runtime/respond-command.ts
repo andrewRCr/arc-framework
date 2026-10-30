@@ -81,6 +81,7 @@ import {
 } from "../core/review-command-envelope.js";
 import {
   parseReviewSourceReference,
+  type BoundReviewSourceReference,
 } from "../core/review-source-reference.js";
 import { consumeFixAuthorization, createFixAuthorization } from "../core/fix-authorization.js";
 import { projectReviewResponse } from "../core/response-plan.js";
@@ -294,8 +295,9 @@ interface HostedDispositionFindingBinding {
 }
 
 export interface RespondCommandDependencies {
-  /** Decode source coordinates under the invocation's selected storage arm. */
-  parseSourceReference?: typeof parseReviewSourceReference;
+  /** Decode source coordinates under the invocation's selected storage arm and owner. */
+  parseSourceReference?: (reference: string, kind: BoundReviewSourceReference["kind"])
+    => BoundReviewSourceReference | Promise<BoundReviewSourceReference>;
   withOperationLock<T>(operationId: string, action: () => Promise<T>): Promise<T>;
   resultReader: ReviewResultReader;
   dispositionStore: ApprovedDispositionRecordStore;
@@ -573,13 +575,13 @@ interface PerformedResponseContinuation {
 
 type RespondSource = z.infer<typeof ReviewResponseSettlementSourceSchema>;
 
-function parseSourceReference(
+async function parseSourceReference(
   reference: string,
   kind: "attested-local" | "frontline" | "hosted",
   dependencies: RespondCommandDependencies,
-) {
+): Promise<BoundReviewSourceReference> {
   try {
-    return (dependencies.parseSourceReference ?? parseReviewSourceReference)(reference, kind);
+    return await (dependencies.parseSourceReference ?? parseReviewSourceReference)(reference, kind);
   } catch (error) {
     throw new RespondCommandError(
       "invalid-input",
@@ -678,7 +680,7 @@ async function resolveLocalSource(
   request: RespondSource & { kind: "attested-local" },
   dependencies: RespondCommandDependencies,
 ): Promise<ResolvedResponseSource> {
-  const reference = parseSourceReference(request.receiptRef, "attested-local", dependencies);
+  const reference = await parseSourceReference(request.receiptRef, "attested-local", dependencies);
   const result = await dependencies.resultReader.readResult(reference.operationId);
   if (result.kind !== "attested-local" || result.receiptRef !== reference.durableRef) {
     throw new RespondCommandError("corrupt-state", "local response source snapshot mismatch");
@@ -716,7 +718,7 @@ async function resolveFrontlineSource(
   request: RespondSource & { kind: "frontline" },
   dependencies: RespondCommandDependencies,
 ): Promise<ResolvedResponseSource> {
-  const reference = parseSourceReference(request.outcomeRef, "frontline", dependencies);
+  const reference = await parseSourceReference(request.outcomeRef, "frontline", dependencies);
   const result = await dependencies.resultReader.readResult(reference.operationId);
   if (result.kind !== "frontline" || result.outcomeRef !== reference.durableRef) {
     throw new RespondCommandError("corrupt-state", "frontline response source snapshot mismatch");
@@ -751,7 +753,7 @@ async function resolveHostedSource(
   request: RespondSource & { kind: "hosted" },
   dependencies: RespondCommandDependencies,
 ): Promise<ResolvedResponseSource> {
-  const reference = parseSourceReference(request.attemptRef, "hosted", dependencies);
+  const reference = await parseSourceReference(request.attemptRef, "hosted", dependencies);
   const result = await dependencies.resultReader.readResult(reference.durableRef);
   if (result.kind !== "hosted" || result.laneOperationId !== reference.operationId) {
     throw new RespondCommandError("corrupt-state", "hosted response source snapshot mismatch");

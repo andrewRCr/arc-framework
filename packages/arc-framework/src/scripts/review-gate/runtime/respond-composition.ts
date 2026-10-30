@@ -23,7 +23,8 @@ import {
 } from "../../../lib/errand/record.js";
 import type { GitExec } from "../../../lib/git/exec.js";
 import type { ApprovedDispositionRecordReader } from "../core/ports.js";
-import { parseReviewSourceReference } from "../core/review-source-reference.js";
+import { parseReviewSourceReferenceForOwner } from "../core/review-source-reference.js";
+import { selectedSourceOwner } from "./source-invocation.js";
 import type { RawGitExec } from "../../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
@@ -593,7 +594,7 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
   };
   const policyContext = { input, publisher, prepare, settings, readConfiguredLanePolicy, rawGit, deliveryMembers, privateDeliveryTargets };
   return {
-    parseSourceReference: (value, kind) => parseReviewSourceReference(value, kind, input.store.capabilities.stateOffBranch),
+    parseSourceReference: async (value, kind) => parseReviewSourceReferenceForOwner(value, kind, await selectedSourceOwner(input)),
     withOperationLock: (operationId, action) => withRepositoryReviewOperationLock(
       input.exec,
       input.cwd,
