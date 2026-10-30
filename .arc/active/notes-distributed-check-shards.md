@@ -364,6 +364,26 @@ probe exit 75 to that flag before querying workers. Actual job/permit occupancy 
 all unavailable observations remain recorded. The original driver, zero-sample attempt and hashes are preserved;
 no routing policy, registry, shard count, source, requested coverage or timeout changes.
 
+### Branch-range comparison after the all-scope gate failure
+
+`measurements-b8a4049e-95f1-437a-af06-468376a13a72/` retains the first actual all-scope baseline. All six routed
+checks pass; native unit covers 1,369 modules and store 316 on Linux arm64, Node 26.3.0 and Vitest 4.1.11. The complete
+gate nevertheless fails: `lint:md:underwrap` reports 59 findings across 14 unchanged files, including protected site
+content. No failing path changed in D5..acf. All captured lifetimes close normally, and no distributed trial starts.
+`analysis-failed-baseline.json` retains one unsuccessful sample and zero eligible timing comparisons.
+
+The approved fresh comparison uses explicit `range` scope from `d5eff3e358756aee90fea3ee279653eca598c9d0` in both
+arms. `experiment-config-range-v3.json`, `experiment-harness-range-v3/` and `preflight-range-v3.json` bind that
+request. Source, declaration, complete check sets, full unit/store suites, every/bursts-zero/unset-duration inputs,
+shard defaults, pool policy, sample schedule and caller budgets are unchanged. File lints follow production range
+selection; a focused forced range underwrap check passes before expensive gates resume. `resolveCheckRequest`
+retains both actual merge coordinates as well as tree/base, so new captures are compared within this fresh profile.
+
+The design still requires equivalent complete requested gates, which the existing range scope supports; only the
+chosen measurement request changes. The amendment entry gate therefore selects its first, non-amendment arm.
+The original all-scope setup and failed result remain preserved. This branch-range experiment qualifies neither
+those failed all-scope gates nor their unchanged Markdown, and no unrelated files are edited to obtain a green result.
+
 ## Amendment reasoning
 
 ### A2 — store dependency

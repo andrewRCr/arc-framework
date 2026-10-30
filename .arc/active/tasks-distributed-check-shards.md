@@ -417,6 +417,10 @@ variation, and a named-workload slowdown above 10% keeps qualification open.
 - _Goal:_ An idle-pool improvement claim rests on repeated complete capture-through-collection runs with equivalent
   native coverage and a gain greater than observed run-to-run variation.
 
+- _Note:_ The approved comparison uses explicit D5..acf range requests after the all-scope baseline exposed
+  unchanged Markdown findings. The failed sample remains unsuccessful; full unit/store work and declared checks
+  remain selected. Exact setup and predecessor evidence are in `notes-distributed-check-shards.md`.
+
     - Run repeated interleaved routed-unsharded baselines and distributed complete gates with an otherwise idle pool;
       record source/selection/duration/check-set identities, qualified profiles and fresh execution for every sample.
     - Report raw timings, median/range, phase costs and exact native coverage. Include preparation and queueing rather
