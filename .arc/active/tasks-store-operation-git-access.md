@@ -96,10 +96,27 @@ public calls and store-directory moves need.
   nested public calls on the second backend instance are operations of their own, and whose store-directory renames
   and removals close its readers and drop its answers first.
 
+    - _Amended in:_ 3.R (A1).
+
 - _Outcome:_ Both commands share scoped identity, parsed lookups, and readers. Every method on their second backend
   yields command readers before calling and drops command answers on settlement. The filesystem wrapper preserves
   the complete port and refreshes before store-directory renames and removals. Public cases cover command reuse,
   nested push designation and remote cleanup, and reader release through layout moves in both directions.
+
+### `[ ]` **3.R Imported claims recheck publisher authority with fresh configuration — A1**
+
+- _Goal:_ A1 preserves the existing publisher-disappearance refusal during import source retirement, including retained
+  source refs and keepers and successful retry after repair, without adding a lock or ending the command's readers.
+
+    - `[ ]` **3.R.a Refresh configuration before the imported-claims publisher check**
+        - Expose the scope's existing generation-based configuration invalidation and call it in
+          `unpublishedImportClaims`, after required claims are established and before `readRefDesignation`.
+          Configuration writes, nested calls, and restarts keep using the same invalidation implementation.
+
+    - `[ ]` **3.R.b Verify retained authority and repaired continuation**
+        - Preserve every assertion and the independent configuration write in `store-ref-import-read-only.test.ts`.
+          Its publisher-disappearance case already fails against the cached answer; run it after the correction,
+          then cover transient import, command reader lifetime, and the full store suites before closing Phase 4.
 
 ## **Phase 4:** The measured cost
 
@@ -166,3 +183,6 @@ and explained.
 - `[ ]` All quality gates pass (tests, linting, type checking)
 
 - `[ ]` Ready for integration
+
+- `[ ]` Imported-claims publisher authority is read fresh before source retirement; publisher disappearance preserves
+  the existing refusal, source refs, and keepers, and retry succeeds after repair (A1).

@@ -52,3 +52,18 @@ process counts select the attribution worker PID by the original analysis method
 
 Machine-local reports, spawn logs, and the measurement script are retained under
 `arc-framework/.arc/user/andrew/store-operation-git-access-benchmark/` in the primary checkout.
+
+## A1: Imported-claims publisher authority
+
+Superseded inventory claim (§ 7.4): "Every other re-read of designation that looks for another process's change already
+runs under the layout lock."
+
+`retireImportRemote` reads designation before its source-retirement callback. `retireOriginRefs` then calls
+`unpublishedImportClaims`, whose own publisher read has no new lock or other scope refresh between it and the earlier
+answer. The independent configuration write in `store-ref-import-read-only.test.ts` therefore changed the observed
+refusal while retaining the source safely. Its unchanged publisher-disappearance case reproduces the gap.
+
+`RefOperationScope.refreshConfiguration` will expose the existing generation increment and answer-map clear, without
+closing readers. `unpublishedImportClaims` will call it only after finding required claims, immediately before reading
+publisher designation. This retains the execution and lock behavior and refreshes subsequent command lookups too.
+The amendment is determinate and bounded to that authority check; the remaining operation lifetime rules stand.
