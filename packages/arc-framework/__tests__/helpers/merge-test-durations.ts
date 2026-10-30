@@ -26,3 +26,22 @@ export function mergeTestDurations(documents: readonly { tier: string; content: 
   return Object.fromEntries([...tiers].map(([name, tier]) => [name,
     JSON.stringify({ version: tier.version, results: [...tier.results] })]));
 }
+
+/**
+ * Update a handed input with fresh writer results, keeping every entry the writers did not measure.
+ * @param base - The handed native results per tier; an empty string is a tier with no recorded results
+ * @param writers - Merged writer results per tier
+ * @returns One native results document per tier in either
+ */
+export function overlayTestDurations(base: Readonly<Record<string, string>>,
+  writers: Readonly<Record<string, string>>): Record<string, string> {
+  const tiers: Record<string, string> = { ...base };
+  for (const [name, content] of Object.entries(writers)) {
+    const fresh = nativeResults.parse(JSON.parse(content));
+    const handed = base[name] ?? "";
+    const results = new Map(handed.trim().length === 0 ? [] : nativeResults.parse(JSON.parse(handed)).results);
+    for (const [key, value] of fresh.results) results.set(key, value);
+    tiers[name] = JSON.stringify({ version: fresh.version, results: [...results] });
+  }
+  return tiers;
+}
