@@ -7,6 +7,7 @@ import { defaultReviewHandlerBoundary, executeReviewHandler, ReviewCommandInputS
 import { reviewCommandError, type ReviewHandlerErrorPhase } from "./review-handler-errors.js";
 export { ReviewCommandInputSchema } from "./review-handler.js";
 import { ProjectIdentityError } from "../lib/store/project-identity.js";
+import { requireNativeReviewDecisionReferences } from "../scripts/review-gate/policy/review-grant-references.js";
 import { projectIdentitySpineRemedy, reviewFailureRequestRemedy } from "../scripts/review-gate/runtime/project-identity-remedy.js";
 import { decodePrePublicationReplay, encodePrePublicationReplay, replayTokenFromAction } from "../scripts/review-gate/policy/pre-publication-replay.js";
 import { ReviewLaneReadRequestSchema, ReviewLaneReadEnvelopeSchema, type ReviewLaneReadRequest } from "../scripts/review-gate/lane-read-schema.js";
@@ -910,6 +911,24 @@ function parseReviewStatusOption(value: string | undefined): unknown {
   }
 }
 
+function emitReviewStatusInvalidInput(dependencies: Pick<ReviewStatusHandlerDependencies, "write" | "setExitCode">,
+  detail: string, remedy: SpineRemedy): void {
+  dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
+    schemaVersion: 1,
+    mode: "review-status",
+    target: null,
+    requiredChecks: "unavailable",
+    routedObligation: { state: "blocked", detail },
+    currentBaseOid: null,
+    state: "blocked",
+    nextAction: "stop",
+    reason: "invalid-input",
+    detail,
+    remedy,
+  }))}\n`);
+  dependencies.setExitCode(64);
+}
+
 /** Resolve review, check, and base state for one opaque exact-target reference. */
 export async function handleReviewStatus(
   options: ReviewStatusOptions,
@@ -958,29 +977,24 @@ export async function handleReviewStatus(
   if (!parsedCli.success || !parsed.success) {
     const detail = [...(parsedCli.success ? [] : parsedCli.error.issues), ...(parsed.success ? [] : parsed.error.issues)]
       .map(({ message }) => message).join("; ");
-    dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
-      schemaVersion: 1,
-      mode: "review-status",
-      target: null,
-      requiredChecks: "unavailable",
-      routedObligation: { state: "blocked", detail },
-      currentBaseOid: null,
-      state: "blocked",
-      nextAction: "stop",
-      reason: "invalid-input",
-      detail,
-      remedy: spineRemedy(
-        "Review status requires the exact target emitted by change-request resolution.",
-        "Review command usage",
-        ["arc", "review", "status", "--help"],
-      ),
-    }))}\n`);
-    dependencies.setExitCode(64);
+    emitReviewStatusInvalidInput(dependencies, detail, spineRemedy(
+      "Review status requires the exact target emitted by change-request resolution.",
+      "Review command usage",
+      ["arc", "review", "status", "--help"],
+    ));
     return;
   }
   const cwd = dependencies.resolveRoot(process.cwd());
   if (cwd === null) {
     emitReviewStatusProjectFailure(dependencies, parsed.data);
+    return;
+  }
+  try {
+    requireNativeReviewDecisionReferences(() => invocationFor(cwd).store.capabilities.stateOffBranch, parsed.data);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    emitReviewStatusInvalidInput(dependencies, detail, spineRemedy(detail,
+      "Omit decisionKey to supply a fresh judgment here, then retry", ["arc", "review", "status", "--help"]));
     return;
   }
   try {

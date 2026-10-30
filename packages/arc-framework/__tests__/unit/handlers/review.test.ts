@@ -1,4 +1,7 @@
 import { withReviewReport } from "../../fixtures/review-report-input.js";
+import { createStore } from "../../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import { withReviewNextPassContext } from "../../fixtures/review-next-pass.js";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -1052,6 +1055,34 @@ describe("handleReviewResolve", () => {
 });
 
 describe("handleReviewStatus", () => {
+  it.each(["target", "work-unit"] as const)("refuses a native decision reference on the %s route in the repository arm, "
+    + "and resolves once it is omitted", async route => {
+    const statusTarget = { repository: "owner/repo", headRef: "delivery/example/member-1", headSha: "c".repeat(40) };
+    const result = { schemaVersion: 1 as const, mode: "review-status" as const, target: statusTarget,
+      requiredChecks: "green" as const, hostReview: { state: "clear" as const },
+      routedObligation: { state: "review-required" as const, detail: "Resolved." }, currentBaseOid: "b".repeat(40),
+      movement: "disjoint" as const, baseMovement: { coordinates: { repository: "owner/repo", changeRequest: 42,
+        base: "b".repeat(40), head: statusTarget.headSha },
+      overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] } },
+      state: "review-required" as const, nextAction: "run-review" as const };
+    const ceiling = { target: { repository: "owner/repo", pullRequest: 42, headSha: statusTarget.headSha }, lane: "standard",
+      exhaustedPassCount: 1, nextPass: 2 };
+    const store = createStore(createDefaultStorePorts({ checkoutRoot: "/repo", exec: scriptGitExec([]).exec }));
+    const run = async (override: object) => {
+      const output: string[] = [];
+      let exitCode: number | undefined;
+      await handleReviewStatus({ ...(route === "target" ? { target: JSON.stringify(statusTarget) } : { workUnit: "example" }),
+        ceilingOverride: JSON.stringify(override) }, undefined, { resolveRoot: () => "/repo",
+        resolve: async () => result, resolveWorkUnit: async () => result,
+        write: text => { output.push(text); }, setExitCode: code => { exitCode = code; } }, { store });
+      return { result: JSON.parse(output.join("")) as unknown, exitCode };
+    };
+
+    expect(await run({ ...ceiling, decisionKey: canonicalDigest({ grant: 1 }) })).toMatchObject({ exitCode: 64,
+      result: { state: "blocked", reason: "invalid-input", detail: expect.stringContaining("omit decisionKey") } });
+    expect(await run(ceiling)).toEqual({ result, exitCode: undefined });
+  });
+
   it("routes a work-unit cursor through joined delivery status without requiring a target", async () => {
     const output: string[] = [];
     const resolve = vi.fn();
