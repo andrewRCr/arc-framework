@@ -464,14 +464,10 @@ variation, and a named-workload slowdown above 10% keeps qualification open.
             - Original-checkout edits and pass reuse cannot contaminate comparisons; failures or coverage mismatch
               remain recorded unsuccessful runs rather than being dropped from the sample.
 
-    - `[ ]` **6.1.b Record complete timing, coverage and admission observations**
-        - Capture controller start through final collection, including capture/transport/preparation, runtime
-          qualification, admission/queueing and execution; reuse provider telemetry without making it pass authority.
-        - Build `test-first` (one behavior at a time):
-            - Aggregation preserves raw observations and reports per-gate median/range plus concurrent makespan and
-              aggregate completion; partial/failed runs cannot become completed-gate speedup samples.
-            - Native coverage and admission/resource observations accompany every comparison; report actual sample
-              counts and limits. Write live-run artifacts under `~/dev/` so interrupted runs remain inspectable.
+    - `[x]` **6.1.b Record complete timing, coverage and admission observations**
+        - Gate children retain source/input identity, actual native output/outcomes, preparation, closure and
+          provider phase/admission records through final collection. Raw failures and interrupted preparing handles
+          remain inspectable; only equivalent complete native coverage enters median/range and aggregate makespan.
 
 ### `[ ]` **6.2 Qualify fresh idle-pool gate latency with equivalent coverage — D10**
 
