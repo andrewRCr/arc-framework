@@ -37,6 +37,20 @@ it("resolves the live generation from the work unit's own checkout", async () =>
   expect(await resolveCandidateMutationGeneration(h.store, "example", "owned", named)).toEqual(live);
 });
 
+it("resolves a completed checkout's own generation through its branch while a live work unit reuses its slug", async () => {
+  const h = createLifecycleHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
+  const archived = await h.seedMeta("example", { branch: null, state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+    { branches: [{ repository: projectId, ref: "feat/old", linkedAs: "created", excluded: [] }] });
+  const live = await h.seedMeta("example", {}, { kind: "active" },
+    { branches: [{ repository: projectId, ref: "feat/new", linkedAs: "created", excluded: [] }] });
+  const checkout = { branch: "feat/old", projectId: async () => projectId };
+  expect(await resolveCandidateMutationGeneration(h.store, "example", "owned", named, undefined, checkout))
+    .toEqual(archived.reference.owner);
+  expect(await resolveCandidateMutationGeneration(h.store, "example", "owned", named, undefined, { ...checkout, branch: "feat/new" }))
+    .toEqual(live.reference.owner);
+});
+
 it("keeps an owner the invocation already selected", async () => {
   const { h, archived } = await reusedSlug();
   expect(await resolveCandidateMutationGeneration(h.store, "example", "owned", named, archived)).toEqual(archived);

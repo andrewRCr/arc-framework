@@ -3,7 +3,8 @@
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
 
 export type CandidateMutationOwner =
-  | { readonly status: "owned"; readonly workUnit: string }
+  /** A completed generation's checkout carries its branch, which links that generation where a live namesake shares the slug. */
+  | { readonly status: "owned"; readonly workUnit: string; readonly branch?: string }
   | { readonly status: "unowned" }
   | { readonly status: "unavailable" };
 
@@ -26,18 +27,20 @@ export function projectCandidateMutationOwner(frame: DerivedLocusFrame): Candida
   ) {
     return { status: "unowned" };
   }
+  const completedBranch = (row.kind === "retired" || row.lifecycleLocation === "completed") && row.checkout.branch !== null
+    ? { branch: row.checkout.branch } : {};
   if (
     frame.active !== null
     && frame.active.checkoutPath === row.checkout.path
   ) {
-    return { status: "owned", workUnit: frame.active.subject.key };
+    return { status: "owned", workUnit: frame.active.subject.key, ...completedBranch };
   }
   if (
     row.kind === "retired"
     && row.subject.kind === "work-unit"
     && row.context !== null
   ) {
-    return { status: "owned", workUnit: row.subject.key };
+    return { status: "owned", workUnit: row.subject.key, ...completedBranch };
   }
   if (
     row.kind === "unresolved-checkout"
