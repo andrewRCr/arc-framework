@@ -428,6 +428,7 @@ async function readRespondPolicyNextPassContext(context: {
 interface RespondPolicyContext {
   input: ReviewInvocationInput;
   publisher: RepositoryGitCommonStatePublisher;
+  family: ReturnType<typeof createReviewCompositionContext>["family"];
   prepare: Pick<ReturnType<typeof createLocalPrepareDependencies>, "operationStore">;
   settings: () => Promise<Awaited<ReturnType<typeof readConfigSettings>>["settings"]>;
   readConfiguredLanePolicy: RespondCommandDependencies["readConfiguredLanePolicy"];
@@ -438,10 +439,11 @@ interface RespondPolicyContext {
 
 async function resolveRespondPolicy(context: RespondPolicyContext,
   request: ReviewPolicyCommandRequest, confirmedProducerTarget: ReviewResult["target"]) {
-  const { input, publisher, prepare, settings, readConfiguredLanePolicy, rawGit, deliveryMembers, privateDeliveryTargets } = context;
+  const { input, publisher, family, prepare, settings, readConfiguredLanePolicy, rawGit, deliveryMembers,
+    privateDeliveryTargets } = context;
   const configured = await readConfiguredLanePolicy(request.lane);
   const currentSettings = await settings();
-  const dispositions = createReviewCompositionContext(input).family.ports.dispositions;
+  const dispositions = family.ports.dispositions;
   const retainedSources = configured.sources.length === 0
     ? [...new Set(request.attempts.map(({ sourceId }) => sourceId))]
     : configured.sources;
@@ -479,11 +481,11 @@ async function resolveRespondPolicy(context: RespondPolicyContext,
 
 async function readRespondProvisionalPassFacts(context: RespondPolicyContext,
   assessment: Parameters<RespondCommandDependencies["readProvisionalPassFacts"]>[0]) {
-  const { input, publisher, prepare, settings, rawGit, deliveryMembers, privateDeliveryTargets } = context;
+  const { input, publisher, family, prepare, settings, rawGit, deliveryMembers, privateDeliveryTargets } = context;
   const { result, proposal, configuredSources, configuredMaxPasses } = assessment;
   if (result.kind === "frontline") throw new Error("standard pass facts require a standard producer");
   const selected = await readRespondCandidate(input, result.admission.lineage);
-  const dispositionStore = createReviewCompositionContext(input).family.ports.dispositions;
+  const dispositionStore = family.ports.dispositions;
   const resultReader = createRepositoryReviewResultReader(publisher, input);
   const readResponsePerformance = (producer: ReviewResult) => readLaneResponsePerformance(prepare.operationStore, producer);
   const currentSettings = await settings();
@@ -571,11 +573,11 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
     if (owner.status === "unowned" && (await completedOwners()).some(({ name }) => name === workUnit)) return;
     throw new Error("Candidate mutation is not owned by the entering checkout.");
   };
-  const policyContext = { input, publisher, prepare, settings, readConfiguredLanePolicy, rawGit, deliveryMembers, privateDeliveryTargets };
+  const policyContext = { input, publisher, family, prepare, settings, readConfiguredLanePolicy, rawGit, deliveryMembers,
+    privateDeliveryTargets };
   return {
     ...(prepare.operationStore.stateOffBranch === true ? { stateOffBranch: true as const,
       readExtraPassDecision: async key => {
-        const family = createReviewCompositionContext(input).family;
         if (family.mode !== "stored") throw new Error("Restore the selected native review decisions, then retry the response.");
         return (await family.ports.decisions.read(key))?.value ?? null;
       },
