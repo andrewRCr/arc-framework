@@ -170,60 +170,17 @@ stamp parsing strips (§ 3.3, § 3.4).
 - _Outcome:_ The writer and reader take no lock of their own; the projection lock (2.3) is what puts each index write,
   and the re-read after it is taken, under the lock.
 
-### `[ ]` **2.3 The projection lock — § 3.2**
+### `[x]` **2.3 The projection lock — § 3.2**
 
 - _Goal:_ One per-worktree advisory lock serializes the projection's reads and writes in each worktree; a command holds
   at most one at a time, waits 200 ms for a sibling's and skips it, never creates the Git directory of a worktree that
   is gone, and reports the holder of a lock it could not take.
 
-    - `acquireAdvisoryLock` (`lib/advisory-lock.ts`) at `arc-projection/lock`, its holder recording the process ID, the
-      per-process instance, and the process scope, and held under a renewable lease (`withRenewableLease`,
-      `ADVISORY_LEASE_DURATION_MS`, `lib/renewable-lease.ts`), all through `NATIVE_LEASE_PROCESS`
-      (`lib/lease-process.ts`), as the build-ownership lock's holder is (`withBuildArtifactOwnership`,
-      `lib/build-ownership.ts`), where the store's per-checkout locks record the process ID alone. A holder in the same
-      PID namespace is judged by its process, and one in another — WSL and Windows sharing a checkout, or a container's
-      bind mount — only by its lease, so a live holder there is never taken for dead. Where Linux cannot read the
-      process's PID namespace, `resolveProcessVisibilityScope` falls back to a scope of its own
-      (`linux:unknown:<instance>`), so it and every other process read each other as another scope: a holder judged by
-      its lease alone, and a copy taken over by no other process's sweep. The sweep passes the predicate a copy's writer
-      with its scope digest and its own scope's digest (2.2.c). An aside copy carries no lease, so a sweep leaves a copy
-      written from another process scope, reporting it (3.3), to a sweep from that scope, or to a removal's or release's
-      takeover, which takes a copy over live or not once it settles (`projection-worktrees`).
-    - Its `exclusiveCreate` seam creates the lockfile only inside an existing `arc-projection/` (2.2.b), so a sibling
-      whose Git directory is removed during the wait fails as gone and is skipped, recreating nothing.
-    - The lease takes its own dependencies, built from `NATIVE_LEASE_PROCESS`: its `renewLock` and `releaseLock` pass
-      the same seam to `renewAdvisoryLock`'s and `releaseAdvisoryLockConfirmed`'s options, which `NATIVE_LEASE_PROCESS`
-      leaves at the recursive default, so neither a renewal nor a release recreates a removed Git directory. A release
-      finds nothing to release where the directory is already gone, `releaseAdvisoryLock`'s holder read finding no
-      holder of its own, and where the directory goes after that read its break lock's create fails with `ENOENT`, which
-      the lease's `releaseLock` reads as the worktree gone, nothing left to release, so the guarded operation's result
-      stands. Its `terminateProcess` ends only that worktree's operation at its next step, reported. A lease is lost
-      when its lockfile no longer names this holder or when renewal keeps failing until the last confirmed deadline
-      (`withRenewableLease`). Fan-out, the end, and an ordinary start then skip that worktree, as a removed sibling is
-      skipped, and the command goes on; the persist and release steps (`projection-worktrees`) and `arc save`'s start
-      (`projection-write-back`) refuse with a retry instead, so no removal proceeds past an edit not yet persisted.
-    - A command's start and the persist and release steps wait the default bound, 10 s, by leaving `maxWaitMs` unset
-      (`DEFAULT_MAX_WAIT_MS` is the module's own); the end and a fan-out wait `maxWaitMs: 200` for every worktree's
-      lock, the command's own included. The lock is not reentrant, so the engine's entry points take it at one level
-      only, and nothing that runs under it fans out (`projection-worktrees`).
-    - The holder a report names is the last one `onWait` observed (`AdvisoryLockContention`), `unreadable` included,
-      since `AdvisoryLockTimeoutError` carries none.
-    - `lib/advisory-lock.ts` exports the predicate `isMainLockBreakable` applies to a holder — a dead process, or the
-      same process ID with another instance, or, in another process scope, a lapsed lease — so the aside folder's sweep
-      (3.3) judges a writer's liveness by the same rule.
-    - Build `test-first` (one behavior at a time):
-        - a sibling held past 200 ms is skipped, and one released within it is taken
-        - a worktree whose Git directory is gone before the attempt, or removed while the writer waits, is skipped
-          without creating it
-        - a command's own lock that times out reports the holder `onWait` last saw
-        - the exported predicate answers as the lock's own reclaim does for a dead process and a reused process ID
-        - for a holder in another process scope the predicate answers not breakable while its lease lasts, and for a
-          copy's writer in another scope, which holds no lease, not breakable at all
-        - a renewal whose worktree's Git directory is removed after it reads the holder, through an injected `readFile`,
-          recreates nothing, and the lost lease ends the guarded operation at its next step, reported, without
-          terminating the process
-        - a release whose worktree's Git directory is removed after it reads the holder, through an injected `readFile`,
-          recreates nothing and resolves, the guarded operation's result kept
+- _Outcome:_ `withProjectionLock` (`lib/store/projection/lock.ts`) takes `arc-projection/lock` through a create seam
+  with no `mkdir`, the same seam and reader passed to the lease's renewal and release, and returns `done`, `held` with
+  the holder `onWait` last saw, `gone`, or `lost` with the lease's report; a lost lease marks the session, whose next
+  `step` ends the operation, and never terminates the process. `isAdvisoryHolderAbandoned` (`lib/advisory-lock.ts`) is
+  the reclaim rule, now what `isMainLockBreakable` applies. Callers pass `SIBLING_LOCK_WAIT_MS` or leave the default.
 
 ### `[ ]` **2.5 Blob ids, the configuration read, and the base stamp — § 3.4, § 15.3**
 

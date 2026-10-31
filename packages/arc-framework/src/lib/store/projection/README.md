@@ -31,6 +31,12 @@ index, the projection lock, and the kept copies. It reads the Git directory from
 where neither form reads does it run Git. It creates `arc-projection/` only inside a Git directory that exists, reading
 a missing one as a worktree that is gone.
 
+`lock.ts` is the projection lock, one advisory lock per worktree at `arc-projection/lock`, its holder recording the
+process ID, instance, and process scope under a renewable lease. It creates, renews, and releases only inside a state
+folder that exists, so a worktree whose Git directory was removed reads as gone and is never recreated. A lost lease
+ends only the guarded operation, at its next step, with the report the caller names; a wait that times out names the
+holder it last saw. It is not reentrant.
+
 `aside.ts` names the copies a swap moves aside and the staged files it links into place, under the aside folder's
 `aside/`, in folders mirroring the file's path below `.arc/` with the file's own name as the last folder. Each name is
 `<base blob id>.<pid>-<instance>-<scope digest>.<nonce>.<role>`: the version it replaced, its writer as the projection

@@ -513,6 +513,41 @@ async function acquireBreakLockForRelease(
   }
 }
 
+/** A holder's identity as the reclaim rule reads it; an aside copy's writer carries no lease. */
+export type AdvisoryHolderIdentity = Pick<AdvisoryLockHolder, "pid" | "leaseUntil" | "processScope" | "processInstance">;
+
+/** The process judging a holder: its own identity, a liveness probe, and a clock. */
+export interface AdvisoryHolderObserver {
+  readonly pid: number;
+  readonly processScope?: string;
+  readonly processInstance?: string;
+  readonly isProcessAlive?: IsProcessAliveFn;
+  readonly now?: () => number;
+}
+
+/**
+ * Whether a holder is provably abandoned, by the rule the lock reclaims by: a dead process, the observer's own process
+ * ID under another instance, or, in another process scope, a lapsed lease.
+ * @param holder - The holder or writer judged.
+ * @param observer - The process judging it.
+ * @returns Whether it may be taken over.
+ */
+export function isAdvisoryHolderAbandoned(holder: AdvisoryHolderIdentity, observer: AdvisoryHolderObserver): boolean {
+  const distinctProcessScopes = holder.processScope !== undefined
+    && observer.processScope !== undefined
+    && holder.processScope !== observer.processScope;
+  if (distinctProcessScopes) return holder.leaseUntil !== undefined && (observer.now ?? Date.now)() >= holder.leaseUntil;
+  if (
+    holder.pid === observer.pid
+    && holder.processInstance !== undefined
+    && observer.processInstance !== undefined
+    && holder.processInstance !== observer.processInstance
+  ) {
+    return true;
+  }
+  return !(observer.isProcessAlive ?? realProcessAlive)(holder.pid);
+}
+
 function isMainLockBreakable(
   holder: AdvisoryLockHolder | "absent" | "corrupt" | "unreadable",
   isProcessAlive: IsProcessAliveFn,
@@ -523,19 +558,11 @@ function isMainLockBreakable(
 ): holder is AdvisoryLockHolder | "corrupt" {
   if (holder === "corrupt") return true;
   if (holder === "absent" || holder === "unreadable") return false;
-  const distinctProcessScopes = holder.processScope !== undefined
-    && processScope !== undefined
-    && holder.processScope !== processScope;
-  if (distinctProcessScopes) return holder.leaseUntil !== undefined && now() >= holder.leaseUntil;
-  if (
-    holder.pid === pid
-    && holder.processInstance !== undefined
-    && processInstance !== undefined
-    && holder.processInstance !== processInstance
-  ) {
-    return true;
-  }
-  return !isProcessAlive(holder.pid);
+  return isAdvisoryHolderAbandoned(holder, {
+    pid, isProcessAlive, now,
+    ...(processScope === undefined ? {} : { processScope }),
+    ...(processInstance === undefined ? {} : { processInstance }),
+  });
 }
 
 function isBreakLockBreakable(

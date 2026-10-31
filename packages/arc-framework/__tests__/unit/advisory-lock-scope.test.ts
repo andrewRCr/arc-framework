@@ -4,7 +4,9 @@ import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { withAdvisoryLock, type AdvisoryLockOptions } from "../../src/lib/advisory-lock.js";
+import {
+  acquireAdvisoryLock, isAdvisoryHolderAbandoned, releaseAdvisoryLock, withAdvisoryLock, type AdvisoryLockOptions,
+} from "../../src/lib/advisory-lock.js";
 
 let directory: string;
 let lockPath: string;
@@ -55,5 +57,30 @@ describe("withAdvisoryLock", () => {
     expect(failure).toBeInstanceOf(AggregateError);
     expect(failure).toMatchObject({ errors: [operation, release], message: operation.message, cause: operation });
     expect(await exists(lockPath)).toBe(true);
+  });
+});
+
+describe("the exported reclaim predicate", () => {
+  const observer = { pid: 4242, processInstance: "instance-a", processScope: "pid:[1]" };
+  const isProcessAlive = (pid: number): boolean => pid !== 9999;
+
+  it.each([
+    ["a dead process", { pid: 9999, processInstance: "instance-b", processScope: "pid:[1]" }],
+    ["a reused process ID", { pid: 4242, processInstance: "instance-b", processScope: "pid:[1]" }],
+    ["a live process", { pid: 5151, processInstance: "instance-c", processScope: "pid:[1]" }],
+  ])("answers for %s as the lock's own reclaim does", async (_case, holder) => {
+    await writeFile(lockPath, JSON.stringify({ ...holder, acquiredAt: 0, token: "held" }));
+    const reclaimed = await acquireAdvisoryLock(lockPath, { ...observer, isProcessAlive, maxWaitMs: 100 })
+      .then(async (handle) => { await releaseAdvisoryLock(handle); return true; }, () => false);
+    expect(isAdvisoryHolderAbandoned(holder, { ...observer, isProcessAlive })).toBe(reclaimed);
+  });
+
+  it("judges a holder in another process scope by its lease alone, and a writer there with none as never abandoned", () => {
+    // Its process reads as dead here, since this scope cannot observe it.
+    const elsewhere = { ...observer, isProcessAlive: () => false, now: () => 1_000 };
+    const other = { pid: 5151, processInstance: "instance-d", processScope: "win32:host" };
+    expect(isAdvisoryHolderAbandoned({ ...other, leaseUntil: 2_000 }, elsewhere)).toBe(false);
+    expect(isAdvisoryHolderAbandoned({ ...other, leaseUntil: 1_000 }, elsewhere)).toBe(true);
+    expect(isAdvisoryHolderAbandoned(other, elsewhere)).toBe(false);
   });
 });
