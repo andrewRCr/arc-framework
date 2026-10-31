@@ -240,35 +240,17 @@ stamp parsing strips (§ 3.3, § 3.4).
           snapshots a pass's ignore files and answers `changed` or `unchanged`, reading an ignore file through a symbolic
           link as Git does. Covered in `unit/store/projection/smudging.test.ts` and `ignore-snapshot.test.ts`.
 
-### `[ ]` **2.6 Recover a lost base stamp — § 3.5**
+### `[x]` **2.6 Recover a lost base stamp — § 3.5**
 
 - _Goal:_ A file whose stamp was deleted or dropped by a whole-file rewrite merges from the right base — an exact
   version, else the closest candidate, else empty — reading `history` only where it must, once per record between the
   write-backs the command lands to it.
 
-    - Order: content equal, stamp aside, to the index's version, then to a `history` version newest first, takes that
-      version; otherwise the closest — the fewest lines changed in a line diff — among the candidates the diff matches
-      at least one non-blank line with: the index's version, the content the last persisted write-back took in (2.7),
-      and the five newest versions, that content and then the newer version winning a tie; with no such candidate, an
-      empty base. Write-back restores the stamp.
-    - A stored version taken as the base — the content a persisted write-back took in among them, where 2.7 finds it the
-      version the write landed — goes to the store as the expected version; the copy 2.7 keeps otherwise and the empty
-      base merge in the checkout (`projection-write-back`).
-    - `history` is memoized per record for the command, the memo passed to the worktrees its fan-out visits. A memo
-      entry is only ever a whole `history` answer, and the memo's drop removes a record's entry, which 2.7's recording
-      calls once write-back's read-back lands the command's write to the record, since the read-back puts the version
-      just written in a file and no earlier answer holds it; the next read takes the record's whole history, that
-      version included, from one more call. The memo is an object its caller holds, which `projection-write-back`
-      places in the engine's process state.
-    - Where `history` refuses `state-unresolvable` (`lib/store/refusal.ts`), recovery chooses between the index's
-      version and the content taken in alone and pulls nothing — an arm 2.9 builds over its wrapping store.
-    - Build `test-first` (one behavior at a time):
-        - content equal to an older version takes that version
-        - edited content takes the closest candidate, and a tie goes to the content taken in, then the newer version,
-          that content seeded through 2.2.a's fields
-        - content sharing only blank lines with every version takes an empty base
-        - two files of one record in one command read its `history` once, and a drop of the record's entry between
-          them reads it again
+- _Outcome:_ `recoverBase` (`lib/store/projection/base-recovery.ts`) answers a stored version, a kept copy, or an empty
+  base, reading the content taken in from the entry's `persisted` field and a copy through a reader 2.7 binds; the
+  index's version is matched by blob id with no `history` read. `createHistoryMemo` keeps one whole answer per record,
+  refusals included, until `drop`; a refusal is returned for 2.9's arm. Covered in
+  `unit/store/projection/base-recovery.test.ts`.
 
 ### `[ ]` **2.7 Keep what a persisted write-back took in — § 3.6**
 

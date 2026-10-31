@@ -61,6 +61,15 @@ A single-valued key takes its last occurrence, as `git config --get` does, and e
 the object format, SHA-1 where unset; the in-flight view keys as set; and identity, resolved by the rule
 `lib/git/identity.ts` owns, or the no-identity verdict naming the remedy that sets `arc.identity`.
 
+`base-recovery.ts` recovers the base of a file whose stamp was lost. Content equal to a stored version takes it — the
+index's version first, by blob id, so a file still holding it reads no `history`, then each version newest first.
+Otherwise the base is the candidate with the fewest lines changed in a line diff, among those the diff matches a
+non-blank line with: the content the last persisted write-back took in, the index's version, and the five newest
+versions, a tie going to that content and then the newer version. Content sharing no non-blank line with any candidate
+takes an empty base. A stored version goes to the store as the expected version; a kept copy and the empty base merge in
+the checkout. `history` is read through a memo the command holds, one whole answer per record until a landed write
+drops it.
+
 `stamp.ts` renders, parses, and strips a Markdown file's base stamp, `<!-- arc-base: <blob id> -->`, on its first line
 or the line after its YAML frontmatter, and the notice lines directly after it, each one comment opening
 `<!-- arc-notice:`. Only lines of that form in that block strip, so a person's own comment stays content, and a file

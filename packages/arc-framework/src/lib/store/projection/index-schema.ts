@@ -127,6 +127,8 @@ export type ProjectionIndex = z.output<typeof ProjectionIndexSchema>;
 export type FileStat = z.output<typeof FileStatSchema>;
 /** A decoded ignore-file record. */
 export type IgnoreFileRecord = z.output<typeof IgnoreFileRecordSchema>;
+/** A decoded entry for a file the projection laid from a record. */
+export type RecordEntry = z.output<typeof RecordEntrySchema>;
 
 /**
  * Decode an index from its parsed JSON form.
