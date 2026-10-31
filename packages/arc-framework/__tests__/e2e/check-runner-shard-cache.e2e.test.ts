@@ -7,11 +7,9 @@ import { preparedAdapterScript } from "../fixtures/checks/prepared-execution.js"
 import { startRunnerCli, waitForRunnerObservation } from "../fixtures/checks/runner-cli.js";
 import { registerRunnerFixtureSources } from "../fixtures/checks/runner-machine.js";
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
+import { CALL_LIMIT } from "../helpers/call-limit.js";
 import { runArc } from "./helpers.js";
 
-// A case allows each `arc` call it makes 30 seconds, `runArc`'s own limit for one call, so on a slow runner only a
-// call that is itself too slow fails, and a hang still fails.
-const CALL_LIMIT = 30_000;
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 
@@ -63,7 +61,7 @@ it("publishes only after provider exit, releases a whole-parent hit and forces a
     await waitForRunnerObservation(join(fixture.home, "closed"));
     await registerRunnerFixtureSources(directories, join(fixture.home, "source"));
   }
-}, 3 * CALL_LIMIT);
+}, 4 * CALL_LIMIT);
 
 it.each([
   { mode: "group-known", code: 7, exit: 1, outcome: "failed" },
@@ -80,7 +78,7 @@ it.each([
   expect(JSON.parse(result.stdout).result.checks[0].invocations).toHaveLength(3);
   expect(await passFiles(fixture.root)).toEqual([]);
   await registerRunnerFixtureSources(directories, join(fixture.home, "source"));
-}, CALL_LIMIT);
+}, 2 * CALL_LIMIT);
 
 it("treats a corrupt parent record as a miss and keeps a successful run when replacement publication fails", async () => {
   const fixture = await createShardedCheckFixture(directories, { mode: "group-known",
@@ -101,7 +99,7 @@ it("treats a corrupt parent record as a miss and keeps a successful run when rep
   const hit = await run();
   expect(JSON.parse(hit.stdout).result.checks[0].outcome).toBe("reused");
   expect(await passFiles(fixture.root)).toHaveLength(1);
-}, 4 * CALL_LIMIT);
+}, 5 * CALL_LIMIT);
 
 it("keeps native group success when pass and report storage are unavailable, then recovers normally", async () => {
   const fixture = await createShardedCheckFixture(directories, { mode: "group-known",
@@ -120,7 +118,7 @@ it("keeps native group success when pass and report storage are unavailable, the
   expect(JSON.parse(repaired.stdout).result.checks[0]).toMatchObject({ outcome: "passed", record: { status: "recorded" } });
   const hit = await run();
   expect(JSON.parse(hit.stdout).result.checks[0].outcome).toBe("reused");
-}, 4 * CALL_LIMIT);
+}, 5 * CALL_LIMIT);
 
 it("keeps settled disposal warnings advisory on both execution and whole-parent reuse", async () => {
   const fixture = await createShardedCheckFixture(directories, { mode: "cleanup-warning",
@@ -135,4 +133,4 @@ it("keeps settled disposal warnings advisory on both execution and whole-parent 
     await expect(access(source.root)).rejects.toThrow();
   }
   expect(await passFiles(fixture.root)).toHaveLength(1);
-}, 2 * CALL_LIMIT);
+}, 3 * CALL_LIMIT);

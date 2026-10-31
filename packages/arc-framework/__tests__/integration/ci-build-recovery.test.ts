@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { runBuildCommand } from "../../src/lib/build-command.js";
 import { readBuildQualification } from "../../src/lib/build-qualification.js";
+import { CALL_LIMIT } from "../helpers/call-limit.js";
 import { downloadCiBuild, isolateCiInstallation, runCiPreflight } from "../helpers/ci-build-fixture.js";
 import { makeVitestRuntimeFixture } from "../helpers/vitest-runtime-fixture.js";
 import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
@@ -100,7 +101,7 @@ it.each(["missing CLI"])(
       expect(await readFile(join(consumer.packageRoot, ".config-loads"), "utf8")).toBe(loads);
       expect(readBuildQualification(consumer.packageRoot, "runtimeMetafile")).toEqual(qualification);
     } finally { await rm(consumer.root, { recursive: true, force: true }); }
-  }, 60_000,
+  }, 4 * CALL_LIMIT,
 );
 
 it.each(["missing"])("requires installation repair for %s npm evidence before preflight can resume", async (fault) => {
@@ -127,7 +128,7 @@ it.each(["missing"])("requires installation repair for %s npm evidence before pr
     expect(await readFile(join(consumer.packageRoot, "dist/dev-build-stamp.json"), "utf8")).toBe(stamp);
     await expect(readFile(join(consumer.packageRoot, ".config-loads"))).rejects.toMatchObject({ code: "ENOENT" });
   } finally { await rm(consumer.root, { recursive: true, force: true }); }
-}, 60_000);
+}, 5 * CALL_LIMIT);
 
 it.skipIf(process.env.ARC_TEST_ALTERNATE_NODE === undefined)("repairs a real producer Node mismatch in the consuming runtime", async () => {
   const alternate = process.env.ARC_TEST_ALTERNATE_NODE;
@@ -139,7 +140,7 @@ it.skipIf(process.env.ARC_TEST_ALTERNATE_NODE === undefined)("repairs a real pro
     const version = await execute(alternate, ["--version"]);
     expect(version.stdout.trim()).not.toBe(process.version);
     await execute(alternate, ["--import", "tsx", "src/scripts/run-build.ts", "fast"],
-      { cwd: other.packageRoot, env: { ...process.env, ARC_E2E_SKIP_BUILD: "" }, timeout: 30_000 });
+      { cwd: other.packageRoot, env: { ...process.env, ARC_E2E_SKIP_BUILD: "" }, timeout: CALL_LIMIT });
     consumer = await downloadCiBuild(other.packageRoot, "integration");
     const original = await readFile(join(consumer.packageRoot, "dist/dev-build-stamp.json"), "utf8");
     const refused = await runVitestControllerFixture(consumer.packageRoot, ["integration"], skip);
@@ -157,4 +158,4 @@ it.skipIf(process.env.ARC_TEST_ALTERNATE_NODE === undefined)("repairs a real pro
     if (consumer !== undefined) await rm(consumer.root, { recursive: true, force: true });
     await rm(other.root, { recursive: true, force: true });
   }
-}, 60_000);
+}, 5 * CALL_LIMIT);

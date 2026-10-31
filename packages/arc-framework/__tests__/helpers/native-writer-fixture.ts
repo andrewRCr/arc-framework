@@ -2,6 +2,7 @@
 import { execa } from "execa";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { CALL_LIMIT } from "./call-limit.js";
 import { copyLiveDependencies } from "./copy-live-dependencies.js";
 import { makeVitestRuntimeFixture } from "./vitest-runtime-fixture.js";
 
@@ -48,7 +49,7 @@ export async function makeNativeWriterFixture() {
 export function startNativeWriter(packageRoot: string, writer: string, gate?: string, filter?: string, environment: NodeJS.ProcessEnv = {}) {
   const child = execa(process.execPath, ["--import", "tsx", join(packageRoot, "src/scripts/run-local-test-tier.ts"),
     "integration", ...(filter === undefined ? [] : [filter])], {
-    cwd: packageRoot, reject: false, timeout: 30_000,
+    cwd: packageRoot, reject: false, timeout: CALL_LIMIT,
     // The outer integration run owns pool admission; these tiny controllers exercise checkout exclusion.
     env: { CI: "1", FORCE_COLOR: undefined, ARC_E2E_SKIP_BUILD: undefined, VITEST_MAX_WORKERS: undefined,
       ARC_TEST_DURATION_FILE: undefined, ...environment, NATIVE_WRITER_ID: writer, NATIVE_WRITER_GATE: gate },

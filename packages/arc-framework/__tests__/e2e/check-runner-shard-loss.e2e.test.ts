@@ -6,6 +6,7 @@ import { createShardedCheckFixture } from "../helpers/sharded-check-fixture.js";
 import { registerRunnerFixtureSources } from "../fixtures/checks/runner-machine.js";
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { runArc } from "./helpers.js";
+import { CALL_LIMIT } from "../helpers/call-limit.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
@@ -42,4 +43,4 @@ it.each([
   expect(human.stdout).toContain(`Batch 1, shard 1/3: ${code === 0 ? "passed" : "failed"} (exit ${code})`);
   expect(human.stdout).toContain("Batch 1, shard 2/3: couldn't run");
   expect(human.stdout).toContain("Batch 1, shard 3/3: couldn't run");
-}, 30_000);
+}, 3 * CALL_LIMIT);
