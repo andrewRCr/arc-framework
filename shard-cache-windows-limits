@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "shard-cache-windows-limits",
+  "claimId": "05e59c9f511913a6ba143ef0d190c6ca",
+  "createdAt": "2026-10-31T20:06:08.070Z",
+  "updatedAt": "2026-10-31T20:06:08.070Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "shard-cache-windows-limits",
+  "branch": "fix/shard-cache-windows-limits",
+  "origin": "inbox",
+  "originEntry": "Give `check-runner-shard-cache`'s cases time limits that hold on loaded Windows",
+  "originEntrySourceDigest": "sha256:9598f11aca21fc4b9772d2ee7f2d3a04cfce7c9ee96809687a7adc8fb61920a9",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
