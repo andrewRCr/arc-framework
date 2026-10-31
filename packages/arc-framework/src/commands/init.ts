@@ -9,7 +9,7 @@
 import { preparePersonalIdentitySetup, type PersonalIdentitySetupOptions } from "../lib/personal-identity-setup.js";
 import { join, dirname, relative, sep } from "node:path";
 import {
-  ensureDir, writeArcGitignoreBlock,
+  ensureDir, writeArcIgnoreBlocks,
   renderTokens, renderConditionals, renderConfigOverrides,
 } from "../lib/template/index.js";
 import { CROSS_WU_INSTANCE_FILES, configureGitIntegration, runPostInitSetup } from "../lib/setup.js";
@@ -292,7 +292,6 @@ export async function runInit(
       cwd, exec: io.exec, readFile: io.readFile, writeFile: io.writeFile, access: io.access,
       enableRoadmapConflictRemedy: prompts.pm_mode === "arc-in-git",
     });
-    const gitignorePath = join(cwd, ".gitignore");
 
     // Skill generation — copy canonical skills to per-tool directories
     // Detect pre-existing skill dirs so universal tools (codex, cursor, etc.)
@@ -307,14 +306,7 @@ export async function runInit(
     );
     await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
 
-    // Write managed gitignore block with all ARC entries
-    const gitignoreEntries = [
-      ".arc/system/.internal/pristine.json",
-      ".arc/system/.internal/worktree-marker.json",
-      ".arc/user/*/",
-      ...skillGitignoreEntries(skillResult.targetDirs),
-    ];
-    await writeArcGitignoreBlock(gitignorePath, gitignoreEntries, io.readFile, io.writeFile);
+    await writeArcIgnoreBlocks(cwd, skillGitignoreEntries(skillResult.targetDirs), io.readFile, io.writeFile);
 
     // Set role — init is always the maintainer (contributors use arc join)
     await io.exec("git", ["config", "--local", "arc.role", "maintainer"]);

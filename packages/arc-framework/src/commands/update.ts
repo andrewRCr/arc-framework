@@ -33,7 +33,7 @@ import {
   type FileMergeFn,
 } from "../lib/manifest/index.js";
 import { gitMergeFile, type GitExec } from "../lib/git/index.js";
-import { writeArcGitignoreBlock } from "../lib/template/index.js";
+import { writeArcIgnoreBlocks } from "../lib/template/index.js";
 import { ensureDir } from "../lib/template/index.js";
 import { getFrameworkVersion } from "../lib/version.js";
 import { UserFacingError, manifestMissingError } from "../lib/errors.js";
@@ -465,15 +465,7 @@ export async function runUpdate(
   );
   await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
 
-  // Write managed gitignore block with all ARC entries
-  const gitignorePath = join(cwd, ".gitignore");
-  const gitignoreEntries = [
-    ".arc/system/.internal/pristine.json",
-    ".arc/system/.internal/worktree-marker.json",
-    ".arc/user/*/",
-    ...skillGitignoreEntries(skillResult.targetDirs),
-  ];
-  await writeArcGitignoreBlock(gitignorePath, gitignoreEntries, io.readFile, io.writeFile);
+  await writeArcIgnoreBlocks(cwd, skillGitignoreEntries(skillResult.targetDirs), io.readFile, io.writeFile);
 
   // Refresh merge-driver wiring added after the original installation, and
   // track the ROADMAP attribute only for arc-in-git projects.

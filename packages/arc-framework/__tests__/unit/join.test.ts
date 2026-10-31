@@ -6,6 +6,7 @@ import type {
 import { UserFacingError } from "../../src/lib/errors.js";
 import { CANONICAL_SKILLS } from "../../src/lib/skills/index.js";
 import type { SkillRemovalIO } from "../../src/lib/skills/index.js";
+import { ARC_IGNORE_BLOCK } from "../helpers/arc-ignore-block.js";
 
 // --- Test Helpers ---
 
@@ -197,6 +198,11 @@ describe("runJoin", () => {
     expect(gitignoreWrite![1]).toContain(".arc/user/*/");
   });
 
+  it("writes ARC's managed .ignore block", async () => {
+    await runJoin(opts);
+    expect(await io.readFile("/project/.ignore")).toBe(`${ARC_IGNORE_BLOCK}\n`);
+  });
+
   it("returns result with role, tools, and identity", async () => {
     const result = await runJoin(opts);
 
@@ -376,6 +382,14 @@ describe("runJoinReconfigure", () => {
     for (const p of result.removedSkills) {
       expect(p).toMatch(/^\.claude\/skills\/arc-/);
     }
+  });
+
+  it("writes ARC's managed .ignore block", async () => {
+    await runJoinReconfigure(buildReconfigureOpts({
+      prompts: { role: "maintainer", tools: ["claude"] },
+      previousTools: ["claude"],
+    }));
+    expect(await io.readFile("/project/.ignore")).toBe(`${ARC_IGNORE_BLOCK}\n`);
   });
 
   it("unchanged values produce no side effects", async () => {

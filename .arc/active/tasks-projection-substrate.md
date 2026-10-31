@@ -70,7 +70,7 @@ since no CLI process runs over a store before the flip (§ 1.5).
           path, stays as § 11.2 states, though no guarded directory reaches it. Covered in
           `integration/store/projection/ignore-guard.test.ts`.
 
-### `[ ]` **1.3 Write ARC's managed `.ignore` block through the setup verbs — § 11.3**
+### `[x]` **1.3 Write ARC's managed `.ignore` block through the setup verbs — § 11.3**
 
 - _Goal:_ Every repository the setup verbs run in carries a tracked root `.ignore` whose ARC block re-includes the four
   projected roots for ripgrep-family search, keeping the repository's own lines.
@@ -84,18 +84,13 @@ since no CLI process runs over a store before the flip (§ 1.5).
           `integration/template-ignore-blocks.test.ts` shows a check's worktree capture still staging nothing under
           `.arc/user/<identity>/`.
 
-    - `[ ]` **1.3.b The four verbs**
+    - `[x]` **1.3.b The four verbs**
 
-        - `arc init` (`commands/init.ts`), `arc join` (`commands/join.ts`: `runJoin` and `runJoinReconfigure`),
-          `arc init --reconfigure` (`runReconfigure`, `commands/reconfigure.ts`), and `arc update`
-          (`commands/update.ts`) write the `.ignore` block beside their `.gitignore` block. It runs live, whatever the
-          store's capability.
-        - Build `test-first` (one behavior at a time):
-            - Beside each verb's existing managed-block test — `__tests__/unit/init.test.ts`, `unit/join.test.ts`, and
-              `e2e/update.e2e.test.ts` for `arc update` — and in `unit/reconfigure.test.ts`, which has none, a new one
-            - `arc init`, `arc join`, `arc join --reconfigure`, and `arc init --reconfigure` each write `.ignore` with
-              the block
-            - `arc update` leaves an unchanged `.ignore` byte-identical, and rewrites only the block over an edited file
+        - `arc init`, `runJoin` and `runJoinReconfigure`, `runReconfigure`, and `arc update` each call
+          `writeArcIgnoreBlocks` with their skill directories in place of their inline `.gitignore` lists, so every one
+          writes the `.ignore` block, live whatever the store's capability. Each verb's suite gains its case, sharing
+          `__tests__/helpers/arc-ignore-block.ts`; `e2e/update.e2e.test.ts` shows `arc update` leaving an unchanged
+          `.ignore` byte-identical and rewriting only the block over an edited one.
 
 ### `[ ]` **1.4 Stop ignoring `.ignore` in this repository and write its managed block — § 11.5, § 11.3**
 

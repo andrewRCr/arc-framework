@@ -42,6 +42,7 @@ import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
 import type { Recipe } from "../../src/lib/types.js";
 import { CANONICAL_SKILLS } from "../../src/lib/skills/index.js";
 import { DEFAULT_PROMPTS } from "../helpers/integration.js";
+import { ARC_IGNORE_BLOCK } from "../helpers/arc-ignore-block.js";
 
 const __testdir = dirname(fileURLToPath(import.meta.url));
 const actualRecipe = JSON.parse(
@@ -857,6 +858,24 @@ describe("runInit", () => {
     expect(result).not.toBeNull();
     expect(result!.filesWritten).toHaveLength(2);
     expect(result!.tools).toEqual(["claude", "cursor"]);
+  });
+
+  it("fresh mode: writes ARC's managed .ignore block", async () => {
+    const io = mockIO({ "/templates/README.md": "# hi", "/templates/system/arc-config.yml": "pm.mode: none" });
+    const files = new Map<string, string>();
+    const write = io.writeFile;
+    (io as { writeFile: typeof write }).writeFile = async (path, content) => {
+      files.set(path, content);
+      await write(path, content);
+    };
+
+    await runInit({
+      cwd: "/project", io, templateDir: "/templates", internalTemplateDir: "/internal-templates",
+      recipe: { include_files: ["README.md", "system/arc-config.yml"], prompts: minimalRecipe.prompts, conditions: {} },
+      prompts: DEFAULT_PROMPTS, identityResult: "andrew",
+    });
+
+    expect(files.get("/project/.ignore")).toBe(`${ARC_IGNORE_BLOCK}\n`);
   });
 
   it("fresh mode: sets up git integration (gitignore, hooks)", async () => {

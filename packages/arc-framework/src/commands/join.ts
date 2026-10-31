@@ -8,7 +8,7 @@
 
 import { preparePersonalIdentitySetup, type PersonalIdentitySetupOptions } from "../lib/personal-identity-setup.js";
 import { join } from "node:path";
-import { writeArcGitignoreBlock } from "../lib/template/index.js";
+import { writeArcIgnoreBlocks } from "../lib/template/index.js";
 import { configureGitIntegration, runPostInitSetup } from "../lib/setup.js";
 import {
   generateSkills,
@@ -119,15 +119,7 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
   );
   await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
 
-  // Write managed gitignore block with skill directories
-  const gitignorePath = join(cwd, ".gitignore");
-  const gitignoreEntries = [
-    ".arc/system/.internal/pristine.json",
-    ".arc/system/.internal/worktree-marker.json",
-    ".arc/user/*/",
-    ...skillGitignoreEntries(skillResult.targetDirs),
-  ];
-  await writeArcGitignoreBlock(gitignorePath, gitignoreEntries, io.readFile, io.writeFile);
+  await writeArcIgnoreBlocks(cwd, skillGitignoreEntries(skillResult.targetDirs), io.readFile, io.writeFile);
 
   // User directory and session templates
   await runPostInitSetup({
@@ -227,17 +219,8 @@ export async function runJoinReconfigure(
   // Write new skill files
   await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
 
-  // Update gitignore with new skill directories
-  const gitignorePath = join(cwd, ".gitignore");
-  const gitignoreEntries = [
-    ".arc/system/.internal/pristine.json",
-    ".arc/system/.internal/worktree-marker.json",
-    ".arc/user/*/",
-    ...skillGitignoreEntries(skillResult.targetDirs),
-  ];
-  await writeArcGitignoreBlock(
-    gitignorePath, gitignoreEntries, io.readFile, io.writeFile,
-  );
+  // Update the ignore blocks with the new skill directories
+  await writeArcIgnoreBlocks(cwd, skillGitignoreEntries(skillResult.targetDirs), io.readFile, io.writeFile);
 
   // Persist new tool selection
   if (prompts.tools.length > 0) {
