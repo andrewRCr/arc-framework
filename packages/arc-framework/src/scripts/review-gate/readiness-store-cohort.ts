@@ -5,23 +5,30 @@ import type { LifecycleEntry } from "../../lib/store/lifecycle-index.js";
 import { parseCohortDocument, type ParsedCohortDocument } from "../../lib/store/kinds/cohort/index.js";
 import type { ReviewReadinessFact } from "./readiness.js";
 import { validCohortCloseout } from "./readiness-artifact-facts.js";
+import { describeRecordConflicts } from "../../lib/store/conflict-diagnostics.js";
 
 interface Document { record: StoreRecord; fields: ParsedCohortDocument }
 function fact(code: string, path: string, message: string): ReviewReadinessFact { return { code, path, message }; }
 
 async function readDocuments(store: Store): Promise<{ documents: Document[]; facts: ReviewReadinessFact[] }> {
   const result = await store.list({ family: "cohort", kind: "cohort/document" }), path = "cohort/document";
-  if (result.status === "refused") return { documents: [], facts: [fact("unreadable-artifact", path, result.refusal.condition)] };
+  if (result.status === "refused") {
+    return { documents: [], facts: [fact("unreadable-artifact", path, `${result.refusal.condition} ${result.refusal.remedy.text}`)] };
+  }
   const listed = result.result;
-  if (listed.status === "unreadable") return { documents: [], facts: [fact("unreadable-artifact", path, listed.condition)] };
+  if (listed.status === "unreadable") return { documents: [], facts: [fact("unreadable-artifact", path, `${listed.condition} ${listed.remedy.text}`)] };
   if (listed.status === "absent") return { documents: [], facts: [] };
-  const facts = listed.diagnostics.map(diagnostic => fact("malformed-artifact", diagnostic.key, diagnostic.condition));
-  if (listed.missed) facts.push(fact("unreadable-artifact", path, "The cohort inventory missed records."));
+  const facts = listed.diagnostics.map(diagnostic => fact("malformed-artifact", diagnostic.key,
+    `${diagnostic.condition} ${diagnostic.remedy.text}`));
+  if (listed.missed) facts.push(fact("unreadable-artifact", path, "The cohort inventory missed records. Repair the cohort inventory, then retry."));
   const documents: Document[] = [];
   for (const record of listed.records) {
     const parsed = parseCohortDocument(record.content);
     if (!parsed.success) facts.push(fact("malformed-artifact", `${path}:${record.reference.owner.name}`, parsed.error));
-    else if (record.conflicts.length > 0) facts.push(fact("malformed-artifact", `${path}:${record.reference.owner.name}`, "The stored cohort has unresolved conflicts."));
+    else if (record.conflicts.length > 0) {
+      facts.push(fact("malformed-artifact", `${path}:${record.reference.owner.name}`,
+        `The stored cohort has unresolved conflicts.${describeRecordConflicts(record.conflicts)}`));
+    }
     else documents.push({ record, fields: parsed.data });
   }
   return { documents, facts };

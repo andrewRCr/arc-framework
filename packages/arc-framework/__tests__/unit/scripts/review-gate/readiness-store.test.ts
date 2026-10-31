@@ -9,6 +9,7 @@ import { ListingOutcomeSchema } from "../../../../src/lib/store/read.js";
 import { batchLifecycleWrites, recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { ProjectIdentityError } from "../../../../src/lib/store/project-identity.js";
+import { describeRecordConflicts } from "../../../../src/lib/store/conflict-diagnostics.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 const root = "/tree", head = "a".repeat(40);
@@ -58,7 +59,8 @@ it("refuses a clone holding no project ID with the port's typed failure, and is 
   const h = await fixture({ project: false });
   const refused = await evaluateReviewReadiness(h.request, { fs, store: h.store }).catch((error: unknown) => error);
   expect(refused).toBeInstanceOf(ProjectIdentityError);
-  expect(refused).toMatchObject({ failure: { remedy: { text: expect.any(String) } } });
+  expect(refused).toMatchObject({ failure: { remedy: {
+    text: "Restore the project's unique, valid identity record from its authoritative state source, then retry." } } });
   await h.seedProject(projectId);
   expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready", diagnostics: [] });
 });
@@ -134,7 +136,16 @@ it("refuses a completed work unit linked to another pull request", async () => {
     payload: { facts: expect.arrayContaining([expect.objectContaining({ code: "pr-url-mismatch" })]) } });
 });
 
-it.each(["diagnostic", "unreadable", "missed"] as const)("refuses incomplete stored lifecycle inventory: %s", async mode => {
+const inventoryRefusal = { code: "state-unresolvable" as const, class: "recoverable" as const, historyRefs: [],
+  condition: "The inventory's objects are missing.", remedy: { text: "Fetch the missing objects, then retry." } };
+
+it.each([
+  ["refused", "unreadable-artifact", "work-item/meta", "The inventory's objects are missing. Fetch the missing objects, then retry."],
+  ["unreadable", "unreadable-artifact", "work-item/meta", "Another meta cannot be decoded. Restore the inventory."],
+  ["diagnostic", "malformed-artifact", "work-item/meta:other", "Another meta cannot be decoded. Repair the other metadata."],
+  ["missed", "unreadable-artifact", "work-item/meta",
+    "The lifecycle inventory missed records. Repair the work-unit inventory, then retry."],
+] as const)("refuses incomplete stored lifecycle inventory with its remedy: %s, and is ready once complete", async (mode, code, path, message) => {
   const h = await fixture({ state: "Shipped" });
   const list = h.store.list.bind(h.store);
   const key = "work-item/meta:other", condition = "Another meta cannot be decoded.";
@@ -142,22 +153,67 @@ it.each(["diagnostic", "unreadable", "missed"] as const)("refuses incomplete sto
     ? { status: "unreadable", condition, remedy: { text: "Restore the inventory." } }
     : { status: "complete", records: [h.primary], missed: mode === "missed", diagnostics: mode === "diagnostic"
       ? [{ kind: "malformed", key, condition, remedy: { text: "Repair the other metadata." } }] : [] });
-  h.store.list = async input => input.kind === "work-item/meta" ? { status: "ok", result: outcome } : list(input);
+  h.store.list = async input => input.kind !== "work-item/meta" ? list(input) : mode === "refused"
+    ? { status: "refused", refusal: inventoryRefusal } : { status: "ok", result: outcome };
   expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid", payload: {
-    facts: expect.arrayContaining([expect.objectContaining(mode === "diagnostic"
-      ? { code: "malformed-artifact", path: key, message: condition }
-      : { code: "unreadable-artifact", message: mode === "unreadable" ? condition : expect.stringContaining("missed") })]),
-  } });
+    facts: expect.arrayContaining([{ code, path, message }]) } });
+  h.store.list = list;
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
 });
 
-it.each(["unreadable", "missed"] as const)("refuses incomplete stored cohort inventory: %s", async mode => {
+it.each([
+  ["refused", "unreadable-artifact", "cohort/document", "The inventory's objects are missing. Fetch the missing objects, then retry."],
+  ["unreadable", "unreadable-artifact", "cohort/document", "Cohort state is unavailable. Restore cohort state."],
+  ["diagnostic", "malformed-artifact", "cohort/document:other", "Another cohort cannot be decoded. Repair the other cohort."],
+  ["missed", "unreadable-artifact", "cohort/document", "The cohort inventory missed records. Repair the cohort inventory, then retry."],
+] as const)("refuses incomplete stored cohort inventory with its remedy: %s, and is ready once complete", async (mode, code, path, message) => {
   const h = await fixture({ state: "Shipped", cohort: "group" });
+  await completeCohorts(h);
   const list = h.store.list.bind(h.store);
   const outcome = ListingOutcomeSchema.parse(mode === "unreadable"
     ? { status: "unreadable", condition: "Cohort state is unavailable.", remedy: { text: "Restore cohort state." } }
-    : { status: "complete", records: [], missed: true, diagnostics: [] });
-  h.store.list = async input => input.family === "cohort" ? { status: "ok", result: outcome } : list(input);
+    : { status: "complete", records: [], missed: mode === "missed", diagnostics: mode === "diagnostic" ? [{ kind: "malformed",
+      key: "cohort/document:other", condition: "Another cohort cannot be decoded.", remedy: { text: "Repair the other cohort." } }] : [] });
+  h.store.list = async input => input.family !== "cohort" ? list(input) : mode === "refused"
+    ? { status: "refused", refusal: inventoryRefusal } : { status: "ok", result: outcome };
   expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid", payload: {
-    facts: expect.arrayContaining([expect.objectContaining({ code: "unreadable-artifact", path: "cohort/document" })]),
-  } });
+    facts: expect.arrayContaining([{ code, path, message }]) } });
+  h.store.list = list;
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
 });
+
+it("names a stored cohort's conflict records in its readiness fact, and is ready once resolved", async () => {
+  const h = await fixture({ state: "Shipped", cohort: "group" });
+  await completeCohorts(h);
+  const list = h.store.list.bind(h.store), conflict = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group" }));
+  let conflicted = true;
+  h.store.list = async input => {
+    const listed = await list(input);
+    return !conflicted || input.family !== "cohort" || listed.status !== "ok" || listed.result.status !== "complete" ? listed
+      : { status: "ok", result: { ...listed.result, records: listed.result.records.map(record => ({ ...record, conflicts: [conflict] })) } };
+  };
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid", payload: {
+    facts: [{ code: "malformed-artifact", path: "cohort/document:group",
+      message: `The stored cohort has unresolved conflicts.${describeRecordConflicts([conflict])}` }] } });
+  conflicted = false;
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+});
+
+it.each([["unreadable fields", "fields"], ["unresolved conflicts", "conflicts"]] as const)(
+  "refuses stored work-unit metadata with %s, naming the repair, and is ready once repaired", async (_label, fault) => {
+    const h = await fixture({ state: "Shipped" });
+    const read = h.store.read.bind(h.store);
+    let faulty = true;
+    h.store.read = async input => {
+      const result = await read(input);
+      if (!faulty || input.reference.kind !== "work-item/meta" || result.status !== "ok") return result;
+      return { status: "ok", result: fault === "fields" ? { ...result.result, fields: {} }
+        : { ...result.result, conflicts: [result.result.reference] } };
+    };
+    expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid", payload: {
+      facts: [{ code: "malformed-artifact", message: fault === "fields"
+        ? "Metadata fields for `example` could not be read. Repair the work unit's metadata fields, then retry."
+        : `The stored work-unit metadata has unresolved conflicts.${describeRecordConflicts([h.primary.reference])}` }] } });
+    faulty = false;
+    expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+  });

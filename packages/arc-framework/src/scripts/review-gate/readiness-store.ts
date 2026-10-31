@@ -8,6 +8,7 @@ import { createProjectIdentityReader, ProjectIdentityError, resolveProjectIdenti
 import { lifecycleArtifactFacts } from "./readiness-artifact-facts.js";
 import { listLifecycleIndex, type LifecycleEntry } from "../../lib/store/lifecycle-index.js";
 import { storedCohortReadinessFacts } from "./readiness-store-cohort.js";
+import { describeRecordConflicts } from "../../lib/store/conflict-diagnostics.js";
 
 type WorkUnitRequest = Omit<ReviewReadinessRequest, "vehicle"> & {
   vehicle: Extract<ReviewReadinessRequest["vehicle"], { kind: "work-unit" }>;
@@ -22,8 +23,10 @@ export async function evaluateStoredWorkUnitReadiness(request: WorkUnitRequest, 
     : selected.refusal.code === "record-malformed" ? "malformed-artifact" : "unreadable-artifact",
   `work-item/meta:${request.vehicle.slug}`, `${selected.refusal.condition} ${selected.refusal.remedy.text}`)];
   const record = selected.result, path = workUnitMetaPath(record), fields = readLifecycleMetaFields(record);
-  if (fields.status === "refused") return [fact("malformed-artifact", path, fields.refusal.condition)];
-  if (record.conflicts.length > 0) return [fact("malformed-artifact", path, "The stored work-unit metadata has unresolved conflicts.")];
+  if (fields.status === "refused") return [fact("malformed-artifact", path, `${fields.refusal.condition} ${fields.refusal.remedy.text}`)];
+  if (record.conflicts.length > 0) {
+    return [fact("malformed-artifact", path, `The stored work-unit metadata has unresolved conflicts.${describeRecordConflicts(record.conflicts)}`)];
+  }
   const manual = request.vehicle.archiveCadence === "manual";
   const position = storedPositionFacts(record, fields.result.state, manual, path);
   if (position.length > 0) return position;
@@ -62,11 +65,16 @@ async function storedLinkFacts(request: WorkUnitRequest, record: StoreRecord, st
 
 async function readStoredLifecycleInventory(store: Store): Promise<{ entries: readonly LifecycleEntry[]; facts: ReviewReadinessFact[] }> {
   const result = await listLifecycleIndex(store), path = "work-item/meta";
-  if (result.status === "refused") return { entries: [], facts: [fact("unreadable-artifact", path, result.refusal.condition)] };
+  if (result.status === "refused") {
+    return { entries: [], facts: [fact("unreadable-artifact", path, `${result.refusal.condition} ${result.refusal.remedy.text}`)] };
+  }
   const listed = result.result;
-  if (listed.status === "unreadable") return { entries: [], facts: [fact("unreadable-artifact", path, listed.condition)] };
+  if (listed.status === "unreadable") return { entries: [], facts: [fact("unreadable-artifact", path, `${listed.condition} ${listed.remedy.text}`)] };
   if (listed.status === "absent") return { entries: [], facts: [] };
-  const facts = listed.diagnostics.map(diagnostic => fact("malformed-artifact", diagnostic.key, diagnostic.condition));
-  if (listed.missed) facts.push(fact("unreadable-artifact", path, "The lifecycle inventory missed records."));
+  const facts = listed.diagnostics.map(diagnostic => fact("malformed-artifact", diagnostic.key,
+    `${diagnostic.condition} ${diagnostic.remedy.text}`));
+  if (listed.missed) {
+    facts.push(fact("unreadable-artifact", path, "The lifecycle inventory missed records. Repair the work-unit inventory, then retry."));
+  }
   return { entries: listed.index.entries(), facts };
 }
