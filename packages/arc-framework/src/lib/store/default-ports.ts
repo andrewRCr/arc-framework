@@ -1,20 +1,48 @@
 /** Production dependency binding with lazy identity, remote, and write-lock resolution. */
 import * as fs from "node:fs/promises";
+import { setTimeout as delay } from "node:timers/promises";
+import { dirname, join } from "node:path";
 import { atomicCreateFile, atomicWriteFile } from "../fs.js";
+import type { Slug } from "../kernel/index.js";
 import { resolveIdentity } from "../git/identity.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import { GitProcessError } from "../git/process-error.js";
-import { createExecaGitExec, createExecaGitExecInput } from "../git/process-executor.js";
-import { withAdvisoryLock } from "../advisory-lock.js";
+import { createExecaGitExec, createExecaGitExecInput, createExecaRawGitExec } from "../git/process-executor.js";
+import { acquireAdvisoryLock, releaseAdvisoryLock, withAdvisoryLock } from "../advisory-lock.js";
+import { readGitDirectories } from "../git/directories.js";
 import { withTrackedWriteLock } from "./tracked-lock.js";
-import type { Slug } from "../kernel/index.js";
-import type { StorePorts } from "./ports.js";
+import type { RefStorePorts, StorePorts } from "./ports.js";
+import { getOrCreateMachineId } from "../user-sync/sync-state.js";
+import { createKindRegistry } from "./registry.js";
+import { PRODUCTION_REGISTRATIONS } from "./kinds/registrations.js";
+
+/** Bind native ref-store dependencies while leaving the checkout's configuration at the caller. */
+export function createDefaultRefStorePorts(input: { checkoutRoot: string; exec?: GitExec; execInput?: GitExecInput;
+  backingRepository: RefStorePorts["backingRepository"]; writeBackingRepository?: RefStorePorts["writeBackingRepository"] }): RefStorePorts {
+  const defaults = createDefaultStorePorts(input);
+  return { ...defaults, backingRepository: input.backingRepository, ...input.writeBackingRepository ? { writeBackingRepository: input.writeBackingRepository } : {},
+    rawExec: createExecaRawGitExec(input.checkoutRoot), sleep: { wait: signalEndedSleep, bound: signalEndedSleep },
+    random: Math.random, registry: createKindRegistry(PRODUCTION_REGISTRATIONS), migrateStep: async () => {},
+    actor: async (identity) => {
+      const id = await getOrCreateMachineId(input.checkoutRoot, {
+        readFile: (path) => defaults.fs.readFile(path), writeFile: (path, content) => defaults.fs.writeFile(path, content), exec: defaults.exec,
+        mkdir: async (path, options) => { await defaults.fs.mkdir(path, options); },
+      }, identity, (path, content) => defaults.fs.exclusiveCreate(path, content));
+      return `${identity}@${id}`;
+    }, lock: createRefLockFactory(defaults),
+  };
+}
+
+async function signalEndedSleep(milliseconds: number, signal: AbortSignal): Promise<void> {
+  try { await delay(milliseconds, undefined, { signal }); }
+  catch (error) { if (!signal.aborted) throw error; }
+}
 
 /** Bind production I/O without consulting repository configuration or topology.
  * @param input - Checkout and optional already-bound Git adapters.
  * @returns All required store ports, each policy or lock resolved only when used.
  */
-export function createDefaultStorePorts(input: { checkoutRoot: string; exec?: GitExec; execInput?: GitExecInput; identity?: Slug }): StorePorts {
+export function createDefaultStorePorts(input: { checkoutRoot: string; exec?: GitExec; execInput?: GitExecInput; identity?: Slug }): StorePorts & { fs: RefStorePorts["fs"] } {
   const baseExec = input.exec ?? createExecaGitExec();
   const exec: GitExec = (command, args, options) => baseExec(command, args, { cwd: input.checkoutRoot, ...options });
   const baseInput = input.execInput ?? createExecaGitExecInput();
@@ -23,10 +51,10 @@ export function createDefaultStorePorts(input: { checkoutRoot: string; exec?: Gi
   return {
     checkoutRoot: input.checkoutRoot, exec, execInput, identity, remote: () => configuredStateRemote(exec),
     clock: () => new Date(),
-    fs: { readFile: (path) => fs.readFile(path, "utf8"),
+    fs: { readFile: (path) => fs.readFile(path, "utf8"), readBytes: (path) => fs.readFile(path), writeBytes: (path, content) => fs.writeFile(path, content),
       readdir: (path) => fs.readdir(path, { withFileTypes: true }), lstat: fs.lstat, mkdir: fs.mkdir,
       writeFile: atomicWriteFile, exclusiveCreate: atomicCreateFile,
-      unlink: fs.unlink },
+      unlink: fs.unlink, realpath: fs.realpath, rename: fs.rename, removeDirectory: (path) => fs.rm(path, { recursive: true, force: true }) },
     locks: {
       tracked: (operation) => withTrackedWriteLock({ exec, checkoutRoot: input.checkoutRoot }, operation),
       notes: async (operation) => {
@@ -36,6 +64,20 @@ export function createDefaultStorePorts(input: { checkoutRoot: string; exec?: Gi
         return withAdvisoryLock(await getNotesLockPath(exec, input.checkoutRoot, person), operation);
       },
     },
+  };
+}
+
+/** Bind the per-ref advisory lock factory without reading checkout topology until acquisition. */
+export function createRefLockFactory(input: Pick<RefStorePorts, "checkoutRoot" | "fs">): RefStorePorts["lock"] {
+  return async (ref, waitMs) => {
+    const { commonDir } = await readGitDirectories(input.checkoutRoot, input.fs);
+    const path = join(commonDir, "arc", "locks", `${ref}.lock`);
+    await input.fs.mkdir(dirname(path), { recursive: true });
+    const options = { maxWaitMs: waitMs,
+      exclusiveCreate: (path: string, content: string) => input.fs.exclusiveCreate(path, content),
+      readFile: (path: string) => input.fs.readFile(path), removeFile: (path: string) => input.fs.unlink(path) };
+    const handle = await acquireAdvisoryLock(path, options);
+    return () => releaseAdvisoryLock(handle, options);
   };
 }
 /** Select the only remote the interim state publishers serve.

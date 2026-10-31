@@ -26,8 +26,10 @@ export async function readWorkUnit(store: Pick<Store, "lookup" | "read">, slug: 
   if (lookup.status === "refused") return lookup;
   if (lookup.result.reference.kind !== "work-item/meta") return { status: "refused", refusal: {
     code: "record-malformed", class: "recoverable", reference: lookup.result.reference, rule: "lifecycle.work-unit",
-    condition: `\`${slug}\` resolves to an Errand rather than a work unit.`,
-    remedy: { text: `Use the Errand verb for \`${slug}\`, or name a work unit.` },
+    condition: `\`${slug}\` resolves to ${lookup.result.reference.kind === "cohort/document" ? "a cohort" : "an Errand"} rather than a work unit.`,
+    remedy: { text: lookup.result.reference.kind === "cohort/document"
+      ? `Use the cohort's own commands for \`${slug}\`, or name a work unit.`
+      : `Use the Errand verb for \`${slug}\`, or name a work unit.` },
   } };
   return store.read({ reference: lookup.result.reference });
 }

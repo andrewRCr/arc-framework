@@ -119,10 +119,14 @@ stop you are already at.
 task arm, `amend` the spec-depth or design arm, and `defer` a supersession on the design arm. All three enter this
 gate, and none lands work inside the verifier's own increment.
 
+Before spec-depth or design-arm approval, draft the row in its final grammar (§ The log), within the project's line
+width and two-line limit. Present that exact row at the interlock or in the review-site disposition proposal, then
+record it unchanged.
+
 > [!IMPORTANT]
 > `task-interlock`: Stop before the spec-depth or design arm writes anything. Surface the triage read, the cited
-> statement or criterion, the depth read, and the recommended arm; await approval before proceeding to the
-> amendment capture.
+> statement or criterion, the depth read, the recommended arm, and the drafted row; await approval before proceeding
+> to the amendment capture.
 
 ## Depth and rigor
 

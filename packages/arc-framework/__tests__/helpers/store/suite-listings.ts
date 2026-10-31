@@ -44,7 +44,7 @@ export function registerListingAssertions(context: SuiteContext): void {
       const listed = success(await fixture.store.list({ family: KIND_REGISTRY[reference.kind].family, kind: reference.kind }));
       expect(listed).toMatchObject({ status: "complete", records: [], missed: true,
         diagnostics: [{ kind, key: expect.any(String), condition: expect.any(String), remedy: { text: expect.any(String) } }] });
-    });
+    }, (recordKind) => kind !== "oversized" || KIND_REGISTRY[recordKind].projection !== "never");
   }
   assertion(context, "personal", "all-readable-records-and-one-diagnostic-per-bad-entry", async (fixture) => {
     const good = await seed(fixture, fixture.reference("personal/document"));

@@ -1,14 +1,17 @@
 /** Per-identity pause listing and shared review marks. */
+import { ownerHolderRequest, type LocusPorts, type HoldingCheckoutResult } from "../work-unit/locus-ports.js";
 import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
 import { z } from "zod";
 import { SlugSchema } from "../kernel/index.js";
 import { listLifecycleIndex } from "../store/lifecycle-index.js";
 import { requireCompleteInventory } from "../store/lifecycle-storage.js";
+import { readLifecycleView } from "../store/lifecycle-view.js";
+import { clashRepair } from "../store/clash-repair.js";
 import type { Store } from "../store/contract.js";
 import { MetaPauseSchema, ParsedMetaRecordSchema, type MetaPause } from "../active/meta-schema.js";
 import { parseLineageRecord } from "../store/kinds/lineage/parser.js";
 import type { StoreResult } from "../store/refusal.js";
-import { SessionActionsSchema } from "./actions.js";
+import { SessionActionsSchema, type SessionAction } from "./actions.js";
 import { readTerminalReferenceAliases } from "../work-unit/terminal-reference-aliases.js";
 import type { StoreRecord } from "../store/read.js";
 import { storeInFlightLocationUnavailable, type StoreInFlightEntry } from "../git/in-flight-store.js";
@@ -35,7 +38,7 @@ export type PausedWorkResult = z.infer<typeof PausedWorkResultSchema>;
 /** Report no paused work while the checkout-backed lifecycle is active. */
 export interface RunPausedWorkOptions {
   store: Store; identity: string; reviewAfterDays: number; now?: Date;
-  findHoldingCheckout: (slug: string) => Promise<string | null>;
+  findHoldingCheckout: LocusPorts["findHoldingCheckout"];
   markerlessCheckouts?: readonly { workUnit: string; checkoutPath: string }[];
   inFlightEntries?: readonly StoreInFlightEntry[];
   localRefsAvailable?: boolean;
@@ -53,34 +56,43 @@ async function readPausedWork(options: RunPausedWorkOptions): Promise<PausedWork
   const listing = unwrap(await listLifecycleIndex(options.store, { locations: ["active"] }));
   requireCompleteInventory(options.store, listing);
   if (listing.status !== "complete") return { items: [] };
+  const view = unwrap(await readLifecycleView(options.store));
+  requireCompleteInventory(options.store, view.listing);
+  const clashes = new Map(view.standing.clashes.map(clash => [clash.slug, clash]));
   const items: PausedWorkResult["items"] = [];
   for (const entry of listing.index.entries()) {
     if (entry.fields.owner !== options.identity || entry.fields.pause === null) continue;
     const slug = entry.reference.owner.name;
     const pause = MetaPauseSchema.parse(entry.fields.pause);
     const marking = await markPausedWorkItem({ slug, pause }, options);
-    const holder = await options.findHoldingCheckout(slug);
-    const action = await pausedWorkAction(options, slug, holder, entry);
-    const reviewActions = marking.actions.filter(review => action.argv === undefined || JSON.stringify(review.argv) !== JSON.stringify(action.argv));
-    items.push({ slug: SlugSchema.parse(slug), reason: pause.reason, waitsOn: pause.waitsOn, open: pause.open,
-      marks: marking.marks, ...(marking.reviewPrompt === undefined ? {} : { reviewPrompt: marking.reviewPrompt }),
-      actions: [action, ...reviewActions] });
+    const item = { slug: SlugSchema.parse(slug), reason: pause.reason, waitsOn: pause.waitsOn, open: pause.open, marks: marking.marks };
+    const clash = clashes.get(slug);
+    if (clash !== undefined) {
+      items.push({ ...item, actions: [clashRepair(clash.holders, { liveness: "live", name: clash.kind === "current-name" ? "current" : "former" })] });
+      continue;
+    }
+    const found = await options.findHoldingCheckout(ownerHolderRequest(entry));
+    const actions = await pausedWorkActions(options, slug, found, entry);
+    const reviewActions = marking.actions.filter(review => !actions.some(action => action.argv !== undefined && JSON.stringify(review.argv) === JSON.stringify(action.argv)));
+    items.push({ ...item, ...(marking.reviewPrompt === undefined ? {} : { reviewPrompt: marking.reviewPrompt }),
+      actions: [...actions, ...reviewActions] });
   }
   items.sort((left, right) => Buffer.compare(Buffer.from(left.slug), Buffer.from(right.slug)));
   return PausedWorkResultSchema.parse({ items });
 }
 
-async function pausedWorkAction(options: RunPausedWorkOptions, slug: string, holder: string | null,
-  record: Pick<StoreRecord, "links">): Promise<{ text: string; argv?: string[]; checkout?: string }> {
-  if (holder !== null) return { text: `arc resume ${slug}`, argv: ["arc", "resume", slug] };
+async function pausedWorkActions(options: RunPausedWorkOptions, slug: string, holder: HoldingCheckoutResult,
+  record: Pick<StoreRecord, "links">): Promise<SessionAction[]> {
+  if (holder.kind === "unbound") return [...holder.exits];
+  if (holder.kind === "held") return [{ text: `arc resume ${slug}`, argv: ["arc", "resume", slug] }];
   const location = options.inFlightEntries?.find(item => item.kind === "work-unit" && item.name === slug);
   if ((location !== undefined && storeInFlightLocationUnavailable(location)) || await unknownCurrentBranch(options, record)) {
-    return { text: `Local branch location for '${slug}' is unavailable. Repair the reported Git or checkout evidence, then retry arc status --session-init --json.` };
+    return [{ text: `Local branch location for '${slug}' is unavailable. Repair the reported Git or checkout evidence, then retry arc status --session-init --json.` }];
   }
   const markerless = options.markerlessCheckouts?.find(pair => pair.workUnit === slug);
-  return markerless === undefined ? { text: `arc materialize ${slug}`, argv: ["arc", "materialize", slug] }
-    : { text: `Run arc materialize ${slug} --here from ${markerless.checkoutPath}.`,
-      argv: ["arc", "materialize", slug, "--here"], checkout: markerless.checkoutPath };
+  return markerless === undefined ? [{ text: `arc materialize ${slug}`, argv: ["arc", "materialize", slug] }]
+    : [{ text: `Run arc materialize ${slug} --here from ${markerless.checkoutPath}.`,
+      argv: ["arc", "materialize", slug, "--here"], checkout: markerless.checkoutPath }];
 }
 
 async function unknownCurrentBranch(options: RunPausedWorkOptions, record: Pick<StoreRecord, "links">): Promise<boolean> {
@@ -122,7 +134,12 @@ async function waitingWorkDisposition(store: Store, slug: string): Promise<"ship
     if (record.reference.kind !== "work-item/meta" || record.conflicts.length > 0) throw new Error(`Pause prerequisite '${slug}' has no resolved work-unit record. Inspect and repair it before reviewing this pause.${describeRecordConflicts(record.conflicts)}`);
     return ParsedMetaRecordSchema.parse(record.fields).state === "Shipped" ? "shipped" : "live";
   }
-  if (resolved.refusal.code !== "not-found") throw new Error(`${resolved.refusal.condition} ${resolved.refusal.remedy.text}`);
+  if (resolved.refusal.code !== "not-found") {
+    const refusal = resolved.refusal;
+    const remedy = refusal.code === "ambiguous-match" && refusal.tie !== undefined
+      ? clashRepair(refusal.candidates, refusal.tie) : refusal.remedy;
+    throw new Error(`${refusal.condition} ${remedy.text}`);
+  }
   const record = await terminalPrerequisiteRecord(store, slug);
   const terminal = parseLineageRecord(record.content);
   if (terminal === null || record.conflicts.length > 0) throw new Error(`Pause prerequisite '${slug}' has unresolved terminal lineage. Inspect and repair it before reviewing this pause.${describeRecordConflicts(record.conflicts)}`);

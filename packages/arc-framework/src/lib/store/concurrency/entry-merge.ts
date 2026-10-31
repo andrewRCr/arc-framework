@@ -55,7 +55,7 @@ function entryConflict(input:MergeTextInput,id:string,base:ListEntry|undefined,c
 
 function mapConflicts(conflicts:TextConflictRecord[],origins:readonly number[]): TextConflictRecord[] {
   return conflicts.map((conflict)=> {
-    if (conflict.location.kind !== "hunk") return conflict;
+    if (!("baseVersion" in conflict)) return conflict;
     const {start,end} = conflict.location;
     return {...conflict,location:{kind:"hunk",start:origins[start] ?? origins.at(-1) ?? 0,
       end:end === start ? origins[start] ?? origins.at(-1) ?? 0 : (origins[end-1] ?? origins.at(-1) ?? 0)+1}};
@@ -133,7 +133,7 @@ function mergeSeparator(id:string,base:EntryFrame,current:EntryFrame,incoming:En
   if (original === undefined) return left ?? right ?? "\n\n";
   const merged = mergeLineText({...input,base:original,current:left ?? original,incoming:right ?? original});
   const offset = base.separatorLines.get(id) ?? 0;
-  conflicts.push(...merged.conflicts.map((conflict)=>conflict.location.kind === "hunk"
+  conflicts.push(...merged.conflicts.map((conflict)=>"baseVersion" in conflict
     ? {...conflict,location:{kind:"hunk" as const,start:conflict.location.start+offset,end:conflict.location.end+offset}} : conflict));
   return merged.content;
 }

@@ -1,4 +1,5 @@
 /** Candidate acquisition follows the selected Store's exact work-unit generation. */
+import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { mkdtemp, mkdir, readFile, writeFile, rm, access, realpath, lstat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -39,7 +40,8 @@ async function fixture() {
   const h = createLifecycleHarness();
   const authoritative = candidate();
   const meta = await seedPrepared(h, authoritative.id);
-  const workUnit = await readStoreWorkUnitEvidence({ store: h.store, slug: "demo", head: "a".repeat(40), projectId: async () => "project-1" });
+  const workUnit = await readStoreWorkUnitEvidence({ store: h.store, cwd, marker: { spawnedByArc: false, createdFor: boundWorkUnitSubject(meta),
+    spawningIdentity: "test-user", createdAt: new Date(0).toISOString() }, slug: "demo", uid: boundWorkUnitSubject(meta).uid, head: "a".repeat(40), projectId: async () => "project-1" });
   if (workUnit.kind !== "present") throw new Error(JSON.stringify(workUnit));
   const localCandidatePath = join(cwd, ".arc/system/.internal/candidates/demo.json");
   await mkdir(dirname(localCandidatePath), { recursive: true });
@@ -96,7 +98,7 @@ it("reports a stored Candidate conflict with a remedy and resolves after the con
   const h = await fixture();
   const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
   await h.seed(h.reference, h.authoritative.content);
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   const before = lifecycleSuccess(await h.store.read({ reference: h.reference }));
   const remoteBefore = lifecycleSuccess(await writer.read({ reference: h.reference }));
@@ -104,7 +106,7 @@ it("reports a stored Candidate conflict with a remedy and resolves after the con
     content: candidate("local-edit").content, provenance: { verb: "attest", lifecycleAction: "attest" } }));
   lifecycleSuccess(await writer.write({ action: "put", reference: remoteBefore.reference, expected: remoteBefore.version,
     content: candidate("remote-edit").content, provenance: { verb: "attest", lifecycleAction: "attest" } }));
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const conflicted = lifecycleSuccess(await h.store.read({ reference: h.reference }));
   expect(conflicted.conflicts.length).toBeGreaterThan(0);
   await writeFile(h.localCandidatePath, h.authoritative.content);

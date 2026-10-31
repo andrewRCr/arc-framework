@@ -9,7 +9,8 @@ import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { DEFAULT_PROMPTS, createTempRepo, initInTempRepo, removeGitBackedDir } from "../../helpers/integration.js";
+import { DEFAULT_PROMPTS, createTempRepo, makeGitExecInput, removeGitBackedDir } from "../../helpers/integration.js";
+import { initInTempRepo } from "../../helpers/init-temp-repo.js";
 import { runScript } from "../../helpers/run-script.js";
 
 const execFileAsync = promisify(execFile);
@@ -69,6 +70,105 @@ describe("verify-integrity.sh", () => {
       await removeGitBackedDir(tmpDir);
       tmpDir = undefined;
     }
+  });
+
+  describe("Git maintenance", () => {
+    const copies = [
+      { label: "package", script: verifyIntegrityScript },
+      { label: "project", script: join(repoRoot, ".arc/system/.internal/scripts/verify-integrity.sh") },
+    ];
+
+    async function prepareRepo(): Promise<string> {
+      tmpDir = await createTempRepo("arc-verify-maintenance-");
+      await writeMinimalArcInstall(tmpDir);
+      await execFileAsync("git", ["config", "core.hooksPath", ".arc/system/.internal/githooks"], { cwd: tmpDir });
+      return tmpDir;
+    }
+
+    it.each(copies)("reports no maintenance lock in a clean repository in the $label copy", async ({ script }) => {
+      const root = await prepareRepo();
+      const result = await runScript(script, [], { cwd: root });
+      expect(result.exitCode, result.stdout).toBe(0);
+      expect(result.stdout).toContain("PASS  No Git maintenance lock");
+    });
+
+    it.each(copies)("reports a leftover lock and clears after its remedy in the $label copy", async ({ script }) => {
+      const root = await prepareRepo();
+      const lock = join(root, ".git/objects/maintenance.lock");
+      await writeFile(lock, "");
+
+      const blocked = await runScript(script, [], { cwd: root });
+
+      expect(blocked.exitCode, blocked.stdout).toBe(1);
+      expect(blocked.stdout).toContain("WARN  Git maintenance lock exists:");
+      expect(blocked.stdout).toContain("objects/maintenance.lock");
+      expect(blocked.stdout).toContain("Confirm no Git maintenance process is running before removing the lock");
+      expect(blocked.stdout).toContain("git maintenance run --task=gc");
+      expect(blocked.stdout).toContain("git maintenance start");
+      expect(await readFile(lock, "utf-8")).toBe("");
+
+      await rm(lock);
+      await execFileAsync("git", ["maintenance", "run", "--task=gc"], { cwd: root });
+      const repaired = await runScript(script, [], { cwd: root });
+      expect(repaired.exitCode, repaired.stdout).toBe(0);
+      expect(repaired.stdout).toContain("PASS  No Git maintenance lock");
+    });
+
+    it.each(copies)("preserves a running maintenance process's lock in the $label copy", async ({ script }) => {
+      const root = await prepareRepo();
+      const gitInput = makeGitExecInput(root);
+      for (let index = 0; index < 2; index++) {
+        const oid = (await gitInput(["hash-object", "-w", "--stdin"], `blob ${index}\n`)).trim();
+        await gitInput(["pack-objects", join(root, ".git/objects/pack/pack")], `${oid}\n`);
+      }
+      for (const [key, value] of [["gc.auto", "1"], ["gc.autoPackLimit", "1"],
+        ["gc.autoDetach", "false"], ["maintenance.autoDetach", "false"]] as const) {
+        await execFileAsync("git", ["config", key, value], { cwd: root });
+      }
+      await writeExecutable(join(root, ".arc/system/.internal/githooks/pre-auto-gc"),
+        "#!/bin/sh\n: > maintenance-ready\nwhile [ ! -f maintenance-release ]; do sleep 0.05; done\n");
+      const maintenance = execFileAsync("git", ["maintenance", "run", "--auto", "--task=gc"], {
+        cwd: root, timeout: 15_000, env: { ...process.env, FORCE_COLOR: undefined },
+      }).then(() => null, (error: unknown) => error);
+      try {
+        await expect.poll(async () => readFile(join(root, "maintenance-ready")).then(() => true, () => false))
+          .toBe(true);
+        const lock = join(root, ".git/objects/maintenance.lock");
+        expect(await readFile(lock, "utf-8")).toBe("");
+
+        const result = await runScript(script, [], { cwd: root });
+
+        expect(result.exitCode, result.stdout).toBe(1);
+        expect(result.stdout).toContain("Git maintenance lock exists:");
+        expect(result.stdout).toContain("maintenance may be active or interrupted");
+        expect(await readFile(lock, "utf-8")).toBe("");
+      } finally {
+        await writeFile(join(root, "maintenance-release"), "");
+        await maintenance;
+      }
+      const maintenanceError = await maintenance;
+      if (maintenanceError !== null) throw maintenanceError;
+      const completed = await runScript(script, [], { cwd: root });
+      expect(completed.exitCode, completed.stdout).toBe(0);
+      expect(completed.stdout).toContain("PASS  No Git maintenance lock");
+    }, 30_000);
+
+    it.each(copies)("checks the shared object directory from a linked worktree in the $label copy", async ({ script }) => {
+      const root = await prepareRepo();
+      await execFileAsync("git", ["commit", "--allow-empty", "-m", "fixture"], { cwd: root });
+      const linked = join(root, "linked checkout");
+      await execFileAsync("git", ["worktree", "add", "-b", "linked", linked], { cwd: root });
+      await writeMinimalArcInstall(linked);
+      const lock = join(root, ".git/objects/maintenance.lock");
+      await writeFile(lock, "");
+
+      const result = await runScript(script, [], { cwd: linked });
+
+      expect(result.exitCode, result.stdout).toBe(1);
+      expect(result.stdout).toContain("Git maintenance lock exists:");
+      expect(result.stdout).toContain("objects/maintenance.lock");
+      expect(await readFile(lock, "utf-8")).toBe("");
+    });
   });
 
   describe("frontmatter boundaries", () => {

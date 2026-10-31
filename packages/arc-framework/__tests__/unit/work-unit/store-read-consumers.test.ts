@@ -1,4 +1,5 @@
 /** Store-first reads preserve identity independently of local state artifacts. */
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { afterEach, expect, it, vi, onTestFinished } from "vitest";
 import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -28,21 +29,21 @@ import { writeMetaCohort } from "../../../src/lib/store/kinds/meta/writers.js";
 import { resolveDraftPresent } from "../../../src/handlers/plan.js";
 
 const quietLocusPorts: StoreLifecycleStatusPorts = {
-  findHoldingCheckout: async () => null,
+  findHoldingCheckout: async () => ({ kind: "none" as const }),
   readInFlightWarnings: async () => [],
 };
 
-async function checkoutClaim(name: string) {
+async function checkoutClaim(name: string, uid?: string) {
   const cwd = await mkdtemp(join(tmpdir(), "arc-consumer-claim-"));
   onTestFinished(() => rm(cwd, { recursive: true, force: true }));
-  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name }, spawningIdentity: "test-user", now: 0 });
+  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name, ...(uid === undefined ? {} : { uid }) }, spawningIdentity: "test-user", now: 0 });
   return cwd;
 }
 
 afterEach(() => { vi.restoreAllMocks(); process.exitCode = undefined; });
 it("context-defaulting resolves a held store identity without a local meta", async () => {
-  const h = createLifecycleHarness(); await h.seedMeta("demo");
-  expect(await resolveVerbTargetOrReport("park", undefined, await checkoutClaim("demo"), false, h.store)).toBe("demo");
+  const h = createLifecycleHarness(); const record = await h.seedMeta("demo");
+  expect(await resolveVerbTargetOrReport("park", undefined, await checkoutClaim("demo", boundWorkUnitSubject(record).uid), false, h.store)).toBe("demo");
 });
 it("explicit former slug resolves to the selected work-unit identity", async () => {
   const h = createLifecycleHarness(); const old = await h.seedMeta("former");
@@ -50,9 +51,9 @@ it("explicit former slug resolves to the selected work-unit identity", async () 
   expect(await resolveVerbTargetOrReport("park", "former", "/absent", false, h.store)).toBe("demo");
 });
 it("occupancy rejects a foreign held store unit without consulting the legacy reader", async () => {
-  const h = createLifecycleHarness(); await h.seedMeta("other");
+  const h = createLifecycleHarness(); const record = await h.seedMeta("other");
   const reader = vi.fn(async () => ({ layout: "full" as const, candidates: [], warnings: [] }));
-  const guard = makeWorktreeOccupancyGuard({ cwd: await checkoutClaim("other"), store: h.store, readActiveMetaCandidates: reader });
+  const guard = makeWorktreeOccupancyGuard({ cwd: await checkoutClaim("other", boundWorkUnitSubject(record).uid), store: h.store, readActiveMetaCandidates: reader });
   expect(await guard({ slug: "demo", index: buildLifecycleIndexFromRecords([]), position: null, inputs: {} })).toMatchObject({ ok: false, message: expect.stringContaining("other") });
   expect(reader).not.toHaveBeenCalled();
 });

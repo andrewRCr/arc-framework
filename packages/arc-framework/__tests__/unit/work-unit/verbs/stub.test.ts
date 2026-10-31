@@ -80,6 +80,7 @@ const BASE: StubParams = {
   commitment: "planned",
   priority: "P1",
   owner: "andrew",
+  cls: "Light",
 };
 
 describe("runStub — commitment enforcement", () => {
@@ -175,7 +176,7 @@ describe("runStub — scaffolds the selected tier", () => {
   it("routes a provisional commitment to the provisional tier (edge disambiguation)", async () => {
     const { ctx, writes } = buildHarness();
 
-    const result = await runStub(ctx, { ...BASE, commitment: "provisional", priority: "P2" });
+    const result = await runStub(ctx, { ...BASE, commitment: "provisional", priority: "P2", cls: undefined });
 
     expect(result.status).toBe("scaffolded");
     if (result.status !== "scaffolded") return;
@@ -295,13 +296,40 @@ describe("runStub — initial Class", () => {
     expect(writes[0]!.content).toContain("`Heavy`");
   });
 
-  it("defaults to the [TBD] sentinel when no Class is supplied", async () => {
+  it("keeps the [TBD] sentinel for a provisional stub without Class", async () => {
     const { ctx, writes } = buildHarness();
 
-    const result = await runStub(ctx, { ...BASE });
+    const result = await runStub(ctx, { ...BASE, commitment: "provisional", cls: undefined });
 
     expect(result.status).toBe("scaffolded");
     expect(writes[0]!.content).toContain("[TBD]");
+  });
+
+  it.each(["", "  \t "])("refuses an explicitly blank provisional Class %j and accepts omission", async cls => {
+    const { ctx, writes, mkdirs, staged } = buildHarness();
+    const params = { ...BASE, commitment: "provisional" as const };
+    expect(await runStub(ctx, { ...params, cls })).toMatchObject({ status: "rejected" });
+    expect({ writes, mkdirs, staged }).toEqual({ writes: [], mkdirs: [], staged: [] });
+
+    expect(await runStub(ctx, { ...params, cls: undefined })).toMatchObject({ status: "scaffolded" });
+    expect(parseMetaRecord(writes[0]!.content).workClass).toBe("TBD");
+    expect(staged).toEqual([".arc/backlog/provisional/foo/meta-foo.md"]);
+  });
+
+  it.each([undefined, "", "  \t "])("refuses unresolved planned Class %j and succeeds after repair", async cls => {
+    const { ctx, writes, mkdirs, staged } = buildHarness();
+    const refused = await runStub(ctx, { ...BASE, cls });
+
+    expect(refused.status).toBe("rejected");
+    if (refused.status !== "rejected") return;
+    expect(refused.reason).toContain("--class");
+    expect(refused.reason).toContain("--commitment provisional");
+    expect({ writes, mkdirs, staged }).toEqual({ writes: [], mkdirs: [], staged: [] });
+
+    const repaired = await runStub(ctx, { ...BASE, cls: "Light" });
+    expect(repaired.status).toBe("scaffolded");
+    expect(parseMetaRecord(writes[0]!.content).workClass).toBe("Light");
+    expect(staged).toEqual([".arc/backlog/planned/foo/meta-foo.md"]);
   });
 
   it("rejects an unresolvable Class value without scaffolding", async () => {

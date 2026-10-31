@@ -291,6 +291,47 @@
 
 - _Captured during:_ that Errand, 2026-10-07.
 
+### `[ ]` **Count CodeRabbit's icon-badge migration as evidence for a recoverable provider-format failure**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ the routed entry on a provider format change ending the whole pass as `terminal-failure / stop` — its
+  recoverable-outcome, fallback-integrity, and structured-surface items.
+
+- _Observation:_ a sixth parser fix since 2026-09-28. CodeRabbit moved its inline severity badge from a color emoji to
+  an SVG icon image between PR #1105 (2026-10-23T21:53Z) and PR #1112 (2026-10-24T02:35Z), and every CodeRabbit pass
+  with a thread finding ended `terminal-failure` / `provider-thread-finding-severity-unrecognized` until Errand
+  `coderabbit-icon-badges` landed. Since at least 2026-10-21, each thread finding's label had also been the provider's
+  leading `<!-- coderabbit-ai-generated:v1 -->` marker, unnoticed because labels only display.
+
+- _Observation:_ the failure was not always terminal, and a seventh fix shows it was live. Between 2026-10-08 and
+  2026-10-14 CodeRabbit changed review-body counts from `Nitpick comments (1)` to `Nitpick comments: 1`, file headers
+  likewise. The section reader skipped a header it could not recognize and still reported `parsed`, so the only two
+  nitpicks since, on PR #1046 and PR #1101, were dropped from passes that read as complete. Errand
+  `coderabbit-section-markers` reads both forms and makes a finding marker outside every recognized section a malformed
+  body, so an unknown section such as "Duplicate comments" now ends the pass `terminal-failure`. The recoverable outcome
+  should build on that closed-failure guard, and fallback must not read a skipped section as clean.
+
+- _Observation:_ through the migration, the comment's HTML comment markers stayed stable while the decorated badge
+  changed: `cr-comment:v1:<fingerprint>` and `cr-indicator-types:potential_issue`, beside a plain-text "Prompt for AI
+  Agents" block that carries the locus. None of them carries the grade, which bears on the structured-surface item.
+
+- _Observation:_ PR #1112 is a live instance of the folded-in same-head retry gap. Its await recorded `terminal-failure`
+  on the attempt, and `pendingAttemptCanAdvance` (`lane-progress.ts`) advances only a pending one, so re-awaiting the
+  already-posted review with the fixed parser conflicts (read from source, not run). The route left is moving the head
+  and paying for a fresh hosted pass.
+
+- _Observation:_ the deferred PR #835 finding came back on PR #1114's second hosted pass (thread
+  `PRRT_kwDOP8ODB86v1Osy`, minor): `finding()` reads the first badge anywhere in the comment, and the icon form widens
+  what a quoted example or fenced block can match. It was deferred again so that the leading-line read lands for both
+  marks at once rather than for icons alone.
+
+- _Observation:_ an eighth drift a day after the icon change: PR #1116's thread badges separate with ` · ` rather than
+  ` | ` (the § Errand capture "Read CodeRabbit badge lines separated by `·` as well as `|`"). The grade survived, the
+  label did not, and the review-body nitpick reader would refuse the new form.
+
+- _Captured during:_ the CodeRabbit icon-badge Errand, 2026-10-23.
+
 ---
 
 ### `[ ]` **Give an oversized frontline target a typed route instead of operator reasoning**
@@ -495,6 +536,28 @@
   lift it, carry the override to every composition that applies the limit.
 
 - _Captured during:_ `review-coverage-cadence` create-spec, second adversarial pass, fix-check round 4 (2026-10-17).
+
+### `[ ]` **Let an Owner revise an approved disposition after its fix commits move the head**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-30).
+
+- _Shapes:_ the "Make an Owner-accepted review terminus bind thereafter" item — its sharp form, a decision destroyed by
+  the fix it authorized, has this sibling: a decision the Owner changes mid-fix cannot be recorded at all.
+
+- _Observation:_ during `storage-ref-backend`'s pass 8 fix round (2026-10-29), the Owner changed one finding's
+  approved action after fixes had begun: AGG-20 was approved as a fix adding supersession lines to the shipped
+  contract specification, and became, at the Owner's direction, a different repair — restore that specification and
+  record the changes in the cohort document (`1258af5c0`). The gate refuses to supersede an approved disposition set
+  once the reviewed head moves, which the first fix commit always does, so the approved set could not be revised to
+  the repair actually made. The commit carried the original finding line and explained the change in its body; the
+  verified-fix replay then attested the original set's wording.
+
+- _Approach:_ a typed revision of an approved set after partial application, bound to the Owner's new decision and to
+  the fix commits already made under the old one, so the record, the commit lines, and the verified-fix replay agree.
+  Design question: whether a revision supersedes the set or amends one finding's action, and how the replay binds
+  commits made before it.
+
+- _Captured during:_ `storage-ref-backend` pre-publication review, pass 8 and its fix checks, 2026-10-29.
 
 ---
 

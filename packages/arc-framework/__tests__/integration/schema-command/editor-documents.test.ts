@@ -116,6 +116,24 @@ describe("checkout editor documents", () => {
     await expect(access(join(root, directoryPath))).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it.each(["rejected", "empty"] as const)("preserves documents and returns a typed failure when the checkout lookup is %s", async (mode) => {
+    await mkdir(join(root, directoryPath), { recursive: true });
+    await writeFile(join(root, documentPath), "existing document");
+    const failedLookup: GitExec = async (cmd, args, options) => {
+      if (args.includes("--absolute-git-dir")) {
+        if (mode === "rejected") throw new Error("checkout lookup denied");
+        return { stdout: "" };
+      }
+      return exec(cmd, args, options);
+    };
+    expect(await writeEditorDocuments(root, failedLookup, nodeEditorDocumentsFs, registry())).toEqual({
+      ok: false, target: "documents", path: join(root, directoryPath),
+      detail: mode === "rejected" ? "checkout lookup denied" : "git rev-parse --absolute-git-dir returned an empty path",
+    });
+    expect(await readFile(join(root, documentPath), "utf8")).toBe("existing document");
+    expect(await readdir(join(root, directoryPath))).toEqual(["editor.schema.json"]);
+  });
+
   it("keeps the clone's absolute exclude path outside a linked checkout", async () => {
     await exec("git", ["commit", "--allow-empty", "-m", "seed"], { cwd: root });
     const linked = join(root, "linked");

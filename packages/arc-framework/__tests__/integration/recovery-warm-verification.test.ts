@@ -1,4 +1,5 @@
 /** Registered recovery retains a verification parent's cursorless context inside a warm Errand. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { expect, it, vi } from "vitest";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -31,7 +32,7 @@ it("emits a valid warm recovery envelope and audits its rebuilt cursorless state
   await h.putLinks({ branches: [{ repository: project, ref: "feat/demo", linkedAs: "created", excluded: [] }] });
   await ensureWorktreeMarkerIgnored(h.cwd, h.input.exec, nodeWorktreeMarkerIgnoreFs);
   await writeWorktreeMarker(h.cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-18T00:00:00Z",
-    createdFor: { kind: "work-unit", name: "demo" } });
+    createdFor: boundWorkUnitSubject(await h.readMeta()) });
   await h.seed(recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: slug })), JSON.stringify({
     version: 3, kind: "errand", purpose: "errand", slug, branch, claimId, owner: "test-user", createdAt: "2026-10-18T00:00:00Z",
     updatedAt: "2026-10-18T00:00:00Z", state: "open", changeRequest: null, savedHead: null, intent: "Verify recovery", origin: "description", originEntry: null,

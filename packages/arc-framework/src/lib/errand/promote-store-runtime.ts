@@ -9,7 +9,8 @@ import { createLocusPorts } from "../locus/lifecycle-ports.js";
 import type { OrdinaryErrandRecord } from "./identity-transitions.js";
 import type { Store } from "../store/contract.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
-import { createStoreSyncPort } from "../store/operational-sync.js";
+import { bindStoreSyncPort } from "../store/operational-sync.js";
+import { consumePull, writePullNotices } from "../store/pull-consumption.js";
 
 type StoreRuntimeOptions = PromoteOrdinaryErrandRuntimeOptions & { store: Store };
 
@@ -18,27 +19,28 @@ export async function promoteStoreErrandAtRuntime(options: PromoteOrdinaryErrand
   settleOccupancy: (frame: PromotionFrameReceipt) => Promise<PromotionFrameResult>): Promise<ErrandPromotionResult> {
   const store = options.store;
   if (store === undefined) return refused("The operational store is unavailable.");
-  const pulled = await (options.sync ?? createStoreSyncPort()).pull();
-  if (pulled.status === "unreachable") return refused(`${pulled.condition} ${pulled.remedy.text}`);
+  const pulled = consumePull(await (options.sync ?? bindStoreSyncPort(store)).pull());
+  writePullNotices(pulled.notices, options.writeNotice);
+  if (pulled.kind === "stop") return refused(pulled.reason);
   const project = await resolveProjectIdentity(options.projectId ?? createProjectIdentityReader(store));
   if (project.status !== "ready") return refused(`${project.reason} ${project.remedy.text}`);
   const frame = await options.readFrame();
   if (frame.entering.kind !== "selected") return refused("The entering checkout could not be resolved.");
   const bound = { ...options, store };
   const steps = createStorePromotionSteps({ ...bound, repository: project.id,
-    checkout: (record, mode) => selectCheckout(bound, record, mode) });
+    checkout: (record, mode, uid) => selectCheckout(bound, record, mode, uid) });
   return promoteOrdinaryErrand({ ...options, dependencies: { ...steps,
     settleInbox: (receipt) => Promise.resolve({ ...receipt, originEntry: null, originEntrySourceDigest: null }), settleOccupancy } });
 }
 async function selectCheckout(options: StoreRuntimeOptions, record: OrdinaryErrandRecord,
-  mode: "replaceFrame" | "recoverPromoted"): Promise<StorePromotionCheckoutResult> {
+  mode: "replaceFrame" | "recoverPromoted", uid: string): Promise<StorePromotionCheckoutResult> {
   const frame = await options.readFrame();
   const branch = `${options.type}/${options.name}`;
-  const selected = mode === "recoverPromoted" ? selectRecoveryCheckout(frame, record, options.name, branch)
+  const selected = mode === "recoverPromoted" ? selectRecoveryCheckout(frame, record, uid, branch)
     : await selectTerminalCheckout(options, record, frame);
   if (selected.kind !== "ready") return selected;
   const ports = options.locusPorts ?? createLocusPorts({ cwd: selected.checkoutPath, exec: options.exec, store: options.store });
-  const exclusive = await ports.checkMarkerExclusivity({ name: options.name, checkoutPath: selected.checkoutPath });
+  const exclusive = await ports.checkMarkerExclusivity({ kind: "owner", uid, names: { current: options.name, former: [] }, checkoutPath: selected.checkoutPath });
   return exclusive.kind === "refused" ? { kind: "refused", reason: "authority-unresolved", message: exclusive.reason } : selected;
 }
 async function selectTerminalCheckout(options: StoreRuntimeOptions, record: OrdinaryErrandRecord, frame: DerivedLocusFrame): Promise<StorePromotionCheckoutResult> {
@@ -63,8 +65,8 @@ function refused(message: string): ErrandPromotionResult {
 }
 
 function selectRecoveryCheckout(frame: Awaited<ReturnType<PromoteOrdinaryErrandRuntimeOptions["readFrame"]>>, record: OrdinaryErrandRecord,
-  name: string, branch: string): StorePromotionCheckoutResult {
-  const rows = frame.roster.filter((row) => row.subject?.kind === "work-unit" ? row.subject.key === name
+  uid: string, branch: string): StorePromotionCheckoutResult {
+  const rows = frame.roster.filter((row) => row.subject?.kind === "work-unit" ? row.subject.uid === uid
     : row.subject?.kind === "errand" && row.subject.key === record.slug && row.subject.claimId === record.claimId);
   const row = rows[0];
   if (row === undefined) return { kind: "refused", reason: "checkout-missing", message: "Promoted work-unit checkout is unavailable." };

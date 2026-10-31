@@ -3,8 +3,10 @@ import { mkdtemp, open, rm } from "node:fs/promises";
 import { constants, tmpdir } from "node:os";
 import { join } from "node:path";
 import { execa } from "execa";
-import { environmentForGitCwd } from "../git/process-executor.js";
-import type { CheckContentContext } from "../../handlers/check/run.js";
+import { whichCommandSync } from "which-command";
+import { environmentForGitCwd, sanitizeGitRepositoryEnvironment } from "../git/process-executor.js";
+import { displayLines, NOTICE_LIMIT } from "./display-text.js";
+import { CHECK_EXECUTION_ENVIRONMENT, type CheckContentContext } from "./environment-policy.js";
 
 /** The exit status a shell reports for a command a signal ended: 128 plus the signal's number. */
 function signalExitCode(signal: NodeJS.Signals | undefined): number | undefined {
@@ -12,17 +14,12 @@ function signalExitCode(signal: NodeJS.Signals | undefined): number | undefined 
   return number === undefined ? undefined : 128 + number;
 }
 
-/** Longest notice a check may report, so it stays one short line of the summary. */
-const NOTICE_LIMIT = 200;
 /** Bytes read from the start of a notice file, so a large write to it never reaches memory. */
 const NOTICE_READ_BYTES = 4096;
 
-function checkEnvironment(cwd: string, noticeFile?: string, content?: CheckContentContext, indexFile?: string): NodeJS.ProcessEnv {
-  const env = { ...(environmentForGitCwd(cwd) ?? process.env) };
-  delete env.ARC_CHECK_BASE;
-  delete env.ARC_CHECK_TREE;
-  delete env.ARC_CHECK_MERGED;
-  delete env.ARC_CHECK_NOTICE;
+function checkEnvironment(cwd: string, noticeFile?: string, content?: CheckContentContext, indexFile?: string, supplied?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const inherited = supplied === undefined ? environmentForGitCwd(cwd) ?? process.env : sanitizeGitRepositoryEnvironment(supplied);
+  const env = Object.fromEntries(Object.entries(inherited).filter(([name]) => !CHECK_EXECUTION_ENVIRONMENT.has(name.toUpperCase())));
   if (noticeFile !== undefined) env.ARC_CHECK_NOTICE = noticeFile;
   if (indexFile !== undefined) env.GIT_INDEX_FILE = indexFile;
   if (content !== undefined) {
@@ -45,11 +42,8 @@ async function readNoticeStart(noticeFile: string): Promise<string> {
 }
 
 async function readNotice(noticeFile: string, exitCode: number): Promise<{ notice?: string; notRunReason?: string }> {
-  const text = await readNoticeStart(noticeFile).catch(() => "");
-  // A bare carriage return breaks a line too, and other control characters become spaces, so a notice
-  // printed inside a summary line cannot move the cursor over that line. The command and a runner wrapping it
-  // may each write a line, so every line is kept.
-  const lines = text.split(/\r\n|\r|\n/u).map(part => part.replace(/\p{Cc}+/gu, " ").trim()).filter(part => part !== "");
+  // The command and a runner wrapping it may each write a line, so every line is kept.
+  const lines = displayLines(await readNoticeStart(noticeFile).catch(() => ""));
   const notRun = exitCode === 0 ? undefined : lines.find(line => line.startsWith("not run:"));
   return { ...(lines.length === 0 ? {} : { notice: lines.join("; ").slice(0, NOTICE_LIMIT) }),
     ...(notRun === undefined ? {} : { notRunReason: notRun.slice("not run:".length).trim().slice(0, NOTICE_LIMIT) || "runner reported no check result" }) };
@@ -64,16 +58,22 @@ async function readNotice(noticeFile: string, exitCode: number): Promise<{ notic
  * @param command - Literal executable and arguments
  * @param cwd - Check working directory
  * @param content - Coordinates exposed to file checks
- * @param policy - Shell, output and checked-index policy
+ * @param policy - Shell, output, checked-index and optional supplied child-environment policy
  * @returns Native execution status, with a signal's end reported as a shell's exit status for it, diagnostics, and
  * any notice the command reported
  */
-export async function runCheckProcess(command: readonly string[], cwd: string, content?: CheckContentContext, policy: { shell?: boolean; rawStdout?: boolean; indexFile?: string } = {}): Promise<{ started: boolean; exitCode: number; stdout: string; output: string; notice?: string; notRunReason?: string }> {
+export async function runCheckProcess(command: readonly string[], cwd: string, content?: CheckContentContext, policy: { shell?: boolean; rawStdout?: boolean; indexFile?: string; environment?: NodeJS.ProcessEnv } = {}): Promise<{ started: boolean; exitCode: number; stdout: string; output: string; notice?: string; notRunReason?: string }> {
   const noticeDirectory = await mkdtemp(join(tmpdir(), "arc-check-notice-")).catch(() => undefined);
   const noticeFile = noticeDirectory === undefined ? undefined : join(noticeDirectory, "notice");
   try {
-    const result = await execa(command[0] ?? "", command.slice(1), {
-      cwd, env: checkEnvironment(cwd, noticeFile, content, policy.indexFile), extendEnv: false, stdin: "ignore",
+    const executable = command[0] ?? "";
+    const env = checkEnvironment(cwd, noticeFile, content, policy.indexFile, policy.environment);
+    // An unresolved Windows command falls back to cmd.exe, whose failure is not a check result.
+    if (process.platform === "win32" && !policy.shell && !resolvesOnWindows(executable, cwd, env)) {
+      return { started: false, exitCode: 1, stdout: "", output: "Check executable was not found; check its path and PATH, then retry." };
+    }
+    const result = await execa(executable, command.slice(1), {
+      cwd, env, extendEnv: false, stdin: "ignore",
       reject: false, shell: policy.shell ?? false, stripFinalNewline: !policy.rawStdout,
     });
     const started = result.exitCode !== undefined || result.signal !== undefined;
@@ -85,4 +85,10 @@ export async function runCheckProcess(command: readonly string[], cwd: string, c
   } finally {
     if (noticeDirectory !== undefined) await rm(noticeDirectory, { recursive: true, force: true }).catch(() => undefined);
   }
+}
+
+function resolvesOnWindows(executable: string, cwd: string, env: NodeJS.ProcessEnv): boolean {
+  const pathName = Object.keys(env).reverse().find(name => name.toUpperCase() === "PATH");
+  try { return whichCommandSync(executable, { cwd, path: pathName === undefined ? "" : env[pathName] ?? "" }) !== undefined; }
+  catch { return false; }
 }

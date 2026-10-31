@@ -16,7 +16,7 @@ import type { ReleaseRoutingValue } from "../lib/release/routing.js";
 import { readDerivedLocusStateSnapshot } from "./derived-locus-state-probe.js";
 import type { Store } from "../lib/store/contract.js";
 import type { StateVersion } from "../lib/store/identity.js";
-import type { StoreSyncPort } from "../lib/store/operational-sync.js";
+import { bindStoreSyncPort, type StoreSyncPort } from "../lib/store/operational-sync.js";
 import { readStateHistory } from "../lib/handoff/state-history.js";
 
 export interface RecoverStatusProbeOptions {
@@ -52,7 +52,7 @@ export function createRecoverStatusProbes(
         baseBranch: resolved.settings["branch.base"],
         exec,
         ...(options.store === undefined ? {} : { store: options.store }),
-      }, store => readStateHistory(() => store.version(), options.sync));
+      }, store => readStateHistory(() => store.version(), options.sync ?? bindStoreSyncPort(store)));
     })();
     snapshots.set(identity, pending);
     return pending;

@@ -38,7 +38,7 @@ async function fixture(floor: PromoteFloor = "derivation", failCut = false, inbo
 }
 async function disputePrimary(f: Awaited<ReturnType<typeof fixture>>) {
   const remote = createMemoryRemote(); f.store.context.publication.remote = remote;
-  lifecycleSuccess(await f.store.sync());
+  lifecycleSuccess(await f.store.push());
   const other = new ReferenceBackend({ state: remote.state, registry: f.store.context.registry });
   for (const [store, digit] of [[f.store, "2"], [other, "3"]] as const) {
     const record = lifecycleSuccess(await store.read({ reference: f.primary.reference }));
@@ -48,7 +48,7 @@ async function disputePrimary(f: Awaited<ReturnType<typeof fixture>>) {
       content: record.content, placement: { kind: "active" }, links,
       provenance: { verb: "test", lifecycleAction: "update" } }));
   }
-  lifecycleSuccess(await f.store.sync());
+  lifecycleSuccess(await f.store.push());
   const disputed = lifecycleSuccess(await f.store.read({ reference: f.primary.reference }));
   expect(disputed.conflicts.length).toBeGreaterThan(0); return disputed;
 }
@@ -303,4 +303,17 @@ it("preserves a qualified inbox origin's null digest through role change and his
   if (read.kind !== "ready" || read.record?.kind !== "errand" || read.record.purpose !== "errand") throw new Error("Expected source");
   expect(await f.steps.replaceFrame(read.record)).toMatchObject({ kind: "applied", originEntry: "personal:abcd1234", originEntrySourceDigest: null });
   expect(await f.steps.recoverPromoted()).toMatchObject({ kind: "idempotent", originEntry: "personal:abcd1234", originEntrySourceDigest: null });
+});
+
+it("refuses a live promotion target before changing either owner", async () => {
+  const f = await fixture(), held = await f.seedMeta("example");
+  const before = lifecycleSuccess(await f.store.version());
+  const result = await f.run();
+  expect(result).toMatchObject({ outcome: "refused", recommendedPromptText: expect.stringMatching(/choose another name/iu) });
+  if (held.reference.owner.type === "person" || held.reference.owner.uid === undefined) throw new Error("Expected work-item UUID");
+  expect(JSON.stringify(result)).toContain(held.reference.owner.uid);
+  expect(JSON.stringify(result)).not.toMatch(/rename/iu);
+  expect(lifecycleSuccess(await f.store.version())).toBe(before);
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference }))).toEqual(f.primary);
+  expect(lifecycleSuccess(await f.store.read({ reference: held.reference }))).toEqual(held);
 });

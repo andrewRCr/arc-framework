@@ -11,6 +11,7 @@ import { identifyArcFileAddress } from "../layout/index.js";
 import { classifyStoreAddress, type ClassifiedStoreTarget } from "../store/target-classification.js";
 import { SlugSchema } from "../kernel/index.js";
 import { CheckoutClaimSchema } from "../store/lookup.js";
+import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
 /** Invocation-bound overlap evidence, with optional acquisition ports for one captured frame. */
 export interface StoreErrandOverlapOptions {
   store: Store; exec: GitExec; cwd: string; identity: string; teamMode: boolean; baseBranch: string; targetPaths: string[];
@@ -21,7 +22,7 @@ export async function runStoreErrandOverlap(options: StoreErrandOverlapOptions):
   const frame = options.readFrame === undefined ? await runDerivedLocusStateProbe(options) : await options.readFrame();
   const inFlight = await deriveStoreInFlight({ ...options, roster: frame.roster });
   const self = await callerIdentity(options.store, frame);
-  const entries = inFlight.entries.filter((entry) => entryName(entry) !== self);
+  const entries = inFlight.entries.filter((entry) => !entryIsCaller(entry, self));
   const classified = options.targetPaths.map((path) => ({ path, target: classify(path) }));
   const code = classified.filter((item) => item.target === null).map((item) => item.path);
   const notes: string[] = [], state: ForeignArtifactOverlap[] = [];
@@ -32,7 +33,7 @@ export async function runStoreErrandOverlap(options: StoreErrandOverlapOptions):
   }
   const result = code.length === 0 ? { overlaps: [] } : await detectForeignArtifactOverlap({ exec: options.exec,
     roster: projectInFlightToOverlapRoster(entries, true), targetPaths: code, baseBranch: await preferRemoteBaseRef(options.exec, options.baseBranch),
-    originatingWorktreePath: options.cwd, ...(self === null ? {} : { originatingWorkUnitName: self }), snapshot: inFlight.snapshot });
+    originatingWorktreePath: options.cwd, ...(self?.kind !== "other" ? {} : { originatingWorkUnitName: self.name }), snapshot: inFlight.snapshot });
   return { result: { ...result, overlaps: mergeOverlaps([...result.overlaps, ...state]),
     ...(notes.length === 0 ? {} : { notes: [...(result.notes ?? []), ...notes] }) }, warnings: inFlight.warnings, reachable: true };
 }
@@ -40,15 +41,23 @@ function classify(path: string): ClassifiedStoreTarget | null {
   const address = identifyArcFileAddress(path);
   return address === null ? null : classifyStoreAddress(address);
 }
-async function callerIdentity(store: Store, frame: DerivedLocusFrame): Promise<string | null> {
+type CallerIdentity = { kind: "work-unit"; name: string; uid: string } | { kind: "other"; name: string };
+function entryIsCaller(entry: StoreInFlightEntry, self: CallerIdentity | null): boolean {
+  if (self === null) return false;
+  return self.kind === "work-unit" ? entry.kind === "work-unit" && entry.uid === self.uid : entryName(entry) === self.name;
+}
+async function callerIdentity(store: Store, frame: DerivedLocusFrame): Promise<CallerIdentity | null> {
   const subject = frame.entering.kind === "selected" ? frame.entering.row.subject : null;
   if (subject === null) return null;
-  const claim = CheckoutClaimSchema.parse({ kind: subject.kind, slug: subject.key,
-    ...(subject.kind === "work-unit" ? {} : { claimId: subject.claimId }) });
+  const claim = subject.kind === "work-unit" ? workUnitCheckoutClaim(store, subject.key, subject.uid)
+    : CheckoutClaimSchema.parse({ kind: subject.kind, slug: subject.key, claimId: subject.claimId });
   const lookup = await store.lookup({ kind: "claim", claim });
   if (lookup.status === "refused") return null;
   const read = await store.read({ reference: lookup.result.reference });
-  return read.status === "ok" && read.result.placement?.kind === "active" ? read.result.reference.owner.name : null;
+  if (read.status !== "ok" || read.result.placement?.kind !== "active") return null;
+  const owner = read.result.reference.owner;
+  if (subject.kind !== "work-unit") return { kind: "other", name: owner.name };
+  return owner.type === "work-item" && owner.uid !== undefined ? { kind: "work-unit", name: owner.name, uid: owner.uid } : null;
 }
 async function stateOverlap(store: Store, entries: readonly StoreInFlightEntry[], path: string, target: ClassifiedStoreTarget,
   notes: string[]): Promise<ForeignArtifactOverlap | null> {

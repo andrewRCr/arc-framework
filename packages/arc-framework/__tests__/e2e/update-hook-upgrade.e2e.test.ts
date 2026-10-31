@@ -7,7 +7,7 @@ import yaml from "js-yaml";
 import type { FileEntry, Manifest } from "../../src/lib/types.js";
 import { CheckDeclarationSchema } from "../../src/lib/checks/declaration.js";
 import { editorDocumentReference } from "../../src/lib/schema-command/editor-documents.js";
-import { cleanupTempDir, createTempRepo, runArc } from "./helpers.js";
+import { cleanupTempDir, commitAll, createTempRepo, runArc, unwrapPresentationOutput } from "./helpers.js";
 
 const roots: string[] = [];
 const managers = ["lefthook", "pre-commit"] as const;
@@ -19,8 +19,12 @@ interface Config {
 }
 afterEach(async () => { await Promise.all(roots.splice(0).map(cleanupTempDir)); });
 
-async function installed(manager: Manager): Promise<{ root: string; path: string; config: Config }> {
-  const root = await createTempRepo("arc-update-hooks-");
+function summaryText(value: string): string {
+  return unwrapPresentationOutput(value).replace(/\s/gu, "");
+}
+
+async function installed(manager: Manager, prefix = "arc-update-hooks-"): Promise<{ root: string; path: string; config: Config }> {
+  const root = await createTempRepo(prefix);
   roots.push(root);
   const path = join(root, manager === "lefthook" ? "lefthook.yml" : ".pre-commit-config.yaml");
   await writeFile(path, manager === "lefthook" ? "{}\n" : "repos: []\n");
@@ -42,6 +46,7 @@ it.each(managers)("upgrades generated %s entries and names the rewritten configu
     }
   }
   await writeFile(path, yaml.dump(config));
+  await commitAll(root);
   const update = await runArc(["update", "--quiet"], root);
   expect(update.exitCode, update.stdout + update.stderr).toBe(0);
   const upgraded = yaml.load(await readFile(path, "utf8")) as Config;
@@ -52,22 +57,28 @@ it.each(managers)("upgrades generated %s entries and names the rewritten configu
     expect(hooks.find(hook => hook.id === "arc-commit-msg")).not.toHaveProperty("files");
     expect(hooks.find(hook => hook.id === "arc-pre-push")).toMatchObject({ always_run: true });
     expect(upgraded.default_install_hook_types).toEqual(["pre-commit", "commit-msg", "pre-push"]);
-    expect(update.stdout + update.stderr).toContain("Run pre-commit install");
+    expect(summaryText(update.stdout + update.stderr)).toContain(summaryText("Run pre-commit install"));
   }
-  expect(update.stdout + update.stderr).toContain(path);
+  expect(summaryText(update.stdout + update.stderr)).toContain(summaryText(path));
 }, 60_000);
 
-it.each(managers)("preserves a custom %s entry and reports it in the update summary", async manager => {
-  const { root, path, config } = await installed(manager);
+it.each(managers.flatMap(manager => ["linux", "xterm-256color"].map(term => ({ manager, term }))))(
+  "preserves a custom $manager entry and reports its wrapped path under $term", async ({ manager, term }) => {
+  const { root, path, config } = await installed(manager,
+    `arc-update-hooks-${process.platform === "win32" ? "│" : "|│"}-${"long-".repeat(24)}`);
   if (manager === "lefthook") config["pre-push"]!.commands["arc-pre-push"]!.run = "personal-push-check";
   else config.repos!.flatMap(repo => repo.hooks).find(hook => hook.id === "arc-pre-push")!.entry = "personal-push-check";
   const content = "# Personal configuration\n" + yaml.dump(config);
   await writeFile(path, content);
-  const update = await runArc(["update", "--quiet"], root);
-  expect(update.exitCode, update.stdout + update.stderr).toBe(0);
+  await commitAll(root);
+  const update = await runArc(["update", "--quiet"], root, { env: { TERM: term, CI: "true", FORCE_COLOR: "0", NO_COLOR: "1" } });
+  const output = update.stdout + update.stderr;
+  expect(update.exitCode, output).toBe(0);
+  expect(output).toMatch(process.platform !== "win32" && term === "linux" ? /\|\r?\n\|/u : /│\r?\n│/u);
+  expect(output).not.toContain(path);
   expect(await readFile(path, "utf8")).toBe(content);
-  expect(update.stdout + update.stderr).toContain(path);
-  expect(update.stdout + update.stderr).toContain("arc-pre-push is not a recognized generated entry");
+  expect(summaryText(output)).toContain(path.replace(/\s/gu, ""));
+  expect(summaryText(update.stdout + update.stderr)).toContain(summaryText("arc-pre-push is not a recognized generated entry"));
 }, 60_000);
 
 it.each(["husky", "no manager"])("leaves an install with %s unaffected by hook upgrades", async manager => {
@@ -79,13 +90,14 @@ it.each(["husky", "no manager"])("leaves an install with %s unaffected by hook u
   const huskyPath = join(root, ".husky/pre-push");
   const custom = "#!/bin/sh\npersonal-push-check\n";
   if (manager === "husky") await writeFile(huskyPath, custom);
+  await commitAll(root);
   const update = await runArc(["update", "--quiet"], root);
   expect(update.exitCode, update.stdout + update.stderr).toBe(0);
   expect(existsSync(join(root, "lefthook.yml"))).toBe(false);
   expect(existsSync(join(root, ".pre-commit-config.yaml"))).toBe(false);
   if (manager === "husky") expect(await readFile(huskyPath, "utf8")).toBe(custom);
-  expect(update.stdout + update.stderr).not.toContain("Hook configurations upgraded");
-  expect(update.stdout + update.stderr).not.toContain("Hook upgrade warnings");
+  expect(summaryText(update.stdout + update.stderr)).not.toContain(summaryText("Hook configurations upgraded"));
+  expect(summaryText(update.stdout + update.stderr)).not.toContain(summaryText("Hook upgrade warnings"));
 }, 60_000);
 
 it.each(managers)("reports malformed %s configuration, completes file updates, and retries after repair", async manager => {
@@ -94,16 +106,18 @@ it.each(managers)("reports malformed %s configuration, completes file updates, a
   const hook = await readFile(hookPath, "utf8");
   await writeFile(hookPath, "obsolete framework hook\n");
   await writeFile(path, "repos: [\n");
+  await commitAll(root);
   const update = await runArc(["update", "--quiet"], root);
   expect(update.exitCode, update.stdout + update.stderr).toBe(0);
   expect(await readFile(hookPath, "utf8")).toBe(hook);
   expect(await readFile(path, "utf8")).toBe("repos: [\n");
-  expect(update.stdout + update.stderr).toContain(path);
-  expect(update.stdout + update.stderr).toContain("repair the configuration and retry arc update");
+  expect(summaryText(update.stdout + update.stderr)).toContain(summaryText(path));
+  expect(summaryText(update.stdout + update.stderr)).toContain(summaryText("repair the configuration and retry arc update"));
   await writeFile(path, yaml.dump(config));
+  await commitAll(root);
   const repaired = await runArc(["update", "--quiet"], root);
   expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
-  expect(repaired.stdout + repaired.stderr).not.toContain("Hook upgrade warnings");
+  expect(summaryText(repaired.stdout + repaired.stderr)).not.toContain(summaryText("Hook upgrade warnings"));
   expect(yaml.load(await readFile(path, "utf8"))).toEqual(config);
 }, 60_000);
 
@@ -137,6 +151,7 @@ it("preserves retired check sources and proposes inactive checks while upgrading
   delete config["pre-push"]!.commands["arc-pre-push"]!.use_stdin;
   await writeFile(path, yaml.dump(config));
 
+  await commitAll(root);
   const update = await runArc(["update", "--quiet"], root);
   expect(update.exitCode, update.stdout + update.stderr).toBe(0);
   const declarationPath = join(arcDir, "system/arc-checks.yml");
@@ -161,10 +176,10 @@ it("preserves retired check sources and proposes inactive checks while upgrading
     expect(updatedManifest.files[source]).toBeUndefined();
     expect(updatedPristine[source]).toBeUndefined();
   }
-  const output = update.stdout + update.stderr;
-  for (const source of [...Object.keys(authored), quickPath]) expect(output).toContain(source);
-  for (const command of ["npm run lint", "npm run build", "npm run security", "npm test"]) expect(output).toContain(command);
-  expect(output).toContain("Inspect the security dashboard.");
-  expect(output).toContain(path);
+  const output = summaryText(update.stdout + update.stderr);
+  for (const source of [...Object.keys(authored), quickPath]) expect(output).toContain(summaryText(source));
+  for (const command of ["npm run lint", "npm run build", "npm run security", "npm test"]) expect(output).toContain(summaryText(command));
+  expect(output).toContain(summaryText("Inspect the security dashboard."));
+  expect(output).toContain(summaryText(path));
   expect((yaml.load(await readFile(path, "utf8")) as Config)["pre-push"]!.commands["arc-pre-push"]!.use_stdin).toBe(true);
 }, 60_000);

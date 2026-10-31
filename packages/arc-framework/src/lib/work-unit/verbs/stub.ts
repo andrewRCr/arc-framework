@@ -5,7 +5,8 @@
  * `stub` mints a fresh, branchless work unit at a committed backlog tier
  * (`provisional` or `planned`, both physically under `backlog/`). It is the
  * enforcement front door: it refuses creation without an explicit **commitment**
- * and **priority**, never substituting a silent `provisional` / `P3` default.
+ * and **priority**, plus a resolved **Class** for planned creation, never
+ * substituting a silent `provisional` / `P3` default.
  * The required-fields *policy* is authored in the work-organization strategy;
  * the *enforcement mechanic* lives here. Because enforcement is pure over the
  * supplied inputs — it never defaults — the non-interactive case needs no TTY
@@ -25,8 +26,9 @@ import { join } from "node:path";
 import { usesOffBranchState } from "../../store/lifecycle-write.js";
 import { OwnerIdentitySchema, recordReferences } from "../../store/identity.js";
 import { renderMetaFile as renderStoreMeta } from "../../store/kinds/meta/writers.js";
+import { settleCreationSlugEdges } from "../../store/creation-slug-settlement.js";
 
-import { validateClass } from "../../kernel/schema/vocabulary.js";
+import { validateClass, type WorkClass } from "../../kernel/schema/vocabulary.js";
 import { isSafeCohortPath, validateCohortPath } from "../../active/cohort-path.js";
 import { renderMetaFile, type MetaRenderOverrides } from "../../active/meta-reader.js";
 import { MetaPrioritySchema } from "../../active/meta-schema.js";
@@ -84,8 +86,8 @@ export interface StubParams {
   cohort?: string;
   /**
    * Initial resolved `Class` (`Light` | `Heavy` | `Novel`) written into the
-   * scaffolded meta; omitted → the template's `[TBD]`. An unresolvable value is
-   * refused (no silent `[TBD]` downgrade of an explicit judgment).
+   * scaffolded meta; required for planned creation. Provisional omission keeps
+   * the template's `[TBD]`. An unresolvable explicit value is refused.
    */
   cls?: string;
 }
@@ -95,9 +97,32 @@ export type StubResult =
   | { status: "rejected"; reason: string }
   | { status: "scaffolded"; outcome: TransitionOutcome; metaPath: string };
 
+type StubClassResult =
+  | { status: "valid"; cls: WorkClass | undefined }
+  | Extract<StubResult, { status: "rejected" }>;
+
+function resolveStubClass(commitment: StubCommitment, supplied: string | undefined): StubClassResult {
+  const value = supplied?.trim();
+  const cls = value === undefined ? undefined : validateClass(value);
+  if (cls === "[TBD]") {
+    return {
+      status: "rejected",
+      reason: `\`${value}\` is not a resolved Class; pass \`--class\` (\`Light\`, \`Heavy\`, or \`Novel\`),`
+        + " or omit `--class` and use `--commitment provisional`.",
+    };
+  }
+  if (commitment === "planned" && cls === undefined) {
+    return {
+      status: "rejected",
+      reason: "`stub --commitment planned` requires a resolved Class; pass `--class` (`Light`, `Heavy`, or `Novel`), or use `--commitment provisional`.",
+    };
+  }
+  return { status: "valid", cls };
+}
+
 /**
- * Run the `stub` creation contract: enforce commitment + priority, then scaffold
- * the selected-tier meta through the executor.
+ * Run the `stub` creation contract: enforce commitment, priority, and planned
+ * Class, then scaffold the selected-tier meta through the executor.
  *
  * @param ctx - The executor seams plus the meta-write filesystem seam.
  * @param params - The new WU's name, committed tier, priority, and identity.
@@ -126,20 +151,9 @@ export async function runStub(ctx: StubContext, params: StubParams): Promise<Stu
     };
   }
 
-  // An explicit `--class` must be a resolved weight — refuse an unresolvable value
-  // rather than silently minting `[TBD]` over the caller's judgment.
-  const clsArg = params.cls?.trim();
-  let cls: "Light" | "Heavy" | "Novel" | undefined;
-  if (clsArg !== undefined && clsArg !== "") {
-    const validated = validateClass(clsArg);
-    if (validated === "[TBD]") {
-      return {
-        status: "rejected",
-        reason: `\`${clsArg}\` is not a resolved Class (expected \`Light\` | \`Heavy\` | \`Novel\`).`,
-      };
-    }
-    cls = validated;
-  }
+  const classResult = resolveStubClass(params.commitment, params.cls);
+  if (classResult.status === "rejected") return classResult;
+  const cls = classResult.cls;
 
   const commitment = params.commitment;
   const priority = params.priority;
@@ -234,10 +248,15 @@ async function runStoreStub(ctx: StubContext, params: StubParams, commitment: St
   };
 
     const reference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: params.name }));
+    const store = ctx.executor.store;
+    if (store === undefined) throw new Error("Store stub requires an operational store");
+    const settlement = await settleCreationSlugEdges(store, params.name, reference.owner);
     const outcome = await executeTransition(ctx.executor, { verb: "stub", slug: params.name, inputs: {
       commitment, suggestion: params.suggestion,
-      storeTransition: { create: { action: "put", reference, expected: null,
+      storeTransition: { additionalWrites: [...settlement.writes], observations: settlement.observations, create: { action: "put", reference, expected: null,
         content: renderStoreMeta(params.name, creationFields), placement: { kind: "backlog", commitment } } },
     } });
-    return outcome.status === "ok" ? { status: "scaffolded", outcome, metaPath } : { status: "rejected", reason: outcome.message };
+    if (outcome.status === "ok") return { status: "scaffolded", outcome, metaPath };
+    const refusal = outcome.status === "rejected" ? outcome.refusal : undefined;
+    return { status: "rejected", reason: `${outcome.message}${refusal === undefined ? "" : ` ${refusal.remedy.text}`}` };
 }

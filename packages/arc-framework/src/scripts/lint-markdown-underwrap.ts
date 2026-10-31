@@ -139,7 +139,7 @@ export async function main(cwd = process.cwd(), receivedPaths: readonly string[]
       // markdownlint's parser declaration narrows token attributes to strings.
       return { parse: (source, environment) => parser.parse(source, environment as Record<string, unknown>) as MarkdownItBaseToken[] };
     },
-      config: { default: false, ARC001: { min: 75, max: 120 } } });
+      config: { default: false, ARC001: {} } });
     for (const [path, errors] of Object.entries(result)) {
       for (const error of errors) process.stderr.write(`${path}:${error.lineNumber} ARC001 ${error.errorDetail}\n`);
     }

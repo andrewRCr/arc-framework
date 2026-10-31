@@ -133,6 +133,7 @@ export type AssembledCommitMessageSource =
 /** Closed classification result for release-commit message input. */
 export type CommitMessageInputClassification =
   | { kind: "assembled"; source: AssembledCommitMessageSource }
+  | { kind: "reuse-head" }
   | { kind: "refused"; reason: "editor-required" }
   | {
       kind: "pass-through";
@@ -152,6 +153,7 @@ export interface ClassifyCommitMessageInputOptions {
 }
 
 type ScanState = {
+  amend: boolean;
   messages: string[];
   files: string[];
   invalidSource: boolean;
@@ -227,6 +229,7 @@ const LONG_OPTION_NAMES: ReadonlySet<string> = new Set([
 
 function createScanState(commitCleanup: string | null | undefined): ScanState {
   return {
+    amend: false,
     messages: [],
     files: [],
     invalidSource: false,
@@ -395,6 +398,7 @@ function applyLongOption(state: ScanState, arg: string, args: readonly string[],
 
   if (LONG_ORDINARY_OPTIONS.has(name)) {
     if (attached !== undefined) state.unsupported = true;
+    else if (name === "--amend") state.amend = true;
     return false;
   }
 
@@ -468,7 +472,7 @@ function scanCommitOption(args: readonly string[], index: number, arg: string, s
  * Classify the commit-message input represented by `args`.
  *
  * @param options - Invocation argv, stdin TTY state, and resolved cleanup config.
- * @returns An assembled source, a non-interactive editor refusal, or pass-through.
+ * @returns An assembled source, proven HEAD-message reuse, an editor refusal, or pass-through.
  */
 export function classifyCommitMessageInput(
   options: ClassifyCommitMessageInputOptions,
@@ -518,6 +522,10 @@ export function classifyCommitMessageInput(
     (!hasExplicitSource && !state.editorFreeMessage);
   if (!options.stdinIsTTY && editorRequired) {
     return { kind: "refused", reason: "editor-required" };
+  }
+
+  if (state.amend && !hasExplicitSource && !state.gitManagedMessage && !state.messageModifier && !editorRequired) {
+    return { kind: "reuse-head" };
   }
 
   if (messageEncodingUnsupported) {

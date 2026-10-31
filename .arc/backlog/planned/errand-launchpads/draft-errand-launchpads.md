@@ -7,6 +7,91 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Close a spawned Errand without a foreign-generation prompt or a deleted working directory**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ § Direction, "A managed launchpad lifecycle" — `close` / `leave` restoration and where a session runs them.
+
+- _Observation:_ Closing a merged `--isolate` Errand has no clean place to run from. From the primary checkout,
+  `arc errand close <slug> --json` returns `confirmation-required` with "Retry with:
+  `arc errand close <slug> --confirm-foreign-generation <generation>`" for a destructive effect, though the Errand
+  merged through its own verb a moment earlier. From the Errand's own checkout it applies without asking, then reaps
+  that checkout, so the shell is left in a deleted directory (`getcwd: cannot access parent directories`). The prompt
+  appeared closing PR #1087's Errand from the primary; the deleted directory followed both #1086's and #1087's closes.
+
+- _Approach:_ A launchpad returns to base on close rather than being reaped, which removes the deleted-directory half
+  for Errands run there; the foreign-generation prompt still needs a decision for a session that opened the Errand from
+  the primary: either recognize the session's own Errand there or name the checkout to close from.
+
+- _Captured during:_ Errand `test-cost-diagnosis-method` close, 2026-10-21.
+
+### `[ ]` **Keep the next Errand launch reachable from a stale restored base**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ § Direction, "A managed launchpad lifecycle" — the open decision on how a launchpad stays at base and
+  refreshes when base moves, and `close` / `leave` restoration.
+
+- _Observation:_ After PR #1057 merged, closing `decomposition-refusal-scan-cost` correctly retired its exact claim and
+  restored primary `main` at `9c550dc60`. Remote main already included the sibling archive in PR #1056 at `0988de5a6`.
+  The stale local checkout still contained the active `seam-status-roadmap` meta, whose expected branch failed topology
+  corroboration. The next Errand open refused with `role-conflict` and “settle or leave the active transient”, although
+  the marker and Errand identity were absent.
+
+- _Cause:_ Close restores the branch through `git checkout <base>` without advancing it. Open reads the locus and
+  rejects the unresolved row before allocation or refresh. The fallback message conflates an unresolved work-unit
+  checkout with an active transient. A clean fast-forward to merged main `9f36ded00` made the same checkout
+  `free-primary`, and retrying the ordinary open succeeded.
+
+- _Approach:_ Settle with the launchpad's refresh decision whether freshness belongs at restoration, launch, or an
+  explicit typed remedy, and report the actual unresolved condition rather than an active transient. The tracked-meta
+  trigger goes away once `storage-seam` derives the locus from the marker plus the store (its register row); stale code
+  and the dev build remain the freshness question. Preserve warm-parent ownership, dirty-checkout protection, exact
+  claim retirement, and conservative locus authority.
+
+- _Interim:_ A working-memory entry carries the fast-forward workaround until this lands. Not run as an Errand: the
+  freshness choice is the target's open decision, and a fix shaped around tracked metas would be rewritten by the
+  storage seam.
+
+- _Files:_ `src/lib/errand/close-runtime.ts`, `terminal-occupancy.ts`, and `open.ts` under `packages/arc-framework/`;
+  unchanged since capture (re-checked 2026-10-21).
+
+- _Evidence:_ Identity-global `.internal/investigations/errand-close-next-launch-2026-10-19/` retains the successful
+  close, refused open, old and refreshed locus reports, and successful ordinary retry. Source anchors:
+  `close-runtime.ts:253`, `terminal-occupancy.ts:70`, and `open.ts:123,351-380`.
+
+- _Captured during:_ Sequential execute-bound Errand batch, entering declaration-registry projection; requested by
+  andrew on 2026-10-19. Re-targeted to `errand-launchpads` on 2026-10-21 for routing at the next drain.
+
+### `[ ]` **Let a session open an isolated Errand beside another session's live Errand**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ Problem / Motivation's occupied-primary refusal, and the open decision on whether `--isolate` from a
+  launchpad still spawns.
+
+- _Observation:_ On 2026-10-20 a session sharing the primary with a live `markdown-table-padding-merge` Errand, whose
+  own session was still committing there, ran `arc errand open disposition-report-trim` with and without `--isolate`.
+  Both refused `role-conflict`. The only remedy named was to checkpoint and `leave` the other Errand as `awaiting-merge`
+  or `paused`, which pulls the checkout from under the session that owns it. `--isolate` keeps the primary free only
+  when the first session used it; a second session arriving later has no undisruptive route until the first Errand
+  ships.
+
+- _Approach:_ Decide whether an `--isolate` open from an occupied checkout may provision its own transient without
+  touching the occupying Errand, and which warm-return parent it records. If it may not, name a remedy that leaves the
+  owning session undisturbed. The draft's Coordination plans this with the storage seam's locus partition; `seam-locus`
+  has shipped, so it can be planned now.
+
+- _Captured during:_ `disposition-report-trim` Errand launch, 2026-10-20.
+
+---
+
 ## Problem / Motivation
 
 A long Errand queue drains faster with two or more sessions working it at once, but ARC has one launchpad: the

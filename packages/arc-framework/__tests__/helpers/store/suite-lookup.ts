@@ -4,6 +4,7 @@ import { expect } from "vitest";
 import { LinksSchema, OwnerIdentitySchema, RecordReferenceSchema, singletonReference, type Links } from "../../../src/lib/store/index.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { assertion, seed, success, testProvenance, update, type SuiteContext } from "./suite-tools.js";
+import { registerRankedLookupAssertions } from "./suite-lookup-ranking.js";
 import type { ConformanceFixture } from "./fixture-contract.js";
 
 async function retireRenamed(fixture: ConformanceFixture, name: string, withDraft = false) {
@@ -24,7 +25,7 @@ async function checkDirectAliasBoundary(fixture: ConformanceFixture, operation: 
   const reference = singletonReference(owner, "work-item/draft");
   const store = synced ? fixture.remote(true) : fixture.store;
   if (store === undefined) throw Error("Expected a remote fixture.");
-  if (synced) success(await fixture.store.sync());
+  if (synced) success(await fixture.store.push());
   const saved = success(await store.version());
   if (operation === "read") expect(await store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   else if (operation === "list") expect(success(await store.list({ family: "work-item", owner })).status).toBe("absent");
@@ -44,6 +45,7 @@ async function checkDirectAliasBoundary(fixture: ConformanceFixture, operation: 
  * @param context - Backend registration context.
  */
 export function registerLookupAssertions(context: SuiteContext): void {
+  registerRankedLookupAssertions(context);
   for (const synced of [false, true]) for (const operation of ["read", "list", "write", "saved-read"] as const) assertion(context, "lineage",
     `terminal-alias-lookup-only:${operation}:${synced ? "synced" : "local"}`, fixture => checkDirectAliasBoundary(fixture, operation, synced));
   assertion(context, "lineage", "terminal-origin-former-slug-lookup", async fixture => {
@@ -78,6 +80,11 @@ export function registerLookupAssertions(context: SuiteContext): void {
     success(await fixture.store.write({ ...update(fixture, record), reference: renamed }));
     for (const slug of [record.reference.owner.name, renamed.owner.name]) expect(success(await fixture.store.lookup({ kind: "slug", slug })).reference).toEqual(renamed);
   });
+  assertion(context, "work-item", "slug-held-only-by-a-cohort", async (fixture) => {
+    const cohort = await seed(fixture, fixture.reference("cohort/document"));
+    expect(success(await fixture.store.lookup({ kind: "slug", slug: cohort.reference.owner.name })).reference)
+      .toEqual(cohort.reference);
+  }, context.registration.declarations.families.includes("cohort") ? undefined : "No cohort is served to hold the name.");
   assertion(context, "lineage", "terminal-transition-after-primary-removal", async (fixture) => {
     const work = await seed(fixture, fixture.reference("work-item/meta"));
     const reference = singletonReference(work.reference.owner, "lineage/transition");
@@ -105,7 +112,7 @@ export function registerLookupAssertions(context: SuiteContext): void {
   });
   assertion(context, "work-item", "checkout-work-unit-claim", async (fixture) => {
     const record = await seed(fixture, fixture.reference("work-item/meta"));
-    expect(success(await fixture.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: record.reference.owner.name } })).reference).toEqual(record.reference);
+    expect(success(await fixture.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: record.reference.owner.name, ...("uid" in record.reference.owner && record.reference.owner.uid !== undefined ? { uid: record.reference.owner.uid } : {}) } })).reference).toEqual(record.reference);
   });
   for (const kind of ["work-item/record", "claims/groom", "claims/housekeep"] as const) assertion(context, kind.startsWith("claims/") ? "claims" : "work-item", `checkout-claim:${kind}`, async (fixture) => {
     const record = await seed(fixture, fixture.reference(kind));

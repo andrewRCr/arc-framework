@@ -355,6 +355,10 @@ export async function validateConfigFile(
     error(output, "worktree.location_template: '' is not valid (expected: non-empty value)");
   }
 
+  if (invalidKeys.has("storage.backing_repository")) {
+    error(output, "storage.backing_repository must be empty (unset) or contain a non-whitespace repository pointer");
+  }
+
   renderCrossFieldChecks(output, values);
   for (const key of OPTIONAL_INTEGER_KEYS) {
     renderOptionalInteger(output, key, values, invalidKeys);

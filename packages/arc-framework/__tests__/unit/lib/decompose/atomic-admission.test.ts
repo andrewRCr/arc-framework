@@ -31,7 +31,9 @@ it.each(["dependency", "pause"] as const)("refuses disputed surviving %s edges a
         reason: "Waiting.", waitsOn: { kind: "work-unit", slug: SlugSchema.parse("member-b") }, resumeNotes: null, open: false });
     const label = { actor: "competing-writer", time: "2026-10-19T00:00:00Z" };
     lifecycleSuccess(await h.store.write({ action: "put", reference, expected: null,
-      content: JSON.stringify({ record: outsider.reference, location: { kind: "hunk", start: 0, end: 1 },
+      content: JSON.stringify({ record: outsider.reference, baseVersion: outsider.version,
+      currentLines: outsider.content.replace(/\n$/, "").split("\n").length, incomingLines: incoming.replace(/\n$/, "").split("\n").length,
+      location: { kind: "hunk", start: 0, end: outsider.content.replace(/\n$/, "").split("\n").length },
         base: outsider.content, current: { content: outsider.content, label }, incoming: { content: incoming, label } }),
       provenance: { verb: "sync", lifecycleAction: "merge" } }));
     competing = lifecycleSuccess(await h.store.version());
@@ -89,7 +91,7 @@ it("refuses a new empty origin companion at additive admission and permits reacq
 
 it.each([false, true])("guards the %s extraction terminal inventory after its final reread", async extraction => {
   const h = await createDecomposeTerminalFixture({ extraction, started: extraction });
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const preview = await runStoreDecomposeFinish(h.ctx, "origin");
   if (preview.status === "refused" || preview.result.kind !== "preview") throw Error(JSON.stringify(preview));
   const outsider = await h.seedStub("late-dependent");
@@ -137,7 +139,7 @@ it.each(["discard", "revise"] as const)("requires fresh %s approval when a remov
 
 it.each([false, true])("refuses a read-only destination edit during %s extraction apply and completes from repaired evidence", async extraction => {
   const h = await createDecomposeTerminalFixture({ extraction, started: extraction });
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const preview = await runStoreDecomposeFinish(h.ctx, "origin");
   if (preview.status === "refused" || preview.result.kind !== "preview") throw Error(JSON.stringify(preview));
   const primary = lifecycleSuccess(await readWorkUnit(h.store, "member-a"));
@@ -160,7 +162,7 @@ it.each([false, true])("refuses a read-only destination edit during %s extractio
 
 it("admits an unrelated new work item during apply without a namespace-wide freshness condition", async () => {
   const h = await createDecomposeTerminalFixture();
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const preview = await runStoreDecomposeFinish(h.ctx, "origin");
   if (preview.status === "refused" || preview.result.kind !== "preview") throw Error(JSON.stringify(preview));
   h.ctx.executor.store = withCompetingBatch(h.store, async () => { await h.seedStub("independent-work"); });

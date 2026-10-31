@@ -25,6 +25,8 @@ import type {
 } from "../../../../../src/scripts/review-gate/core/ports.js";
 import type { ReviewReduceEnvelope } from "../../../../../src/scripts/review-gate/core/review-command-envelope.js";
 
+const adapterVocabulary = /GitHub|CodeRabbit|PR[- _]?number|pullRequest|check[-_]?run|workflow|harness/iu;
+
 describe("review adapter ports", () => {
   it("accepts fixture adapters for the live advisory record families", async () => {
     const receipt: ReviewReceiptV2 = {
@@ -85,12 +87,23 @@ describe("review adapter ports", () => {
     await expect(reductionPort.reduce("operation-1")).resolves.toBe(reduction);
   });
 
+  it("allows fix-check domain prose in core comments", () => {
+    expect("// A fix check runs before another review.").not.toMatch(adapterVocabulary);
+  });
+
+  it.each(["checkRun", "check_run", "check-run", "checkRuns", "check_runs", "check-runs"])(
+    "rejects the adapter identifier %s",
+    (identifier) => {
+      expect(identifier).toMatch(adapterVocabulary);
+    },
+  );
+
   it("keeps the core source independent of adapter and runner vocabulary", async () => {
     const coreDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../../src/scripts/review-gate/core");
     const files = (await readdir(coreDir)).filter((name) => name.endsWith(".ts"));
     const source = (await Promise.all(files.map(async (name) => readFile(join(coreDir, name), "utf8")))).join("\n");
 
-    expect(source).not.toMatch(/GitHub|CodeRabbit|PR[- _]?number|pullRequest|check[- _]?run|workflow|harness/iu);
+    expect(source).not.toMatch(adapterVocabulary);
   });
 
 });

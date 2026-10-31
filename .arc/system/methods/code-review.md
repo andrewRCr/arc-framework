@@ -122,20 +122,28 @@ that limit rather than manufacturing an admission.
 
 ### Successor decision
 
-**Signature:** Before dispatch after a clean fix check under `full-final`, take the exact lane subject and available
-Owner-stop continuation; leave a recommendation and the selected continuation, without launching a reviewer.
+**Signature:** After a converged fix check under `full-final`, before the next look is admitted, take the exact lane
+subject and available Owner-stop continuation; leave a recommendation and the selected continuation, without launching
+a reviewer.
+
+Convergence follows [review-model's rule][convergence], not a clean result alone: a fix check converges when its
+approved set fixes no verified material finding, so minor-only findings and deferred or rejected material findings
+converge too. `arc review local prepare` admits a local look as a hosted request admits a hosted one; decide before
+either runs.
 
 Run `arc review lane read -`, deriving the request from `arc review lane read --schema`. For a delivery member, supply
 its exact head as `memberHeadObjectId`; otherwise use the caller's Candidate or Errand subject. Follow a refusal's
-remedy. When `payload.lastLook` has `coverage: incremental` and `outcome: clean`, use `payload.facts` for advisory
-judgment: recommend another complete pass while new defect classes keep appearing in previously read code or a fix
-round introduced new design; otherwise recommend stopping. Prefer a different source for a successor pass. State the
+remedy. Recommend only stopping or a look `payload.nextLooks` admits: its `incremental` look when it names one, or a
+complete pass, which at `ceiling-decision` needs § Ceiling override. A `disabled` lane or a `refusal` admits no look;
+surface which. When `payload.lastLook` has `coverage: incremental`, use `payload.facts` for advisory
+judgment: recommend another complete pass while the trend reads `discovering` or [review-model's re-inspection
+test][re-inspection] holds; otherwise recommend stopping. Prefer a different source for a successor pass. State the
 recommendation, its reasons, and what would change it. A complete pass never replaces a required fix check.
 
 Honor an existing decision for this exact successor across unchanged re-entry. Otherwise, when recommending stopping,
-use the [stop line][stop-line] before source dispatch. An unavailable stop is a disclosed limit, never a clean result
-or an invented terminus. The pre-publication caller also runs this check when a non-null hosted-first `reservation`
-appears before convergence verification or publication, retaining that reservation when review continues.
+use the [stop line][stop-line] before the next look is admitted. An unavailable stop is a disclosed limit, never a clean
+result or an invented terminus. The pre-publication caller also runs this check when a non-null hosted-first
+`reservation` appears before convergence verification or publication, retaining that reservation when review continues.
 
 ### Coverage selection
 
@@ -193,7 +201,8 @@ admission authorization or the caller's stop, without requesting a pass.
 
 For the standard lane, run the schema-derived lane read with the same exact subject and member selector. Follow a
 refusal's remedy. From `payload.facts`, show `completePasses` against `ceiling` and `fixChecksSinceLastComplete` rounds.
-Recommend another complete pass or stopping with expected signal, cost, and what would change the recommendation.
+Recommend another complete pass or stopping with expected signal, cost, and what would change the recommendation. An
+incremental look that `payload.nextLooks` names runs outside the ceiling and needs no override.
 The ceiling bounds autonomous spending, not advice, and the recommendation grants no pass authority.
 
 Render the exact consequence and any supplied `terminusAction.offer.interactionText`, then stop. Only explicit
@@ -310,6 +319,7 @@ With no settlement plan, perform only the description upkeep below.
 
 Follow [review-response's channel boundary][channel-boundary]. For `reply-and-resolve`, invoke
 `arc review hosted settle -` for each active phase ID with `payload.hostedSettlementPlan.actorIdentity` unchanged.
+Write each `reply` as the account's owner, under [pull-request-format's rule for posted text][posted-text].
 Complete every `beforeFixFindingIds` entry against the unchanged originating `target` and `fixTarget: null` before
 any approved fix changes the head. Return control to the ongoing [findings round][findings-round] for its approved
 fix, verification, commit, verified-fix replay, and push; never restart its proposal. After-fix settlement waits for
@@ -353,7 +363,7 @@ Do not turn a declined pass into completed review, weaken carrier-native require
 response evidence; leave exact conversational authority for the caller's reviewed merge lane or an explicit stop.
 
 When the Owner explicitly asks to end further standard-review spending, declines at a disposition turn the pass a fix
-triggers, or redirects an `approval-required / obtain-ceiling-override` decision, or the clean-fix-check successor check
+triggers, or redirects an `approval-required / obtain-ceiling-override` decision, or the successor decision
 recommends stopping, present one exact offer before treating that direction as approval. A settled-response
 `coverage-required / select-coverage` also admits this offer; while `payload.responseRequired` is true, perform the
 approved response first. A `terminal-failure / stop` reporting a trusted provider completion receipt without a
@@ -395,6 +405,7 @@ coordinates cannot be recovered.
 [verify-work-unit]: ../workflows/arc/work-unit-lifecycle/verify-work-unit.md
 [review-model]: review-model.md
 [convergence]: review-model.md#convergence-and-permission
+[re-inspection]: review-model.md#tags-and-the-re-inspection-test
 [code-review-author]: code-review-author.md
 [code-review-frontline]: code-review-frontline.md
 [code-review-standard]: code-review-standard.md
@@ -403,6 +414,7 @@ coordinates cannot be recovered.
 [review-response]: review-response.md
 [review-chunking]: review-chunking.md
 [pull-request-format]: pull-request-format.md
+[posted-text]: pull-request-format.md#other-text-posted-under-the-account
 [channel-boundary]: review-response.md#keep-response-etiquette-at-the-channel-boundary
 [review-increment-invariant]: ../rules/DEV-RULES.ARC.md#review-increment-invariant
 [stop-line]: #stop-line

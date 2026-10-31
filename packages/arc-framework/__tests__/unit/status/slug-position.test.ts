@@ -1,3 +1,5 @@
+import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -188,4 +190,19 @@ describe("projectScopeWindow for paused work", () => {
   it.each(["planning", "active"] as const)("waits for paused %s work without a checkout", state => {
     expect(projectScopeWindow(state, null, pause)).toEqual(pausedWindow);
   });
+});
+
+it("selects the exact UUID when resolved live holders share a name", async () => {
+  const h = createLifecycleHarness();
+  const first = await h.seedMeta("first"), second = await h.seedMeta("second");
+  const base = row("example", context());
+  const firstRow = { ...base, kind: "work-unit" as const,
+    subject: { kind: "work-unit" as const, key: "example", uid: boundWorkUnitSubject(first).uid } };
+  const secondRow = { ...base, kind: "work-unit" as const, checkout: { ...base.checkout, path: "/repo.second" },
+    subject: { kind: "work-unit" as const, key: "example", uid: boundWorkUnitSubject(second).uid } };
+  const roster = [firstRow, secondRow];
+  expect(selectWorkUnitRow(roster, "example", boundWorkUnitSubject(second).uid)?.checkout.path).toBe("/repo.second");
+  expect(await readDerivedSlugPosition({ slug: "example", uid: boundWorkUnitSubject(second).uid,
+    worktreePath: "/repo.second", identity: "andrew", readRoster: async () => roster }))
+    .toMatchObject({ position: { checkoutPath: "/repo.second" }, warnings: [] });
 });

@@ -16,6 +16,9 @@ and gitignored, while the normalized evidence below is the durable record.
 - [Warm-run measurement practice](#warm-run-measurement-practice)
 - [Method and its limits](#method-and-its-limits)
 - [Diagnosing a wall-clock change](#diagnosing-a-wall-clock-change)
+- [Tracing which tests read a file](#tracing-which-tests-read-a-file)
+- [Routed check capture cost](#routed-check-capture-cost)
+- [Store-suite process cost](#store-suite-process-cost)
 - [Tier baselines](#tier-baselines)
 - [Post-cost baseline](#post-cost-baseline)
 - [Where the time concentrates](#where-the-time-concentrates)
@@ -269,6 +272,265 @@ start measured 143 ms for `--version` and about 400 ms for `status --json`.
   waits on the slowest of the four integration and four E2E shards. On 2026-10-20 no single file gated a shard, and
   the fastest and slowest shards of one run differed by 150–170 s.
 
+## Tracing which tests read a file
+
+Tests read ARC Markdown from disk, so no import graph shows which ones a Markdown change can break, and a content
+tier's inputs have to come from observation. A 2026-10-27 trace at `7fa6db8ce` recorded which tests read which `.arc/`
+files. The method below repeats it for any later selection question; the result is that day's observation.
+
+### Method
+
+Preload a tracer into every Node process a tier spawns, then run the tier's ordinary command through `nicecap`:
+
+```bash
+. ~/.memcap.sh && NODE_OPTIONS="--import <tracer.mjs>" TRACE_ROOT="$PWD/.arc/" TRACE_OUT=<log-dir> \
+  nicecap -n 19 -r 8 npm run -s test:integration
+```
+
+The tracer wraps the read, list, stat, open, and copy functions of `node:fs` and `node:fs/promises`, appends each
+distinct `<operation> <path>` under `TRACE_ROOT` to one log per process, and calls `syncBuiltinESMExports()` so ESM
+importers see the wrappers:
+
+```js
+import fs from "node:fs";
+import fsp from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
+import { resolve } from "node:path";
+
+const { TRACE_ROOT: root, TRACE_OUT: out, TRACE_STACK: stackMatch } = process.env;
+if (root && out) {
+  const log = `${out}/${process.pid}.log`;
+  const append = fs.appendFileSync.bind(fs);
+  const seen = new Set();
+  const note = (op, p) => {
+    try {
+      const s = typeof p === "string" ? p : p instanceof URL ? p.pathname : Buffer.isBuffer(p) ? p.toString() : null;
+      if (s === null) return;
+      const abs = resolve(s);
+      if (!abs.startsWith(root) || seen.has(`${op} ${abs}`)) return;
+      seen.add(`${op} ${abs}`);
+      append(log, `${op} ${abs}\n`);
+      if (stackMatch && abs.includes(stackMatch) && !seen.has("stack")) {
+        seen.add("stack");
+        const frames = (new Error().stack ?? "").split("\n").filter((l) => l.includes("__tests__") || l.includes("/src/"));
+        append(log, `STACK\n${frames.slice(0, 12).join("\n")}\n`);
+      }
+    } catch { /* tracing never fails the run */ }
+  };
+  const wrap = (obj, name, op) => {
+    const fn = obj[name];
+    if (typeof fn !== "function") return;
+    const wrapped = function (...args) { note(op, args[0]); return fn.apply(this, args); };
+    Object.assign(wrapped, fn);
+    obj[name] = wrapped;
+  };
+  const ops = { read: ["readFile", "createReadStream"], list: ["readdir", "opendir"], open: ["open"],
+    stat: ["stat", "lstat", "access", "realpath", "exists"], copy: ["copyFile", "cp"] };
+  for (const [op, names] of Object.entries(ops)) {
+    for (const name of names) { wrap(fs, name, op); wrap(fs, `${name}Sync`, op); wrap(fsp, name, op); }
+  }
+  syncBuiltinESMExports();
+}
+```
+
+Three details carry the method:
+
+- **Keep the wrapped function's properties.** Vite calls `fs.realpathSync.native`; a wrapper without
+  `Object.assign(wrapped, fn)` drops it and the run fails at startup.
+- **A process log does not name a test file.** Vitest reuses worker processes across files. Set `TRACE_STACK` to a
+  path substring, and each process records one stack for its first matching access; the `__tests__` frame names the
+  reading file and line.
+- **Match the trace to the declaration.** Diff the logged reads against the tracked files the tier's inputs select;
+  a selected file nothing reads marks an input the tier can drop, and a read file outside the inputs marks a gap.
+
+### Blind spots
+
+The tracer sees only Node `fs` calls under its root. It misses reads by shell scripts (`cat`, `grep`, `find`),
+reads of Git objects, and reads inside a temporary copy of the tree. Cover those by reading source: list the tests
+that run a script or a copy with the live repository as working directory, and read what each script reads. At the
+trace date, only `verify-integrity.test.ts` ran a script against the live repository; every other script and hook
+test built a temporary repository first.
+
+### Result at `7fa6db8ce`
+
+- **Integration** (4,280 cases): all 229 tracked Markdown files the content tier then selected were read. Decision
+  records and supplemental research and analysis were read only by two contract tests that walked every file under
+  `.arc/system` and `.arc/reference`, and neither asserted anything that depended on a record.
+- **E2E** (1,222 cases): three repository `.arc/` paths, none of them Markdown — its tests run against fixtures.
+
+The content tier's and CI's exclusion of those records rests on this result. A test that starts reading a record
+needs the exclusion revisited, and the parity test between the two lists will not notice.
+
+## Routed check capture cost
+
+A check routed to a runner first captures its source on this host: ARC copies every selected file into a private
+directory, gives the copy a self-contained Git history, and only then starts the adapter. A 2026-10-28 profile at
+`8cad4cecf` split that span. The method below repeats it for any later question about capture cost; the results are
+that day's observations.
+
+### Capture method
+
+- **Spans** — import the capture modules from a checkout's `src` with `tsx` and time the calls the check runner makes,
+  in order: `acquireSourceBoundary`, `freezeSelectedSource`, `addSourceGitMetadata`, then the boundary's `recheck`.
+  The request needs only the tree, HEAD evidence, the base, and an empty merged list. Use the Node source IO and the
+  `process-executor` Git executors; the copy lands under the system temporary directory and is removed afterwards.
+- **Git steps** — run what `addSourceGitMetadata` runs by hand, into a fresh scratch repository:
+  `pack-objects --revs --stdout` fed the tree, HEAD and base, then `index-pack --stdin`, `read-tree`, and
+  `fsck --connectivity-only`. With `--progress`, `pack-objects` reports how many objects it compresses afresh
+  rather than reusing a stored delta.
+- **Whole path** — under a temporary `HOME`, point `checks.runner` at a stub adapter that records its start time and
+  exits non-zero, then time `arc check run typecheck` from launch to the stub's timestamp. The stub never proves
+  closure, so ARC retains each run's captured inputs under the system temporary directory and names them in its
+  retry text; remove them afterwards.
+- **Quiet host** — measure with little else running. Concurrent captures share the CPU, and `pack-objects` uses every
+  core it is given.
+
+### Result at `8cad4cecf`
+
+| One capture, quiet host        | Before repack | After repack |
+| ------------------------------ | ------------- | ------------ |
+| `pack-objects`                 | 8.3–9.6 s     | 1.1 s        |
+| Git metadata, all steps        | 10.8–11.4 s   | 3.9 s        |
+| File freeze, 5,262 files       | 3.8–4.5 s     | 3.8–4.4 s    |
+| Capture total                  | 14.8–15.7 s   | 7.8–8.6 s    |
+| CLI start to adapter start     | 17.2–18.3 s   | 10.3–10.4 s  |
+
+- **Freeze** — the per-file copy took 3.0–3.2 s one file at a time, and 1.5 s at every width from four to 32 files
+  at once: the limit of Node's four-thread I/O pool. Spelling resolution took 0.23 s.
+- **Git metadata after the repack** — `index-pack` takes 2.4 s and `fsck` 0.4 s. Both verify the whole reachable
+  history, which a self-contained copy needs.
+- **The rest of ARC's path** — startup, selection, planning, and launch take about 2.5 s.
+- **Past adapter start** — a merge gate the same day, with five routed plans in flight, measured about 1.9 s to the
+  adapter's local materialization, 4.7 s materializing and verifying, 4.5 s uploading, and 1.2 s on the runner
+  before the backend started.
+
+### Pack state decides `pack-objects`
+
+`pack-objects` reuses deltas already stored in packs and compresses every other object afresh. On 2026-10-28 the
+repository held 133,690 loose objects in 58 packs, and each capture compressed 86,622 of the 177,308 objects
+reachable from HEAD. A fully packed copy of the same history built the same pack in 0.96–1.05 s. Turning delta
+search off made it slower (`--window=0`: 16.3 s and a 290 MB pack), because the larger pack costs more to write.
+
+Automatic maintenance had not run since 2026-08-26. A commit inside a Codex command started Git's automatic
+maintenance, which takes `objects/maintenance.lock` and then detaches. The Codex sandbox runs each command in its own
+process namespace, so the kernel killed the detached process when the command returned, and the lock stayed. While
+that lock exists, automatic maintenance and a manual `git maintenance run` both exit 0 without doing or printing
+anything. Scheduled maintenance (`git maintenance start`) runs from the scheduler, outside any sandbox, and turns off
+commit-triggered maintenance for the repository. Read `git count-objects -v` and look for that lock before
+attributing a capture or fetch slowdown to ARC.
+
+## Store-suite process cost
+
+The store suites (`test:store`, the 321 `store-ref-*` integration files) ran in CI as four shards, which took 13–22
+minutes each on the ref backend's last three branch runs. A 2026-10-29 measurement at `f663af671` found where the ten
+slowest files spend their time. The method below repeats it; the results are that day's observations.
+
+### Process measurement method
+
+- **Runs** — run each file alone under `nicecap -n 19 -r 8`, with a preload in every Node process, and keep the JSON
+  report, which gives each case's duration:
+
+  ```bash
+  . ~/.memcap.sh && NODE_OPTIONS="--import <preload.mjs>" SPAWN_LOG=<dir>/spawn.log nicecap -n 19 -r 8 \
+    npm run -s test:file -- <file> --reporter=json --outputFile=<dir>/vitest.json
+  ```
+
+- **Spawn timing** — the preload wraps `ChildProcess.prototype.spawn` and logs, for each call, how long the call
+  blocks its caller, the time until the child's `exit`, and the child's working directory and first arguments:
+
+  ```js
+  import cp from "node:child_process";
+  import { appendFileSync } from "node:fs";
+
+  const proto = cp.ChildProcess.prototype, original = proto.spawn;
+  proto.spawn = function timedSpawn(options) {
+    const t0 = performance.now();
+    try { return original.call(this, options); }
+    finally {
+      const blocked = performance.now() - t0;
+      const args = options.args.slice(1, 7).join(" ");
+      this.once("exit", () => appendFileSync(process.env.SPAWN_LOG,
+        `${process.pid}\t${blocked}\t${performance.now() - t0}\t${options.cwd}\t${args}\n`));
+    }
+  };
+  ```
+
+- **Attribution** — a second run of the same files uses a preload that calls `Error.captureStackTrace` at each spawn
+  and keeps the first source frames outside the Git execution plumbing (`lib/git/process-executor.ts`,
+  `process-cancellation.ts`, `batch-reader.ts`, `version-floor.ts`, `exec.ts`, and the ref context's wrappers).
+- **Git's own run time** — a `git` shim first on `PATH` logs each call's start and end from `$EPOCHREALTIME`, forwards
+  `TERM`, `INT` and `HUP` to Git, and re-raises a fatal signal so the caller sees the same exit. It adds about 1.8 ms
+  a call, so use it for Git's run time and counts, not for wall time.
+- **CPU profiles** — Vitest's default `forks` pool stops its workers before `--cpu-prof` writes their profiles.
+  `--pool=threads` writes one per worker thread, but a thread worker lives in Vitest's main process, so its spawn cost
+  is not the `forks` worker's.
+
+### Result at `f663af671`
+
+| File                          | Cases | Case time | Git processes | Per case | Blocked in spawn |
+| ----------------------------- | ----: | --------: | ------------: | -------: | ---------------: |
+| `cleanup-report`              |    30 |   140.9 s |        18,320 |      611 |              60% |
+| `conformance-reads`           |   558 |    99.7 s |        18,690 |       33 |              43% |
+| `conformance-sync`            |   139 |   193.1 s |        29,037 |      209 |              48% |
+| `follow-copy-handoff`         |    24 |   147.2 s |        24,605 |    1,025 |              58% |
+| `follow-restart`              |    29 |   131.7 s |        24,642 |      850 |              58% |
+| `import-errands`              |    60 |   171.0 s |        21,525 |      359 |              54% |
+| `import-observation-failures` |    48 |   307.8 s |        42,416 |      884 |              63% |
+| `remote-delete`               |    40 |   163.6 s |        21,046 |      526 |              59% |
+| `separate-conformance-reads`  |   558 |   215.7 s |        19,282 |       35 |              41% |
+| `withdraw-entry-inverse`      |    92 |   188.9 s |        47,612 |      518 |              45% |
+| All ten                       | 1,578 | 1,759.6 s |       267,175 |      169 |              53% |
+
+- **Process cost dominates.** In the `forks` worker a spawn blocks its caller for a median 3.2 ms; from a bare Node
+  process it blocks for 1.1–1.9 ms at heaps up to 1 GB. Git itself runs for about 2 ms a call. From spawn to exit,
+  child processes account for about 86% of case time, an upper bound since concurrent calls count twice. JavaScript
+  takes the rest.
+- **Subcommands** — `for-each-ref` 71,440, `config` 40,362, `cat-file` 32,854, `update-ref` 17,778, `ls-tree` 14,485,
+  `diff-tree` 12,097, `remote` 10,547, `show` 10,202.
+- **Per-file outliers** — the import files read the old layout: in a 12-case sample of `import-observation-failures`,
+  about 70% of processes come from `store/in-repo/meta.ts`, which scans every branch through `remote-ref-reader.ts`
+  (29%), lists worktrees (15%), and snapshots Errand identity (7%) on each meta read.
+
+### Where the processes come from
+
+Attribution over the nine files other than `import-observation-failures`, 224,996 processes:
+
+| Source                    |     Share | What it runs                                                     |
+| ------------------------- | --------: | ---------------------------------------------------------------- |
+| `store/ref/batch-read.ts` |     23.5% | per read: a tips `for-each-ref`, `cat-file --batch`, `diff-tree` |
+| `store/ref/sync-graph.ts` |     19.9% | a `readSyncRefs` capture per reconciliation step                 |
+| Config and remote lookups | about 19% | `config` (34k), `remote show -n` (9k), re-read per call          |
+| Writes                    | about 16% | `update-ref`, `hash-object`, `mktree`, `commit-tree`             |
+| Test assertions, fixtures |     10.6% | reading state back to check it                                   |
+| `store/in-repo/`          |      3.3% | meta reads and file listings                                     |
+
+- **Already batched within a read** — `batch-read.ts` sends each read's objects through one `cat-file --batch`; the
+  cost is that every read starts its own listing and reader.
+- **Exact by design** — `readSyncRefs` captures the ref set fresh at each reconciliation step, which reconciliation's
+  correctness relies on.
+- **Re-read per call** — configuration, remote transport, designation and identity are read again for each call
+  within one operation.
+
+### Blind spots
+
+- **Callers past the first store module** — async stack traces drop a caller that returns a promise without awaiting
+  it, so about 37,800 `readSyncRefs` and 22,000 transport calls show no source caller beyond their own module.
+- **Host** — local runs at niceness 19 beside other work; CI runs each shard on a hosted Linux runner.
+- **Later codecs** — the measurement predates any change to the store's codec registry; codecs added to it later add
+  parse cost to every read and listing they decode.
+
+### Shard balance
+
+On run `40928051907` (2026-10-29, four shards), the 319 store files that ran took 197.9 minutes of file time between
+them. CI's duration input held a recorded duration for 175 of them, and their measured times ran a median 1.31 times
+the recorded ones (10th percentile 0.84, 90th 2.15). The shards carried 41.3, 43.5, 53.7 and 59.5 minutes of file
+time, 79 or 80 files each, and their jobs took 17.6, 16.2, 19.6 and 21.7 minutes.
+
+Placed on those measured durations, longest first onto the lightest shard, the heaviest shard carries 49.5 minutes of
+file time at four shards, 39.6 at five, 33.0 at six and 24.7 at eight. At four shards the total alone sets that
+49.5-minute floor, so balancing cannot go below it. A straight-line fit of the run's four jobs against their file time
+puts a 33-minute shard at about 14.5 minutes of job time.
+
 ## Tier baselines
 
 | Project set           | Wall clock | Summed file time | Files | Executed cases | Mode                              |
@@ -480,30 +742,13 @@ from one CI sample; later member validation must resolve the criterion from the 
 
 ### Recorded budgets
 
-`test-cost-budgets.json` is the single tracked record for the instrument and CI. Each limit is the observed
-post-cost baseline plus the full 10% noise allowance, rounded upward to the next millisecond. Complete measurement
-modes keep local and CI observations disjoint; the E2E CI entries additionally name the shard job.
+The [test-cost budget record][test-cost-budgets] is the single tracked source for the instrument and CI. Each
+`budgets` entry records its observed baseline in `baselineMs` and limit in `budgetMs`, both in milliseconds; the
+record's `allowanceFraction` names the allowance applied when setting those limits.
 
-| Tier        | Mode                              | Baseline  | Budget    |
-| ----------- | --------------------------------- | --------- | --------- |
-| Unit        | tier-isolated / unit / 12 workers | 11.116 s  | 12.228 s  |
-| Integration | tier-isolated / integration / 12  | 44.836 s  | 49.320 s  |
-| Lane        | tier-isolated / lane / 12         | 48.793 s  | 53.673 s  |
-| E2E         | tier-isolated / e2e / 12          | 189.246 s | 208.171 s |
-
-| CI job      | Mode                     | Baseline  | Budget    |
-| ----------- | ------------------------ | --------- | --------- |
-| Unit        | CI job / unit / 1 worker | 40 s      | 44.0 s    |
-| Integration | CI job / integration / 1 | 194.067 s | 213.474 s |
-| E2E 1       | CI job / e2e / 1         | 125.854 s | 138.440 s |
-| E2E 2       | CI job / e2e / 1         | 147.918 s | 162.710 s |
-| E2E 3       | CI job / e2e / 1         | 140.095 s | 154.105 s |
-| E2E 4       | CI job / e2e / 1         | 100.962 s | 111.059 s |
-
-The unit local and CI rows retain their post-Phase 5 baselines because Phase 7 did not change that tier. The
-integration, lane, and E2E local rows use the post-audit baseline above; the integration and E2E CI rows use the
-exact-head reporter windows from dispatch `34666114866`. Accepted Phase 7 movement therefore does not present as
-regrowth. Earlier E2E observations that repeated each anchor in its remainder shard remain ineligible as baselines.
+Match observations by `tier`, `metric`, and the complete `mode` (`condition`, `projectSet`, and `workerSizing`),
+plus `ciJob` where present. Complete measurement modes keep local and CI observations disjoint, and `ciJob`
+distinguishes CI shard jobs.
 
 ### Budget exercise
 
@@ -883,3 +1128,5 @@ is not proof.
 
 _This is the authoritative schema-v3 first instrument baseline. Later comparisons must preserve its complete mode
 stamps and normalization discipline._
+
+[test-cost-budgets]: ../../../../packages/arc-framework/test-cost-budgets.json

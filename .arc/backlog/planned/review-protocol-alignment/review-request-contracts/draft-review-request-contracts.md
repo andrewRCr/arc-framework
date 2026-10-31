@@ -413,6 +413,143 @@
   `ready-to-fix` result already does, or the approval call derives it from the source it is given; failing that, the
   refusal names the mismatched field and its expected value.
 
+- _Additional evidence:_ `storage-ref-backend`'s first findings-response approval, 2026-10-27 (routed from
+  `USER-INBOX § Work Unit`, housekeep drain, 2026-10-28). Neither the first proposal result, the pending-response
+  pre-publication envelope nor `review lane read` exposes the complete `policyRequest`, so the session composed it
+  by calling `composePrePublicationReviewRequest(...).request.standard` from a private script and applying only
+  its typed producer-binding correction. An exposed request must not grant a successor pass. Sites:
+  `runtime/respond-command.ts`, `policy/pre-publication-request.ts` and `pre-publication-procedure.ts`.
+
+- _Additional evidence:_ `storage-ref-backend`'s chunked review scripted this composition every round, among 323
+  per-round scripts (about 40k lines; copy at `~/dev/arc-evidence/storage-ref-backend/`), alongside the findings
+  proposal and the respond calls, the verified-fix replay, the staged Candidate commit, and re-entry with the resume
+  token after the push (routed from `USER-INBOX § Work Unit`, housekeep drain, 2026-10-30; its scope, evaluator and
+  report stages went to `chunk-scope-binding` and `review-evaluator-isolation`).
+
+### `[ ]` **Give a fix's verification evidence a typed reference the CLI can check**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ D4.4, and the entry "A registered request schema is looser than the validator".
+
+- _Observation:_ `arc review respond -`'s `verifiedFix.verificationEvidenceRefs` takes free strings, and
+  `arc check gate merge --force --json` returns per-check logs and the tree but no reference to bind, so
+  `storage-ref-backend`'s replay carried prose plus a log path and nothing ties the response to the gate run that
+  verified it.
+
+- _Approach:_ the gate emits an evidence identity (head, tree, checks, outcome) the replay cites and the CLI checks.
+
+- _Evidence:_ `fix-round-1/final-merge-gate.json` and `fix-round-1/respond-verified-fix-request.json` under
+  `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/` in that work unit's checkout
+  (checkout-local).
+
+- _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24.
+
+- _Additional evidence:_ the same review's later rounds scripted the capture of the forced gate's head, tree, exit,
+  and log as each fix's verification evidence, round by round (routed from `USER-INBOX § Work Unit`, housekeep drain,
+  2026-10-30, with the chunked-review verb gaps).
+
+### `[ ]` **Make status agree with the typed continuation after a Candidate advance**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ the entry "Make review-verb judgment inputs durable and status inputs derivable": a status read without the
+  resume token.
+
+- _Observation:_ after `storage-ref-backend`'s fix round pushed, `arc status --json` projected `run-self-review` with a
+  null policy, while the retained pre-publication resume returned `ready / local-prepare` for the fix check. Status
+  without the resume token names an author check the procedure does not ask for.
+
+- _Approach:_ without a resume token, status says a typed continuation is needed rather than naming a step.
+
+- _Evidence:_ `fix-round-1/status-after-push.json` and `fix-round-1/envelope-after-fix.json` under
+  `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/` in that work unit's checkout
+  (checkout-local).
+
+- _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24.
+
+### `[ ]` **Retire an acknowledged hosted review request before changing providers**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-28).
+
+- _Shapes:_ the entry "Make a hosted review request idempotent for its exact target": what identity closes a
+  request, how stale outstanding requests end, and when an intentional replacement is admitted.
+
+- _Observation:_ PR #1124 requested hosted Codex review of `adb72aad09c28ce83f2a94548ec2e22f3ffaf64b` at
+  2026-10-24T20:19:12Z. Codex acknowledged it and kept its exact-head summary at Running for more than 25 minutes,
+  despite a two-file, 24-line addition and green CI. The preceding PR #1121 completed its Codex review in 76 seconds.
+  ARC reached `pending / inspect-or-extend`; a separately approved two-minute extension remained pending.
+
+- _Verified gap:_ `arc review hosted` has request, await, and settle, with no cancel, retire, or supersede verb.
+  `lane-progress-hosted-request.ts` holds a pass while any hosted attempt is pending or ambiguous, even at another
+  head. A read-only replay of the actual pending state with `coderabbit-pr` selected returned `ambiguous-delivery`
+  before capacity authorization or any write. Automatic fallback admits only observed safe unavailability, and
+  the Errand Owner-stop protocol also refuses while a request is pending. An operator cannot safely declare the
+  request null and select another provider through the current protocol.
+
+- _Approach:_ specify an Owner-directed retirement or supersession for an already-dispatched hosted request.
+  Preserve the request and the Owner decision as distinct provenance; do not invent a provider failure, successful
+  review, or completed pass. Bind it to the exact request, target, and owner; release the held admission so another
+  source can review the same head. Define idempotent re-entry and late-result handling so an obsolete request cannot
+  silently settle or block the replacement, and material findings are not silently discarded. Distinguish ARC
+  retirement from cancellation at the provider, which may not be available or acknowledged.
+
+- _Existing related work:_ the held "Let a prepared, unlaunched local review be withdrawn or superseded" capture
+  covers reviews that provably never started. This case was dispatched and acknowledged, so that narrow withdrawal
+  rule does not cover it. `review-source-authority` also requires operator choices to remain separate from observed
+  provider outcomes; retain that boundary here.
+
+- _Evidence:_ <https://github.com/andrewRCr/arc-framework/pull/1124#issuecomment-6389066279> (request),
+  <https://github.com/andrewRCr/arc-framework/pull/1124#issuecomment-6389068470> (provider summary), and identity-global
+  `.internal/investigations/review-look-artifacts-2026-10-24/diagnosis-stalled-request/`.
+
+- _Observed recovery:_ an Owner-authorized second `@codex review` at the same head was posted at 2026-10-24T21:47:28Z
+  (<https://github.com/andrewRCr/arc-framework/pull/1124#issuecomment-6389939984>). A fresh clean receipt arrived 61
+  seconds later, at 21:48:29Z, naming `adb72aad09`
+  (<https://github.com/andrewRCr/arc-framework/pull/1124#issuecomment-6389949474>); the shared summary changed to
+  Completed. `arc review hosted await` accepted it through the original handle, and normal policy reduction closed
+  standard pass 1 with zero findings. This recovered the occurrence by retrying the same provider; it exercised no ARC
+  request-retirement or provider-switch transition, and exposed no proof of how the provider handled its old job.
+
+- _Captured during:_ `review-look-artifacts` Errand review, 2026-10-24; Owner requested this recovery case be captured
+  if the review cohort did not already specify it.
+
+### `[ ]` **Align known change-set routing between pre-publication and local review**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-28).
+
+- _Shapes:_ D4.4 — the CLI derives `changeSetState`, `assurance` and `activity` instead of taking them from the
+  caller; this is a concrete case of the two public paths composing `changeSetState` differently.
+
+- _Observation:_ A completed, attested local review cannot resume its pre-publication findings response when the
+  caller supplied the five documented routing facts without `changeSetState`. Local prepare adds `known`, while
+  pre-publication leaves the field absent and routing defaults it to `unknown`. Comparing the complete standard
+  projection then rejects `unknown-change-set` against the producer's `sensitive-change-set`, reporting
+  `review producer policy or rubric does not match the policy request` despite matching policy and rubric digests.
+  Both the opaque continuation and its bare public remedy repeat the refusal.
+
+- _Approach:_ Align change-set-state composition across these public paths and retain it through continuation.
+  Preserve honest unknown/unavailable routing and rejection of genuinely different policies, targets or rubrics.
+  Verify a successful prepared-review-to-findings-response round trip from the documented caller facts.
+
+- _Workaround:_ A fresh public pre-publication invocation with the original facts plus
+  `changeSetState: known`, the existing authorized lane judgments, and no old resume token returns
+  `candidate-fix-pending` / `arc review respond -`. Keep the newly returned opaque continuation. No review is
+  repeated, and no native records are edited.
+
+- _Files:_ `pre-publication-request.ts` routing composition, `local-prepare.ts` known-state composition,
+  `routing.ts` unknown defaults, `review-policy-evidence.ts` projection comparison, and public continuation tests.
+
+- _Evidence:_ `standard-pass-7/prepub-after-review.json`, `prepub-after-review-remedy.json`,
+  `prepub-after-review-explicit-corrected.json`, `prepub-after-review-known.json`, and
+  `response-continuation-diagnosis.json`, under
+  `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/` in that work unit's checkout
+  (checkout-local). Source head `9c34e7fdce79e8b3611e68608380af903dd06786`; local logical attempt 25 remained
+  current throughout.
+
+- _Captured during:_ storage-ref-backend prepublication, 2026-10-27; explicitly requested for a later separate
+  Errand, outside this work unit. The public input correction restored the authorized fix route.
+
 ---
 
 ## Reachable Request Contracts

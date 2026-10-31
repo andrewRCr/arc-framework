@@ -1,12 +1,13 @@
 /** Three-way prose merge with preserved labelled conflicts and byte-level newline handling. */
 import { diff3MergeRegions, diffIndices } from "node-diff3";
 import type { TextConflictRecord, SideLabel } from "../conflict.js";
-import type { RecordReference } from "../identity.js";
+import type { RecordReference, RecordVersion } from "../identity.js";
 import { alignMergedTables, compareTablePadding } from "./table-padding.js";
 
 /** Role-labelled inputs; a conflict always keeps the store's current side. */
 export interface MergeTextInput {
   readonly base: string;
+  readonly baseVersion: RecordVersion | null;
   readonly current: string;
   readonly incoming: string;
   readonly record: RecordReference;
@@ -45,6 +46,7 @@ export function mergeLineText(input: MergeTextInput): MergeTextResult {
       currentLines.push(...Array.from({length:region.aLength},(_,index) => region.aStart + index));
       if (sameLines(region.aContent,region.bContent)) continue;
       conflicts.push({record:input.record,location:{kind:"hunk",start:region.oStart,end:region.oStart + region.oLength},
+        baseVersion:input.baseVersion,currentLines:region.aLength,incomingLines:region.bLength,
         base:base.slice(region.oStart,region.oStart + region.oLength).join("\n"),
         current:{content:current.slice(region.aStart,region.aStart + region.aLength).join("\n"),label:input.currentLabel},
         incoming:{content:incoming.slice(region.bStart,region.bStart + region.bLength).join("\n"),label:input.incomingLabel}});

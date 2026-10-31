@@ -1,4 +1,6 @@
 /** Store transitions admit withdrawal before writing and retry only failed physical work. */
+import { createClashDouble } from "../../helpers/store/clash-double.js";
+import { runReopen } from "../../../src/lib/work-unit/verbs/reopen.js";
 import { expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
@@ -6,7 +8,7 @@ import { buildExecutorContext } from "../../../src/lib/work-unit/executor-contex
 import { executeTransition, type SideEffectHandler } from "../../../src/lib/work-unit/lifecycle-executor.js";
 import { recordReferences } from "../../../src/lib/store/identity.js";
 import { writeMetaNextAction } from "../../../src/lib/store/kinds/meta/writers.js";
-import { recordPut } from "../../../src/lib/store/lifecycle-write.js";
+import { readWorkUnit, recordPut } from "../../../src/lib/store/lifecycle-write.js";
 import type { RecoverablePrWithdrawalHandler, PrWithdrawMode } from "../../../src/lib/work-unit/side-effects/withdraw-pr.js";
 import type { UserIOContext } from "../../../src/commands/user/types.js";
 
@@ -18,12 +20,12 @@ async function fixture(mode: PrWithdrawMode = "close") {
       { repository: "elsewhere", ref: "feat/foreign", linkedAs: "created", excluded: [] }],
   });
   await h.seed(recordReferences["work-item/task-list"](meta.reference.owner), "# Task List: demo\n\n### `[x]` **1.1 Done**\n");
-  let unavailable = true;
+  let unavailable = true, prState = "OPEN";
   const writeArgs = mode === "close" ? ["pr", "close", "feat/demo"] : ["pr", "ready", "feat/demo", "--undo"];
   const git = scriptGitExec([
     { match: ["symbolic-ref", "--quiet", "--short", "HEAD"], responses: [{ stdout: "chore/retained" }] },
-    { command: "gh", match: ["pr", "view", "feat/demo", "--json", "state,isDraft"], responses: [{ stdout: JSON.stringify({ state: "OPEN", isDraft: false }) }] },
-    { command: "gh", match: writeArgs, responses: [() => unavailable ? { failure: { exitCode: 1, stderr: "network unavailable" } } : { stdout: "withdrawn" }] },
+    { command: "gh", match: ["pr", "view", "feat/demo", "--json", "state,isDraft"], responses: [() => ({ stdout: JSON.stringify({ state: prState, isDraft: false }) })] },
+    { command: "gh", match: writeArgs, responses: [() => { if (unavailable) return { failure: { exitCode: 1, stderr: "network unavailable" } }; if (mode === "close") prState = "CLOSED"; return { stdout: "withdrawn" }; }] },
   ]);
   const forbidden = async (): Promise<never> => { throw new Error("Tracked artifacts must not be used"); };
   const io: UserIOContext = { exec: git.exec, readFile: forbidden, writeFile: forbidden, mkdir: forbidden,
@@ -31,7 +33,7 @@ async function fixture(mode: PrWithdrawMode = "close") {
   const ctx = buildExecutorContext({ cwd: "/absent", io, store: h.store, projectId: async () => "repo",
     identity: "test-user", teamMode: false, internalTemplateDir: "/absent" });
   const run = () => executeTransition(ctx, { verb: "reopen", slug: "demo", inputs: { prMerged: false, prWithdrawMode: mode } });
-  return { ...h, ctx, meta, git, run, writeArgs, repair: () => { unavailable = false; },
+  return { ...h, ctx, meta, git, io, run, writeArgs, hostState: () => prState, repair: () => { unavailable = false; },
     readMeta: async () => lifecycleSuccess(await h.store.read({ reference: meta.reference })) };
 }
 it("refuses an unwired declared withdrawal before any atomic write", async () => {
@@ -97,4 +99,19 @@ it("does not withdraw when checked persistence refuses a stale prepared record",
     storeTransition: { primary: h.meta } } })).toMatchObject({ status: "rejected", stage: "store", refusal: { code: "version-conflict" } });
   expect((await h.readMeta()).fields).toMatchObject({ state: "Integrating", nextAction: "Concurrent note" });
   expect(h.git.calls.filter((call) => call.command === "gh")).toEqual([]);
+});
+
+it.each(["verb", "executor"] as const)("withdraws its selected branch after a mid-verb clash through %s", async entry => {
+  const h = await fixture(); h.repair();
+  const other = await h.seedMeta("other");
+  const store = createClashDouble(h.store, { slug: "demo", holders: [h.meta.reference, other.reference], mode: "mid-verb" });
+  const ctx = buildExecutorContext({ cwd: "/absent", io: h.io, store, projectId: async () => "repo", identity: "test-user", teamMode: false, internalTemplateDir: "/absent" });
+  if (entry === "verb") {
+    const selected = lifecycleSuccess(await readWorkUnit(store, "demo"));
+    expect(await runReopen(ctx, { name: "demo", reference: selected.reference, prMerged: false })).toMatchObject({ status: "reopened" });
+  } else expect(await executeTransition(ctx, { verb: "reopen", slug: "demo", inputs: { prMerged: false } }))
+    .toMatchObject({ status: "ok", sideEffectsFired: ["withdraw-pr"] });
+  expect(h.hostState()).toBe("CLOSED");
+  expect((await h.readMeta()).fields).toMatchObject({ state: "Active" });
+  expect(lifecycleSuccess(await h.store.read({ reference: other.reference }))).toEqual(other);
 });

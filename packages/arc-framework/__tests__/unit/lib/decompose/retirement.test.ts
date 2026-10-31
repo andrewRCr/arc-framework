@@ -1,3 +1,4 @@
+import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 /** Atomic retirement through the lifecycle executor and retryable physical cleanup. */
 import { expect, it } from "vitest";
 import { createDecomposeTerminalFixture } from "../../../fixtures/decompose-terminal.js";
@@ -14,9 +15,9 @@ import { recordReferences } from "../../../../src/lib/store/identity.js";
 
 it("retires a stub in one terminal batch with only a holding-checkout lookup", async () => {
   const h = await createDecomposeTerminalFixture();
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   let lookedUp = false;
-  h.ctx.executor.locusPorts!.findHoldingCheckout = async () => { if (lookedUp) throw Error("Repeated holding lookup"); lookedUp = true; return null; };
+  h.ctx.executor.locusPorts!.findHoldingCheckout = async () => { if (lookedUp) throw Error("Repeated holding lookup"); lookedUp = true; return { kind: "none" }; };
   const batch = h.store.batch.bind(h.store);
   h.store.batch = input => { if (!lookedUp) throw Error("Retirement wrote before its holding lookup"); return batch(input); };
   const primary = lifecycleSuccess(await readWorkUnit(h.store, "origin"));
@@ -106,10 +107,10 @@ it("persists retirement before cleanup failure and completes its teardown retry"
   teardown.readMarker = async () => { throw Error("marker unreadable"); };
   const applied = await runStoreDecomposeRetirement(h.ctx, "demo");
   expect(applied).toMatchObject({ status: "ok", result: { outcome: { continuation: {
-    argv: ["arc", "teardown", "demo"], reason: expect.stringContaining("marker unreadable") } } } });
+    argv: ["arc", "teardown", boundWorkUnitSubject(h.meta).uid], reason: expect.stringContaining("marker unreadable") } } } });
   expect(await readWorkUnit(h.store, "demo")).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   teardown.readMarker = original;
-  expect(await runStoreTeardown(teardown, { name: "demo", base: "main" })).toMatchObject({ status: "torn-down",
+  expect(await runStoreTeardown(teardown, { subject: { kind: "slug", slug: boundWorkUnitSubject(h.meta).uid }, base: "main" })).toMatchObject({ status: "torn-down",
     notices: expect.arrayContaining([expect.stringContaining("Released checkout /repo")]) });
 });
 
@@ -126,7 +127,7 @@ it("surfaces teardown's notice when a linked planning branch has unlanded commit
 
 it.each(["incomplete", "unreadable"] as const)("lifts the executor's %s inventory refusal and finishes after repair", async kind => {
   const h = await createDecomposeTerminalFixture();
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const plan = await prepareDecomposeRetirement(h.ctx, "origin");
   if (plan.status === "refused") throw Error(JSON.stringify(plan));
   const list = h.store.list.bind(h.store);
@@ -145,7 +146,7 @@ it.each(["incomplete", "unreadable"] as const)("lifts the executor's %s inventor
 
 it("revalidates authored destination content without putting it and names a fresh preview after conflict", async () => {
   const h = await createDecomposeTerminalFixture();
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const plan = await prepareDecomposeRetirement(h.ctx, "origin");
   if (plan.status === "refused") throw Error(JSON.stringify(plan));
   const destination = plan.result.records.find(record => record.reference.owner.name === "member-a" && record.reference.kind === "work-item/draft");

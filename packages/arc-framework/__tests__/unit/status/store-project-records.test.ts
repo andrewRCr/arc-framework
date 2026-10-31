@@ -8,7 +8,7 @@ import { readStoreProjectRecords } from "../../../src/lib/status/store-project-r
 import { createReferenceFixture } from "../../helpers/store/reference-fixture.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
-import { selectStandingLifecycleEntries } from "../../../src/lib/status/store-project-standing.js";
+import { selectStandingLifecycleEntries } from "../../../src/lib/store/lifecycle-standing.js";
 import { makeMetaFixture } from "../../helpers/meta-fixture.js";
 import { testProvenance } from "../../helpers/store/suite-tools.js";
 import type { Store } from "../../../src/lib/store/contract.js";

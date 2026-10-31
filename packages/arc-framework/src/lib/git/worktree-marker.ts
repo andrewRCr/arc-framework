@@ -12,6 +12,7 @@
  * @module
  */
 
+import { z } from "zod";
 import { isValidOriginBinding } from "../locus/origin-binding.js";
 import { RecordReferenceSchema, RecordVersionSchema } from "../store/identity.js";
 import { randomUUID } from "node:crypto";
@@ -35,10 +36,11 @@ import type {
 } from "../work-unit/retirement-authority.js";
 import type { GitExec } from "./exec.js";
 import { ensureGitExcludePattern, type GitExcludeFs } from "./exclude.js";
+import { withAdvisoryLock } from "../advisory-lock.js";
 
 /** Logical target a worktree was created for or terminally husked from. */
 export type WorktreeSubject =
-  | { kind: "work-unit"; name: string }
+  | { kind: "work-unit"; name: string; uid?: string }
   | { kind: "errand"; slug: string }
   | { kind: "branch"; ref: string };
 
@@ -100,7 +102,7 @@ export type DecodedWorktreeHuskStamp =
     }
   | {
       kind: "manual-only";
-      reason: "mixed-presence" | "unknown-authorization" | "unknown-evidence" | "evidence-mismatch";
+      reason: "mixed-presence" | "unknown-authorization" | "unknown-evidence" | "evidence-mismatch" | "pre-store-husk";
     };
 
 /** Trust classification for a structurally valid ownership marker. */
@@ -201,6 +203,7 @@ export type WorktreeMarkerIgnoreFs = GitExcludeFs;
 export const nodeWorktreeMarkerIgnoreFs: WorktreeMarkerIgnoreFs = {
   readFile: (path) => readFile(path, "utf8"),
   writeFile,
+  withLock: withAdvisoryLock,
   mkdir: async (path, options) => {
     await mkdir(path, options);
   },
@@ -338,7 +341,7 @@ function isWorktreeHuskStamp(value: unknown): value is WorktreeHuskStamp {
   if (
     typeof husk.sha !== "string"
     || typeof husk.at !== "string"
-    || !isWorktreeSubject(husk.subject)
+    || !isWorktreeHuskSubject(husk.subject)
     || typeof husk.branch !== "string"
   ) {
     return false;
@@ -350,7 +353,8 @@ function isWorktreeHuskStamp(value: unknown): value is WorktreeHuskStamp {
 }
 
 /** Decode authorization-bearing fields without granting authority to partial or future shapes. */
-export function decodeWorktreeHuskStamp(stamp: WorktreeHuskStamp): DecodedWorktreeHuskStamp {
+export function decodeWorktreeHuskStamp(stamp: WorktreeHuskStamp, options: { stateOffBranch?: boolean } = {}): DecodedWorktreeHuskStamp {
+  if (options.stateOffBranch && stamp.subject.kind === "work-unit") return { kind: "manual-only", reason: "pre-store-husk" };
   const presence = [
     stamp.authorization !== undefined,
     Object.prototype.hasOwnProperty.call(stamp, "remoteRef"),
@@ -437,7 +441,7 @@ function isWorktreeSubject(value: unknown): value is WorktreeSubject {
   const subject = value as Record<string, unknown>;
   switch (subject.kind) {
     case "work-unit":
-      return typeof subject.name === "string";
+      return typeof subject.name === "string" && (subject.uid === undefined || z.uuid().safeParse(subject.uid).success);
     case "errand":
       return typeof subject.slug === "string" && subject.claimId === undefined;
     case "branch":
@@ -445,6 +449,10 @@ function isWorktreeSubject(value: unknown): value is WorktreeSubject {
     default:
       return false;
   }
+}
+
+function isWorktreeHuskSubject(value: unknown): value is WorktreeSubject {
+  return isWorktreeSubject(value) && !("uid" in value);
 }
 
 function isWorktreeMarkerSubject(value: unknown): value is WorktreeMarkerSubject {

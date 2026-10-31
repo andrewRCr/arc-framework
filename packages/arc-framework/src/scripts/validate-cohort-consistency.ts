@@ -19,7 +19,6 @@
 import type { Store } from "../lib/store/contract.js";
 import { readLifecycleView } from "../lib/store/lifecycle-view.js";
 import { requireCompleteInventory } from "../lib/store/lifecycle-storage.js";
-import { buildCohortMembership } from "../lib/work-unit/lifecycle-membership.js";
 import { createStore } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -175,7 +174,15 @@ export async function resolveCohortValidationContext(cwd: string, store: Store):
   if (view.status === "refused") return { diagnostics: [`${view.refusal.condition} ${view.refusal.remedy.text}`] };
   try { requireCompleteInventory(store, view.result.listing); }
   catch (error) { return { diagnostics: [error instanceof Error ? error.message : String(error)] }; }
-  return { context: { liveMembersByDir: buildCohortMembership(view.result.index), existingCohortDocDirs: new Set() }, diagnostics: [] };
+  const liveMembersByDir = new Map<string, Set<string>>();
+  for (const entry of view.result.entries) {
+    const cohort = entry.fields.cohort;
+    if (cohort === null) continue;
+    const members = liveMembersByDir.get(cohort) ?? new Set<string>();
+    members.add(entry.reference.owner.name);
+    liveMembersByDir.set(cohort, members);
+  }
+  return { context: { liveMembersByDir, existingCohortDocDirs: new Set() }, diagnostics: [] };
 }
 
 // --- CLI entry ---

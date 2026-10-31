@@ -7,7 +7,7 @@ import type { Store } from "../store/contract.js";
 import { recordReferences, type StateVersion } from "../store/identity.js";
 import { identifyWorkUnitArtifactPath } from "../layout/index.js";
 import { SlugSchema } from "../kernel/index.js";
-import type { StoreSyncPort } from "../store/operational-sync.js";
+import { bindStoreSyncPort, type StoreSyncPort } from "../store/operational-sync.js";
 import type { StoreRecord } from "../store/read.js";
 import { readStateHistory } from "../handoff/state-history.js";
 
@@ -28,20 +28,21 @@ export async function resolveRecoveryTaskListEvidence(input: {
   if (input.store?.capabilities.stateOffBranch === true) {
     try {
       const store = input.store;
+      const sync = input.sync ?? bindStoreSyncPort(store);
       const identified = identifyWorkUnitArtifactPath(input.taskListPath);
       if (identified === null || identified.artifact !== "tasks") throw new Error(`No task-list record corresponds to ${input.taskListPath}. Repair the work unit's Task List reference and retry.`);
       if (input.stateVersion === null || input.stateVersion === undefined) throw new Error("The recovery seed has no state version. Rebuild the seed from current operational state and retry recovery.");
       const stateVersion = input.stateVersion;
-      const current = input.currentStateVersion === undefined ? await readStateHistory(() => store.version(), input.sync) : input.currentStateVersion;
+      const current = input.currentStateVersion === undefined ? await readStateHistory(() => store.version(), sync) : input.currentStateVersion;
       if (current === null) throw new Error("Recovery has no current operational snapshot. Repair state availability and retry recovery.");
-      const resolved = await readStateHistory(() => store.lookup({ kind: "slug", slug: SlugSchema.parse(identified.slug) }), input.sync);
+      const resolved = await readStateHistory(() => store.lookup({ kind: "slug", slug: SlugSchema.parse(identified.slug) }), sync);
       if (resolved.reference.kind !== "work-item/meta") throw new Error(`${identified.slug} is not a work unit. Resume recovery in the work unit's checkout.`);
       const reference = recordReferences["work-item/task-list"](resolved.reference.owner);
-      const fresh = await readStateHistory(() => store.read({ reference, asOf: current }), input.sync);
+      const fresh = await readStateHistory(() => store.read({ reference, asOf: current }), sync);
       const seed = await readStateHistory<StoreRecord | null>(async () => {
         const result = await store.read({ reference, asOf: stateVersion });
         return result.status === "refused" && result.refusal.code === "not-found" ? { status: "ok" as const, result: null } : result;
-      }, input.sync);
+      }, sync);
       return { status: "ok", seed: seed?.content ?? null, fresh: fresh.content };
     } catch (error) { return { status: "unavailable", message: errorMessage(error) }; }
   }

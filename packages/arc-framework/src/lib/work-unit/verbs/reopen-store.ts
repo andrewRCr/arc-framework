@@ -11,7 +11,8 @@ import { executeTransition, type ExecuteTransitionContext } from "../lifecycle-e
 import type { ReopenParams, ReopenResult } from "./reopen.js";
 /** Refuse non-integrating subjects and retain the task cursor's authority on the store arm. */
 export async function runStoreReopen(ctx: ExecuteTransitionContext & { store: Store }, params: ReopenParams): Promise<ReopenResult> {
-  const read = await readWorkUnit(ctx.store, params.name);
+  const read = params.reference === undefined ? await readWorkUnit(ctx.store, params.name)
+    : await ctx.store.read({ reference: params.reference });
   if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
   const primary = read.result, parsed = readLifecycleMetaFields(primary);
   if (parsed.status === "refused") return { status: "rejected", reason: parsed.refusal.condition, refusal: parsed.refusal, remedy: parsed.refusal.remedy };

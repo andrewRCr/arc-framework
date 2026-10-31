@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { Ajv2020 } from "ajv/dist/2020.js";
 import {
   SchemaInstallEnvelopeSchema, SchemaRefusalEnvelopeSchema,
 } from "../../src/lib/schema-command/envelope.js";
@@ -24,6 +25,10 @@ describe("arc schema install", () => {
     expect(result.exitCode, result.stderr).toBe(0);
     expect(SchemaInstallEnvelopeSchema.parse(JSON.parse(result.stdout))).toEqual({ status: "ok", documents: [`${directory}/check-declaration.schema.json`] });
     expect(await readdir(join(root, directory))).toEqual(["check-declaration.schema.json"]);
+    const installed: unknown = JSON.parse(await readFile(join(root, directory, "check-declaration.schema.json"), "utf8"));
+    const validate = new Ajv2020({ strict: true, validateFormats: false }).compile(installed as object);
+    expect(validate({ checks: { verify: { command: ["verify"], runner: true,
+      environment_inputs: { CHECK_MODE: "value", CHECK_FILE: "file" } } } }), JSON.stringify(validate.errors)).toBe(true);
     expect(await readFile(join(root, ".git/info/exclude"), "utf8")).toContain(`${directory}/\n`);
     expect(await readFile(join(root, ".gitignore"), "utf8")).toBe(ignored);
     expect(await git(root, ["status", "--porcelain"])).toBe("");

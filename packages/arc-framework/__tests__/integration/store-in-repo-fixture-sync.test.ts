@@ -15,7 +15,7 @@ describe("repository fixture existing sync behavior", () => {
     if (!remote) throw new Error("Expected an actual remote store");
     const records = [];
     for (const kind of ["personal/inbox", "personal/working-memory", "personal/document", "personal/session-context", "work-item/record", "claims/groom", "claims/housekeep"] as const) records.push(await seed(fixture, fixture.reference(kind)));
-    expect(success(await fixture.store.sync()).publishes.map((publish) => publish.status)).toEqual(["pushed", "pushed"]);
+    expect(success(await fixture.store.push()).publishes.map((publish) => publish.status)).toEqual(["pushed", "pushed"]);
     for (const record of records) expect(success(await remote.read({ reference: record.reference })).content).toBe(record.content);
   });
 
@@ -28,8 +28,8 @@ describe("repository fixture existing sync behavior", () => {
     const head = (await h.a.exec("git", ["rev-parse", "HEAD"])).stdout;
     const errandTip = (await remote("git", ["rev-parse", syncErrandRef])).stdout;
     for (let repetition = 0; repetition < 2; repetition++) {
-      expect(success(await h.a.store.sync()).publishes).toEqual([
-        { status: "pushed", families: ["personal"] }, { status: "pushed", families: ["work-item", "claims"] },
+      expect(success(await h.a.store.push()).publishes).toEqual([
+        { status: "pushed", families: ["personal"], retryCount: 0, waitedMs: expect.any(Number) }, { status: "pushed", families: ["work-item", "claims"], retryCount: 0, waitedMs: expect.any(Number) },
       ]);
       expect(JSON.parse((await remote("git", ["notes", "--ref", syncNotesRef, "show", head])).stdout).files["USER-INBOX.md"]).toBe("Exact local personal bytes\n");
       expect((await remote("git", ["rev-parse", syncErrandRef])).stdout).toBe(errandTip);
@@ -45,7 +45,7 @@ describe("repository fixture existing sync behavior", () => {
     const base = success(await remote.read({ reference: local.reference }));
     const changed = fixture.content(local.reference, "changed");
     success(await remote.write(update(fixture, base, changed)));
-    expect(success(await fixture.store.sync()).publishes[1]).toEqual({ status: "reconciled", families: ["work-item", "claims"] });
+    expect(success(await fixture.store.push()).publishes[1]).toEqual({ status: "reconciled", families: ["work-item", "claims"], retryCount: 0, waitedMs: expect.any(Number) });
     expect(success(await fixture.store.read({ reference: local.reference })).content).toBe(changed);
     expect(success(await remote.read({ reference: local.reference })).content).toBe(changed);
   });
@@ -55,11 +55,11 @@ describe("repository fixture existing sync behavior", () => {
     const remote = fixture.remote(true);
     if (!remote) throw new Error("Expected an actual remote store");
     const local = await seed(fixture, fixture.reference("personal/document"));
-    success(await fixture.store.sync());
+    success(await fixture.store.push());
     const base = success(await remote.read({ reference: local.reference }));
     const changed = fixture.content(local.reference, "changed");
     success(await remote.write(update(fixture, base, changed)));
-    expect(success(await fixture.store.sync()).publishes[0]).toEqual({ status: "reconciled", families: ["personal"] });
+    expect(success(await fixture.store.push()).publishes[0]).toEqual({ status: "reconciled", families: ["personal"], retryCount: 0, waitedMs: expect.any(Number) });
     expect(success(await fixture.store.read({ reference: local.reference })).content).toBe(local.content);
     expect(success(await remote.read({ reference: local.reference })).content).toBe(changed);
   });
@@ -71,7 +71,7 @@ describe("repository fixture existing sync behavior", () => {
     const other = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "beta" }));
     const content = transientContent(other);
     success(await h.b.store.write({ ...syncPut(), reference: other, content }));
-    expect(success(await h.a.store.sync()).publishes[1]).toEqual({ status: "reconciled", families: ["work-item", "claims"] });
+    expect(success(await h.a.store.push()).publishes[1]).toEqual({ status: "reconciled", families: ["work-item", "claims"], retryCount: 0, waitedMs: expect.any(Number) });
     expect(success(await h.a.store.read({ reference: syncErrand })).content).toBe(syncPut().content);
     expect(success(await h.a.store.read({ reference: other })).content).toBe(content);
     expect((await makeGitExec(h.origin)("git", ["ls-tree", "--name-only", syncErrandRef])).stdout.split("\n").sort()).toEqual(["alpha", "beta"]);
@@ -90,8 +90,8 @@ describe("repository fixture existing sync behavior", () => {
     await h.b.exec("git", ["fetch", "origin"]);
     await h.a.inbox("Clone A unchanged bytes\n");
     await h.b.inbox("Clone B unchanged bytes\n\n");
-    expect(success(await h.a.store.sync()).publishes[0]).toEqual({ status: "pushed", families: ["personal"] });
-    expect(success(await h.b.store.sync()).publishes[0]).toEqual({ status: "reconciled", families: ["personal"] });
+    expect(success(await h.a.store.push()).publishes[0]).toEqual({ status: "pushed", families: ["personal"], retryCount: 0, waitedMs: expect.any(Number) });
+    expect(success(await h.b.store.push()).publishes[0]).toEqual({ status: "reconciled", families: ["personal"], retryCount: 0, waitedMs: expect.any(Number) });
     const remote = makeGitExec(h.origin);
     for (const [commit, content] of [[aCommit, "Clone A unchanged bytes\n"], [bCommit, "Clone B unchanged bytes\n\n"]] as const) {
       expect(JSON.parse((await remote("git", ["notes", "--ref", syncNotesRef, "show", commit])).stdout)).toMatchObject({ files: { "USER-INBOX.md": content } });

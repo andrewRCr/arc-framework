@@ -11,21 +11,29 @@ import { scriptGitExec } from "../helpers/git-exec-fake.js";
 
 it("normalizes run-mode exclusions without retaining a CLI-only exclude field", () => {
   expect(normalizeVitestOptions([], { run: true, watch: true, exclude: ["ignored"], maxWorkers: 2 }))
-    .toEqual({ run: true, watch: false, cliExclude: ["ignored"], maxWorkers: 2 });
+    .toEqual({ run: true, watch: false, cliExclude: ["ignored"], maxWorkers: 2, update: "none" });
+});
+it("writes no snapshot unless the command line asks for it", () => {
+  expect(normalizeVitestOptions([], { run: true })).toMatchObject({ update: "none" });
+  expect(normalizeVitestOptions([], { run: true, update: false })).toMatchObject({ update: "none" });
+  expect(normalizeVitestOptions([], { run: true, update: true })).toMatchObject({ update: true });
+  expect(normalizeVitestOptions([], { run: true, update: "new" })).toMatchObject({ update: "new" });
 });
 it("enables task locations for line filters while preserving an explicit override", () => {
   expect(normalizeVitestOptions(["case.test.ts:4"], {})).toMatchObject({ includeTaskLocation: true });
   expect(normalizeVitestOptions(["case.test.ts:4"], { includeTaskLocation: false }))
     .toMatchObject({ includeTaskLocation: false });
-  expect(normalizeVitestOptions(["case.test.ts"], { watch: true })).toEqual({ watch: true });
+  expect(normalizeVitestOptions(["case.test.ts"], { watch: true })).toEqual({ watch: true, update: "none" });
 });
 
 const tiers = [
   ["full", []],
   ["unit", ["--project", "unit", "--project", "unit-mocks"]],
   ["changed", ["--run", "--project", "unit", "--project", "unit-mocks", "--passWithNoTests=false"]],
-  ["lane", ["--project", "unit", "--project", "unit-mocks", "--project", "integration"]],
-  ["integration", ["--project", "integration"]],
+  ["lane", ["--project", "unit", "--project", "unit-mocks", "--project", "integration",
+    "--project", "integration-timing", "--project", "integration-bursts"]],
+  ["integration", ["--project", "integration", "--project", "integration-timing", "--project", "integration-bursts"]],
+  ["store", ["--project", "integration", "--project", "integration-timing", "--project", "integration-bursts"]],
   ["arc-contracts", ["--project", "integration", "framework-sync", "live-transition-records",
     "pr-lifecycle", "review-gate-workflows", "ci-check-plumbing",
     "markdown/descriptor-spacing",
@@ -74,13 +82,31 @@ it("reports an E2E deletion since the base, and treats an unanswered read as one
   expect(calls.map(({ options }) => options?.cwd)).toEqual(["/package", "/package", "/package"]);
 });
 it("retains each native portability boundary on the portability tier", () => {
-  expect(localVitestTierArguments("portability")).toEqual([
+  expect(localVitestTierArguments("portability")).toEqual(expect.arrayContaining([
     "fs.test.ts", "build-context.test.ts", "build-cancellation.test.ts", "build-generation-lifetime.test.ts",
     "build-coordinator.test.ts", "build-publication.test.ts", "build-inventory.test.ts", "build-ownership.test.ts",
     "ci-build-transfer.test.ts", "ci-build-recovery.test.ts", "local-test-admission.test.ts", "worktree-marker.test.ts",
     "commit-message-retry-store.test.ts", "advisory-lock", "user-sync-notes-lock", "ref-tree-cas", "state-ref-race.e2e",
-    "git-executor", "delivery-transfer.e2e",
-  ]);
+    "git-executor", "delivery-transfer.e2e", "check-symlink-cwd.test.ts",
+    "lib/checks/batching.test.ts", "lib/checks/forecast.test.ts",
+    "lib/checks/key.test.ts", "handlers/check/run-output", "check-runner-shard",
+    "ci-check-runner.test.ts", "heavy-first-sequencer.test.ts", "duration-artifacts.test.ts",
+    "duration-layout-workflow.test.ts", "vitest-discovery.test.ts", "vitest-completion",
+    "vitest-mixed-shard.test.ts", "vitest-native-writers.test.ts", "vitest-native-closing.test.ts",
+    "vitest-runtime-ownership.test.ts",
+    "vitest-shard-",
+    "store-ref-bursts.test.ts",
+    "store-ref-directory.test.ts", "store-ref-write-batching.test.ts", "store-ref-reader-lifetime.test.ts",
+    "store-ref-archive-acquisition.test.ts",
+    "store-ref-named-acquisition.test.ts", "store-ref-publication.test.ts",
+    "git-batch-reader.test.ts", "store-ref-separate-conformance-records.test.ts",
+    "store-ref-separate-conformance-reads.test.ts", "store-ref-separate-conformance-sync.test.ts",
+    "store-ref-timing.test.ts", "store-ref-timing-isolation.test.ts",
+  ]));
+});
+
+it.each(["raw-git-files.test.ts", "check-source-git.test.ts"])("selects actual raw-file portability cases: %s", path => {
+  expect(localVitestTierArguments("portability")).toContain(path);
 });
 
 type Completion = Parameters<typeof checkVitestCompletion>[0];

@@ -79,6 +79,7 @@ function configResult(protection: "full" | "partial" = "partial") {
       "worktree.location_template": "../{repo}-{branch}",
       "worktree.post_create": "",
       "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
+      "storage.backing_repository": "",
     },
     warnings: [],
   };
@@ -166,6 +167,7 @@ vi.mock("../../../src/lib/work-unit/verbs/stub.js", () => ({ runStub: (...a: unk
 // Lifecycle handlers read templates and other files through `node:fs/promises`.
 const mockReadFile = vi.fn(async () => "{}");
 vi.mock("node:fs/promises", () => ({
+  realpath: vi.fn(async (path: string) => path),
   readFile: () => mockReadFile(),
   lstat: vi.fn(),
   writeFile: vi.fn(),
@@ -867,7 +869,7 @@ describe("handleDecompose", () => {
   ] as const)("converts a thrown %s failure to the core refusal", async (mode, options, adapter, argv) => {
     const forbidden = async (): Promise<never> => { throw new Error("Tracked-state dispatch must not call the store."); };
     const store: Store = { capabilities: { stateOffBranch: false }, read: forbidden, list: forbidden, lookup: forbidden,
-      write: forbidden, batch: forbidden, history: forbidden, version: forbidden, changes: forbidden, sync: forbidden };
+      write: forbidden, batch: forbidden, history: forbidden, version: forbidden, changes: forbidden, pull: forbidden, push: forbidden, maintain: forbidden };
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     const locus = `${mode} exploded`;
@@ -1472,7 +1474,7 @@ describe("handlePublish", () => {
     const refusal = LifecycleCommandRefusalSchema.parse(
       JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])),
     );
-    expect(refusal.remedy.argv).toEqual(["arc", "status", "--json"]);
+    expect(refusal.remedy).toMatchObject({ argv: ["arc", "status", "--json"] });
     expect(mockLogError).not.toHaveBeenCalled();
     expect(mockRunPublish).not.toHaveBeenCalled();
   });
@@ -1487,7 +1489,7 @@ describe("handlePublish", () => {
     const refusal = LifecycleCommandRefusalSchema.parse(
       JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])),
     );
-    expect(refusal.remedy.argv).toEqual(["arc", "status", "--json"]);
+    expect(refusal.remedy).toMatchObject({ argv: ["arc", "status", "--json"] });
     expect(mockLogError).not.toHaveBeenCalled();
     expect(mockRunPublish).not.toHaveBeenCalled();
   });
@@ -1794,7 +1796,7 @@ describe("handleAttest", () => {
     const refusal = LifecycleCommandRefusalSchema.parse(
       JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])),
     );
-    expect(refusal.remedy.argv).toEqual(["arc", "init"]);
+    expect(refusal.remedy).toMatchObject({ argv: ["arc", "init"] });
     expect(mockLogError).not.toHaveBeenCalled();
     expect(mockRunAttest).not.toHaveBeenCalled();
   });
@@ -1817,7 +1819,7 @@ describe("handleAttest", () => {
       JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])),
     );
     expect(refusal.reason).toContain("missing review-head record");
-    expect(refusal.remedy.argv).toEqual(["arc", "attest", "foo", "--new-root"]);
+    expect(refusal.remedy).toMatchObject({ argv: ["arc", "attest", "foo", "--new-root"] });
     expect(process.exitCode).toBe(1);
   });
 
@@ -2612,7 +2614,7 @@ describe("handleAttest", () => {
     expect(refusal.status).toBe("rejected");
     expect(refusal.reason).toContain(".arc/active/tasks-foo.md");
     expect(refusal.reason).toContain("packages/arc-framework/src/foo.ts");
-    expect(refusal.remedy.argv).toEqual(["arc", "attest", "foo"]);
+    expect(refusal.remedy).toMatchObject({ argv: ["arc", "attest", "foo"] });
     expect(mockRunAttest).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
@@ -2659,7 +2661,7 @@ describe("handleAttest", () => {
     );
     expect(refusal.reason).toContain("merge-base-ambiguous");
     expect(refusal.reason).toContain("The revisions have more than one best merge base.");
-    expect(refusal.remedy.argv).toEqual(["arc", "attest", "foo"]);
+    expect(refusal.remedy).toMatchObject({ argv: ["arc", "attest", "foo"] });
     expect(mockRunAttest).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });

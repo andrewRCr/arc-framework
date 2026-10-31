@@ -1,4 +1,5 @@
 /** Human and machine rendering for declared check requests. */
+import { checkInvocationLabel } from "../../lib/checks/runner/parent.js";
 import type { DeclaredCheckResult, RunDeclaredChecksResult } from "./run.js";
 import { checkVerification } from "./report.js";
 import { CHECK_REQUEST_SCHEMA_VERSION } from "../../lib/checks/usage.js";
@@ -52,7 +53,7 @@ function isListed(check: DeclaredCheckResult): boolean {
   const quiet = QUIET_OUTCOMES.has(check.outcome) && (check.outcome !== "not selected" || check.reason === UNCHANGED_INPUTS)
     && check.batches === undefined;
   return !quiet || check.notice !== undefined || (check.rewritten?.length ?? 0) > 0 || (check.divergent?.length ?? 0) > 0
-    || (check.mergedIn?.length ?? 0) > 0;
+    || (check.mergedIn?.length ?? 0) > 0 || hasInvocationDetails(check);
 }
 
 function renderCount(checks: readonly DeclaredCheckResult[]): string {
@@ -92,19 +93,47 @@ function renderCheck(check: DeclaredCheckResult, ci: boolean): string {
   const notice = check.notice === undefined ? "" : ` (${check.notice})`;
   const heading = `${check.id}: ${check.outcome}${kind}${check.reason === undefined ? "" : ` (${check.reason})`}${notice}${difference}${rewrites}${cost}${log}`;
   const tail = renderOutputTail(check);
-  return `${heading}${tail}${renderMergedIn(check)}${check.remedy && !ci ? `\nRetry: ${check.remedy}` : ""}`;
+  const remedy = check.remedy && (!ci || check.remedyKind === "runner") ? `\nRetry: ${check.remedy}` : "";
+  return `${heading}${renderEnvironmentInputs(check)}${tail}${renderInvocationDetails(check)}${renderMergedIn(check)}${remedy}`;
+}
+
+function renderEnvironmentInputs(check: DeclaredCheckResult): string {
+  const inputs = Object.entries(check.environmentInputs ?? {}).map(([name, kind]) => `${name} (${kind})`);
+  return inputs.length === 0 ? "" : `\nEnvironment inputs: ${inputs.join(", ")}`;
 }
 
 function renderOutputTail(check: DeclaredCheckResult): string {
-  if (!isNonPassing(check) || !check.output) return "";
-  const lines = check.output.split(/\r?\n/u);
+  if (!isNonPassing(check)) return "";
+  const output = hasInvocationDetails(check) ? check.runnerOutput : check.output;
+  return output ? renderOutputText(output, check.logPath) : "";
+}
+
+function hasInvocationDetails(check: DeclaredCheckResult): boolean {
+  return (check.invocations?.length ?? 0) > 1 || check.invocations?.[0]?.shard !== undefined;
+}
+
+function renderInvocationDetails(check: DeclaredCheckResult): string {
+  if (!hasInvocationDetails(check)) return "";
+  const labels = { success: "passed", failure: "failed", unavailable: "couldn't run", "no-evidence": "no evidence" };
+  return (check.invocations ?? []).map(detail => {
+    const { outcome } = detail;
+    const exit = outcome.exitCode === undefined ? "" : ` (exit ${outcome.exitCode})`;
+    const notice = outcome.notice === undefined ? "" : ` (${outcome.notice})`;
+    const reason = outcome.kind === "unavailable" ? `: ${outcome.reason}` : "";
+    const output = outcome.kind === "success" || !detail.output ? "" : renderOutputText(detail.output, check.logPath);
+    return `\n  ${checkInvocationLabel(detail)}: ${labels[outcome.kind]}${exit}${notice}${reason}${output}`;
+  }).join("");
+}
+
+function renderOutputText(output: string, logPath?: string): string {
+  const lines = output.split(/\r?\n/u);
   const selected = lines.slice(-20).join("\n");
   const tail = selected.slice(-8192);
   const removed = selected.slice(0, selected.length - tail.length);
   const partialLine = removed.length > 0 && !removed.endsWith("\n");
   const omitted = Math.max(0, lines.length - 20) + (removed.match(/\n/gu)?.length ?? 0) + Number(partialLine);
   if (omitted === 0) return `\n${tail}`;
-  const fullLog = check.logPath ? `full log: ${check.logPath}` : "full log unavailable";
+  const fullLog = logPath ? `full log: ${logPath}` : "full log unavailable";
   return `\n${tail}\nOutput truncated: ${omitted} earlier ${omitted === 1 ? "line" : "lines"} omitted in whole or part; ${fullLog}`;
 }
 

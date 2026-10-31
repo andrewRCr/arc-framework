@@ -1,0 +1,111 @@
+/** Clear a followed source in freshly licensed rounds after the explicit designation switch. */
+import { appendCleanupReport, retainCleanupDeleteBasis, settleCleanupDeletes } from "./migrate-cleanup-report.js";
+import type { MigrateReport } from "../commands.js";
+import type { RefBackendContext } from "./context.js";
+import type { RecordedFollow } from "./migrate-record.js";
+import { fetchMigrationRemote } from "./migrate-remote-fetch.js";
+import { fetchLayoutObjects } from "./migrate-layout-build.js";
+import { readSyncRefs } from "./sync-graph.js";
+import { FORWARDING_REF, readForwardingRecord } from "./forwarding-record.js";
+import { requireFollowDestination } from "./follow-copy.js";
+import { prepareRemoteReCopy, remoteCopyChanges, atomicMigrationPush, migrationPushLanded,
+  copyPushLanded, remoteCopyReport, retainRemoteCopiedState } from "./migrate-remote-copy.js";
+import { beginCopyJournal, confirmCopyJournal, copyJournalKey, recoverCopyReport, releaseCopyJournal } from "./migrate-copy-journal.js";
+import { MigrationRefusal } from "./migrate-refusal.js";
+import { appendCopiedFollowRefs, appendFollowReadRefs } from "./follow-report.js";
+import { updateRefTransaction } from "../../git/ref-transaction.js";
+import { captureComparisonWitness, withComparisonWitness, type ComparisonWitness } from "./comparison-witness.js";
+
+/** A delete never starts until both remotes and the complete re-copy have been observed in this round. */
+export async function deleteFollowSource(code: RefBackendContext, recorded: RecordedFollow, report: MigrateReport): Promise<void> {
+  try {
+    for (;;) {
+      await code.migrateStep?.("follow.read-destination");
+      const witness = await captureDestinationWitness(code, recorded);
+      const destination = await fetchMigrationRemote(code, recorded.record.destination, true);
+      await recoverCopyReport(code, copyJournalKey("follow", recorded.record.source, recorded.record.destination, recorded.record.forwardingTip), destination, report);
+      if (await retainLaterFollow(code, recorded, destination, report, witness)) return;
+      await requireFollowDestination(code, recorded.record, destination);
+      await code.migrateStep?.("follow.list-source");
+      const source = await fetchMigrationRemote(code, recorded.record.source, true);
+      await settleCleanupDeletes(code, source, report);
+      if (source.get(FORWARDING_REF) !== recorded.record.forwardingTip) {
+        await retainChangedSourceFollow(code, recorded, { source, destination }, report); return;
+      }
+      const ordinary = new Map([...source].filter(([ref]) => ref !== FORWARDING_REF));
+      if (!ordinary.size) return;
+      if (!await recopyFollowRound(code, recorded, ordinary, destination, report)) continue;
+      await retainCleanupDeleteBasis(code, ordinary);
+      await code.migrateStep?.("follow.delete");
+      const deletes = [...ordinary].map(([ref, expected]) => ({ ref, next: null, expected }));
+      const deleted = await atomicMigrationPush(code, recorded.record.source.pushUrl, deletes);
+      if (!await migrationPushLanded(code, recorded.record.source.pushUrl, deletes, deleted)) continue;
+      await settleCleanupDeletes(code, new Map(), report);
+      await code.migrateStep?.("follow.deleted");
+    }
+  } catch (error) { throw followCleanupFailure(error); }
+}
+
+function followCleanupFailure(error: unknown): unknown {
+  if (!(error instanceof MigrationRefusal)) return error;
+  if (error.refusal.code === "store" && (error.refusal.refusal.code === "namespace-corrupt" || error.refusal.refusal.code === "command-line-capacity")) return error;
+  return new MigrationRefusal({ code: "move-unfinished", class: "recoverable", condition: `The recorded follow could not finish cleanup: ${error.message}`,
+    remedy: { text: "Repair the reported remote, then retry arc store migrate with no target. Where the old remote is gone for good, end the follow without its deletes with arc store migrate --leave-source.",
+      argv: ["arc", "store", "migrate"] } });
+}
+
+async function recopyFollowRound(code: RefBackendContext, recorded: RecordedFollow, ordinary: Map<string, string>,
+  destination: Map<string, string>, report: MigrateReport): Promise<boolean> {
+  await code.migrateStep?.("follow.recopy");
+  const prepared = await prepareRemoteReCopy(code, ordinary, destination);
+  const changes = remoteCopyChanges(prepared.refs, destination).filter(row => row.next !== row.expected);
+  const proposed = { ...report, refs: [...report.refs], notices: [...report.notices] };
+  appendCleanupReport(proposed, { refs: remoteCopyReport(new Map(changes.flatMap(row => row.next ? [[row.ref, row.next] as const] : [])),
+    destination, []).refs.filter(row => changes.some(change => change.ref === row.ref)), notices: prepared.notices });
+  await beginCopyJournal(code, copyJournalKey("follow", recorded.record.source, recorded.record.destination, recorded.record.forwardingTip), changes, proposed);
+  if (changes.length) {
+    const copied = await atomicMigrationPush(code, recorded.record.destination.pushUrl, changes);
+    if (!await copyPushLanded(code, recorded.record.destination.pushUrl, changes, copied)) return false;
+  }
+  appendCleanupReport(report, await confirmCopyJournal(code));
+  await retainRemoteCopiedState(code, ordinary, report);
+  await releaseCopyJournal(code);
+  await code.migrateStep?.("follow.recopied");
+  return true;
+}
+
+async function captureDestinationWitness(code: RefBackendContext, recorded: RecordedFollow): Promise<ComparisonWitness | null> {
+  return captureComparisonWitness(code, recorded.record.destination, `refs/arc-remotes/${recorded.record.destination.name}/project/moved`);
+}
+
+async function retainLaterFollow(code: RefBackendContext, recorded: RecordedFollow, destination: ReadonlyMap<string, string>,
+  report: MigrateReport, witness: ComparisonWitness | null): Promise<boolean> {
+  const tip = destination.get(FORWARDING_REF);
+  if (!tip) return false;
+  const moved = await readForwardingRecord(code, tip, recorded.record.destination.name);
+  if (moved.status === "refused") throw new MigrationRefusal(moved.refusal);
+  await withComparisonWitness(code, witness, async physical => {
+    if (!witness?.ref || witness.expected === undefined) return;
+    const current = (await readSyncRefs(physical, witness.ref)).get(witness.ref) ?? null;
+    if (current === tip || current !== witness.expected) return;
+    await fetchLayoutObjects(physical, code.repository?.commonDir ?? code.checkoutRoot, new Map([[FORWARDING_REF, tip]]));
+    await updateRefTransaction(physical, [{ ref: witness.ref, next: tip, expected: witness.expected }], { cwd: physical.checkoutRoot });
+  });
+  await appendCopiedFollowRefs(code, recorded, report);
+  appendFollowReadRefs(report, recorded.record.destination, destination);
+  report.notices.push({ condition: "A later move ended this follow's cleanup. No remaining source refs were deleted; follow the new forwarding record.",
+    remedy: { text: "Bring in the latest tracked pointer, then run arc store migrate.", argv: ["arc", "store", "migrate"] } });
+  return true;
+}
+
+async function retainChangedSourceFollow(code: RefBackendContext, recorded: RecordedFollow,
+  observed: { source: ReadonlyMap<string, string>; destination: ReadonlyMap<string, string> }, report: MigrateReport): Promise<void> {
+  appendFollowReadRefs(report, recorded.record.source, observed.source);
+  appendFollowReadRefs(report, recorded.record.destination, observed.destination);
+  const witness = await captureDestinationWitness(code, recorded);
+  const current = await fetchMigrationRemote(code, recorded.record.destination, false);
+  appendFollowReadRefs(report, recorded.record.destination, current);
+  if (await retainLaterFollow(code, recorded, current, report, witness)) return;
+  report.notices.push({ condition: "The old source's forwarding record changed or was withdrawn; this follow ended cleanup without further source deletes.",
+    remedy: { text: "Review the state's current home and bring in its tracked pointer, then run arc store migrate if another follow is due.", argv: ["arc", "store", "migrate"] } });
+}

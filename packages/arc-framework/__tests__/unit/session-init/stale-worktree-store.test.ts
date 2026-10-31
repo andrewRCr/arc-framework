@@ -1,4 +1,5 @@
 /** Cleanup selection follows store placement, preserving exact remote removal admission. */
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { runStoreAbandon } from "../../../src/lib/work-unit/verbs/abandon-store.js";
 import { buildExecutorContext } from "../../../src/lib/work-unit/executor-context.js";
 import { createDefaultLocusPorts } from "../../../src/lib/work-unit/locus-ports.js";
@@ -21,9 +22,10 @@ import type { GitExec } from "../../../src/lib/git/exec.js";
 import { acquireDerivedLocusEvidence, type DerivedLocusEvidenceIO } from "../../../src/lib/locus/derived-evidence.js";
 import { readDerivedLocusRoster } from "../../../src/lib/locus/derived-reader.js";
 import type { SubjectMetaIO } from "../../../src/lib/locus/subject-meta.js";
+import type { WorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
 const base = "a".repeat(40), head = "b".repeat(40);
 const checkout = { path: "/checkout", branch: null, head, detached: true, primary: false, folderPresent: true };
-async function options(store: NonNullable<RunStaleWorktreeSweepOptions["store"]>, merged = true, spawned = true): Promise<RunStaleWorktreeSweepOptions> {
+async function options(store: NonNullable<RunStaleWorktreeSweepOptions["store"]>, subject: ReturnType<typeof boundWorkUnitSubject> | undefined, merged = true, spawned = true): Promise<RunStaleWorktreeSweepOptions> {
   const exec: GitExec = async (_command, args) => {
     if (args[0] === "worktree") return { stdout: worktreePorcelainZ(`worktree /primary\nHEAD ${base}\nbranch refs/heads/main`) };
     if (args[0] === "cherry") { expect(args).toEqual(["cherry", base, head]); return { stdout: merged ? "" : `+ ${head}\n` }; }
@@ -34,7 +36,7 @@ async function options(store: NonNullable<RunStaleWorktreeSweepOptions["store"]>
     baseBranch: "main", baseEvidence: { remoteSyncEnabled: true, snapshot: { kind: "available", scope: "all-heads", tips: { main: base } }, objectAvailability: { kind: "complete", commits: { [base]: true } }, history: { kind: "complete" } },
     readBlob: async () => null, scanWorktrees: async () => ({ ok: true, worktrees: [checkout] }), folderExists: async () => true,
     userSurfaceFs: { readDir: async () => [], readFile: async () => "", writeFile: async () => {}, mkdir: async () => {} },
-    readMarker: async () => ({ kind: "present", marker: { spawnedByArc: spawned, wuName: "done", createdFor: { kind: "work-unit", name: "done" }, spawningIdentity: "someone-else", createdAt: "2026-10-14T00:00:00Z" } }) });
+    readMarker: async () => ({ kind: "present", marker: { spawnedByArc: spawned, wuName: "done", createdFor: subject ?? { kind: "work-unit", name: "done" }, spawningIdentity: "someone-else", createdAt: "2026-10-14T00:00:00Z" } }) });
 }
 
 async function withDerivedRows(input: RunStaleWorktreeSweepOptions): Promise<RunStaleWorktreeSweepOptions> {
@@ -63,7 +65,7 @@ async function withDerivedRows(input: RunStaleWorktreeSweepOptions): Promise<Run
 async function conflictedPrimary(publish = true) {
   const h = createLifecycleHarness(), initial = await h.seedMeta("done", { state: "Planning", currentWorkflow: "draft-design" });
   const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   const other = lifecycleSuccess(await writer.read({ reference: initial.reference }));
   const localContent = initial.content + "\nLocal work\n", provenance = { verb: "update", lifecycleAction: "update" };
@@ -72,7 +74,7 @@ async function conflictedPrimary(publish = true) {
   lifecycleSuccess(await writer.write({ action: "put", reference: initial.reference, expected: other.version,
     placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
     content: renderMetaFile("done", { state: "Shipped", owner: "test-user", currentWorkflow: null }), provenance }));
-  const sync = async () => { lifecycleSuccess(await h.store.sync()); };
+  const sync = async () => { lifecycleSuccess(await h.store.push()); };
   if (publish) await sync();
   const resolve = async () => {
     const disputed = lifecycleSuccess(await h.store.read({ reference: initial.reference }));
@@ -84,11 +86,11 @@ async function conflictedPrimary(publish = true) {
 
 it("reports a detached pending rename through the enclosing sweep, withholding a stale HEAD until repaired", async () => {
   const h = createLifecycleHarness();
-  await h.seedMeta("new-name", { state: "Planning", currentWorkflow: "draft-design" });
+  const primary = await h.seedMeta("new-name", { state: "Planning", currentWorkflow: "draft-design" });
   const pending = { oldSlug: "old-name", newSlug: "new-name", branch: null, head, from: checkout.path, to: "/new-checkout" };
-  const original = await options(h.store);
+  const original = await options(h.store, boundWorkUnitSubject(primary));
   const input = await withDerivedRows({ ...original, readMarker: async () => ({ kind: "present", marker: {
-    spawnedByArc: true, wuName: "new-name", createdFor: { kind: "work-unit", name: "new-name" },
+    spawnedByArc: true, wuName: "new-name", createdFor: boundWorkUnitSubject(primary),
     spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00Z", renameMovePending: pending,
   } }) });
   const result = await runStaleWorktreeSweep(input);
@@ -111,16 +113,16 @@ it("withholds conflicted lifecycle and cleanup authority after sync and restores
   if (listing.status !== "complete") throw new Error("No lifecycle inventory");
   expect(listing.index.entries()).toEqual([]);
   expect(() => requireCompleteInventory(h.store, listing)).toThrow(/resolve.*retry/iu);
-  const sweep = await runStaleWorktreeSweep(await options(h.store));
+  const sweep = await runStaleWorktreeSweep(await options(h.store, boundWorkUnitSubject(h.initial)));
   expect(sweep.worktrees).toEqual([]);
   for (const conflict of disputed.conflicts) expect(sweep.warnings.join(" ")).toContain(JSON.stringify(conflict));
   await h.resolve();
   expect(lifecycleSuccess(await h.store.read({ reference: h.initial.reference })).conflicts).toEqual([]);
-  expect(await runStaleWorktreeSweep(await options(h.store))).toMatchObject({ worktrees: [], warnings: [] });
+  expect(await runStaleWorktreeSweep(await options(h.store, boundWorkUnitSubject(h.initial)))).toMatchObject({ worktrees: [], warnings: [] });
 });
 
 it("refuses a fresh primary conflict introduced after the complete inventory was acquired, then retries after resolution", async () => {
-  const h = await conflictedPrimary(false), original = await options(h.store), marker = await original.readMarker?.(checkout.path);
+  const h = await conflictedPrimary(false), original = await options(h.store, boundWorkUnitSubject(h.initial)), marker = await original.readMarker?.(checkout.path);
   if (!marker) throw new Error("No marker");
   let pendingSync = true;
   const input = { store: h.store, topology: [checkout], derivedRoster: original.derivedRoster ?? [], identity: "test-user", readMarker: async () => {
@@ -135,48 +137,101 @@ it("refuses a fresh primary conflict introduced after the complete inventory was
   expect(await selectStoreWorktreeCleanup(input)).toEqual({ ended: [], releases: [], warnings: [] });
 });
 it.each([true, false])("reports an ended branchless checkout and tests its HEAD for landing (%s)", async (merged) => {
-  const h = createLifecycleHarness(); await h.seedMeta("done", { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
-  const result = await runStaleWorktreeSweep(await options(h.store, merged));
+  const h = createLifecycleHarness(); const primary = await h.seedMeta("done", { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const result = await runStaleWorktreeSweep(await options(h.store, boundWorkUnitSubject(primary), merged));
   expect(result.worktrees).toHaveLength(1); expect(result.worktrees[0]).toMatchObject({ kind: "detached", workUnit: "done", branch: null,
     decision: merged ? { action: "removable" } : { action: "blocked", reason: "unmerged" } });
   expect(StaleWorktreeSweepResultSchema.safeParse(result).success).toBe(true);
 });
 it("offers release for a foreign marked checkout despite the marker's spawning identity", async () => {
-  const h = createLifecycleHarness(); await h.seedMeta("done", { state: "Planning", currentWorkflow: "draft-design", owner: "foreign" });
-  expect((await runStaleWorktreeSweep(await options(h.store))).worktrees[0]?.actions?.[0]?.argv).toEqual(["arc", "locus", "release", "done"]);
+  const h = createLifecycleHarness(); const primary = await h.seedMeta("done", { state: "Planning", currentWorkflow: "draft-design", owner: "foreign" });
+  expect((await runStaleWorktreeSweep(await options(h.store, boundWorkUnitSubject(primary)))).worktrees[0]?.actions?.[0])
+    .toEqual({ text: "arc locus release", argv: ["arc", "locus", "release"], checkout: "/checkout" });
+});
+it.each(["completed", "foreign", "backlog"] as const)("selects %s cleanup for a bound former-name marker", async state => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("done", { state: state === "completed" ? "Shipped" : "Planning",
+    currentWorkflow: state === "completed" ? null : "draft-design", owner: state === "foreign" ? "foreign" : "test-user" },
+    state === "completed" ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }
+      : state === "backlog" ? { kind: "backlog", commitment: "planned" } : { kind: "active" });
+  const original = await options(h.store, boundWorkUnitSubject(primary));
+  const marker = await original.readMarker!(checkout.path);
+  if (marker.kind !== "present" || marker.marker.createdFor?.kind !== "work-unit"
+    || marker.marker.provisioning !== undefined) throw new Error("Expected a bound work-unit marker");
+  const formerMarker: WorktreeMarker = { spawnedByArc: marker.marker.spawnedByArc,
+    spawningIdentity: marker.marker.spawningIdentity, createdAt: marker.marker.createdAt,
+    wuName: "former", createdFor: { ...boundWorkUnitSubject(primary), name: "former" } };
+  const input = await withDerivedRows({ ...original, readMarker: async () => ({ kind: "present", marker: formerMarker }) });
+  expect(input.derivedRoster?.[0]?.subject).toMatchObject({ kind: "work-unit", key: "done", uid: boundWorkUnitSubject(primary).uid });
+  const before = lifecycleSuccess(await h.store.version());
+  const selected = await selectStoreWorktreeCleanup({ store: h.store, topology: [checkout], derivedRoster: input.derivedRoster ?? [],
+    readMarker: path => input.readMarker!(path), identity: "test-user" });
+  expect(selected.warnings).toEqual([]);
+  if (state === "completed") expect(selected).toMatchObject({ ended: [{ checkout, owner: primary.reference.owner }], releases: [] });
+  else {
+    expect(selected.ended).toEqual([]);
+    expect(selected.releases).toHaveLength(1);
+    expect(selected.releases[0]?.actions).toEqual([{ text: "arc locus release", argv: ["arc", "locus", "release"], checkout: checkout.path }]);
+  }
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+});
+it("refuses a fresh marker UID that differs from the derived row, then retries after authority agrees", async () => {
+  const h = createLifecycleHarness(), placement = { kind: "completed" as const, quarter: ArchiveQuarterSchema.parse("2026-q4") };
+  const primary = await h.seedMeta("done", { state: "Shipped", currentWorkflow: null }, placement);
+  const other = await h.seedMeta("other", { state: "Shipped", currentWorkflow: null }, placement);
+  const original = await options(h.store, boundWorkUnitSubject(primary)), marker = await original.readMarker!(checkout.path);
+  if (marker.kind !== "present" || marker.marker.createdFor?.kind !== "work-unit"
+    || marker.marker.provisioning !== undefined) throw new Error("Expected a bound work-unit marker");
+  const select = (readMarker: NonNullable<RunStaleWorktreeSweepOptions["readMarker"]>) => selectStoreWorktreeCleanup({
+    store: h.store, topology: [checkout], derivedRoster: original.derivedRoster ?? [], readMarker, identity: "test-user",
+  });
+  const changedMarker: WorktreeMarker = { spawnedByArc: marker.marker.spawnedByArc,
+    spawningIdentity: marker.marker.spawningIdentity, createdAt: marker.marker.createdAt,
+    wuName: "done", createdFor: { ...boundWorkUnitSubject(other), name: "done" } };
+  expect(await select(async () => ({ kind: "present", marker: changedMarker })))
+    .toMatchObject({ ended: [], releases: [], warnings: [expect.stringContaining("Refresh and retry cleanup")] });
+  expect(await select(path => original.readMarker!(path)))
+    .toEqual({ ended: [{ checkout, owner: primary.reference.owner }], releases: [], warnings: [] });
 });
 it.each([true, false])("offers release for a marked checkout with no work-unit record (spawned=%s)", async spawned => {
-  const h = createLifecycleHarness(), input = await options(h.store, true, spawned);
+  const h = createLifecycleHarness(), input = await options(h.store, undefined, true, spawned);
   if (!spawned) {
-    expect(input.derivedRoster?.[0]?.actions?.[0]).toMatchObject({ text: expect.stringMatching(/finish it.*clear the marker/iu) });
-    expect(input.derivedRoster?.[0]?.actions?.[0]).not.toHaveProperty("argv");
+    expect(input.derivedRoster?.[0]).toMatchObject({ diagnostics: [{ code: "work-unit-marker-unbound" }],
+      actions: [{ argv: ["arc", "start", "done", "--new", "--here"], checkout: "/checkout" },
+        { argv: ["arc", "locus", "release"], checkout: "/checkout" }] });
   }
-  expect((await runStaleWorktreeSweep(input)).worktrees[0]?.actions?.[0]?.argv).toEqual(["arc", "locus", "release", "done"]);
+  expect((await runStaleWorktreeSweep(input)).worktrees[0]?.actions).toMatchObject([
+    ...(!spawned ? [{ argv: ["arc", "start", "done", "--new", "--here"], checkout: "/checkout" }] : []),
+    { argv: ["arc", "locus", "release"], checkout: "/checkout" },
+  ]);
 });
 it("withholds duplicate anchored cold-start releases and offers release after only one marker remains", async () => {
-  const h = createLifecycleHarness(), original = await options(h.store, true, false);
+  const h = createLifecycleHarness(), original = await options(h.store, undefined, true, false);
   const duplicate = await withDerivedRows({ ...original, scanWorktrees: async () => ({ ok: true, worktrees: [checkout, { ...checkout, path: "/stray" }] }) });
   const blocked = await runStaleWorktreeSweep(duplicate);
   expect(blocked.worktrees).toEqual([]);
   expect(blocked.warnings.join(" ")).toMatch(/multiple marker holders.*release the stray checkout/iu);
-  const repaired = await runStaleWorktreeSweep(await options(h.store, true, false));
-  expect(repaired.worktrees[0]?.actions?.[0]?.argv).toEqual(["arc", "locus", "release", "done"]);
+  const repaired = await runStaleWorktreeSweep(await options(h.store, undefined, true, false));
+  expect(repaired.worktrees[0]?.actions).toMatchObject([
+    { argv: ["arc", "start", "done", "--new", "--here"], checkout: "/checkout" },
+    { argv: ["arc", "locus", "release"], checkout: "/checkout" },
+  ]);
   expect(repaired.warnings).toEqual([]);
 });
 it("preserves the physical-removal remote gate for ended store records", async () => {
-  const h = createLifecycleHarness(); await h.seedMeta("done", { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
-  const input = await options(h.store); input.baseEvidence = { remoteSyncEnabled: false, snapshot: { kind: "unreachable", failureReason: "network" }, objectAvailability: { kind: "complete", commits: {} }, history: { kind: "complete" } };
+  const h = createLifecycleHarness(); const primary = await h.seedMeta("done", { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const input = await options(h.store, boundWorkUnitSubject(primary)); input.baseEvidence = { remoteSyncEnabled: false, snapshot: { kind: "unreachable", failureReason: "network" }, objectAvailability: { kind: "complete", commits: {} }, history: { kind: "complete" } };
   expect((await runStaleWorktreeSweep(input)).worktrees[0]?.decision).toEqual({ action: "blocked", reason: "evidence-unavailable" });
 });
 
 it("keeps a branchless abandoned checkout in no-record release selection", async () => {
-  const h = createLifecycleHarness(); await h.seedMeta("done");
+  const h = createLifecycleHarness(); const primary = await h.seedMeta("done");
   const exec = async () => { throw new Error("No Git lifecycle artifact applies"); };
   const executor = buildExecutorContext({ cwd: "/absent", store: h.store, io: { ...createUserIOContext(), exec }, identity: "test-user", teamMode: false,
-    internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null } });
+    internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) } });
   expect(await runStoreAbandon({ executor }, { name: "done", confirmed: true })).toMatchObject({ status: "abandoned" });
-  const result = await runStaleWorktreeSweep(await options(h.store));
-  expect(result.worktrees[0]).toMatchObject({ kind: "detached", actions: [{ argv: ["arc", "locus", "release", "done"] }] });
+  const result = await runStaleWorktreeSweep(await options(h.store, boundWorkUnitSubject(primary)));
+  expect(result.worktrees[0]).toMatchObject({ kind: "detached", actions: [{ argv: ["arc", "locus", "release"], checkout: "/checkout" }] });
   expect(result.retirements).toEqual([]);
 });
 
@@ -185,9 +240,9 @@ it("withholds a missing-primary release after lineage becomes disputed and retri
   const primary = await h.seedMeta("done", {}, { kind: "active" }, { branches: [{ repository: "project", ref: "feat/done", linkedAs: "created", excluded: [] }] });
   const exec = async () => { throw new Error("No Git lifecycle artifact applies"); };
   const executor = buildExecutorContext({ cwd: "/absent", store: h.store, io: { ...createUserIOContext(), exec }, identity: "test-user", teamMode: false,
-    internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null } });
+    internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) } });
   expect(await runStoreAbandon({ executor }, { name: "done", confirmed: true })).toMatchObject({ status: "abandoned" });
-  const input = await options(h.store), reference = recordReferences["lineage/transition"](primary.reference.owner);
+  const input = await options(h.store, boundWorkUnitSubject(primary)), reference = recordReferences["lineage/transition"](primary.reference.owner);
   const initial = lifecycleSuccess(await h.store.read({ reference })), fields = LineageRecordSchema.parse(initial.fields);
   const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
   const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
@@ -195,9 +250,9 @@ it("withholds a missing-primary release after lineage becomes disputed and retri
     placement: { kind: "active" }, links: { branches: (fields.retiredBranches ?? []).map(link => ({ ...link, excluded: [{ repository: link.repository, sha: base }] })) },
     provenance: { verb: "seed-lifecycle", lifecycleAction: "create" } }));
   const remoteExecutor = buildExecutorContext({ cwd: "/absent", store: writer, io: { ...createUserIOContext(), exec }, identity: "test-user", teamMode: false,
-    internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null } });
+    internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) } });
   expect(await runStoreAbandon({ executor: remoteExecutor }, { name: "done", confirmed: true })).toMatchObject({ status: "abandoned" });
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const disputed = lifecycleSuccess(await h.store.read({ reference }));
   expect(disputed.conflicts.length).toBeGreaterThan(0);
   const selected = await selectStoreWorktreeCleanup({ store: h.store, topology: [checkout], derivedRoster: input.derivedRoster ?? [],
@@ -210,15 +265,16 @@ it("withholds a missing-primary release after lineage becomes disputed and retri
     lifecycleSuccess(await h.store.write({ action: "remove", reference, expected: conflict.version, resolves: [reference],
       provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
   }
-  expect((await runStaleWorktreeSweep(await options(h.store))).worktrees[0]?.actions?.[0]?.argv)
-    .toEqual(["arc", "locus", "release", "done"]);
+  expect((await runStaleWorktreeSweep(await options(h.store, boundWorkUnitSubject(primary)))).worktrees[0]?.actions?.[0]?.argv)
+    .toEqual(["arc", "locus", "release"]);
 });
 
 it.each(["completed", "foreign", "missing"] as const)("withholds cleanup and release for duplicate %s holders, then retries after releasing the stray claim", async state => {
   const h = createLifecycleHarness();
-  if (state === "completed") await h.seedMeta("done", { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
-  if (state === "foreign") await h.seedMeta("done", { state: "Planning", currentWorkflow: "draft-design", owner: "foreign" });
-  const original = await options(h.store);
+  let primary;
+  if (state === "completed") primary = await h.seedMeta("done", { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  if (state === "foreign") primary = await h.seedMeta("done", { state: "Planning", currentWorkflow: "draft-design", owner: "foreign" });
+  const original = await options(h.store, primary === undefined ? undefined : boundWorkUnitSubject(primary));
   const duplicate = await withDerivedRows({ ...original, scanWorktrees: async () => ({ ok: true, worktrees: [checkout, { ...checkout, path: "/stray" }] }) });
   expect(duplicate.derivedRoster?.every(row => row.kind === "unresolved-checkout")).toBe(true);
   const result = await runStaleWorktreeSweep(duplicate);
@@ -226,10 +282,10 @@ it.each(["completed", "foreign", "missing"] as const)("withholds cleanup and rel
   expect(result.warnings.join(" ")).toMatch(/multiple marker holders.*release the stray checkout/iu);
   expect(result.warnings.join(" ")).toContain(checkout.path);
   expect(result.warnings.join(" ")).toContain("/stray");
-  const repaired = await runStaleWorktreeSweep(await options(h.store));
+  const repaired = await runStaleWorktreeSweep(await options(h.store, primary === undefined ? undefined : boundWorkUnitSubject(primary)));
   expect(repaired.worktrees).toHaveLength(1);
   expect(repaired.worktrees[0]).toMatchObject(state === "completed" ? { decision: { action: "removable" } }
-    : { actions: [{ argv: ["arc", "locus", "release", "done"] }] });
+    : { actions: [{ argv: ["arc", "locus", "release"], checkout: "/checkout" }] });
 });
 
 it("withholds the branched abandonment retirement offer for duplicate holders, then restores it for the sole holder", async () => {
@@ -239,17 +295,62 @@ it("withholds the branched abandonment retirement offer for duplicate holders, t
   const path = await mkdtemp(join(tmpdir(), "arc-retired-holder-"));
   try {
   const h = createLifecycleHarness();
-  await h.seedMeta("done", {}, { kind: "active" }, { branches: [{ repository: "project", ref: "feat/done", linkedAs: "created", excluded: [] }] });
+  const primary = await h.seedMeta("done", {}, { kind: "active" }, { branches: [{ repository: "project", ref: "feat/done", linkedAs: "created", excluded: [] }] });
   const exec = async () => { throw new Error("No Git lifecycle artifact applies"); };
   const executor = buildExecutorContext({ cwd: "/absent", store: h.store, io: { ...createUserIOContext(), exec }, identity: "test-user", teamMode: false,
-    internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null } });
+    internalTemplateDir: "/templates", projectId: async () => "project", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) } });
   expect(await runStoreAbandon({ executor }, { name: "done", confirmed: true })).toMatchObject({ status: "abandoned" });
-  const original = await options(h.store), branched = { ...checkout, path, branch: "feat/done", detached: false };
+  const original = await options(h.store, boundWorkUnitSubject(primary)), branched = { ...checkout, path, branch: "feat/done", detached: false };
   const input = { ...original, projectId: async () => "project", scanWorktrees: async () => ({ ok: true as const, worktrees: [branched, { ...checkout, path: "/stray" }] }) };
   const duplicate = await withDerivedRows(input);
   expect(duplicate.derivedRoster?.every(row => row.kind === "unresolved-checkout")).toBe(true);
   expect((await runStaleWorktreeSweep(duplicate)).retirements).toEqual([]);
   const repaired = await withDerivedRows({ ...input, scanWorktrees: async () => ({ ok: true, worktrees: [branched] }) });
-  expect((await runStaleWorktreeSweep(repaired)).retirements).toMatchObject([{ status: "actionable", teardown: { argv: ["arc", "teardown", "done"] } }]);
+  expect((await runStaleWorktreeSweep(repaired)).retirements).toMatchObject([{ status: "actionable", teardown: { argv: ["arc", "teardown", boundWorkUnitSubject(primary).uid] } }]);
   } finally { await rm(path, { recursive: true, force: true }); }
+});
+
+
+it.each([false, true])("offers only the archived holder's teardown beside live work (detached=%s)", async detached => {
+  const h = createLifecycleHarness();
+  const archived = await h.seedMeta("done", { state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const live = await h.seedMeta("done"), before = lifecycleSuccess(await h.store.version());
+  const original = await options(h.store, boundWorkUnitSubject(archived));
+  const ended = { ...checkout, branch: detached ? null : "feat/archived", detached };
+  const liveCheckout = { ...checkout, path: "/live", branch: "feat/live", detached: false };
+  const input = await withDerivedRows({ ...original,
+    exec: async (command, args, opts) => args[0] === "cherry" ? { stdout: "" } : original.exec(command, args, opts),
+    scanWorktrees: async () => ({ ok: true, worktrees: [ended, liveCheckout] }),
+    readMarker: async path => ({ kind: "present", marker: { spawnedByArc: true, wuName: "done",
+      createdFor: boundWorkUnitSubject(path === "/live" ? live : archived), spawningIdentity: "test-user", createdAt: "2026-10-14T00:00:00Z" } }),
+  });
+  const result = await runStaleWorktreeSweep(input);
+  const teardown = { argv: ["arc", "teardown", archived.reference.owner.type !== "person" ? archived.reference.owner.uid : undefined],
+    text: `arc teardown ${archived.reference.owner.type !== "person" ? archived.reference.owner.uid : undefined}` };
+  expect(result.warnings).toEqual([]);
+  expect(result.worktrees).toEqual([expect.objectContaining({ worktreePath: "/checkout", kind: detached ? "detached" : "branched",
+    decision: { action: "removable" }, teardown, actions: [teardown] })]);
+  expect(StaleWorktreeSweepResultSchema.safeParse(result).success).toBe(true);
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+});
+
+it.each([false, true])("reports a pre-store work-unit husk blocked for manual cleanup (live namesake=%s)", async live => {
+  const h = createLifecycleHarness();
+  if (live) await h.seedMeta("done");
+  const original = await options(h.store, undefined), readMarker = original.readMarker;
+  if (!readMarker) throw new Error("Expected marker reader");
+  const input = await withDerivedRows({ ...original, readMarker: async path => {
+    const read = await readMarker(path);
+    if (read.kind !== "present") throw new Error("Expected marker");
+    return { kind: "present", marker: { ...read.marker, spawningIdentity: "test-user", husk: { sha: head, at: "2026-10-24T00:00:00Z",
+      subject: { kind: "work-unit", name: "done" }, branch: "feat/done" } } };
+  } });
+  const result = await runStaleWorktreeSweep(input);
+  expect(result.warnings).toEqual([]);
+  expect(result.worktrees).toEqual([expect.objectContaining({ kind: "husk", worktreePath: checkout.path,
+    stamp: { kind: "manual-only", reason: "pre-store-husk" }, decision: { action: "blocked", reason: "pre-store-husk" },
+    actions: [{ text: expect.stringContaining("manual decision") }] })]);
+  expect(JSON.stringify(result.worktrees)).not.toContain("arc teardown");
+  expect(StaleWorktreeSweepResultSchema.safeParse(result).success).toBe(true);
 });

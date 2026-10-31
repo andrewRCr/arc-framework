@@ -15,19 +15,20 @@ import {
   createTempRepo,
   cleanupTempDir,
   makeIOContext,
-  loadRecipe,
   DEFAULT_PROMPTS,
   listFiles,
   sha256,
   readFile,
   join,
+  dirname,
+  rm,
+  fileExists,
   execFileAsync,
-  getArcTemplatePath,
-  getInternalTemplatePath,
   readManifestFile,
   readPristineStore,
   manifestPath,
 } from "../helpers/integration.js";
+import { loadRecipe, getArcTemplatePath, getInternalTemplatePath } from "../helpers/init-temp-repo.js";
 import { runInit, buildPostInitMessage } from "../../src/commands/init.js";
 import type { InitResult } from "../../src/commands/init.js";
 import type { Recipe } from "../../src/lib/types.js";
@@ -723,6 +724,57 @@ describe("init integration (existing installation)", () => {
       expect(ufErr.whatToDo).toContain("arc join");
       expect(ufErr.whatToDo).toContain("arc update");
     }
+  });
+});
+
+describe("init integration — files already at install paths", () => {
+  let tempDir: string;
+  const INSTALLED_FILE = "system/rules/DEV-RULES.ARC.md";
+
+  beforeEach(async () => {
+    tempDir = await createTempRepo("arc-init-occupied-");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+  });
+
+  const init = async () => runInit({
+    cwd: tempDir,
+    io: makeIOContext(tempDir),
+    templateDir,
+    internalTemplateDir,
+    recipe: await loadRecipe(),
+    prompts,
+    identityResult: "test-user",
+  });
+
+  it("a foreign file at an install path → refuses before writing, and installs once moved aside", async () => {
+    const foreign = join(tempDir, ".arc", INSTALLED_FILE);
+    await mkdir(dirname(foreign), { recursive: true });
+    await writeFile(foreign, "# Earlier rules\n");
+
+    const refusal = await init().catch((err: unknown) => err);
+
+    expect(refusal).toBeInstanceOf(UserFacingError);
+    expect(refusal).toMatchObject({ code: "manifest.install-paths-occupied" });
+    expect((refusal as UserFacingError).why).toContain(`.arc/${INSTALLED_FILE}`);
+    expect(await readFile(foreign, "utf-8")).toBe("# Earlier rules\n");
+    expect(await fileExists(join(tempDir, ".arc", "system", "arc-config.yml"))).toBe(false);
+    expect(await fileExists(manifestPath(tempDir))).toBe(false);
+
+    await rm(foreign);
+    expect(await init()).not.toBeNull();
+    expect(await readFile(foreign, "utf-8")).toBe(await readFile(join(templateDir, INSTALLED_FILE), "utf-8"));
+  });
+
+  it("a file at an install path that already holds what init writes → installs", async () => {
+    const installed = join(tempDir, ".arc", INSTALLED_FILE);
+    await mkdir(dirname(installed), { recursive: true });
+    await writeFile(installed, await readFile(join(templateDir, INSTALLED_FILE), "utf-8"));
+
+    expect(await init()).not.toBeNull();
+    expect(await fileExists(manifestPath(tempDir))).toBe(true);
   });
 });
 

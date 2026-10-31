@@ -8,7 +8,7 @@ for (const stage of ["pre", "post", "rollback"] as const) {
   it.each(["canceled", "output-limit", "unknown", "unexpected-exit"] as const)(`retains ${stage} tip %s failure with no publication and recovers after repair`, async (kind) => {
     const h = await syncFixture();
     await h.b.inbox("remote contested bytes\n");
-    success(await h.b.store.sync());
+    success(await h.b.store.push());
     await h.a.inbox("local contested bytes\n");
     const remoteBefore = (await h.remote("git", ["rev-parse", syncNotesRef])).stdout;
     const actual = h.a.ports.exec, lock = h.a.ports.locks.notes;
@@ -40,7 +40,7 @@ for (const stage of ["pre", "post", "rollback"] as const) {
       return result;
     };
     let failure: unknown;
-    try { await h.a.store.sync(); } catch (error) { failure = error; }
+    try { await h.a.store.push(); } catch (error) { failure = error; }
     expect(original).toBeDefined();
     expect(preMerge).toBeDefined();
     if (stage === "pre") {
@@ -66,14 +66,14 @@ for (const stage of ["pre", "post", "rollback"] as const) {
     await h.a.exec("git", ["fetch", "origin", `${syncNotesRef}:refs/arc/test/remote-notes`]);
     await h.a.exec("git", ["update-ref", syncNotesRef, remoteBefore.trim(), preMerge!]);
     await h.a.inbox("combined local and remote contested bytes\n");
-    expect(success(await h.a.store.sync()).publishes[0]?.status).toBe("pushed");
+    expect(success(await h.a.store.push()).publishes[0]?.status).toBe("pushed");
   });
 }
 
 it.each(["pre", "post"] as const)("distinguishes certified %s absence during notes reconciliation", async (stage) => {
   const h = await syncFixture();
   await h.b.inbox("remote bytes\n");
-  success(await h.b.store.sync());
+  success(await h.b.store.push());
   await h.a.inbox("local bytes\n");
   const exec = h.a.ports.exec, lock = h.a.ports.locks.notes;
   let holds = 0, reconciling = false, merged = false, removed = false;
@@ -96,8 +96,8 @@ it.each(["pre", "post"] as const)("distinguishes certified %s absence during not
     if (reconciling && args[0] === "notes" && args.includes("cat_sort_uniq")) merged = true;
     return result;
   };
-  if (stage === "pre") expect(success(await h.a.store.sync()).publishes[0]?.status).toBe("noop");
-  else await expect(h.a.store.sync()).rejects.toMatchObject({ code: "store.sync-failed",
+  if (stage === "pre") expect(success(await h.a.store.push()).publishes[0]?.status).toBe("noop");
+  else await expect(h.a.store.push()).rejects.toMatchObject({ code: "store.sync-failed",
     cause: { message: expect.stringContaining("Before retry") } });
   expect(removed).toBe(true);
   expect(anchor).toBeDefined();
@@ -125,7 +125,7 @@ it.each(["canceled", "output-limit", "timed-out", "signaled", "unclassified"] as
     return actual(command, args, options);
   };
   let failure: unknown;
-  try { await h.a.store.sync(); } catch (error) { failure = error; }
+  try { await h.a.store.push(); } catch (error) { failure = error; }
   expect(original).toBeDefined();
   expect(failure).toMatchObject({ code: "store.sync-failed", cause: original });
   expect(afterFailure.filter((args) => args[0] === "fetch" || args[0] === "push"
@@ -134,7 +134,7 @@ it.each(["canceled", "output-limit", "timed-out", "signaled", "unclassified"] as
   expect((await h.a.exec("git", ["rev-parse", syncNotesRef])).stdout).toBe(savedTip);
   expect((await h.a.exec("git", ["ls-remote", "origin", syncNotesRef])).stdout).toBe(remote);
   h.a.ports.exec = actual;
-  expect(success(await h.a.store.sync()).publishes[0]?.status).toBe("pushed");
+  expect(success(await h.a.store.push()).publishes[0]?.status).toBe("pushed");
   const repairedTip = (await h.a.exec("git", ["rev-parse", syncNotesRef])).stdout.trim();
   expect((await h.a.exec("git", ["ls-remote", "origin", syncNotesRef])).stdout.trim()).toBe(`${repairedTip}\t${syncNotesRef}`);
 });

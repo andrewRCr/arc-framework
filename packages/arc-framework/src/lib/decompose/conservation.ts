@@ -93,7 +93,7 @@ async function acquireTargetArtifacts(store: Store, input: DecomposeTerminalReco
   if (primary === undefined || primary === null) return { status: "ok", result: [] };
   let records = home?.records;
   if (records === undefined) {
-    const acquired = await acquireLifecycleRecords(store, primary.reference.owner.name);
+    const acquired = await acquireLifecycleRecords(store, primary.reference);
     if (acquired.status === "refused") return decomposeStoreRefusal(acquired.refusal);
     records = acquired.result;
   }

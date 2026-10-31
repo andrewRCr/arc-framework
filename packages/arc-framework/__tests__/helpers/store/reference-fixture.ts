@@ -3,9 +3,9 @@
 import { randomUUID } from "node:crypto";
 import {
   FAMILY_IDS, FAMILY_REGISTRY, KIND_SHAPES, KIND_REGISTRY, OwnerIdentitySchema, RecordReferenceSchema,
-  ConflictRecordSchema, createKindRegistry, familyOf, type KindId, type KindDefinition, type RecordParser,
+  familyOf, type KindId, type KindDefinition, type RecordReference,
 } from "../../../src/lib/store/index.js";
-import { ENTRY_REGISTRATIONS } from "../../../src/lib/store/kinds/entry-registration.js";
+import { createConformanceTestRegistry } from "./test-registry.js";
 import { ReferenceBackend } from "./reference-backend.js";
 import { canonicalReference, currentStateVersion, recordKey } from "./model.js";
 import { surfaceLock } from "./refusals.js";
@@ -14,31 +14,19 @@ import { createMemoryRemote } from "./sync.js";
 import { produceReferenceRecovery, type ReferenceRecoveryState } from "./reference-recovery.js";
 import { writeReference } from "./write.js";
 
-const jsonParser: RecordParser = (content) => {
-  try {
-    const data: unknown = JSON.parse(content);
-    return typeof data === "object" && data !== null && !Array.isArray(data)
-      ? { success: true, data } : { success: false, error: "Expected a test machine-record object." };
-  } catch { return { success: false, error: "Expected the valid test machine-record JSON format." }; }
-};
-const conflictParser: RecordParser = (content) => {
-  try { const parsed = ConflictRecordSchema.safeParse(JSON.parse(content)); return parsed.success ? { success: true, data: parsed.data } : { success: false, error: "Expected a typed conflict record." }; }
-  catch { return { success: false, error: "Expected valid conflict-record JSON." }; }
-};
-
 /** Reference serves every role; named exclusions are only interim backend-specific cases. */
 export const referenceDeclarations: FixtureDeclarations = {
   families: FAMILY_IDS, unservedFamilies: {}, mergesConcurrentWrites: true, runsWriteChecks: true, substrates: ["memory"], stateOffBranch: true,
   liveListingStateVersion: true,
   syncFamilies: FAMILY_IDS,
   identitySyncFamilies: FAMILY_IDS.filter((family) => FAMILY_REGISTRY[family].scope === "identity"),
-  entryShapes: {},
+  entryShapes: Object.fromEntries(["work-item/description", "work-item/inbound", "personal/errand-queue"].map((kind) => [kind, { shape: "heading", sections: ["Entries"] }])),
   familyExclusions: Object.fromEntries(FAMILY_IDS.map((family) => [family, { items: {
     5: "Memory has one atomic substrate; only the in-repo backend refuses a cross-substrate batch.",
     8: "Memory state versions cover every record in the namespace.",
   } }])),
   refusalExclusions: {
-    "state-unresolvable": "Memory retains every saved snapshot and throws for an unknown state version; named history-ref recovery is tested through a scripted Store wrapper.",
+    "command-line-capacity": "Memory publication launches no native Git process.",
     "checkout-not-writable": "A memory namespace has no checkout write authority.",
     "unsupported:cross-substrate-batch": "Every memory batch uses one atomic substrate.",
     "unsupported:uncovered-state-version": "Memory snapshots cover every family.",
@@ -57,24 +45,18 @@ export const referenceDeclarations: FixtureDeclarations = {
     "transient-write:record-malformed": "Reference writes validate only the named record, never another record on a transient identity ref.",
   },
   rejectingContentUnavailable: Object.fromEntries((Object.keys(KIND_SHAPES) as KindId[])
-    .filter((kind) => KIND_REGISTRY[kind].merge !== "single-writer").map((kind) => [kind, "Entry-free prose is valid; production entry field and trigger refusals have kind-specific tests."])),
+    .filter((kind) => KIND_REGISTRY[kind].merge !== "single-writer").map((kind) => [kind, "No write parser is registered for this prose or entry-list test kind."])),
 };
 
-/** Open a fresh reference fixture with production entry grammars and isolated test machine-record parsers.
- * @param entryShapes - Optional explicit overrides of production entry-list grammars.
+/** Open a fresh reference fixture with pure test field parsers, never production field schemas.
+ * @param entryShapes - Optional generic test grammars for reserved entry-list kinds.
  * @param registryOverrides - Isolated test definitions for parser and format behavior.
  * @returns All backend-neutral hooks over an independently owned memory namespace.
  */
 export function createReferenceFixture(entryShapes: FixtureDeclarations["entryShapes"] = {},
   registryOverrides: Partial<Record<KindId, Partial<KindDefinition>>> = {}): ConformanceFixture {
   const declarations = { ...referenceDeclarations, entryShapes: { ...referenceDeclarations.entryShapes, ...entryShapes } };
-  const parsers = Object.fromEntries((Object.keys(KIND_SHAPES) as KindId[])
-    .filter((kind) => KIND_REGISTRY[kind].merge === "single-writer").map((kind) => [kind, kind.endsWith("/conflict-record") ? conflictParser : jsonParser]));
-  const definitions = createKindRegistry([...ENTRY_REGISTRATIONS, ...Object.entries(parsers).map(([kind, parser]) => ({ kind: kind as KindId, parser }))]);
-  const registry = Object.fromEntries((Object.keys(definitions) as KindId[]).map((kind) => [kind, {
-    ...definitions[kind], ...(declarations.entryShapes[kind] ? { entry: declarations.entryShapes[kind] } : {}),
-    ...registryOverrides[kind],
-  }])) as typeof definitions;
+  const registry = createConformanceTestRegistry(declarations.entryShapes, registryOverrides);
   let clock = 0;
   const store = new ReferenceBackend({ registry, environment: { identity: "test-user", actor: "local", now: () => clock, wait: (milliseconds) => { clock += milliseconds; } } });
   const remote = createMemoryRemote();
@@ -88,31 +70,11 @@ export function createReferenceFixture(entryShapes: FixtureDeclarations["entrySh
       const shape = KIND_SHAPES[kind];
       const name = shape.owner === "person" ? "test-user" : `${shape.owner}-${suffix}`;
       const owner = OwnerIdentitySchema.parse({ type: shape.owner, name });
-      const key = shape.key === "pass" ? { activity: "review", number: suffix === "two" ? 2 : 1 }
+      const key = kind === "work-item/companion" ? suffix : shape.key === "pass" ? { activity: "review", number: suffix === "two" ? 2 : 1 }
         : shape.key === "path" ? `scratch/${suffix}.md` : suffix;
       return RecordReferenceSchema.parse({ owner, kind, ...(shape.key === null ? {} : { key }) });
     },
-    content(reference, variant = "valid") {
-      if (variant === "invalid") return "invalid machine JSON";
-      if (reference.kind.endsWith("/conflict-record")) {
-        const target = (Object.keys(KIND_SHAPES) as KindId[]).find((kind) => familyOf(kind) === familyOf(reference.kind) && !kind.endsWith("/conflict-record"))!;
-        const targetReference = RecordReferenceSchema.parse({ owner: reference.owner, kind: target,
-          ...(KIND_SHAPES[target].key === null ? {} : { key: KIND_SHAPES[target].key === "pass" ? { activity: "test", number: 1 } : "one" }) });
-        const value = (content: string) => ({ reference: targetReference, content, version: `record:fixture:${content}`, formatVersion: 1,
-          ...(["work-item", "review"].includes(familyOf(target)) ? { placement: { kind: "active" } } : {}) });
-        return JSON.stringify({ record: targetReference, location: { kind: "record" }, base: value("base"),
-          current: { value: value("current"), label: { actor: "current", time: new Date(0).toISOString() } },
-          incoming: { value: value("incoming"), label: { actor: "incoming", time: new Date(0).toISOString() } } });
-      }
-      if (registry[reference.kind].merge === "single-writer") return JSON.stringify({ value: variant === "changed-again" ? 3 : variant === "changed" ? 2 : 1, claimId: "1".repeat(32) });
-      if (registry[reference.kind].merge === "entry") {
-        const config = registry[reference.kind].entry;
-        if (config === undefined) throw new Error(`Missing entry grammar for ${reference.kind}`);
-        const header = config.shape === "heading" ? "### [ ] **First**\n\n" : "**First:**\n_Remove when: trigger satisfied._\n";
-        return `# Entries\n\n## ${config.sections[0]}\n\n${header}${config.shape === "heading" ? "- " : ""}_Id:_ \`11111111\`\n\n${variant === "changed-again" ? "another change" : variant === "changed" ? "changed" : "first"}\n`;
-      }
-      return variant === "changed-again" ? "opening\nanother change\nclosing\n" : variant === "changed" ? "opening\nchanged\nclosing\n" : "opening\nbase\nclosing\n";
-    },
+    content: (reference, variant) => referenceContent(reference, registry, variant),
     async settle() { return currentStateVersion(store.state); },
     reopen() { return new ReferenceBackend({ state: store.state, environment: store.environment, registry, publication: store.context.publication }); },
     async race(left, right) { return Promise.all([store.write(left), store.write(right)]); },
@@ -160,3 +122,26 @@ export function createReferenceFixture(entryShapes: FixtureDeclarations["entrySh
 
 /** Static fixture registration consumed by the shared conformance suite. */
 export const referenceRegistration: ConformanceRegistration = { declarations: referenceDeclarations, create: (registryOverrides) => createReferenceFixture(undefined, registryOverrides) };
+
+/** Generate bytes accepted by the generic test registry. */
+export function referenceContent(reference: RecordReference, registry: ReturnType<typeof createConformanceTestRegistry>,
+  variant: "valid" | "changed" | "changed-again" | "invalid" = "valid"): string {
+  if (variant === "invalid") return "invalid machine JSON";
+  if (reference.kind.endsWith("/conflict-record")) {
+    const target = (Object.keys(KIND_SHAPES) as KindId[]).find((kind) => familyOf(kind) === familyOf(reference.kind) && !kind.endsWith("/conflict-record"))!;
+    const targetReference = RecordReferenceSchema.parse({ owner: reference.owner, kind: target,
+      ...(KIND_SHAPES[target].key === null ? {} : { key: KIND_SHAPES[target].key === "pass" ? { activity: "test", number: 1 } : "one" }) });
+    const value = (content: string) => ({ reference: targetReference, content, version: `record:fixture:${content}`, formatVersion: 1,
+      ...(["work-item", "review"].includes(familyOf(target)) ? { placement: { kind: "active" } } : {}) });
+    return JSON.stringify({ record: targetReference, location: { kind: "record" }, base: value("base"),
+      current: { value: value("current"), label: { actor: "current", time: new Date(0).toISOString() } },
+      incoming: { value: value("incoming"), label: { actor: "incoming", time: new Date(0).toISOString() } } });
+  }
+  if (registry[reference.kind].merge === "single-writer") return JSON.stringify({ value: variant === "changed-again" ? 3 : variant === "changed" ? 2 : 1, claimId: "1".repeat(32) });
+  if (registry[reference.kind].merge === "entry") {
+    const config = registry[reference.kind].entry ?? { shape: "heading", sections: ["Entries"] };
+    const header = config.shape === "heading" ? "### [ ] **First**\n\n" : "**First:**\n_Remove when:_ trigger satisfied\n";
+    return `# Entries\n\n## ${config.sections[0]}\n\n${header}${config.shape === "heading" ? "- " : ""}_Id:_ \`11111111\`\n\n${variant === "changed-again" ? "another change" : variant === "changed" ? "changed" : "first"}\n`;
+  }
+  return variant === "changed-again" ? "opening\nanother change\nclosing\n" : variant === "changed" ? "opening\nchanged\nclosing\n" : "opening\nbase\nclosing\n";
+}

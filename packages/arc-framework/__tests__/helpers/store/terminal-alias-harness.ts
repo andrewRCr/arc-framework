@@ -11,8 +11,8 @@ export async function importRetiredAlias(store: ReferenceBackend, former: string
   await independent.seedRetiredWorkUnit(primary);
   const remote = createMemoryRemote();
   store.context.publication.remote = remote;
-  lifecycleSuccess(await store.sync());
+  lifecycleSuccess(await store.push());
   independent.store.context.publication.remote = remote;
-  lifecycleSuccess(await independent.store.sync());
-  lifecycleSuccess(await store.sync());
+  lifecycleSuccess(await independent.store.push());
+  lifecycleSuccess(await store.push());
 }

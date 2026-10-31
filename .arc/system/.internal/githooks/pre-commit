@@ -504,17 +504,17 @@ fi
 # downstream WU.
 #
 # This check, the cohort-consistency check, and the ROADMAP assert run their
-# scripts from ARC's own checkout only. The storage cutover retires all three, so
-# an installed project, which has no package source, skips each with a notice.
-skip_retiring_check() {
-    echo -e "${YELLOW}Notice: $1 skipped; it runs only in ARC's own checkout, and the storage cutover retires it.${NC}"
+# scripts from ARC's package source, so an installed project, which has none,
+# skips each with a notice.
+skip_source_only_check() {
+    echo -e "${YELLOW}Notice: $1 skipped; it needs ARC's package source, which this installation does not include.${NC}"
 }
 
 meta_spec_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -E '^\.arc/(active(/[^/]+)?|backlog/(planned|provisional)(/.+)?|completed(/.+)?)/meta-[^/]+\.md$' || true)
 
 if [ -n "$meta_spec_candidates" ] && [ ! -f packages/arc-framework/src/scripts/validate-meta-spec.ts ]; then
-    skip_retiring_check "Meta-file validation"
+    skip_source_only_check "Meta-file validation"
 elif [ -n "$meta_spec_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
     if ! meta_spec_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/validate-meta-spec.ts $meta_spec_candidates 2>&1); then
@@ -576,7 +576,7 @@ cohort_consistency_candidates=$(git diff --cached --name-only --diff-filter=ACMR
     grep -E '^\.arc/backlog/planned/([^/]+/)*(meta|cohort)-[^/]+\.md$' || true)
 
 if [ -n "$cohort_consistency_candidates" ] && [ ! -f packages/arc-framework/src/scripts/validate-cohort-consistency.ts ]; then
-    skip_retiring_check "Cohort-consistency validation"
+    skip_source_only_check "Cohort-consistency validation"
 elif [ -n "$cohort_consistency_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
     if ! cohort_consistency_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/validate-cohort-consistency.ts $cohort_consistency_candidates 2>&1); then
@@ -603,7 +603,7 @@ if [ "$pm_mode" = "arc-in-git" ]; then
         grep -E '^\.arc/backlog/ROADMAP\.md$' || true)
 
     if [ -n "$roadmap_assert_candidate" ] && [ ! -f packages/arc-framework/src/scripts/assert-roadmap-regenerated.ts ]; then
-        skip_retiring_check "ROADMAP regeneration assert"
+        skip_source_only_check "ROADMAP regeneration assert"
     elif [ -n "$roadmap_assert_candidate" ]; then
         if ! roadmap_assert_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/assert-roadmap-regenerated.ts 2>&1); then
             echo -e "${RED}Error: ROADMAP is not regenerated from sources:${NC}"

@@ -7,9 +7,10 @@
  * @module
  */
 
+import { resolve } from "node:path";
 import * as p from "../lib/terminal.js";
 
-import { resolveIdentity, isGitRepo, type GitExec } from "../lib/git/index.js";
+import { resolveIdentity, isGitRepo, resolvePrimaryWorktreePath, type GitExec } from "../lib/git/index.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
 import { assertNever } from "../lib/kernel/index.js";
@@ -298,4 +299,34 @@ export async function requireGitRepo(exec: GitExec): Promise<boolean> {
   })));
   process.exitCode = 1;
   return false;
+}
+
+/** Require setup's primary-worktree entry to name a checkout rather than its Git metadata. */
+export async function requireSetupGitRepo(exec: GitExec, command: "init" | "join"): Promise<boolean> {
+  if (!(await requireGitRepo(exec))) return false;
+  try {
+    const primary = await resolvePrimaryWorktreePath(exec);
+    if (primary === null) throw new Error("Git did not report the primary worktree path.");
+    const { stdout } = await exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+    const commonDir = stdout.trim();
+    if (commonDir === "") throw new Error("Git did not report the common Git directory.");
+    if (resolve(primary) !== resolve(commonDir)) return true;
+
+    throw new UserFacingError({
+      code: "git.setup-layout-unsupported",
+      whatHappened: "ARC setup does not support this separate Git directory",
+      why: "Git lists the metadata directory as the primary worktree after 'git init --separate-git-dir'.",
+      whatToDo: `Use a normal clone whose primary checkout contains a .git directory, then retry your 'arc ${command}' command.`,
+    });
+  } catch (error) {
+    const failure = error instanceof UserFacingError ? error : new UserFacingError({
+      code: "git.setup-layout-unavailable",
+      whatHappened: "Cannot verify the primary checkout for ARC setup",
+      why: error instanceof Error ? error.message : String(error),
+      whatToDo: `Check that 'git worktree list --porcelain' and 'git rev-parse --git-common-dir' succeed, then retry your 'arc ${command}' command.`,
+    });
+    p.log.error(formatError(failure));
+    process.exitCode = 1;
+    return false;
+  }
 }

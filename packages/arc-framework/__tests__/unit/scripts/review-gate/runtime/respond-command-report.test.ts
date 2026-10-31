@@ -18,7 +18,6 @@ function proposalRequest(records: ReturnType<typeof fixture>) {
     report: { tags: [{ findingId: records.finding.findingId, tag: "new-design" }],
       fails: [{ findingId: records.finding.findingId, fails: "Correctness and failure behavior" }],
       successorRecommendation: "Check the repair before considering another complete pass.",
-      origin: [{ origin: "original artifact", findings: 1, newDesignFixes: 1 }],
       reading: { kind: "baseline", rationale: "This is the first look at the branch." } },
   } as const;
 }
@@ -40,6 +39,7 @@ it("renders caller judgments beside computed facts without changing or storing t
   expect(text.startsWith("**Standard complete pass 1 of 2** · 🟠 1 major\n\n### F1 — Repair the branch\n\n"
     + "🟠 major · FIX (new design) · fails Correctness and failure behavior\n")).toBe(true);
   expect(text.match(/\*\*Decisions\*\*/gu)).toHaveLength(1);
+  expect(text).toContain("Correct this branch.\n\n**Detail:** The source confirms the boundary failure.\n\n---\n\n**Decisions**");
   expect(text).toContain(request.report.successorRecommendation);
   expect(text.endsWith("- F1: Accept the repair boundary?\n\nApprove: 1 fix → focused verification → commit → push?"))
     .toBe(true);
@@ -49,12 +49,10 @@ it("renders caller judgments beside computed facts without changing or storing t
   expect(await deps.dispositionStore.readDispositionRecord(records.operation.operationId)).toBeNull();
   const different = await respondToReviewCommand({ ...request, report: { ...request.report,
     tags: [{ findingId: records.finding.findingId, tag: "local-correction" }],
-    origin: [{ origin: "original artifact", findings: 1, newDesignFixes: 0 }],
     reading: { kind: "baseline", rationale: "An advisory alternative reading." } } }, deps);
   if (different.state !== "awaiting-approval") throw new Error("expected the alternative report");
   expect(different.payload.proposal).toEqual(response.payload.proposal);
   expect(JSON.stringify(response.payload.proposal)).not.toContain("new-design");
-  expect(JSON.stringify(response.payload.proposal)).not.toContain("original artifact");
 });
 
 it.each([

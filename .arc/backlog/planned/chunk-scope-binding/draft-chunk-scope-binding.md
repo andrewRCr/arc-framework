@@ -66,6 +66,95 @@
 - _Captured during:_ `review-checkout-lifecycle` drafting, 2026-07-26 — surfaced as an out-of-scope knob while
   stripping speculative machinery from that draft.
 
+### `[ ]` **Keep one finding identity from a chunked aggregate to the commit body**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
+
+- _Shapes:_ binding every contributing finding to its producer and approved disposition.
+
+- _Observation:_ `storage-ref-backend`'s aggregate numbered findings `AGG-01`…`AGG-81` by chunk, while the approved set
+  and commit bodies use `F1`…`F81` by severity, joined only by a hand-kept map; the CLI's coverage offer cites
+  `standard-pass-1/AGG-nn`.
+
+- _Approach:_ one finding identity carried from the aggregate prompt through the approved set to the commit body.
+
+- _Evidence:_ `standard-pass-1/fix-map.md` under
+  `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/` in that work unit's checkout
+  (checkout-local).
+
+- _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24.
+
+### `[ ]` **Qualify finding labels by look, and carry the report's numbering back to the aggregate**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-28).
+
+- _Shapes:_ the entry "Keep one finding identity from a chunked aggregate to the commit body".
+
+- _Observation:_ two more instances from `storage-ref-backend`. A disposition report numbers findings F1…Fn per look,
+  so a trend rationale citing pass-1 findings by their labels rendered beside this look's own F2 and F8 (caught before
+  approval). And the CLI put a carried-forward finding first, so report numbers differ from the aggregate's from F8 on,
+  while commit footers cite report numbers.
+
+- _Approach:_ label a reference to an earlier look by that look, and have the respond result carry the map from report
+  label to finding.
+
+- _Evidence:_ `fix-check-1/disposition-report-1.txt` against `-2.txt`, and `standard-pass-2/f-map.json`,
+  under `.arc/user/andrew/.internal/storage-ref-backend-tools/verification/prepublication/` in that work unit's
+  checkout (checkout-local).
+
+- _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24 (Owner-approved).
+
+### `[ ]` **Scope resolved-finding context for chunked reviews**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-28).
+
+- _Shapes:_ the per-chunk review source's reviewer instructions: what prior-finding context each chunk, seam and
+  aggregate review carries.
+
+- _Observation:_ Native fourth-pass reviewer instructions included 242 resolved-finding locus/title pointers in
+  every scope, including chunks with no relation to most pointers. The instructions totaled 66,516 characters and
+  were repeated across 61 fresh chunk, seam and aggregate contexts. No controlled evidence establishes that this
+  caused missed findings; it is a measurable recurring context cost and a potential attention/anchoring issue.
+
+- _Approach:_ Assess whether prior-finding guidance can be scoped without losing exact source binding,
+  complete coverage or needed regression context.
+
+- _Files:_ `packages/arc-framework/src/scripts/review-gate/local-prepare.ts`; `standard-pass-4/progress.json`
+  records the context disclosure and exact review inputs, in `storage-ref-backend`'s private verification
+  directory (checkout-local).
+
+- _Scope:_ Native review context composition; deferred design work.
+
+- _Captured during:_ storage-ref-backend fourth complete review, 2026-10-26; Owner requested capture.
+
+### `[ ]` **Replace a chunked review's per-round scope scripts with verbs**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-30).
+
+- _Shapes:_ Purpose — a per-chunk review driven by tooling rather than hand-assembled on each run; this scope stage is
+  that hand assembly.
+
+- _Observation:_ `storage-ref-backend`'s review accumulated 323 per-round scripts, about 40k lines, across 47 round
+  directories, each round's set rewritten with its scope IDs hard-coded; this machine keeps a copy, without its
+  repository clones, at `~/dev/arc-evidence/storage-ref-backend/`. Most of it translates between ARC's own outputs
+  and inputs and carries no judgment. The stage this entry covers:
+
+  1. Scope: inventorying the range by path treatment, checking a partition's closure, coverage union, and seam
+     derivation (`guard-partition`, `build-scopes`, `build-seams`), and freezing the review inputs and hashing the
+     context projection so a report can be bound to what its evaluator saw (`freeze-inputs`, `original-sources`).
+
+  The judgment is small by comparison: partition boundaries, which earlier findings each chunk must resolve, and
+  triage.
+
+- _Approach:_ close the verb gaps rather than ship scripts. ARC already owns the schemas and the guidance renderer,
+  so shipped scripts would be a second, untested copy of that contract; verbs keep it in one place. Let the agent
+  supply judgment as declarative input (a partition with each chunk's required priors) that the verbs consume.
+
+- _Siblings:_ the evaluator and report stages went to `review-evaluator-isolation`, and the response stage's request
+  composition and evidence capture to two `review-request-contracts` entries.
+
+- _Captured during:_ `storage-ref-backend` pre-publication review, pass 8 and its fix checks, 2026-10-29.
+
 ---
 
 ## Grooming status (continuity)

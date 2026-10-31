@@ -12,15 +12,14 @@ import { mkdir } from "node:fs/promises";
 import {
   createTempRepo,
   cleanupTempDir,
+  commitAll,
   makeIOContext,
-  loadRecipe,
   readFile,
   writeFile,
   join,
-  getArcTemplatePath,
-  getInternalTemplatePath,
   DEFAULT_PROMPTS,
 } from "../helpers/integration.js";
+import { loadRecipe, getArcTemplatePath, getInternalTemplatePath } from "../helpers/init-temp-repo.js";
 import { runInit } from "../../src/commands/init.js";
 import { runUpdate } from "../../src/commands/update.js";
 import { CANONICAL_SKILLS } from "../../src/lib/skills/index.js";
@@ -171,6 +170,7 @@ describe("skill generation (integration)", () => {
 
   it("update regenerates skills with canonical content after modification", async () => {
     tempDir = await initWithTools(["claude"]);
+    await commitAll(tempDir);
 
     // Modify a generated skill file
     const skillPath = join(tempDir, ".claude/skills/arc-design-audit/SKILL.md");

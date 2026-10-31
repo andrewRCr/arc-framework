@@ -1,4 +1,7 @@
-/** Name admission distinguishes live holders, former slugs, and completed cohort reuse. */
+/** Name admission distinguishes live holders, former slugs, and completed-name creation. */
+import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
+import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
+import { transientContent } from "../../../helpers/store/in-repo-substrates.js";
 import { expect, it } from "vitest";
 import { createDecomposeOriginFixture } from "../../../fixtures/decompose-origin.js";
 import { completeCutMapFixture } from "../../../fixtures/decompose-v4.js";
@@ -48,13 +51,20 @@ it.each(["work-item", "open-cohort", "former-slug", "completed-cohort"] as const
   expect(await checkDecomposeNames(h.store, map)).toMatchObject({ status: "ok" });
 });
 
-it("allows a member to reuse a name held only by a completed cohort", async () => {
+it.each(["cohort", "errand"] as const)("refuses a new member name held by a completed %s, then admits a corrected name", async kind => {
   const h = await createDecomposeOriginFixture();
-  await h.seedCohort("member-a", true);
+  if (kind === "cohort") await h.seedCohort("member-a", true);
+  else {
+    const reference = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "member-a" }));
+    await h.seed(reference, transientContent(reference), { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  }
   const fresh = await prepareDecomposePreflight(h.ctx, "origin");
   if (fresh.status === "refused") throw new Error(JSON.stringify(fresh));
-  expect(await checkDecomposeNames(h.store, completeCutMapFixture(fresh.result.machine))).toMatchObject({ status: "ok",
-    result: { newCohorts: [{ path: "group", locus: "authoring.placement.cohort" }] } });
+  const map = completeCutMapFixture(fresh.result.machine);
+  expect(await checkDecomposeNames(h.store, map)).toMatchObject({ status: "refused", reason: "name-collision",
+    locus: "authoring.destinations.0.slug", remedy: { text: expect.stringContaining("named map locus") } });
+  renameMember(map, "member-a", "member-aa");
+  expect(await checkDecomposeNames(h.store, map)).toMatchObject({ status: "ok" });
 });
 
 it.each(["member/cohort", "parent/subcohort"] as const)("refuses duplicate %s names within the map, then admits distinct names", async collision => {
@@ -110,5 +120,38 @@ it("preserves an unreadable cohort inventory's repair and admits names after the
   expect(await checkDecomposeNames(h.store, map)).toMatchObject({ status: "refused", reason: "inventory-incomplete",
     class: "recoverable", locus: "cohort-inventory", remedy });
   h.store.list = list;
+  expect(await checkDecomposeNames(h.store, map)).toMatchObject({ status: "ok" });
+});
+
+it.each([1, 3])("admits a member name held by %s completed work-unit generations", async generations => {
+  const h = await createDecomposeOriginFixture();
+  for (let n = 0; n < generations; n++) await h.seedCompletedWorkUnit("member-a");
+  const fresh = await prepareDecomposePreflight(h.ctx, "origin");
+  if (fresh.status === "refused") throw new Error(JSON.stringify(fresh));
+  expect(await checkDecomposeNames(h.store, completeCutMapFixture(fresh.result.machine))).toMatchObject({ status: "ok" });
+});
+
+it("admits a retained live member's own name while refusing another member's live name", async () => {
+  const h = await createDecomposeOriginFixture(), retained = await h.seedStub("member-a");
+  const fresh = await prepareDecomposePreflight(h.ctx, "origin");
+  if (fresh.status === "refused") throw new Error(JSON.stringify(fresh));
+  const map = completeCutMapFixture(fresh.result.machine);
+  expect(await checkDecomposeNames(h.store, map, [retained.reference.owner])).toMatchObject({ status: "ok" });
+  expect(await checkDecomposeNames(h.store, map)).toMatchObject({ status: "refused", reason: "name-collision" });
+});
+
+it.each(["work-unit", "errand"] as const)("refuses a new cohort name held by a completed %s, then admits a corrected cohort", async kind => {
+  const h = await createDecomposeOriginFixture();
+  if (kind === "work-unit") await h.seedCompletedWorkUnit("group");
+  else {
+    const reference = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "group" }));
+    await h.seed(reference, transientContent(reference), { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  }
+  const fresh = await prepareDecomposePreflight(h.ctx, "origin");
+  if (fresh.status === "refused") throw new Error(JSON.stringify(fresh));
+  const map = completeCutMapFixture(fresh.result.machine);
+  expect(await checkDecomposeNames(h.store, map)).toMatchObject({ status: "refused", reason: "name-collision",
+    locus: "authoring.placement.cohort", remedy: { text: expect.stringContaining("Choose another name") } });
+  map.authoring.placement = { kind: "cohort", cohort: "free-group", purpose: "Coordinate the work." };
   expect(await checkDecomposeNames(h.store, map)).toMatchObject({ status: "ok" });
 });

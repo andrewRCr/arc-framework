@@ -264,6 +264,28 @@
 - _Approach:_ Rewrite § Re-scope to the decided shape at next grooming. The inbound buffer's redistribution is a
   separate capture.
 
+### `[ ]` **Refuse malformed reserved inbox fields at write time, and keep one from failing another entry's settlement**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-28).
+
+- _Shapes:_ the entry "Pair OSD's `arc inbox add` managed-write with the shipped inbox-remove half": the
+  managed-write verb and its pairing with the inbox-remove half.
+
+- _Observation:_ A session wrote `- _Disposition:_ Keep held until cutover. …` as prose on the live entry "Expose the
+  supported recovery after Candidate response staging fails". On a live entry that key is the parsed execution mark
+  and must read exactly `` `execute-bound` ``, yet nothing refused the write. The next `arc errand close` (Errand
+  `inventory-scan-setup-timeout`, PR #1157) removed its checkout and refs, then refused `identity-conflict` on that
+  unrelated entry. Renaming the key to `_Hold rationale:_` let the retry finish, after a foreign-generation
+  confirmation because the checkout was already gone.
+
+- _Approach:_ Have `arc inbox add`, and any verb that writes descriptor fields, refuse a reserved key whose value
+  breaks its grammar, naming the allowed value and a prose key to use instead. The close's next-offer read fails
+  closed by design, since an unreadable capture cannot be shown not to be the completed one, so keep that and check
+  the queue before the close's first side effect instead. The storage cutover's Errand queue may retire the settlement
+  half; check that before building it.
+
+- _Captured during:_ Errand `inventory-scan-setup-timeout` close, 2026-10-28.
+
 ---
 
 ## Re-scope — the records engine

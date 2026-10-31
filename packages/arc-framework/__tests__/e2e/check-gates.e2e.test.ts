@@ -74,8 +74,9 @@ it("reports a failing push files check as feedback beside commit enforcement at 
   expect(JSON.parse(result.stdout).result.checks).toMatchObject([
     { id: "commit", kind: "enforcement", outcome: "failed" },
     { id: "push_files", kind: "feedback", outcome: "failed" },
+    { id: "push_project", kind: "feedback", outcome: "not selected", reason: "runs at the push gate" },
   ]);
-  expect(JSON.parse(result.stdout).result.checks).toHaveLength(2);
+  expect(JSON.parse(result.stdout).result.checks).toHaveLength(3);
 });
 it.each([{ form: ["segment"] }, { form: ["new-head", "--from", "HEAD"] }])("runs commit and push enforcement for $form", async ({ form }) => {
   const root = await fixture();

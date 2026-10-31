@@ -10,6 +10,8 @@ import { RoutingListSchema } from "../store/kinds/routing-receipt.js";
 export interface InboxContext {
   store: Store;
   sync?: StoreSyncPort;
+  /** Where a pull's notices are written; standard error by default. */
+  writeNotice?: (line: string) => void;
   identity: string;
   now: () => Date;
   random?: () => number;

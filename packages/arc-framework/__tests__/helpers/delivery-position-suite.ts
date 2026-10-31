@@ -3100,6 +3100,8 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     ]).then((line) => line.split("\t")[0]));
   });
 
+  // About 85 s on a hosted runner shared with other E2E files, up to 110 s,
+  // most of it in thirteen review-fix continuations.
   it("drives a registered review correction through superseded verification to hosted review", async () => {
     const fixture = await positionFixture("registered-current", {
       reviewChunkingThresholdLines: 2,
@@ -4506,7 +4508,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         effectLog: [],
       });
     }
-  }, 120_000);
+  }, 240_000);
 
   it("plans a bound terminal correction as ordinary top authoring", async () => {
     const fixture = await positionFixture();

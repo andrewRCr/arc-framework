@@ -66,15 +66,15 @@ async function applyScenario(h: Awaited<ReturnType<typeof completedSubjectFixtur
   }
   if (scenario === "missing") lifecycleSuccess(await h.store.write({ action: "remove", reference: h.record.reference,
     expected: h.record.version, provenance: { verb: "fixture", lifecycleAction: "remove-missing-subject" } }));
-  if (scenario === "ambiguous") await h.seed(recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "completed-unit", uid: randomUUID() })),
+  if (scenario === "namesake") await h.seed(recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "completed-unit", uid: randomUUID() })),
     h.record.content, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, h.record.links);
 }
 
-const scenarios: readonly CompletedSubjectScenario[] = ["archive-restart", "arc-landing", "merge-commit", "multi-commit-squash", "cut", "abandon", "partial-teardown", "missing", "ambiguous"];
+const scenarios: readonly CompletedSubjectScenario[] = ["archive-restart", "arc-landing", "merge-commit", "multi-commit-squash", "cut", "abandon", "partial-teardown", "missing", "namesake"];
 it.each((["manual", "with-integration"] as const).flatMap(cadence => scenarios.map(scenario => ({ cadence, scenario }))))(
   "$cadence/$scenario agrees across actual reader, entry and recovery", async ({ cadence, scenario }) => {
     const h = await completedSubjectFixture(cadence, scenario === "cut" || scenario === "abandon");
-    const unresolved = scenario === "missing" || scenario === "ambiguous" || scenario === "partial-teardown";
+    const unresolved = scenario === "missing" || scenario === "partial-teardown";
     if (unresolved) {
       const seeded = await invoke(h, ["status", "--session-init", "--write-compaction-seed", "--json"]);
       expect(SessionInitProbeResultSchema.parse(JSON.parse(seeded.stdout)).compactionSeedWrite).toMatchObject({ status: "written" });
@@ -82,7 +82,7 @@ it.each((["manual", "with-integration"] as const).flatMap(cadence => scenarios.m
     await applyScenario(h, scenario);
     const version = lifecycleSuccess(await h.store.version());
     const reader = await runDerivedLocusStateProbe({ cwd: h.cwd, store: h.store, identity: "test-user", baseBranch: "main", exec: h.exec });
-    const integration = cadence === "with-integration" && (scenario === "archive-restart" || scenario === "multi-commit-squash");
+    const integration = cadence === "with-integration" && (scenario === "archive-restart" || scenario === "multi-commit-squash" || scenario === "namesake");
     const kind = unresolved ? "unresolved-checkout" : integration ? "work-unit" : "retired";
     expect(reader.entering).toMatchObject({ kind: "selected", row: { kind } });
     if (integration) expect(reader.active?.context.sessionType).toBe("integration");
@@ -110,9 +110,13 @@ it.each((["manual", "with-integration"] as const).flatMap(cadence => scenarios.m
     else expect(audited.verdict.stopReasons.filter(reason => reason.kind === "locus-unresolved")).toEqual([]);
     expect(lifecycleSuccess(await h.store.version())).toBe(version);
     expect((await h.exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(h.head);
-    if (unresolved || integration) expect(cleanupCommands({ reader, session, recovered, audit: audited })).toEqual([]);
-    if (scenario === "missing" || scenario === "ambiguous") {
-      const code = scenario === "missing" ? "work-unit-record-missing" : "subject-unresolved";
+    const commands = cleanupCommands({ reader, session, recovered, audit: audited });
+    if (scenario === "missing") {
+      expect(new Set(commands.map(argv => argv.join(" ")))).toEqual(new Set(["arc locus release"]));
+      expect(reader.entering).toMatchObject({ row: { actions: [{ argv: ["arc", "locus", "release"], checkout: h.cwd }] } });
+    } else if (unresolved || integration) expect(commands).toEqual([]);
+    if (scenario === "missing") {
+      const code = "work-unit-record-missing";
       expect(reader.entering).toMatchObject({ row: { diagnostics: expect.arrayContaining([expect.objectContaining({ code })]) } });
     }
   }, 30000);

@@ -23,7 +23,7 @@ export async function runStorePublish(ctx: ExecuteTransitionContext & CurrentWuR
   const { metaPath } = facts;
   const authorized = authorizeActivePublication({ ...params, standardLaneOwnerVersion: await params.readStandardLaneOwnerVersion() });
   if (authorized.status === "refused") return reject(authorized.reason);
-  const prepared = await ctx.currentWuReconcile.prepare({ slug: params.name, metaPath });
+  const prepared = await ctx.currentWuReconcile.prepare({ slug: params.name, metaPath, reference: facts.primary.reference });
   if (prepared.status === "conflict") return reject(`Current-work-unit reconcile refused: ${prepared.reason}`);
   const applied = await ctx.currentWuReconcile.apply(prepared.prepared);
   if (applied.status === "conflict") {
@@ -39,7 +39,7 @@ export async function runStorePublish(ctx: ExecuteTransitionContext & CurrentWuR
   }
   const refreshed = await params.refreshCandidateAuthorization();
   if (refreshed.candidateId !== params.candidateId || !refreshed.candidateCurrent) return reject("Reconcile invalidated the Candidate; re-attest it.");
-  const current = await inspectPublication(ctx, { ...params, ...refreshed }, reject);
+  const current = await inspectPublication(ctx, { ...params, ...refreshed, reference: facts.primary.reference }, reject);
   if (current.status !== "ready") return current;
   const { branch, primary } = current;
   const authorization = authorizeActivePublication({ ...refreshed, boundary: params.boundary,
@@ -58,7 +58,8 @@ export async function runStorePublish(ctx: ExecuteTransitionContext & CurrentWuR
 async function inspectPublication(ctx: ExecuteTransitionContext & { store: Store }, params: PublishParams,
   reject: PublicationReject): Promise<
   { status: "ready"; branch: string; metaPath: string; primary: StoreRecord } | Extract<PublishResult, { status: "rejected" | "unchanged" }>> {
-  const read = await readWorkUnit(ctx.store, params.name);
+  const read = params.reference === undefined ? await readWorkUnit(ctx.store, params.name)
+    : await ctx.store.read({ reference: params.reference });
   if (read.status === "refused") return reject(read.refusal.condition, read.refusal);
   const parsed = readLifecycleMetaFields(read.result);
   if (parsed.status === "refused") return reject(parsed.refusal.condition, parsed.refusal);

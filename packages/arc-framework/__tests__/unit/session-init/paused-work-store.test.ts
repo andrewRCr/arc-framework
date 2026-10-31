@@ -1,3 +1,5 @@
+import { boundHolderLookup } from "../../helpers/store/bound-checkout.js";
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 /** Shared marking uses lifecycle identity, terminal evidence and the pause's original date. */
 import { expect, it } from "vitest";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
@@ -15,24 +17,43 @@ import { runStoreRename } from "../../../src/lib/work-unit/verbs/rename-store.js
 import { batchLifecycleWrites } from "../../../src/lib/store/lifecycle-write.js";
 import type { Store } from "../../../src/lib/store/contract.js";
 import { importRetiredAlias } from "../../helpers/store/terminal-alias-harness.js";
+import { createClashDouble } from "../../helpers/store/clash-double.js";
+import { recordKey } from "../../helpers/store/model.js";
 
 const now = new Date("2026-10-16T12:00:00.000Z");
 const pause = (waitsOn: unknown = null, open = false) => MetaPauseSchema.parse({ pausedBy: "former-owner", since: "2026-09-01T12:00:00.000Z",
   reason: "Waiting for a decision", waitsOn, resumeNotes: "Read the decision first", open });
 
+it.each(["current", "former"] as const)("names the repair for a %s-name tied pause prerequisite", async tier => {
+  const h = createLifecycleHarness(), first = await h.seedMeta("first-current"), second = await h.seedMeta("second-current");
+  if (tier === "former") for (const record of [first, second]) {
+    const stored = h.store.state.records.get(recordKey(record.reference));
+    if (stored === undefined) throw new Error("Missing prerequisite holder");
+    stored.formerSlugs.push("prerequisite");
+  }
+  const store = tier === "former" ? h.store : createClashDouble(h.store, { slug: "prerequisite", holders: [first.reference, second.reference] });
+  const result = markPausedWorkItem({ slug: "demo", pause: pause({ kind: "work-unit", slug: "prerequisite" }) },
+    { store, reviewAfterDays: 14, now });
+  if (tier === "former") await expect(result).rejects.toThrow("Name the intended holder by its current name: `first-current`, `second-current`.");
+  else {
+    const firstUid = boundWorkUnitSubject(first).uid, secondUid = boundWorkUnitSubject(second).uid;
+    await expect(result).rejects.toThrow(`Rename either work-unit holder: \`arc rename ${firstUid} <new-slug>\` or \`arc rename ${secondUid} <new-slug>\`.`);
+  }
+});
+
 it("refuses disputed pause ownership after sync and lists only the explicitly resolved owner on retry", async () => {
   const h = createLifecycleHarness(), initial = await h.seedMeta("paused", { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" });
   lifecycleSuccess(await h.store.write({ ...recordPut(initial, { content: writeMetaPause(initial.content, pause()) }), provenance: { verb: "pause", lifecycleAction: "pause" } }));
   const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   const local = lifecycleSuccess(await h.store.read({ reference: initial.reference })), other = lifecycleSuccess(await writer.read({ reference: initial.reference }));
   const content = local.content.replace("Waiting for a decision", "Local reason"), provenance = { verb: "update", lifecycleAction: "update" };
   lifecycleSuccess(await h.store.write({ ...recordPut(local, { content }), provenance }));
   lifecycleSuccess(await writer.write({ ...recordPut(other, { content: other.content.replaceAll("andrew", "another").replace("Waiting for a decision", "Remote reason") }), provenance }));
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const disputed = lifecycleSuccess(await h.store.read({ reference: initial.reference })); expect(disputed.conflicts).toHaveLength(1);
-  const read = (identity: string) => runPausedWork({ store: h.store, identity, reviewAfterDays: 14, now, findHoldingCheckout: async () => "/holder" });
+  const read = (identity: string) => runPausedWork({ store: h.store, identity, reviewAfterDays: 14, now, findHoldingCheckout: boundHolderLookup(initial, () => "/holder") });
   for (const owner of ["andrew", "another"]) await expect(read(owner)).rejects.toThrow(/conflicts.*resolve.*retry/iu);
   lifecycleSuccess(await h.store.write({ ...recordPut(disputed, { content }), resolves: disputed.conflicts, provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
   expect(await read("andrew")).toMatchObject({ items: [{ slug: "paused", reason: "Local reason" }] });
@@ -59,13 +80,15 @@ it.each([null, { kind: "note", text: "Wait for a response" }])("marks an old pau
 
 it("lists by the current owner and selects resume or materialize for the actual holding checkout", async () => {
   const h = createLifecycleHarness();
+  let heldUid: string | undefined;
   for (const [slug, owner] of [["held", "andrew"], ["released", "andrew"], ["in-place", "andrew"], ["others", "someone"]] as const) {
     const record = await h.seedMeta(slug, { state: "Planning", owner, currentWorkflow: "draft-design" });
+    if (slug === "held") heldUid = boundWorkUnitSubject(record).uid;
     const content = writeMetaPause(record.content, pause(null, true));
     lifecycleSuccess(await h.store.write({ ...recordPut(record, { content }), provenance: { verb: "pause", lifecycleAction: "pause" } }));
   }
   const result = await runPausedWork({ store: h.store, identity: "andrew", reviewAfterDays: 14, now,
-    findHoldingCheckout: async slug => slug === "held" ? "/held" : null,
+    findHoldingCheckout: async request => request.kind === "owner" && request.uid === heldUid && request.checkoutPath !== "/held" ? { kind: "held", path: "/held" } : { kind: "none" },
     markerlessCheckouts: [{ workUnit: "in-place", checkoutPath: "/unmarked" }] });
   expect(result.items.map(item => item.slug)).toEqual(["held", "in-place", "released"]);
   expect(result.items[0]).toMatchObject({ open: true, reason: "Waiting for a decision", marks: ["review-due"],
@@ -119,7 +142,7 @@ async function renamedPrerequisite() {
   const dependent = await h.seedMeta("paused", { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" });
   const ctx = { store: h.store, cwd: "/memory", identity: "andrew", baseBranch: "main", now: () => new Date("2026-10-15T12:00:00Z"),
     exec: async () => ({ stdout: "", stderr: "" }),
-    locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" as const }), writeAnchoredMarker: async () => ({ kind: "unadmitted" as const }) } };
+    locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" as const }), writeAnchoredMarker: async () => ({ kind: "unadmitted" as const }) } };
   expect(await runPause(ctx, { name: "paused", identity: "andrew", reason: "Waiting for dependency", waitsOn: "dependency" })).toMatchObject({ status: "paused" });
   expect(await runStoreRename(ctx, { sourceSlug: "dependency", targetSlug: "current" })).toMatchObject({ status: "renamed" });
   const savedPause = MetaPauseSchema.parse(ParsedMetaRecordSchema.parse(lifecycleSuccess(await h.store.read({ reference: dependent.reference })).fields).pause);
@@ -145,7 +168,7 @@ it.each(["abandon", "decompose"] as const)("retains a pause's former-name prereq
   const before = lifecycleSuccess(await f.store.read({ reference: f.dependent.reference }));
   expect(await markPausedWorkItem(item, { store: f.store, reviewAfterDays: 14, now })).toMatchObject({ marks: ["review-due"],
     reviewPrompt: expect.stringContaining("arc handover paused --to <identity>"), actions: expect.arrayContaining([{ text: expect.any(String), argv: ["arc", "resume", "paused"] }]) });
-  expect(await runPausedWork({ store: f.store, identity: "andrew", reviewAfterDays: 14, now, findHoldingCheckout: async () => "/paused" }))
+  expect(await runPausedWork({ store: f.store, identity: "andrew", reviewAfterDays: 14, now, findHoldingCheckout: boundHolderLookup(f.dependent, () => "/paused") }))
     .toMatchObject({ items: [{ slug: "paused", waitsOn: { kind: "work-unit", slug: "dependency" }, marks: ["review-due"] }] });
   expect(lifecycleSuccess(await f.store.read({ reference: f.dependent.reference }))).toEqual(before);
 });
@@ -178,7 +201,7 @@ it("names missing prerequisite authority and accepts a repaired explicit prerequ
 it("withholds conflicted terminal alias authority after sync and resumes after explicit resolution", async () => {
   const f = await renamedPrerequisite(); await f.seedMeta("second");
   const remote = createMemoryRemote(); f.store.context.publication.remote = remote;
-  lifecycleSuccess(await f.store.sync());
+  lifecycleSuccess(await f.store.push());
   const writer = new ReferenceBackend({ state: remote.state, registry: f.store.context.registry });
   const other = lifecycleSuccess(await writer.read({ reference: f.dependency.reference }));
   if (other.reference.owner.type !== "work-item") throw new Error("Missing work item");
@@ -187,7 +210,7 @@ it("withholds conflicted terminal alias authority after sync and resumes after e
     { action: "put", reference: recordReferences["lineage/transition"](other.reference.owner), expected: null,
       content: writeLineageRecord({ schemaVersion: 2, kind: "decompose", origin: { name: other.reference.owner.name, uid: other.reference.owner.uid },
         successors: [{ name: SlugSchema.parse("second") }], incoming: [], outgoing: [], retiredBranches: [] }) }], { verb: "decompose", lifecycleAction: "decompose" }));
-  lifecycleSuccess(await f.store.sync());
+  lifecycleSuccess(await f.store.push());
   const disputed = lifecycleSuccess(await f.store.read({ reference: terminal.reference }));
   expect(disputed.conflicts).toHaveLength(1);
   const item = { slug: "paused", pause: f.savedPause }, options = { store: f.store, reviewAfterDays: 14, now };

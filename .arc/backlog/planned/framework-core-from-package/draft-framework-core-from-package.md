@@ -60,6 +60,25 @@
 
 - _Captured during:_ `storage-projection` draft close, 2026-10-10.
 
+### `[ ]` **Give Configurable files a merge baseline no single checkout holds**
+
+- _Routed from:_ `adopter-install-authority` draft-design, the `arc update` audit against scaffold-tool practice,
+  2026-10-23.
+
+- _Shapes:_ § Approach, "Each Configurable file splits so the project's part is its own tracked overlay over the
+  package default".
+
+- _Observation:_ `arc update` three-way merges each Configurable file against its baseline in
+  `.arc/system/.internal/pristine.json`, which is gitignored, and `arc join` does not rebuild it. In any checkout
+  without it — a work-unit worktree, a fresh clone, another machine — `lib/manifest/apply.ts` takes the new version
+  as the base, so every upstream change to those files is dropped and recorded as applied. Copier and cruft avoid a
+  stored base: they re-render the previous template version from the pinned version and the stored answers.
+
+- _Approach:_ the overlay model must not depend on a machine-local base: either the overlay removes the merge
+  entirely, or the base is rebuilt from the pinned installed version. Until then an Errand makes `arc update` refuse,
+  with a remedy, when a Configurable file has no baseline (`USER-INBOX § Errand`); it lands before CineXplorer's first
+  update.
+
 ---
 
 ## Problem

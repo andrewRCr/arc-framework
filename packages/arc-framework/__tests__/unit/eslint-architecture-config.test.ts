@@ -42,6 +42,9 @@ describe("composed architecture configuration", () => {
     ["src/lib/store/in-repo/meta.ts", {
       "arc/store-raw-state": [2, ["store-raw-state"]], "arc/surface-names": [2, ["surface-names"]], "arc/work-unit-paths": [2, ["work-unit-paths"]],
     }],
+    ["src/lib/store/registry.ts", {
+      "arc/store-raw-state": [2, ["store-raw-state"]], "arc/surface-names": undefined, "arc/work-unit-paths": [2, ["work-unit-paths"]],
+    }],
     ["src/lib/layout/projection.ts", {
       "arc/store-raw-state": [2, ["store-raw-state"]], "arc/surface-names": undefined, "arc/work-unit-paths": undefined,
     }],

@@ -32,7 +32,7 @@ it.each([false, true])("persists exact retired branches and supplies executable 
     prepared.result.write, { action: "remove", reference: primary.reference, expected: primary.version },
     { action: "remove", reference: storedMap.reference, expected: storedMap.version },
   ] }));
-  const evidence = await readStoreRetirementEvidence(h.store, "origin", "0".repeat(40));
+  const evidence = await readStoreRetirementEvidence(h.store, primary.reference, "0".repeat(40));
   expect(evidence.rule).toBe("landed");
   expect(evidence.branches).toEqual(branches);
   expect(evidence.record.reference).toEqual(prepared.result.write.reference);

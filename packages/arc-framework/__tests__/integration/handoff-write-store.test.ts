@@ -1,4 +1,5 @@
 /** Handoff writes use real checkout claims and one reference-backend mutation. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -34,7 +35,7 @@ async function fixture(mark = true) {
   await exec("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "Initial"]);
   const h = createLifecycleHarness();
   const meta = await h.seedMeta("subject");
-  if (mark) await writeWorktreeMarker(cwd, { createdFor: { kind: "work-unit", name: "subject" }, spawningIdentity: "test-user", spawnedByArc: false, createdAt: "2026-10-16T00:00:00Z" });
+  if (mark) await writeWorktreeMarker(cwd, { createdFor: boundWorkUnitSubject(meta), spawningIdentity: "test-user", spawnedByArc: false, createdAt: "2026-10-16T00:00:00Z" });
   return { ...h, cwd, exec, meta };
 }
 const request = { schemaVersion: 1 as const, sessionContext: "Whole context.\n\n##inside is prose", nextAction: "Continue the task", sessionType: "execution" as const };
@@ -83,18 +84,18 @@ it("preserves a refusing version's repair, then succeeds once that read is repai
 it("names the work-unit checkout when no current work unit is held, then succeeds there", async () => {
   const h = await fixture(false);
   expect(await runHandoffWrite({ ...h, request })).toMatchObject({ status: "refused", refusal: { remedy: { text: expect.stringContaining("work unit's checkout") } } });
-  await writeWorktreeMarker(h.cwd, { createdFor: { kind: "work-unit", name: "subject" }, spawningIdentity: "test-user", spawnedByArc: false, createdAt: "2026-10-16T00:00:00Z" });
+  await writeWorktreeMarker(h.cwd, { createdFor: boundWorkUnitSubject(h.meta), spawningIdentity: "test-user", spawnedByArc: false, createdAt: "2026-10-16T00:00:00Z" });
   expect((await runHandoffWrite({ ...h, request })).status).toBe("written");
 });
 it("maintains once after the landed write and reports only excessive measurements", async () => {
   const h = await fixture();
   let maintained = false;
-  const sync = createStoreSyncPort({ maintain: async () => {
+  h.store.maintain = async () => {
     if (maintained) throw new Error("Duplicate maintenance"); maintained = true;
     expect(ParsedMetaRecordSchema.parse(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).fields).stateAtHandoff).not.toBeNull();
-    return { measurements: [{ ref: "refs/arc/project/inbox", commits: 2001, diskBytes: 51_000_000 }] };
-  } });
-  expect(await runHandoffWrite({ ...h, request, sync })).toMatchObject({ status: "written", maintenance: { growth: [{ commits: 2001, diskBytes: 51_000_000 }] } });
+    return { status: "ok", result: { measurements: [{ ref: "refs/arc/project/inbox", commits: 2001, diskBytes: 51_000_000 }] } };
+  };
+  expect(await runHandoffWrite({ ...h, request })).toMatchObject({ status: "written", maintenance: { growth: [{ commits: 2001, diskBytes: 51_000_000 }] } });
   expect(maintained).toBe(true);
 });
 it("reports maintenance failure after landing as success with a diagnostic", async () => {
@@ -127,7 +128,7 @@ it("refuses a synchronized meta conflict without another write or maintenance an
   expect(await invokeHandoff(h, sync)).toMatchObject({ status: "written" });
   expect(maintained).toBe(1);
   const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   const local = lifecycleSuccess(await h.store.read({ reference: h.meta.reference }));
   const other = lifecycleSuccess(await writer.read({ reference: h.meta.reference }));
@@ -136,7 +137,7 @@ it("refuses a synchronized meta conflict without another write or maintenance an
     lifecycleSuccess(await store.write({ action: "put", reference: record.reference, expected: record.version,
       content: writeMetaNextAction(record.content, action), placement: { kind: "active" }, provenance }));
   }
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const disputed = lifecycleSuccess(await h.store.read({ reference: h.meta.reference }));
   expect(disputed.conflicts).toHaveLength(1);
   const before = lifecycleSuccess(await h.store.version());

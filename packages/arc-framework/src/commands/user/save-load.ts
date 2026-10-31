@@ -650,7 +650,7 @@ async function parseResolvedNoteManifest(
  * (recency order preserved), so entries authored in parallel worktrees survive
  * rather than being clobbered by the most-recent note.
  */
-function mergeCrossWuFromNotes(
+export function mergeCrossWuFromNotes(
   recentNotes: readonly RecentNote[],
 ): { files: Record<string, string>; warnings: string[] } {
   const perNoteFiles = recentNotes.map((note) => parseManifestFiles(note.content) ?? {});

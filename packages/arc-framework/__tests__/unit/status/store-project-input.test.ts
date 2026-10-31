@@ -46,7 +46,7 @@ it("discloses a conflicted meta and its conflict references as an omitted record
   const h = createLifecycleHarness();
   const meta = await h.seedMeta("disputed");
   const remote = createMemoryRemote(); h.store.context.publication.remote = remote;
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.push());
   const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
   const local = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
   const incoming = lifecycleSuccess(await writer.read({ reference: meta.reference }));
@@ -54,7 +54,7 @@ it("discloses a conflicted meta and its conflict references as an omitted record
     provenance: { verb: "update", lifecycleAction: "update" } }));
   lifecycleSuccess(await writer.write({ ...recordPut(incoming, { content: incoming.content.replaceAll("test-user", "remote-owner") }),
     provenance: { verb: "update", lifecycleAction: "update" } }));
-  lifecycleSuccess(await h.store.sync());
+  lifecycleSuccess(await h.store.pull());
   const disputed = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
   expect(disputed.conflicts).toHaveLength(1);
 

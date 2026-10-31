@@ -6,7 +6,7 @@ import { ParsedMetaRecordSchema, MetaPauseSchema } from "../active/meta-schema.j
 import { recordReferences, OwnerIdentitySchema, RecordReferenceSchema, sameReference, sameOwner } from "./identity.js";
 import { readLifecycleView } from "./lifecycle-view.js";
 import { requireCompleteInventory } from "./lifecycle-storage.js";
-import { readWorkUnit, recordPut, mergeLifecycleLinks } from "./lifecycle-write.js";
+import { readWorkUnit, recordPut, mergeLifecycleLinks, workUnitMetaPath } from "./lifecycle-write.js";
 import { lifecycleRecordPath } from "./lifecycle-record-path.js";
 import { acquireLifecycleRecords, revalidateLifecycleRecords, type PreparedLifecycleWrite } from "../work-unit/prepared-lifecycle-write.js";
 import { readPairedReferenceOwners } from "../work-unit/paired-reference-owners.js";
@@ -77,18 +77,18 @@ function ownedArtifactRenames(records: readonly StoreRecord[], primary: StoreRec
   for (const record of records) {
     if (!sameOwner(record.reference.owner, primary.reference.owner)) continue;
     const from = lifecycleRecordPath(primary, record), to = lifecycleRecordPath(renamed, record);
-    if (from !== null && to !== null) names.set(posix.basename(from), posix.basename(to));
+    if (from !== null && to !== null) names.set(posix.relative(posix.dirname(workUnitMetaPath(primary)), from), posix.relative(posix.dirname(workUnitMetaPath(renamed)), to));
   }
   return names;
 }
 async function acquireRenameGroups(store: Store, primary: StoreRecord): Promise<StoreResult<StoreRecord[]>> {
-  const own = await acquireLifecycleRecords(store, primary.reference.owner.name); if (own.status === "refused") return own;
+  const own = await acquireLifecycleRecords(store, primary.reference); if (own.status === "refused") return own;
   const records = [...own.result];
   const view = await readLifecycleView(store); if (view.status === "refused") return view;
   requireCompleteInventory(store, view.result.listing);
   for (const entry of view.result.entries) {
     if (entry.placement.kind !== "backlog" || sameReference(entry.reference, primary.reference)) continue;
-    const group = await acquireLifecycleRecords(store, entry.reference.owner.name); if (group.status === "refused") return group;
+    const group = await acquireLifecycleRecords(store, entry.reference); if (group.status === "refused") return group;
     records.push(...group.result);
   }
   const cohort = ParsedMetaRecordSchema.parse(primary.fields).cohort?.split("/").at(-1);
@@ -109,7 +109,7 @@ function renameProjection(records: StoreRecord[], primary: StoreRecord) {
     const own = record.reference.owner.type !== "person" && primary.reference.owner.type !== "person" && record.reference.owner.uid === primary.reference.owner.uid;
     const groupPrimary = own ? primary : records.find((candidate) => candidate.reference.kind === "work-item/meta" && candidate.reference.owner.type !== "person" && record.reference.owner.type !== "person" && candidate.reference.owner.uid === record.reference.owner.uid);
     const projected = groupPrimary === undefined ? null : lifecycleRecordPath(groupPrimary, record);
-    const filename = projected === null ? `${record.reference.kind.replaceAll("/", "-")}-${record.reference.owner.name}.md` : posix.basename(projected);
+    const filename = projected === null || groupPrimary === undefined ? `${record.reference.kind.replaceAll("/", "-")}-${record.reference.owner.name}.md` : posix.relative(posix.dirname(workUnitMetaPath(groupPrimary)), projected);
     const path = posix.join(".arc", "active", record.reference.owner.name, filename);
     paths.set(path, record);
   }

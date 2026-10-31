@@ -72,8 +72,8 @@ export interface ReaderResult {
  * The default project root resolves checkout-held work-unit records. Custom
  * and contributor roots enumerate `meta-*.md` files directly at their root.
  *
- * A missing root directory is not an error — returns an empty candidate set
- * with a warning naming the supplied root.
+ * A missing legacy or custom root returns no candidates and a warning.
+ * Operational state does not require a materialized active directory.
  * @param cwd - Checkout root.
  * @param options - Optional custom active-root segments.
  * @returns Parsed meta candidates in the full layout, with reader warnings.
@@ -95,12 +95,13 @@ export async function readActiveMetaCandidates(
     // Swallow — handled below as a warning.
   }
 
+  if (activeDir === join(cwd, ...DEFAULT_ROOT_SEGMENTS)) return readHeldCandidates(cwd,
+    exists ? undefined : `${rootDisplay} not found — no active work units to enumerate.`);
+
   if (!exists) {
     warnings.push(`${rootDisplay} not found — no active work units to enumerate.`);
     return { layout: "full", candidates: [], warnings };
   }
-
-  if (activeDir === join(cwd, ...DEFAULT_ROOT_SEGMENTS)) return readHeldCandidates(cwd);
 
   const paths = await findMetaFiles(activeDir);
   paths.sort();
@@ -188,13 +189,17 @@ function candidateFromContent(cwd: string, absPath: string, content: string, war
   };
 }
 
-async function readHeldCandidates(cwd: string): Promise<ReaderResult> {
+async function readHeldCandidates(cwd: string, missingRootWarning?: string): Promise<ReaderResult> {
   const [{ resolveCurrentWorkUnit }, { createStore }, { createDefaultStorePorts }] = await Promise.all([
     import("../store/current-work-unit.js"), import("../store/create.js"), import("../store/default-ports.js"),
   ]);
   const store = createStore(createDefaultStorePorts({ checkoutRoot: cwd }));
+  if (missingRootWarning !== undefined && !store.capabilities.stateOffBranch) return {
+    layout: "full", candidates: [], warnings: [missingRootWarning],
+  };
   const resolved = await resolveCurrentWorkUnit({ cwd, store });
   const warnings = [...resolved.warnings];
+  if (resolved.status === "unbound") warnings.push(resolved.unbound.reason);
   const candidates: MetaFileCandidate[] = [];
   for (const current of resolved.candidates) {
     const path = resolveArcPath({ kind: "work-unit-artifact", artifact: "meta", slug: current.reference.owner.name,

@@ -1,4 +1,5 @@
 /** Public start commands honor locus refusal and preserve exact marker generations on rollback. */
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -136,9 +137,9 @@ describe("public store start marker boundary", () => {
 
 it.each([false, true])("uses the actual graduation placement with an occupied caller, here=%s", async (inPlace) => {
   const h = await fixture(undefined, true);
-  await h.seedMeta("held");
+  const held = await h.seedMeta("held");
   await writeWorktreeOwnershipMarker(h.root, { createdByArc: true,
-    createdFor: { kind: "work-unit", name: "held" }, spawningIdentity: "starter" });
+    createdFor: boundWorkUnitSubject(held), spawningIdentity: "starter" });
   const originalMarker = await readFile(h.markerPath);
   let spawned = false;
   h.ctx.reconcileWorkUnitWorktree = async () => {

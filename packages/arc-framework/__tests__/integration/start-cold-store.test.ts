@@ -1,6 +1,7 @@
 /** Store cold starts anchor existing checkouts without moving code history. */
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
@@ -16,6 +17,8 @@ import { createUserIOContext } from "../../src/lib/io-context.js";
 import { createLocusPorts } from "../../src/lib/locus/lifecycle-ports.js";
 import { RecordReferenceSchema, OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { resolveArcPath } from "../../src/lib/layout/index.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { transientContent } from "../helpers/store/in-repo-substrates.js";
 import { readWorktreeMarker, readWorktreeMarkerGeneration, resolveWorktreeMarkerPath, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 
 async function fixture() {
@@ -61,14 +64,18 @@ it("leaves no record or marker when editor-document preparation fails", async ()
 
 async function invokeStart(h: Awaited<ReturnType<typeof fixture>>, name: string | undefined,
   options: import("../../src/handlers/start.js").StartOptions = {}) {
+  return invoke(h, ["start", ...(name === undefined ? [] : [name]), "--here", "--new", "--yes",
+    ...(options.class === undefined ? [] : ["--class", options.class])]);
+}
+
+async function invoke(h: Awaited<ReturnType<typeof fixture>>, args: readonly string[]) {
   const originalCwd = process.cwd(), originalExitCode = process.exitCode;
   await h.exec("git", ["config", "arc.identity", "andrew"]);
   try {
     process.exitCode = undefined;
     process.chdir(h.cwd);
     binding.store = h.store;
-    await dispatchRegisteredCli(["--no-input", "start", ...(name === undefined ? [] : [name]), "--here", "--new", "--yes",
-      ...(options.class === undefined ? [] : ["--class", options.class])]);
+    await dispatchRegisteredCli(["--no-input", ...args]);
     return process.exitCode;
   } finally { binding.store = null; process.chdir(originalCwd); process.exitCode = originalExitCode; }
 }
@@ -132,6 +139,54 @@ it("replaces a crashed anchored marker at its observed generation", async () => 
   expect((await h.exec("git", ["rev-parse", "HEAD"])).stdout).toBe(h.before);
 }, 30_000);
 
+it("reruns a creation interrupted after its marker write and stamps the created UID", async () => {
+  const h = await fixture(), ports = h.ctx.locusPorts, before = lifecycleSuccess(await h.store.version());
+  const interrupted = { ...ports, writeAnchoredMarker: async (...args: Parameters<typeof ports.writeAnchoredMarker>) => {
+    await ports.writeAnchoredMarker(...args);
+    throw new Error("Interrupted before the marker write acknowledgment");
+  } };
+  expect(await runColdStart({ ...h.ctx, locusPorts: interrupted }, h.params)).toMatchObject({ ok: false });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  expect(await readWorktreeMarker(h.cwd)).toMatchObject({ kind: "present", marker: { createdFor: { name: "demo" } } });
+  expect(await invokeStart(h, "restarted")).toBeUndefined();
+  const primary = lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("restarted") })).reference;
+  if (primary.owner.type === "person") throw new Error("Expected work-unit identity");
+  expect(primary.owner.uid).toBeDefined();
+  expect(await readWorktreeMarker(h.cwd)).toMatchObject({ kind: "present", marker: { createdFor: { name: "restarted", uid: primary.owner.uid } } });
+  expect((await h.exec("git", ["rev-parse", "HEAD"])).stdout).toBe(h.before);
+}, 30_000);
+
+it.each(["errand", "cohort", "former", "bound-missing"] as const)("refuses %s residue, then cold-starts after unnamed release", async kind => {
+  const h = await fixture();
+  if (kind === "errand") {
+    const reference = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "crashed" }));
+    await h.seed(reference, transientContent(reference), { kind: "active" });
+  } else if (kind === "cohort") await h.seed(recordReferences["cohort/document"](
+    OwnerIdentitySchema.parse({ type: "cohort", name: "crashed" })), "# Cohort: crashed\n\n**Purpose:** Coordinate work.\n");
+  else if (kind === "former") {
+    const old = await h.seedMeta("crashed", { owner: "andrew", state: "Planning", currentWorkflow: "draft-design" });
+    lifecycleSuccess(await h.store.write({ action: "put", reference: RecordReferenceSchema.parse({ ...old.reference,
+      owner: { ...old.reference.owner, name: "current" } }), expected: old.version, content: old.content.replaceAll("crashed", "current"),
+      placement: { kind: "active" }, provenance: { verb: "rename", lifecycleAction: "transition" } }));
+  }
+  await writeWorktreeMarker(h.cwd, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "crashed",
+    ...(kind === "bound-missing" ? { uid: randomUUID() } : {}) }, spawningIdentity: "andrew", createdAt: new Date(0).toISOString() });
+  const marker = await readWorktreeMarkerGeneration(h.cwd), before = lifecycleSuccess(await h.store.version());
+  let output = "";
+  const stdout = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { output += String(chunk); return true; });
+  try { expect(await invokeStart(h, "fresh")).toBe(1); } finally { stdout.mockRestore(); }
+  expect(output).toContain("arc locus release");
+  expect(output).not.toMatch(/arc start \S+ --new --here/u);
+  expect(await readWorktreeMarkerGeneration(h.cwd)).toEqual(marker);
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  expect(await invoke(h, ["locus", "release"])).toBeUndefined();
+  expect(await readWorktreeMarker(h.cwd)).toEqual({ kind: "absent" });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  expect(await invokeStart(h, "fresh")).toBeUndefined();
+  expect(await readWorktreeMarker(h.cwd)).toMatchObject({ kind: "present", marker: { createdFor: { name: "fresh", uid: expect.any(String) } } });
+  expect((await h.exec("git", ["rev-parse", "HEAD"])).stdout).toBe(h.before);
+}, 30_000);
+
 it("keeps a crashed marker when the complete inventory cannot be read", async () => {
   const h = await fixture();
   await writeWorktreeMarker(h.cwd, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "crashed" },
@@ -179,7 +234,8 @@ it("refuses another checkout's marker through production ports before writing", 
   const stdout = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { output += String(chunk); return true; });
   try { expect(await invokeStart(h, "fresh")).toBe(1); } finally { stdout.mockRestore(); }
   expect(output).toContain(holder);
-  expect(output).toContain("arc locus release fresh");
+  expect(output).toContain("arc locus release");
+  expect(output).not.toContain("arc locus release fresh");
   expect(await readWorktreeMarker(h.cwd)).toEqual({ kind: "absent" });
   expect(lifecycleSuccess(await h.store.list({ family: "work-item", kind: "work-item/meta" }))).toMatchObject({ status: "absent" });
 }, 30_000);

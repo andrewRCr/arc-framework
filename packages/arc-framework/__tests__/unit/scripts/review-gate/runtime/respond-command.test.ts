@@ -284,8 +284,10 @@ describe("review response command", () => {
 
 **Detail:** The selected source supports this disposition.
 
+---
+
 **Decisions**
-- After the fix: fix check, round 1 since pass 1, where its chain is proven. Check approved repairs before considering a successor complete pass.
+- After the fix: fix check, round 1 since pass 1, where its chain is proven. Recommended: Check approved repairs before considering a successor complete pass.
 
 Approve: 2 fixes → focused verification → commit → push?`,
         dispositionEvidenceText: [
@@ -422,9 +424,17 @@ Approve: 2 fixes → focused verification → commit → push?`,
       text: "Standard complete pass 2 of 2 (limit reached). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the "
         + "head, and another complete pass needs a ceiling decision." },
     { name: "a codex-pr Errand review's incremental minor fix", build: () => hostedErrandCase("codex-pr", "incremental"),
-      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
+      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "complete-or-incremental" },
       text: "Standard complete pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
-        + "needs a fix check, round 1 since pass 1, where its chain is proven." },
+        + "needs standard complete pass 2 of 2, or a fix check, round 1 since pass 1, where its chain is proven.",
+      decision: "- After the fix: standard complete pass 2 of 2, or a fix check, round 1 since pass 1, where its chain is "
+        + "proven. Recommended: " },
+    { name: "a codex-pr Errand review's incremental minor fix at the ceiling",
+      build: () => hostedErrandCase("codex-pr", "incremental"), maxPasses: 1,
+      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "complete-or-incremental" },
+      text: "Standard complete pass 1 of 1 (limit reached). 1 confirmed finding, highest 🟡 minor. Approving a FIX moves "
+        + "the head, which needs a fix check, round 1 since pass 1, where its chain is proven, or another complete pass, "
+        + "which needs a ceiling decision." },
     { name: "a full-final hosted Errand review's material fix", build: () => hostedErrandCase("coderabbit-pr", "full-final"),
       severity: "major" as const, consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
       text: "Standard complete pass 1 of 2. 1 confirmed finding, highest 🟠 major. Approving a FIX moves the head, which "
@@ -436,9 +446,9 @@ Approve: 2 fixes → focused verification → commit → push?`,
         + "needs standard complete pass 2 of 2." },
     { name: "a coderabbit-pr Errand review's fix once that source is removed",
       build: () => hostedErrandCase("coderabbit-pr", "incremental"), configuredSources: ["codex-pr", "delegated-agent"],
-      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "incremental-when-proven" },
+      severity: "minor" as const, consequence: { kind: "next-pass", coverage: "complete-or-incremental" },
       text: "Standard complete pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head, which "
-        + "needs a fix check, round 1 since pass 1, where its chain is proven." },
+        + "needs standard complete pass 2 of 2, or a fix check, round 1 since pass 1, where its chain is proven." },
     { name: "a delivery member's minor fix", build: () => hostedCase(memberVehicle), severity: "minor" as const,
       consequence: { kind: "lane-closes" },
       text: "Standard complete pass 1 of 2. 1 confirmed finding, highest 🟡 minor. Approving a FIX moves the head without "
@@ -455,11 +465,12 @@ Approve: 2 fixes → focused verification → commit → push?`,
       severity: "major" as const, consequence: { kind: "ceiling-decision" },
       text: "Frontline pass 1 of 1 (limit reached). 1 confirmed finding, highest 🟠 major. Approving a FIX moves the "
         + "head, and another pass needs a ceiling decision." },
-  ].map((row) => ({ configuredSources: ["codex-pr", "coderabbit-pr", "delegated-agent"], ...row })))(
+  ].map((row) => ({ configuredSources: ["codex-pr", "coderabbit-pr", "delegated-agent"], maxPasses: 2,
+    decision: undefined as string | undefined, ...row })))(
     "states what approving $name does to the lane",
-    async ({ build, configuredSources, severity, consequence, text }) => {
+    async ({ build, configuredSources, maxPasses, severity, consequence, text, decision }) => {
       const { records, deps, source } = build();
-      deps.readConfiguredLanePolicy = async () => ({ sources: configuredSources, maxPasses: 2 });
+      deps.readConfiguredLanePolicy = async () => ({ sources: configuredSources, maxPasses });
       const response = await respondToReviewCommand(withReviewReport({
         schemaVersion: 1,
         source,
@@ -486,6 +497,7 @@ Approve: 2 fixes → focused verification → commit → push?`,
         potentialStopReason: consequence.kind === "ceiling-decision" ? "cap-exhausted" : null,
       });
       expect(response.payload.provisionalPassAssessment.summaryText).toBe(text);
+      if (decision !== undefined) expect(response.payload.dispositionReportText).toContain(decision);
       const settled = source.kind === "hosted" ? " → settle 1 thread" : "";
       expect(response.payload.dispositionReportText
         .endsWith(`\n\nApprove: 1 fix → focused verification → commit → push${settled}?`)).toBe(true);
@@ -560,7 +572,8 @@ Approve: 2 fixes → focused verification → commit → push?`,
     }
     expect(report.match(/^### F\d+ .*$/gmu)).toEqual(["### F1 — Finding title"]);
     expect(report).not.toMatch(/^\*\*Verdict:\*\* FORGED/gmu);
-    expect(report).not.toMatch(/^---$/gmu);
+    expect(report.match(/^---$/gmu)).toHaveLength(1);
+    expect(report).toContain("\n\n---\n\n**Decisions**");
   });
 
   it("materializes a complete successor proposal beside only the expected authorized fix paths", async () => {
