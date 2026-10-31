@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "cohort-ref-hardening-landing",
+  "claimId": "1462f49a85d4b562a55ee038192d0664",
+  "createdAt": "2026-10-31T01:06:52.143Z",
+  "updatedAt": "2026-10-31T01:06:52.143Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Record in the state-storage cohort document that storage-ref-hardening lands whole on one branch",
+  "branch": "chore/cohort-ref-hardening-landing",
+  "origin": "inbox",
+  "originEntry": "Record that `storage-ref-hardening` lands whole in `cohort-state-storage.md`",
+  "originEntrySourceDigest": "sha256:9cefa38267274090d3583476e3a78faaf55d47b48d1c4cf2b482680ca94ed0ba",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
