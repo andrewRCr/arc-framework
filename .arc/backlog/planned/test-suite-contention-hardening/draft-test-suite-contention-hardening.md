@@ -414,6 +414,80 @@
 
 - _Captured during:_ storage-ref-backend unattended fix checks, 2026-10-28; deferred for later investigation.
 
+### `[ ]` **Weigh memory in check admission, from the 2026-10-20 suite-timeout diagnosis**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-30).
+
+- _Shapes:_ § Direction, the coordination layer — which lanes take admission, and against what resource; it joins the
+  inbound entry "Harden resource-heavy local gates against concurrent exhaustion".
+
+- _Observation:_ seam-decomposition's merge-gate timeouts on 2026-10-20 (five unit, eight integration) were memory
+  starvation, not thin budgets. The arc-gates VM (12 GB, 10 cores) swapped over 2,000 pages/s each way while one
+  checkout's gate ran its integration tier, unit tests, both typechecks, and `lint:ts` at once; one gate alone was
+  enough by 2026-10-19, after the integration tier grew from 3,915 to about 4,900 cases in a week. The failing
+  operations were temp-directory deletes, `git init`, and a lock wait over 10 s, so raising budgets would only hide
+  the starvation.
+
+- _Observation:_ ARC's admission is a CPU slot taken by the integration, E2E, and contract tiers; unit selections,
+  typechecks, and lint take none. A free slot therefore does not mean a free machine: the related feedback that also
+  failed had run locally on that signal, beside a game.
+
+- _Observation:_ At idle, 1.7 GB of the VM's memory-backed `/tmp` and `/dev/shm` held tsx's cache, per-run Vitest
+  `ssr` directories, and files test runs left behind; the integration tier writes its fixtures to `/dev/shm`. This
+  is Direction's temp-tree cleanup ownership audit.
+
+- _Interim:_ host-local, outside the repository. `remote-check` now gives each checkout's turn on the VM three memory
+  tokens (integration two; unit tests, typechecks, and lint one each), keeps temp files and tsx's cache on disk and
+  clears hour-old leftovers, stops VM commands whose client is gone and a first attempt before its retry, runs each
+  check over its own SSH connection, and keeps a log for each run that returned no result. The token weights are
+  estimates, not measured peaks, and nothing changes for local runs or CI.
+
+- _Approach:_ once the hold lifts, measure each tier's solo memory peak, then decide whether admission should weigh
+  memory per lane and which lanes take it, so the repository rather than one machine's runner carries the budget.
+  The runner seam belongs to `machine-check-runner`.
+
+- _Observed, 2026-10-28:_ the interim tokens did not hold. A `storage-ref-backend` push gate placed `typecheck:test`,
+  `test:unit` and `lint:ts` on m4-mini at once, one token each and so all three of its tokens, beside another
+  session's `test:changed`. The VM thrashed: 294 MB free at the low point, 4 GB swap full (5.8 GB in, 7.4 GB out),
+  memory pressure some 89.8% and full 88.9%, I/O pressure 95.6%. Four unrelated unit tests hit their 5 s timeout;
+  they passed at the merge gate and in hosted CI, and an immediate retry passed. Run
+  `ecb7036640d64fe4aca6f8a5304fd12a` (`arc-offload history <run> --json` holds the resource summary).
+
+- _Interim, 2026-10-28:_ arc-offload `2dc4ef1` charges measured peaks on a runner that declares a memory budget:
+  each `command_classes` rule in the machine-local registry records its peak (`memory_mb`), and m4-mini has a
+  10,240 MB budget over 20 tokens, so `test:unit` takes 15 and `typecheck:test` 10. The peaks are the 30-hour
+  maxima from m4-mini's per-session journal lines; `test:store`, `test:e2e` and non-store reach checks have none
+  yet and run alone there. Admission still lives in one machine's registry rather than the repository. That
+  machine's local runs have been weighed against its memory since arc-offload `7874f17` and record their own
+  peaks since `c525d40`; neither changes ARC's own admission for a project without that runner.
+
+- _Evidence:_ identity-global `.internal/investigations/suite-timeouts-vm-memory-2026-10-20/` (findings, VM journal
+  and sar extracts, runner snapshots and SSH configuration) and `seam-decomposition-suite-timeouts-2026-10-20/` (the
+  failed gate, focused passes, serial retry, and source coordinates).
+
+- _Captured during:_ seam-decomposition pass-5 convergence, 2026-10-20; reduced to its remaining scope after the
+  runner investigation.
+
+### `[ ]` **Size local store shards to the machines they run on**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-30).
+
+- _Shapes:_ § Direction, contention-aware scheduling — where a local gate's shard durations come from, and whether
+  shards size to each placement or placements pull from a shared queue.
+
+- _Observation:_ A local gate holds no duration file, so the store partitioner splits by its fallback estimates into
+  near-equal file counts. On the idle-pool distributed merge gates in `distributed-check-shards`' Phase 6 study, the
+  four shards executed in 305–309 s (local), 323–324 s (m5-air), 391–396 s (m4-mini) and 444–449 s (m2-mini), and
+  m2-mini started about 135 s late after its upload. Its 595–599 s placement set the gate's critical path while local
+  finished almost five minutes earlier.
+
+- _Approach:_ Decide where a local gate's durations come from (CI's duration artifact, or per-file times recorded
+  locally) and whether shard sizes should account for each placement's speed and start time, or placements should
+  instead pull files from a shared queue. Either of the last two changes native partitioning, which
+  `distributed-check-shards` excludes.
+
+- _Captured during:_ reading `distributed-check-shards`' Phase 6 measurements, 2026-10-30.
+
 ---
 
 ## Evidence
