@@ -188,14 +188,12 @@ stamp parsing strips (§ 3.3, § 3.4).
   object format over LF-normalized content with the stamp and notice lines stripped — reads identity, its settings,
   and the object format in one Git call, and keeps each base's record version beside its blob id.
 
-    - `[ ]` **2.5.a Blob ids**
+    - `[x]` **2.5.a Blob ids**
 
-        - `blob <length>\0` plus the bytes, hashed by `node:crypto` in SHA-1 or SHA-256, over content whose CRLF is
-          normalized to LF and whose base stamp and notice lines are stripped; never a Git process per file.
-        - Build `test-first` (one behavior at a time):
-            - Integration tier for the comparison with Git
-            - a blob id equals `git hash-object`'s in a SHA-1 and in a SHA-256 repository
-            - CRLF content hashes as its LF form, and a stamp or notice line does not change the blob id
+        - `gitBlobId(content, format)` (`lib/store/projection/blob-id.ts`) hashes `blob <length>\0` plus the UTF-8
+          bytes with `node:crypto`, matching `git hash-object` in both formats; `storedBlobId` hashes a file's content as
+          stored, CRLF read as LF and, for Markdown only, the stamp and notice lines stripped through `parseStampedFile`.
+          Covered in `integration/store/projection/blob-id.test.ts`, with 2.5.c's person's-comment clause.
 
     - `[ ]` **2.5.b The one configuration read**
 

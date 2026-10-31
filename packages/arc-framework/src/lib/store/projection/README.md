@@ -37,6 +37,10 @@ folder that exists, so a worktree whose Git directory was removed reads as gone 
 ends only the guarded operation, at its next step, with the report the caller names; a wait that times out names the
 holder it last saw. It is not reentrant.
 
+`blob-id.ts` computes Git blob ids with `node:crypto`, `blob <length>\0` plus the bytes, in the repository's object
+format, never by running Git per file. A file's stored blob id is taken over LF line endings with, for Markdown alone,
+the base stamp and notice lines stripped, since the stored record carries neither.
+
 `stamp.ts` renders, parses, and strips a Markdown file's base stamp, `<!-- arc-base: <blob id> -->`, on its first line
 or the line after its YAML frontmatter, and the notice lines directly after it, each one comment opening
 `<!-- arc-notice:`. Only lines of that form in that block strip, so a person's own comment stays content, and a file
