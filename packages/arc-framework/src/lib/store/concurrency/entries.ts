@@ -72,12 +72,12 @@ function isEntryHeader(line: string, shape: EntryListConfig["shape"], fieldHeade
   return shape === "heading" ? /^###\s/u.test(line) : fieldHeader;
 }
 
-interface FieldHeaderBoldState { markers: (number | undefined)[]; codeTicks: number }
+interface FieldHeaderBoldState { markers: (number | undefined)[]; codeTicks: number; boundaryDepth: number }
 
 /** Locate complete bold field headers across consecutive non-blank lines without crossing sections. */
 export function fieldHeaderSpans(lines: readonly string[]): readonly { start: number; end: number }[] {
   const spans: { start: number; end: number }[] = [];
-  const state: FieldHeaderBoldState = { markers: [], codeTicks: 0 };
+  const state: FieldHeaderBoldState = { markers: [], codeTicks: 0, boundaryDepth: 0 };
   for (const [index, line] of lines.entries()) {
     const text = line.trimEnd();
     if (!text.trim() || text.startsWith("## ") || text === "---") { resetFieldHeader(state); continue; }
@@ -93,6 +93,7 @@ export function fieldHeaderSpans(lines: readonly string[]): readonly { start: nu
 function resetFieldHeader(state: FieldHeaderBoldState): void {
   state.markers.length = 0;
   state.codeTicks = 0;
+  state.boundaryDepth = 0;
 }
 
 function fieldHeaderLineStart(text: string, line: number, state: FieldHeaderBoldState): number | undefined {
@@ -112,7 +113,7 @@ function fieldHeaderToken(text: string, line: number, token: string, offset: num
     return undefined;
   }
   if (token !== "**" || state.codeTicks !== 0) return undefined;
-  return fieldHeaderBold(text, line, offset, state.markers);
+  return fieldHeaderBold(text, line, offset, state);
 }
 
 function fieldHeaderCodeTicks(current: number, width: number): number {
@@ -120,17 +121,30 @@ function fieldHeaderCodeTicks(current: number, width: number): number {
   return current === width ? 0 : current;
 }
 
-function fieldHeaderBold(text: string, line: number, offset: number, markers: (number | undefined)[]): number | undefined {
-  // Line-start markers can begin a header; unlabelled markers open its inline spans.
-  if (offset === 0) { markers.push(line); return undefined; }
+function fieldHeaderBold(text: string, line: number, offset: number, state: FieldHeaderBoldState): number | undefined {
+  const { markers } = state;
+  if (offset === 0) {
+    // A completed inline span leaves its outer title pending; closed prose does not.
+    if (state.boundaryDepth === 0 && markers.length !== 1) markers.length = 0;
+    markers.push(line);
+    state.boundaryDepth++;
+    return undefined;
+  }
   if (markers.length === 0) return undefined;
   const { opens, closes } = fieldHeaderBoldFlanking(text, offset);
-  if (closes && (!opens || markers.at(-1) === undefined)) {
+  state.boundaryDepth = fieldHeaderBoundaryDepth(state.boundaryDepth, opens, closes);
+  // Inline closers match nested openers regardless of whether they started a line.
+  if (closes && (!opens || markers.length > 1)) {
     const opening = markers.pop();
     return opening !== undefined && offset === text.length - 2 && /:\*\*$/u.test(text) ? opening : undefined;
   }
   if (opens) markers.push(undefined);
   return undefined;
+}
+
+function fieldHeaderBoundaryDepth(depth: number, opens: boolean, closes: boolean): number {
+  if (closes && depth > 0) return depth - 1;
+  return opens ? depth + 1 : depth;
 }
 
 function fieldHeaderBoldFlanking(text: string, offset: number): { opens: boolean; closes: boolean } {

@@ -59,6 +59,8 @@ describe("production entry grammars", () => {
     "**Next:**", "**Next\nwrapped:**", "**Next with **bold** text\ncontinued:**",
     "**Next with\n**bold** text:**",
     "**Next with `**` text\ncontinued:**", "**Next with \\** text\ncontinued:**",
+    "**Next with\n**bold\ntext**post and\n**more** text:**",
+    "**Next with pre**bold\ntext**post and\n**more** text:**",
   ].map(header => ({ newline, body, header })))))(
     "keeps closed bold body prose in its entry before $header with $newline: $body", ({ newline, body, header }) => {
       const first = `**First:**\n_Remove when: first condition._\n_Id:_ \`12345678\`\n\nBody.\n${body}`;
@@ -121,6 +123,10 @@ describe("production entry grammars", () => {
     "**A title with pre**bold\ntext**post and other**bold\nwords**tail\nends:**",
     "**A title with προ**bold\ntext**μετά and\n**more** text:**",
     "**A title with pre**bold `**`\ntext**post and\n**more** text:**",
+    ...["post", "μετά"].flatMap(after => [
+      `**A title with\n**bold\ntext**${after} and\n**more** text:**`,
+      `**A title with\n**bold text**${after} and **more** text:**`,
+    ]),
   ].map(header => ({ newline, suffix, header })))))(
     "keeps inline bold spans wrapped across lines inside the memory with $newline $suffix: $header", ({ newline, suffix, header }) => {
       const raw = `${header}\n_Remove when: done._\n_Id:_ \`12345678\``.replaceAll("\n", newline);
