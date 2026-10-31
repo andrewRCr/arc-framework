@@ -29,29 +29,16 @@ unmapped review source as cleared by the review mapping's binding.
   review sources and one working-memory header fault; the set-aside trial has only that blocking fault. Neither reached
   commit building or gathering refs, and the copy's refs are unchanged.
 
-### `[ ]` **1.2 Review the import's landing, publication, cleanup, and admission rules — § 11.1**
+### `[x]` **1.2 Review the import's landing, publication, cleanup, and admission rules — § 11.1**
 
 - _Goal:_ A non-author evaluator has reviewed the stages that write history and cannot be undone, and the transform's
   admission rules, against the standard rubric with the trial report as evidence, and returned source-grounded
   findings.
 
-- _Approach:_ ARC's review verbs bind an exact change set, and this scope is unchanged code, so the pass runs as a
-  fresh-context adversarial review that applies `standard-review/v1`'s rubric — the `implementation-audit` lens, every
-  dimension — to a named source scope. Its result is advisory evidence, not an attested review.
-
-    - Scope: landing (`landImport`, `buildImportCommits`, `landImportRefs`); publication with transient cleanup
-      (`publishImport`, `retireImportLocals`, `retireImportRemote`, `retireOriginRefs`, `dropKeptTips`); and the
-      transform's admission rules. Those are what refuses — every writer of `report.refused`: `reportImportAdmission`,
-      `reportBranchRefusal`, and the direct writers in `build.ts`, `parked-source.ts`, `review-mapping.ts`, and
-      `session-context.ts` — and the rule in `entry.ts` that any notice raised before the blocking check blocks the
-      landing. They also cover what imports verbatim (review candidates, integration boundaries, task lists, a broken
-      Candidate chain through `inspectCandidateChain`) and what is skipped with a notice.
-    - Evidence: 1.1's reports. A stage no trial ran is reviewed from source: the destination landing, publication, and
-      transient cleanup always, and the commit build and gathering refs when every trial was blocked.
-    - The first-pass context carries no author conclusion: leave out the spec's known import defects, the observations
-      in `notes-storage-ref-hardening.md` § Held out of the import review's first pass, and any suspected weak spot,
-      and match findings against them afterward.
-    - Keep the prompt and the verbatim report under `~/dev/arc-evidence/storage-ref-hardening/import-review/`.
+- _Outcome:_ One fresh non-author pass applied `standard-review/v1` to the complete named source scope at
+  `1df5058cdd` and returned one major resume-authorization finding. Its prompt and verbatim report are kept under
+  `~/dev/arc-evidence/storage-ref-hardening/import-review/`. Both blocked trials left build, landing, publication, and
+  cleanup covered by source and existing-test inspection only; the pass supplies no attested review.
 
 ### `[ ]` **1.3 Give every import finding a home in the plan — § 11.1**
 
