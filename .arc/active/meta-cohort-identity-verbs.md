@@ -5,11 +5,11 @@
 | `Planning` | `andrew`  | `plan/cohort-identity-verbs` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-seam`
-- **Depends On:** `storage-ref-backend`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `spec-cohort-identity-verbs.md`
-- **Task List:** [none]
+- **Task List:** `tasks-cohort-identity-verbs.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]

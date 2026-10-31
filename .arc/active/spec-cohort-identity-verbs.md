@@ -343,20 +343,24 @@ repeat the lookup" in place of today's shared text, which also says to rename on
 
 A typed read or write that names its record by slug alone binds the name within the reference's own family
 (`resolveCapturedReference`, which `resolveNamedRefWrites`, `lib/store/ref/write-names.ts`, runs for a write before
-`resolveOwner`, `lib/store/ref/write-resolution.ts`, resolves its owners). Its `ambiguous-match` refusal gains the
-`tie` its ranking tier gives, `liveness` and `name`, as the slug arm sets it, and its remedy is `clashRepair`'s for
-that tie, a completed one included: no lifecycle repair, naming each holder's UID. The lifecycle renderers already print
-that builder's remedy for any refusal carrying a `tie` (`refuse` and `refuseWithRemedy`,
-`handlers/lifecycle-shared.ts`; the paused-work disposition, `lib/session-init/paused-work.ts`). `resolveOwner`'s
-refusal of a name-only reference several live owners hold takes the same remedy.
+`resolveOwner`, `lib/store/ref/write-resolution.ts`, resolves its owners). Its `ambiguous-match` refusal gains the `tie`
+its ranking tier gives, `liveness` and `name`, as the slug arm sets it, and its remedy is `clashRepair`'s for that tie,
+a completed one included: no lifecycle repair, naming each holder's UID. The remedy reads each holder's primary kind,
+since a read of a secondary kind keeps the requested kind on its candidates. A write's names bind there (`bindName`)
+before `resolveOwner` runs, so a write by name refuses with the same remedy. `resolveOwner`'s own refusal of several
+candidates keeps § 3.4's text for the lineage owners it is handed (`lineageOwnerCandidates`), and otherwise takes
+`clashRepair`'s for a live current-name tie. The lifecycle renderers print a refusal's own remedy (`refuse` and
+`refuseWithRemedy`, `handlers/lifecycle-shared.ts`; the paused-work disposition, `lib/session-init/paused-work.ts`) in
+place of rebuilding `clashRepair` from any `tie`, so each lookup arm's repair reaches them as the store built it.
 
 #### 3.3 A branch-link tie
 
 The branch-link lookup's `ambiguous-match`, whose `tie` carries `liveness` alone, takes a remedy from
-`branchLinkRepair(candidates, tie)` in `lib/store/clash-repair.ts`, not `clashRepair`, whose moves would not move a
-link. A completed tie — only Errands link the branch, and every one is closed (`refCandidates`) — takes the completed
-text `clashRepair` gives: no lifecycle repair, naming each holder's UID. A live tie's remedy names, per holder, the move
-that takes its link off the branch, run on the machine holding that holder's checkout:
+`branchLinkRepair(candidates, tie, branch)` in `lib/store/clash-repair.ts`, not `clashRepair`, whose moves would not move
+a link; `branch` is the branch the lookup names, since neither the tie nor a holder's reference carries the link. A
+completed tie — only Errands link the branch, and every one is closed (`refCandidates`) — takes the completed text
+`clashRepair` gives: no lifecycle repair, naming each holder's UID. A live tie's remedy names, per holder, the move that
+takes its link off the branch, run on the machine holding that holder's checkout:
 `arc rename <uid> <new-slug>` for a work unit, or the catch-up `arc rename <uid> <slug>` for one whose current slug no
 longer names the branch (§ 2.5), and `arc errand close <uid>` for an Errand, which links its `chore/<slug>` branch as
 created and which no rename moves. Its argv is `arc status --json`. Only the branch lookup's readers meet the tie:
@@ -372,8 +376,8 @@ on the machine holding its own checkout, or the subject's catch-up run.
 
 - **Namespace admission's refusal** of a create or rename onto a held slug (`checkLiveNamespace`) answers the person's
   own write, whose repair is another slug.
-- **A lineage origin's ambiguity in a write** (`resolveCapturedLineage`, `lineageOwnerCandidates`) keeps "Name the
-  intended origin by UID, then retry".
+- **A lineage origin's ambiguity in a write** (`resolveCapturedLineage`; `resolveOwner` over `lineageOwnerCandidates`)
+  keeps "Name the intended origin by UID, then retry".
 - **The reference backend's identity index** (`indexIdentities`, `__tests__/helpers/store/identities.ts`), which
   refuses a same-type live clash after every write and at pull and push, keeps its remedy to give the colliding owners
   distinct names by UID, since one candidate may be a UID only the refused batch or the remote holds.
@@ -383,11 +387,14 @@ on the machine holding its own checkout, or the subject's catch-up run.
 
 `meta.cohort` and `cohort.parent` observe the cohort a field names through `observeRecord`
 (`lib/store/kinds/rule-support.ts`), and `meta.depends-on` each new edge through the slug lookup; each keeps only the
-refusal's condition under fixed remedy text (`checkMetaCohort`, `checkMetaDependsOn`, `parentProblem`). `observeRecord`
-gains an `ambiguous` observation, `{ status: "ambiguous"; candidates; tie?; remedy }`, in place of mapping an
-`ambiguous-match` to `unavailable`, and on it each of the three rules reports the refusal's condition with the store's
-remedy, so an edit naming a clashed cohort or slug names the repair. Every other consumer of `observeRecord` treats
-`ambiguous` as `unavailable` with its condition, as today; § 7.1 reads its candidates.
+refusal's condition under fixed remedy text (`checkMetaCohort`, `checkMetaDependsOn`, `parentProblem`). Beside
+`observeRecord`, which maps an `ambiguous-match` to `unavailable`, `observeNamedRecord` returns
+`{ status: "ambiguous"; condition; candidates; tie?; remedy }` for one. `meta.cohort` and `cohort.parent` read through it
+and report the refusal's condition with the store's remedy, and `meta.depends-on` reports an ambiguous edge's condition
+with the lookup's remedy, several such edges joining their texts under `arc status --json`; so an edit naming a clashed
+cohort or slug names the repair. `observeRecord` and its other consumers stay as they are, since a consumer that
+returns early only on `unavailable` would read an added status as known (`observeInboundHeld`); § 7.1 reads the
+`ambiguous` observation's candidates.
 
 #### 3.6 Status's clash warning
 
@@ -446,12 +453,12 @@ alike, so the verb resolves once per family before its batch:
 - **The slug names another holder** — an ended subject whose slug a live item has reused, which the lookup ranks above
   it: those references are the live holder's, and the rename leaves them unreported.
 
-The report is part of the rename's result, in its text and `--json`: each reference to the subject this rule leaves, its
-member heading among them, the record holding it by type, name, and UID, and the edit, as the command or field change
-that re-points it. A member heading's edit is a change to its document's text, rewriting that heading line to the new
-slug where the heading is the subject's; its `--json` entry carries the document, the line, and the replacement, with no
-command. Prose the rename never rewrites — a started member's prose and a closed document's text (§ 5.1) — is
-not reported.
+The report is part of the rename's result, in its text and in `--json`, which `arc rename` gains for it: each reference
+to the subject this rule leaves, its member heading among them, the record holding it by type, name, and UID, and the
+edit, as the command or field change that re-points it. A member heading's edit is a change to its document's text,
+rewriting that heading line to the new slug where the heading is the subject's; its `--json` entry carries the document,
+the line, and the replacement, with no command. Prose the rename never rewrites — a started member's prose and a closed
+document's text (§ 5.1) — is not reported.
 
 ### 5. Rename: the cohort arm
 
@@ -531,8 +538,10 @@ document by name (`observeRecord`), and binding by name admits a former slug (`p
 `Cohort` edited back to a renamed cohort's old name passes while every text-matching membership reader misses the member
 — and `cohort.open-members` would let the cohort close or be removed under it. A segment resolving through a former slug
 refuses, naming the current one. `checkMetaCohort` reads the leaf segment's document and compares the first segment as
-text with that document's `Parent`, and `memberAgrees` compares `parent/name` as text, so a renamed parent's old name in
-the first segment already refuses; the rule adds the leaf, a one-segment path, and the parent `cohort.parent` names.
+text with that document's `Parent`, so a renamed parent's old name in the first segment refuses only while the leaf's
+`Parent` is current — a pull can leave it on the former slug (§ 7.1), and then `<former>/<leaf>` agrees as text — and
+that refusal names no current slug. So the rule resolves every segment: the leaf, a one-segment path, the first segment,
+and the parent `cohort.parent` names.
 
 #### 6.2 The open-cohort requirement applies to an open meta joining a cohort
 
@@ -582,10 +591,10 @@ subcohort's `Parent` on a former slug while its open members' paths name it ther
 its own candidates, as below, and resolves in the view it lists from unless the list names another:
 
 - **Open members and open subcohorts:** `arc cohort close`; `cohort.open-members`, listing from the view after the
-  batch and resolving in the view before it; archive's trigger, listing from the index of view entries with the subject
-  marked completed and from the open subcohorts less those the same batch closes, and resolving in the store; archive's
-  closeout rule, in each of its two views; and the reports of a cohort left with nothing open — abandon's, and close's
-  and remove's of a parent they empty.
+  batch and resolving in the view before it; archive's trigger, listing from the view's lifecycle entries with the
+  subject marked completed and from the open subcohorts less those the same batch closes, and resolving in the store;
+  archive's closeout rule, in each of its two views; and the reports of a cohort left with nothing open — abandon's, and
+  close's and remove's of a parent they empty.
 - **Every record:** the cohort rename's members and subcohorts; a work unit's rename's other work items holding its old
   slug; `arc cohort remove`; and those reports' choice of naming the removal.
 
@@ -610,12 +619,12 @@ reports the second.
   re-points it. So every close — archive's in-batch close, `arc cohort close`, and `arc cohort remove` — refuses while a
   record left on a former slug holds the cohort.
 - **Archive's trigger** counts each cohort's open members and subcohorts by the same resolution, in place of
-  `isArchivalTriggeredWithDescendants`'s text match. Its candidates are the members in the index of every view entry
-  keyed by identity that archive already passes it, the subject marked completed by its reference (`membershipIndex`),
-  and the open subcohorts less those the same batch closes (`completing` in `prepareObservedCohorts`), resolved in the
-  store its cohort preparation already holds. So where a record left on a former slug holds the cohort, archive lands
-  the member and leaves the cohort open, reporting that record with the edit that re-points it, rather than refusing or
-  closing the cohort under the member for good.
+  `isArchivalTriggeredWithDescendants`'s text match. Its candidates are the lifecycle entries of the view archive already
+  reads (`view.result.entries`), each carrying its reference, the subject marked completed by its reference, and the
+  open subcohorts less those the same batch closes (`completing` in `prepareObservedCohorts`), resolved in the store its
+  cohort preparation already holds. So where a record left on a former slug holds the cohort, archive lands the member
+  and leaves the cohort open, reporting that record with the edit that re-points it, rather than refusing or closing the
+  cohort under the member for good.
 - **Archive's closeout rule** (`checkCohortArchiveCloseout`) counts by the same resolution in the views before and after
   the batch, in place of its text count (`observeOpenCohortHoldings`). Archive's transition batch writes a cohort it
   leaves open unchanged (`prepareObservedCohorts` with `protectOpen`), and a text count would miss the record on a
@@ -698,6 +707,20 @@ confirmation retry (`renderRetry`) and close's off-branch retry (`renderOffBranc
 `lib/errand/terminal-authority.ts`, repeat the operand given, as rename's continuation does, rather than the record's
 slug, which refuses under the clash.
 
+Abandon's inbox return (`prepareErrandReturn`, `lib/inbox/errand-return.ts`) takes the operand given, which its list
+resolution already selects by UID, and compares the Errand holding an entry with its subject by UID rather than by slug,
+so abandoning one clashed Errand never returns the other's held entries to the inbox. Both verbs resolve the operand
+before they branch on protection: a partial Errand keeps no stored record, so a UID under partial protection refuses
+`not-found`.
+
+Two clashed Errands link one branch name, and close reads that branch's head by name for its merged evidence
+(`resolveCloseChangeRequest`), checking it against the subject's checkout only where this machine holds one
+(`readCloseOccupancy`). So where this machine holds no checkout of its subject and the branch-link lookup of the
+subject's branch returns anything but the subject alone, close refuses before it reads the branch, naming the machine
+that must run it: the one holding the subject's checkout. Elsewhere the head it reads is the other holder's, whose
+merged change request it would record and whose refs it would delete. Abandon needs no such guard: its deletions compare
+against the heads its record holds and keep a branch any registered checkout has checked out.
+
 #### 9.3 Promote
 
 Promote keeps its slug operand. Its refusal under a clash passes the store's remedy through rather than the condition
@@ -727,8 +750,10 @@ and the reference backend's (`checkRefWrites`; `observeSyncChecks`, `lib/store/r
   not a slug also meets a refusal the verb reaches before its store opens — identity, the project root, configuration
   such as `branch.protection` and `branch.base`, the stdin Git boundary, or the store's own open — that refusal now
   shows first.
+- `arc rename --json` (§ 4) gives either arm's result and refusal one form: before the flip the in-repo arm's result
+  carries an empty report, and its text output is today's.
 - Promote's recovery and refusal changes are in its store arm, which runs only off-branch.
-- The remedy builders, the `observeRecord` observation, and the cohort writers are pure or store-side additions whose
+- The remedy builders, the `observeNamedRecord` observation, and the cohort writers are pure or store-side additions whose
   only callers are the paths above.
 
 ### 11. Order and dependencies
@@ -756,7 +781,8 @@ to land whole returns to the Owner.
 #### 11.2 Shared files
 
 `cli.ts` and `lib/store/lifecycle-rename.ts` also change on `feat/seam-delivery-review`, which has not landed: merge base
-after it lands, before implementing in those files.
+after it lands, before implementing in those files. `handlers/lifecycle-shared.ts` changes there too, outside the
+renderers § 3.2 changes, so work there does not wait for it; expect a merge.
 
 #### 11.3 Shared-decision records
 
@@ -773,7 +799,12 @@ status warning's text, decomposition's remedies, and the rename's branch handlin
   operand are one concern — identity commands for owners in the shared namespace — over shared files (`cli.ts`, the
   rename verb, the cohort kind's writers), and no piece is worth shipping alone. The spec ran about 950 lines at its
   creation (2026-10-31), below the 1,500 at which the boundary returns to the Owner; the task list's size and phase
-  count are checked when it is generated, and § 11.1 states when the hardening's ordering returns to the Owner.
+  count are checked when it is generated, and § 11.1 states when the hardening's ordering returns to the Owner. At task
+  generation (2026-10-31) the task list reached about 1,060 lines in six phases, with about 9,000 to 11,000 changed
+  lines forecast, past the 1,000-line mark, and the Owner held it whole: the storage program's work units land on one
+  branch with chunked review, so one review of the whole change set holds as three chunks along the hardening's seam —
+  the clash repairs, path rules, writers, and command surface; the Errand exits and the cohort's retirement; and the two
+  renames.
 - **A clash remedy naming every holder's repair, unordered.** Rejected for `clashRepair`'s one preferred move: every
   surface then shows the same text for one clash — the lifecycle refusal already prints it — and the move it skips,
   renaming a work unit off a clash with a cohort or an Errand, leaves the old slug resolving to the other holder, which
@@ -860,15 +891,17 @@ members' paths. History rounds are bounded by the completed records a batch writ
 
 ### Compatibility and migration
 
-ARC is pre-public: `observeRecord`'s new observation, the `tie` on name-binding refusals, the remedy texts, and the
+ARC is pre-public: the `ambiguous` observation, the `tie` on name-binding refusals, the remedy texts, and the
 rename result's report change in place, with no compatibility alias. No stored record changes shape, and nothing
 migrates.
 
 ### User-facing impact
 
 New commands: `arc cohort close`, `arc cohort remove`. New operand forms: `arc rename <uid>`, `arc errand close <uid>`,
-`arc errand abandon <uid>`. Changed text: every clash refusal's remedy, status's clash warning, and rename's report of
-the references it leaves and of a former-slug tie. Help text for the new operands states the UID form.
+`arc errand abandon <uid>`. New flag: `arc rename --json`, which emits the rename's typed result with its report, a
+refusal through the lifecycle refusal's JSON form. Changed text: every clash refusal's remedy, status's clash warning,
+and rename's report of the references it leaves and of a former-slug tie. Help text for the new operands states the UID
+form.
 
 ### Security
 
@@ -934,7 +967,9 @@ Over the ref backend and, where it can form the state, the reference backend, fr
     refuses one an archived member names, naming `arc cohort close`; without `--yes` each prints what it would do and
     writes nothing. A member a pull lands naming a removed cohort refuses archive and rename naming the edit to its
     `Cohort`, and both land after that edit.
-12. **Errand lock recovery.** Closing one of two clashed Errands by UID clears only its own finalized head locks.
+12. **Errand lock recovery and evidence.** Closing one of two clashed Errands by UID clears only its own finalized head
+    locks; on a machine holding no checkout of it, the close refuses naming the machine holding its checkout; abandoning
+    one returns only its own held inbox entries; and a UID under partial protection refuses `not-found`.
 13. **The checkout.** Under a clash, renaming a work unit whose checkout carries an unbound marker refuses before the
     batch naming the holders by UID and the release exit; after release and the rename, `arc materialize <new-slug>`
     brings back a checkout of the subject's, and `arc materialize <slug>` one of the other holder's.
