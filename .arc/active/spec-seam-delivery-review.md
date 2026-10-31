@@ -2748,4 +2748,7 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
   _Supersedes:_ § 3.1 ¶3, Criterion 2. _Trigger:_ 8.1 terminal. _Work:_ verify-work-unit. _Revalidated:_
   verify-work-unit.
 
+- **A30** — 2026-10-31 — task: prove native reference re-entry across a same-UID rename. _Supersedes:_ none.
+  _Trigger:_ 8.1 terminal. _Work:_ 4.R6. _Revalidated:_ pending → 8.1.
+
 ---

@@ -890,6 +890,16 @@ through rename and slug reuse; mismatched references refuse and succeed after co
   and repeating only a receiptless failure's cleanup. The envelope takes the shared operation-payload checks, so version
   0 requires the reference, and a foreign owner's reference refuses as unavailable, as attest's does.
 
+### `[x]` **4.R6 Prove native reference re-entry across a same-UID rename — § 9.3 (A30)**
+
+- _Goal:_ A completed native local review re-enters through the references its commands emitted after its work item is
+  renamed under the same UID, selecting that generation and reporting its current name (A30).
+
+- _Outcome:_ `review-local-native-defaults.test.ts` renames the stored owner between pruning and slug reuse. Attest,
+  resume, and reduce replay unchanged, and the result, disposition, approval, and outcome reads return the same records
+  under the owner's current name. A name-sensitive owner comparison fails the replay after the rename, which the test
+  without the rename leg passed.
+
 ### `[x]` **4.11 The review gate's store** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
