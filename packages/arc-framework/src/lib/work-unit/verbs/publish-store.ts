@@ -77,7 +77,7 @@ function rejectStoreFailure(error: unknown, reject: PublicationReject): Extract<
   throw error;
 }
 
-/** Reject a refused claim with its own remedy, a store or project-identity failure whole, or any other failure as it is. */
+/** Reject a refused claim with its own remedy, a native typed refusal whole, or any other failure as it is. */
 function rejectPublicationClaim(error: unknown, reject: PublicationReject): Extract<PublishResult, { status: "rejected" }> {
   if (error instanceof PublicationClaimRefusal) return reject(error.condition, undefined, error.remedy);
   if (isNativeTypedRefusal(error)) return rejectStoreFailure(error, reject);
@@ -158,9 +158,10 @@ async function resumeIntegratingPublication(params: PublishParams, branch: strin
     return reject("Publication boundary belongs to a different Candidate.");
   }
   if (boundary.locus === "hosted-review-pending" || boundary.locus === "delivery-status-required") return { status: "unchanged", boundary };
-  const authorization = await authorizeStoredPublication(params, boundary);
-  if (authorization.status === "refused") return reject(authorization.reason, undefined,
-    { text: "Resolve pre-publication review, then retry publication.", argv: ["arc", "review", "pre-publication", params.name] });
+  let authorization: SubmissionAuthorization;
+  try { authorization = await authorizeStoredPublication(params, boundary); }
+  catch (error) { return rejectStoreFailure(error, reject); }
+  if (authorization.status === "refused") return reject(authorization.reason, undefined, prePublicationRemedy(params.name));
   if (boundary.locus === "publication-pending") return { status: "unchanged", boundary };
   return { status: "unchanged", boundary: projectPublicationBoundary({ workUnit: params.name, branch,
     candidateId: params.candidateId, candidateSubjectDigest: params.candidateSubjectDigest,

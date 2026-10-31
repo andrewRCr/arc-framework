@@ -1,6 +1,7 @@
 /** Native publication commits its readiness claim and lifecycle move together. */
 import { expect, it, onTestFinished } from "vitest";
 import { ReviewOwnerSelectionError } from "../../../../src/lib/store/kinds/review/errors.js";
+import { storedWorkUnitMismatch } from "../../../../src/lib/store/kinds/review/access-shared.js";
 import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 import { createReviewCheckout } from "../../../helpers/store/review-checkout.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
@@ -190,10 +191,12 @@ it("reports a store refusal from claim preparation with its own remedy, and publ
 
 it("reports a work-item selection refusal from claim preparation with its own remedy, and publishes once it prepares", async () => {
   const h = await fixture();
-  const remedy = { text: "Select the work unit's current generation, then retry.", argv: ["arc", "status", "example"] };
-  const refusal = new ReviewOwnerSelectionError("corrupt-state", "The work unit's stored owner is ambiguous.", remedy);
-  expect(await runPublish(h.ctx, { ...h.params, preparePublicationClaim: () => Promise.reject(refusal) }))
-    .toMatchObject({ status: "rejected", reason: refusal.condition, remedy: { argv: remedy.argv } });
+  const refusal = storedWorkUnitMismatch(h.store, "submission boundary", "example", "other", "Submission boundary work unit does not match its path");
+  if (!(refusal instanceof ReviewOwnerSelectionError)) throw new Error("Expected the native owner refusal");
+  expect(await runPublish(h.ctx, { ...h.params, preparePublicationClaim: () => Promise.reject(refusal) })).toMatchObject({
+    status: "rejected", reason: "The bound work item's submission boundary belongs to work unit `other`, not `example`.",
+    remedy: { text: expect.stringContaining("Name work unit `other`, or run the command from `example`'s checkout."),
+      argv: ["arc", "publish", "example"] } });
   expect(await runPublish(h.ctx, h.params)).toMatchObject({ status: "published" });
 });
 
@@ -275,6 +278,35 @@ it("resumes the Integrating publication left by an interruption after the atomic
   expect(await runPublish(h.ctx, params)).toEqual({ status: "unchanged", boundary: stored.boundary });
   expect(await h.store.version()).toEqual(before);
 });
+
+async function interruptedPublication() {
+  const h = await fixture();
+  expect(await runPublish(h.ctx, h.params)).toMatchObject({ status: "published" });
+  const stored = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner: h.primary.reference.owner });
+  if (stored.boundary?.schemaVersion !== 2) throw new Error("Expected the durable publication claim");
+  return { h, boundary: stored.boundary, params: await refreshedParameters(h, stored.boundary) };
+}
+it("reports an unreadable readiness listing resuming an Integrating publication as the store's refusal, and resumes once readable",
+  async () => {
+    const { h, boundary, params } = await interruptedPublication(), before = await h.store.version();
+    h.store.state.unreadable.add("review");
+    expect(await runPublish(h.ctx, params)).toMatchObject({ status: "rejected",
+      refusal: { code: "record-malformed", class: "recoverable", rule: "review.listing-unreadable" },
+      remedy: { argv: ["arc", "publish", "example"] } });
+    expect(await h.store.version()).toEqual(before);
+    h.store.state.unreadable.clear();
+    expect(await runPublish(h.ctx, params)).toEqual({ status: "unchanged", boundary });
+  });
+it("sends a version-one boundary resuming an Integrating publication back to pre-publication review, and resumes from version two",
+  async () => {
+    const { h, boundary, params } = await interruptedPublication();
+    const legacy = { ...boundaryV1Fixture("publication-pending"), candidateId: h.params.candidateId,
+      candidateSubjectDigest: h.params.candidateSubjectDigest };
+    expect(await runPublish(h.ctx, { ...params, boundary: legacy })).toMatchObject({ status: "rejected",
+      reason: expect.stringMatching(/version-two readiness boundary/u),
+      remedy: { argv: ["arc", "review", "pre-publication", "example"] } });
+    expect(await runPublish(h.ctx, params)).toEqual({ status: "unchanged", boundary });
+  });
 
 it.each(["terminus", "selection", "lane-skip"] as const)("publishes after a %s is recorded outside standard progress", async kind => {
   const h = await fixture(), owner = h.primary.reference.owner;
