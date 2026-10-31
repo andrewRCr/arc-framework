@@ -23,7 +23,8 @@ export async function sweepLocalReviewMaterializations(input: ReviewInvocationIn
     const operationIds = await adapter.listOperationIds();
     if (operationIds.length === 0) return;
     const records = context.operationStore.stateOffBranch === true
-      ? await createNativeLocalSourceSweepRecords({ publisher: context.publisher, store: input.store, projectId: input.projectId })
+      ? await createNativeLocalSourceSweepRecords({ publisher: context.publisher, store: input.store, projectId: input.projectId,
+        operationIds })
       : { readOperation: (operationId: string) => context.operationStore.readOperation(operationId) };
     await sweepLocalReviewSources({ listOperationIds: () => Promise.resolve(operationIds), ...records,
       readReceipts: targetId => context.readReceipts(targetId), release: operationId => adapter.releaseWithinLock(operationId),

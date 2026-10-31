@@ -16,8 +16,8 @@ import { OPERATION_STORE_SEMANTICS, ReviewOperationStoreRecordSchema, type Revie
 
 /** Stable local-store failure that callers can branch on without parsing prose. */
 export class LocalOperationStateStoreError extends Error {
-  constructor(public readonly code: string) {
-    super(code);
+  constructor(public readonly code: string, message: string = code) {
+    super(message);
     this.name = "LocalOperationStateStoreError";
   }
 }

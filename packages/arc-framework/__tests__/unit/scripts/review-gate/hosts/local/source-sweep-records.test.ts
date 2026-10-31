@@ -18,7 +18,8 @@ it("keeps an unfinished native review's pin until its cleanup deadline", async (
   const h = await nativeLocalReview();
   onTestFinished(h.cleanup);
   const pins = new Set([h.state.operationId]);
-  const records = await createNativeLocalSourceSweepRecords({ publisher: h.publisher, store: h.store, projectId: h.projectId });
+  const records = await createNativeLocalSourceSweepRecords({ publisher: h.publisher, store: h.store, projectId: h.projectId,
+    operationIds: [...pins] });
   const receipts = new LocalForwardReviewReceiptStore(h.publisher, h.state.repositoryId);
   expect(await sweepLocalReviewSources({ ...records, listOperationIds: async () => [...pins],
     readReceipts: targetId => receipts.readReceipts(targetId), release: async id => { pins.delete(id); },
@@ -42,7 +43,8 @@ it("releases a finished native review's pin by its outcome without a receipt led
   await recordLocalReceiptConclusion(h.operations, { state, receipt, now: h.prepared.dependencies.now() });
   expect(await h.operations.readOperation(state.operationId)).toMatchObject({ state: null });
   const pins = new Set([state.operationId]);
-  const records = await createNativeLocalSourceSweepRecords({ publisher: h.publisher, store: h.store, projectId: h.projectId });
+  const records = await createNativeLocalSourceSweepRecords({ publisher: h.publisher, store: h.store, projectId: h.projectId,
+    operationIds: [...pins] });
   const receipts = new LocalForwardReviewReceiptStore(h.publisher, state.repositoryId);
   expect(await sweepLocalReviewSources({ ...records, listOperationIds: async () => [...pins],
     readReceipts: targetId => receipts.readReceipts(targetId), release: async id => { pins.delete(id); },
@@ -63,7 +65,8 @@ it("releases another work item's finished pin while preserving this work item's 
   await recordLocalReceiptConclusion(operations, { state, receipt, now: prepared.dependencies.now() });
   expect(await h.outcomes.read(state.operationId)).toBeNull();
   const pins = new Set([h.state.operationId, state.operationId]);
-  const records = await createNativeLocalSourceSweepRecords({ publisher: h.publisher, store: h.store, projectId: h.projectId });
+  const records = await createNativeLocalSourceSweepRecords({ publisher: h.publisher, store: h.store, projectId: h.projectId,
+    operationIds: [...pins] });
   const receipts = new LocalForwardReviewReceiptStore(h.publisher, state.repositoryId);
   expect(await sweepLocalReviewSources({ ...records, listOperationIds: async () => [...pins],
     readReceipts: targetId => receipts.readReceipts(targetId), release: async id => { pins.delete(id); },
@@ -82,8 +85,9 @@ it("refuses malformed execution inventory with a repair route and resumes after 
   const original = await h.publisher.read(location, name);
   if (original === null) throw new Error("Expected retained native execution");
   await h.publisher.update(location, name, () => ({ kind: "write", content: "{", result: undefined }));
-  const input = { publisher: h.publisher, store: h.store, projectId: h.projectId };
-  await expect(createNativeLocalSourceSweepRecords(input)).rejects.toThrow(/Repair native execution record.*retry source cleanup/);
+  const input = { publisher: h.publisher, store: h.store, projectId: h.projectId, operationIds: [h.state.operationId] };
+  await expect(createNativeLocalSourceSweepRecords(input)).rejects.toMatchObject({ code: "malformed-operation-state",
+    message: expect.stringMatching(new RegExp(`^Native execution record '${name}' is malformed: .+\\. Repair or remove it, then retry\\.$`, "su")) });
   await h.publisher.update(location, name, () => ({ kind: "write", content: original, result: undefined }));
   expect(await (await createNativeLocalSourceSweepRecords(input)).readOperation(h.state.operationId))
     .toMatchObject({ state: { operationId: h.state.operationId, workItem: h.primary.reference.owner } });
@@ -107,7 +111,8 @@ it("releases a terminal evaluator failure's pin even when no receipt was written
   expect((await h.outcomes.read(state.operationId))?.value).toMatchObject({ outcome: "terminal-failure" });
   expect((await h.outcomes.read(state.operationId))?.value.local).not.toHaveProperty("receipt");
   const pins = new Set([state.operationId]);
-  const records = await createNativeLocalSourceSweepRecords({ publisher: h.publisher, store: h.store, projectId: h.projectId });
+  const records = await createNativeLocalSourceSweepRecords({ publisher: h.publisher, store: h.store, projectId: h.projectId,
+    operationIds: [...pins] });
   expect(await sweepLocalReviewSources({ ...records, listOperationIds: async () => [...pins],
     readReceipts: targetId => receipts.readReceipts(targetId), release: async id => { pins.delete(id); },
     now: () => state.updatedAt })).toEqual({ reaped: [{ operationId: state.operationId, reason: "completed" }] });
@@ -140,7 +145,7 @@ it("refuses a pin with two retained owners and reads it again after the duplicat
   onTestFinished(h.cleanup);
   const sibling = await prepareSibling(h);
   expect(sibling.state.operationId).toBe(h.state.operationId);
-  const input = { publisher: h.publisher, store: h.store, projectId: h.projectId };
+  const input = { publisher: h.publisher, store: h.store, projectId: h.projectId, operationIds: [h.state.operationId] };
   const inventory = await createNativeLocalSourceSweepRecords(input);
   await expect(inventory.readOperation(h.state.operationId)).rejects.toThrow(/multiple retained owners.*retry source cleanup/);
   const owner = sibling.other.reference.owner;
@@ -150,4 +155,23 @@ it("refuses a pin with two retained owners and reads it again after the duplicat
     nativeReviewInFlightRecordName(uid, sibling.state.operationId), () => ({ kind: "delete", result: undefined }));
   expect(await (await createNativeLocalSourceSweepRecords(input)).readOperation(h.state.operationId))
     .toMatchObject({ state: { workItem: h.primary.reference.owner } });
+});
+
+it("skips another operation's damaged execution record, keeping this pin's cleanup", async () => {
+  const h = await nativeLocalReview();
+  onTestFinished(h.cleanup);
+  const { state, other } = await prepareSibling(h, { kind: "candidate", candidateId: `sha256:${"8".repeat(64)}` });
+  const owner = other.reference.owner;
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected the sibling's admitted UID");
+  await h.publisher.update({ root: "review-gate", namespace: "in-flight" }, nativeReviewInFlightRecordName(owner.uid, state.operationId),
+    () => ({ kind: "write", content: "{", result: undefined }));
+  const pins = new Set([h.state.operationId]);
+  const records = await createNativeLocalSourceSweepRecords({ publisher: h.publisher, store: h.store, projectId: h.projectId,
+    operationIds: [...pins] });
+  const receipts = new LocalForwardReviewReceiptStore(h.publisher, h.state.repositoryId);
+  expect(await sweepLocalReviewSources({ ...records, listOperationIds: async () => [...pins],
+    readReceipts: targetId => receipts.readReceipts(targetId), release: async id => { pins.delete(id); },
+    now: () => new Date(Date.parse(h.state.updatedAt) + h.state.cleanupTtlMs).toISOString() }))
+    .toEqual({ reaped: [{ operationId: h.state.operationId, reason: "terminally-expired" }] });
+  expect([...pins]).toEqual([]);
 });

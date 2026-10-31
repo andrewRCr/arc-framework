@@ -21,9 +21,14 @@ const location = { root: "review-gate", namespace: "in-flight" } as const;
 
 function recordPrefix(uid: string): string { return `operation-${canonicalDigest({ uid }).slice(7)}-`; }
 
+/** The part of an execution record's name that every work item's record of one operation shares. */
+export function nativeReviewInFlightOperationPart(operationId: string): string {
+  return `${canonicalDigest({ operationId }).slice(7)}.json`;
+}
+
 /** Name one clone-local execution record by its exact admitted UID and operation. */
 export function nativeReviewInFlightRecordName(uid: string, operationId: string): string {
-  return `${recordPrefix(uid)}${canonicalDigest({ operationId }).slice(7)}.json`;
+  return `${recordPrefix(uid)}${nativeReviewInFlightOperationPart(operationId)}`;
 }
 
 /** Bind machine-local execution state to one exact operational owner. */
