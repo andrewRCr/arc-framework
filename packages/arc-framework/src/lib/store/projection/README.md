@@ -41,6 +41,12 @@ holder it last saw. It is not reentrant.
 format, never by running Git per file. A file's stored blob id is taken over LF line endings with, for Markdown alone,
 the base stamp and notice lines stripped, since the stored record carries neither.
 
+`configuration.ts` is the one configuration read a command's start makes:
+`git config --null --get-regexp '^(arc\.|user\.name$|extensions\.objectformat$)'`, exit status 1 read as no key set.
+A single-valued key takes its last occurrence, as `git config --get` does, and each `arc.inflightPin` is kept. It returns
+the object format, SHA-1 where unset; the in-flight view keys as set; and identity, resolved by the rule
+`lib/git/identity.ts` owns, or the no-identity verdict naming the remedy that sets `arc.identity`.
+
 `stamp.ts` renders, parses, and strips a Markdown file's base stamp, `<!-- arc-base: <blob id> -->`, on its first line
 or the line after its YAML frontmatter, and the notice lines directly after it, each one comment opening
 `<!-- arc-notice:`. Only lines of that form in that block strip, so a person's own comment stays content, and a file

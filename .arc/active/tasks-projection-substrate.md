@@ -182,7 +182,7 @@ stamp parsing strips (§ 3.3, § 3.4).
   `step` ends the operation, and never terminates the process. `isAdvisoryHolderAbandoned` (`lib/advisory-lock.ts`) is
   the reclaim rule, now what `isMainLockBreakable` applies. Callers pass `SIBLING_LOCK_WAIT_MS` or leave the default.
 
-### `[ ]` **2.5 Blob ids, the configuration read, and the base stamp — § 3.4, § 15.3**
+### `[x]` **2.5 Blob ids, the configuration read, and the base stamp — § 3.4, § 15.3**
 
 - _Goal:_ The projection computes both sides of every content comparison itself — Git blob ids in the repository's
   object format over LF-normalized content with the stamp and notice lines stripped — reads identity, its settings,
@@ -195,28 +195,14 @@ stamp parsing strips (§ 3.3, § 3.4).
           stored, CRLF read as LF and, for Markdown only, the stamp and notice lines stripped through `parseStampedFile`.
           Covered in `integration/store/projection/blob-id.test.ts`, with 2.5.c's person's-comment clause.
 
-    - `[ ]` **2.5.b The one configuration read**
+    - `[x]` **2.5.b The one configuration read**
 
-        - One `git config --null --get-regexp '^(arc\.|user\.name$|extensions\.objectformat$)'`, its keys matched
-          lowercased as Git prints them (`arc.inflightview`), exit status 1 read as no key set. It prints every scope's
-          value in Git's order, so a single-valued key takes its last occurrence, as `git config --get` does, and
-          `arc.inflightPin` collects every occurrence. It yields the object format, SHA-1 where the key is absent; the
-          in-flight view keys (`projection-write-back`); and identity, which the identity owner resolves:
-          `lib/git/identity.ts` exports a pure resolver over already-read `arc.identity` and `user.name` values —
-          `arc.identity` validated, else `user.name` slugified — which `readConfiguredIdentity` and `resolveIdentity`
-          also call, and this read passes its two values to it, so no second identity rule exists.
-        - Git prints each match as its key, a newline, and its value, NUL-terminated (`key\nvalue\0`), so a record
-          splits at its first newline; a record holding none is a key set with no value (`arc.flag\0`).
-        - The read returns a typed verdict: the settings, or no identity or an invalid `arc.identity` with the remedy
-          that sets `arc.identity`. The command start acts on it (`projection-write-back`).
-        - Build `test-first` (one behavior at a time):
-            - one call returns identity, the view keys, and the object format
-            - with no `arc.identity`, identity is `user.name` slugified, through the identity owner's resolver
-            - an invalid `arc.identity` returns the no-identity verdict naming the remedy
-            - a repository with no matching key reads as SHA-1 with no identity and the default view
-            - a key set with no value parses as that key with no value, and the record after it parses intact
-            - with `user.name` and `arc.identity` set in both global and local configuration, the local values win, as
-              `git config --get` returns them
+        - `readProjectionConfiguration` (`lib/store/projection/configuration.ts`) makes the one `--get-regexp` call and
+          returns the object format, the raw `arc.inflightView` and `arc.inflightPin` values, and identity — identified,
+          or `no-identity` with cause `unset` or `invalid` and the remedy setting `arc.identity`; `parseConfigurationRecords`
+          reads a valueless key as `null`. `resolveIdentityFromValues` (`lib/git/identity.ts`) is the one identity rule,
+          which `readConfiguredIdentity` and `resolveIdentity` now call. Covered in
+          `integration/store/projection/configuration.test.ts` and `unit/git/identity.test.ts`.
 
     - `[x]` **2.5.c The base stamp and notice lines**
 
@@ -225,6 +211,9 @@ stamp parsing strips (§ 3.3, § 3.4).
           block, each notice one line `<!-- arc-notice: … -->`; parsing reads CRLF as LF, and a file whose stamp is not
           there is stampless and whole. Rendering refuses a stamp that is no blob id and a notice a comment cannot hold.
           A person's comment staying in the blob id is covered with 2.5.a. Covered in `unit/store/projection/stamp.test.ts`.
+
+- _Outcome:_ Each base's record version sits beside its blob id in the index entry's `base` (2.2.a). Run c, a, b, since
+  a's stripping goes through c's module.
 
 ### `[ ]` **2.4 Detect a change by Git's racy rule — § 3.3, § 11.2**
 
