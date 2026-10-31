@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "decompose-meta-path-anchor",
+  "claimId": "2632c63a57e425eedf78ddb62144a3d8",
+  "createdAt": "2026-10-31T01:06:05.374Z",
+  "updatedAt": "2026-10-31T01:06:05.374Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Anchor decompose's meta-path matchers to the file name so a work unit whose slug starts with meta- no longer breaks every decomposition",
+  "branch": "chore/decompose-meta-path-anchor",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
