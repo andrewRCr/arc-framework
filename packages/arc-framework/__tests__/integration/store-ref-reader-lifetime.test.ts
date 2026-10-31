@@ -272,6 +272,8 @@ it("closes the pull reader before a history fetch performs due store maintenance
       readersBefore = events.filter(({ event, argv }) => event === "start" && argv?.includes("cat-file") && argv.includes("--batch"));
       exitsAtFetch = events.filter(({ event }) => event === "exit");
       packsBefore = (await readdir(packDirectory)).filter((name) => name.endsWith(".pack"));
+      // The test Git baseline turns automatic maintenance off globally; this repository turns it back on.
+      await h.b.git(["config", "maintenance.auto", "true"]);
       await h.b.git(["config", "gc.auto", "1"]); await h.b.git(["config", "gc.autoPackLimit", "1"]);
       // Newer Git defaults to geometric repacking; make its next run consolidate every pack too.
       await h.b.git(["config", "maintenance.geometric-repack.auto", "-1"]);

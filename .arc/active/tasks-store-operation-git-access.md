@@ -157,6 +157,14 @@ and explained.
   deadline killed a fetch. That residual belongs to `storage-ref-hardening`'s D2, and the burst passes on Windows at
   this head.
 
+### `[x]` **4.3 Keep the history-fetch maintenance case's maintenance due under the test Git baseline**
+
+- _Goal:_ `store-ref-reader-lifetime.test.ts`'s history-fetch maintenance case passes after merging `main`, whose test
+  Git baseline sets `maintenance.auto = false` globally and so stops the fetch it observes from starting maintenance.
+
+- _Outcome:_ The case turns `maintenance.auto` back on in the fetching repository's own configuration, beside the
+  settings that already make maintenance due there. After the merge it failed on two runners; it passes with the change.
+
 ### `[x]` **4.R Close the refresh-event and attribution gaps verification review found**
 
 - _Goal:_ The spec's § 9.1 locks-and-leases row and its configuration-change row's separate-store variant each have a
