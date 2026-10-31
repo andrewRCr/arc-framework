@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "git-floor-refusal",
+  "claimId": "65612fdb1cc5c5d2a128950ad2c72b9b",
+  "createdAt": "2026-10-31T20:49:03.863Z",
+  "updatedAt": "2026-10-31T20:49:03.863Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "git-floor-refusal",
+  "branch": "fix/git-floor-refusal",
+  "origin": "inbox",
+  "originEntry": "Refuse a Git below the supported floor before the store relies on it",
+  "originEntrySourceDigest": "sha256:f78f8442133a979b1aebc62bbb566949e876529a5c8266a8634bfd46a1fcc22e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
