@@ -1,7 +1,7 @@
 import { configDefaults, defineConfig } from "vitest/config";
 import { HeavyFirstSequencer } from "./__tests__/helpers/heavy-first-sequencer.js";
 import { realpathSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
@@ -37,9 +37,11 @@ const integrationTempRoot = selectIntegrationTempRoot("/dev/shm");
 // long-lived workstation can carry `arc.identity` globally even when a fixture
 // intentionally omits the local key, while hosted runners usually cannot expose
 // that leak. Keep every project on the same hermetic system/global baseline;
-// fixtures install the local values they exercise explicitly.
+// fixtures install the local values they exercise explicitly. The baseline turns
+// off automatic maintenance, whose background repacks race fixtures that inspect
+// object files.
 process.env.GIT_CONFIG_NOSYSTEM = "1";
-process.env.GIT_CONFIG_GLOBAL = process.platform === "win32" ? "NUL" : "/dev/null";
+process.env.GIT_CONFIG_GLOBAL = join(packageRoot, "__tests__", "fixtures", "git", "global.gitconfig");
 
 // Local quality gates share developer machines with parallel sessions and native child tools.
 // Use half available parallelism with an eight-worker ceiling and one-worker floor. CI
