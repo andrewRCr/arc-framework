@@ -67,7 +67,7 @@ function importBuffer(registry: Registry, records: ImportRecord[], draft: Import
 function splitBufferParts(content: string): ReturnType<typeof splitEntryList>["parts"] {
   const framing = `## ${bufferSection}\n`, visible = maskComments(content);
   const fragments: string[] = [];
-  let start = 0;
+  let start = /^[ \t\r\n]*(?:>[^\r\n]*(?:\r?\n|$))+/u.exec(visible)?.[0].length ?? 0;
   for (const separator of visible.matchAll(/^---[ \t]*\r?$/gmu)) {
     fragments.push(content.slice(start, separator.index));
     start = separator.index + separator[0].length;

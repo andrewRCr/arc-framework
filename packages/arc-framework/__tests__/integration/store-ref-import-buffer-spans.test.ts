@@ -17,6 +17,7 @@ describe.each(["default", "separate"] as const)("buffer span import in %s", layo
     { shape: "an unrecognized heading", body: `#### Pending\n\n${pending}` },
     { shape: "prose before a dated entry", body: pending + dated },
     { shape: "prose after a separator", body: `${dated}---\n\n${pending}` },
+    { shape: "a blockquote after a separator", body: `${dated}---\n\n> Pending observation must survive.\n\n` },
   ])("retains $shape and imports after an explicit source repair", async ({ body }) => {
     const h = await importFixture(layout), path = join(h.root, ".arc/active/draft-alpha.md");
     const content = `# Draft: Alpha\n\n${heading}${body}## Decisions\n\nKeep this section.\n`;
@@ -47,10 +48,14 @@ describe.each(["default", "separate"] as const)("buffer span import in %s", layo
     expect(draft.content).toContain("Keep this section.");
   }, 60_000);
 
-  it("accepts blank framing and comment examples around complete routed entries", async () => {
+  it.each([
+    { shape: "blank framing and comment examples", intro: "" },
+    { shape: "a one-line intro blockquote", intro: "> _Routed-in concerns pending integration._\n\n" },
+    { shape: "a wrapped intro blockquote", intro: "> _Routed-in concerns pending holistic integration\n> into the draft._\n\n" },
+  ])("accepts $shape around complete routed entries", async ({ intro }) => {
     const h = await importFixture(layout), path = join(h.root, ".arc/active/draft-alpha.md");
     const framing = "<!-- Buffer guidance\n---\nNot a real separator or pending prose.\n-->\n\n";
-    await writeFile(path, `# Draft: Alpha\n\n${heading}${framing}${dated}<!-- Closing guidance. -->\n\n## Decisions\n\nKeep this section.\n`);
+    await writeFile(path, `# Draft: Alpha\n\n${heading}${framing}${intro}${dated}<!-- Closing guidance. -->\n\n## Decisions\n\nKeep this section.\n`);
     await h.git("git", ["add", ".arc/active/draft-alpha.md"]);
     await h.git("git", ["commit", "-m", "Seed complete buffer with comment examples"]);
     await h.git("git", ["update-ref", "refs/heads/feat/alpha", (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim()]);
@@ -58,6 +63,7 @@ describe.each(["default", "separate"] as const)("buffer span import in %s", layo
     const store = createRefStore(h.ports), owner = { type: "work-item", name: "alpha" };
     const inbound = success(await store.read({ reference: RecordReferenceSchema.parse({ kind: "work-item/inbound", owner }) }));
     expect(inbound.content).toContain("Routed prose.");
+    expect(inbound.content).not.toContain("Routed-in concerns");
     const draft = success(await store.read({ reference: RecordReferenceSchema.parse({ kind: "work-item/draft", owner }) }));
     expect(draft.content).not.toContain(heading.trim());
     expect(draft.content).toContain("Keep this section.");
