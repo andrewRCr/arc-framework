@@ -19,9 +19,8 @@ export async function resolveHostedRequestInvocation(options: ReviewInvocationIn
   request: HostedRequestEnvelope, indexed: HostedRequestOwnerIndexRecord | null): Promise<ReviewInvocationInput> {
   const input = { ...options, ...resolveReviewInvocation(options, request) };
   if (!input.store.capabilities.stateOffBranch) return input;
-  if (indexed !== null) {
-    if (indexed.workItem === undefined) throw new Error(
-      "Hosted request owner index has no native owner. Restore its selected work-item UID, then retry the matching request.");
+  // An entry naming no owner was written before the flip, so native selection passes over it.
+  if (indexed?.workItem !== undefined) {
     if (input.workItem !== undefined && !sameOwner(input.workItem, indexed.workItem)) {
       throw new ReviewContinuationReferenceError("hosted request index names another work item", "arc review hosted request");
     }

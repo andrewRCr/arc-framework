@@ -3412,8 +3412,10 @@ async function readDurableHostedRequestReplay(input: {
 async function readHostedRequestContext(input: ReviewInvocationInput & {
   index: HostedRequestOwnerIndex; repositoryId: string; request: HostedRequestEnvelope;
 }) {
-  const owner = await input.index.read(input.repositoryId, input.request);
-  const selected = await resolveHostedRequestInvocation(input, input.request, owner);
+  const indexed = await input.index.read(input.repositoryId, input.request);
+  const selected = await resolveHostedRequestInvocation(input, input.request, indexed);
+  // Natively an entry naming no owner predates the flip, and its execution state stayed behind with it.
+  const owner = selected.store?.capabilities.stateOffBranch === true && indexed?.workItem === undefined ? null : indexed;
   const context = createReviewCompositionContext(selected);
   const replay = await readDurableHostedRequestReplay({ owner, invocation: context,
     store: context.family.ports.inFlight, repositoryId: input.repositoryId, request: input.request,

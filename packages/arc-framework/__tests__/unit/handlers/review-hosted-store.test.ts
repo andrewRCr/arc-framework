@@ -333,7 +333,7 @@ it("checks the indexed owner during request replay and retries with the matching
   expect(await h.run()).toEqual(requested);
 });
 
-it.each(["missing", "other-owner"] as const)("refuses a %s indexed owner and replays after index repair", async invalid => {
+it("refuses another indexed owner and replays after index repair", async () => {
   const h = await fixture();
   const requested = HostedRequestResultSchema.parse(await h.run());
   if (requested.state !== "requested") throw new Error(JSON.stringify(requested));
@@ -343,14 +343,30 @@ it.each(["missing", "other-owner"] as const)("refuses a %s indexed owner and rep
   const entry = entries.find(item => item.kind === "file" && item.content.includes(saved.fingerprint));
   if (entry?.kind !== "file") throw new Error("Expected produced owner-index bytes");
   const other = await h.seedMeta("other");
-  const corrupt = { ...saved, workItem: invalid === "missing" ? undefined : other.reference.owner };
   await h.publisher.update({ root: "review-gate", namespace: "identity" }, entry.name,
-    () => ({ kind: "write", content: JSON.stringify(corrupt), result: undefined }));
-  const refused = await h.run();
-  expect(refused).toMatchObject(invalid === "missing" ? { error: { message: expect.stringContaining("Restore") } }
-    : { state: "ambiguous-delivery", nextAction: "stop" });
+    () => ({ kind: "write", content: JSON.stringify({ ...saved, workItem: other.reference.owner }), result: undefined }));
+  expect(await h.run()).toMatchObject({ state: "ambiguous-delivery", nextAction: "stop" });
   await h.publisher.update({ root: "review-gate", namespace: "identity" }, entry.name,
     () => ({ kind: "write", content: entry.content, result: undefined }));
+  expect(await h.run()).toEqual(requested);
+});
+
+it("passes over an owner-index entry written before the flip and indexes the request under its native owner", async () => {
+  const earlier = await fixture();
+  if (HostedRequestResultSchema.parse(await earlier.run()).state !== "requested") throw new Error("Expected a request");
+  const saved = await earlier.index.read(projectId, earlier.request);
+  if (saved === null) throw new Error("Expected produced owner index");
+  const h = await fixture();
+  const leftover = { ...saved };
+  delete leftover.workItem;
+  await h.publisher.update({ root: "review-gate", namespace: "identity" },
+    `hosted-request-owner-${saved.fingerprint.slice("sha256:".length)}.json`,
+    () => ({ kind: "write", content: JSON.stringify(leftover), result: undefined }));
+  expect(await h.index.read(projectId, h.request)).toEqual(leftover);
+  const raw = await h.run();
+  expect(raw, JSON.stringify(raw)).toMatchObject({ state: "requested" });
+  const requested = HostedRequestResultSchema.parse(raw);
+  expect(await h.index.read(projectId, h.request)).toMatchObject({ workItem: h.primary.reference.owner });
   expect(await h.run()).toEqual(requested);
 });
 

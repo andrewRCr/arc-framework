@@ -110,6 +110,10 @@ export class HostedRequestOwnerIndex {
       if (existing.operationId !== expectedOperationId(input.repositoryId, input.request, existing.lineage)) {
         throw new Error("Hosted request owner index does not match its keyed owner.");
       }
+      // An owned reservation replaces an entry written before the flip, which names no owner.
+      if (record.workItem !== undefined && existing.workItem === undefined) {
+        return { kind: "write", content: `${JSON.stringify(record)}\n`, result: "reserved" as const };
+      }
       if (existing.logicalPass === record.logicalPass
         && existing.operationId === record.operationId
         && canonicalize(existing.lineage) === canonicalize(record.lineage)) {
