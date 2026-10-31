@@ -19,41 +19,15 @@ reachable code defect as a subtask of 5.9 or folded into the task that already f
 the spec's § Non-Goals by amendment, a correct refusal of this repository's state as a state fault for 5.11, and an
 unmapped review source as cleared by the review mapping's binding.
 
-### `[ ]` **1.1 Run a trial import of this repository's state in a disposable copy — § 11.1**
+### `[x]` **1.1 Run a trial import of this repository's state in a disposable copy — § 11.1**
 
 - _Goal:_ The import's transform runs over every ref and personal directory this repository holds, and the report it
   returns, blocked or not, is kept as the review's evidence.
 
-    - Check `memcap_policy` before starting: a real-state trial reads every registered checkout's personal directory,
-      and the batch path check, whose cost grows with the square of the batch until 5.7, runs before the blocking
-      check. When blocked, stop and ask. When allowed, run through the gate at reduced priority in one command, since
-      `memcap_gated` and `nicecap` are shell functions and neither can launch the other:
-      `. ~/.memcap.sh && memcap_gated -m <cap> nice -n 15 taskset -c 0-<N> node …`, with `<N>` leaving six logical
-      CPUs free, as `nicecap` does.
-    - Build this branch's CLI here (`npm run build:fast`); the trial runs it by path, with the copy as its working
-      directory: `node <this checkout>/packages/arc-framework/bin/arc.js store migrate --import --trial --json`.
-      `npx arc` in the copy would run the copy's own package. A trial writes objects, locks, and gathering refs only
-      inside the copy and deletes the gathering refs (`landImportRefs`); it never lands state refs, publishes, or cleans
-      up transient sources.
-    - Right before the copy, and only on approval, save notes with that built CLI,
-      `node <this checkout>/packages/arc-framework/bin/arc.js user save`, run from each registered checkout whose
-      work-unit files the import reads, root files saving from any one, so the copy's disk and notes copies agree; copy
-      in the same step. The command saves only the configured identity. The trial reads each checkout's personal
-      directory live, so from the save until both trials have read them, no session writes a personal file in any
-      registered checkout. A state fault may still block a trial, which 1.2 covers.
-    - Copy the primary checkout with its Git directory to `~/dev/arc-evidence/storage-ref-hardening/import-trial/`, then
-      clear the copy's `.git/arc/locks/`: a copied lock whose process is alive cannot be broken. A file copy carries
-      the notes refs, `refs/arc/user/*`, and local branches, and the import reads the linked worktrees' personal
-      directories in place, read-only, through the copy's `git worktree list`. A clone carries none of them, so its
-      trial never reaches the personal or transient stages.
-    - Keep the report beside the copy and record whether the trial was blocked. A trial returns `status: "ok"` either
-      way and carries no blocked marker: it was blocked when `refused` is non-empty or it holds any notice other than
-      an Errand origin that changed (`import/transient.ts:118`), a skipped derived capture (`code-captures.ts`), or the
-      identity mint (`entry.ts:40`). A blocked trial returns before `buildImportCommits` and `landImportRefs` run.
-    - While this branch lacks the review family's import mapping (spec § 11.1), each review-gate source but
-      `arc/review-gate/identity/repository-identity.json` raises an unmapped-source notice, so the trial is blocked.
-      Then move the copy's other review-gate sources aside and run the trial again, so the commit build and gathering
-      refs can run over the rest of real state; any other blocking notice still blocks it. Keep both reports.
+- _Outcome:_ Both reports and their blocked status are kept under `~/dev/arc-evidence/storage-ref-hardening/`, in
+  `trial-full.json`, `trial-review-sources-set-aside.json`, and `trial-summary.json`. The full trial has 3,010 unmapped
+  review sources and one working-memory header fault; the set-aside trial has only that blocking fault. Neither reached
+  commit building or gathering refs, and the copy's refs are unchanged.
 
 ### `[ ]` **1.2 Review the import's landing, publication, cleanup, and admission rules — § 11.1**
 
