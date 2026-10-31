@@ -2,17 +2,17 @@
 
 | **State**  | **Owner** | **Branch**                 | **Class** | **Priority** |
 | ---------- | --------- | -------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/session-init-agenda` | [TBD]     | `P3`         |
+| `Planning` | `andrew`  | `plan/session-init-agenda` | `Heavy`   | `P1`         |
 
-- **Cohort:** [none]
-- **Depends On:** [none]
+- **Cohort:** `agent-context-optimization`
+- **Depends On:** `seam-locus`
 
 - **Origin:** [internal]
-- **Design:** [none]
+- **Design:** `draft-session-init-agenda.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
