@@ -1453,9 +1453,11 @@ content is the same on every backend and in the import's mapping (§ 11.2). A wi
 selections, and lane skips stay outside it, as they stay outside the progress record today. Each of those sites
 recomputes the digest and refuses on a mismatch, and refuses an incomplete listing rather than reading it as unchanged:
 from the flip the authorizers' version port (`readStandardLaneOwnerVersion`, `lib/work-unit/verbs/publish.ts`) gives
-way to a binding read returning the recomputed digest or `incomplete`, its in-flight attempts the standard lane's record
-on the Candidate lineage's owner, and the authorizers parse the boundary by its version. Until the flip the version
-guards publication as today.
+way to a binding read returning the recomputed digest, its in-flight attempts the standard lane's record on the
+Candidate lineage's owner, and the authorizers parse the boundary by its version. A listing the store refuses or
+reports unreadable, incomplete, or conflicted raises the store's refusal, and a project-identity or owner-selection
+failure passes through whole; the read returns `incomplete` only when the listed records cannot be derived into a
+binding (A28). Publication refuses either way. Until the flip the version guards publication as today.
 
 A binding of `null` is unbound, and every publication site refuses it as it refuses a mismatch. Readiness never writes
 it. Every projection that writes `publication-pending` carries the binding it was published under, the publication
@@ -2735,5 +2737,8 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
 
 - **A27** — 2026-10-30 — design: ignore a pre-flip hosted request owner-index entry natively. _Supersedes:_ § 4.7.
   _Trigger:_ pass-3 review. _Work:_ review-fix. _Revalidated:_ pending → 8.1.
+
+- **A28** — 2026-10-31 — design: raise a refused or damaged readiness listing as the store's refusal. _Supersedes:_
+  § 9.2. _Trigger:_ pass-4 review. _Work:_ review-fix. _Revalidated:_ pending → 8.1.
 
 ---
