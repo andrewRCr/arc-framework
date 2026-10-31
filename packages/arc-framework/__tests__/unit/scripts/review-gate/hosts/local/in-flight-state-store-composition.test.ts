@@ -43,6 +43,16 @@ it("reads an outcome-only local lane at version zero with its derived pass count
   expect(await operations.readOperationSnapshot()).toMatchObject({ status: "complete", records: [result] });
 });
 
+it("raises an unreadable review listing from the snapshot as the store's refusal and recovers once readable", async () => {
+  const outcome = ReviewOutcomeSchema.parse(localOutcome({ target }));
+  const { h, operations } = await fixture([outcome]);
+  h.store.state.unreadable.add("review");
+  await expect(operations.readOperationSnapshot()).rejects.toMatchObject({ offBranch: true,
+    refusal: { code: "record-malformed", class: "recoverable", rule: "review.listing-unreadable" } });
+  h.store.state.unreadable.clear();
+  expect(await operations.readOperationSnapshot()).toMatchObject({ status: "complete", records: [{ version: 0 }] });
+});
+
 it("orders retry outcomes by logical pass and end time while keeping the latest instant", async () => {
   const values = [
     ReviewOutcomeSchema.parse({ ...localOutcome({ target, logicalPass: 2 }), endedAt: "2026-10-19T14:00:00+02:00" }),
