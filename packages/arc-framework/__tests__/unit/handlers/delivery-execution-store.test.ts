@@ -12,7 +12,8 @@ import { createReviewCheckout } from "../../helpers/store/review-checkout.js";
 import type { Store } from "../../../src/lib/store/contract.js";
 import { nativeListingRefusal } from "../../fixtures/native-refusal.js";
 
-async function fixture(state: "Active" | "Shipped", binding: string | null = "tasks-example.md", storedTasks = true) {
+async function fixture(state: "Active" | "Shipped", binding: string | null = "tasks-example.md", storedTasks = true,
+  liveNamesake = false) {
   const h = createReviewHarness();
   const projectId = "123e4567-e89b-42d3-a456-426614174099";
   await h.seedProject(projectId);
@@ -20,6 +21,8 @@ async function fixture(state: "Active" | "Shipped", binding: string | null = "ta
     currentWorkflow: state === "Active" ? "process-task-loop" : null }, state === "Active" ? { kind: "active" }
     : { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
   { branches: [{ repository: projectId, ref: "feat/example", linkedAs: "created", excluded: [] }] });
+  if (liveNamesake) await h.seedMeta("example", { owner: "test-user", taskList: "tasks-example.md" }, { kind: "active" },
+    { branches: [{ repository: projectId, ref: "feat/example-next", linkedAs: "created", excluded: [] }] });
   const seedTasks = () => h.seed(recordReferences["work-item/task-list"](primary.reference.owner),
     `# Task List: example\n\n## **Phase 1:** Build\n\n### \`[${state === "Shipped" ? "x" : " "}]\` **1.1 Build**\n`);
   if (storedTasks) await seedTasks();
@@ -42,6 +45,12 @@ async function fixture(state: "Active" | "Shipped", binding: string | null = "ta
 }
 it.each(["Active", "Shipped"] as const)("continues a %s work unit from its stored tasks without projected files", async state => {
   const h = await fixture(state);
+  const result = await h.run();
+  expect(result, JSON.stringify(result)).toMatchObject({ status: "idle", nextAction: "continue-work-unit" });
+});
+
+it("continues a Shipped work unit from its own checkout while a live work unit reuses its name", async () => {
+  const h = await fixture("Shipped", "tasks-example.md", true, true);
   const result = await h.run();
   expect(result, JSON.stringify(result)).toMatchObject({ status: "idle", nextAction: "continue-work-unit" });
 });

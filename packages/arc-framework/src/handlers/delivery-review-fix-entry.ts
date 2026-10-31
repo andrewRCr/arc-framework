@@ -8,7 +8,7 @@ import { inspectRepositoryDeliveryEntry, readInspectionTaskList } from "../lib/d
 import type { DeliveryEntryInspectionResult } from "../lib/delivery/entry-inspection.js";
 import type { ReviewInvocationContext } from "../scripts/review-gate/runtime/invocation.js";
 import { resolveNamedReviewWorkUnitInvocation } from "../scripts/review-gate/runtime/review-work-unit.js";
-import { resolveCandidateMutationOwner, resolveCompletedCandidateWorkUnits } from "./candidate-mutation-owner.js";
+import { resolveCandidateMutationOwner, resolveCompletedCandidateOwners } from "./candidate-mutation-owner.js";
 
 interface ReviewFixWorkUnitLocus { name: string; path: string; branch: string | null; baseBranch: string }
 
@@ -26,8 +26,9 @@ async function resolveLocus(cwd: string, exec: GitExec, invocation: ReviewInvoca
   if (active.status === "resolved" && active.name !== "") return { ...active, baseBranch: settings["branch.base"] };
   const owner = await resolveCandidateMutationOwner({ ...invocation, cwd, exec });
   if (owner.status !== "owned") return null;
+  // The checkout's own completed generation, which a live namesake reusing the slug does not withhold.
   if (invocation.store.capabilities.stateOffBranch
-    && !(await resolveCompletedCandidateWorkUnits(cwd, invocation.store)).includes(owner.workUnit)) return null;
+    && !(await resolveCompletedCandidateOwners(cwd, invocation.store)).some(({ name }) => name === owner.workUnit)) return null;
   const branch = await readCheckoutBranch(cwd, exec);
   const completed = await readCompletedDeliveryLocus(invocation.store, cwd, owner.workUnit,
     { owner: invocation.workItem, branch, projectId: invocation.projectId });
