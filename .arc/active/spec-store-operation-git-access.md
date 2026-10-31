@@ -662,6 +662,6 @@ detail.
 ## Amendments
 
 - **A1** — 2026-10-30 — design: refresh configuration before imported-claims publisher checks.
-  _Supersedes:_ § 4 table, § 7.4 ¶2. _Trigger:_ 4.1.b must-stop. _Work:_ 3.R. _Revalidated:_ pending → 4.1.b.
+  _Supersedes:_ § 4 table, § 7.4 ¶2. _Trigger:_ 4.1.b must-stop. _Work:_ 3.R. _Revalidated:_ 4.1.b.
 
 ---

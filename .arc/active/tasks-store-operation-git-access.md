@@ -127,7 +127,7 @@ _Exit criterion:_ Every refresh-event case passes through public store calls on 
 passes with no assertion removed or weakened, and the before-and-after attribution of the ten store files is recorded
 and explained.
 
-### `[ ]` **4.1 Measure process counts and case time before and after on the ten store files**
+### `[x]` **4.1 Measure process counts and case time before and after on the ten store files**
 
 - _Goal:_ The ten store files' process counts by subcommand and case times are recorded before and after this work.
   Each of the five prototype files meets its expectation, or its shortfall is explained from its per-subcommand split:
@@ -142,13 +142,10 @@ and explained.
           All twenty timing and attribution runs completed; process totals and case times are recorded in
           `notes-store-operation-git-access.md`, and the machine-local logs remain beside the benchmark checkouts.
 
-    - `[ ]` **4.1.b Measure at the head and record the comparison**
-        - Repeat 4.1.a's runs at the head.
-        - Record per file, before and after, the process counts by subcommand and the case time in a new section of
-          `notes-store-operation-git-access.md`.
-        - Read a shortfall from the per-subcommand split, reader starts against configuration lookups, rather than
-          assuming a call left without its scope. The second prototype's attribution logs
-          (`~/dev/scratch/store-op-git-access/runs/proto2-origins`) are the expected shape for the five files.
+    - `[x]` **4.1.b Measure at the head and record the comparison**
+        - Repeated all twenty runs at `84f6f08dc`, with matching completed and pending cases before and after.
+          Per-file and per-subcommand counts, case times, and the sync-conformance shortfall are recorded in
+          `notes-store-operation-git-access.md`; A1 is covered by the fresh head measurements and retained store checks.
 
 ## **Phase 5:** Verification
 
