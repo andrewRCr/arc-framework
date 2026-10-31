@@ -14,10 +14,9 @@ import { createIntegrationMergeDependencies } from "../../src/scripts/integratio
 import { IntegrationMergeTargetSchema } from "../../src/scripts/integration/merge.js";
 import type { HostedProcessRunner } from "../../src/scripts/review-gate/hosted/gh-process.js";
 
-it.each([
-  ["command", "manual"], ["command", "with-integration"],
-  ["integration", "manual"], ["integration", "with-integration"],
-] as const)("%s lock reads stored readiness under %s cadence and retries after notes repair", async (root, cadence) => {
+const projectId = "123e4567-e89b-42d3-a456-426614174099";
+
+async function lockFixture(root: "command" | "integration", cadence: "manual" | "with-integration", project = true) {
   const h = await createReviewRepositoryHarness();
   onTestFinished(h.cleanup);
   const { cwd, exec } = h.native, branch = "topic/opaque";
@@ -27,11 +26,11 @@ it.each([
   await exec("git", ["commit", "-m", "Configure readiness fixture"], { cwd });
   await exec("git", ["switch", "-c", branch], { cwd });
   const head = (await exec("git", ["rev-parse", "HEAD"], { cwd })).stdout.trim();
-  const projectId = "123e4567-e89b-42d3-a456-426614174099", manual = cadence === "manual";
-  await h.reference.seedProject(projectId);
+  const manual = cadence === "manual";
+  if (project) await h.reference.seedProject(projectId);
   const content = makeMetaFixture("example", { state: manual ? "Integrating" : "Shipped", branch: null,
     currentWorkflow: manual ? "integrate-work-unit" : null });
-  let record = await h.reference.seed(recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "example" })),
+  const record = await h.reference.seed(recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "example" })),
     `${content}\n## Completion Notes\n\nThe exact implementation is ready.\n`, manual ? { kind: "active" }
       : { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, {
       branches: [{ repository: projectId, ref: branch, linkedAs: "adopted", excluded: [] }],
@@ -56,6 +55,15 @@ it.each([
     locked = true;
     return root === "command" ? releaseMergeLock(request, port) : dependencies.releaseLock(target);
   };
+  return { h, cwd, branch, head, content, record, invocation, request, release };
+}
+
+it.each([
+  ["command", "manual"], ["command", "with-integration"],
+  ["integration", "manual"], ["integration", "with-integration"],
+] as const)("%s lock reads stored readiness under %s cadence and retries after notes repair", async (root, cadence) => {
+  const { h, cwd, branch, head, content, invocation, request, release, ...fixture } = await lockFixture(root, cadence);
+  let record = fixture.record;
   if (root === "command") {
     let output = "";
     await handleReviewReadiness("request.json", { resolveRoot: () => cwd,
@@ -74,3 +82,13 @@ it.each([
   }), provenance: { verb: "integrate", lifecycleAction: "integrate" } }));
   expect(await release()).toMatchObject({ state: "released" });
 }, 30_000);
+
+it.each(["command", "integration"] as const)("%s lock names a missing project ID and releases once the clone holds it",
+  async root => {
+    const { h, release } = await lockFixture(root, "manual", false);
+    expect(await release()).toMatchObject({ state: "blocked", payload: { reason: "readiness-failed" },
+      diagnostics: expect.arrayContaining([expect.objectContaining({ code: "project-identity-unavailable",
+        message: expect.stringContaining("Restore the project's unique, valid identity record") })]) });
+    await h.reference.seedProject(projectId);
+    expect(await release()).toMatchObject({ state: "released" });
+  }, 30_000);

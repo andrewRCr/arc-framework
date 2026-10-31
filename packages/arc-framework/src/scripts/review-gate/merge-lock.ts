@@ -20,6 +20,9 @@
 
 import { z } from "zod";
 
+import { ProjectIdentityError } from "../../lib/store/project-identity.js";
+import { isOffBranchStoreRefusal } from "../../lib/store/refusal-error.js";
+
 import {
   MergeLockHoldEnvelopeSchema,
   MergeLockReleaseEnvelopeSchema,
@@ -414,10 +417,14 @@ async function gateCandidateReadiness(
       pullRequest: live,
       vehicle: request.vehicle,
     }));
-  } catch {
+  } catch (error) {
+    // A native store's project-identity or record refusal keeps its condition and remedy for the operator.
+    const typed = error instanceof ProjectIdentityError ? "project-identity-unavailable"
+      : isOffBranchStoreRefusal(error) ? "store-refused" : null;
     return {
       reason: "readiness-failed",
       message: "The lifecycle-readiness result was unavailable or malformed.",
+      ...(typed === null || !(error instanceof Error) ? {} : { details: [{ code: typed, message: error.message }] }),
     };
   }
   if (
