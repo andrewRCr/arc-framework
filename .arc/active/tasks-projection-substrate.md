@@ -125,7 +125,7 @@ stamp parsing strips (§ 3.3, § 3.4).
   `src/lib/store/projection/*` and `__tests__/*/store/projection/*`, which also covers 2.9's helpers. Dispatching the
   pair stays 3.5's.
 
-### `[ ]` **2.2 The index, the aside folder, and where they live — § 3.1, § 5.4, § 12.9**
+### `[x]` **2.2 The index, the aside folder, and where they live — § 3.1, § 5.4, § 12.9**
 
 - _Goal:_ Each worktree that holds a projection keeps one machine-local index recording what the projection wrote
   there, written whole under the projection lock, and one aside folder beside its files; a command finds both without a
@@ -159,23 +159,16 @@ stamp parsing strips (§ 3.3, § 3.4).
           and `MACHINE_LOCAL_PATHS` gains the `checkout` entry. Covered in `unit/store/projection/aside.test.ts`,
           `unit/fs.test.ts`, and `unit/lib/store/registry.test.ts`.
 
-    - `[ ]` **2.2.d An index a command cannot use**
+    - `[x]` **2.2.d An index a command cannot use**
 
-        - Reading takes whether the checkout holds a projection and returns the index, no projection, or `unusable`
-          naming whether it is missing, unreadable, or of another format version; each caller applies its own policy:
-          materialization withholds (`projection-worktrees`), fan-out and the end skip (`projection-worktrees`), the
-          removal check answers `unobservable` (`projection-worktrees`), and the persist and release steps refuse
-          (`projection-worktrees`), the last two naming the remedy — run the removal or release from that checkout.
-        - A checkout `projection-worktrees` gives no projection and that holds no index reads as no projection, never as
-          `unusable`; one that still holds an index — its marker changed under it — is read as any other, so the removal
-          check and the persist and release steps act on it (`projection-worktrees`). Until `projection-worktrees`
-          decides which checkouts hold a projection, its callers pass that a checkout holds one exactly when it holds an
-          index.
-        - Build `test-first` (one behavior at a time):
-            - for a checkout holding a projection, a missing, an unreadable, and an older-format index each read as
-              `unusable` with that cause
-            - a checkout holding no projection and no index reads as no projection
-            - a checkout holding no projection that still holds an index reads that index
+        - `readProjectionIndex(location, holdsProjection)` (`index-file.ts`) returns the index, `no-projection` for a
+          missing index where the checkout holds none, or `unusable` with cause `missing`, `unreadable` (a failed read,
+          bad JSON, or a failed strict parse), or `other-format`, told apart by reading `format` before the strict parse.
+          An index a checkout holding no projection still holds reads as any other. Covered in
+          `unit/store/projection/index-file.test.ts`.
+
+- _Outcome:_ The writer and reader take no lock of their own; the projection lock (2.3) is what puts each index write,
+  and the re-read after it is taken, under the lock.
 
 ### `[ ]` **2.3 The projection lock — § 3.2**
 

@@ -39,4 +39,6 @@ and `aside` or `staged`, so no name ends in `.md` and none grows with its path. 
 records, and a staged file is created exclusively.
 
 `index-file.ts` writes the index whole by temp-and-rename into that folder, never creating it, so a write that stops
-partway leaves the previous index and no write recreates a removed worktree's Git directory.
+partway leaves the previous index and no write recreates a removed worktree's Git directory. Reading it returns the
+index, no projection where a checkout holding none has no index, or why it cannot be used — missing, unreadable, or of
+another format version — and each caller applies its own policy to that.
