@@ -1,5 +1,14 @@
 # Notes: store-operation-git-access
 
+## Contents
+
+- [Making maintenance due in a case](#making-maintenance-due-in-a-case)
+- [Imported-claims publisher authority](#imported-claims-publisher-authority)
+- [Measured process cost](#measured-process-cost)
+    - [Attribution caveats](#attribution-caveats)
+    - [Expectations and retained cost](#expectations-and-retained-cost)
+- [Per-file subcommand counts](#per-file-subcommand-counts)
+
 ## Making maintenance due in a case
 
 The test helpers set `gc.auto 0` in the code repositories and clones they create (`temp-repo.ts`, `multi-clone.ts`,
@@ -29,6 +38,12 @@ Older Git retains the existing GC thresholds. Windows detach defaults remain unc
 multiple packs before maintenance, removal of every superseded pack, and all retained contents remain asserted. The
 maintenance case's stated outcome holds; this changes only the fixture that establishes its precondition.
 
+The pack geometry was independently reproduced on native Windows: the fresh-record fixture failed
+(`5b8ed58741d94d2a88e64551a27c9aae`), and the corrected fixture passed with the original reader-release, pack-removal,
+and content assertions (`39de6be5098445e8bc1f58d464260926`). The full reader-lifetime file also passed all 30 cases on
+the native store runner (`48913cabaf1141129a58639baf9e0afb`). This focused evidence supplements the full store check;
+hosted diagnostic CI remains feedback rather than work-unit verification evidence.
+
 Primary sources: Git 2.56's `builtin/gc.c` selects the default strategy; its maintenance configuration documents the
 geometric task's due setting and split factor, and `repack-geometry.c` weights packs by object count.
 
@@ -36,43 +51,10 @@ geometric task's due setting and split factor, and `repack-geometry.c` weights p
 - <https://raw.githubusercontent.com/git/git/v2.56.0/Documentation/config/maintenance.adoc>
 - <https://raw.githubusercontent.com/git/git/v2.56.0/repack-geometry.c>
 
-## Reading the after-measurement
+## Imported-claims publisher authority
 
-- The largest `cat-file` callers before this work were `namespace-health.ts` (4,957), `sync-merge.ts` (3,468),
-  `lineage-resolution.ts` (3,211), and `push-families.ts` (2,414). The attribution stops at the first store frame, so
-  it does not split them by entry call.
-- Stack attribution counted 4.5–5.4k identical configuration reads within one call, but it loses callers across
-  unawaited promises. The first prototype removed about 13,000 `config` and `remote` starts within calls in four files.
-- `diff-tree --stdin` output is not length-framed, so tree enumeration cannot join the shared reader as it is. That
-  bears on whether walking trees through the reader earns its own work after the measurement.
-
-## Baseline measurement
-
-Measured merge base `023a0636eddfc6f1862dcd0e801c4e8ab44ba246` in an independent checkout, before any base merge.
-Each file ran alone with the spawn-timing preload and again with the attribution preload, under
-`nicecap -n 19 -r 8`. All twenty runs completed successfully. Case time sums completed test-case durations;
-process counts select the attribution worker PID by the original analysis method.
-
-| File                          | Processes | Case seconds |
-| ----------------------------- | --------: | -----------: |
-| `cleanup-report`              |    18,320 |         89.3 |
-| `conformance-reads`           |    18,690 |        118.3 |
-| `conformance-sync`            |    29,037 |        115.7 |
-| `follow-copy-handoff`         |    24,605 |        108.8 |
-| `follow-restart`              |    24,642 |        111.8 |
-| `import-errands`              |    21,525 |        112.0 |
-| `import-observation-failures` |    42,416 |        198.1 |
-| `remote-delete`               |    21,046 |        101.9 |
-| `separate-conformance-reads`  |    19,282 |        116.6 |
-| `withdraw-entry-inverse`      |    47,849 |        196.6 |
-
-Machine-local reports, spawn logs, and the measurement script are retained under
-`arc-framework/.arc/user/andrew/store-operation-git-access-benchmark/` in the primary checkout.
-
-## A1: Imported-claims publisher authority
-
-Superseded inventory claim (§ 7.4): "Every other re-read of designation that looks for another process's change already
-runs under the layout lock."
+Amendment A1 supersedes this inventory claim (§ 7.4): "Every other re-read of designation that looks for another
+process's change already runs under the layout lock."
 
 `retireImportRemote` reads designation before its source-retirement callback. `retireOriginRefs` then calls
 `unpublishedImportClaims`, whose own publisher read has no new lock or other scope refresh between it and the earlier
@@ -91,19 +73,14 @@ store check passed its 322 selected suites (`6788f164e2b84fc187c9f9a5d7696cd0`),
 conformance suites. The two environment-gated burst/timing suites remain outside that selection. Every original
 publisher-refusal assertion and independent configuration write remains unchanged. No lock or reader boundary changed.
 
-The maintenance fixture's Git 2.56 pack geometry was independently reproduced on native Windows: the fresh-record
-fixture failed (`5b8ed58741d94d2a88e64551a27c9aae`), and the corrected fixture passed with the original reader-release,
-pack-removal, and content assertions (`39de6be5098445e8bc1f58d464260926`). The full reader-lifetime file also passed
-all 30 cases on the native store runner (`48913cabaf1141129a58639baf9e0afb`). This focused evidence supplements the
-full store check; hosted diagnostic CI remains feedback rather than work-unit verification evidence.
-
 ## Measured process cost
 
-The baseline is `023a0636eddfc6f1862dcd0e801c4e8ab44ba246`; the measured head is
-`84f6f08dc351492417d8383b54f4f0c20cfe328f`. Each file ran alone twice, once with the timing preload and once
-with the attribution preload, under `nicecap -n 19 -r 8`. The baseline and head use the same ten files and preloads.
-The process counts below use the attribution worker PID, following the original analysis; case time sums completed
-case durations from the timing run. These are single paired runs, so process counts carry stronger evidence than wall time.
+The baseline is `023a0636eddfc6f1862dcd0e801c4e8ab44ba246`, measured in an independent checkout before any base merge;
+the measured head is `84f6f08dc351492417d8383b54f4f0c20cfe328f`. Each file ran alone twice at each end, once with the
+timing preload and once with the attribution preload, under `nicecap -n 19 -r 8`. The baseline and head use the same
+ten files and preloads. The process counts below use the attribution worker PID, following the original analysis; case
+time sums completed case durations from the timing run. These are single paired runs, so process counts carry stronger
+evidence than wall time.
 
 | File                          | Processes before |  After | Reduction | Case seconds before | After |
 | ----------------------------- | ---------------: | -----: | --------: | ------------------: | ----: |
@@ -118,10 +95,24 @@ case durations from the timing run. These are single paired runs, so process cou
 | `separate-conformance-reads`  |           19,282 | 17,691 |      8.3% |               116.6 | 115.3 |
 | `withdraw-entry-inverse`      |           47,849 | 38,361 |     19.8% |               196.6 | 154.1 |
 
+The complete before/after JSON reports, spawn and raw logs, the measurement and comparison scripts, and
+`comparison.json` are retained under `~/dev/arc-evidence/store-operation-git-access/` on the measuring machine, with
+the baseline and head checkouts registered as worktrees there.
+
+### Attribution caveats
+
 The attribution preload retains only the first five arguments. `?` is an invocation whose leading options fill that
 window, so its subcommand cannot be recovered. Multiword configuration values also lose their argument boundaries:
 labels `A`, `B`, `User`, and `Writer` are folded into `?`, rather than presented as Git subcommands. These limitations
 are the same in both runs, and the unclassified counts match before and after.
+
+- The largest `cat-file` callers before this work were `namespace-health.ts` (4,957), `sync-merge.ts` (3,468),
+  `lineage-resolution.ts` (3,211), and `push-families.ts` (2,414). The attribution stops at the first store frame, so
+  it does not split them by entry call.
+- Stack attribution counted 4.5–5.4k identical configuration reads within one call, but it loses callers across
+  unawaited promises. The first prototype removed about 13,000 `config` and `remote` starts within calls in four files.
+- `diff-tree --stdin` output is not length-framed, so tree enumeration cannot join the shared reader as it is. That
+  bears on whether walking trees through the reader earns its own work after the measurement.
 
 ### Expectations and retained cost
 
@@ -136,11 +127,14 @@ The five expectations are accounted for individually:
   removes 2,262, remote lookups 543, and URL resolution 276.
 - `conformance-sync`: 13.4% fewer, slightly below the 14% lower expectation. All 3,905 removed starts are 1,462 readers
   and 2,443 configuration lookups. The 1,683 remote starts remain: 841 push-URL lookups, 560 fetch-URL lookups, 281
-  remote-name listings, and one fixture remote creation. Comparison witnesses re-read transports under newly acquired
-  layout and keeper leases, and the operation scope deliberately preserves that freshness. Ref enumeration remains
-  12,761 starts, over half the remaining total. The retained second-prototype attribution totals 26,343 starts;
-  this implementation's 25,132 improves it by another 1,155 configuration starts and 56 readers. The shortfall against
-  the expectation is therefore recorded from the actual command split, rather than attributed to an unscoped call.
+  remote-name listings, and one fixture remote creation. Every one of the file's 281 pushes reads its push URLs once
+  more than the second prototype did. Under one comparison hold, `readComparisonSource` (through
+  `readRemoteTransports`) and `publicationTargetMatches` (through `readNamedTransport`) each run
+  `remote get-url --push --all`. The spec's § 7.2 keys a remembered answer by its function, so the second read starts
+  a process; the second prototype shared that answer. Against that prototype's 24,959 starts, this implementation's
+  25,132 adds those 281 push-URL starts and removes 56 readers and 52 configuration lookups. Without the repeated read
+  the file would drop 14.4%, inside the expectation, so the shortfall is that lookup-key choice rather than the
+  freshness rule or an unscoped call. Ref enumeration remains 12,761 starts, over half the remaining total.
 - `follow-restart`: 24.8% fewer, within expectation; 2,033 reader starts, 3,045 configuration starts, 680 remote
   lookups, and 348 URL resolutions disappear while retries retain their fresh-reader boundary.
 - `withdraw-entry-inverse`: 19.8% fewer, within expectation; 6,976 reader starts and 2,512 configuration starts
@@ -154,9 +148,11 @@ sharing the ref backend's readers and configuration does not remove those scans.
 the cause of that increase. Both read-conformance layouts show the same 1,466-reader reduction; the separate layout
 also removes 125 configuration starts, for an 8.3% overall drop.
 
-The measured production code and all ten measured test files match `9e4149885`; later changes from the measured head
-are the maintenance fixture outside this ten-file set and verification records. The complete before/after JSON
-reports, raw logs, comparison script, and `comparison.json` remain at the machine-local benchmark location above.
+This unit's production code and the ten measured test files are unchanged since the measured head. Later changes are
+test cases and fixtures outside the ten-file set, verification records, and the base merge, whose own store changes
+this measurement does not cover.
+
+## Per-file subcommand counts
 
 ### `cleanup-report`
 

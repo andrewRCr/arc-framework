@@ -157,6 +157,21 @@ and explained.
   deadline killed a fetch. That residual belongs to `storage-ref-hardening`'s D2, and the burst passes on Windows at
   this head.
 
+### `[x]` **4.R Close the refresh-event and attribution gaps verification review found**
+
+- _Goal:_ The spec's § 9.1 locks-and-leases row and its configuration-change row's separate-store variant each have a
+  public case that fails without its refresh, and the `conformance-sync` shortfall is explained against the second
+  prototype from its per-subcommand split.
+
+    - `[x]` **4.R.a Add the lock and separate-store configuration cases**
+        - `store-ref-operation-config.test.ts` adds both. A change another process makes before a push's next lock is
+          read under that lock and served after release, in both layouts; `arc store remote backing read` re-reads the
+          separate store's configuration after writing it. Each fails with its refresh removed.
+
+    - `[x]` **4.R.b Restate the `conformance-sync` comparison**
+        - The notes compare against the second prototype's 24,959 starts and attribute the shortfall to the push-URL
+          read repeated under one comparison hold, which function-keyed lookups do not share.
+
 ## **Phase 5:** Verification
 
 ### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
