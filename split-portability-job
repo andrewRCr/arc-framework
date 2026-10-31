@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "split-portability-job",
+  "claimId": "4ce1758d90ac406fb60563a2e62b491f",
+  "createdAt": "2026-10-31T17:07:32.284Z",
+  "updatedAt": "2026-10-31T17:07:32.284Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "split-portability-job",
+  "branch": "chore/split-portability-job",
+  "origin": "inbox",
+  "originEntry": "Split the hosted Windows/macOS portability job across parallel runners, as the Linux tiers are",
+  "originEntrySourceDigest": "sha256:34edd726490c2deca90d1014976380439c6b4c5e5ff97903f947bbb73c9cafa7",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
