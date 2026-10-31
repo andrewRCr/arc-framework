@@ -25,7 +25,7 @@ async function fixture(state: "Active" | "Integrating" | "Planning" = "Integrati
   const run = async (json: boolean, holder?: string) => {
     output = "";
     await handleLifecycleStatus(context, "example", { json }, {
-      findHoldingCheckout: async () => holder ?? null, readInFlightWarnings: async () => [], readRoster: async () => [],
+      findHoldingCheckout: async () => holder === undefined ? { kind: "none" as const } : { kind: "held" as const, path: holder }, readInFlightWarnings: async () => [], readRoster: async () => [],
     });
     return output;
   };
@@ -80,7 +80,7 @@ it("renders a refused native boundary read through status's typed refusal, and r
   const run = async () => {
     output = "";
     await handleLifecycleStatus(context, "example", { json: true }, {
-      findHoldingCheckout: async () => null, readInFlightWarnings: async () => [], readRoster: async () => [] });
+      findHoldingCheckout: async () => ({ kind: "none" as const }), readInFlightWarnings: async () => [], readRoster: async () => [] });
     return JSON.parse(output) as Record<string, unknown>;
   };
   expect(await run()).toEqual({ status: "refused", refusal });

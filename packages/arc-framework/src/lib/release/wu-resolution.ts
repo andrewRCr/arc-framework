@@ -29,6 +29,7 @@ export type WuResolution =
 export async function resolveActiveWu(opts: ResolveActiveWuOptions): Promise<WuResolution> {
   const store = opts.store ?? createStore(createDefaultStorePorts({ checkoutRoot: opts.cwd }));
   const resolved = await resolveCurrentWorkUnit({ cwd: opts.cwd, store });
+  if (resolved.status === "unbound") return { status: "ambiguous", hint: resolved.unbound.reason };
   if (resolved.status === "ambiguous") return { status: "ambiguous", hint: MULTI_CANDIDATE_HINT };
   if (resolved.status === "none") return resolved.warnings.length === 0 ? { status: "none" }
     : { status: "ambiguous", hint: resolved.warnings.join("; ") };

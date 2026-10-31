@@ -9,6 +9,7 @@
  * legacy candidate rendering keeps its index double and prompt boundary.
  */
 
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -49,9 +50,9 @@ afterEach(async () => {
   process.exitCode = undefined;
   await Promise.all(checkoutRoots.splice(0).map((cwd) => rm(cwd, { recursive: true, force: true })));
 });
-async function checkoutClaim(name?: string): Promise<string> {
+async function checkoutClaim(subject?: ReturnType<typeof boundWorkUnitSubject>): Promise<string> {
   const cwd = await mkdtemp(join(tmpdir(), "arc-lifecycle-binding-")); checkoutRoots.push(cwd);
-  if (name !== undefined) await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name }, spawningIdentity: "test-user", now: 0 });
+  if (subject !== undefined) await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: subject, spawningIdentity: "test-user", now: 0 });
   return cwd;
 }
 
@@ -67,8 +68,8 @@ describe("resolveVerbTargetOrReport — explicit slug", () => {
 
 describe("resolveVerbTargetOrReport — context-defaulting, no slug", () => {
   it("falls back to the single current worktree's WU", async () => {
-    const h = createLifecycleHarness(); await h.seedMeta("current-wu");
-    const slug = await resolveVerbTargetOrReport("park", undefined, await checkoutClaim("current-wu"), false, h.store);
+    const h = createLifecycleHarness(); const record = await h.seedMeta("current-wu");
+    const slug = await resolveVerbTargetOrReport("park", undefined, await checkoutClaim(boundWorkUnitSubject(record)), false, h.store);
     expect(slug).toBe("current-wu");
     expect(mockBuildLifecycleIndex).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();

@@ -10,9 +10,10 @@ describe("store scaffold", () => {
   it("writes only its active operational record without Branch or SESSION-NOTES", async () => {
     const h = createLifecycleHarness();
     const io = { ...createUserIOContext(), exec: async () => { throw Error("no Git notes"); }, writeFile: async () => { throw Error("no checkout files"); }, mkdir: async () => { throw Error("no directories"); } };
-    await scaffoldIntoWorktree({ io, store: h.store, internalTemplateDir: "/templates" }, { worktreePath: "/checkout", branch: "person", wuName: "demo", spawningIdentity: "starter", createdByArc: false });
+    const owner = await scaffoldIntoWorktree({ io, store: h.store, internalTemplateDir: "/templates" }, { worktreePath: "/checkout", branch: "person", wuName: "demo", spawningIdentity: "starter", createdByArc: false });
     const lookup = lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("demo") }));
     const read = lifecycleSuccess(await h.store.read({ reference: lookup.reference }));
+    expect(owner).toEqual(read.reference.owner);
     expect(read.placement).toEqual({ kind: "active" });
     expect(parseMetaRecord(read.content)).toMatchObject({ state: "Planning", owner: "starter", currentWorkflow: "draft-design", branch: null });
     expect(read.content).not.toContain("person");

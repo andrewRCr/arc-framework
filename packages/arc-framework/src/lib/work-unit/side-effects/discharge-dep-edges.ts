@@ -9,6 +9,10 @@
  * @module
  */
 
+import type { RecordReference } from "../../store/identity.js";
+import type { DependencyResolver } from "./store-dependency-resolution.js";
+import { planStoreDependencyReconcile } from "./store-dependency-rows.js";
+import type { ClashTie } from "../../store/clash-repair.js";
 import type { PreparedLifecycleWrite } from "../prepared-lifecycle-write.js";
 import type { StoreRefusal, Remedy } from "../../store/refusal.js";
 import {
@@ -23,6 +27,7 @@ import {
   enumerateTransitionReferenceTransitions,
   planReferenceReconcile,
   type ReferenceAdvisory,
+  type ReferenceArtifactSnapshot,
   type ReferenceTransitionConflict,
   type TrackedReferenceReplacement,
   type ReachableReferenceTransition,
@@ -59,8 +64,19 @@ export interface DependencyReconcileConflict {
   reason: DependencyReconcileConflictReason;
 }
 
-/** Typed dependency component shared by current-WU reconcile consumers. */
+/** An edge retained because its intended holder cannot be selected. */
+export interface HeldDependencyEdge {
+  edge: string;
+  name: string;
+  cause: "tie" | "not-a-work-unit" | "unresolved-follow";
+  candidates: RecordReference[];
+  tie?: ClashTie;
+  repair: Remedy;
+}
+
+/** Scheduling edges and the identity evidence that discharged, held, or replaced them. */
 export interface DependencyReconcileComponent {
+  held?: readonly HeldDependencyEdge[];
   before: readonly string[];
   after: readonly string[];
   replacements: ReadonlyArray<{
@@ -107,6 +123,7 @@ export type CurrentWuReconcilePlan =
 
 /** Pure dependency-plan inputs. */
 export interface PlanDependencyReconcileInput {
+  resolveDependency?: DependencyResolver;
   index: LifecycleIndex;
   dependentSlug: string;
   edges: readonly string[];
@@ -138,6 +155,8 @@ export interface PreparedCurrentWuReconcile {
 
 /** I/O boundary for inspecting and applying one dependent-owned plan. */
 export interface CurrentWuReconcileContext {
+  /** Resolve dependency holders once through the store's identity inventory. */
+  resolveDependency?: DependencyResolver;
   /** Alias-backed reference evidence acquired from the current artifacts. */
   additionalReferenceTransitions?: readonly ReachableReferenceTransition[];
   /** Store-resolved artifact owner interpretations, including ambiguous paired names. */
@@ -155,7 +174,7 @@ export interface CurrentWuReconcileContext {
 /** Read-only dependencies for producing one exact current-WU reconcile plan. */
 export type CurrentWuReconcilePrepareContext = Pick<
   CurrentWuReconcileContext,
-  "index" | "queryDisposition" | "enumerateTransitionRecords" | "listArtifactPaths" | "readFile" | "additionalReferenceTransitions" | "artifactReferenceOwners"
+  "index" | "queryDisposition" | "enumerateTransitionRecords" | "listArtifactPaths" | "readFile" | "additionalReferenceTransitions" | "artifactReferenceOwners" | "resolveDependency"
 >;
 
 /** Mutation dependencies for applying a previously prepared exact plan. */
@@ -180,6 +199,7 @@ export type CurrentWuReconcileResult =
 /** Current work-unit target and explicit apply mode. */
 export interface CurrentWuReconcileOp {
   slug: string;
+  reference?: RecordReference;
   metaPath: string;
   apply: boolean;
 }
@@ -213,6 +233,11 @@ interface ResolvedRetiredEdge {
 export async function planDependencyReconcile(
   input: PlanDependencyReconcileInput,
 ): Promise<CurrentWuReconcilePlan> {
+  return input.resolveDependency === undefined ? planIndexedDependencyReconcile(input)
+    : planStoreDependencyReconcile({ ...input, resolveDependency: input.resolveDependency });
+}
+
+async function planIndexedDependencyReconcile(input: PlanDependencyReconcileInput): Promise<CurrentWuReconcilePlan> {
   const before = canonicalEdges(input.edges);
   const after: string[] = [];
   const discharged: string[] = [];
@@ -442,6 +467,7 @@ export async function prepareCurrentWuReconcile(
     index: ctx.index,
     dependentSlug: op.slug,
     edges,
+    ...(ctx.resolveDependency === undefined ? {} : { resolveDependency: ctx.resolveDependency }),
     queryDisposition: ctx.queryDisposition,
   });
 
@@ -454,7 +480,9 @@ export async function prepareCurrentWuReconcile(
     path,
     content: path === op.metaPath ? content : await ctx.readFile(path),
   })));
-  const referencePlan = await prepareReferencePlan(ctx, artifacts);
+  const heldDependencyEdges = plan.dependency.held?.map(item => item.edge);
+  const referencePlan = await prepareReferencePlan(ctx, artifacts.map(artifact => artifact.path === op.metaPath
+    && heldDependencyEdges !== undefined ? { ...artifact, heldDependencyEdges } : artifact));
   const combinedPlan: CurrentWuReconcilePlan = {
     status: plan.status === "conflict" || referencePlan.status === "conflict" ? "conflict" : "ready",
     dependency: plan.dependency,
@@ -488,8 +516,13 @@ export async function prepareCurrentWuReconcile(
       reason: plan.dependency.conflicts[0]?.reason ?? "reference-history-conflict",
     };
   }
-  if (edits.length === 0 && combinedPlan.advisories.length === 0) return { status: "clean", prepared };
+  if (edits.length === 0 && !hasPendingReconcileFindings(combinedPlan)) return { status: "clean", prepared };
   return { status: "pending", prepared };
+}
+
+/** Whether a plan remains visible even when it has no tracked edits to apply. */
+export function hasPendingReconcileFindings(plan: CurrentWuReconcilePlan): boolean {
+  return plan.advisories.length > 0 || (plan.dependency.held?.length ?? 0) > 0;
 }
 
 /**
@@ -602,7 +635,7 @@ function invalidPrepared(
 
 async function prepareReferencePlan(
   ctx: CurrentWuReconcilePrepareContext,
-  artifacts: ReadonlyArray<{ path: string; content: string }>,
+  artifacts: readonly ReferenceArtifactSnapshot[],
 ): Promise<ReturnType<typeof planReferenceReconcile>> {
   if (ctx.enumerateTransitionRecords === undefined || ctx.listArtifactPaths === undefined) {
     return planReferenceReconcile({ transitions: [], artifacts });

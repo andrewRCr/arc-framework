@@ -1,3 +1,4 @@
+import { boundHolderLookup } from "../../helpers/store/bound-checkout.js";
 /** Store migration behavior through production store and runtime boundaries. */
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -46,7 +47,7 @@ async function fixture() {
   const options = { store: h.store, projectId: async () => "project", exec, execInput: async () => "",
     slug: "fix-it", name: "grown", type: "feat", floor: "derivation" as const, owner: "alice", identity: "alice", protection: "full" as const, base: "main",
     readFrame: async () => frame, settleInbox: vi.fn(async () => ({ kind: "idempotent" as const })),
-    locusPorts: { checkMarkerExclusivity: vi.fn(async () => ({ kind: "clear" as const })), findHoldingCheckout: async () => cwd, writeAnchoredMarker: write } };
+    locusPorts: { checkMarkerExclusivity: vi.fn(async () => ({ kind: "clear" as const })), findHoldingCheckout: boundHolderLookup(primary, () => cwd), writeAnchoredMarker: write } };
   return { ...h, options, frame, primary, calls, cwd, write };
 }
 it("selects store steps, runs Git at the authority checkout and atomically replaces the primary marker", async () => {

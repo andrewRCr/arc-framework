@@ -5,20 +5,25 @@ import type { StoreRecord } from "../store/read.js";
 import type { StoreResult, StoreRefusal } from "../store/refusal.js";
 import type { CallerProvenance } from "../store/links.js";
 import type { BatchResult, Mutation } from "../store/write.js";
-import { batchLifecycleWrites, readWorkUnit, recordPut } from "../store/lifecycle-write.js";
+import { batchLifecycleWrites, recordPut } from "../store/lifecycle-write.js";
 /** Every selected input keeps its exact version even when no edit is needed. */
 export interface PreparedLifecycleWrite { records: readonly StoreRecord[]; writes: readonly Mutation[] }
 /** Acquire the whole artifact group plus explicitly selected cohort documents. */
-export async function acquireLifecycleRecords(store: Pick<Store, "lookup" | "read" | "list">, slug: string,
+export async function acquireLifecycleRecords(store: Pick<Store, "read" | "list">, reference: RecordReference,
   additional: readonly RecordReference[] = []): Promise<StoreResult<readonly StoreRecord[]>> {
-  const meta = await readWorkUnit(store, slug);
-  if (meta.status === "refused") return meta;
-  const listing = await store.list({ family: "work-item", owner: meta.result.reference.owner });
+  const listing = await store.list({ family: "work-item", owner: reference.owner });
   if (listing.status === "refused") return listing;
+  const missing = (): StoreResult<never> => ({ status: "refused", refusal: {
+    code: "not-found", class: "recoverable", reference,
+    condition: "The selected owner's artifact group has no work-unit metadata.",
+    remedy: { text: "Select an existing work-unit generation, then acquire its complete artifact group again." },
+  } });
+  if (listing.result.status === "absent") return missing();
   if (listing.result.status !== "complete" || listing.result.missed || listing.result.diagnostics.length > 0) {
-    return { status: "refused", refusal: incomplete(meta.result.reference, "The whole artifact group could not be read completely.") };
+    return { status: "refused", refusal: incomplete(reference, "The whole artifact group could not be read completely.") };
   }
   const records = [...listing.result.records];
+  if (!records.some(record => record.reference.kind === "work-item/meta")) return missing();
   for (const reference of additional) {
     if (records.some((record) => sameReference(record.reference, reference))) continue;
     const read = await store.read({ reference });

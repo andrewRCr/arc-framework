@@ -1,12 +1,20 @@
 /** Exact ownership evidence for compensation of a newly spawned operational checkout. */
 import { stat, writeFile } from "node:fs/promises";
 import type { GitExec } from "../git/exec.js";
+import type { WorkUnitHolderRequest } from "./mutators/reconcile-work-unit-worktree.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import { createWorktreeMarkerGeneration, readWorktreeMarkerGeneration, removeWorktreeMarkerGeneration,
   resolveWorktreeMarkerPath } from "../git/worktree-marker.js";
+import type { WorktreeSubject } from "../git/worktree-marker.js";
 
 /** Authorized initial commit and symbolic branch selected before Git creates the checkout. */
 export interface SpawnedCheckoutCoordinate { head: string; branch: string | null }
+
+/** Project the placement name and any bound operational owner into a work-unit marker subject. */
+export function workUnitMarkerSubject(owner: { wuName: string; holder?: WorkUnitHolderRequest }):
+  Extract<WorktreeSubject, { kind: "work-unit" }> {
+  return { kind: "work-unit", name: owner.wuName, ...(owner.holder?.kind === "owner" ? { uid: owner.holder.uid } : {}) };
+}
 
 /** Observe the exact commit and symbolic branch; an unreadable checkout grants no cleanup authority. */
 export async function readSpawnedCheckoutCoordinate(exec: GitExec, path: string): Promise<SpawnedCheckoutCoordinate> {
@@ -25,10 +33,11 @@ export async function readSpawnedCheckoutCoordinate(exec: GitExec, path: string)
 
 /** Establish a fresh claim before provisioning can fail or another operation can claim the checkout. */
 export async function claimSpawnedWorktree(path: string, owner: {
-  wuName: string; spawningIdentity: string; now?: number;
+  wuName: string; spawningIdentity: string; now?: number; holder?: WorkUnitHolderRequest;
 }): Promise<Buffer> {
   const result = await createWorktreeMarkerGeneration(path, {
-    spawnedByArc: true, wuName: owner.wuName, createdFor: { kind: "work-unit", name: owner.wuName },
+    spawnedByArc: true, wuName: owner.wuName,
+    createdFor: workUnitMarkerSubject(owner),
     spawningIdentity: owner.spawningIdentity, createdAt: new Date(owner.now ?? Date.now()).toISOString(),
   });
   if (result.kind !== "created") throw new Error(`Spawned checkout ${path} already has an ownership claim; preserve it for owner inspection.`);

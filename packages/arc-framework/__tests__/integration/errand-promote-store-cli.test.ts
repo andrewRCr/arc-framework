@@ -1,20 +1,33 @@
+import { randomUUID } from "node:crypto";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 /** Registered promotion preserves exact Store/Git generations through refusal and interrupted recovery. */
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { repairCliFixture, repairCli } from "../helpers/repair-cli.js";
-import { success } from "../helpers/store/suite-tools.js";
-import { SlugSchema } from "../../src/lib/kernel/index.js";
-import { recordReferences } from "../../src/lib/store/identity.js";
+import { success, seed } from "../helpers/store/suite-tools.js";
+import { SlugSchema, ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
+import { recordReferences, OwnerIdentitySchema } from "../../src/lib/store/identity.js";
 import { ParsedMetaRecordSchema } from "../../src/lib/active/meta-schema.js";
 import { readWorktreeMarker, readWorktreeMarkerGeneration, removeWorktreeMarkerGeneration,
   writeWorktreeMarker, ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs } from "../../src/lib/git/worktree-marker.js";
 import { ErrandPromotionResultSchema } from "../../src/lib/errand/promotion-result.js";
+import { makeGitExec } from "../helpers/integration.js";
 
-async function openedFixture(slug: string) {
-  const f = await repairCliFixture();
-  const opened = await repairCli(f, ["errand", "open", slug, "--intent", "Keep the useful Errand work", "--json"]);
+async function openedFixture(slug: string, isolate = false) {
+  let f = await repairCliFixture();
+  const path = join(f.cwd, ".arc-checkouts", slug);
+  if (isolate) {
+    const configPath = join(f.cwd, ".arc/system/arc-config.yml");
+    await writeFile(configPath, (await readFile(configPath, "utf8")).replace(/^worktree.location_template:.*$/mu,
+      `worktree.location_template: ${path}`));
+    await f.exec("git", ["add", ".arc/system/arc-config.yml"]);
+    await f.exec("git", ["commit", "-m", "Configure isolated checkout"]);
+  }
+  const opened = await repairCli(f, ["errand", "open", slug, "--intent", "Keep the useful Errand work", "--json", ...(isolate ? ["--isolate"] : [])]);
   expect(opened).toMatchObject({ result: { outcome: "applied" } });
+  if (isolate) f = { ...f, cwd: path, exec: makeGitExec(path) };
   await writeFile(join(f.cwd, "errand-work.txt"), "Useful Errand work\n");
   await f.exec("git", ["add", "errand-work.txt"]);
   await f.exec("git", ["commit", "-m", "Useful Errand work"]);
@@ -22,12 +35,21 @@ async function openedFixture(slug: string) {
   const store = f.h.context.store;
   const reference = success(await store.lookup({ kind: "slug", slug: SlugSchema.parse(slug) })).reference;
   const primary = success(await store.read({ reference }));
+  if (primary.reference.owner.type !== "work-item" || primary.reference.owner.uid === undefined) throw new Error("Expected the Errand owner's UID");
   const description = success(await store.read({ reference: recordReferences["work-item/description"](reference.owner) }));
-  return { ...f, store, cut, primary, description, marker: await readWorktreeMarker(f.cwd), slug };
+  return { ...f, store, cut, primary, description, marker: await readWorktreeMarker(f.cwd), slug, uid: primary.reference.owner.uid };
 }
 function promoteArgs(slug: string, name: string, floor = "derivation") {
   return ["errand", "promote", slug, "--name", name, "--type", "feat", "--floor", floor, "--class", "Light", "--json"];
 }
+
+it.each([false, true])("promotion binds the promoted owner in its marker, isolated=%s", async isolate => {
+  const f = await openedFixture("marker-promotion", isolate), name = "bound-promotion";
+  const result = await repairCli(f, promoteArgs(f.slug, name));
+  expect(result).toMatchObject({ result: { outcome: "applied", checkoutPath: f.cwd } });
+  expect(await readWorktreeMarker(f.cwd)).toMatchObject({ kind: "present",
+    marker: { spawnedByArc: isolate, createdFor: { kind: "work-unit", name, uid: f.uid } } });
+}, 30_000);
 
 it("refuses registered promotion by a foreign owner without changing state and lets the source owner retry", async () => {
   const f = await openedFixture("cli-owner"), name = "grown-owner", before = success(await f.store.version());
@@ -62,7 +84,7 @@ it("checks confirmed foreign promotion against the selected checkout before muta
   expect(confirmation).toMatchObject({ outcome: "confirmation-required", checkoutPath: f.cwd });
   if (confirmation.outcome !== "confirmation-required") throw new Error("Missing exact foreign confirmation");
   await writeWorktreeMarker(caller.cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-16T00:00:00Z",
-    createdFor: { kind: "work-unit", name } });
+    createdFor: { kind: "work-unit", name, uid: f.uid } });
   const held = await readWorktreeMarker(caller.cwd), before = success(await f.store.version());
   const argv = [...promoteArgs(f.slug, name), "--confirm-foreign-generation", confirmation.generation];
   expect(await repairCli(caller, argv)).toMatchObject({ exitCode: 1, result: { outcome: "refused", recommendedPromptText: expect.stringContaining(caller.cwd) } });
@@ -83,7 +105,7 @@ it("recovers from another checkout with its own converted holder and refuses dup
   const before = success(await f.store.version()), converted = await readWorktreeMarker(f.cwd);
   expect(await repairCli(caller, promoteArgs(f.slug, name))).toMatchObject({ result: { outcome: "idempotent", checkoutPath: f.cwd } });
   await writeWorktreeMarker(caller.cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-16T00:00:00Z",
-    createdFor: { kind: "work-unit", name } });
+    createdFor: { kind: "work-unit", name, uid: f.uid } });
   expect(await repairCli(caller, promoteArgs(f.slug, name))).toMatchObject({ exitCode: 1, result: { outcome: "refused", reason: "duplicate-locus" } });
   expect(success(await f.store.version())).toBe(before);
   expect(await readWorktreeMarker(f.cwd)).toEqual(converted);
@@ -125,7 +147,7 @@ it.each(["derivation", "scale"] as const)("promotes through registered %s option
   expect((await f.exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(f.cut);
   expect((await f.exec("git", ["rev-parse", `refs/heads/chore/${f.slug}`])).stdout.trim()).toBe(f.cut);
   expect((await f.exec("git", ["rev-parse", `refs/heads/preserved-${name}`])).stdout.trim()).toBe(f.head.trim());
-  expect(await readWorktreeMarker(f.cwd)).toMatchObject({ kind: "present", marker: { spawnedByArc: false, createdFor: { kind: "work-unit", name } } });
+  expect(await readWorktreeMarker(f.cwd)).toMatchObject({ kind: "present", marker: { spawnedByArc: false, createdFor: { kind: "work-unit", name, uid: f.uid } } });
   const inFlight = await repairCli(f, ["active", "in-flight", "--json"]);
   expect(inFlight).toMatchObject({ result: { entries: [expect.objectContaining({ kind: "work-unit", name, branch: `feat/${name}`, worktreePath: f.cwd })] } });
   const result = inFlight.result as { warnings: { branch?: string }[] };
@@ -179,5 +201,73 @@ it("recovers a registered promotion's recorded cut after a real ref lock and rep
   expect((await f.exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(f.cut);
   expect((await f.exec("git", ["rev-parse", `refs/heads/chore/${f.slug}`])).stdout.trim()).toBe(moved);
   expect((await f.exec("git", ["rev-parse", "refs/heads/preserved-recovery-conflict"])).stdout.trim()).toBe(f.head.trim());
-  expect(await readWorktreeMarker(f.cwd)).toMatchObject({ kind: "present", marker: { spawnedByArc: false, createdFor: { kind: "work-unit", name } } });
+  expect(await readWorktreeMarker(f.cwd)).toMatchObject({ kind: "present", marker: { spawnedByArc: false, createdFor: { kind: "work-unit", name, uid: f.uid } } });
+}, 30_000);
+
+it("promotion recovery selects its own converted checkout beside an archived namesake", async () => {
+  const f = await openedFixture("owner-recovery"), name = "grown-owner-recovery", caller = await foreignCaller(f);
+  expect(await repairCli(f, promoteArgs(f.slug, name))).toMatchObject({ result: { outcome: "applied" } });
+  const archived = await seed(f.h.fixture, recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name, uid: randomUUID() })),
+    makeMetaFixture(name, { state: "Shipped", owner: "test-user" }), { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const oldPath = join(caller.cwd, ".arc-checkouts", "archived-owner");
+  await f.exec("git", ["worktree", "add", "--detach", oldPath, "main"]);
+  await ensureWorktreeMarkerIgnored(oldPath, f.exec, nodeWorktreeMarkerIgnoreFs);
+  await writeWorktreeMarker(oldPath, { spawnedByArc: false, createdFor: boundWorkUnitSubject(archived),
+    spawningIdentity: "test-user", createdAt: "2026-10-24T00:00:00Z" });
+  const oldMarker = await readWorktreeMarker(oldPath), ownMarker = await readWorktreeMarker(f.cwd);
+  const before = success(await f.store.version());
+  expect(await repairCli(caller, promoteArgs(f.slug, name))).toMatchObject({
+    result: { outcome: "idempotent", checkoutPath: f.cwd, branch: `feat/${name}` },
+  });
+  expect(success(await f.store.version())).toBe(before);
+  expect(success(await f.store.read({ reference: archived.reference }))).toEqual(archived);
+  expect(await readWorktreeMarker(oldPath)).toEqual(oldMarker);
+  expect(await readWorktreeMarker(f.cwd)).toEqual(ownMarker);
+}, 30_000);
+
+it("promotion refuses a live target with a creation remedy and succeeds under a different name", async () => {
+  const f = await openedFixture("target-admission"), name = "occupied-target";
+  const held = await seed(f.h.fixture, recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name })),
+    makeMetaFixture(name, { state: "Planning", owner: "test-user" }), { kind: "active" });
+  const before = success(await f.store.version());
+  const result = await repairCli(f, promoteArgs(f.slug, name));
+  expect(result).toMatchObject({ exitCode: 1, result: { outcome: "refused", recommendedPromptText: expect.stringMatching(/choose another name/iu) } });
+  if (held.reference.owner.type === "person" || held.reference.owner.uid === undefined) throw new Error("Expected holder UUID");
+  expect(JSON.stringify(result.result)).toContain(held.reference.owner.uid);
+  expect(JSON.stringify(result.result)).not.toMatch(/rename/iu);
+  expect(success(await f.store.version())).toBe(before);
+  expect(success(await f.store.read({ reference: f.primary.reference }))).toEqual(f.primary);
+  expect(success(await f.store.read({ reference: held.reference }))).toEqual(held);
+  expect(await readWorktreeMarker(f.cwd)).toEqual(f.marker);
+  expect((await f.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe(`chore/${f.slug}`);
+  expect((await f.exec("git", ["branch", "--list", `feat/${name}`])).stdout.trim()).toBe("");
+  expect(await repairCli(f, promoteArgs(f.slug, "free-target"))).toMatchObject({ result: { outcome: "applied", branch: "feat/free-target" } });
+}, 30_000);
+
+it("promotion reuses a completed name beside its archived bound checkout", async () => {
+  const f = await openedFixture("reuse-promotion"), name = "reused-promotion";
+  const archived = await seed(f.h.fixture, recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name })),
+    makeMetaFixture(name, { state: "Shipped", owner: "test-user" }), { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const path = join(f.cwd, ".arc-checkouts", "old-promotion");
+  await f.exec("git", ["worktree", "add", "--detach", path, "main"]);
+  await ensureWorktreeMarkerIgnored(path, f.exec, nodeWorktreeMarkerIgnoreFs);
+  await writeWorktreeMarker(path, { spawnedByArc: false, createdFor: boundWorkUnitSubject(archived),
+    spawningIdentity: "test-user", createdAt: "2026-10-24T00:00:00Z" });
+  const oldMarker = await readWorktreeMarker(path);
+  expect(await repairCli(f, promoteArgs(f.slug, name))).toMatchObject({ result: { outcome: "applied", branch: `feat/${name}` } });
+  const promoted = success(await f.store.read({ reference: f.primary.reference }));
+  expect(promoted).toMatchObject({ reference: { kind: "work-item/meta", owner: { name, uid: f.uid } }, fields: { state: "Planning" } });
+  expect(success(await f.store.read({ reference: archived.reference }))).toEqual(archived);
+  expect(await readWorktreeMarker(path)).toEqual(oldMarker);
+  expect(await readWorktreeMarker(f.cwd)).toMatchObject({ kind: "present", marker: { createdFor: { kind: "work-unit", name, uid: f.uid } } });
+  expect((await f.exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(f.cut);
+}, 30_000);
+
+it("default-named promotion admits the source Errand's own owner", async () => {
+  const f = await openedFixture("default-admission");
+  const result = await repairCli(f, ["errand", "promote", f.slug, "--floor", "derivation", "--class", "Light", "--json"]);
+  expect(result).toMatchObject({ result: { outcome: "applied", branch: `feat/${f.slug}` } });
+  expect(success(await f.store.read({ reference: f.primary.reference }))).toMatchObject({
+    reference: { kind: "work-item/meta", owner: { name: f.slug, uid: f.uid } }, fields: { state: "Planning", workClass: "Light" } });
+  expect(await readWorktreeMarker(f.cwd)).toMatchObject({ kind: "present", marker: { createdFor: { kind: "work-unit", name: f.slug, uid: f.uid } } });
 }, 30_000);

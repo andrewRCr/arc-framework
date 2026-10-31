@@ -7,11 +7,12 @@ import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
 import type { RecordReference } from "../../store/identity.js";
 import type { WritePlacement } from "../../store/placement.js";
 import type { LifecycleIndex } from "../lifecycle-index.js";
-import { OwnerIdentitySchema, recordReferences } from "../../store/identity.js";
+import { OwnerIdentitySchema, recordReferences, sameReference } from "../../store/identity.js";
+import { identityKey, type LifecycleEntry } from "../../store/lifecycle-index.js";
 import { readWorkUnit, recordPut, workUnitMetaPath, batchLifecycleWrites } from "../../store/lifecycle-write.js";
 import { completedCohortPath } from "../../store/lifecycle-record-path.js";
 import { readLifecycleView } from "../../store/lifecycle-view.js";
-import { requireCompleteInventory } from "../../store/lifecycle-storage.js";
+import { requireCompleteInventory, lifecycleArtifactPath } from "../../store/lifecycle-storage.js";
 import { writeMetaSessionContext, writeMetaStateAtHandoff, writeMetaCommitAtHandoff, writeMetaSessionType } from "../../store/kinds/meta/writers.js";
 import type { Mutation } from "../../store/write.js";
 import type { StoreRecord } from "../../store/read.js";
@@ -45,9 +46,8 @@ export async function runStoreArchive(ctx: ArchiveContext & { executor: ArchiveC
   if (view.status === "refused") return { status: "rejected", reason: view.refusal.condition, refusal: view.refusal };
   try { requireCompleteInventory(store, view.result.listing); }
   catch (error) { return { status: "rejected", reason: String(error) }; }
-  const prospective = new Map(view.result.index), entry = prospective.get(primary.reference.owner.name);
-  if (entry === undefined) return { status: "rejected", reason: "The archive subject is absent from complete lifecycle inventory." };
-  prospective.set(entry.slug, { ...entry, phase: "Shipped", location: "completed" });
+  const prospective = membershipIndex(view.result.entries, primary.reference);
+  if (!prospective.has(identityKey(primary.reference.owner))) return { status: "rejected", reason: "The archive subject is absent from complete lifecycle inventory." };
   const cohorts = await prepareArchiveCohorts(store, meta.cohort, prospective, quarter);
   if (cohorts.status === "rejected") return cohorts;
   const { writes } = cohorts;
@@ -94,9 +94,20 @@ async function prepareStoredCloseout(store: Store, primary: StoreRecord): Promis
   const view = await readLifecycleView(store);
   if (view.status === "refused") return reportFailure(name, view.refusal);
   requireCompleteInventory(store, view.result.listing);
-  const cohorts = await prepareArchiveCohorts(store, meta.cohort, view.result.index, placement.quarter, false);
+  const cohorts = await prepareArchiveCohorts(store, meta.cohort, membershipIndex(view.result.entries), placement.quarter, false);
   return cohorts.status === "rejected" ? persistedFailure(name, cohorts.reason, cohorts.remedy, cohorts.refusal)
     : { ...cohorts, primary: current.result, cohort: meta.cohort };
+}
+
+function membershipIndex(entries: readonly LifecycleEntry[], completing?: RecordReference): LifecycleIndex {
+  const index: LifecycleIndex = new Map();
+  for (const entry of entries) {
+    const completes = completing !== undefined && sameReference(entry.reference, completing);
+    index.set(identityKey(entry.reference.owner), { slug: entry.reference.owner.name,
+      phase: completes ? "Shipped" : entry.phase, location: completes ? "completed" : entry.location,
+      cohort: entry.fields.cohort, dependsOn: entry.fields.dependsOn, path: lifecycleArtifactPath(entry, "meta") });
+  }
+  return index;
 }
 
 async function publishCohortCloseout(store: Store, name: string, cohorts: { writes: Mutation[]; records: StoreRecord[] },

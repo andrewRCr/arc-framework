@@ -26,6 +26,7 @@
  * @module
  */
 
+import type { StoreRefusal } from "../lib/store/refusal.js";
 import { runStoreColdStart } from "./start-cold-store.js";
 import { basename, join } from "node:path";
 import { usesOffBranchState } from "../lib/store/lifecycle-write.js";
@@ -71,6 +72,8 @@ import {
   scaffoldIntoWorktree,
   type SpawnWorktreeContext,
 } from "../lib/git/worktree-scaffold.js";
+import { stampCreatedWorkUnitMarker } from "../lib/work-unit/created-work-unit-marker.js";
+import type { OwnerIdentity } from "../lib/store/identity.js";
 import type {
   GitGraduationTransactionResult,
 } from "../lib/work-unit/git-graduation-transaction.js";
@@ -327,7 +330,7 @@ export function buildCreateNewCeremonyCommitMessage(name: string): string {
 
 /** The outcome of a `graduate` attempt — a rejection, or the relocated meta path + branch. */
 export type GraduateResult =
-  | { status: "rejected"; reason: string; recovery?: LifecycleRollbackRecovery }
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal; recovery?: LifecycleRollbackRecovery }
   | {
       status: "graduation-recovery-required";
       reason: string;
@@ -776,6 +779,7 @@ export async function runCreateNew(
       },
       {
         mutation: "spawn",
+        ...(offBranch ? { holder: { kind: "creation" as const, slug: wuName } } : {}),
         ...(offBranch ? { detached: true } : { branch: branch ?? undefined }),
         base: baseBranch,
         locationTemplate,
@@ -800,32 +804,29 @@ export async function runCreateNew(
     return { ok: false, reason: `could not spawn the worktree: ${message}` };
   }
 
-  // Scaffold + user-workspace legs: the fresh meta and SESSION-NOTES seed. The
-  // marker is already written by the spawn, so this pass writes none.
+  return completeCreatedWorktree(ctx, { offBranch, worktreePath, branch, wuName, markerGeneration, spawnCoordinate },
+    params.identity, postCreateNotice);
+}
+
+async function completeCreatedWorktree(ctx: SpawnWorktreeContext, spawn: {
+  offBranch: boolean; worktreePath: string; branch: string | null; wuName: string; markerGeneration?: Buffer;
+  spawnCoordinate?: SpawnedCheckoutCoordinate;
+}, identity: string, postCreateNotice: string | undefined): Promise<CreateNewOutcome> {
+  const { worktreePath, branch, wuName } = spawn;
+  let owner: OwnerIdentity | undefined;
   try {
-    await scaffoldIntoWorktree(ctx, {
-      worktreePath,
-      branch,
-      wuName,
-      spawningIdentity: params.identity,
-      createdByArc: false,
+    owner = await scaffoldIntoWorktree(ctx, { worktreePath, branch, wuName, spawningIdentity: identity, createdByArc: false,
       ...(branch === null ? {} : { sessionNotesSeed: buildStartSessionNotesSeed({
         wuName, branch, kind: "create-new", commit: START_CEREMONY_PENDING_COMMIT,
       }) }),
     });
-  } catch (err) {
-    return rejectCreateNewScaffold(ctx, { offBranch, worktreePath, branch, wuName, markerGeneration, spawnCoordinate }, err);
+  } catch (error) { return rejectCreateNewScaffold(ctx, spawn, error); }
+  if (spawn.offBranch) {
+    const refusal = await stampCreatedWorkUnitMarker({ cwd: worktreePath, name: wuName, expected: spawn.markerGeneration, owner });
+    if (refusal !== null) return { ok: false, reason: refusal };
   }
-
-  return {
-    ok: true,
-    value: {
-      worktreePath,
-      branch,
-      wuName,
-      ...(postCreateNotice === undefined ? {} : { postCreateNotice }),
-    },
-  };
+  return { ok: true, value: { worktreePath, branch, wuName,
+    ...(postCreateNotice === undefined ? {} : { postCreateNotice }) } };
 }
 
 async function rejectCreateNewScaffold(ctx: SpawnWorktreeContext, spawn: {

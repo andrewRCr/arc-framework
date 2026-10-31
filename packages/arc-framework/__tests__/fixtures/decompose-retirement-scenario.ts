@@ -1,3 +1,4 @@
+import { boundHolderLookup } from "../helpers/store/bound-checkout.js";
 /** Rich retirement source and strict physical boundaries for complete cut scenarios. */
 import { createRetirementHarness } from "../helpers/store/retirement-harness.js";
 import { lifecycleSuccess, createLifecycleHarness } from "../helpers/store/lifecycle-harness.js";
@@ -28,7 +29,7 @@ export async function createDecomposeRetirementScenario(started: boolean, atCap:
     provenance: { verb: "write-back", lifecycleAction: "edit" } }));
   const ctx = decomposeContext(h.store);
   ctx.executor = { ...ctx.executor, exec: h.ctx.exec,
-    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => started ? "/repo" : null } };
+    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: boundHolderLookup(h.meta, () => files.has(markerPath) ? "/repo" : null) } };
   const markerPath = resolveWorktreeMarkerPath("/repo");
   const files = new Map<string, string>([["/repo/local.txt", "Retained personal content."]]);
   if (started) files.set(markerPath, "claim");

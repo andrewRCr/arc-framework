@@ -3,7 +3,7 @@ import type { Store } from "../lib/store/contract.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { syncLocalBase, type BaseSyncResult } from "../lib/git/base-sync.js";
 import { usesOffBranchState } from "../lib/store/lifecycle-write.js";
-import { resolveCurrentWorkUnit } from "../lib/store/current-work-unit.js";
+import { resolveCurrentWorkUnit, type CurrentWorkUnitResolution } from "../lib/store/current-work-unit.js";
 import { localLifecycleTip } from "../lib/git/lifecycle-ref-refresh.js";
 import type { Remedy } from "../lib/store/refusal.js";
 /** Handler-specific refusal leaves the shared base synchronizer's contract unchanged. */
@@ -17,7 +17,8 @@ export async function runPlanningBaseSync(ctx: PlanningBaseSyncContext): Promise
   try {
     if (await currentBranch(ctx) !== null) return await synchronize();
     const current = await resolveCurrentWorkUnit({ cwd: ctx.cwd, store: ctx.store });
-    if (current.warnings.length !== 0 || current.status === "ambiguous") throw new Error(current.warnings.join("; ") || "Current work unit is ambiguous");
+    const refusal = currentWorkUnitRefusal(current);
+    if (refusal !== null) throw new Error(refusal);
     if (current.status !== "resolved" || current.candidate.record?.state !== "Planning") return await synchronize();
     const head = (await ctx.exec("git", ["rev-parse", "HEAD"], { cwd: ctx.cwd })).stdout.trim();
     const bases = await Promise.all([`refs/heads/${ctx.baseBranch}`, `refs/remotes/origin/${ctx.baseBranch}`].map((ref) => localLifecycleTip(ctx.exec, ctx.cwd, ref)));
@@ -34,6 +35,11 @@ export async function runPlanningBaseSync(ctx: PlanningBaseSyncContext): Promise
     await ctx.exec("git", ["switch", "--detach", result.status === "updated" ? result.to : result.at], { cwd: ctx.cwd });
     return result;
   } catch (error) { return { status: "refused", base: ctx.baseBranch, reason: "detached-planning-unobservable", remedy: { text: `${String(error)}; inspect the checkout and retry arc base sync.` } }; }
+}
+function currentWorkUnitRefusal(current: CurrentWorkUnitResolution): string | null {
+  if (current.status === "unbound") return current.unbound.reason;
+  return current.warnings.length !== 0 || current.status === "ambiguous"
+    ? current.warnings.join("; ") || "Current work unit is ambiguous" : null;
 }
 async function currentBranch(ctx: PlanningBaseSyncContext): Promise<string | null> {
   try { return (await ctx.exec("git", ["symbolic-ref", "--quiet", "HEAD"], { cwd: ctx.cwd })).stdout.trim(); }

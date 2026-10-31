@@ -134,7 +134,7 @@ export function teardownSelectionsEqual(left: TeardownSelection, right: Teardown
 
 function subjectsEqual(left: WorktreeMarkerSubject, right: WorktreeSubject): boolean {
   if (left.kind !== right.kind) return false;
-  if (left.kind === "work-unit" && right.kind === "work-unit") return left.name === right.name;
+  if (left.kind === "work-unit" && right.kind === "work-unit") return right.uid === undefined ? left.name === right.name : left.uid === right.uid;
   if (left.kind === "branch" && right.kind === "branch") return left.ref === right.ref;
   if (left.kind === "errand" && right.kind === "errand") {
     return !("claimId" in left) && left.slug === right.slug;

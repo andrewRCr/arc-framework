@@ -120,7 +120,7 @@
 
 ### Honor correction proof and supersession contracts during rematerialization
 
-_Routed from `USER-INBOX § Errand`, 2026-09-09._
+- _Routed from:_ `USER-INBOX § Errand`, 2026-09-09.
 
 After record-to-coordinate projection was corrected locally, delivery suffix rematerialization refused only the
 owning work unit's lifecycle paths. Canonical state binds the terminal member to the lifecycle-bearing work-unit

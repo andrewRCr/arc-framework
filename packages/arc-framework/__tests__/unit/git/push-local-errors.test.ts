@@ -28,7 +28,7 @@ it("retains the Git upgrade diagnosis and original cause, then retries successfu
   const exec = withGitVersionFloor<Parameters<GitExec>, Awaited<ReturnType<GitExec>>>(
     async () => { if (broken) throw cause; return published; }, async () => "git version 2.43.0\n");
   await expect(pushRefs(exec, "receiver", [{ ref, next }])).rejects.toMatchObject({
-    message: expect.stringMatching(/Git 2\.43\.0.*required Git 2\.47.*Upgrade Git and retry/u), cause,
+    message: expect.stringMatching(/Git 2\.43\.0.*required Git 2\.53.*Upgrade Git and retry/u), cause,
   });
   broken = false;
   expect(await pushRefs(exec, "receiver", [{ ref, next }])).toMatchObject({ status: "refs", refs: [{ ref, status: "ok" }] });

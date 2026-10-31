@@ -5,13 +5,15 @@ import type { WorkItemRef } from "../store/kinds/lineage/schema.js";
 
 /** Closed incoming-edge action derived from one transition record. */
 export type TransitionReconcileDisposition =
-  | { kind: "replace"; replacementTargets: readonly string[] }
+  | { kind: "replace"; replacementTargets: readonly string[]; references?: readonly WorkItemRef[] }
   | { kind: "drop"; reason: string }
-  | { kind: "retarget"; targetSlug: string }
+  | { kind: "retarget"; targetSlug: string; references?: readonly WorkItemRef[] }
   | { kind: "abandoned" };
 
 /** Storage-independent origin/dependent lookup. */
 export interface TransitionDispositionQuery {
+  /** Exact lineage target when its primary is absent from the lifecycle inventory. */
+  reference?: WorkItemRef;
   origin: string;
   dependentSlug: string;
 }

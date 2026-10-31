@@ -31,7 +31,8 @@ describe("runner and environment declarations", () => {
     .flatMap(name => [name, name.toLowerCase(), name.replace(/[A-Z]/gu, (letter, offset: number) => offset % 2 ? letter.toLowerCase() : letter)]))(
     "refuses reserved binding %s and leaves a repaired declaration executable", name => {
       const result = CheckDeclarationSchema.safeParse({ checks: { verify: {
-        command: ["verify"], environment_inputs: { CHECK_MODE: "value", [name]: "file" },
+        command: ["verify"], runner: true, shards: { count: 2, argument: "--shard={index}/{count}", routed: true },
+        environment_inputs: { CHECK_MODE: "value", [name]: "file" },
       } } });
       expect(result.success).toBe(false);
       if (result.success) throw new Error("Expected reserved binding refusal");

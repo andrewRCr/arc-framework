@@ -1,6 +1,8 @@
 /** Full read-only current-work-unit reconcile session contract. */
 import { z } from "zod";
 import { SessionActionsSchema } from "./actions.js";
+import { RecordReferenceSchema } from "../store/identity.js";
+import { RemedySchema } from "../store/refusal.js";
 import { ReferenceAdvisorySchema, ReferenceTransitionConflictSchema,
   TrackedReferenceReplacementSchema } from "../work-unit/reference-reconcile-schema.js";
 const NON_EMPTY_TEXT = z.string().min(1);
@@ -13,6 +15,11 @@ const PreparedSessionResultSchema = z.strictObject({
     actions: SessionActionsSchema.optional(),
     slug: NON_EMPTY_TEXT,
     dependency: z.strictObject({
+      held: z.array(z.strictObject({ edge: z.string(), name: z.string(),
+        cause: z.enum(["tie", "not-a-work-unit", "unresolved-follow"]),
+        candidates: z.array(RecordReferenceSchema),
+        tie: z.strictObject({ liveness: z.enum(["live", "completed"]), name: z.enum(["current", "former"]).optional() }).optional(),
+        repair: RemedySchema })).readonly().optional(),
       before: z.array(z.string()).readonly(), after: z.array(z.string()).readonly(),
       replacements: z.array(z.strictObject({ retiredSubject: z.string(),
         replacementTargets: z.array(z.string()).readonly(), evidence: z.array(evidence).readonly() })).readonly(),

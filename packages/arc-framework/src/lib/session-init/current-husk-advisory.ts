@@ -49,7 +49,7 @@ const DecodedWorktreeHuskStampSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({
     kind: z.literal("manual-only"),
-    reason: z.enum(["mixed-presence", "unknown-authorization", "unknown-evidence", "evidence-mismatch"]),
+    reason: z.enum(["mixed-presence", "unknown-authorization", "unknown-evidence", "evidence-mismatch", "pre-store-husk"]),
   }),
 ]);
 
@@ -64,6 +64,7 @@ export const CurrentHuskAdvisorySchema = z.strictObject({
 export type CurrentHuskAdvisory = z.infer<typeof CurrentHuskAdvisorySchema>;
 
 export interface DeriveCurrentHuskAdvisoryOptions {
+  stateOffBranch?: boolean;
   worktreePath: string;
   branch: string | null;
   head: string;
@@ -93,7 +94,7 @@ export function deriveCurrentHuskAdvisory(
     worktreePath,
     subject: stamp.subject,
     branch: stamp.branch,
-    stamp: decodeWorktreeHuskStamp(stamp),
+    stamp: decodeWorktreeHuskStamp(stamp, options),
   };
 }
 

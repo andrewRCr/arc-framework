@@ -80,7 +80,6 @@ export function lifecycleArtifactPath(entry: LifecycleEntry, artifact: WorkUnitA
 }
 const artifactKinds = { meta: "work-item/meta", draft: "work-item/draft", spec: "work-item/spec", tasks: "work-item/task-list", notes: "work-item/notes" } as const;
 function snapshotFs(input: { store: Store; checkoutRoot: string }, version: StateVersion, entries: readonly LifecycleEntry[]): ProjectViewFs {
-  const bySlug = new Map(entries.map((entry) => [entry.reference.owner.name, entry]));
   const directories = projectedDirectories(entries.map((entry) => lifecycleArtifactPath(entry, "meta")));
   return {
     readdir: (path) => {
@@ -91,8 +90,10 @@ function snapshotFs(input: { store: Store; checkoutRoot: string }, version: Stat
     readFile: async (path) => {
       const projected = repositoryPath(input.checkoutRoot, path);
       const identified = identifyWorkUnitArtifactPath(projected);
-      const entry = identified === null ? undefined : bySlug.get(identified.slug);
-      if (identified === null || entry === undefined || lifecycleArtifactPath(entry, identified.artifact) !== projected) throw missing(path);
+      if (identified === null) throw missing(path);
+      const matches = entries.filter(entry => lifecycleArtifactPath(entry, identified.artifact) === projected);
+      const entry = matches.length === 1 ? matches[0] : undefined;
+      if (entry === undefined) throw missing(path);
       const reference = RecordReferenceSchema.parse({ kind: artifactKinds[identified.artifact], owner: entry.reference.owner });
       const read = await input.store.read({ reference, asOf: version });
       if (read.status === "refused" && read.refusal.code === "not-found") throw missing(path);

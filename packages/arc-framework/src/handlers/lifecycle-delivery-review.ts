@@ -13,7 +13,7 @@ import type { Store } from "../lib/store/contract.js";
 import { retryEndedItemHistory } from "../lib/store/history-retry.js";
 import { usesOffBranchState, readWorkUnit } from "../lib/store/lifecycle-write.js";
 import { lifecycleRecordPath } from "../lib/store/lifecycle-record-path.js";
-import { recordReferences } from "../lib/store/identity.js";
+import { recordReferences, type OwnerIdentity, type RecordReference } from "../lib/store/identity.js";
 import { ParsedMetaRecordSchema } from "../lib/active/meta-schema.js";
 import { resolveTaskListPath } from "../commands/active.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
@@ -585,9 +585,9 @@ async function attestCandidate(base: VerbBase, input: z.infer<typeof AttestComma
   if (result.status === "blocked" || result.status === "refused") process.exitCode = 1;
 }
 
-async function permitUnpausedPublication(store: Store | undefined, target: string, json: boolean): Promise<boolean> {
+async function permitUnpausedPublication(store: Store | undefined, target: string, json: boolean, record?: StoreRecord): Promise<boolean> {
   if (store === undefined || !usesOffBranchState(store)) return true;
-  const pause = await checkAdvancingPause(store, target);
+  const pause = await checkAdvancingPause(store, target, record);
   if (pause.status === "clear") return true;
   const remedy = pause.remedy ?? pause.refusal?.remedy;
   const rejected = { status: "rejected", reason: pause.reason,
@@ -603,23 +603,28 @@ async function permitUnpausedPublication(store: Store | undefined, target: strin
  * @param base - Resolved checkout, identity, and I/O.
  * @param target - Work-unit slug selected by the lifecycle handler.
  * @param input - Validated publication options.
+ * @param primary - Checkout- or operand-selected metadata for admission checks.
+ * @param reference - Verb admission identity, supplied only for an explicit operand.
  * @returns Resolves after reporting the publication result.
  */
 export async function publishCandidateWithReviewBoundary(
   base: VerbBase,
   target: string,
   input: PublishOptions,
+  primary?: StoreRecord,
+  reference?: RecordReference,
 ): Promise<void> {
-  await refusingStoreFailures(input.json === true, () => publishCandidate(base, target, input));
+  await refusingStoreFailures(input.json === true, () => publishCandidate(base, target, input, primary, reference));
 }
 
-async function publishCandidate(base: VerbBase, target: string, input: PublishOptions): Promise<void> {
+async function publishCandidate(base: VerbBase, target: string, input: PublishOptions, primary?: StoreRecord,
+  reference?: RecordReference): Promise<void> {
   const { lastCompleted, action } = input;
 
   const { executor, settings } = await buildExecutor(base);
-  if (!await permitUnpausedPublication(executor.store, target, input.json === true)) return;
+  if (!await permitUnpausedPublication(executor.store, target, input.json === true, primary)) return;
   const reviewInvocation = await resolveNamedReviewWorkUnitInvocation({ ...base, exec: base.io.exec,
-    store: executor.store, projectId: executor.projectId }, target);
+    store: executor.store, projectId: executor.projectId, ...(primary === undefined ? {} : { workItem: primary.reference.owner }) }, target);
   const rawGit = createRawGitExec(base.cwd);
   const readCandidateAuthorization = async () => {
     const record = await readCandidateRecord(base.cwd, target, { store: executor.store, owner: reviewInvocation.workItem });
@@ -688,6 +693,7 @@ async function publishCandidate(base: VerbBase, target: string, input: PublishOp
     10_000, async () => {
       const outcome = await runPublish(executor, {
         name: target,
+        reference,
         ...(lastCompleted === undefined ? {} : { lastCompleted }),
         ...(action === undefined ? {} : { nextAction: action }),
         candidateId: candidate.candidateId,
@@ -783,19 +789,16 @@ export async function permitDeliveryReopen(
   base: VerbBase,
   target: string,
   settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"],
+  record?: StoreRecord,
 ): Promise<boolean> {
   let taskListPath: string | null;
   let workItem = base.workItem;
   try {
     if (base.store !== undefined && usesOffBranchState(base.store)) {
-      const primary = await readWorkUnit(base.store, target);
-      if (primary.status === "refused") { refuse(primary.refusal.condition, primary.refusal); return false; }
-      workItem = primary.result.reference.owner;
-      const meta = ParsedMetaRecordSchema.parse(primary.result.fields);
-      const task = await base.store.read({ reference: recordReferences["work-item/task-list"](primary.result.reference.owner) });
-      if (task.status === "refused") { refuse(task.refusal.condition, task.refusal); return false; }
-      const projected = lifecycleRecordPath(primary.result, task.result);
-      taskListPath = projected !== null && meta.taskList === projected.split("/").at(-1) ? projected : null;
+      const read = await readStoreReopenTaskPath(base.store, target, record);
+      if (read === undefined) return false;
+      workItem = read.owner;
+      taskListPath = read.taskListPath;
     } else {
       const metaPath = projectActiveMetaPath(target);
       const meta = parseMetaRecord(await base.io.readFile(materializeArcPath(base.cwd, metaPath)));
@@ -830,6 +833,18 @@ export async function permitDeliveryReopen(
   }
 
   return true;
+}
+
+async function readStoreReopenTaskPath(store: Store, target: string, record?: StoreRecord): Promise<{
+  owner: OwnerIdentity; taskListPath: string | null } | undefined> {
+  const primary = record === undefined ? await readWorkUnit(store, target) : { status: "ok" as const, result: record };
+  if (primary.status === "refused") { refuse(primary.refusal.condition, primary.refusal); return undefined; }
+  const meta = ParsedMetaRecordSchema.parse(primary.result.fields);
+  const owner = primary.result.reference.owner;
+  const task = await store.read({ reference: recordReferences["work-item/task-list"](owner) });
+  if (task.status === "refused") { refuse(task.refusal.condition, task.refusal); return undefined; }
+  const projected = lifecycleRecordPath(primary.result, task.result);
+  return { owner, taskListPath: projected !== null && meta.taskList === projected.split("/").at(-1) ? projected : null };
 }
 
 /** Command-owned Candidate attestation input. */

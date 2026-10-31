@@ -1,4 +1,6 @@
 /** Invocation-bound checkout, in-flight quality and pull evidence for store lifecycle status. */
+import { ownerHolderRequest, type LocusPorts } from "../../lib/work-unit/locus-ports.js";
+import type { StoreRecord } from "../../lib/store/read.js";
 import type { Store } from "../../lib/store/contract.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import { resolveIdentity } from "../../lib/git/identity.js";
@@ -12,7 +14,7 @@ import type { ProjectReadinessWarning } from "../../lib/status/project-view.js";
 import type { readStatusCheckoutRoster } from "./checkout-roster.js";
 /** Local and synchronization evidence can be supplied by one already-bound invocation. */
 export interface StoreLifecycleStatusPorts {
-  findHoldingCheckout?: (slug: string) => Promise<string | null>;
+  findHoldingCheckout?: LocusPorts["findHoldingCheckout"];
   readInFlightWarnings?: () => Promise<string[]>;
   readRoster?: (identity: string) => ReturnType<typeof readStatusCheckoutRoster>;
 }
@@ -33,17 +35,22 @@ export async function pullStoreStatus(ports: { sync?: StoreSyncPort } = {}): Pro
 }
 
 /** Keep a failed holder observation visible in the path field rather than fabricating absence. */
-export async function readStoreStatusLocus(input: { cwd: string; exec: GitExec; store: Store; slug: string },
+export async function readStoreStatusLocus(input: { cwd: string; exec: GitExec; store: Store; slug: string; record: StoreRecord | undefined },
   ports: StoreLifecycleStatusPorts = {}): Promise<{ worktreePath?: string; warnings: string[] }> {
   const locus = createLocusPorts(input);
-  const find = ports.findHoldingCheckout ?? ((name: string) => locus.findHoldingCheckout({ name, resolveLegacy: () => Promise.resolve(null) }));
+  const find = ports.findHoldingCheckout ?? locus.findHoldingCheckout;
   let worktreePath: string | null;
-  try { worktreePath = await find(input.slug); }
+  const warnings: string[] = [];
+  try {
+    const holder = input.record === undefined ? { kind: "none" as const } : await find(ownerHolderRequest(input.record));
+    worktreePath = holder.kind === "none" ? null : holder.path;
+    if (holder.kind === "unbound") warnings.push(holder.reason);
+  }
   catch (error) { worktreePath = error instanceof Error ? error.message : String(error); }
   const quality = ports.readInFlightWarnings === undefined ? await defaultWarnings(input, find) : await ports.readInFlightWarnings();
-  return { ...(worktreePath === null ? {} : { worktreePath }), warnings: quality };
+  return { ...(worktreePath === null ? {} : { worktreePath }), warnings: [...new Set([...warnings, ...quality])] };
 }
-async function defaultWarnings(input: { store: Store; cwd: string; exec: GitExec }, findHoldingCheckout: (slug: string) => Promise<string | null>): Promise<string[]> {
+async function defaultWarnings(input: { store: Store; cwd: string; exec: GitExec }, findHoldingCheckout: LocusPorts["findHoldingCheckout"]): Promise<string[]> {
   const identity = await resolveIdentity({ exec: input.exec });
   const result = await deriveStoreInFlight({ ...input, identity, teamMode: false, findHoldingCheckout });
   return result.warnings.map(renderInFlightWarning);

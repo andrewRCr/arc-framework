@@ -28,6 +28,10 @@ on:
         description: 'Run every store suite in its per-change form instead of the full run'
         type: boolean
         default: false
+      run_git_floor:
+        description: 'Also run integration and store suites at the supported Git floor'
+        type: boolean
+        default: false
   # Weekly full-tier duration refresh and cross-platform portability. The pair fires only here or
   # on an explicit dispatch opt-in — never from PR synchronizes — so the weekly
   # cadence is a post-merge backstop against OS-specific concurrency-guard
@@ -49,13 +53,15 @@ permissions:
 env:
   VITEST_MAX_WORKERS: ${{ vars.ARC_CI_VITEST_MAX_WORKERS || '' }}
 
-# Cancel superseded work for the same ref. Push and pull_request runs never
-# cancel each other, because a branch ref and a pull-request merge ref are
-# different groups.
+# Cancel superseded work for the same event and ref. Push and pull_request runs
+# never cancel each other, because a branch ref and a pull-request merge ref are
+# different groups. Dispatched and scheduled runs take their own groups, so a
+# push to main never cancels a full-tier run that refreshes the duration cache,
+# and a dispatch on main never cancels main's push run.
 # Duplicate push runs skip downstream jobs after classification when an open PR
 # already owns the same branch head.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -613,7 +619,7 @@ jobs:
         --tier integration --project-set integration --workers "${VITEST_MAX_WORKERS:-native}"
         --ci-job "integration-${{ matrix.shard }}" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
 
-  # The store suites run by reach, across four shards balanced by the integration durations. A pull request runs the
+  # The store suites run by reach, across six shards balanced by the integration durations. A pull request runs the
   # suites its change reaches; every push to main, the weekly run, and a dispatched run ask for a full run, the
   # separate layout's whole conformance suite among them, unless a dispatch asks for every suite's per-change form. A
   # push whose run a later push cancels leaves its tree to that later full run.
@@ -627,8 +633,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6]
     runs-on: ubuntu-latest
+    # About twice the slowest shard measured (21 minutes), so a hung run fails rather than holding a runner for hours.
+    timeout-minutes: 45
     steps:
     - name: Start test budget clock
       run: echo "TEST_COST_STARTED_AT_SECONDS=$(date +%s)" >> "$GITHUB_ENV"
@@ -679,7 +687,7 @@ jobs:
         ARC_E2E_SKIP_BUILD: '1'
         ARC_STORE_CHECK: ${{ github.event_name != 'pull_request' && (inputs.store_per_change && 'every' || 'full') || '' }}
     - name: Upload native durations
-      if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+      if: ${{ !cancelled() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       with:
         name: duration-results-integration-store-${{ matrix.shard }}
@@ -774,8 +782,10 @@ jobs:
       contents: read
       actions: read
     needs: [unit, integration, store, e2e]
-    # A per-change store run leaves out suites a full run times, so its durations would drop theirs from the cache.
-    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && !inputs.store_per_change && needs.unit.result == 'success' && needs.integration.result == 'success' && needs.store.result == 'success' && needs.e2e.result == 'success' }}
+    # A dispatched or scheduled run replaces every tier. A push to main writes only the store suites, so their durations
+    # update the input that run was handed. A per-change store run leaves out suites a full run times, so its durations
+    # would drop theirs from the cache.
+    if: ${{ !cancelled() && needs.store.result == 'success' && (github.event_name == 'push' || ((github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && !inputs.store_per_change && needs.unit.result == 'success' && needs.integration.result == 'success' && needs.e2e.result == 'success')) }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -801,8 +811,16 @@ jobs:
       with:
         pattern: duration-results-*
         path: duration-results
+    - name: Download handed duration input
+      if: ${{ github.event_name == 'push' }}
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: test-duration-input
+        path: duration-base
     - name: Merge disjoint duration memberships
-      run: node --import tsx packages/arc-framework/__tests__/helpers/merge-duration-input.ts duration-results packages/arc-framework/.test-cost-runs/duration-input
+      run: >-
+        node --import tsx packages/arc-framework/__tests__/helpers/merge-duration-input.ts duration-results
+        packages/arc-framework/.test-cost-runs/duration-input ${{ github.event_name == 'push' && 'duration-base' || '' }}
     - name: Save duration cache
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
       with:
@@ -945,6 +963,197 @@ jobs:
       run: node --import tsx scripts/run-ci-checks.mjs run portability-cross-platform macos
       env:
         ARC_E2E_SKIP_BUILD: '1'
+
+  git-floor-integration:
+    name: Git floor (integration, ${{ matrix.shard }})
+    permissions:
+      contents: read
+      actions: read
+    needs: [setup, build]
+    if: ${{ !cancelled() && !inputs.portability_timing_only && needs.setup.result == 'success' && needs.build.result == 'success' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_git_floor)) }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    defaults:
+      run:
+        shell: bash
+    env:
+      GIT_FLOOR_VERSION: '2.53.0'
+      # https://www.kernel.org/pub/software/scm/git/sha256sums.asc
+      GIT_FLOOR_SHA256: '5818bd7d80b061bbbdfec8a433d609dc8818a05991f731ffc4a561e2ca18c653'
+    steps:
+    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      with:
+        node-version: 24
+        cache: 'npm'
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      id: nm-cache
+      with:
+        path: |
+          node_modules
+          packages/arc-framework/node_modules
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
+    - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
+      run: npm ci
+    - name: Initialize approved dependency tools
+      run: npm run setup
+    - name: Check the Git pin against the package floor
+      run: |
+        if [ "$(node -p "require('./packages/arc-framework/package.json').engines.git")" != ">=${GIT_FLOOR_VERSION%.*}" ]; then
+          echo "::error::Update the Git-floor pin to match packages/arc-framework/package.json engines.git"
+          exit 1
+        fi
+    - name: Restore the minimum Git build
+      id: git-cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: ~/.local/arc-ci-git/${{ env.GIT_FLOOR_VERSION }}
+        key: ubuntu-24.04-${{ runner.arch }}-git-floor-v1-${{ env.GIT_FLOOR_VERSION }}-${{ env.GIT_FLOOR_SHA256 }}
+    - name: Build the minimum Git
+      if: ${{ steps.git-cache.outputs.cache-hit != 'true' }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install --yes --no-install-recommends \
+          build-essential gettext libcurl4-openssl-dev libexpat1-dev libssl-dev zlib1g-dev
+        git_floor_archive="$RUNNER_TEMP/git-$GIT_FLOOR_VERSION.tar.xz"
+        git_floor_prefix="$HOME/.local/arc-ci-git/$GIT_FLOOR_VERSION"
+        curl --fail --location --retry 3 \
+          "https://www.kernel.org/pub/software/scm/git/git-$GIT_FLOOR_VERSION.tar.xz" \
+          --output "$git_floor_archive"
+        printf '%s  %s\n' "$GIT_FLOOR_SHA256" "$git_floor_archive" | sha256sum --check
+        tar --extract --xz --file "$git_floor_archive" --directory "$RUNNER_TEMP"
+        make -C "$RUNNER_TEMP/git-$GIT_FLOOR_VERSION" -j 2 prefix="$git_floor_prefix" NO_TCLTK=YesPlease all
+        make -C "$RUNNER_TEMP/git-$GIT_FLOOR_VERSION" prefix="$git_floor_prefix" NO_TCLTK=YesPlease install
+    - name: Select the minimum Git
+      run: echo "$HOME/.local/arc-ci-git/$GIT_FLOOR_VERSION/bin" >> "$GITHUB_PATH"
+    - name: Verify the Git under test
+      run: |
+        command -v git
+        git --version
+        test "$(git --version)" = "git version $GIT_FLOOR_VERSION"
+        git --exec-path
+        printf 'Git under test: %s\n' "$(git --version)" >> "$GITHUB_STEP_SUMMARY"
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: arc-framework-dist
+        path: packages/arc-framework/dist
+    - name: Download check forecast
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: arc-check-forecast
+        path: .
+    - id: runtime-preflight
+      run: node --import tsx packages/arc-framework/src/scripts/run-build.ts prepare
+      env:
+        ARC_E2E_SKIP_BUILD: ''
+    - name: Run integration suites at the Git floor
+      id: integration
+      run: node --import tsx scripts/run-ci-checks.mjs run git-floor-integration integration --shard ${{ matrix.shard }}
+      env:
+        ARC_E2E_SKIP_BUILD: '1'
+
+  git-floor-store:
+    name: Git floor (store, ${{ matrix.shard }})
+    permissions:
+      contents: read
+      actions: read
+    needs: [setup, build]
+    if: ${{ !cancelled() && !inputs.portability_timing_only && needs.setup.result == 'success' && needs.build.result == 'success' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_git_floor)) }}
+    runs-on: ubuntu-24.04
+    # About twice the slowest shard measured (21 minutes), so a hung run fails rather than holding a runner for hours.
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+    defaults:
+      run:
+        shell: bash
+    env:
+      GIT_FLOOR_VERSION: '2.53.0'
+      # https://www.kernel.org/pub/software/scm/git/sha256sums.asc
+      GIT_FLOOR_SHA256: '5818bd7d80b061bbbdfec8a433d609dc8818a05991f731ffc4a561e2ca18c653'
+    steps:
+    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      with:
+        node-version: 24
+        cache: 'npm'
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      id: nm-cache
+      with:
+        path: |
+          node_modules
+          packages/arc-framework/node_modules
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
+    - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
+      run: npm ci
+    - name: Initialize approved dependency tools
+      run: npm run setup
+    - name: Check the Git pin against the package floor
+      run: |
+        if [ "$(node -p "require('./packages/arc-framework/package.json').engines.git")" != ">=${GIT_FLOOR_VERSION%.*}" ]; then
+          echo "::error::Update the Git-floor pin to match packages/arc-framework/package.json engines.git"
+          exit 1
+        fi
+    - name: Restore the minimum Git build
+      id: git-cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: ~/.local/arc-ci-git/${{ env.GIT_FLOOR_VERSION }}
+        key: ubuntu-24.04-${{ runner.arch }}-git-floor-v1-${{ env.GIT_FLOOR_VERSION }}-${{ env.GIT_FLOOR_SHA256 }}
+    - name: Build the minimum Git
+      if: ${{ steps.git-cache.outputs.cache-hit != 'true' }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install --yes --no-install-recommends \
+          build-essential gettext libcurl4-openssl-dev libexpat1-dev libssl-dev zlib1g-dev
+        git_floor_archive="$RUNNER_TEMP/git-$GIT_FLOOR_VERSION.tar.xz"
+        git_floor_prefix="$HOME/.local/arc-ci-git/$GIT_FLOOR_VERSION"
+        curl --fail --location --retry 3 \
+          "https://www.kernel.org/pub/software/scm/git/git-$GIT_FLOOR_VERSION.tar.xz" \
+          --output "$git_floor_archive"
+        printf '%s  %s\n' "$GIT_FLOOR_SHA256" "$git_floor_archive" | sha256sum --check
+        tar --extract --xz --file "$git_floor_archive" --directory "$RUNNER_TEMP"
+        make -C "$RUNNER_TEMP/git-$GIT_FLOOR_VERSION" -j 2 prefix="$git_floor_prefix" NO_TCLTK=YesPlease all
+        make -C "$RUNNER_TEMP/git-$GIT_FLOOR_VERSION" prefix="$git_floor_prefix" NO_TCLTK=YesPlease install
+    - name: Select the minimum Git
+      run: echo "$HOME/.local/arc-ci-git/$GIT_FLOOR_VERSION/bin" >> "$GITHUB_PATH"
+    - name: Verify the Git under test
+      run: |
+        command -v git
+        git --version
+        test "$(git --version)" = "git version $GIT_FLOOR_VERSION"
+        git --exec-path
+        printf 'Git under test: %s\n' "$(git --version)" >> "$GITHUB_STEP_SUMMARY"
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: arc-framework-dist
+        path: packages/arc-framework/dist
+    - name: Download check forecast
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: arc-check-forecast
+        path: .
+    - id: runtime-preflight
+      run: node --import tsx packages/arc-framework/src/scripts/run-build.ts prepare
+      env:
+        ARC_E2E_SKIP_BUILD: ''
+    - name: Run store suites at the Git floor
+      id: store
+      run: node --import tsx scripts/run-ci-checks.mjs run git-floor-store store --shard ${{ matrix.shard }}
+      env:
+        ARC_E2E_SKIP_BUILD: '1'
+        ARC_STORE_CHECK: full
 
   ci_ok:
     name: ci-ok

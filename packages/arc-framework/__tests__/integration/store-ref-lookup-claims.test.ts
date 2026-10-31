@@ -7,13 +7,33 @@ import { update } from "../helpers/store/suite-tools.js";
 import type { LookupInput } from "../../src/lib/store/index.js";
 import { RecordReferenceSchema } from "../../src/lib/store/index.js";
 
-const claimId = "1".repeat(32);
+const claimId = "1".repeat(32), unknownUid = "00000000-0000-4000-8000-000000000099";
 
 describe("ref lookup of checkout claims", () => {
-  it("resolves a work-unit claim by slug", async () => {
+  it("resolves a bound work-unit claim", async () => {
     const f = await createRefFixture();
     const record = await seed(f, f.reference("work-item/meta"));
-    expect(success(await f.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: record.reference.owner.name } }))).toEqual({ reference: record.reference });
+    expect(success(await f.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: record.reference.owner.name, uid: "uid" in record.reference.owner ? record.reference.owner.uid : undefined } }))).toEqual({ reference: record.reference });
+  });
+
+  it("resolves reused work-unit claims by UID despite a stale marker name", async () => {
+    const f = await createRefFixture();
+    const old = await seed(f, f.reference("work-item/meta", "shared"));
+    success(await f.store.write({ ...update(f, old, old.content), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
+    const live = await seed(f, f.reference("work-item/meta", "shared"));
+    for (const record of [old, live]) {
+      if (record.reference.owner.type !== "work-item" || !record.reference.owner.uid) throw new Error("Expected allocated work-unit owner");
+      for (const slug of [record.reference.owner.name, SlugSchema.parse("stale-marker-name")]) {
+        expect(success(await f.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug, uid: record.reference.owner.uid } })))
+          .toEqual({ reference: record.reference });
+      }
+    }
+  });
+
+  it.each([["missing", undefined], ["unknown", unknownUid]] as const)("refuses a %s UID rather than falling back to a work-unit name", async (_kind, uid) => {
+    const f = await createRefFixture(), record = await seed(f, f.reference("work-item/meta"));
+    expect(await f.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: record.reference.owner.name, uid } }))
+      .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   });
 
   it("resolves an Errand claim by both slug and claim ID", async () => {

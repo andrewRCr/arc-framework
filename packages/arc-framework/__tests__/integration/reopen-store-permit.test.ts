@@ -4,14 +4,16 @@ import { permitDeliveryReopen } from "../../src/handlers/lifecycle-delivery-revi
 import { createUserIOContext } from "../../src/lib/io-context.js";
 import { readConfigSettings } from "../../src/lib/config/status-reader.js";
 import { recordReferences } from "../../src/lib/store/identity.js";
-import { createLifecycleHarness } from "../helpers/store/lifecycle-harness.js";
+import { createClashDouble } from "../helpers/store/clash-double.js";
+import { readWorkUnit } from "../../src/lib/store/lifecycle-write.js";
+import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { createTempRepoCore, removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { makeGitExec } from "../helpers/integration.js";
 import * as terminal from "../../src/lib/terminal.js";
 import type { Store } from "../../src/lib/store/index.js";
 const roots: string[] = [];
 afterEach(async () => { vi.restoreAllMocks(); process.exitCode = 0; await removeGitBackedDirs(roots.splice(0)); });
-it("permits an unbound reopen using the stored task list with no task-list or metadata file", async () => {
+it.each([false, true])("permits an unbound reopen using the stored task list with no task-list or metadata file, selected=%s", async selected => {
   const root = await createTempRepoCore({ prefix: "arc-reopen-store-permit-", identity: "test-user" }); roots.push(root);
   const exec = makeGitExec(root), h = createLifecycleHarness();
   const meta = await h.seedMeta("example", { state: "Integrating", currentWorkflow: "integrate-work-unit", taskList: "tasks-example.md" });
@@ -21,7 +23,10 @@ it("permits an unbound reopen using the stored task list with no task-list or me
   const io = createUserIOContext(); io.exec = exec;
   io.readFile = async () => { throw new Error("Tracked metadata reads are unavailable"); };
   const { settings } = await readConfigSettings(root);
-  expect(await permitDeliveryReopen({ cwd: root, identity: "test-user", io, store: h.store }, "example", settings)).toBe(true);
+  const other = await h.seedMeta("other");
+  const store = selected ? createClashDouble(h.store, { slug: "example", holders: [meta.reference, other.reference], mode: "mid-verb" }) : h.store;
+  if (selected) lifecycleSuccess(await readWorkUnit(store, "example"));
+  expect(await permitDeliveryReopen({ cwd: root, identity: "test-user", io, store }, "example", settings, selected ? meta : undefined)).toBe(true);
 });
 
 it("refuses reopen with the store's refusal of the inspected task list, and permits it once that read succeeds", async () => {

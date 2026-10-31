@@ -1,0 +1,1263 @@
+{
+  "provenance": {
+    "runId": "47a083a4cc344d54bd8e69f8980a1262",
+    "kind": "real tiny production-gate/native fixture",
+    "normalization": "Incidental command/capture paths aliased to distinct /fixture prefixes; raw logs omitted. Native profiles, outcomes, membership and matching basis hashes unchanged.",
+    "provider": "Transparent fixture proxy; mode is private fixture policy, admission/resources unsupported; runtime remains unknown."
+  },
+  "samples": [
+    {
+      "request": {
+        "id": "native-baseline",
+        "pairId": "pair",
+        "batchId": "batch",
+        "arm": "routed-unsharded",
+        "gate": "merge"
+      },
+      "startedAt": 1793324941072,
+      "finishedAt": 1793324942168,
+      "collectionMs": 1095.565414,
+      "processExit": {
+        "exitCode": 0,
+        "timedOut": false
+      },
+      "stdout": "",
+      "stderr": "",
+      "report": {
+        "version": 1,
+        "id": "native-baseline",
+        "arm": "routed-unsharded",
+        "pairId": "pair",
+        "batchId": "batch",
+        "gate": "merge",
+        "controllerPid": 4115659,
+        "startedAt": 1793324941243,
+        "finishedAt": 1793324942161,
+        "controllerMs": 917.503254,
+        "expectedChecks": [
+          "local",
+          "indexed",
+          "routed",
+          "ci"
+        ],
+        "nativeChecks": [
+          "routed"
+        ],
+        "attempts": [
+          {
+            "planId": "2d52181b-123f-4e6d-8beb-ae8620302ec7",
+            "startedAt": 1793324941293,
+            "preparationMs": 167.320243,
+            "status": "ready"
+          }
+        ],
+        "captures": [
+          {
+            "planId": "2d52181b-123f-4e6d-8beb-ae8620302ec7",
+            "logicalRequest": {
+              "scope": {
+                "kind": "all"
+              },
+              "tree": "29d566e4ebaad12d5b16686147ea083c90325e97",
+              "base": "176e5fa2e38815f984bca7d4b224c56ecc2c14a1"
+            },
+            "source": {
+              "root": "/fixture/capture-baseline/root",
+              "manifest": "/fixture/capture-baseline/manifest.json",
+              "digest": "sha256:200ed5e0f04e3e28506ec2a17c50ae516035b7f61fe605fd043ba673e9c13ed1",
+              "coordinates": {
+                "tree": "29d566e4ebaad12d5b16686147ea083c90325e97",
+                "head": "472fc456775848ff28843b766c8daa413ac8ef84",
+                "base": "176e5fa2e38815f984bca7d4b224c56ecc2c14a1",
+                "merged": []
+              }
+            },
+            "environmentIdentity": "sha256:ff6f08357f03077ba5cd1e4e67d6406899773e6ec00b7ff3111bfa2b60fab12c",
+            "environmentBindings": {
+              "FAIL_NATIVE": {
+                "identity": "sha256:23909b74b448e136ec113c3ad6d094f9e34410d8d95f3c9a17504c5945a88417"
+              },
+              "ARC_TEST_DURATION_FILE": {
+                "kind": "file",
+                "state": "unset"
+              }
+            },
+            "duration": {
+              "kind": "file",
+              "state": "unset"
+            },
+            "plan": {
+              "invocations": [
+                {
+                  "id": "623dc595-66a5-4786-a805-0d64eb44493b",
+                  "cwd": ".",
+                  "shell": false,
+                  "argv": [
+                    "/fixture/bin/node",
+                    "--import",
+                    "file:///fixture/dependencies/tsx/loader.mjs",
+                    "/fixture/dependencies/vitest/vitest.mjs",
+                    "run",
+                    "--configLoader",
+                    "native",
+                    "--no-cache",
+                    "--config",
+                    "observe.config.mjs"
+                  ]
+                }
+              ],
+              "probes": {
+                "global": [],
+                "check": []
+              },
+              "coordinates": [
+                {
+                  "batch": 1
+                }
+              ]
+            },
+            "runtime": null,
+            "supportsRunGroup": false,
+            "outputs": [],
+            "diagnostics": [],
+            "outcomes": [
+              [
+                "623dc595-66a5-4786-a805-0d64eb44493b",
+                {
+                  "status": "completed",
+                  "exitCode": 0
+                }
+              ]
+            ],
+            "closure": {
+              "status": "closed",
+              "exit": {
+                "started": true,
+                "exitCode": 0
+              }
+            },
+            "checkId": "routed"
+          }
+        ],
+        "native": {
+          "routed": [
+            {
+              "exitCode": 0,
+              "basis": {
+                "sourceDigest": "sha256:200ed5e0f04e3e28506ec2a17c50ae516035b7f61fe605fd043ba673e9c13ed1",
+                "environmentIdentity": "sha256:ff6f08357f03077ba5cd1e4e67d6406899773e6ec00b7ff3111bfa2b60fab12c",
+                "selection": [
+                  "/fixture/bin/node",
+                  "--import",
+                  "file:///fixture/dependencies/tsx/loader.mjs",
+                  "/fixture/dependencies/vitest/vitest.mjs",
+                  "run",
+                  "--configLoader",
+                  "native",
+                  "--no-cache",
+                  "--config",
+                  "observe.config.mjs"
+                ],
+                "duration": {
+                  "kind": "file",
+                  "state": "unset"
+                }
+              },
+              "observations": [
+                {
+                  "cycle": 1,
+                  "runtime": {
+                    "node": "v26.3.0",
+                    "vitest": "4.1.11",
+                    "platform": "linux",
+                    "arch": "arm64"
+                  },
+                  "duration": {
+                    "kind": "file",
+                    "state": "unset"
+                  },
+                  "selected": [
+                    {
+                      "project": "unit",
+                      "file": "native/a.test.mjs"
+                    },
+                    {
+                      "project": "unit",
+                      "file": "native/b.test.mjs"
+                    }
+                  ],
+                  "assigned": [
+                    {
+                      "project": "unit",
+                      "file": "native/a.test.mjs"
+                    },
+                    {
+                      "project": "unit",
+                      "file": "native/b.test.mjs"
+                    }
+                  ],
+                  "ordered": [
+                    {
+                      "project": "unit",
+                      "file": "native/a.test.mjs"
+                    },
+                    {
+                      "project": "unit",
+                      "file": "native/b.test.mjs"
+                    }
+                  ],
+                  "queued": [
+                    {
+                      "project": "unit",
+                      "file": "native/a.test.mjs"
+                    },
+                    {
+                      "project": "unit",
+                      "file": "native/b.test.mjs"
+                    }
+                  ],
+                  "ended": [
+                    {
+                      "project": "unit",
+                      "file": "native/a.test.mjs"
+                    },
+                    {
+                      "project": "unit",
+                      "file": "native/b.test.mjs"
+                    }
+                  ],
+                  "shardCalls": 0,
+                  "sortCalls": 1
+                }
+              ]
+            }
+          ]
+        },
+        "contextNative": {},
+        "coverageErrors": [],
+        "nativeProcesses": [],
+        "telemetry": {
+          "status": {
+            "mode": "on"
+          },
+          "records": [
+            {
+              "version": 1,
+              "context": {
+                "plan_id": "2d52181b-123f-4e6d-8beb-ae8620302ec7"
+              },
+              "observed": {
+                "startedAt": 1793324941402,
+                "finishedAt": 1793324942136,
+                "released": true,
+                "processExit": 0
+              },
+              "state": "finished",
+              "outcome": {
+                "status": 0
+              },
+              "resources": {
+                "available": false,
+                "reason": "fixture has no resource sampler"
+              }
+            }
+          ],
+          "missingPlanIds": []
+        },
+        "retained": [],
+        "errors": [],
+        "completed": true,
+        "sourceBefore": {
+          "head": "472fc456775848ff28843b766c8daa413ac8ef84",
+          "tree": "29d566e4ebaad12d5b16686147ea083c90325e97",
+          "status": ""
+        },
+        "ownerMode": "on",
+        "declaration": {
+          "location": ".arc/system/arc-checks.yml",
+          "digest": "sha256:931ba452024093c3be96f0693f76102377f4d271a0c8248c83a7f4f37c96f2d9",
+          "original": {
+            "checks": {
+              "local": {
+                "command": [
+                  "/fixture/bin/node",
+                  "local.cjs",
+                  "local"
+                ],
+                "inputs": [
+                  "src/**"
+                ],
+                "runtime_inputs": [],
+                "root": ".",
+                "runner": false,
+                "environment_inputs": {},
+                "shell": false,
+                "gate": "push",
+                "mode": "project",
+                "pass_paths": true,
+                "select_deletions": false,
+                "widen": true,
+                "fixes": false,
+                "ci_only": false,
+                "cache": true,
+                "reads_index": false
+              },
+              "indexed": {
+                "command": [
+                  "/fixture/bin/node",
+                  "local.cjs",
+                  "indexed"
+                ],
+                "inputs": [
+                  "src/**"
+                ],
+                "runtime_inputs": [],
+                "root": ".",
+                "runner": false,
+                "environment_inputs": {},
+                "shell": false,
+                "gate": "commit",
+                "mode": "project",
+                "pass_paths": true,
+                "select_deletions": false,
+                "widen": true,
+                "fixes": false,
+                "ci_only": false,
+                "cache": true,
+                "reads_index": true
+              },
+              "routed": {
+                "command": [
+                  "/fixture/bin/node",
+                  "--import",
+                  "file:///fixture/dependencies/tsx/loader.mjs",
+                  "/fixture/dependencies/vitest/vitest.mjs",
+                  "run",
+                  "--configLoader",
+                  "native",
+                  "--no-cache"
+                ],
+                "inputs": [
+                  "src/**"
+                ],
+                "runtime_inputs": [],
+                "root": ".",
+                "shards": {
+                  "count": 2,
+                  "argument": "--shard={index}/{count}",
+                  "routed": true
+                },
+                "runner": true,
+                "environment_inputs": {
+                  "FAIL_NATIVE": "value"
+                },
+                "shell": false,
+                "gate": "merge",
+                "mode": "project",
+                "pass_paths": true,
+                "select_deletions": false,
+                "widen": true,
+                "fixes": false,
+                "ci_only": false,
+                "cache": true,
+                "reads_index": false
+              },
+              "ci": {
+                "command": [
+                  "/fixture/bin/node",
+                  "-e",
+                  "throw new Error('CI-only check must stay excluded')"
+                ],
+                "inputs": [
+                  "**"
+                ],
+                "runtime_inputs": [],
+                "root": ".",
+                "runner": false,
+                "environment_inputs": {},
+                "shell": false,
+                "gate": "merge",
+                "mode": "project",
+                "pass_paths": true,
+                "select_deletions": false,
+                "widen": true,
+                "fixes": false,
+                "ci_only": true,
+                "cache": true,
+                "reads_index": false
+              }
+            },
+            "global_inputs": [],
+            "global_runtime_inputs": [],
+            "commit_fixes": "restage"
+          },
+          "instrumented": {
+            "checks": {
+              "local": {
+                "command": [
+                  "/fixture/bin/node",
+                  "local.cjs",
+                  "local"
+                ],
+                "inputs": [
+                  "src/**"
+                ],
+                "runtime_inputs": [],
+                "root": ".",
+                "runner": false,
+                "environment_inputs": {},
+                "shell": false,
+                "gate": "push",
+                "mode": "project",
+                "pass_paths": true,
+                "select_deletions": false,
+                "widen": true,
+                "fixes": false,
+                "ci_only": false,
+                "cache": true,
+                "reads_index": false
+              },
+              "indexed": {
+                "command": [
+                  "/fixture/bin/node",
+                  "local.cjs",
+                  "indexed"
+                ],
+                "inputs": [
+                  "src/**"
+                ],
+                "runtime_inputs": [],
+                "root": ".",
+                "runner": false,
+                "environment_inputs": {},
+                "shell": false,
+                "gate": "commit",
+                "mode": "project",
+                "pass_paths": true,
+                "select_deletions": false,
+                "widen": true,
+                "fixes": false,
+                "ci_only": false,
+                "cache": true,
+                "reads_index": true
+              },
+              "routed": {
+                "command": [
+                  "/fixture/bin/node",
+                  "--import",
+                  "file:///fixture/dependencies/tsx/loader.mjs",
+                  "/fixture/dependencies/vitest/vitest.mjs",
+                  "run",
+                  "--configLoader",
+                  "native",
+                  "--no-cache",
+                  "--config",
+                  "observe.config.mjs"
+                ],
+                "inputs": [
+                  "src/**"
+                ],
+                "runtime_inputs": [],
+                "root": ".",
+                "shards": {
+                  "count": 2,
+                  "argument": "--shard={index}/{count}",
+                  "routed": false
+                },
+                "runner": true,
+                "environment_inputs": {
+                  "FAIL_NATIVE": "value",
+                  "ARC_TEST_DURATION_FILE": "file"
+                },
+                "shell": false,
+                "gate": "merge",
+                "mode": "project",
+                "pass_paths": true,
+                "select_deletions": false,
+                "widen": true,
+                "fixes": false,
+                "ci_only": false,
+                "cache": true,
+                "reads_index": false
+              },
+              "ci": {
+                "command": [
+                  "/fixture/bin/node",
+                  "-e",
+                  "throw new Error('CI-only check must stay excluded')"
+                ],
+                "inputs": [
+                  "**"
+                ],
+                "runtime_inputs": [],
+                "root": ".",
+                "runner": false,
+                "environment_inputs": {},
+                "shell": false,
+                "gate": "merge",
+                "mode": "project",
+                "pass_paths": true,
+                "select_deletions": false,
+                "widen": true,
+                "fixes": false,
+                "ci_only": true,
+                "cache": true,
+                "reads_index": false
+              }
+            },
+            "global_inputs": [],
+            "global_runtime_inputs": [],
+            "commit_fixes": "restage"
+          }
+        },
+        "comparisonIdentity": "sha256:57198542a1359e994c556011f610b353f533c1660f7b3381fce0b69d801cde8e",
+        "outcome": {
+          "kind": "result",
+          "exitCode": 0,
+          "result": {
+            "status": "completed",
+            "checks": [
+              {
+                "id": "local",
+                "kind": "enforcement",
+                "outcome": "passed",
+                "record": {
+                  "status": "recorded"
+                },
+                "costMs": 23.815623999999985
+              },
+              {
+                "id": "indexed",
+                "kind": "enforcement",
+                "outcome": "passed",
+                "record": {
+                  "status": "recorded"
+                },
+                "costMs": 24.516541000000018
+              },
+              {
+                "id": "routed",
+                "kind": "enforcement",
+                "outcome": "passed",
+                "record": {
+                  "status": "not-recordable"
+                },
+                "invocations": [
+                  {
+                    "batch": 1,
+                    "invocationId": "623dc595-66a5-4786-a805-0d64eb44493b",
+                    "outcome": {
+                      "kind": "success",
+                      "exitCode": 0
+                    }
+                  }
+                ],
+                "costMs": 848.014549
+              },
+              {
+                "id": "ci",
+                "kind": "enforcement",
+                "outcome": "not selected",
+                "reason": "CI-only check requires --ci"
+              }
+            ],
+            "verification": "Checks: local passed; indexed passed; routed passed; ci not selected.",
+            "base": "176e5fa2e38815f984bca7d4b224c56ecc2c14a1",
+            "tree": "29d566e4ebaad12d5b16686147ea083c90325e97"
+          }
+        },
+        "sourceAfter": {
+          "head": "472fc456775848ff28843b766c8daa413ac8ef84",
+          "tree": "29d566e4ebaad12d5b16686147ea083c90325e97",
+          "status": ""
+        }
+      }
+    },
+    {
+      "request": {
+        "id": "native-distributed",
+        "pairId": "pair",
+        "batchId": "batch",
+        "arm": "distributed",
+        "gate": "merge"
+      },
+      "startedAt": 1793324942168,
+      "finishedAt": 1793324943797,
+      "collectionMs": 1628.7524760000001,
+      "processExit": {
+        "exitCode": 0,
+        "timedOut": false
+      },
+      "stdout": "",
+      "stderr": "",
+      "report": {
+        "version": 1,
+        "id": "native-distributed",
+        "arm": "distributed",
+        "pairId": "pair",
+        "batchId": "batch",
+        "gate": "merge",
+        "controllerPid": 4115838,
+        "startedAt": 1793324942288,
+        "finishedAt": 1793324943791,
+        "controllerMs": 1502.91869,
+        "expectedChecks": [
+          "local",
+          "indexed",
+          "routed",
+          "ci"
+        ],
+        "nativeChecks": [
+          "routed"
+        ],
+        "attempts": [
+          {
+            "planId": "54cc574f-965b-499b-b93e-20317d102a6d",
+            "startedAt": 1793324942337,
+            "preparationMs": 163.69299299999997,
+            "status": "ready"
+          }
+        ],
+        "captures": [
+          {
+            "planId": "54cc574f-965b-499b-b93e-20317d102a6d",
+            "logicalRequest": {
+              "scope": {
+                "kind": "all"
+              },
+              "tree": "29d566e4ebaad12d5b16686147ea083c90325e97",
+              "base": "176e5fa2e38815f984bca7d4b224c56ecc2c14a1"
+            },
+            "source": {
+              "root": "/fixture/capture-distributed/root",
+              "manifest": "/fixture/capture-distributed/manifest.json",
+              "digest": "sha256:200ed5e0f04e3e28506ec2a17c50ae516035b7f61fe605fd043ba673e9c13ed1",
+              "coordinates": {
+                "tree": "29d566e4ebaad12d5b16686147ea083c90325e97",
+                "head": "472fc456775848ff28843b766c8daa413ac8ef84",
+                "base": "176e5fa2e38815f984bca7d4b224c56ecc2c14a1",
+                "merged": []
+              }
+            },
+            "environmentIdentity": "sha256:ff6f08357f03077ba5cd1e4e67d6406899773e6ec00b7ff3111bfa2b60fab12c",
+            "environmentBindings": {
+              "FAIL_NATIVE": {
+                "identity": "sha256:23909b74b448e136ec113c3ad6d094f9e34410d8d95f3c9a17504c5945a88417"
+              },
+              "ARC_TEST_DURATION_FILE": {
+                "kind": "file",
+                "state": "unset"
+              }
+            },
+            "duration": {
+              "kind": "file",
+              "state": "unset"
+            },
+            "plan": {
+              "invocations": [
+                {
+                  "id": "28eee349-3a4a-47a9-baee-ff87698c0b5a",
+                  "cwd": ".",
+                  "shell": false,
+                  "argv": [
+                    "/fixture/bin/node",
+                    "--import",
+                    "file:///fixture/dependencies/tsx/loader.mjs",
+                    "/fixture/dependencies/vitest/vitest.mjs",
+                    "run",
+                    "--configLoader",
+                    "native",
+                    "--no-cache",
+                    "--config",
+                    "observe.config.mjs",
+                    "--shard=1/2"
+                  ]
+                },
+                {
+                  "id": "bb1bd681-cc1f-428f-b88d-fe3f21e4d75e",
+                  "cwd": ".",
+                  "shell": false,
+                  "argv": [
+                    "/fixture/bin/node",
+                    "--import",
+                    "file:///fixture/dependencies/tsx/loader.mjs",
+                    "/fixture/dependencies/vitest/vitest.mjs",
+                    "run",
+                    "--configLoader",
+                    "native",
+                    "--no-cache",
+                    "--config",
+                    "observe.config.mjs",
+                    "--shard=2/2"
+                  ]
+                }
+              ],
+              "probes": {
+                "global": [],
+                "check": []
+              },
+              "coordinates": [
+                {
+                  "batch": 1,
+                  "shard": {
+                    "index": 1,
+                    "count": 2
+                  }
+                },
+                {
+                  "batch": 1,
+                  "shard": {
+                    "index": 2,
+                    "count": 2
+                  }
+                }
+              ]
+            },
+            "runtime": null,
+            "supportsRunGroup": false,
+            "outputs": [],
+            "diagnostics": [],
+            "outcomes": [
+              [
+                "28eee349-3a4a-47a9-baee-ff87698c0b5a",
+                {
+                  "status": "completed",
+                  "exitCode": 0
+                }
+              ],
+              [
+                "bb1bd681-cc1f-428f-b88d-fe3f21e4d75e",
+                {
+                  "status": "completed",
+                  "exitCode": 0
+                }
+              ]
+            ],
+            "closure": {
+              "status": "closed",
+              "exit": {
+                "started": true,
+                "exitCode": 0
+              }
+            },
+            "checkId": "routed"
+          }
+        ],
+        "native": {
+          "routed": [
+            {
+              "exitCode": 0,
+              "basis": {
+                "sourceDigest": "sha256:200ed5e0f04e3e28506ec2a17c50ae516035b7f61fe605fd043ba673e9c13ed1",
+                "environmentIdentity": "sha256:ff6f08357f03077ba5cd1e4e67d6406899773e6ec00b7ff3111bfa2b60fab12c",
+                "selection": [
+                  "/fixture/bin/node",
+                  "--import",
+                  "file:///fixture/dependencies/tsx/loader.mjs",
+                  "/fixture/dependencies/vitest/vitest.mjs",
+                  "run",
+                  "--configLoader",
+                  "native",
+                  "--no-cache",
+                  "--config",
+                  "observe.config.mjs"
+                ],
+                "duration": {
+                  "kind": "file",
+                  "state": "unset"
+                }
+              },
+              "observations": [
+                {
+                  "cycle": 1,
+                  "shard": {
+                    "index": 1,
+                    "count": 2
+                  },
+                  "runtime": {
+                    "node": "v26.3.0",
+                    "vitest": "4.1.11",
+                    "platform": "linux",
+                    "arch": "arm64"
+                  },
+                  "duration": {
+                    "kind": "file",
+                    "state": "unset"
+                  },
+                  "selected": [
+                    {
+                      "project": "unit",
+                      "file": "native/a.test.mjs"
+                    },
+                    {
+                      "project": "unit",
+                      "file": "native/b.test.mjs"
+                    }
+                  ],
+                  "assigned": [
+                    {
+                      "project": "unit",
+                      "file": "native/a.test.mjs"
+                    }
+                  ],
+                  "ordered": [
+                    {
+                      "project": "unit",
+                      "file": "native/a.test.mjs"
+                    }
+                  ],
+                  "queued": [
+                    {
+                      "project": "unit",
+                      "file": "native/a.test.mjs"
+                    }
+                  ],
+                  "ended": [
+                    {
+                      "project": "unit",
+                      "file": "native/a.test.mjs"
+                    }
+                  ],
+                  "shardCalls": 1,
+                  "sortCalls": 1
+                }
+              ]
+            },
+            {
+              "exitCode": 0,
+              "basis": {
+                "sourceDigest": "sha256:200ed5e0f04e3e28506ec2a17c50ae516035b7f61fe605fd043ba673e9c13ed1",
+                "environmentIdentity": "sha256:ff6f08357f03077ba5cd1e4e67d6406899773e6ec00b7ff3111bfa2b60fab12c",
+                "selection": [
+                  "/fixture/bin/node",
+                  "--import",
+                  "file:///fixture/dependencies/tsx/loader.mjs",
+                  "/fixture/dependencies/vitest/vitest.mjs",
+                  "run",
+                  "--configLoader",
+                  "native",
+                  "--no-cache",
+                  "--config",
+                  "observe.config.mjs"
+                ],
+                "duration": {
+                  "kind": "file",
+                  "state": "unset"
+                }
+              },
+              "observations": [
+                {
+                  "cycle": 1,
+                  "shard": {
+                    "index": 2,
+                    "count": 2
+                  },
+                  "runtime": {
+                    "node": "v26.3.0",
+                    "vitest": "4.1.11",
+                    "platform": "linux",
+                    "arch": "arm64"
+                  },
+                  "duration": {
+                    "kind": "file",
+                    "state": "unset"
+                  },
+                  "selected": [
+                    {
+                      "project": "unit",
+                      "file": "native/a.test.mjs"
+                    },
+                    {
+                      "project": "unit",
+                      "file": "native/b.test.mjs"
+                    }
+                  ],
+                  "assigned": [
+                    {
+                      "project": "unit",
+                      "file": "native/b.test.mjs"
+                    }
+                  ],
+                  "ordered": [
+                    {
+                      "project": "unit",
+                      "file": "native/b.test.mjs"
+                    }
+                  ],
+                  "queued": [
+                    {
+                      "project": "unit",
+                      "file": "native/b.test.mjs"
+                    }
+                  ],
+                  "ended": [
+                    {
+                      "project": "unit",
+                      "file": "native/b.test.mjs"
+                    }
+                  ],
+                  "shardCalls": 1,
+                  "sortCalls": 1
+                }
+              ]
+            }
+          ]
+        },
+        "contextNative": {},
+        "coverageErrors": [],
+        "nativeProcesses": [],
+        "telemetry": {
+          "status": {
+            "mode": "on"
+          },
+          "records": [
+            {
+              "version": 1,
+              "context": {
+                "plan_id": "54cc574f-965b-499b-b93e-20317d102a6d"
+              },
+              "observed": {
+                "startedAt": 1793324942443,
+                "finishedAt": 1793324943764,
+                "released": true,
+                "processExit": 0
+              },
+              "state": "finished",
+              "outcome": {
+                "status": 0
+              },
+              "resources": {
+                "available": false,
+                "reason": "fixture has no resource sampler"
+              }
+            }
+          ],
+          "missingPlanIds": []
+        },
+        "retained": [],
+        "errors": [],
+        "completed": true,
+        "sourceBefore": {
+          "head": "472fc456775848ff28843b766c8daa413ac8ef84",
+          "tree": "29d566e4ebaad12d5b16686147ea083c90325e97",
+          "status": ""
+        },
+        "ownerMode": "on",
+        "declaration": {
+          "location": ".arc/system/arc-checks.yml",
+          "digest": "sha256:931ba452024093c3be96f0693f76102377f4d271a0c8248c83a7f4f37c96f2d9",
+          "original": {
+            "checks": {
+              "local": {
+                "command": [
+                  "/fixture/bin/node",
+                  "local.cjs",
+                  "local"
+                ],
+                "inputs": [
+                  "src/**"
+                ],
+                "runtime_inputs": [],
+                "root": ".",
+                "runner": false,
+                "environment_inputs": {},
+                "shell": false,
+                "gate": "push",
+                "mode": "project",
+                "pass_paths": true,
+                "select_deletions": false,
+                "widen": true,
+                "fixes": false,
+                "ci_only": false,
+                "cache": true,
+                "reads_index": false
+              },
+              "indexed": {
+                "command": [
+                  "/fixture/bin/node",
+                  "local.cjs",
+                  "indexed"
+                ],
+                "inputs": [
+                  "src/**"
+                ],
+                "runtime_inputs": [],
+                "root": ".",
+                "runner": false,
+                "environment_inputs": {},
+                "shell": false,
+                "gate": "commit",
+                "mode": "project",
+                "pass_paths": true,
+                "select_deletions": false,
+                "widen": true,
+                "fixes": false,
+                "ci_only": false,
+                "cache": true,
+                "reads_index": true
+              },
+              "routed": {
+                "command": [
+                  "/fixture/bin/node",
+                  "--import",
+                  "file:///fixture/dependencies/tsx/loader.mjs",
+                  "/fixture/dependencies/vitest/vitest.mjs",
+                  "run",
+                  "--configLoader",
+                  "native",
+                  "--no-cache"
+                ],
+                "inputs": [
+                  "src/**"
+                ],
+                "runtime_inputs": [],
+                "root": ".",
+                "shards": {
+                  "count": 2,
+                  "argument": "--shard={index}/{count}",
+                  "routed": true
+                },
+                "runner": true,
+                "environment_inputs": {
+                  "FAIL_NATIVE": "value"
+                },
+                "shell": false,
+                "gate": "merge",
+                "mode": "project",
+                "pass_paths": true,
+                "select_deletions": false,
+                "widen": true,
+                "fixes": false,
+                "ci_only": false,
+                "cache": true,
+                "reads_index": false
+              },
+              "ci": {
+                "command": [
+                  "/fixture/bin/node",
+                  "-e",
+                  "throw new Error('CI-only check must stay excluded')"
+                ],
+                "inputs": [
+                  "**"
+                ],
+                "runtime_inputs": [],
+                "root": ".",
+                "runner": false,
+                "environment_inputs": {},
+                "shell": false,
+                "gate": "merge",
+                "mode": "project",
+                "pass_paths": true,
+                "select_deletions": false,
+                "widen": true,
+                "fixes": false,
+                "ci_only": true,
+                "cache": true,
+                "reads_index": false
+              }
+            },
+            "global_inputs": [],
+            "global_runtime_inputs": [],
+            "commit_fixes": "restage"
+          },
+          "instrumented": {
+            "checks": {
+              "local": {
+                "command": [
+                  "/fixture/bin/node",
+                  "local.cjs",
+                  "local"
+                ],
+                "inputs": [
+                  "src/**"
+                ],
+                "runtime_inputs": [],
+                "root": ".",
+                "runner": false,
+                "environment_inputs": {},
+                "shell": false,
+                "gate": "push",
+                "mode": "project",
+                "pass_paths": true,
+                "select_deletions": false,
+                "widen": true,
+                "fixes": false,
+                "ci_only": false,
+                "cache": true,
+                "reads_index": false
+              },
+              "indexed": {
+                "command": [
+                  "/fixture/bin/node",
+                  "local.cjs",
+                  "indexed"
+                ],
+                "inputs": [
+                  "src/**"
+                ],
+                "runtime_inputs": [],
+                "root": ".",
+                "runner": false,
+                "environment_inputs": {},
+                "shell": false,
+                "gate": "commit",
+                "mode": "project",
+                "pass_paths": true,
+                "select_deletions": false,
+                "widen": true,
+                "fixes": false,
+                "ci_only": false,
+                "cache": true,
+                "reads_index": true
+              },
+              "routed": {
+                "command": [
+                  "/fixture/bin/node",
+                  "--import",
+                  "file:///fixture/dependencies/tsx/loader.mjs",
+                  "/fixture/dependencies/vitest/vitest.mjs",
+                  "run",
+                  "--configLoader",
+                  "native",
+                  "--no-cache",
+                  "--config",
+                  "observe.config.mjs"
+                ],
+                "inputs": [
+                  "src/**"
+                ],
+                "runtime_inputs": [],
+                "root": ".",
+                "shards": {
+                  "count": 2,
+                  "argument": "--shard={index}/{count}",
+                  "routed": true
+                },
+                "runner": true,
+                "environment_inputs": {
+                  "FAIL_NATIVE": "value",
+                  "ARC_TEST_DURATION_FILE": "file"
+                },
+                "shell": false,
+                "gate": "merge",
+                "mode": "project",
+                "pass_paths": true,
+                "select_deletions": false,
+                "widen": true,
+                "fixes": false,
+                "ci_only": false,
+                "cache": true,
+                "reads_index": false
+              },
+              "ci": {
+                "command": [
+                  "/fixture/bin/node",
+                  "-e",
+                  "throw new Error('CI-only check must stay excluded')"
+                ],
+                "inputs": [
+                  "**"
+                ],
+                "runtime_inputs": [],
+                "root": ".",
+                "runner": false,
+                "environment_inputs": {},
+                "shell": false,
+                "gate": "merge",
+                "mode": "project",
+                "pass_paths": true,
+                "select_deletions": false,
+                "widen": true,
+                "fixes": false,
+                "ci_only": true,
+                "cache": true,
+                "reads_index": false
+              }
+            },
+            "global_inputs": [],
+            "global_runtime_inputs": [],
+            "commit_fixes": "restage"
+          }
+        },
+        "comparisonIdentity": "sha256:57198542a1359e994c556011f610b353f533c1660f7b3381fce0b69d801cde8e",
+        "outcome": {
+          "kind": "result",
+          "exitCode": 0,
+          "result": {
+            "status": "completed",
+            "checks": [
+              {
+                "id": "local",
+                "kind": "enforcement",
+                "outcome": "passed",
+                "record": {
+                  "status": "recorded"
+                },
+                "costMs": 19.986541000000017
+              },
+              {
+                "id": "indexed",
+                "kind": "enforcement",
+                "outcome": "passed",
+                "record": {
+                  "status": "recorded"
+                },
+                "costMs": 20.386040999999977
+              },
+              {
+                "id": "routed",
+                "kind": "enforcement",
+                "outcome": "passed",
+                "record": {
+                  "status": "not-recordable"
+                },
+                "invocations": [
+                  {
+                    "batch": 1,
+                    "shard": {
+                      "index": 1,
+                      "count": 2
+                    },
+                    "invocationId": "28eee349-3a4a-47a9-baee-ff87698c0b5a",
+                    "outcome": {
+                      "kind": "success",
+                      "exitCode": 0
+                    }
+                  },
+                  {
+                    "batch": 1,
+                    "shard": {
+                      "index": 2,
+                      "count": 2
+                    },
+                    "invocationId": "bb1bd681-cc1f-428f-b88d-fe3f21e4d75e",
+                    "outcome": {
+                      "kind": "success",
+                      "exitCode": 0
+                    }
+                  }
+                ],
+                "costMs": 1432.638692
+              },
+              {
+                "id": "ci",
+                "kind": "enforcement",
+                "outcome": "not selected",
+                "reason": "CI-only check requires --ci"
+              }
+            ],
+            "verification": "Checks: local passed; indexed passed; routed passed; ci not selected.",
+            "base": "176e5fa2e38815f984bca7d4b224c56ecc2c14a1",
+            "tree": "29d566e4ebaad12d5b16686147ea083c90325e97"
+          }
+        },
+        "sourceAfter": {
+          "head": "472fc456775848ff28843b766c8daa413ac8ef84",
+          "tree": "29d566e4ebaad12d5b16686147ea083c90325e97",
+          "status": ""
+        }
+      }
+    }
+  ]
+}

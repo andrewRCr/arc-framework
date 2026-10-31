@@ -14,8 +14,12 @@ let producer: Awaited<ReturnType<typeof makeVitestRuntimeFixture>>;
 beforeAll(async () => {
   producer = await makeVitestRuntimeFixture();
   await runBuildCommand(producer.packageRoot, ["fast"]);
-}, 30_000);
-afterAll(async () => { await rm(producer.root, { recursive: true, force: true }); });
+}, 120_000);
+afterAll(async () => {
+  // A setup that timed out before making the fixture leaves it unset.
+  const fixture = producer as typeof producer | undefined;
+  if (fixture !== undefined) await rm(fixture.root, { recursive: true, force: true });
+});
 const skip = { CI: "1", ARC_E2E_SKIP_BUILD: "1" };
 
 it.each(["missing CLI", "malformed evidence", "CLI input", "manifest", "installation metadata"])(

@@ -25,6 +25,7 @@
 import type { Mutation } from "../../store/write.js";
 import type { ReviewReadinessBinding } from "../../store/kinds/review/integration-boundary/readiness.js";
 import { IntegrationBoundaryLocusV2Schema, type IntegrationBoundaryLocusV2 } from "../../../scripts/review-gate/policy/integration-boundary-locus-v2.js";
+import type { RecordReference } from "../../store/identity.js";
 import { usesOffBranchState } from "../../store/lifecycle-write.js";
 import type { StoreRefusal } from "../../store/refusal.js";
 import { runStorePublish } from "./publish-store.js";
@@ -142,6 +143,8 @@ function publicationProgressFailure(
 
 /** The orientation inputs a `publish` supplies. */
 export interface PublishParams {
+  /** Exact already-selected subject, when the caller holds one. */
+  reference?: RecordReference;
   /** Target WU name (the CLI defaults this to the current Active WU). */
   name: string;
   /** Override for `Last Completed`; absent reads the task list's terminal completed task. */

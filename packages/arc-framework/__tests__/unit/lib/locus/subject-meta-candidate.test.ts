@@ -1,4 +1,5 @@
 /** Candidate acquisition follows the selected Store's exact work-unit generation. */
+import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { mkdtemp, mkdir, readFile, writeFile, rm, access, realpath, lstat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -44,7 +45,8 @@ async function fixture(withMetaCandidate = true) {
   const h = createLifecycleHarness();
   const authoritative = candidate();
   const meta = await seedPrepared(h, withMetaCandidate ? authoritative.id : null);
-  const workUnit = await readStoreWorkUnitEvidence({ store: h.store, slug: "demo", head: "a".repeat(40), projectId: async () => "project-1" });
+  const workUnit = await readStoreWorkUnitEvidence({ store: h.store, cwd, marker: { spawnedByArc: false, createdFor: boundWorkUnitSubject(meta),
+    spawningIdentity: "test-user", createdAt: new Date(0).toISOString() }, slug: "demo", uid: boundWorkUnitSubject(meta).uid, head: "a".repeat(40), projectId: async () => "project-1" });
   if (workUnit.kind !== "present") throw new Error(JSON.stringify(workUnit));
   const localCandidatePath = join(cwd, ".arc/system/.internal/candidates/demo.json");
   await mkdir(dirname(localCandidatePath), { recursive: true });
@@ -188,8 +190,9 @@ it("retains the selected generation when reading pending Candidate fix authority
     "../../../../src/scripts/review-gate/policy/candidate-review-fix-continuation.js");
   const h = await storedCandidateApproval(candidateFixture("demo"));
   const cwd = await mkdtemp(join(tmpdir(), "arc-subject-pending-fix-")); roots.push(cwd);
-  const workUnit = await readStoreWorkUnitEvidence({ store: h.harness.store, slug: "demo",
-    head: "a".repeat(40), projectId: async () => h.producer.repositoryId });
+  const workUnit = await readStoreWorkUnitEvidence({ store: h.harness.store, cwd, marker: { spawnedByArc: false,
+    createdFor: boundWorkUnitSubject(h.meta), spawningIdentity: "test-user", createdAt: new Date(0).toISOString() },
+  slug: "demo", uid: boundWorkUnitSubject(h.meta).uid, head: "a".repeat(40), projectId: async () => h.producer.repositoryId });
   if (workUnit.kind !== "present") throw new Error(JSON.stringify(workUnit));
   lifecycleSuccess(await h.harness.store.write({ action: "remove", reference: h.meta.reference,
     expected: h.meta.version, provenance: { verb: "remove", lifecycleAction: "remove" } }));

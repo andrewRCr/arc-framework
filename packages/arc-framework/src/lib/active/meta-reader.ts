@@ -78,8 +78,8 @@ export interface ReaderResult {
  * The default project root resolves checkout-held work-unit records. Custom
  * and contributor roots enumerate `meta-*.md` files directly at their root.
  *
- * A missing root directory is not an error — returns an empty candidate set
- * with a warning naming the supplied root.
+ * A missing legacy or custom root returns no candidates and a warning.
+ * Operational state does not require a materialized active directory.
  * @param cwd - Checkout root.
  * @param options - Optional custom active-root segments.
  * @returns Parsed meta candidates in the full layout, with reader warnings.
@@ -92,8 +92,6 @@ export async function readActiveMetaCandidates(
   const activeDir = join(cwd, ...rootSegments);
   const rootDisplay = `${rootSegments.join("/")}/`;
   const warnings: string[] = [];
-  const defaultRoot = activeDir === join(cwd, ...DEFAULT_ROOT_SEGMENTS);
-  if (defaultRoot && options?.store?.capabilities.stateOffBranch === true) return readHeldCandidates(cwd, options.store);
 
   let exists = false;
   try {
@@ -103,12 +101,13 @@ export async function readActiveMetaCandidates(
     // Swallow — handled below as a warning.
   }
 
+  if (activeDir === join(cwd, ...DEFAULT_ROOT_SEGMENTS)) return readHeldCandidates(cwd, options?.store,
+    exists ? undefined : `${rootDisplay} not found — no active work units to enumerate.`);
+
   if (!exists) {
     warnings.push(`${rootDisplay} not found — no active work units to enumerate.`);
     return { layout: "full", candidates: [], warnings };
   }
-
-  if (defaultRoot) return readHeldCandidates(cwd, options?.store);
 
   const paths = await findMetaFiles(activeDir);
   paths.sort();
@@ -196,13 +195,17 @@ function candidateFromContent(cwd: string, absPath: string, content: string, war
   };
 }
 
-async function readHeldCandidates(cwd: string, selectedStore?: Store): Promise<ReaderResult> {
+async function readHeldCandidates(cwd: string, selectedStore?: Store, missingRootWarning?: string): Promise<ReaderResult> {
   const [{ resolveCurrentWorkUnit }, { createStore }, { createDefaultStorePorts }] = await Promise.all([
     import("../store/current-work-unit.js"), import("../store/create.js"), import("../store/default-ports.js"),
   ]);
   const store = selectedStore ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd }));
+  if (missingRootWarning !== undefined && !store.capabilities.stateOffBranch) return {
+    layout: "full", candidates: [], warnings: [missingRootWarning],
+  };
   const resolved = await resolveCurrentWorkUnit({ cwd, store });
   const warnings = [...resolved.warnings];
+  if (resolved.status === "unbound") warnings.push(resolved.unbound.reason);
   const candidates: MetaFileCandidate[] = [];
   const owners = new Map<string, OwnerIdentity>();
   for (const current of resolved.candidates) {

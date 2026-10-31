@@ -1,23 +1,26 @@
 /** Publication preserves Candidate authority and atomic record ordering off branch. */
+import { seedPausedCompletedWorkUnit } from "../../../helpers/store/paused-completed-work-unit.js";
+import { createClashDouble } from "../../../helpers/store/clash-double.js";
 import { describe, expect, it } from "vitest";
 import { candidateFixture } from "../../../helpers/store/tracked-write-fixture.js";
 import { createCandidateAttestation } from "../../../../src/lib/work-unit/candidate-attestation.js";
 import { writeCandidateRecord } from "../../../../src/lib/store/kinds/review/candidate/access.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
-import { writeMetaPause, writeMetaCandidate } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { writeMetaPause, writeMetaCandidate, writeMetaTitle, writeMetaSessionContext } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { ParsedMetaRecordSchema } from "../../../../src/lib/active/meta-schema.js";
-import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { IntegrationBoundaryLocusV2Schema, type IntegrationBoundaryLocusV2 } from "../../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import { runPublish } from "../../../../src/lib/work-unit/verbs/publish.js";
 import { buildStoreCurrentWuReconcile } from "../../../../src/lib/work-unit/store-current-wu-reconcile.js";
 import { batchLifecycleWrites, recordPut } from "../../../../src/lib/store/lifecycle-write.js";
-import { recordReferences } from "../../../../src/lib/store/identity.js";
+import { recordReferences, OwnerIdentitySchema } from "../../../../src/lib/store/identity.js";
 import { writeLineageRecord } from "../../../../src/lib/store/kinds/lineage/writer.js";
 import { runStoreRename } from "../../../../src/lib/work-unit/verbs/rename-store.js";
 import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lifecycle-executor.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
 import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 import { nativePublicationParameters } from "../../../fixtures/native-publication.js";
+import { seedCompletedErrandTie } from "../../../helpers/store/completed-errand-tie.js";
 const candidate = candidateFixture();
 const candidateId = candidate.attestation.candidateId, candidateSubjectDigest = candidate.subject.subjectDigest;
 async function seedAttestedMeta(h: ReturnType<typeof createReviewHarness>, ...args: Parameters<typeof h.seedMeta>) {
@@ -25,6 +28,42 @@ async function seedAttestedMeta(h: ReturnType<typeof createReviewHarness>, ...ar
   await writeCandidateRecord("/memory", "example", candidate, null, { store: h.store, owner: primary.reference.owner });
   return primary;
 }
+
+it("publishes an attested Candidate whose notes mention a tied Errand slug", async () => {
+  const h = createReviewHarness();
+  await seedCompletedErrandTie(h, "tied");
+  const meta = await seedAttestedMeta(h, "example", { candidateId }, { kind: "active" },
+    { branches: [{ repository: "123e4567-e89b-42d3-a456-426614174099", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+  const notes = await h.seed(recordReferences["work-item/notes"](meta.reference.owner), "# Notes\n\nNarrative tied context.\n");
+  expect(await runPublish(context(h.store), (await parameters(h, async () => {})))).toMatchObject({ status: "published" });
+  expect(lifecycleSuccess(await h.store.read({ reference: notes.reference }))).toEqual(notes);
+});
+it("publishes with a held former-name edge and stops only for genuine prose about that name", async () => {
+  for (const prose of ["none", "notes", "session-context"] as const) {
+    const h = createReviewHarness(), target = await h.seedMeta("former");
+    lifecycleSuccess(await h.store.write({ ...recordPut(target, { content: writeMetaTitle(target.content, SlugSchema.parse("current")) }),
+      reference: { ...target.reference, owner: OwnerIdentitySchema.parse({ ...target.reference.owner, name: "current" }) },
+      provenance: { verb: "rename", lifecycleAction: "rename" } }));
+    const current = lifecycleSuccess(await h.store.read({ reference: target.reference }));
+    const other = await h.seedMeta("other");
+    const meta = await seedAttestedMeta(h, "example", { candidateId, dependsOn: ["former"] }, { kind: "active" },
+      { branches: [{ repository: "123e4567-e89b-42d3-a456-426614174099", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+    if (prose === "session-context") lifecycleSuccess(await h.store.write({ ...recordPut(meta, {
+      content: writeMetaSessionContext(meta.content, "- **Depends On:** former needs review before publication."),
+    }), provenance: { verb: "edit", lifecycleAction: "edit" } }));
+    if (prose === "notes") await h.seed(recordReferences["work-item/notes"](meta.reference.owner), "# Notes\n\nReview former before continuing.\n");
+    const store = createClashDouble(h.store, { slug: "current", holders: [current.reference, other.reference] });
+    const result = await runPublish(context(store), (await parameters(h, async () => {})));
+    expect(result).toMatchObject({ status: prose === "none" ? "published" : "reconcile-pending" });
+    expect(lifecycleSuccess(await h.store.read({ reference: meta.reference })).fields).toMatchObject({
+      dependsOn: ["former"], state: prose === "none" ? "Integrating" : "Active",
+    });
+    if (result.status === "reconcile-pending") expect(result.reconcile.prepared.plan.advisories).toMatchObject([
+      { subject: "former", referenceKind: "narrative", context: prose === "notes"
+        ? "Review former before continuing." : "- **Depends On:** former needs review before publication." },
+    ]);
+  }
+});
 function context(store: Store) {
   const forbidden = async (): Promise<never> => { throw new Error("tracked artifact access"); };
   const ctx: ExecuteTransitionContext = { cwd: "/repo", store, indexFs: { readdir: forbidden, readFile: forbidden },
@@ -73,7 +112,7 @@ describe("store publish", () => {
     { verb: "decompose", lifecycleAction: "decompose" }));
     const immutable = lifecycleSuccess(await h.store.read({ reference: lineage }));
     const renamed = await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
-      locusPorts: { findHoldingCheckout: async () => null, checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
+      locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
     { sourceSlug: "former-dependent", targetSlug: "example" });
     expect(renamed.status, JSON.stringify(renamed)).toBe("renamed");
     const current = lifecycleSuccess(await h.store.read({ reference: dependent.reference }));
@@ -134,7 +173,7 @@ it("a rerun after reconcile lands reaches the publication batch and preserves ig
   expect(claims).toBe(2);
 });
 
-it("preserves the resume remedy when a pause arrives after prepare, then publishes after resume", async () => {
+it("rejects stale preparation when a pause arrives after prepare, then publishes after resume", async () => {
   const h = createReviewHarness();
   const primary = await seedAttestedMeta(h, "example", { candidateId }, { kind: "active" },
     { branches: [{ repository: "123e4567-e89b-42d3-a456-426614174099", ref: "feat/example", linkedAs: "created", excluded: [] }] });
@@ -152,8 +191,8 @@ it("preserves the resume remedy when a pause arrives after prepare, then publish
   };
   const base = await parameters(h, async () => {});
   const params = { ...base, preparePublicationClaim: async (claim: IntegrationBoundaryLocusV2) => { claims++; return base.preparePublicationClaim(claim); } };
-  expect(await runPublish(ctx, params)).toMatchObject({ status: "reconcile-failed", reason: "paused",
-    remedy: { argv: ["arc", "resume", "example"] } });
+  expect(await runPublish(ctx, params)).toMatchObject({ status: "reconcile-failed",
+    reconcile: { reason: "stale-content", refusal: { code: "version-conflict" } } });
   const paused = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
   expect(paused.fields).toMatchObject({ state: "Active", pause: expect.any(Object) });
   expect(claims).toBe(0);
@@ -262,4 +301,35 @@ it.each(["absent", "different"] as const)("refuses %s stored Candidate authority
   if (kind === "absent") await writeCandidateRecord("/memory", "example", candidate, null, { store: h.store, owner: primary.reference.owner });
   expect(await runPublish(context(h.store), (await parameters(h, async () => {}, kind === "different" ? renewed : candidate))))
     .toMatchObject({ status: "published" });
+});
+
+it("publication reconciles only its live namesake's records", async () => {
+  const h = createReviewHarness();
+  await h.seedMeta("done", { state: "Integrating", currentWorkflow: "integrate-work-unit" });
+  const archived = await h.seedMeta("example", { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const primary = await seedAttestedMeta(h, "example", { candidateId, dependsOn: ["done"] }, { kind: "active" },
+    { branches: [{ repository: "123e4567-e89b-42d3-a456-426614174099", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+  expect(await runPublish(context(h.store), (await parameters(h, async () => {})))).toMatchObject({ status: "published" });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).fields).toMatchObject({ state: "Integrating", dependsOn: [] });
+  expect(lifecycleSuccess(await h.store.read({ reference: archived.reference }))).toEqual(archived);
+});
+
+it("publication rereads the selected primary after reconciliation when its name becomes clashed", async () => {
+  const h = createReviewHarness();
+  const primary = await seedAttestedMeta(h, "example", { candidateId }, { kind: "active" },
+    { branches: [{ repository: "123e4567-e89b-42d3-a456-426614174099", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+  const other = await h.seedMeta("other");
+  const store = createClashDouble(h.store, { slug: "example", holders: [primary.reference, other.reference], mode: "mid-verb" });
+  expect(await runPublish(context(store), (await parameters(h, async () => {})))).toMatchObject({ status: "published" });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).fields).toMatchObject({ state: "Integrating" });
+  expect(lifecycleSuccess(await h.store.read({ reference: other.reference }))).toEqual(other);
+});
+
+it("publishes the unpaused live holder despite its paused completed namesake", async () => {
+  const h = createReviewHarness(), archived = await seedPausedCompletedWorkUnit(h, "example");
+  const primary = await seedAttestedMeta(h, "example", { candidateId }, { kind: "active" },
+    { branches: [{ repository: "123e4567-e89b-42d3-a456-426614174099", ref: "feat/example", linkedAs: "created", excluded: [] }] });
+  expect(await runPublish(context(h.store), (await parameters(h, async () => {})))).toMatchObject({ status: "published" });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).fields).toMatchObject({ state: "Integrating", pause: null });
+  expect(lifecycleSuccess(await h.store.read({ reference: archived.reference }))).toEqual(archived);
 });

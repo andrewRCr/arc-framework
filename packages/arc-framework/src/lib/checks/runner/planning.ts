@@ -1,9 +1,11 @@
 /** Build fixed portable invocations and runtime probes before placement. */
+import { randomUUID } from "node:crypto";
+import { checkInvocationArguments, checkShardArguments, checkShardBatches, type CheckInvocationCoordinate } from "../shards.js";
 import type { CheckDeclaration } from "../declaration.js";
 import type { FrozenSourcePresentation } from "./source-presentation.js";
 import { InvocationSchema, ProbeSchema, type Invocation, type Probe } from "./contract-execution.js";
 import { relative, resolve } from "node:path";
-import { batchPortableCheckPaths, checkFileArguments, portableCheckArgumentBatches } from "../batching.js";
+import { batchPortableCheckPaths, checkFileArguments } from "../batching.js";
 import { resolveSourceDirectory } from "./source-cwd.js";
 import { sourcePathContains } from "./source-paths.js";
 
@@ -18,12 +20,13 @@ export interface PlanCheckExecutionInput {
 /** Owned immutable commands whose order and partitions cannot change during preparation. */
 export interface CheckExecutionPlan {
   readonly invocations: readonly Invocation[];
+  readonly coordinates?: readonly CheckInvocationCoordinate[];
   readonly probes: Readonly<{ global: readonly Probe[]; check: readonly Probe[] }>;
 }
 
 /** Plan commands against captured source while retaining native selection and content policy. */
 export async function planCheckExecution(input: PlanCheckExecutionInput): Promise<CheckExecutionPlan> {
-  const check = { ...input.check };
+  const check = { ...input.check, ...(input.check.shards === undefined ? {} : { shards: { ...input.check.shards } }) };
   const callerRoot = input.callerRoot;
   const sourceRoot = input.source.root;
   const command = typeof check.command === "string" ? [check.command] : [...check.command];
@@ -40,11 +43,17 @@ export async function planCheckExecution(input: PlanCheckExecutionInput): Promis
   const directory = await resolveSourceDirectory(sourceRoot, relative(callerRoot, declaredCwd));
   const cwd = directory.cwd;
   const received = checkFileArguments(directory.root, directory.directory, paths, process.platform);
-  const invocations = portableCheckArgumentBatches(check, command, received).map((batch, index) => fixedInvocation({
-    id: `invocation:${index}`, argv: [...command, ...batch], cwd, shell: check.shell,
-    ...(commandContent === undefined ? {} : { commandContent }),
-  }));
-  return Object.freeze({ invocations: Object.freeze(invocations), probes: Object.freeze({
+  const suffixes = check.shards?.routed ? checkShardArguments(check.shards) : [undefined];
+  const coordinates: CheckInvocationCoordinate[] = [];
+  const invocations = checkShardBatches(check, command, received, suffixes).flatMap((batch, index) =>
+    suffixes.map((suffix, shardIndex) => {
+      coordinates.push(Object.freeze({ batch: index + 1, ...(suffix === undefined ? {} : {
+        shard: Object.freeze({ index: shardIndex + 1, count: suffixes.length }),
+      }) }));
+      return fixedInvocation({ id: randomUUID(), argv: checkInvocationArguments(command, batch, suffix, check.shell),
+        cwd, shell: check.shell, ...(commandContent === undefined ? {} : { commandContent }) });
+    }));
+  return Object.freeze({ invocations: Object.freeze(invocations), coordinates: Object.freeze(coordinates), probes: Object.freeze({
     global: Object.freeze(planProbes(globalProbes, "global-probe", ".")),
     check: Object.freeze(planProbes(checkProbes, "check-probe", cwd)),
   }) });

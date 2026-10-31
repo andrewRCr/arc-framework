@@ -1,5 +1,6 @@
 /** Exact terminal snapshots govern ref-set cleanup and retained checkout coordinates. */
 import { describe, expect, it } from "vitest";
+import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { createRetirementHarness as fixture, retirementLink as link } from "../../../helpers/store/retirement-harness.js";
 import { recordReferences } from "../../../../src/lib/store/identity.js";
 import { writeLineageRecord, parseLineageRecord } from "../../../../src/lib/store/kinds/lineage/index.js";
@@ -7,26 +8,26 @@ import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { runTeardown } from "../../../../src/lib/work-unit/verbs/teardown.js";
 describe("store retirement ref sets", () => {
   it("discards a created branch locally and remotely on abandonment lineage", async () => {
-    const h = await fixture(); expect(await runTeardown(h.ctx, { name: "demo", base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
+    const h = await fixture(); expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
     expect([...h.refs.keys()]).not.toContain("refs/heads/feat/demo"); expect([...h.refs.keys()]).not.toContain("refs/remotes/origin/feat/demo"); expect([...h.refs.keys()]).not.toContain("remote/feat/demo");
   });
   it.each(["archive", "decompose"] as const)("reaps a landed created branch after %s", async (end) => {
-    const h = await fixture({ end }); expect(await runTeardown(h.ctx, { name: "demo", base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
+    const h = await fixture({ end }); expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
     expect(h.refs.has("refs/heads/feat/demo")).toBe(false);
   });
   it("keeps an unlanded remote while its upstream preserves the local archive branch", async () => {
-    const h = await fixture({ end: "archive", unlanded: true }); expect(await runTeardown(h.ctx, { name: "demo", base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: false });
+    const h = await fixture({ end: "archive", unlanded: true }); expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: false });
     expect(h.refs.has("remote/feat/demo")).toBe(true);
   });
   it.each([false, true])("reaps only a promoted Errand ref with no work beyond base and the retiring head, own work=%s", async (secondaryOwnWork) => {
     const h = await fixture({ branches: [link("chore/demo"), link()], secondaryOwnWork });
-    expect(await runTeardown(h.ctx, { name: "demo", base: "main" })).toMatchObject({ status: "torn-down" });
+    expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "torn-down" });
     expect(h.refs.has("refs/heads/chore/demo")).toBe(secondaryOwnWork); expect(h.refs.has("refs/remotes/origin/chore/demo")).toBe(secondaryOwnWork);
     expect(h.refs.has("remote/chore/demo")).toBe(true);
   });
   it.each(["archive", "abandon"] as const)("keeps adopted branches and their checkout after %s", async (end) => {
     const h = await fixture({ end, branches: [link("feat/demo", "adopted")], held: true });
-    const result = await runTeardown(h.ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
     expect(result).toMatchObject({ status: "torn-down", branchDeleted: false, notices: expect.arrayContaining([expect.stringContaining("git switch"), expect.stringContaining("git branch -D feat/demo")]) });
     expect(h.refs.has("refs/heads/feat/demo")).toBe(true); expect(h.state().current).toBe("feat/demo");
   });
@@ -39,7 +40,7 @@ describe("store retirement ref sets", () => {
         ...(locked === undefined ? {} : { locked }) },
     ] });
     h.ctx.worktreeFs = { ...h.ctx.worktreeFs!, directoryExists: async (target) => target !== path };
-    const result = await runTeardown(h.ctx, { name: "demo", base: "main" });
+    const result = await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
     expect(result).toMatchObject({ status: "torn-down", branchDeleted: false, remoteBranchDeleted: false, worktreeRemoved: null });
     if (result.status !== "torn-down") throw Error("teardown must retain the adopted branch");
     const removal = result.notices.find((notice) => notice.includes("git worktree remove"));
@@ -53,27 +54,28 @@ describe("store retirement ref sets", () => {
     expect(h.refs.has("remote/feat/demo")).toBe(true);
   });
   it("returns a clean anchored holder to base before deleting its created branch", async () => {
-    const h = await fixture({ held: true }); expect(await runTeardown(h.ctx, { name: "demo", base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true });
+    const h = await fixture({ held: true }); expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true });
     expect(h.state().current).toBe("main");
   });
   it("keeps a dirty anchored checkout on its branch and reports the changed path", async () => {
-    const h = await fixture({ held: true, dirty: true }); const result = await runTeardown(h.ctx, { name: "demo", base: "main" });
+    const h = await fixture({ held: true, dirty: true }); const result = await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
     expect(result).toMatchObject({ status: "torn-down", branchDeleted: false, notices: expect.arrayContaining([expect.stringContaining("personal.txt")]) });
     expect(h.state().current).toBe("feat/demo"); expect(h.refs.has("refs/heads/feat/demo")).toBe(true);
   });
   it("refuses legacy lineage lacking an explicit snapshot before deleting any ref", async () => {
-    const h = await fixture({ noSnapshot: true }); expect(await runTeardown(h.ctx, { name: "demo", base: "main" })).toMatchObject({ status: "rejected", reason: expect.stringContaining("retiredBranches") });
+    const h = await fixture({ noSnapshot: true }); expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "rejected", reason: expect.stringContaining("retiredBranches") });
     expect(h.state().mutations).toEqual([]);
   });
-  it("retries successfully after an operator supplies the trusted exact missing terminal snapshot", async () => {
-    const h = await fixture({ noSnapshot: true });
-    expect(await runTeardown(h.ctx, { name: "demo", base: "main" })).toMatchObject({ status: "rejected", reason: expect.stringContaining("trusted pre-transition") });
+  it("preserves the UID in missing-lineage repair and retries the repaired snapshot", async () => {
+    const h = await fixture({ noSnapshot: true }), subject = { kind: "owner" as const, owner: h.meta.reference.owner };
+    expect(await runTeardown(h.ctx, { subject, base: "main" })).toMatchObject({ status: "rejected",
+      reason: expect.stringContaining(`then retry arc teardown ${boundWorkUnitSubject(h.meta).uid};`) });
     const terminal = lifecycleSuccess(await h.store.read({ reference: recordReferences["lineage/transition"](h.meta.reference.owner) }));
     const lineage = parseLineageRecord(terminal.content);
     if (lineage === null) throw Error("terminal fixture must decode");
     lifecycleSuccess(await h.store.write({ action: "put", reference: terminal.reference, expected: terminal.version,
       content: writeLineageRecord({ ...lineage, retiredBranches: [link()] }), provenance: { verb: "repair-lineage", lifecycleAction: "repair-lineage" } }));
-    expect(await runTeardown(h.ctx, { name: "demo", base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
+    expect(await runTeardown(h.ctx, { subject, base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
     const repaired = lifecycleSuccess(await h.store.read({ reference: terminal.reference }));
     expect(await h.store.write({ action: "put", reference: repaired.reference, expected: repaired.version,
       content: writeLineageRecord({ ...lineage, retiredBranches: [] }), provenance: { verb: "repair-lineage", lifecycleAction: "repair-lineage" } })).toMatchObject({ status: "refused" });
@@ -82,16 +84,47 @@ describe("store retirement ref sets", () => {
     const h = await fixture({ ended: false });
     lifecycleSuccess(await h.store.write({ action: "put", reference: recordReferences["lineage/transition"](h.meta.reference.owner), expected: null,
       content: writeLineageRecord({ schemaVersion: 2, origin: { name: h.meta.reference.owner.name }, kind: "abandon", successors: [], incoming: [], retiredBranches: [link()] }), provenance: { verb: "seed-lifecycle", lifecycleAction: "create" } }));
-    expect(await runTeardown(h.ctx, { name: "demo", base: "main" })).toMatchObject({ status: "rejected", reason: expect.stringContaining("has not ended") });
+    expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "rejected", reason: expect.stringContaining("has not ended") });
     expect(h.state().mutations).toEqual([]);
   });
 
-  it("preserves typed ordinary teardown retry arguments after a transient remote cleanup failure", async () => {
+  it.each(["slug", "owner"] as const)("preserves typed ordinary teardown retry arguments after a transient remote cleanup failure, selector=%s", async selector => {
     const h = await fixture(), original = h.ctx.exec;
+    const subject = selector === "slug" ? { kind: "slug" as const, slug: "demo" } : { kind: "owner" as const, owner: h.meta.reference.owner };
+    const operand = selector === "slug" ? "demo" : boundWorkUnitSubject(h.meta).uid;
     h.ctx.exec = (command, args, options) => args[0] === "push" ? Promise.reject(Error("injected remote failure")) : original(command, args, options);
-    expect(await runTeardown(h.ctx, { name: "demo", base: "main" })).toMatchObject({ status: "rejected", remedy: { argv: ["arc", "teardown", "demo"] } });
+    expect(await runTeardown(h.ctx, { subject, base: "main" })).toMatchObject({ status: "rejected", remedy: { argv: ["arc", "teardown", operand] } });
     h.ctx.exec = original;
-    expect(await runTeardown(h.ctx, { name: "demo", base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true });
+    expect(await runTeardown(h.ctx, { subject, base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true });
   });
 
+});
+it.each([false, true])("refuses an unbound retirement holder before changing refs, locus port=%s", async port => {
+  const h = await fixture({ end: "archive", held: true });
+  const { classifyUnboundMarker } = await import("../../../../src/lib/locus/unbound-marker.js");
+  const { createDefaultLocusPorts } = await import("../../../../src/lib/work-unit/locus-ports.js");
+  const marker = { spawnedByArc: false, createdFor: { kind: "work-unit" as const, name: "demo" }, spawningIdentity: "test-user", createdAt: new Date(0).toISOString() };
+  const classified = await classifyUnboundMarker({ store: h.store, cwd: "/repo", marker });
+  if (classified.kind !== "unbound") throw new Error(classified.reason);
+  h.ctx.readMarker = async () => ({ kind: "present", marker });
+  if (port) h.ctx.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "unbound", path: "/repo", exits: classified.exits, reason: classified.reason }) };
+  const refs = [...h.refs];
+  const result = await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
+  expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("arc locus release") });
+  expect([...h.refs]).toEqual(refs);
+});
+it("names both bound and unbound retirement holders before changing refs without locus ports", async () => {
+  const h = await fixture({ end: "archive", held: true });
+  const { boundWorkUnitSubject } = await import("../../../helpers/store/bound-checkout.js");
+  h.ctx.scanWorktrees = async () => ({ ok: true, worktrees: [
+    { path: "/repo", head: h.refs.get("refs/heads/feat/demo")!, branch: "feat/demo", detached: false, primary: true, folderPresent: true },
+    { path: "/unbound", head: h.refs.get("refs/heads/main")!, branch: null, detached: true, primary: false, folderPresent: true },
+  ] });
+  h.ctx.readMarker = async path => ({ kind: "present", marker: { spawnedByArc: false, createdFor: path === "/repo" ? boundWorkUnitSubject(h.meta)
+    : { kind: "work-unit", name: "demo" }, spawningIdentity: "test-user", createdAt: new Date(0).toISOString() } });
+  const refs = [...h.refs], result = await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" });
+  expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("/repo") });
+  expect(JSON.stringify(result)).toContain("/unbound");
+  expect(JSON.stringify(result)).toContain("arc locus release");
+  expect([...h.refs]).toEqual(refs);
 });

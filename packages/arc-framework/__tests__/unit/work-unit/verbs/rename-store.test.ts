@@ -1,4 +1,6 @@
+import { boundHolderLookup } from "../../../helpers/store/bound-checkout.js";
 /** Renames preserve one UID and change only the records in the transform's authority. */
+import { createClashDouble } from "../../../helpers/store/clash-double.js";
 import { expect, it } from "vitest";
 import { runStoreRename } from "../../../../src/lib/work-unit/verbs/rename-store.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
@@ -8,7 +10,7 @@ import { recordKey } from "../../../helpers/store/model.js";
 import { SlugSchema, ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { writeMetaPause } from "../../../../src/lib/store/kinds/meta/writers.js";
 import type { LocusPorts } from "../../../../src/lib/work-unit/locus-ports.js";
-const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async () => null, writeAnchoredMarker: async () => ({ kind: "unadmitted" }) };
+const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async () => ({ kind: "none" as const }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) };
 it("refuses a changed caller primary even when acquisition sees the newer version", async () => {
   const h = createLifecycleHarness(), primary = await h.seedMeta("source", { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "provisional" });
   const git = scriptGitExec([]);
@@ -117,7 +119,7 @@ async function branchFixture(linkedAs: "created" | "adopted" = "created", failPu
 }
 it("renames a detached Planning holder through its final qualified work link", async () => {
   const h = await branchFixture("created", false, true);
-  expect(await runStoreRename({ ...h.ctx, locusPorts: { ...locusPorts, findHoldingCheckout: async () => "/holder/source" },
+  expect(await runStoreRename({ ...h.ctx, locusPorts: { ...locusPorts, findHoldingCheckout: boundHolderLookup(h.primary, () => "/holder/source") },
     renameCheckout: async () => ({ report: { checkout: { kind: "renamed", checkoutPath: "/holder/target", markerGeneration: "renamed" } }, rollback: async () => {} }) },
   { sourceSlug: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
   expect(h.refs).toEqual(new Set(["feat/target"]));
@@ -178,7 +180,7 @@ it("a failed remote leg leaves the record renamed and its typed rerun finishes o
 });
 it("a changed acquired record refuses the batch and rolls back branch, marker, and checkout name", async () => {
   const h = await branchFixture(); let marker = "source", checkoutPath = "/holder/source";
-  const held: LocusPorts = { ...locusPorts, findHoldingCheckout: async () => checkoutPath };
+  const held: LocusPorts = { ...locusPorts, findHoldingCheckout: boundHolderLookup(h.primary, () => checkoutPath) };
   const result = await runStoreRename({ ...h.ctx, locusPorts: held, renameCheckout: async (request) => {
     marker = request.targetSlug; checkoutPath = "/holder/target";
     lifecycleSuccess(await h.store.write({ action: "put", reference: h.primary.reference, expected: h.primary.version, content: h.primary.content, placement: { kind: "active" }, provenance: { verb: "race", lifecycleAction: "advance-version" } }));
@@ -194,7 +196,7 @@ it("a changed acquired record refuses the batch and rolls back branch, marker, a
 it("retains failed checkout compensation and retries only after its owner repairs it", async () => {
   const h = await branchFixture();
   let repaired = false, marker = "source", checkoutPath = "/holder/source";
-  const ctx = { ...h.ctx, locusPorts: { ...locusPorts, findHoldingCheckout: async () => checkoutPath },
+  const ctx = { ...h.ctx, locusPorts: { ...locusPorts, findHoldingCheckout: boundHolderLookup(h.primary, () => checkoutPath) },
     renameCheckout: async () => {
       marker = repaired ? "target" : "concurrent-owner"; checkoutPath = "/holder/target";
       if (!repaired) lifecycleSuccess(await h.store.write({ action: "put", reference: h.primary.reference,
@@ -216,4 +218,28 @@ it("retains failed checkout compensation and retries only after its owner repair
   marker = "source"; checkoutPath = "/holder/source"; repaired = true;
   expect(await runStoreRename(ctx, request)).toMatchObject({ status: "renamed" });
   expect(marker).toBe("target"); expect(h.refs).toEqual(new Set(["feat/target"]));
+});
+
+it("renames its selected group while unrelated backlog entries clash on a slug", async () => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("source");
+  const first = await h.seedMeta("first", { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "planned" });
+  const second = await h.seedMeta("second", { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "planned" });
+  const store = createClashDouble(h.store, { slug: "clashed", holders: [first.reference, second.reference] });
+  expect(await runStoreRename({ store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main", locusPorts },
+    { sourceSlug: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).reference.owner.name).toBe("target");
+  expect(lifecycleSuccess(await h.store.read({ reference: first.reference }))).toMatchObject({ reference: first.reference, content: first.content, fields: first.fields, placement: first.placement });
+  expect(lifecycleSuccess(await h.store.read({ reference: second.reference }))).toMatchObject({ reference: second.reference, content: second.content, fields: second.fields, placement: second.placement });
+});
+
+it("acquires a rename subject's group after a mid-verb name clash", async () => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("source"), other = await h.seedMeta("other");
+  const notes = await h.seed(recordReferences["work-item/notes"](primary.reference.owner), "# Notes\n\nRead `spec-source.md`.\n");
+  const store = createClashDouble(h.store, { slug: "source", holders: [primary.reference, other.reference], mode: "mid-verb" });
+  expect(await runStoreRename({ store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main", locusPorts },
+    { sourceSlug: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
+  expect(lifecycleSuccess(await h.store.read({ reference: notes.reference })).content).toContain("`spec-target.md`");
+  expect(lifecycleSuccess(await h.store.read({ reference: other.reference }))).toEqual(other);
 });

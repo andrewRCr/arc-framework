@@ -37,6 +37,9 @@ function pairedCandidates(records: readonly StoreRecord[]): Map<string, Artifact
 }
 async function knownArtifactOwner(store: Store, subject: string, retiredNames: ReadonlySet<string>): Promise<StoreResult<boolean>> {
   const lookup = await store.lookup({ kind: "slug", slug: SlugSchema.parse(subject) });
+  if (lookup.status === "refused" && lookup.refusal.code === "ambiguous-match") return {
+    status: "ok", result: lookup.refusal.candidates.some(reference => reference.kind === "work-item/meta"),
+  };
   if (lookup.status === "refused" && lookup.refusal.code !== "not-found") return lookup;
   return { status: "ok", result: lookup.status === "ok"
     ? lookup.result.reference.kind === "work-item/meta" : retiredNames.has(subject) };

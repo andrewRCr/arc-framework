@@ -7,6 +7,162 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+### `[ ]` **Make the store suites pass at the supported Git floor, or raise the floor**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-30).
+
+- _Shapes:_ § Scope and Timing — a Git-floor compatibility item, due before the public release like the rest. Raising
+  the floor instead decides which Git versions ARC supports, a decision this draft's "no design to author"
+  does not cover.
+
+- _Observation:_ The weekly Git-floor run `40995192792`, at `0dcee4889`, produced 70 store failures across 17 files on
+  Git 2.47.0, while every store shard passed on 2.56.0 at the same head and each floor job confirmed it ran 2.47.0. Most
+  are the separate layout's withdrawal and restoration tests: `withdraw-entry-inverse` (21), `withdraw-entry-boundaries`
+  (13), `lineage-alias-sync` (8), and four or fewer in each of fourteen more files. The dominant error is a `not-found`
+  refusal ("No readable primary, claim, or lineage…") on `project-inbox/inbox` or work-item references after withdrawal
+  or restoration; the rest are reftable manifest mismatches and ancestry or fetch-status failures. The two `maintain()`
+  failures are the Git 2.52+ `maintenance.strategy` case the draft already records. No root cause is established yet.
+
+- _Approach:_ Classify each failure as a production compatibility defect or a fixture or assertion assumption, starting
+  with the withdrawal `not-found` cluster. Then make the store work at 2.47, or raise the floor at
+  `lib/git/version-floor.ts:51` and name the Git feature that requires it; raising it decides which Git versions ARC
+  supports. Until then the weekly floor job stays red, with no suite skipped or allowlisted.
+
+- _Decided (2026-10-31):_ the floor rises to 2.53.0, recorded in `RELEASE-GATES` under Gate B's green-CI item; the
+  store is not made to work at 2.47. 64 of the 70 failures are a Git 2.47.x reftable bug: `for-each-ref --exclude`
+  over a multi-table stack drops refs after the excluded range and returns refs a newer table deleted (fixed in
+  2.48.0). The store hits it in `readRefTips`, which excludes `refs/arc/history/`, and only the separate layout's store
+  repository uses reftable. Bisecting the ancestry cases found a second bug: at Git 2.51.0 to 2.52.0, a non-forced
+  fetch with one ref rejected as non-fast-forward leaves every other ref un-updated, in reftable and files
+  repositories alike (fixed in 2.53.0). The store's rewrite refusal is that fetch, so 4 separate-layout and 6
+  default-layout ancestry cases fail at 2.52.0. The other four 2.47.0 ancestry failures, two `store-ref-ancestry`
+  porcelain-row assumptions and the store's handling at Git 2.50 and earlier (`markUncommittedUpdates` re-checks only
+  rows Git prints as applied), fall below the new floor. The two `maintain()` failures are the routed item under
+  § Routed Items. Raising the floor and its 2.53.0 floor run are a separate change, and an up-front refusal of an
+  older Git follows it.
+
+- _Remaining:_ any store failure the 2.53.0 floor run still shows, classified as in _Approach_; nothing when that run
+  is green.
+
+- _Evidence:_ the per-test inventory (`qualification-results.json`), failed job logs (`floor-store-*-failed.log`), and
+  the classification with both reproductions (`classification.md`, `reftable-exclude-repro.sh`,
+  `fetch-rejected-ref-repro.sh`) in
+  `/home/andrew/dev/repos/github.com/andrewRCr/arc-framework/.arc/user/andrew/.internal/investigations/weekly-git-floor-2026-10-29/`.
+
+- _Captured during:_ triaging the first weekly Git-floor run for the Errand that adds it, 2026-10-30.
+
+### `[ ]` **Assert that the import's captured-base mutation tests exercise the mutation they test**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-30).
+
+- _Shapes:_ § Tests and fixtures
+
+- _Observation:_ `__tests__/integration/store-ref-import-captured-bases.test.ts:130-144` sets `changed` at :136 and
+  never asserts it, and :180-209 never asserts that `restoreAfterCapture` was used. The triggers fire today, through
+  `readImportCodeTip`'s two `rev-parse` calls (`lib/store/ref/import/branch-tip.ts:25,32`), but nothing keeps a
+  refactor that stops those calls from leaving both tests passing without testing anything. Re-verified at
+  `40815f094`.
+
+- _Approach:_ assert that the mutation fired and that the restore path consumed it; about six test lines.
+
+- _Captured during:_ `storage-ref-hardening` draft-design, 2026-10-30. Routed out by the Owner's scope line for the
+  deadline: tests only, so nothing the cutover runs reaches it.
+
+### `[ ]` **Report a declined automatic designation's `move-unfinished` once for pull, and carry it to push**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-30).
+
+- _Shapes:_ § Moving state between remotes
+
+- _Observation:_ `admitAutomaticDesignation` (`lib/store/ref/designation-first.ts:127`) returns `layout.unfinished` at
+  :134-136, and `resolveRefDesignation` appends it again at :28-29; the `?? resolveRefDesignation` recursion at :114
+  can append it a second time too. Pull copies the states as they are (`pull.ts:49-53`), so its result reports the
+  state twice. `publishRefAttempt` (`push.ts:90-93`) lets move-unfinished-only states through and, with no push
+  designated, returns `no-remote`, so push loses the state. It needs a clone with no remote roles, a code remote
+  holding the registry, the default layout, and a recorded move. Re-verified at `40815f094`.
+
+- _Approach:_ append the unfinished state once, and carry it to push; about four source and 35 test lines.
+
+- _Captured during:_ `storage-ref-hardening` draft-design, 2026-10-30. Routed out by the Owner's scope line for the
+  deadline: the state arises only around a move between remotes, which a default-layout cutover never makes.
+
+### `[ ]` **Refuse first placement on an ambiguous designation instead of creating a separate-layout store**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-30).
+
+- _Shapes:_ § Moving state between remotes
+
+- _Observation:_ `writeRefRepository` (`lib/store/ref/repository.ts:55`) creates the store directory unless
+  `designatedStoreLayout` returns `default` (:63, :69-70), and `designatedStoreLayout` (`layout-designation.ts:7`)
+  returns null when more than one remote carries push. So an ambiguous designation creates a store directory beside
+  the code remote's push. Callers that reach it ungated: writes (`write.ts:119`), pull (`pull.ts:54`, whenever any
+  read remote exists), and the import (`import/entry.ts:59`); only `push.ts:105` sits behind the ambiguity stop. The
+  `role-conflict` remedy exists only as a command-level refusal (`ambiguousDesignation`, `designation.ts:48`), and
+  `StoreRefusal` (`lib/store/refusal.ts`) has no matching code. Re-verified at `40815f094`.
+
+- _Approach:_ refuse placement on an ambiguous designation with that remedy, adding the refusal code the store paths
+  need; about 50 source lines across `repository.ts`, the refusal union, and six callers, and 50 test lines.
+
+- _Captured during:_ `storage-ref-hardening` draft-design, 2026-10-30. Routed out by the Owner's scope line for the
+  deadline: it needs two or more push remotes, which this repository's cutover does not have.
+
+### `[ ]` **Bound the migration push loops, and restart them only on a lost race the remote confirms**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-30).
+
+- _Shapes:_ § Moving state between remotes
+
+- _Observation:_ `settleMigrationPush` (`lib/store/ref/migrate-remote-copy.ts:211-217`) restarts on any `lost-race`,
+  which includes the server text "cannot lock ref" (`lib/git/push-classification.ts:31`), and checks only `by-state`
+  races against the remote (`leasesMoved`, :238-244). Six `for (;;)` loops carry no counter: `copyRemoteMove`
+  (`migrate-remote-copy.ts:39-43`), `deleteRemoteSource` (`migrate-remote-delete.ts:19-46`),
+  `copyLicensedFollowState` (`follow-copy.ts:28-54`), `deleteFollowSource` (`follow-delete.ts:22-45`),
+  `copyLastSourceView` (`leave-source.ts:63-87`), and `withdrawRounds` (`leave-recorded-withdraw.ts:23-43`). A
+  persistent server-side lock failure spins any of them. Reached only by `arc store migrate` with `--to`, a resume, or
+  `--leave-source`, and by `arc store remote` following a move. Re-verified at `40815f094`.
+
+- _Approach:_ as one item across the six loops, restart only when the lease listing shows the remote moved, and bound
+  restarts with a recoverable refusal; about 50 source and 120 test lines.
+
+- _Captured during:_ `storage-ref-hardening` draft-design, 2026-10-30. Routed out by the Owner's scope line for the
+  deadline: a default-layout cutover runs none of these moves.
+
+### `[ ]` **Stop the switch, undo, and backing-setting paths from waiting on the keeper lease under the layout lock**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-30).
+
+- _Shapes:_ § Moving state between remotes
+
+- _Observation:_ five paths take the clone-wide layout lock and then wait for a remote's keeper lease
+  (`withRefFetchKeepers`, up to `REF_SYNC_DEADLINE_MS`):
+    - the same-layout arm of a remote switch, through `configuration.prepareTarget` (`migrate-remote-switch.ts:61-62`;
+      `source-switch.ts:50-51`, with `prepareSourceTarget` at :57-67 taking the lease);
+    - the layout-move arm, `moveRefLayoutAsSwitch` (`migrate-layout.ts:63`, `prepareTarget` at :108);
+    - the switch undo, `undoSwitch` (`migrate-switch-undo.ts:32,41-43`), through `restoreBacking` and
+      `dropCarriedHeads`;
+    - `arc store remote`'s backing setting, `applyBackingSetting` (`remote-backing.ts:58,67`), which refuses before
+      the lease when no separate store exists (:66).
+
+  A pull holds the lease across its network fetch (`fetchRefPatterns`, `lib/store/ref/fetch.ts`), so any of these
+  overlapping another checkout's pull on the same remote holds the layout lock for the rest of that fetch, and every
+  write and pull merge, which waits 10 seconds for the layout lock (`commitRefStep`, `DEFAULT_MAX_WAIT_MS`), refuses
+  `lock-held`. Reached only by `arc store migrate` and `arc store remote`, with a move between remotes or a separate
+  store. Re-verified at `40815f094`.
+
+- _Approach:_ apply `storage-ref-hardening`'s D3 rule to these paths: take the lease with a zero wait (one attempt,
+  which that unit makes `acquireAdvisoryLock` honor) while the layout lock is held; if another holds it, release the
+  layout lock, wait for the lease alone, release it, and retry, bounded by the sync deadline or, without one, by
+  `REF_SYNC_DEADLINE_MS` from the first attempt. `storage-ref-hardening` makes that change in the comparison scope
+  (`withComparisonScope`), so the pattern exists to compose by the time this unit builds.
+
+- _Captured during:_ `storage-ref-hardening` draft-design, 2026-10-30, pass 2 of the draft's readiness review. Routed
+  out by the Owner's scope line for the deadline: a default-layout cutover runs no remote switch and has no separate
+  store. Widened after that pass's fix check named the layout-move arm, the undo, and the backing setting.
+
+---
+
 ## Problem / Motivation
 
 `storage-ref-backend` landed with its review stopped under a rule fixed before its eighth pass, routing the ref
@@ -48,7 +204,8 @@ reviewed head.
   2.47 floor.** Use a failure every supported Git reports, or gate the case on the Git version. CI and current hosts run
   newer Git, so it passes there; that earlier Git applies the setting only to scheduled runs rests on Git's
   documentation, not a probe. At `__tests__/integration/store-ref-maintain.test.ts:44-53`, with the floor at
-  `lib/git/version-floor.ts:51`.
+  `lib/git/version-floor.ts:51`. Amended 2026-10-31: the floor rises to 2.53.0, which parses the setting, so the case
+  is within the supported range; drop this item if the 2.53.0 floor run passes it.
 - **The log-limit merge test caps an exec argv no production read uses, so its first output ceiling never applies.**
   Bound the forms production reads use, or drop the dead ceiling. At
   `__tests__/integration/store-ref-lifecycle-log-limit.test.ts:61-72`; store log reads use `%H %P%n%B%x00` or

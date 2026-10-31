@@ -4,20 +4,22 @@ import { listLifecycleIndex, type LifecycleIndexOutcome, type LifecycleEntry } f
 import { lifecycleArtifactPath } from "./lifecycle-storage.js";
 import { buildLifecycleIndexFromRecords, type LifecycleIndex } from "../work-unit/lifecycle-index.js";
 import type { StoreResult } from "./refusal.js";
+import { selectStandingLifecycleEntries, type StandingLifecycleSelection } from "./lifecycle-standing.js";
 
 /** Read one view without discarding the inventory's completeness evidence.
  * @param store - Operational store.
  * @returns The original listing, identity entries, and derived transition view.
  */
 export async function readLifecycleView(store: Pick<Store, "list">): Promise<StoreResult<{
-  listing: LifecycleIndexOutcome; entries: readonly LifecycleEntry[]; index: LifecycleIndex;
+  listing: LifecycleIndexOutcome; entries: readonly LifecycleEntry[]; index: LifecycleIndex; standing: StandingLifecycleSelection;
 }>> {
   const outcome = await listLifecycleIndex(store);
   if (outcome.status === "refused") return outcome;
   const listing = outcome.result;
   const entries = listing.status === "complete" ? listing.index.entries() : [];
-  const index = buildLifecycleViewIndex(entries);
-  return { status: "ok", result: { listing, entries, index } };
+  const standing = selectStandingLifecycleEntries(entries, listing.status === "complete" ? listing.diagnostics : []);
+  const index = buildLifecycleViewIndex(standing.entries);
+  return { status: "ok", result: { listing, entries, index, standing } };
 }
 
 /** Build the slug-keyed transition view from an already selected set of lifecycle entries. */

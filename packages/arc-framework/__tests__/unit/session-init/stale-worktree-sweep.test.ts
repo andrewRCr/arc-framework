@@ -13,6 +13,23 @@ import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-mar
 import type { UserSurfaceMigrationFs } from "../../../src/lib/user-surface-migration.js";
 import type { DerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
+import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
+import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
+import { DerivedCheckoutRowSchema } from "../../../src/lib/locus/derived-schema.js";
+
+it("does not report a reused live slug as a husk's completed work unit", async () => {
+  const h = createLifecycleHarness(), head = "b".repeat(40), name = "shared";
+  await h.seedMeta(name, { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  await h.seedMeta(name);
+  const checkout = { folderPresent: true, path: "/wt/husk", head, branch: null, detached: true, primary: false };
+  const row = DerivedCheckoutRowSchema.parse({ kind: "retired", subject: { kind: "work-unit", key: name }, checkout,
+    markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, context: null, lifecycleLocation: "completed", diagnostics: [] });
+  const result = await runStaleWorktreeSweep({ store: h.store, roster: { entries: [], warnings: [] }, derivedRoster: [row],
+    worktreeIdentity: { kind: "primary" }, baseBranch: "main", exec: buildExec({ clean: true, merged: true }),
+    readMarker: async () => stampedMarker({ kind: "work-unit", name }, { sha: head }),
+    scanWorktrees: async () => ({ ok: true, worktrees: [checkout] }) });
+  expect(result.worktrees).toContainEqual(expect.objectContaining({ kind: "husk", completedWorkUnit: null }));
+});
 
 const folderExists = vi.fn<() => Promise<boolean>>();
 beforeEach(() => { folderExists.mockReset().mockResolvedValue(true); });

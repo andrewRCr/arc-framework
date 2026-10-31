@@ -127,6 +127,31 @@ describe("createGitV3DecomposePreflight", () => {
     expect(snapshot.sourceArtifacts.map(({ path }) => path)).toEqual(selectedPaths);
   });
 
+  it("reads metadata by its own file name, never by a meta-prefixed work-unit directory", async () => {
+    const ref = "refs/heads/main";
+    const head = "a".repeat(40);
+    const originMeta = ".arc/backlog/planned/origin/meta-origin.md";
+    const dependentDirectory = ".arc/backlog/provisional/meta-staging";
+    const dependentMeta = `${dependentDirectory}/meta-meta-staging.md`;
+    const dependentDraft = `${dependentDirectory}/draft-meta-staging.md`;
+    const blobs = new Map<string, Uint8Array>([
+      [originMeta, meta("origin", "Planning", null)],
+      [dependentMeta, meta("meta-staging", "Planning", null, ["origin"])],
+      [dependentDraft, encoder.encode("# Draft: Meta Staging\n\n- **Origin:** [internal]\n")],
+    ]);
+
+    const snapshot = await readGitV3DecomposeTreeSnapshot({
+      cwd: "/repo",
+      exec: async () => ({
+        stdout: [...blobs.keys()].map((path) => `100644 blob ${path}`).join("\0") + "\0",
+        stderr: "",
+      }),
+      readBlob: async (_commit, path) => blobs.get(path) ?? null,
+    }, ref, head, "origin");
+
+    expect(snapshot.incomingEdges).toEqual([{ dependent: "meta-staging", currentTargets: ["origin"] }]);
+  });
+
   it("applies source-kind companion visibility after committed Git discovery", async () => {
     const base = "refs/heads/main";
     const source = "refs/heads/plan/origin";

@@ -22,9 +22,11 @@ async function homeMap(h: Awaited<ReturnType<typeof createDecomposeOriginFixture
   return map;
 }
 
-it.each(["absent", "completed", "errand"] as const)("refuses a home that is %s and admits another open work unit", async state => {
+it.each(["absent", "completed", "errand", "cohort"] as const)("refuses a home that is %s and admits another open work unit", async state => {
   const h = await createDecomposeOriginFixture();
   if (state === "completed") await h.seedCompletedWorkUnit("home");
+  if (state === "cohort") await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "home" })),
+    "# Cohort: home\n\n**Purpose:** Coordinate members.\n");
   if (state === "errand") await h.seed(recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "home" })),
     JSON.stringify({ version: 3, slug: "home", claimId: "a".repeat(32), createdAt: "2026-10-19T00:00:00Z",
       updatedAt: "2026-10-19T00:00:00Z", owner: "test-user", kind: "errand", purpose: "errand", intent: "Useful work",
@@ -35,6 +37,8 @@ it.each(["absent", "completed", "errand"] as const)("refuses a home that is %s a
     locus: "authoring.destinations.0.target" });
   if (refused.status !== "refused") throw new Error("Expected invalid home.");
   expect(refused.remedy.text).toContain("another");
+  if (state === "cohort") expect(refused.message).toContain("resolves to a cohort rather than a work unit");
+  if (state === "errand") expect(refused.message).toContain("resolves to an Errand");
   const home = await h.seedStub("available-home");
   const repaired = await checkDecomposeHomes(h.ctx, await homeMap(h, "available-home"));
   expect(repaired).toMatchObject({ status: "ok", result: [{ destinationId: "home", primary: home, started: false,

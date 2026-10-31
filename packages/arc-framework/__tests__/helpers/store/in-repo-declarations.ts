@@ -70,6 +70,18 @@ for (const family of families) {
   familyExclusions[family] = { items: { 10: "Interim substrates have no newer-format envelope." }, assertions };
 }
 Object.assign(familyExclusions["work-item"]?.assertions ?? {}, {
+  "ranked-claim-uid-generations": "Tracked checkout claims resolve by name without stored work-unit UIDs.",
+  "ranked-claim-without-uid": "Tracked checkout claims intentionally resolve without a UID.",
+  "ranked-ref-live-ranking-and-tie": "Tracked branch lookup does not rank UID-bearing live and completed generations.",
+  "ranked-ref-completed-work-unit": "Tracked branch lookup does not select the latest archived work-unit generation.",
+  "ranked-ref-completed-errand-tie": "Tracked branch lookup does not report a completed Errand tier.",
+  "ranked-slug-refusing-tie:cohort": "Tracked slug lookup does not report a completed cohort tier.",
+  "ranked-slug-refusing-tie:errands-current": "Tracked slug lookup does not report a completed Errand tier.",
+  "ranked-slug-refusing-tie:errands-former": "Tracked writes do not retain former names across completed Errand generations.",
+  "ranked-slug-completed-reuse:current": "Tracked slug lookup does not select among UID-bearing archived generations.",
+  "ranked-slug-completed-reuse:former": "Tracked writes do not retain former names across UID-bearing archived generations.",
+  "ranked-slug-work-unit-over-errand": "Tracked lookup does not rank completed work-unit and Errand generations.",
+  "slug-held-only-by-a-cohort": "In-repo slug lookup resolves work-unit metadata only; cohort slug resolution belongs to store-arm backends.",
   "primary-role-transition-retains-generation-and-metadata": "Interim UID-less meta and Errand records retain distinct substrates; promotion is not rerouted here.",
   "primary-role-stale-absence-and-atomic-batch-guards": "Interim UID-less meta and Errand records retain distinct substrates; promotion is not rerouted here.",
   "primary-role-reopen-sync-and-current-side-conflicts": "Interim UID-less meta and Errand records retain distinct substrates; promotion is not rerouted here.",

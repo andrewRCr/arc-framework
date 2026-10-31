@@ -5,12 +5,26 @@ import { listLifecycleIndex } from "../../../src/lib/store/lifecycle-index.js";
 import type { StoreRecord } from "../../../src/lib/store/read.js";
 import { RecordReferenceSchema } from "../../../src/lib/store/identity.js";
 import type { Store } from "../../../src/lib/store/contract.js";
-import { selectStandingLifecycleEntries } from "../../../src/lib/status/store-project-standing.js";
+import { selectStandingLifecycleEntries } from "../../../src/lib/store/lifecycle-standing.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { createReferenceFixture } from "../../helpers/store/reference-fixture.js";
 import { testProvenance } from "../../helpers/store/suite-tools.js";
 import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
 import { makeMetaFixture } from "../../helpers/meta-fixture.js";
+import { createClashDouble } from "../../helpers/store/clash-double.js";
+import { renderLifecycleClashWarnings } from "../../../src/lib/status/store-project-standing.js";
+import { recordKey } from "../../helpers/store/model.js";
+
+it.each([false, true])("reports a former-name tie across live holders (completed namesake: %s)", async completed => {
+  const h = createLifecycleHarness();
+  if (completed) await complete(h, await h.seedMeta("former"));
+  const first = await h.seedMeta("first"), second = await h.seedMeta("second");
+  for (const record of [first, second]) h.store.state.records.get(recordKey(record.reference))!.formerSlugs.push("former");
+  const result = selectStandingLifecycleEntries(await entries(h), []);
+  expect(result).toMatchObject({ entries: [expect.objectContaining({ reference: first.reference }), expect.objectContaining({ reference: second.reference })],
+    clashes: [{ slug: "former", kind: "former-name", holders: [first.reference, second.reference] }] });
+  expect(renderLifecycleClashWarnings(result.clashes, await entries(h))).toEqual([]);
+});
 
 async function entries(h: { store: Store }) {
   const listing = lifecycleSuccess(await listLifecycleIndex(h.store));
@@ -31,8 +45,9 @@ it("selects a live current holder over a completed generation with the same slug
   const current = await h.seedMeta("reused");
   const result = selectStandingLifecycleEntries(await entries(h), []);
   expect(result.entries.map(entry => entry.reference)).toEqual([current.reference]);
+  expect(result).toMatchObject({ clashes: [] });
   expect(result.failClosedNames.size).toBe(0);
-  expect(result.warnings).toEqual([]);
+  expect(result.clashes).toEqual([]);
 });
 
 it("leaves a former live name without a standing entry even when a completed holder uses it", async () => {
@@ -46,6 +61,7 @@ it("leaves a former live name without a standing entry even when a completed hol
 
   const result = selectStandingLifecycleEntries(await entries(h), []);
   expect(result.entries.map(entry => entry.reference)).toEqual([renamed]);
+  expect(result).toMatchObject({ clashes: [] });
   expect(result.failClosedNames.size).toBe(0);
 });
 
@@ -79,23 +95,18 @@ it("compares completed archive sequences numerically past two digits", async () 
 
 it("omits both live holders of a clashed slug and names their identities and repair", async () => {
   const h = createLifecycleHarness();
-  await h.seedMeta("first", { owner: "andrew" });
-  await h.seedMeta("second", { owner: "sam" }, { kind: "backlog", commitment: "planned" });
-  // A store observation may contain concurrent live holders that a sequential write refuses.
-  const listing = lifecycleSuccess(await h.store.list({ family: "work-item", kind: "work-item/meta" }));
-  if (listing.status !== "complete") throw new Error("Expected both primary records");
-  const store = Object.create(h.store) as Store;
-  store.list = async () => ({ status: "ok", result: { ...listing, records: listing.records.map(record => ({ ...record,
-    reference: RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, name: "clashed" } }),
-    content: record.content.replaceAll(record.reference.owner.name, "clashed"),
-  })) } });
+  const first = await h.seedMeta("first", { owner: "andrew" });
+  const second = await h.seedMeta("second", { owner: "sam" }, { kind: "backlog", commitment: "planned" });
+  const store = createClashDouble(h.store, { slug: "clashed", holders: [first.reference, second.reference] });
   const observed = await entries({ store });
   const result = selectStandingLifecycleEntries(observed, []);
   expect(result.entries).toEqual([]);
+  expect(result).toMatchObject({ clashes: [{ slug: "clashed", kind: "current-name", holders: observed.map(entry => entry.reference) }] });
   expect(result.failClosedNames.size).toBe(0);
-  expect(result.warnings).toHaveLength(1);
-  expect(result.warnings[0]).toMatchObject({ code: "slug-clash", workUnit: "clashed" });
-  const text = result.warnings[0]?.rendered ?? "";
+  const warnings = renderLifecycleClashWarnings(result.clashes, observed);
+  expect(warnings).toHaveLength(1);
+  expect(warnings[0]).toMatchObject({ code: "slug-clash", workUnit: "clashed" });
+  const text = warnings[0]?.rendered ?? "";
   for (const entry of observed) {
     expect(text).toContain(entry.reference.owner.type === "work-item" ? entry.reference.owner.uid : "missing UID");
     expect(text).toContain(entry.fields.owner);
@@ -130,7 +141,7 @@ it.each(["lifecycle", "backend"] as const)("fails a withheld meta's name closed 
   const result = selectStandingLifecycleEntries(listing.index.entries(), listing.diagnostics);
   expect(result.entries).toEqual([]);
   expect([...result.failClosedNames]).toEqual([reference.owner.name]);
-  expect(result.warnings).toEqual([]);
+  expect(result.clashes).toEqual([]);
 });
 
 it("withholds a name-bearing diagnostic regardless of its kind", async () => {

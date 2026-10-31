@@ -1,5 +1,6 @@
 /** Store-backed graduation preserves the caller's Git coordinate and changes only operational state. */
 import { describe, expect, it } from "vitest";
+import { createClashDouble } from "../../helpers/store/clash-double.js";
 import { runGraduate } from "../../../src/commands/start.js";
 import type { ExecuteTransitionContext } from "../../../src/lib/work-unit/lifecycle-executor.js";
 import type { ReconcileWorkUnitWorktreeOp } from "../../../src/lib/work-unit/mutators/reconcile-work-unit-worktree.js";
@@ -126,4 +127,15 @@ it("derives graduation's planning stage from the stored spec pointer", async () 
   expect(lifecycleSuccess(await h.store.read({ reference: meta.reference })).fields)
     .toMatchObject({ state: "Planning", currentWorkflow: "generate-tasks",
       design: ["spec-specified.md"], nextAction: "[begin current workflow]" });
+});
+
+it("retains the graduation lookup refusal after initial subject admission", async () => {
+  const h = await harness(), other = await h.seedMeta("other");
+  const store = createClashDouble(h.store, { slug: "demo", holders: [h.meta.reference, other.reference], mode: "mid-verb" });
+  lifecycleSuccess(await store.lookup({ kind: "slug", slug: SlugSchema.parse("demo") }));
+  const result = await runGraduate({ ...h.ctx, store }, { name: "demo", inPlace: true, spawningIdentity: "starter" });
+  expect(result).toMatchObject({ status: "rejected", refusal: { code: "ambiguous-match", tie: { liveness: "live", name: "current" },
+    candidates: expect.arrayContaining([h.meta.reference, { ...other.reference, owner: { ...other.reference.owner, name: "demo" } }]) } });
+  expect(h.state()).toEqual({ occupation: undefined, occupied: false });
+  expect(await h.read()).toEqual(h.meta);
 });

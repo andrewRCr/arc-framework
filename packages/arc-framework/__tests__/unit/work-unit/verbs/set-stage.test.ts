@@ -7,6 +7,11 @@
  * `[none]` is the activate edge's, not this command's).
  */
 
+import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
+import { createClashDouble } from "../../../helpers/store/clash-double.js";
+import { writeMetaPause } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
+import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { describe, it, expect } from "vitest";
 
 import { runSetStage, type SetStageContext } from "../../../../src/lib/work-unit/verbs/set-stage.js";
@@ -96,4 +101,25 @@ describe("runSetStage — planning-stage-pointer write", () => {
     expect(calls).toEqual([]);
     expect(softWrites).toEqual([]);
   });
+});
+
+it.each([false, true])("uses the selected stage record's pause through a mid-verb clash, paused=%s", async paused => {
+  const h = createLifecycleHarness();
+  let primary = await h.seedMeta("subject", { state: "Planning", currentWorkflow: "draft-design" });
+  const other = await h.seedMeta("other");
+  if (paused) {
+    lifecycleSuccess(await h.store.write({ ...recordPut(primary, { content: writeMetaPause(primary.content, {
+      pausedBy: SlugSchema.parse("test-user"), since: "2026-10-14T00:00:00Z", reason: "Wait", waitsOn: null, resumeNotes: null, open: false,
+    }) }), provenance: { verb: "pause", lifecycleAction: "pause" } }));
+    primary = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
+  }
+  const store = createClashDouble(h.store, { slug: "subject", holders: [primary.reference, other.reference], mode: "mid-verb" });
+  const result = await runSetStage({ ...buildCtx().ctx, store }, { name: "subject", stage: "create-spec" });
+  if (paused) {
+    expect(result).toMatchObject({ status: "rejected", remedy: { argv: ["arc", "resume", "subject"] } });
+    expect(lifecycleSuccess(await h.store.read({ reference: primary.reference }))).toEqual(primary);
+  } else {
+    expect(result).toMatchObject({ status: "ok", stage: "create-spec" });
+    expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).fields).toMatchObject({ currentWorkflow: "create-spec" });
+  }
 });

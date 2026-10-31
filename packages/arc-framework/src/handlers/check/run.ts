@@ -32,10 +32,13 @@ import { resolveCheckForecast, type CheckForecast } from "../../lib/checks/forec
 import type { CheckContentContext } from "../../lib/checks/environment-policy.js";
 import { bindCapturedEnvironment, captureEnvironmentInputs, type CapturedEnvironmentInputs } from "../../lib/checks/environment-inputs.js";
 import { readMachineCheckRunner, type MachineCheckRunnerConfiguration } from "../../lib/checks/runner/machine-config.js";
-import { prepareSelectedCheckExecution, type PreparedCheckExecution, type CheckExecutionClosure,
+import { prepareSelectedCheckExecution, type CheckExecutionClosure,
   type CheckExecutionPreparation } from "../../lib/checks/runner/execution.js";
+import { createCheckOutputCollector } from "../../lib/checks/runner/output.js";
+import { executePreparedCheckPlan } from "../../lib/checks/runner/dispatch.js";
 import { retainedRunnerRemedy } from "./runner-recovery.js";
-import { displayRunnerOutcome, runnerDisplayText } from "../../lib/checks/display-text.js";
+import { runnerDisplayText } from "../../lib/checks/display-text.js";
+import type { CheckInvocationDetail } from "../../lib/checks/runner/parent.js";
 import { composePreparedCheckKey } from "../../lib/checks/runner/key.js";
 import { normalizeCheckInvocationOutcome, reduceCheckInvocationOutcomes,
   type CheckInvocationReduction, type NormalizedCheckInvocationOutcome } from "../../lib/checks/result.js";
@@ -49,6 +52,10 @@ export interface DeclaredCheckResult extends Partial<CheckForecast> {
   kind: CheckResultKind;
   outcome: "passed" | "failed" | "no evidence" | "couldn't run" | "not selected" | "reused" | "would run" | "skipped";
   output?: string;
+  /** Complete routed pair accounting, including missing native evidence. */
+  invocations?: readonly CheckInvocationDetail[];
+  /** Adapter diagnostics outside any invocation's output stream. */
+  runnerOutput?: string;
   reason?: string;
   /** One line the check's command reported about its run, such as where it ran. */
   notice?: string;
@@ -502,14 +509,13 @@ async function executeRoutedSelectedCheck(selected: SelectedCheck, io: DeclaredC
   const { id, kind, check, root, tree, paths, definition, content } = selected;
   if (request.dryRun) return { id, kind, outcome: "would run",
     reason: "Routed reuse requires preparation; this dry run does not prepare or probe the configured runner." };
-  const outputs: Buffer[] = [];
+  const outputs = createCheckOutputCollector();
   const startedAt = (io.now ?? performance.now.bind(performance))();
   const prepared = await (io.prepareExecution ?? prepareSelectedCheckExecution)({ callerRoot: root,
     request: selected.coordinates, check, paths, configuration, globalRuntimeInputs: definition.global_runtime_inputs,
-    onOutput: output => { outputs.push(Buffer.from(output.bytes)); },
-    onDiagnostic: bytes => { outputs.push(Buffer.from(bytes)); } });
+    onOutput: outputs.onOutput, onDiagnostic: outputs.onDiagnostic });
   if (prepared.status !== "ready") {
-    return unpreparedRoutedCheck(selected, configuration, prepared, await routedDiagnosticOutput(io, id, outputs, startedAt));
+    return unpreparedRoutedCheck(selected, configuration, prepared, await routedDiagnosticOutput(io, id, outputs.combined(), startedAt));
   }
   const execution = prepared.execution;
   let closing: Promise<CheckExecutionClosure> | undefined;
@@ -525,20 +531,20 @@ async function executeRoutedSelectedCheck(selected: SelectedCheck, io: DeclaredC
       return closure.status === "closed" ? { id, kind, outcome: "reused", output: pass.output,
         ...(closure.cleanupWarning === undefined ? {} : { notice: runnerDisplayText(closure.cleanupWarning) }) }
         : { id, kind, outcome: "couldn't run", reason: closure.reason, remedy: retainedRunnerRemedy(closure.retained), remedyKind: "runner",
-          ...await routedDiagnosticOutput(io, id, outputs, startedAt) };
+          ...await routedDiagnosticOutput(io, id, outputs.combined(), startedAt) };
     }
-    const result = await executeRoutedSingles(execution, check);
+    const { evidence: result, invocations } = await executePreparedCheckPlan(execution, check);
     const closure = await close();
+    const details = outputs.withOutput(invocations);
     return await finalizeRoutedCheck(selected, io, request,
-      { result, closure, output: Buffer.concat(outputs).toString("utf8"), key, startedAt });
+      { result, invocations: details, closure, output: outputs.combined(), reportOutput: outputs.report(details), diagnostics: outputs.diagnostics(), key, startedAt });
   } finally { await close(); }
 }
 
 /** Keep the adapter's diagnostics from an attempt that produced no execution result, with a log when one is saved. */
-async function routedDiagnosticOutput(io: DeclaredCheckDependencies, id: string, outputs: readonly Buffer[],
+async function routedDiagnosticOutput(io: DeclaredCheckDependencies, id: string, output: string,
   startedAt: number): Promise<Pick<DeclaredCheckResult, "output" | "logPath" | "costMs">> {
-  if (outputs.length === 0) return {};
-  const output = Buffer.concat(outputs).toString("utf8");
+  if (output.length === 0) return {};
   const costMs = Math.max(0, (io.now ?? performance.now.bind(performance))() - startedAt);
   const measurement = await io.reports?.save(id, output, costMs);
   return { output, costMs, ...(measurement === undefined ? {} : { logPath: measurement.logPath }) };
@@ -560,31 +566,19 @@ function unpreparedRoutedCheck(selected: SelectedCheck, configuration: MachineCh
     ...diagnostics };
 }
 
-async function executeRoutedSingles(execution: PreparedCheckExecution, check: SelectedCheck["check"]): Promise<CheckInvocationReduction> {
-  const outcomes: NormalizedCheckInvocationOutcome[] = [];
-  const incomplete: string[] = [];
-  try {
-    for (const invocation of execution.plan.invocations) {
-      const result = await execution.run(invocation.id);
-      outcomes.push(normalizeCheckInvocationOutcome(displayRunnerOutcome(result.outcomes.get(invocation.id)), check.no_evidence_exit));
-      if (result.status === "incomplete") { incomplete.push(result.reason); break; }
-    }
-  } catch (cause) { incomplete.push(String(cause)); }
-  return reduceCheckInvocationOutcomes(outcomes, check.no_evidence_exit, incomplete);
-}
-
 async function finalizeRoutedCheck(selected: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
-  observed: { result: CheckInvocationReduction; closure: CheckExecutionClosure; output: string; key: string | null; startedAt: number }): Promise<DeclaredCheckResult> {
+  observed: { result: CheckInvocationReduction; invocations: readonly CheckInvocationDetail[]; closure: CheckExecutionClosure; output: string; reportOutput: string; diagnostics: string; key: string | null; startedAt: number }): Promise<DeclaredCheckResult> {
   const { result, closure, output, key, startedAt } = observed;
   const costMs = Math.max(0, (io.now ?? performance.now.bind(performance))() - startedAt);
-  const measurement = await io.reports?.save(selected.id, output, costMs);
+  const measurement = await io.reports?.save(selected.id, observed.reportOutput, costMs);
   const finalized = await finalizeCheckRun({ ...selected, routed: true }, io, request,
     { evidence: result, output, incompleteWork: closure.status === "uncertain" ? [closure.reason] : [] }, key);
   const notice = [...result.notices, closure.status === "closed" && closure.cleanupWarning !== undefined
     ? runnerDisplayText(closure.cleanupWarning) : undefined].filter(Boolean).join("; ");
   const remedy = closure.status === "uncertain" ? retainedRunnerRemedy(closure.retained)
     : finalized.outcome === "couldn't run" && result.remedies.length > 0 ? result.remedies.join(" ") : undefined;
-  return { ...finalized, costMs,
+  return { ...finalized, invocations: observed.invocations, costMs,
+    ...(observed.diagnostics ? { runnerOutput: observed.diagnostics } : {}),
     ...(remedy === undefined ? {} : { remedy, remedyKind: "runner" as const }),
     ...(measurement === undefined ? {} : { logPath: measurement.logPath }), ...(notice ? { notice } : {}) };
 }

@@ -421,7 +421,7 @@ attributing a capture or fetch slowdown to ARC.
 
 ## Store-suite process cost
 
-The store suites (`test:store`, the 321 `store-ref-*` integration files) run in CI as four shards, which took 13–22
+The store suites (`test:store`, the 321 `store-ref-*` integration files) ran in CI as four shards, which took 13–22
 minutes each on the ref backend's last three branch runs. A 2026-10-29 measurement at `f663af671` found where the ten
 slowest files spend their time. The method below repeats it; the results are that day's observations.
 
@@ -518,6 +518,64 @@ Attribution over the nine files other than `import-observation-failures`, 224,99
 - **Host** — local runs at niceness 19 beside other work; CI runs each shard on a hosted Linux runner.
 - **Later codecs** — the measurement predates any change to the store's codec registry; codecs added to it later add
   parse cost to every read and listing they decode.
+
+### Shard balance
+
+On run `40928051907` (2026-10-29, four shards), the 319 store files that ran took 197.9 minutes of file time between
+them. CI's duration input held a recorded duration for 175 of them, and their measured times ran a median 1.31 times
+the recorded ones (10th percentile 0.84, 90th 2.15). The shards carried 41.3, 43.5, 53.7 and 59.5 minutes of file
+time, 79 or 80 files each, and their jobs took 17.6, 16.2, 19.6 and 21.7 minutes.
+
+Placed on those measured durations, longest first onto the lightest shard, the heaviest shard carries 49.5 minutes of
+file time at four shards, 39.6 at five, 33.0 at six and 24.7 at eight. At four shards the total alone sets that
+49.5-minute floor, so balancing cannot go below it. A straight-line fit of the run's four jobs against their file time
+puts a 33-minute shard at about 14.5 minutes of job time.
+
+### Repeated sync-ref captures
+
+`readSyncRefs` (`store/ref/sync-graph.ts`) lists a ref namespace with one `for-each-ref`, and 37 store modules call it,
+the pull lifecycle at each reconciliation step among them. A 2026-10-31 measurement at `9d3c77b56` counted how often a
+capture repeats one the same public call already holds, with nothing between them that could have moved its refs.
+
+- **Instrumentation** — three temporary additions, none committed: `withOperationIdentity` gives each public store
+  call a number and logs its ARC lock acquisitions and releases; `readSyncRefs` logs each capture's call, patterns,
+  first five stack frames and rows; and a Node preload wraps `ChildProcess.prototype.spawn` to log the start and exit
+  of every Git command that can move a ref (`update-ref`, `fetch`, `push`, `symbolic-ref`, `pack-refs`, a `config`
+  write, and others) with its working directory. All three append to one file per test file.
+- **Rule** — a capture is reusable when an earlier capture by the same call, on the same checkout, covers all of its
+  patterns, returned the same rows, ended before it began, and no ref-moving Git command overlapped the gap and no ARC
+  lock taken in the gap is still held at the later capture. That is the lock rule `store-operation-git-access`'s
+  operation scope applies to configuration answers.
+- **Files** — `withdraw-entry-inverse`, `conformance-sync`, `cleanup-report` and `follow-restart`, each run alone
+  under `nicecap -n 19 -r 8`; all 290 cases passed.
+
+A row starting "In a call" or "Outside a call" counts captures within the group row above it. Neither counts the 87
+such repeats whose earlier capture sits in the other group.
+
+| Class                                                                          | Captures | Share |
+| ------------------------------------------------------------------------------ | -------: | ----: |
+| All captures                                                                   |   29,713 |  100% |
+| Inside a push or pull call                                                     |   16,004 |   54% |
+| In a call: reusable, by the rule above                                         |    3,718 |   13% |
+| In a call: same rows, but after a lock still held                              |    4,150 |   14% |
+| In a call: same rows as an earlier call's, no ref-moving Git command between   |      163 |  0.5% |
+| Outside any public call (migration, follow, cleanup)                           |   13,709 |   46% |
+| Outside a call: same rows as an earlier one, no ref-moving Git command between |    2,696 |    9% |
+
+- **Per call** — a push took 16.2 captures (10,280 over 635 calls), 5.2 of them reusable; a pull took 11.5 (5,724 over
+  498), 0.8 of them reusable. A push runs the pull lifecycle, then lists its refs and observes the layout separately.
+- **Where the reusable ones repeat** — the pull lifecycle's own captures (`sync-pull-lifecycle.ts`'s
+  `captureMergeRefs`, 1,562), then push's listing after the lifecycle (`push-listing.ts`, 632), after the fetch's
+  tracking capture (`fetch.ts`, 544), and around the layout observation (`layout-state.ts`, 834 both ways).
+- **Saving** — at the per-process cost measured at `f663af671` (a 3.2 ms spawn plus about 2 ms of Git), 3,718
+  processes are about 19 s of these four files' 655 s of case time, about 3%. That is an estimate from counts, not a
+  timed run.
+- **Limits** — a single test process shows no other writer, so an unchanged repeat says only that nothing moved here.
+  Reusing one also needs the source read to confirm that the later decision relies on no freshness the earlier
+  capture lacks; a later write's compare-and-swap expected value is what makes a stale capture restart rather than
+  write wrongly. The 2,696 repeats outside a public call have no call to share; reusing them needs a scope around the
+  migration, follow, and cleanup flows, where no lock was logged. 282 captures changed with no logged Git write, from a
+  fixture writing ref files directly, for instance.
 
 ## Tier baselines
 

@@ -12,7 +12,7 @@ import { authorizeActivePublication, type PublishParams, type PublishResult, typ
 import { IntegrationBoundaryLocusV2Schema, projectPublicationBoundary } from "../../../scripts/review-gate/policy/integration-boundary-locus.js";
 import type { IntegrationBoundaryLocusV2 } from "../../../scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import { spineRemedy } from "../../../scripts/integration/spine-refusal.js";
-import { recordReferences } from "../../store/identity.js";
+import { recordReferences, type RecordReference } from "../../store/identity.js";
 import { CandidateManagedRecordV1Schema } from "../../store/kinds/review/candidate/schema.js";
 import { describeRecordConflicts } from "../../store/conflict-diagnostics.js";
 import { isOffBranchStoreRefusal } from "../../store/refusal-error.js";
@@ -40,12 +40,12 @@ export async function runStorePublish(ctx: ExecuteTransitionContext & CurrentWuR
   try { authorized = await authorizeStoredPublication(params, boundaryBasis); }
   catch (error) { return rejectStoreFailure(error, reject); }
   if (authorized.status === "refused") return reject(authorized.reason, undefined, readinessRemedy);
-  const reconciled = await reconcilePublication(ctx, params, metaPath, reject);
+  const reconciled = await reconcilePublication(ctx, params, metaPath, facts.primary.reference, reject);
   if (reconciled.status !== "ready") return reconciled;
   const applied = reconciled.reconcile;
   const refreshed = await params.refreshCandidateAuthorization();
   if (refreshed.candidateId !== params.candidateId || !refreshed.candidateCurrent) return reject("Reconcile invalidated the Candidate; re-attest it.");
-  const current = await inspectPublication(ctx, { ...params, ...refreshed }, reject);
+  const current = await inspectPublication(ctx, { ...params, ...refreshed, reference: facts.primary.reference }, reject);
   if (current.status !== "ready") return current;
   const { branch, primary } = current;
   let authorization: SubmissionAuthorization;
@@ -88,8 +88,8 @@ type ReconciledPublication = { status: "ready"; reconcile: Extract<PublishResult
   | Extract<PublishResult, { status: "rejected" | "reconcile-failed" | "reconcile-pending" }>;
 
 async function reconcilePublication(ctx: CurrentWuReconcileHost, params: PublishParams, metaPath: string,
-  reject: PublicationReject): Promise<ReconciledPublication> {
-  const prepared = await ctx.currentWuReconcile.prepare({ slug: params.name, metaPath });
+  reference: RecordReference, reject: PublicationReject): Promise<ReconciledPublication> {
+  const prepared = await ctx.currentWuReconcile.prepare({ slug: params.name, metaPath, reference });
   if (prepared.status === "conflict") return reject(`Current-work-unit reconcile refused: ${prepared.reason}`);
   const applied = await ctx.currentWuReconcile.apply(prepared.prepared);
   if (applied.status === "conflict") {
@@ -116,7 +116,8 @@ async function authorizeStoredPublication(params: PublishParams, boundary: Integ
 async function inspectPublication(ctx: ExecuteTransitionContext & { store: Store }, params: PublishParams,
   reject: PublicationReject): Promise<
   { status: "ready"; branch: string; metaPath: string; primary: StoreRecord } | Extract<PublishResult, { status: "rejected" | "unchanged" }>> {
-  const read = await readWorkUnit(ctx.store, params.name);
+  const read = params.reference === undefined ? await readWorkUnit(ctx.store, params.name)
+    : await ctx.store.read({ reference: params.reference });
   if (read.status === "refused") return reject(read.refusal.condition, read.refusal);
   const parsed = readLifecycleMetaFields(read.result);
   if (parsed.status === "refused") return reject(parsed.refusal.condition, parsed.refusal);
