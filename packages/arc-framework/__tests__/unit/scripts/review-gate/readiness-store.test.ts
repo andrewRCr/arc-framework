@@ -23,7 +23,8 @@ const fs: ReviewReadinessFs = {
 };
 
 async function fixture(options: { state?: "Active" | "Integrating" | "Shipped"; notes?: string | null;
-  branch?: string | null; changeRequest?: number; cohort?: string; project?: boolean } = {}) {
+  branch?: string | null; changeRequest?: number; cohort?: string; project?: boolean;
+  cadence?: "manual" | "with-integration" } = {}) {
   const h = createReviewHarness();
   if (options.project !== false) await h.seedProject(projectId);
   const cohorts: Awaited<ReturnType<typeof h.seed>>[] = [];
@@ -46,7 +47,7 @@ async function fixture(options: { state?: "Active" | "Integrating" | "Shipped"; 
   const request = ReviewReadinessRequestSchema.parse({ schemaVersion: 1, treeRoot: root,
     target: { repository: "owner/repo", pullRequest: 42, headSha: head },
     pullRequest: { repository: "owner/repo", number: 42, state: "open", headBranch: "topic/opaque", headSha: head },
-    vehicle: { kind: "work-unit", slug: "example", archiveCadence: archived ? "with-integration" : "manual" } });
+    vehicle: { kind: "work-unit", slug: "example", archiveCadence: options.cadence ?? (archived ? "with-integration" : "manual") } });
   return { ...h, primary, request, cohorts };
 }
 
@@ -119,6 +120,9 @@ it.each([
   [{ notes: "[none]" }, "malformed-completion-notes"],
   [{ branch: "topic/other" }, "vehicle-branch-mismatch"],
   [{ branch: null }, "vehicle-branch-mismatch"],
+  [{ state: "Shipped", cadence: "manual" }, "wrong-cadence"],
+  [{ cadence: "with-integration" }, "wrong-cadence"],
+  [{ state: "Shipped", branch: "topic/other" }, "vehicle-branch-mismatch"],
 ] as const)("refuses unmet stored lifecycle facts: %s", async (options, code) => {
   const h = await fixture(options);
   expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid",
@@ -130,10 +134,13 @@ it("accepts a completed stored work unit without branch/date fields or a change-
   expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
 });
 
-it("refuses a completed work unit linked to another pull request", async () => {
+it("refuses a completed work unit linked to another pull request and accepts it once relinked", async () => {
   const h = await fixture({ state: "Shipped", changeRequest: 99 });
   expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid",
     payload: { facts: expect.arrayContaining([expect.objectContaining({ code: "pr-url-mismatch" })]) } });
+  lifecycleSuccess(await h.store.write({ ...recordPut(h.primary, { links: { ...h.primary.links,
+    changeRequest: { repository: projectId, number: 42 } } }), provenance: { verb: "integrate", lifecycleAction: "integrate" } }));
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
 });
 
 const inventoryRefusal = { code: "state-unresolvable" as const, class: "recoverable" as const, historyRefs: [],

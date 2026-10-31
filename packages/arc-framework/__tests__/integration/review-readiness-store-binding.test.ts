@@ -7,6 +7,7 @@ import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
+import type { Links } from "../../src/lib/store/links.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { defaultMergeLockPort, handleReviewReadiness } from "../../src/handlers/review.js";
 import { MergeLockTransitionRequestSchema, releaseMergeLock } from "../../src/scripts/review-gate/merge-lock.js";
@@ -61,7 +62,7 @@ async function lockFixture(root: "command" | "integration", cadence: "manual" | 
 it.each([
   ["command", "manual"], ["command", "with-integration"],
   ["integration", "manual"], ["integration", "with-integration"],
-] as const)("%s lock reads stored readiness under %s cadence and retries after notes repair", async (root, cadence) => {
+] as const)("%s lock reads stored readiness under %s cadence and retries after each lifecycle repair", async (root, cadence) => {
   const { h, cwd, branch, head, content, invocation, request, release, ...fixture } = await lockFixture(root, cadence);
   let record = fixture.record;
   if (root === "command") {
@@ -81,7 +82,25 @@ it.each([
     content: `${content}\n## Completion Notes\n\nThe repaired notes are ready.\n`,
   }), provenance: { verb: "integrate", lifecycleAction: "integrate" } }));
   expect(await release()).toMatchObject({ state: "released" });
-}, 30_000);
+  const repaired = lifecycleSuccess(await h.reference.store.read({ reference: record.reference }));
+  const refuseUntilRestored = async (code: string, broken: { content?: string; links?: Links }) => {
+    const current = lifecycleSuccess(await h.reference.store.read({ reference: record.reference }));
+    lifecycleSuccess(await h.reference.store.write({ ...recordPut(current, broken), provenance: { verb: "integrate", lifecycleAction: "integrate" } }));
+    expect(await release()).toMatchObject({ state: "blocked", payload: { reason: "readiness-failed" },
+      diagnostics: expect.arrayContaining([expect.objectContaining({ code })]) });
+    const restored = lifecycleSuccess(await h.reference.store.read({ reference: record.reference }));
+    lifecycleSuccess(await h.reference.store.write({ ...recordPut(restored, { content: repaired.content, links: repaired.links }),
+      provenance: { verb: "integrate", lifecycleAction: "integrate" } }));
+    expect(await release()).toMatchObject({ state: "released" });
+  };
+  await refuseUntilRestored("wrong-cadence", { content: `${makeMetaFixture("example", cadence === "manual"
+    ?{ state: "Active", branch: null, currentWorkflow: "process-task-loop" }
+    : { state: "Integrating", branch: null, currentWorkflow: "integrate-work-unit" })}\n## Completion Notes\n\nThe repaired notes are ready.\n` });
+  await refuseUntilRestored("vehicle-branch-mismatch", { links: { ...repaired.links,
+    branches: [{ repository: projectId, ref: "topic/other", linkedAs: "adopted", excluded: [] }] } });
+  if (cadence === "with-integration") await refuseUntilRestored("pr-url-mismatch", { links: { ...repaired.links,
+    changeRequest: { repository: projectId, number: 99 } } });
+}, 60_000);
 
 it.each(["command", "integration"] as const)("%s lock names a missing project ID and releases once the clone holds it",
   async root => {
