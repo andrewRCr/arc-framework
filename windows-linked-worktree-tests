@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "windows-linked-worktree-tests",
+  "claimId": "a7cd77b1c244885a1f07d2b2f2d77039",
+  "createdAt": "2026-10-31T22:32:28.811Z",
+  "updatedAt": "2026-10-31T22:32:28.811Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Reproduce and fix Windows path assumptions in linked-worktree tests without changing linked-worktree behavior.",
+  "branch": "chore/windows-linked-worktree-tests",
+  "origin": "inbox",
+  "originEntry": "Make `linked-worktree.test.ts` pass on Windows",
+  "originEntrySourceDigest": "sha256:98718ce2a4d32c7d4073025075041a640823706b025e033786287212c419492f",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
