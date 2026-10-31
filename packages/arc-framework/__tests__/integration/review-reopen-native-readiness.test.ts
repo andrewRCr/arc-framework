@@ -81,9 +81,12 @@ it.each([{ accepted: false, keepPr: false }, { accepted: false, keepPr: true },
   };
   const ready = await review();
   expect(ready).toHaveProperty("locus", "candidate-publish-ready");
+  if (accepted) expect(ready.terminus).not.toBeNull();
+  else expect(ready.reservation).not.toBeNull();
   const readBoundary = () => readSubmissionBoundaryVersioned(cwd, "example", { store: h.reference.store, owner: primary.reference.owner });
   const snapshot = await readBoundary();
   if (snapshot.boundary?.schemaVersion !== 2) throw new Error("Expected native readiness");
+  let claimVersion = snapshot.version;
   const { family } = createReviewCompositionContext(invocation);
   const readBinding = () => readReviewReadinessBinding({ store: h.reference.store, workItem: primary.reference.owner,
     inFlight: family.ports.inFlight, repositoryId: projectId, candidateId: candidate.attestation.candidateId, headSha: collected.target.revision });
@@ -106,7 +109,7 @@ it.each([{ accepted: false, keepPr: false }, { accepted: false, keepPr: true },
     preparePublicationClaim: (boundary: typeof snapshot.boundary) => {
       if (boundary?.schemaVersion !== 2) throw new Error("Expected a native claim");
       return prepareNativePublicationClaim({ store: h.reference.store, cwd, owner: primary.reference.owner,
-        boundary, expectedVersion: snapshot.version, readReadinessBinding: readBinding });
+        boundary, expectedVersion: claimVersion, readReadinessBinding: readBinding });
     } };
   expect(await runPublish(ctx, params)).toHaveProperty("status", "published");
   const claimed = (await readBoundary()).boundary;
@@ -133,6 +136,12 @@ it.each([{ accepted: false, keepPr: false }, { accepted: false, keepPr: true },
   expect(refreshed).toMatchObject({ locus: "candidate-publish-ready", reservation: ready.reservation, terminus: ready.terminus });
   expect(await decisions.list()).toEqual(beforeDecisions);
   expect(lifecycleSuccess(await h.reference.store.read({ reference: primary.reference })).fields).toMatchObject({ state: "Active" });
+  const renewed = await readBoundary();
+  if (renewed.boundary === null) throw new Error("Expected renewed readiness");
+  claimVersion = renewed.version;
+  expect(await runPublish(ctx, { ...params, boundary: renewed.boundary })).toHaveProperty("status", "published");
+  hostState = "open";
+  expect(await runReopen(ctx, { name: "example", prMerged: false, withdrawMode: keepPr ? "draft" : "close" })).toHaveProperty("status", "reopened");
   const grant = { facts: { decisions, readProjectId: h.reference.projectId }, repositoryId: projectId,
     subject: { lineage: { kind: "candidate" as const, candidateId: candidate.attestation.candidateId },
       headSha: collected.target.revision, subjectDigest: candidate.subject.subjectDigest },
@@ -156,6 +165,7 @@ it.each([{ accepted: false, keepPr: false }, { accepted: false, keepPr: true },
     kind: "candidate", candidateId: newCandidate.attestation.candidateId }, headSha: newHead,
     subjectDigest: newCandidate.subject.subjectDigest } })).toEqual({});
   expect((await readBoundary()).boundary).toMatchObject({ candidateId: newCandidate.attestation.candidateId, terminus: null });
-  expect(await review({ frontline: { invocation: { mode: "skip" } } })).toMatchObject({
-    locus: "candidate-publish-ready", terminus: null, reservation: expect.any(Object) });
+  const rerooted = await review({ frontline: { invocation: { mode: "skip" } } });
+  expect(rerooted).toMatchObject({ locus: "candidate-publish-ready", terminus: null });
+  expect(rerooted.reservation).not.toBeNull();
 }, 30_000);
