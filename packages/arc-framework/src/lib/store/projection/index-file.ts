@@ -5,6 +5,7 @@ import { atomicWriteFile } from "../../fs.js";
 import {
   decodeProjectionIndex, encodeProjectionIndex, PROJECTION_INDEX_FORMAT, type ProjectionIndex,
 } from "./index-schema.js";
+import { readReference, smudgeRacyEntries, writeReference, type RecordedAfresh } from "./change-detection.js";
 import type { ProjectionLocation } from "./location.js";
 
 /** The index's file name in the state folder. */
@@ -18,6 +19,20 @@ export const PROJECTION_INDEX_FILE = "index";
 export async function writeProjectionIndex(location: ProjectionLocation, index: ProjectionIndex): Promise<void> {
   const path = join(location.stateDir, PROJECTION_INDEX_FILE);
   await atomicWriteFile(path, encodeProjectionIndex(index), { createParents: false });
+}
+
+/**
+ * Write the index after smudging what is racy against the reference it replaces, then rewrite the reference.
+ * @param input - The located checkout and its root, the index, and what this write records afresh.
+ * @returns The index as written.
+ */
+export async function commitProjectionIndex(input: {
+  location: ProjectionLocation; checkout: string; index: ProjectionIndex; recorded: RecordedAfresh;
+}): Promise<ProjectionIndex> {
+  const written = smudgeRacyEntries(input.index, await readReference(input.checkout), input.recorded);
+  await writeProjectionIndex(input.location, written);
+  await writeReference(input.checkout);
+  return written;
 }
 
 /** Why an index a checkout should hold cannot be used. */

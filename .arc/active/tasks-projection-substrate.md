@@ -215,7 +215,7 @@ stamp parsing strips (§ 3.3, § 3.4).
 - _Outcome:_ Each base's record version sits beside its blob id in the index entry's `base` (2.2.a). Run c, a, b, since
   a's stripping goes through c's module.
 
-### `[ ]` **2.4 Detect a change by Git's racy rule — § 3.3, § 11.2**
+### `[x]` **2.4 Detect a change by Git's racy rule — § 3.3, § 11.2**
 
 - _Goal:_ A file reads clean only when its stat matches its entry and its modification time is older than the index's
   reference; anything else is hashed, so no same-tick save reads as unchanged and no later index write hides one — and
@@ -231,27 +231,14 @@ stamp parsing strips (§ 3.3, § 3.4).
           each index write is the index commit's, with smudging (2.4.b). Covered in
           `unit/store/projection/change-detection.test.ts`.
 
-    - `[ ]` **2.4.b Smudging**
+    - `[x]` **2.4.b Smudging**
 
-        - Each index write zeroes the cached size of every entry it carries over unchanged that is racy against the
-          reference it replaces, after Git's `ce_smudge_racily_clean_entry`; the entries it records are racy against the
-          new reference instead. A cached size of zero whose recorded blob id is not the empty blob's always hashes, as
-          Git treats a smudged entry, so a save that empties the file is still found. A command that hashes a smudged
-          entry clean re-records its stats and writes the index.
-        - This task builds the guard's skip: the snapshot of the ignore files a pass returns (1.2.a) — each one's
-          existence, stat, and blob id (2.5.a) — which the caller records in the index (2.2.a), and the comparison of
-          that record against each file as it is, by the racy rule with smudging, answering changed or unchanged, which
-          the sweep (3.3) and `projection-worktrees`' refresh and fan-out call before a write into a root. The recorded
-          stats are smudged by the same rule, each against the blob id recorded beside it, so an ignore file edited in
-          the tick the guard passed, truncated to empty included, still reads as changed after a later index write.
-        - Build `test-first` (one behavior at a time):
-            - an entry racy at an index write is smudged, and a save in its tick is still found after a later write
-            - a smudged entry whose file was truncated to empty is hashed and found
-            - a smudged entry that hashes clean is re-recorded with its stats
-            - the snapshot of a pass's ignore files records an absent one as absent, and reads unchanged until one is
-              created, edited, or deleted
-            - an ignore file racy at the guard's pass, after a later index write, still reads as changed
-            - an ignore file truncated to empty in the guard's tick still reads as changed
+        - `commitProjectionIndex` (`index-file.ts`) smudges, writes the index, and rewrites the reference;
+          `smudgeRacyEntries` zeroes the size of each entry and ignore-file record it carries over with a modification
+          time at or past the reference it replaces, sparing what `RecordedAfresh` names, and a size of zero for content
+          not empty never stat-cleans. `recordCleanStat` re-records a file that hashed clean. `ignore-snapshot.ts`
+          snapshots a pass's ignore files and answers `changed` or `unchanged`, reading an ignore file through a symbolic
+          link as Git does. Covered in `unit/store/projection/smudging.test.ts` and `ignore-snapshot.test.ts`.
 
 ### `[ ]` **2.6 Recover a lost base stamp — § 3.5**
 

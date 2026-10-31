@@ -35,7 +35,15 @@ a missing one as a worktree that is gone.
 its type, size, modification time, and file identity, read by `lstat` as bigints, match its entry and the modification
 time is older than the reference stamp at the aside folder's top. Anything else is hashed against the blob id last
 written there, and a missing reference makes every entry racy. A symbolic link, or anything else not a file, reads as
-absent and is never followed or read.
+absent and is never followed or read. Each index write smudges what it carries over while racy against the reference it
+replaces, after Git's: the entry's cached size is zeroed, so the next check hashes it, and a recorded size of zero for
+content that is not empty always hashes, so a save that empties the file is still found. What the write records afresh
+is racy against the new reference instead, and a file that hashes clean has its stat recorded again.
+
+`ignore-snapshot.ts` records the ignore files a guard pass rests on — each one's stat and blob id, or that it is absent
+— and compares that record against each file as it is by the same rule, smudging included, so a command runs the guard
+again only when one may have changed. An ignore file is read through a symbolic link, as Git reads it, and a link that
+loops reads as absent.
 
 `lock.ts` is the projection lock, one advisory lock per worktree at `arc-projection/lock`, its holder recording the
 process ID, instance, and process scope under a renewable lease. It creates, renews, and releases only inside a state
@@ -66,6 +74,7 @@ and `aside` or `staged`, so no name ends in `.md` and none grows with its path. 
 records, and a staged file is created exclusively.
 
 `index-file.ts` writes the index whole by temp-and-rename into that folder, never creating it, so a write that stops
-partway leaves the previous index and no write recreates a removed worktree's Git directory. Reading it returns the
-index, no projection where a checkout holding none has no index, or why it cannot be used — missing, unreadable, or of
-another format version — and each caller applies its own policy to that.
+partway leaves the previous index and no write recreates a removed worktree's Git directory. A commit smudges the index,
+writes it, and then rewrites the reference. Reading it returns the index, no projection where a checkout holding none
+has no index, or why it cannot be used — missing, unreadable, or of another format version — and each caller applies its
+own policy to that.
