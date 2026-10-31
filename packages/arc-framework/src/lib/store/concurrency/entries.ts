@@ -80,8 +80,9 @@ export function fieldHeaderSpans(lines: readonly string[]): readonly { start: nu
   for (const [index, line] of lines.entries()) {
     const text = line.trimEnd();
     if (!text.trim() || text.startsWith("## ") || text === "---") { start = undefined; continue; }
-    // An established one-line header remains a boundary even after unfinished body prose.
-    if (/^\*\*.+:\*\*\s*$/u.test(text)) { spans.push({ start: index, end: index }); start = undefined; continue; }
+    // A continuation closing the pending title takes precedence over a standalone header.
+    const closesPending = closesPendingFieldHeader(text, start, bold);
+    if (/^\*\*.+:\*\*\s*$/u.test(text) && !closesPending) { spans.push({ start: index, end: index }); start = undefined; continue; }
     if (start === undefined) {
       if (!text.startsWith("**")) continue;
       start = index;
@@ -93,6 +94,12 @@ export function fieldHeaderSpans(lines: readonly string[]): readonly { start: nu
     start = undefined;
   }
   return spans;
+}
+
+function closesPendingFieldHeader(text: string, start: number | undefined, previous: { open: boolean; codeTicks: number }): boolean {
+  if (start === undefined) return false;
+  const next = fieldHeaderBoldState(text, previous);
+  return !next.open && next.codeTicks === 0;
 }
 
 function fieldHeaderBoldState(text: string, previous: { open: boolean; codeTicks: number }): { open: boolean; codeTicks: number } {

@@ -55,6 +55,7 @@ describe("production entry grammars", () => {
     "**Bold body without a colon**", "**Bold body** followed by prose.", "**Bold\nbody without a colon**",
   ].flatMap(body => [
     "**Next:**", "**Next\nwrapped:**", "**Next with **bold** text\ncontinued:**",
+    "**Next with\n**bold** text:**",
     "**Next with `**` text\ncontinued:**", "**Next with \\** text\ncontinued:**",
   ].map(header => ({ newline, body, header })))))(
     "keeps closed bold body prose in its entry before $header with $newline: $body", ({ newline, body, header }) => {
@@ -84,6 +85,24 @@ describe("production entry grammars", () => {
     ]);
     expect(writeEntryList(parsed.data)).toBe(content);
   });
+  it.each(["\n", "\r\n"].flatMap(newline => [
+    "**A title with", "**A title with\nseveral lines and",
+  ].map(prefix => ({ newline, prefix }))))(
+    "includes a bold continuation's full prefix in entry versions with $newline: $prefix", ({ newline, prefix }) => {
+      const header = `${prefix}\n**bold** text:**`;
+      const raw = `${header}\n_Remove when: done._\n_Id:_ \`12345678\``;
+      const content = `## Memories\n${raw}\n`.replaceAll("\n", newline);
+      const parsed = parseEntryList(content, "personal/working-memory");
+      const changed = parseEntryList(content.replace("A title", "Another title"), "personal/working-memory");
+      expect(parsed.success).toBe(true);
+      expect(changed.success).toBe(true);
+      if (!parsed.success || !changed.success) return;
+      expect(parsed.data.entries).toMatchObject([
+        { title: header.replaceAll("\n", " "), id: "12345678", bytes: raw.replaceAll("\n", newline) },
+      ]);
+      expect(changed.data.entries[0]?.version).not.toBe(parsed.data.entries[0]?.version);
+      expect(writeEntryList(parsed.data)).toBe(content);
+    });
   it("refuses memory without a trigger", () => {
     expect(parseEntryList("## Memories\n**Title:**\nBody\n", "personal/working-memory").success).toBe(false);
   });
