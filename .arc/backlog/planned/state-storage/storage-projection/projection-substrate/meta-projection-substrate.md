@@ -1,4 +1,4 @@
-# Metadata: projection-substrate
+# Metadata: Projection Substrate
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
@@ -7,7 +7,7 @@
 - **Cohort:** `state-storage/storage-projection`
 - **Depends On:** [none]
 
-- **Origin:** `[internal] — the state-storage re-cut (2026-09-28)`
+- **Origin:** [internal] — the `storage-projection` cut (2026-10-30)
 - **Design:** `spec-projection-substrate.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]

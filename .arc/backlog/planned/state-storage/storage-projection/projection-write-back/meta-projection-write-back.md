@@ -1,4 +1,4 @@
-# Metadata: projection-write-back
+# Metadata: Projection Write-Back
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
@@ -7,7 +7,7 @@
 - **Cohort:** `state-storage/storage-projection`
 - **Depends On:** `storage-ref-hardening`, `projection-substrate`
 
-- **Origin:** `[internal] — the state-storage re-cut (2026-09-28)`
+- **Origin:** [internal] — the `storage-projection` cut (2026-10-30)
 - **Design:** `spec-projection-write-back.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]

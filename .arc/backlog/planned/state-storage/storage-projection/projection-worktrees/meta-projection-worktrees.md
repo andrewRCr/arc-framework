@@ -1,4 +1,4 @@
-# Metadata: projection-worktrees
+# Metadata: Projection Worktrees
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
@@ -7,7 +7,7 @@
 - **Cohort:** `state-storage/storage-projection`
 - **Depends On:** `projection-write-back`
 
-- **Origin:** `[internal] — the state-storage re-cut (2026-09-28)`
+- **Origin:** [internal] — the `storage-projection` cut (2026-10-30)
 - **Design:** `spec-projection-worktrees.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]

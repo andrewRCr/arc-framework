@@ -5,13 +5,9 @@
 - [Spike evidence](#spike-evidence)
 - [Spike 1 — the refresh's replace guard](#spike-1--the-refreshs-replace-guard)
 - [Spike 1b — moving the file aside](#spike-1b--moving-the-file-aside)
-- [Spike 2 — command-start cost in Node](#spike-2--command-start-cost-in-node)
 - [Spike 3 — how editors and agent tools write](#spike-3--how-editors-and-agent-tools-write)
-- [Spike 4 — conflict markers in practice](#spike-4--conflict-markers-in-practice)
-- [Tripwire timings](#tripwire-timings)
-- [Spike 5 — write-back through the store](#spike-5--write-back-through-the-store)
-- [Spike 6 — finding a stored clash again](#spike-6--finding-a-stored-clash-again)
 - [Spike 7 — aside copies against a stale buffer's record](#spike-7--aside-copies-against-a-stale-buffers-record)
+- [Spec review carry-forward](#spec-review-carry-forward)
 
 ## Spike evidence
 
@@ -172,74 +168,6 @@ the re-check. A one-byte patch opening F in the swap's gap failed with `ENOENT` 
   at the delays that lost, 7 of 40,000 saves lost without the second check and none with it, the second check
   rescuing 14 whole and flagging no control loop.
 
-## Spike 2 — command-start cost in Node
-
-Run 2026-10-09 (`spike2/`), warm cache, 2 warm-ups then 20 runs, median and p90 in milliseconds. Linux: Node 26.3,
-Git 2.55, ext4. Windows: Node 22.17, Git for Windows 2.49, NTFS. Each run waited for low load, since other test
-suites share the machine. Datasets: median file about 11.5 KB, the largest about 400 KB; the index is about 16 KB per
-100 files; 300 loose refs under `refs/arc/`.
-
-The no-change path is (a) read and parse the index, (b) stat every indexed file and compare it, with the racy rule,
-and (c) one `git for-each-ref` over `refs/arc/`. Every run found nothing changed and hashed nothing.
-
-| Files  | Linux (a) | Linux (b) `statSync` | Linux (c) Git | Linux total | Windows (a) | Windows (b) pool of 32 | Windows (c) Git | Windows total |
-| ------ | --------- | -------------------- | ------------- | ----------- | ----------- | ---------------------- | --------------- | ------------- |
-| 100    | 0.04      | 0.25                 | 2.0           | 2.3         | 0.40        | 0.72                   | 41.4            | 42.4          |
-| 1,000  | 0.40      | 1.8                  | 2.0           | 5.0         | 0.93        | 6.5                    | 41.5            | 49.1          |
-| 10,000 | 3.3       | 16.8                 | 2.3           | 24.7        | 5.5         | 65.8                   | 42.2            | 124           |
-
-- **The stat call that is fast differs by platform.** `statSync` costs about 1 µs a file on Linux and 21 µs on
-  Windows; a pool of 32 concurrent asynchronous stats costs about 6.5 µs a file on Windows and about 17 µs on Linux.
-  Sequential `await` is slowest on both (Linux 354 ms, Windows 444 ms at 10,000 files).
-- **On Windows the floor is the Git process.** `git for-each-ref` costs 41–42 ms whatever the file count. Started at
-  the same time as the stat walk, it hides the walk up to about 1,000 files (Windows total 41.8 ms at 1,000, 86.8 ms
-  at 10,000).
-- **Windows `git` resolves to a launcher.** `execFile("git")` finds `cmd\git.exe` on `PATH`, a launcher that starts
-  `mingw64\bin\git.exe`; calling the latter directly costs 31.6–32.4 ms instead of 41–42 ms. The CLI's Git calls
-  go through the name (`lib/git/exec.ts`), so every one pays the launcher on Windows.
-- **A second Git call costs nothing when it runs alongside the first** (`gitpair.mjs`, 40 runs, quiet gate): the store
-  read alone took 41.6 ms on Windows and 2.9 ms on Linux; one `git config --get-regexp '^arc\.'` alone 25.0 ms and
-  1.8 ms; both one after the other 64.8 ms and 5.1 ms; both at once 41.7 ms and 3.3 ms.
-- **Process start:** `node -e 0` takes 17–18 ms on Linux and 28–29 ms on Windows; the built CLI's `--version` takes
-  about 280 ms on Linux (measured separately, six runs).
-- **Hashing is cheap and on Windows mostly the read.** A blob id including the read: 0.009 / 0.057 / 0.33 ms on Linux
-  and 0.29 / 0.42 / 0.59 ms on Windows for 5 / 76 / 436 KB files; reading the 5 KB file alone takes 0.28 ms on
-  Windows. Every id matched `git hash-object`.
-- **The rest of the no-change path** (`nochange2.mjs`, run 2026-10-10 under the quiet gate, 3 warm-ups then 40 runs,
-  datasets of 100 and 1,000 files in 17 and 125 folders): each run takes the projection lock by exclusive create,
-  reads the empty aside folder, runs (a) and (b) with `statSync`, walks every folder with `readdirSync` and file types,
-  looking each file up in the index, rewrites the index by temp and rename and then the reference stamp, and releases
-  the lock. At 1,000 files, Linux: lock 0.11, sweep 0.03, stat 1.95, walk 1.03, write 0.61, unlock 0.03, total
-  3.8 ms. Windows: 0.44, 0.09, 21.5, 5.1, 1.5, 0.58, total 29.2 ms. At 100 files the totals were 0.68 ms and 5.7 ms.
-  The parts the bench left out add 1.8 ms on Linux and 7.7 ms on Windows at 1,000 files, the walk the largest. The
-  Windows stat here is synchronous, matching the 21 µs a file above, where the pool of 32 took 6.5 ms. This
-  repository's checked set: `backlog/` 156 folders and 298 files, `active/` 1 and 3, the identity root 5 and 8.
-
-The racy rule, 1,000 loops of rewriting a 4 KB file in place right after recording it:
-
-| Delay before the rewrite | Linux misses: stat only / racy rule | Windows misses: stat only / racy rule |
-| ------------------------ | ----------------------------------- | ------------------------------------- |
-| none                     | 987 / 0                             | 582 / 0                               |
-| 5 ms                     | 494 / 0                             | 0 / 0                                 |
-| 20 ms                    | 0 / 0                               | 0 / 0                                 |
-
-Modification times tick every 10 ms on this Linux kernel (`CONFIG_HZ=100`: 1,984 of 2,000 back-to-back writes kept
-the same time) and every 0.33–0.55 ms on NTFS, in multiples of 100 ns. The same-size save inside one tick is
-therefore a Linux case too, and a wider one there.
-
-**Full materialization** (`projection/mat/mat.mjs`, three runs, Linux): this repository's 780 state files (16.8 MB at
-HEAD under `active/`, `backlog/`, and `completed/`) — one `ls-tree`, one `cat-file --batch` read (75–92 ms), then a
-blob id and a stamped temp-and-rename write per file (67–114 ms) — took 159–222 ms. Both platforms ran later under the
-quiet gate (§ Tripwire timings).
-
-What it settles:
-
-- **The racy rule is needed on every platform,** not only Windows; with it, no run missed a change.
-- **The projection's own no-change cost is small beside the command it runs in.** At the writable set's size — its own
-  work item, the personal surfaces, and the owner's in-flight prose, well under 1,000 files — the stat walk is about 2
-  ms on Linux and under 7 ms on Windows. The one Git read for the state version is the largest part on Windows, and it
-  can start together with the walk and overlap it.
-
 ## Spike 3 — how editors and agent tools write
 
 Run 2026-10-09 on Linux (`spike3/`). Each editor ran interactively in a private tmux server with an inotify log per
@@ -317,172 +245,6 @@ What it settles:
   `gitignore` is set to for the shared roots: globby reads only `.gitignore` files, and those roots are excluded through
   `.git/info/exclude` (§ 11.1). The root `.markdownlint-cli2.jsonc`'s `gitignore: false` matters only for
   `.arc/user/*/`, which `.gitignore` excludes; `.arc/completed/**` is already in its `ignores`.
-
-## Spike 4 — conflict markers in practice
-
-Run 2026-10-09 on Linux (`spike3/D/`), with this repository's markdownlint configuration (markdownlint-cli2 0.23.0).
-
-- `git merge-file -p --marker-size=11` writes byte-for-byte what the hand-built length-11 sample holds; the diff3 base
-  marker is `|||||||||||`.
-- At the default length, a side holding a setext underline yields three identical `=======` lines: no parser can tell
-  the separator from content.
-- On the length-11 sample, a parser matching any run of seven or more marker characters mis-splits the hunk; one
-  matching exactly seven finds no conflict, so the markers would persist as content; one ignoring runs shorter than
-  the recorded length parses correctly but mis-splits once content holds a longer run (13 `=`); one matching exactly
-  the recorded length parses all of them.
-- Every conflicted sample fails lint (MD003, MD022, MD032 at either length), so a conflict stays visible to an
-  editor's linter. A naive keep-both that drops the marker lines trips MD022 for the missing blank line between
-  entries, and `git merge-file --union` produces the same gap without a lint hit beyond MD003 — the case D13's entry
-  parser already tolerates and the merged write repairs.
-
-What it settles: escalate the length past the longest run of marker characters at the start of any line in either
-side, record it, and parse markers of exactly that length.
-
-**After VS Code's actions** (`spike3/D-postbutton-check.mjs`, output beside it). The length-11 sample's three
-action results — VS Code's own split, as the checklist observed it — ran through an exact-length parser that reads an
-incomplete marker set as malformed:
-
-| Result                        | Without a resolve-by-hand line   | With the line after the start marker |
-| ----------------------------- | -------------------------------- | ------------------------------------ |
-| Untouched                     | Open conflict                    | Open conflict                        |
-| Accept Current                | Persists, missing part of a side | Malformed: the line remains          |
-| Accept Incoming               | Malformed: orphan separator      | Malformed: orphan separator          |
-| Accept Both                   | Malformed: orphan separator      | Malformed: both remain               |
-| Hand resolution, line removed | Persists                         | Persists                             |
-| Hand resolution, line left    | —                                | Malformed: the line remains          |
-
-The output the checklist recorded for Accept Incoming also reads as malformed.
-
-## Tripwire timings
-
-Run 2026-10-09 on both platforms under the quiet gate (`projection/tripwire/`), to set the fan-out and
-full-materialization tripwires.
-
-**Fan-out** (`fanout.mjs`): one write's changed files pushed into N sibling worktrees, the file work alone — the store
-read happens once before it and is not timed. Per sibling, in turn, under its projection lock (an exclusive-create lock
-file, as `lib/advisory-lock.ts` takes one): read the index, re-check each file, write the staged files into the aside
-folder, write the index by temp-and-rename, and replace each file; then the swap's end check takes each lock again,
-re-reads and hashes each aside copy, and deletes it. 4 KB files, 20 writes per cell after 3 warm-up writes, median
-(p90).
-
-| Worktrees × files per write | Linux, rename over | Linux, swap + end check | Windows, rename over | Windows, swap + end check |
-| --------------------------- | ------------------ | ----------------------- | -------------------- | ------------------------- |
-| 5 × 1                       | 0.9 (1.3) ms       | 0.9 + 0.2 ms            | 17 (25) ms           | 23 + 6 ms                 |
-| 10 × 1                      | 1.2 (1.6) ms       | 1.3 + 0.3 ms            | 30 (34) ms           | 41 + 12 ms                |
-| 20 × 1                      | 2.8 (4.1) ms       | 2.6 + 0.7 ms            | 60 (61) ms           | 88 + 25 ms                |
-| 5 × 10                      | 2.7 (3.0) ms       | 2.8 + 0.7 ms            | 58 (61) ms           | 118 + 30 ms               |
-| 10 × 10                     | 4.9 (5.4) ms       | 5.4 + 1.5 ms            | 107 (120) ms         | 218 + 54 ms               |
-| 20 × 10                     | 10.0 (11.0) ms     | 10.4 + 3.0 ms           | 215 (1,432) ms       | 459 + 112 ms              |
-
-- **Windows pays per worktree and per file.** Each sibling costs about 3 ms with a rename over the file and 4.4 ms
-  with the swap, before its files, mostly the lock and index files' creates; each further file costs about 0.85 ms
-  renamed over and 2 ms swapped. The end check adds about 1.3 ms per sibling and 0.5 ms per file. On Linux the swap
-  and the rename cost the same.
-- **The 20 × 10 Windows p90s (1.4–1.6 s)** are host stalls, which hit both methods.
-- **September's figures timed something else.** The analysis's 52 ms for 5 worktrees, 89 ms for 10, and 164 ms for 20
-  on Linux do not say what they included, and they are far above these; these replace them as the tripwire's
-  baseline.
-
-**Full materialization** (`mat2.mjs`, `mat.mjs` with a link mode; `mat3.mjs` with parallel writes): this repository's
-780 state files, 16.8 MB, at `1ee4709a3`, from a shallow bare clone, three runs per mode.
-
-| Mode                                                 | Linux        | Windows        |
-| ---------------------------------------------------- | ------------ | -------------- |
-| Temp-and-rename per file, sequential                 | 115–122 ms   | 1,076–1,271 ms |
-| Staged in the aside folder and linked in, sequential | 124–130 ms   | 1,211–1,240 ms |
-| Linked in, 4 writes at a time (Node's default pool)  | —            | 722–789 ms     |
-| Linked in, 8 writes at a time (Node's default pool)  | 180 ms, once | 697–711 ms     |
-| Linked in, 8 writes at a time, 8 pool threads        | —            | 621–653 ms     |
-
-- **The listing and the batched read are small:** 5–9 ms and 45–49 ms on Linux, 31–34 ms and 93–97 ms on Windows.
-  The rest is one file write per record, about 1.5 ms each on Windows.
-- **Parallel writes halve Windows** and add nothing past 8 at a time (16 writes on 16 threads took 649–667 ms). On
-  Linux one ungated run took 180 ms, slower than sequential writes, whose write phase runs in 70 ms.
-- **Linking costs little:** 5–10% over temp-and-rename on both platforms.
-
----
-
-## Spike 5 — write-back through the store
-
-Run 2026-10-13 on Linux over the in-memory reference backend (`__tests__/helpers/store/`), whose stale-base merge
-calls the shipped concurrency library (`mergeLineText`, `mergeEntryText`); the harness (`spike5/`) runs only as unit
-test files beside that backend. Each case writes under `write-back` provenance with another machine's `save` landing
-first.
-
-- **A stale stored base sent as the expected version** (a draft, both sides editing one line). The write lands with
-  the store's current side at the clash, the result lists one conflict record, and `read` reports it. The record keeps
-  the base's line range (3–5), the base text, and each side's text, labelled with the machine that wrote it — the
-  current side with the other machine, the incoming side with this one — so the checkout needs no side labels of its
-  own. The conflict record's own provenance reads `merge`, not `write-back`.
-- **The same stale write sent again,** as a retry after an ambiguous failure would send it, files a second conflict
-  record for the same clash: two open.
-- **Resolving:** a `write-back` naming both conflicts in `resolves` closes them.
-- **Base content:** `history` returns every version's content, the stale base's among them.
-- **A stale buffer after a clean merge.** One machine's addition merged cleanly with another's, then the buffer that
-  never reloaded removed its own addition. Sent against the stamp's version, the removal is undone; sent against the
-  merged version, the other machine's addition is lost. Merging in the checkout from the content the earlier
-  write-back took in, onto the merged version, keeps both and drops the removed line, after which the write is a
-  fast-forward.
-- **An entry typed by hand** (no `_Id:_`) into the inbox, against a stale base: the backend stamps it and merges.
-  Merging the same inputs in the checkout throws ("Entries need distinct managed IDs before merge"). A duplicated ID
-  throws on both paths, the backend's included, rather than refusing.
-- **An old buffer re-saving that entry after the backend stamped it.** On a fast-forward the entry keeps one copy
-  under a new ID. With another machine's edit to the stamped entry in between, the merge keeps both copies and reports
-  no conflict. Given the stamped ID before it is sent, the same save yields one entry and one conflict.
-- **The meta, stale:** refused `version-conflict`. A meta write at the current version with no placement lands on
-  the reference backend, although `MutationSchema` requires placement on a primary record.
-
-What it settles: the store's merge does the work write-back's own merge was drafted to do whenever the base is a
-stored version, labels included; a stale buffer's base after a clean merge is never a stored version, so that case
-needs a merge in the checkout first; a retry must re-read before resending; and write-back must give an unstamped
-entry the ID its base carries, whichever side merges.
-
-## Spike 6 — finding a stored clash again
-
-Run 2026-10-13 on Linux (`spike6/`): 4,000 random three-way merges of 60-line Markdown with deliberately repetitive
-lines (blank lines, checkbox items, a small prose vocabulary), 3,893 hunk conflicts, each then edited 0, 1, 5, or 20
-times at random, with its true place tracked. Rates are of conflicts the later edits left untouched.
-
-| Method                                                 | Write time | 1 edit | 5 edits | 20 edits | When it fails |
-| ------------------------------------------------------ | ---------- | ------ | ------- | -------- | ------------- |
-| Search for the current side's text                     | 47%        | 47%    | 46%     | 42%      | Loudly        |
-| Two lines of context either side, taken at write time  | 99.4%      | 94%    | 74%     | 34%      | Mostly loudly |
-| The base range moved through a diff from the full base | 99.9%      | 99%    | 93%     | 79%      | Silently      |
-| The sent file aligned with the merged result           | 84%        | —      | —       | —        | Loudly        |
-
-The current-side search fails on an empty side (18%) and on repeated lines (34%). Context that no longer matches is
-reported as not found, wrong only up to 1.4% at one line of context; the base range, moved through a diff, lands on the
-wrong lines in up to 21% of cases with no sign.
-
-A fifth method refreshes the marked file rather than finding the clash: a three-way merge whose base is the stored
-content the file was rendered from, whose current side is the later stored content, and whose incoming side is the
-rendered file, marker block included. It placed every block at write time; after 1, 5, and 20 later edits it placed
-96.8%, 83.9%, and 56.3% exactly, reported an overlap in 3.2%, 15.9%, and 42.9%, and differed from the tracked placement
-without a sign in 0.1%, 0.3%, and 0.8%.
-
-Placement with a check, rerun the same day over the same generator and seed (`spike6/e1-placement-check.mts`, from the
-fix check's probe): the base range's start line moved through the diff (`relocateTextOffsets`), spanning as many lines
-as the record's current side holds, accepted only where those lines equal the current side. These figures use each
-side's true line count, which the record does not carry today: `mergeLineText` joins a side's lines, so 1,014 of the
-3,893 sides stored as empty content, 708 of no lines and 306 of one blank line. The incoming side stores the same way:
-993 of its 3,893 sides stored as empty content, 709 of no lines and 284 of one blank line
-(`spike6/e1-incoming-sides.mts`, from the third fix check's probe). That check alone placed 99.9%, 98.7%, 93.1%, and
-79.4% and let 0.03%, 0.05%, 0.7%, and 3.5% through on wrong lines, over half of them with an empty current side, where
-it compares nothing. Requiring also that the line beside each end equal the line beside the base range in the base
-content, or the file's edge, placed 99.9%, 96.8%, 83.9%, and 56.8%, reported the rest as not found, and let 0, 0.03%, 0,
-and 0.35% through. Moving the range's end through the same diff instead of spanning the current side refuses a quarter
-of clashes at write time, nearly all of them, 95% in a recount, where the current side is longer than the base range and
-the moved end lands short. Read from the record as it is, an empty side taken as no lines placed 92% at write time with
-0.44% wrong; taken as one blank line, 82% with 1.7% wrong; tried both ways and placed only where exactly one passes,
-97.7% with none wrong at write time and 94.7%, 81.9%, and 55.3% later, with up to 1.09% wrong. Of the clashes a later
-edit touched (65, 297, and 1,049), the check with the true count still accepted a wrong place for 1, 5, and 10
-(`spike6/e1-placement-ambiguity.mts` and `e1-placement-touched.mts`, from the second fix check's probes).
-
-What it settles: a clash can be placed exactly when the merge happens, given the full base, but no method finds it
-reliably in arbitrary later content. Refreshing a marked file by merging the store's change into it keeps its markers in
-place with a line merge's own residual, and reports the rest as an overlap rather than misplacing it. Placing a stored
-clash's base range with a check on the current side, its line count known, and the lines beside it keeps the silent
-residual within a line merge's at every age, for clashes later edits left untouched.
 
 ## Spike 7 — aside copies against a stale buffer's record
 
@@ -615,15 +377,16 @@ Every copy the amended option 1 keeps either adds or removes an entry a newer sa
 of two copies taken over in one pass.
 
 Bounds: one path, four named entries, one buffer, each edit made once so no entry returns to an earlier value, no
-`_Id:_` matching (Spike 5 covers it), no index rebuild, stampless file, held file's conflict record, removal of the file
-(§ 5.6), writer stopping before its second check, stop between a write's landing and its index write, store refusing a
-write, writer holding its descriptor across the move (§ 5.3), or timing (Spikes 1 and 1b), the person deleting the file
-only once and only while it holds what the projection last wrote, and step 4's re-check passes left out, which the order
-trace shows would not catch it. The rule deleting a superseded copy whose changes the store already holds is the one
-these bounds cannot judge: a copy re-adding an entry an intermediate record removed shows no change against its stamp's
-version, a shape monotone edits never make. The model's own errors, found against the spec and fixed before these
-figures: a save could land in an older copy after a later save, that deletion rule first measured a copy's changes
-against its stamp's version alone, and an editor reloaded once at an arbitrary point.
+`_Id:_` matching (Spike 5, in `notes-projection-write-back.md`, covers it), no index rebuild, stampless file, held
+file's conflict record, removal of the file (§ 5.6), writer stopping before its second check, stop between a write's
+landing and its index write, store refusing a write, writer holding its descriptor across the move (§ 5.3), or timing
+(Spikes 1 and 1b), the person deleting the file only once and only while it holds what the projection last wrote, and
+step 4's re-check passes left out, which the order trace shows would not catch it. The rule deleting a superseded copy
+whose changes the store already holds is the one these bounds cannot judge: a copy re-adding an entry an intermediate
+record removed shows no change against its stamp's version, a shape monotone edits never make. The model's own errors,
+found against the spec and fixed before these figures: a save could land in an older copy after a later save, that
+deletion rule first measured a copy's changes against its stamp's version alone, and an editor reloaded once at an
+arbitrary point.
 
 Research the same day, one pass over primary sources: Syncthing re-checks a file's metadata before replacing it and
 aborts on a change, and a real conflict renames the losing file to `.sync-conflict-*`, never merged; Dropbox keeps a
@@ -642,3 +405,38 @@ times as many copies. As § 5.2 first stated it, an absent path never moved on, 
 the person could delete the file, and then lost saves in both; with the mark beside each copy and the removal check
 reading the copies in the persist step's order, it loses nothing in either bound and agrees with the persist step.
 Option 1 amended was not run with the file deleted.
+
+## Spec review carry-forward
+
+The decomposition's specification review (2026-10-30) found these gaps, each inherited from the origin specification,
+which settled them in the task list or not at all. Fold each into this member's specification at its next planning
+review. Task numbers are `tasks-projection-substrate.md`'s.
+
+- **Success criteria for the engine's state.** None tests the racy rule catching a same-tick, same-size save, smudging
+  included (§ 3.3); base-stamp recovery choosing an exact, closest, or empty base (§ 3.5); the stale-buffer base
+  (§ 3.6); the projection lock's 200 ms skip and its rule never to recreate a removed Git directory (§ 3.2); the § 12.6
+  remedies; or the § 11.5 `.gitignore` change. The task list's criterion that the worktree lock, the managed `.ignore`
+  block, and the `.gitignore` change are live before the flip has no specification counterpart.
+- **The configuration read's requirements.** Task 2.5.b settles the keys read, the precedence (the last occurrence
+  wins), `git config`'s exit status 1 for no match, the multi-valued `arc.inflightPin`, and the no-identity verdict's
+  shape; § 15.3 states only the keys.
+- **Design settled only in tasks.** The notice line's form, `<!-- arc-notice: ...`, in the block directly after the
+  stamp (Task 2.5.c); base-stamp recovery's window of the five newest versions (Task 2.6); the `resolveCheckoutGitDir`
+  fallback where `readGitDirectories` throws (Task 2.2.b); and `listArcFiles` skipping `system/.local/`, so `arc health`
+  reports no aside file as new (Task 2.2.c).
+- **§ 1.2's inventory.** It omits `lib/fs.ts`, `lib/advisory-lock.ts` (the exported liveness predicate),
+  `lib/local-vitest-runner.ts`, `lib/change-facts.ts`, and `__tests__/helpers/store/projection/`, which the tasks
+  change.
+- **A refused `history` read for a stopped replacement.** § 3.7 reads the version a stopped replacement replaced, which
+  a file other than Markdown needs to take the closer of the two versions as its base. Where that read refuses
+  `state-unresolvable`, § 3.5 pulls nothing, since only a merge in the checkout for a write is pulled, but says which
+  base the file then takes only for recovery, placement, and a conflicted file, and Task 2.8 tests no refusal. The lean:
+  the file stays pending and reported, written back nowhere, until the read succeeds, as a conflicted file keeps its
+  version, since taking either version without reading it would break § 3.7's rule that old content a stop left is never
+  written back over the newer version.
+- **The guard before a command's first writes.** § 11.2 runs the guard before the projection writes into a root, and its
+  named callers are materialization, refresh, and fan-out, but a command's start writes before its refresh: the sweep
+  links aside copies back (§ 5.4), and write-back's read-back replaces files by the swap
+  (`spec-projection-write-back.md` § 7.1). Nothing names a guard run before those writes. The lean: the start runs the
+  guard's skip check before its sweep, so every write it makes follows the guard, at no cost while no ignore file may
+  have changed.
