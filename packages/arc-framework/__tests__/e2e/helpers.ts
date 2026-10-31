@@ -14,6 +14,7 @@ import { CLI_PATH, assertCliBuilt } from "../helpers/cli-spawn.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
 import { emitsMachineReadablePayload, usesPseudoTty } from "../helpers/cli-transport.js";
 import { recordCliInvocationForCurrentTest } from "../helpers/test-cost-timeout.js";
+import { CALL_LIMIT } from "../helpers/call-limit.js";
 
 export { commitAll } from "../helpers/temp-repo.js";
 
@@ -160,7 +161,7 @@ export async function runArc(
   if (args.includes("--json") || emitsMachineReadablePayload(args)) {
     return runArcNoTty(args, cwd, options);
   }
-  const timeout = options?.timeout ?? 30_000;
+  const timeout = options?.timeout ?? CALL_LIMIT;
   recordCliInvocationForCurrentTest(timeout);
   const env = builtCliEnvironment(options?.env);
   try {
@@ -202,7 +203,7 @@ export async function runArcAnchored(
   options?: { timeout?: number; env?: NodeJS.ProcessEnv },
 ): Promise<RunResult> {
   assertCliBuilt();
-  const timeout = options?.timeout ?? 30_000;
+  const timeout = options?.timeout ?? CALL_LIMIT;
   recordCliInvocationForCurrentTest(timeout);
   const env = builtCliEnvironment({ PS1: "", ...options?.env });
   const command = [process.execPath, CLI_PATH, ...args].map(shellEscape).join(" ");
@@ -230,7 +231,7 @@ export async function runArcAnchoredSequence(
   options?: { timeout?: number; env?: NodeJS.ProcessEnv; anchorShellPath?: string },
 ): Promise<AnchoredSequenceResult> {
   assertCliBuilt();
-  const timeout = options?.timeout ?? 30_000;
+  const timeout = options?.timeout ?? CALL_LIMIT;
   for (const entry of argsList) {
     if (!("command" in entry)) recordCliInvocationForCurrentTest(timeout);
   }
@@ -300,7 +301,7 @@ export async function runArcNoTty(
   options?: { timeout?: number; env?: NodeJS.ProcessEnv },
 ): Promise<RunResult> {
   assertCliBuilt();
-  const timeout = options?.timeout ?? 30_000;
+  const timeout = options?.timeout ?? CALL_LIMIT;
   recordCliInvocationForCurrentTest(timeout);
   const env = builtCliEnvironment(options?.env);
   try {
@@ -332,7 +333,7 @@ export async function runArcWithStdoutPipe(
   options?: { timeout?: number; env?: NodeJS.ProcessEnv },
 ): Promise<RunResult> {
   assertCliBuilt();
-  const timeout = options?.timeout ?? 30_000;
+  const timeout = options?.timeout ?? CALL_LIMIT;
   recordCliInvocationForCurrentTest(timeout);
   const env = builtCliEnvironment(options?.env);
   try {
@@ -370,7 +371,7 @@ export function runArcWithStdin(
   options?: { timeout?: number; env?: NodeJS.ProcessEnv },
 ): Promise<RunResult> {
   assertCliBuilt();
-  const timeout = options?.timeout ?? 30_000;
+  const timeout = options?.timeout ?? CALL_LIMIT;
   recordCliInvocationForCurrentTest(timeout);
   const env = builtCliEnvironment(options?.env);
 

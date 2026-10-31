@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { load } from "js-yaml";
 import { execa } from "execa";
+import { CALL_LIMIT } from "./call-limit.js";
 import { makeVitestRuntimeFixture } from "./vitest-runtime-fixture.js";
 import { CheckDeclarationSchema } from "../../src/lib/checks/declaration.js";
 import { resolveCheckForecast } from "../../src/lib/checks/forecast.js";
@@ -98,7 +99,7 @@ export async function runCiPreflight(fixture: { root: string }, job: string, nod
   const env = { ...process.env, CI: "1", ...step.env };
   try {
     const { stdout, stderr } = await execute(node, args,
-      { cwd: fixture.root, env, timeout: 30_000, maxBuffer: 16 * 1024 * 1024 });
+      { cwd: fixture.root, env, timeout: CALL_LIMIT, maxBuffer: 16 * 1024 * 1024 });
     return { code: 0, stdout, stderr };
   } catch (error) {
     const failure = error as { code?: number; stdout?: string; stderr?: string };

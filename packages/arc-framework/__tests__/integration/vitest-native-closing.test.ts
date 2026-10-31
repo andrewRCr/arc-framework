@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { makeVitestRuntimeFixture } from "../helpers/vitest-runtime-fixture.js";
 import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
+import { CALL_LIMIT } from "../helpers/call-limit.js";
 
 it.each(["teardown", "worker"])("retains native %s failure through closing", async (fault) => {
   const fixture = await makeVitestRuntimeFixture();
@@ -38,4 +39,4 @@ it.each(["teardown", "worker"])("retains native %s failure through closing", asy
     expect(events).toContain('"owned":true');
     await expect(access(join(fixture.packageRoot, ".arc-build.lock"))).rejects.toMatchObject({ code: "ENOENT" });
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
+}, 2 * CALL_LIMIT);

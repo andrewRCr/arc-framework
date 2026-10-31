@@ -3,6 +3,7 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { readBuildQualification } from "../../src/lib/build-qualification.js";
+import { CALL_LIMIT } from "../helpers/call-limit.js";
 import { ciBuildSteps, downloadCiBuild, runCiPreflight, runCiProducer } from "../helpers/ci-build-fixture.js";
 import { makeVitestRuntimeFixture } from "../helpers/vitest-runtime-fixture.js";
 import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
@@ -88,7 +89,7 @@ it.each(["integration"])(
       await expect(readFile(join(consumer.packageRoot, ".arc-build.lock")))
         .rejects.toMatchObject({ code: "ENOENT" });
     } finally { await rm(consumer.root, { recursive: true, force: true }); }
-  }, 60_000,
+  }, 5 * CALL_LIMIT,
 );
 
 it("retains full producer and platform-local declaration gates before preparation", async () => {
@@ -109,4 +110,4 @@ it("retains full producer and platform-local declaration gates before preparatio
   });
   expect((await runVitestControllerFixture(producer.packageRoot, ["full"],
     { CI: "1", ARC_E2E_SKIP_BUILD: "1" })).code).toBe(0);
-}, 30_000);
+}, 3 * CALL_LIMIT);
