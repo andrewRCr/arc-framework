@@ -12,12 +12,14 @@ import { IntegrationBoundaryLocusV2Schema } from "../../../../../src/scripts/rev
 import { createProjectIdentityReader } from "../../../../../src/lib/store/project-identity.js";
 import { readReviewLane } from "../../../../../src/scripts/review-gate/runtime/lane-read-composition.js";
 import type { Store } from "../../../../../src/lib/store/contract.js";
+import type { StoreRecord } from "../../../../../src/lib/store/read.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
-async function fixture(vehicle: "work-unit" | "errand", project = true) {
+async function fixture(vehicle: "work-unit" | "errand", project = true, boundaryWorkUnit = "example") {
   const h = createReviewHarness();
   if (project) await h.seedProject(projectId);
   const claimId = "1".repeat(32), branch = vehicle === "errand" ? "chore/repair" : "topic/opaque";
+  let boundary: StoreRecord | undefined;
   if (vehicle === "errand") {
     const record = TransientIdentityRecordSchema.parse({ version: 3, kind: "errand", purpose: "errand", slug: "repair",
       claimId, intent: "Repair one issue", owner: "test-user", origin: "description", originEntry: null,
@@ -31,8 +33,8 @@ async function fixture(vehicle: "work-unit" | "errand", project = true) {
     });
     const candidate = candidateFixture();
     await h.seedCandidate(primary.reference.owner, candidate);
-    await h.seedBoundary(primary.reference.owner, IntegrationBoundaryLocusV2Schema.parse({ schemaVersion: 2,
-      mode: "pre-publication-review", workUnit: "example", candidateId: candidate.attestation.candidateId,
+    boundary = await h.seedBoundary(primary.reference.owner, IntegrationBoundaryLocusV2Schema.parse({ schemaVersion: 2,
+      mode: "pre-publication-review", workUnit: boundaryWorkUnit, candidateId: candidate.attestation.candidateId,
       candidateSubjectDigest: candidate.subject.subjectDigest, locus: "candidate-review-pending", reservation: null,
       nextAction: { kind: "run-self-review", command: "self-review", interactionText: "Review the Candidate." } }));
   }
@@ -53,7 +55,7 @@ async function fixture(vehicle: "work-unit" | "errand", project = true) {
     : { kind: "work-unit", name: "example" });
   const rawGit = scriptRawGitExec([{ match: ["diff", "--numstat", "-z", "-M", "-C", "--find-copies-harder", `${base}..${head}`, "--"],
     responses: [{ stdout: new Uint8Array() }] }]).exec;
-  return { ...checkout, claimId, run: (store: Store = checkout.store) => readReviewLane({ schemaVersion: 1 },
+  return { ...checkout, claimId, boundary, run: (store: Store = checkout.store) => readReviewLane({ schemaVersion: 1 },
     { ...checkout, store, rawGit, projectId: createProjectIdentityReader(store) }) };
 }
 
@@ -99,4 +101,17 @@ it("refuses a store refusal naming its own command with that command, and reads 
     remedy: { argv: ["arc", "sync"], text: expect.stringContaining("fetch the missing state") } } });
   missing = false;
   expect(await h.run(store)).toMatchObject({ state: "ready", payload: { lineage: { kind: "candidate" } } });
+});
+
+it("refuses a stored boundary naming another work unit under its own code and remedy, and reads once it names this one", async () => {
+  const h = await fixture("work-unit", true, "other");
+  if (h.boundary === undefined) throw new Error("Expected the seeded boundary");
+  expect(await h.run()).toMatchObject({ state: "refused", payload: { code: "invalid-input",
+    detail: "The bound work item's submission boundary belongs to work unit `other`, not `example`.",
+    remedy: { text: expect.stringContaining("Name work unit `other`, or run the command from `example`'s checkout."),
+      argv: ["arc", "review", "lane", "read", "-"], stdin: { schemaVersion: 1 } } } });
+  lifecycleSuccess(await h.store.write({ action: "put", reference: h.boundary.reference, expected: h.boundary.version,
+    content: h.boundary.content.replace('"workUnit":"other"', '"workUnit":"example"'),
+    provenance: { verb: "review", lifecycleAction: "edit" } }));
+  expect(await h.run()).toMatchObject({ state: "ready", payload: { lineage: { kind: "candidate" } } });
 });

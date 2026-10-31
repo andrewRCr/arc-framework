@@ -28,6 +28,7 @@ import { resolveLocalPolicyTarget, createLocalContributionConfirmation } from ".
 import { readReviewLaneHistory } from "./lane-history.js";
 import { readLocalDeltaAdmissionSurface } from "./local-reserved-obligation.js";
 import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
+import { ReviewOwnerSelectionError } from "../../../lib/store/kinds/review/errors.js";
 import { projectIdentitySpineRemedy, reviewFailureSpineRemedy } from "./project-identity-remedy.js";
 
 type LaneReadBoundary = ReviewInvocationInput & { rawGit?: RawGitExec };
@@ -99,22 +100,34 @@ async function readResolvedLane(request: ReviewLaneReadRequest, input: LaneReadB
     ceiling: Number(settings["review.standard_max_passes"]), exec: input.rawGit ?? createRawGitExec(input.cwd) });
 }
 
+// A native typed refusal reports under its own code, carrying its condition and remedy.
+function nativeLaneReadRefusal(error: unknown, request: ReviewLaneReadRequest): ReviewLaneReadEnvelope | null {
+  if (error instanceof ProjectIdentityError) {
+    return { schemaVersion: 1, mode: "review-lane-read", state: "refused", nextAction: "stop", diagnostics: [],
+      payload: { code: "project-identity-unavailable", detail: error.failure.reason,
+        remedy: projectIdentitySpineRemedy(error, ["arc", "review", "lane", "read", "-"], request) } };
+  }
+  if (isOffBranchStoreRefusal(error)) {
+    return { schemaVersion: 1, mode: "review-lane-read", state: "refused", nextAction: "stop", diagnostics: [],
+      payload: { code: "store-refused", detail: error.refusal.condition,
+        remedy: reviewFailureSpineRemedy(error.refusal.condition, error.refusal.remedy, ["arc", "review", "lane", "read", "-"], request) } };
+  }
+  if (error instanceof ReviewOwnerSelectionError) {
+    return { schemaVersion: 1, mode: "review-lane-read", state: "refused", nextAction: "stop", diagnostics: [],
+      payload: { code: error.code, detail: error.condition,
+        remedy: reviewFailureSpineRemedy(error.condition, error.remedy, ["arc", "review", "lane", "read", "-"], request) } };
+  }
+  return null;
+}
+
 /** Read the authenticated checkout subject without publishing any review state. */
 export async function readReviewLane(request: ReviewLaneReadRequest, input: LaneReadBoundary): Promise<ReviewLaneReadEnvelope> {
   try {
     return await readResolvedLane(request, { ...input, ...resolveReviewInvocation(input) });
   }
   catch (error) {
-    if (error instanceof ProjectIdentityError) {
-      return { schemaVersion: 1, mode: "review-lane-read", state: "refused", nextAction: "stop", diagnostics: [],
-        payload: { code: "project-identity-unavailable", detail: error.failure.reason,
-          remedy: projectIdentitySpineRemedy(error, ["arc", "review", "lane", "read", "-"], request) } };
-    }
-    if (isOffBranchStoreRefusal(error)) {
-      return { schemaVersion: 1, mode: "review-lane-read", state: "refused", nextAction: "stop", diagnostics: [],
-        payload: { code: "store-refused", detail: error.refusal.condition,
-          remedy: reviewFailureSpineRemedy(error.refusal.condition, error.refusal.remedy, ["arc", "review", "lane", "read", "-"], request) } };
-    }
+    const typed = nativeLaneReadRefusal(error, request);
+    if (typed !== null) return typed;
     const code = error instanceof LocalReviewAuthorityError ? error.reason
       : error instanceof Error && "reason" in error && typeof error.reason === "string" ? error.reason : "lane-read-unavailable";
     const detail = error instanceof Error ? error.message : String(error);
