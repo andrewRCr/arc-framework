@@ -128,6 +128,15 @@ it("retains the project-identity remedy and reaches self-review after repair", a
   expect(await h.run()).toMatchObject({ locus: "candidate-review-pending", nextAction: { kind: "run-self-review" } });
 });
 
+it("reports an unreadable native review listing as the store's refusal and reaches self-review after repair", async () => {
+  const h = await fixture();
+  await h.seedCandidate();
+  h.store.state.unreadable.add("review");
+  expect(await h.run()).toMatchObject({ error: { code: "store-refused" } });
+  h.store.state.unreadable.clear();
+  expect(await h.run()).toMatchObject({ locus: "candidate-review-pending", nextAction: { kind: "run-self-review" } });
+});
+
 it("keeps the missing-Candidate response and reaches self-review after the records are created", async () => {
   const h = await fixture();
   expect(await h.run()).toMatchObject({ error: { message: "No managed Candidate record exists for `example`." } });

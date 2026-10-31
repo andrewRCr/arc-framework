@@ -20,6 +20,7 @@ import { reviewDecisionKey } from "../../../../../src/lib/store/kinds/review/dec
 import { localOutcome } from "../../../../fixtures/review-outcome.js";
 import { createHostedHandleFixture } from "../../../../fixtures/hosted-review.js";
 import { ReviewOutcomeSchema } from "../../../../../src/lib/store/kinds/review/outcome/schema.js";
+import { StoreRefusalError } from "../../../../../src/lib/store/refusal-error.js";
 
 async function fixture(cleanup: (operation: () => Promise<void>) => void) {
   const h = createReviewHarness(), candidate = candidateFixture();
@@ -79,7 +80,7 @@ it("binds live pending attempts from the Candidate's standard lane owner", async
   expect(after).not.toEqual(before);
 });
 
-it.each(["outcome", "evidence", "decision"] as const)("refuses a missed %s entry and resumes after repair", async (kind) => {
+it.each(["outcome", "evidence", "decision"] as const)("refuses a missed %s entry whole and resumes after repair", async (kind) => {
   const h = await fixture(onTestFinished);
   const outcome = await createReviewOutcomePort(h.store, h.input.workItem).create(h.outcome);
   const evidence = await createReviewEvidencePort(h.store, h.input.workItem).create(reviewEvidenceFixture(h.outcome));
@@ -89,13 +90,13 @@ it.each(["outcome", "evidence", "decision"] as const)("refuses a missed %s entry
   const reference = ({ outcome, evidence, decision })[kind].reference;
   const key = recordKey(reference);
   h.store.state.faults.set(key, { kind: "unreadable", reference });
-  expect(await readReviewReadinessBinding(h.input)).toMatchObject({ status: "incomplete",
-    condition: expect.stringContaining(`review/${kind}`) });
+  await expect(readReviewReadinessBinding(h.input)).rejects.toMatchObject({ offBranch: true,
+    refusal: { code: "record-malformed", class: "recoverable", rule: "review.listing-incomplete" } });
   h.store.state.faults.delete(key);
   expect(await readReviewReadinessBinding(h.input)).toEqual(before);
 });
 
-it.each(["unreadable", "refused"])("preserves a %s Store listing refusal until repair", async (kind) => {
+it.each(["unreadable", "refused"])("raises a %s Store listing refusal whole until repair", async (kind) => {
   const h = await fixture(onTestFinished);
   const before = await readReviewReadinessBinding(h.input);
   if (kind === "unreadable") h.store.state.unreadable.add("review");
@@ -104,14 +105,14 @@ it.each(["unreadable", "refused"])("preserves a %s Store listing refusal until r
   const problem = observed.status === "refused" ? observed.refusal
     : observed.result.status === "unreadable" ? observed.result : null;
   if (problem === null) throw new Error("Expected the Store's listing refusal");
-  expect(await readReviewReadinessBinding(h.input)).toEqual({ status: "incomplete",
-    condition: `${problem.condition} ${problem.remedy.text}` });
+  await expect(readReviewReadinessBinding(h.input)).rejects.toMatchObject({ offBranch: true,
+    refusal: { condition: problem.condition, remedy: problem.remedy } });
   h.store.state.unreadable.clear();
   h.store.state.corrupt = false;
   expect(await readReviewReadinessBinding(h.input)).toEqual(before);
 });
 
-it("refuses a conflicted outcome and recomputes readiness after its resolution", async ({ onTestFinished }) => {
+it("refuses a conflicted outcome whole and recomputes readiness after its resolution", async ({ onTestFinished }) => {
   const h = await fixture(onTestFinished), remote = createMemoryRemote();
   h.store.context.publication.remote = remote;
   lifecycleSuccess(await h.store.push());
@@ -121,9 +122,9 @@ it("refuses a conflicted outcome and recomputes readiness after its resolution",
   lifecycleSuccess(await h.store.push());
   const conflicted = lifecycleSuccess(await h.store.read({ reference: outcome.reference }));
   expect(conflicted.conflicts.length).toBeGreaterThan(0);
-  const result = await readReviewReadinessBinding(h.input);
-  expect(result).toMatchObject({ status: "incomplete", condition: expect.stringContaining("conflict") });
-  for (const reference of conflicted.conflicts) expect(result.status === "incomplete" ? result.condition : "")
+  const refused: unknown = await readReviewReadinessBinding(h.input).catch((error: unknown) => error);
+  expect(refused).toMatchObject({ offBranch: true, refusal: { code: "record-malformed", rule: "review.record-conflict" } });
+  for (const reference of conflicted.conflicts) expect(refused instanceof StoreRefusalError ? refused.refusal.condition : "")
     .toContain(JSON.stringify(reference));
   for (const reference of conflicted.conflicts) {
     const conflict = lifecycleSuccess(await h.store.read({ reference }));

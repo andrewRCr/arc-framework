@@ -4,7 +4,7 @@ import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 import { createReviewCheckout } from "../../../helpers/store/review-checkout.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { candidateFixture } from "../../../helpers/store/tracked-write-fixture.js";
-import { boundaryV2Fixture } from "../../../fixtures/review-boundary.js";
+import { boundaryV1Fixture, boundaryV2Fixture } from "../../../fixtures/review-boundary.js";
 import { IntegrationBoundaryLocusV2Schema, type IntegrationBoundaryLocusV2 } from "../../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import { createReviewCompositionContext } from "../../../../src/scripts/review-gate/runtime/composition-context.js";
 import { readReviewReadinessBinding } from "../../../../src/scripts/review-gate/runtime/readiness-binding.js";
@@ -87,10 +87,32 @@ it("refuses an incomplete claim-time listing without publishing and prepares suc
     candidateSubjectDigest: h.params.candidateSubjectDigest, reservation: h.params.boundary.reservation,
     terminus: h.params.boundary.terminus, readinessBinding: h.params.boundary.readinessBinding, changeRequest: null }, 2);
   h.store.state.unreadable.add("review");
-  await expect(h.params.preparePublicationClaim(claim)).rejects.toThrow(/incomplete|unreadable/iu);
+  await expect(h.params.preparePublicationClaim(claim)).rejects.toMatchObject({
+    refusal: { code: "record-malformed", class: "recoverable", rule: "review.listing-unreadable" } });
   expect(await h.store.version()).toEqual(before);
   h.store.state.unreadable.clear();
   expect(await h.params.preparePublicationClaim(claim)).toMatchObject({ action: "put", reference: { kind: "review/integration-boundary" } });
+  expect(await h.store.version()).toEqual(before);
+  expect(await runPublish(h.ctx, h.params)).toMatchObject({ status: "published" });
+});
+
+it("reports an unreadable readiness listing through publish as the store's refusal, and publishes once readable", async () => {
+  const h = await fixture(), before = await h.store.version();
+  h.store.state.unreadable.add("review");
+  expect(await runPublish(h.ctx, h.params)).toMatchObject({ status: "rejected",
+    refusal: { code: "record-malformed", class: "recoverable", rule: "review.listing-unreadable" } });
+  expect(await h.store.version()).toEqual(before);
+  h.store.state.unreadable.clear();
+  expect(await runPublish(h.ctx, h.params)).toMatchObject({ status: "published" });
+});
+
+it("sends a version-one readiness boundary back to pre-publication review, and publishes from version two", async () => {
+  const h = await fixture(), before = await h.store.version();
+  const legacy = { ...boundaryV1Fixture("candidate-publish-ready"), candidateId: h.params.candidateId,
+    candidateSubjectDigest: h.params.candidateSubjectDigest };
+  expect(await runPublish(h.ctx, { ...h.params, boundary: legacy })).toMatchObject({ status: "rejected",
+    reason: expect.stringMatching(/version-two readiness boundary/u),
+    remedy: { argv: ["arc", "review", "pre-publication", "example"] } });
   expect(await h.store.version()).toEqual(before);
   expect(await runPublish(h.ctx, h.params)).toMatchObject({ status: "published" });
 });

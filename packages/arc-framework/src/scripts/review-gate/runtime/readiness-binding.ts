@@ -1,7 +1,10 @@
 /** Read live durable and working review progress for one Candidate's publication binding. */
 import type { CanonicalDigest } from "../../../lib/kernel/index.js";
 import type { Store } from "../../../lib/store/contract.js";
-import { describeRecordConflicts } from "../../../lib/store/conflict-diagnostics.js";
+import { reviewListingRefusal } from "../../../lib/store/kinds/review/fact-access.js";
+import { ReviewOwnerSelectionError } from "../../../lib/store/kinds/review/errors.js";
+import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
+import { isOffBranchStoreRefusal, StoreRefusalError } from "../../../lib/store/refusal-error.js";
 import type { OwnerIdentity } from "../../../lib/store/identity.js";
 import { deriveReviewReadinessBinding, type ReviewReadinessBinding } from
   "../../../lib/store/kinds/review/integration-boundary/readiness.js";
@@ -23,15 +26,10 @@ export async function readReviewReadinessBinding(input: ReviewReadinessReadInput
   try {
     const list = async (kind: "review/outcome" | "review/evidence" | "review/decision") => {
       const read = await input.store.list({ family: "review", kind, owner: input.workItem });
-      if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
-      const listing = read.result;
-      if (listing.status === "unreadable") throw new Error(`${listing.condition} ${listing.remedy.text}`);
-      if (listing.status === "complete" && (listing.missed || listing.diagnostics.length > 0)) {
-        throw new Error(`${kind}: incomplete listing`);
-      }
-      const conflicts = listing.status === "complete" ? listing.records.flatMap(record => record.conflicts) : [];
-      if (conflicts.length > 0) throw new Error(`Review readiness has unresolved conflicts.${describeRecordConflicts(conflicts)}`);
-      return listing;
+      if (read.status === "refused") throw new StoreRefusalError(read.refusal, true);
+      const refusal = reviewListingRefusal(read);
+      if (refusal !== null) throw new StoreRefusalError(refusal, true);
+      return read.result;
     };
     const [outcomes, evidence, decisions] = await Promise.all([
       list("review/outcome"), list("review/evidence"), list("review/decision"),
@@ -41,6 +39,8 @@ export async function readReviewReadinessBinding(input: ReviewReadinessReadInput
     return deriveReviewReadinessBinding({ subjectOwner: { kind: "candidate", candidateId: input.candidateId },
       outcomes, evidence, decisions, inFlight: owner?.attempts.filter(({ outcome }) => outcome === "pending") ?? [] });
   } catch (error) {
+    // The store's own refusals reach the command whole; only the derivation's content failures stay incomplete.
+    if (isOffBranchStoreRefusal(error) || error instanceof ProjectIdentityError || error instanceof ReviewOwnerSelectionError) throw error;
     return { status: "incomplete", condition: error instanceof Error ? error.message : String(error) };
   }
 }

@@ -16,6 +16,7 @@ import { recordReferences } from "../../store/identity.js";
 import { CandidateManagedRecordV1Schema } from "../../store/kinds/review/candidate/schema.js";
 import { describeRecordConflicts } from "../../store/conflict-diagnostics.js";
 import { isOffBranchStoreRefusal } from "../../store/refusal-error.js";
+import { ProjectIdentityError } from "../../store/project-identity.js";
 import { PublicationClaimRefusal } from "../../store/kinds/review/integration-boundary/publication.js";
 
 type PublicationReject = (reason: string, refusal?: StoreRefusal, remedy?: Remedy) => Extract<PublishResult, { status: "rejected" }>;
@@ -25,15 +26,17 @@ export async function runStorePublish(ctx: ExecuteTransitionContext & CurrentWuR
   const reject: PublicationReject = (reason, refusal, remedy = refusal?.remedy) => ({ status: "rejected", reason,
     ...(refusal === undefined ? {} : { refusal }),
     remedy: spineRemedy(reason, remedy?.text ?? "Repair the reported publication condition, then retry", remedy?.argv ?? ["arc", "publish", params.name]) });
-  const readinessRemedy: Remedy = { text: "Resolve pre-publication review, then retry publication.",
-    argv: ["arc", "review", "pre-publication", params.name] };
+  const readinessRemedy = prePublicationRemedy(params.name);
   const facts = await inspectPublication(ctx, params, reject);
   if (facts.status !== "ready") return facts;
   const { metaPath } = facts;
   const parsedBoundary = IntegrationBoundaryLocusV2Schema.safeParse(params.boundary);
-  if (!parsedBoundary.success) return reject("Native publication requires a version-two readiness boundary. Run pre-publication review again.");
+  if (!parsedBoundary.success) return reject("Native publication requires a version-two readiness boundary. Run pre-publication review again.",
+    undefined, readinessRemedy);
   const boundaryBasis = parsedBoundary.data;
-  const authorized = await authorizeStoredPublication(params, boundaryBasis);
+  let authorized: SubmissionAuthorization;
+  try { authorized = await authorizeStoredPublication(params, boundaryBasis); }
+  catch (error) { return rejectStoreFailure(error, reject); }
   if (authorized.status === "refused") return reject(authorized.reason, undefined, readinessRemedy);
   const reconciled = await reconcilePublication(ctx, params, metaPath, reject);
   if (reconciled.status !== "ready") return reconciled;
@@ -43,7 +46,9 @@ export async function runStorePublish(ctx: ExecuteTransitionContext & CurrentWuR
   const current = await inspectPublication(ctx, { ...params, ...refreshed }, reject);
   if (current.status !== "ready") return current;
   const { branch, primary } = current;
-  const authorization = await authorizeStoredPublication(params, boundaryBasis, refreshed);
+  let authorization: SubmissionAuthorization;
+  try { authorization = await authorizeStoredPublication(params, boundaryBasis, refreshed); }
+  catch (error) { return rejectStoreFailure(error, reject); }
   if (authorization.status === "refused") return reject(authorization.reason, undefined, readinessRemedy);
   const boundary = projectPublicationBoundary({ workUnit: params.name, branch, candidateId: refreshed.candidateId,
     candidateSubjectDigest: refreshed.candidateSubjectDigest, reservation: authorization.reservation, terminus: authorization.terminus,
@@ -57,10 +62,22 @@ export async function runStorePublish(ctx: ExecuteTransitionContext & CurrentWuR
   return outcome.status === "ok" ? { status: "published", outcome, metaPath, reconcile: applied, boundary } : outcome.status === "rejected" ? reject(outcome.message, outcome.refusal, outcome.remedy) : reject(outcome.message);
 }
 
-/** Reject a refused claim with its own remedy, an off-branch store's refusal whole, or any other failure as it is. */
+/** Send a publication whose readiness no longer holds back to pre-publication review. */
+function prePublicationRemedy(name: string): Remedy {
+  return { text: "Resolve pre-publication review, then retry publication.", argv: ["arc", "review", "pre-publication", name] };
+}
+
+/** Reject an off-branch store's refusal whole and a project-identity failure with its port's remedy; rethrow others. */
+function rejectStoreFailure(error: unknown, reject: PublicationReject): Extract<PublishResult, { status: "rejected" }> {
+  if (isOffBranchStoreRefusal(error)) return reject(error.refusal.condition, error.refusal);
+  if (error instanceof ProjectIdentityError) return reject(error.failure.reason, undefined, error.failure.remedy);
+  throw error;
+}
+
+/** Reject a refused claim with its own remedy, a store or project-identity failure whole, or any other failure as it is. */
 function rejectPublicationClaim(error: unknown, reject: PublicationReject): Extract<PublishResult, { status: "rejected" }> {
   if (error instanceof PublicationClaimRefusal) return reject(error.condition, undefined, error.remedy);
-  if (isOffBranchStoreRefusal(error)) return reject(error.refusal.condition, error.refusal);
+  if (isOffBranchStoreRefusal(error) || error instanceof ProjectIdentityError) return rejectStoreFailure(error, reject);
   return reject(`The publication claim failed: ${String(error)}`);
 }
 
@@ -131,7 +148,8 @@ async function readPublicationCandidate(store: Store, primary: StoreRecord): Pro
 async function resumeIntegratingPublication(params: PublishParams, branch: string, reject: PublicationReject):
   Promise<Extract<PublishResult, { status: "rejected" | "unchanged" }>> {
   const parsed = IntegrationBoundaryLocusV2Schema.safeParse(params.boundary);
-  if (!parsed.success) return reject("Native publication requires a version-two readiness boundary. Run pre-publication review again.");
+  if (!parsed.success) return reject("Native publication requires a version-two readiness boundary. Run pre-publication review again.", undefined,
+    prePublicationRemedy(params.name));
   const boundary = parsed.data;
   if (boundary.candidateId !== params.candidateId || boundary.candidateSubjectDigest !== params.candidateSubjectDigest) {
     return reject("Publication boundary belongs to a different Candidate.");
