@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "refuse-unsharded-ci-leg",
+  "claimId": "6fdda849ac173afcd04245bbe873389e",
+  "createdAt": "2026-10-31T18:16:12.481Z",
+  "updatedAt": "2026-10-31T18:16:12.481Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Refuse an explicit CI shard selector for a selected check without declared shards, with actionable repair and continuation coverage.",
+  "branch": "chore/refuse-unsharded-ci-leg",
+  "origin": "inbox",
+  "originEntry": "Refuse a CI shard leg for a check that declares no shards",
+  "originEntrySourceDigest": "sha256:946e5f1fbac7bdab068bd5ba9748939bc8d589f693551ae92059044424edec9b",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
