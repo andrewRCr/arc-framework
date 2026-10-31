@@ -99,7 +99,7 @@ describe("observed removal", () => {
     it.each([false, true])(`restores a removed ${shape} section after unterminated prose with ${JSON.stringify(newline)}, removal current: %s`, (removalCurrent) => {
       const grammar: EntryListConfig = { shape, sections: ["One"] };
       const prefix = `# Document${newline}<!-- opaque comment -->`;
-      const value = (body: string) => `${shape === "heading" ? "### **Entry**" : "**Memory:**"}${newline}_Id:_ \`11111111\`${newline}${newline}${body}${newline}${newline}`;
+      const value = (body: string) => `${shape === "heading" ? "### **Entry**" : `**Memory:**${newline}_Remove when: done._`}${newline}_Id:_ \`11111111\`${newline}${newline}${body}${newline}${newline}`;
       const base = `${prefix}${newline}${newline}## One${newline}${newline}${value("base")}`;
       const edited = base.replace(`base${newline}`, `edited${newline}`);
       const result = mergeEntryText({ base, current: removalCurrent ? prefix : edited,
@@ -116,7 +116,7 @@ describe("observed removal", () => {
       const grammar: EntryListConfig = { shape, sections: ["One"] };
       const opening = `Opening${newline}<!-- opaque comment -->${newline}${newline}`;
       const heading = `${opening}## One  `;
-      const value = (body: string) => `${shape === "heading" ? "### **Entry**" : "**Memory:**"}${newline}_Id:_ \`11111111\`${newline}${newline}${body}${newline}${newline}`;
+      const value = (body: string) => `${shape === "heading" ? "### **Entry**" : `**Memory:**${newline}_Remove when: done._`}${newline}_Id:_ \`11111111\`${newline}${newline}${body}${newline}${newline}`;
       const base = `${heading}${newline}${newline}${value("base")}`;
       const edited = `${heading}${newline}${newline}${value("edited")}`;
       const input = { base, current: removalCurrent ? heading : edited, incoming: removalCurrent ? edited : heading, record, baseVersion: null, currentLabel, incomingLabel };
@@ -152,7 +152,7 @@ describe("observed removal", () => {
 
   it("ignores comment headings when restoring a field-header entry after section deletion", () => {
     const field: EntryListConfig = {shape:"field-header",sections:["Memories"]};
-    const value = (body:string)=>`**Memory:**\n_Id:_ \`11111111\`\n\n${body}\n\n`;
+    const value = (body:string)=>`**Memory:**\n_Remove when: done._\n_Id:_ \`11111111\`\n\n${body}\n\n`;
     const opening = "Opening\n\n<!--\n## Memories\n-->\n\n";
     const base = `${opening}## Memories\n\n${value("base")}---\nFooter\n`;
     const edited = base.replace("base\n","edited\n");
