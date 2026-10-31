@@ -190,37 +190,48 @@ and explained.
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ The merge gate at `caaebf2ca` passed 19 checks with 4 CI-only checks not selected; its store check
+  reached 320 of 325 suites in six shards. Hosted run `41234990994` at that head, with the portability pair and
+  neither diagnostic input, passed every job; `store-ref-reader-lifetime.test.ts` passed 30 of 30 on Windows and
+  macOS. Merging `main` brought a test Git baseline that stops fetches from starting maintenance, which 4.3 restores
+  for the one case that observes it. Of the earlier hosted-Windows failures outside this change, #1207 on `main`
+  raised the CI build fixtures' hook budget and fixed the advisory lock's stale-breaker wait, and the native writers'
+  duration key remains an Errand; a bounded Windows check found no sign that the operation's readers contribute.
+
+- _Success criteria:_ 11 criteria, all met. Two independent review passes ran to the cap: the first's two major and
+  one minor findings were fixed in 4.R, and the second's two minor findings closed with a fix in 4.R2 and a rejection.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Every public call in the spec's § 3.2 table holds one scope: a traced case shows at most one reader per bound
+- `[x]` Every public call in the spec's § 3.2 table holds one scope: a traced case shows at most one reader per bound
   repository between refresh events and every reader closed before the call returns.
 
-- `[ ]` The migrate and remote command contexts resolve identity through their identity port once.
+- `[x]` The migrate and remote command contexts resolve identity through their identity port once.
 
-- `[ ]` Each refresh-event case passes on Linux in the store check.
+- `[x]` Each refresh-event case passes on Linux in the store check.
 
-- `[ ]` The fetch-and-maintenance and store-directory cases in `store-ref-reader-lifetime.test.ts` pass on Windows with
+- `[x]` The fetch-and-maintenance and store-directory cases in `store-ref-reader-lifetime.test.ts` pass on Windows with
   their outcome checks, in a CI run dispatched at the verified head with `run_portability_pair` set and neither
   diagnostic input set.
 
-- `[ ]` Every existing store suite passes with no assertion removed or weakened, and `lib/store/contract.ts` and
+- `[x]` Every existing store suite passes with no assertion removed or weakened, and `lib/store/contract.ts` and
   `lib/store/refusal.ts` are unchanged.
 
-- `[ ]` A departed store meets the per-read failure and its restart, and a present store's not-found read starts no
+- `[x]` A departed store meets the per-read failure and its restart, and a present store's not-found read starts no
   further process.
 
-- `[ ]` The before-and-after attribution is recorded per file in `notes-store-operation-git-access.md`, and each of the
+- `[x]` The before-and-after attribution is recorded per file in `notes-store-operation-git-access.md`, and each of the
   five prototype files meets its expectation or its shortfall is explained from its per-subcommand split.
 
-- `[ ]` No file under `packages/arc-framework/src/` changes outside `lib/store/ref/` and `lib/git/batch-reader.ts`.
+- `[x]` No file under `packages/arc-framework/src/` changes outside `lib/store/ref/` and `lib/git/batch-reader.ts`.
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
 
-- `[ ]` Imported-claims publisher authority is read fresh before source retirement; publisher disappearance preserves
+- `[x]` Imported-claims publisher authority is read fresh before source retirement; publisher disappearance preserves
   the existing refusal, source refs, and keepers, and retry succeeds after repair (A1).

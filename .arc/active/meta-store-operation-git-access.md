@@ -11,13 +11,14 @@
 - **Design:** `spec-store-operation-git-access.md`
 - **Task List:** `tasks-store-operation-git-access.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:19d83b81f335059ab0ebbbc49b94c8bc76391bae6b62cd49179afcc8d212f6a2`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 4.1.b — Measure at the head and record the comparison (Phases 1–4 complete)
-- **Next Task:** Task 5.1 — Complete verification (line ~152)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 5.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Check pending Windows CI feedback, then load `verify-work-unit.md` for Task 5.1.
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]
