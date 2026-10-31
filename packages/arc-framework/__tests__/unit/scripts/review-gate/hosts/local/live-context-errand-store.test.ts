@@ -3,7 +3,7 @@ import { expect, it, onTestFinished } from "vitest";
 import { createReviewHarness } from "../../../../../helpers/store/review-harness.js";
 import { createReviewCheckout } from "../../../../../helpers/store/review-checkout.js";
 import { TransientIdentityRecordSchema } from "../../../../../../src/lib/errand/identity-record.js";
-import { readLocalReviewLiveContext } from "../../../../../../src/scripts/review-gate/hosts/local/live-context.js";
+import { readLiveErrandClaimId, readLocalReviewLiveContext } from "../../../../../../src/scripts/review-gate/hosts/local/live-context.js";
 import { createRespondDependencies } from "../../../../../../src/scripts/review-gate/runtime/respond-composition.js";
 
 import { ListingDiagnosticSchema } from "../../../../../../src/lib/store/read.js";
@@ -56,6 +56,22 @@ it.each(["lookup", "read"] as const)("names the exact Errand when its %s refuses
   unavailable = false;
   expect(await readLocalReviewLiveContext(input)).toMatchObject({ context: { errand: { identity: "repair", claimId: h.claimId } } });
   expect(await createRespondDependencies(input).resolveActiveErrand()).toEqual({ key: "repair", claimId: h.claimId, branch: h.branch });
+});
+
+it("raises a refused claim read from the live Errand claim match whole, and matches the claim after repair", async () => {
+  const h = await fixture();
+  onTestFinished(h.cleanup);
+  let unavailable = true;
+  const store = Object.create(h.store) as Store;
+  store.lookup = async input => unavailable && input.kind === "claim" ? { status: "refused", refusal: StoreRefusalSchema.parse({
+    code: "namespace-corrupt", class: "terminal", namespace: "work-item", condition: "Exact claim reader is unavailable.",
+    remedy: { text: "Restore the exact claim reader, then retry." } }) } : h.store.lookup(input);
+  const input = { ...h, store };
+  await expect(readLiveErrandClaimId(input, h.claimId)).rejects.toMatchObject({ offBranch: true,
+    refusal: { code: "namespace-corrupt", class: "terminal" } });
+  unavailable = false;
+  expect(await readLiveErrandClaimId(input, h.claimId)).toBe(h.claimId);
+  expect(await readLiveErrandClaimId(input, "2".repeat(32))).toBeNull();
 });
 
 it("keeps exact claims usable beside malformed entries and refuses an incomplete miss until repair", async () => {

@@ -1,6 +1,5 @@
 /** Source-authoritative orchestration for `arc review respond`. */
 import { requireNativeReviewDecisionReferences, withoutReviewDecisionReferences } from "../policy/review-grant-references.js";
-import { isOffBranchStoreRefusal } from "../../../lib/store/refusal-error.js";
 import { ReviewFixTagsSchema, ReviewReportInputSchema } from "../core/review-report-inputs.js";
 import {
   readApprovedResponseReport,
@@ -120,6 +119,7 @@ import {
 } from "../policy/review-policy-driver.js";
 import type { LanePolicyConfig } from "../policy/lane-policy-config.js";
 import type { CommitInterlock, PushInterlock } from "../../../lib/config/resolved-settings.js";
+import { rethrowNativeRefusal, isNativeTypedRefusal } from "../../../lib/store/native-refusal.js";
 
 const AuthorDispositionFieldsSchema = z.strictObject({
   findingId: ReviewFindingIdentitySchema,
@@ -596,6 +596,7 @@ async function parseSourceReference(
   try {
     return await (dependencies.parseSourceReference ?? parseReviewSourceReference)(reference, kind);
   } catch (error) {
+    rethrowNativeRefusal(error);
     throw new RespondCommandError(
       "invalid-input",
       error instanceof Error ? error.message : "malformed review source reference",
@@ -1698,7 +1699,7 @@ export async function respondToReviewCommand(
         ? await resolveFrontlineSource(request.source, dependencies)
         : await resolveHostedSource(request.source, dependencies);
   } catch (error) {
-    if (error instanceof RespondCommandError || isOffBranchStoreRefusal(error)
+    if (error instanceof RespondCommandError || isNativeTypedRefusal(error)
       || (typeof error === "object" && error !== null && "code" in error
         && (error.code === "invalid-input" || error.code === "corrupt-state"))) {
       throw error;

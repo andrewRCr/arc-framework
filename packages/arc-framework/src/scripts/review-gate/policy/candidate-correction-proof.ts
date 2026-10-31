@@ -7,6 +7,7 @@ import { laneSubjectOwnerMatches, type LaneSubjectLineage } from "../core/lane-a
 import type { LaneResponsePerformance } from "../core/operation-state-schema.js";
 import type { ReviewResult } from "../core/review-result.js";
 import type { IncrementalPredecessorApplicability } from "./incremental-coverage-basis.js";
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
 
 type PrivateCandidateCorrectionInput = {
   readonly predecessor: ReviewResult;
@@ -112,7 +113,8 @@ export async function confirmPrivateCandidateCorrectionBasis(
     if (response === null) return "unavailable";
     return await privateCandidateGitProof(input, input.candidate, response)
       ? "applicable" : "unavailable";
-  } catch {
+  } catch (error) {
+    rethrowNativeRefusal(error);
     return "unavailable";
   }
 }

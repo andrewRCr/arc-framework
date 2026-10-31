@@ -1,5 +1,6 @@
 import { nextPassFactsFixture } from "../../../../fixtures/next-pass-facts.js";
 import { approvedRecord, performedFix } from "../../../../fixtures/review-response-proof.js";
+import { nativeListingRefusal } from "../../../../fixtures/native-refusal.js";
 import { firstReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 import { withReviewNextPassContext } from "../../../../fixtures/review-next-pass.js";
 /** Unit coverage for typed non-delivery local review coverage recovery. */
@@ -8,6 +9,7 @@ import { deriveReviewNextPassContext, type ReviewNextPassInput } from "../../../
 import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import { SlugSchema } from "../../../../../src/lib/kernel/schema/slug.js";
 import type { RawGitExec } from "../../../../../src/lib/git/exec.js";
 import { makeGitProcessError, scriptRawGitExec } from "../../../../helpers/git-exec-fake.js";
 import type {
@@ -25,6 +27,7 @@ import type { LaneSubjectLineage } from
 import type { ReviewResult } from
   "../../../../../src/scripts/review-gate/core/review-result.js";
 import {
+  confirmDeliveryMemberIncrementalApplicability,
   confirmErrandFixResponseApplicability,
   confirmNonDeliveryIncrementalApplicability,
   confirmPrivateCandidateCorrectionBasis,
@@ -281,6 +284,44 @@ describe("local review coverage selection", () => {
     expect(exec).not.toHaveBeenCalled();
   });
 
+  it("raises a refused private Candidate response-performance read whole, and weighs the leg once it answers", async () => {
+    const predecessor = { ...completeLocalResult(), originalOutcome: "findings" as const };
+    const currentTarget = target(objectId("b"));
+    const refusal = nativeListingRefusal();
+    let repaired = false;
+    const input = {
+      predecessor, currentTarget, currentLineage: lineage, cwd: "/fixture", baseRef: "main",
+      exec: vi.fn(async () => { throw new Error("Git proof must not run without response authority"); }),
+      observeTarget: async () => currentTarget,
+      readResponsePerformance: async () => { if (!repaired) throw refusal; return null; },
+      candidate: {
+        attestation: { candidateId: lineage.candidateId, workUnit: "example" },
+        transitions: [],
+      } as unknown as CandidateManagedRecordV1,
+    };
+    await expect(confirmPrivateCandidateCorrectionBasis(input)).rejects.toBe(refusal);
+    repaired = true;
+    await expect(confirmPrivateCandidateCorrectionBasis(input)).resolves.toBe("unavailable");
+  });
+
+  it("raises a native refusal observing a delivery member's live target whole, and weighs the member once it reads", async () => {
+    const memberLineage = { kind: "delivery-member" as const, planId: "123e4567-e89b-42d3-a456-426614174000",
+      workUnitId: SlugSchema.parse("example"), deliverableId: digest("member") };
+    const memberTarget = (headSha: string) => createReviewTarget({ schemaVersion: 2, semanticsVersion: "review-gate/v2",
+      kind: "delivery-member", repositoryId: "repo-1", baseRef: "main", diffBaseSha: objectId("0"), diffBaseTree: objectId("1"),
+      headSha, headTree: objectId("2") });
+    const predecessor = { ...completeLocalResult(memberLineage), target: memberTarget(objectId("a")) };
+    const currentTarget = memberTarget(objectId("b"));
+    const refusal = nativeListingRefusal();
+    let repaired = false;
+    const input = { predecessor, currentTarget, currentLineage: memberLineage,
+      exec: vi.fn(async () => { throw new Error("a moved member target must stop before Git"); }),
+      observeTarget: async () => { if (!repaired) throw refusal; return memberTarget(objectId("c")); } };
+    await expect(confirmDeliveryMemberIncrementalApplicability(input)).rejects.toBe(refusal);
+    repaired = true;
+    await expect(confirmDeliveryMemberIncrementalApplicability(input)).resolves.toBe("unavailable");
+  });
+
   it("withholds private correction coverage when the Candidate owner or exact base changes", async () => {
     const predecessor = { ...completeLocalResult(), originalOutcome: "findings" as const };
     const currentTarget = target(objectId("b"));
@@ -522,6 +563,34 @@ describe("local review coverage selection", () => {
       observeTarget: async () => currentTarget,
     })).resolves.toBe("unavailable");
     expect(readResponsePerformance).toHaveBeenCalledOnce();
+  });
+
+  it("raises a native refusal from the Errand performance read whole, and carries the fix once readable", async () => {
+    const errandLineage = {
+      kind: "head-bound" as const, vehicleKind: "errand" as const, vehicleIdentity: "claim-old", headSha: objectId("a"),
+    };
+    const predecessor = {
+      ...fixedLocalResult(errandLineage),
+      originalOutcome: "findings" as const,
+      vehicle: { kind: "errand" as const, identity: "repair-review-state", claimId: "claim-old" },
+      request: { carrier: {
+        kind: "local-change-set", adapterId: "delegated-agent", changeRequestId: null, errandClaimId: "claim-old",
+      } } as Extract<ReviewResult, { kind: "attested-local" }>["request"],
+    };
+    const { targetId: _targetId, ...currentInput } = predecessor.target;
+    void _targetId;
+    const currentTarget = createReviewTarget({ ...currentInput, headSha: objectId("b"), headTree: objectId("c") });
+    const record = approvedRecord(predecessor, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);
+    const performance = { ...performedFix(predecessor, record), producedHeadSha: currentTarget.headSha };
+    const refusal = nativeListingRefusal();
+    let readable = false;
+    const input = { predecessor, currentTarget, currentLineage: { ...errandLineage, headSha: currentTarget.headSha },
+      currentClaimId: "claim-old", observeTarget: async () => currentTarget,
+      dispositionStore: { readDispositionRecord: async () => record },
+      readResponsePerformance: async () => { if (!readable) throw refusal; return performance; } };
+    await expect(confirmErrandFixResponseApplicability(input)).rejects.toBe(refusal);
+    readable = true;
+    await expect(confirmErrandFixResponseApplicability(input)).resolves.toBe("applicable");
   });
 
   it("does not carry an old Errand response into a new claim using the same slug", async () => {

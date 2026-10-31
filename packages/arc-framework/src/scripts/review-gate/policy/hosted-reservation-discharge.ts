@@ -79,6 +79,7 @@ import {
   predecessorMatchesHostedReservationPolicy,
   selectRetainedCoverageAttempts,
 } from "./hosted-reservation-support.js";
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
 export * from "./hosted-reservation-support.js";
 
 type CurrentFindingReferences = Pick<Parameters<typeof projectHostedReservationDischarge>[0],
@@ -688,7 +689,8 @@ export function createHostedReservationDischargeReader(options: ReviewInvocation
       currentHeadSha: string,
     ): Promise<IncrementalReviewScope | null> => {
       if (attempt.producerTarget === undefined) return null;
-      const predecessor = await resultReader.readResult(attempt.attemptId).catch(() => null);
+      const predecessor = await resultReader.readResult(attempt.attemptId)
+        .catch((error: unknown) => { rethrowNativeRefusal(error); return null; });
       if (predecessor === null
         || predecessor.kind === "frontline"
         || (predecessor.kind === "hosted"

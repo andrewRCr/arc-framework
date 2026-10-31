@@ -271,6 +271,38 @@ describe("handleCandidateApplicabilityResolve", () => {
     expect(exitCodes).toEqual([1]);
   });
 
+  it("carries a native refusal from the mutation-owner check with its repair, and continues once repaired", async () => {
+    const output: string[] = [];
+    const request = makeRequest();
+    const refusal = { code: "state-unresolvable" as const, class: "recoverable" as const, historyRefs: [],
+      condition: "The work unit's locus record's objects are missing.",
+      remedy: { text: "Restore or fetch the missing record objects, then retry the read." } };
+    const resolved = { schemaVersion: 1, mode: "candidate-applicability-resolve", state: "resolved", nextAction: "continue",
+      candidateId: request.candidateId, choice: request.choice } as const;
+    let repaired = false;
+    const dependencies = {
+      resolveRoot: () => "/repo",
+      resolveMutationOwner: async () => {
+        if (!repaired) throw new StoreRefusalError(refusal, true);
+        return { status: "owned" as const, workUnit: "example" };
+      },
+      readText: async () => JSON.stringify(request),
+      execute: async () => resolved,
+      write: (text: string) => output.push(text),
+      setExitCode: () => undefined,
+    };
+
+    await handleCandidateApplicabilityResolve("example", "-", undefined, dependencies);
+    expect(JSON.parse(output.join(""))).toEqual({ schemaVersion: 1, mode: "candidate-applicability-resolve",
+      state: "execution-unavailable", nextAction: "stop", reason: "active-work-unit-unavailable", detail: refusal.condition,
+      remedy: { invariant: refusal.condition, text: expect.stringContaining(refusal.remedy.text),
+        argv: ["arc", "candidate", "applicability", "resolve", "example", "-"], stdin: request } });
+    output.length = 0;
+    repaired = true;
+    await handleCandidateApplicabilityResolve("example", "-", undefined, dependencies);
+    expect(JSON.parse(output.join(""))).toEqual(resolved);
+  });
+
   it("rechecks checkout authority before the service mutation boundary", async () => {
     const output: string[] = [];
     const exitCodes: number[] = [];

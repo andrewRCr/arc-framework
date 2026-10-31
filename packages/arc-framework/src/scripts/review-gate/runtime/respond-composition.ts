@@ -112,6 +112,7 @@ import { confirmIncrementalPredecessorApplicability } from
 import type { IncrementalPredecessorApplicability } from
   "../policy/incremental-coverage-basis.js";
 import { stageSingletonPublicationResponse } from "./singleton-publication-response.js";
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
 
 /**
  * Report a subject the branch and its base leave uncollectable under the boundary's own precondition type.
@@ -297,7 +298,8 @@ async function observePinnedCorrectionMember(input: {
       cwd: input.cwd,
       deliveryMembers: input.deliveryMembers,
     });
-  } catch {
+  } catch (error) {
+    rethrowNativeRefusal(error);
     return null;
   }
 }

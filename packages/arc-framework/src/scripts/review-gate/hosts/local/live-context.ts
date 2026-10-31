@@ -20,6 +20,7 @@ import {
 import { resolveIdentity } from "../../../../lib/git/identity.js";
 import { readReviewCheckoutErrandSelection, type ReviewCheckoutErrand } from "./review-errand.js";
 import type { LocalReviewLiveContext } from "./review-authority.js";
+import { rethrowNativeRefusal } from "../../../../lib/store/native-refusal.js";
 
 export interface ResolvedLocalReviewLiveContext {
   context: LocalReviewLiveContext;
@@ -28,6 +29,15 @@ export interface ResolvedLocalReviewLiveContext {
   workItem?: OwnerIdentity;
   /** Exact native claim retained for consumers with a narrower lifecycle filter. */
   errandRecord?: ReviewCheckoutErrand;
+}
+
+/**
+ * The named Errand claim when the checkout's live Errand holds it, or null when none here does. A native store,
+ * project-identity, or owner refusal is raised rather than read as no claim.
+ */
+export async function readLiveErrandClaimId(input: ReviewInvocationInput, claimId: string): Promise<string | null> {
+  const live = await readLocalReviewLiveContext(input).catch((error: unknown) => { rethrowNativeRefusal(error); return null; });
+  return live?.context.errand?.claimId === claimId ? claimId : null;
 }
 
 /** Resolve the current branch to exactly one WU meta or Errand identity record. */

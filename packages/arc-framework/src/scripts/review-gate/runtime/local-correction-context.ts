@@ -6,7 +6,7 @@ import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { ReviewResult } from "../core/review-result.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import { deriveLocalReviewTarget } from "../hosts/local/repository-target.js";
-import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
+import { readLiveErrandClaimId } from "../hosts/local/live-context.js";
 import type { ApprovedDispositionRecordReader, ReviewOperationStateStore } from "../core/ports.js";
 import type { ReviewInvocationInput } from "./invocation.js";
 import { createGhChangeRequestResolutionPort } from "../hosts/github/change-request.js";
@@ -75,13 +75,11 @@ export function createLocalContributionConfirmation(input: {
   ) => {
     if (input.policyTarget.pullRequest === null && currentLineage.kind === "head-bound"
       && currentLineage.vehicleKind === "errand") {
-      const live = await readLocalReviewLiveContext(input.context.input).catch(() => null);
       return confirmErrandFixResponseApplicability({
         predecessor,
         currentTarget,
         currentLineage,
-        currentClaimId: live?.context.errand?.claimId === currentLineage.vehicleIdentity
-          ? live.context.errand.claimId : null,
+        currentClaimId: await readLiveErrandClaimId(input.context.input, currentLineage.vehicleIdentity),
         ...(currentResult === undefined ? {} : { currentResult }),
         observeTarget,
         dispositionStore: input.context.dispositionStore,

@@ -13,6 +13,7 @@ import type { LocalPrepareDependencies, LocalPrepareRequest } from "./local-prep
 import { LocalPrepareCommandError } from "./local-prepare-error.js";
 import type { ReviewNextPassInput } from "../policy/review-next-pass.js";
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
 
 /** Read one work unit's current Candidate boundary, optionally requiring an already resolved lineage. */
 export async function readLocalWorkUnitBoundary(
@@ -39,10 +40,12 @@ export async function readLocalDeltaAdmissionSurface(input: ReviewInvocationInpu
     return "open-pr-errand";
   }
   if (lineage.kind !== "candidate" || input.workUnitId === undefined || pullRequest !== null) return "ordinary";
-  const boundary = await readLocalWorkUnitBoundary(input.cwd, input.workUnitId, lineage.candidateId, { store: input.store, exec: input.exec, owner: input.workItem }).catch(() => null);
+  const boundary = await readLocalWorkUnitBoundary(input.cwd, input.workUnitId, lineage.candidateId,
+    { store: input.store, exec: input.exec, owner: input.workItem })
+    .catch((error: unknown) => { rethrowNativeRefusal(error); return null; });
   if (boundary === null || boundary.locus === "publication-pending" || boundary.locus === "hosted-review-pending"
     || boundary.locus === "delivery-status-required") return "ordinary";
-  const live = await readLocalReviewLiveContext(input).catch(() => null);
+  const live = await readLocalReviewLiveContext(input).catch((error: unknown) => { rethrowNativeRefusal(error); return null; });
   return live?.meta?.state === "Active" && live.context.workUnit?.identity === input.workUnitId
     ? "pre-publication" : "ordinary";
 }

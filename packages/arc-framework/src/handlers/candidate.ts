@@ -406,8 +406,8 @@ async function resolveCandidateMutationScope(
   let owner: CandidateMutationOwner;
   try {
     owner = await deps.resolveMutationOwner(root, interaction);
-  } catch {
-    return { refusal: "active-work-unit-unavailable" };
+  } catch (error) {
+    return { refusal: "active-work-unit-unavailable", cause: error };
   }
   if (owner.status === "unavailable") return { refusal: "active-work-unit-unavailable" };
   if (owner.status === "owned") {

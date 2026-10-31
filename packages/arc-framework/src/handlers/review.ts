@@ -5,6 +5,7 @@ import { readPrePublicationProgress, bindPrePublicationProgress, readAdvancedPre
   type PrePublicationProgress } from "./review-pre-publication-progress.js";
 import { defaultReviewHandlerBoundary, executeReviewHandler, ReviewCommandInputSchema, reviewCommandInputSchema, type ReviewHandlerBoundary } from "./review-handler.js";
 import { reviewCommandError, type ReviewHandlerErrorPhase } from "./review-handler-errors.js";
+import { rethrowNativeRefusal } from "../lib/store/native-refusal.js";
 export { ReviewCommandInputSchema } from "./review-handler.js";
 import { ProjectIdentityError } from "../lib/store/project-identity.js";
 import { requireNativeReviewDecisionReferences } from "../scripts/review-gate/policy/review-grant-references.js";
@@ -189,7 +190,7 @@ import {
   confirmNonDeliveryIncrementalApplicability,
 } from
   "../scripts/review-gate/policy/local-review-coverage-selection.js";
-import { readLocalReviewLiveContext } from
+import { readLiveErrandClaimId, readLocalReviewLiveContext } from
   "../scripts/review-gate/hosts/local/live-context.js";
 import { recordNativeFrontlineSkip, createNativeFrontlineSkipRecorder } from "../scripts/review-gate/runtime/native-frontline-window.js";
 import { createHostedPassJudgmentContext } from "../scripts/review-gate/runtime/native-hosted-pass-judgments.js";
@@ -1120,7 +1121,8 @@ async function acceptDeliveryReviewTerminus(
         };
       }
       return { status: "authorized" as const, ownerIdentity: completed.owner };
-    } catch {
+    } catch (error) {
+      rethrowNativeRefusal(error);
       return direct;
     }
   };
@@ -1665,13 +1667,11 @@ function createResolveContributionConfirmation(input: ReviewInvocationOptions & 
       if (request.target.pullRequest === null
         && current.admission.lineage.kind === "head-bound"
         && current.admission.lineage.vehicleKind === "errand") {
-        const live = await readLocalReviewLiveContext({ ...input, exec, cwd: root }).catch(() => null);
         return confirmErrandFixResponseApplicability({
           predecessor,
           currentTarget: current.target,
           currentLineage: current.admission.lineage,
-          currentClaimId: live?.context.errand?.claimId === current.admission.lineage.vehicleIdentity
-            ? live.context.errand.claimId : null,
+          currentClaimId: await readLiveErrandClaimId({ ...input, exec, cwd: root }, current.admission.lineage.vehicleIdentity),
           currentResult: current,
           observeTarget,
           dispositionStore,
@@ -3266,7 +3266,8 @@ export interface ReviewHostedRequestHandlerDependencies extends HostedReviewHand
 async function indexedErrandClaimIsCurrent(root: string, expectedClaimId: string, exec: GitExec, invocation: ReviewInvocationOptions = {}): Promise<boolean> {
   try {
     return (await readIndexedHostedReviewErrand(root, exec, invocation)).claimId === expectedClaimId;
-  } catch {
+  } catch (error) {
+    rethrowNativeRefusal(error);
     return false;
   }
 }
@@ -3448,7 +3449,8 @@ async function resumeReservedHostedRequest(input: ReviewInvocationOptions & {
       ...(request.vehicle === undefined ? {} : { vehicle: request.vehicle }),
       admitCapacity: false,
     });
-  } catch {
+  } catch (error) {
+    rethrowNativeRefusal(error);
     return projectHostedRequestAdmissionResolution(request, { state: "ambiguous-delivery" });
   }
   if (current.repositoryId !== repositoryId

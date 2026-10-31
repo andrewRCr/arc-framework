@@ -39,6 +39,7 @@ import { projectReviewPolicyCommandRequest } from "./review-policy-command-proje
 import { requireDriverAdmission } from "./review-execution-admission.js";
 import { reconcileReviewFallbackAttempts, reconcileReviewSourceInvocation } from "./review-policy-fallbacks.js";
 import { omitSpentReviewCeilingOverride } from "./review-ceiling-override.js";
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
 
 /** Trusted inputs needed to bind one command request to immutable producer evidence. */
 export interface EvidenceBoundReviewPolicyDependencies {
@@ -313,7 +314,7 @@ export async function readIncrementalPredecessorResponseEvidence(
     });
   const hasFix = dispositions.some(({ disposition }) => disposition === "fix");
   const performance = hasFix && readResponsePerformance !== undefined
-    ? await readResponsePerformance(predecessor).catch(() => null)
+    ? await readResponsePerformance(predecessor).catch((error: unknown) => { rethrowNativeRefusal(error); return null; })
     : null;
   const laneFixPerformed = performance !== null
     && performance.producerId === predecessor.producerId

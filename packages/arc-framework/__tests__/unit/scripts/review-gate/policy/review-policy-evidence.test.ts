@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { cleanHostedResult, findingsHostedResult, approvedRecord, performedFix } from "../../../../fixtures/review-response-proof.js";
 
 import { responsePolicyRequestFixture } from "../../../../fixtures/review-response-policy.js";
+import { nativeListingRefusal } from "../../../../fixtures/native-refusal.js";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import { ApprovedDispositionRecordSchema } from
@@ -297,6 +298,19 @@ describe("evidence-bound review policy", () => {
         locus: "src/example.ts:1",
       }],
     });
+  });
+
+  it("raises a native refusal from the lane performance read whole, and reads the response once readable", async () => {
+    const result = findingsHostedResult(["major"]);
+    const record = approvedRecord(result, [
+      { sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" },
+    ]);
+    const store = dependencies(result, record).dispositionStore, refusal = nativeListingRefusal();
+    await expect(readIncrementalPredecessorResponseEvidence(result, store, () => Promise.reject(refusal))).rejects.toBe(refusal);
+    await expect(readIncrementalPredecessorResponseEvidence(result, store, async () => ({
+      schemaVersion: 1, producerId: result.producerId, dispositionSetId: record.currentDispositionSetId,
+      originatingHeadSha: result.target.headSha, producedHeadSha: objectId("f"), performedAt: "2026-09-11T12:00:00Z",
+    }))).resolves.toMatchObject({ status: "performed" });
   });
 
   it("recognizes exact durable lane performance for a Candidate-owned fix", async () => {

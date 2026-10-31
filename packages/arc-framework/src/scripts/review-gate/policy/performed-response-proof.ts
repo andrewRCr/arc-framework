@@ -10,6 +10,7 @@ import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { IncrementalPredecessorApplicability } from "./incremental-coverage-basis.js";
 import { readIncrementalPredecessorResponseEvidence } from "./review-policy-evidence.js";
 import { confirmPrivateCandidateCorrectionBasis } from "./candidate-correction-proof.js";
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
 
 /** Trusted record readers and optional Candidate Git authority for one correction leg. */
 export interface PerformedResponseProofInput {
@@ -53,7 +54,8 @@ export async function confirmPerformedResponse(
       ...input.candidateProof,
       readResponsePerformance: () => Promise.resolve(performance),
     });
-  } catch {
+  } catch (error) {
+    rethrowNativeRefusal(error);
     return "unavailable";
   }
 }

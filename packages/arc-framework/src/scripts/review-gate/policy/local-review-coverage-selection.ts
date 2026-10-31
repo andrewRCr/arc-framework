@@ -46,6 +46,7 @@ import { nextPassConsiderations } from "./next-pass-offer-text.js";
 import type { NextPassFacts } from "./next-pass-facts-schema.js";
 import type { StandardReviewObligationProjection } from
   "./standard-review-projection-schema.js";
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
 
 export { confirmPrivateCandidateCorrectionBasis } from "./candidate-correction-proof.js";
 
@@ -248,7 +249,8 @@ export async function confirmDeliveryMemberIncrementalApplicability(input: {
     if (proof.status === "accepted") return "applicable";
     return (proof.reason === "contribution-diverged" || proof.reason === "contribution-conflicted")
       && proof.paths.length > 0 ? "review-required" : "unavailable";
-  } catch {
+  } catch (error) {
+    rethrowNativeRefusal(error);
     return "unavailable";
   }
 }
@@ -328,7 +330,8 @@ export async function confirmErrandFixResponseApplicability(
     if (response.status !== "performed") return "unavailable";
     return historicalSuccessor || canonicalize(await input.observeTarget()) === canonicalize(currentTarget)
       ? "applicable" : "unavailable";
-  } catch {
+  } catch (error) {
+    rethrowNativeRefusal(error);
     return "unavailable";
   }
 }
