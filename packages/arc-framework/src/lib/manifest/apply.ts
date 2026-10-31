@@ -226,8 +226,12 @@ export async function applyChangePlan(
 
     const merged = await mergeFileContents(mergeFn, current, effectiveBase, updated);
 
-    await ensureDir(dirname(currentPath), io.mkdir);
-    await io.writeFile(currentPath, merged.content);
+    // Rewriting identical content would let a concurrent reader, such as another update's uncommitted-changes check,
+    // see the file truncated mid-write
+    if (merged.content !== current) {
+      await ensureDir(dirname(currentPath), io.mkdir);
+      await io.writeFile(currentPath, merged.content);
+    }
 
     if (keptLocal) {
       result.pristineRebuilt.push(entry.outputPath);
