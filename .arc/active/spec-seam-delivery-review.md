@@ -417,7 +417,10 @@ since tests import those from the stores. A unit test that stubs a rerouted call
 instead — the typed access's module, or the Candidate history read's — its assertions unchanged. A store read or write
 needs Git where today's file read did not, a write taking the tracked lock and a read with no meta in the tree composing
 lifecycle, so a test that runs a caller outside a repository stubs the typed access. Every mechanism that exists because
-these records ride the branch stays as today's in-repo arm, behind one branch on `stateOffBranch` (§ 14.3).
+these records ride the branch stays as today's in-repo arm, behind one branch on `stateOffBranch` (§ 14.3). A test of a
+caller whose port this change narrows to reads drops that port's write stubs and any assertion that the write was not
+called, the type now refusing it, and a closed inventory of the review gate's modules lists the modules this change adds
+(A29).
 
 #### 3.2 The integration checkpoint binds what it attested
 
@@ -2740,5 +2743,9 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
 
 - **A28** — 2026-10-31 — design: raise a refused or damaged readiness listing as the store's refusal. _Supersedes:_
   § 9.2. _Trigger:_ pass-4 review. _Work:_ review-fix. _Revalidated:_ pending → 8.1.
+
+- **A29** — 2026-10-31 — design: a port narrowed to reads drops its no-write spy; closed inventories list new modules.
+  _Supersedes:_ § 3.1 ¶3, Criterion 2. _Trigger:_ 8.1 terminal. _Work:_ verify-work-unit. _Revalidated:_
+  verify-work-unit.
 
 ---
