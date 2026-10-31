@@ -7,7 +7,6 @@
 - [Spike 1b — moving the file aside](#spike-1b--moving-the-file-aside)
 - [Spike 3 — how editors and agent tools write](#spike-3--how-editors-and-agent-tools-write)
 - [Spike 7 — aside copies against a stale buffer's record](#spike-7--aside-copies-against-a-stale-buffers-record)
-- [Spec review carry-forward](#spec-review-carry-forward)
 
 ## Spike evidence
 
@@ -405,38 +404,3 @@ times as many copies. As § 5.2 first stated it, an absent path never moved on, 
 the person could delete the file, and then lost saves in both; with the mark beside each copy and the removal check
 reading the copies in the persist step's order, it loses nothing in either bound and agrees with the persist step.
 Option 1 amended was not run with the file deleted.
-
-## Spec review carry-forward
-
-The decomposition's specification review (2026-10-30) found these gaps, each inherited from the origin specification,
-which settled them in the task list or not at all. Fold each into this member's specification at its next planning
-review. Task numbers are `tasks-projection-substrate.md`'s.
-
-- **Success criteria for the engine's state.** None tests the racy rule catching a same-tick, same-size save, smudging
-  included (§ 3.3); base-stamp recovery choosing an exact, closest, or empty base (§ 3.5); the stale-buffer base
-  (§ 3.6); the projection lock's 200 ms skip and its rule never to recreate a removed Git directory (§ 3.2); the § 12.6
-  remedies; or the § 11.5 `.gitignore` change. The task list's criterion that the worktree lock, the managed `.ignore`
-  block, and the `.gitignore` change are live before the flip has no specification counterpart.
-- **The configuration read's requirements.** Task 2.5.b settles the keys read, the precedence (the last occurrence
-  wins), `git config`'s exit status 1 for no match, the multi-valued `arc.inflightPin`, and the no-identity verdict's
-  shape; § 15.3 states only the keys.
-- **Design settled only in tasks.** The notice line's form, `<!-- arc-notice: ...`, in the block directly after the
-  stamp (Task 2.5.c); base-stamp recovery's window of the five newest versions (Task 2.6); the `resolveCheckoutGitDir`
-  fallback where `readGitDirectories` throws (Task 2.2.b); and `listArcFiles` skipping `system/.local/`, so `arc health`
-  reports no aside file as new (Task 2.2.c).
-- **§ 1.2's inventory.** It omits `lib/fs.ts`, `lib/advisory-lock.ts` (the exported liveness predicate),
-  `lib/local-vitest-runner.ts`, `lib/change-facts.ts`, and `__tests__/helpers/store/projection/`, which the tasks
-  change.
-- **A refused `history` read for a stopped replacement.** § 3.7 reads the version a stopped replacement replaced, which
-  a file other than Markdown needs to take the closer of the two versions as its base. Where that read refuses
-  `state-unresolvable`, § 3.5 pulls nothing, since only a merge in the checkout for a write is pulled, but says which
-  base the file then takes only for recovery, placement, and a conflicted file, and Task 2.8 tests no refusal. The lean:
-  the file stays pending and reported, written back nowhere, until the read succeeds, as a conflicted file keeps its
-  version, since taking either version without reading it would break § 3.7's rule that old content a stop left is never
-  written back over the newer version.
-- **The guard before a command's first writes.** § 11.2 runs the guard before the projection writes into a root, and its
-  named callers are materialization, refresh, and fan-out, but a command's start writes before its refresh: the sweep
-  links aside copies back (§ 5.4), and write-back's read-back replaces files by the swap
-  (`spec-projection-write-back.md` § 7.1). Nothing names a guard run before those writes. The lean: the start runs the
-  guard's skip check before its sweep, so every write it makes follows the guard, at no cost while no ignore file may
-  have changed.

@@ -68,8 +68,10 @@ and no ARC code locks a worktree. Two facts about today shape the pieces that la
   the machine that wrote it and when, removed by the write that names it in `resolves` (D3, D6). A **hunk** conflict
   locates its clash by a base line range, an **entry** conflict by the entry's `_Id:_`, and a **whole-record** conflict
   replaces a single-writer record changed on both sides (D4).
-- **Notice line** — an HTML comment beside the base stamp, which the store never holds: a protected file's
-  (`spec-projection-write-back.md` § 8.2) or a conflict's (`spec-projection-write-back.md` § 6.3).
+- **Notice line** — an HTML comment opening `<!-- arc-notice:` in the block directly after the base stamp, which the
+  store never holds: a protected file's (`spec-projection-write-back.md` § 8.2) or a conflict's
+  (`spec-projection-write-back.md` § 6.3). Only lines of that form in that block are stripped, so a person's own HTML
+  comment stays content.
 - **Index** — the projection's per-worktree record of what it wrote there (§ 3.1).
 - **Projection lock** — the projection's per-worktree advisory lock over its own reads and writes there (§ 3.2).
   **Worktree lock** — D17's `git worktree lock`, which only blocks a checkout's removal (§ 12.1).
@@ -229,7 +231,10 @@ hardening's surfaces, and the third builds the cross-worktree machinery over the
 change-set forecast against the third mark, about 10,000 changed lines. The Owner kept the three members (2026-10-31):
 each sits at its marks rather than well past them, its task list holds only the origin's tasks for its sections, and its
 specification's growth past them is the terms and sibling contracts a member needs to stand alone, not added scope, so
-one review of each member's change set can hold it.
+one review of each member's change set can hold it. At this member's task generation the boundary read returned "stays
+one WU" with no delivery plan, its review chunks landing together on one branch, and the Owner confirmed the decision
+covers its task list at 1,037 lines, beside a rough change-set estimate of 8,000–11,000 lines, at the third mark
+(2026-10-31).
 
 **Order.** The first depends on nothing outstanding: `seam-lifecycle`, `seam-locus`, and `storage-ref-backend`, which
 the whole design consumes, have shipped. The second depends on the first and on `storage-ref-hardening`, whose listing
@@ -247,6 +252,13 @@ and takes the hardening through it. Every part of a member that consumes another
   settle rule, the replace guard and its take-in port, the aside folder and its sweep, and the exclude writer's path
   list and guard.
 - **`lib/git/exclude.ts`** — `ensureGitExcludePattern` generalized to a path list (§ 11.1).
+- **`lib/layout/projected-roots.ts`** — each projected root's path for one identity and its ignore pattern for every
+  identity, beside the roots it already names (§ 11.1).
+- **`lib/fs.ts`** — an `atomicWriteFile` option that skips its recursive `mkdir`, so no index write recreates a removed
+  worktree's Git directory, and `listArcFiles` skipping `.arc/system/.local/` (§ 3.1, § 5.4).
+- **`lib/advisory-lock.ts`** — the liveness rule its reclaim applies to a holder, exported for the sweep (§ 3.2, § 5.4).
+- **`lib/local-vitest-runner.ts` and `lib/change-facts.ts`** — the projection's tests in the portability tier and its
+  paths in the portability surface (§ 13).
 - **ARC's ignore-block writer** — `arc init` (with `--reconfigure`), `join`, and `update` write ARC's managed block into
   the root `.ignore` through `writeArcGitignoreBlock` (`lib/template/files.ts`) (§ 11.3).
 - **The spawns of a work item's checkout** — the worktree lock as each spawn's last step: a work unit's spawn through
@@ -262,7 +274,8 @@ and takes the hardening through it. Every part of a member that consumes another
   `.ignore` line (§ 11.3, § 11.5).
 - **Text rewritten when the lock lands** — `session-init.md` (`session-init.template.md` in the package, with the
   installed copy) and `strategy-concurrent-work.md` (package and project copies) (§ 12.6).
-- **Tests** — unit and integration tests over the reference backend.
+- **Tests** — unit and integration tests over the reference backend, with a seeded projection and the test store that
+  wraps the reference backend under `__tests__/helpers/store/projection/` (§ 1.5).
 
 #### 1.3 Review chunks and their order
 
@@ -317,6 +330,13 @@ The `MACHINE_LOCAL_PATHS` entries (§ 12.9) are data no code acts on before the 
   and the integration tier drives them over the reference backend, while end-to-end tests cover the dark path and the
   root hooks' wiring.
 - **The live rehearsal:** `storage-cutover`'s, before the flip.
+- **The review's stop rule** (Owner, 2026-10-31). At any pass of the change set's review, every finding in the pieces
+  live before the flip — the worktree lock and its relock, the printed and documented removals, ARC's managed `.ignore`
+  block, and this repository's `.gitignore` change — is fixed, and so is every finding in the engine that loses a save,
+  writes old content over a newer version, or changes an interface § 18 says a sibling member binds, the take-in port,
+  the index schema, and the entry-ID matcher among them. From the third complete pass, any other finding in the engine,
+  which runs dark until `projection-write-back` calls it, is recorded for that member as a capture rather than fixed
+  here. The review stops at the first complete pass that returns none of the findings fixed at every pass.
 - **Before the flip,** the worktree lock is verified live: a spawned checkout carries the lock with
   `PROJECTION_LOCK_REASON`, or keeps a lock another tool set first, and under `PROJECTION_LOCK_REASON` a plain
   `git worktree remove` refuses it and the removal function removes it (§ 12.1).
@@ -413,9 +433,10 @@ lock and the kept copies (§ 3.2, § 3.6). It is registered in `MACHINE_LOCAL_PA
 root, `git-worktree` (§ 12.9), and never stored or synced. It is written by temp-and-rename (`atomicWriteFile`,
 `lib/fs.ts`) under the projection lock and re-read after the lock is taken, as jj does. A command finds the Git
 directory by reading the worktree's `.git` — a folder, or a `gitdir:` file naming it, as a linked worktree's is — with
-no Git call, and the checkout is the primary when that directory holds no `commondir`, being the common one, so the
-start's two Git calls stay two (§ 15.3), and creates `arc-projection/` only inside a Git directory that exists, so no
-write recreates a removed worktree's.
+no Git call (`readGitDirectories`, `lib/git/directories.ts`), and the checkout is the primary when that directory holds
+no `commondir`, being the common one, so the start's two Git calls stay two (§ 15.3); only where neither form reads,
+which that reader reports by throwing, does `resolveCheckoutGitDir` (`lib/git/exec.ts`) run Git. It creates
+`arc-projection/` only inside a Git directory that exists, so no write recreates a removed worktree's.
 
 **An index a command cannot use.** A worktree whose index is missing, unreadable, or of a format version other than the
 running build's, where `spec-projection-worktrees.md` § 2.5 gives it a projection, gets a full materialization that
@@ -522,7 +543,7 @@ D13's content heuristic recovers the base of a file whose stamp was deleted as n
    newest first — takes that version as its base.
 2. Otherwise the base is the closest by line diff — the fewest lines changed — among the candidates the diff matches at
    least one non-blank line with: the index's version, the content the file's last persisted write-back took in (§ 3.6),
-   and a bounded window of the newest versions; that content and then the newer version win a tie. A stale buffer that
+   and a window of the five newest versions; that content and then the newer version win a tie. A stale buffer that
    lost its stamp therefore still merges from its own last save, and the window reaches past the index's version because
    an editor's old buffer saved over a refresh would otherwise merge against the refresh and undo another writer's
    changes.
@@ -542,13 +563,16 @@ checkout; a conflicted file's base (`spec-projection-write-back.md` § 6.6); pla
 (`spec-projection-write-back.md` § 6.3); a single-writer clash's base (`spec-projection-write-back.md` § 7.7); and, for
 a file other than Markdown, the version a stopped replacement replaced (§ 3.7). Each arises only for a file with a stale
 base, an open conflict, a lost stamp, or a stopped replacement, never on a command with none; a command makes at most
-one `history` call per record, shared across the worktrees a fan-out visits; and the backend's own stale-base merge
-reads the same history for that write. Where `history` refuses `state-unresolvable` — an ended item whose history this
-clone has not fetched (`spec-storage-ref-backend.md` § 2.3) — recovery, placement, and a conflicted file's base pull
-nothing at any command: recovery chooses between the index's version and the content taken in alone; placement shows the
-conflict as a notice line; and a conflicted file keeps its version, pending and reported. Only a merge in the checkout
-for a write is pulled, as `spec-projection-write-back.md` § 8.4 pulls for a write the store refuses this way — at
-`arc save` and the persist and release steps, never at another command's start, so no other start waits on the network.
+one `history` call per record between the write-backs it lands to that record, shared across the worktrees a fan-out
+visits, since a write-back's read-back puts the version just written in a file, which no earlier answer holds, and so
+drops the record's memoized answer; and the backend's own stale-base merge reads the same history for that write. Where
+`history` refuses `state-unresolvable` — an ended item whose history this clone has not fetched
+(`spec-storage-ref-backend.md` § 2.3) — recovery, placement, and a conflicted file's base pull nothing at any command:
+recovery chooses between the index's version and the content taken in alone; placement shows the conflict as a notice
+line; and a conflicted file keeps its version, pending and reported. A file other than Markdown a stopped replacement
+left takes neither version, pending and reported (§ 3.7). Only that file's read and a merge in the checkout for a write
+are pulled, as `spec-projection-write-back.md` § 8.4 pulls for a write the store refuses this way — at `arc save` and
+the persist and release steps, never at another command's start, so no other start waits on the network.
 
 #### 3.6 A stale buffer's save
 
@@ -606,7 +630,10 @@ its index entry stands in for it:
   the batch's second index write clears it where the path holds the file the batch linked, and where the link yielded to
   a save (§ 5.5) it stays until the file's next replacement. A file that does not match an entry still holding the
   record takes as its base whichever of the two versions it equals exactly, else the closer of them, so old content a
-  stop left reads as unedited and is refreshed, never written back over the newer version (residual, § 17).
+  stop left reads as unedited and is refreshed, never written back over the newer version (residual, § 17). The closer
+  is chosen over both versions' content, read through `history` (§ 3.5); where that read refuses `state-unresolvable`,
+  the file takes neither version and stays pending and reported, written back nowhere, until a read succeeds, since
+  either taken unread could write old content over the newer version.
 - **Otherwise** it is adopted, merged, and refreshed by the same rules as Markdown, conflict markers included, as Git
   writes them into any file. A protected one carries the read-only mode and the persist refusal but no notice line, and
   a conflict whose markers cannot be placed shows nowhere in it (`spec-projection-write-back.md` § 6.3).
@@ -762,7 +789,8 @@ the racy reference stamp (§ 3.3), which the sweep leaves alone.
   directory may sit on another. Its parent, `.arc/system/.local/`, is a folder for machine-local files alone, beside
   `.internal/`, where tracked machinery sits with ARC's other per-worktree machine-local files. Write-back and adoption
   never scan `.arc/system/`, `arc update` deletes only files its manifest listed (`lib/manifest/apply.ts`), the exclude
-  writer ignores the folder (§ 11.1), and `MACHINE_LOCAL_PATHS` registers it (§ 12.9).
+  writer ignores the folder (§ 11.1), `listArcFiles` (`lib/fs.ts`) skips it as it skips `.internal/`, so `arc health`
+  reports no aside file as new, and `MACHINE_LOCAL_PATHS` registers it (§ 12.9).
 - **Names.** Each aside copy and staged file is named for its role, its file's path, the base blob id of the version it
   replaced, its writer as `lib/advisory-lock.ts` identifies a lock's holder — the process ID with its per-process
   instance, and its process scope as a short digest, since a scope can hold characters a file name cannot — and a
@@ -771,14 +799,16 @@ the racy reference stamp (§ 3.3), which the sweep leaves alone.
   after the first rename — so every command sweeps the folder under the projection lock before write-back reads any file
   — the stat walk may start first, and write-back re-reads the stats of each path the sweep linked back or replaced
   (`spec-projection-write-back.md` § 2.2) — touching only copies and staged files whose writer has exited. A copy whose
-  path is absent and has not moved on (§ 5.2) is linked back, yielding if the path has reappeared; every other copy, and
-  every record whose copy is gone, is handled as § 5.2 states — no edit while the copy holds the blob its swap was
+  path is absent and has not moved on (§ 5.2) is linked back, yielding if the path has reappeared, but for a copy that
+  is a symbolic link, as a swap moves one aside from a projected path (§ 4), which is never followed, read, or linked
+  back: it is deleted as no edit, its path left absent and pending for the next refresh to rebuild; every other copy,
+  and every record whose copy is gone, is handled as § 5.2 states — no edit while the copy holds the blob its swap was
   moving or the blob it held when its own take-in landed, its edit taken in only while its path has not moved on, and
   otherwise kept — and leftover staged files are deleted. With no usable index (§ 3.1) it takes nothing in: a copy whose
-  path is absent is linked back, where `spec-projection-worktrees.md` § 2.5's rule reads it as a file; one whose blob
-  id, its stamp set aside, equals its base's is deleted; and every other stays in the folder, withheld by the new index
-  and reported with its path, left by later sweeps and the persist step until the person deletes it
-  (`spec-projection-worktrees.md` § 2.5).
+  path is absent, a symbolic link excepted, is linked back, where `spec-projection-worktrees.md` § 2.5's rule reads it
+  as a file; one whose blob id, its stamp set aside, equals its base's, or that is a symbolic link, is deleted; and
+  every other stays in the folder, withheld by the new index and reported with its path, left by later sweeps and the
+  persist step until the person deletes it (`spec-projection-worktrees.md` § 2.5).
 - **Liveness.** The sweep judges a writer's liveness as the lock does: a process ID still in use keeps its copies, so a
   reused ID delays the sweep's takeover until that process exits and never loses a copy. A copy carries no lease, so one
   written from another process scope is taken over only by a sweep from that scope, or by a removal's or release's
@@ -827,9 +857,12 @@ for the leaving record, as any removal's does.
 
 `ensureGitExcludePattern` (`lib/git/exclude.ts`) generalizes to a path list — one Git call and one write, which matters
 at Windows' 32–42 ms a Git call. ARC writes the entries once per clone, when it first projects (D13). The list derives
-only from the layout registry's projected roots and the `.arc/system/` paths a source projects
-(`spec-projection-worktrees.md` § 14), never from a list kept by hand, and adds `.arc/system/.local/`, which holds the
-aside folder (§ 5.4). `.arc/user/*/` stays in `.gitignore`, never in the exclude file.
+only from the projected roots the layout names once (`PROJECTED_LIFECYCLE_ROOTS` and `PROJECTED_PERSONAL_ROOT`,
+`lib/layout/projected-roots.ts`) and the `.arc/system/` paths a source projects (`spec-projection-worktrees.md` § 14),
+never from a list kept by hand, and adds `.arc/system/.local/`, which holds the aside folder (§ 5.4). That module gains
+each root's two forms — its path for one identity, which the guard checks, and the pattern ignoring it for every
+identity, which ARC's managed `.ignore` block writes (§ 11.3). `.arc/user/*/` stays in `.gitignore`, never in the
+exclude file.
 
 #### 11.2 The guard
 
@@ -838,17 +871,26 @@ The guard runs where those entries are written and before the projection writes 
 ignores, and `.arc/user/*/` must match a rule whose source is `.gitignore` itself, since `npm pack` reads only
 `.gitignore`. `--no-index` judges the rules alone: without it Git skips a path its index holds entries under, so a root
 holding tracked files would read as not ignored; `-z` keeps a source path holding a colon, a Windows `core.excludesFile`
-among them, intact. A match on a `!` pattern, which `git check-ignore -v` prints and counts as a match, reads as not
-ignored. The refusal is typed and recoverable, naming the missing line, and the projection writes nothing into that root
-until it is repaired.
+among them, intact. A path a `!` pattern re-includes reads as not ignored: Git prints a directory path so re-included
+with an empty source, the case the guard's directory paths meet, and a file path with the `!` pattern itself, which it
+counts as a match (checked on Git 2.55). The refusal is typed and recoverable, naming the missing line, and the
+projection writes nothing into that root until it is repaired. A call that fails otherwise — any exit status but 1, a
+timeout, or a spawn failure — fails closed: a refusal of every root for the command, typed apart from a missing line,
+naming the failure and the remedy of running the command again.
 
 Before a write into a root the guard runs only when an ignore file may have changed. When it passes, the index records,
-for `.git/info/exclude` and each `.gitignore` on the path from the repository root to every projected root and the aside
-folder, whether it exists, its stat, and its blob id, and a command skips the call only when each still matches and none
-is racy against the index's reference (§ 3.3), so a refresh or fan-out pays nothing for it. These records take the
-smudge rule as entries do, each against the blob id recorded beside it: an index write that carries one over unchanged
-while it is racy against the reference it replaces smudges it, so the next write into a root runs the call, an ignore
-file truncated to empty in the guard's tick included.
+for `.git/info/exclude`, each `.gitignore` on the path from the repository root to every projected root and the aside
+folder, and any other file the call names as a match's source, a `core.excludesFile` among them, whether it exists, its
+stat, and its blob id, and a command skips the call only when each still matches and none is racy against the index's
+reference (§ 3.3), so a refresh or fan-out pays nothing for it. These records take the smudge rule as entries do, each
+against the blob id recorded beside it: an index write that carries one over unchanged while it is racy against the
+reference it replaces smudges it, so the next write into a root runs the call, an ignore file truncated to empty in the
+guard's tick included.
+
+A command's first writes come before any refresh: the sweep links aside copies back before write-back reads a file
+(§ 5.4), and write-back's read-back swaps in the edits that landed (`spec-projection-write-back.md` § 7.1). So the sweep
+runs the skip check first and, where an ignore file may have changed, the guard, and returns its verdict; a refusal
+leaves each root it names unwritten for the command, the read-back's writes there included.
 
 #### 11.3 ARC's managed `.ignore` block
 
@@ -1057,6 +1099,11 @@ A command's cost grows with what changed, never with how much state exists. Read
   store read costs alone, 41.7 ms against 41.6 ms on Windows, where one after the other took 64.8 ms (§ Spike 2). The
   projection's cost on Windows is one Git call's time, and on Linux it is noise beside the CLI's own start (about 280 ms
   for `--version`). The guard adds no call while no ignore file may have changed (§ 11.2).
+- **The one configuration read.** It is `git config --null --get-regexp '^(arc\.|user\.name$|extensions\.objectformat$)'`,
+  which prints each match as its lowercased key, a newline, and its value, NUL-terminated, in Git's scope order, and
+  exits 1 where no key is set, read as none set. A single-valued key takes its last occurrence, as `git config --get`
+  returns it, and `arc.inflightPin` takes every occurrence. It returns the settings, or the no-identity verdict § 2.5
+  states, naming the remedy that sets `arc.identity`.
 
 ### 16. Forward amendments to shipped specifications
 
@@ -1161,9 +1208,13 @@ member's siblings depend on it and land after it; their entries, first, state wh
     - binds the take-in port (§ 5.1 here) to write-back, which parses, checks, and sends each edit for the store to
       merge (its § 7), a test double answering it until then;
     - runs this member's sweep, replace guard, and swaps from the command's start and end, which the root hooks call
-      (its § 2.2), and holds the engine's process-wide state, the `history` memo of base-stamp recovery among it (§ 2.1,
-      § 3.5 here);
+      (its § 2.2), and holds the engine's process-wide state, the `history` memo of base-stamp recovery among it, which
+      its read-back of a landed write drops for that record (§ 2.1, § 3.5 here);
     - calls from its ID restore the one entry-ID matcher this member builds (§ 3.6 here; its § 7.1);
+    - pulls, at `arc save` and the persist and release steps, the history ref a stopped replacement's `history` read
+      names, as it pulls for a merge in the checkout (its § 8.4; § 3.5, § 3.7 here);
+    - honors the guard's verdict the sweep returns at the command's start, its read-back writing nothing into a root
+      the guard refused (its § 2.2, § 7.1; § 11.2 here);
     - sets the index fields only write-back fills — the markers, notice lines, and open conflicts a file shows or does
       not (its § 6), the protected mark (its § 8), the changed mark (its § 11.7), what a persisted write-back took in
       (§ 3.6 here), and, in each other aside copy's record, that a write-back of its path has been sent since the copy's
@@ -1177,6 +1228,9 @@ member's siblings depend on it and land after it; their entries, first, state wh
       materialization, refresh, and fan-out write into a root (§ 11.1, § 11.2 here; its § 2.5, § 15.2);
     - fills the removal slots, whose persist and release steps take over aside copies once they settle (§ 5.2 here; its
       § 12.2, § 12.3), the slots passing until then (§ 1.4 here);
+    - passes the command's `history` memo to the worktrees a fan-out visits, one call per record between the write-backs
+      the command lands to it, so a take-in landing mid-fan-out costs the next worktree one more call (§ 3.5 here; its
+      § 2.2);
     - registers the three `.arc/system/.internal/` entries under the `checkout` root this member adds (§ 12.9 here), and
       adds the source interface through which a second source's `.arc/system/` paths join the exclude list, the store,
       the only source built, projecting none (its § 14; § 11.1 here).
@@ -1285,7 +1339,9 @@ _These considerations cover the design the three members build together; § 1.1 
   sets its provenance itself, never from the file (`spec-projection-write-back.md` § 7.4), and the serialization rules
   refuse binary content, oversized records, `.env` files, and private keys (`spec-projection-write-back.md` § 7.5).
 - **Ignore integrity.** The guard keeps every projected path ignored, `.arc/user/*/` in `.gitignore` itself, so no
-  packaging tool ships personal state (§ 11.2).
+  packaging tool ships personal state (§ 11.2), and a routed check's worktree capture (`createWorktreeSnapshot`,
+  `lib/checks/tree.ts`), which stages through Git's ignore rules and never reads `.ignore`, copies no projected state
+  and nothing in the aside folder, ARC's managed `.ignore` block written or not (§ 11.3).
 - **Performance.** The no-change budget is 10 ms on Linux and 60 ms on Windows, with three tripwires measured in place
   (`spec-projection-worktrees.md` § 15.3, § 15.4).
 - **Testing.** Unit and integration tests over the reference backend with real repositories and worktrees, on Linux and
@@ -1323,7 +1379,23 @@ _These considerations cover the design the three members build together; § 1.1 
 3. **The ignore strategy holds.** The guard refuses a projected root no rule ignores and an `.arc/user/*/` rule outside
    `.gitignore`, and succeeds once the line is restored; and `arc init` (with `--reconfigure`), `join`, and `update`
    write ARC's managed `.ignore` block, which re-includes all four roots for ripgrep and keeps a repository's own lines.
-4. **The quality gates pass** at every gate the project declares.
+4. **Change detection sees every save.** A same-size save inside one modification-time tick reads as changed, and still
+   does after a later index write smudges its entry, a file truncated to empty included; and a changed file identity
+   sends a file to the hash (§ 3.3).
+5. **A lost stamp and a stale buffer merge from the right base.** Base-stamp recovery takes the exact version a file's
+   content equals, else the closest candidate, else an empty base, reading `history` at most once per record between
+   the write-backs the command lands to it (§ 3.5); and a save carrying the stamp the file's last persisted write-back
+   read takes the content that write-back took in as its base (§ 3.6).
+6. **The projection lock is bounded.** Taken with the 200 ms bound fan-out and the end use, a sibling's lock held past
+   it is skipped and one released within it is taken; and no acquire, renewal, or release recreates a removed
+   worktree's Git directory (§ 3.2).
+7. **Printed and documented removals name the exits.** Session-init's stale-worktree offer and branch-gone recovery
+   name `arc teardown <name>`; a registration whose folder is missing under the projection's lock takes its typed
+   `arc teardown <name>` where the sweep offers it, and otherwise the remedy that runs `git worktree unlock` before the
+   removal; and `strategy-concurrent-work.md` names the exit verbs and the lock (§ 12.6).
+8. **Live before the flip.** The worktree lock, ARC's managed `.ignore` block, and this repository's `.gitignore`
+   without its `.ignore` line are live before the flip (§ 1.4, § 11.5).
+9. **The quality gates pass** at every gate the project declares.
 
 ## Open Questions
 

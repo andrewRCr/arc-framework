@@ -19,12 +19,11 @@ and passes once the line is restored; `arc init` (with `--reconfigure`), `join`,
 
 _Design decisions:_ This list is the first of three members' that build one design (spec § 1.1, § 1.3):
 `projection-write-back` builds on it, and `projection-worktrees` on both. `seam-lifecycle`, `seam-locus`, and
-`storage-ref-backend` have shipped, so every part that names one of their tasks finds it on base, as 1.1.b takes
-`seam-locus`'s Task 2.1.a address for the personal root. Tests run at the unit and integration tiers over the in-memory
-reference backend (`__tests__/helpers/store/`) and over `createRefStore`: no CLI process runs over either before the
-flip, so E2E covers the dark path and the hooks' wiring alone (§ 1.5).
+`storage-ref-backend` have shipped, so every part that consumes one of them finds it on base. Tests run at the unit and
+integration tiers over the in-memory reference backend (`__tests__/helpers/store/`) and real temporary repositories,
+since no CLI process runs over a store before the flip (§ 1.5).
 
-### `[ ]` **1.1 Write the exclude entries as one path list derived from the layout registry — § 11.1**
+### `[ ]` **1.1 Write the exclude entries as one path list derived from the shared projected roots — § 11.1**
 
 - _Goal:_ One Git call and one write register every exclude entry the projection needs, from one list of projected roots
   that nothing keeps by hand, and every other reader of those roots takes the same list.
@@ -46,26 +45,33 @@ flip, so E2E covers the dark path and the hooks' wiring alone (§ 1.5).
 
         - This creates `lib/store/projection/`, with a README as the store's other folders carry
           (`lib/store/concurrency/README.md`).
-        - One module in `lib/store/projection/` names the projected roots, each resolved through `resolveArcPath`
-          (`lib/layout/projection.ts`): the `active` and `completed` placement roots; the backlog root, which has no
-          address of its own, as the parent the `planned` and `provisional` placement roots and the project inbox
-          (`.arc/backlog/ATOMIC-INBOX.md`) all resolve under; and an identity's personal root through the address
-          `seam-locus` adds for it (its Task 2.1.a). It gives each root in two forms: the path resolved for this
-          checkout's identity, which the guard (1.2) checks, and the pattern that ignores the root for every identity —
-          `.arc/user/*/` for the personal root — which the managed `.ignore` block (1.3) and the Zed settings
-          (`projection-write-back`) write. Each reads this module, never a copy.
-        - The projection's tests live under a `store/projection/` folder of their tier from this first task on (2.1).
-        - The exclude list is the three shared roots plus `.arc/system/.local/`, the folder holding the aside folder
-          (§ 5.4), each as a directory pattern; `.arc/user/*/` stays in `.gitignore` and never enters the exclude file.
-          A source's `.arc/system/` paths join the list (§ 14); the store, the only source built here, projects none.
+        - The roots stay named once, in `lib/layout/projected-roots.ts`: `PROJECTED_LIFECYCLE_ROOTS`, the three shared
+          roots, and `PROJECTED_PERSONAL_ROOT`, the folder holding every identity's personal root, which the module's
+          predicates read — `isProjectedPath`, which `record-links.ts` (`lib/store/kinds/`) calls, and
+          `isProjectedLifecyclePath`, which `src/scripts/audit-links.ts` calls. Beside them this task adds
+          the two forms the projection needs: each root as the path for this checkout's identity, which the guard (1.2)
+          checks, and as the pattern that ignores it for every identity — `.arc/user/*/` for the personal root — which
+          the managed `.ignore` block (1.3) and the Zed settings (`projection-write-back`) write. Each reads this
+          module, never a copy.
+        - Tests of `lib/store/projection/` modules live under a `store/projection/` folder of their tier from this first
+          task on (2.1).
+        - The exclude list, built in `lib/store/projection/` from those roots, is the three shared roots plus
+          `.arc/system/.local/`, the folder holding the aside folder (§ 5.4), each as a directory pattern;
+          `.arc/user/*/` stays in `.gitignore` and never enters the exclude file. A source's `.arc/system/` paths join
+          the list (`spec-projection-worktrees.md` § 14); the store, the only source built here, projects none.
         - The list is written once per clone, when the projection first projects (`projection-worktrees`), so nothing
           calls it before the flip.
         - Build `test-first` (one behavior at a time):
             - the exclude list holds the three shared roots and `.arc/system/.local/`, each with a trailing slash, and
               no `.arc/user` entry
-            - each root is the path the layout resolver returns for its address, and the backlog root is the one parent
-              of both backlog placement roots and the project inbox
-            - the personal root resolves to this identity's folder, and its pattern is `.arc/user/*/`
+            - each shared root is the path `resolveArcPath` (`lib/layout/projection.ts`) returns for its address — the
+              `active` and `completed` placement roots, and for the backlog root, which has no address of its own, the
+              one parent of the `planned` and `provisional` placement roots and the project inbox
+            - an identity's personal root is the path its `user-root` address resolves to, and its pattern is
+              `.arc/user/*/`
+            - at the integration tier, over a real repository: with the exclude list written, a check's worktree
+              capture (`createWorktreeSnapshot`, `lib/checks/tree.ts`) stages nothing under a shared root or
+              `.arc/system/.local/`
 
 ### `[ ]` **1.2 Guard the projected roots with one `git check-ignore` call — § 11.2**
 
@@ -73,35 +79,53 @@ flip, so E2E covers the dark path and the hooks' wiring alone (§ 1.5).
   aside folder ignored, `.arc/user/*/` by `.gitignore` itself, and a refusal names the missing line and clears once it
   is restored.
 
-- _Note:_ The guard's skip — recording each ignore file's existence, stat, and blob id when it passes — lives in the
-  index (2.2), its comparison in 2.4.b, and runs from the refresh's write into a root (`projection-worktrees`); this
-  task builds the call and its verdict.
+- _Note:_ The guard's skip — a snapshot of the ignore files a pass returns, which 2.4.b builds and compares and the
+  index records (2.2) — runs before the sweep's first write (3.3) and a refresh's write into a root
+  (`projection-worktrees`); this task builds the call, its verdict, and the files a pass returns.
 
     - `[ ]` **1.2.a The call and its verdict**
 
-        - One `git check-ignore -z -v --non-matching --no-index --stdin` over the projected roots and the aside
-          folder, each given with its trailing slash, through the stdin executor (`GitExecInput`, `lib/git/exec.ts`).
-          `--no-index` judges the rules alone: without it Git skips a path its index holds entries under, and a root
-          holding tracked files reads as not ignored. The output is four NUL-terminated fields per path — source,
-          line, pattern, path — so a source path holding a colon, such as a Windows `core.excludesFile`, parses intact.
-          A path with an empty source reads as not ignored, which is how a directory path a `!` pattern re-includes
-          comes back.
+        - One `git check-ignore -z -v --non-matching --no-index --stdin` over the projected roots and the aside folder,
+          each given with its trailing slash and NUL-separated, as `-z` makes `--stdin` read its input, through the
+          stdin executor (`GitExecInput`, `lib/git/exec.ts`). `--no-index` judges the rules alone: without it Git skips
+          a path its index holds entries under, and a root holding tracked files reads as not ignored. The output is
+          four NUL-terminated fields per path — source, line, pattern, path — so a source path holding a colon, such as
+          a Windows `core.excludesFile`, parses intact. A path reads as not ignored where its source is empty, as Git
+          returns a directory path a `!` pattern re-includes — the case the guard's directory paths meet — or where its
+          pattern opens with `!`, as Git returns a file path so re-included and counts as a match.
         - Exit status 1, which Git returns when it counts no path ignored, is a verdict, not a failure: the executor
-          throws a `GitProcessError` (`lib/git/process-error.ts`) whose `stdout` still carries every path's fields.
-        - `.arc/user/<identity>/` passes only when its rule's source is the repository's root `.gitignore`, since
-          `npm pack` reads only `.gitignore`; the same path ignored from `.git/info/exclude` refuses.
+          throws a `GitProcessError` (`lib/git/process-error.ts`) whose `stdout` still carries every path's fields. Any
+          other failure — another exit status, a timeout, a cancellation, or a spawn failure (`normalizeGitRejection`)
+          — fails closed: the guard refuses every root for the command, typed apart from a missing rule, naming the
+          failure and the remedy of running the command again.
+        - `.arc/user/<identity>/` passes only when its rule's source is a `.gitignore` inside the repository — the
+          root's or one nested on the path to it, which Git names by a repository-relative path — since `npm pack`
+          reads only those; the same path ignored from `.git/info/exclude`, or from a `core.excludesFile` named
+          `.gitignore` outside the repository, refuses.
         - The refusal is typed and recoverable: it names each path and the line that would ignore it, and the
           projection writes nothing into that root until a later guard passes.
+        - A pass returns the ignore files its verdict rests on: `info/exclude` in the common Git directory, which
+          `readGitDirectories` (`lib/git/directories.ts`) finds with no Git process; each `.gitignore` on the path from
+          the repository root to every projected root and the aside folder, present or not; and every other file the
+          call's output names as a match's source, a `core.excludesFile` among them.
         - Build `test-first` (one behavior at a time):
             - Integration tier, over a real repository
             - with every root ignored and `.arc/user/*/` in `.gitignore`, the guard passes in one call
+            - a pass returns `info/exclude` and each `.gitignore` on the path to every root and the aside folder, an
+              absent one included
             - a root holding a tracked file passes where its rule exists
             - an excludes file whose path holds a colon, set as `core.excludesFile`, parses intact as the source
+            - a root ignored only through `core.excludesFile` passes, and the pass returns that file
             - a projected root no rule ignores refuses naming its missing line, and passes once the line is added
             - with no root ignored, Git's exit status 1 yields a refusal naming every path, not a Git failure
+            - an injected executor failure other than exit status 1 refuses every root, naming the failure, and the next
+              guard that runs passes
             - a root re-included by a `!` pattern refuses as not ignored
             - `.arc/user/*/` ignored only from `.git/info/exclude` refuses naming `.gitignore`, and passes once the line
               moves there
+            - `.arc/user/*/` ignored from a nested `.gitignore` on its path passes
+            - `.arc/user/*/` ignored only through a `core.excludesFile` named `.gitignore` outside the repository refuses
+              naming `.gitignore`
 
 ### `[ ]` **1.3 Write ARC's managed `.ignore` block through the setup verbs — § 11.3**
 
@@ -110,16 +134,20 @@ flip, so E2E covers the dark path and the hooks' wiring alone (§ 1.5).
 
     - `[ ]` **1.3.a The block and its writer**
 
-        - The block's entries negate the pattern that ignores each projected root, read from 1.1.b's module, so this
-          task follows 1.1.b: `!.arc/active/`, `!.arc/backlog/`, `!.arc/completed/`, and `!.arc/user/*/`. A negation
-          re-includes only the path its pattern names, so `!.arc/user/` would re-include the parent alone and leave
-          every `.arc/user/<identity>/` ignored by `.gitignore`'s `.arc/user/*/` (checked with ripgrep 14.1.1).
+        - The block's entries negate the pattern that ignores each projected root, read from
+          `lib/layout/projected-roots.ts` as 1.1.b extends it, so this task follows 1.1.b: `!.arc/active/`,
+          `!.arc/backlog/`, `!.arc/completed/`, and `!.arc/user/*/`. A negation re-includes only the path its pattern
+          names, so `!.arc/user/` would re-include the parent alone and leave every `.arc/user/<identity>/` ignored by
+          `.gitignore`'s `.arc/user/*/` (checked with ripgrep 14.1.1).
         - Written through `writeArcManagedBlock` (`lib/template/files.ts`), which `writeArcGitignoreBlock` wraps and
           which replaces only its own block and keeps every other line. One helper writes both managed ignore blocks,
           so the four verbs share one entry list where each builds the same `.gitignore` list inline today.
         - Build `test-first` (one behavior at a time):
             - an absent `.ignore` gains the block holding the four negations
             - a `.ignore` with a repository's own lines keeps them, and a second write leaves the file unchanged
+            - at the integration tier, over a real repository: with the block written, a check's worktree capture
+              (`createWorktreeSnapshot`) still stages nothing under `.arc/user/<identity>/`, since Git never reads
+              `.ignore`
 
     - `[ ]` **1.3.b The four verbs**
 
@@ -139,6 +167,9 @@ flip, so E2E covers the dark path and the hooks' wiring alone (§ 1.5).
 - _Goal:_ This repository tracks a root `.ignore` holding exactly ARC's managed block, and its `.gitignore` no longer
   ignores `.ignore`.
 
+- _Note:_ ripgrep skips the hidden `.arc/` folder from the repository root unless it is given the path or `--hidden`,
+  so the check below names the path.
+
     - The `.gitignore` loses the `# Marksman LSP exclusions` comment and its `.ignore` line, which sit outside ARC's
       managed block.
     - The root `.ignore` is the block 1.3.a writes and nothing else; the primary's untracked `.ignore`, holding one
@@ -154,20 +185,25 @@ the substrate every later phase reads.
 _Mode:_ `layer` through Phase 3 — closes on the file substrate: what each worktree records, how it detects an edit,
 and how it replaces and removes a file without losing a save.
 
+_Design decisions:_ 2.5 comes before 2.4, since change detection hashes through 2.5's blob ids over the content its
+stamp parsing strips (§ 3.3, § 3.4).
+
 ### `[ ]` **2.1 Run the projection's tests in the portability tier — § 13**
 
-- _Goal:_ Every projection test runs in the portability tier, Phase 1's included — on Linux in each reviewed pull
-  request's `portability` job, and on Windows and macOS in the cross-platform pair, which CI runs on its weekly schedule
-  and on a dispatch with `run_portability_pair`.
+- _Goal:_ Every test of a `lib/store/projection/` module runs in the portability tier, Phase 1's guard and exclude list
+  included — on Linux in the `portability` job of each reviewed pull request not classified light, and on Windows and
+  macOS in the cross-platform pair, which CI runs on its weekly schedule and on a dispatch with `run_portability_pair`.
 
-    - The `portability` selectors in `localVitestTierArguments` (`lib/local-vitest-runner.ts`) gain `store/projection/`,
-      a path no existing test holds ("projection" alone matches fourteen unrelated tests), and every projection test
-      lives under a `store/projection/` folder of its tier.
+    - `PORTABILITY_SUITES`, the filters `localVitestTierArguments` (`lib/local-vitest-runner.ts`) returns for the
+      `portability` tier, gains `store/projection/`, a path no existing test holds ("projection" alone matches nineteen
+      unrelated test files), and every test of a `lib/store/projection/` module lives under a `store/projection/`
+      folder of its tier. A test extending a shipped module's suite — 1.1.a's exclude writer, 1.3.b's verbs, 2.2.c's
+      registry, 2.5.b's identity resolver — stays in that suite and its tier.
     - `PORTABILITY_SURFACE_GLOBS` (`lib/change-facts.ts`) gains the module's source and test paths, so the classifier's
       relevance signal (`portability_target`) reports a change there; no CI job consumes that signal, so it selects
       nothing on a pull request.
-    - Each segment verifier whose exit criterion names Windows or macOS dispatches the pair on the branch with
-      `run_portability_pair: true` and records the run in its completion note.
+    - The task closing a segment whose exit criterion names the portability pair — 3.5, which closes the engine's layer
+      — dispatches the pair on the branch with `run_portability_pair: true` and records the run in its completion note.
     - Build `test-first` (one behavior at a time):
         - `isPortabilitySurfacePath` accepts a projection source file and a projection test file
         - the `portability` tier's selectors match every test under a `store/projection/` folder and no other test file
@@ -209,11 +245,10 @@ and how it replaces and removes a file without losing a save.
           until a refresh removes it (3.4), and a move the store makes later reaches the file through `changes`
           (`projection-worktrees`), so a refresh or removal a file was owed is never dropped. The removal check and the
           persist step re-run the read path rather than trust a mark (`projection-worktrees`).
-        - Beside the entries: the format version; per source, the state version last projected (only the store is built
-          as a source, through the source interface `projection-worktrees` adds); the in-flight view setting, identity,
+        - Beside the entries: the format version; the state version last projected; the in-flight view setting, identity,
           checkout claim, and effective `layout.active` it was projected under; the aside copies withheld at a rebuild,
           by copy name; for each tripwire, its last nine measurements in milliseconds (`projection-worktrees`); and each
-          ignore file's existence, stat, and blob id when the guard last passed (1.2).
+          ignore file's existence, stat, and blob id when the guard last passed (2.4.b).
         - A strict schema, so a field it does not know reads the index as unusable rather than dropping the field.
         - Build `test-first` (one behavior at a time):
             - an index with every field round-trips, bigints included
@@ -227,9 +262,10 @@ and how it replaces and removes a file without losing a save.
           does `resolveCheckoutGitDir` (`lib/git/exec.ts`) run its Git process, so the start's two Git calls stay two
           (§ 15.3) and a fan-out reads each sibling's from its roster path (`projection-worktrees`), skipping one that
           holds no `.git`, or whose aside folder holds no reference stamp, rather than running Git there. One reader
-          returns both directories, `readGitDirectories` (`lib/git/directories.ts`), the one `storage-ref-backend`'s
-          Task 3.1.c builds, which this task takes; it throws where `.git` is missing or its `gitdir:` marker is
-          invalid, so the fallback catches that throw rather than reading a returned failure.
+          returns both directories, `readGitDirectories` (`lib/git/directories.ts`), which the ref backend ships; it
+          throws where `.git` is missing or its `gitdir:` marker is invalid, so the fallback catches that throw rather
+          than reading a returned failure. The checkout is the primary where its Git directory holds no `commondir`,
+          being the common one, as `readGitDirectories` returns it (`commonDir` equal to `gitDir`).
         - `arc-projection/` is created by a non-recursive `mkdir` inside an existing Git directory: a missing Git
           directory fails with `ENOENT`, read as a worktree that is gone. The index is written by temp-and-rename
           under the projection lock and re-read after the lock is taken, through an option on `atomicWriteFile`
@@ -240,6 +276,7 @@ and how it replaces and removes a file without losing a save.
             - Integration tier, over a real repository with a linked worktree
             - the primary's and a linked worktree's Git directories are read from `.git` with no Git process, and each
               index lands in its own Git directory
+            - the primary reads as the primary and a linked worktree does not, with no Git process
             - a `.git` neither form reads, where `readGitDirectories` throws, falls back to `resolveCheckoutGitDir`
             - a write that stops before its rename leaves the previous index readable
             - with the Git directory removed, creating `arc-projection/` fails as gone and creates nothing
@@ -253,8 +290,8 @@ and how it replaces and removes a file without losing a save.
         - Each copy or staged file is named `<base blob id>.<pid>-<instance>-<scope>.<nonce>.<role>`: the base blob id
           of the version it replaced, its writer as the projection lock records a holder (2.3) — its process scope as a
           short hex digest, since a scope string holds characters a file name cannot (`pid:[…]`, `win32:host`) — a
-          per-move nonce, and the role (`aside` or `staged`); no name ends in `.md`, so `lint:md:fix`'s `**/*.md` glob
-          never rewrites a copy. A staged file is created exclusively.
+          per-move nonce, and the role (`aside` or `staged`), so no name ends in `.md`. A staged file is created
+          exclusively.
         - `MACHINE_LOCAL_PATHS` gains `{ root: "checkout", pattern: ".arc/system/.local/**" }`, checkout-relative; the
           registry's `as const` literal admits the new root with no type change. `listArcFiles` (`lib/fs.ts`) skips
           `system/.local/` as it skips `system/.internal/`, so `arc health` reports no aside file as new.
@@ -267,17 +304,21 @@ and how it replaces and removes a file without losing a save.
 
     - `[ ]` **2.2.d An index a command cannot use**
 
-        - Reading returns the index, or `unusable` naming whether it is missing, unreadable, or of another format
-          version; each caller applies its own policy: materialization withholds (`projection-worktrees`), fan-out and
-          the end skip (`projection-worktrees`), the removal check answers `unobservable` (`projection-worktrees`), and
-          the persist and release steps refuse (`projection-worktrees`), the last two naming the remedy — run the
-          removal or release from that checkout.
+        - Reading takes whether the checkout holds a projection and returns the index, no projection, or `unusable`
+          naming whether it is missing, unreadable, or of another format version; each caller applies its own policy:
+          materialization withholds (`projection-worktrees`), fan-out and the end skip (`projection-worktrees`), the
+          removal check answers `unobservable` (`projection-worktrees`), and the persist and release steps refuse
+          (`projection-worktrees`), the last two naming the remedy — run the removal or release from that checkout.
         - A checkout `projection-worktrees` gives no projection and that holds no index reads as no projection, never as
           `unusable`; one that still holds an index — its marker changed under it — is read as any other, so the removal
           check and the persist and release steps act on it (`projection-worktrees`). Until `projection-worktrees`
-          decides which checkouts hold a projection, a checkout holds one exactly when it holds an index.
+          decides which checkouts hold a projection, its callers pass that a checkout holds one exactly when it holds an
+          index.
         - Build `test-first` (one behavior at a time):
-            - a missing, an unreadable, and an older-format index each read as `unusable` with that cause
+            - for a checkout holding a projection, a missing, an unreadable, and an older-format index each read as
+              `unusable` with that cause
+            - a checkout holding no projection and no index reads as no projection
+            - a checkout holding no projection that still holds an index reads that index
 
 ### `[ ]` **2.3 The projection lock — § 3.2**
 
@@ -334,6 +375,57 @@ and how it replaces and removes a file without losing a save.
         - a release whose worktree's Git directory is removed after it reads the holder, through an injected `readFile`,
           recreates nothing and resolves, the guarded operation's result kept
 
+### `[ ]` **2.5 Blob ids, the configuration read, and the base stamp — § 3.4, § 15.3**
+
+- _Goal:_ The projection computes both sides of every content comparison itself — Git blob ids in the repository's
+  object format over LF-normalized content with the stamp and notice lines stripped — reads identity, its settings,
+  and the object format in one Git call, and keeps each base's record version beside its blob id.
+
+    - `[ ]` **2.5.a Blob ids**
+
+        - `blob <length>\0` plus the bytes, hashed by `node:crypto` in SHA-1 or SHA-256, over content whose CRLF is
+          normalized to LF and whose base stamp and notice lines are stripped; never a Git process per file.
+        - Build `test-first` (one behavior at a time):
+            - Integration tier for the comparison with Git
+            - a blob id equals `git hash-object`'s in a SHA-1 and in a SHA-256 repository
+            - CRLF content hashes as its LF form, and a stamp or notice line does not change the blob id
+
+    - `[ ]` **2.5.b The one configuration read**
+
+        - One `git config --null --get-regexp '^(arc\.|user\.name$|extensions\.objectformat$)'`, its keys matched
+          lowercased as Git prints them (`arc.inflightview`), exit status 1 read as no key set. It prints every scope's
+          value in Git's order, so a single-valued key takes its last occurrence, as `git config --get` does, and
+          `arc.inflightPin` collects every occurrence. It yields the object format, SHA-1 where the key is absent; the
+          in-flight view keys (`projection-write-back`); and identity, which the identity owner resolves:
+          `lib/git/identity.ts` exports a pure resolver over already-read `arc.identity` and `user.name` values —
+          `arc.identity` validated, else `user.name` slugified — which `readConfiguredIdentity` and `resolveIdentity`
+          also call, and this read passes its two values to it, so no second identity rule exists.
+        - Git prints each match as its key, a newline, and its value, NUL-terminated (`key\nvalue\0`), so a record
+          splits at its first newline; a record holding none is a key set with no value (`arc.flag\0`).
+        - The read returns a typed verdict: the settings, or no identity or an invalid `arc.identity` with the remedy
+          that sets `arc.identity`. The command start acts on it (`projection-write-back`).
+        - Build `test-first` (one behavior at a time):
+            - one call returns identity, the view keys, and the object format
+            - with no `arc.identity`, identity is `user.name` slugified, through the identity owner's resolver
+            - an invalid `arc.identity` returns the no-identity verdict naming the remedy
+            - a repository with no matching key reads as SHA-1 with no identity and the default view
+            - a key set with no value parses as that key with no value, and the record after it parses intact
+            - with `user.name` and `arc.identity` set in both global and local configuration, the local values win, as
+              `git config --get` returns them
+
+    - `[ ]` **2.5.c The base stamp and notice lines**
+
+        - `<!-- arc-base: <blob id> -->` on a Markdown file's first line, or on the line after its YAML frontmatter
+          where the file opens with one, as D13 places it, and each notice line one HTML comment opening
+          `<!-- arc-notice:` in the block directly after the stamp; rendered, parsed, and stripped in one module, which
+          the conflict notice (`projection-write-back`) and the protected notice (`projection-write-back`) render
+          through. Only lines of that form in that block strip, so a person's own HTML comment stays content.
+        - Build `test-first` (one behavior at a time):
+            - a rendered file parses back to its stamp, its notice lines, and the stored content exactly
+            - a file opening with YAML frontmatter takes the stamp after it, and parses back with its frontmatter whole
+            - a file whose first line, or first line after its frontmatter, is not a stamp reads as stampless
+            - a person's HTML comment under the stamp stays in the content and its blob id
+
 ### `[ ]` **2.4 Detect a change by Git's racy rule — § 3.3, § 11.2**
 
 - _Goal:_ A file reads clean only when its stat matches its entry and its modification time is older than the index's
@@ -363,70 +455,26 @@ and how it replaces and removes a file without losing a save.
           new reference instead. A cached size of zero whose recorded blob id is not the empty blob's always hashes, as
           Git treats a smudged entry, so a save that empties the file is still found. A command that hashes a smudged
           entry clean re-records its stats and writes the index.
-        - The ignore-file stats the guard records (1.2) are smudged by the same rule, each against the blob id recorded
-          beside it. This task builds the comparison the guard's skip reads — each ignore file's recorded existence,
-          stat, and blob id against the file as it is, by the racy rule with smudging, answering changed or unchanged —
-          which `projection-worktrees`' refresh and fan-out call before a write into a root. So an ignore file edited in
+        - This task builds the guard's skip: the snapshot of the ignore files a pass returns (1.2.a) — each one's
+          existence, stat, and blob id (2.5.a) — which the caller records in the index (2.2.a), and the comparison of
+          that record against each file as it is, by the racy rule with smudging, answering changed or unchanged, which
+          the sweep (3.3) and `projection-worktrees`' refresh and fan-out call before a write into a root. The recorded
+          stats are smudged by the same rule, each against the blob id recorded beside it, so an ignore file edited in
           the tick the guard passed, truncated to empty included, still reads as changed after a later index write.
         - Build `test-first` (one behavior at a time):
             - an entry racy at an index write is smudged, and a save in its tick is still found after a later write
             - a smudged entry whose file was truncated to empty is hashed and found
             - a smudged entry that hashes clean is re-recorded with its stats
+            - the snapshot of a pass's ignore files records an absent one as absent, and reads unchanged until one is
+              created, edited, or deleted
             - an ignore file racy at the guard's pass, after a later index write, still reads as changed
             - an ignore file truncated to empty in the guard's tick still reads as changed
-
-### `[ ]` **2.5 Blob ids, the configuration read, and the base stamp — § 3.4, § 15.3**
-
-- _Goal:_ The projection computes both sides of every content comparison itself — Git blob ids in the repository's
-  object format over LF-normalized content with the stamp and notice lines stripped — reads identity, its settings,
-  and the object format in one Git call, and keeps each base's record version beside its blob id.
-
-    - `[ ]` **2.5.a Blob ids**
-
-        - `blob <length>\0` plus the bytes, hashed by `node:crypto` in SHA-1 or SHA-256, over content whose CRLF is
-          normalized to LF and whose base stamp and notice lines are stripped; never a Git process per file.
-        - Build `test-first` (one behavior at a time):
-            - Integration tier for the comparison with Git
-            - a blob id equals `git hash-object`'s in a SHA-1 and in a SHA-256 repository
-            - CRLF content hashes as its LF form, and a stamp or notice line does not change the blob id
-
-    - `[ ]` **2.5.b The one configuration read**
-
-        - One `git config --null --get-regexp '^(arc\.|user\.name$|extensions\.objectformat$)'`, its keys matched
-          lowercased as Git prints them (`arc.inflightview`), exit status 1 read as no key set. It prints every scope's
-          value in Git's order, so a single-valued key takes its last occurrence, as `git config --get` does, and
-          `arc.inflightPin` collects every occurrence. It yields the object format, SHA-1 where the key is absent; the
-          in-flight view keys (`projection-write-back`); and identity, which the identity owner resolves:
-          `lib/git/identity.ts` exports a pure resolver over already-read `arc.identity` and `user.name` values —
-          `arc.identity` validated, else `user.name` slugified — which `readConfiguredIdentity` and `resolveIdentity`
-          also call, and this read passes its two values to it, so no second identity rule exists.
-        - The read returns a typed verdict: the settings, or no identity or an invalid `arc.identity` with the remedy
-          that sets `arc.identity`. The command start acts on it (`projection-write-back`).
-        - Build `test-first` (one behavior at a time):
-            - one call returns identity, the view keys, and the object format
-            - with no `arc.identity`, identity is `user.name` slugified, through the identity owner's resolver
-            - an invalid `arc.identity` returns the no-identity verdict naming the remedy
-            - a repository with no matching key reads as SHA-1 with no identity and the default view
-            - with `user.name` and `arc.identity` set in both global and local configuration, the local values win, as
-              `git config --get` returns them
-
-    - `[ ]` **2.5.c The base stamp and notice lines**
-
-        - `<!-- arc-base: <blob id> -->` on a Markdown file's first line, or on the line after its YAML frontmatter
-          where the file opens with one, as D13 places it, and each notice line one HTML comment opening
-          `<!-- arc-notice:` in the block directly after the stamp; rendered, parsed, and stripped in one module, which
-          the conflict notice (`projection-write-back`) and the protected notice (`projection-write-back`) render
-          through. Only lines of that form in that block strip, so a person's own HTML comment stays content.
-        - Build `test-first` (one behavior at a time):
-            - a rendered file parses back to its stamp, its notice lines, and the stored content exactly
-            - a file opening with YAML frontmatter takes the stamp after it, and parses back with its frontmatter whole
-            - a file whose first line, or first line after its frontmatter, is not a stamp reads as stampless
-            - a person's HTML comment under the stamp stays in the content and its blob id
 
 ### `[ ]` **2.6 Recover a lost base stamp — § 3.5**
 
 - _Goal:_ A file whose stamp was deleted or dropped by a whole-file rewrite merges from the right base — an exact
-  version, else the closest candidate, else empty — reading `history` only where it must, once per record per command.
+  version, else the closest candidate, else empty — reading `history` only where it must, once per record between the
+  write-backs the command lands to it.
 
     - Order: content equal, stamp aside, to the index's version, then to a `history` version newest first, takes that
       version; otherwise the closest — the fewest lines changed in a line diff — among the candidates the diff matches
@@ -436,27 +484,32 @@ and how it replaces and removes a file without losing a save.
     - A stored version taken as the base — the content a persisted write-back took in among them, where 2.7 finds it the
       version the write landed — goes to the store as the expected version; the copy 2.7 keeps otherwise and the empty
       base merge in the checkout (`projection-write-back`).
-    - `history` is memoized per record for the command, the memo passed to the worktrees its fan-out visits and dropped
-      for a record once the command's own write to it lands. The memo is an object its caller holds, which
-      `projection-write-back` places in the engine's process state.
-    - Where `history` refuses `state-unresolvable` — from `storage-ref-backend`'s Task 1.4, tested through 2.9's
-      wrapping store — recovery chooses between the index's version and the content taken in alone and pulls nothing.
+    - `history` is memoized per record for the command, the memo passed to the worktrees its fan-out visits. A memo
+      entry is only ever a whole `history` answer, and the memo's drop removes a record's entry, which 2.7's recording
+      calls once write-back's read-back lands the command's write to the record, since the read-back puts the version
+      just written in a file and no earlier answer holds it; the next read takes the record's whole history, that
+      version included, from one more call. The memo is an object its caller holds, which `projection-write-back`
+      places in the engine's process state.
+    - Where `history` refuses `state-unresolvable` (`lib/store/refusal.ts`), recovery chooses between the index's
+      version and the content taken in alone and pulls nothing — an arm 2.9 builds over its wrapping store.
     - Build `test-first` (one behavior at a time):
         - content equal to an older version takes that version
         - edited content takes the closest candidate, and a tie goes to the content taken in, then the newer version,
           that content seeded through 2.2.a's fields
         - content sharing only blank lines with every version takes an empty base
-        - two files of one record in one command read its `history` once, and a write to it in between reads it again
-        - under a `history` refusing `state-unresolvable`, recovery chooses between the index's version and the content
-          taken in, and records no pull
+        - two files of one record in one command read its `history` once, and a drop of the record's entry between
+          them reads it again
 
 ### `[ ]` **2.7 Keep what a persisted write-back took in — § 3.6**
 
 - _Goal:_ A save carrying the stamp the file's last persisted write-back read merges from what that write-back took in,
   so an editor that never reloads cannot undo what the person changed since.
 
-    - This task builds the index fields and the base selection over them; write-back's read-back
-      (`projection-write-back`) records them.
+    - This task builds the index fields; the recording write-back's read-back (`projection-write-back`) calls with the
+      stamp write-back read, the content taken in, the write's outcome, the record read back, and the command's
+      `history` memo (2.6), which for a persisted write-back sets the fields and drops the record's memo entry (2.6),
+      and for any other outcome leaves both; and the base selection over the fields. Its tests call the recording
+      directly.
     - A persisted write-back is one whose write landed, whether or not the store's merge filed conflicts or an entry was
       refused beside it (`projection-write-back`); one refused whole, by write-back or the store, deferred, skipped, or
       clashing in the checkout (`projection-write-back`) is not one, and leaves these fields as they were. The content
@@ -494,6 +547,8 @@ and how it replaces and removes a file without losing a save.
         - two entries matching one landed entry the same way take neither its ID
         - a file kept after a malformed entry was refused, its stamp unchanged, selects the content that landing took in
           as its base, only the refused entry differing
+        - a persisted write-back's recording drops the record's memo entry, so a later read in the command calls
+          `history` once more and finds the version written
 
 ### `[ ]` **2.8 Files other than Markdown — § 3.7**
 
@@ -513,6 +568,12 @@ and how it replaces and removes a file without losing a save.
     - The entry's version is the base, so a file restored to an older version is an edit. A file not matching an entry
       still holding an in-progress record takes whichever version it equals exactly, by blob id, else the closer of the
       two. An empty one is read only once its modification time is 50 ms old.
+    - The closer of the two is chosen over both versions' content, read through `history` once per record between the
+      write-backs the command lands to it (2.6's memo). Where that read refuses `state-unresolvable`
+      (`lib/store/refusal.ts`), the file takes neither version: it stays pending and reported, written back nowhere,
+      until a read succeeds, since taking either unread could write old content over the newer version — an arm 2.9
+      builds over its wrapping store. `arc save` and the persist and release steps pull the named history ref and retry
+      once (`projection-write-back`); no other command's start pulls.
     - Build `test-first` (one behavior at a time):
         - a stampless file restored to an older version reads as an edit
         - with an in-progress record, the old content reads as unedited and selects the replacing version
@@ -520,26 +581,35 @@ and how it replaces and removes a file without losing a save.
           aside copy of the file leaves it, each deletion clearing the deleted copy's own record
         - an empty stampless file younger than 50 ms waits for the next command
 
-### `[ ]` **2.9 A seeded projection and a wrapping store for tests**
+### `[ ]` **2.9 A seeded projection, a wrapping store for tests, and the `history` refusal's arms — § 3.5, § 3.7**
 
 - _Goal:_ Tests of Phase 3 and of `projection-write-back` start from a real projection — stamped files and a matching
   index — before full materialization (`projection-worktrees`) exists, so no test hand-builds index entries, and one
-  test store returns the `history` refusal the reference backend cannot.
+  test store returns the `history` refusal the reference backend cannot, over which recovery's and a stopped
+  replacement's arms for that refusal are built.
 
     - A helper under `__tests__/helpers/store/projection/` writes the records a store lists at the paths its caller
       gives, stamped and rendered through 2.5.c, and the index 2.2.a describes, in a real temporary repository;
       `projection-worktrees`' full materialization replaces it in the tests that exercise materialization itself.
     - A test store under `__tests__/helpers/store/projection/` wraps the reference backend and returns
-      `state-unresolvable` (`storage-ref-backend`'s Task 1.4) naming a missing history ref on `history` for the records
+      `state-unresolvable` (`lib/store/refusal.ts`) naming a missing history ref on `history` for the records
       a test names, which the reference backend, holding no history refs, cannot (spec § 1.5); `projection-write-back`
       extends it with the write refusals. Its refs take the shipped shape, an owner's lowercase stored UID
       (`HistoryRefSchema`, `lib/store/refusal.ts`), and the history entries it passes through may carry a
       `creationReceipt` (`HistoryEntrySchema`, `lib/store/contract.ts`), since both schemas are strict.
+    - Over that store, this task builds 2.6's and 2.8's arms for a `history` refusing `state-unresolvable`: recovery
+      chooses between the index's version and the content taken in alone and pulls nothing (2.6), and a file with an
+      in-progress record that equals neither version stays pending and reported, written back nowhere, until a read
+      succeeds (2.8).
     - Build `test-first` (one behavior at a time):
         - a seeded worktree's files are clean against its index by the racy rule once the reference is newer than
           them
         - the wrapping store refuses `history` for a named record with a history ref that parses, and passes every
           other call through
+        - under a `history` refusing `state-unresolvable`, recovery chooses between the index's version and the content
+          taken in, and records no pull
+        - under a `history` refusing `state-unresolvable`, a file with an in-progress record that equals neither version
+          stays pending and reported, sends nothing, and records no pull
 
 ## **Phase 3:** Reading and replacing
 
@@ -616,6 +686,12 @@ command's sweep takes over the copies a stopped command left.
           leaves the record; a send that lands nothing leaves it too, which only keeps a copy. Once a copy's take-in
           lands, its entry records the blob id the copy held. 2.8's deletion clears a copy's record, and the sweep drops
           a record whose copy is no longer in the aside folder (3.3).
+        - Every read and every link-back of an aside copy — the first and second checks, a link failing after the move
+          (3.2.b), the sweep and its comparison with no usable index (3.3), a removal's or release's takeover, and the
+          removal check (`projection-worktrees`) — takes an `lstat` first: a copy that is a symbolic link, as a swap
+          moves one aside from a projected path (3.1), answers `no-edit` without being followed or read and is never
+          linked back, its path left absent and pending for the next refresh to rebuild; 2.8's deleters delete it at
+          their usual points.
         - What each answer does where:
             - At the guard: `no-edit` re-records the file's stat as its baseline and replaces it; `taken-in` takes the
               next pass; `deferred`, `pending`, `refused`, and `unparseable` leave the file unreplaced and pending, its
@@ -652,6 +728,8 @@ command's sweep takes over the copies a stopped command left.
               sent since reads as moved on
             - recording a write-back as sent marks every aside copy of the path but the one taken in, and deleting a
               copy clears its record
+            - a symbolic link swapped aside from a projected path is deleted as no edit by the second check, and by a
+              sweep, its target never read
 
     - `[ ]` **3.2.b The swap and its outcomes**
 
@@ -682,11 +760,12 @@ command's sweep takes over the copies a stopped command left.
         - Each outcome leaves the index true: in place, the entry records the new version; a link refused because the
           path reappeared yields to that save, the replaced version still recorded; a move still refused past
           `retryTransientFileSystemRefusal`'s bound (`lib/kernel/fs-retry.ts`) leaves the file in place, its entry
-          restored and pending; a link failing for another reason after the move links the aside copy back, pending.
+          restored and pending; a link failing for another reason after the move links the aside copy back, pending, unless
+          it is a symbolic link (3.2.a).
         - The projection closes its own handles before moving a file; the rename and link run inside the bounded
           retry, and a read-only file moves aside and links in with its mode intact.
-        - Step hooks after the re-check, after the move, and after the first check let tests and the harness (3.5) place
-          a save in each interval.
+        - Step hooks after the re-check, after the move, after the first check, and before a rebuild's link (3.4) let
+          tests and the harness (3.5) place a save in each interval.
         - Build `test-first` (one behavior at a time):
             - a save landing after the re-check, in place or by renaming over the path, lands in the aside copy and is
               taken in
@@ -746,23 +825,34 @@ command's sweep takes over the copies a stopped command left.
 
 - **Additional Context:** `notes-projection-substrate.md` § Spike 7
 
+    - Before its first write, the sweep runs the guard's skip check (2.4.b) and, where an ignore file may have changed,
+      the guard (1.2), recording a pass's snapshot in the index, so every write a command's start makes follows the
+      guard. A refusal leaves each root it names unwritten for the command, no copy linked back into it, and the sweep
+      returns the verdict with the guard's remedy, which write-back's read-back honors (`projection-write-back`).
     - Under the projection lock, before write-back reads any file — the stat walk may start first, and write-back
       re-reads the stats of each path the sweep linked back or replaced (`projection-write-back`) — every command
       touches only the copies and staged files whose writer has exited, judged by the predicate the lock exports (2.3):
-      a copy whose path is absent and has not moved on (3.2.a) is linked back, yielding if the path reappeared; every
-      other copy is read as 3.2.a states — no edit while it holds the blob id its swap was moving or the one it held
-      when its own take-in landed, its edit taken in only while its path has not moved on, a refused or clashed one
-      handled as 3.2.c states, and otherwise kept and reported with its path; leftover staged files are deleted;
-      deleting the aside copy a file's in-progress record names clears the record, through 2.8's deletion, once the file
-      holds what the batch linked; and a copy's record whose copy is no longer in the aside folder — moved back to its
-      path, or never made after a stop — is dropped. The reference stamp is left alone, and a copy the index lists as
-      withheld is left by every sweep until the person deletes it. A copy written from another process scope, which the
-      predicate never reads as exited, since a copy holds no lease, is left and reported with its path.
-    - With no usable index (2.2.d) it takes nothing in: an absent path's copy is linked back, a copy equal to its
-      base is deleted, and every other copy stays and is reported. The sweep returns those copies' names, and the
-      materialization that rebuilds the index records them as withheld (`projection-worktrees`).
+      a copy whose path is absent and has not moved on (3.2.a), a symbolic link excepted, is linked back, yielding if
+      the path reappeared; every other copy is read as 3.2.a states — no edit while it holds the blob id its swap was
+      moving or the one it held when its own take-in landed, its edit taken in only while its path has not moved on, a
+      refused or clashed one handled as 3.2.c states, and otherwise kept and reported with its path; leftover staged
+      files are deleted; deleting the aside copy a file's in-progress record names clears the record, through 2.8's
+      deletion, once the file holds what the batch linked; and a copy's record whose copy is no longer in the aside
+      folder — moved back to its path, or never made after a stop — is dropped. The reference stamp is left alone, and a
+      copy the index lists as withheld is left by every sweep until the person deletes it. A copy written from another
+      process scope, which the predicate never reads as exited, since a copy holds no lease, is left and reported with
+      its path.
+    - With no usable index (2.2.d) it takes nothing in: an absent path's copy, a symbolic link excepted, is linked back,
+      a copy equal to its base, or a symbolic link, is deleted, and every other copy stays and is reported. The sweep
+      returns those copies' names, and the materialization that rebuilds the index records them as withheld
+      (`projection-worktrees`).
     - Build `test-first` (one behavior at a time):
+        - with an ignore line removed since the guard last passed, the sweep runs the guard, links no copy back into the
+          refused root, and returns the refusal; once the line is restored, the next sweep links the copy back
+        - after a sweep whose guard ran and passed, the next sweep, no ignore file changed since, makes no Git call
         - a copy left by an exited writer with its path absent is linked back
+        - a symbolic-link copy whose path is absent after a stop is never linked back: the sweep deletes it as no edit,
+          its target never read, and leaves the path pending
         - a copy holding an edit is taken in, and a live writer's copy is left alone
         - a copy whose writer's process ID now runs another instance of this process is taken over
         - a reused process ID keeps its copies until that process exits
@@ -830,11 +920,16 @@ command's sweep takes over the copies a stopped command left.
       through 3.2.b's step hooks, and by a randomized run of 1,000 saves per save mode within the integration tier's 30
       s budget. The harness requires no lost save in either; a save left in a copy kept because its path moved on
       (3.2.a), reported with its path, is kept rather than lost and counted as its own outcome. Each hook places the
-      save its interval can catch, which must produce that interval's outcome, counted per platform, so a hook that
-      never fires fails the run: after the re-check, an in-place or rename-over save, rescued from the aside copy at the
-      first check; after the move, a save that recreates the path, which the replacement yields to; after the first
-      check, a write through a handle opened before the move, rescued at the second check. The randomized run reports
-      its own count of each outcome, which the second check's rarity can leave at zero.
+      save its interval can catch, which must produce that interval's outcome, counted per platform, so a hook an
+      operation passes through that never fires fails the run: after the re-check, an in-place or rename-over save,
+      rescued from the aside copy at the first check; after the move, a save that recreates the path, which the
+      replacement yields to; after the first check, a write through a handle opened before the move, rescued at the
+      second check. A rebuild, the link alone, has one interval: a save that recreates the absent path before the link
+      wins, and the link yields. A removal has no link: after the re-check, a save is rescued from the aside copy at the
+      first check; after the move, a save that recreates the path keeps the entry pending, and the next command's
+      removal takes its edit in first (3.4); after the first check, a write through a handle opened before the move is
+      rescued at the second check. The randomized run reports its own count of each outcome, which the second check's
+      rarity can leave at zero.
     - It runs in the portability tier (2.1); the Windows and macOS evidence is a dispatched run of the pair, recorded
       in this task's completion note.
 
@@ -876,12 +971,16 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
           `occupyStoreGraduation` rollback run from `commands/start-store.ts`), the fresh-spawn rollback in
           `reconcile-work-unit-worktree.ts`, which a resume's spawn runs too, and the transient claim's
           `rollbackSpawned` (`lib/locus/provisioning-runtime.ts`) — are exempt, since each removes a checkout before its
-          lock exists. Teardown's remaining `isWorktreeClean` reads (`lib/work-unit/verbs/teardown.ts`,
-          `lib/work-unit/store-retirement-husk.ts`) guard husking a checkout in place, returning the primary to base,
-          and a detached husk's cleanup decision (`decideHuskCleanup`, `lib/git/worktree-cleanup.ts`), whose removal
-          runs the removal function through `reconcileWorkUnitWorktree`; the first two remove or move no checkout. A
-          plain `git worktree remove` or `move` of a locked checkout left on base stops this task and is routed to its
-          owning seam member.
+          lock exists, and so is `removeDisposableSpawn` (`lib/work-unit/spawned-worktree-claim.ts`), the plain `git
+          worktree remove` the store forms of the start, graduation, and fresh-spawn rollbacks call. Teardown's
+          decomposition-candidate cleanup (`cleanupGitOwnedDecomposeCandidate`,
+          `lib/work-unit/git-owned-decompose-candidate-cleanup.ts`) removes through the removal function its one
+          production caller injects, its raw removal only a fallback when none is. Teardown's remaining
+          `isWorktreeClean` reads (`lib/work-unit/verbs/teardown.ts`, `lib/work-unit/store-retirement-husk.ts`) guard
+          husking a checkout in place, returning the primary to base, and a detached husk's cleanup decision
+          (`decideHuskCleanup`, `lib/git/worktree-cleanup.ts`), whose removal runs the removal function through
+          `reconcileWorkUnitWorktree`; the first two remove or move no checkout. A plain `git worktree remove` or `move`
+          of a locked checkout left on base stops this task and is routed to its owning seam member.
 
     - `[ ]` **4.1.b The lock at each spawn**
 
@@ -889,9 +988,10 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
           `arc start` after `rollbackSpawnedWorktree`'s window; `arc materialize`; `arc resume` and `arc start` on a
           parked work unit, which re-attach its branch in a fresh worktree (`runResume`,
           `lib/work-unit/verbs/park-resume.ts`); and graduation after its rollback — the in-repo form's in
-          `lib/work-unit/atomic-graduation.ts`, the store form's once `runStoreGraduate`'s transition returns
-          (`commands/start-store.ts`), since its occupation step's rollback runs `git worktree remove --force`, the
-          in-repo form spawning through its own `git worktree add` and every other through `reconcileWorkUnitWorktree`;
+          `lib/work-unit/atomic-graduation.ts`, whose rollback runs `git worktree remove --force`, and the store form's
+          once `runStoreGraduate`'s transition returns (`commands/start-store.ts`), since its occupation step's rollback
+          runs `removeDisposableSpawn`'s plain `git worktree remove` — the in-repo form spawning through its own
+          `git worktree add` and every other through `reconcileWorkUnitWorktree`;
           and an Errand's through `provisionTransientLocus` (`lib/locus/provisioning.ts`) after `rollbackSpawned`'s
           window. The lock, run as `git worktree lock --reason <reason> <path>` with `PROJECTION_LOCK_REASON`, keys on
           the spawn, never on the capability; a checkout claimed with `arc start --here` is never locked; promotion
@@ -899,24 +999,26 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
         - The step locks only a linked worktree the verb placed with `git worktree add` — never a placement in place,
           which `arc start`, `arc materialize`, and `arc resume` under `--here` return as a spawn naming the current
           checkout, and never the primary, which Git refuses to lock. It reads the checkout's roster row first
-          (`scanRegisteredWorktrees`'s `locked`, `lib/git/worktree-roster.ts`, `seam-lifecycle`'s Task 1.6.a), since
+          (`scanRegisteredWorktrees`'s `locked`, `lib/git/worktree-roster.ts`), since
           `git worktree lock` refuses a worktree already locked: unlocked, it locks; locked with
           `PROJECTION_LOCK_REASON`, as a replayed `arc errand open` finds the checkout it reuses (`provisionSpawned`'s
           `path-collision` arm, `lib/locus/provisioning.ts`), it does nothing; locked with any other reason, it leaves
-          that lock and reports it, and the spawn completes.
+          that lock and returns that reason, which the verb prints on stderr as a warning naming the checkout and the
+          reason, and the spawn completes.
         - `PROJECTION_LOCK_REASON` (`lib/git/worktree-removal.ts`) takes the value
           `arc: remove with 'arc teardown' (work unit) or 'arc errand close|abandon|leave' (Errand)`, which Git prints
           after "lock reason:" in its refusal; callers and tests read the constant, never the text.
         - Build `test-first` (one behavior at a time):
             - Integration tier, over real repositories
-            - a work unit's spawn, graduation's in both forms, a resume's, and an Errand's each leave the checkout
-              locked with the reason
+            - a work unit's spawn, `arc materialize`'s, graduation's in both forms, a resume's, and an Errand's each
+              leave the checkout locked with the reason
             - a start whose scaffold fails after the spawn, and a graduation that fails after its spawn, roll back
               without a lock in the way
             - an `arc start --here` checkout carries no lock, and an Errand promoted to a work unit keeps its lock
             - `arc materialize --here` and `arc resume --here` leave their checkout unlocked
             - a replayed `arc errand open` finds its checkout locked with the reason, keeps the lock, and succeeds
-            - a spawned checkout another tool locked first keeps that lock, and the spawn reports it
+            - a spawned checkout another tool locked first keeps that lock, and the spawn's stderr warning names the
+              checkout and that tool's reason
             - a plain `git worktree remove` refuses a locked checkout naming the exits, and the removal function removes
               it
             - `git worktree move -f -f` keeps the lock and its reason
@@ -930,6 +1032,8 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
           `git worktree remove` fails — it runs `git worktree lock --reason <reason> <path>` with
           `PROJECTION_LOCK_REASON` before returning `failed`; a relock that itself fails is named in the result's
           detail with the remedy of locking the checkout again. A failure before the unlock leaves the lock as it was.
+        - Of the three exits after the unlock, the folder `onlyMissing` finds returned is a `return`, not a throw, so
+          the relock covers that return as well as the error path.
         - Build `test-first` (one behavior at a time):
             - Integration tier, over a real repository
             - a `git worktree remove` that fails after the unlock returns `failed` with the checkout locked again with
@@ -987,6 +1091,9 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
           lock, unlocking then removing a missing folder's registration by its path, and that forcing past the lock
           skips the persist step.
         - Edited in the package source and synced to `.arc/`, in the shipped-content register.
+        - _Note:_ `session-init-agenda` moves session-init's orientation surfaces, the cleanup-residue lists among them,
+          into CLI-composed text. Where it has landed first, the stale-worktree offer and the missing-folder remedies
+          live in its composer: re-read both at execution and make the change wherever the text then lives.
 
 ### `[ ]` **4.3 Clear the primary's personal `.ignore` — § 11.5**
 
@@ -1002,11 +1109,15 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
 - _Goal:_ The segment's exit criterion holds on a freshly merged base, the lock live and the slots passing.
 
     - Merge base into the branch (append-only); run `npm ci` first if the merge changed `package-lock.json`.
-    - In this repository, spawn a throwaway work unit and an Errand: confirm each checkout's lock and reason, a plain
-      `git worktree remove`'s refusal naming the exits, `git worktree move -f -f` keeping the lock, and the removal
-      function's removal through `arc teardown` and `arc errand abandon`; claim a checkout with `arc start --here` and
-      confirm it carries no lock, then release it. Confirm 4.1.c's relock cases pass on the merged base, and request
-      `arc check segment`.
+    - In a disposable repository set up with this checkout's built CLI (`arc init`), its `origin` a local bare
+      repository, spawn a throwaway work unit and claim another with `arc start --here`: confirm the spawned checkout's
+      lock and reason, a plain `git worktree remove`'s refusal naming the exits, `git worktree move -f -f` keeping the
+      lock, and no lock on the `--here` checkout; then abandon both with `arc abandon` and, once the spawned one's
+      abandonment has landed on that repository's base, remove its checkout with `arc teardown`. A work unit started in
+      this repository would push its branch here, and under `branch.protection: full` teardown removes an unshipped work
+      unit's checkout only once its abandonment lands on `origin/main` (`lib/work-unit/verbs/teardown.ts`).
+    - In this repository, spawn an Errand: confirm the same lock, refusal, and move, and its removal through
+      `arc errand abandon`. Confirm 4.1.c's relock cases pass on the merged base, and request `arc check segment`.
 
 ## **Phase 5:** Verification
 
@@ -1017,8 +1128,9 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
 ## Success Criteria
 
 - `[ ]` On Linux and in a dispatched run of the portability pair, the save-loss harness loses no save timed into a
-  replacement, a rebuild, or a file removal, a copy whose path moved on kept and reported, but for the residuals the
-  spec's § 17 names.
+  replacement, a rebuild, or a file removal — saved in place or by renaming a new file over it — a copy whose path moved
+  on kept and reported; an absent file is rebuilt by the link alone and yields to a save that recreated it; and the next
+  command's sweep takes over the copies a stopped command left, but for the residuals the spec's § 17 names.
 
 - `[ ]` Before the flip, every checkout ARC spawns for a work unit or an Errand carries `PROJECTION_LOCK_REASON`, or
   keeps a lock another tool set first, reported; under `PROJECTION_LOCK_REASON` a plain `git worktree remove` refuses
@@ -1029,8 +1141,23 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
   once the line is restored; and `arc init` (with `--reconfigure`), `join`, and `update` write the managed `.ignore`
   block, which re-includes the four roots and keeps a repository's own lines.
 
-- `[ ]` Before the flip, the worktree lock, the managed `.ignore` block, and this repository's `.gitignore` change are
-  live.
+- `[ ]` A same-size save inside one modification-time tick reads as changed, and still does after a later index write
+  smudges its entry, a file truncated to empty included; and a changed file identity sends a file to the hash.
+
+- `[ ]` Base-stamp recovery takes the exact version a file's content equals, else the closest candidate, else an empty
+  base, reading `history` at most once per record between the write-backs the command lands to it; and a save carrying
+  the stamp the last persisted write-back read takes the content that write-back took in as its base.
+
+- `[ ]` Taken with the 200 ms bound fan-out and the end use, a sibling's projection lock held past it is skipped and one
+  released within it is taken; and no acquire, renewal, or release recreates a removed worktree's Git directory.
+
+- `[ ]` Session-init's stale-worktree offer and branch-gone recovery name `arc teardown <name>`; a registration whose
+  folder is missing under the projection's lock takes its typed `arc teardown <name>` where the sweep offers it, and
+  otherwise the remedy that runs `git worktree unlock` before the removal; and `strategy-concurrent-work.md` names the
+  exit verbs and the lock.
+
+- `[ ]` Before the flip, the worktree lock, the managed `.ignore` block, and this repository's `.gitignore` without its
+  `.ignore` line are live.
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 
