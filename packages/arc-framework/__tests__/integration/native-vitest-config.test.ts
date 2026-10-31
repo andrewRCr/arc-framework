@@ -1,6 +1,7 @@
 /** The native configuration preserves empty groups alongside completed cases. */
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { stripVTControlCharacters } from "node:util";
 import { afterEach, expect, it } from "vitest";
 import { copyLiveDependencies } from "../helpers/copy-live-dependencies.js";
 import { makeVitestControllerFixture, runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
@@ -26,7 +27,10 @@ it("accepts an empty group beside an executed case under the actual native confi
     + 'describe("partition without cases", () => {});\n'
     + 'it("completed case", () => {});\n');
 
-  const result = await runVitestControllerFixture(fixture.packageRoot, ["unit"], { FORCE_COLOR: undefined });
+  // Exercise colored native summaries independently of the runner's defaults.
+  const result = await runVitestControllerFixture(fixture.packageRoot, ["unit"], {
+    FORCE_COLOR: "1", NO_COLOR: undefined,
+  });
   expect(result.code, result.stdout + result.stderr).toBe(0);
-  expect(result.stdout).toMatch(/Tests\s+1 passed/);
+  expect(stripVTControlCharacters(result.stdout)).toMatch(/Tests\s+1 passed/);
 }, 60_000);
