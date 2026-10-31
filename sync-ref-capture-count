@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "sync-ref-capture-count",
+  "claimId": "00b8e4c8ebac996d67fb159f4787aaa2",
+  "createdAt": "2026-10-31T14:17:06.745Z",
+  "updatedAt": "2026-10-31T14:17:06.745Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Find whether every readSyncRefs capture in a sync call is needed, record the measurement, and route any change",
+  "branch": "chore/sync-ref-capture-count",
+  "origin": "inbox",
+  "originEntry": "Find whether every `readSyncRefs` capture in a sync call is needed",
+  "originEntrySourceDigest": "sha256:2ce5cade100a4155e0051d896c7761beddeaae5cd5141c5dc87cb09e8c8063c2",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
