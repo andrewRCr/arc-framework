@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "concurrent-update-writes",
+  "claimId": "d85f99a30e2f63fb840a91df6e3f73e4",
+  "createdAt": "2026-10-31T04:25:21.677Z",
+  "updatedAt": "2026-10-31T04:25:21.677Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Stop two concurrent arc updates from refusing over each other's in-flight writes",
+  "branch": "chore/concurrent-update-writes",
+  "origin": "inbox",
+  "originEntry": "Stop two concurrent `arc update`s from refusing over each other's in-flight writes",
+  "originEntrySourceDigest": "sha256:3db9bb4872f301d77d7a5d121d5f6b838104683cb6a43a6832c7fe9d43ae22e7",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
