@@ -147,6 +147,16 @@ and explained.
           Per-file and per-subcommand counts, case times, and the sync-conformance shortfall are recorded in
           `notes-store-operation-git-access.md`; A1 is covered by the fresh head measurements and retained store checks.
 
+### `[x]` **4.2 Give the nested-push import case a Windows time budget**
+
+- _Goal:_ `store-ref-reader-lifetime.test.ts`'s nested-push import case passes on Windows, where hosted run
+  `41149894984` timed it out at the 30-second default.
+
+- _Outcome:_ The case takes the 60-second budget of its command-reader siblings; it needs about 33 seconds on Windows
+  against 7 on macOS. The same run's default-layout publishing burst failed with a lock left behind when the sync
+  deadline killed a fetch. That residual belongs to `storage-ref-hardening`'s D2, and the burst passes on Windows at
+  this head.
+
 ## **Phase 5:** Verification
 
 ### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`

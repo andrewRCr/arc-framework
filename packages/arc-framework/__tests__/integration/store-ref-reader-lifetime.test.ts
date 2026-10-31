@@ -391,7 +391,7 @@ it("refreshes the import command around a nested push that first designates orig
   expect((await h.git("git", ["config", "--get", "remote.origin.arc-state"])).stdout.trim()).toBe("push");
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", transientSourceRef])).stdout).toBe("");
   expect((await h.git("git", ["for-each-ref", "--format=%(refname)", keptPrefix])).stdout).toBe("");
-});
+}, 60_000);
 
 it.each(["default", "separate"] as const)("releases command readers before moving the %s layout", async (layout) => {
   const h = await refSyncFixture(layout);
