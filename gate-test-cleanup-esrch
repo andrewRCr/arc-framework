@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "gate-test-cleanup-esrch",
+  "claimId": "8d619995c0e3bbd1c4b139899d7518d1",
+  "createdAt": "2026-10-31T23:49:41.690Z",
+  "updatedAt": "2026-10-31T23:49:41.690Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Accept a vanished provider during gate-test cleanup polling while preserving ownership checks and bounded cleanup.",
+  "branch": "chore/gate-test-cleanup-esrch",
+  "origin": "inbox",
+  "originEntry": "Handle a vanished provider process while polling gate-test cleanup",
+  "originEntrySourceDigest": "sha256:3f9bec298cda712ad8fe6794e404c807550489f5a30cf5b181105b755fc248f8",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
