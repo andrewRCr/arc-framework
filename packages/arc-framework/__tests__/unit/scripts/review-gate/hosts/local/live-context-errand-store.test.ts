@@ -9,6 +9,7 @@ import { createRespondDependencies } from "../../../../../../src/scripts/review-
 import { ListingDiagnosticSchema } from "../../../../../../src/lib/store/read.js";
 import type { Store } from "../../../../../../src/lib/store/contract.js";
 import { StoreRefusalSchema } from "../../../../../../src/lib/store/refusal.js";
+import { describeRecordConflicts } from "../../../../../../src/lib/store/conflict-diagnostics.js";
 
 async function fixture(state: "open" | "awaiting-merge" = "open") {
   const harness = createReviewHarness();
@@ -72,6 +73,24 @@ it("raises a refused claim read from the live Errand claim match whole, and matc
   unavailable = false;
   expect(await readLiveErrandClaimId(input, h.claimId)).toBe(h.claimId);
   expect(await readLiveErrandClaimId(input, "2".repeat(32))).toBeNull();
+});
+
+it("refuses a conflicted Errand claim as the store's typed conflict refusal, naming its records, and reads once resolved", async () => {
+  const h = await fixture();
+  onTestFinished(h.cleanup);
+  let conflicted = true;
+  const store = Object.create(h.store) as Store;
+  store.read = async input => {
+    const read = await h.store.read(input);
+    return conflicted && input.reference.kind === "work-item/record" && read.status === "ok"
+      ? { status: "ok", result: { ...read.result, conflicts: [h.primary.reference] } } : read;
+  };
+  const input = { ...h, store };
+  await expect(readLocalReviewLiveContext(input)).rejects.toMatchObject({ offBranch: true, refusal: {
+    code: "record-malformed", class: "recoverable", reference: h.primary.reference, rule: "review.errand-claim-conflict" },
+  message: `Errand repair has unresolved conflicts.${describeRecordConflicts([h.primary.reference])}` });
+  conflicted = false;
+  expect(await readLocalReviewLiveContext(input)).toMatchObject({ context: { errand: { identity: "repair", claimId: h.claimId } } });
 });
 
 it("keeps exact claims usable beside malformed entries and refuses an incomplete miss until repair", async () => {

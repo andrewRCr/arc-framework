@@ -6,7 +6,7 @@ import type { Store } from "../../../../lib/store/contract.js";
 import type { StoreRecord } from "../../../../lib/store/read.js";
 import { CheckoutClaimSchema } from "../../../../lib/store/lookup.js";
 import { sameReference, type RecordReference, type OwnerIdentity } from "../../../../lib/store/identity.js";
-import { describeRecordConflicts } from "../../../../lib/store/conflict-diagnostics.js";
+import { recordConflictRefusal } from "../../../../lib/store/conflict-diagnostics.js";
 import type { StoreRefusal } from "../../../../lib/store/refusal.js";
 import { StoreRefusalError } from "../../../../lib/store/refusal-error.js";
 
@@ -49,8 +49,10 @@ async function readClaim(store: Store, reference: RecordReference, claim: Errand
     if (read.refusal.code === "not-found") return missingClaim(store, claim);
     throw claimRefusal(store, claim, read.refusal);
   }
-  if (read.result.conflicts.length > 0) throw new Error(
-    `Errand ${claim.slug} has unresolved conflicts.${describeRecordConflicts(read.result.conflicts)}`);
+  if (read.result.conflicts.length > 0) {
+    const refusal = recordConflictRefusal(read.result, `Errand ${claim.slug}`, "review.errand-claim-conflict");
+    throw store.capabilities.stateOffBranch ? new StoreRefusalError(refusal, true) : new Error(`${refusal.condition} ${refusal.remedy.text}`);
+  }
   return { record: decodeClaim(read.result, reference, claim), workItem: read.result.reference.owner };
 }
 
