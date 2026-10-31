@@ -79,7 +79,20 @@ runs under the layout lock."
 answer. The independent configuration write in `store-ref-import-read-only.test.ts` therefore changed the observed
 refusal while retaining the source safely. Its unchanged publisher-disappearance case reproduces the gap.
 
-`RefOperationScope.refreshConfiguration` will expose the existing generation increment and answer-map clear, without
-closing readers. `unpublishedImportClaims` will call it only after finding required claims, immediately before reading
+`RefOperationScope.refreshConfiguration` exposes the existing generation increment and answer-map clear, without
+closing readers. `unpublishedImportClaims` calls it only after finding required claims, immediately before reading
 publisher designation. This retains the execution and lock behavior and refreshes subsequent command lookups too.
 The amendment is determinate and bounded to that authority check; the remaining operation lifetime rules stand.
+
+The unchanged publisher-disappearance case failed before the correction (`142a62789cfd457bb9169c9c00e54a27`) and passed
+after it (`f91ac77569bc4eeb8a9d2bd42818ddff`). The focused import, transient-observation, pending-import,
+reader-lifetime, and operation-configuration run passed all 67 cases (`08be177af1014efeb33604f775af5a71`). The full
+store check passed its 322 selected suites (`6788f164e2b84fc187c9f9a5d7696cd0`), including the full separate-layout
+conformance suites. The two environment-gated burst/timing suites remain outside that selection. Every original
+publisher-refusal assertion and independent configuration write remains unchanged. No lock or reader boundary changed.
+
+The maintenance fixture's Git 2.56 pack geometry was independently reproduced on native Windows: the fresh-record
+fixture failed (`5b8ed58741d94d2a88e64551a27c9aae`), and the corrected fixture passed with the original reader-release,
+pack-removal, and content assertions (`39de6be5098445e8bc1f58d464260926`). The full reader-lifetime file also passed
+all 30 cases on the native store runner (`48913cabaf1141129a58639baf9e0afb`). This focused evidence supplements the
+full store check; hosted diagnostic CI remains feedback rather than work-unit verification evidence.

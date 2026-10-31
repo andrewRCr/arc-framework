@@ -103,7 +103,7 @@ public calls and store-directory moves need.
   the complete port and refreshes before store-directory renames and removals. Public cases cover command reuse,
   nested push designation and remote cleanup, and reader release through layout moves in both directions.
 
-### `[ ]` **3.R Imported claims recheck publisher authority with fresh configuration — A1**
+### `[x]` **3.R Imported claims recheck publisher authority with fresh configuration — A1**
 
 - _Goal:_ A1 preserves the existing publisher-disappearance refusal during import source retirement, including retained
   source refs and keepers and successful retry after repair, without adding a lock or ending the command's readers.
@@ -113,10 +113,10 @@ public calls and store-directory moves need.
           nested calls, and restarts. `unpublishedImportClaims` refreshes after establishing required claims and before
           reading designation, preserving its existing refusal and retained source when the publisher disappears.
 
-    - `[ ]` **3.R.b Verify retained authority and repaired continuation**
-        - Preserve every assertion and the independent configuration write in `store-ref-import-read-only.test.ts`.
-          Its publisher-disappearance case already fails against the cached answer; run it after the correction,
-          then cover transient import, command reader lifetime, and the full store suites before closing Phase 4.
+    - `[x]` **3.R.b Verify retained authority and repaired continuation**
+        - The unchanged publisher-disappearance case preserves refusal, source refs, and keepers, then succeeds after
+          repair. Transient import, operation configuration, command reader lifetime, and the full store check cover
+          the correction; the evidence and its retained boundaries are in `notes-store-operation-git-access.md`.
 
 ## **Phase 4:** The measured cost
 
