@@ -3,14 +3,20 @@
   "slug": "decompose-meta-path-anchor",
   "claimId": "2632c63a57e425eedf78ddb62144a3d8",
   "createdAt": "2026-10-31T01:06:05.374Z",
-  "updatedAt": "2026-10-31T01:06:05.374Z",
+  "updatedAt": "2026-10-31T01:45:58.144Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Anchor decompose's meta-path matchers to the file name so a work unit whose slug starts with meta- no longer breaks every decomposition",
   "branch": "chore/decompose-meta-path-anchor",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/decompose-meta-path-anchor",
+    "headSha": "591a7979848ef70bee14b781485b067c49fcf190"
+  }
 }
