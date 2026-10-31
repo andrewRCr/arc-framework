@@ -28,18 +28,13 @@ since no CLI process runs over a store before the flip (§ 1.5).
 - _Goal:_ One Git call and one write register every exclude entry the projection needs, from one list of projected roots
   that nothing keeps by hand, and every other reader of those roots takes the same list.
 
-    - `[ ]` **1.1.a Generalize the exclude writer to a path list**
+    - `[x]` **1.1.a Generalize the exclude writer to a path list**
 
-        - `ensureGitExcludePatterns(root, patterns, exec, fs)` in `lib/git/exclude.ts`: one
-          `git rev-parse --git-path info/exclude`, one read, and one write appending, in order, each pattern not yet
-          present; nothing is written when every pattern is present. `ensureGitExcludePattern` stays as its
-          one-element call, so `writeEditorDocuments` (`lib/schema-command/editor-documents.ts`) and
-          `ensureWorktreeMarkerIgnored` (`lib/git/worktree-marker.ts`) keep their calls unchanged.
-        - Build `test-first` (one behavior at a time):
-            - several patterns land in one write, in order, after the file's existing content
-            - patterns already present are skipped, and a file holding every pattern is not written
-            - a file without a trailing newline gains one before the first appended pattern
-            - a failed path lookup returns the failure and writes nothing
+        - `ensureGitExcludePatterns(root, patterns, exec, fs)` in `lib/git/exclude.ts` makes one
+          `git rev-parse --git-path info/exclude` call, one read, and at most one write, appending in order each pattern
+          not yet present and writing nothing when every pattern is; `ensureGitExcludePattern` is its one-element call,
+          so `writeEditorDocuments` and `ensureWorktreeMarkerIgnored` keep their calls unchanged. Covered in
+          `unit/git/exclude.test.ts`.
 
     - `[ ]` **1.1.b The projected roots and the exclude list**
 
