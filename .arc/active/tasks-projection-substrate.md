@@ -113,25 +113,17 @@ and how it replaces and removes a file without losing a save.
 _Design decisions:_ 2.5 comes before 2.4, since change detection hashes through 2.5's blob ids over the content its
 stamp parsing strips (§ 3.3, § 3.4).
 
-### `[ ]` **2.1 Run the projection's tests in the portability tier — § 13**
+### `[x]` **2.1 Run the projection's tests in the portability tier — § 13**
 
 - _Goal:_ Every test of a `lib/store/projection/` module runs in the portability tier, Phase 1's guard and exclude list
   included — on Linux in the `portability` job of each reviewed pull request not classified light, and on Windows and
   macOS in the cross-platform pair, which CI runs on its weekly schedule and on a dispatch with `run_portability_pair`.
 
-    - `PORTABILITY_SUITES`, the filters `localVitestTierArguments` (`lib/local-vitest-runner.ts`) returns for the
-      `portability` tier, gains `store/projection/`, a path no existing test holds ("projection" alone matches nineteen
-      unrelated test files), and every test of a `lib/store/projection/` module lives under a `store/projection/`
-      folder of its tier. A test extending a shipped module's suite — 1.1.a's exclude writer, 1.3.b's verbs, 2.2.c's
-      registry, 2.5.b's identity resolver — stays in that suite and its tier.
-    - `PORTABILITY_SURFACE_GLOBS` (`lib/change-facts.ts`) gains the module's source and test paths, so the classifier's
-      relevance signal (`portability_target`) reports a change there; no CI job consumes that signal, so it selects
-      nothing on a pull request.
-    - The task closing a segment whose exit criterion names the portability pair — 3.5, which closes the engine's layer
-      — dispatches the pair on the branch with `run_portability_pair: true` and records the run in its completion note.
-    - Build `test-first` (one behavior at a time):
-        - `isPortabilitySurfacePath` accepts a projection source file and a projection test file
-        - the `portability` tier's selectors match every test under a `store/projection/` folder and no other test file
+- _Outcome:_ `PORTABILITY_SUITES` gains `store/projection/`, which `vitest list` resolves to exactly the projection's
+  three test files; `unit/vitest-controller-logic.test.ts` walks every test file and holds the tier to all of them and no
+  other, where `projection` alone selects nineteen more. `PORTABILITY_SURFACE_GLOBS` gains
+  `src/lib/store/projection/*` and `__tests__/*/store/projection/*`, which also covers 2.9's helpers. Dispatching the
+  pair stays 3.5's.
 
 ### `[ ]` **2.2 The index, the aside folder, and where they live — § 3.1, § 5.4, § 12.9**
 

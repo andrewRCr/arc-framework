@@ -223,6 +223,7 @@ const PORTABILITY_SUITES = [
   "worktree-marker.test.ts",
   "commit-message-retry-store.test.ts",
   "advisory-lock",
+  "store/projection/",
   "user-sync-notes-lock",
   "ref-tree-cas",
   "state-ref-race.e2e",

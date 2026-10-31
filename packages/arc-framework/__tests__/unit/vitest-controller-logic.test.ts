@@ -1,4 +1,6 @@
 /** Direct run-mode policies preserve configured membership, execution, and failure semantics. */
+import { readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 import type { TestResult, TestSpecification } from "vitest/node";
 import { normalizeVitestOptions } from "../../src/lib/vitest-discovery.js";
@@ -103,6 +105,17 @@ it("retains each native portability boundary on the portability tier", () => {
     "store-ref-separate-conformance-reads.test.ts", "store-ref-separate-conformance-sync.test.ts",
     "store-ref-timing.test.ts", "store-ref-timing-isolation.test.ts",
   ]));
+});
+
+it("selects every test under a store/projection/ folder, and no other test file, on the portability tier", () => {
+  const tests = readdirSync(fileURLToPath(new URL("..", import.meta.url)), { recursive: true, encoding: "utf8" })
+    .map((path) => path.replaceAll("\\", "/")).filter((path) => /\.test\.ts$/u.test(path));
+  const isProjectionTest = (path: string) => /(^|\/)store\/projection\//u.test(path);
+  const projection = tests.filter(isProjectionTest);
+  expect(projection.length).toBeGreaterThan(0);
+  const selectors = localVitestTierArguments("portability").filter((selector) => projection.some((path) => path.includes(selector)));
+  expect(projection.filter((path) => !selectors.some((selector) => path.includes(selector)))).toEqual([]);
+  expect(tests.filter((path) => !isProjectionTest(path) && selectors.some((selector) => path.includes(selector)))).toEqual([]);
 });
 
 it.each(["raw-git-files.test.ts", "check-source-git.test.ts"])("selects actual raw-file portability cases: %s", path => {

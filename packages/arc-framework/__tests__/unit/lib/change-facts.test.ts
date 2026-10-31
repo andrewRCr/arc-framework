@@ -88,6 +88,15 @@ describe("routed shard and native writer portability surface", () => {
   });
 });
 
+describe("projection portability surface", () => {
+  it.each([
+    "src/lib/store/projection/ignore-guard.ts", "__tests__/unit/store/projection/excludes.test.ts",
+    "__tests__/integration/store/projection/ignore-guard.test.ts",
+  ])("targets projection path %s", path => {
+    expect(isPortabilitySurfacePath(`packages/arc-framework/${path}`)).toBe(true);
+  });
+});
+
 describe("retired unmanaged content", () => {
   it("does not select code or sensitive-content gates for inert residue", () => {
     expect(isCodeSurfacePath(".arc/system/extensions/inert.md")).toBe(false);
