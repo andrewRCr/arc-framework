@@ -1,8 +1,8 @@
 # Metadata: Projection Substrate
 
-| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
-| ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
+| **State**  | **Owner** | **Branch**                  | **Class** | **Priority** |
+| ---------- | --------- | --------------------------- | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/projection-substrate` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-projection`
 - **Depends On:** [none]
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin generate-tasks
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
