@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "wrapped-memory-title",
+  "claimId": "5169066f40941fbdfdd46d4d5c360be8",
+  "createdAt": "2026-10-31T02:52:36.170Z",
+  "updatedAt": "2026-10-31T02:52:36.170Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Parse wrapped working-memory titles without losing entry bytes",
+  "branch": "chore/wrapped-memory-title",
+  "origin": "inbox",
+  "originEntry": "Accept a wrapped bold title in a working-memory entry",
+  "originEntrySourceDigest": "sha256:3590dd41ae026781bcb81344c940ca378d0e90101406962bad40ab853fae7c8f",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
