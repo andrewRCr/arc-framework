@@ -186,6 +186,19 @@ it("confirms a private native frontline response without a Candidate file or loc
   expect(await confirmCandidateResponseAction({ ...input, action: confirmed.action })).toEqual({ state: "confirmed" });
 }, 30_000);
 
+it("raises a native refusal re-reading a pinned response whole at merge, and confirms it once the store reads", async () => {
+  const f = await fixture("private-frontline");
+  const input = { ...f.invocation, workUnit: "example", approvedHead: f.approvedHead,
+    approvedBase: f.approvedBase, approved: f.record };
+  const confirmed = await composeCandidateResponseConfirmation(input);
+  if (confirmed === null) throw new Error("expected private confirmation");
+  f.reference.store.state.corrupt = true;
+  await expect(confirmCandidateResponseAction({ ...input, action: confirmed.action })).rejects.toMatchObject({ offBranch: true,
+    refusal: { code: "namespace-corrupt" } });
+  f.reference.store.state.corrupt = false;
+  expect(await confirmCandidateResponseAction({ ...input, action: confirmed.action })).toEqual({ state: "confirmed" });
+}, 30_000);
+
 it("composes native local settlement from its outcome and policy snapshot without an operation record", async () => {
   const f = await fixture("local");
   const before = await f.reference.store.version();

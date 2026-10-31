@@ -29,6 +29,7 @@ import {
   composeCandidateResponseConfirmationAction,
   type CandidateResponseConfirmationAction,
 } from "./settlement-plan.js";
+import { rethrowNativeRefusal } from "../../lib/store/native-refusal.js";
 
 /**
  * Candidate-span order used for both ordinary and private-response settlement composition.
@@ -259,7 +260,8 @@ export async function confirmCandidateResponseAction(options: ReviewInvocationIn
     return recomposed !== null && canonicalize(recomposed.action) === canonicalize(input.action)
       ? { state: "confirmed" }
       : { state: "invalidated", reason: "stale" };
-  } catch {
+  } catch (error) {
+    rethrowNativeRefusal(error);
     return { state: "invalidated", reason: "ambiguous" };
   }
 }

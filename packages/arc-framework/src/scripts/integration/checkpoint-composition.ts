@@ -126,6 +126,7 @@ import { persistIntegrationCheckpointComposition } from "./checkpoint-store.js";
 import { createLineageReviewComposer } from "./lineage-review-composition.js";
 import { composeCanonicalSettlementPlan } from "./settlement-plan.js";
 import { composeDeliveryCheckpointArm } from "./delivery-checkpoint.js";
+import { rethrowNativeRefusal } from "../../lib/store/native-refusal.js";
 
 export interface CachedCandidate {
   record: CandidateManagedRecordV1;
@@ -610,7 +611,8 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
       let managed: VersionedCandidateRecord;
       try {
         managed = await candidateContext.readRecord(workUnit);
-      } catch {
+      } catch (error) {
+        rethrowNativeRefusal(error);
         return unavailableDeliveryDrift(
           workUnit,
           "The managed delivery Candidate record could not be read or validated.",
