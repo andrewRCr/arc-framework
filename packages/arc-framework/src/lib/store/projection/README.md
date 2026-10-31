@@ -80,6 +80,14 @@ is the content taken in; otherwise the content is kept as a copy under `arc-proj
 releases it. A save carrying the recorded stamp takes that content as its base, and a file other than Markdown takes the
 closer of a kept copy and the version the read-back laid.
 
+`stampless.ts` reads a file other than Markdown, which carries no stamp, against its entry: the entry's version is its
+base, so a file restored to an older version is an edit, and an empty file is read only once its modification time is
+50 ms old. While a replacement is in progress, the entry also names the version it replaces and the aside copy its batch
+makes: content equal to that version reads as unedited, so it is refreshed and never written back over the newer
+version, and content matching neither version merges from the closer of the two, read through `history`. Every deleter
+of an aside copy deletes through `deleteAsideCopy`, which clears the copy's record, and the in-progress record where it
+names that copy and the file holds what the batch linked there, by the file identity the entry records.
+
 `stamp.ts` renders, parses, and strips a Markdown file's base stamp, `<!-- arc-base: <blob id> -->`, on its first line
 or the line after its YAML frontmatter, and the notice lines directly after it, each one comment opening
 `<!-- arc-notice:`. Only lines of that form in that block strip, so a person's own comment stays content, and a file

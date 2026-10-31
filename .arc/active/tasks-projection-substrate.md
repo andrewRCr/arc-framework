@@ -263,36 +263,15 @@ stamp parsing strips (§ 3.3, § 3.4).
   as `lineDistance`. A file other than Markdown compares a copy with the version the read-back laid, its entry's base.
   Covered in `unit/store/projection/taken-in.test.ts`.
 
-### `[ ]` **2.8 Files other than Markdown — § 3.7**
+### `[x]` **2.8 Files other than Markdown — § 3.7**
 
 - _Goal:_ A text file of any kind in a projected root carries no stamp and keeps its base in its index entry alone, and
   old content a stopped replacement left reads as unedited, never written back over the newer version.
 
-    - This task builds the entry's in-progress record, which names the version a replacement replaces and the aside copy
-      its batch makes of the file; the base selection over it; and the one deletion of an aside copy every deleter calls
-      — the end's second check (`projection-write-back`), a later sweep (3.3), and a removal's or release's takeover
-      (`projection-worktrees`) — which clears the record when the copy it names is deleted and the file holds what the
-      batch linked there, and clears the copy's own record (2.2.a) whenever it deletes any aside copy. The swap sets the
-      record (3.2.b), and a refused move restores the entry (3.2.b). A rebuild by the link alone (3.4,
-      `projection-worktrees`) sets one naming the version it replaces and no copy, only where that version is the
-      record's the entry names, never at a path re-laid for another record (3.4); the batch's second index write clears
-      it where the path holds the file the batch linked (3.2.b), and where the link yielded to a save it stays until the
-      file's next replacement.
-    - The entry's version is the base, so a file restored to an older version is an edit. A file not matching an entry
-      still holding an in-progress record takes whichever version it equals exactly, by blob id, else the closer of the
-      two. An empty one is read only once its modification time is 50 ms old.
-    - The closer of the two is chosen over both versions' content, read through `history` once per record between the
-      write-backs the command lands to it (2.6's memo). Where that read refuses `state-unresolvable`
-      (`lib/store/refusal.ts`), the file takes neither version: it stays pending and reported, written back nowhere,
-      until a read succeeds, since taking either unread could write old content over the newer version — an arm 2.9
-      builds over its wrapping store. `arc save` and the persist and release steps pull the named history ref and retry
-      once (`projection-write-back`); no other command's start pulls.
-    - Build `test-first` (one behavior at a time):
-        - a stampless file restored to an older version reads as an edit
-        - with an in-progress record, the old content reads as unedited and selects the replacing version
-        - deleting the copy the record names clears it once the file holds the linked version, and deleting another
-          aside copy of the file leaves it, each deletion clearing the deleted copy's own record
-        - an empty stampless file younger than 50 ms waits for the next command
+- _Outcome:_ `readStamplessFile` and `deleteAsideCopy` (`lib/store/projection/stampless.ts`) over 2.2.a's `inProgress`
+  and `copies` fields, which the swap and the rebuild set in Phase 3. Content matching neither version takes the
+  replaced version on a tie, so a tie never merges from the newer one over it, and a `history` refusal is returned for
+  2.9's arm. Covered in `unit/store/projection/stampless.test.ts`.
 
 ### `[ ]` **2.9 A seeded projection, a wrapping store for tests, and the `history` refusal's arms — § 3.5, § 3.7**
 
