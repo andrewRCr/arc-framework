@@ -109,11 +109,13 @@ the storage contract's decisions describes what it builds in its own spec, and t
 dated, naming the member, and stating the decision as it now stands. `storage-seam` records changes to its own shared
 decisions the same way, in `cohort-storage-seam.md` § Shared contracts.
 
-Changed 2026-10-23 by `cohort-identity-verbs`: from the flip, D14's clash between machines leaves both records, and the
-projection refuses to place the second on the taken path. Status lists a clash between work units; a clash between a
-work unit and a cohort refuses only where a name resolves across both families, through the slug lookup, and one between
-two cohorts also in every cohort read by name. Each refusal names, per holder, the repair that ends it:
-`arc rename <uid> <new-slug>` for a work unit or cohort, and `arc errand close <uid>` for an Errand.
+Changed 2026-10-30 by `cohort-identity-verbs`: from the flip, D14's clash between machines leaves both records, and the
+projection refuses to place the second on the taken path. Status lists a live clash between work units; a clash between
+a work unit and a cohort refuses only where a name resolves across both families, through the slug lookup, and one
+between two cohorts also in every cohort read by name. Each refusal of a live clash names one repair, chosen from the
+holders' types: rename a cohort holder (`arc rename <uid> <new-slug>`), else close an Errand holder
+(`arc errand close <uid>`), else rename either work unit. A live former-name tie names the intended holder by its
+current name, and a live tie over one branch's links names, per holder, the move that takes its link off the branch.
 
 Amended 2026-10-29 — `storage-ref-backend` amends D1 forward in `spec-storage-ref-backend.md` § 2.1, § 2.2, § 2.6, and
 § 12 (A51, A54): two remote operations, `pull` and `push`, replace `sync`, and `maintain()` joins the contract; a
