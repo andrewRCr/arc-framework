@@ -76,15 +76,38 @@ function isEntryHeader(line: string, shape: EntryListConfig["shape"], fieldHeade
 export function fieldHeaderSpans(lines: readonly string[]): readonly { start: number; end: number }[] {
   const spans: { start: number; end: number }[] = [];
   let start: number | undefined;
+  let bold = { open: false, codeTicks: 0 };
   for (const [index, line] of lines.entries()) {
     const text = line.trimEnd();
     if (!text.trim() || text.startsWith("## ") || text === "---") { start = undefined; continue; }
-    if (start === undefined && text.startsWith("**")) start = index;
-    if (start === undefined || !/:\*\*$/u.test(text)) continue;
-    if (/^\*\*.+:\*\*\s*$/u.test(lines.slice(start, index + 1).join(" "))) spans.push({ start, end: index });
+    // An established one-line header remains a boundary even after unfinished body prose.
+    if (/^\*\*.+:\*\*\s*$/u.test(text)) { spans.push({ start: index, end: index }); start = undefined; continue; }
+    if (start === undefined) {
+      if (!text.startsWith("**")) continue;
+      start = index;
+      bold = { open: false, codeTicks: 0 };
+    }
+    bold = fieldHeaderBoldState(text, bold);
+    if (bold.open || bold.codeTicks !== 0) continue;
+    if (/:\*\*$/u.test(text)) spans.push({ start, end: index });
     start = undefined;
   }
   return spans;
+}
+
+function fieldHeaderBoldState(text: string, previous: { open: boolean; codeTicks: number }): { open: boolean; codeTicks: number } {
+  let { open, codeTicks } = previous;
+  let escapedThrough = 0;
+  for (const token of text.matchAll(/\\|`+|\*\*/gu)) {
+    if (token.index < escapedThrough) continue;
+    if (token[0] === "\\") {
+      if (codeTicks === 0) escapedThrough = token.index + 2;
+    } else if (token[0].startsWith("`")) {
+      if (codeTicks === 0) codeTicks = token[0].length;
+      else if (codeTicks === token[0].length) codeTicks = 0;
+    } else if (codeTicks === 0) open = !open;
+  }
+  return { open, codeTicks };
 }
 
 /** Hide comments from recognition while retaining offsets and line endings.
