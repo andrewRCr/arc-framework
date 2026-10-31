@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseEntryList, writeEntryList } from "../../../../../src/lib/store/kinds/entry-list.js";
 import { ENTRY_CONFIGS } from "../../../../../src/lib/store/kinds/entry-configs.js";
+import { stampEntryIds } from "../../../../../src/lib/store/concurrency/stamp.js";
 import { entryFrame } from "../../../../../src/lib/store/concurrency/entry-frame.js";
 import { parsePersonalInboxEntries } from "../../../../../src/lib/store/kinds/personal-inbox.js";
 
@@ -64,10 +65,10 @@ describe("production entry grammars", () => {
     "**Next with pre**bold\n**inner** text**post and\n**more** text:**",
     "**Next with pre**bold\n**inner** tail**post:**",
   ].map(header => ({ newline, body, header })))))(
-    "keeps closed bold body prose in its entry before $header with $newline: $body", ({ newline, body, header }) => {
+    "keeps a blank-separated body paragraph in its entry before $header with $newline: $body", ({ newline, body, header }) => {
       const first = `**First:**\n_Remove when: first condition._\n_Id:_ \`12345678\`\n\nBody.\n${body}`;
       const second = `${header}\n_Remove when: second condition._\n_Id:_ \`87654321\`\n\nSecond body.`;
-      const content = `## Memories\n${first}\n${second}\n`.replaceAll("\n", newline);
+      const content = `## Memories\n${first}\n\n${second}\n`.replaceAll("\n", newline);
       const parsed = parseEntryList(content, "personal/working-memory");
       expect(parsed.success).toBe(true);
       if (!parsed.success) return;
@@ -78,17 +79,28 @@ describe("production entry grammars", () => {
       ]);
       expect(writeEntryList(parsed.data)).toBe(content);
     });
-  it.each(["\n", "\r\n"])("retains a one-line memory boundary after unfinished bold body with %j", newline => {
-    const first = "**First:**\n_Remove when: first._\n\n**Unfinished body";
-    const second = "**Second:**\n_Remove when: second._";
-    const content = `## Memories\n${first}\n${second}\n`.replaceAll("\n", newline);
+  it.each(["\n", "\r\n"])("includes an unseparated bold-opening line in the title paragraph with %j", newline => {
+    const first = "**First:**\n_Remove when: first._\n_Id:_ `11111111`";
+    const header = "**Unfinished body\n**Second:**";
+    const second = `${header}\n_Remove when: second._`;
+    const content = `## Memories\n${first}\n\n${second}\n`.replaceAll("\n", newline);
     const parsed = parseEntryList(content, "personal/working-memory");
     expect(parsed.success).toBe(true);
     if (!parsed.success) return;
     expect(parsed.data.entries).toMatchObject([
       { title: "**First:**", bytes: first.replaceAll("\n", newline) },
-      { title: "**Second:**", bytes: second.replaceAll("\n", newline) },
+      { title: header.replaceAll("\n", " "), bytes: second.replaceAll("\n", newline) },
     ]);
+    const edited = parseEntryList(content.replace("Unfinished", "Edited"), "personal/working-memory");
+    expect(edited.success).toBe(true);
+    if (edited.success) expect(edited.data.entries[1]?.version).not.toBe(parsed.data.entries[1]?.version);
+    const stamped = stampEntryIds(content, ENTRY_CONFIGS["personal/working-memory"], () => 0.5);
+    const stampedParsed = parseEntryList(stamped, "personal/working-memory");
+    expect(stampedParsed).toMatchObject({ success: true, data: { entries: [
+      { id: "11111111" }, { id: "80000000", title: header.replaceAll("\n", " ") },
+    ] } });
+    expect(stamped.replace(`${newline}_Id:_ \`80000000\``, "")).toBe(content);
+    expect(entryFrame(stamped, ENTRY_CONFIGS["personal/working-memory"]).skeleton).toBe(`## Memories${newline}`);
     expect(writeEntryList(parsed.data)).toBe(content);
   });
   it.each(["\n", "\r\n"].flatMap(newline => [
@@ -125,6 +137,8 @@ describe("production entry grammars", () => {
     "**A title with pre**bold\ntext**post and other**bold\nwords**tail\nends:**",
     "**A title with προ**bold\ntext**μετά and\n**more** text:**",
     "**A title with pre**bold `**`\ntext**post and\n**more** text:**",
+    "**A title with pre**bold\n**inner\nwords**post:**\nends:**",
+    "**A title with `\n**example:**\n` tail:**",
     ...["pre", "προ"].flatMap(before => ["post", "μετά"].flatMap(after => [
       `**A title with ${before}**bold\n**inner** text**${after} and\n**more** text:**`,
       `**A title with ${before}**bold\n**inner** tail**${after}:**`,
@@ -135,7 +149,7 @@ describe("production entry grammars", () => {
       `**A title with\n**bold text**${after} and **more** text:**`,
     ]),
   ].map(header => ({ newline, suffix, header })))))(
-    "keeps inline bold spans wrapped across lines inside the memory with $newline $suffix: $header", ({ newline, suffix, header }) => {
+    "treats the trigger-anchored title paragraph as opaque text with $newline $suffix: $header", ({ newline, suffix, header }) => {
       const raw = `${header}\n_Remove when: done._\n_Id:_ \`12345678\``.replaceAll("\n", newline);
       const opening = `## Memories${suffix}${newline}`;
       const content = `${opening}${raw}${newline}`;
@@ -153,7 +167,38 @@ describe("production entry grammars", () => {
       });
       expect(writeEntryList(parsed.data)).toBe(content);
     });
-  it("refuses memory without a trigger", () => {
-    expect(parseEntryList("## Memories\n**Title:**\nBody\n", "personal/working-memory").success).toBe(false);
+  it.each(["\n", "\r\n"])("refuses ordinary text joined to a title and accepts a separating blank line with %j", newline => {
+    const content = "## Memories\n**First:**\n_Remove when: first._\n_Id:_ `11111111`\n\nBody.\n**Next:**\n_Remove when: next._\n_Id:_ `22222222`\n".replaceAll("\n", newline);
+    const parsed = parseEntryList(content, "personal/working-memory");
+    expect(parsed).toMatchObject({ success: false, error: expect.stringMatching(/^Line 6:.*put a blank line before the title/u) });
+    const repaired = parseEntryList(content.replace(`${newline}**Next:**`, `${newline}${newline}**Next:**`), "personal/working-memory");
+    expect(repaired).toMatchObject({ success: true, data: { entries: [
+      { title: "**First:**", bytes: expect.stringContaining("Body.") }, { title: "**Next:**", id: "22222222" },
+    ] } });
+  });
+  it.each(["\n", "\r\n"])("retains a bold-colon body line without starting an entry with %j", newline => {
+    const first = "**First:**\n_Remove when: first._\n_Id:_ `11111111`\n\n**Title-shaped body:**\nBody continues.";
+    const second = "**Second:**\n_Remove when: second._\n_Id:_ `22222222`";
+    const content = `## Memories\n${first}\n\n${second}\n`.replaceAll("\n", newline);
+    const parsed = parseEntryList(content, "personal/working-memory");
+    expect(parsed).toMatchObject({ success: true, data: { entries: [
+      { title: "**First:**", bytes: first.replaceAll("\n", newline) }, { title: "**Second:**", bytes: second.replaceAll("\n", newline) },
+    ] } });
+    if (parsed.success) expect(writeEntryList(parsed.data)).toBe(content);
+  });
+  it.each(["\n", "\r\n"])("keeps removed memories outside field-header sections with %j", newline => {
+    const content = "## Memories\n**Live:**\n_Remove when: done._\n_Id:_ `12345678`\n\n## Removed: old\n**Archived:**\n_Remove when: ignored._\n_Id:_ `87654321`\n\nNot a title\n_Remove when: also ignored._\n".replaceAll("\n", newline);
+    const parsed = parseEntryList(content, "personal/working-memory");
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.entries).toHaveLength(1);
+    expect(parsed.data.entries[0]).toMatchObject({ title: "**Live:**", id: "12345678" });
+    expect(writeEntryList(parsed.data)).toBe(content);
+  });
+  it("keeps an unanchored bold-colon paragraph outside entries", () => {
+    const content = "## Memories\n**Title:**\nBody\n";
+    const parsed = parseEntryList(content, "personal/working-memory");
+    expect(parsed).toMatchObject({ success: true, data: { entries: [] } });
+    if (parsed.success) expect(writeEntryList(parsed.data)).toBe(content);
   });
 });

@@ -65,28 +65,23 @@ function completeHeadingTitle(heading: string): string | null {
 
 function completeFieldHeaderTitle(visible: string): string {
   const lines = visible.split(/\r?\n/u);
-  const end = fieldHeaderSpans(lines)[0]?.end ?? 0;
+  const end = fieldHeaderSpans(lines).find(span => span.problem === null)?.end ?? 0;
   return lines.slice(0, end + 1).map(line => line.trim()).join(" ");
 }
 
 function memoryHeaderError(content: string): string | undefined {
   const lines = maskComments(content).split(/\r?\n/u);
-  const headerEnds = new Set(fieldHeaderSpans(lines).map(span => span.end));
+  const paragraphs = new Map(fieldHeaderSpans(lines).map(span => [span.trigger, span]));
   let inMemories = false;
   for (const [index, line] of lines.entries()) {
     const boundary = line.trimEnd();
     if (boundary.startsWith("## ") || boundary === "---") inMemories = boundary === "## Memories";
-    if (!inMemories || !/^\s*[_*]Remove when:/u.test(line)) continue;
-    const previous = previousNonBlank(lines, index);
-    if (!headerEnds.has(previous)) {
-      return `Line ${previous + 1}: ${lines[previous] ?? ""}; removal triggers require a **Title:** header on consecutive non-blank lines.`;
+    const paragraph = paragraphs.get(index);
+    if (!inMemories || paragraph === undefined || paragraph.problem === null) continue;
+    if (paragraph.problem === "opening") {
+      return `Line ${paragraph.start + 1}: put a blank line before the title; removal triggers require a **Title:** paragraph.`;
     }
+    return `Line ${paragraph.end + 1}: removal triggers require a **Title:** paragraph ending with :**.`;
   }
   return undefined;
-}
-
-function previousNonBlank(lines: readonly string[], index: number): number {
-  let previous = index - 1;
-  while (previous >= 0 && lines[previous]?.trim() === "") previous--;
-  return previous;
 }

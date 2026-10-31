@@ -25,7 +25,7 @@ export function splitEntryList(content: string, config: EntryListConfig): SplitE
   const parts: (ListEntry | OutsideEntry)[] = [];
   const lines = [...masked.matchAll(/[^\n]*(?:\n|$)/gu)].filter((line) => line[0].length > 0);
   const textLines = lines.map(line => line[0].replace(/\r?\n$/u, "").trimEnd());
-  const fieldHeaders = new Set(config.shape === "field-header" ? fieldHeaderSpans(textLines).map(span => span.start) : []);
+  const fieldHeaders = new Set(config.shape === "field-header" ? fieldHeaderSpans(textLines).filter(span => span.problem === null).map(span => span.start) : []);
   let section: string | null = null;
   let started: {offset:number;section:string} | null = null;
   let consumed = 0;
@@ -72,109 +72,39 @@ function isEntryHeader(line: string, shape: EntryListConfig["shape"], fieldHeade
   return shape === "heading" ? /^###\s/u.test(line) : fieldHeader;
 }
 
-interface FieldHeaderBoldState { markers: (number | undefined)[]; codeTicks: number; boundaryDepth: number }
+interface FieldHeaderSpan {
+  readonly start: number;
+  readonly end: number;
+  readonly trigger: number;
+  readonly problem: "opening" | "ending" | null;
+}
 
-/** Locate complete bold field headers across consecutive non-blank lines without crossing sections. */
-export function fieldHeaderSpans(lines: readonly string[]): readonly { start: number; end: number }[] {
-  const spans: { start: number; end: number }[] = [];
-  const state: FieldHeaderBoldState = { markers: [], codeTicks: 0, boundaryDepth: 0 };
+/** Recognize title paragraphs anchored by removal-trigger fields in comment-masked content.
+ * A title is the paragraph immediately before its trigger, back to the previous blank line,
+ * section heading or ---. It must open with ** and its last line must end with :**.
+ * Interior text is opaque: nested bold, code spans and other inline Markdown have no parsing role.
+ * Decoding joins its trimmed lines with single spaces. An unseparated **-opening line belongs
+ * to the title; a non-** paragraph needs a blank line before the title. Bold-colon body lines
+ * without a trigger do not start entries. Callers restrict recognition to their configured sections.
+ * @param lines - Comment-masked document lines, preserving original line positions.
+ * @returns Trigger-anchored paragraphs and any missing opening or ending delimiter.
+ */
+export function fieldHeaderSpans(lines: readonly string[]): readonly FieldHeaderSpan[] {
+  const spans: FieldHeaderSpan[] = [];
+  let start = 0;
   for (const [index, line] of lines.entries()) {
     const text = line.trimEnd();
-    if (fieldHeaderBoundary(text)) { resetFieldHeader(state); continue; }
-    if (state.codeTicks === 0 && state.boundaryDepth === 0 && state.markers.length > 1 && fieldHeaderCandidateAt(lines, index)) resetFieldHeader(state);
-    const start = fieldHeaderLineStart(text, index, state)
-      ?? (/^\*\*.+:\*\*\s*$/u.test(text) ? index : undefined);
-    if (start === undefined) continue;
-    spans.push({ start, end: index });
-    resetFieldHeader(state);
+    if (!text.trim() || text.startsWith("## ") || text === "---") { start = index + 1; continue; }
+    const field = text.trimStart();
+    if (!field.startsWith("_Remove when:") && !field.startsWith("*Remove when:")) continue;
+    spans.push({ start, end: index - 1, trigger: index, problem: fieldHeaderProblem(lines, start, index - 1) });
   }
   return spans;
 }
 
-function fieldHeaderBoundary(text: string): boolean {
-  return !text.trim() || text.startsWith("## ") || text === "---";
-}
-
-function fieldHeaderCandidateAt(lines: readonly string[], start: number): boolean {
-  if (!lines[start]?.startsWith("**")) return false;
-  const candidate: FieldHeaderBoldState = { markers: [], codeTicks: 0, boundaryDepth: 0 };
-  for (let index = start; index < lines.length; index++) {
-    const text = (lines[index] ?? "").trimEnd();
-    if (fieldHeaderBoundary(text)) return false;
-    const matched = fieldHeaderLineStart(text, index, candidate);
-    if (matched !== undefined) return matched === start;
-    if (candidate.markers.length === 0) return false;
-  }
-  return false;
-}
-
-function resetFieldHeader(state: FieldHeaderBoldState): void {
-  state.markers.length = 0;
-  state.codeTicks = 0;
-  state.boundaryDepth = 0;
-}
-
-function fieldHeaderLineStart(text: string, line: number, state: FieldHeaderBoldState): number | undefined {
-  let escapedThrough = 0;
-  for (const token of text.matchAll(/\\|`+|\*\*/gu)) {
-    if (token.index < escapedThrough) continue;
-    if (token[0] === "\\" && state.codeTicks === 0) { escapedThrough = token.index + 2; continue; }
-    const start = fieldHeaderToken(text, line, token[0], token.index, state);
-    if (start !== undefined) return start;
-  }
-  return undefined;
-}
-
-function fieldHeaderToken(text: string, line: number, token: string, offset: number, state: FieldHeaderBoldState): number | undefined {
-  if (token.startsWith("`")) {
-    if (state.markers.length > 0) state.codeTicks = fieldHeaderCodeTicks(state.codeTicks, token.length);
-    return undefined;
-  }
-  if (token !== "**" || state.codeTicks !== 0) return undefined;
-  return fieldHeaderBold(text, line, offset, state);
-}
-
-function fieldHeaderCodeTicks(current: number, width: number): number {
-  if (current === 0) return width;
-  return current === width ? 0 : current;
-}
-
-function fieldHeaderBold(text: string, line: number, offset: number, state: FieldHeaderBoldState): number | undefined {
-  const { markers } = state;
-  if (offset === 0) {
-    markers.push(line);
-    state.boundaryDepth++;
-    return undefined;
-  }
-  if (markers.length === 0) return undefined;
-  const { opens, closes } = fieldHeaderBoldFlanking(text, offset);
-  state.boundaryDepth = fieldHeaderBoundaryDepth(state.boundaryDepth, opens, closes);
-  // Inline closers match nested openers regardless of whether they started a line.
-  if (closes && (!opens || markers.length > 1)) {
-    const opening = markers.pop();
-    return opening !== undefined && markers.length === 0 && offset === text.length - 2 && /:\*\*$/u.test(text) ? opening : undefined;
-  }
-  if (opens) markers.push(undefined);
-  return undefined;
-}
-
-function fieldHeaderBoundaryDepth(depth: number, opens: boolean, closes: boolean): number {
-  if (closes && depth > 0) return depth - 1;
-  return opens ? depth + 1 : depth;
-}
-
-function fieldHeaderBoldFlanking(text: string, offset: number): { opens: boolean; closes: boolean } {
-  const before = boldCharacterClass(text.slice(Math.max(0, offset - 2), offset).match(/.$/u)?.[0]);
-  const after = boldCharacterClass(text.slice(offset + 2, offset + 4).match(/^./u)?.[0]);
-  return {
-    opens: after === "text" || (after === "punctuation" && before !== "text"),
-    closes: before === "text" || (before === "punctuation" && after !== "text"),
-  };
-}
-
-function boldCharacterClass(character: string | undefined): "space" | "punctuation" | "text" {
-  if (character === undefined || /\s/u.test(character)) return "space";
-  return /[\p{P}\p{S}]/u.test(character) ? "punctuation" : "text";
+function fieldHeaderProblem(lines: readonly string[], start: number, end: number): FieldHeaderSpan["problem"] {
+  if (!(lines[start] ?? "").startsWith("**")) return "opening";
+  return (lines[end] ?? "").trimEnd().endsWith(":**") ? null : "ending";
 }
 
 /** Hide comments from recognition while retaining offsets and line endings.
