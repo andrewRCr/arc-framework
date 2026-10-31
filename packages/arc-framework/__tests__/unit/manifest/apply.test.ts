@@ -467,6 +467,77 @@ describe("applyChangePlan", () => {
       expect(result.newPristineStore["system/arc-config.yml"]).toBe("config content");
     });
 
+    test.each([
+      ["already matches the update", "new config content"],
+      ["keeps a customization the update leaves alone", "customized config content"],
+    ])("leaves a file unwritten when it %s", async (_name, current) => {
+      const plan: FileChangePlan = {
+        ...emptyPlan(),
+        merges: [{
+          outputPath: "system/arc-config.yml",
+          templateFile: "system/arc-config.yml",
+          classification: "Configurable",
+          layer: "core",
+          pristineContent: "new config content",
+        }],
+        outputToTemplate: { "system/arc-config.yml": "system/arc-config.yml" },
+      };
+
+      const { io, renderCtx } = mockRenderCtx({
+        "system/arc-config.yml": "new config content",
+      });
+      (io.readFile as ReturnType<typeof vi.fn>).mockImplementation(
+        async (path: string) => {
+          if (path === "/project/.arc/system/arc-config.yml") return current;
+          if (path.endsWith("system/arc-config.yml")) return "new config content";
+          throw new Error("not found");
+        },
+      );
+
+      const result = await applyChangePlan(
+        plan, "/project/.arc", makeManifest(), noopMerge, io, renderCtx,
+      );
+
+      expect(io.writeFile).not.toHaveBeenCalled();
+      expect(result.unchanged).toBe(1);
+      expect(result.newPristineStore["system/arc-config.yml"]).toBe("new config content");
+    });
+
+    test("writes a file whose only change is its migration", async () => {
+      const plan: FileChangePlan = {
+        ...emptyPlan(),
+        merges: [{
+          outputPath: "system/arc-config.yml",
+          templateFile: "system/arc-config.yml",
+          classification: "Configurable",
+          layer: "core",
+          pristineContent: "new config content",
+        }],
+        outputToTemplate: { "system/arc-config.yml": "system/arc-config.yml" },
+      };
+
+      const { io, renderCtx } = mockRenderCtx({
+        "system/arc-config.yml": "new config content",
+      });
+      (io.readFile as ReturnType<typeof vi.fn>).mockImplementation(
+        async (path: string) => {
+          if (path === "/project/.arc/system/arc-config.yml") return "legacy config content";
+          if (path.endsWith("system/arc-config.yml")) return "new config content";
+          throw new Error("not found");
+        },
+      );
+      const migrate = vi.fn((_path: string, content: string) =>
+        content === "legacy config content" ? "new config content" : content);
+
+      const result = await applyChangePlan(
+        plan, "/project/.arc", makeManifest(), noopMerge, { ...io, migrate }, renderCtx,
+      );
+
+      expect(migrate).toHaveBeenCalledWith("/project/.arc/system/arc-config.yml", "legacy config content");
+      expect(io.writeFile).toHaveBeenCalledWith("/project/.arc/system/arc-config.yml", "new config content");
+      expect(result.unchanged).toBe(1);
+    });
+
     test("reinstalls Configurable file missing from disk", async () => {
       const plan: FileChangePlan = {
         ...emptyPlan(),

@@ -36,9 +36,10 @@ algorithms, or migration planning and recovery. This does not prove a small comp
 
 Start with a bounded investigation of how to submit a complete large transaction on native Windows. Produce a concrete
 candidate, its compatibility tradeoffs, and executable evidence before committing to implementation. The current Git
-floor is 2.47; a floor change, additional runtime dependency, or altered hook/remote behavior must be an explicit design
-decision, never an incidental workaround. If no candidate preserves the required behavior, report that result and the
-specific unresolved product choice rather than extending the investigation into a speculative backend rewrite.
+floor is 2.53.0, up from 2.47 by a 2026-10-31 decision over two store defects below it; push at 2.53.0 still has no
+stdin input. A further floor change, additional runtime dependency, or altered hook/remote behavior must be an explicit
+design decision, never an incidental workaround. If no candidate preserves the required behavior, report that result and
+the specific unresolved product choice rather than extending the investigation into a speculative backend rewrite.
 
 The earlier bounded search found no transparent solution: fetch has stdin support; push does not offer the equivalent
 input for both refspecs and exact per-ref leases at the current floor. Config-backed refspecs and private lease refs
