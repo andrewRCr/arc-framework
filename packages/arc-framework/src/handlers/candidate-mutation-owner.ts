@@ -5,6 +5,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { openDefaultStore } from "./lifecycle-shared.js";
 import { gitExec } from "../lib/io-context.js";
 import { listLifecycleIndex } from "../lib/store/lifecycle-index.js";
+import { liveNames } from "../lib/store/lifecycle-completed.js";
 import { readWorkUnit } from "../lib/store/lifecycle-write.js";
 import { OwnerIdentitySchema, sameOwner, type OwnerIdentity } from "../lib/store/identity.js";
 import { StoreRefusalError } from "../lib/store/refusal-error.js";
@@ -50,13 +51,17 @@ export async function resolveCandidateMutationOwner(input: {
 }
 
 /**
- * Resolve the work units whose archived lifecycle records authorize ownerless Candidate continuation.
+ * Resolve the work units whose archived lifecycle records authorize ownerless Candidate continuation. Natively a
+ * completed name a live work unit holds is withheld, since a name alone cannot tell the two generations apart.
  *
  * @param cwd - Repository root containing the lifecycle records
  * @returns Completed work-unit slugs
  */
 export async function resolveCompletedCandidateWorkUnits(cwd: string, store: Store = openDefaultStore(cwd, gitExec)): Promise<readonly string[]> {
-  if (store.capabilities.stateOffBranch) return (await readCompletedOwners(store)).map(owner => owner.name);
+  if (store.capabilities.stateOffBranch) {
+    const [owners, held] = await Promise.all([readCompletedOwners(store), readLiveNames(store)]);
+    return owners.map(owner => owner.name).filter(name => !held.has(name));
+  }
   return readCompletedSlugs(cwd);
 }
 
@@ -85,6 +90,15 @@ async function readCompletedSlugs(cwd: string): Promise<string[]> {
   return [...(await buildLifecycleIndex({ cwd, fs })).values()]
     .filter(({ location }) => location === "completed")
     .map(({ slug }) => slug);
+}
+
+/** A name a live work unit holds authorizes no completed continuation by name; an unreadable live inventory refuses. */
+async function readLiveNames(store: Store): Promise<ReadonlySet<string>> {
+  const listing = await listLifecycleIndex(store, { locations: ["active", "planned", "provisional"] });
+  if (listing.status === "refused") throw new StoreRefusalError(listing.refusal, true);
+  const result = listing.result;
+  if (result.status === "unreadable") throw new ReviewOwnerSelectionError("corrupt-state", result.condition, result.remedy);
+  return result.status === "complete" ? liveNames(result) : new Set();
 }
 
 async function readCompletedOwners(store: Store): Promise<readonly OwnerIdentity[]> {

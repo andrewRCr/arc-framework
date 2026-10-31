@@ -24,7 +24,8 @@ export async function readStoreCompletedEvidence(store: Store): Promise<Complete
   return listing.result.missed || listing.result.diagnostics.length > 0 ? { status: "partial", records,
     unreadableMetaPaths: listing.result.diagnostics.map((item) => `${item.key}: ${item.condition} ${item.remedy.text}`) } : { status: "available", records };
 }
-function liveNames(listing: Extract<LifecycleIndexOutcome, { status: "complete" }>): Set<string> {
+/** Names a live record, one of its aliases, or live metadata the listing could not read holds. */
+export function liveNames(listing: Extract<LifecycleIndexOutcome, { status: "complete" }>): Set<string> {
   const names = new Set<string>(listing.index.entries().flatMap(entry => [entry.reference.owner.name, ...(entry.aliases ?? [])]));
   for (const diagnostic of listing.diagnostics) {
     const name = /^work-item\/meta:(.+)$/u.exec(diagnostic.key)?.[1];

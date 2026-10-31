@@ -104,6 +104,20 @@ it("refuses an incomplete completed inventory naming what it could not read, and
   expect(await resolveCandidateMutationGeneration(h.store, "example", "unowned", named)).toEqual(archived);
 });
 
+it("refuses the completed name list with the store's refusal of the live inventory, and lists it once that read succeeds", async () => {
+  const h = createLifecycleHarness(), list = h.store.list.bind(h.store);
+  await h.seedMeta("example", { branch: null, state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  let refusing = true;
+  h.store.list = async input => refusing && input.filter?.locations?.includes("active") === true
+    ? { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: "work-item",
+      condition: "Live inventory unavailable.", remedy: { text: "Repair the live inventory." } } } : list(input);
+  await expect(resolveCompletedCandidateWorkUnits("/memory", h.store)).rejects.toMatchObject({
+    refusal: { code: "namespace-corrupt", condition: "Live inventory unavailable." } });
+  refusing = false;
+  expect(await resolveCompletedCandidateWorkUnits("/memory", h.store)).toEqual(["example"]);
+});
+
 it("carries the store's refusal whole when the checkout's own work unit cannot be read", async () => {
   const h = createLifecycleHarness();
   await expect(resolveCandidateMutationGeneration(h.store, "example", "owned", named)).rejects.toMatchObject({
