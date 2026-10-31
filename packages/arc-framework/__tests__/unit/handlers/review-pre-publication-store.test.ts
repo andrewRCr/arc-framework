@@ -8,6 +8,7 @@ import { PrePublicationReplayInputSchema, replayTokenFromAction, decodePrePublic
 import { canonicalDigest, SlugSchema } from "../../../src/lib/kernel/index.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import { createProjectIdentityReader } from "../../../src/lib/store/project-identity.js";
+import { StoreRefusalSchema } from "../../../src/lib/store/refusal.js";
 import { createReviewHarness } from "../../helpers/store/review-harness.js";
 import { createReviewCheckout } from "../../helpers/store/review-checkout.js";
 import { lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
@@ -135,6 +136,28 @@ it("reports an unreadable native review listing as the store's refusal and reach
   expect(await h.run()).toMatchObject({ error: { code: "store-refused" } });
   h.store.state.unreadable.clear();
   expect(await h.run()).toMatchObject({ locus: "candidate-review-pending", nextAction: { kind: "run-self-review" } });
+});
+
+it("reports a refused Candidate history read as the store's refusal rather than a Candidate delta", async () => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const currentRecord = await readCandidateRecordVersioned(h.cwd, "example", { store: h.store, owner });
+  const current = currentRecord.record;
+  if (current === null) throw new Error("Expected the attested Candidate");
+  const next = { ...current, attestation: createCandidateAttestation({ ...current.attestation, subject: current.subject,
+    attestedAt: "2026-10-20T12:00:00Z", supersedes: current.attestation.candidateId }) };
+  await writeCandidateRecord(h.cwd, "example", next, currentRecord.version, { store: h.store, owner });
+  const history = h.store.history.bind(h.store);
+  let refused = true;
+  h.store.history = async input => refused && input.reference.kind === "review/candidate" ? { status: "refused",
+    refusal: StoreRefusalSchema.parse({ code: "namespace-corrupt", class: "terminal", namespace: "work-item",
+      condition: "Candidate history is unavailable.", remedy: { text: "Restore the Candidate history, then retry." } }) }
+    : history(input);
+  expect(await h.run()).toMatchObject({ error: { code: "store-refused",
+    message: expect.stringContaining("Candidate history is unavailable.") } });
+  refused = false;
+  const repaired = await h.run();
+  expect(repaired).not.toHaveProperty("error");
+  expect(repaired).toMatchObject({ candidateId: next.attestation.candidateId });
 });
 
 it("keeps the missing-Candidate response and reaches self-review after the records are created", async () => {

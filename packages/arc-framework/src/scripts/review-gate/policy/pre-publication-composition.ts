@@ -1,6 +1,7 @@
 /** Production composition for the typed pre-publication review procedure. */
 import { isOffBranchStoreRefusal, StoreRefusalError } from "../../../lib/store/refusal-error.js";
 import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
+import { ReviewOwnerSelectionError } from "../../../lib/store/kinds/review/errors.js";
 import { createPrePublicationRecordAccess } from "./pre-publication-record-access.js";
 import { resolveReviewInvocation, type ReviewInvocationInput } from "../runtime/invocation.js";
 import { createCandidateResponseHeadContinuationReader } from "../runtime/candidate-response-head-continuation.js";
@@ -97,6 +98,11 @@ import {
   readPendingCandidateReviewFixAuthority,
   type PendingCandidateReviewFixAuthority,
 } from "./candidate-review-fix-continuation.js";
+
+/** A native store, project-identity, or owner-selection refusal reaches pre-publication's output whole. */
+function rethrowNativeRefusal(error: unknown): void {
+  if (error instanceof ProjectIdentityError || isOffBranchStoreRefusal(error) || error instanceof ReviewOwnerSelectionError) throw error;
+}
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -615,6 +621,7 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
           ...input, workUnit: name, record,
         });
       } catch (error) {
+        rethrowNativeRefusal(error);
         return { status: "blocked", reason: `Candidate supersession cannot be validated (${describe(error)}).` };
       }
       const effective = await projectGitCandidateEffectiveTarget({
@@ -634,6 +641,7 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
             candidate: record,
           });
         } catch (error) {
+          rethrowNativeRefusal(error);
           return {
             status: "blocked",
             reason: `Candidate review-fix authority could not be read (${describe(error)}).`,
@@ -741,7 +749,7 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
           }),
         };
       } catch (error) {
-        if (error instanceof ProjectIdentityError || isOffBranchStoreRefusal(error)) throw error;
+        rethrowNativeRefusal(error);
         return { status: "unavailable", reason: describe(error) };
       }
     },
