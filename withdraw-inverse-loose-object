@@ -3,7 +3,7 @@
   "slug": "withdraw-inverse-loose-object",
   "claimId": "7df161d64dc9aab46f45f969efb9a4b8",
   "createdAt": "2026-10-31T12:46:44.880Z",
-  "updatedAt": "2026-10-31T12:46:44.880Z",
+  "updatedAt": "2026-10-31T14:12:59.012Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Find why the withdrawal inverse's ancestor-damage cases lose their loose object, and fix at the cause",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Find why the withdrawal inverse's ancestor-damage cases lose their loose object",
   "originEntrySourceDigest": "sha256:9af2890ed21623b8d26695901577a30944c98a4a4c55c68ece9226e103606fd1",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/withdraw-inverse-loose-object",
+    "headSha": "d4ced80bc5297bd0d4cdfb6fc0bad0a9e00228fb"
+  }
 }
