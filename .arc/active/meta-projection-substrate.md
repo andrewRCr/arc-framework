@@ -1,8 +1,8 @@
 # Metadata: Projection Substrate
 
-| **State**  | **Owner** | **Branch**                  | **Class** | **Priority** |
-| ---------- | --------- | --------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/projection-substrate` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                  | **Class** | **Priority** |
+| --------- | --------- | --------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/projection-substrate` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-projection`
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-projection-substrate.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Write the exclude entries as one path list derived from the shared projected roots
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 via process-task-loop
 
 - **PR URL:** [none]
 - **Completed:** [none]
