@@ -501,12 +501,17 @@ checks:
     shards:
       count: 4
       argument: --shard={index}/{count}
+  # The hosted Windows/macOS job divides the tier among shards balanced by the integration durations; the Linux job
+  # runs it whole.
   test:portability:
+    environment_inputs:
+      ARC_TEST_DURATION_FILE: file
     command:
       - npm
       - run
       - -s
       - test:portability
+      - --
     gate: merge
     ci_only: true
     inputs:
@@ -515,6 +520,9 @@ checks:
       - '!.arc/backlog/**'
       - '!.arc/completed/**'
       - '!.arc/system/.internal/candidates/**'
+    shards:
+      count: 5
+      argument: --shard={index}/{count}
   test:portability:macos:
     command:
       - npm
