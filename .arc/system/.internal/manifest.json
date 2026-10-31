@@ -20,7 +20,7 @@
     "reference/QUICK-REFERENCE.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "fb16565d3f26404b42acac29993519c127e265d39b4266faba432d2aa3319466"
+      "pristine_hash": "1dd48ef12c3f0a3da9516d32cd79d648fed7844bce2388991c21479a94fd999f"
     },
     "reference/adr/README.md": {
       "classification": "Framework",

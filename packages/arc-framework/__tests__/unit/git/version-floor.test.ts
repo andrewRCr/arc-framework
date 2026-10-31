@@ -31,16 +31,17 @@ function failedCall(variant: string, error: GitProcessError, probe: GitVersionPr
 }
 
 describe("failure-time Git floor", () => {
-  it.each(["plain", "stdin", "raw"])("explains an unsupported option on Git 2.45 through the %s port", async (variant) => {
-    const error = makeGitProcessError({ command: "git", args: ["--unknown-option"], exitCode: 129, stderr: "unknown option" });
-    const run = failedCall(variant, error, async () => "git version 2.45.0");
-    await expect(run()).rejects.toThrow(/Git 2\.45\.0.*Git 2\.47/u);
-  });
+  it.each(["plain", "stdin", "raw"].flatMap((variant) => ["2.45.0", "2.47.0", "2.48.0", "2.51.2", "2.52.0"].map((version) => ({ variant, version }))))(
+    "explains an unsupported option on Git $version through the $variant port", async ({ variant, version }) => {
+      const error = makeGitProcessError({ command: "git", args: ["--unknown-option"], exitCode: 129, stderr: "unknown option" });
+      const run = failedCall(variant, error, async () => `git version ${version}`);
+      await expect(run()).rejects.toThrow(`Git ${version} is below the required Git 2.53. Upgrade Git and retry.`);
+    });
 });
 
 describe("Git floor diagnostic boundaries", () => {
   it.each(["plain", "stdin", "raw"].flatMap((variant) => [
-    { variant, label: "Git 2.47", probe: async (): Promise<string> => "git version 2.47.0" },
+    { variant, label: "Git 2.53", probe: async (): Promise<string> => "git version 2.53.0" },
     { variant, label: "a later major", probe: async (): Promise<string> => "git version 3.0.0" },
     { variant, label: "unrecognized output", probe: async (): Promise<string> => "unrecognized version output" },
     { variant, label: "a failed probe", probe: async (): Promise<string> => { throw new Error("version invocation failed"); } },
@@ -84,5 +85,5 @@ it("diagnoses the same executable that failed", async () => {
   const wrapped = withGitVersionFloor(exec, async (command, _args, options?: GitExecOptions): Promise<string> => {
     return (await exec(command, ["--version"], options)).stdout;
   });
-  await expect(wrapped("/old/toolchain/git", args)).rejects.toThrow(/Git 2\.45\.0.*Git 2\.47/u);
+  await expect(wrapped("/old/toolchain/git", args)).rejects.toThrow(/Git 2\.45\.0.*Git 2\.53/u);
 });
