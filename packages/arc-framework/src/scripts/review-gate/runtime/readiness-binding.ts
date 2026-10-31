@@ -2,9 +2,8 @@
 import type { CanonicalDigest } from "../../../lib/kernel/index.js";
 import type { Store } from "../../../lib/store/contract.js";
 import { reviewListingRefusal } from "../../../lib/store/kinds/review/fact-access.js";
-import { ReviewOwnerSelectionError } from "../../../lib/store/kinds/review/errors.js";
-import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
-import { isOffBranchStoreRefusal, StoreRefusalError } from "../../../lib/store/refusal-error.js";
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
+import { StoreRefusalError } from "../../../lib/store/refusal-error.js";
 import type { OwnerIdentity } from "../../../lib/store/identity.js";
 import { deriveReviewReadinessBinding, type ReviewReadinessBinding } from
   "../../../lib/store/kinds/review/integration-boundary/readiness.js";
@@ -39,8 +38,8 @@ export async function readReviewReadinessBinding(input: ReviewReadinessReadInput
     return deriveReviewReadinessBinding({ subjectOwner: { kind: "candidate", candidateId: input.candidateId },
       outcomes, evidence, decisions, inFlight: owner?.attempts.filter(({ outcome }) => outcome === "pending") ?? [] });
   } catch (error) {
-    // The store's own refusals reach the command whole; only the derivation's content failures stay incomplete.
-    if (isOffBranchStoreRefusal(error) || error instanceof ProjectIdentityError || error instanceof ReviewOwnerSelectionError) throw error;
+    // A native typed refusal reaches the command whole; only the derivation's content failures stay incomplete.
+    rethrowNativeRefusal(error);
     return { status: "incomplete", condition: error instanceof Error ? error.message : String(error) };
   }
 }

@@ -18,6 +18,8 @@ import { createFrontlineFixture } from "../../../../../fixtures/frontline-review
 import { mapHostedAttempt } from "../../../../../../src/lib/store/kinds/review/mapping-hosted.js";
 import { lifecycleSuccess } from "../../../../../helpers/store/lifecycle-harness.js";
 import { bindNativeReviewPorts } from "../../../../../helpers/store/native-review-ports.js";
+import { createProjectIdentityReader, ProjectIdentityError } from "../../../../../../src/lib/store/project-identity.js";
+import type { Store } from "../../../../../../src/lib/store/contract.js";
 
 async function fixture() {
   const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
@@ -190,4 +192,24 @@ it("refuses a stale write and accepts the same update after refreshing its versi
   const current = await h.operations.readOperation(h.lane.operationId);
   expect(await h.operations.publishOperation(next, current.version)).toEqual({ version: 2 });
   expect(await h.operations.publishOperation(next, 0)).toEqual({ version: 2 });
+});
+
+it("raises an unreadable project ID reading the execution snapshot whole, and reads it once the project is readable", async () => {
+  const h = await fixture();
+  await h.operations.publishOperation(h.lane, 0);
+  let unreadable = true;
+  const store = Object.create(h.store) as Store;
+  store.list = async input => unreadable && input.kind === "project-registry/identity"
+    ? { status: "ok", result: { status: "unreadable", condition: "Project identity cannot be read.",
+      remedy: { text: "Restore the project identity record, then retry." } } }
+    : h.store.list(input);
+  const snapshot = () => bindNativeReviewPorts({ store: h.store, owner: h.primary.reference.owner, publisher: h.publisher,
+    projectId: createProjectIdentityReader(store) }).inFlight.readOperationSnapshot();
+  const refused = snapshot();
+  await expect(refused).rejects.toBeInstanceOf(ProjectIdentityError);
+  await expect(refused).rejects.toMatchObject({ failure: { reason: "Project identity cannot be read.",
+    remedy: { text: "Restore the project identity record, then retry." } } });
+  unreadable = false;
+  expect(await snapshot()).toEqual({ status: "complete", records: [{ version: 1,
+    state: { ...h.lane, workItem: h.primary.reference.owner } }] });
 });

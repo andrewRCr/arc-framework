@@ -1,7 +1,6 @@
 /** Native working-state persistence isolated from repository-backed operation records. */
 import { reviewFactListingError } from "../../../../lib/store/kinds/review/fact-access.js";
-import { ProjectIdentityError } from "../../../../lib/store/project-identity.js";
-import { isOffBranchStoreRefusal } from "../../../../lib/store/refusal-error.js";
+import { rethrowNativeRefusal } from "../../../../lib/store/native-refusal.js";
 import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 import type { OwnerIdentity } from "../../../../lib/store/identity.js";
 import type { ReviewOutcomePort, ReviewEvidencePort, ReviewDecisionPort, NativeReviewFactPorts, ReviewInFlightPort, ReviewOperationStateSnapshot } from "../../core/ports.js";
@@ -121,8 +120,8 @@ export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
         return state === null ? [] : [{ version: record.version, state }];
       }).sort((a, b) => a.state.operationId.localeCompare(b.state.operationId)) };
     } catch (error) {
-      // The store's refusals and a missing project ID reach the command whole; a damaged record stays unavailable.
-      if (isOffBranchStoreRefusal(error) || error instanceof ProjectIdentityError) throw error;
+      // A native typed refusal reaches the command whole; a damaged record stays unavailable.
+      rethrowNativeRefusal(error);
       return { status: "unavailable", reason: error instanceof Error ? error.message : "in-flight-snapshot-failed" };
     }
   }
