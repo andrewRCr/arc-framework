@@ -70,6 +70,16 @@ takes an empty base. A stored version goes to the store as the expected version;
 the checkout. `history` is read through a memo the command holds, one whole answer per record until a landed write
 drops it.
 
+`taken-in.ts` records what a persisted write-back took in — a write that landed, whether or not the store's merge filed
+conflicts or an entry was refused beside it — with the stamp it read, and leaves the record as it was after any other
+outcome. Each entry of the content taken in first takes the ID the landed record gave it, through the one entry-ID
+matcher: an entry carrying no ID takes the ID of the one reference entry whose text, apart from its ID line, equals its
+own, else of the one sharing its heading, and a reference entry two entries match the same way goes to neither. Where
+the record read back is at the write's version and holds that content apart from the IDs the store stamped, the version
+is the content taken in; otherwise the content is kept as a copy under `arc-projection/taken-in/` until a later landing
+releases it. A save carrying the recorded stamp takes that content as its base, and a file other than Markdown takes the
+closer of a kept copy and the version the read-back laid.
+
 `stamp.ts` renders, parses, and strips a Markdown file's base stamp, `<!-- arc-base: <blob id> -->`, on its first line
 or the line after its YAML frontmatter, and the notice lines directly after it, each one comment opening
 `<!-- arc-notice:`. Only lines of that form in that block strip, so a person's own comment stays content, and a file

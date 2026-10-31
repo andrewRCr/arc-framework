@@ -252,55 +252,16 @@ stamp parsing strips (§ 3.3, § 3.4).
   refusals included, until `drop`; a refusal is returned for 2.9's arm. Covered in
   `unit/store/projection/base-recovery.test.ts`.
 
-### `[ ]` **2.7 Keep what a persisted write-back took in — § 3.6**
+### `[x]` **2.7 Keep what a persisted write-back took in — § 3.6**
 
 - _Goal:_ A save carrying the stamp the file's last persisted write-back read merges from what that write-back took in,
   so an editor that never reloads cannot undo what the person changed since.
 
-    - This task builds the index fields; the recording write-back's read-back (`projection-write-back`) calls with the
-      stamp write-back read, the content taken in, the write's outcome, the record read back, and the command's
-      `history` memo (2.6), which for a persisted write-back sets the fields and drops the record's memo entry (2.6),
-      and for any other outcome leaves both; and the base selection over the fields. Its tests call the recording
-      directly.
-    - A persisted write-back is one whose write landed, whether or not the store's merge filed conflicts or an entry was
-      refused beside it (`projection-write-back`); one refused whole, by write-back or the store, deferred, skipped, or
-      clashing in the checkout (`projection-write-back`) is not one, and leaves these fields as they were. The content
-      taken in is what write-back read from the file after parse-back (`projection-write-back`), an entry it refused
-      standing as the version its base holds, each entry carrying the `_Id:_` the landed record gave it. Where the
-      record read back is at the version the write returned and its content equals the content taken in, set aside the
-      `_Id:_` lines the stamp added — the ID lines whose IDs the content taken in lacked, in the kind's line form, with
-      the final newline normalized — that version is the content taken in and goes to the store as the expected version.
-      Otherwise — the store merged it onto a newer version, another writer landed in between, or a merge in the checkout
-      (`projection-write-back`) sent its own result — the content taken in is a copy kept under `arc-projection/` until
-      a write-back reads a newer stamp, and a save merging from it merges in the checkout (`projection-write-back`).
-    - Each entry of the content taken in takes the ID the landed record gave it through one matcher, which
-      `projection-write-back`'s write-back also restores IDs through against the base: from the reference entries whose
-      `_Id:_` no entry carries, the one whose text, apart from its `_Id:_` line, equals the entry's, else the one whose
-      heading — in a field-header list, its field header — the entry shares, each only where exactly one reference entry
-      matches; a reference entry's ID goes to one entry at most — the one matching it by text, else by heading — and
-      where two entries match it the same way, neither takes it. This task builds that matcher in
-      `lib/store/projection/`.
-    - After a persisted write-back whose content taken in is kept as a copy, a save of a file other than Markdown takes
-      the closer of that copy and the version the write landed as its base.
-    - A file whose malformed entry write-back refused while the rest landed keeps its stamp and the base it was rendered
-      from (`projection-write-back`), so a save carrying that stamp merges from the content that landing took in, and
-      only the refused entry reads as an edit.
-    - Build `test-first` (one behavior at a time):
-        - a read-back equal to the content taken in apart from stamped `_Id:_` lines records the version written as that
-          content
-        - a read-back the store merged keeps a copy with the landed IDs, and a write-back reading a newer stamp clears
-          it
-        - an entry whose text equals one landed entry's takes its ID though another shares its heading, and a heading
-          the landed record holds twice gives an entry matching only by heading no ID
-        - a read at a version other than the write's keeps a copy
-        - a save carrying the persisted stamp selects the content taken in as its base
-        - a landing whose store merge filed conflicts, and one refusing a malformed entry while the rest landed, each
-          record the fields; a write-back refused whole, deferred, or clashing in the checkout leaves them as they were
-        - two entries matching one landed entry the same way take neither its ID
-        - a file kept after a malformed entry was refused, its stamp unchanged, selects the content that landing took in
-          as its base, only the refused entry differing
-        - a persisted write-back's recording drops the record's memo entry, so a later read in the command calls
-          `history` once more and finds the version written
+- _Outcome:_ `recordWriteBack`, `restoreEntryIds`, and `selectPersistedBase` (`lib/store/projection/taken-in.ts`); copies
+  live in `arc-projection/taken-in/`, and a recording returns the copies it releases, removed once the index that stops
+  naming them is written. `insertEntryId` is exported from `lib/store/concurrency/stamp.ts`, and 2.6's line comparison
+  as `lineDistance`. A file other than Markdown compares a copy with the version the read-back laid, its entry's base.
+  Covered in `unit/store/projection/taken-in.test.ts`.
 
 ### `[ ]` **2.8 Files other than Markdown — § 3.7**
 

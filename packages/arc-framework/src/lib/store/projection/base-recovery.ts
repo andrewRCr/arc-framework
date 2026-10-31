@@ -91,7 +91,7 @@ function closest(content: string, bases: readonly CandidateBase[]): CandidateBas
   const lines = content.split("\n");
   let best: { base: CandidateBase; changed: number } | undefined;
   for (const base of bases) {
-    const comparison = compareLines(lines, base.content.split("\n"));
+    const comparison = lineDistance(lines, base.content.split("\n"));
     if (comparison.matched && (best === undefined || comparison.changed < best.changed)) {
       best = { base, changed: comparison.changed };
     }
@@ -99,10 +99,16 @@ function closest(content: string, bases: readonly CandidateBase[]): CandidateBas
   return best?.base;
 }
 
-function compareLines(left: string[], right: string[]): { matched: boolean; changed: number } {
+/**
+ * Compare two texts line by line.
+ * @param left - One text's lines.
+ * @param right - The other's.
+ * @returns Whether the diff matches a non-blank line, and how many lines it changes.
+ */
+export function lineDistance(left: readonly string[], right: readonly string[]): { matched: boolean; changed: number } {
   let matched = false;
   let changed = 0;
-  for (const chunk of diffComm(left, right)) {
+  for (const chunk of diffComm([...left], [...right])) {
     if (chunk.common === undefined) changed += chunk.buffer1.length + chunk.buffer2.length;
     else if (chunk.common.some((line) => line.trim() !== "")) matched = true;
   }
