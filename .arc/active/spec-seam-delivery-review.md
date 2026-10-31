@@ -719,9 +719,14 @@ may ever reach the new schemas; today's folders stay inert on every clone, and t
 Native operation and source references retain the owner needed to bind this composition before reading it (A13,
 § 9.3). Pruning an ended attempt does not remove the command's owner locator or require a permanent operation-to-owner
 index. The existing hosted request owner index retains its selected owner for reserved and admitted request replay,
-outside its existing fingerprint and identity derivations; it remains machine-local. A pending continuation on another
-clone still reports unavailable local execution state under the command's existing policy; a completed result is read
-from its stored outcome without that state. An operation reference is not permission to launch or repeat a review.
+outside its existing fingerprint and identity derivations; it remains machine-local. An index entry written before the
+flip names no owner, and on the importing clone its fingerprint still matches, since the project ID is the repository
+ID it digests (§ 2.4); natively such an entry is a leftover that owner selection and replay ignore, and the next
+reservation of its request overwrites it with the selected owner (A27). A hosted request still in flight at the flip
+may therefore be requested again; the import's listing names in-flight attempts (§ 11.2), so they can be settled first.
+A pending continuation on another clone still reports unavailable local execution state under the command's existing
+policy; a completed result is read from its stored outcome without that state. An operation reference is not
+permission to launch or repeat a review.
 
 Readers keep today's lane-progress shape (`LaneProgressStateSchema`), composed in one place. The in-flight port composes
 a read of a lane-progress ID from the work item it is bound to (§ 2.3): that item's outcomes whose lane and lineage
@@ -2727,5 +2732,8 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
 
 - **A26** — 2026-10-30 — design: record pre-flip corrections to in-repo output. _Supersedes:_ § 3.5, Goal 8.
   _Trigger:_ pass-2 review. _Work:_ review-fix. _Revalidated:_ pending → 8.1.
+
+- **A27** — 2026-10-30 — design: ignore a pre-flip hosted request owner-index entry natively. _Supersedes:_ § 4.7.
+  _Trigger:_ pass-3 review. _Work:_ review-fix. _Revalidated:_ pending → 8.1.
 
 ---
