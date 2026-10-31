@@ -49,6 +49,10 @@ process.env.GIT_CONFIG_GLOBAL = join(packageRoot, "__tests__", "fixtures", "git"
 // An empty CI override retains native sizing.
 const maxWorkers = resolveVitestMaxWorkers(process.env);
 
+// Vitest workers honor this project setting although ProjectConfig excludes it.
+// Preserve empty groups without allowing unmatched root selections.
+const emptySuiteRuntimeOptions = { passWithNoTests: true } as const;
+
 // Single multi-project config so one `vitest run` executes every tier and prints
 // one combined summary. Per-tier runs use `--project <name>` (see package.json).
 //
@@ -63,6 +67,7 @@ const integrationTest = {
   ...(integrationTempRoot === undefined ? {} : { env: { TMPDIR: integrationTempRoot } }),
   globalSetup: ["__tests__/integration/global-setup.ts"],
   testTimeout: 30_000,
+  ...emptySuiteRuntimeOptions,
 };
 
 export default defineConfig({
@@ -81,6 +86,7 @@ export default defineConfig({
           // Module-mocking files are quarantined to the `unit-mocks` tier, so the
           // main unit tier can drop per-file isolation for its module-import win.
           isolate: false,
+          ...emptySuiteRuntimeOptions,
         },
       },
       {
@@ -91,6 +97,7 @@ export default defineConfig({
           setupFiles: ["__tests__/helpers/unit-setup.ts"],
           include: [...ISOLATED_UNIT_MOCK_FILES],
           isolate: true,
+          ...emptySuiteRuntimeOptions,
         },
       },
       {
@@ -129,6 +136,7 @@ export default defineConfig({
           globalSetup: ["__tests__/e2e/global-setup.ts"],
           testTimeout: 30_000,
           hookTimeout: 60_000,
+          ...emptySuiteRuntimeOptions,
         },
       },
     ],
