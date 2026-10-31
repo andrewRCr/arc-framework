@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** create-spec — `spec-cohort-identity-verbs.md` finalized
+- **Last Completed:** generate-tasks — `tasks-cohort-identity-verbs.md` finalized
 - **Next Task:** [none]
 - **Blockers:** [none]
 
