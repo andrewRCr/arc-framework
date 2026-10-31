@@ -59,19 +59,24 @@ it("restarts a write when an existing reader answers missing from a departed sto
     reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "alpha" } }),
     content: makeMetaFixture("alpha"), placement: { kind: "active" }, provenance }));
   const directory = join(f.root, ".git", "arc", "store");
-  let exchanges = 0, missing = false;
+  let exchanges = 0, missing = false, perReadFailed = false;
   const store = createRefStore({ ...f.ports, rawExec: async (args, options) => {
     if (args.includes("cat-file") && ++exchanges === 2) {
       await f.exec("git", ["fetch", directory, "refs/arc/*:refs/arc/*"]);
       await f.ports.fs.removeDirectory(directory);
     }
-    const result = await f.ports.rawExec(args, options);
+    const perRead = missing && !options?.batchReader && args.includes(`--git-dir=${directory}`)
+      && args.includes("cat-file") && args.includes("--batch");
+    let result: Awaited<ReturnType<typeof f.ports.rawExec>>;
+    try { result = await f.ports.rawExec(args, options); }
+    catch (error) { if (perRead) perReadFailed = true; throw error; }
     if (exchanges === 2 && args.includes("cat-file")) missing = Buffer.from(result.stdout).includes(Buffer.from(" missing\n"));
     return result;
   } });
   const result = await store.write({ action: "put", expected: seeded.version!, reference: seeded.reference,
     content: makeMetaFixture("alpha") + "\nAfter missing.\n", placement: { kind: "active" }, provenance });
   expect(missing).toBe(true);
+  expect(perReadFailed).toBe(true);
   expect(result).toMatchObject({ status: "ok" });
   expect(success(await f.store.read({ reference: seeded.reference })).content).toBe(makeMetaFixture("alpha") + "\nAfter missing.\n");
 }, 30_000);

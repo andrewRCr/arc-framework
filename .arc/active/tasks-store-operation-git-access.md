@@ -172,6 +172,14 @@ and explained.
         - The notes compare against the second prototype's 24,959 starts and attribute the shortfall to the push-URL
           read repeated under one comparison hold, which function-keyed lookups do not share.
 
+### `[x]` **4.R2 Show that the departed-store restart follows the per-read failure**
+
+- _Goal:_ The departed-store case shows the reader's missing answer followed by a one-shot `cat-file --batch` against
+  the departed store that fails, so the restart the write takes is the per-read failure's, not a constructed error's.
+
+- _Outcome:_ `store-ref-operation-restart.test.ts` records that reader-less read failing before the write succeeds.
+  Replacing the one-shot read with a thrown error naming the departed `--git-dir` now fails the case; it passed before.
+
 ## **Phase 5:** Verification
 
 ### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
