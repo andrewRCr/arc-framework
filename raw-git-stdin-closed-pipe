@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "raw-git-stdin-closed-pipe",
+  "claimId": "d60a2c68979b91950600df90c93331fa",
+  "createdAt": "2026-10-31T14:14:50.221Z",
+  "updatedAt": "2026-10-31T14:14:50.221Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Handle a closed stdin pipe in the direct-source raw Git executor",
+  "branch": "chore/raw-git-stdin-closed-pipe",
+  "origin": "inbox",
+  "originEntry": "Handle a closed stdin pipe in the direct-source raw Git executor",
+  "originEntrySourceDigest": "sha256:935a3ff1995c3a9d70af7fa70dc7cc22bde4978b10f8dc6059944e3fd72c72ed",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
