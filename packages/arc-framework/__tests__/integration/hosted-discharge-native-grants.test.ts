@@ -77,13 +77,14 @@ async function hostedReview() {
   const reader = createHostedReservationDischargeReader({ ...h.native, workItem: owner });
   const discharge = () => reader({ reservation, approvedHead: headSha, baseRevision,
     changeRequest: { repository: target.repository, pullRequest: target.pullRequest }, candidate });
-  const subject = await readNativeDecisionSubject({ ...h.native, workItem: owner, target: reviewTarget, lineage,
-    baseBranch: "main", workUnit: name, candidate });
+  const observe = (observed: typeof reviewTarget) => readNativeDecisionSubject({ ...h.native, workItem: owner, target: observed,
+    lineage, baseBranch: "main", workUnit: name, candidate });
+  const subject = await observe(reviewTarget);
   const grant = (extra: Pick<Parameters<typeof resolveNativeExtraPassJudgment>[0], "additionalPassAuthorization">) =>
     resolveNativeExtraPassJudgment({ facts: { decisions: createReviewDecisionPort(store, owner), readProjectId: h.reference.projectId },
       repositoryId: projectId, subject, lane: "standard", policyTarget: target,
       completedPasses: 1, actor: "andrew", now: "2026-10-30T15:03:00Z", ...extra });
-  return { h, ports, projectId, branch, baseRevision, headSha, target, handle, discharge, grant };
+  return { h, ports, projectId, branch, baseRevision, headSha, target, handle, discharge, grant, git, observe, reviewTarget };
 }
 
 it("discharges a clean terminal pass at the ceiling, then admits another pass once its owner stores an additional-pass "
@@ -127,4 +128,19 @@ it("follows the pending await a native discharge emits, from a checkout naming n
       write: text => { output += text; }, setExitCode: () => undefined }, undefined, { ...h.native, hostedRunner });
     expect(JSON.parse(output)).toMatchObject({ state: "clean", nextAction: "complete" });
     expect(await discharge()).toMatchObject({ discharged: true, nextSource: null });
+  }, 40_000);
+
+it("refuses an extra-pass subject the Candidate does not attest, naming arc attest, and observes it at the attested head",
+  async () => {
+    const { h, git, observe, headSha, reviewTarget } = await hostedReview();
+    await writeFile(join(h.native.cwd, "example.ts"), "export const value = 2;\n");
+    await git("commit", "-am", "Change example");
+    const moved = await git("rev-parse", "HEAD");
+    const { targetId: ignored, ...coordinates } = reviewTarget;
+    void ignored;
+    await expect(observe(createReviewTarget({ ...coordinates, headSha: moved, headTree: await git("rev-parse", `${moved}^{tree}`) })))
+      .rejects.toThrow(`The Candidate does not attest the review head ${moved}. Attest it with \`arc attest example\`, `
+        + "then retry the extra-pass judgment.");
+    await git("reset", "--hard", headSha);
+    await expect(observe(reviewTarget)).resolves.toMatchObject({ headSha });
   }, 40_000);
