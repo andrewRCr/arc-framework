@@ -37,6 +37,11 @@ folder that exists, so a worktree whose Git directory was removed reads as gone 
 ends only the guarded operation, at its next step, with the report the caller names; a wait that times out names the
 holder it last saw. It is not reentrant.
 
+`stamp.ts` renders, parses, and strips a Markdown file's base stamp, `<!-- arc-base: <blob id> -->`, on its first line
+or the line after its YAML frontmatter, and the notice lines directly after it, each one comment opening
+`<!-- arc-notice:`. Only lines of that form in that block strip, so a person's own comment stays content, and a file
+whose stamp is not where it belongs reads as stampless and whole.
+
 `aside.ts` names the copies a swap moves aside and the staged files it links into place, under the aside folder's
 `aside/`, in folders mirroring the file's path below `.arc/` with the file's own name as the last folder. Each name is
 `<base blob id>.<pid>-<instance>-<scope digest>.<nonce>.<role>`: the version it replaced, its writer as the projection

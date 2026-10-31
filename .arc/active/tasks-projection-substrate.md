@@ -220,18 +220,13 @@ stamp parsing strips (§ 3.3, § 3.4).
             - with `user.name` and `arc.identity` set in both global and local configuration, the local values win, as
               `git config --get` returns them
 
-    - `[ ]` **2.5.c The base stamp and notice lines**
+    - `[x]` **2.5.c The base stamp and notice lines**
 
-        - `<!-- arc-base: <blob id> -->` on a Markdown file's first line, or on the line after its YAML frontmatter
-          where the file opens with one, as D13 places it, and each notice line one HTML comment opening
-          `<!-- arc-notice:` in the block directly after the stamp; rendered, parsed, and stripped in one module, which
-          the conflict notice (`projection-write-back`) and the protected notice (`projection-write-back`) render
-          through. Only lines of that form in that block strip, so a person's own HTML comment stays content.
-        - Build `test-first` (one behavior at a time):
-            - a rendered file parses back to its stamp, its notice lines, and the stored content exactly
-            - a file opening with YAML frontmatter takes the stamp after it, and parses back with its frontmatter whole
-            - a file whose first line, or first line after its frontmatter, is not a stamp reads as stampless
-            - a person's HTML comment under the stamp stays in the content and its blob id
+        - `renderStampedFile` and `parseStampedFile` (`lib/store/projection/stamp.ts`) work over the file's lines, so a
+          round trip is exact: the stamp on line one, or after a frontmatter block closed by a `---` line, then the notice
+          block, each notice one line `<!-- arc-notice: … -->`; parsing reads CRLF as LF, and a file whose stamp is not
+          there is stampless and whole. Rendering refuses a stamp that is no blob id and a notice a comment cannot hold.
+          A person's comment staying in the blob id is covered with 2.5.a. Covered in `unit/store/projection/stamp.test.ts`.
 
 ### `[ ]` **2.4 Detect a change by Git's racy rule — § 3.3, § 11.2**
 
