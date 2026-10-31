@@ -141,7 +141,8 @@ describe("batch reader refresh", () => {
     const scope = new GitBatchReadScope();
     const reading = scope.run(invocation);
     const closing = scope.reset();
-    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(first.process.stdin.writableEnded).toBe(false);
     expect(first.exited()).toBe(false);
     release();
     expect((await reading).stdout.toString()).toBe("HEAD missing\n");

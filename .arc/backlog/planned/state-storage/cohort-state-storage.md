@@ -106,9 +106,9 @@ cost is the store's own Git process volume, and that routed to `store-operation-
 ref-store call one operation-owned scope, a shared object reader and remembered configuration lookups refreshed at the
 events that can make them stale, with no contract change. It lands before `storage-ref-hardening`'s implementation, and
 the two plan side by side: hardening's keeper-lock item moves where the scope's fetch and lock events fall, and its
-missing-object classification sits on the scope's missing-answer check. Hardening takes a `Depends On` edge on it and
-keeps one invariant: transport and designation lookups stay fresh under whatever lease replaces the keeper lock. Sharing
-state across calls is captured as a follow-on.
+missing-object classification sits on the scope's missing-answer check. The two land in an agreed order with no
+`Depends On` edge either way (Owner, 2026-10-30), and hardening keeps one invariant: transport and designation lookups
+stay fresh under whatever lease replaces the keeper lock. Sharing state across calls is captured as a follow-on.
 
 ### Shared contracts
 
