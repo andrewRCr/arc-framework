@@ -3,14 +3,20 @@
   "slug": "import-buffer-repairs",
   "claimId": "e5a4bc3445c4bb62ce0c264ac24e23cd",
   "createdAt": "2026-10-31T04:07:24.272Z",
-  "updatedAt": "2026-10-31T04:07:24.272Z",
+  "updatedAt": "2026-10-31T04:14:38.854Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Repair four draft inbound buffers the store import refuses",
   "branch": "chore/import-buffer-repairs",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/import-buffer-repairs",
+    "headSha": "73724f83de2644128431ca4aefc7db86427a46b8"
+  }
 }
