@@ -18,7 +18,9 @@ export type StoreIdentityAcquisitionFailure =
   | { kind: "refused"; refusal: StoreRefusal }
   | { kind: "unreadable"; condition: string; remedy: Remedy };
 /** An acquisition, with what stopped it when it failed. */
-export type AcquisitionRead = { acquisition: StoreIdentityAcquisition; failure?: StoreIdentityAcquisitionFailure };
+export type AcquisitionRead =
+  | { acquisition: Exclude<StoreIdentityAcquisition, { kind: "error" }> }
+  | { acquisition: Extract<StoreIdentityAcquisition, { kind: "error" }>; failure: StoreIdentityAcquisitionFailure };
 const ERRAND_LISTINGS: Parameters<Store["list"]>[0][] = [{ family: "work-item", kind: "work-item/record", filter: { locations: ["active"] } }];
 /** Read active project-scoped Errands, preserving malformed entries as diagnostics. */
 export async function acquireStoreErrands(store: Store): Promise<StoreIdentityAcquisition> {

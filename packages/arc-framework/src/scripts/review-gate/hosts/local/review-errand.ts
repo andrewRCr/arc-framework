@@ -18,12 +18,14 @@ type ErrandClaim = { kind: "errand"; slug: string; claimId: string };
 
 // A native store's inventory failure refuses typed, as an incomplete review listing does; in-repo keeps its message.
 async function missingClaim(store: Store, claim: ErrandClaim): Promise<null> {
-  const { acquisition: inventory, failure } = await acquireStoreErrandsWithFailure(store);
-  if (inventory.kind === "error") {
-    if (!store.capabilities.stateOffBranch || failure === undefined) throw new Error(`Errand ${claim.slug}: ${inventory.message}`);
+  const read = await acquireStoreErrandsWithFailure(store);
+  if ("failure" in read) {
+    const { acquisition, failure } = read;
+    if (!store.capabilities.stateOffBranch) throw new Error(`Errand ${claim.slug}: ${acquisition.message}`);
     throw claimRefusal(store, claim, failure.kind === "refused" ? failure.refusal : { code: "record-malformed", class: "recoverable",
       rule: "review.errand-inventory-unreadable", condition: failure.condition, remedy: failure.remedy });
   }
+  const inventory = read.acquisition;
   if (inventory.kind === "complete" && (inventory.missed || inventory.diagnostics.length > 0)) {
     const detail = inventory.diagnostics.map(item => `${item.key}: ${item.condition} ${item.remedy.text}`).join("; ");
     const missing = `Errand ${claim.slug} (${claim.claimId}) was not found in an incomplete inventory.`;
