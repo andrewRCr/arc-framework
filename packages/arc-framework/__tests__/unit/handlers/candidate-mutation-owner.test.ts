@@ -51,6 +51,14 @@ it("resolves a completed checkout's own generation through its branch while a li
     .toEqual(live.reference.owner);
 });
 
+it("resolves the generation its checkout's marker binds by UID while a live work unit reuses its slug", async () => {
+  const { h, archived, live } = await reusedSlug();
+  if (archived.type !== "work-item" || archived.uid === undefined) throw new Error("Expected a minted work-unit UID");
+  expect(await resolveCandidateMutationGeneration(h.store, "example", "owned", named, undefined, { uid: archived.uid }))
+    .toEqual(archived);
+  expect(await resolveCandidateMutationGeneration(h.store, "example", "owned", named)).toEqual(live);
+});
+
 it("keeps an owner the invocation already selected", async () => {
   const { h, archived } = await reusedSlug();
   expect(await resolveCandidateMutationGeneration(h.store, "example", "owned", named, archived)).toEqual(archived);
@@ -115,6 +123,20 @@ it("refuses the completed name list with the store's refusal of the live invento
   await expect(resolveCompletedCandidateWorkUnits("/memory", h.store)).rejects.toMatchObject({
     refusal: { code: "namespace-corrupt", condition: "Live inventory unavailable." } });
   refusing = false;
+  expect(await resolveCompletedCandidateWorkUnits("/memory", h.store)).toEqual(["example"]);
+});
+
+it("refuses the completed name list when the live inventory is unreadable, and lists it once that read succeeds", async () => {
+  const h = createLifecycleHarness(), list = h.store.list.bind(h.store);
+  await h.seedMeta("example", { branch: null, state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  let unreadable = true;
+  h.store.list = async input => unreadable && input.filter?.locations?.includes("active") === true
+    ? { status: "ok", result: { status: "unreadable", condition: "The live work-unit index cannot be read.",
+      remedy: { text: "Restore the live work-unit index, then retry." } } } : list(input);
+  await expect(resolveCompletedCandidateWorkUnits("/memory", h.store)).rejects.toMatchObject({
+    code: "corrupt-state", message: expect.stringContaining("The live work-unit index cannot be read.") });
+  unreadable = false;
   expect(await resolveCompletedCandidateWorkUnits("/memory", h.store)).toEqual(["example"]);
 });
 

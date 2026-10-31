@@ -1520,7 +1520,8 @@ prerequisites have landed, and every earlier task is independent of the remainin
   `store-registered-reads.test.ts`'s mock moves to the narrower registration module.
     - **Deviation:** A29 admits two changes beyond the listed cases: the reduction command's test drops its
       `appendDispositionRecord` no-write spy, the port now a disposition reader the type keeps from writing, and the
-      review gate's closed canonical-caller inventory lists the modules this change adds.
+      review gate's closed canonical-caller inventory lists the modules this change adds. A31 admits a third: the
+      Candidate mutation owner's projection test asserts the UID its checkout's marker binds.
 
 - `[x]` No production module outside `lib/store/` imports the Candidate or boundary store.
 

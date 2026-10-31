@@ -141,14 +141,18 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-// The generation an applicability resolution writes: a completed checkout's own by its branch, else the slug's.
+// The generation an applicability resolution writes: the owning checkout's own by its marker's UID or a completed
+// checkout's branch, else the slug's.
 function resolveApplicabilityGeneration(store: Store, input: { root: string; name: string;
   input: CandidateApplicabilityCommandInput; scope: CandidateMutationScope; invocation?: ReviewInvocationInput;
-  completedBranch?: string }) {
+  completedBranch?: string; ownerUid?: string }) {
   const candidateId = "kind" in input.input ? input.input.offer.candidateId : input.input.candidateId;
   return resolveCandidateMutationGeneration(store, input.name, input.scope, { cwd: input.root, candidateId },
-    input.invocation?.workItem, input.completedBranch === undefined ? undefined
-      : { branch: input.completedBranch, projectId: input.invocation?.projectId });
+    input.invocation?.workItem, input.completedBranch === undefined && input.ownerUid === undefined ? undefined : {
+      ...(input.completedBranch === undefined ? {} : { branch: input.completedBranch }),
+      ...(input.ownerUid === undefined ? {} : { uid: input.ownerUid }),
+      projectId: input.invocation?.projectId,
+    });
 }
 
 async function executeCandidateApplicabilityResolution(
@@ -160,12 +164,13 @@ async function executeCandidateApplicabilityResolution(
   invocation?: ReviewInvocationInput,
   scope: CandidateMutationScope = "owned",
   completedBranch?: string,
+  ownerUid?: string,
 ): Promise<CandidateApplicabilityCommandResult> {
   const { settings } = await readConfigSettings(root);
   const baseBranch = settings["branch.base"];
   const git = invocation?.exec ?? createGitExec(interaction?.subprocess);
   const store = retryEndedItemHistory(invocation?.store ?? createStore(createDefaultStorePorts({ checkoutRoot: root, exec: git })));
-  const owner = await resolveApplicabilityGeneration(store, { root, name, input, scope, invocation, completedBranch });
+  const owner = await resolveApplicabilityGeneration(store, { root, name, input, scope, invocation, completedBranch, ownerUid });
   const rawGit = createRawGitExec(root);
   const readObjectId = async (expression: string): Promise<string> => (
     await git("git", ["rev-parse", "--verify", expression], {
@@ -320,6 +325,8 @@ export interface CandidateApplicabilityResolveHandlerDependencies {
     scope?: CandidateMutationScope,
     /** The owning checkout's branch when it continues a completed generation. */
     completedBranch?: string,
+    /** The work item the owning checkout's marker binds by UID. */
+    ownerUid?: string,
   ): Promise<unknown>;
   write(text: string): void;
   setExitCode(code: number): void;
@@ -340,9 +347,10 @@ function defaultDependencies(invocation?: ReviewInvocationInput): CandidateAppli
     }),
     resolveCompletedWorkUnits: root => resolveCompletedCandidateWorkUnits(root, storeFor(root, execFor())),
     readText: (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
-    execute: (root, name, input, interaction, requireMutationOwner, scope, completedBranch) => executeCandidateApplicabilityResolution(
-      root, name, input, interaction, requireMutationOwner,
-      { ...invocation, cwd: root, exec: execFor(interaction), store: storeFor(root, execFor(interaction)) }, scope, completedBranch),
+    execute: (root, name, input, interaction, requireMutationOwner, scope, completedBranch, ownerUid) =>
+      executeCandidateApplicabilityResolution(root, name, input, interaction, requireMutationOwner,
+        { ...invocation, cwd: root, exec: execFor(interaction), store: storeFor(root, execFor(interaction)) }, scope,
+        completedBranch, ownerUid),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },
   };
@@ -416,7 +424,8 @@ async function resolveCandidateMutationScope(
   root: string,
   workUnit: string,
   interaction?: InteractionContext,
-): Promise<{ refusal: CandidateMutationRefusal; cause?: unknown } | { scope: CandidateMutationScope; completedBranch?: string }> {
+): Promise<{ refusal: CandidateMutationRefusal; cause?: unknown }
+  | { scope: CandidateMutationScope; completedBranch?: string; ownerUid?: string }> {
   let owner: CandidateMutationOwner;
   try {
     owner = await deps.resolveMutationOwner(root, interaction);
@@ -426,7 +435,8 @@ async function resolveCandidateMutationScope(
   if (owner.status === "unavailable") return { refusal: "active-work-unit-unavailable" };
   if (owner.status === "owned") {
     if (owner.workUnit !== workUnit) return { refusal: "active-work-unit-mismatch" };
-    return { scope: "owned", ...(owner.branch === undefined ? {} : { completedBranch: owner.branch }) };
+    return { scope: "owned", ...(owner.branch === undefined ? {} : { completedBranch: owner.branch }),
+      ...(owner.uid === undefined ? {} : { ownerUid: owner.uid }) };
   }
   try {
     return (await deps.resolveCompletedWorkUnits(root)).includes(workUnit)
@@ -519,6 +529,7 @@ export async function handleCandidateApplicabilityResolve(
       requireMutationOwner,
       mutation.scope,
       mutation.completedBranch,
+      mutation.ownerUid,
     );
   } catch (error) {
     emit(deps, executionFailedResult(error, commandInput.data.name, request));

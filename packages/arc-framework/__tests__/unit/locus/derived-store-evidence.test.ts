@@ -239,7 +239,7 @@ it.each(["landed", "multi-commit-squash"])("classifies an externally %s complete
 
 it("projects the Candidate mutation owner from the store-derived subject", async () => {
   const h = await fixture();
-  expect(projectCandidateMutationOwner(await frame(h.io))).toEqual({ status: "owned", workUnit: h.reference.owner.name });
+  expect(projectCandidateMutationOwner(await frame(h.io))).toEqual({ status: "owned", workUnit: h.reference.owner.name, uid: h.uid });
 });
 
 it("reads a cohort document through the store and carries none when the document is missing", async () => {

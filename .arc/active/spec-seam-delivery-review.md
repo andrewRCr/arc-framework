@@ -420,7 +420,7 @@ lifecycle, so a test that runs a caller outside a repository stubs the typed acc
 these records ride the branch stays as today's in-repo arm, behind one branch on `stateOffBranch` (§ 14.3). A test of a
 caller whose port this change narrows to reads drops that port's write stubs and any assertion that the write was not
 called, the type now refusing it, and a closed inventory of the review gate's modules lists the modules this change adds
-(A29).
+(A29). The Candidate mutation owner's projection test asserts the UID its checkout's marker binds (A31).
 
 #### 3.2 The integration checkpoint binds what it attested
 
@@ -2750,5 +2750,8 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
 
 - **A30** — 2026-10-31 — task: prove native reference re-entry across a same-UID rename. _Supersedes:_ none.
   _Trigger:_ 8.1 terminal. _Work:_ 4.R6. _Revalidated:_ pending → 8.1.
+
+- **A31** — 2026-10-31 — design: the Candidate mutation owner carries its marker's UID. _Supersedes:_ § 3.1 ¶3,
+  Criterion 2. _Trigger:_ F2 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

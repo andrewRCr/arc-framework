@@ -124,28 +124,39 @@ async function readCompletedOwners(store: Store): Promise<readonly OwnerIdentity
  * @param scope - Whether the entering checkout owns the work unit or continues a completed one
  * @param candidate - The repository root and the Candidate the mutation names
  * @param bound - An owner the invocation already selected for this work unit
- * @param completedCheckout - A completed generation's checkout branch, which links that generation rather than a live namesake
+ * @param checkout - The owning checkout's marker-bound UID, and a completed generation's branch, each of which selects
+ *   that generation rather than a live namesake
  * @returns The owner every read and write of the mutation uses
  */
 export async function resolveCandidateMutationGeneration(store: Store, workUnit: string, scope: "owned" | "unowned",
   candidate: { cwd: string; candidateId: string }, bound?: OwnerIdentity,
-  completedCheckout?: { branch: string; projectId?: () => Promise<string> }): Promise<OwnerIdentity | undefined> {
+  checkout?: OwnedCheckout): Promise<OwnerIdentity | undefined> {
   if (!store.capabilities.stateOffBranch) return undefined;
-  return scope === "owned" ? resolveOwnedGeneration(store, workUnit, bound, completedCheckout)
+  return scope === "owned" ? resolveOwnedGeneration(store, workUnit, bound, checkout)
     : resolveCompletedGeneration(store, workUnit, candidate, bound);
 }
 
-// The entering checkout's own generation: a bound owner, the completed generation its branch links, or the live one.
+interface OwnedCheckout { branch?: string; uid?: string; projectId?: () => Promise<string> }
+
+// The entering checkout's own generation: a bound owner, the one its marker's UID names, the completed generation its
+// branch links, or the live one.
 async function resolveOwnedGeneration(store: Store, workUnit: string, bound?: OwnerIdentity,
-  completedCheckout?: { branch: string; projectId?: () => Promise<string> }): Promise<OwnerIdentity> {
+  checkout?: OwnedCheckout): Promise<OwnerIdentity> {
   if (bound !== undefined && bound.name === workUnit) return bound;
-  if (completedCheckout !== undefined) {
-    const linked = await readReviewWorkUnitByRef({ store, projectId: completedCheckout.projectId }, completedCheckout.branch);
+  if (checkout?.uid !== undefined) {
+    return readOwnedRecord(store, workUnit, OwnerIdentitySchema.parse({ type: "work-item", name: workUnit, uid: checkout.uid }));
+  }
+  if (checkout?.branch !== undefined) {
+    const linked = await readReviewWorkUnitByRef({ store, projectId: checkout.projectId }, checkout.branch);
     if (linked?.name === workUnit) return linked.record.reference.owner;
   }
-  const live = await readWorkUnit(store, workUnit);
-  if (live.status === "refused") throw new StoreRefusalError(live.refusal, true);
-  return live.result.reference.owner;
+  return readOwnedRecord(store, workUnit);
+}
+
+async function readOwnedRecord(store: Store, workUnit: string, owner?: OwnerIdentity): Promise<OwnerIdentity> {
+  const read = await readWorkUnit(store, workUnit, owner);
+  if (read.status === "refused") throw new StoreRefusalError(read.refusal, true);
+  return read.result.reference.owner;
 }
 
 // From a free primary, the completed generation of the slug that holds the mutated Candidate.
