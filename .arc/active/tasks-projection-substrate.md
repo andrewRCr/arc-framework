@@ -75,22 +75,14 @@ since no CLI process runs over a store before the flip (§ 1.5).
 - _Goal:_ Every repository the setup verbs run in carries a tracked root `.ignore` whose ARC block re-includes the four
   projected roots for ripgrep-family search, keeping the repository's own lines.
 
-    - `[ ]` **1.3.a The block and its writer**
+    - `[x]` **1.3.a The block and its writer**
 
-        - The block's entries negate the pattern that ignores each projected root, read from
-          `lib/layout/projected-roots.ts` as 1.1.b extends it, so this task follows 1.1.b: `!.arc/active/`,
-          `!.arc/backlog/`, `!.arc/completed/`, and `!.arc/user/*/`. A negation re-includes only the path its pattern
-          names, so `!.arc/user/` would re-include the parent alone and leave every `.arc/user/<identity>/` ignored by
-          `.gitignore`'s `.arc/user/*/` (checked with ripgrep 14.1.1).
-        - Written through `writeArcManagedBlock` (`lib/template/files.ts`), which `writeArcGitignoreBlock` wraps and
-          which replaces only its own block and keeps every other line. One helper writes both managed ignore blocks,
-          so the four verbs share one entry list where each builds the same `.gitignore` list inline today.
-        - Build `test-first` (one behavior at a time):
-            - an absent `.ignore` gains the block holding the four negations
-            - a `.ignore` with a repository's own lines keeps them, and a second write leaves the file unchanged
-            - at the integration tier, over a real repository: with the block written, a check's worktree capture
-              (`createWorktreeSnapshot`) still stages nothing under `.arc/user/<identity>/`, since Git never reads
-              `.ignore`
+        - `writeArcIgnoreBlocks` (`lib/template/files.ts`) writes both managed blocks through `writeArcManagedBlock`:
+          `.gitignore`'s from one entry list, its personal-root line now read as `PROJECTED_PERSONAL_PATTERN`, plus the
+          caller's skill directories, and `.ignore`'s as each `projectedRootPatterns` entry negated — `!.arc/active/`,
+          `!.arc/backlog/`, `!.arc/completed/`, and `!.arc/user/*/`. Unit cases sit in `unit/template/files.test.ts`;
+          `integration/template-ignore-blocks.test.ts` shows a check's worktree capture still staging nothing under
+          `.arc/user/<identity>/`.
 
     - `[ ]` **1.3.b The four verbs**
 

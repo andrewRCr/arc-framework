@@ -14,7 +14,7 @@ export const PROJECTED_PERSONAL_ROOT = ".arc/user";
 export const PROJECTED_LIFECYCLE_PATTERNS: readonly string[] = PROJECTED_LIFECYCLE_ROOTS.map((root) => `${root}/`);
 
 /** Directory pattern ignoring every identity's personal root, and never their shared container alone. */
-const PROJECTED_PERSONAL_PATTERN = `${PROJECTED_PERSONAL_ROOT}/*/`;
+export const PROJECTED_PERSONAL_PATTERN = `${PROJECTED_PERSONAL_ROOT}/*/`;
 
 /**
  * Each projected root as the path it holds for one identity: the lifecycle roots and that identity's personal root.

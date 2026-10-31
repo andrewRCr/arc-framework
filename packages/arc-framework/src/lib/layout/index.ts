@@ -14,6 +14,7 @@ export { resolveArcPath } from "./projection.js";
 export {
   PROJECTED_LIFECYCLE_PATTERNS,
   PROJECTED_LIFECYCLE_ROOTS,
+  PROJECTED_PERSONAL_PATTERN,
   PROJECTED_PERSONAL_ROOT,
   isProjectedPath,
   isProjectedLifecyclePath,

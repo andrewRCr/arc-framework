@@ -21,6 +21,7 @@ export {
   writeArcManagedBlock,
   writeArcGitignoreBlock,
   writeArcGitattributesBlock,
+  writeArcIgnoreBlocks,
   type MkdirFn,
   type ReadFileFn,
   type WriteFileFn,

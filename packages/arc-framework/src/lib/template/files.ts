@@ -5,6 +5,8 @@
  * for gitignore/gitattributes. Filesystem functions are injectable for unit testing.
  */
 
+import { join } from "node:path";
+import { PROJECTED_PERSONAL_PATTERN, projectedRootPatterns } from "../layout/index.js";
 import { renderTokens, renderConditionals } from "./render.js";
 
 /** Mkdir function signature matching fs.mkdir. */
@@ -162,4 +164,34 @@ export async function writeArcGitattributesBlock(
   writeFile: WriteFileFn,
 ): Promise<void> {
   await writeArcManagedBlock(filePath, entries, readFile, writeFile);
+}
+
+/**
+ * Write ARC's managed blocks in the root `.gitignore` and `.ignore`, keeping every other line of each.
+ *
+ * @param cwd - Repository root
+ * @param skillEntries - Generated skill directories `.gitignore` also ignores
+ * @param readFile - Injectable read function
+ * @param writeFile - Injectable write function
+ */
+export async function writeArcIgnoreBlocks(
+  cwd: string,
+  skillEntries: readonly string[],
+  readFile: ReadFileFn,
+  writeFile: WriteFileFn,
+): Promise<void> {
+  await writeArcGitignoreBlock(join(cwd, ".gitignore"), [...ARC_GITIGNORE_ENTRIES, ...skillEntries], readFile, writeFile);
+  await writeArcManagedBlock(join(cwd, ".ignore"), arcSearchIgnoreEntries(), readFile, writeFile);
+}
+
+/** Machine-local files and every identity's personal root, which Git and `npm pack` both skip. */
+const ARC_GITIGNORE_ENTRIES = [
+  ".arc/system/.internal/pristine.json",
+  ".arc/system/.internal/worktree-marker.json",
+  PROJECTED_PERSONAL_PATTERN,
+];
+
+/** Search tools of the ripgrep family read `.ignore` above `.gitignore`; each entry re-includes one projected root. */
+function arcSearchIgnoreEntries(): string[] {
+  return projectedRootPatterns().map((pattern) => `!${pattern}`);
 }
