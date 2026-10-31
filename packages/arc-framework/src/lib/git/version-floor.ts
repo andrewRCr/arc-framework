@@ -2,7 +2,8 @@
  * and ref transactions. */
 
 import type { GitExec, GitExecInput, RawGitExec } from "./exec.js";
-import { normalizeGitRejection } from "./process-error.js";
+import { assertGitNotCanceled } from "./process-cancellation.js";
+import { GitProcessError, normalizeGitRejection, type GitInvocation } from "./process-error.js";
 
 /** Numeric upstream version, independent of a distributor's suffix. */
 export interface GitVersion {
@@ -44,7 +45,20 @@ export function createGitFloorGate(): GitFloorGate {
   };
 }
 
-/** Gate every call of a plain, stdin-fed, and byte executor on the floor, each probing the Git it runs.
+/** Wait for a floor answer, releasing this call with the executor's own cancellation error once its signal aborts. The
+ * answer is shared, so its probe keeps running for the other calls waiting on it. */
+async function awaitFloor(answer: Promise<void>, signal: AbortSignal | undefined, invocation: GitInvocation): Promise<void> {
+  if (signal === undefined) return answer;
+  let cancel = (): void => {};
+  const canceled = new Promise<never>((_resolve, reject) => {
+    cancel = () => { reject(new GitProcessError({ ...invocation, kind: "canceled", isCanceled: true, cause: signal.reason })); };
+  });
+  signal.addEventListener("abort", cancel, { once: true });
+  try { await Promise.race([answer, canceled]); } finally { signal.removeEventListener("abort", cancel); }
+}
+
+/** Gate every call of a plain, stdin-fed, and byte executor on the floor, each probing the Git it runs. A call whose
+ * signal aborts while it waits for the answer rejects as canceled, as its executor would.
  * @param gate - Answers for these executors, keyed by executor and, for the plain one, by command.
  * @param executors - Unwrapped executors.
  */
@@ -57,11 +71,24 @@ export function gateGitExecutors<Ports extends { exec: GitExec; execInput: GitEx
   const stdin = (): Promise<void> => gate.check("stdin git", () => execInput(["--version"], ""));
   const raw = (): Promise<void> =>
     gate.check("raw git", async () => new TextDecoder().decode((await rawExec(["--version"])).stdout));
+  const wait = async (answer: () => Promise<void>, invocation: GitInvocation, signal: AbortSignal | undefined) => {
+    assertGitNotCanceled(signal, invocation);
+    await awaitFloor(answer(), signal, invocation);
+  };
   return {
     ...executors,
-    exec: async (command, args, options) => { await plain(command); return exec(command, args, options); },
-    execInput: async (args, input, options) => { await stdin(); return execInput(args, input, options); },
-    rawExec: async (args, options) => { await raw(); return rawExec(args, options); },
+    exec: async (command, args, options) => {
+      await wait(() => plain(command), { command, args }, options?.signal);
+      return exec(command, args, options);
+    },
+    execInput: async (args, input, options) => {
+      await wait(stdin, { command: "git", args }, options?.signal);
+      return execInput(args, input, options);
+    },
+    rawExec: async (args, options) => {
+      await wait(raw, { command: "git", args }, options?.signal);
+      return rawExec(args, options);
+    },
   };
 }
 

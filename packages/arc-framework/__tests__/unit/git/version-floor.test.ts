@@ -90,7 +90,7 @@ it("diagnoses the same executable that failed", async () => {
   await expect(wrapped("/old/toolchain/git", args)).rejects.toThrow(/Git 2\.45\.0.*Git 2\.53/u);
 });
 
-type Answer = string | Error;
+type Answer = string | Error | Promise<string>;
 type Kind = "plain" | "stdin" | "raw";
 
 /** Executors answering `--version` with each kind's queued answers in turn, recording every other call. */
@@ -99,7 +99,7 @@ function versionedExecutors(answers: Answer[] | Partial<Record<Kind, Answer[]>>)
     ? { plain: answers, stdin: answers, raw: answers }
     : { plain: answers.plain ?? [""], stdin: answers.stdin ?? [""], raw: answers.raw ?? [""] };
   const probes: Record<Kind, number> = { plain: 0, stdin: 0, raw: 0 };
-  const answer = (kind: Kind): string => {
+  const answer = (kind: Kind): string | Promise<string> => {
     const queue = queues[kind];
     const next = queue[Math.min(probes[kind]++, queue.length - 1)];
     if (next instanceof Error) throw next;
@@ -107,27 +107,29 @@ function versionedExecutors(answers: Answer[] | Partial<Record<Kind, Answer[]>>)
   };
   const calls: string[] = [];
   const exec: GitExec = async (command, args) => {
-    if (args[0] === "--version") return { stdout: answer("plain"), stderr: "" };
+    if (args[0] === "--version") return { stdout: await answer("plain"), stderr: "" };
     calls.push(`${command} ${args.join(" ")}`);
     return { stdout: "ran\n", stderr: "" };
   };
   const execInput: GitExecInput = async (args) => {
-    if (args[0] === "--version") return answer("stdin");
+    if (args[0] === "--version") return await answer("stdin");
     calls.push(`stdin ${args.join(" ")}`);
     return "ran\n";
   };
   const rawExec: RawGitExec = async (args) => {
-    if (args[0] === "--version") return { stdout: Buffer.from(answer("raw")), stderr: Buffer.alloc(0) };
+    if (args[0] === "--version") return { stdout: Buffer.from(await answer("raw")), stderr: Buffer.alloc(0) };
     calls.push(`raw ${args.join(" ")}`);
     return { stdout: Buffer.from("ran"), stderr: Buffer.alloc(0) };
   };
   return { executors: { exec, execInput, rawExec }, calls, probes };
 }
 
-function runVariant(executors: { exec: GitExec; execInput: GitExecInput; rawExec: RawGitExec }, variant: string): Promise<unknown> {
-  if (variant === "plain") return executors.exec("git", ["status"]);
-  if (variant === "stdin") return executors.execInput(["hash-object", "--stdin"], "payload");
-  return executors.rawExec(["cat-file", "--batch"]);
+function runVariant(
+  executors: { exec: GitExec; execInput: GitExecInput; rawExec: RawGitExec }, variant: string, signal?: AbortSignal,
+): Promise<unknown> {
+  if (variant === "plain") return executors.exec("git", ["status"], { signal });
+  if (variant === "stdin") return executors.execInput(["hash-object", "--stdin"], "payload", { signal });
+  return executors.rawExec(["cat-file", "--batch"], { signal });
 }
 
 describe("up-front Git floor gate", () => {
@@ -189,6 +191,34 @@ describe("up-front Git floor gate", () => {
     await expect(runVariant(gated, "plain")).rejects.toThrow(/Git 2\.52\.0/u);
     expect(fake.probes.plain).toBe(2);
     expect(fake.calls).toEqual(["git status"]);
+  });
+
+  it.each(["plain", "stdin", "raw"] as const)(
+    "releases a canceled %s call while its first probe stalls, and answers the call still waiting", async (variant) => {
+      let finish: (output: string) => void = () => {};
+      const fake = versionedExecutors([new Promise<string>((resolve) => { finish = resolve; })]);
+      const gated = gateGitExecutors(createGitFloorGate(), fake.executors);
+      const controller = new AbortController();
+      const canceled = runVariant(gated, variant, controller.signal);
+      const waiting = runVariant(gated, variant);
+      controller.abort(new Error("sync deadline expired"));
+      await expect(canceled).rejects.toMatchObject({ kind: "canceled", isCanceled: true });
+      finish("git version 2.55.0\n");
+      await expect(waiting).resolves.toBeDefined();
+      expect(fake.probes[variant]).toBe(1);
+      expect(fake.calls).toHaveLength(1);
+    });
+
+  it("refuses an already-canceled call before probing", async () => {
+    const fake = versionedExecutors(["git version 2.55.0"]);
+    const gated = gateGitExecutors(createGitFloorGate(), fake.executors);
+    const controller = new AbortController();
+    controller.abort();
+    for (const variant of ["plain", "stdin", "raw"]) {
+      await expect(runVariant(gated, variant, controller.signal)).rejects.toMatchObject({ kind: "canceled" });
+    }
+    expect(fake.probes).toEqual({ plain: 0, stdin: 0, raw: 0 });
+    expect(fake.calls).toEqual([]);
   });
 
   it("answers each plain executable separately", async () => {
