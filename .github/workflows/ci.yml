@@ -980,9 +980,9 @@ jobs:
       run:
         shell: bash
     env:
-      GIT_FLOOR_VERSION: '2.47.0'
+      GIT_FLOOR_VERSION: '2.53.0'
       # https://www.kernel.org/pub/software/scm/git/sha256sums.asc
-      GIT_FLOOR_SHA256: '1ce114da88704271b43e027c51e04d9399f8c88e9ef7542dae7aebae7d87bc4e'
+      GIT_FLOOR_SHA256: '5818bd7d80b061bbbdfec8a433d609dc8818a05991f731ffc4a561e2ca18c653'
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
@@ -1076,9 +1076,9 @@ jobs:
       run:
         shell: bash
     env:
-      GIT_FLOOR_VERSION: '2.47.0'
+      GIT_FLOOR_VERSION: '2.53.0'
       # https://www.kernel.org/pub/software/scm/git/sha256sums.asc
-      GIT_FLOOR_SHA256: '1ce114da88704271b43e027c51e04d9399f8c88e9ef7542dae7aebae7d87bc4e'
+      GIT_FLOOR_SHA256: '5818bd7d80b061bbbdfec8a433d609dc8818a05991f731ffc4a561e2ca18c653'
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
