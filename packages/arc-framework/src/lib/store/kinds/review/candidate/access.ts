@@ -14,7 +14,6 @@ import { resolveCandidateRecordRelativePath } from "../paths.js";
 import type { CandidateManagedRecordV1, VersionedCandidateRecord } from "./schema.js";
 
 export { CandidateRecordVersionConflictError };
-export type { CandidateRecordStoreFs };
 
 /** Candidate access accepts the invocation's store, Git runner, or explicit file adapter. */
 type CandidateRecordAccessOptions = ReviewRecordAccessOptions<CandidateRecordStoreFs>;

@@ -13,7 +13,7 @@ import type { StoreRecord } from "./read.js";
 import { buildLifecycleIndex } from "../work-unit/lifecycle-index.js";
 
 /** How a native read selects one generation of a slug that a live namesake or another ended item may share. */
-export interface CompletedDeliverySelection {
+interface CompletedDeliverySelection {
   /** The exact generation an invocation already bound. */
   owner?: OwnerIdentity;
   /** The checkout's branch, which links exactly one generation where the slug alone may not. */

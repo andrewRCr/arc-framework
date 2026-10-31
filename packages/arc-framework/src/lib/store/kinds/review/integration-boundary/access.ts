@@ -14,7 +14,6 @@ import { resolveSubmissionBoundaryPath } from "../paths.js";
 import { IntegrationBoundaryLocusV2Schema, type ReviewIntegrationBoundary, type VersionedSubmissionBoundary } from "./schema.js";
 
 export { SubmissionBoundaryVersionConflictError };
-export type { SubmissionBoundaryReader, SubmissionBoundaryStoreFs };
 
 /** Boundary reads accept a minimal file reader or the invocation's store and Git runner. */
 export type SubmissionBoundaryReadOptions = ReviewRecordAccessOptions<SubmissionBoundaryReader>;
