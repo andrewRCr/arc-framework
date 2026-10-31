@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "floor-ancestry-classify",
+  "claimId": "f140f4ac7c7d551f99f755ef40996afb",
+  "createdAt": "2026-10-31T02:45:06.538Z",
+  "updatedAt": "2026-10-31T02:45:06.538Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Classify the four store ancestry failures at Git 2.48: a later Git change or the store's handling",
+  "branch": "chore/floor-ancestry-classify",
+  "origin": "inbox",
+  "originEntry": "Classify the four `ancestry` failures at the Git floor: a Git change after 2.48, or the store's handling",
+  "originEntrySourceDigest": "sha256:95db277d793d7cedf435427fb45cad69ef6958cdf947bd15b356ce5218769fb2",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
