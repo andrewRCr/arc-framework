@@ -11,6 +11,7 @@ import { TransientIdentityRecordSchema } from "../../../../../src/lib/errand/ide
 import { IntegrationBoundaryLocusV2Schema } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import { createProjectIdentityReader } from "../../../../../src/lib/store/project-identity.js";
 import { readReviewLane } from "../../../../../src/scripts/review-gate/runtime/lane-read-composition.js";
+import type { Store } from "../../../../../src/lib/store/contract.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 async function fixture(vehicle: "work-unit" | "errand", project = true) {
@@ -52,7 +53,8 @@ async function fixture(vehicle: "work-unit" | "errand", project = true) {
     : { kind: "work-unit", name: "example" });
   const rawGit = scriptRawGitExec([{ match: ["diff", "--numstat", "-z", "-M", "-C", "--find-copies-harder", `${base}..${head}`, "--"],
     responses: [{ stdout: new Uint8Array() }] }]).exec;
-  return { ...checkout, claimId, run: () => readReviewLane({ schemaVersion: 1 }, { ...checkout, rawGit, projectId: createProjectIdentityReader(checkout.store) }) };
+  return { ...checkout, claimId, run: (store: Store = checkout.store) => readReviewLane({ schemaVersion: 1 },
+    { ...checkout, store, rawGit, projectId: createProjectIdentityReader(store) }) };
 }
 
 it.each(["work-unit", "errand"] as const)("reads the stored %s with no injected owner or legacy copy", async vehicle => {
@@ -81,4 +83,20 @@ it("keeps the unresolved-vehicle refusal and reads the exact claim after marker 
   expect(await h.run()).toMatchObject({ state: "refused", payload: { code: "vehicle-unresolved" } });
   await h.occupy("chore/repair", { kind: "errand", slug: "repair", claimId: h.claimId });
   expect(await h.run()).toMatchObject({ state: "ready", payload: { lineage: { vehicleIdentity: h.claimId } } });
+});
+
+it("refuses a store refusal naming its own command with that command, and reads once the store is repaired", async () => {
+  const h = await fixture("work-unit");
+  let missing = true;
+  const store = Object.create(h.store) as Store;
+  store.read = async input => missing && input.reference.kind === "review/candidate" ? { status: "refused", refusal: {
+    code: "state-unresolvable", class: "recoverable", historyRefs: [], reference: input.reference,
+    condition: "The Candidate record's objects are missing locally.",
+    remedy: { text: "Run arc sync to fetch the missing state, then retry.", argv: ["arc", "sync"] } } }
+    : h.store.read(input);
+  expect(await h.run(store)).toMatchObject({ state: "refused", payload: { code: "store-refused",
+    detail: "The Candidate record's objects are missing locally.",
+    remedy: { argv: ["arc", "sync"], text: expect.stringContaining("fetch the missing state") } } });
+  missing = false;
+  expect(await h.run(store)).toMatchObject({ state: "ready", payload: { lineage: { kind: "candidate" } } });
 });

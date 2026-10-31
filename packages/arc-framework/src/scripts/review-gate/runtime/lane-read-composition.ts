@@ -28,7 +28,7 @@ import { resolveLocalPolicyTarget, createLocalContributionConfirmation } from ".
 import { readReviewLaneHistory } from "./lane-history.js";
 import { readLocalDeltaAdmissionSurface } from "./local-reserved-obligation.js";
 import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
-import { projectIdentitySpineRemedy } from "./project-identity-remedy.js";
+import { projectIdentitySpineRemedy, reviewFailureSpineRemedy } from "./project-identity-remedy.js";
 
 type LaneReadBoundary = ReviewInvocationInput & { rawGit?: RawGitExec };
 
@@ -113,7 +113,7 @@ export async function readReviewLane(request: ReviewLaneReadRequest, input: Lane
     if (isOffBranchStoreRefusal(error)) {
       return { schemaVersion: 1, mode: "review-lane-read", state: "refused", nextAction: "stop", diagnostics: [],
         payload: { code: "store-refused", detail: error.refusal.condition,
-          remedy: spineRemedy(error.refusal.condition, error.refusal.remedy.text, ["arc", "review", "lane", "read", "-"], request) } };
+          remedy: reviewFailureSpineRemedy(error.refusal.condition, error.refusal.remedy, ["arc", "review", "lane", "read", "-"], request) } };
     }
     const code = error instanceof LocalReviewAuthorityError ? error.reason
       : error instanceof Error && "reason" in error && typeof error.reason === "string" ? error.reason : "lane-read-unavailable";
