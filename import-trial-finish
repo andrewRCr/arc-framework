@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "import-trial-finish",
+  "claimId": "96dc517560c2f4765fb4a90ce7ebb087",
+  "createdAt": "2026-10-31T03:03:56.189Z",
+  "updatedAt": "2026-10-31T03:03:56.189Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Run the import trial to completion over current main and classify and route every refusal",
+  "branch": "chore/import-trial-finish",
+  "origin": "inbox",
+  "originEntry": "Finish the import trial over current `main` and route what still refuses",
+  "originEntrySourceDigest": "sha256:4e39ea55b2b961c89a688402d8356dc8030f79bec76bb339929d6617d9fd40ac",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
