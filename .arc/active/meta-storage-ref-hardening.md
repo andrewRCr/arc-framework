@@ -8,11 +8,11 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal] — routed from `storage-ref-backend`'s review (2026-10-29)
-- **Design:** `draft-storage-ref-hardening.md`
+- **Design:** `spec-storage-ref-hardening.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
