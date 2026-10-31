@@ -72,6 +72,31 @@ The CLI package's [adapter guide][adapter-guide] specifies the complete wire con
 Its `examples/check-runner/` directory ships an independent Node executable with configuration, limits and recovery
 instructions; implementations in other languages need no Node SDK or framework-private imports.
 
+## Opt in to native shard playback
+
+Ordinary execution keeps one unsharded native command, with existing file batching where needed. On an eligible
+check whose native command already supports sharding, opt its declared matrix into a configured runner:
+
+```yaml
+runner: true
+shards:
+  routed: true
+  count: 2
+  argument: "--shard={index}/{count}"
+```
+
+Shard metadata alone creates no local fan-out; CI keeps its declared matrix. ARC submits the complete routed plan
+once when the adapter advertises `runGroup`, or replays the same planned invocations as mandatory serial singles.
+A basic adapter therefore pays native shard overhead without parallel gain. Freeze explicit values and any native
+partitioner's duration/weights file for every sibling; declare the latter as a `file` input.
+
+Reusable evidence belongs to the whole parent, with known runtime coverage for every expected invocation and normal
+closure. Ordinary failure does not suppress remaining planned diagnostics. Missing work cannot pass, and a completed
+failure survives beside incomplete work. Honor native no-evidence and proved empty-share contracts; a native
+controller-close failure still fails the check. Qualify native membership against an unsharded baseline for each
+supported execution profile, and measure complete execution costs before claiming improvement. Unmeasured
+deployments gain no implied qualification or speedup.
+
 ## Check state where it is edited
 
 Git and index enumeration omit ignored projected state. Disk globs can still read those files: a per-clone

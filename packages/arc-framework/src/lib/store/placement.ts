@@ -22,5 +22,14 @@ export const ReadPlacementSchema = z.union([WorkUnitReadPlacementSchema, ErrandR
 export type WritePlacement = z.infer<typeof WritePlacementSchema>;
 /** Backend-assigned lifecycle placement. */
 export type ReadPlacement = z.infer<typeof ReadPlacementSchema>;
+/** Compare completed placements by quarter, then their numeric archive sequence. */
+export function compareCompletedPlacements(left: Extract<ReadPlacement, { kind: "completed" }>,
+  right: Extract<ReadPlacement, { kind: "completed" }>): number {
+  const quarter = left.quarter.localeCompare(right.quarter);
+  if (quarter !== 0) return quarter;
+  const leftSequence = "sequence" in left ? BigInt(left.sequence) : 0n;
+  const rightSequence = "sequence" in right ? BigInt(right.sequence) : 0n;
+  return leftSequence < rightSequence ? -1 : leftSequence > rightSequence ? 1 : 0;
+}
 /** Lifecycle locations accepted by listing filters. */
 export const LocationSchema = z.enum(["active", "planned", "provisional", "completed"]);

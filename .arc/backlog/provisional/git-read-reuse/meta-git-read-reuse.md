@@ -1,14 +1,14 @@
-# Metadata: lifecycle-slug-selection
+# Metadata: git-read-reuse
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
+| `Planning` | `andrew`  | [none]     | [TBD]     | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-lifecycle-slug-selection.md`
+- **Design:** `draft-git-read-reuse.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 

@@ -1,5 +1,6 @@
 /** A single version-bound terminal transition, followed by independently retryable checkout/ref cleanup. */
-import { recordReferences } from "../../store/identity.js";
+import { teardownSubjectOperand } from "../store-retirement-evidence.js";
+import { sameReference, recordReferences } from "../../store/identity.js";
 import { writeLineageRecord } from "../../store/kinds/lineage/index.js";
 import { readLifecycleView } from "../../store/lifecycle-view.js";
 import { requireCompleteInventory } from "../../store/lifecycle-storage.js";
@@ -27,11 +28,11 @@ export async function runStoreAbandon(ctx: Pick<AbandonContext, "executor" | "re
     let cleanup: TeardownResult | undefined;
     const outcome = await executeTransition(executor, { verb: "abandon", slug: name, inputs: { confirmed: true,
       storeTransition: { primary, additionalWrites: [{ action: "put", reference: lineage, expected: null, content }], gitSteps: [{
-        name: "retire-checkout-and-created-ref-set", retryCommand: ["arc", "teardown", name],
+        name: "retire-checkout-and-created-ref-set", retryCommand: ["arc", "teardown", teardownSubjectOperand({ kind: "owner", owner: primary.reference.owner })],
         run: async () => {
           if (checkout === null && (primary.links?.branches?.length ?? 0) === 0) return;
           if (ctx.storeTeardown === undefined || ctx.baseBranch === undefined) throw new Error("Bind the checkout/ref cleanup boundaries and configured base, then retry teardown.");
-          cleanup = await runStoreTeardown({ ...ctx.storeTeardown, store }, { name, base: ctx.baseBranch });
+          cleanup = await runStoreTeardown({ ...ctx.storeTeardown, store }, { subject: { kind: "owner", owner: primary.reference.owner }, base: ctx.baseBranch });
           if (cleanup.status === "rejected") throw new Error(cleanup.reason);
         },
       }] },
@@ -55,13 +56,13 @@ async function abandonmentSubject(ctx: Pick<AbandonContext, "executor" | "remova
   const read = await readWorkUnit(store, params.name);
   if (read.status === "refused") return { status: "rejected" as const, reason: read.refusal.condition, refusal: read.refusal };
   const primary = read.result;
-  const entry = view.result.entries.find((item) => item.reference.owner.name === primary.reference.owner.name);
+  const entry = view.result.entries.find((item) => sameReference(item.reference, primary.reference));
   if (entry === undefined) throw new Error("The selected primary is absent from the complete lifecycle view.");
   if (entry.phase === "Integrating") return { status: "rejected" as const, reason: `Withdraw the PR with arc reopen ${entry.reference.owner.name} before abandonment.` };
   if (entry.phase !== "Planning" && entry.phase !== "Active") return { status: "rejected" as const, reason: "Only a stub, Planning, or Active work unit can be abandoned." };
   if (params.confirmed !== true) return { status: "rejected" as const, reason: "Abandonment requires explicit --yes confirmation." };
   const exec = ctx.executor.exec;
-  const checkout = exec === undefined ? null : await findWorkUnitHoldingCheckout({ cwd: ctx.executor.cwd, exec, locusPorts: ctx.executor.locusPorts }, primary.reference.owner.name);
+  const checkout = exec === undefined ? null : await findWorkUnitHoldingCheckout({ cwd: ctx.executor.cwd, exec, locusPorts: ctx.executor.locusPorts, store }, primary);
   if (checkout !== null && exec !== undefined) {
     const removalExec = ctx.removal?.exec ?? exec;
     const check = await checkRetiringCheckout({ ...ctx.removal, checkoutPath: checkout,

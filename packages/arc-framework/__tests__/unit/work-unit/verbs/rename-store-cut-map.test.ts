@@ -15,7 +15,7 @@ import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 import type { StoreRecord } from "../../../../src/lib/store/read.js";
 
 const locusPorts = {
-  checkMarkerExclusivity: async () => ({ kind: "clear" as const }), findHoldingCheckout: async () => null,
+  checkMarkerExclusivity: async () => ({ kind: "clear" as const }), findHoldingCheckout: async () => ({ kind: "none" as const }),
   writeAnchoredMarker: async () => ({ kind: "unadmitted" as const }),
 };
 async function stub(h: ReturnType<typeof createLifecycleHarness>, slug: string) {

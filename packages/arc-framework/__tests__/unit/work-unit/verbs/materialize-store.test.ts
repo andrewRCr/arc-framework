@@ -1,4 +1,6 @@
+import { boundHolderLookup } from "../../../helpers/store/bound-checkout.js";
 /** Store-held materialization supports released, paused and branchless work without a state write. */
+import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { describe, expect, it } from "vitest";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -14,11 +16,13 @@ import type { ReconcileWorkUnitWorktreeOp } from "../../../../src/lib/work-unit/
 import { createDefaultLocusPorts } from "../../../../src/lib/work-unit/locus-ports.js";
 import { writeMetaPause, writeMetaOwner, renderMetaFile } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
-import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../../../src/lib/kernel/index.js";
 
 const tip = "a".repeat(40);
-async function harness(options: { branch?: string; remoteOnly?: boolean; offline?: boolean; noBase?: boolean; held?: boolean; paused?: boolean; state?: "Planning" | "Active" | "Integrating" } = {}) {
+async function harness(options: { branch?: string; remoteOnly?: boolean; offline?: boolean; noBase?: boolean; held?: boolean; paused?: boolean; state?: "Planning" | "Active" | "Integrating"; archived?: boolean } = {}) {
   const h = createLifecycleHarness();
+  const archived = options.archived ? await h.seedMeta("demo", { state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }) : undefined;
   let meta = await h.seedMeta("demo", { state: options.state ?? "Planning", owner: "starter", currentWorkflow: options.state === "Integrating" ? "integrate-work-unit" : options.state === "Active" ? "process-task-loop" : "draft-design" }, { kind: "active" }, options.branch === undefined ? undefined : { branches: [{ repository: "repo", ref: options.branch, linkedAs: "created", excluded: [] }] });
   if (options.paused) {
     const content = writeMetaPause(meta.content, { pausedBy: SlugSchema.parse("starter"), since: "2026-10-14T00:00:00Z", reason: "wait", waitsOn: null, resumeNotes: null, open: false });
@@ -27,7 +31,7 @@ async function harness(options: { branch?: string; remoteOnly?: boolean; offline
   }
   const fetches: string[][] = []; let placement: ReconcileWorkUnitWorktreeOp | undefined;
   const ctx: ExecuteTransitionContext = {
-    cwd: "/missing-root", store: h.store, projectId: async () => "repo", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: () => Promise.resolve(options.held ? "/holding" : null) },
+    cwd: "/missing-root", store: h.store, projectId: async () => "repo", locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: boundHolderLookup(meta, () => options.held ? "/holding" : null) },
     exec: async (_command, args) => {
       const absent = () => { throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "not found" }); };
       if (args[0] === "remote") return { stdout: "origin" };
@@ -49,7 +53,7 @@ async function harness(options: { branch?: string; remoteOnly?: boolean; offline
     reconcileWorkUnitWorktree: async (op) => { placement = op; return { mutation: "spawn", worktreePath: "/spawn", branch: op.mutation === "spawn" ? op.branch ?? null : null }; },
     writeSoftFields: async () => {}, writeBranchField: async () => {}, writeCurrentWorkflowField: async () => {}, writeDesignField: async () => {},
   };
-  return { ...h, ctx, meta, state: () => ({ fetches, placement }), read: async () => lifecycleSuccess(await h.store.read({ reference: meta.reference })) };
+  return { ...h, ctx, meta, archived, state: () => ({ fetches, placement }), read: async () => lifecycleSuccess(await h.store.read({ reference: meta.reference })) };
 }
 const params = { name: "demo", baseBranch: "main", identity: "starter", spawningIdentity: "starter", locationTemplate: "/spawn", repo: "repo" };
 describe("store materialize", () => {
@@ -81,7 +85,10 @@ describe("store materialize", () => {
     if (state === "Integrating") {
       expect(result.reason).toContain("finish integration, then run arc teardown demo");
       expect(result.reason).not.toContain("arc pause");
-    } else expect(result.reason).toContain("arc pause demo --reason <text>, then arc locus release demo");
+    } else {
+      expect(result.reason).toContain("arc pause demo --reason <text>, then arc locus release");
+      expect(result.reason).not.toContain("arc locus release demo");
+    }
     expect(h.state().placement).toBeUndefined(); expect(h.state().fetches).toEqual([]);
     expect(await h.read()).toEqual(h.meta);
   });
@@ -133,9 +140,9 @@ it.each([undefined, "feat/demo"])("reports the occupied checkout before unreadab
   const cwd = await mkdtemp(join(tmpdir(), "arc-materialize-occupancy-"));
   try {
     const h = await harness({ ...(branch === undefined ? {} : { branch }) });
-    await h.seedMeta("occupied", { state: "Active", owner: "starter" });
+    const occupied = await h.seedMeta("occupied", { state: "Active", owner: "starter" });
     await writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: "starter", createdAt: "2026-10-18T00:00:00Z",
-      createdFor: { kind: "work-unit", name: "occupied" } });
+      createdFor: boundWorkUnitSubject(occupied) });
     const marker = await readFile(resolveWorktreeMarkerPath(cwd), "utf8");
     const before = lifecycleSuccess(await h.store.version());
     const originalExec = h.ctx.exec;
@@ -154,7 +161,8 @@ it.each([undefined, "feat/demo"])("reports the occupied checkout before unreadab
       readActiveMetaCandidates: async () => { throw new Error("Store occupancy must not read checkout metas"); } }) };
     const request = { name: "demo", inPlace: true as const, baseBranch: "main", identity: "starter", spawningIdentity: "starter" };
     const result = await runMaterialize(h.ctx, request);
-    expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("arc pause occupied --reason <text>, then arc locus release occupied") });
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("arc pause occupied --reason <text>, then arc locus release") });
+    if (result.status === "rejected") expect(result.reason).not.toContain("arc locus release occupied");
     expect(calls).toEqual([]);
     expect(h.state().placement).toBeUndefined();
     expect(lifecycleSuccess(await h.store.version())).toBe(before);
@@ -164,4 +172,13 @@ it.each([undefined, "feat/demo"])("reports the occupied checkout before unreadab
     expect(h.state().placement).toMatchObject({ wuName: "demo", inPlace: true });
     expect(lifecycleSuccess(await h.store.version())).toBe(before);
   } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+it("materializes the live holder when its completed namesake was listed first", async () => {
+  const h = await harness({ archived: true });
+  expect(await runMaterialize(h.ctx, params)).toMatchObject({ status: "materialized", branch: null });
+  expect(h.state().placement).toMatchObject({ wuName: "demo", detached: true });
+  expect(await h.read()).toEqual(h.meta);
+  if (h.archived === undefined) throw Error("Expected archived namesake");
+  expect(lifecycleSuccess(await h.store.read({ reference: h.archived.reference }))).toEqual(h.archived);
 });

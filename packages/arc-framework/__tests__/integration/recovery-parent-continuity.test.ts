@@ -1,4 +1,5 @@
 /** Recovery retains a no-work-unit baseline across changes in its transient's real parent checkout. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { expect, it, onTestFinished } from "vitest";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -27,9 +28,9 @@ it("refuses an inherited replacement parent for unavailable anchors and recovers
   await h.seed(recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "recovery-project", uid: project })), "{}");
   const original = await h.seedMeta("original-parent", { state: "Planning", currentWorkflow: "draft-design" });
   await ensureWorktreeMarkerIgnored(cwd, exec, nodeWorktreeMarkerIgnoreFs);
-  const parentMarker = (name: string) => ({ spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-17T00:00:00Z",
-    createdFor: { kind: "work-unit" as const, name } });
-  await writeWorktreeMarker(cwd, parentMarker("original-parent"));
+  const parentMarker = (record: typeof original) => ({ spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-17T00:00:00Z",
+    createdFor: boundWorkUnitSubject(record) });
+  await writeWorktreeMarker(cwd, parentMarker(original));
   const slug = "recovery-child", branch = `chore/${slug}`, claimId = "d".repeat(32), child = join(cwd, ".arc-checkouts", slug);
   await h.seed(recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: slug })), JSON.stringify({
     version: 3, kind: "errand", purpose: "errand", slug, branch, claimId, owner: "test-user", createdAt: "2026-10-17T00:00:00Z",
@@ -62,14 +63,14 @@ it("refuses an inherited replacement parent for unavailable anchors and recovers
       historyRefs: [], condition: "The saved state is unavailable.", remedy: { text: "Rebuild current state." } } });
     seeds.push({ seed: emitted.seed, store: selected });
   }
-  const replaceParent = async (name: string) => {
+  const replaceParent = async (record: typeof original) => {
     const marker = await readWorktreeMarkerGeneration(cwd);
     if (marker.kind !== "present") throw new Error("Missing parent marker");
     expect(await removeWorktreeMarkerGeneration(cwd, marker.bytes)).toEqual({ kind: "removed" });
-    await writeWorktreeMarker(cwd, parentMarker(name));
+    await writeWorktreeMarker(cwd, parentMarker(record));
   };
-  await h.seedMeta("replacement-parent", { state: "Planning", currentWorkflow: "draft-design" });
-  await replaceParent("replacement-parent");
+  const replacement = await h.seedMeta("replacement-parent", { state: "Planning", currentWorkflow: "draft-design" });
+  await replaceParent(replacement);
   const changed = await probe();
   expect(changed.loadSet.value.entries.some(entry => entry.path.endsWith("meta-replacement-parent.md"))).toBe(true);
   expect((await exec("git", ["status", "--porcelain"], { cwd: child })).stdout).toBe("");
@@ -78,7 +79,7 @@ it("refuses an inherited replacement parent for unavailable anchors and recovers
     await expect(resolveRecoveryStateBasis({ seed, recover: changed, store })).rejects.toThrow(/fresh ARC session/iu);
     expect(seed.loadSet).toEqual(absent.loadSet.value);
   }
-  await replaceParent("original-parent");
+  await replaceParent(original);
   const restored = await probe();
   for (const { seed, store } of seeds) {
     const rebuilt = await resolveRecoveryStateBasis({ seed, recover: restored, store });

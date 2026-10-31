@@ -5,7 +5,9 @@ import { createRunnerCheckRepository } from "./runner.js";
 
 export type PreparedAdapterMode = "unknown" | "known" | "missing-runtime" | "source-bytes" | "manifest"
   | "environment" | "unavailable" | "disappeared" | "bad-source-claim" | "execute" | "group" | "wait-prepare" | "cancel-run" | "drift" | "cancel-ready"
-  | "group-loss" | "group-malformed" | "cleanup-warning";
+  | "group-loss" | "group-malformed" | "cleanup-warning"
+  | "group-known" | "group-known-close-gate" | "group-known-loss" | "group-known-bad-output" | "group-known-bad-exit"
+  | "group-cancel" | "cancel-refusal" | "unavailable-unsettled" | "unavailable-bad-exit";
 
 export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string, observations?: string): string {
   return `const mode=${JSON.stringify(mode)};const gate=${JSON.stringify(gate)};const observations=${JSON.stringify(observations)};const gitNames=${JSON.stringify([...GIT_REPOSITORY_LOCAL_ENVIRONMENT])};` + `
@@ -60,19 +62,19 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string, 
       });
       child.on('close',(code,signal)=>{
         children.delete(child);
-        const outcome=cancelled&&mode==='cancel-run'?{status:'cancelled',reason:'Child cancellation settled'}
+        const outcome=cancelled&&(mode==='cancel-run'||mode==='group-cancel')?{status:'cancelled',reason:'Child cancellation settled'}
           :launchError?{status:'unavailable',reason:'Child executable could not start',remedy:'Repair the command and retry.'}
           :{status:'completed',exitCode:code===null?128+require('node:os').constants.signals[signal]:code};
         if(report)send({jsonrpc:'2.0',method:'check/outcome',params:{contextId:'prepared-context',invocationId:invocation.id,outcome}});
         resolve({outcome,stdout:Buffer.concat(stdout)});
       });
     });
-    lines.on('close',()=>{for(const child of children)child.kill('SIGTERM');finishWaitingPreparation();});
+    lines.on('close',()=>{record('input-closed',{});for(const child of children)child.kill('SIGTERM');finishWaitingPreparation();});
     process.on('exit',()=>{for(const child of children)child.kill('SIGTERM');record('closed',{pid:process.pid});});
     if(mode==='wait-prepare'&&observations)process.on('SIGTERM',()=>process.exit(0));
     const qualify=async()=>{
       if(mode==='missing-runtime')return {kind:'known',bindings:[]};
-      if(mode!=='known'&&mode!=='drift'&&mode!=='cleanup-warning')return {kind:'unknown',reason:'Test placement has no reusable qualification.'};
+      if(!['known','drift','cleanup-warning'].includes(mode)&&!mode.startsWith('group-known'))return {kind:'unknown',reason:'Test placement has no reusable qualification.'};
       generation=mode==='drift'?fs.readFileSync(gate,'utf8'):undefined;
       const probes=[...plan.probes.global,...plan.probes.check];
       const results=await Promise.all(probes.map(probe=>execute(probe,false)));
@@ -86,17 +88,20 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string, 
     };
     const handle=async line=>{
       const request=JSON.parse(line);
+      if(observations)fs.appendFileSync(path.join(observations,'requests'),JSON.stringify(request)+'\\n');
       if(request.method==='check/prepare'){
         plan=request.params;
         record('source',plan.source);
         record('preparing',{planId:plan.planId,source:plan.source,pid:process.pid});
-        if(mode==='unavailable'){
+        if(['unavailable','unavailable-unsettled','unavailable-bad-exit'].includes(mode)){
           send({jsonrpc:'2.0',id:request.id,result:{status:'unavailable',planId:plan.planId,
-            reason:'No compatible placement',remedy:'Repair adapter placement and retry.',settled:true}});
+            reason:'No compatible placement',remedy:'Repair adapter placement and retry.',
+            ...(mode==='unavailable-unsettled'?{}:{settled:true})}});
+          if(mode==='unavailable-bad-exit')process.stdout.write('',()=>process.exit(1));
           return;
         }
         const recovery={jsonrpc:'2.0',method:'check/recovery',params:{planId:plan.planId,
-          instructions:mode==='group-loss'||mode==='group-malformed'
+          instructions:mode==='group-loss'||mode==='group-malformed'||mode==='group-known-loss'
             ?'For plan '+plan.planId+', wait for this scripted adapter process to exit. Its only launched child closes before transport ends; after process closure, remove retained captures manually.'
             :'Inspect and settle this test attempt by its plan UUID.'}};
         if(mode==='disappeared'){
@@ -104,8 +109,9 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string, 
           return;
         }
         await new Promise((resolve,reject)=>process.stdout.write(JSON.stringify(recovery)+'\\n',error=>error?reject(error):resolve()));
-        if(mode==='wait-prepare'||mode==='cancel-ready'){
+        if(mode==='wait-prepare'||mode==='cancel-ready'||mode==='cancel-refusal'){
           waitingPreparation=request;
+          record('waiting',{planId:plan.planId});
           if(mode==='wait-prepare')preparationTimer=setInterval(()=>{if(gate&&fs.existsSync(gate))finishWaitingPreparation();},10);
           process.stderr.write('waiting for cancellation\\n');
           return;
@@ -116,20 +122,31 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string, 
         const runtime=await qualify();
         send({jsonrpc:'2.0',id:request.id,result:{status:'ready',planId:plan.planId,contextId:'prepared-context',
           sourceDigest:mode==='bad-source-claim'?'sha256:'+'c'.repeat(64):plan.source.digest,
-          capabilities:{runGroup:mode==='group'||mode==='group-loss'||mode==='group-malformed'},runtime}});
+          capabilities:{runGroup:mode==='group'||mode.startsWith('group-')},runtime}});
       }else if(request.method==='check/release'){
         if(mode==='cancel-ready'&&gate)fs.writeFileSync(gate,'released');
         const result={contextId:request.params.contextId,released:true};
+        record('released',result);
+        if(mode==='group-known-close-gate'){
+          const timer=setInterval(()=>{if(gate&&fs.existsSync(gate))clearInterval(timer);},10);
+        }
         if(mode==='cleanup-warning'){
           const artifact=path.join(observations,'settled-resource');
           fs.writeFileSync(artifact,'settled provider resource');
           result.cleanupWarning='Remove settled provider resource manually: '+artifact;
         }
         send({jsonrpc:'2.0',id:request.id,result});
+        if(mode==='group-known-bad-exit')process.stdout.write('',()=>process.exit(1));
       }else if(request.method==='check/cancel'){
         cancelled=true;
         record('cancel',request.params);
-        if(mode==='cancel-run')for(const child of children)child.kill('SIGTERM');
+        if(mode==='cancel-run'||mode==='group-cancel')for(const child of children)child.kill('SIGTERM');
+        if(mode==='cancel-refusal'&&waitingPreparation){
+          const preparing=waitingPreparation;
+          waitingPreparation=undefined;
+          send({jsonrpc:'2.0',id:preparing.id,result:{status:'unavailable',planId:plan.planId,
+            reason:'Preparation cancelled and settled',remedy:'Retry with fresh preparation.',settled:true}});
+        }
         send({jsonrpc:'2.0',id:request.id,result:{planId:request.params.planId,accepted:true}});
         if(mode==='cancel-ready'&&waitingPreparation){
           const preparing=waitingPreparation;
@@ -139,7 +156,7 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string, 
         }
       }else if(request.method==='check/run'||request.method==='check/runGroup'){
         const ids=request.method==='check/run'?[request.params.invocationId]:request.params.invocationIds;
-        if(mode==='group-loss'||mode==='group-malformed'){
+        if(mode==='group-loss'||mode==='group-malformed'||mode==='group-known-loss'){
           await execute(plan.invocations.find(invocation=>invocation.id===ids[0]));
           process.stdout.write(mode==='group-malformed'?'not a JSON frame'+String.fromCharCode(10):'',()=>process.exit(mode==='group-malformed'?1:0));
           return;
@@ -151,7 +168,7 @@ export function preparedAdapterScript(mode: PreparedAdapterMode, gate?: string, 
           return;
         }
         Promise.all(ids.map(id=>execute(plan.invocations.find(invocation=>invocation.id===id)))).then(()=>{
-          send({jsonrpc:'2.0',id:request.id,result:{contextId:'prepared-context',settled:true,outputComplete:true,invocationIds:ids}});
+          send({jsonrpc:'2.0',id:request.id,result:{contextId:'prepared-context',settled:true,outputComplete:mode!=='group-known-bad-output',invocationIds:ids}});
         });
       }
     };

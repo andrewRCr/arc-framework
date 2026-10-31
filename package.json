@@ -50,7 +50,7 @@
     "lint:arc:links": "node --import tsx packages/arc-framework/src/scripts/audit-links.ts",
     "audit:coupling": "node --import tsx packages/arc-framework/src/scripts/audit-coupling-blast-radius.ts",
     "prepare": "husky",
-    "setup": "npm run check:install && npm rebuild esbuild --ignore-scripts=false && npm run prepare",
+    "setup": "npm run check:install && npm rebuild esbuild --ignore-scripts=false && npm run prepare && node scripts/prepare-check-outputs.mjs",
     "check:install": "node scripts/check-install-policy.mjs"
   },
   "devDependencies": {

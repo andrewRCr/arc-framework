@@ -1,3 +1,4 @@
+import { boundHolderLookup } from "../../../helpers/store/bound-checkout.js";
 /** Status composes store facts with invocation-bound checkout and sync evidence. */
 import { afterEach, expect, it, vi } from "vitest";
 import { handleLifecycleStatus } from "../../../../src/handlers/status/lifecycle.js";
@@ -38,7 +39,7 @@ it("refuses a disputed named primary while preserving healthy and missing querie
   const query = async (slug: string) => {
     output.mockClear();
     await runStatus(slug, { json: true }, h.store,
-      { findHoldingCheckout: async () => "/holder", readInFlightWarnings: async () => [] });
+      { findHoldingCheckout: boundHolderLookup(meta, () => "/holder"), readInFlightWarnings: async () => [] });
     return JSON.parse(String(output.mock.calls[0]?.[0])) as Record<string, unknown>;
   };
   expect(await query("healthy")).toMatchObject({ state: "active" });
@@ -53,14 +54,14 @@ it("refuses a disputed named primary while preserving healthy and missing querie
   expect(await query("demo")).toMatchObject({ state: "planning", occupied: true, worktreePath: "/holder" });
 });
 it("adds an anchored holder, in-flight warnings and fetch reachability without changing lifecycle fields", async () => {
-  const h = createLifecycleHarness(); await h.seedMeta("demo", { owner: "alice" });
+  const h = createLifecycleHarness(); const meta = await h.seedMeta("demo", { owner: "alice" });
   const output = vi.spyOn(process.stdout, "write").mockReturnValue(true);
   let offline = true;
   const sync = createStoreSyncPort({ pull: async () => offline
     ? { status: "unreachable", condition: "Offline", remedy: { text: "Reconnect" } }
     : { status: "pulled" } });
   const ports = {
-    findHoldingCheckout: async () => "/anchored-holder", readInFlightWarnings: async () => ["Malformed Errand other; repair its record."], sync,
+    findHoldingCheckout: boundHolderLookup(meta, () => "/anchored-holder"), readInFlightWarnings: async () => ["Malformed Errand other; repair its record."], sync,
   };
   await runStatus("demo", { json: true, fetch: true }, h.store, {
     ...ports,
@@ -86,7 +87,7 @@ it("fetches before reading lifecycle, ownership and design facts", async () => {
   const design = await h.seed(recordReferences["work-item/spec"](meta.reference.owner), "# Specification\n\n**Purpose:** Prior purpose.\n");
   const output = vi.spyOn(process.stdout, "write").mockReturnValue(true);
   await runStatus("demo", { json: true, fetch: true }, h.store, {
-    findHoldingCheckout: async () => null, readInFlightWarnings: async () => [],
+    findHoldingCheckout: async () => ({ kind: "none" as const }), readInFlightWarnings: async () => [],
     sync: createStoreSyncPort({ pull: async () => {
       lifecycleSuccess(await h.store.batch({ writes: [
         { action: "put", reference: meta.reference, expected: meta.version, content: renderMetaFile("demo", { state: "Active", owner: "bob", design: ["spec-demo.md"] }), placement: { kind: "active" } },
@@ -101,7 +102,7 @@ it("retains local status without invoking the pull port when fetch is absent", a
   const h = createLifecycleHarness(); await h.seedMeta("demo", { owner: "alice" });
   const output = vi.spyOn(process.stdout, "write").mockReturnValue(true);
   await runStatus("demo", { json: true }, h.store, {
-    findHoldingCheckout: async () => null, readInFlightWarnings: async () => [],
+    findHoldingCheckout: async () => ({ kind: "none" as const }), readInFlightWarnings: async () => [],
     sync: createStoreSyncPort({ pull: async () => { throw new Error("Local status must not pull"); } }),
   });
   expect(JSON.parse(String(output.mock.calls[0]?.[0]))).toMatchObject({ owner: "alice", state: "active" });
@@ -112,7 +113,7 @@ it("retains remote designation choices and command in fetched status, then refre
   const h = createLifecycleHarness(); await h.seedMeta("demo");
   const output = vi.spyOn(process.stdout, "write").mockReturnValue(true);
   let designated = false;
-  const ports = { findHoldingCheckout: async () => null, readInFlightWarnings: async () => [],
+  const ports = { findHoldingCheckout: async () => ({ kind: "none" as const }), readInFlightWarnings: async () => [],
     sync: createStoreSyncPort({ pull: async () => designated ? { status: "pulled" } : {
       status: "designation-needed", remote: "backup", choices: ["state", "code-and-state"],
       remedy: { text: "Choose the state role.", argv: ["arc", "store", "remote", "backup", "state"] },
@@ -136,7 +137,7 @@ it("reports the first sentence of a companion design's parsed purpose", async ()
     provenance: { verb: "repoint-design", lifecycleAction: "spec-finalized" } }));
   const output = vi.spyOn(process.stdout, "write").mockReturnValue(true);
   await runStatus("demo", { json: true }, h.store, {
-    findHoldingCheckout: async () => null, readInFlightWarnings: async () => [],
+    findHoldingCheckout: async () => ({ kind: "none" as const }), readInFlightWarnings: async () => [],
   });
   expect(JSON.parse(String(output.mock.calls[0]?.[0]))).toMatchObject({ purpose: "Read `file.name` safely." });
 });

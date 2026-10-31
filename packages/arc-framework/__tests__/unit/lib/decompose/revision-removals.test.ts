@@ -50,7 +50,7 @@ it("refuses removing a started member and revises after the native abandonment r
   lifecycleSuccess(await h.store.write({ ...recordPut(member, { placement: { kind: "active" } }), provenance: { verb: "start", lifecycleAction: "start" } }));
   const map = dropSecond(h);
   expect(await preview(h, map)).toMatchObject({ status: "refused", reason: "started-member-removal", remedy: { argv: ["arc", "abandon", "member-b"] } });
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   expect(await runStoreAbandon(h.ctx, { name: "member-b", confirmed: true })).toMatchObject({ status: "abandoned" });
   await apply(h, map);
 });
@@ -60,7 +60,7 @@ it.each(["depends-on", "waits-on", "retained-member"] as const)("retains a remov
   const holder = kind === "retained-member" ? lifecycleSuccess(await readWorkUnit(h.store, "member-a")) : kind === "depends-on"
     ? await h.seedStub("outsider") : await h.seedMeta("outsider", { state: "Active", currentWorkflow: "process-task-loop" });
   const pause = { store: h.store, cwd: "/repo", baseBranch: "main", now: () => new Date("2026-10-19T00:00:00Z"),
-    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null },
+    locusPorts: { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) },
     exec: scriptGitExec([{ match: ["remote"], responses: [{ stdout: "" }, { stdout: "" }] }]).exec };
   if (kind === "waits-on") expect(await runPause(pause, { name: "outsider", identity: h.ctx.identity, reason: "Waiting for the member.", waitsOn: "member-b" }))
     .toMatchObject({ status: "paused" });

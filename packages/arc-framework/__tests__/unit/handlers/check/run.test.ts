@@ -11,13 +11,14 @@ import { makeGitProcessError, scriptGitExec, scriptRawGitExec } from "../../../h
 import { createCheckPassStore } from "../../../../src/lib/checks/record.js";
 import { captureEnvironmentInputs } from "../../../../src/lib/checks/environment-inputs.js";
 import { nodeEnvironmentCaptureIO } from "../../../../src/lib/checks/environment-file.js";
+import type { TerminalOutcome } from "../../../../src/lib/checks/runner/contract.js";
 import type { PreparedCheckExecution } from "../../../../src/lib/checks/runner/execution.js";
 import { readMachineCheckRunner } from "../../../../src/lib/checks/runner/machine-config.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 
-async function fixture(checks: Record<string, { runner?: boolean; reads_index?: boolean; fixes?: boolean; no_evidence_exit?: number; mode?: "files" | "selection"; root?: string; runtime_inputs?: string[][]; inputs?: string[]; gate?: "commit" | "push"; ci_only?: boolean; cache?: boolean; environment_inputs?: Record<string, "value" | "file">; shards?: { count: number; argument: string } }>, failSecondTreeWrite = false, globals: { global_runtime_inputs?: string[][] } = {}) {
+async function fixture(checks: Record<string, { runner?: boolean; reads_index?: boolean; fixes?: boolean; no_evidence_exit?: number; mode?: "files" | "selection"; root?: string; runtime_inputs?: string[][]; inputs?: string[]; gate?: "commit" | "push"; ci_only?: boolean; cache?: boolean; environment_inputs?: Record<string, "value" | "file">; shards?: { count: number; argument: string; routed?: boolean } }>, failSecondTreeWrite = false, globals: { global_runtime_inputs?: string[][] } = {}) {
   const root = await mkdtemp(join(tmpdir(), "arc-check-scheduling-"));
   roots.push(root);
   await mkdir(join(root, ".git"));
@@ -94,8 +95,10 @@ it("keeps completed evidence, publishes no pass for a check the interruption rea
 });
 
 it("forecasts a routed local dry run without the native batches and shards the runner never executes", async () => {
-  const { root, io, ids } = await fixture({ remote: { runner: true, shards: { count: 2, argument: "--shard={index}" } }, local: {} });
+  const { root, io, ids } = await fixture({ remote: { runner: true, shards: { count: 2, argument: "--shard={index}", routed: true } }, local: {} });
   io.readRunnerConfiguration = async check => check.runner ? { file: "machine.yml", argv: ["adapter"] } : undefined;
+  io.prepareExecution = () => { throw new Error("dry-run must not capture or prepare"); };
+  io.runtime = () => { throw new Error("dry-run must not probe"); };
   const result = await runDeclaredRequest(root, io, { form: { kind: "run", ids }, dryRun: true });
   if (result.kind !== "result") throw new Error(result.error.message);
   const [local, remote] = ["local", "remote"].map(id => result.result.checks.find(check => check.id === id));
@@ -208,10 +211,14 @@ it("carries the runner's remedy for an invocation it reports it could not run", 
   const { root, io, ids } = await fixture({ remote: { runner: true } });
   io.readRunnerConfiguration = async () => ({ file: "machine.yml", argv: ["adapter"] });
   const unavailable = { status: "unavailable" as const, reason: "No compatible placement", remedy: "Free a provider worker and retry." };
-  const execution: Partial<PreparedCheckExecution> = { contextId: "context", runtime: undefined, supportsRunGroup: false,
+  const observedOutcomes = new Map<string, TerminalOutcome>();
+  const execution: Partial<PreparedCheckExecution> = { observedOutcomes, contextId: "context", runtime: undefined, supportsRunGroup: false,
     plan: { invocations: [{ id: "only", cwd: ".", shell: false, argv: ["remote"] }], probes: { global: [], check: [] } },
-    run: async id => ({ status: "settled", outcomes: new Map([[id, unavailable]]),
-      settlement: { contextId: "context", settled: true, outputComplete: true, invocationIds: [id] } }),
+    run: async id => {
+      observedOutcomes.set(id, unavailable);
+      return { status: "settled", outcomes: new Map(observedOutcomes),
+        settlement: { contextId: "context", settled: true, outputComplete: true, invocationIds: [id] } };
+    },
     close: async () => ({ status: "closed", exit: { started: true, exitCode: 0 } }) };
   io.prepareExecution = () => Object.assign(Promise.resolve({ status: "ready" as const, execution: execution as PreparedCheckExecution }), {
     planId: "726ea270-cdb4-49d0-8e30-de4ffb6d4566", retained: undefined, cancel: async () => undefined, terminate: () => undefined,
@@ -230,10 +237,14 @@ it.each([
 ])("renders an adapter's $name as one control-free bounded line", async ({ outcome, expected }) => {
   const { root, io, ids } = await fixture({ remote: { runner: true } });
   io.readRunnerConfiguration = async () => ({ file: "machine.yml", argv: ["adapter"] });
-  const execution: Partial<PreparedCheckExecution> = { contextId: "context", runtime: undefined, supportsRunGroup: false,
+  const observedOutcomes = new Map<string, TerminalOutcome>();
+  const execution: Partial<PreparedCheckExecution> = { observedOutcomes, contextId: "context", runtime: undefined, supportsRunGroup: false,
     plan: { invocations: [{ id: "only", cwd: ".", shell: false, argv: ["remote"] }], probes: { global: [], check: [] } },
-    run: async id => ({ status: "settled", outcomes: new Map([[id, outcome]]),
-      settlement: { contextId: "context", settled: true, outputComplete: true, invocationIds: [id] } }),
+    run: async id => {
+      observedOutcomes.set(id, outcome);
+      return { status: "settled", outcomes: new Map(observedOutcomes),
+        settlement: { contextId: "context", settled: true, outputComplete: true, invocationIds: [id] } };
+    },
     close: async () => ({ status: "closed", exit: { started: true, exitCode: 0 }, cleanupWarning: "cleanup\r\u001b[Kretry later" }) };
   io.prepareExecution = () => Object.assign(Promise.resolve({ status: "ready" as const, execution: execution as PreparedCheckExecution }), {
     planId: "726ea270-cdb4-49d0-8e30-de4ffb6d4566", retained: undefined, cancel: async () => undefined, terminate: () => undefined,

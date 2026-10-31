@@ -1,4 +1,5 @@
 /** Origin acquisition observes store records and preserves identity across aliases. */
+import { createClashDouble } from "../../../helpers/store/clash-double.js";
 import { expect, it } from "vitest";
 import { createDecomposeHarness } from "../../../helpers/store/decompose-harness.js";
 import { decomposeContext } from "../../../fixtures/decompose-context.js";
@@ -57,4 +58,13 @@ it.each([false, true])("excludes a member by generation, including after rename=
   if (result.status === "refused") throw new Error(JSON.stringify(result));
   expect(result.result.incomingCandidates.map(entry => entry.reference.owner.name)).not.toContain(owner.name);
   expect(result.result.lifecycleEntries.map(entry => entry.reference.owner.name)).toContain(owner.name);
+});
+
+it("acquires its selected origin group through a mid-verb clash", async () => {
+  const h = createDecomposeHarness();
+  const primary = await h.seedStub("origin"), other = await h.seedStub("other");
+  const draft = await h.seed(recordReferences["work-item/draft"](primary.reference.owner), "# Draft\n\n## Scope\n\nWork.\n");
+  const store = createClashDouble(h.store, { slug: "origin", holders: [primary.reference, other.reference], mode: "mid-verb" });
+  expect(await acquireDecomposeOrigin(decomposeContext(store), "origin"))
+    .toMatchObject({ status: "ok", result: { primary, records: [primary, draft] } });
 });

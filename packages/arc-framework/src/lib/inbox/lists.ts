@@ -1,5 +1,6 @@
 /** Resolve semantic list selectors to exact store records without projected paths. */
 import { z } from "zod";
+import { readWorkItemByUid } from "../store/work-item-uid.js";
 import { SlugSchema, WorkUnitStateSchema } from "../kernel/index.js";
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import { TransientIdentityRecordSchema } from "../errand/identity-record.js";
@@ -47,6 +48,8 @@ export async function resolveWorkItemList(selector: string, context: InboxContex
   const primary = await findPrimary(selector, context);
   if (primary.status === "refused") return primary;
   const value = primary.result;
+  if (value.reference.kind === "cohort/document") return failure("record-malformed",
+    `\`${selector}\` resolves to a cohort rather than a work unit.`, "Use the cohort's own commands, or name a work unit.");
   if (value.conflicts.length > 0) return failure("record-conflicted",
     `The work-item primary has unresolved conflicts: ${value.conflicts.map(reference => JSON.stringify(reference)).join(", ")}.`,
     "Resolve the named conflict records, then retry the entry command.");
@@ -109,20 +112,13 @@ async function findPrimary(selector: string, context: InboxContext): Promise<Inb
 }
 
 async function primaryByUid(uid: string, context: InboxContext): Promise<InboxOutcome<StoreRecord>> {
-  const records: StoreRecord[] = [];
-  for (const kind of ["work-item/meta", "work-item/record"] as const) {
-    const listed = await context.store.list({ family: "work-item", kind });
-    if (listed.status === "refused") return { status: "refused", refusal: withProvenance(listed.refusal) };
-    const value = listed.result;
-    if (value.status === "unreadable") return failure("observation-incomplete", value.condition, value.remedy.text, value);
-    if (value.status === "complete") {
-      if (value.missed || value.diagnostics.length > 0) return failure("observation-incomplete", "Work-item UID lookup has incomplete evidence.", "Repair the listed work-item diagnostics, then retry.");
-      records.push(...value.records.filter((record) => record.reference.owner.type !== "person" && record.reference.owner.uid === uid));
-    }
-  }
-  if (records.length === 1 && records[0] !== undefined) return { status: "ok", result: records[0] };
-  const absent = failure(records.length ? "ambiguous-match" : "not-found", `UID ${uid} does not select exactly one work item.`, "List the work-item generations and use the intended UID.");
-  return records.length === 0 ? retiredDestination(uid, absent.refusal, context) : absent;
+  const selected = await readWorkItemByUid(context.store, uid);
+  if (selected.status === "incomplete") return failure("observation-incomplete", selected.condition, selected.remedy.text, selected.observation);
+  if (selected.status === "refused") return { status: "refused", refusal: withProvenance(selected.refusal) };
+  if (selected.result !== null) return { status: "ok", result: selected.result };
+  const normalized = uid.toLowerCase(), absent = failure("not-found", `UID ${normalized} does not select exactly one work item.`,
+    "List the work-item generations and use the intended UID.");
+  return retiredDestination(normalized, absent.refusal, context);
 }
 
 function decodeErrand(record: StoreRecord): { owner?: string; state: string } | null {

@@ -1,4 +1,5 @@
 /** Resume clears the operational record through the direct handler arm without remote expansion. */
+import { createClashDouble } from "../../helpers/store/clash-double.js";
 import { afterEach, expect, it, vi } from "vitest";
 import { publishCandidateWithReviewBoundary } from "../../../src/handlers/lifecycle-delivery-review.js";
 import { handleStoreResume } from "../../../src/handlers/lifecycle-collaboration.js";
@@ -44,7 +45,9 @@ it("publication's store handler names resume before reading missing Candidate ev
   const paused = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
   const git = scriptGitExec([]), io = createUserIOContext(); io.exec = git.exec;
   const output: string[] = []; vi.spyOn(process.stdout, "write").mockImplementation((chunk) => { output.push(String(chunk)); return true; });
-  await publishCandidateWithReviewBoundary({ cwd: "/checkout", identity: "test-user", io, store: h.store }, "example", { json: true });
+  const other = await h.seedMeta("other");
+  const store = createClashDouble(h.store, { slug: "example", holders: [paused.reference, other.reference] });
+  await publishCandidateWithReviewBoundary({ cwd: "/checkout", identity: "test-user", io, store }, "example", { json: true }, paused);
   expect(JSON.parse(output.join(""))).toMatchObject({ status: "rejected", remedy: { argv: ["arc", "resume", "example"] } });
   expect(lifecycleSuccess(await h.store.read({ reference: primary.reference }))).toEqual(paused);
   expect(git.calls).toEqual([]);

@@ -436,7 +436,7 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
         resolvedSettingsP,
       ]);
       return await resolveCurrentHuskAdvisory({
-        worktreePath,
+        worktreePath, stateOffBranch,
         branch: null,
         head: headResult.stdout,
         marker,

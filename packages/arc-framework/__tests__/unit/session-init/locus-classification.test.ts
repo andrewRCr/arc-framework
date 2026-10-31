@@ -1,4 +1,7 @@
+import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
+import { DerivedCheckoutRowSchema } from "../../../src/lib/locus/derived-schema.js";
 import { createStore } from "../../../src/lib/store/create.js";
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
 import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
@@ -74,11 +77,11 @@ function baseRow(path: string, branch: string | null) {
   };
 }
 
-function workUnitRow(name: string, path: string): DerivedCheckoutRow {
+function workUnitRow(name: string, path: string, uid?: string): DerivedCheckoutRow {
   return {
     ...baseRow(path, `feat/${name}`),
     kind: "work-unit",
-    subject: { kind: "work-unit", key: name },
+    subject: { kind: "work-unit", key: name, ...(uid === undefined ? {} : { uid }) },
   };
 }
 
@@ -95,8 +98,8 @@ function transientRow(identity: LocusIdentityV1): DerivedCheckoutRow {
 it.each(["default", "injected"] as const)("resolves an arbitrary linked work branch through the %s project identity port", async port => {
   const h = createLifecycleHarness();
   await h.seed(recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "example", uid: "11111111-1111-4111-8111-111111111111" })), "{}");
-  await h.seedMeta("widget", {}, { kind: "active" }, { branches: [{ repository: "11111111-1111-4111-8111-111111111111", ref: "arbitrary-name", linkedAs: "adopted", excluded: [] }] });
-  const roster = [workUnitRow("widget", "/wt/widget")];
+  const primary = await h.seedMeta("widget", {}, { kind: "active" }, { branches: [{ repository: "11111111-1111-4111-8111-111111111111", ref: "arbitrary-name", linkedAs: "adopted", excluded: [] }] });
+  const roster = [workUnitRow("widget", "/wt/widget", boundWorkUnitSubject(primary).uid)];
   expect(await locusOwnsBranch(roster, "arbitrary-name", { store: h.store, ...(port === "injected" ? { projectId: async () => "11111111-1111-4111-8111-111111111111" } : {}) })).toBe(true);
   expect(await locusOwnsBranch(roster, "feat/widget", { store: h.store, ...(port === "injected" ? { projectId: async () => "11111111-1111-4111-8111-111111111111" } : {}) })).toBe(false);
 });
@@ -106,4 +109,16 @@ it("the in-repo implementation retains branch-slug ownership", async () => {
   const roster = [workUnitRow("widget", "/wt/widget")];
   expect(await locusOwnsBranch(roster, "feat/widget", { store })).toBe(true);
   expect(await locusOwnsBranch(roster, "arbitrary-name", { store })).toBe(false);
+});
+
+it.each(["work-unit", "retired"] as const)("an archived %s row does not claim the live namesake's branch", async kind => {
+  const h = createLifecycleHarness(), branch = "topic/live";
+  const archived = await h.seedMeta("widget", { state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const live = await h.seedMeta("widget", {}, { kind: "active" },
+    { branches: [{ repository: "project", ref: branch, linkedAs: "created", excluded: [] }] });
+  const oldRow = DerivedCheckoutRowSchema.parse({ ...workUnitRow("widget", "/wt/old", boundWorkUnitSubject(archived).uid), kind });
+  const options = { store: h.store, projectId: async () => "project" };
+  expect(await locusOwnsBranch([oldRow], branch, options)).toBe(false);
+  expect(await locusOwnsBranch([oldRow, workUnitRow("widget", "/wt/live", boundWorkUnitSubject(live).uid)], branch, options)).toBe(true);
 });

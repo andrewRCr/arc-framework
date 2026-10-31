@@ -1,4 +1,5 @@
 /** Anchored release preserves checkout changes and every operational record. */
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -13,6 +14,7 @@ import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/id
 import { serializeTransientIdentityRecord, TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { transientContent } from "../../helpers/store/in-repo-substrates.js";
 
 async function fixture() {
   const cwd = await mkdtemp(join(tmpdir(), "arc-locus-release-"));
@@ -22,7 +24,7 @@ async function fixture() {
   onTestFinished(async () => rm(cwd, { recursive: true, force: true }));
   const h = createLifecycleHarness();
   const record = await h.seedMeta("demo", { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" });
-  const marker = { spawnedByArc: false, createdFor: { kind: "work-unit" as const, name: "demo" }, spawningIdentity: "andrew", createdAt: new Date(0).toISOString() };
+  const marker = { spawnedByArc: false, createdFor: boundWorkUnitSubject(record), spawningIdentity: "andrew", createdAt: new Date(0).toISOString() };
   await writeWorktreeMarker(holder, marker);
   const exec: GitExec = async (_command, args) => args[0] === "rev-parse" && args[1] === "--git-common-dir"
     ? { stdout: join(cwd, ".git") } : { stdout: [`worktree ${cwd}`, `HEAD ${"a".repeat(40)}`, "branch refs/heads/main", "", "",
@@ -45,14 +47,29 @@ it("refuses an owned live work unit and releases its dirty anchored checkout aft
 
 it.each(["foreign", "missing", "backlog"])("releases an anchored %s occupant without altering its lifecycle", async kind => {
   const h = await fixture();
-  let name = "demo";
+  let name = "demo", record = h.record;
   if (kind === "missing") name = "missing";
-  if (kind === "backlog") { name = "stub"; await h.seedMeta(name, { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" }, { kind: "backlog", commitment: "planned" }); }
-  await writeWorktreeMarker(h.holder, { ...h.marker, createdFor: { kind: "work-unit", name } });
+  if (kind === "backlog") { name = "stub"; record = await h.seedMeta(name, { state: "Planning", owner: "andrew", currentWorkflow: "draft-design" }, { kind: "backlog", commitment: "planned" }); }
+  await writeWorktreeMarker(h.holder, { ...h.marker, createdFor: kind === "missing" ? { kind: "work-unit", name } : boundWorkUnitSubject(record, name) });
   expect(await runLocusRelease({ ...h.ctx, identity: kind === "foreign" ? "another" : "andrew" }, name))
     .toMatchObject({ status: "released", spawned: false });
   expect(await readWorktreeMarker(h.holder)).toEqual({ kind: "absent" });
   expect(await h.store.read({ reference: h.record.reference })).toEqual({ status: "ok", result: h.record });
+});
+
+it.each(["errand", "cohort"] as const)("releases an unbound marker by name when its slug resolves to a %s", async kind => {
+  const h = await fixture(), slug = "occupied";
+  const reference = kind === "cohort"
+    ? recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: slug }))
+    : recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: slug }));
+  const record = await h.seed(reference, kind === "cohort" ? "# Cohort: occupied\n\n**Purpose:** Coordinate work.\n"
+    : transientContent(reference), kind === "cohort" ? undefined : { kind: "active" });
+  await writeWorktreeMarker(h.holder, { ...h.marker, createdFor: { kind: "work-unit", name: slug } });
+  const before = lifecycleSuccess(await h.store.version());
+  expect(await runLocusRelease(h.ctx, slug)).toMatchObject({ status: "released", checkoutPath: h.holder, spawned: false });
+  expect(await readWorktreeMarker(h.holder)).toEqual({ kind: "absent" });
+  expect(lifecycleSuccess(await h.store.read({ reference: record.reference }))).toEqual(record);
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
 });
 
 it("preserves the marker when the projection refuses and clears it once the slot passes", async () => {
@@ -94,8 +111,8 @@ it("directs a missing holder to locus inspection", async () => {
 it.each(["Integrating", "Shipped"] as const)("refuses an owned %s work unit with its state-specific exit", async state => {
   const h = await fixture();
   const name = state.toLowerCase();
-  await h.seedMeta(name, { state, owner: "andrew", currentWorkflow: state === "Integrating" ? "integrate-work-unit" : null });
-  await writeWorktreeMarker(h.holder, { ...h.marker, createdFor: { kind: "work-unit", name } });
+  const record = await h.seedMeta(name, { state, owner: "andrew", currentWorkflow: state === "Integrating" ? "integrate-work-unit" : null });
+  await writeWorktreeMarker(h.holder, { ...h.marker, createdFor: boundWorkUnitSubject(record, name) });
   expect(await runLocusRelease(h.ctx, name)).toMatchObject({ status: "refused", reason: expect.stringContaining(`arc teardown ${name}`) });
   expect(await readWorktreeMarker(h.holder)).toMatchObject({ kind: "present" });
 });

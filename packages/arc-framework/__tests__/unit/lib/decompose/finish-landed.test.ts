@@ -9,7 +9,7 @@ import { runStoreAbandon } from "../../../../src/lib/work-unit/verbs/abandon-sto
 
 it("reports a retirement's landed members on every repeated finish", async () => {
   const h = await createDecomposeTerminalFixture();
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const preview = await runStoreDecomposeFinish(h.ctx, "origin");
   if (preview.status === "refused" || preview.result.kind !== "preview") throw Error(JSON.stringify(preview));
   expect(await runStoreDecomposeFinish(h.ctx, "origin", { applyAuthority: preview.result.applyAuthority })).toMatchObject({ status: "ok", result: { kind: "applied" } });
@@ -23,20 +23,20 @@ it("reports a retirement's landed members on every repeated finish", async () =>
 
 it("refuses a live origin with no stored map", async () => {
   const h = await createDecomposeOriginFixture();
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   expect(await runStoreDecomposeFinish(h.ctx, "origin")).toMatchObject({ status: "refused", reason: "no-stored-map" });
 });
 
 it("preserves an abandoned origin's slug refusal", async () => {
   const h = await createDecomposeOriginFixture();
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   expect(await runStoreAbandon(h.ctx, { name: "origin", confirmed: true })).toMatchObject({ status: "abandoned" });
   expect(await runStoreDecomposeFinish(h.ctx, "origin")).toMatchObject({ status: "refused", reason: "store", storeRefusal: { code: "not-found" } });
 });
 
 it("selects a live reused origin generation ahead of the old landed lineage", async () => {
   const h = await createDecomposeTerminalFixture();
-  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => null };
+  h.ctx.executor.locusPorts = { ...createDefaultLocusPorts(), findHoldingCheckout: async () => ({ kind: "none" as const }) };
   const preview = await runStoreDecomposeFinish(h.ctx, "origin");
   if (preview.status === "refused" || preview.result.kind !== "preview") throw Error(JSON.stringify(preview));
   expect(await runStoreDecomposeFinish(h.ctx, "origin", { applyAuthority: preview.result.applyAuthority })).toMatchObject({ status: "ok", result: { kind: "applied" } });

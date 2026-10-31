@@ -4,6 +4,22 @@ import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store
 import { writeMetaClass } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { batchLifecycleWrites, recordPut, readWorkUnit, mergeLifecycleLinks } from "../../../../src/lib/store/lifecycle-write.js";
 import type { Links } from "../../../../src/lib/store/index.js";
+import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
+import { resolveWorkItemList } from "../../../../src/lib/inbox/lists.js";
+
+it("names a cohort when a work-unit reader refuses its slug", async () => {
+  const h = createLifecycleHarness();
+  const cohort = await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group" })),
+    "# Cohort: group\n\n**Purpose:** Coordinate members.\n");
+  expect.soft(await readWorkUnit(h.store, "group")).toMatchObject({ status: "refused", refusal: {
+    code: "record-malformed", rule: "lifecycle.work-unit", reference: cohort.reference,
+    condition: "`group` resolves to a cohort rather than a work unit.",
+    remedy: { text: expect.stringContaining("cohort") },
+  } });
+  expect(await resolveWorkItemList("group", { store: h.store, identity: "test-user", now: () => new Date(0) }))
+    .toMatchObject({ status: "refused", refusal: { condition: "`group` resolves to a cohort rather than a work unit.",
+      remedy: { text: expect.stringContaining("cohort") } } });
+});
 it("lands a verb's complete writes in one batch and retains its provenance", async () => {
   const { store, seedMeta } = createLifecycleHarness();
   const a = await seedMeta("first"), b = await seedMeta("second");

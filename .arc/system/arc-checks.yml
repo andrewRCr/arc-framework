@@ -396,6 +396,8 @@ checks:
       argument: --shard={index}/{count}
   test:integration:
     runner: true
+    environment_inputs:
+      ARC_TEST_DURATION_FILE: file
     command:
       - npm
       - run
@@ -411,11 +413,13 @@ checks:
       - '!.arc/completed/**'
       - '!.arc/system/.internal/candidates/**'
     shards:
+      routed: true
       count: 4
       argument: --shard={index}/{count}
   # The store suites run by reach: the runner selects the suites a change reaches from the base and tree it is given,
   # as its data file declares them, and runs in full when asked, given no base, or changed itself. CI divides the
-  # selection among shards balanced by the integration durations; a local run stays one.
+  # selection among shards balanced by the integration durations. An opted-in routed run divides it the same way when
+  # given a duration file, and by the partitioner's fallback estimates without one; an unmanaged run stays one.
   test:store:
     runner: true
     command:
@@ -437,7 +441,9 @@ checks:
     environment_inputs:
       ARC_STORE_CHECK: value
       ARC_STORE_BURSTS: value
+      ARC_TEST_DURATION_FILE: file
     shards:
+      routed: true
       count: 6
       argument: --shard={index}/{count}
   # Integration tests read ARC Markdown from disk, which no import graph shows, so test:changed never reaches them.

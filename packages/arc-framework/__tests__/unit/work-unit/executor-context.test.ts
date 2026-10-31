@@ -389,6 +389,6 @@ it("binds off-branch locus operations and preserves their record through checkou
     internalTemplateDir: "/templates", store: createReferenceFixture().store });
   expect(context.locusPorts).toBeDefined();
   expect(context.withCwd?.("/other").locusPorts).toBe(context.locusPorts);
-  const clear = await context.locusPorts?.checkMarkerExclusivity({ name: "demo" });
+  const clear = await context.locusPorts?.checkMarkerExclusivity({ kind: "creation", slug: "demo" });
   expect(clear).toMatchObject({ kind: "refused", reason: expect.stringContaining("Git lists") });
 });

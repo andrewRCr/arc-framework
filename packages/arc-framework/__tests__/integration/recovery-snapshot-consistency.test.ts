@@ -1,4 +1,5 @@
 /** Recovery keeps its projected cursor and reconstructed anchor in one operational snapshot. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { expect, it, vi } from "vitest";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -37,7 +38,7 @@ async function fixture() {
   await h.putLinks({ branches: [{ repository: project, ref: "feat/demo", linkedAs: "created", excluded: [] }] });
   await ensureWorktreeMarkerIgnored(h.cwd, h.input.exec, nodeWorktreeMarkerIgnoreFs);
   await writeWorktreeMarker(h.cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-18T00:00:00Z",
-    createdFor: { kind: "work-unit", name: "demo" } });
+    createdFor: boundWorkUnitSubject(await h.readMeta()) });
   return h;
 }
 

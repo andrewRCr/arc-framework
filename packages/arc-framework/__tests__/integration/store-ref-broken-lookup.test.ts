@@ -4,8 +4,10 @@ import { plantRef, removeLooseObject } from "../helpers/store/ref-plant.js";
 import { seed, success, update, testProvenance } from "../helpers/store/suite-tools.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { RecordReferenceSchema, type LookupInput } from "../../src/lib/store/index.js";
+import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 
+const unknownUid = "00000000-0000-4000-8000-000000000099";
 const repository = "repo", sha = "a".repeat(40), copyKey = `v1:${"b".repeat(64)}:${"c".repeat(64)}`;
 
 async function brokenScan(damage: "metadata" | "root") {
@@ -47,7 +49,7 @@ describe("lookup with an unreadable item ref", () => {
       { kind: "slug", slug: SlugSchema.parse(f.broken.reference.owner.name) },
       { kind: "commit", repository, sha: "d".repeat(40), copyKey },
       { kind: "ref", repository, ref: "feat/unknown" },
-      { kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse("unknown") } },
+      { kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse("unknown"), uid: unknownUid } },
     ];
     for (const input of inputs) expect(await f.store.lookup(input)).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: f.ref } });
   });
@@ -91,24 +93,68 @@ describe("lookup with an unreadable item ref", () => {
     expect(await f.store.read({ reference: named })).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: f.ref } });
   });
 
-  it("answers slug, commit, and checkout claim lookups past an unreadable cohort ref, which can never hold their answer", async () => {
+  it("keeps cohort damage in unresolved slug evidence until repair, while commit and claim evidence stays independent", async () => {
     const f = await createRefFixture();
     const cohort = await seed(f, f.reference("cohort/document"));
+    const known = await seed(f, f.reference("cohort/document", "known-cohort"));
     const readable = await seed(f, f.reference("work-item/meta", "readable"), undefined, { kind: "active" }, {
       taskCaptures: { "1.1": [{ repository, sha, copyKey }] } });
     if (cohort.reference.owner.type !== "cohort") throw new Error("Expected cohort owner");
     const ref = `refs/arc/cohort/${cohort.reference.owner.uid}`;
-    const parent = (await makeGitExec(f.root)("git", ["rev-parse", ref])).stdout;
-    await plantRef(f.root, ref, [{ path: `cohort-${cohort.reference.owner.name}.md`, content: cohort.content }], { parents: [parent] });
+    const git = makeGitExec(f.root), path = `metadata-${cohort.reference.owner.uid}.json`;
+    const parent = (await git("git", ["rev-parse", ref])).stdout;
+    const metadata = (await git("git", ["show", `${ref}:${path}`])).stdout;
+    const damaged = await plantRef(f.root, ref, [{ path: `cohort-${cohort.reference.owner.name}.md`, content: cohort.content }], { parents: [parent] });
     expect(success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse(readable.reference.owner.name) }))).toEqual({ reference: readable.reference });
     expect(success(await f.store.lookup({ kind: "commit", repository, sha, copyKey }))).toEqual({ reference: readable.reference, taskIds: ["1.1"] });
-    expect(success(await f.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(readable.reference.owner.name) } })))
+    expect(success(await f.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(readable.reference.owner.name), uid: "uid" in readable.reference.owner ? readable.reference.owner.uid : undefined } })))
       .toEqual({ reference: readable.reference });
-    for (const input of [{ kind: "slug", slug: SlugSchema.parse("absent") }, { kind: "commit", repository, sha: "d".repeat(40), copyKey: `v1:${"e".repeat(64)}:${"f".repeat(64)}` },
-      { kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse("absent") } }] satisfies LookupInput[]) {
+    for (const slug of ["absent", cohort.reference.owner.name]) {
+      expect(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse(slug) }))
+        .toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: ref } });
+    }
+    expect(success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse(known.reference.owner.name) })))
+      .toEqual({ reference: known.reference });
+    for (const input of [{ kind: "commit", repository, sha: "d".repeat(40), copyKey: `v1:${"e".repeat(64)}:${"f".repeat(64)}` },
+      { kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse("absent"), uid: unknownUid } }] satisfies LookupInput[]) {
       expect(await f.store.lookup(input)).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
     }
     expect(await f.store.lookup({ kind: "ref", repository, ref: "feat/unknown" })).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: ref } });
+    await plantRef(f.root, ref, [{ path, content: metadata },
+      { path: `cohort-${cohort.reference.owner.name}.md`, content: cohort.content }], { parents: [damaged.tip] });
+    expect(success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse(cohort.reference.owner.name) })))
+      .toEqual({ reference: cohort.reference });
+    expect(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("absent") }))
+      .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  });
+
+  it.each(["work-item/meta", "cohort/document"] as const)("refuses a completed branch answer behind unreadable %s evidence until repair", async (kind) => {
+    const f = await createRefFixture(), git = makeGitExec(f.root), branch = "feat/completed";
+    const broken = await seed(f, f.reference(kind, "broken"));
+    const readable = await seed(f, f.reference("work-item/meta", "ended"), undefined, { kind: "active" }, {
+      branches: [{ repository, ref: branch, linkedAs: "created", excluded: [] }],
+    });
+    success(await f.store.write({ ...update(f, readable, readable.content), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
+    if (broken.reference.owner.type !== "work-item" && broken.reference.owner.type !== "cohort") throw new Error("Expected lifecycle owner");
+    const ref = `refs/arc/${kind === "cohort/document" ? "cohort" : "work"}/${broken.reference.owner.uid}`;
+    const path = `metadata-${broken.reference.owner.uid}.json`, primary = `${kind === "cohort/document" ? "cohort" : "meta"}-${broken.reference.owner.name}.md`;
+    const parent = (await git("git", ["rev-parse", ref])).stdout;
+    const metadata = (await git("git", ["show", `${ref}:${path}`])).stdout;
+    const damaged = await plantRef(f.root, ref, [{ path: primary, content: broken.content }], { parents: [parent] });
+    const input = { kind: "ref" as const, repository, ref: branch };
+    expect(await f.store.lookup(input)).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: ref } });
+    await plantRef(f.root, ref, [{ path, content: metadata }, { path: primary, content: broken.content }], { parents: [damaged.tip] });
+    expect(success(await f.store.lookup(input)).reference).toEqual(readable.reference);
+  });
+
+  it("treats unbound work-unit claims as absent despite unreadable metadata and resolves a bound retry", async () => {
+    const f = await brokenScan("metadata");
+    for (const name of [f.readable.reference.owner.name, f.broken.reference.owner.name, "unknown"]) {
+      expect(await f.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse(name) } }))
+        .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    }
+    expect(success(await f.store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: f.readable.reference.owner.name,
+      uid: "uid" in f.readable.reference.owner ? f.readable.reference.owner.uid : undefined } }))).toEqual({ reference: f.readable.reference });
   });
 
 });

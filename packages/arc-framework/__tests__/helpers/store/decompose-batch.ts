@@ -10,7 +10,7 @@ export async function observedDecomposeBatch(store: Store, input: BatchInput) {
   const observations = [...input.observations ?? []];
   for (const write of input.writes) {
     if (write.reference.kind !== "work-item/cut-map") continue;
-    const group = await acquireLifecycleRecords(store, write.reference.owner.name);
+    const group = await acquireLifecycleRecords(store, write.reference);
     if (group.status === "refused") return group;
     for (const observation of observeRecords(group.result)) {
       if (!observations.some(item => sameReference(item.reference, observation.reference))) observations.push(observation);

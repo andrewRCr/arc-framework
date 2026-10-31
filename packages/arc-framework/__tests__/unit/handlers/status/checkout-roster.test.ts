@@ -1,4 +1,5 @@
 /** The production status roster uses selected records and identity-scoped claims. */
+import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -20,7 +21,7 @@ it("reads a store-only work unit and corroborates grooming only for the context'
   await mkdir(join(planning, ".arc/system"), { recursive: true });
   await writeFile(join(planning, ".arc/system/arc-config.yml"), "archive.cadence: manual\nbranch.base: main\n");
   const h = createLifecycleHarness(); h.store.environment.identity = "alice";
-  await h.seedMeta("example", { state: "Planning", owner: "alice", currentWorkflow: "draft-design" });
+  const meta = await h.seedMeta("example", { state: "Planning", owner: "alice", currentWorkflow: "draft-design" });
   await h.seed(recordReferences["project-registry/identity"](OwnerIdentitySchema.parse({ type: "project", name: "project",
     uid: "11111111-1111-4111-8111-111111111111" })), "{}");
   const claim = TransientIdentityRecordSchema.parse({ version: 3, kind: "groom", slug: "groom-alpha", claimId: "a".repeat(32),
@@ -28,7 +29,7 @@ it("reads a store-only work unit and corroborates grooming only for the context'
     branch: "chore/groom-alpha", protection: "full", anchorStub: "alpha", members: ["alpha"], openedBaseHead: "a".repeat(40) });
   await h.seed(recordReferences["claims/groom"](OwnerIdentitySchema.parse({ type: "person", name: "alice" }), "groom-alpha"), JSON.stringify(claim));
   await writeWorktreeMarker(planning, { spawnedByArc: false, spawningIdentity: "alice", createdAt: new Date(0).toISOString(),
-    createdFor: { kind: "work-unit", name: "example" } });
+    createdFor: boundWorkUnitSubject(meta) });
   await writeWorktreeMarker(groom, { spawnedByArc: true, spawningIdentity: "alice", createdAt: new Date(0).toISOString(),
     provisioning: "ready", createdFor: { kind: "groom", slug: "groom-alpha", claimId: "a".repeat(32) } });
   const { exec } = scriptGitExec([

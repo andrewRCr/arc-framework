@@ -1,4 +1,4 @@
-/** Missing-primary occupancy requires complete terminal observation before release or restart. */
+/** Unbound terminal-name markers release without claiming retained lifecycle records. */
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -12,7 +12,7 @@ import { inspectCheckoutMarker } from "../../../src/lib/locus/marker-occupancy.j
 import { runLocusRelease } from "../../../src/lib/locus/release.js";
 import type { Store } from "../../../src/lib/store/contract.js";
 
-it.each(["abandon", "decompose", "rename"] as const)("withholds creation-residue release for %s lineage, including observation failure and repair", async kind => {
+it.each(["abandon", "decompose", "rename"] as const)("releases an unbound %s origin even when its terminal body is unavailable", async kind => {
   const cwd = await mkdtemp(join(tmpdir(), "arc-terminal-admission-")), holder = join(cwd, "holder");
   onTestFinished(() => rm(cwd, { recursive: true, force: true }));
   await mkdir(holder); await mkdir(join(cwd, ".git"));
@@ -31,10 +31,11 @@ it.each(["abandon", "decompose", "rename"] as const)("withholds creation-residue
   const topology = `worktree ${cwd}\0HEAD ${"a".repeat(40)}\0branch refs/heads/main\0\0worktree ${holder}\0HEAD ${"a".repeat(40)}\0detached\0\0`;
   const exec = async (_command: string, args: string[]) => ({ stdout: args.includes("--git-common-dir") ? join(cwd, ".git") : topology });
   const release = () => runLocusRelease({ cwd, exec, store, identity: "test-user", baseBranch: "main", chdir: () => {} }, "ended");
-  expect(await release()).toMatchObject({ status: "refused", reason: expect.stringContaining("Restore terminal evidence") });
-  expect(await readWorktreeMarker(holder)).toMatchObject({ kind: "present" });
+  expect(await inspectCheckoutMarker({ cwd: holder, store })).toMatchObject({ kind: "unbound", unbound: {
+    exit: { kind: "release" }, exits: [{ argv: ["arc", "locus", "release"], checkout: holder }] } });
+  expect(await release()).toMatchObject({ status: "released", checkoutPath: holder, spawned: false });
+  expect(await readWorktreeMarker(holder)).toEqual({ kind: "absent" });
   unavailable = false;
-  expect(await inspectCheckoutMarker({ cwd: holder, store })).toMatchObject({ kind: "occupied", missingRecord: false });
-  expect(await release()).toMatchObject({ status: "refused", reason: expect.stringContaining("retained lineage") });
-  expect(await readWorktreeMarker(holder)).toMatchObject({ kind: "present" });
+  expect(ok(await store.read({ reference })).fields).toEqual(lineage);
+  expect(await store.read({ reference: primary.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
 });

@@ -5,7 +5,7 @@ import { computeDefaultCaptureSet, resolveLinkedCheckoutBranch, type DefaultCapt
 import type { SessionAction } from "../session-init/actions.js";
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import { resolveTaskListCursor } from "../task-list/cursor.js";
-import { readWorkUnit } from "../store/lifecycle-write.js";
+import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
 import { readLifecycleView } from "../store/lifecycle-view.js";
 import { requireCompleteInventory } from "../store/lifecycle-storage.js";
 import { recordReferences } from "../store/identity.js";
@@ -19,13 +19,14 @@ export type UnclosedTaskCommits =
   | (TaskRefusal & { actions: SessionAction[] });
 /** Boundaries for one selected entering work unit, never an entire checkout roster. */
 export interface ComputeUnclosedTaskCommitsInput {
-  store?: Store; slug: string; cwd: string; baseBranch: string; exec: GitExec; execRaw?: RawGitExec; projectId?: () => Promise<string>;
+  store?: Store; slug: string; uid?: string; cwd: string; baseBranch: string; exec: GitExec; execRaw?: RawGitExec; projectId?: () => Promise<string>;
 }
 /** Compute once after entering work-unit selection; inactive or in-repo contexts carry no listing. */
 export async function computeUnclosedTaskCommits(input: ComputeUnclosedTaskCommitsInput): Promise<UnclosedTaskCommits | null> {
   const store = input.store;
   if (!store?.capabilities.stateOffBranch) return null;
-  const meta = await readWorkUnit(store, input.slug);
+  const claimed = await store.lookup({ kind: "claim", claim: workUnitCheckoutClaim(store, input.slug, input.uid) });
+  const meta = claimed.status === "refused" ? claimed : await store.read({ reference: claimed.result.reference });
   if (meta.status === "refused") return projectRefusal(input, storeRefusal(meta.refusal));
   const fields = ParsedMetaRecordSchema.safeParse(meta.result.fields);
   if (!fields.success) return projectRefusal(input, refuseTask("Work-unit metadata does not read.", "Repair the work-unit metadata, then retry."));

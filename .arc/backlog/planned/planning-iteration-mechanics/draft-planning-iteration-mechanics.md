@@ -369,6 +369,29 @@
 
 - _Captured during:_ Errand `timing-when-raised`, 2026-10-17.
 
+### `[ ]` **Keep a task-list disposition line for every success criterion a review fix adds**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-30).
+
+- _Shapes:_ how the task list's Success Criteria relate to the spec's — the held entries "Codify planning closeout and
+  keep task lists implementation-only" and "Make success-criteria marking express the assertions being
+  verified". `verification-falsification-contract` owns the check arm, which its Direction leaves to this work
+  unit's authoring shape.
+
+- _Observation:_ in `storage-ref-backend`, review-fix commits amended the spec forward with new success criteria,
+  for example A38 in `30d0ca6aa` and A60 in `7bf19fe31`. The task list's Success Criteria gained lines for some of
+  them (A54–A59, back-filled by one later design-amendment commit, `48907d07c`) and none for fifteen others, spec
+  criteria 44–57 and 64. Those reached integration undispositioned, so the Completion Notes disclose them as landed
+  with their exposing cases but never re-checked as criteria. Nothing caught the gap: verification reads the task
+  list's record, and no check compares it with the spec's criteria.
+
+- _Approach:_ either have the findings round's fix authoring add the task-list line whenever an approved fix adds a
+  spec criterion (a method rule), or have verification and the integration checkpoint refuse a spec criterion with
+  no disposition line (a check). Whether the task list should mirror the spec's criteria at all is the design
+  question.
+
+- _Captured during:_ `storage-ref-backend` integration, 2026-10-29.
+
 ---
 
 ## Problem / Motivation

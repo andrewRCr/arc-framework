@@ -310,7 +310,8 @@ function renamedMarker(
   return {
     ...base,
     wuName: request.targetSlug,
-    createdFor: { kind: "work-unit", name: request.targetSlug },
+    createdFor: { kind: "work-unit", name: request.targetSlug,
+      ...(ownership.subject.uid === undefined ? {} : { uid: ownership.subject.uid }) },
     ...(request.renameMovePending === null || request.renameMovePending === undefined
       ? {}
       : { renameMovePending: request.renameMovePending }),

@@ -537,6 +537,28 @@
 
 - _Captured during:_ `review-coverage-cadence` create-spec, second adversarial pass, fix-check round 4 (2026-10-17).
 
+### `[ ]` **Let an Owner revise an approved disposition after its fix commits move the head**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-30).
+
+- _Shapes:_ the "Make an Owner-accepted review terminus bind thereafter" item — its sharp form, a decision destroyed by
+  the fix it authorized, has this sibling: a decision the Owner changes mid-fix cannot be recorded at all.
+
+- _Observation:_ during `storage-ref-backend`'s pass 8 fix round (2026-10-29), the Owner changed one finding's
+  approved action after fixes had begun: AGG-20 was approved as a fix adding supersession lines to the shipped
+  contract specification, and became, at the Owner's direction, a different repair — restore that specification and
+  record the changes in the cohort document (`1258af5c0`). The gate refuses to supersede an approved disposition set
+  once the reviewed head moves, which the first fix commit always does, so the approved set could not be revised to
+  the repair actually made. The commit carried the original finding line and explained the change in its body; the
+  verified-fix replay then attested the original set's wording.
+
+- _Approach:_ a typed revision of an approved set after partial application, bound to the Owner's new decision and to
+  the fix commits already made under the old one, so the record, the commit lines, and the verified-fix replay agree.
+  Design question: whether a revision supersedes the set or amends one finding's action, and how the replay binds
+  commits made before it.
+
+- _Captured during:_ `storage-ref-backend` pre-publication review, pass 8 and its fix checks, 2026-10-29.
+
 ---
 
 ## Operator Selection Override

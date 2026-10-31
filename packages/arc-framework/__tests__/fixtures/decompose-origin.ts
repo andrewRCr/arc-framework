@@ -4,10 +4,12 @@ import { recordReferences } from "../../src/lib/store/identity.js";
 import { decomposeContext } from "./decompose-context.js";
 
 /** Seed one draft-profile origin, ready for read-only source derivation. */
-export async function createDecomposeOriginFixture(started = false) {
+export async function createDecomposeOriginFixture(started = false, reused = false) {
   const h = createDecomposeHarness();
+  const archived = reused ? await h.seedCompletedWorkUnit("origin") : undefined;
+  const archivedDraft = archived === undefined ? undefined : await h.seed(recordReferences["work-item/draft"](archived.reference.owner), "# Archived origin\n\nCompleted work.\n");
   const primary = await h.seedMeta("origin", { state: "Planning", currentWorkflow: started ? "draft-design" : null,
     design: ["draft-origin.md"] }, started ? { kind: "active" } : { kind: "backlog", commitment: "planned" });
   const draft = await h.seed(recordReferences["work-item/draft"](primary.reference.owner), "# Origin\n\n## Scope\n\nOwned work.\n");
-  return { ...h, primary, draft, ctx: decomposeContext(h.store) };
+  return { ...h, primary, draft, archived, archivedDraft, ctx: decomposeContext(h.store) };
 }

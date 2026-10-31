@@ -834,3 +834,21 @@ describe("ensureWorktreeMarkerIgnored", () => {
     await expect(readFile(excludePath, "utf8")).resolves.toBe(existing);
   });
 });
+
+describe("work-unit husks after state moves off branch", () => {
+  const common: WorktreeHuskStamp = { sha: "a".repeat(40), at: "2026-10-24T00:00:00Z",
+    subject: { kind: "work-unit", name: "demo" }, branch: "feat/demo" };
+  const digest = `sha256:${"a".repeat(64)}` as const;
+  it.each([
+    { name: "legacy", stamp: common },
+    { name: "shipped", stamp: { ...common, authorization: "merged-preserved", remoteRef: null,
+      evidence: { kind: "shipped", expectedLifecycle: "completed", resultDigest: digest, baseProofOid: common.sha } } },
+    { name: "Git transition", stamp: { ...common, authorization: "discard-confirmed", remoteRef: null,
+      evidence: { kind: "git-transition", transition: "abandon", resultDigest: digest } } },
+  ])("keeps a $name work-unit husk manual in the store arm", ({ stamp }) => {
+    expect(decodeWorktreeHuskStamp(stamp, { stateOffBranch: true }))
+      .toEqual({ kind: "manual-only", reason: "pre-store-husk" });
+    expect(decodeWorktreeHuskStamp(stamp, { stateOffBranch: false })).toEqual(decodeWorktreeHuskStamp(stamp));
+    expect(decodeWorktreeHuskStamp(stamp).kind).toBe(stamp.authorization === undefined ? "legacy" : "current");
+  });
+});

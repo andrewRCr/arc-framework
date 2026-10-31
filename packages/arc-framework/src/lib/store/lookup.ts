@@ -8,7 +8,7 @@ import { CommitShaSchema, CopyKeySchema } from "./links.js";
 const slug = { slug: SlugSchema };
 /** Claims mirror marker discriminants; a branch alone is never an ARC claim. */
 export const CheckoutClaimSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("work-unit"), ...slug }),
+  z.strictObject({ kind: z.literal("work-unit"), ...slug, uid: z.uuid().optional() }),
   z.strictObject({ kind: z.literal("partial-errand"), ...slug, claimId: z.null() }),
   z.strictObject({ kind: z.literal("errand"), ...slug, claimId: LocusTokenSchema }),
   z.strictObject({ kind: z.literal("groom"), ...slug, claimId: LocusTokenSchema }),

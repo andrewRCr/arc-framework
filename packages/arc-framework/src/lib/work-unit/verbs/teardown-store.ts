@@ -1,16 +1,20 @@
 /** End-rule ref-set cleanup over version-bound operational retirement evidence. */
+import { ownerHolderRequest, type HoldingCheckoutResult } from "../locus-ports.js";
 import { rm } from "node:fs/promises";
 import { resolve } from "node:path";
-import { assessReapSafety, isLandedInBase } from "../../git/branch-containment.js";
+import { assessReapSafety, isLandedInBase, isContainedIn } from "../../git/branch-containment.js";
 import { deleteRemoteBranch } from "../mutators/reconcile-branch.js";
 import { localLifecycleTip, resolveLifecycleBase } from "../../git/lifecycle-ref-refresh.js";
-import { readWorktreeMarker, resolveWorktreeMarkerPath } from "../../git/worktree-marker.js";
+import { decodeWorktreeMarkerOwnership, readWorktreeMarker, resolveWorktreeMarkerPath } from "../../git/worktree-marker.js";
+import { classifyUnboundMarker } from "../../locus/unbound-marker.js";
+import { sameOwner, type OwnerIdentity } from "../../store/identity.js";
+import type { Store } from "../../store/contract.js";
 import { scanRegisteredWorktrees, type RegisteredWorktree } from "../../git/worktree-roster.js";
 import { clearMissingWorktreeRegistrations, removeWorktreeCheckout, releaseWorktreeCheckout, describeRemovalRefusal } from "../../git/worktree-removal.js";
 import { reapZeroDeltaBranch } from "../../errand/abandon-runtime.js";
 import { selectWorkBranchLink, workBranchName } from "../../store/lifecycle-branch.js";
-import { readStoreRetirementEvidence, type StoreRetirementEvidence } from "../store-retirement-evidence.js";
-import type { Remedy } from "../../store/refusal.js";
+import { readStoreRetirementEvidence, resolveTeardownSubject, teardownSubjectOperand, type StoreRetirementEvidence } from "../store-retirement-evidence.js";
+import { StoreRefusalError, type Remedy } from "../../store/refusal.js";
 import { selectStoreRetirementHusk, type SelectedStoreRetirementHusk } from "../store-retirement-husk.js";
 import { returnRetiringCheckout } from "../return-retiring-checkout.js";
 import { missingRegistrationActions } from "../../session-init/missing-worktree-folders.js";
@@ -18,8 +22,9 @@ import { withWorktreeOperationLock } from "../worktree-operation-lock.js";
 import { nodeReconcileWorkUnitWorktreeFs, isSelfTeardown, reconcileUserSurfacesForRemoval } from "../mutators/reconcile-work-unit-worktree.js";
 import type { TeardownContext, TeardownParams, TeardownResult } from "./teardown.js";
 
+type RetirementLink = StoreRetirementEvidence["branches"][number];
 type RetiringGeneration = { localHead: string | null; trackingHead: string | null; container: { ref: string; oid: string } | null };
-type Bound = TeardownContext & { evidence: StoreRetirementEvidence; baseOid: string; baseBranch: string; worktrees: RegisteredWorktree[]; primaryPath: string; notices: string[]; selectedHusk?: string };
+type Bound = TeardownContext & { store: Store; evidence: StoreRetirementEvidence; baseOid: string; baseBranch: string; worktrees: RegisteredWorktree[]; primaryPath: string; notices: string[]; selectedHusk?: string };
 /** Teardown reads the selected end's rule; force flags never grant discard authority. */
 export async function runStoreTeardown(ctx: TeardownContext, params: TeardownParams): Promise<TeardownResult> {
   if (ctx.store === undefined) return { status: "rejected", reason: "Teardown requires its operational store." };
@@ -27,13 +32,14 @@ export async function runStoreTeardown(ctx: TeardownContext, params: TeardownPar
   try {
     const baseOid = await resolveLifecycleBase(ctx.exec, ctx.cwd, params.base);
     if (baseOid === null) throw new Error(`No base ref resolves; run git branch ${params.base} <commit> or fetch the configured base, then retry teardown.`);
-    const evidence = await readStoreRetirementEvidence(ctx.store, params.name, baseOid);
+    const subject = await resolveTeardownSubject(ctx.store, params.subject);
+    const evidence = await readStoreRetirementEvidence(ctx.store, subject, baseOid);
     const roster = await (ctx.scanWorktrees ?? scanRegisteredWorktrees)(ctx.exec);
     if (!roster.ok) throw new Error(roster.message);
     const primaryPath = roster.worktrees.find((item) => item.primary)?.path;
     if (primaryPath === undefined) throw new Error("The primary checkout could not be resolved for retirement.");
     const exec: TeardownContext["exec"] = (command, args, options) => ctx.exec(command, args, { cwd: primaryPath, ...options });
-    const bound: Bound = { ...ctx, exec, cwd: primaryPath, evidence, baseOid, baseBranch: params.base, worktrees: roster.worktrees, primaryPath, notices: [], selectedHusk: params.huskPath };
+    const bound: Bound = { ...ctx, store: ctx.store, exec, cwd: primaryPath, evidence, baseOid, baseBranch: params.base, worktrees: roster.worktrees, primaryPath, notices: [], selectedHusk: params.huskPath };
     const { links, retiring, generation } = await selectRetiringLinks(bound);
     const selected = params.huskPath === undefined ? undefined : await selectStoreRetirementHusk({ ctx: bound, evidence, baseOid, path: params.huskPath }, bound.worktrees);
     cleanupStarted = true;
@@ -42,25 +48,48 @@ export async function runStoreTeardown(ctx: TeardownContext, params: TeardownPar
     if (selected !== undefined) worktreeRemoved = await retireHolder(bound, ctx.cwd, selected);
     return { status: "torn-down", mode: evidence.rule === "discard" ? "abandoned" : "shipped", branch: retiring,
       branchDeleted, remoteBranchDeleted, worktreeRemoved, husk: null, pruned: true, notices: bound.notices, suggestion: params.suggestion ?? null };
-  } catch (error) { return { status: "rejected", reason: error instanceof Error ? error.message : String(error), ...(cleanupStarted ? { remedy: teardownRetryRemedy(params) } : {}) }; }
+  } catch (error) { return teardownRejection(error, cleanupStarted, params); }
+}
+function teardownRejection(error: unknown, cleanupStarted: boolean, params: TeardownParams): Extract<TeardownResult, { status: "rejected" }> {
+  return { status: "rejected", reason: error instanceof Error ? error.message : String(error),
+    ...(error instanceof StoreRefusalError ? { refusal: error.refusal } : {}),
+    ...(cleanupStarted ? { remedy: teardownRetryRemedy(params) } : {}) };
 }
 async function locked<T>(ctx: Bound, operation: () => Promise<T>): Promise<T> {
   const action = async () => { await ctx.evidence.revalidate(); return operation(); };
   return ctx.withWorkItemLock === undefined ? withWorktreeOperationLock({ exec: ctx.exec, cwd: ctx.cwd, operation: action }) : ctx.withWorkItemLock(action);
 }
 async function holdingCheckout(ctx: Bound): Promise<string | null> {
-  const resolveLegacy = async () => {
-    const paths: string[] = [];
-    for (const item of ctx.worktrees) {
-      const marker = await (ctx.readMarker ?? readWorktreeMarker)(item.path);
-      if (marker.kind === "malformed") throw new Error(`${marker.path}: ${marker.message}`);
-      if (marker.kind === "present" && marker.marker.husk === undefined && (marker.marker.createdFor?.kind === "work-unit" ? marker.marker.createdFor.name : marker.marker.wuName) === ctx.evidence.name) paths.push(item.path);
-    }
-    if (paths.length > 1) throw new Error(`More than one checkout holds ${ctx.evidence.name}: ${paths.join(", ")}`);
-    return paths[0] ?? null;
-  };
-  return ctx.locusPorts === undefined ? resolveLegacy() : ctx.locusPorts.findHoldingCheckout({ name: ctx.evidence.name, resolveLegacy });
+  const request = ownerHolderRequest(ctx.evidence.record);
+  if (ctx.locusPorts !== undefined) {
+    const result = await ctx.locusPorts.findHoldingCheckout(request);
+    if (result.kind === "unbound") throw new Error(result.reason);
+    return result.kind === "held" ? result.path : null;
+  }
+  const holders: Exclude<HoldingCheckoutResult, { kind: "none" }>[] = [];
+  for (const item of ctx.worktrees) {
+    const found = await retirementHolder(ctx, item.path, request);
+    if (found.kind !== "none") holders.push(found);
+  }
+  if (holders.length > 1) throw new Error(`More than one checkout holds ${ctx.evidence.name}: ${holders.map(holder => holder.path).join(", ")}. ${holders.flatMap(holder => holder.kind === "unbound" ? [holder.reason] : []).join(" ")}`);
+  const holder = holders[0];
+  if (holder?.kind === "unbound") throw new Error(holder.reason);
+  return holder?.path ?? null;
 }
+async function retirementHolder(ctx: Bound, path: string, request: ReturnType<typeof ownerHolderRequest>): Promise<HoldingCheckoutResult> {
+  const marker = await (ctx.readMarker ?? readWorktreeMarker)(path);
+  if (marker.kind === "malformed") throw new Error(`${marker.path}: ${marker.message}`);
+  if (marker.kind !== "present" || marker.marker.husk !== undefined) return { kind: "none" };
+  const ownership = decodeWorktreeMarkerOwnership(marker.marker);
+  if (ownership.kind !== "current") throw new Error(`${resolveWorktreeMarkerPath(path)}: marker ownership is ${ownership.reason}. Inspect and repair its marker, then retry.`);
+  if (ownership.subject.kind !== "work-unit") return { kind: "none" };
+  if (ownership.subject.uid === request.uid) return { kind: "held", path };
+  if (ownership.subject.uid !== undefined || ![request.names.current, ...request.names.former].includes(ownership.subject.name)) return { kind: "none" };
+  const classified = await classifyUnboundMarker({ store: ctx.store, cwd: path, marker: marker.marker });
+  if (classified.kind === "unreadable") throw new Error(classified.reason);
+  return { kind: "unbound", path, exits: classified.exits, reason: classified.reason };
+}
+
 async function retireHolder(ctx: Bound, invokingPath: string, selected?: SelectedStoreRetirementHusk): Promise<string | null> {
   const path = selected?.path ?? await holdingCheckout(ctx);
   if (path === null) return null;
@@ -85,7 +114,7 @@ async function retireHolder(ctx: Bound, invokingPath: string, selected?: Selecte
     return path;
   };
   if (ctx.readTeardownSelection !== undefined && ctx.teardownWorktree !== undefined) {
-    const chosen = await ctx.readTeardownSelection({ checkoutPath: path, subject: { kind: "work-unit", name: ctx.evidence.name } });
+    const chosen = await ctx.readTeardownSelection({ checkoutPath: path, subject: { kind: "work-unit", name: ctx.evidence.name, uid: ownerHolderRequest(ctx.evidence.record).uid } });
     if (chosen.kind !== "clear") throw new Error(chosen.message);
     let removed: string | null = null;
     await ctx.teardownWorktree.retire({ expectedSelection: chosen, revalidateLocal: revalidate,
@@ -94,7 +123,9 @@ async function retireHolder(ctx: Bound, invokingPath: string, selected?: Selecte
   }
   return locked(ctx, async () => { await selected?.revalidate(); return operation(); });
 }
-function reportAdopted(ctx: Bound, branch: string): void {
+async function reportAdopted(ctx: Bound, link: RetirementLink): Promise<void> {
+  const branch = workBranchName(link.ref);
+  if (!await mayRetireBranch(ctx, link)) return;
   const holder = ctx.worktrees.find((item) => item.branch === branch);
   ctx.notices.push(`Kept ${branch}: it was adopted from its owner.`);
   if (holder?.folderPresent === false) {
@@ -120,8 +151,10 @@ async function prepareCreatedBranch(ctx: Bound, branch: string): Promise<boolean
   }
   return true;
 }
-async function reapRetiringBranch(ctx: Bound, branch: string, generation: RetiringGeneration): Promise<{ local: boolean; remote: boolean }> {
+async function reapRetiringBranch(ctx: Bound, link: RetirementLink, generation: RetiringGeneration): Promise<{ local: boolean; remote: boolean }> {
   return locked(ctx, async () => {
+    if (!await mayRetireBranch(ctx, link)) return { local: false, remote: false };
+    const branch = workBranchName(link.ref);
     const local = await localLifecycleTip(ctx.exec, ctx.cwd, `refs/heads/${branch}`), tracking = await localLifecycleTip(ctx.exec, ctx.cwd, `refs/remotes/origin/${branch}`);
     if (local !== generation.localHead || tracking !== generation.trackingHead) throw new Error("The retiring branch ref generation changed; retry teardown.");
     const landed = tracking === null || await isLandedInBase(ctx.exec, tracking, ctx.baseOid);
@@ -130,17 +163,19 @@ async function reapRetiringBranch(ctx: Bound, branch: string, generation: Retiri
       if (!safety.safe) { ctx.notices.push(`Kept ${branch}: ${safety.reason}`); return { local: false, remote: false }; }
     }
     if (!await prepareCreatedBranch(ctx, branch)) return { local: false, remote: false };
-    const remote = await reapRetiringRemote(ctx, branch, landed);
+    const remote = await reapRetiringRemote(ctx, branch, landed, generation.localHead);
     await ctx.evidence.revalidate();
     if (local !== null) await ctx.exec("git", ["update-ref", "-d", `refs/heads/${branch}`, local], { cwd: ctx.cwd });
     // A successful remote deletion may already prune its tracking ref; any surviving generation still uses the observed OID.
-    if (tracking !== null && (ctx.evidence.rule === "discard" || landed) && await localLifecycleTip(ctx.exec, ctx.cwd, `refs/remotes/origin/${branch}`) !== null) {
+    if (tracking !== null && !remote.keepTracking && await localLifecycleTip(ctx.exec, ctx.cwd, `refs/remotes/origin/${branch}`) !== null) {
       await ctx.exec("git", ["update-ref", "-d", `refs/remotes/origin/${branch}`, tracking], { cwd: ctx.cwd });
     }
-    return { local: local !== null, remote };
+    return { local: local !== null, remote: remote.deleted };
   });
 }
-async function reapAdditionalBranch(ctx: Bound, branch: string, retiringContainer: RetiringGeneration["container"]): Promise<boolean> {
+async function reapAdditionalBranch(ctx: Bound, link: RetirementLink, retiringContainer: RetiringGeneration["container"]): Promise<boolean> {
+  if (!await mayRetireBranch(ctx, link)) return false;
+  const branch = workBranchName(link.ref);
   if (ctx.execInput === undefined) throw new Error("Ref-set cleanup requires stdin-capable Git I/O; bind it and retry teardown.");
   const localHead = await localLifecycleTip(ctx.exec, ctx.cwd, `refs/heads/${branch}`), remoteTrackingHead = await localLifecycleTip(ctx.exec, ctx.cwd, `refs/remotes/origin/${branch}`);
   if (localHead === null && remoteTrackingHead === null) return false;
@@ -175,40 +210,71 @@ async function selectRetiringLinks(ctx: Bound) {
     return { links, retiring, generation: { localHead, trackingHead, container } };
 }
 
-async function reapRetiringRemote(ctx: Bound, branch: string, landed: boolean): Promise<boolean> {
-    let remote = false;
-    if (ctx.evidence.rule === "discard" || landed) {
-      const advertised = await advertisedTip(ctx, branch);
-      if (advertised !== null) {
-        const safeRemote = ctx.evidence.rule === "discard" || await isLandedInBase(ctx.exec, advertised, ctx.baseOid);
-        if (safeRemote) { const result = await deleteRemoteBranch(ctx.exec, "origin", branch, advertised); if (result === "stale") throw new Error(`Remote ${branch} moved; retry teardown.`); remote = result === "deleted"; }
-        else ctx.notices.push(`Kept origin/${branch}: its commits have not landed in base.`);
-      }
-    } else ctx.notices.push(`Kept origin/${branch}: its commits have not landed in base.`);
-    return remote;
+async function reapRetiringRemote(ctx: Bound, branch: string, landed: boolean, localHead: string | null): Promise<{ deleted: boolean; keepTracking: boolean }> {
+  if (ctx.evidence.rule === "landed" && !landed) {
+    ctx.notices.push(`Kept origin/${branch}: its commits have not landed in base.`);
+    return { deleted: false, keepTracking: true };
+  }
+  const advertised = await advertisedTip(ctx, branch);
+  if (advertised === null) return { deleted: false, keepTracking: false };
+  const safe = ctx.evidence.rule === "discard" ? localHead !== null && await isContainedIn(ctx.exec, advertised, localHead)
+    : await isLandedInBase(ctx.exec, advertised, ctx.baseOid);
+  if (!safe) {
+    ctx.notices.push(`Kept origin/${branch}: ${ctx.evidence.rule === "discard"
+      ? "its advertised tip is not contained in the retiring local branch" : "its commits have not landed in base"}.`);
+    return { deleted: false, keepTracking: true };
+  }
+  const result = await deleteRemoteBranch(ctx.exec, "origin", branch, advertised);
+  if (result === "stale") throw new Error(`Remote ${branch} moved; retry teardown.`);
+  return { deleted: result === "deleted", keepTracking: false };
 }
 
 function teardownRetryRemedy(params: TeardownParams): Remedy {
   return { text: "Complete the named repair or restore the physical boundary, then retry teardown.",
-    argv: ["arc", "teardown", params.name, ...(params.huskPath === undefined ? [] : ["--husk", params.huskPath])] };
+    argv: ["arc", "teardown", teardownSubjectOperand(params.subject), ...(params.huskPath === undefined ? [] : ["--husk", params.huskPath])] };
 }
 
 async function reapRetirementLinks(ctx: Bound, links: StoreRetirementEvidence["branches"], retiring: string | null, generation: RetiringGeneration) {
   let branchDeleted = false, remoteBranchDeleted = false;
-  const createdRetiring = links.some((link) => link.linkedAs === "created" && workBranchName(link.ref) === retiring);
-  const retiringReady = retiring !== null && createdRetiring && await locked(ctx, () => prepareCreatedBranch(ctx, retiring));
+  const createdRetiring = links.find((link) => link.linkedAs === "created" && workBranchName(link.ref) === retiring);
+  const retiringReady = createdRetiring !== undefined && await mayRetireBranch(ctx, createdRetiring)
+    && await locked(ctx, () => prepareCreatedBranch(ctx, workBranchName(createdRetiring.ref)));
   let additionalBlocked = false;
   for (const link of links) {
       const branch = workBranchName(link.ref);
-      if (link.linkedAs === "adopted") { reportAdopted(ctx, branch); continue; }
+      if (link.linkedAs === "adopted") { await reportAdopted(ctx, link); continue; }
       if (branch === retiring) continue;
-      const blocked = await reapAdditionalBranch(ctx, branch, generation.container);
+      const blocked = await reapAdditionalBranch(ctx, link, generation.container);
       additionalBlocked = blocked || additionalBlocked;
     }
   if (additionalBlocked) throw new Error(`Additional branch cleanup remains blocked. The retiring refs were retained; repair the named checkout or ref observation and retry teardown. ${ctx.notices.join(" ")}`);
-  if (retiring !== null && retiringReady) {
-    const reaped = await reapRetiringBranch(ctx, retiring, generation);
+  if (createdRetiring !== undefined && retiringReady) {
+    const reaped = await reapRetiringBranch(ctx, createdRetiring, generation);
     branchDeleted = reaped.local; remoteBranchDeleted = reaped.remote;
   }
   return { branchDeleted, remoteBranchDeleted };
+}
+
+async function mayRetireBranch(ctx: Bound, link: RetirementLink): Promise<boolean> {
+  const lookup = await ctx.store.lookup({ kind: "ref", repository: link.repository, ref: link.ref });
+  let reason: string;
+  if (lookup.status === "refused") {
+    if (lookup.refusal.code === "not-found") return true;
+    const holders = lookup.refusal.code === "ambiguous-match"
+      ? ` Holders: ${lookup.refusal.candidates.map(item => ownerLabel(item.owner)).join(", ")}.` : "";
+    reason = `${lookup.refusal.condition}${holders} ${lookup.refusal.remedy.text}`;
+  } else {
+    if (sameOwner(lookup.result.reference.owner, ctx.evidence.record.reference.owner)) return true;
+    const record = await ctx.store.read({ reference: lookup.result.reference });
+    if (record.status === "ok" && record.result.placement?.kind === "completed") return true;
+    reason = record.status === "refused" ? `Owner ${ownerLabel(lookup.result.reference.owner)} could not be checked: ${record.refusal.condition} ${record.refusal.remedy.text}`
+      : `live holder ${ownerLabel(record.result.reference.owner)} still links it.`;
+  }
+  const branch = workBranchName(link.ref);
+  ctx.notices.push(`Kept checkouts and registrations for ${branch}: ${reason}`,
+    `Kept local branch ${branch}: ${reason}`, `Kept origin/${branch}: ${reason}`);
+  return false;
+}
+function ownerLabel(owner: OwnerIdentity): string {
+  return owner.type === "person" ? owner.name : owner.uid ?? owner.name;
 }

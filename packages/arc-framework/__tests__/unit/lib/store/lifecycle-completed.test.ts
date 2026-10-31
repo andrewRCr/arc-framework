@@ -2,11 +2,62 @@
 import { expect, it } from "vitest";
 import { analyzeOrphanBranchesSnapshot } from "../../../../src/lib/session-init/orphan-branch-sweep.js";
 import { readStoreCompletedEvidence } from "../../../../src/lib/store/lifecycle-completed.js";
-import { createLifecycleHarness } from "../../../helpers/store/lifecycle-harness.js";
+import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { serializeTransientIdentityRecord, TransientIdentityRecordSchema } from "../../../../src/lib/errand/identity-record.js";
-import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
+import { resolveCompletedCandidateWorkUnits } from "../../../../src/handlers/candidate-mutation-owner.js";
+import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
+import { writeMetaTitle } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
+import { seed } from "../../../helpers/store/suite-tools.js";
+import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
+import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
+import type { Store } from "../../../../src/lib/store/contract.js";
+
+it("reports the latest archive's metadata regardless of insertion order", async () => {
+  const h = createLifecycleHarness();
+  await h.seedMeta("shared", { state: "Shipped", currentWorkflow: null, prUrl: "https://github.com/org/repo/pull/42" },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  await h.seedMeta("shared", { state: "Shipped", currentWorkflow: null, prUrl: "https://github.com/org/repo/pull/43" },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q3") });
+  const evidence = await readStoreCompletedEvidence(h.store);
+  expect(evidence.status).toBe("available");
+  if (evidence.status === "unavailable") throw new Error("Expected completed evidence");
+  expect(evidence.records.get("shared")?.prNumber).toBe(42);
+});
+
+it.each([false, true])("withholds completed and Candidate authority from a live holder's name (former: %s)", async former => {
+  const h = createLifecycleHarness();
+  await h.seedMeta("shared", { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const live = await h.seedMeta("shared");
+  if (former) lifecycleSuccess(await h.store.write({ ...recordPut(live, { content: writeMetaTitle(live.content, SlugSchema.parse("renamed")) }),
+    reference: { ...live.reference, owner: OwnerIdentitySchema.parse({ ...live.reference.owner, name: "renamed" }) },
+    provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  expect(await readStoreCompletedEvidence(h.store)).toEqual({ status: "available", records: new Map() });
+  expect(await resolveCompletedCandidateWorkUnits("/memory", h.store)).toEqual([]);
+});
+
+it("omits a withheld live name while preserving the completed listing's available status", async () => {
+  const f = createReferenceFixture(), reference = f.reference("work-item/meta");
+  const fields = parseMetaRecord(makeMetaFixture(reference.owner.name, { state: "Shipped" }));
+  await seed(f, reference, JSON.stringify(fields), { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  await seed(f, reference, JSON.stringify({ ...fields, state: "Unknown" }), { kind: "active" });
+  expect(await readStoreCompletedEvidence(f.store)).toEqual({ status: "available", records: new Map() });
+});
+
+it.each(["refused", "unreadable"] as const)("retains an unavailable live listing even with no completed records: %s", async failure => {
+  const h = createLifecycleHarness(), store = Object.create(h.store) as Store;
+  store.list = async input => {
+    if (!input.filter?.locations?.includes("active")) return h.store.list(input);
+    return failure === "refused"
+      ? { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: "work-item",
+        condition: "Live inventory unavailable.", remedy: { text: "Repair the live inventory." } } }
+      : { status: "ok", result: { status: "unreadable", condition: "Live inventory unavailable.", remedy: { text: "Repair the live inventory." } } };
+  };
+  expect(await readStoreCompletedEvidence(store)).toEqual({ status: "unavailable", reason: "archive-tree-read-failed" });
+});
 it("finds the completed work unit and its metadata through placement alone", async () => {
   const h = createLifecycleHarness();
   await h.seedMeta("shipped", { state: "Shipped", currentWorkflow: null, completed: "2026-10-15T00:00:00Z", prUrl: "https://github.com/org/repo/pull/42" },

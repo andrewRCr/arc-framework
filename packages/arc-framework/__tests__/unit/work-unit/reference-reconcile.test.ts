@@ -20,6 +20,28 @@ function decompose(subject: string): ReachableReferenceTransition {
 }
 
 describe("planReferenceReconcile", () => {
+  it.each(["## Session Context\n\n", "---\n\n"])("preserves field-like narrative beyond the metadata boundary %j", boundary => {
+    const result = planReferenceReconcile({ transitions: [rename("former", "current")], artifacts: [{
+      path: "meta-dependent.md", heldDependencyEdges: ["former"],
+      content: `# Metadata: dependent\n\n- **Depends On:** \`former\`\n\n${boundary}- **Depends On:** former needs review.\n`,
+    }] });
+    expect(result).toMatchObject({ status: "ready", edits: [], conflicts: [], advisories: [
+      { subject: "former", context: "- **Depends On:** former needs review.", referenceKind: "narrative" },
+    ] });
+    expect(result.advisories).toHaveLength(1);
+  });
+
+  it("keeps held dependency values out of narrative review across wrapped lines while retaining prose", () => {
+    const result = planReferenceReconcile({ transitions: [rename("origin", "current"), rename("held", "other")], artifacts: [{
+      path: "meta-dependent.md", heldDependencyEdges: ["origin", "held"],
+      content: "# Metadata: dependent\n\n- **Depends On:** `origin`,\n  `held`\n- **Note:** origin still needs review.\n",
+    }] });
+    expect(result).toMatchObject({ status: "ready", edits: [], conflicts: [], advisories: [
+      { subject: "origin", line: 5, context: "- **Note:** origin still needs review.", referenceKind: "narrative" },
+    ] });
+    expect(result.advisories).toHaveLength(1);
+  });
+
   it("composes a unique rename chain into one final structured edit", () => {
     const result = planReferenceReconcile({
       transitions: [rename("origin", "middle"), rename("middle", "final")],

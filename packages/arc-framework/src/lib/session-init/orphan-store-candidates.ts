@@ -1,4 +1,8 @@
 /** Store-owned candidate selection shared by both orphan sweep entry points. */
+import type { Store } from "../store/contract.js";
+import { teardownOperand } from "../work-unit/store-retirement-evidence.js";
+import type { TeardownCommand } from "./stale-worktree-sweep-schema.js";
+import { ownerHolderRequest } from "../work-unit/locus-ports.js";
 import type { StoreIdentityAcquisition } from "../errand/store-discovery.js";
 import { acquireStoreClaims } from "../errand/store-discovery.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
@@ -15,6 +19,7 @@ export interface OrphanStoreOptions extends StoreBranchOptions {
 }
 export interface OrphanStoreCandidate {
   branch: string;
+  teardown?: TeardownCommand;
   authority: Extract<StoreBranchResolution, { status: "ready" }>;
 }
 /** Resolve every branch before offering any cleanup; incomplete evidence declines the entire advisory. */
@@ -38,8 +43,8 @@ export async function readOrphanStoreCandidates(options: OrphanStoreOptions,
     }
     if (record.reference.kind === "work-item/record" ? record.placement?.kind === "active"
       : roster.some(row => (row.kind === "work-unit" || row.kind === "retired")
-        && row.subject.kind === "work-unit" && row.subject.key === record.reference.owner.name)) continue;
-    candidates.push({ branch, authority });
+        && row.subject.kind === "work-unit" && row.subject.uid === ownerHolderRequest(record).uid)) continue;
+    candidates.push({ branch, authority, ...await candidateTeardown(options.store, authority) });
   }
   return { status: "ready", candidates };
 }
@@ -52,4 +57,11 @@ function completeClaimBranches(claims: OrphanClaimsAcquisition | undefined):
   const detail = claims?.kind === "error" ? claims.message : claims?.kind === "complete"
     ? claims.diagnostics.map(item => `${item.condition} ${item.remedy.text}`).join("; ") : "Claims acquisition is not complete.";
   return { status: "unavailable", reason: `${detail} Restore a complete claims acquisition for this identity, then run arc status --session-init --json.` };
+}
+
+async function candidateTeardown(store: Store, authority: OrphanStoreCandidate["authority"]): Promise<{ teardown?: TeardownCommand }> {
+  const { record, link } = authority;
+  if (record.reference.kind !== "work-item/meta" || record.placement?.kind !== "completed" || link.linkedAs !== "created") return {};
+  const operand = await teardownOperand(store, record.reference.owner);
+  return { teardown: { argv: ["arc", "teardown", operand], text: `arc teardown ${operand}` } };
 }
