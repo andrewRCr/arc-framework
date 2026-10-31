@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "dependabot-action-updates",
+  "claimId": "229e3860bc87b36c4f7d1154eb9b6bdc",
+  "createdAt": "2026-10-31T21:11:07.729Z",
+  "updatedAt": "2026-10-31T21:11:07.729Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Configure monthly grouped Dependabot updates for pinned GitHub Actions with a seven-day cooldown.",
+  "branch": "chore/dependabot-action-updates",
+  "origin": "inbox",
+  "originEntry": "Add a Dependabot config that keeps the SHA-pinned GitHub Actions current",
+  "originEntrySourceDigest": "sha256:e0e92f17ee7f856dfc8e6fd8f4534aeaf6fc341bba52ffb5e2f198392a4c1800",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
