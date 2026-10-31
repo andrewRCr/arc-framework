@@ -37,9 +37,11 @@ export async function writeWorkUnitLandingCommit(input: {
 export async function recordLandingLink(input: {
   workUnit: string; checkpointHandle: string; providerMergeId: string | null;
   write?: (workUnit: string, sha: string) => Promise<void>;
+  /** Why exact merged-state confirmation named no merge commit, when it failed rather than reporting none. */
+  confirmationDetail?: string;
 }): Promise<LandingLinkState | undefined> {
   if (input.write === undefined) return undefined;
-  let detail = "The host has not reported the merge commit.";
+  let detail = input.confirmationDetail ?? "The host has not reported the merge commit.";
   if (input.providerMergeId !== null) {
     try {
       await input.write(input.workUnit, input.providerMergeId);

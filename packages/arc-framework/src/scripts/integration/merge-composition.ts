@@ -341,7 +341,10 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
         || resolved.candidate.number !== target.pullRequest) return { merged: false, providerMergeId: null };
       if (!input.store.capabilities.stateOffBranch) return { merged: true, providerMergeId: null };
       const confirmed = await confirmPinned(target);
-      return { merged: true, providerMergeId: confirmed.state === "merged" ? confirmed.providerMergeId : null };
+      if (confirmed.state === "merged") return { merged: true, providerMergeId: confirmed.providerMergeId };
+      // The landing-link fact reports why no merge commit was confirmed, not that the host reported none.
+      return { merged: true, providerMergeId: null, confirmationDetail: confirmed.state === "unmerged"
+        ? "Exact merged-state confirmation reported the change request unmerged." : confirmed.detail };
     },
     refreshTarget: async (target) => {
       const current = await liveTarget(target);

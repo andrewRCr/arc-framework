@@ -50,11 +50,11 @@ async function landed(archived = false) {
   });
   const bin = join(cwd, "..", "landing-host-bin");
   await mkdir(bin, { recursive: true });
-  const host = async (identity: string | null) => {
+  const host = async (identity: string | null, confirmedHead = head) => {
     const candidate = { number: 42, url: "https://github.com/owner/repo/pull/42", state: "MERGED",
       baseRefName: "main", headRefName: branch, headRefOid: head };
     const confirmation = { number: 42, merged: true, merge_commit_sha: identity,
-      base: { ref: "main" }, head: { ref: branch, sha: head } };
+      base: { ref: "main" }, head: { ref: branch, sha: confirmedHead } };
     await writeFile(join(bin, "gh"), ["#!/bin/sh", 'case "$1:$2" in',
       `pr:list) printf '%s\\n' '${JSON.stringify([candidate])}' ;;`,
       `api:repos/owner/repo/pulls/42) printf '%s\\n' '${JSON.stringify(confirmation)}' ;;`,
@@ -101,6 +101,16 @@ it("retains a landed merge through missing host identity and a failed link write
   expect(await git("rev-parse", "HEAD")).toBe(head);
   expect(await git("diff", "--cached", "--name-only")).toBe("");
   expect(await git("rev-parse", "origin/main")).toBe(mergeCommit);
+}, 30_000);
+
+it("reports why exact confirmation named no merge commit for a landed merge's link, and saves it once confirmed", async () => {
+  const { h, mergeCommit, meta, host, run } = await landed();
+  await host(mergeCommit, "f".repeat(40));
+  expect(await run()).toMatchObject({ state: "merged", payload: { providerMergeId: null, landingLink: { state: "not-written",
+    detail: "The change-request head moved before exact merge confirmation." } } });
+  expect(lifecycleSuccess(await h.reference.store.read({ reference: meta.reference }))).toEqual(meta);
+  await host(mergeCommit);
+  expect(await run()).toMatchObject({ state: "merged", payload: { providerMergeId: mergeCommit, landingLink: { state: "written" } } });
 }, 30_000);
 
 it("links an archived work unit's landing after pulling the history this clone lacks", async () => {
