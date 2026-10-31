@@ -24,7 +24,8 @@ import type { Store } from "../lib/store/contract.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { createDefaultStorePorts } from "../lib/store/default-store-ports.js";
 import { retryEndedItemHistory } from "../lib/store/history-retry.js";
-import { StoreRefusalError } from "../lib/store/refusal-error.js";
+import { ProjectIdentityError } from "../lib/store/project-identity.js";
+import { isNativeTypedRefusal } from "../lib/store/native-refusal.js";
 import { ReviewOwnerSelectionError } from "../lib/store/kinds/review/errors.js";
 import { reviewFailureSpineRemedy } from "../scripts/review-gate/runtime/project-identity-remedy.js";
 import type { ReviewInvocationInput } from "../scripts/review-gate/runtime/invocation.js";
@@ -392,8 +393,9 @@ function executionFailedResult(error: unknown, workUnit: string, request: unknow
 
 // A store keeping state off the branch refuses with its own cause and repair; an in-repo failure stays closed as before.
 function nativeRefusalDetail(error: unknown, workUnit: string, request: unknown): { detail?: string; remedy?: SpineRemedy } {
-  const refusal = error instanceof StoreRefusalError && error.offBranch ? error.refusal
-    : error instanceof ReviewOwnerSelectionError ? error : undefined;
+  const refusal = !isNativeTypedRefusal(error) ? undefined
+    : error instanceof ProjectIdentityError ? { condition: error.failure.reason, remedy: error.failure.remedy }
+    : error instanceof ReviewOwnerSelectionError ? error : error.refusal;
   return refusal === undefined ? {} : { detail: refusal.condition.slice(0, 4_096), remedy: reviewFailureSpineRemedy(
     refusal.condition, refusal.remedy, ["arc", "candidate", "applicability", "resolve", workUnit, "-"], request) };
 }

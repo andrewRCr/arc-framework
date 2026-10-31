@@ -9,6 +9,8 @@ import { CandidateSubjectUncollectableError } from "../../../src/lib/work-unit/g
 import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
 import { StoreRefusalError } from "../../../src/lib/store/refusal-error.js";
 import { ReviewOwnerSelectionError } from "../../../src/lib/store/kinds/review/errors.js";
+import { createProjectIdentityReader, ProjectIdentityError } from "../../../src/lib/store/project-identity.js";
+import { createReviewHarness } from "../../helpers/store/review-harness.js";
 import { classifyReviewContributionApplicability } from
   "../../../src/scripts/review-gate/policy/review-contribution-applicability.js";
 
@@ -296,6 +298,34 @@ describe("handleCandidateApplicabilityResolve", () => {
     expect(JSON.parse(output.join(""))).toEqual({ schemaVersion: 1, mode: "candidate-applicability-resolve",
       state: "execution-unavailable", nextAction: "stop", reason: "active-work-unit-unavailable", detail: refusal.condition,
       remedy: { invariant: refusal.condition, text: expect.stringContaining(refusal.remedy.text),
+        argv: ["arc", "candidate", "applicability", "resolve", "example", "-"], stdin: request } });
+    output.length = 0;
+    repaired = true;
+    await handleCandidateApplicabilityResolve("example", "-", undefined, dependencies);
+    expect(JSON.parse(output.join(""))).toEqual(resolved);
+  });
+
+  it("names a missing project ID that stops the resolution with its port's repair, and resolves once the clone holds it", async () => {
+    const output: string[] = [];
+    const request = makeRequest();
+    const identity = await createProjectIdentityReader(createReviewHarness().store)().then(() => null, (error: unknown) => error);
+    if (!(identity instanceof ProjectIdentityError)) throw new Error("Expected the identity port to refuse a clone with no project ID");
+    const resolved = { schemaVersion: 1, mode: "candidate-applicability-resolve", state: "resolved", nextAction: "continue",
+      candidateId: request.candidateId, choice: request.choice } as const;
+    let repaired = false;
+    const dependencies = {
+      resolveRoot: () => "/repo",
+      resolveMutationOwner: async () => ({ status: "owned" as const, workUnit: "example" }),
+      readText: async () => JSON.stringify(request),
+      execute: async () => { if (!repaired) throw identity; return resolved; },
+      write: (text: string) => output.push(text),
+      setExitCode: () => undefined,
+    };
+
+    await handleCandidateApplicabilityResolve("example", "-", undefined, dependencies);
+    expect(JSON.parse(output.join(""))).toEqual({ schemaVersion: 1, mode: "candidate-applicability-resolve",
+      state: "execution-unavailable", nextAction: "stop", reason: "execution-failed", detail: identity.failure.reason,
+      remedy: { invariant: identity.failure.reason, text: expect.stringContaining(identity.failure.remedy.text),
         argv: ["arc", "candidate", "applicability", "resolve", "example", "-"], stdin: request } });
     output.length = 0;
     repaired = true;
