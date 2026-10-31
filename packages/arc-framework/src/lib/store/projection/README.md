@@ -24,3 +24,12 @@ record reference the file was read with, its stat, the blob id last written ther
 copies made of it; beside the entries, the format version, the state version last projected, what the worktree was
 projected under, and what the ignore guard last passed on. Stat fields are bigints stored as decimal strings, and a
 field the schema does not know, or another format version, fails the parse rather than being dropped.
+
+`location.ts` finds where a checkout keeps its projection state: `arc-projection/` in its own Git directory, beside the
+index, the projection lock, and the kept copies. It reads the Git directory from the checkout's `.git` — a folder, or a
+`gitdir:` marker naming one — and reads the checkout as the primary where that directory holds no `commondir`; only
+where neither form reads does it run Git. It creates `arc-projection/` only inside a Git directory that exists, reading
+a missing one as a worktree that is gone.
+
+`index-file.ts` writes the index whole by temp-and-rename into that folder, never creating it, so a write that stops
+partway leaves the previous index and no write recreates a removed worktree's Git directory.

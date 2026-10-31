@@ -139,32 +139,15 @@ stamp parsing strips (§ 3.3, § 3.4).
           decode from decimal strings to bigints through a codec; an ignore file is its stat and blob id or both null.
           The owner's UID rides in the record reference's owner. Covered in `unit/store/projection/index-schema.test.ts`.
 
-    - `[ ]` **2.2.b Where the index lives, found without Git**
+    - `[x]` **2.2.b Where the index lives, found without Git**
 
-        - `<worktree Git dir>/arc-projection/`, also holding the projection lock (2.3) and the kept copies (2.7). The
-          Git directory is read from `<checkout>/.git` — a folder, or a `gitdir:` file naming it, as a linked worktree's
-          is, where a `commondir` file names the common directory for `info/exclude` — and only where neither form reads
-          does `resolveCheckoutGitDir` (`lib/git/exec.ts`) run its Git process, so the start's two Git calls stay two
-          (§ 15.3) and a fan-out reads each sibling's from its roster path (`projection-worktrees`), skipping one that
-          holds no `.git`, or whose aside folder holds no reference stamp, rather than running Git there. One reader
-          returns both directories, `readGitDirectories` (`lib/git/directories.ts`), which the ref backend ships; it
-          throws where `.git` is missing or its `gitdir:` marker is invalid, so the fallback catches that throw rather
-          than reading a returned failure. The checkout is the primary where its Git directory holds no `commondir`,
-          being the common one, as `readGitDirectories` returns it (`commonDir` equal to `gitDir`).
-        - `arc-projection/` is created by a non-recursive `mkdir` inside an existing Git directory: a missing Git
-          directory fails with `ENOENT`, read as a worktree that is gone. The index is written by temp-and-rename
-          under the projection lock and re-read after the lock is taken, through an option on `atomicWriteFile`
-          (`lib/fs.ts`) that skips its recursive `mkdir`, so no write recreates a removed worktree's Git directory.
-        - `MACHINE_LOCAL_PATHS` (`lib/store/registry.ts`) gains `arc-projection/**` under the `git-worktree` root,
-          beside `arc-checks/**`.
-        - Build `test-first` (one behavior at a time):
-            - Integration tier, over a real repository with a linked worktree
-            - the primary's and a linked worktree's Git directories are read from `.git` with no Git process, and each
-              index lands in its own Git directory
-            - the primary reads as the primary and a linked worktree does not, with no Git process
-            - a `.git` neither form reads, where `readGitDirectories` throws, falls back to `resolveCheckoutGitDir`
-            - a write that stops before its rename leaves the previous index readable
-            - with the Git directory removed, creating `arc-projection/` fails as gone and creates nothing
+        - `locateProjection` (`lib/store/projection/location.ts`) reads the Git directories through `readGitDirectories`
+          and the primary as the checkout whose `commonDir` is its `gitDir`; where that reader throws, it runs
+          `resolveCheckoutGitDir` once and reads `commondir` through `readCommonDirectory`, now its own export of
+          `lib/git/directories.ts`. `ensureProjectionStateFolder` makes `arc-projection/` non-recursively, reading
+          `ENOENT` as `gone`; `writeProjectionIndex` (`index-file.ts`) writes through `atomicWriteFile`'s new
+          `createParents: false`. `MACHINE_LOCAL_PATHS` gains `arc-projection/**` under `git-worktree`. Covered in
+          `integration/store/projection/location.test.ts` and `unit/lib/store/registry.test.ts`.
 
     - `[ ]` **2.2.c The aside folder and its names**
 

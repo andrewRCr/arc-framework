@@ -180,6 +180,9 @@ describe("role-based storage registry", () => {
     expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "git-worktree", pattern: "arc-checks/**" });
     expect(DERIVED_VIEWS).toEqual(["project-status", "identity-status", "archive-index"]);
   });
+  it("registers the projection's state as machine-local", () => {
+    expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "git-worktree", pattern: "arc-projection/**" });
+  });
   it("keeps presentation filenames in the declared storage homes", () => {
     const root = resolve(import.meta.dirname, "../../../../src/lib/store");
     const sources = sourceFiles(root).filter((source) => source !== join(root, "registry.ts"));
