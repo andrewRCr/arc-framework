@@ -247,6 +247,13 @@ it("closes the pull reader before a history fetch performs due store maintenance
     placement: { kind: "active" }, provenance }));
   const personal = RecordReferenceSchema.parse({ kind: "personal/document", key: "notice.md", owner: { type: "person", name: "andrew" } });
   success(await h.a.store.write({ action: "put", reference: personal, expected: null, content: "Retained personal bytes.\n", provenance }));
+  // Geometric maintenance compares object counts; keep the initial pack ahead of the next fetch.
+  const padding = Array.from({ length: 64 }, (_, index) => ({
+    action: "put" as const, expected: null, content: `Retained padding ${index}.\n`,
+    reference: RecordReferenceSchema.parse({ kind: "personal/document", key: `padding-${index}.md`,
+      owner: { type: "person", name: "andrew" } }),
+  }));
+  success(await h.a.store.batch({ provenance, writes: padding }));
   success(await h.a.store.push()); success(await h.b.store.pull());
   const before = success(await h.a.store.read({ reference: made.reference }));
   success(await h.a.store.write({ action: "put", reference: before.reference, expected: before.version,
@@ -266,6 +273,9 @@ it("closes the pull reader before a history fetch performs due store maintenance
       exitsAtFetch = events.filter(({ event }) => event === "exit");
       packsBefore = (await readdir(packDirectory)).filter((name) => name.endsWith(".pack"));
       await h.b.git(["config", "gc.auto", "1"]); await h.b.git(["config", "gc.autoPackLimit", "1"]);
+      // Newer Git defaults to geometric repacking; make its next run consolidate every pack too.
+      await h.b.git(["config", "maintenance.geometric-repack.auto", "-1"]);
+      await h.b.git(["config", "maintenance.geometric-repack.splitFactor", "1000000"]);
       if (process.platform !== "win32") {
         await h.b.git(["config", "gc.autoDetach", "false"]); await h.b.git(["config", "maintenance.autoDetach", "false"]);
       }

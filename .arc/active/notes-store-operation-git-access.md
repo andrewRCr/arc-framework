@@ -16,9 +16,25 @@ port recognizes a history fetch by the `refs/arc/history/` refspecs in its input
 maintenance explicitly (`maintenance run --auto --task=gc`), so only its detach settings carry over.
 
 The main fetch must receive fresh objects before the history fetch makes maintenance due. Archiving alone does not
-establish that the earlier main fetch adds a pack. The case also publishes a fresh personal record, so that fetch
-keeps another pack under `fetch.unpackLimit 1`; the history-fetch observer then lowers the maintenance thresholds.
-Reader-release ordering, removal of the superseded packs, and retained record contents are all asserted.
+establish that the earlier main fetch adds a pack. The case also publishes a fresh personal record and asserts its
+contents after maintenance.
+
+Git 2.56 defaults unscheduled automatic maintenance to geometric repacking. On that version the earlier main fetch
+consolidated the two similarly sized packs before the history-fetch observer lowered the GC thresholds; the history
+fetch then added a pack without repacking it. The native-Windows trace reproduced both steps. The fixture seeds a larger
+initial object count with a batch of 64 distinct personal documents, leaving the default geometric progression intact
+through the earlier fetch. At the history fetch it also sets `maintenance.geometric-repack.auto -1` and
+`maintenance.geometric-repack.splitFactor 1000000`, so that strategy performs an all-into-one repack at the same event.
+Older Git retains the existing GC thresholds. Windows detach defaults remain unchanged. Reader-release ordering,
+multiple packs before maintenance, removal of every superseded pack, and all retained contents remain asserted. The
+maintenance case's stated outcome holds; this changes only the fixture that establishes its precondition.
+
+Primary sources: Git 2.56's `builtin/gc.c` selects the default strategy; its maintenance configuration documents the
+geometric task's due setting and split factor, and `repack-geometry.c` weights packs by object count.
+
+- <https://raw.githubusercontent.com/git/git/v2.56.0/builtin/gc.c>
+- <https://raw.githubusercontent.com/git/git/v2.56.0/Documentation/config/maintenance.adoc>
+- <https://raw.githubusercontent.com/git/git/v2.56.0/repack-geometry.c>
 
 ## Reading the after-measurement
 
