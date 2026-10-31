@@ -430,9 +430,14 @@ describe("integration merge composition", () => {
         .resolves.toEqual({ merged: true, providerMergeId: oid("d") });
     });
 
-    it.each([["unavailable", unavailable], ["reports a moved head", confirmation(oid("f"))]] as const)(
-      "keeps a native merge when its confirmation is %s, leaving the merge identity unknown", async (_case, run) => {
-        await expect((await dependencies(run, true)).readMerged(target)).resolves.toEqual({ merged: true, providerMergeId: null });
+    it.each([
+      ["unavailable", unavailable, "Exact merged-state confirmation was unavailable: confirmation unavailable"],
+      ["reports a moved head", confirmation(oid("f")), "The change-request head moved before exact merge confirmation."],
+    ] as const)(
+      "keeps a native merge when its confirmation is %s, leaving the merge identity unknown and saying why",
+      async (_case, run, confirmationDetail) => {
+        await expect((await dependencies(run, true)).readMerged(target))
+          .resolves.toEqual({ merged: true, providerMergeId: null, confirmationDetail });
       },
     );
   });
