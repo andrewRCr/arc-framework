@@ -52,7 +52,7 @@ unmapped review source as cleared by the review mapping's binding.
   by forward Non-Goals amendment; H1 folds into 3.8 with fix-SHA tracking; H2 needs no code change; S1 has an approved
   header-only repair at 5.11; M1 waits for the review mapping's binding. No new implementation task is needed.
 
-### `[ ]` **1.4 Confirm the trial ran and every finding has a home** — validate exit criterion at segment scope
+### `[x]` **1.4 Confirm the trial ran and every finding has a home** — validate exit criterion at segment scope
 
 - _Goal:_ Each trial's report is on disk beside its copy with its blocked status recorded, the set-aside trial's
   included while the review mapping was unbound, and the approved disposition set accounts for every trial refusal,
@@ -60,7 +60,9 @@ unmapped review source as cleared by the review mapping's binding.
   the task that fixes it, a § Non-Goals amendment, a recorded state fault, or an unmapped review source the mapping's
   binding clears.
 
-    - Run `npx arc check segment`.
+- _Outcome:_ Both returned blocked reports, the complete approved disposition record, F1's forward exclusion, S1/M1's
+  state-fault homes, H1's fix-SHA trace, and the retained prompt/report hashes satisfy the segment scenario. Neither
+  trial exercised commit building or gathering; those stages received the source review recorded in 1.2.
 
 ## **Phase 2:** One fault classification
 
