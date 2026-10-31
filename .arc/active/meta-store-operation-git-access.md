@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — A read or write call's readers belong to one operation scope
+- **Last Completed:** Task 4.1.b — Measure at the head and record the comparison (Phases 1–4 complete)
+- **Next Task:** Task 5.1 — Complete verification (line ~152)
 - **Blockers:** [none]
 
-- **Next Action:** Run process-task-loop from Task 1.1
+- **Next Action:** Check pending Windows CI feedback, then load `verify-work-unit.md` for Task 5.1.
 
 - **PR URL:** [none]
 - **Completed:** [none]
