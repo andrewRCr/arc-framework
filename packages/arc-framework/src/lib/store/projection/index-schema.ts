@@ -123,6 +123,8 @@ export const ProjectionIndexSchema = z.strictObject({
 
 /** A decoded projection index. */
 export type ProjectionIndex = z.output<typeof ProjectionIndexSchema>;
+/** A decoded `lstat`, its fields bigints. */
+export type FileStat = z.output<typeof FileStatSchema>;
 
 /**
  * Decode an index from its parsed JSON form.

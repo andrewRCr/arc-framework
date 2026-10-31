@@ -223,19 +223,13 @@ stamp parsing strips (§ 3.3, § 3.4).
 
 - **Additional Context:** `notes-projection-substrate.md` § Spike 3, `notes-projection-worktrees.md` § Spike 2
 
-    - `[ ]` **2.4.a The reference and the rule**
+    - `[x]` **2.4.a The reference and the rule**
 
-        - The reference is the stamp file in the aside folder (2.2.c), rewritten after each index write, so it shares
-          the projected files' volume and clock. A missing reference makes every entry racy.
-        - Clean means type, size, modification time, and file identity match and the modification time is older than
-          the reference; a changed identity sends the file to the hash, and an unchanged one never proves it clean.
-        - The stat is an `lstat`: a symbolic link at a path the index lists is never followed or hashed, and reads as a
-          deleted file (3.1).
-        - Build `test-first` (one behavior at a time):
-            - a same-size rewrite within one modification-time tick is found by the hash
-            - a symbolic link replacing a projected file is never hashed, and its target is never read
-            - a replacement keeping size and an older modification time (`cp -p`) is found through its changed identity
-            - with the reference missing, every entry is hashed
+        - `checkChange` (`lib/store/projection/change-detection.ts`) answers `absent`, `clean`, `hashed-clean`, or
+          `changed` with the blob id, hashing the raw bytes against the entry's `written`; `readStat` reads a bigint
+          `lstat`, and `readReference` the stamp's modification time, null where missing. The reference's rewrite after
+          each index write is the index commit's, with smudging (2.4.b). Covered in
+          `unit/store/projection/change-detection.test.ts`.
 
     - `[ ]` **2.4.b Smudging**
 

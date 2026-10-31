@@ -31,6 +31,12 @@ index, the projection lock, and the kept copies. It reads the Git directory from
 where neither form reads does it run Git. It creates `arc-projection/` only inside a Git directory that exists, reading
 a missing one as a worktree that is gone.
 
+`change-detection.ts` tells an edited file from one the projection wrote, by Git's racy rule: a file is clean only when
+its type, size, modification time, and file identity, read by `lstat` as bigints, match its entry and the modification
+time is older than the reference stamp at the aside folder's top. Anything else is hashed against the blob id last
+written there, and a missing reference makes every entry racy. A symbolic link, or anything else not a file, reads as
+absent and is never followed or read.
+
 `lock.ts` is the projection lock, one advisory lock per worktree at `arc-projection/lock`, its holder recording the
 process ID, instance, and process scope under a renewable lease. It creates, renews, and releases only inside a state
 folder that exists, so a worktree whose Git directory was removed reads as gone and is never recreated. A lost lease
