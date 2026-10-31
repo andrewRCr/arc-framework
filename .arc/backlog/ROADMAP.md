@@ -114,6 +114,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | review-activity-contracts     | P1       | andrew | review-source-authority                                                                | review-protocol-alignment  |
 | storage-cutover               | P1       | andrew | storage-projection, seam-delivery-review, cohort-identity-verbs, storage-ref-hardening | state-storage              |
 | unit-scoped-review            | P2       | andrew | commit-increments                                                                      | approval-flow-refinement   |
+| store-cross-call-sharing      | P2       | andrew | store-operation-git-access                                                             | —                          |
 | documentation-surface-routing | P3       | andrew | handoff-optimization                                                                   | agent-context-optimization |
 | instruction-optimization      | P3       | andrew | composable-workflows                                                                   | agent-context-optimization |
 | workflow-template-loads       | P3       | andrew | composable-workflows                                                                   | principle-anchored-core    |

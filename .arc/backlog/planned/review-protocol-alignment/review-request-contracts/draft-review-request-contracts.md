@@ -420,6 +420,12 @@
   its typed producer-binding correction. An exposed request must not grant a successor pass. Sites:
   `runtime/respond-command.ts`, `policy/pre-publication-request.ts` and `pre-publication-procedure.ts`.
 
+- _Additional evidence:_ `storage-ref-backend`'s chunked review scripted this composition every round, among 323
+  per-round scripts (about 40k lines; copy at `~/dev/arc-evidence/storage-ref-backend/`), alongside the findings
+  proposal and the respond calls, the verified-fix replay, the staged Candidate commit, and re-entry with the resume
+  token after the push (routed from `USER-INBOX § Work Unit`, housekeep drain, 2026-10-30; its scope, evaluator and
+  report stages went to `chunk-scope-binding` and `review-evaluator-isolation`).
+
 ### `[ ]` **Give a fix's verification evidence a typed reference the CLI can check**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
@@ -438,6 +444,10 @@
   (checkout-local).
 
 - _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24.
+
+- _Additional evidence:_ the same review's later rounds scripted the capture of the forced gate's head, tree, exit,
+  and log as each fix's verification evidence, round by round (routed from `USER-INBOX § Work Unit`, housekeep drain,
+  2026-10-30, with the chunked-review verb gaps).
 
 ### `[ ]` **Make status agree with the typed continuation after a Candidate advance**
 

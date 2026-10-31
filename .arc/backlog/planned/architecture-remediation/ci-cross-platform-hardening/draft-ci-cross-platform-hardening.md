@@ -14,6 +14,27 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+### `[ ]` **Give app-authored dependency-update pull requests a review and merge path**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-10-30), split from "Add a Dependabot config that keeps
+  the SHA-pinned GitHub Actions current".
+
+- _Shapes:_ Facet 2 — its updater half: the pins landed, and the updater's pull requests need a path.
+
+- _Observation:_ every workflow pins its actions to full commit SHAs. A Dependabot config for `github-actions`
+  opens app-authored pull requests. `main-protection` requires only a pull request and `ci-ok` (checked
+  2026-10-30), so they can merge in the host UI once CI passes, outside ARC. CineXplorer's session reports that
+  hosted Codex refuses review requests on app-authored pull requests.
+
+- _Design question:_ whether ARC gives bot pull requests a review and merge path (the planning lane, an exempt
+  class, or the host UI alone), and how its records account for them.
+
+- _Captured during:_ PM coordination with CineXplorer's session, 2026-10-30.
+
+---
+
 ## Facets
 
 1. **Cross-platform CI matrix generalization + shake-out.** `.github/workflows/ci.yml` is `ubuntu-latest` only
