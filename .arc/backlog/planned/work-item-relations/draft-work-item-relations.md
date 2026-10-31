@@ -211,12 +211,6 @@ and its checks, then enforcement at each ceremony — decided after the cutover.
 > _Routed-in concerns pending holistic integration into the body at this work unit's next planning iteration; each
 > carries its origin. Integrate — or consciously reject — at iteration._
 
-### Dispositions — grooming, 2026-10-15
-
-| Entry                                                          | Outcome | Where, or why                                |
-| -------------------------------------------------------------- | ------- | -------------------------------------------- |
-| Qualify dependency edges with the lifecycle boundary they gate | fold    | § Decisions, D1 (gates) and D3 (enforcement) |
-
 ### `[ ]` **Take a cut's provider-keyed edge handling as the input to cohort endpoints**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).

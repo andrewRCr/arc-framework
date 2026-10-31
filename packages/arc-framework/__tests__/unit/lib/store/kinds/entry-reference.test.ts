@@ -37,7 +37,7 @@ describe("production entry reference writes", () => {
     expect(parsed.data.entries[0]?.fields).toMatchObject(fields);
     expect(writeEntryList(parsed.data)).toBe(content);
   });
-  it.each(["**Wrapped\nheader:**", "**Colonless**"])("refuses an invalid memory header before persistence: %s", async (header) => {
+  it.each(["**Wrapped\n\nheader:**", "**Colonless**"])("refuses an invalid memory header before persistence: %s", async (header) => {
     const fixture = createFixture();
     const reference = fixture.reference("personal/working-memory");
     const result = await fixture.store.write({ action: "put", reference, expected: null, content: `## Memories\n${header}\n_Remove when: done._\n`, provenance });
@@ -46,7 +46,7 @@ describe("production entry reference writes", () => {
     expect((await fixture.store.read({ reference })).status).toBe("refused");
   });
   it.each(["\n", "\r\n"].flatMap((newline) => [" ", "\t"].flatMap((suffix) =>
-    ["**Wrapped\nheader:**", "**Colonless**"].map((header) => ({ newline, suffix, header })))))(
+    ["**Wrapped\n\nheader:**", "**Colonless**"].map((header) => ({ newline, suffix, header })))))(
     "persists memory only after repairing its header under a whitespace-suffixed section: $newline $suffix $header",
     async ({ newline, suffix, header }) => {
       const fixture = createFixture(), reference = fixture.reference("personal/working-memory");
@@ -56,11 +56,15 @@ describe("production entry reference writes", () => {
         .toMatchObject({ status: "refused", refusal: { code: "record-malformed", condition: expect.stringContaining("**Title:**") } });
       expect(success(await fixture.store.version())).toBe(before);
       expect((await fixture.store.read({ reference })).status).toBe("refused");
-      const repaired = content.replace(header.replaceAll("\n", newline), "**Fixed:**");
+      const repaired = content.replace(header.replaceAll("\n", newline), "**Fixed\nwrapped header:**".replaceAll("\n", newline));
       expect((await fixture.store.write({ action: "put", reference, expected: null, content: repaired, provenance })).status).toBe("ok");
       const parsed = parseEntryList(success(await fixture.store.read({ reference })).content, "personal/working-memory");
       expect(parsed.success).toBe(true);
-      if (parsed.success) expect(parsed.data.entries).toHaveLength(2);
+      if (parsed.success) {
+        expect(parsed.data.entries).toHaveLength(2);
+        expect(parsed.data.entries[1]?.title).toBe("**Fixed wrapped header:**");
+        expect(parsed.data.entries[1]?.bytes).toContain("**Fixed\nwrapped header:**".replaceAll("\n", newline));
+      }
     });
   it("reads today's seeded memory and project inbox; ignores commented triggers and bold body prose", async () => {
     const memory = await readFile(new URL("../../../../../templates/user/WORKING-MEMORY.md", import.meta.url), "utf8");
