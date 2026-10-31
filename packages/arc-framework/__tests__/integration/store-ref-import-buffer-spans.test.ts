@@ -14,6 +14,9 @@ const repaired = `### **Recovered**\n\n- _Routed from:_ drain (2026-01-03).\n\n$
 describe.each(["default", "separate"] as const)("buffer span import in %s", layout => {
   it.each([
     { shape: "prose only", body: pending },
+    { shape: "a meaningful opening blockquote", body: "> Pending observation must survive.\n\n" },
+    { shape: "a meaningful opening blockquote before an entry", body: `> Pending observation must survive.\n\n${dated}` },
+    { shape: "boilerplate mixed with a quoted concern", body: "> _Routed-in concerns pending integration by this work unit’s owner._\n> Pending observation must survive.\n\n" },
     { shape: "an unrecognized heading", body: `#### Pending\n\n${pending}` },
     { shape: "prose before a dated entry", body: pending + dated },
     { shape: "prose after a separator", body: `${dated}---\n\n${pending}` },
@@ -50,8 +53,14 @@ describe.each(["default", "separate"] as const)("buffer span import in %s", layo
 
   it.each([
     { shape: "blank framing and comment examples", intro: "" },
-    { shape: "a one-line intro blockquote", intro: "> _Routed-in concerns pending integration._\n\n" },
-    { shape: "a wrapped intro blockquote", intro: "> _Routed-in concerns pending holistic integration\n> into the draft._\n\n" },
+    { shape: "known introduction 1", intro: "> Routed-in concern pending holistic integration into the body at this WU's next planning iteration (`drain-inbox \u00a7 5`).\n\n" },
+    { shape: "known introduction 2", intro: "> Routed-in concerns pending holistic integration into the body at this WU's next planning iteration (`drain-inbox \u00a7 5`); each carries its origin. Integrate — or consciously reject — at iteration.\n\n" },
+    { shape: "known introduction 4", intro: "> Routed-in concerns pending holistic integration into the body at this work unit's next planning iteration; each carries its origin. Integrate — or consciously reject — at iteration.\n\n" },
+    { shape: "known introduction 5", intro: "> Routed-in concerns pending integration at this work unit's first planning iteration. Integrate — or consciously reject — each one.\n\n" },
+    { shape: "known introduction 6", intro: "> Routed-in concerns pending integration at this work unit's next planning iteration.\n\n" },
+    { shape: "known introduction 7", intro: "> Routed-in concerns pending integration at this work unit's next planning iteration. Integrate — or consciously reject — each one.\n\n" },
+    { shape: "a one-line intro blockquote", intro: "> _Routed-in concerns pending integration by this work unit’s owner._\n\n" },
+    { shape: "a wrapped intro blockquote", intro: "> _Routed-in concerns pending holistic integration into the body\n> at this WU's next planning iteration._\n\n" },
   ])("accepts $shape around complete routed entries", async ({ intro }) => {
     const h = await importFixture(layout), path = join(h.root, ".arc/active/draft-alpha.md");
     const framing = "<!-- Buffer guidance\n---\nNot a real separator or pending prose.\n-->\n\n";
