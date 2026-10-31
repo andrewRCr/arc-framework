@@ -279,3 +279,54 @@ it("validates pending Candidate authority from stored outcomes and approved evid
   expect(result).toEqual({ status: "selected", candidateId: candidate.attestation.candidateId,
     operationId: original.operationId, reviewedHead: producer.target.headSha, reviewedTarget: producer.target });
 });
+
+async function storedFrontlineCandidateApproval(boundCandidateId?: `sha256:${string}`) {
+  const { createFrontlineMappingFixture } = await import("../../../../fixtures/review-mapping.js");
+  const { approvedRecord } = await import("../../../../fixtures/review-response-proof.js");
+  const { createReviewHarness } = await import("../../../../helpers/store/review-harness.js");
+  const { lifecycleSuccess } = await import("../../../../helpers/store/lifecycle-harness.js");
+  const { mapReviewRecords } = await import("../../../../../src/lib/store/kinds/review/mapping.js");
+  const candidate = candidateRecord(), projectId = "123e4567-e89b-42d3-a456-426614174099";
+  const h = createReviewHarness();
+  await h.seedProject(projectId);
+  const owner = (await h.seedMeta("example")).reference.owner;
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected work-item generation");
+  const { fixture, input } = await createFrontlineMappingFixture(projectId, "findings",
+    boundCandidateId ?? candidate.attestation.candidateId);
+  const producer = await fixture.reader.readResult(fixture.admission.operationId);
+  const initial = approvedRecord(producer, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);
+  const original = ApprovedDispositionRecordSchema.parse({ ...initial,
+    candidate: { workUnit: "example", candidateId: candidate.attestation.candidateId },
+    deliveryMember: fixture.outcomeRecord.responseBinding?.deliveryMember,
+    approvedDispositionLineage: initial.approvedDispositionLineage.map(node => ({ ...node,
+      fixAuthorization: createFixAuthorization({ dispositionState: node.approvedDisposition, oldTarget: producer.target }) })) });
+  input.workItems = [{ kind: "work-unit", slug: "example", uid: owner.uid, live: true }];
+  input.gate.push({ path: `arc/review-gate/evidence/disposition-${canonicalDigest({ operationId: original.operationId }).slice(7)}.json`,
+    bytes: new TextEncoder().encode(JSON.stringify(original)) });
+  const mapped = mapReviewRecords(input);
+  lifecycleSuccess(await h.store.batch({ writes: mapped.records.map(({ reference, contents }) => ({
+    action: "put", reference, expected: null, content: contents[0]!,
+  })), provenance: { verb: "review", lifecycleAction: "create" } }));
+  return { h, owner, candidate, producer, original };
+}
+
+async function readStoredPendingAuthority(boundCandidateId?: `sha256:${string}`) {
+  const { scriptGitExec } = await import("../../../../helpers/git-exec-fake.js");
+  const { readPendingCandidateReviewFixAuthority } = await import(
+    "../../../../../src/scripts/review-gate/policy/candidate-review-fix-continuation.js");
+  const stored = await storedFrontlineCandidateApproval(boundCandidateId);
+  return { ...stored, result: await readPendingCandidateReviewFixAuthority({ cwd: "/unavailable",
+    exec: scriptGitExec([]).exec, store: stored.h.store, workItem: stored.owner, workUnitId: "example",
+    candidate: stored.candidate }) };
+}
+
+it("selects pending authority from an imported frontline command outcome with no run record", async () => {
+  const { candidate, producer, original, result } = await readStoredPendingAuthority();
+  expect(result).toEqual({ status: "selected", candidateId: candidate.attestation.candidateId,
+    operationId: original.operationId, reviewedHead: producer.target.headSha, reviewedTarget: producer.target });
+});
+
+it("refuses stored pending authority whose frontline response binding names another Candidate", async () => {
+  const { result } = await readStoredPendingAuthority(`sha256:${"8".repeat(64)}`);
+  expect(result).toEqual({ status: "refused", reason: "candidate-review-fix-response-invalid" });
+});

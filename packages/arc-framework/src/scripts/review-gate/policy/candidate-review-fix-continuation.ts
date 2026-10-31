@@ -13,7 +13,7 @@ import {
 } from "../core/advisory-records.js";
 import { validateFixAuthorization } from "../core/fix-authorization.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
-import { frontlineResponseBindingMatchesTarget } from
+import { frontlineResponseBindingMatchesTarget, type BoundFrontlineResponseBinding } from
   "../core/frontline-response-binding.js";
 import { parseReviewSourceReference } from "../core/review-source-reference.js";
 import { LocalFrontlineOutcomeStore } from "../hosts/local/frontline-outcome-store.js";
@@ -126,6 +126,15 @@ export function selectPendingCandidateReviewFixRecord(input: {
   };
 }
 
+/** A frontline response binding must name the selected Candidate, its private member, and the reviewed member target. */
+function responseBindingMatchesSelection(record: ApprovedDispositionRecord, target: ReviewTarget,
+  binding: BoundFrontlineResponseBinding | undefined): boolean {
+  return binding === undefined || (record.candidate?.workUnit === binding.candidate.workUnit
+    && record.candidate.candidateId === binding.candidate.candidateId
+    && canonicalize(record.deliveryMember) === canonicalize(binding.deliveryMember)
+    && frontlineResponseBindingMatchesTarget(target, binding));
+}
+
 async function readReviewedTarget(
   publisher: RepositoryGitCommonStatePublisher,
   selection: Extract<PendingCandidateReviewFixRecord, { readonly status: "selected" }>,
@@ -160,11 +169,7 @@ async function readReviewedTarget(
         responseBinding,
       )
       || canonicalize(operation.state.responseBinding ?? null) !== canonicalize(responseBinding ?? null)
-      || (responseBinding !== undefined
-        && (selection.record.candidate?.workUnit !== responseBinding.candidate.workUnit
-          || selection.record.candidate.candidateId !== responseBinding.candidate.candidateId
-          || canonicalize(selection.record.deliveryMember) !== canonicalize(responseBinding.deliveryMember)
-          || !frontlineResponseBindingMatchesTarget(outcome.record.outcome.target, responseBinding)))
+      || !responseBindingMatchesSelection(selection.record, outcome.record.outcome.target, responseBinding)
       || outcome.record.outcome.outcome !== "findings") return null;
     return outcome.record.outcome.target;
   }
@@ -196,7 +201,9 @@ async function readSelectedTarget(context: ReviewCompositionContext,
   const evidence = await context.family.ports.evidence.read(selected.record.currentDispositionSetId);
   if (evidence === null) return null;
   const outcome = await context.family.ports.outcomes.read(evidence.value.result.outcomeKey);
-  return outcome?.value.target ?? null;
+  if (outcome === null
+    || !responseBindingMatchesSelection(selected.record, outcome.value.target, outcome.value.frontline?.responseBinding)) return null;
+  return outcome.value.target;
 }
 
 /**

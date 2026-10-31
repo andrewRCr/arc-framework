@@ -95,7 +95,8 @@ export async function createLocalMappingFixture(context: {
   return { ...fixture, state, receipts, input, conclude, moveHead, prepare, resultReader };
 }
 
-export async function createFrontlineMappingFixture(repositoryId = "repo-1", result: "clean" | "findings" = "findings") {
+export async function createFrontlineMappingFixture(repositoryId = "repo-1", result: "clean" | "findings" = "findings",
+  boundCandidateId: `sha256:${string}` = `sha256:${"8".repeat(64)}`) {
   const { createFrontlineFixture } = await import("./frontline-review.js");
   const { createReviewTarget } = await import("../../src/scripts/review-gate/core/gate-contract-v2.js");
   const { FrontlineOutcomeStoreRecordSchema } = await import("../../src/scripts/review-gate/core/repository-record-schemas.js");
@@ -108,7 +109,7 @@ export async function createFrontlineMappingFixture(repositoryId = "repo-1", res
   const { targetId: ignoredTargetId, ...coordinates } = target;
   void ignoredHead; void ignoredTargetId;
   const fixture = createFrontlineFixture(target, { lineage, responseBinding: {
-    candidate: { workUnit: vehicle.workUnitId, candidateId: `sha256:${"8".repeat(64)}`, target: createReviewTarget({
+    candidate: { workUnit: vehicle.workUnitId, candidateId: boundCandidateId, target: createReviewTarget({
       ...coordinates, kind: "change-set" }) }, deliveryMember: vehicle,
   }, ...(result === "clean" ? {} : { findings: [{ findingId: "frontline-finding", severity: "minor" as const,
     locus: "src/example.ts:2", evidenceUrlOrId: "frontline-finding", sourceOrdinal: 1 }] }) });
