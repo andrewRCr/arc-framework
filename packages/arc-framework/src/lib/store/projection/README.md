@@ -31,5 +31,12 @@ index, the projection lock, and the kept copies. It reads the Git directory from
 where neither form reads does it run Git. It creates `arc-projection/` only inside a Git directory that exists, reading
 a missing one as a worktree that is gone.
 
+`aside.ts` names the copies a swap moves aside and the staged files it links into place, under the aside folder's
+`aside/`, in folders mirroring the file's path below `.arc/` with the file's own name as the last folder. Each name is
+`<base blob id>.<pid>-<instance>-<scope digest>.<nonce>.<role>`: the version it replaced, its writer as the projection
+lock records a holder, with the process scope digested since a scope holds characters a name cannot, a per-move nonce,
+and `aside` or `staged`, so no name ends in `.md` and none grows with its path. A location parses back to what it
+records, and a staged file is created exclusively.
+
 `index-file.ts` writes the index whole by temp-and-rename into that folder, never creating it, so a write that stops
 partway leaves the previous index and no write recreates a removed worktree's Git directory.

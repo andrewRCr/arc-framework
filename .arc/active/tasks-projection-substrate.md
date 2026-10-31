@@ -149,26 +149,15 @@ stamp parsing strips (§ 3.3, § 3.4).
           `createParents: false`. `MACHINE_LOCAL_PATHS` gains `arc-projection/**` under `git-worktree`. Covered in
           `integration/store/projection/location.test.ts` and `unit/lib/store/registry.test.ts`.
 
-    - `[ ]` **2.2.c The aside folder and its names**
+    - `[x]` **2.2.c The aside folder and its names**
 
-        - `.arc/system/.local/projection/` inside the worktree, since a rename or link cannot cross volumes: the racy
-          reference stamp (`reference`, 2.4) at its top, and aside copies and staged files under `aside/`, in folders
-          mirroring the file's path below `.arc/` with the file's own name as the last folder, so a path round-trips
-          and no single name grows with it.
-        - Each copy or staged file is named `<base blob id>.<pid>-<instance>-<scope>.<nonce>.<role>`: the base blob id
-          of the version it replaced, its writer as the projection lock records a holder (2.3) — its process scope as a
-          short hex digest, since a scope string holds characters a file name cannot (`pid:[…]`, `win32:host`) — a
-          per-move nonce, and the role (`aside` or `staged`), so no name ends in `.md`. A staged file is created
-          exclusively.
-        - `MACHINE_LOCAL_PATHS` gains `{ root: "checkout", pattern: ".arc/system/.local/**" }`, checkout-relative; the
-          registry's `as const` literal admits the new root with no type change. `listArcFiles` (`lib/fs.ts`) skips
-          `system/.local/` as it skips `system/.internal/`, so `arc health` reports no aside file as new.
-        - Build `test-first` (one behavior at a time):
-            - two moves of one file in one command take distinct names
-            - `listArcFiles` lists no file under `system/.local/`
-            - a copy's folder and name parse back to its path, base blob id, writer with its scope digest, and role
-            - for a deep backlog path in a SHA-256 repository, every folder and name stays within 255 bytes
-            - the registry holds the `checkout` entry (`toContainEqual`, as the registry test does)
+        - `nameAsideFile` (`lib/store/projection/aside.ts`) places a copy or staged file under
+          `.arc/system/.local/projection/aside/`, mirroring its path below `.arc/`, named
+          `<base blob id>.<pid>-<instance>-<scope digest>.<nonce>.<role>` with a 16-hex `processScopeDigest` and nonce;
+          it refuses a path outside `.arc/` or in the aside folder and an instance a name cannot hold. `parseAsideFile`
+          reads a location back, and `createStagedFile` creates one exclusively. `listArcFiles` skips `system/.local/`,
+          and `MACHINE_LOCAL_PATHS` gains the `checkout` entry. Covered in `unit/store/projection/aside.test.ts`,
+          `unit/fs.test.ts`, and `unit/lib/store/registry.test.ts`.
 
     - `[ ]` **2.2.d An index a command cannot use**
 

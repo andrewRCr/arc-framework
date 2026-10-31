@@ -190,8 +190,9 @@ export async function listArcFiles(dir: string): Promise<string[]> {
     for (const entry of entries) {
       const fullPath = join(current, entry);
       const relPath = toForwardSlash(relative(dir, fullPath));
-      // Skip system/.internal directory (framework bookkeeping)
+      // Skip system/.internal (framework bookkeeping) and system/.local (machine-local files)
       if (relPath === "system/.internal" || relPath.startsWith("system/.internal/")) continue;
+      if (relPath === "system/.local" || relPath.startsWith("system/.local/")) continue;
       // Skip per-identity user directories (e.g., user/alice/) — these are
       // gitignored personal workspaces. Top-level user/ files like README.md
       // are included since they are tracked framework content.

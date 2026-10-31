@@ -14,6 +14,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import {
   atomicWriteJson,
   createAtomicFileCreator,
+  listArcFiles,
   retryTransientFileSystemRefusal,
   toForwardSlash,
   type AtomicCreateFileContext,
@@ -271,6 +272,26 @@ describe("retryTransientFileSystemRefusal", () => {
     expect(attempts).toBeGreaterThan(1);
     expect(attempts).toBeLessThanOrEqual(10);
     expect(delays.reduce((total, delay) => total + delay, 0)).toBeLessThanOrEqual(1_000);
+  });
+});
+
+describe("listArcFiles", () => {
+  let arcDir: string;
+
+  beforeEach(async () => {
+    arcDir = await mkdtemp(join(tmpdir(), "arc-list-files-"));
+  });
+
+  afterEach(async () => {
+    await rm(arcDir, { recursive: true, force: true });
+  });
+
+  it("lists no machine-local file under system/.local/", async () => {
+    await mkdir(join(arcDir, "system", ".local", "projection", "aside", "active"), { recursive: true });
+    await writeFile(join(arcDir, "system", ".local", "projection", "reference"), "");
+    await writeFile(join(arcDir, "system", ".local", "projection", "aside", "active", "copy.aside"), "");
+    await writeFile(join(arcDir, "system", "arc-config.yml"), "");
+    expect(await listArcFiles(arcDir)).toEqual(["system/arc-config.yml"]);
   });
 });
 

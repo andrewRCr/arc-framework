@@ -203,6 +203,7 @@ export const MACHINE_LOCAL_PATHS = [
   { root: "git-common", pattern: "arc/**" },
   { root: "git-worktree", pattern: "arc-checks/**" },
   { root: "git-worktree", pattern: "arc-projection/**" },
+  { root: "checkout", pattern: ".arc/system/.local/**" },
 ] as const;
 /** Status and archive listings are derived, never state records. */
 export const DERIVED_VIEWS = ["project-status", "identity-status", "archive-index"] as const;
