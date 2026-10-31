@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "git-floor-drafts",
+  "claimId": "096b3bcc42792404bc4571e923773e3e",
+  "createdAt": "2026-10-31T04:15:40.949Z",
+  "updatedAt": "2026-10-31T04:15:40.949Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Amend three backlog drafts from the 2.47 Git floor to 2.53.0 and narrow the floor entry",
+  "branch": "chore/git-floor-drafts",
+  "origin": "inbox",
+  "originEntry": "Amend the backlog drafts that state the 2.47 Git floor, and narrow the release-hardening floor entry",
+  "originEntrySourceDigest": "sha256:2dc18b5fe210bf70c72cec56b955b5136815e95229628659a4cc75368e2f0947",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
