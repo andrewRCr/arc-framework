@@ -48,59 +48,27 @@ since no CLI process runs over a store before the flip (§ 1.5).
           before the flip. Its tests sit under `store/projection/` at the unit and integration tiers, the latter
           showing a check's worktree capture staging nothing under those roots once the list is written.
 
-### `[ ]` **1.2 Guard the projected roots with one `git check-ignore` call — § 11.2**
+### `[x]` **1.2 Guard the projected roots with one `git check-ignore` call — § 11.2**
 
 - _Goal:_ The projection never writes into a root that no rule ignores: one Git call proves every projected root and the
   aside folder ignored, `.arc/user/*/` by `.gitignore` itself, and a refusal names the missing line and clears once it
   is restored.
 
-- _Note:_ The guard's skip — a snapshot of the ignore files a pass returns, which 2.4.b builds and compares and the
-  index records (2.2) — runs before the sweep's first write (3.3) and a refresh's write into a root
-  (`projection-worktrees`); this task builds the call, its verdict, and the files a pass returns.
+    - `[x]` **1.2.a The call and its verdict**
 
-    - `[ ]` **1.2.a The call and its verdict**
-
-        - One `git check-ignore -z -v --non-matching --no-index --stdin` over the projected roots and the aside folder,
-          each given with its trailing slash and NUL-separated, as `-z` makes `--stdin` read its input, through the
-          stdin executor (`GitExecInput`, `lib/git/exec.ts`). `--no-index` judges the rules alone: without it Git skips
-          a path its index holds entries under, and a root holding tracked files reads as not ignored. The output is
-          four NUL-terminated fields per path — source, line, pattern, path — so a source path holding a colon, such as
-          a Windows `core.excludesFile`, parses intact. A path reads as not ignored where its source is empty, as Git
-          returns a directory path a `!` pattern re-includes — the case the guard's directory paths meet — or where its
-          pattern opens with `!`, as Git returns a file path so re-included and counts as a match.
-        - Exit status 1, which Git returns when it counts no path ignored, is a verdict, not a failure: the executor
-          throws a `GitProcessError` (`lib/git/process-error.ts`) whose `stdout` still carries every path's fields. Any
-          other failure — another exit status, a timeout, a cancellation, or a spawn failure (`normalizeGitRejection`)
-          — fails closed: the guard refuses every root for the command, typed apart from a missing rule, naming the
-          failure and the remedy of running the command again.
-        - `.arc/user/<identity>/` passes only when its rule's source is a `.gitignore` inside the repository — the
-          root's or one nested on the path to it, which Git names by a repository-relative path — since `npm pack`
-          reads only those; the same path ignored from `.git/info/exclude`, or from a `core.excludesFile` named
-          `.gitignore` outside the repository, refuses.
-        - The refusal is typed and recoverable: it names each path and the line that would ignore it, and the
-          projection writes nothing into that root until a later guard passes.
-        - A pass returns the ignore files its verdict rests on: `info/exclude` in the common Git directory, which
-          `readGitDirectories` (`lib/git/directories.ts`) finds with no Git process; each `.gitignore` on the path from
-          the repository root to every projected root and the aside folder, present or not; and every other file the
-          call's output names as a match's source, a `core.excludesFile` among them.
-        - Build `test-first` (one behavior at a time):
-            - Integration tier, over a real repository
-            - with every root ignored and `.arc/user/*/` in `.gitignore`, the guard passes in one call
-            - a pass returns `info/exclude` and each `.gitignore` on the path to every root and the aside folder, an
-              absent one included
-            - a root holding a tracked file passes where its rule exists
-            - an excludes file whose path holds a colon, set as `core.excludesFile`, parses intact as the source
-            - a root ignored only through `core.excludesFile` passes, and the pass returns that file
-            - a projected root no rule ignores refuses naming its missing line, and passes once the line is added
-            - with no root ignored, Git's exit status 1 yields a refusal naming every path, not a Git failure
-            - an injected executor failure other than exit status 1 refuses every root, naming the failure, and the next
-              guard that runs passes
-            - a root re-included by a `!` pattern refuses as not ignored
-            - `.arc/user/*/` ignored only from `.git/info/exclude` refuses naming `.gitignore`, and passes once the line
-              moves there
-            - `.arc/user/*/` ignored from a nested `.gitignore` on its path passes
-            - `.arc/user/*/` ignored only through a `core.excludesFile` named `.gitignore` outside the repository refuses
-              naming `.gitignore`
+        - `guardProjectionIgnores` (`lib/store/projection/ignore-guard.ts`) runs one
+          `git check-ignore -z -v --non-matching --no-index --stdin` through `GitExecInput` over the identity's four
+          projected roots and the aside folder, `PROJECTION_ASIDE_ROOT` in the new `paths.ts`, which
+          `PROJECTION_LOCAL_ROOT` moved into. Exit status 1 is read from the failure's `stdout`; any other failure, or
+          output that does not answer every path, refuses every root as `guard-failed` with the rerun remedy. A
+          `not-ignored` refusal names each path, its line, and the file it belongs in, and the personal root passes
+          only on a `.gitignore` on its path.
+        - A pass returns `info/exclude` in the common Git directory, every `.gitignore` above a guarded path, present or
+          not, and each match's source, as absolute paths without duplicates.
+        - On Git 2.55 a directory a `!` pattern re-includes answers with an empty source, as an unmatched path does,
+          for every negation form tried; the arm reading a `!` pattern as not ignored, which Git returns for a file
+          path, stays as § 11.2 states, though no guarded directory reaches it. Covered in
+          `integration/store/projection/ignore-guard.test.ts`.
 
 ### `[ ]` **1.3 Write ARC's managed `.ignore` block through the setup verbs — § 11.3**
 

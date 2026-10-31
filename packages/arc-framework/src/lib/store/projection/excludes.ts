@@ -1,8 +1,6 @@
 /** The clone-local Git exclude entries the projection registers before it writes into its roots. */
 import { PROJECTED_LIFECYCLE_PATTERNS } from "../../layout/index.js";
-
-/** Folder for the projection's machine-local files, which holds its aside folder. */
-export const PROJECTION_LOCAL_ROOT = ".arc/system/.local";
+import { PROJECTION_LOCAL_ROOT } from "./paths.js";
 
 /**
  * The exclude list: each shared projected root and the machine-local folder, as directory patterns. The personal
