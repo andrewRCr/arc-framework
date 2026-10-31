@@ -106,7 +106,7 @@ export function decodeText(state: V3RepositoryPlanState): string | null {
 }
 
 function metaSlug(path: string): string | null {
-  const match = /(?:^|\/)meta-(.+)\.md$/u.exec(path);
+  const match = /(?:^|\/)meta-([^/]+)\.md$/u.exec(path);
   return match?.[1] ?? null;
 }
 
