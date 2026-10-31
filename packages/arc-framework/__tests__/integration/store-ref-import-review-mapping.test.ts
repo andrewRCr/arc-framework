@@ -632,3 +632,47 @@ it("refuses a trial over an unmappable review source through its report and impo
   await rm(join(common, broken));
   expect(await h.migrateCommand()).toMatchObject({ status: "ok" });
 }, 60_000);
+
+function alphaCandidate(source: number): string {
+  const subject = createCandidateSubjectSnapshot([{ path: "src/main.ts", mode: "100644", digest: canonicalDigest({ source }),
+    treatment: "reviewable" }]);
+  const attestation = createCandidateAttestation({ workUnit: "alpha", subject, baseRevision: "a".repeat(40), attestedBy: "andrew",
+    attestedAt: "2026-10-29T12:00:00Z", verificationEvidenceRef: "verification://root" });
+  return serializeCandidateManagedRecord(CandidateManagedRecordV1Schema.parse({ schemaVersion: 1,
+    semanticsVersion: "candidate-attestation/v1", attestation, subject, transitions: [], lineageAttestations: [] }));
+}
+
+it.each(["newer", "absent"] as const)("trials a live Candidate whose current record is %s through the command's own mapping", async current => {
+  const h = await importFixture();
+  const path = resolveCandidateRecordRelativePath("alpha"), committed = alphaCandidate(1), newer = alphaCandidate(2);
+  await writeFile(join(h.root, path), committed);
+  await h.git("git", ["add", ".arc"]);
+  await h.git("git", ["commit", "-m", "Attest alpha"]);
+  await h.git("git", ["update-ref", "refs/heads/feat/alpha", (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim()]);
+  await h.git("git", ["checkout", "feat/alpha"]);
+  if (current === "newer") await writeFile(join(h.root, path), newer);
+  else {
+    await h.git("git", ["rm", path]);
+    await h.git("git", ["commit", "-m", "Remove current Candidate after retaining its history"]);
+  }
+  const trial = await h.migrateCommand(true);
+  if (trial.status !== "ok") throw new Error(JSON.stringify(trial));
+  const candidateSources = trial.result.reviewMapping.filter(({ source }) => source === path || source.startsWith(`${path}@`));
+  expect(candidateSources.filter(({ source }) => source.startsWith(`${path}@`))).not.toEqual([]);
+  expect(trial.result.notices.filter(({ condition }) => condition.startsWith("Review "))).toEqual([]);
+  if (current === "newer") {
+    expect(candidateSources.filter(({ source }) => source === path)).toEqual([expect.objectContaining({ outcome: "mapped" })]);
+    expect(candidateSources.every(({ outcome }) => outcome === "mapped")).toBe(true);
+  } else {
+    expect(candidateSources.some(({ source }) => source === path)).toBe(false);
+    expect(candidateSources).toEqual(candidateSources.map(({ source }) => expect.objectContaining({ source, outcome: "left-behind",
+      reason: expect.stringContaining("no current Candidate record") })));
+  }
+  expect(await h.migrateCommand()).toMatchObject({ status: "ok" });
+  const reference = RecordReferenceSchema.parse({ kind: "review/candidate", owner: { type: "work-item", name: "alpha" } });
+  const store = createRefStore(h.ports);
+  if (current === "newer") {
+    expect(success(await store.read({ reference })).content).toBe(newer);
+    expect(success(await store.history({ reference })).map(({ content }) => content)).toContain(committed);
+  } else expect(await store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+}, 60_000);
