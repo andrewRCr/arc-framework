@@ -113,10 +113,13 @@ async function runNativeForecastCheck(options: CiCheckStep, check: CheckForecast
       index = await createCheckIndexView(gitExec, options.root, options.forecast.tree);
     }
     for (const batch of batches) {
+      // The command's output streams to the step's log as it is written, so a stalled run shows where it stopped.
+      process.stdout.write(`${check.id}:\n`);
       const result = await runCheckProcess([...batch, ...options.arguments ?? []], resolve(options.root, check.cwd),
         check.mode === "files" ? options.forecast : undefined, { shell: check.shell, indexFile: index?.file,
+          forward: (chunk, stream) => { (stream === "stdout" ? process.stdout : process.stderr).write(chunk); },
           ...(bindings === undefined ? {} : { environment: bindCapturedEnvironment(bindings, process.env) }) });
-      if (result.output) process.stdout.write(`${check.id}: ${result.output}\n`);
+      if (!result.started && result.output) process.stdout.write(`${check.id}: ${result.output}\n`);
       if (!result.started || result.exitCode !== 0) exitCode = 1;
     }
     if (before !== undefined) {
