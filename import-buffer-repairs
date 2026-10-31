@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "import-buffer-repairs",
+  "claimId": "e5a4bc3445c4bb62ce0c264ac24e23cd",
+  "createdAt": "2026-10-31T04:07:24.272Z",
+  "updatedAt": "2026-10-31T04:07:24.272Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Repair four draft inbound buffers the store import refuses",
+  "branch": "chore/import-buffer-repairs",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
