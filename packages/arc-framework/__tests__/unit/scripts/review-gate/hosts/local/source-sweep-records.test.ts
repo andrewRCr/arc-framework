@@ -1,4 +1,6 @@
 /** Pin cleanup reads retained native execution rather than legacy operation files. */
+import { mkdir, rm } from "node:fs/promises";
+import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import { nativeLocalReview } from "../../../../../fixtures/native-local-review.js";
 import { createNativeLocalSourceSweepRecords } from "../../../../../../src/scripts/review-gate/hosts/local/source-sweep-records.js";
@@ -174,4 +176,29 @@ it("skips another operation's damaged execution record, keeping this pin's clean
     now: () => new Date(Date.parse(h.state.updatedAt) + h.state.cleanupTtlMs).toISOString() }))
     .toEqual({ reaped: [{ operationId: h.state.operationId, reason: "terminally-expired" }] });
   expect([...pins]).toEqual([]);
+});
+
+it("skips another operation's non-file entry, and refuses one at a pinned record's name until a record replaces it", async () => {
+  const h = await nativeLocalReview();
+  onTestFinished(h.cleanup);
+  const owner = h.primary.reference.owner;
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected admitted UID");
+  const location = { root: "review-gate", namespace: "in-flight" } as const;
+  const directory = join(h.commonDir, "arc", location.root, location.namespace);
+  const name = nativeReviewInFlightRecordName(owner.uid, h.state.operationId);
+  const input = { publisher: h.publisher, store: h.store, projectId: h.projectId, operationIds: [h.state.operationId] };
+  await mkdir(join(directory, "stray"));
+  await mkdir(join(directory, nativeReviewInFlightRecordName(owner.uid, "another-operation")));
+  expect(await (await createNativeLocalSourceSweepRecords(input)).readOperation(h.state.operationId))
+    .toMatchObject({ state: { operationId: h.state.operationId } });
+  const original = await h.publisher.read(location, name);
+  if (original === null) throw new Error("Expected retained native execution");
+  await h.publisher.update(location, name, () => ({ kind: "delete", result: undefined }));
+  await mkdir(join(directory, name));
+  await expect(createNativeLocalSourceSweepRecords(input)).rejects.toMatchObject({ code: "malformed-operation-state",
+    message: `Native execution record '${name}' is malformed: it is not a record file. Repair or remove it, then retry.` });
+  await rm(join(directory, name), { recursive: true });
+  await h.publisher.update(location, name, () => ({ kind: "write", content: original, result: undefined }));
+  expect(await (await createNativeLocalSourceSweepRecords(input)).readOperation(h.state.operationId))
+    .toMatchObject({ state: { operationId: h.state.operationId } });
 });
