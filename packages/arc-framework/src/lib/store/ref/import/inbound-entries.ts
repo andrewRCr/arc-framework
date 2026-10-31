@@ -10,6 +10,17 @@ import { reportImportGrammar } from "./admission.js";
 import { hasExecuteBoundDisposition } from "../../../user-sync/inbox-writer.js";
 
 const bufferSection = "Inbound Buffer — Pending Integration";
+const inboundIntroductions = new Set([
+  "Routed-in concern pending holistic integration into the body at this WU's next planning iteration (`drain-inbox \u00a7 5`).",
+  "Routed-in concerns pending holistic integration into the body at this WU's next planning iteration (`drain-inbox \u00a7 5`); each carries its origin. Integrate — or consciously reject — at iteration.",
+  "Routed-in concerns pending holistic integration into the body at this WU's next planning iteration.",
+  "Routed-in concerns pending holistic integration into the body at this work unit's next planning iteration; each carries its origin. Integrate — or consciously reject — at iteration.",
+  "Routed-in concerns pending integration at this work unit's first planning iteration. Integrate — or consciously reject — each one.",
+  "Routed-in concerns pending integration at this work unit's next planning iteration.",
+  "Routed-in concerns pending integration at this work unit's next planning iteration. Integrate — or consciously reject — each one.",
+  "Routed-in concerns pending integration by this work unit’s owner.",
+]);
+
 type Registry = RefBackendContext["registry"];
 
 /** Move complete buffer sections before processing held personal captures. */
@@ -67,7 +78,7 @@ function importBuffer(registry: Registry, records: ImportRecord[], draft: Import
 function splitBufferParts(content: string): ReturnType<typeof splitEntryList>["parts"] {
   const framing = `## ${bufferSection}\n`, visible = maskComments(content);
   const fragments: string[] = [];
-  let start = 0;
+  let start = inboundIntroductionEnd(visible);
   for (const separator of visible.matchAll(/^---[ \t]*\r?$/gmu)) {
     fragments.push(content.slice(start, separator.index));
     start = separator.index + separator[0].length;
@@ -75,6 +86,13 @@ function splitBufferParts(content: string): ReturnType<typeof splitEntryList>["p
   fragments.push(content.slice(start));
   return fragments.flatMap(fragment => splitEntryList(framing + fragment, { shape: "heading", sections: [bufferSection] }).parts
     .map((part, index) => index === 0 && part.kind === "outside" ? { ...part, bytes: part.bytes.slice(framing.length) } : part));
+}
+
+function inboundIntroductionEnd(visible: string): number {
+  const quote = /^[ \t\r\n]*(?:>[^\r\n]*(?:\r?\n|$))+/u.exec(visible)?.[0];
+  if (!quote) return 0;
+  const text = quote.replace(/^[ \t]*>[ \t]?/gmu, "").replaceAll("_", "").replace(/\s+/gu, " ").trim();
+  return inboundIntroductions.has(text) ? quote.length : 0;
 }
 
 function routedDate(raw: string): string | undefined {

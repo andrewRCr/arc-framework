@@ -39,10 +39,11 @@
   was taken are served) and its invariant that push admission re-reads designation and transport under the
   comparison lock (§ 7.4). A long-lived reader must also never keep a finished command alive.
 
-- _Windows:_ A probe on Git 2.56.0.windows.2 (2026-10-30) found that an open `cat-file --batch` reader stopped
-  neither a repack's removal of its pack nor a rename of its store directory, and that maintenance a fetch triggers
-  runs in the foreground (spec § 4.2). Git's Windows behavior at ARC's floor (2.47) is untested. Maintenance outside
-  the backend instance, in another process or another instance in the same one, gets no wait against a scope's
-  reader (spec § Cross-cutting Considerations), and a reader kept across calls widens that window.
+- _Windows:_ A probe on Git 2.56.0.windows.2 (2026-10-30) found that an open `cat-file --batch` reader stopped neither a
+  repack's removal of its pack nor a rename of its store directory, and that maintenance a fetch triggers runs in the
+  foreground (spec § 4.2). Git's Windows behavior at ARC's floor (2.53.0, up from 2.47 by a 2026-10-31 decision) is
+  untested. Maintenance outside the backend instance, in another process or another instance in the same one, gets no
+  wait against a scope's reader (spec § Cross-cutting Considerations), and a reader kept across calls widens that
+  window.
 
 ---

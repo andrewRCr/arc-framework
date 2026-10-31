@@ -91,9 +91,11 @@ retains the semantic push boundary and transaction guarantees, and does not pres
 out (Owner, 2026-10-29). `storage-ref-hardening` takes those the cutover or its rehearsal exercises, with a focused
 import review, and `storage-cutover` depends on it. `storage-ref-release-hardening` takes the test, benchmark, and
 remote-move gaps a default-layout cutover never reaches; it is due before the public release and the cutover does
-not wait on it. Both depend on `storage-ref-backend`. `storage-ref-hardening` runs ahead of `storage-projection`'s
-and `cohort-identity-verbs`' ref-backend phases, landing first the listing scope, the fault classes and remedies,
-and the pull-result consumer sweep those phases observe; its internal items run alongside them.
+not wait on it. Both depend on `storage-ref-backend`. `storage-ref-hardening` lands whole, on one branch, ahead of
+`storage-projection`'s and `cohort-identity-verbs`' ref-backend phases. It builds and reviews first the listing scope,
+the fault classes and remedies, and the pull-result consumer sweep those phases observe, and it re-raises a split into
+its own member if either's ref-backend phases are ready to start while its remaining work is more than about a week
+out.
 
 ### Shared contracts
 

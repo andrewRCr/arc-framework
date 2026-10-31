@@ -1,4 +1,5 @@
 /** Native CI invocations consume forecast batches in their own checkout. */
+import { writeFileSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -53,6 +54,34 @@ async function output(root: string) {
   const text = await readFile(join(root, "output.jsonl"), "utf8").catch(() => "");
   return text.trim().split("\n").filter(Boolean).map(line => JSON.parse(line) as string[]);
 }
+
+it("streams a command's output to the step log while the command still runs", async () => {
+  const setup = await fixture();
+  // The command waits for the test to see a line on each stream; output held until exit would leave it waiting.
+  await writeFile(join(setup.root, "stream.mjs"), 'import fs from "node:fs"; process.stdout.write("first line\\n"); '
+    + 'process.stderr.write("first error\\n"); '
+    + "const end = Date.now() + 5000; while (!fs.existsSync(\"seen\") && Date.now() < end) "
+    + "await new Promise(done => setTimeout(done, 20)); "
+    + 'fs.writeFileSync("result", fs.existsSync("seen") ? "seen while running" : "not seen");\n');
+  const declaration = CheckDeclarationSchema.parse({ checks: { stream: { command: [process.execPath, "stream.mjs"] } } });
+  const forecast = { ...setup.forecast, checks: [{ id: "stream",
+    ...resolveCheckForecast(declaration.checks.stream!, setup.root, [], process.platform) }] };
+  const written = { stdout: [] as string[], stderr: [] as string[] };
+  const capture = (stream: "stdout" | "stderr") => vi.spyOn(process[stream], "write").mockImplementation(((chunk: string | Uint8Array) => {
+    written[stream].push(Buffer.from(chunk).toString());
+    if (written.stdout.join("").includes("first line") && written.stderr.join("").includes("first error")) {
+      writeFileSync(join(setup.root, "seen"), "");
+    }
+    return true;
+  }) as typeof process.stdout.write);
+  const spies = [capture("stdout"), capture("stderr")];
+  try {
+    expect(await runCiCheckStep({ ...setup, declaration, forecast, job: "lint", step: "default" })).toBe(0);
+  } finally { for (const spy of spies) spy.mockRestore(); }
+  expect(await readFile(join(setup.root, "result"), "utf8")).toBe("seen while running");
+  expect(written.stdout.join("")).toBe("stream:\nfirst line\n");
+  expect(written.stderr.join("")).toBe("first error\n");
+});
 
 it("runs only the mapped check's given shard and appends workflow reporting arguments", async () => {
   const setup = await fixture();

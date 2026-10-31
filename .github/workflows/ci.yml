@@ -635,6 +635,8 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4, 5, 6]
     runs-on: ubuntu-latest
+    # About twice the slowest shard measured (21 minutes), so a hung run fails rather than holding a runner for hours.
+    timeout-minutes: 45
     steps:
     - name: Start test budget clock
       run: echo "TEST_COST_STARTED_AT_SECONDS=$(date +%s)" >> "$GITHUB_ENV"
@@ -1064,6 +1066,8 @@ jobs:
     needs: [setup, build]
     if: ${{ !cancelled() && !inputs.portability_timing_only && needs.setup.result == 'success' && needs.build.result == 'success' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_git_floor)) }}
     runs-on: ubuntu-24.04
+    # About twice the slowest shard measured (21 minutes), so a hung run fails rather than holding a runner for hours.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:

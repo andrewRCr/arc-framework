@@ -430,8 +430,10 @@ export async function runUpdate(
     manifest,
     mergeFn,
     {
-      readFile: async (path) => {
-        const content = await io.readFile(path);
+      readFile: io.readFile,
+      writeFile: io.writeFile,
+      mkdir: io.mkdir,
+      migrate: (path, content) => {
         if (path !== arcConfigPath) return content;
 
         const notesPushMigration = migrateUserSyncPush(content);
@@ -441,8 +443,6 @@ export async function runUpdate(
         migrationWarnings.push(...notesPushMigration.warnings);
         return notesPushMigration.content;
       },
-      writeFile: io.writeFile,
-      mkdir: io.mkdir,
     },
     renderCtx,
   );

@@ -30,7 +30,25 @@
   `lib/git/version-floor.ts:51` and name the Git feature that requires it; raising it decides which Git versions ARC
   supports. Until then the weekly floor job stays red, with no suite skipped or allowlisted.
 
-- _Evidence:_ the per-test inventory (`qualification-results.json`) and failed job logs (`floor-store-*-failed.log`) in
+- _Decided (2026-10-31):_ the floor rises to 2.53.0, recorded in `RELEASE-GATES` under Gate B's green-CI item; the
+  store is not made to work at 2.47. 64 of the 70 failures are a Git 2.47.x reftable bug: `for-each-ref --exclude`
+  over a multi-table stack drops refs after the excluded range and returns refs a newer table deleted (fixed in
+  2.48.0). The store hits it in `readRefTips`, which excludes `refs/arc/history/`, and only the separate layout's store
+  repository uses reftable. Bisecting the ancestry cases found a second bug: at Git 2.51.0 to 2.52.0, a non-forced
+  fetch with one ref rejected as non-fast-forward leaves every other ref un-updated, in reftable and files
+  repositories alike (fixed in 2.53.0). The store's rewrite refusal is that fetch, so 4 separate-layout and 6
+  default-layout ancestry cases fail at 2.52.0. The other four 2.47.0 ancestry failures, two `store-ref-ancestry`
+  porcelain-row assumptions and the store's handling at Git 2.50 and earlier (`markUncommittedUpdates` re-checks only
+  rows Git prints as applied), fall below the new floor. The two `maintain()` failures are the routed item under
+  § Routed Items. Raising the floor and its 2.53.0 floor run are a separate change, and an up-front refusal of an
+  older Git follows it.
+
+- _Remaining:_ any store failure the 2.53.0 floor run still shows, classified as in _Approach_; nothing when that run
+  is green.
+
+- _Evidence:_ the per-test inventory (`qualification-results.json`), failed job logs (`floor-store-*-failed.log`), and
+  the classification with both reproductions (`classification.md`, `reftable-exclude-repro.sh`,
+  `fetch-rejected-ref-repro.sh`) in
   `/home/andrew/dev/repos/github.com/andrewRCr/arc-framework/.arc/user/andrew/.internal/investigations/weekly-git-floor-2026-10-29/`.
 
 - _Captured during:_ triaging the first weekly Git-floor run for the Errand that adds it, 2026-10-30.
@@ -186,7 +204,8 @@ reviewed head.
   2.47 floor.** Use a failure every supported Git reports, or gate the case on the Git version. CI and current hosts run
   newer Git, so it passes there; that earlier Git applies the setting only to scheduled runs rests on Git's
   documentation, not a probe. At `__tests__/integration/store-ref-maintain.test.ts:44-53`, with the floor at
-  `lib/git/version-floor.ts:51`.
+  `lib/git/version-floor.ts:51`. Amended 2026-10-31: the floor rises to 2.53.0, which parses the setting, so the case
+  is within the supported range; drop this item if the 2.53.0 floor run passes it.
 - **The log-limit merge test caps an exec argv no production read uses, so its first output ceiling never applies.**
   Bound the forms production reads use, or drop the dead ceiling. At
   `__tests__/integration/store-ref-lifecycle-log-limit.test.ts:61-72`; store log reads use `%H %P%n%B%x00` or

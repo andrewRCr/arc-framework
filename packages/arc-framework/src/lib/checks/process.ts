@@ -14,6 +14,14 @@ function signalExitCode(signal: NodeJS.Signals | undefined): number | undefined 
   return number === undefined ? undefined : 128 + number;
 }
 
+/** Receives a check's output as it is written, one chunk at a time. */
+export type OutputForwarder = (chunk: Uint8Array, stream: "stdout" | "stderr") => void;
+
+/** An output transform that hands each chunk to `forward` as it arrives and passes it on unchanged to the capture. */
+function forwarding(forward: OutputForwarder, stream: "stdout" | "stderr") {
+  return { binary: true as const, *transform(chunk: Uint8Array) { forward(chunk, stream); yield chunk; } };
+}
+
 /** Bytes read from the start of a notice file, so a large write to it never reaches memory. */
 const NOTICE_READ_BYTES = 4096;
 
@@ -54,15 +62,16 @@ async function readNotice(noticeFile: string, exitCode: number): Promise<{ notic
  * any runner wrapping it, may append lines such as where it ran or how long it waited to the file `ARC_CHECK_NOTICE`
  * names; each appends rather than replacing the file, so neither erases the other's, and the lines are joined into
  * one short notice. A nonzero exit with a `not run:` line reports unavailable execution separately.
- * The notice is best effort: when no file can be created, the command runs without one.
+ * The notice is best effort: when no file can be created, the command runs without one. A `forward` callback receives
+ * each output chunk as the command writes it, while the returned output still holds all of it.
  * @param command - Literal executable and arguments
  * @param cwd - Check working directory
  * @param content - Coordinates exposed to file checks
- * @param policy - Shell, output, checked-index and optional supplied child-environment policy
+ * @param policy - Shell, output, checked-index, live output forwarding and optional supplied child-environment policy
  * @returns Native execution status, with a signal's end reported as a shell's exit status for it, diagnostics, and
  * any notice the command reported
  */
-export async function runCheckProcess(command: readonly string[], cwd: string, content?: CheckContentContext, policy: { shell?: boolean; rawStdout?: boolean; indexFile?: string; environment?: NodeJS.ProcessEnv } = {}): Promise<{ started: boolean; exitCode: number; stdout: string; output: string; notice?: string; notRunReason?: string }> {
+export async function runCheckProcess(command: readonly string[], cwd: string, content?: CheckContentContext, policy: { shell?: boolean; rawStdout?: boolean; indexFile?: string; environment?: NodeJS.ProcessEnv; forward?: OutputForwarder } = {}): Promise<{ started: boolean; exitCode: number; stdout: string; output: string; notice?: string; notRunReason?: string }> {
   const noticeDirectory = await mkdtemp(join(tmpdir(), "arc-check-notice-")).catch(() => undefined);
   const noticeFile = noticeDirectory === undefined ? undefined : join(noticeDirectory, "notice");
   try {
@@ -72,9 +81,11 @@ export async function runCheckProcess(command: readonly string[], cwd: string, c
     if (process.platform === "win32" && !policy.shell && !resolvesOnWindows(executable, cwd, env)) {
       return { started: false, exitCode: 1, stdout: "", output: "Check executable was not found; check its path and PATH, then retry." };
     }
+    const { forward } = policy;
     const result = await execa(executable, command.slice(1), {
       cwd, env, extendEnv: false, stdin: "ignore",
       reject: false, shell: policy.shell ?? false, stripFinalNewline: !policy.rawStdout,
+      ...(forward === undefined ? {} : { stdout: forwarding(forward, "stdout"), stderr: forwarding(forward, "stderr") }),
     });
     const started = result.exitCode !== undefined || result.signal !== undefined;
     const exitCode = result.exitCode ?? signalExitCode(result.signal) ?? 1;
