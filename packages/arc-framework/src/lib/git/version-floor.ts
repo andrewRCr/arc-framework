@@ -24,40 +24,44 @@ export const GIT_VERSION_FLOOR: Readonly<GitVersion> = { major: 2, minor: 53, pa
 /** An unwrapped, invocation-scoped call returning `git --version` output. */
 export type GitVersionProbe = () => Promise<string>;
 
-/** Remembers each Git executable's floor answer so its executors probe it once. */
+/** Remembers each executor's floor answer so it probes its Git once. */
 export interface GitFloorGate {
-  /** Resolve for a supported or unreadable version and reject below the floor, probing only the first time. */
-  check(command: string, probe: GitVersionProbe): Promise<void>;
+  /** Resolve for a supported or unreadable version and reject below the floor, probing only the key's first time. */
+  check(key: string, probe: GitVersionProbe): Promise<void>;
 }
 
 /** A gate whose probe that fails to run is retried on the next call; any answer it reads, or cannot read, is kept. */
 export function createGitFloorGate(): GitFloorGate {
   const answers = new Map<string, Promise<void>>();
   return {
-    check(command, probe) {
-      const known = answers.get(command);
+    check(key, probe) {
+      const known = answers.get(key);
       if (known !== undefined) return known;
-      const answer = probe().then((output) => { assertGitVersionFloor(output); }, () => { answers.delete(command); });
-      answers.set(command, answer);
+      const answer = probe().then((output) => { assertGitVersionFloor(output); }, () => { answers.delete(key); });
+      answers.set(key, answer);
       return answer;
     },
   };
 }
 
-/** Gate every call of a plain, stdin-fed, and byte executor on the floor, probing with the plain executor.
- * @param gate - Shared answers for the executable each executor runs.
- * @param executors - Unwrapped executors; `execInput` and `rawExec` run `git`.
+/** Gate every call of a plain, stdin-fed, and byte executor on the floor, each probing the Git it runs.
+ * @param gate - Answers for these executors, keyed by executor and, for the plain one, by command.
+ * @param executors - Unwrapped executors.
  */
 export function gateGitExecutors<Ports extends { exec: GitExec; execInput: GitExecInput; rawExec: RawGitExec }>(
   gate: GitFloorGate, executors: Ports,
 ): Ports {
   const { exec, execInput, rawExec } = executors;
-  const check = (command: string): Promise<void> => gate.check(command, async () => (await exec(command, ["--version"])).stdout);
+  const plain = (command: string): Promise<void> =>
+    gate.check(`plain ${command}`, async () => (await exec(command, ["--version"])).stdout);
+  const stdin = (): Promise<void> => gate.check("stdin git", () => execInput(["--version"], ""));
+  const raw = (): Promise<void> =>
+    gate.check("raw git", async () => new TextDecoder().decode((await rawExec(["--version"])).stdout));
   return {
     ...executors,
-    exec: async (command, args, options) => { await check(command); return exec(command, args, options); },
-    execInput: async (args, input, options) => { await check("git"); return execInput(args, input, options); },
-    rawExec: async (args, options) => { await check("git"); return rawExec(args, options); },
+    exec: async (command, args, options) => { await plain(command); return exec(command, args, options); },
+    execInput: async (args, input, options) => { await stdin(); return execInput(args, input, options); },
+    rawExec: async (args, options) => { await raw(); return rawExec(args, options); },
   };
 }
 

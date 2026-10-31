@@ -90,22 +90,38 @@ it("diagnoses the same executable that failed", async () => {
   await expect(wrapped("/old/toolchain/git", args)).rejects.toThrow(/Git 2\.45\.0.*Git 2\.53/u);
 });
 
-/** Executors whose plain port answers `--version` with each queued answer in turn and records every other call. */
-function versionedExecutors(...answers: Array<string | Error>) {
+type Answer = string | Error;
+type Kind = "plain" | "stdin" | "raw";
+
+/** Executors answering `--version` with each kind's queued answers in turn, recording every other call. */
+function versionedExecutors(answers: Answer[] | Partial<Record<Kind, Answer[]>>) {
+  const queues: Record<Kind, Answer[]> = Array.isArray(answers)
+    ? { plain: answers, stdin: answers, raw: answers }
+    : { plain: answers.plain ?? [""], stdin: answers.stdin ?? [""], raw: answers.raw ?? [""] };
+  const probes: Record<Kind, number> = { plain: 0, stdin: 0, raw: 0 };
+  const answer = (kind: Kind): string => {
+    const queue = queues[kind];
+    const next = queue[Math.min(probes[kind]++, queue.length - 1)];
+    if (next instanceof Error) throw next;
+    return next ?? "";
+  };
   const calls: string[] = [];
-  let probes = 0;
   const exec: GitExec = async (command, args) => {
-    if (args[0] === "--version") {
-      const answer = answers[Math.min(probes++, answers.length - 1)];
-      if (answer instanceof Error) throw answer;
-      return { stdout: answer ?? "", stderr: "" };
-    }
+    if (args[0] === "--version") return { stdout: answer("plain"), stderr: "" };
     calls.push(`${command} ${args.join(" ")}`);
     return { stdout: "ran\n", stderr: "" };
   };
-  const execInput: GitExecInput = async (args) => { calls.push(`stdin ${args.join(" ")}`); return "ran\n"; };
-  const rawExec: RawGitExec = async (args) => { calls.push(`raw ${args.join(" ")}`); return { stdout: Buffer.from("ran"), stderr: Buffer.alloc(0) }; };
-  return { executors: { exec, execInput, rawExec }, calls, probes: () => probes };
+  const execInput: GitExecInput = async (args) => {
+    if (args[0] === "--version") return answer("stdin");
+    calls.push(`stdin ${args.join(" ")}`);
+    return "ran\n";
+  };
+  const rawExec: RawGitExec = async (args) => {
+    if (args[0] === "--version") return { stdout: Buffer.from(answer("raw")), stderr: Buffer.alloc(0) };
+    calls.push(`raw ${args.join(" ")}`);
+    return { stdout: Buffer.from("ran"), stderr: Buffer.alloc(0) };
+  };
+  return { executors: { exec, execInput, rawExec }, calls, probes };
 }
 
 function runVariant(executors: { exec: GitExec; execInput: GitExecInput; rawExec: RawGitExec }, variant: string): Promise<unknown> {
@@ -117,7 +133,7 @@ function runVariant(executors: { exec: GitExec; execInput: GitExecInput; rawExec
 describe("up-front Git floor gate", () => {
   it.each(["plain", "stdin", "raw"].flatMap((variant) => ["2.47.3", "2.51.0", "2.52.0"].map((version) => ({ variant, version }))))(
     "refuses Git $version before the $variant call runs", async ({ variant, version }) => {
-      const fake = versionedExecutors(`git version ${version}\n`);
+      const fake = versionedExecutors([`git version ${version}\n`]);
       const gated = gateGitExecutors(createGitFloorGate(), fake.executors);
       await expect(runVariant(gated, variant)).rejects.toThrow(`Git ${version} is below the required Git 2.53. Upgrade Git and retry.`);
       expect(fake.calls).toEqual([]);
@@ -125,47 +141,57 @@ describe("up-front Git floor gate", () => {
 
   it.each(["plain", "stdin", "raw"].flatMap((variant) => ["2.53.0", "2.55.0.windows.1", "3.0.0"].map((version) => ({ variant, version }))))(
     "runs the $variant call on Git $version", async ({ variant, version }) => {
-      const fake = versionedExecutors(`git version ${version}\n`);
+      const fake = versionedExecutors([`git version ${version}\n`]);
       await expect(runVariant(gateGitExecutors(createGitFloorGate(), fake.executors), variant)).resolves.toBeDefined();
       expect(fake.calls).toHaveLength(1);
     });
 
-  it("probes an executable once across executors and concurrent first calls", async () => {
-    const fake = versionedExecutors("git version 2.53.0");
+  it("probes each executor once across calls and concurrent first calls", async () => {
+    const fake = versionedExecutors(["git version 2.53.0"]);
     const gated = gateGitExecutors(createGitFloorGate(), fake.executors);
-    await Promise.all(["plain", "stdin", "raw", "plain", "raw"].map((variant) => runVariant(gated, variant)));
-    await runVariant(gated, "stdin");
-    expect(fake.probes()).toBe(1);
-    expect(fake.calls).toHaveLength(6);
+    await Promise.all(["plain", "stdin", "raw", "plain", "raw", "stdin"].map((variant) => runVariant(gated, variant)));
+    await Promise.all(["plain", "stdin", "raw"].map((variant) => runVariant(gated, variant)));
+    expect(fake.probes).toEqual({ plain: 1, stdin: 1, raw: 1 });
+    expect(fake.calls).toHaveLength(9);
+  });
+
+  it("checks each executor against the Git it runs", async () => {
+    const fake = versionedExecutors({ plain: ["git version 2.52.0"], stdin: ["git version 2.55.0"], raw: ["git version 2.55.0"] });
+    const gated = gateGitExecutors(createGitFloorGate(), fake.executors);
+    await expect(runVariant(gated, "raw")).resolves.toBeDefined();
+    await expect(runVariant(gated, "stdin")).resolves.toBeDefined();
+    await expect(runVariant(gated, "plain")).rejects.toThrow(/Git 2\.52\.0/u);
+    expect(fake.calls).toEqual(["raw cat-file --batch", "stdin hash-object --stdin"]);
   });
 
   it("repeats a refusal without probing again", async () => {
-    const fake = versionedExecutors("git version 2.52.0", "git version 2.53.0");
+    const fake = versionedExecutors(["git version 2.52.0", "git version 2.53.0"]);
     const gated = gateGitExecutors(createGitFloorGate(), fake.executors);
-    for (const variant of ["raw", "plain", "stdin"]) await expect(runVariant(gated, variant)).rejects.toThrow(/Git 2\.52\.0/u);
-    expect(fake.probes()).toBe(1);
+    for (const variant of ["raw", "plain", "stdin", "raw", "plain", "stdin"]) {
+      await expect(runVariant(gated, variant)).rejects.toThrow(/Git 2\.52\.0/u);
+    }
+    expect(fake.probes).toEqual({ plain: 1, stdin: 1, raw: 1 });
     expect(fake.calls).toEqual([]);
   });
 
   it("keeps an unreadable answer and runs every call", async () => {
-    const fake = versionedExecutors("unrecognized version output", "git version 2.52.0");
+    const fake = versionedExecutors(["unrecognized version output", "git version 2.52.0"]);
     const gated = gateGitExecutors(createGitFloorGate(), fake.executors);
-    await runVariant(gated, "plain");
-    await runVariant(gated, "raw");
-    expect(fake.probes()).toBe(1);
-    expect(fake.calls).toHaveLength(2);
+    for (const variant of ["plain", "plain", "raw", "raw"]) await runVariant(gated, variant);
+    expect(fake.probes).toEqual({ plain: 1, stdin: 0, raw: 1 });
+    expect(fake.calls).toHaveLength(4);
   });
 
   it("runs the call when the probe fails, then probes again and refuses once it answers", async () => {
-    const fake = versionedExecutors(new Error("version invocation failed"), "git version 2.52.0");
+    const fake = versionedExecutors([new Error("version invocation failed"), "git version 2.52.0"]);
     const gated = gateGitExecutors(createGitFloorGate(), fake.executors);
     await expect(runVariant(gated, "plain")).resolves.toBeDefined();
     await expect(runVariant(gated, "plain")).rejects.toThrow(/Git 2\.52\.0/u);
-    expect(fake.probes()).toBe(2);
+    expect(fake.probes.plain).toBe(2);
     expect(fake.calls).toEqual(["git status"]);
   });
 
-  it("answers each executable separately", async () => {
+  it("answers each plain executable separately", async () => {
     const versions = new Map([["/old/toolchain/git", "git version 2.52.0"], ["git", "git version 2.55.0"]]);
     const ran: string[] = [];
     const exec: GitExec = async (command, args) => {
