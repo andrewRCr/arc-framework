@@ -61,6 +61,8 @@ describe("production entry grammars", () => {
     "**Next with `**` text\ncontinued:**", "**Next with \\** text\ncontinued:**",
     "**Next with\n**bold\ntext**post and\n**more** text:**",
     "**Next with pre**bold\ntext**post and\n**more** text:**",
+    "**Next with pre**bold\n**inner** text**post and\n**more** text:**",
+    "**Next with pre**bold\n**inner** tail**post:**",
   ].map(header => ({ newline, body, header })))))(
     "keeps closed bold body prose in its entry before $header with $newline: $body", ({ newline, body, header }) => {
       const first = `**First:**\n_Remove when: first condition._\n_Id:_ \`12345678\`\n\nBody.\n${body}`;
@@ -123,6 +125,11 @@ describe("production entry grammars", () => {
     "**A title with pre**bold\ntext**post and other**bold\nwords**tail\nends:**",
     "**A title with προ**bold\ntext**μετά and\n**more** text:**",
     "**A title with pre**bold `**`\ntext**post and\n**more** text:**",
+    ...["pre", "προ"].flatMap(before => ["post", "μετά"].flatMap(after => [
+      `**A title with ${before}**bold\n**inner** text**${after} and\n**more** text:**`,
+      `**A title with ${before}**bold\n**inner** tail**${after}:**`,
+      `**A title with ${before}**bold \`\n**example\ncontinued:**\n\` text**${after} and\n**more** text:**`,
+    ])),
     ...["post", "μετά"].flatMap(after => [
       `**A title with\n**bold\ntext**${after} and\n**more** text:**`,
       `**A title with\n**bold text**${after} and **more** text:**`,

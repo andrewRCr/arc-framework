@@ -80,7 +80,8 @@ export function fieldHeaderSpans(lines: readonly string[]): readonly { start: nu
   const state: FieldHeaderBoldState = { markers: [], codeTicks: 0, boundaryDepth: 0 };
   for (const [index, line] of lines.entries()) {
     const text = line.trimEnd();
-    if (!text.trim() || text.startsWith("## ") || text === "---") { resetFieldHeader(state); continue; }
+    if (fieldHeaderBoundary(text)) { resetFieldHeader(state); continue; }
+    if (state.codeTicks === 0 && state.boundaryDepth === 0 && state.markers.length > 1 && fieldHeaderCandidateAt(lines, index)) resetFieldHeader(state);
     const start = fieldHeaderLineStart(text, index, state)
       ?? (/^\*\*.+:\*\*\s*$/u.test(text) ? index : undefined);
     if (start === undefined) continue;
@@ -88,6 +89,23 @@ export function fieldHeaderSpans(lines: readonly string[]): readonly { start: nu
     resetFieldHeader(state);
   }
   return spans;
+}
+
+function fieldHeaderBoundary(text: string): boolean {
+  return !text.trim() || text.startsWith("## ") || text === "---";
+}
+
+function fieldHeaderCandidateAt(lines: readonly string[], start: number): boolean {
+  if (!lines[start]?.startsWith("**")) return false;
+  const candidate: FieldHeaderBoldState = { markers: [], codeTicks: 0, boundaryDepth: 0 };
+  for (let index = start; index < lines.length; index++) {
+    const text = (lines[index] ?? "").trimEnd();
+    if (fieldHeaderBoundary(text)) return false;
+    const matched = fieldHeaderLineStart(text, index, candidate);
+    if (matched !== undefined) return matched === start;
+    if (candidate.markers.length === 0) return false;
+  }
+  return false;
 }
 
 function resetFieldHeader(state: FieldHeaderBoldState): void {
@@ -124,8 +142,6 @@ function fieldHeaderCodeTicks(current: number, width: number): number {
 function fieldHeaderBold(text: string, line: number, offset: number, state: FieldHeaderBoldState): number | undefined {
   const { markers } = state;
   if (offset === 0) {
-    // A completed inline span leaves its outer title pending; closed prose does not.
-    if (state.boundaryDepth === 0 && markers.length !== 1) markers.length = 0;
     markers.push(line);
     state.boundaryDepth++;
     return undefined;
@@ -136,7 +152,7 @@ function fieldHeaderBold(text: string, line: number, offset: number, state: Fiel
   // Inline closers match nested openers regardless of whether they started a line.
   if (closes && (!opens || markers.length > 1)) {
     const opening = markers.pop();
-    return opening !== undefined && offset === text.length - 2 && /:\*\*$/u.test(text) ? opening : undefined;
+    return opening !== undefined && markers.length === 0 && offset === text.length - 2 && /:\*\*$/u.test(text) ? opening : undefined;
   }
   if (opens) markers.push(undefined);
   return undefined;
