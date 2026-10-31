@@ -1,0 +1,6 @@
+# ARC Framework (managed by arc cli)
+!.arc/active/
+!.arc/backlog/
+!.arc/completed/
+!.arc/user/*/
+# end ARC

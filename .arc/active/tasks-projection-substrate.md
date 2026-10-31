@@ -92,20 +92,15 @@ since no CLI process runs over a store before the flip (§ 1.5).
           `__tests__/helpers/arc-ignore-block.ts`; `e2e/update.e2e.test.ts` shows `arc update` leaving an unchanged
           `.ignore` byte-identical and rewriting only the block over an edited one.
 
-### `[ ]` **1.4 Stop ignoring `.ignore` in this repository and write its managed block — § 11.5, § 11.3**
+### `[x]` **1.4 Stop ignoring `.ignore` in this repository and write its managed block — § 11.5, § 11.3**
 
 - _Goal:_ This repository tracks a root `.ignore` holding exactly ARC's managed block, and its `.gitignore` no longer
   ignores `.ignore`.
 
-- _Note:_ ripgrep skips the hidden `.arc/` folder from the repository root unless it is given the path or `--hidden`,
-  so the check below names the path.
-
-    - The `.gitignore` loses the `# Marksman LSP exclusions` comment and its `.ignore` line, which sit outside ARC's
-      managed block.
-    - The root `.ignore` is the block 1.3.a writes and nothing else; the primary's untracked `.ignore`, holding one
-      personal Marksman line, is deleted before this lands (4.3) and its line is not carried over.
-    - Verified once by hand with ripgrep in this worktree: `rg --files .arc/user` lists the identity's files, recorded
-      in the completion note.
+- _Outcome:_ The `.gitignore` drops its `# Marksman LSP exclusions` comment and `.ignore` line, and the tracked root
+  `.ignore` is byte-identical to the block `writeArcIgnoreBlocks` writes into an absent file; the primary's untracked
+  copy stays for 4.3. Checked by hand with ripgrep 14.1.1 in this worktree: `rg --files .arc/user` lists the eleven files
+  under `.arc/user/andrew/` beside `.arc/user/README.md`, where with `--no-ignore-dot` it lists `README.md` alone.
 
 ## **Phase 2:** The engine's state
 
