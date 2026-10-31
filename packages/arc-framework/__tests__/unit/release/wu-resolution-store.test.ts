@@ -79,10 +79,10 @@ async function linkedWorkUnit(prefix: string, onTestFinished: (cleanup: () => Pr
   onTestFinished(async () => rm(cwd, { recursive: true, force: true }));
   const fixture = createReferenceFixture({}, { "work-item/meta": { parser: content => ({ success: true, data: parseMetaRecord(content) }) } });
   const reference = fixture.reference("work-item/meta");
-  success(await fixture.store.write({ action: "put", reference, content: makeMetaFixture(reference.owner.name, { branch: null }),
+  const record = success(await fixture.store.write({ action: "put", reference, content: makeMetaFixture(reference.owner.name, { branch: null }),
     placement: { kind: "active" }, links: { branches: [{ repository: "project-1", ref: "feat/demo", linkedAs: "created", excluded: [] }] },
     expected: null, provenance: testProvenance }));
-  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name: reference.owner.name },
+  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: boundWorkUnitSubject(record),
     spawningIdentity: "andrew", now: 0 });
   return { cwd, store: fixture.store, reference };
 }

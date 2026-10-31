@@ -1,4 +1,5 @@
 /** Conditional response decisions retain the invocation's native approved fix. */
+import { boundWorkUnitSubject } from "../../../../helpers/store/bound-checkout.js";
 import { expect, it, onTestFinished } from "vitest";
 import { createNativeConditionalPassFixture } from "../../../../fixtures/native-conditional-pass.js";
 import { createReviewCheckout } from "../../../../helpers/store/review-checkout.js";
@@ -48,7 +49,7 @@ it.each(["append", "replay"] as const)("persists a native Candidate response on 
   const saved = await h.seedCandidate(primary.reference.owner, before);
   const checkout = await createReviewCheckout(h);
   onTestFinished(checkout.cleanup);
-  await checkout.occupy("feat/example", { kind: "work-unit", name: "example" });
+  await checkout.occupy("feat/example", boundWorkUnitSubject(primary));
   const dependencies = createRespondDependencies({ cwd: checkout.cwd, exec: checkout.exec,
     store: h.store, workItem: primary.reference.owner, projectId: h.projectId });
   const result = mode === "append"

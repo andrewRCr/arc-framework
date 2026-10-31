@@ -8,6 +8,7 @@ import { createReviewHarness } from "../../helpers/store/review-harness.js";
 import { candidateFixture } from "../../helpers/store/tracked-write-fixture.js";
 import { projectDurableCandidateTarget } from "../../helpers/candidate.js";
 import { writeWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { projectCandidateReviewBoundary } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 
@@ -22,7 +23,7 @@ it.each(["full", "session-init"] as const)("projects the stored Integrating Cand
   const boundary = projectCandidateReviewBoundary({ workUnit: "example", candidateId: record.attestation.candidateId,
     candidateSubjectDigest: record.subject.subjectDigest }, 2);
   await h.seedBoundary(primary.reference.owner, boundary);
-  await writeWorktreeMarker(cwd, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "example" },
+  await writeWorktreeMarker(cwd, { spawnedByArc: false, createdFor: boundWorkUnitSubject(primary),
     spawningIdentity: "andrew", createdAt: "2026-10-19T00:00:00.000Z" });
   const git = scriptGitExec([{ match: ["rev-parse", "--abbrev-ref", "HEAD"], responses: [{ stdout: "feat/example" }] }]);
   const options = { cwd, store: h.store, projectId: async () => "project", exec: git.exec,

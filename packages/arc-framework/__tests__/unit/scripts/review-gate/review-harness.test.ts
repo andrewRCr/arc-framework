@@ -1,4 +1,5 @@
 /** Review fixtures enter the same production registry their consumers read. */
+import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { expect, it } from "vitest";
 import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
@@ -106,7 +107,7 @@ it.each(["Active", "Shipped"] as const)("resolves the production %s Candidate ow
     { match: ["cherry", "b".repeat(40), "a".repeat(40)], responses: [{ stdout: `+ ${"a".repeat(40)}\n` }] },
   ] });
   try {
-    await checkout.occupy("feat/example", { kind: "work-unit", name: "example" });
+    await checkout.occupy("feat/example", boundWorkUnitSubject(meta));
     const result = await resolveCandidateMutationOwner(checkout);
     expect(result).toEqual(state === "Shipped" ? { status: "owned", workUnit: "example", branch: "feat/example" }
       : { status: "owned", workUnit: "example" });

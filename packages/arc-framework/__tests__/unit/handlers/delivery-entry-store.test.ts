@@ -10,6 +10,7 @@ import { writeMetaTaskList } from "../../../src/lib/store/kinds/meta/writers.js"
 import { createReviewHarness } from "../../helpers/store/review-harness.js";
 import { recordReferences } from "../../../src/lib/store/identity.js";
 import { writeWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import type { Store } from "../../../src/lib/store/contract.js";
 
@@ -21,7 +22,7 @@ async function fixture(taskList: string | null = "tasks-example.md", storedTasks
   const seedTasks = () => h.seed(recordReferences["work-item/task-list"](primary.reference.owner),
     "# Task List: example\n\n## **Phase 1:** Build\n\n### `[ ]` **1.1 Build**\n");
   if (storedTasks) await seedTasks();
-  await writeWorktreeMarker(cwd, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "example" },
+  await writeWorktreeMarker(cwd, { spawnedByArc: false, createdFor: boundWorkUnitSubject(primary),
     spawningIdentity: "andrew", createdAt: "2026-10-19T00:00:00.000Z" });
   const git = scriptGitExec([{ match: ["rev-parse", "--git-common-dir"], responses: [{ stdout: join(cwd, "common") }] }]);
   return { ...h, primary, seedTasks, inspect: (entryMode: "execution" | "integrating" | "prepublication" = "execution",

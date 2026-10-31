@@ -1,4 +1,5 @@
 /** Production review-fix continuation reads native lifecycle records without projected files. */
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { handleDeliveryExecution } from "../../../src/handlers/delivery-execution.js";
 import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
@@ -29,7 +30,7 @@ async function fixture(state: "Active" | "Shipped", binding: string | null = "ta
     { match: ["symbolic-ref", "--quiet", "--short", "HEAD"], responses: [{ stdout: "feat/example" }] },
   ] });
   onTestFinished(checkout.cleanup);
-  await checkout.occupy("feat/example", { kind: "work-unit", name: "example" });
+  await checkout.occupy("feat/example", boundWorkUnitSubject(primary));
   return { ...checkout, primary, seedTasks, run: async (store: Store = checkout.store) => {
     let output = "";
     await handleDeliveryExecution("review-fix-continue", { input: "-" }, undefined, {
