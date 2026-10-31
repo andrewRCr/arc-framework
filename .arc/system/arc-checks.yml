@@ -521,7 +521,7 @@ checks:
       - '!.arc/completed/**'
       - '!.arc/system/.internal/candidates/**'
     shards:
-      count: 5
+      count: 6
       argument: --shard={index}/{count}
   test:portability:macos:
     command:
