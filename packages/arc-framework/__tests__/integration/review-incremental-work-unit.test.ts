@@ -1,4 +1,5 @@
 /** Default incremental policy resolves its Candidate through the stored adopted branch. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { access, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
@@ -38,7 +39,7 @@ it("accepts an incremental chain through the default Candidate applicability cal
   await writeFile(join(cwd, "example.ts"), "export const value = 1;\n");
   await git("commit", "-am", "Implement example");
   await writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: "andrew", createdAt: "2026-10-20T15:00:00Z",
-    createdFor: { kind: "work-unit", name: "example" } });
+    createdFor: boundWorkUnitSubject(primary) });
   const collected = await collectGitCandidateSubject({ cwd, name: "example", baseBranch: "main", exec });
   if (collected.status !== "collected") throw new Error(collected.detail);
   const attestation = createCandidateAttestation({ workUnit: "example", subject: collected.target.subject,
