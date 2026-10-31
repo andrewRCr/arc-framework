@@ -1,7 +1,7 @@
 /** Resolve the checkout's exact Errand claim without borrowing an identity-ref snapshot. */
 import { readWorktreeMarker, decodeWorktreeMarkerOwnership } from "../../../../lib/git/worktree-marker.js";
 import { deserializeTransientIdentityRecord, type TransientIdentityRecord } from "../../../../lib/errand/identity-record.js";
-import { acquireStoreErrands } from "../../../../lib/errand/store-discovery.js";
+import { acquireStoreErrandsWithFailure } from "../../../../lib/errand/store-discovery.js";
 import type { Store } from "../../../../lib/store/contract.js";
 import type { StoreRecord } from "../../../../lib/store/read.js";
 import { CheckoutClaimSchema } from "../../../../lib/store/lookup.js";
@@ -16,12 +16,22 @@ export type ReviewCheckoutErrand = Extract<TransientIdentityRecord, { kind: "err
 interface ReviewCheckoutErrandSelection { record: ReviewCheckoutErrand; workItem: OwnerIdentity }
 type ErrandClaim = { kind: "errand"; slug: string; claimId: string };
 
+// A native store's inventory failure refuses typed, as an incomplete review listing does; in-repo keeps its message.
 async function missingClaim(store: Store, claim: ErrandClaim): Promise<null> {
-  const inventory = await acquireStoreErrands(store);
-  if (inventory.kind === "error") throw new Error(`Errand ${claim.slug}: ${inventory.message}`);
+  const { acquisition: inventory, failure } = await acquireStoreErrandsWithFailure(store);
+  if (inventory.kind === "error") {
+    if (!store.capabilities.stateOffBranch || failure === undefined) throw new Error(`Errand ${claim.slug}: ${inventory.message}`);
+    throw claimRefusal(store, claim, failure.kind === "refused" ? failure.refusal : { code: "record-malformed", class: "recoverable",
+      rule: "review.errand-inventory-unreadable", condition: failure.condition, remedy: failure.remedy });
+  }
   if (inventory.kind === "complete" && (inventory.missed || inventory.diagnostics.length > 0)) {
     const detail = inventory.diagnostics.map(item => `${item.key}: ${item.condition} ${item.remedy.text}`).join("; ");
-    throw new Error(`Errand ${claim.slug} (${claim.claimId}) was not found in an incomplete inventory. ${detail || "Restore the complete Errand inventory, then retry."}`);
+    const missing = `Errand ${claim.slug} (${claim.claimId}) was not found in an incomplete inventory.`;
+    if (!store.capabilities.stateOffBranch) throw new Error(`${missing} ${detail || "Restore the complete Errand inventory, then retry."}`);
+    const remedies = [...new Set(inventory.diagnostics.map(item => item.remedy.text))];
+    throw new StoreRefusalError({ code: "record-malformed", class: "recoverable", rule: "review.errand-inventory-incomplete",
+      condition: [missing, ...inventory.diagnostics.map(item => `${item.key}: ${item.condition}`)].join(" "),
+      remedy: { text: remedies.length > 0 ? remedies.join(" ") : "Restore the complete Errand inventory, then retry." } }, true);
   }
   return null;
 }

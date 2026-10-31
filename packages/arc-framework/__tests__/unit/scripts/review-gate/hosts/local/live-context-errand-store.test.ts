@@ -119,7 +119,35 @@ it("keeps exact claims usable beside malformed entries and refuses an incomplete
   missing = true;
   const detail = /Errand repair.*damaged-errand.*Errand content is malformed.*Repair damaged-errand/u;
   await expect(readLocalReviewLiveContext(input)).rejects.toThrow(detail);
+  await expect(readLiveErrandClaimId(input, h.claimId)).rejects.toMatchObject({ offBranch: true, refusal: {
+    code: "record-malformed", class: "recoverable", rule: "review.errand-inventory-incomplete",
+    remedy: { text: "Repair damaged-errand, then retry." } } });
   await expect(createRespondDependencies(input).resolveActiveErrand()).rejects.toThrow(detail);
   missing = false;
   await resolves();
+});
+
+it.each(["refused", "unreadable"] as const)("raises a %s Errand inventory behind a missing claim from the live claim match, and reads the claim after repair", async (failure) => {
+  const h = await fixture();
+  onTestFinished(h.cleanup);
+  let inventoryFails = true, claimMissing = true;
+  const store = Object.create(h.store) as Store;
+  const remedy = { text: "Restore the Errand inventory, then retry." };
+  store.list = async input => !inventoryFails || input.kind !== "work-item/record" ? h.store.list(input)
+    : failure === "refused" ? { status: "refused", refusal: StoreRefusalSchema.parse({ code: "namespace-corrupt", class: "terminal",
+      namespace: "work-item", condition: "Errand inventory is corrupt.", remedy }) }
+    : { status: "ok", result: { status: "unreadable", condition: "Errand inventory cannot be read.", remedy } };
+  store.lookup = async input => claimMissing && input.kind === "claim"
+    ? { status: "refused", refusal: StoreRefusalSchema.parse({ code: "not-found", class: "recoverable", lookup: input,
+      condition: "Claim was not found.", remedy: { text: "Restore the claim, then retry." } }) }
+    : h.store.lookup(input);
+  const input = { ...h, store };
+  await expect(readLiveErrandClaimId(input, h.claimId)).rejects.toMatchObject({ offBranch: true,
+    message: expect.stringMatching(/^Errand repair \(1{32}\): Errand inventory (is corrupt|cannot be read)\. Restore the Errand inventory/u),
+    refusal: failure === "refused" ? { code: "namespace-corrupt", class: "terminal" }
+      : { code: "record-malformed", class: "recoverable", rule: "review.errand-inventory-unreadable", remedy } });
+  inventoryFails = false;
+  expect(await readLiveErrandClaimId(input, h.claimId)).toBeNull();
+  claimMissing = false;
+  expect(await readLiveErrandClaimId(input, h.claimId)).toBe(h.claimId);
 });

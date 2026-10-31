@@ -2,6 +2,7 @@
 import type { Store } from "../store/contract.js";
 import { OwnerIdentitySchema } from "../store/identity.js";
 import type { StoreRecord, ListingDiagnostic } from "../store/read.js";
+import type { Remedy, StoreRefusal } from "../store/refusal.js";
 import type { StateVersion } from "../store/identity.js";
 import { deserializeTransientIdentityRecord, projectLocusIdentity, type TransientIdentityRecord } from "./identity-record.js";
 import type { LocusIdentityV1 } from "../locus/schema/index.js";
@@ -12,25 +13,41 @@ export type StoreIdentityAcquisition =
   | { kind: "error"; message: string }
   | { kind: "complete"; records: readonly StoreRecord[]; identities: readonly LocusIdentityV1[];
       decoded: ReadonlyMap<string, TransientIdentityRecord>; diagnostics: readonly ListingDiagnostic[]; missed: boolean; asOf?: StateVersion };
+/** What stopped an acquisition: the store's own refusal, or a listing it could not read. */
+export type StoreIdentityAcquisitionFailure =
+  | { kind: "refused"; refusal: StoreRefusal }
+  | { kind: "unreadable"; condition: string; remedy: Remedy };
+/** An acquisition, with what stopped it when it failed. */
+export type AcquisitionRead = { acquisition: StoreIdentityAcquisition; failure?: StoreIdentityAcquisitionFailure };
+const ERRAND_LISTINGS: Parameters<Store["list"]>[0][] = [{ family: "work-item", kind: "work-item/record", filter: { locations: ["active"] } }];
 /** Read active project-scoped Errands, preserving malformed entries as diagnostics. */
 export async function acquireStoreErrands(store: Store): Promise<StoreIdentityAcquisition> {
-  return acquire(store, [{ family: "work-item", kind: "work-item/record", filter: { locations: ["active"] } }], true);
+  return (await acquire(store, ERRAND_LISTINGS, true)).acquisition;
+}
+/** Read active project-scoped Errands, and what stopped the read when it failed, for a caller refusing with it. */
+export async function acquireStoreErrandsWithFailure(store: Store): Promise<AcquisitionRead> {
+  return acquire(store, ERRAND_LISTINGS, true);
 }
 /** Read both identity-scoped claim kinds at the same saved-state anchor. */
 export async function acquireStoreClaims(store: Store, identity: string): Promise<StoreIdentityAcquisition> {
   const owner = OwnerIdentitySchema.parse({ type: "person", name: identity });
-  return acquire(store, [{ family: "claims", kind: "claims/groom", owner }, { family: "claims", kind: "claims/housekeep", owner }], false);
+  return (await acquire(store, [{ family: "claims", kind: "claims/groom", owner }, { family: "claims", kind: "claims/housekeep", owner }],
+    false)).acquisition;
 }
-async function acquire(store: Store, inputs: Parameters<Store["list"]>[0][], errands: boolean): Promise<StoreIdentityAcquisition> {
+function failed(failure: StoreIdentityAcquisitionFailure): AcquisitionRead {
+  const { condition, remedy } = failure.kind === "refused" ? failure.refusal : failure;
+  return { acquisition: { kind: "error", message: `${condition} ${remedy.text}` }, failure };
+}
+async function acquire(store: Store, inputs: Parameters<Store["list"]>[0][], errands: boolean): Promise<AcquisitionRead> {
   const anchor = await store.version();
-  if (anchor.status === "refused") return { kind: "error", message: `${anchor.refusal.condition} ${anchor.refusal.remedy.text}` };
+  if (anchor.status === "refused") return failed({ kind: "refused", refusal: anchor.refusal });
   const records: StoreRecord[] = [], diagnostics: ListingDiagnostic[] = [], identities: LocusIdentityV1[] = [];
   const decoded = new Map<string, TransientIdentityRecord>(); let missed = false, present = false;
   for (const input of inputs) {
     const listing = await store.list({ ...input, asOf: anchor.result });
-    if (listing.status === "refused") return { kind: "error", message: `${listing.refusal.condition} ${listing.refusal.remedy.text}` };
+    if (listing.status === "refused") return failed({ kind: "refused", refusal: listing.refusal });
     const outcome = listing.result;
-    if (outcome.status === "unreadable") return { kind: "error", message: `${outcome.condition} ${outcome.remedy.text}` };
+    if (outcome.status === "unreadable") return failed({ kind: "unreadable", condition: outcome.condition, remedy: outcome.remedy });
     if (outcome.status === "absent") continue;
     present = true; missed ||= outcome.missed; diagnostics.push(...outcome.diagnostics);
     for (const saved of outcome.records) {
@@ -40,8 +57,8 @@ async function acquire(store: Store, inputs: Parameters<Store["list"]>[0][], err
       records.push(saved); decoded.set(projected.record.slug, projected.record); identities.push(projectLocusIdentity(projected.record));
     }
   }
-  return present ? { kind: "complete", records, decoded, identities, diagnostics, missed, asOf: anchor.result }
-    : { kind: "absent", asOf: anchor.result };
+  return { acquisition: present ? { kind: "complete", records, decoded, identities, diagnostics, missed, asOf: anchor.result }
+    : { kind: "absent", asOf: anchor.result } };
 }
 
 function projectRecord(saved: StoreRecord, errands: boolean): { record?: TransientIdentityRecord; diagnostics: ListingDiagnostic[] } {
