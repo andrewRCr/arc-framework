@@ -1619,14 +1619,17 @@ async function errandFrontlinePhaseClosed(
 /**
  * Whether a standard-lane request on an opened change request comes from the checkout of the open ordinary Errand
  * that hosted Errand review binds. A checkout it cannot establish proves no Errand; the request still resolves,
- * without the first pass's request.
+ * without the first pass's request. A native store's refusal establishes nothing either way and is raised.
  */
 async function errandStandardVehicle(
   request: ReviewPolicyCommandRequest,
   input: ReviewInvocationOptions & { root: string; exec: GitExec },
 ): Promise<boolean> {
   if (request.lane !== "standard" || request.target.pullRequest === null) return false;
-  return readIndexedHostedReviewErrand(input.root, input.exec, input).then(() => true, () => false);
+  return readIndexedHostedReviewErrand(input.root, input.exec, input).then(() => true, (error: unknown) => {
+    rethrowNativeRefusal(error);
+    return false;
+  });
 }
 
 function defaultReviewResolveDependencies(exec: GitExec, invocation: ReviewInvocationOptions = {}): ReviewResolveHandlerDependencies {

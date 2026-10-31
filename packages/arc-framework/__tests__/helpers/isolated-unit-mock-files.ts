@@ -40,6 +40,7 @@ export const ISOLATED_UNIT_MOCK_FILES = [
   "__tests__/unit/handlers/off-branch-write-context.test.ts",
   "__tests__/unit/handlers/recover-envelope-boundary.test.ts",
   "__tests__/unit/handlers/release/push-cli.test.ts",
+  "__tests__/unit/handlers/review-hosted-store.test.ts",
   "__tests__/unit/handlers/start.test.ts",
   "__tests__/unit/init.test.ts",
   "__tests__/unit/install-prompt-sequences.test.ts",

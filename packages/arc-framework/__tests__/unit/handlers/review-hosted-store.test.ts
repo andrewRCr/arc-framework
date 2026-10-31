@@ -8,7 +8,7 @@ import { withReviewReport } from "../../fixtures/review-report-input.js";
 import { HostedAwaitCommandResultSchema } from "../../../src/scripts/review-gate/hosted/await.js";
 import { appendFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, it, onTestFinished } from "vitest";
+import { expect, it, onTestFinished, vi } from "vitest";
 import { handleReviewHostedRequest, handleReviewHostedAwait, handleReviewRespond, handleReviewHostedSettle, handleReviewResolve } from "../../../src/handlers/review.js";
 import { createCandidateAttestation, createCandidateSubjectSnapshot } from "../../../src/lib/work-unit/candidate-attestation.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
@@ -37,6 +37,14 @@ import { bindReviewSourceReference, parseReviewSourceReference } from "../../../
 import { bindNativeReviewOperationReference, parseNativeReviewOperationReference } from "../../../src/scripts/review-gate/core/review-operation-reference.js";
 
 import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
+import { runDerivedLocusStateProbe } from "../../../src/handlers/derived-locus-state-probe.js";
+import { nativeListingRefusal } from "../../fixtures/native-refusal.js";
+
+// The locus probe runs as itself unless a case makes one call meet a store refusal from another checkout's records.
+vi.mock("../../../src/handlers/derived-locus-state-probe.js", async importOriginal => {
+  const original = await importOriginal<typeof import("../../../src/handlers/derived-locus-state-probe.js")>();
+  return { ...original, runDerivedLocusStateProbe: vi.fn(original.runDerivedLocusStateProbe) };
+});
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 const head = "a".repeat(40), base = "b".repeat(40), branch = "chore/repair";
@@ -640,3 +648,24 @@ it("reports an unreadable native review listing whole when resolve reads a hoste
   expect(resolved, JSON.stringify(resolved)).toMatchObject({ mode: "review-resolve", state: expect.any(String) });
   expect(resolved).not.toHaveProperty("error");
 });
+
+it("raises a native refusal establishing an Errand's standard vehicle whole, and resolves its first hosted request once it reads",
+  async () => {
+    const h = await fixture();
+    const request = ReviewPolicyCommandRequestSchema.parse({ schemaVersion: 1, target: h.policyRequest.target, lane: "standard",
+      standardReview: h.policyRequest.standardReview, invocation: h.policyRequest.invocation, completedPasses: 0, attempts: [] });
+    const resolve = async () => {
+      let output = "";
+      await handleReviewResolve("-", { resolveRoot: () => h.cwd, readText: async () => JSON.stringify(request),
+        write: text => { output += text; }, setExitCode: () => {} }, undefined, { ...h, projectId: createProjectIdentityReader(h.store) });
+      return JSON.parse(output) as unknown;
+    };
+    const refusal = nativeListingRefusal();
+    vi.mocked(runDerivedLocusStateProbe).mockRejectedValueOnce(refusal);
+    const refused = await resolve();
+    expect(refused, JSON.stringify(refused)).toMatchObject({ mode: "review-resolve", error: { code: "store-refused" },
+      refusal: refusal.refusal, remedy: { text: expect.stringContaining(refusal.refusal.remedy.text) } });
+    const resolved = await resolve();
+    expect(resolved, JSON.stringify(resolved)).toMatchObject({ mode: "review-resolve", state: "ready", nextAction: "hosted-request",
+      action: { target: h.policyRequest.target, provider: "codex-pr", vehicle: { kind: "errand" } } });
+  });
