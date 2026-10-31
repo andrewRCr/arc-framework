@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "import-inbound-intro",
+  "claimId": "744505167c80179cbcc132014093306d",
+  "createdAt": "2026-10-31T01:20:04.737Z",
+  "updatedAt": "2026-10-31T01:20:04.737Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Import introductory inbound-buffer blockquotes while preserving unrelated prose",
+  "branch": "chore/import-inbound-intro",
+  "origin": "inbox",
+  "originEntry": "Let the import move a draft's inbound buffer that opens with an intro blockquote",
+  "originEntrySourceDigest": "sha256:b4b0d6e4ff61e08e57118e4dbcff490425207556cfbb6e45288d2ff9f69fc55a",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
