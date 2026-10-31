@@ -24,6 +24,8 @@ export function splitEntryList(content: string, config: EntryListConfig): SplitE
   const masked = maskComments(content);
   const parts: (ListEntry | OutsideEntry)[] = [];
   const lines = [...masked.matchAll(/[^\n]*(?:\n|$)/gu)].filter((line) => line[0].length > 0);
+  const textLines = lines.map(line => line[0].replace(/\r?\n$/u, "").trimEnd());
+  const fieldHeaders = new Set(config.shape === "field-header" ? fieldHeaderSpans(textLines).map(span => span.start) : []);
   let section: string | null = null;
   let started: {offset:number;section:string} | null = null;
   let consumed = 0;
@@ -40,14 +42,14 @@ export function splitEntryList(content: string, config: EntryListConfig): SplitE
     consumed = end;
     started = null;
   }
-  for (const line of lines) {
-    const text = line[0].replace(/\r?\n$/u,"").trimEnd();
+  for (const [index, line] of lines.entries()) {
+    const text = textLines[index] ?? "";
     const offset = line.index;
     if (text.startsWith("## ") || text === "---") {
       flush(offset);
       const name = text.startsWith("## ") ? text.slice(3) : "";
       section = config.sections.includes(name) ? name : null;
-    } else if (section !== null && isEntryHeader(text,config.shape)) {
+    } else if (section !== null && isEntryHeader(text, config.shape, fieldHeaders.has(index))) {
       flush(offset);
       started = {offset,section};
     }
@@ -66,8 +68,23 @@ export function rejoinEntryList(split: SplitEntryList): string {
 }
 
 
-function isEntryHeader(line: string, shape: EntryListConfig["shape"]): boolean {
-  return shape === "heading" ? /^###\s/u.test(line) : /^\*\*.+:\*\*\s*$/u.test(line);
+function isEntryHeader(line: string, shape: EntryListConfig["shape"], fieldHeader: boolean): boolean {
+  return shape === "heading" ? /^###\s/u.test(line) : fieldHeader;
+}
+
+/** Locate complete bold field headers across consecutive non-blank lines without crossing sections. */
+export function fieldHeaderSpans(lines: readonly string[]): readonly { start: number; end: number }[] {
+  const spans: { start: number; end: number }[] = [];
+  let start: number | undefined;
+  for (const [index, line] of lines.entries()) {
+    const text = line.trimEnd();
+    if (!text.trim() || text.startsWith("## ") || text === "---") { start = undefined; continue; }
+    if (start === undefined && text.startsWith("**")) start = index;
+    if (start === undefined || !/:\*\*$/u.test(text)) continue;
+    if (/^\*\*.+:\*\*\s*$/u.test(lines.slice(start, index + 1).join(" "))) spans.push({ start, end: index });
+    start = undefined;
+  }
+  return spans;
 }
 
 /** Hide comments from recognition while retaining offsets and line endings.

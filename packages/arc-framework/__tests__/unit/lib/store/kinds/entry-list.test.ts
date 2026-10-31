@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseEntryList } from "../../../../../src/lib/store/kinds/entry-list.js";
+import { parseEntryList, writeEntryList } from "../../../../../src/lib/store/kinds/entry-list.js";
 import { ENTRY_CONFIGS } from "../../../../../src/lib/store/kinds/entry-configs.js";
 import { parsePersonalInboxEntries } from "../../../../../src/lib/store/kinds/personal-inbox.js";
 
@@ -23,18 +23,33 @@ describe("production entry grammars", () => {
     expect(parsed.data.entries[0]?.fields.Created).toBe((config.managedFields as readonly string[]).includes("Created") ? "2026-01-01" : undefined);
     expect(parsed.data.entries[0]?.fields.Hold).toBe((config.managedFields as readonly string[]).includes("Hold") ? "true" : undefined);
   });
-  it.each(["**Wrapped\nheader:**", "**Colonless**"])("refuses a malformed memory header: %s", (header) => {
+  it.each(["**Wrapped\n\nheader:**", "**Colonless**"])("refuses a malformed memory header: %s", (header) => {
     const parsed = parseEntryList(`## Memories\n**Good:**\n_Remove when: good._\n\n${header}\n_Remove when: done._\n`, "personal/working-memory");
     expect(parsed.success).toBe(false);
     if (!parsed.success) expect(parsed.error).toContain("**Title:**");
   });
   it.each(["\n", "\r\n"].flatMap((newline) => [" ", "\t"].flatMap((suffix) =>
-    ["**Wrapped\nheader:**", "**Colonless**"].map((header) => ({ newline, suffix, header })))))(
+    ["**Wrapped\n\nheader:**", "**Colonless**"].map((header) => ({ newline, suffix, header })))))(
     "refuses malformed memory under a whitespace-suffixed section: $newline $suffix $header", ({ newline, suffix, header }) => {
       const content = `## Memories${suffix}\n**Good:**\n_Remove when: good._\n\n${header}\n_Remove when: done._\n`.replaceAll("\n", newline);
       const parsed = parseEntryList(content, "personal/working-memory");
       expect(parsed.success).toBe(false);
       if (!parsed.success) expect(parsed.error).toContain("**Title:**");
+    });
+  it.each(["\n", "\r\n"].flatMap(newline => ["", " ", "\t"].flatMap(suffix =>
+    ["**Wrapped\nheader:**", "**A title with\nthree consecutive\nlines:**"].map(header => ({ newline, suffix, header })))))(
+    "reads complete wrapped memory entries losslessly with $newline $suffix $header", ({ newline, suffix, header }) => {
+      const first = `${header}\n_Remove when: first condition._\n_Id:_ \`12345678\`\n\nFirst body.`;
+      const second = "**Next:**\n_Remove when: second condition._\n\nSecond body.";
+      const content = `# Working Memory\n\n## Memories${suffix}\n\n${first}\n\n${second}\n\n---\nFooter.\n`.replaceAll("\n", newline);
+      const parsed = parseEntryList(content, "personal/working-memory");
+      expect(parsed.success).toBe(true);
+      if (!parsed.success) return;
+      expect(parsed.data.entries).toHaveLength(2);
+      expect(parsed.data.entries[0]).toMatchObject({ title: header.replaceAll("\n", " "), id: "12345678",
+        bytes: first.replaceAll("\n", newline), fields: { "Remove when": "first condition.", Id: "12345678" } });
+      expect(parsed.data.entries[1]?.bytes).toBe(second.replaceAll("\n", newline));
+      expect(writeEntryList(parsed.data)).toBe(content);
     });
   it("refuses memory without a trigger", () => {
     expect(parseEntryList("## Memories\n**Title:**\nBody\n", "personal/working-memory").success).toBe(false);
