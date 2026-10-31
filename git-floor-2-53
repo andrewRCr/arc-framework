@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "git-floor-2-53",
+  "claimId": "5ffa9bf7c56a72212b161e69d34f08f3",
+  "createdAt": "2026-10-31T16:52:25.781Z",
+  "updatedAt": "2026-10-31T16:52:25.781Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Raise the supported Git minimum and both CI floor pins to 2.53.0.",
+  "branch": "chore/git-floor-2-53",
+  "origin": "inbox",
+  "originEntry": "Raise the supported Git floor to 2.53.0",
+  "originEntrySourceDigest": "sha256:f6a77ffaa31d6b5a5f781c18f9f25a2cd1e3a34fa5efb94d1292699b09d3b72d",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
