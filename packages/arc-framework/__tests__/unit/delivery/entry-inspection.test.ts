@@ -25,6 +25,7 @@ import {
 } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 import { DeliveryStateV1Schema } from "../../../src/lib/delivery/schema.js";
+import { nativeListingRefusal } from "../../fixtures/native-refusal.js";
 
 const plan = deliveryStackPlanFixture();
 const prefix = "# Task List\n\n";
@@ -164,7 +165,7 @@ function publicContinuationFixture() {
   if (boundary.locus !== "delivery-status-required") {
     throw new Error("fixture boundary must resume delivery review");
   }
-  return { state, stateRevision, candidateId, candidateSubjectDigest, boundary };
+  return { state, stateRevision, candidateId, candidateSubjectDigest, source, boundary };
 }
 
 function stateWithActiveCorrection() {
@@ -966,6 +967,92 @@ describe("delivery entry inspection", () => {
       status: "not-applicable",
       nextAction: "continue-work-unit",
     });
+  });
+});
+
+/** Throw a native store refusal from one read until the store is repaired, then read as before. */
+function refusing<D extends object>(source: D, read: keyof D) {
+  const refusal = nativeListingRefusal();
+  const original = source[read] as (...args: unknown[]) => Promise<unknown>;
+  let repaired = false;
+  const refusingDependencies = { ...source, [read]: async (...args: unknown[]) => {
+    if (!repaired) throw refusal;
+    return original(...args);
+  } } as D;
+  return { dependencies: refusingDependencies, refusal, repair: () => { repaired = true; } };
+}
+
+describe("delivery entry inspection over a native store refusal", () => {
+  function integrating(boundary: "continuation" | "acknowledged") {
+    const fixture = publicContinuationFixture();
+    const { deliveryContinuation: _omitted, ...acknowledged } = fixture.boundary;
+    void _omitted;
+    return dependencies({
+      taskList: `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`,
+      resolvedPlan: plan,
+      state: fixture.state,
+      stateRevision: fixture.stateRevision + 1,
+      integrationBoundary: boundary === "continuation" ? fixture.boundary : acknowledged,
+      candidate: {
+        candidateId: fixture.candidateId,
+        subjectDigest: `sha256:${"1".repeat(64)}`,
+        verificationResponseCurrent: true,
+      },
+    });
+  }
+
+  it.each([
+    ["task list", "readTaskList", "continuation"],
+    ["integration boundary", "readIntegrationBoundary", "continuation"],
+    ["Candidate", "readCandidate", "continuation"],
+    ["Candidate behind an acknowledged continuation", "readCandidate", "acknowledged"],
+  ] as const)("names a refused %s read's own remedy, and routes once the store is repaired", async (
+    _name, read, boundary,
+  ) => {
+    const input = { workUnitId: plan.workUnitId, entryMode: "integrating" } as const;
+    const { dependencies: refusingDependencies, refusal, repair } = refusing(integrating(boundary), read);
+
+    await expect(inspectDeliveryEntry(input, refusingDependencies)).resolves.toEqual({
+      status: "refused",
+      nextAction: "stop",
+      reason: "evidence-unavailable",
+      recommendedActionText: refusal.message,
+    });
+    repair();
+    await expect(inspectDeliveryEntry(input, refusingDependencies)).resolves.toMatchObject({
+      status: "candidate-renewal-required",
+      nextAction: "renew-public-continuation",
+    });
+  });
+
+  it("keeps its own remedy when a read fails without a native refusal", async () => {
+    const source = integrating("continuation");
+    await expect(inspectDeliveryEntry({ workUnitId: plan.workUnitId, entryMode: "integrating" }, {
+      ...source,
+      readIntegrationBoundary: async () => { throw new Error("unreadable boundary"); },
+    })).resolves.toEqual({
+      status: "refused",
+      nextAction: "stop",
+      reason: "evidence-unavailable",
+      recommendedActionText:
+        "Resolve the delivery plan, authoring, task-list, and state evidence conflict before entering delivery.",
+    });
+  });
+
+  it("raises a refused task-list read from Candidate renewal whole, and prepares the continuation once repaired", async () => {
+    const fixture = publicContinuationFixture();
+    const { dependencies: refusingDependencies, refusal, repair } = refusing(dependencies({
+      taskList: `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`,
+      resolvedPlan: plan,
+      state: fixture.state,
+      stateRevision: fixture.stateRevision,
+    }), "readTaskList");
+
+    await expect(inspectDeliveryCandidateRenewal(plan.workUnitId, fixture.source, refusingDependencies))
+      .rejects.toBe(refusal);
+    repair();
+    await expect(inspectDeliveryCandidateRenewal(plan.workUnitId, fixture.source, refusingDependencies))
+      .resolves.toMatchObject({ status: "ready", planId: plan.planId, stateRevision: fixture.stateRevision });
   });
 });
 

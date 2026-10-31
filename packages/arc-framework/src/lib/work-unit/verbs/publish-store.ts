@@ -17,6 +17,8 @@ import { CandidateManagedRecordV1Schema } from "../../store/kinds/review/candida
 import { describeRecordConflicts } from "../../store/conflict-diagnostics.js";
 import { isOffBranchStoreRefusal } from "../../store/refusal-error.js";
 import { ProjectIdentityError } from "../../store/project-identity.js";
+import { ReviewOwnerSelectionError } from "../../store/kinds/review/errors.js";
+import { isNativeTypedRefusal } from "../../store/native-refusal.js";
 import { PublicationClaimRefusal } from "../../store/kinds/review/integration-boundary/publication.js";
 
 type PublicationReject = (reason: string, refusal?: StoreRefusal, remedy?: Remedy) => Extract<PublishResult, { status: "rejected" }>;
@@ -67,17 +69,18 @@ function prePublicationRemedy(name: string): Remedy {
   return { text: "Resolve pre-publication review, then retry publication.", argv: ["arc", "review", "pre-publication", name] };
 }
 
-/** Reject an off-branch store's refusal whole and a project-identity failure with its port's remedy; rethrow others. */
+/** Reject an off-branch store's refusal whole, and a project-identity or owner failure with its remedy; rethrow others. */
 function rejectStoreFailure(error: unknown, reject: PublicationReject): Extract<PublishResult, { status: "rejected" }> {
   if (isOffBranchStoreRefusal(error)) return reject(error.refusal.condition, error.refusal);
   if (error instanceof ProjectIdentityError) return reject(error.failure.reason, undefined, error.failure.remedy);
+  if (error instanceof ReviewOwnerSelectionError) return reject(error.condition, undefined, error.remedy);
   throw error;
 }
 
 /** Reject a refused claim with its own remedy, a store or project-identity failure whole, or any other failure as it is. */
 function rejectPublicationClaim(error: unknown, reject: PublicationReject): Extract<PublishResult, { status: "rejected" }> {
   if (error instanceof PublicationClaimRefusal) return reject(error.condition, undefined, error.remedy);
-  if (isOffBranchStoreRefusal(error) || error instanceof ProjectIdentityError) return rejectStoreFailure(error, reject);
+  if (isNativeTypedRefusal(error)) return rejectStoreFailure(error, reject);
   return reject(`The publication claim failed: ${String(error)}`);
 }
 

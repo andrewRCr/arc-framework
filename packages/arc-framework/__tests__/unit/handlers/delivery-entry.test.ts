@@ -4,6 +4,7 @@ import {
   handleDeliveryEntryInspect,
   type DeliveryEntryInspectHandlerDependencies,
 } from "../../../src/handlers/delivery-entry.js";
+import { nativeListingRefusal } from "../../fixtures/native-refusal.js";
 
 function dependencies(result: unknown): DeliveryEntryInspectHandlerDependencies {
   return {
@@ -83,6 +84,30 @@ describe("delivery entry handler", () => {
     expect(deps.inspect).toHaveBeenCalledOnce();
     if (result.status === "refused") expect(deps.setExitCode).toHaveBeenCalledWith(1);
     else expect(deps.setExitCode).not.toHaveBeenCalled();
+  });
+
+  it("names a native store refusal's own remedy when inspection fails, and routes once the store is repaired", async () => {
+    const refusal = nativeListingRefusal();
+    const route = { status: "not-applicable", nextAction: "continue-work-unit", recommendedActionText: "Continue." };
+    const deps = dependencies(route);
+    vi.mocked(deps.inspect).mockRejectedValueOnce(refusal);
+    const emitted = async () => {
+      await handleDeliveryEntryInspect({ input: "-" }, undefined, deps);
+      return JSON.parse(vi.mocked(deps.write).mock.calls.at(-1)?.[0] as string) as unknown;
+    };
+
+    expect(await emitted()).toEqual({ schemaVersion: 1, command: "delivery entry inspect", status: "refused",
+      reason: "inspection-unavailable", recommendedActionText: refusal.message });
+    expect(await emitted()).toEqual({ schemaVersion: 1, command: "delivery entry inspect", ...route });
+  });
+
+  it("refuses an unavailable inspection without a remedy it cannot name", async () => {
+    const deps = dependencies({ status: "not-applicable" });
+    vi.mocked(deps.inspect).mockRejectedValueOnce(new Error("unreadable checkout"));
+    await handleDeliveryEntryInspect({ input: "-" }, undefined, deps);
+
+    expect(JSON.parse(vi.mocked(deps.write).mock.calls[0]?.[0] as string)).toEqual({ schemaVersion: 1,
+      command: "delivery entry inspect", status: "refused", reason: "inspection-unavailable" });
   });
 
   it("rejects malformed attended input before reading delivery facts", async () => {

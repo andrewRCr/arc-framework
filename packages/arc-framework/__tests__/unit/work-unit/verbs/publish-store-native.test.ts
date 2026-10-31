@@ -1,5 +1,6 @@
 /** Native publication commits its readiness claim and lifecycle move together. */
 import { expect, it, onTestFinished } from "vitest";
+import { ReviewOwnerSelectionError } from "../../../../src/lib/store/kinds/review/errors.js";
 import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 import { createReviewCheckout } from "../../../helpers/store/review-checkout.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
@@ -184,6 +185,15 @@ it("reports a store refusal from claim preparation with its own remedy, and publ
     condition: "The review lock is held.", remedy: { text: "Wait for the holder to finish, then retry.", argv: ["arc", "store", "pull"] } };
   expect(await runPublish(h.ctx, { ...h.params, preparePublicationClaim: () => Promise.reject(new StoreRefusalError(refusal, true)) }))
     .toMatchObject({ status: "rejected", reason: refusal.condition, refusal, remedy: { argv: ["arc", "store", "pull"] } });
+  expect(await runPublish(h.ctx, h.params)).toMatchObject({ status: "published" });
+});
+
+it("reports a work-item selection refusal from claim preparation with its own remedy, and publishes once it prepares", async () => {
+  const h = await fixture();
+  const remedy = { text: "Select the work unit's current generation, then retry.", argv: ["arc", "status", "example"] };
+  const refusal = new ReviewOwnerSelectionError("corrupt-state", "The work unit's stored owner is ambiguous.", remedy);
+  expect(await runPublish(h.ctx, { ...h.params, preparePublicationClaim: () => Promise.reject(refusal) }))
+    .toMatchObject({ status: "rejected", reason: refusal.condition, remedy: { argv: remedy.argv } });
   expect(await runPublish(h.ctx, h.params)).toMatchObject({ status: "published" });
 });
 

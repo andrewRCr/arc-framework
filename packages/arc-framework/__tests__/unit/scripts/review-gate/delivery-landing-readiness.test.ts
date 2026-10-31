@@ -12,6 +12,7 @@ import {
   "../../../../src/scripts/review-gate/delivery-landing-readiness.js";
 import { resolveReviewPolicy } from
   "../../../../src/scripts/review-gate/policy/review-policy-driver.js";
+import { nativeListingRefusal } from "../../../fixtures/native-refusal.js";
 import { composeDeliveryReviewObligation, RoutedReviewObligationSchema, type ReviewStatusObservation,
   type ReviewStatusPort } from
   "../../../../src/scripts/review-gate/status.js";
@@ -233,5 +234,25 @@ describe("delivery landing review readiness", () => {
     await expect(assessDeliveryLandingReviewReadiness(target, {
       observe: async () => { throw new Error("unavailable"); },
     })).resolves.toEqual({ status: "refused", reason: "status-unavailable" });
+  });
+
+  it("raises a native refusal of the member status read whole, and admits the member once it reads", async () => {
+    const refusal = nativeListingRefusal();
+    let repaired = false;
+    const status: ReviewStatusPort = { observe: async () => { if (!repaired) throw refusal; return observation(); } };
+    await expect(assessDeliveryLandingReviewReadiness(target, status)).rejects.toBe(refusal);
+    repaired = true;
+    await expect(assessDeliveryLandingReviewReadiness(target, status)).resolves.toEqual({ status: "ready" });
+  });
+
+  it("raises a native refusal of the shared delivery status read whole, and admits the member once it reads", async () => {
+    const refusal = nativeListingRefusal();
+    let repaired = false;
+    const shared: ReviewStatusPort = { observe: async () => { if (!repaired) throw refusal; return observation(); } };
+    const readiness = () => createDeliveryLandingSetReviewReadiness(target, shared,
+      (_member, routedObligation) => port(observation({ routedObligation })));
+    await expect(readiness()(target)).rejects.toBe(refusal);
+    repaired = true;
+    await expect(readiness()(target)).resolves.toEqual({ status: "ready" });
   });
 });

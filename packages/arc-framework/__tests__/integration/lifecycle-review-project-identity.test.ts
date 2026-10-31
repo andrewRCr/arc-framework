@@ -21,6 +21,7 @@ import type { Store } from "../../src/lib/store/index.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { writeMetaState } from "../../src/lib/store/kinds/meta/writers.js";
 import { lackingEndedHistory } from "../helpers/store/ended-history.js";
+import { testProvenance } from "../helpers/store/suite-tools.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 afterEach(() => { vi.restoreAllMocks(); process.exitCode = 0; });
@@ -123,8 +124,8 @@ it.each(["review/candidate", "review/integration-boundary"] as const)(
     expect(await h.publish()).toMatchObject({ status: "unchanged", boundary });
   }, 30_000);
 
-it("names the native Candidate version during live-review recovery and re-roots after that review ends", async () => {
-  const h = await fixture(), originalCwd = process.cwd();
+// Prepare a local review of the attested head from inside the checkout, then commit a correction past it.
+async function startLiveReview(h: Awaited<ReturnType<typeof fixture>>) {
   await h.reference.seedProject(projectId);
   const runReview = async (request: unknown, mode: "prepare" | "attest") => {
     let output = "";
@@ -135,17 +136,23 @@ it("names the native Candidate version during live-review recovery and re-roots 
     else await handleReviewLocalAttest("-", boundary, undefined, invocation);
     return JSON.parse(output) as unknown;
   };
+  const prepared = LocalPrepareEnvelopeSchema.parse(await runReview({ schemaVersion: 1,
+    evaluatorIdentity: "independent-reviewer", routingFacts: { contentKind: "code-bearing", reviewRisk: "routine",
+      changeDeterminacy: "ordinary", ownership: "self", surfaceAuthority: "ordinary" },
+    policyJudgment: { scopeMode: "whole-target", invocation: { mode: "force", sourceId: "delegated-agent" } } }, "prepare"));
+  if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
+  const before = await readCandidateRecordVersioned(h.cwd, "example", { store: h.reference.store, owner: h.primary.reference.owner });
+  const reviewHead = (await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.cwd })).stdout.trim();
+  await writeFile(join(h.cwd, "example.ts"), "export const example = false;\n");
+  await h.exec("git", ["commit", "-am", "Correct example"], { cwd: h.cwd });
+  return { runReview, prepared, before, reviewHead };
+}
+
+it("names the native Candidate version during live-review recovery and re-roots after that review ends", async () => {
+  const h = await fixture(), originalCwd = process.cwd();
   try {
     process.chdir(h.cwd);
-    const prepared = LocalPrepareEnvelopeSchema.parse(await runReview({ schemaVersion: 1,
-      evaluatorIdentity: "independent-reviewer", routingFacts: { contentKind: "code-bearing", reviewRisk: "routine",
-        changeDeterminacy: "ordinary", ownership: "self", surfaceAuthority: "ordinary" },
-      policyJudgment: { scopeMode: "whole-target", invocation: { mode: "force", sourceId: "delegated-agent" } } }, "prepare"));
-    if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
-    const before = await readCandidateRecordVersioned(h.cwd, "example", { store: h.reference.store, owner: h.primary.reference.owner });
-    const reviewHead = (await h.exec("git", ["rev-parse", "HEAD"], { cwd: h.cwd })).stdout.trim();
-    await writeFile(join(h.cwd, "example.ts"), "export const example = false;\n");
-    await h.exec("git", ["commit", "-am", "Correct example"], { cwd: h.cwd });
+    const { runReview, prepared, before, reviewHead } = await startLiveReview(h);
     const refused = await h.attest(true);
     expect(refused, JSON.stringify(refused)).toMatchObject({ status: "refused", reason: "re-root-live-review",
       recordRevision: before.version, nextAction: { candidateRecordRevision: before.version },
@@ -183,3 +190,40 @@ it("re-roots a Shipped work unit and prepares its review after pulling the histo
   } finally { process.chdir(originalCwd); }
   expect(LocalPrepareEnvelopeSchema.parse(JSON.parse(output)), output).toHaveProperty("state", "ready");
 }, 30_000);
+
+it("refuses live-review recovery through the store's refusal of the Candidate history, and names the version once it reads",
+  async () => {
+    const h = await fixture(), originalCwd = process.cwd();
+    try {
+      process.chdir(h.cwd);
+      const { before } = await startLiveReview(h);
+      const refusal = { code: "state-unresolvable" as const, class: "recoverable" as const, historyRefs: [],
+        condition: "The Candidate record's history objects are missing.", remedy: { text: "Fetch the missing objects, then retry." } };
+      const history = h.reference.store.history.bind(h.reference.store);
+      const refusing = Object.create(h.reference.store) as Store;
+      refusing.history = async input => input.reference.kind === "review/candidate"
+        ? { status: "refused", refusal: { ...refusal, reference: input.reference } } : history(input);
+      expect(await h.attest(true, refusing)).toMatchObject({ status: "rejected", reason: refusal.condition,
+        remedy: { invariant: refusal.condition, text: expect.stringContaining(refusal.remedy.text) } });
+      process.exitCode = 0;
+      expect(await h.attest(true)).toMatchObject({ status: "refused", reason: "re-root-live-review", recordRevision: before.version });
+    } finally { process.chdir(originalCwd); }
+  }, 30_000);
+
+it("refuses attestation with the owner refusal when the stored boundary names another work unit, and attests once repaired",
+  async () => {
+    const h = await fixture();
+    const reference = recordReferences["review/integration-boundary"](h.primary.reference.owner);
+    const stored = lifecycleSuccess(await h.reference.store.read({ reference }));
+    const foreign = lifecycleSuccess(await h.reference.store.write({ action: "put", reference, expected: stored.version,
+      content: JSON.stringify({ ...JSON.parse(stored.content) as object, workUnit: "other" }), provenance: testProvenance }));
+    if (foreign.version === undefined) throw new Error("Expected the foreign boundary's version");
+    expect(await h.attest()).toMatchObject({ status: "rejected",
+      reason: "The bound work item's submission boundary belongs to work unit `other`, not `example`.",
+      remedy: { text: expect.stringContaining("Name work unit `other`, or run the command from `example`'s checkout.") } });
+    expect(process.exitCode).toBe(1);
+    process.exitCode = 0;
+    lifecycleSuccess(await h.reference.store.write({ action: "put", reference, expected: foreign.version, content: stored.content,
+      provenance: testProvenance }));
+    expect(await h.attest()).toMatchObject({ status: "unchanged" });
+  }, 30_000);

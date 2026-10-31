@@ -2,7 +2,7 @@
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { SlugSchema } from "../lib/kernel/index.js";
-import { resolveActiveWu } from "../lib/release/wu-resolution.js";
+import { raiseNativeResolutionRefusal, resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { readCompletedDeliveryLocus, readDeliveryReviewFixTaskInput } from "../lib/store/delivery-review-fix-input.js";
 import { inspectRepositoryDeliveryEntry, readInspectionTaskList } from "../lib/delivery/repository-entry.js";
 import type { DeliveryEntryInspectionResult } from "../lib/delivery/entry-inspection.js";
@@ -20,7 +20,8 @@ function readCheckoutBranch(cwd: string, exec: GitExec): Promise<string | null> 
 
 async function resolveLocus(cwd: string, exec: GitExec, invocation: ReviewInvocationContext): Promise<ReviewFixWorkUnitLocus | null> {
   const [{ settings }, active] = await Promise.all([
-    readConfigSettings(cwd), resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId }),
+    readConfigSettings(cwd),
+    resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId }).then(raiseNativeResolutionRefusal),
   ]);
   if (active.status === "resolved" && active.name !== "") return { ...active, baseBranch: settings["branch.base"] };
   const owner = await resolveCandidateMutationOwner({ ...invocation, cwd, exec });

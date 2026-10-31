@@ -227,12 +227,10 @@ import {
   validateManagedPath,
   type CanonicalDigest,
 } from "../lib/kernel/index.js";
-import { resolveActiveWu } from "../lib/release/wu-resolution.js";
+import { raiseNativeResolutionRefusal, resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { resolveTaskListCursor } from "../lib/task-list/cursor.js";
 import { bindDeliveryWorkItem, createDeliveryReviewFixEntry } from "./delivery-review-fix-entry.js";
-import { StoreRefusalError } from "../lib/store/refusal-error.js";
-import { ProjectIdentityError } from "../lib/store/project-identity.js";
-import { ReviewOwnerSelectionError } from "../lib/store/kinds/review/errors.js";
+import { nativeRefusalText, rethrowNativeRefusal } from "../lib/store/native-refusal.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
 import {
   readCandidateRecord,
@@ -1636,10 +1634,11 @@ const ResultSchema = z.union([
 export const DeliveryExecutionResultSchema = ResultSchema;
 export type DeliveryExecutionResult = z.infer<typeof ResultSchema>;
 
-/** A native owner, project-identity, or store refusal's condition and remedy; other failures keep a bare reason. */
-function nativeRecordRefusalText(error: unknown): string | null {
-  if (error instanceof ReviewOwnerSelectionError || error instanceof ProjectIdentityError) return error.message;
-  return error instanceof StoreRefusalError && error.offBranch ? error.message : null;
+/** A bare refusal reason, carrying a native typed refusal's condition and remedy when one caused it. */
+function refusedWithNativeText(reason: string, error: unknown):
+  { status: "refused"; reason: string } | { status: "refused"; reason: string; recommendedActionText: string } {
+  const recommendedActionText = nativeRefusalText(error);
+  return recommendedActionText === null ? { status: "refused", reason } : { status: "refused", reason, recommendedActionText };
 }
 
 function invalidServiceResult(result: unknown): z.infer<typeof InvalidServiceResultRefusalSchema> {
@@ -2010,13 +2009,10 @@ export async function handleDeliveryExecution(
       command,
       error instanceof GitCommonStateAccessError
         ? operationalStateAccessRefusal(error)
-        : {
-            status: "refused",
-            reason: "execution-unavailable",
-            ...(isOwnedDeliveryAuthorityCommand(command)
-              ? { detail: boundedDeliveryFailureDetail(error, "Delivery execution is unavailable.") }
-              : {}),
-          },
+        : isOwnedDeliveryAuthorityCommand(command)
+          ? { status: "refused", reason: "execution-unavailable",
+              detail: boundedDeliveryFailureDetail(error, "Delivery execution is unavailable.") }
+          : refusedWithNativeText("execution-unavailable", error),
       request.data,
     );
     return;
@@ -2308,7 +2304,8 @@ async function executeDeliveryCommand(
           .map(reviewFixFindingPath)
           .filter((path): path is string => path !== null);
       }
-    } catch {
+    } catch (error) {
+      rethrowNativeRefusal(error);
       return { status: "moved" };
     }
     if (canonicalize(currentDerivation) !== canonicalize(expected.derivedFrom)) {
@@ -2349,7 +2346,7 @@ async function executeDeliveryCommand(
     const [planRead, stateRead, active, gitCommonDir] = await Promise.all([
       planStore.readCurrent(expected.planId),
       stateStore.read(expected.planId),
-      resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId }),
+      resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId }).then(raiseNativeResolutionRefusal),
       resolveGitCommonDir(exec, cwd),
     ]);
     if (planRead.status !== "ok" || planRead.value === null
@@ -2450,7 +2447,7 @@ async function executeDeliveryCommand(
     const [planRead, stateRead, active, gitCommonDir] = await Promise.all([
       planStore.readCurrent(expected.planId),
       stateStore.read(expected.planId),
-      resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId }),
+      resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId }).then(raiseNativeResolutionRefusal),
       resolveGitCommonDir(exec, cwd),
     ]);
     if (planRead.status !== "ok" || planRead.value === null
@@ -3177,8 +3174,8 @@ async function executeDeliveryCommand(
         let dispositionRecords;
         try {
           dispositionRecords = await (await review()).family.ports.dispositions.listDispositionRecords();
-        } catch {
-          return { status: "refused", reason: "review-fix-response-unavailable" };
+        } catch (error) {
+          return refusedWithNativeText("review-fix-response-unavailable", error);
         }
         const refused = await applyDurableLocalAcknowledgementReplay(locus.name, entry, dispositionRecords);
         if (refused !== null) return refused;
@@ -3203,8 +3200,8 @@ async function executeDeliveryCommand(
       let dispositionRecords;
       try {
         dispositionRecords = await (await review()).family.ports.dispositions.listDispositionRecords();
-      } catch {
-        return { status: "refused", reason: "review-fix-response-unavailable" };
+      } catch (error) {
+        return refusedWithNativeText("review-fix-response-unavailable", error);
       }
       const selection = selectPendingDeliveryReviewFixAuthority({
         workUnitId: locus.name,
@@ -3266,7 +3263,8 @@ async function executeDeliveryCommand(
           let operationReference;
           try {
             operationReference = await parseReviewSourceReferenceForInvocation({ ...(await review()), cwd, exec }, selection.source.attemptRef, "hosted");
-          } catch {
+          } catch (error) {
+            rethrowNativeRefusal(error);
             return { status: "refused", reason: "review-fix-response-stale" };
           }
           const operationRead = await (await review()).family.ports.inFlight
@@ -3497,8 +3495,8 @@ async function executeDeliveryCommand(
           let records;
           try {
             records = await (await review()).family.ports.dispositions.listDispositionRecords();
-          } catch {
-            return { status: "refused" as const, reason: "review-fix-response-replay-unavailable" };
+          } catch (error) {
+            return refusedWithNativeText("review-fix-response-replay-unavailable", error);
           }
           const replay = selectDurableDeliveryReviewFixResponseReplay({
             workUnitId: continuation.action.action.workUnitId,
@@ -3559,12 +3557,12 @@ async function executeDeliveryCommand(
           recommendedActionText:
             "Continue from the exact composed delivery status without re-deriving a member or pass.",
         };
-      } catch {
+      } catch (error) {
         return {
           status: "refused" as const,
           reason: "review-status-unavailable",
-          recommendedActionText:
-            "Restore the self-contained delivery status before retrying the correction.",
+          recommendedActionText: nativeRefusalText(error)
+            ?? "Restore the self-contained delivery status before retrying the correction.",
         };
       }
     };
@@ -3876,7 +3874,8 @@ async function executeDeliveryCommand(
           let sourceReference;
           try {
             sourceReference = await parseReviewSourceReferenceForInvocation({ ...(await review()), cwd, exec }, responseRecord.source.attemptRef, "hosted");
-          } catch {
+          } catch (error) {
+            rethrowNativeRefusal(error);
             return { status: "refused", reason: "review-fix-response-invalid" };
           }
           const operation = await (await review()).family.ports.inFlight
@@ -4064,7 +4063,7 @@ async function executeDeliveryCommand(
         ...(reviewRecordStore.capabilities.stateOffBranch ? {} : { recordEffects }),
       };
     } catch (error) {
-      const recommendedActionText = nativeRecordRefusalText(error);
+      const recommendedActionText = nativeRefusalText(error);
       return { status: "refused", reason: "candidate-verification-unavailable",
         ...(recommendedActionText === null ? {} : { recommendedActionText }) };
     }
@@ -4228,7 +4227,7 @@ async function executeDeliveryCommand(
     inspectCheckout: (path: string) => inspectDeliveryCandidateCheckout(exec, path),
   };
   const resolveOriginatingTopRef = async (plan: z.infer<typeof DeliveryPlanV1Schema>): Promise<string | null> => {
-    const active = await resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId });
+    const active = raiseNativeResolutionRefusal(await resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId }));
     if (active.status !== "resolved" || active.name !== plan.workUnitId || active.branch === null) return null;
     return `refs/heads/${active.branch}`;
   };
@@ -4237,7 +4236,7 @@ async function executeDeliveryCommand(
     protectedBaseRef: string,
     topRef: string,
   ): Promise<readonly string[] | null> => {
-    const active = await resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId });
+    const active = raiseNativeResolutionRefusal(await resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId }));
     if (active.status !== "resolved" || active.name !== plan.workUnitId) return null;
     try {
       const paths = await new CurrentDeliveryLifecycleContributionPathSource({
@@ -4596,7 +4595,7 @@ async function executeDeliveryCommand(
     }
     const [gitCommonDir, active] = await Promise.all([
       resolveGitCommonDir(exec, cwd),
-      resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId }),
+      resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId }).then(raiseNativeResolutionRefusal),
     ]);
     const locatorResult = deriveDeliveryResidueLocators(plan, gitCommonDir);
     const locator = locatorResult.status === "derived"
@@ -6038,7 +6037,7 @@ async function executeDeliveryCommand(
               .slice(0, 1_000),
           };
         }
-        const recommendedActionText = nativeRecordRefusalText(error);
+        const recommendedActionText = nativeRefusalText(error);
         return { status: "refused", reason: "terminal-rebind-unavailable",
           ...(recommendedActionText === null ? {} : { recommendedActionText }) };
       }
@@ -6385,7 +6384,7 @@ async function executeDeliveryCommand(
           ...eligibilityDeps,
           resolveOriginatingTopRef,
           resolveLifecyclePaths: async (plan) => {
-            const active = await resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId });
+            const active = raiseNativeResolutionRefusal(await resolveActiveWu({ cwd, store: invocation.store, projectId: invocation.projectId }));
             if (active.status !== "resolved" || active.name !== plan.workUnitId) return null;
             try {
               const paths = await new CurrentDeliveryLifecycleContributionPathSource({

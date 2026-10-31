@@ -3,7 +3,9 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { expect, it, onTestFinished } from "vitest";
-import { resolveActiveWu, resolveOriginatingMetaPath } from "../../../src/lib/release/wu-resolution.js";
+import { raiseNativeResolutionRefusal, resolveActiveWu, resolveOriginatingMetaPath } from "../../../src/lib/release/wu-resolution.js";
+import { createProjectIdentityReader, ProjectIdentityError } from "../../../src/lib/store/project-identity.js";
+import type { Store } from "../../../src/lib/store/contract.js";
 import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
 import { writeWorktreeOwnershipMarker } from "../../../src/lib/git/worktree-marker.js";
 import { createReferenceFixture } from "../../helpers/store/reference-fixture.js";
@@ -54,4 +56,56 @@ it("withholds a disputed primary's branch until an explicit resolution", async (
   success(await fixture.store.write({ action: "put", reference, expected: disputed.version, content, placement: { kind: "active" },
     links: branches("feat/local"), resolves: disputed.conflicts, provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
   expect(await resolveActiveWu(input)).toMatchObject({ status: "resolved", branch: "feat/local" });
+});
+
+async function linkedWorkUnit(prefix: string, onTestFinished: (cleanup: () => Promise<void>) => void) {
+  const cwd = await mkdtemp(join(tmpdir(), prefix));
+  onTestFinished(async () => rm(cwd, { recursive: true, force: true }));
+  const fixture = createReferenceFixture({}, { "work-item/meta": { parser: content => ({ success: true, data: parseMetaRecord(content) }) } });
+  const reference = fixture.reference("work-item/meta");
+  success(await fixture.store.write({ action: "put", reference, content: makeMetaFixture(reference.owner.name, { branch: null }),
+    placement: { kind: "active" }, links: { branches: [{ repository: "project-1", ref: "feat/demo", linkedAs: "created", excluded: [] }] },
+    expected: null, provenance: testProvenance }));
+  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true, createdFor: { kind: "work-unit", name: reference.owner.name },
+    spawningIdentity: "andrew", now: 0 });
+  return { cwd, store: fixture.store, reference };
+}
+
+it("carries a missing project ID behind an ambiguous resolution for delivery to raise, and resolves once the clone holds it", async ({
+  onTestFinished,
+}) => {
+  const { cwd, store } = await linkedWorkUnit("arc-release-project-", onTestFinished);
+  const unseeded = createProjectIdentityReader(store);
+  let repaired = false;
+  const input = { cwd, store, projectId: async () => repaired ? "project-1" : unseeded() };
+  const result = await resolveActiveWu(input);
+  if (result.status !== "ambiguous" || result.cause === undefined) throw new Error(JSON.stringify(result));
+  expect(result.cause).toBeInstanceOf(ProjectIdentityError);
+  expect(result.hint).toBe(result.cause.message);
+  expect(() => raiseNativeResolutionRefusal(result)).toThrow(result.cause);
+  repaired = true;
+  const resolved = await resolveActiveWu(input);
+  expect(resolved).toMatchObject({ status: "resolved", branch: "feat/demo" });
+  expect(raiseNativeResolutionRefusal(resolved)).toBe(resolved);
+});
+
+it("carries a refused primary read as the store's own refusal with the same hint, and resolves once it reads", async ({
+  onTestFinished,
+}) => {
+  const { cwd, store, reference } = await linkedWorkUnit("arc-release-refused-", onTestFinished);
+  let refusing = true;
+  const refused = Object.create(store) as Store;
+  const refusal = { code: "state-unresolvable" as const, class: "recoverable" as const, historyRefs: [], reference,
+    condition: "The work unit's primary record objects are missing.", remedy: { text: "Fetch the missing objects, then retry." } };
+  // The occupancy resolver reads the claimed primary first; the branch read is the second.
+  let primaryReads = 0;
+  refused.read = async readInput => readInput.reference.kind === "work-item/meta" && ++primaryReads % 2 === 0 && refusing
+    ? { status: "refused", refusal } : store.read(readInput);
+  const input = { cwd, store: refused, projectId: async () => "project-1" };
+  const result = await resolveActiveWu(input);
+  if (result.status !== "ambiguous") throw new Error(JSON.stringify(result));
+  expect(result).toMatchObject({ hint: `${refusal.condition} ${refusal.remedy.text}`,
+    cause: { offBranch: true, refusal: { code: "state-unresolvable" } } });
+  refusing = false;
+  expect(await resolveActiveWu(input)).toMatchObject({ status: "resolved", branch: "feat/demo" });
 });

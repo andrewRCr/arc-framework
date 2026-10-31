@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 
 import { RepositoryGitCommonStatePublisher } from "../git-common-state.js";
 import { validateManagedPath } from "../kernel/index.js";
-import { resolveActiveWu } from "../release/wu-resolution.js";
+import { raiseNativeResolutionRefusal, resolveActiveWu } from "../release/wu-resolution.js";
 import type { GitExec } from "../git/exec.js";
 import { createRawGitExec } from "../io-context.js";
 import type { Store } from "../store/contract.js";
@@ -49,6 +49,8 @@ import {
   GitDeliveryRenameTransitionSource,
   resolveExistingDeliveryPlan,
 } from "./plan-resolution.js";
+import { StoreRefusalError } from "../store/refusal-error.js";
+import { nativeRefusalText, rethrowNativeRefusal } from "../store/native-refusal.js";
 export interface RepositoryDeliveryInspectionInput extends ReviewInvocationOptions {
   readonly cwd: string;
   /** Validated repository-relative task-list path. */
@@ -64,7 +66,7 @@ export async function readInspectionTaskList(input: Pick<RepositoryDeliveryInspe
   if (!store.capabilities.stateOffBranch) return readFile(join(input.cwd, input.taskListPath), "utf8");
   if (input.workItem === undefined) throw new Error("Resolve the selected work item before inspecting its task list.");
   const read = await store.read({ reference: recordReferences["work-item/task-list"](input.workItem) });
-  if (read.status === "refused") throw new Error(`${read.refusal.condition} ${read.refusal.remedy.text}`);
+  if (read.status === "refused") throw new StoreRefusalError(read.refusal, true);
   if (read.result.conflicts.length > 0) throw new Error(`The task list has unresolved conflicts.${describeRecordConflicts(read.result.conflicts)}`);
   return read.result.content;
 }
@@ -162,7 +164,8 @@ function createRepositoryDeliveryInspectionDependencies(
             ...(terminalCoordinateAdvance === undefined ? {} : { terminalCoordinateAdvance }),
           },
         };
-      } catch {
+      } catch (error) {
+        rethrowNativeRefusal(error);
         return { status: "refused" };
       }
     },
@@ -173,7 +176,8 @@ async function classifyTerminalDelta(
   input: RepositoryDeliveryInspectionInput,
   terminalHead: string,
 ): Promise<DeliveryTerminalDeltaClassification | null> {
-  const active = await resolveActiveWu({ cwd: input.cwd, store: input.store, projectId: input.projectId });
+  const active = raiseNativeResolutionRefusal(
+    await resolveActiveWu({ cwd: input.cwd, store: input.store, projectId: input.projectId }));
   const base = input.baseBranch.trim();
   if (active.status !== "resolved" || active.name !== input.workUnitId
     || active.branch === null || base === "") {
@@ -215,13 +219,13 @@ export async function inspectRepositoryDeliveryEntry(options: {
   let records;
   try {
     records = await family.ports.dispositions.listDispositionRecords();
-  } catch {
+  } catch (error) {
     return {
       status: "refused",
       nextAction: "stop",
       reason: "review-fix-response-unavailable",
-      recommendedActionText:
-        "Restore readable approved review-response records before resuming the delivery correction.",
+      recommendedActionText: nativeRefusalText(error)
+        ?? "Restore readable approved review-response records before resuming the delivery correction.",
     };
   }
   const selection = selectPendingDeliveryReviewFixAuthority({
@@ -242,7 +246,7 @@ export async function inspectRepositoryDeliveryEntry(options: {
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
   const [taskList, planRead, stateRead] = await Promise.all([
-    readInspectionTaskList(input, input.store).catch(() => null),
+    readInspectionTaskList(input, input.store).catch((error: unknown) => { rethrowNativeRefusal(error); return null; }),
     planStore.readCurrent(selection.planId),
     stateStore.read(selection.planId),
   ]);

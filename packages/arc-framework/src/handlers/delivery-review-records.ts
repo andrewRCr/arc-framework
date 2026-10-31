@@ -10,6 +10,7 @@ import type { LaneSubjectLineage } from "../scripts/review-gate/core/lane-admiss
 import { StoredReviewResultReader } from "../scripts/review-gate/hosts/local/stored-result-reader.js";
 import { NativeApprovedDispositionRecordStore } from "../scripts/review-gate/runtime/native-disposition-store.js";
 import { settleLaneAttempt } from "../scripts/review-gate/lane-progress.js";
+import { rethrowNativeRefusal } from "../lib/store/native-refusal.js";
 
 /** Exact producer coordinates needed to settle an approved local member response. */
 export interface DeliveryLocalReviewResponse {
@@ -36,7 +37,7 @@ export async function readDeliveryLocalReviewResponse(input: ReviewInvocationInp
   if (record.source.kind !== "attested-local" || record.deliveryMember === null) return null;
   let selected;
   try { selected = await resolveReviewSourceInvocation(input, record.source.receiptRef, "attested-local"); }
-  catch { return null; }
+  catch (error) { rethrowNativeRefusal(error); return null; }
   const context = createReviewCompositionContext(selected.invocation);
   const state = await readLocalProducer(context, selected.reference.operationId);
   const current = currentApprovedDispositionNode(record);

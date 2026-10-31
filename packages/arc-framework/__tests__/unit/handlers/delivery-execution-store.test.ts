@@ -1,5 +1,5 @@
 /** Production review-fix continuation reads native lifecycle records without projected files. */
-import { expect, it, onTestFinished } from "vitest";
+import { expect, it, onTestFinished, vi } from "vitest";
 import { handleDeliveryExecution } from "../../../src/handlers/delivery-execution.js";
 import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
 import { recordPut } from "../../../src/lib/store/lifecycle-write.js";
@@ -8,6 +8,8 @@ import { lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { recordReferences } from "../../../src/lib/store/identity.js";
 import { createReviewHarness } from "../../helpers/store/review-harness.js";
 import { createReviewCheckout } from "../../helpers/store/review-checkout.js";
+import type { Store } from "../../../src/lib/store/contract.js";
+import { nativeListingRefusal } from "../../fixtures/native-refusal.js";
 
 async function fixture(state: "Active" | "Shipped", binding: string | null = "tasks-example.md", storedTasks = true) {
   const h = createReviewHarness();
@@ -28,12 +30,12 @@ async function fixture(state: "Active" | "Shipped", binding: string | null = "ta
   ] });
   onTestFinished(checkout.cleanup);
   await checkout.occupy("feat/example", { kind: "work-unit", name: "example" });
-  return { ...checkout, primary, seedTasks, run: async () => {
+  return { ...checkout, primary, seedTasks, run: async (store: Store = checkout.store) => {
     let output = "";
     await handleDeliveryExecution("review-fix-continue", { input: "-" }, undefined, {
       readText: async () => JSON.stringify({ repository: "owner/repository" }),
       write: text => { output += text; }, setExitCode: () => {},
-    }, checkout);
+    }, { ...checkout, store });
     return JSON.parse(output) as unknown;
   } };
 }
@@ -59,4 +61,55 @@ it("refuses an archived owner with no task kind and continues after restoration"
   expect(lifecycleSuccess(await h.store.version())).toBe(version);
   await h.seedTasks();
   expect(await h.run()).toMatchObject({ status: "idle", nextAction: "continue-work-unit" });
+});
+
+/** A store whose review family listing cannot be read until repaired. */
+function unreadableReviewListing(store: Store) {
+  let unreadable = true;
+  const refusing = Object.create(store) as Store;
+  refusing.list = async input => unreadable && input.family === "review" ? { status: "ok", result: { status: "unreadable",
+    condition: "The review family index cannot be read.", remedy: { text: "Restore the review family index, then retry." } } }
+    : store.list(input);
+  return { store: refusing, repair: () => { unreadable = false; } };
+}
+
+it("names a refused review-response listing's own remedy on a closed task list, and continues once it reads", async () => {
+  const h = await fixture("Shipped");
+  const { store, repair } = unreadableReviewListing(h.store);
+  expect(await h.run(store)).toMatchObject({ status: "refused", reason: "review-fix-response-unavailable",
+    recommendedActionText: "The review family index cannot be read. Restore the review family index, then retry." });
+  repair();
+  expect(await h.run(store)).toMatchObject({ status: "idle", nextAction: "continue-work-unit" });
+});
+
+it("names a native refusal escaping execution with its own remedy, and emits the route once the store is repaired", async () => {
+  const refusal = nativeListingRefusal();
+  const route = { status: "idle", nextAction: "continue-work-unit", recommendedActionText: "Continue the work unit." };
+  const execute = vi.fn().mockRejectedValueOnce(refusal).mockResolvedValueOnce(route);
+  const run = async () => {
+    let output = "";
+    await handleDeliveryExecution("review-fix-continue", { input: "-" }, undefined, {
+      readText: async () => JSON.stringify({ repository: "owner/repository" }), execute,
+      write: text => { output += text; }, setExitCode: () => {},
+    });
+    return JSON.parse(output) as unknown;
+  };
+  expect(await run()).toMatchObject({ status: "refused", reason: "execution-unavailable",
+    recommendedActionText: refusal.message });
+  expect(await run()).toMatchObject(route);
+});
+
+it("names the store's refusal resolving the review-fix work unit's branch, and continues once it reads", async () => {
+  const h = await fixture("Active");
+  let refusing = true, primaryReads = 0;
+  const refusal = { code: "state-unresolvable" as const, class: "recoverable" as const, historyRefs: [],
+    condition: "The work unit's primary record objects are missing.", remedy: { text: "Fetch the missing objects, then retry." } };
+  const store = Object.create(h.store) as Store;
+  // The occupancy resolver reads the claimed primary first; the branch read is the second.
+  store.read = async input => refusing && input.reference.kind === "work-item/meta" && ++primaryReads % 2 === 0
+    ? { status: "refused", refusal: { ...refusal, reference: input.reference } } : h.store.read(input);
+  expect(await h.run(store)).toMatchObject({ status: "refused", reason: "execution-unavailable",
+    recommendedActionText: `${refusal.condition} ${refusal.remedy.text}` });
+  refusing = false;
+  expect(await h.run(store)).toMatchObject({ status: "idle", nextAction: "continue-work-unit" });
 });

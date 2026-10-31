@@ -26,7 +26,8 @@ import type { GitExec } from "../lib/git/exec.js";
 import { readStoredDeliveryEntryInput } from "../lib/store/delivery-entry-input.js";
 import { unwrapReviewRecordResult } from "../lib/store/kinds/review/access-shared.js";
 import { createGitExec } from "../lib/io-context.js";
-import { resolveActiveWu } from "../lib/release/wu-resolution.js";
+import { raiseNativeResolutionRefusal, resolveActiveWu } from "../lib/release/wu-resolution.js";
+import { nativeRefusalText } from "../lib/store/native-refusal.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 const InputSchema = z.union([
@@ -100,7 +101,7 @@ function defaultDependencies(): DeliveryEntryInspectHandlerDependencies {
 function emit(
   dependencies: DeliveryEntryInspectHandlerDependencies,
   result: z.output<typeof DeliveryEntryInspectionResultSchema>
-    | { readonly status: "refused"; readonly reason: string },
+    | { readonly status: "refused"; readonly reason: string; readonly recommendedActionText?: string },
 ): void {
   dependencies.write(`${JSON.stringify({
     schemaVersion: 1,
@@ -141,8 +142,11 @@ export async function handleDeliveryEntryInspect(
     emit(dependencies, result.success
       ? result.data
       : { status: "refused", reason: "invalid-service-result" });
-  } catch {
-    emit(dependencies, { status: "refused", reason: "inspection-unavailable" });
+  } catch (error) {
+    // A native store, project-identity, or owner refusal keeps its condition and remedy for the operator.
+    const recommendedActionText = nativeRefusalText(error);
+    emit(dependencies, { status: "refused", reason: "inspection-unavailable",
+      ...(recommendedActionText === null ? {} : { recommendedActionText }) });
   }
 }
 
@@ -166,7 +170,7 @@ export async function inspectActiveRepositoryDeliveryEntry(
   if (cwd === null) throw new Error("ARC project root unavailable");
   const exec = invocation.exec ?? createGitExec(interaction?.subprocess);
   const bound = resolveReviewInvocation({ ...invocation, cwd, exec });
-  const active = await resolveActiveWu({ cwd, store: bound.store, projectId: bound.projectId });
+  const active = raiseNativeResolutionRefusal(await resolveActiveWu({ cwd, store: bound.store, projectId: bound.projectId }));
   if (active.status !== "resolved" || active.name === "") throw new Error("Active work unit unavailable");
   let taskListPath: string;
   if (bound.store.capabilities.stateOffBranch) {

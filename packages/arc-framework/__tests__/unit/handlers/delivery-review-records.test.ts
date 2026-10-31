@@ -16,6 +16,7 @@ import { reviewOutcomeKey } from "../../../src/lib/store/kinds/review/outcome/ke
 import { selectPendingDeliveryReviewFixAuthority, selectDurableDeliveryReviewFixResponseReplay } from "../../../src/lib/delivery/review-fix-continuation.js";
 import { currentApprovedDispositionNode } from "../../../src/scripts/review-gate/core/advisory-records.js";
 import { DeliveryLocalReviewAdmissionSchema } from "../../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
+import { createProjectIdentityReader, ProjectIdentityError } from "../../../src/lib/store/project-identity.js";
 
 it("opens and retains the branch-linked native owner without projected metadata or an injected owner", async () => {
   const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
@@ -67,6 +68,16 @@ it("reads an ended local member's exact source after working-state pruning and f
   const other = await f.h.seedMeta("other");
   expect(await readDeliveryLocalReviewResponse({ ...second, workItem: other.reference.owner }, f.record)).toBeNull();
   expect(await readDeliveryLocalReviewResponse({ ...second, workItem: f.primary.reference.owner }, f.record)).toEqual(expected);
+});
+
+it("raises a missing project ID resolving a local member's source whole, and reads the source once the clone holds it", async () => {
+  const f = await localMemberResponse();
+  const unseeded = createProjectIdentityReader(createReviewHarness().store);
+  let repaired = false;
+  const input = { ...f.checkout, projectId: async () => repaired ? f.h.projectId() : unseeded() };
+  await expect(readDeliveryLocalReviewResponse(input, f.record)).rejects.toBeInstanceOf(ProjectIdentityError);
+  repaired = true;
+  expect(await readDeliveryLocalReviewResponse(input, f.record)).toMatchObject({ oldTarget: f.outcome.target });
 });
 
 it("publishes a member fix and performance together, retaining replay and the original outcome", async () => {

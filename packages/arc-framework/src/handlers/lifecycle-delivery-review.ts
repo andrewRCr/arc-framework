@@ -70,6 +70,8 @@ import { attestArgv, attestNewRootArgv, spineRemedy } from "../scripts/integrati
 import { SlugSchema, validateManagedPath } from "../lib/kernel/index.js";
 import { type InteractionContext } from "../lib/command-input/interaction-context.js";
 import { ProjectIdentityError } from "../lib/store/project-identity.js";
+import { ReviewOwnerSelectionError } from "../lib/store/kinds/review/errors.js";
+import { isNativeTypedRefusal, rethrowNativeRefusal } from "../lib/store/native-refusal.js";
 import { resolveNamedReviewWorkUnitInvocation } from "../scripts/review-gate/runtime/review-work-unit.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import type { PublishOptions } from "./lifecycle.js";
@@ -96,6 +98,10 @@ function refuseProjectIdentityFailure(error: unknown, json: boolean): boolean {
 }
 
 function refuseAttestationStateFailure(error: unknown, json: boolean): boolean {
+  if (error instanceof ReviewOwnerSelectionError) {
+    refuseWithRemedy(error.condition, error.remedy, json);
+    return true;
+  }
   if (!(error instanceof StoreRefusalError) || !error.offBranch) return refuseProjectIdentityFailure(error, json);
   refuseWithRemedy(error.refusal.condition, error.refusal.remedy, json);
   return true;
@@ -226,10 +232,10 @@ export async function attestCandidateWithReviewBoundary(base: VerbBase,
   await refusingStoreFailures(input.json === true, () => attestCandidate(base, input));
 }
 
-/** Render an off-branch store's refusal from any of a verb's reads or writes through its typed refusal. */
+/** Render a native store, project-identity, or owner refusal raised by any of a verb's reads or writes. */
 async function refusingStoreFailures(json: boolean, run: () => Promise<void>): Promise<void> {
   try { await run(); }
-  catch (error) { if (!(error instanceof StoreRefusalError) || !refuseAttestationStateFailure(error, json)) throw error; }
+  catch (error) { if (!isNativeTypedRefusal(error) || !refuseAttestationStateFailure(error, json)) throw error; }
 }
 
 async function attestCandidate(base: VerbBase, input: z.infer<typeof AttestCommandInputSchema>): Promise<void> {
@@ -360,6 +366,8 @@ async function attestCandidate(base: VerbBase, input: z.infer<typeof AttestComma
                 reviewHeadSha: live.reviewHeadSha, exec: base.io.exec,
               });
             } catch (error) {
+              // A native store's refusal carries its own remedy, not the local Git history one below.
+              rethrowNativeRefusal(error);
               throw new CandidateReviewRecoveryRefusal(
                 error instanceof Error ? error.message : String(error),
               );
@@ -757,10 +765,9 @@ async function publishCandidate(base: VerbBase, target: string, input: PublishOp
   reportOutcome("Integrating", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
 }
 
-/** Refuse ordinary reopen with an off-branch store's own refusal, or as missing delivery evidence. */
-function refuseUnavailableDeliveryEvidence(error: unknown, target: string): false {
-  if (isOffBranchStoreRefusal(error)) refuse(error.refusal.condition, error.refusal);
-  else refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
+/** Refuse ordinary reopen as missing delivery evidence. */
+function refuseUnavailableDeliveryEvidence(target: string): false {
+  refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
     + "the plan, state, or transition evidence is unavailable.");
   return false;
 }
@@ -814,8 +821,8 @@ export async function permitDeliveryReopen(
       baseBranch: settings["branch.base"],
       exec: base.io.exec,
     });
-  } catch (error) {
-    return refuseUnavailableDeliveryEvidence(error, target);
+  } catch {
+    return refuseUnavailableDeliveryEvidence(target);
   }
   if (delivery.status !== "reopen-permitted") {
     refuse(delivery.recommendedActionText);
