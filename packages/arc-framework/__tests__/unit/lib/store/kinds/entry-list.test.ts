@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseEntryList, writeEntryList } from "../../../../../src/lib/store/kinds/entry-list.js";
 import { ENTRY_CONFIGS } from "../../../../../src/lib/store/kinds/entry-configs.js";
+import { entryFrame } from "../../../../../src/lib/store/concurrency/entry-frame.js";
 import { parsePersonalInboxEntries } from "../../../../../src/lib/store/kinds/personal-inbox.js";
 
 describe("production entry grammars", () => {
@@ -101,6 +102,35 @@ describe("production entry grammars", () => {
         { title: header.replaceAll("\n", " "), id: "12345678", bytes: raw.replaceAll("\n", newline) },
       ]);
       expect(changed.data.entries[0]?.version).not.toBe(parsed.data.entries[0]?.version);
+      expect(writeEntryList(parsed.data)).toBe(content);
+    });
+  it.each(["\n", "\r\n"].flatMap(newline => ["", " ", "\t"].flatMap(suffix => [
+    "**A title with\n**bold\ntext** and\n**more** text:**",
+    "**A title with\n「**bold\ntext**」 and\n**more** text:**",
+    "**A title with\n🧭**bold\ntext**🧭 and\n**more** text:**",
+    "** A title with\n**bold\ntext** and\n**more** text:**",
+    "**A title with\n**bold\ntext** text:**",
+    "**A title with **bold\ntext** and\n**more** text:**",
+    "**A title with **bold\ntext** and more\ntext:**",
+    "**A title with\n**bold `**`\ntext** and\n**more** text:**",
+    "**A title with\n**bold \\**\ntext** and\n**more** text:**",
+  ].map(header => ({ newline, suffix, header })))))(
+    "keeps inline bold spans wrapped across lines inside the memory with $newline $suffix: $header", ({ newline, suffix, header }) => {
+      const raw = `${header}\n_Remove when: done._\n_Id:_ \`12345678\``.replaceAll("\n", newline);
+      const opening = `## Memories${suffix}${newline}`;
+      const content = `${opening}${raw}${newline}`;
+      const parsed = parseEntryList(content, "personal/working-memory");
+      const changed = parseEntryList(content.replace("A title", "Another title"), "personal/working-memory");
+      expect(parsed.success).toBe(true);
+      expect(changed.success).toBe(true);
+      if (!parsed.success || !changed.success) return;
+      expect(parsed.data.entries).toMatchObject([
+        { title: header.replaceAll("\n", " "), id: "12345678", bytes: raw },
+      ]);
+      expect(changed.data.entries[0]?.version).not.toBe(parsed.data.entries[0]?.version);
+      expect(entryFrame(content, ENTRY_CONFIGS["personal/working-memory"])).toMatchObject({
+        skeleton: opening, entries: [{ bytes: raw, id: "12345678" }],
+      });
       expect(writeEntryList(parsed.data)).toBe(content);
     });
   it("refuses memory without a trigger", () => {

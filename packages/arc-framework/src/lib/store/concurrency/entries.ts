@@ -72,11 +72,13 @@ function isEntryHeader(line: string, shape: EntryListConfig["shape"], fieldHeade
   return shape === "heading" ? /^###\s/u.test(line) : fieldHeader;
 }
 
+interface FieldHeaderBoldState { depth: number; codeTicks: number }
+
 /** Locate complete bold field headers across consecutive non-blank lines without crossing sections. */
 export function fieldHeaderSpans(lines: readonly string[]): readonly { start: number; end: number }[] {
   const spans: { start: number; end: number }[] = [];
   let start: number | undefined;
-  let bold = { open: false, codeTicks: 0 };
+  let bold: FieldHeaderBoldState = { depth: 0, codeTicks: 0 };
   for (const [index, line] of lines.entries()) {
     const text = line.trimEnd();
     if (!text.trim() || text.startsWith("## ") || text === "---") { start = undefined; continue; }
@@ -86,24 +88,24 @@ export function fieldHeaderSpans(lines: readonly string[]): readonly { start: nu
     if (start === undefined) {
       if (!text.startsWith("**")) continue;
       start = index;
-      bold = { open: false, codeTicks: 0 };
+      bold = { depth: 0, codeTicks: 0 };
     }
     bold = fieldHeaderBoldState(text, bold);
-    if (bold.open || bold.codeTicks !== 0) continue;
+    if (bold.depth > 0 || bold.codeTicks !== 0) continue;
     if (/:\*\*$/u.test(text)) spans.push({ start, end: index });
     start = undefined;
   }
   return spans;
 }
 
-function closesPendingFieldHeader(text: string, start: number | undefined, previous: { open: boolean; codeTicks: number }): boolean {
+function closesPendingFieldHeader(text: string, start: number | undefined, previous: FieldHeaderBoldState): boolean {
   if (start === undefined) return false;
   const next = fieldHeaderBoldState(text, previous);
-  return !next.open && next.codeTicks === 0;
+  return next.depth === 0 && next.codeTicks === 0;
 }
 
-function fieldHeaderBoldState(text: string, previous: { open: boolean; codeTicks: number }): { open: boolean; codeTicks: number } {
-  let { open, codeTicks } = previous;
+function fieldHeaderBoldState(text: string, previous: FieldHeaderBoldState): FieldHeaderBoldState {
+  let { depth, codeTicks } = previous;
   let escapedThrough = 0;
   for (const token of text.matchAll(/\\|`+|\*\*/gu)) {
     if (token.index < escapedThrough) continue;
@@ -112,9 +114,25 @@ function fieldHeaderBoldState(text: string, previous: { open: boolean; codeTicks
     } else if (token[0].startsWith("`")) {
       if (codeTicks === 0) codeTicks = token[0].length;
       else if (codeTicks === token[0].length) codeTicks = 0;
-    } else if (codeTicks === 0) open = !open;
+    } else if (codeTicks === 0) depth = fieldHeaderBoldDepth(text, token.index, depth);
   }
-  return { open, codeTicks };
+  return { depth, codeTicks };
+}
+
+function fieldHeaderBoldDepth(text: string, offset: number, depth: number): number {
+  // The entry grammar supplies the outer opening marker, including titles with leading spaces.
+  if (offset === 0 && depth === 0) return 1;
+  const before = boldCharacterClass(text.slice(Math.max(0, offset - 2), offset).match(/.$/u)?.[0]);
+  const after = boldCharacterClass(text.slice(offset + 2, offset + 4).match(/^./u)?.[0]);
+  const opens = after === "text" || (after === "punctuation" && before !== "text");
+  const closes = before === "text" || (before === "punctuation" && after !== "text");
+  if (closes && depth > 0) return depth - 1;
+  return opens ? depth + 1 : depth;
+}
+
+function boldCharacterClass(character: string | undefined): "space" | "punctuation" | "text" {
+  if (character === undefined || /\s/u.test(character)) return "space";
+  return /[\p{P}\p{S}]/u.test(character) ? "punctuation" : "text";
 }
 
 /** Hide comments from recognition while retaining offsets and line endings.
