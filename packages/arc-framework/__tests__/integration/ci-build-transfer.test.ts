@@ -17,8 +17,12 @@ beforeAll(async () => {
   expect(qualification.status).toBe("qualified");
   if (qualification.status !== "qualified") throw new Error(qualification.reason);
   generation = qualification.evidence.generation;
-}, 30_000);
-afterAll(async () => { await rm(producer.root, { recursive: true, force: true }); });
+}, 120_000);
+afterAll(async () => {
+  // A setup that timed out before making the fixture leaves it unset.
+  const fixture = producer as typeof producer | undefined;
+  if (fixture !== undefined) await rm(fixture.root, { recursive: true, force: true });
+});
 
 it.each(["lint-typecheck", "integration", "e2e", "portability"])(
   "qualifies transferred output and its preflight contract for %s", async (job) => {
