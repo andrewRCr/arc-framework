@@ -6,7 +6,7 @@ import type { Remedy, StoreRefusal, StoreResult } from "../../refusal.js";
 import type { ListingOutcome } from "../../read.js";
 import { RecordVersionSchema, type RecordReference, type RecordVersion } from "../../identity.js";
 import type { ReviewFactListing, ReviewFactPut, StoredReviewFact } from "../../../../scripts/review-gate/core/ports.js";
-import { readReviewRecord, unwrapReviewRecordResult } from "./access-shared.js";
+import { decodeStoredReviewRecord, readReviewRecord, unwrapReviewRecordResult } from "./access-shared.js";
 import { ReviewFactVersionConflictError } from "./errors.js";
 import { StoreRefusalError } from "../../refusal-error.js";
 
@@ -75,7 +75,7 @@ export function createReviewFactAccess<T>(store: Store, reference: (key: string)
     async read(recordKey: string): Promise<StoredReviewFact<T> | null> {
       const record = await readReviewRecord(store, reference(recordKey));
       return record === null ? null : { reference: record.reference, version: record.version,
-        value: schema.parse(JSON.parse(record.content)) };
+        value: decodeStoredReviewRecord(store, record, content => schema.parse(JSON.parse(content))) };
     },
     async write(value: T, expected: RecordVersion | null): Promise<StoredReviewFact<T>> {
       const put = prepare(value, expected);

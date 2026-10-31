@@ -60,10 +60,34 @@ it.each(["malformed", "wrong-owner"])("rejects %s boundary content returned by t
   const stored = await h.seed(reference, JSON.stringify(boundaryV2Fixture()));
   const raw = h.store.state.records.get(recordKey(stored.reference));
   if (raw === undefined) throw new Error("Missing stored boundary fixture");
+  const valid = raw.content;
   raw.content = fault === "malformed" ? "{unreadable" : JSON.stringify(boundaryFixture("another"));
   const read = readSubmissionBoundaryVersioned("/unavailable", "example", { store: h.store, owner });
-  if (fault === "malformed") await expect(read).rejects.toBeInstanceOf(SyntaxError);
-  else await expect(read).rejects.toThrow(/belongs to work unit `another`, not `example`/u);
+  if (fault === "malformed") {
+    await expect(read).rejects.toMatchObject({ offBranch: true, refusal: { code: "record-malformed", class: "recoverable",
+      reference: stored.reference, condition: expect.stringMatching(/^The stored review\/integration-boundary record does not match its schema: /u),
+      remedy: { text: "Restore a valid version of the record, then retry." } } });
+    raw.content = valid;
+    await expect(readSubmissionBoundaryVersioned("/unavailable", "example", { store: h.store, owner }))
+      .resolves.toEqual({ boundary: IntegrationBoundaryLocusV2Schema.parse(boundaryV2Fixture()), version: stored.version });
+  } else await expect(read).rejects.toThrow(/belongs to work unit `another`, not `example`/u);
+});
+
+it("rejects native boundary content its schema refuses as a malformed record naming the issue", async () => {
+  const h = createLifecycleHarness();
+  const { owner } = (await h.seedMeta("example")).reference;
+  const reference = recordReferences["review/integration-boundary"](owner);
+  const stored = await h.seed(reference, JSON.stringify(boundaryV2Fixture()));
+  const raw = h.store.state.records.get(recordKey(stored.reference));
+  if (raw === undefined) throw new Error("Missing stored boundary fixture");
+  const valid = raw.content;
+  raw.content = JSON.stringify({ ...boundaryV2Fixture(), locus: "unknown-locus" });
+  await expect(readSubmissionBoundaryVersioned("/unavailable", "example", { store: h.store, owner })).rejects.toMatchObject({
+    offBranch: true, refusal: { code: "record-malformed", reference: stored.reference,
+      condition: expect.stringMatching(/^The stored review\/integration-boundary record does not match its schema: \S/u) } });
+  raw.content = valid;
+  await expect(readSubmissionBoundaryVersioned("/unavailable", "example", { store: h.store, owner }))
+    .resolves.toMatchObject({ version: stored.version });
 });
 
 it("writes a native boundary through checked storage with its opaque compare-and-swap version and no tracked path", async () => {

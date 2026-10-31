@@ -16,6 +16,7 @@ import type { RecordReference } from "../../../../../../src/lib/store/identity.j
 import { describeRecordConflicts } from "../../../../../../src/lib/store/conflict-diagnostics.js";
 import { StoreRefusalError } from "../../../../../../src/lib/store/refusal-error.js";
 import { ReviewFactVersionConflictError } from "../../../../../../src/lib/store/kinds/review/errors.js";
+import { recordKey } from "../../../../../helpers/store/model.js";
 import { reviewFactListingError } from "../../../../../../src/lib/store/kinds/review/fact-access.js";
 
 type Kind = "outcome" | "evidence" | "decision";
@@ -107,6 +108,27 @@ it("keeps a conflicted single read's store refusal typed, with today's message",
   const refusal = (error as StoreRefusalError).refusal;
   expect(refusal).toMatchObject({ code: "record-malformed", class: "recoverable", reference: h.record.reference });
   expect((error as Error).message).toBe(`Review record has unresolved conflicts.${describeRecordConflicts(h.record.conflicts)}`);
+});
+
+it("refuses a native point read whose content its schema rejects as a malformed record, and reads once restored", async () => {
+  const h = createReviewHarness(), candidate = candidateFixture(), primary = await h.seedMeta("example");
+  const owner = primary.reference.owner;
+  const outcome = ReviewOutcomeSchema.parse(localOutcome({ lineage: { kind: "candidate", candidateId: candidate.attestation.candidateId },
+    vehicle: { kind: "work-unit", identity: "example" }, outcome: "clean", findings: [] }));
+  const outcomes = createReviewOutcomePort(h.store, owner);
+  const stored = await outcomes.create(outcome);
+  const raw = h.store.state.records.get(recordKey(stored.reference));
+  if (raw === undefined) throw new Error("Missing stored outcome fixture");
+  const valid = raw.content;
+  raw.content = JSON.stringify({ ...JSON.parse(valid) as object, outcome: "unknown" });
+  const key = stored.reference.key;
+  if (typeof key !== "string") throw new Error("Expected a keyed outcome reference");
+  await expect(outcomes.read(key)).rejects.toMatchObject({ offBranch: true, refusal: { code: "record-malformed",
+    class: "recoverable", reference: stored.reference, condition: expect.stringContaining("outcome"),
+    remedy: { text: "Restore a valid version of the record, then retry." } } });
+  raw.content = valid;
+  await expect(outcomes.read(key)).resolves.toMatchObject({ version: stored.version,
+    value: { attemptId: outcome.attemptId, outcome: "clean" } });
 });
 
 it.each(["create", "advance"] as const)("refuses a stale fact %s with its typed version conflict", async write => {

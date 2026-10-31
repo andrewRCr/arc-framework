@@ -37,11 +37,19 @@ it.each(["malformed", "wrong-owner"])("rejects %s Candidate content returned by 
   const stored = await h.seed(reference, serializeCandidateManagedRecord(candidateFixture()));
   const raw = h.store.state.records.get(recordKey(stored.reference));
   if (raw === undefined) throw new Error("Missing stored Candidate fixture");
+  const valid = raw.content;
   raw.content = fault === "malformed" ? "{unreadable" : serializeCandidateManagedRecord(candidateFixture("another"));
   const options = { store: h.store, owner };
   await expect(readCandidateRecordVersion("/unavailable", "example", options)).resolves.toBe(stored.version);
-  await expect(readCandidateRecordVersioned("/unavailable", "example", options))
-    .rejects.toThrow(fault === "malformed" ? /Candidate record is malformed/u : /belongs to work unit `another`, not `example`/u);
+  const read = readCandidateRecordVersioned("/unavailable", "example", options);
+  if (fault === "malformed") {
+    await expect(read).rejects.toMatchObject({ offBranch: true, refusal: { code: "record-malformed", class: "recoverable",
+      reference: stored.reference, condition: expect.stringMatching(/^The stored review\/candidate record does not match its schema: /u),
+      remedy: { text: "Restore a valid version of the record, then retry." } } });
+    raw.content = valid;
+    await expect(readCandidateRecordVersioned("/unavailable", "example", options)).resolves.toEqual({ record: candidateFixture(),
+      version: stored.version });
+  } else await expect(read).rejects.toThrow(/belongs to work unit `another`, not `example`/u);
 });
 
 it("writes through the supplied store and returns no tracked path, since no tracked file holds the record", async () => {

@@ -1,4 +1,5 @@
 /** Store selection and refusal handling shared by typed review-record access. */
+import { z } from "zod";
 import type { GitExec } from "../../../git/exec.js";
 import type { Store } from "../../contract.js";
 import { createStore } from "../../create.js";
@@ -76,6 +77,23 @@ export async function readReviewRecord(store: Store, reference: RecordReference)
     throw new StoreRefusalError(recordConflictRefusal(record, "Review record", "review.record-conflict"), store.capabilities.stateOffBranch);
   }
   return record;
+}
+
+/**
+ * Decode a stored review record's content. Natively a record its kind's schema rejects refuses as a recoverable
+ * malformed record naming its reference and the decoder's issue; in-repo the decoder's own error stands.
+ */
+export function decodeStoredReviewRecord<T>(store: Pick<Store, "capabilities">, record: Pick<StoreRecord, "reference" | "content">,
+  decode: (content: string) => T): T {
+  if (!store.capabilities.stateOffBranch) return decode(record.content);
+  try {
+    return decode(record.content);
+  } catch (error) {
+    const issue = error instanceof z.ZodError ? z.prettifyError(error) : error instanceof Error ? error.message : String(error);
+    throw new StoreRefusalError({ code: "record-malformed", class: "recoverable", reference: record.reference, rule: "review.record-schema",
+      condition: `The stored ${record.reference.kind} record does not match its schema: ${issue}`,
+      remedy: { text: "Restore a valid version of the record, then retry." } }, true);
+  }
 }
 
 /** Whether an in-repo read refused a file whose own key names another work unit, which the file readers report themselves. */
