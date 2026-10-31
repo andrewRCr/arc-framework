@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "hosted-windows-portability-failures",
+  "claimId": "c9bebad083d18961ca38221785724887",
+  "createdAt": "2026-10-31T15:33:30.965Z",
+  "updatedAt": "2026-10-31T15:33:30.965Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Diagnose the three hosted-Windows portability failures as one set (concurrent stale-lock breakers, native-writer duration keys, CI build fixture setup hooks) and fix each at its cause",
+  "branch": "chore/hosted-windows-portability-failures",
+  "origin": "inbox",
+  "originEntry": "Find why two concurrent stale-lock breakers can both fail on hosted Windows",
+  "originEntrySourceDigest": "sha256:e162e20105c2bf4ca68cbf1a44b158263c9093067bc586075cceb20849fde248",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
