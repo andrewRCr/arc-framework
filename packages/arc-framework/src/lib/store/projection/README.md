@@ -18,3 +18,9 @@ each path and the line that would ignore it; a call that fails otherwise refuses
 remedy of running the command again. A pass returns the ignore files its verdict rests on — `info/exclude` in the
 common Git directory, every `.gitignore` on the path to each guarded root, present or not, and every other file a match
 names as its source — so a caller can skip the call while none of them changes.
+
+`index-schema.ts` is the strict schema of the index each projected worktree keeps about its copy. Per path it holds the
+record reference the file was read with, its stat, the blob id last written there, its base, its marks, and the aside
+copies made of it; beside the entries, the format version, the state version last projected, what the worktree was
+projected under, and what the ignore guard last passed on. Stat fields are bigints stored as decimal strings, and a
+field the schema does not know, or another format version, fails the parse rather than being dropped.

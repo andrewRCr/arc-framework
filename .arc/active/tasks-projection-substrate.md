@@ -131,45 +131,13 @@ stamp parsing strips (§ 3.3, § 3.4).
   there, written whole under the projection lock, and one aside folder beside its files; a command finds both without a
   Git process, never creates a Git directory, and tells an index it can use from one it cannot.
 
-    - `[ ]` **2.2.a The index's schema**
+    - `[x]` **2.2.a The index's schema**
 
-        - Per entry: the record reference the file was read with, its owner's UID where the store gives one; type, size,
-          modification time, and file identity, each read as a bigint and stored as a decimal string; the blob id last
-          written into the file; the base — its blob id and record version; marker state (whether the file holds
-          markers, their one length for the file, and for each marker set the conflict record it shows or that the
-          checkout found it); the conflict record each notice line names, and, for a stampless file or one the replace
-          guard holds whole for a resolution in progress or a malformed set (`projection-write-back`), the open
-          conflicts it does not show; whether it is protected; the changed mark (`projection-write-back`); the pending,
-          withheld, and refused marks, a refused mark carrying the refusal's typed reason and remedy; the stamp the last
-          persisted write-back read and the content it took in — the version the write landed, or the kept copy's file
-          name and blob id (2.7); and, for a file other than Markdown, the in-progress record — the blob id and record
-          version of the version a replacement in progress replaces, and the name of the aside copy its batch makes of
-          the file, none for a rebuild by the link alone (2.8); and, for each aside copy a swap makes of the file,
-          listed in the order the swaps were made, while the copy stays in the aside folder: its name; the blob id the
-          swap was moving — what the projection last wrote there or, for write-back's own copies, the blob id write-back
-          read; the blob id it linked in its place, none for a removal (3.4); whether a write-back of the file has been
-          sent since the swap; and, once the copy's take-in lands, the blob id the copy held when it landed (3.2.a,
-          3.3). A file adoption refuses (`projection-write-back`) takes an ownerless entry: its path, stat, and refusal,
-          and no record reference.
-        - The refused and pending marks record what the last write-back or refresh met, never what the file holds now. A
-          re-read that finds no edit, or an edit that lands whole (`projection-write-back`), clears the refused mark;
-          one whose malformed entry was refused while the rest landed keeps it (`projection-write-back`). The pending
-          mark clears only once the file holds what a swap batch linked there — a refresh's, or the read-back of a
-          landed edit, by 3.2.b's rule — or, for a file whose record has left its path, once it is gone and no aside
-          copy of its path remains, unless the projection now lays another record there; a deleted file a record still
-          projects at, that one included, keeps its mark, so the next refresh writes it fresh (3.4,
-          `projection-worktrees`). A file whose record the projection already no longer lays at its path stays pending
-          until a refresh removes it (3.4), and a move the store makes later reaches the file through `changes`
-          (`projection-worktrees`), so a refresh or removal a file was owed is never dropped. The removal check and the
-          persist step re-run the read path rather than trust a mark (`projection-worktrees`).
-        - Beside the entries: the format version; the state version last projected; the in-flight view setting, identity,
-          checkout claim, and effective `layout.active` it was projected under; the aside copies withheld at a rebuild,
-          by copy name; for each tripwire, its last nine measurements in milliseconds (`projection-worktrees`); and each
-          ignore file's existence, stat, and blob id when the guard last passed (2.4.b).
-        - A strict schema, so a field it does not know reads the index as unusable rather than dropping the field.
-        - Build `test-first` (one behavior at a time):
-            - an index with every field round-trips, bigints included
-            - an unknown field, or a format version other than the running build's, does not parse
+        - `ProjectionIndexSchema` in `lib/store/projection/index-schema.ts`, every object strict and `format` the build's
+          literal, so a field it does not know or another format version fails the parse. Entries are keyed by
+          repository-relative path (validated, not branded) and discriminate `record` from `ownerless`; stat fields
+          decode from decimal strings to bigints through a codec; an ignore file is its stat and blob id or both null.
+          The owner's UID rides in the record reference's owner. Covered in `unit/store/projection/index-schema.test.ts`.
 
     - `[ ]` **2.2.b Where the index lives, found without Git**
 
