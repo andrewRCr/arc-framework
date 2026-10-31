@@ -23,7 +23,7 @@ _Design decisions:_ This list is the first of three members' that build one desi
 integration tiers over the in-memory reference backend (`__tests__/helpers/store/`) and real temporary repositories,
 since no CLI process runs over a store before the flip (§ 1.5).
 
-### `[ ]` **1.1 Write the exclude entries as one path list derived from the shared projected roots — § 11.1**
+### `[x]` **1.1 Write the exclude entries as one path list derived from the shared projected roots — § 11.1**
 
 - _Goal:_ One Git call and one write register every exclude entry the projection needs, from one list of projected roots
   that nothing keeps by hand, and every other reader of those roots takes the same list.
@@ -36,37 +36,17 @@ since no CLI process runs over a store before the flip (§ 1.5).
           so `writeEditorDocuments` and `ensureWorktreeMarkerIgnored` keep their calls unchanged. Covered in
           `unit/git/exclude.test.ts`.
 
-    - `[ ]` **1.1.b The projected roots and the exclude list**
+    - `[x]` **1.1.b The projected roots and the exclude list**
 
-        - This creates `lib/store/projection/`, with a README as the store's other folders carry
-          (`lib/store/concurrency/README.md`).
-        - The roots stay named once, in `lib/layout/projected-roots.ts`: `PROJECTED_LIFECYCLE_ROOTS`, the three shared
-          roots, and `PROJECTED_PERSONAL_ROOT`, the folder holding every identity's personal root, which the module's
-          predicates read — `isProjectedPath`, which `record-links.ts` (`lib/store/kinds/`) calls, and
-          `isProjectedLifecyclePath`, which `src/scripts/audit-links.ts` calls. Beside them this task adds
-          the two forms the projection needs: each root as the path for this checkout's identity, which the guard (1.2)
-          checks, and as the pattern that ignores it for every identity — `.arc/user/*/` for the personal root — which
-          the managed `.ignore` block (1.3) and the Zed settings (`projection-write-back`) write. Each reads this
-          module, never a copy.
-        - Tests of `lib/store/projection/` modules live under a `store/projection/` folder of their tier from this first
-          task on (2.1).
-        - The exclude list, built in `lib/store/projection/` from those roots, is the three shared roots plus
-          `.arc/system/.local/`, the folder holding the aside folder (§ 5.4), each as a directory pattern;
-          `.arc/user/*/` stays in `.gitignore` and never enters the exclude file. A source's `.arc/system/` paths join
-          the list (`spec-projection-worktrees.md` § 14); the store, the only source built here, projects none.
-        - The list is written once per clone, when the projection first projects (`projection-worktrees`), so nothing
-          calls it before the flip.
-        - Build `test-first` (one behavior at a time):
-            - the exclude list holds the three shared roots and `.arc/system/.local/`, each with a trailing slash, and
-              no `.arc/user` entry
-            - each shared root is the path `resolveArcPath` (`lib/layout/projection.ts`) returns for its address — the
-              `active` and `completed` placement roots, and for the backlog root, which has no address of its own, the
-              one parent of the `planned` and `provisional` placement roots and the project inbox
-            - an identity's personal root is the path its `user-root` address resolves to, and its pattern is
-              `.arc/user/*/`
-            - at the integration tier, over a real repository: with the exclude list written, a check's worktree
-              capture (`createWorktreeSnapshot`, `lib/checks/tree.ts`) stages nothing under a shared root or
-              `.arc/system/.local/`
+        - `lib/layout/projected-roots.ts` adds the two forms beside the roots it names once: `projectedRootPaths`, each
+          root as the path for one identity, and `projectedRootPatterns`, each as the directory pattern ignoring it for
+          every identity, `.arc/user/*/` for the personal root; both and `PROJECTED_LIFECYCLE_PATTERNS` export through
+          the layout index. `unit/layout/projected-roots.test.ts` pins each shared root to the path `resolveArcPath`
+          gives, the backlog root as the one parent of the `planned` and `provisional` roots and the project inbox.
+        - `lib/store/projection/` opens with its README and `excludes.ts`: `projectionExcludePatterns`, the three shared
+          roots' patterns plus `.arc/system/.local/` (`PROJECTION_LOCAL_ROOT`), and no personal root; nothing calls it
+          before the flip. Its tests sit under `store/projection/` at the unit and integration tiers, the latter
+          showing a check's worktree capture staging nothing under those roots once the list is written.
 
 ### `[ ]` **1.2 Guard the projected roots with one `git check-ignore` call — § 11.2**
 
