@@ -54,6 +54,7 @@ describe("production entry grammars", () => {
     });
   it.each(["\n", "\r\n"].flatMap(newline => [
     "**Bold body without a colon**", "**Bold body** followed by prose.", "**Bold\nbody without a colon**",
+    "**Bold**body",
   ].flatMap(body => [
     "**Next:**", "**Next\nwrapped:**", "**Next with **bold** text\ncontinued:**",
     "**Next with\n**bold** text:**",
@@ -114,6 +115,12 @@ describe("production entry grammars", () => {
     "**A title with **bold\ntext** and more\ntext:**",
     "**A title with\n**bold `**`\ntext** and\n**more** text:**",
     "**A title with\n**bold \\**\ntext** and\n**more** text:**",
+    "**A title with pre**bold\ntext** and\n**more** text:**",
+    "**A title with\npre**bold\ntext**post and\n**more** text:**",
+    "**A title with pre**bold\ntext**post and\n**more** text:**",
+    "**A title with pre**bold\ntext**post and other**bold\nwords**tail\nends:**",
+    "**A title with προ**bold\ntext**μετά and\n**more** text:**",
+    "**A title with pre**bold `**`\ntext**post and\n**more** text:**",
   ].map(header => ({ newline, suffix, header })))))(
     "keeps inline bold spans wrapped across lines inside the memory with $newline $suffix: $header", ({ newline, suffix, header }) => {
       const raw = `${header}\n_Remove when: done._\n_Id:_ \`12345678\``.replaceAll("\n", newline);
