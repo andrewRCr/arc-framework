@@ -132,6 +132,13 @@ This work does not:
   here by amendment, without fixing it.
 - **review the import's read-only transform modules in full.** A trial run surfaces their faults (§ 11.1).
 
+Amended 2026-10-31 — The import's recognition of same-project native state is unchanged
+(`inspectImportDestination`, `lib/store/ref/import/occupied.ts`). A matching project identity can be mistaken for this
+import's own landing, including when a native writer occupies the destination before landing. This repository's
+one-time import starts with an empty store while ordinary commands still use the in-repo backend, and the cutover
+quiesces writers before importing. Preexisting native state or native writes racing that import cannot be reached by
+an import of this repository's state. — Import review F1; approved scope disposition.
+
 ## Proposed Design
 
 Paths are under `packages/arc-framework/src/` unless they start with `__tests__/` (under `packages/arc-framework/`).

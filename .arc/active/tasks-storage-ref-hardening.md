@@ -40,7 +40,7 @@ unmapped review source as cleared by the review mapping's binding.
   `~/dev/arc-evidence/storage-ref-hardening/import-review/`. Both blocked trials left build, landing, publication, and
   cleanup covered by source and existing-test inspection only; the pass supplies no attested review.
 
-### `[ ]` **1.3 Give every import finding a home in the plan — § 11.1**
+### `[x]` **1.3 Give every import finding a home in the plan — § 11.1**
 
 - _Goal:_ Every trial refusal, blocking notice, review finding, and held-out observation no finding matched is verified
   against source and dispositioned, so no import finding is deferred to later work: a code defect an import of this
@@ -48,32 +48,9 @@ unmapped review source as cleared by the review mapping's binding.
   reach is recorded in the spec's § Non-Goals, a correct refusal of this repository's state is a state fault that 5.11
   repairs, and an unmapped review source waits for the review mapping's binding.
 
-    - Verify each finding against source, then present the complete disposition set for approval before any plan or
-      spec write.
-    - Reachable: one subtask of 5.9 per finding or shared cause, each with its failing-first case. A finding that
-      repeats a known defect folds into that defect's task in Phase 5, and one that matches an observation
-      `notes-storage-ref-hardening.md` § Held out of the import review's first pass names folds into its task there.
-      Each held-out observation no finding matched takes a disposition too: a reachable one its task there or a subtask
-      of 5.9, an unreachable one a § Non-Goals amendment.
-    - Already fixed by a task of this plan: a finding whose cause a task of Phases 3, 4, 6, or 7 already changes folds
-      into it with its failing-first case — for example 3.7 (the migration fetch under source retirement), 3.8 (the
-      publication journal), 4.2.b (publication's designation question), 6.2.b (`withMigrationLock`'s raw Git ref lock
-      error at landing), or 4.3.a, 6.4, and 7.3 on the push path `publishImport` takes.
-    - Every fold, under this bullet or the one above, adds to the task it folds into a line recording its fix's SHA
-      under `notes-storage-ref-hardening.md` § Import review fixes as it lands. A fold into a Phase 6 task also adds a
-      parent `6.R` ahead of 6.10 that checks the fix as 5.10 does, and a fold into a Phase 7 task a parent `7.R` at the
-      end of Phase 7 that does the same.
-    - Cleared by another change: each unmapped review-source notice, which the review family's import mapping clears
-      once bound. Record them once under `notes-storage-ref-hardening.md` § Import state faults as cleared by that
-      binding; they take no repair.
-    - Unreachable: append `Amended YYYY-MM-DD — <delta> — <prompt>` to the spec's § Non-Goals naming the finding and why
-      this repository's state cannot reach it.
-    - State fault: a refusal or blocking notice the code raises correctly about this repository's state — personal
-      copies that differ between checkouts, a missing or diverged branch, a paused work unit. Record it with its
-      condition, its remedy, and the state it names, under `notes-storage-ref-hardening.md` § Import state faults; the
-      code is unchanged.
-    - A fault in a read-only transform module that the trial surfaced is in scope; § Non-Goals excludes only a full
-      review of those modules.
+- _Outcome:_ The approved five-item disposition set is recorded in `notes-storage-ref-hardening.md`: F1 is excluded
+  by forward Non-Goals amendment; H1 folds into 3.8 with fix-SHA tracking; H2 needs no code change; S1 has an approved
+  header-only repair at 5.11; M1 waits for the review mapping's binding. No new implementation task is needed.
 
 ### `[ ]` **1.4 Confirm the trial ran and every finding has a home** — validate exit criterion at segment scope
 
@@ -529,6 +506,8 @@ classification calls the sweep settled.
 
     - `unpublishedImportClaims` returns its `{condition, remedy}` pair for a missing blob tip and for one that does not
       parse, as it does for an absent ref.
+    - Record this fix's SHA under `notes-storage-ref-hardening.md` § Import review fixes for held-out observation H1,
+      so 5.10's fix check includes it.
     - Build `test-first` (one behavior at a time): a missing journal blob, and one that does not parse, each reach the
       import's report as a cleanup refusal with the restore remedy.
 

@@ -429,14 +429,46 @@ against them, and a match folds into the task named here.
   while § 11.2 covers only `committedAt`'s throw. It reads a notes object, not a state ref's, so it has no Phase 3
   row, and 1.3 dispositions it whether or not the review raises it.
 
+### Approved import-review dispositions
+
+The source audit at `1df5058cdd` returned one major finding. Its exact prompt, verbatim report, hashes, and the
+source-verified disposition proposal are kept under `~/dev/arc-evidence/storage-ref-hardening/import-review/`.
+The complete set was approved on 2026-10-31:
+
+- **F1 — Matching project identity does not establish an import landing:** valid for a native-store caller, but
+  unreachable by this repository's controlled, one-time import. The destination is empty, ordinary commands still
+  use the in-repo backend, and the cutover quiesces writers. Recorded by forward amendment in
+  `spec-storage-ref-hardening.md` § Non-Goals; no code fix here. The library finding is not refuted.
+- **H1 — Publication journal errors:** the first held-out observation folds into 3.8, which already covers missing
+  and unparseable journals. Record that fix's SHA under § Import review fixes so 5.10 checks it.
+- **H2 — Unreadable saved-note blobs:** rejected as a code defect. `appendImportPersonal` catches `manifestFiles`'s
+  throw, reports a per-person notice with a notes-restoration remedy, and `entry.ts` blocks before landing. Neither
+  trial reported such a blob.
+- **S1 — Working-memory headers:** a state fault for 5.11, with the header-only repair approved below.
+- **M1 — Unmapped review sources:** a binding prerequisite, recorded below; no repair in this work unit.
+
+Both returned trials are kept beside `import-trial/` under `~/dev/arc-evidence/storage-ref-hardening/`, with their
+blocked status in `trial-summary.json`. Each proposes 328 refs and refuses no record. The full trial has 3,010 unmapped
+review-source notices, S1, and five informational task-capture skips; the set-aside trial retains S1 and the five
+skips. Both also report the same six broken Candidate chains as evidence and 431 disk-only personal rows, with no
+disagreements. These informational results need no repair. Neither trial reached commit building or gathering refs;
+the copy's refs are unchanged. The earlier memory-ceiling exit is retained as an incomplete attempt, not a returned
+trial report.
+
 ## Import state faults
 
-Filled at 1.3 and by 5.12's rehearsal: each refusal or blocking notice a trial raises correctly about this repository's
-state, with its condition, its remedy, and the state it names. Each is repaired with the Owner's approval, 1.3's by 5.11
-and 5.12's within 5.12. The unmapped review-source notices are recorded here once, as cleared by the review mapping's
-binding (§ Coordination with `seam-delivery-review`); they take no repair. A fault 5.12 finds in the review mapping
-itself is recorded here as the mapping's; it takes no repair here, and 5.13 waits until its fix lands and this unit
-merges base.
+- **S1 — Wrapped titles in `andrew`'s `WORKING-MEMORY.md`** — open; repair approved for 5.11. Both trials report a
+  `personal/working-memory` parser fault at line 12: removal triggers require a one-line `**Title:**` header. The
+  resolver-backed file is in the primary checkout's `.arc/user/andrew/`. Join its 12 wrapped title headers, preserving
+  every word, removal trigger, and body. The proposed content parses into 16 entries and round-trips exactly through
+  `writeEntryList`; the patch and original content hash are retained as `working-memory.proposed.patch` and
+  `working-memory.proposal.json` beside the trial reports. Re-read current content before the repair and preserve
+  concurrent changes. Record the performed repair here at 5.11.
+- **M1 — Review-family import mapping** — awaiting binding; cleared by that binding, not by a repair here. The full
+  trial reports 3,010 distinct `arc/review-gate/` sources with no mapping. Setting aside the copy's sources other than
+  repository identity removes every such notice. Their remedy is to bind the review family's import mapping; 5.12
+  waits until this branch carries it, then rehearses with all sources present. An unmapped notice remaining then is a
+  mapping fault, to be recorded here; 5.13 waits for its fix and the base merge.
 
 ## Import review fixes
 
