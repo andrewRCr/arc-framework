@@ -9,7 +9,7 @@ import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state
 import { createRawGitExec } from "../../../lib/io-context.js";
 import { createLocalReviewCandidateReader } from "./local-prepare-composition.js";
 import { readSubmissionBoundaryVersioned } from "../../../lib/store/kinds/review/integration-boundary/access.js";
-import { spineRemedy } from "../../integration/spine-refusal.js";
+import { spineRemedy, type SpineRemedy } from "../../integration/spine-refusal.js";
 import { createReviewTarget } from "../core/gate-contract-v2.js";
 import type { LaneProgressState } from "../core/operation-state-schema.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
@@ -100,22 +100,25 @@ async function readResolvedLane(request: ReviewLaneReadRequest, input: LaneReadB
     ceiling: Number(settings["review.standard_max_passes"]), exec: input.rawGit ?? createRawGitExec(input.cwd) });
 }
 
+const LANE_READ_RETRY = ["arc", "review", "lane", "read", "-"] as const;
+
+function refusedLaneRead(code: string, detail: string, remedy: SpineRemedy): ReviewLaneReadEnvelope {
+  return { schemaVersion: 1, mode: "review-lane-read", state: "refused", nextAction: "stop", diagnostics: [],
+    payload: { code, detail, remedy } };
+}
+
 // A native typed refusal reports under its own code, carrying its condition and remedy.
 function nativeLaneReadRefusal(error: unknown, request: ReviewLaneReadRequest): ReviewLaneReadEnvelope | null {
   if (error instanceof ProjectIdentityError) {
-    return { schemaVersion: 1, mode: "review-lane-read", state: "refused", nextAction: "stop", diagnostics: [],
-      payload: { code: "project-identity-unavailable", detail: error.failure.reason,
-        remedy: projectIdentitySpineRemedy(error, ["arc", "review", "lane", "read", "-"], request) } };
+    return refusedLaneRead("project-identity-unavailable", error.failure.reason,
+      projectIdentitySpineRemedy(error, LANE_READ_RETRY, request));
   }
   if (isOffBranchStoreRefusal(error)) {
-    return { schemaVersion: 1, mode: "review-lane-read", state: "refused", nextAction: "stop", diagnostics: [],
-      payload: { code: "store-refused", detail: error.refusal.condition,
-        remedy: reviewFailureSpineRemedy(error.refusal.condition, error.refusal.remedy, ["arc", "review", "lane", "read", "-"], request) } };
+    return refusedLaneRead("store-refused", error.refusal.condition,
+      reviewFailureSpineRemedy(error.refusal.condition, error.refusal.remedy, LANE_READ_RETRY, request));
   }
   if (error instanceof ReviewOwnerSelectionError) {
-    return { schemaVersion: 1, mode: "review-lane-read", state: "refused", nextAction: "stop", diagnostics: [],
-      payload: { code: error.code, detail: error.condition,
-        remedy: reviewFailureSpineRemedy(error.condition, error.remedy, ["arc", "review", "lane", "read", "-"], request) } };
+    return refusedLaneRead(error.code, error.condition, reviewFailureSpineRemedy(error.condition, error.remedy, LANE_READ_RETRY, request));
   }
   return null;
 }
@@ -134,7 +137,6 @@ export async function readReviewLane(request: ReviewLaneReadRequest, input: Lane
     const correction = request.memberHeadObjectId === undefined
       ? `Use the checkout for the intended Errand claim or Candidate (current checkout: ${input.cwd}), then retry`
       : `Use the owning work-unit checkout (${input.cwd}) and a bound delivery member head; requested ${request.memberHeadObjectId}. Retry`;
-    return { schemaVersion: 1, mode: "review-lane-read", state: "refused", nextAction: "stop", diagnostics: [],
-      payload: { code, detail, remedy: spineRemedy(detail, correction, ["arc", "review", "lane", "read", "-"], request) } };
+    return refusedLaneRead(code, detail, spineRemedy(detail, correction, LANE_READ_RETRY, request));
   }
 }
