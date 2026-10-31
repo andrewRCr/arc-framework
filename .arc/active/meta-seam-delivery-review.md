@@ -11,13 +11,14 @@
 - **Design:** `spec-seam-delivery-review.md`
 - **Task List:** `tasks-seam-delivery-review.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:6465f3518177492d0955e478a2090e571af5bc9309d1645ee667e756e51ee411`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Reshape the review kinds in the catalog and the registry
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 8.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run the task loop from Task 1.1; Task 1.8 pauses for the locus landing
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]

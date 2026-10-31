@@ -1487,153 +1487,193 @@ prerequisites have landed, and every earlier task is independent of the remainin
 
 ## **Phase 8:** Verification
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ The merge gate at `fa5c94e85` passed 19 checks with 4 CI-only checks not selected; its store check
+  reached 320 of 325 suites in six shards. Hosted run `41243915971` at that head, with the portability pair and no
+  diagnostic input, passed every job on its third attempt. Each earlier attempt failed one case outside this change's
+  reach on Windows shard 4: `ci-build-recovery.test.ts`'s preflight-resume case at its 60 s limit, then
+  `vitest-native-writers.test.ts`'s duration key, an intermittent already captured. After the first base merge, two
+  merge gates failed `store-ref-designation-states.test.ts`'s first-pull cases at their 10 s subprocess limit; reruns
+  and both later gates passed. The cause is suspected load, and this change's measured ~13% per-case addition is not
+  located; the cases' headroom is captured.
+
+- _Success criteria:_ 39 criteria, all met, 11 with deviations. Author review ran four passes over the change, each
+  round's findings dispositioned and approved before fixing — 31, 18, 18, and a focused pass's 10 — then a fix check
+  whose three findings were fixed. The independent companion's pass found 6 major and 2 minor, all fixed, and one
+  rejected; its fix check was clean.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Each of the six review kinds registers a parser, and each but `review/candidate` a write check; every write-check
+- `[x]` Each of the six review kinds registers a parser, and each but `review/candidate` a write check; every write-check
   rule § 4–9 names has unit cases refusing its breaking write and admitting its valid counterpart; and `review/terminus`
   appears in neither `KIND_SHAPES` nor `KIND_MECHANISMS`.
 
-- `[ ]` The review gate's and delivery's existing tests pass over the in-repo implementation with no assertion changed
+- `[x]` The review gate's and delivery's existing tests pass over the in-repo implementation with no assertion changed
   but in the tests pinning what the checkpoint's binding, the recording verb's registration, the widened published
   schemas, the contracts admitting a retired mechanism's fields, the review error code, merge's landing-link state,
   `storage.track_design_docs`, and the export path's classification change (spec, A3–A5), a stub of a rerouted caller's
   store module moving only to the module that caller now imports, or stubbing the typed access where the caller's test
   runs outside a repository, as the deferred-module specifiers `cli-loading-boundary.test.ts` lists move and
   `store-registered-reads.test.ts`'s mock moves to the narrower registration module.
+    - **Deviation:** A29 admits two changes beyond the listed cases: the reduction command's test drops its
+      `appendDispositionRecord` no-write spy, the port now a disposition reader the type keeps from writing, and the
+      review gate's closed canonical-caller inventory lists the modules this change adds.
 
-- `[ ]` No production module outside `lib/store/` imports the Candidate or boundary store.
+- `[x]` No production module outside `lib/store/` imports the Candidate or boundary store.
 
-- `[ ]` `arc review adversarial record` refuses its write `unsupported` before the flip.
+- `[x]` `arc review adversarial record` refuses its write `unsupported` before the flip.
+    - **Deviation:** The verb refuses `unsupported` itself on `stateOffBranch`, before any write, rather than surfacing
+      the in-repo backend's write refusal; callers see the same refusal.
 
-- `[ ]` No import-ratchet floor (`store-raw-state`, `surface-names`, `work-unit-paths`) grows, in total or per file,
+- `[x]` No import-ratchet floor (`store-raw-state`, `surface-names`, `work-unit-paths`) grows, in total or per file,
   from the final merged base.
 
-- `[ ]` Over a store whose record versions move independently, merge refuses when the work unit's meta record or the
+- `[x]` Over a store whose record versions move independently, merge refuses when the work unit's meta record or the
   code head moved since the checkpoint, and passes when only an unrelated record did.
 
-- `[ ]` Run over this repository's review records, the mapping's listing accounts for every source exactly once, as
+- `[x]` Run over this repository's review records, the mapping's listing accounts for every source exactly once, as
   mapped with its records, left behind with its reason, or in flight; every record it returns parses and passes its
   kind's write check; a fixture holding a `pending` attempt lists its file as in flight; and each live work unit's
   supersession chain through the mapped Candidate records equals `readRepositoryCandidateSupersessionChain`'s.
+    - **Deviation:** Proven by the trial at the verified head, which reports no coverage notice and whose two mapped
+      records parse and pass their checks, and by fixture tests. This repository holds no live Candidate, so the chain
+      clause rests on criterion 8's diagnostic, whose 26 fully mapped chains match, and on fixtures.
 
-- `[ ]` A diagnostic run of the mapping over this repository's review records, every work item marked live, maps every
+- `[x]` A diagnostic run of the mapping over this repository's review records, every work item marked live, maps every
   attempt, disposition set, authorization, and skip marker to records that parse and pass their write checks, gives each
   supplied Candidate whose versions all map the supersession chain `readRepositoryCandidateSupersessionChain` gives, and
   leaves behind only for the reasons § 11.2 names.
+    - **Deviation:** Run by an uncommitted harness at `9900298a1`, whose source matches the verified head, kept outside
+      the repository. Five facts naming Candidates absent from every work unit's history, the two disposition sets
+      citing them, and two lanes holding no attempt are left behind under § 11.2's not-live and derived-fields bullets.
 
-- `[ ]` From the flip, a work unit's delivery makes no record-only commit and emits no `commit-*` next action.
+- `[x]` From the flip, a work unit's delivery makes no record-only commit and emits no `commit-*` next action.
+    - **Deviation:** Proven per retired mechanism — selection, member terminus, checkpoint, keep-staged, and boundary
+      staging — rather than in one attest-to-publish run.
 
-- `[ ]` From the flip, a re-root after code changes keeps a recorded terminus.
+- `[x]` From the flip, a re-root after code changes keeps a recorded terminus.
 
-- `[ ]` From the flip, a work unit attested publishes with no `Candidate` in its meta; a reopened work unit's
+- `[x]` From the flip, a work unit attested publishes with no `Candidate` in its meta; a reopened work unit's
   publication refuses, a no-change `arc attest` restoring nothing, until `arc review pre-publication` records readiness
   again for the same Candidate, minting, while the standard lane still awaits its change request, the hosted reservation
   it had before reopen; and an interrupted publish still finishes.
+    - **Deviation:** Publication with no `Candidate` in the meta is composed from the attest and publish tests rather
+      than shown in one run.
 
-- `[ ]` From the flip, an archived work unit leaves no Candidate in the live listings.
+- `[x]` From the flip, an archived work unit leaves no Candidate in the live listings.
 
-- `[ ]` From the flip, publication refuses when the standard lane's outcomes, evidence, `approved-fix` decisions or
+- `[x]` From the flip, publication refuses when the standard lane's outcomes, evidence, `approved-fix` decisions or
   their withdrawals, or in-flight attempts changed after readiness, and when that listing is incomplete.
 
-- `[ ]` From the flip, every decision a review subject carries outside the Candidate's own selections is a
+- `[x]` From the flip, every decision a review subject carries outside the Candidate's own selections is a
   `review/decision` record.
 
-- `[ ]` Adding, re-exporting, and deleting the review copy leave the review subject unchanged.
+- `[x]` Adding, re-exporting, and deleting the review copy leave the review subject unchanged.
 
-- `[ ]` Ordinary extra-pass continuation cleanup drops spent ceiling authority before a post-fix incremental
+- `[x]` Ordinary extra-pass continuation cleanup drops spent ceiling authority before a post-fix incremental
   check without granting another complete pass; additional-pass predecessor binding survives scope changes in both
   directions, with original native decision identity, one-pass restrictions and repaired refusals preserved (A18).
+    - **Deviation:** The scope-ineligible complete predecessor is proven at unit level from whole-target to chunked
+      only; the reverse cannot arise, since the only chunk-capable source also supports whole-target.
 
-- `[ ]` From the flip, a landed merge writes the landing-commit link naming the project ID.
+- `[x]` From the flip, a landed merge writes the landing-commit link naming the project ID.
+    - **Deviation:** A fresh merge's link is proven at unit level with the pinned merge faked; already-merged,
+      recovered, retried, and archived-without-history merges run through the command handler.
 
-- `[ ]` From the flip, `arc attest` on a paused work unit refuses naming `arc resume <slug>` and succeeds after
+- `[x]` From the flip, `arc attest` on a paused work unit refuses naming `arc resume <slug>` and succeeds after
   `arc resume`.
 
-- `[ ]` A clone whose `review-gate/operations/` holds records of today's shapes still reads its review state from the
+- `[x]` A clone whose `review-gate/operations/` holds records of today's shapes still reads its review state from the
   flip.
 
-- `[ ]` From the flip, `arc review adversarial record` writes one `review/adversarial-pass` record per call and refuses
+- `[x]` From the flip, `arc review adversarial record` writes one `review/adversarial-pass` record per call and refuses
   malformed input naming the expected shape.
 
-- `[ ]` From the flip, an Errand's frontline skip is kept as a lane-skip decision and closes its frontline window.
+- `[x]` From the flip, an Errand's frontline skip is kept as a lane-skip decision and closes its frontline window.
 
-- `[ ]` From the flip, two clones' outcomes for one target carry the project ID as their repository identity, and review
+- `[x]` From the flip, two clones' outcomes for one target carry the project ID as their repository identity, and review
   on a clone holding no project ID refuses naming the port's remedy and succeeds once the clone holds it.
 
-- `[ ]` Under either archive cadence, `arc integrate merge` and `arc merge lock release` release the merge lock for a
+- `[x]` Under either archive cadence, `arc integrate merge` and `arc merge lock release` release the merge lock for a
   work unit whose meta is a stored record, an archived one whose pull request has no change-request link included, and
   refuse `readiness-failed` where its position, branch link, notes facts, or change-request link fails.
 
-- `[ ]` All quality gates pass (tests, linting, type checking).
+- `[x]` All quality gates pass (tests, linting, type checking).
+    - **Deviation:** 20 native refusal sites this change makes rethrow typed refusals carry no test, since no native
+      fixture reaches them before the flip; their tests are captured as an Errand for a native delivery fixture.
+      `test:store`'s first-pull designation cases failed intermittently in two merge gates, and the hosted run passed
+      on its third attempt after two Windows intermittents outside this change's reach.
 
-- `[ ]` Ready for integration.
+- `[x]` Ready for integration.
 
-- `[ ]` Complete logical pass 1 followed by incremental logical pass 2, including across Candidate supersession,
+- `[x]` Complete logical pass 1 followed by incremental logical pass 2, including across Candidate supersession,
   yields completed logical count 2, standard ceiling count 1, and next logical pass 3. Extra-pass decisions, keys,
   import, replay, consumption, and retry keep logical ordinals; incremental attempts cite no grant (spec, A6).
 
-- `[ ]` Optional fix tags survive approval, import, composed reads, replay, and earlier-round reporting outside
+- `[x]` Optional fix tags survive approval, import, composed reads, replay, and earlier-round reporting outside
   disposition and approval identity. Present tags cover exactly the `fix` findings, absence stays absent, and every
   advance and successor preserves the predecessor's stored tags (spec, A6).
 
-- `[ ]` The production locus entry points resolve active and completed Candidate owners over the supplied store and
+- `[x]` The production locus entry points resolve active and completed Candidate owners over the supplied store and
   exact marker/topology evidence with no meta file or owner stand-in, and hosted-Errand discovery succeeds with no
   identity-ref copy of its stored records (spec, A6).
 
-- `[ ]` Through the production probe, an Integrating subject projects delivery correction without materialized
+- `[x]` Through the production probe, an Integrating subject projects delivery correction without materialized
   task-list, Candidate, or boundary files, and an Active changed target projects pending-fix authority from stored
   outcomes and evidence without legacy disposition records. Both use the exact selected owner and invocation store,
   opening no default store for the subject's checkout (spec, A6).
 
-- `[ ]` Imported and newly written frontline outcomes retain the original canonical `sourceBindingId` without
+- `[x]` Imported and newly written frontline outcomes retain the original canonical `sourceBindingId` without
   executable paths or arguments. Result reads, disposition matching, and pending-fix authority use that digest, so an
   existing approved set still matches after redaction, including a command source with a Candidate/member response
   binding and an import with no run record (spec, A7).
 
-- `[ ]` Imported Errand and member evidence with no `fix` disposition retains its native performance header without a
+- `[x]` Imported Errand and member evidence with no `fix` disposition retains its native performance header without a
   fix response. Performed Errand or member fixes require their complete authorized transition, and a set with no fix
   refuses either fix-response object (spec, A10).
 
-- `[ ]` Native operation and source references retain the exact project and work-item UID through pruning and clone
+- `[x]` Native operation and source references retain the exact project and work-item UID through pruning and clone
   changes without changing stable IDs or result keys. Production local completed re-entry/reduction and frontline and
   hosted result/response reads use them without original working files; rename and slug reuse retain the selected
   generation. Invalid reference coordinates refuse actionably and succeed after correction (spec, A13).
 
-- `[ ]` Local attest's `attested-current` payload carries the actual retained source-store reference, or omits it on
+- `[x]` Local attest's `attested-current` payload carries the actual retained source-store reference, or omits it on
   ended native replay when that record is absent. Resume payloads carry no `sourceRef`; completed receipt references
   retain the native outcome key and owner. In-repo payloads stay unchanged (spec, A14).
+    - **Deviation:** The native retained reference is pinned by replay equality rather than by value.
 
-- `[ ]` Native generic frontline resolution without a terminal producer and exempt or source-free standard
+- `[x]` Native generic frontline resolution without a terminal producer and exempt or source-free standard
   resolution without one retain their configured results without an established owner. Producer reads and runnable
   standard review refuse with an actionable owning-checkout remedy and succeed after context repair, without selecting
   another owner or treating unknown history as empty. Existing owner, project-identity, and in-repo behavior remain
   intact (spec, A15).
 
-- `[ ]` Native full ordinary grants retain their original host repository and nullable PR binding, and targetless
+- `[x]` Native full ordinary grants retain their original host repository and nullable PR binding, and targetless
   imports bind them at use. Relay keys preserve recorded authors and all constraints, invalid references refuse and
   recover after repair, and incremental passes cite no grant. Approved-fix keys and in-repo emissions remain unchanged
   (spec, A16).
 
-- `[ ]` An imported replay-only terminus reaches default native pre-publication readiness through its original key,
+- `[x]` An imported replay-only terminus reaches default native pre-publication readiness through its original key,
   nullable recorded author, and stored pass-count basis without new acceptance or a second decision. Native policy
   outputs preserve that projection while the boundary stores only its key; invalid authority refuses and recovers
   after repair. Public command and corrective payloads and version-one repository behavior remain unchanged (spec, A17).
 
-- `[ ]` A verified clean incremental fix check under `full-final` retains its exact predecessor when ordinary
+- `[x]` A verified clean incremental fix check under `full-final` retains its exact predecessor when ordinary
   additional-pass authority admits the required complete successor, including scope changes in either direction,
   in both storage arms. Its final-coverage signal remains false; invalid bindings, unresolved convergence or responses,
   incremental successors, and spent grants refuse, while matching inputs resume (spec, A19).
+    - **Deviation:** Target, lane, count, and producer refusals are tested on a complete predecessor only; they run
+      before the fix-check exception, so they bind a fix-check predecessor by construction.
 
-- `[ ]` `arc store migrate --import` passes the mapping into the import, and its trial over this repository's review
+- `[x]` `arc store migrate --import` passes the mapping into the import, and its trial over this repository's review
   records reports no review coverage notice: each live work unit's current Candidate record lists once by its tracked
   path, mapped into the Candidate record its newest version became or left behind with that version's reason
   (spec, A20).
 
-- `[ ]` In `arc store migrate --import`'s trial, each live work unit's current Candidate record lists once by its
+- `[x]` In `arc store migrate --import`'s trial, each live work unit's current Candidate record lists once by its
   tracked path, with its newest committed version's outcome where it repeats that version and otherwise as the
   Candidate record's newest revision, mapped or left behind as today's reader takes it; committed versions with no
   current record are left behind (spec, A21).
