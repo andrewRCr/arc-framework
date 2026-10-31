@@ -683,6 +683,9 @@ describe("evidence-bound review policy", () => {
           requiredFindings: [{ producerId: result.producerId, findingId: "finding-1", locus: "src/example.ts:7" }] } } } };
     await expect(resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: true }, evidence))
       .resolves.toMatchObject({ state: "ready", nextAction: "local-prepare", payload: { pass: 4, ceilingOverrideApplied: false } });
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: true },
+      { ...evidence, chosenCoverage: "complete" as const }))
+      .resolves.toMatchObject({ state: "approval-required", nextAction: "obtain-ceiling-override" });
   });
 
   it.each([false, true])("retains an unspent conditional authorization on the fresh fix-check route, native=%s", async (native) => {
