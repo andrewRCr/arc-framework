@@ -1,4 +1,5 @@
 /** Native delivery acknowledgment persists its Candidate and boundary without record effects. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { expect, it, onTestFinished } from "vitest";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -48,7 +49,7 @@ it("acknowledges and replays a native delivery correction with no record paths o
     branches: [{ repository: projectId, ref: branch, linkedAs: "adopted", excluded: [] }],
   });
   await writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-20T12:00:00Z",
-    createdFor: { kind: "work-unit", name } });
+    createdFor: boundWorkUnitSubject(primary) });
   const record = { schemaVersion: 1 as const, semanticsVersion: "candidate-attestation/v1" as const,
     subject: original.target.subject, attestation: createCandidateAttestation({ workUnit: name, subject: original.target.subject,
       baseRevision: original.target.revision, attestedBy: "test-user", attestedAt: "2026-10-20T12:00:00Z",

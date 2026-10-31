@@ -1,4 +1,5 @@
 /** Public extra-pass continuations retain one-pass authority across response and scope transitions. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
@@ -67,9 +68,10 @@ async function subject(native: boolean) {
   const fields = { state: "Active" as const, owner: "andrew", branch, workClass: "Light" as const, taskList: "tasks-example.md",
     currentWorkflow: "process-task-loop" as const, ...(native ? {} : { candidateId: candidate.attestation.candidateId }) };
   const tasks = "# Task List\n\n## **Phase 1:** Build\n\n### `[x]` **1.1 Complete**\n";
+  let seeded: Awaited<ReturnType<typeof h.reference.seedMeta>> | undefined;
   if (native) {
     await h.reference.seedProject(projectId);
-    const primary = await h.reference.seedMeta(name, fields, { kind: "active" }, {
+    const primary = seeded = await h.reference.seedMeta(name, fields, { kind: "active" }, {
       branches: [{ repository: projectId, ref: branch, linkedAs: "created", excluded: [] }],
     });
     await h.reference.seed(recordReferences["work-item/task-list"](primary.reference.owner), tasks);
@@ -79,11 +81,12 @@ async function subject(native: boolean) {
     await writeFile(join(cwd, ".arc/active/tasks-example.md"), tasks);
   }
   const store = selected.store!;
-  const lookup = lifecycleSuccess(await store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: candidate.attestation.workUnit } }));
+  const lookup = seeded
+    ?? lifecycleSuccess(await store.lookup({ kind: "claim", claim: { kind: "work-unit", slug: candidate.attestation.workUnit } }));
   const owner = lookup.reference.owner;
   const input = { ...selected, exec, store, workItem: owner };
   await writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: "andrew", createdAt: "2026-10-27T12:00:00Z",
-    createdFor: { kind: "work-unit", name } });
+    createdFor: seeded === undefined ? { kind: "work-unit", name } : boundWorkUnitSubject(seeded) });
   await writeCandidateRecord(cwd, name, candidate, null, { store, owner });
   await writeSubmissionBoundary(cwd, projectCandidateReviewBoundary({ workUnit: name,
     candidateId: candidate.attestation.candidateId, candidateSubjectDigest: candidate.subject.subjectDigest }, native ? 2 : 1), null, { store, owner });

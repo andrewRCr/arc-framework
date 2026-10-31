@@ -1,4 +1,5 @@
 /** Native applicability selection completes in the store with no projected record to stage. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { expect, it, onTestFinished } from "vitest";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -44,7 +45,7 @@ async function selection(archived = false) {
       verificationEvidenceRef: "test://verification" }), transitions: [], lineageAttestations: [] };
   const saved = await h.reference.seedCandidate(primary.reference.owner, record);
   await writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-20T12:00:00Z",
-    createdFor: { kind: "work-unit", name: "example" } });
+    createdFor: boundWorkUnitSubject(primary) });
   await writeFile(join(cwd, "feature.txt"), "changed\n");
   await git("commit", "-am", "Adjust feature");
   const currentHead = await git("rev-parse", "HEAD");

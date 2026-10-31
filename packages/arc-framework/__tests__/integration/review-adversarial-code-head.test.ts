@@ -1,4 +1,5 @@
 /** A code adversarial pass binds the HEAD of the checkout holding its work unit, and no other checkout's. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
@@ -24,9 +25,9 @@ it("binds a code pass to the HEAD of the checkout holding its work unit and refu
     "# Spec\n\nA reviewed specification.\n");
   const tasks = await h.reference.seed(recordReferences["work-item/task-list"](primary.reference.owner),
     "# Tasks\n\n### `[ ]` **1.1 Implement behavior**\n\n- _Goal:_ Implement it.\n");
-  await h.reference.seedMeta("another-work-item");
-  const occupy = (name: string) => writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: "test-user",
-    createdAt: "2026-10-20T18:00:00Z", createdFor: { kind: "work-unit", name } });
+  const another = await h.reference.seedMeta("another-work-item");
+  const occupy = (holder: typeof primary) => writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: "test-user",
+    createdAt: "2026-10-20T18:00:00Z", createdFor: boundWorkUnitSubject(holder) });
   const run = async (activity: "verification" | "criteria") => {
     let output = "", exitCode = 0;
     await handleReviewAdversarialRecord("-", { resolveRoot: () => cwd,
@@ -35,7 +36,7 @@ it("binds a code pass to the HEAD of the checkout holding its work unit and refu
     return { envelope: JSON.parse(output), exitCode };
   };
   const before = await store.version();
-  for (const holder of [null, "another-work-item"]) {
+  for (const holder of [null, another]) {
     if (holder !== null) await occupy(holder);
     expect(await run(holder === null ? "verification" : "criteria")).toMatchObject({ exitCode: 1, envelope: { error: {
       code: "invalid-input", message: expect.stringContaining("work unit `example`'s checkout") } } });
@@ -46,7 +47,7 @@ it("binds a code pass to the HEAD of the checkout holding its work unit and refu
     message: expect.stringContaining("Inspect and repair or remove the marker, then retry.") } } });
   expect((await run("verification")).envelope.error.message).not.toContain("work unit `example`'s checkout");
   expect(await store.version()).toEqual(before);
-  await occupy("example");
+  await occupy(primary);
   const head = (await exec("git", ["rev-parse", "HEAD"], { cwd })).stdout.trim();
   for (const number of [1, 2]) for (const activity of ["verification", "criteria"] as const) {
     const result = await run(activity);

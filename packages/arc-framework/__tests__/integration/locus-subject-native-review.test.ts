@@ -1,4 +1,5 @@
 /** Production locus callbacks recover portable pending fixes without checkout projections. */
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
 import { mkdir, writeFile, access } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
@@ -60,7 +61,7 @@ async function nativeCandidateCheckout(workflow?: "prepare-work-unit") {
   }
   await h.reference.seedCandidate(primary.reference.owner, candidate);
   await writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: "andrew", createdAt: "2026-10-20T15:00:00Z",
-    createdFor: { kind: "work-unit", name } });
+    createdFor: boundWorkUnitSubject(primary) });
   const probe = () => runDerivedLocusStateProbe({ ...h.native, identity: "andrew", baseBranch: "main", archiveCadence: "manual" });
   const projectedBoundary = async () => {
     const context = (await probe()).active?.context;
