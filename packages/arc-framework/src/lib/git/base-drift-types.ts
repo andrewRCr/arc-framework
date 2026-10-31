@@ -18,7 +18,7 @@ export type BaseMovement = z.infer<typeof BaseMovementSchema>;
 export const BaseDriftUnavailableReasonSchema = z.enum([
   "config-unavailable", "invalid-base", "detached-head", "no-remote", "fetch-timeout",
   "fetch-failed", "base-object-pending-fetch", "remote-evidence-unreachable",
-  "remote-base-absent", "fetched-base-unresolved", "distance-read-failed",
+  "remote-base-absent", "fetched-base-unresolved", "distance-read-failed", "locus-unavailable",
 ]);
 export type BaseDriftUnavailableReason = z.infer<typeof BaseDriftUnavailableReasonSchema>;
 

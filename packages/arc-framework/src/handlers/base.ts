@@ -15,7 +15,8 @@ import {
   workUnitPathTreatmentContext,
 } from "../lib/base-drift/current-adapters.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import { runBaseDrift, type BaseDriftResult } from "../lib/git/base-distance.js";
+import { runBaseDrift, unavailableBaseDrift, type BaseDriftResult } from "../lib/git/base-distance.js";
+import { isNativeTypedRefusal } from "../lib/store/native-refusal.js";
 import { composeUnavailableRegister } from "../lib/git/base-drift-register.js";
 import { type BaseSyncResult } from "../lib/git/base-sync.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
@@ -231,7 +232,9 @@ export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: Inte
             const workUnit = row === null ? null : locusWorkUnitAtPath(frame.roster, row.checkout.path);
             treatmentContext = workUnit === null ? {} : workUnitPathTreatmentContext(workUnit.name);
           }
-        } catch {
+        } catch (error) {
+          // A native store's refusal of the locus read names its own repair rather than drifting without treatment.
+          if (isNativeTypedRefusal(error)) return unavailableBaseDrift("locus-unavailable", config.settings["branch.base"], error);
           treatmentContext = {};
         }
         return runBaseDrift({
