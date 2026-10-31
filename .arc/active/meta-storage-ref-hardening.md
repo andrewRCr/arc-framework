@@ -1,8 +1,8 @@
 # Metadata: storage-ref-hardening
 
-| **State**  | **Owner** | **Branch**                   | **Class** | **Priority** |
-| ---------- | --------- | ---------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/storage-ref-hardening` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                  | **Class** | **Priority** |
+| --------- | --------- | --------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `fix/storage-ref-hardening` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage`
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-storage-ref-hardening.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Run a trial import of this repository's state in a disposable copy
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 in process-task-loop
 
 - **PR URL:** [none]
 - **Completed:** [none]
