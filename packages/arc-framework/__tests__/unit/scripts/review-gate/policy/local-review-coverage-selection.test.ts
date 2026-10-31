@@ -11,9 +11,9 @@ import { describe, expect, it, vi } from "vitest";
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import { SlugSchema } from "../../../../../src/lib/kernel/schema/slug.js";
 import type { RawGitExec } from "../../../../../src/lib/git/exec.js";
-import { makeGitProcessError, scriptRawGitExec } from "../../../../helpers/git-exec-fake.js";
-import type {
-  CandidateManagedRecordV1,
+import { makeGitProcessError, scriptGitExec, scriptRawGitExec } from "../../../../helpers/git-exec-fake.js";
+import {
+  createCandidateReviewResponseEvidence, createCandidateSubjectSnapshot, type CandidateManagedRecordV1,
 } from "../../../../../src/lib/work-unit/candidate-attestation.js";
 import {
   createReviewRequirement,
@@ -284,27 +284,43 @@ describe("local review coverage selection", () => {
     expect(exec).not.toHaveBeenCalled();
   });
 
-  it("raises a refused private Candidate response-performance read whole, and weighs the leg once it answers", async () => {
+  it("raises a refused private Candidate response-performance read whole, and proves the correction once it answers", async () => {
     const predecessor = { ...completeLocalResult(), originalOutcome: "findings" as const };
     const currentTarget = target(objectId("b"));
+    const subject = createCandidateSubjectSnapshot([]), dispositionId = digest("disposition");
+    const response = createCandidateReviewResponseEvidence({ candidateId: lineage.candidateId,
+      oldTarget: { revision: objectId("a"), subject }, newTarget: { revision: objectId("b"), subject }, dispositionId,
+      approvedBy: "test-user", appliedBy: "test-user", applicability: "full", approvedVerification: "full",
+      verificationEvidenceRefs: ["verified-response"], implementationChanged: true });
+    const { exec } = scriptGitExec([
+      { match: ["rev-parse", "--verify", "refs/heads/main^{commit}"], responses: [{ stdout: `${objectId("9")}\n` }] },
+      { match: { predicate: args => args[0] === "merge-base" && args.at(-1) === objectId("9") },
+        responses: [{ stdout: `${objectId("0")}\n` }] },
+      { match: { predicate: args => args[0] === "diff" && args.includes("--name-only") }, responses: [{ stdout: "" }] },
+      { match: { predicate: args => args[0] === "rev-parse" && /\^\{tree\}$/u.test(args.at(-1) ?? "") },
+        responses: [{ stdout: `${objectId("2")}\n` }] },
+    ]);
     const refusal = nativeListingRefusal();
     let repaired = false;
     const input = {
-      predecessor, currentTarget, currentLineage: lineage, cwd: "/fixture", baseRef: "main",
-      exec: vi.fn(async () => { throw new Error("Git proof must not run without response authority"); }),
+      predecessor, currentTarget, currentLineage: lineage, cwd: "/fixture", baseRef: "main", exec,
       observeTarget: async () => currentTarget,
-      readResponsePerformance: async () => { if (!repaired) throw refusal; return null; },
+      readResponsePerformance: async () => {
+        if (!repaired) throw refusal;
+        return { schemaVersion: 1 as const, producerId: predecessor.producerId, dispositionSetId: dispositionId,
+          originatingHeadSha: objectId("a"), producedHeadSha: objectId("b"), performedAt: "2026-10-20T12:00:00Z" };
+      },
       candidate: {
         attestation: { candidateId: lineage.candidateId, workUnit: "example" },
-        transitions: [],
+        transitions: [response],
       } as unknown as CandidateManagedRecordV1,
     };
     await expect(confirmPrivateCandidateCorrectionBasis(input)).rejects.toBe(refusal);
     repaired = true;
-    await expect(confirmPrivateCandidateCorrectionBasis(input)).resolves.toBe("unavailable");
+    await expect(confirmPrivateCandidateCorrectionBasis(input)).resolves.toBe("applicable");
   });
 
-  it("raises a native refusal observing a delivery member's live target whole, and weighs the member once it reads", async () => {
+  it("raises a native refusal observing a delivery member's live target whole, and proves the member once it reads", async () => {
     const memberLineage = { kind: "delivery-member" as const, planId: "123e4567-e89b-42d3-a456-426614174000",
       workUnitId: SlugSchema.parse("example"), deliverableId: digest("member") };
     const memberTarget = (headSha: string) => createReviewTarget({ schemaVersion: 2, semanticsVersion: "review-gate/v2",
@@ -314,12 +330,18 @@ describe("local review coverage selection", () => {
     const currentTarget = memberTarget(objectId("b"));
     const refusal = nativeListingRefusal();
     let repaired = false;
-    const input = { predecessor, currentTarget, currentLineage: memberLineage,
-      exec: vi.fn(async () => { throw new Error("a moved member target must stop before Git"); }),
-      observeTarget: async () => { if (!repaired) throw refusal; return memberTarget(objectId("c")); } };
+    const trees = new Map([[objectId("0"), objectId("1")], [objectId("a"), objectId("2")], [objectId("b"), objectId("2")]]);
+    const bytes = (value: string) => ({ stdout: new TextEncoder().encode(`${value}\n`) });
+    const exec = scriptRawGitExec([{ match: { predicate: args => args[0] === "rev-parse" },
+      responses: [({ args }) => {
+        const [, revision, kind] = /^([0-9a-f]+)\^\{(commit|tree)\}$/u.exec(args.at(-1) ?? "") ?? [];
+        return bytes(kind === "commit" ? revision ?? "" : trees.get(revision ?? "") ?? "");
+      }] }]).exec;
+    const input = { predecessor, currentTarget, currentLineage: memberLineage, exec,
+      observeTarget: async () => { if (!repaired) throw refusal; return currentTarget; } };
     await expect(confirmDeliveryMemberIncrementalApplicability(input)).rejects.toBe(refusal);
     repaired = true;
-    await expect(confirmDeliveryMemberIncrementalApplicability(input)).resolves.toBe("unavailable");
+    await expect(confirmDeliveryMemberIncrementalApplicability(input)).resolves.toBe("applicable");
   });
 
   it("withholds private correction coverage when the Candidate owner or exact base changes", async () => {
