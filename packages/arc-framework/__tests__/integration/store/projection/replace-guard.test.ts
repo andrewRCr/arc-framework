@@ -1,5 +1,5 @@
 /** The replace guard over a seeded projection: an edit found at the re-check is taken in before the file is replaced. */
-import { readFile, utimes, writeFile } from "node:fs/promises";
+import { readFile, stat as fsStat, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
@@ -178,5 +178,13 @@ describe("the replace guard", () => {
     await markdown.guard(recording);
     await text.guard(recording);
     expect(bases).toEqual([{ kind: "stamp", stamp: older }, { kind: "blob", blob: text.entry.base.blob }]);
+  });
+
+  it("restages a protected file read-only after taking its edit in", async () => {
+    const { fixture, entry, guard, save, seeded } = await projected();
+    await save("# Cohort: one\n\nBody, edited.\n");
+    const result = await guard(landing(fixture.store, () => entry.base.version), { entry: { ...entry, protected: true } });
+    if (result.kind !== "replace") throw new Error("expected a replacement");
+    expect((await fsStat(join(seeded.checkout, result.staged.location))).mode & 0o777).toBe(0o444);
   });
 });

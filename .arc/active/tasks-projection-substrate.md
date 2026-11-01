@@ -327,56 +327,14 @@ command's sweep takes over the copies a stopped command left.
           from the guard's `moving` (3.2.b), and each link-back reads its copy by `lstat` first where it is built (3.2.b,
           3.2.c, 3.3). Covered in `integration/store/projection/replace-guard.test.ts` and `aside-copies.test.ts`.
 
-    - `[ ]` **3.2.b The swap and its outcomes**
+    - `[x]` **3.2.b The swap and its outcomes**
 
-        - The index and its reference are written first (2.4), once for all the files a swap batch replaces — a
-          refresh's (`projection-worktrees`) or a read-back's (`projection-write-back`) — and the files it removes
-          (3.4), each entry recording its new base, or, for a removal, kept as it was, marked pending, and, for a file
-          other than Markdown, an in-progress record naming the version being replaced and the aside copy the batch
-          makes of it, or no copy for a rebuild by the link alone (2.8), and, for each file it moves aside, the aside
-          copy's record — its name, the blob id it is moving, which for write-back's baseline (`projection-write-back`)
-          is the blob id write-back read, and the blob id it links, none for a removal (2.2.a, 3.2.a); then each file is
-          renamed into the aside folder (2.2.c), its staged file hard-linked onto the path, and its aside copy checked
-          through the take-in.
-        - Where the projection now lays another record's file at the path of a file a batch removes — a path-keyed
-          companion re-laid by a changed claim (`projection-worktrees`) — the batch removes it only, as any removal
-          (3.4), its entry staying the leaving record's while the file or any aside copy of the path remains, so every
-          take-in of the file or a copy of it goes to the record it was projected from; the next refresh after both are
-          gone lays the arrival (3.4).
-        - Once its swaps are done the batch writes the index again, under the same lock, clearing the pending mark of
-          each file whose path still holds the staged file it linked, its file identity the one the entry records (2.4),
-          and, for a file rebuilt by the link alone, its in-progress record (2.8). A file swapped back or linked back at
-          its first check (3.2.c), saved over, or left unreplaced by a move or link keeps its mark, and so does a file a
-          read-back replaced that was already pending, which the next refresh settles, removing it where its record has
-          left the path (3.4, `projection-worktrees`); the caller says whether the batch is a read-back. A stop between
-          the two writes leaves the file pending in any root, `completed/` included, its old file reading as unedited —
-          after a refresh's first write a Markdown file equals its own stamp's version, and any other matches the
-          version its in-progress record names (2.8); after a read-back's, the file holds what its write-back took in,
-          which 2.7 reads as no new edit — so write-back finds no edit in it and the next refresh writes it again.
-        - Each outcome leaves the index true: in place, the entry records the new version; a link refused because the
-          path reappeared yields to that save, the replaced version still recorded; a move still refused past
-          `retryTransientFileSystemRefusal`'s bound (`lib/kernel/fs-retry.ts`) leaves the file in place, its entry
-          restored and pending; a link failing for another reason after the move links the aside copy back, pending, unless
-          it is a symbolic link (3.2.a).
-        - The projection closes its own handles before moving a file; the rename and link run inside the bounded
-          retry, and a read-only file moves aside and links in with its mode intact.
-        - Step hooks after the re-check, after the move, after the first check, and before a rebuild's link (3.4) let
-          tests and the harness (3.5) place a save in each interval.
-        - Build `test-first` (one behavior at a time):
-            - a save landing after the re-check, in place or by renaming over the path, lands in the aside copy and is
-              taken in
-            - a save that recreated the path before the link makes the replacement yield, the replaced version recorded
-            - a file rebuilt by the link alone has its in-progress record cleared by the second index write, and keeps
-              it where the link yields
-            - a move refused past the retry bound leaves the file in place, its entry restored and pending
-            - once the swaps are done, a file put in place carries no pending mark and a file whose move was refused
-              keeps it
-            - a read-back's batch keeps the pending mark a file carried into it and clears the one it set
-            - a file a new file was renamed over after its link keeps its pending mark through the second index write
-            - a read-only file is replaced with its mode kept
-            - a held file refusing with `EBUSY` is retried within the bound
-            - a stop between the index write and the move, and one between the move and the link, each leave the file
-              pending, write-back reading no edit in it, in `completed/` too
+        - `swapBatch` (`lib/store/projection/swap.ts`) over the guard's decisions: the first index write records the
+          staged file's stat, which the path shares once linked, so the second write clears pending by that identity;
+          the first check is `checkAsideCopy`, which takes an edit in and deletes nothing. A link failing otherwise links
+          the copy back and removes its aside name. Staging stages a protected file read-only, the guard's restage
+          included. Removals and a path-keyed companion join the batch in 3.4. Covered in
+          `integration/store/projection/swap.test.ts`.
 
     - `[ ]` **3.2.c The second check and a refused copy**
 

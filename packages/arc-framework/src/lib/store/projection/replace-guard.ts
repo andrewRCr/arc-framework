@@ -99,7 +99,7 @@ async function restage(input: ReplaceGuardInput, entry: RecordEntry, staged: Sta
   if (read.status !== "ok") return read;
   const restaged = await stageRecordFile({
     checkout: input.checkout, path: input.path, record: read.result, replacing: entry.base.blob, writer: input.writer,
-    format: input.format,
+    format: input.format, readOnly: entry.protected,
   });
   await rm(join(input.checkout, staged.location), { force: true });
   return { status: "ok", result: restaged };

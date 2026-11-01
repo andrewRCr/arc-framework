@@ -11,7 +11,7 @@ import type { AsideCopyRecord, RecordEntry } from "./index-schema.js";
 import { gateRead, SYSTEM_READ_GATE, type ReadGateDependencies } from "./read-gate.js";
 import { parseStampedFile } from "./stamp.js";
 import { deleteAsideCopy } from "./stampless.js";
-import type { TakeInBase, TakeInHeld, TakeInPort } from "./take-in-port.js";
+import type { TakeInBase, TakeInHeld, TakeInPort, TakeInResult } from "./take-in-port.js";
 
 /** What a copy's path holds now: nothing, a file's blob id, or something not a file, which is never read. */
 export type PathHolding =
@@ -67,6 +67,44 @@ export interface AsideCopySettling {
   readonly gate?: ReadGateDependencies;
 }
 
+/** What checking a copy found, with the entry as the check left it; checking deletes nothing. */
+export type CopyCheck =
+  /** It holds no edit: not a file, what its swap moved, what it held when its own take-in landed, or as the port found. */
+  | { readonly kind: "no-edit"; readonly entry: RecordEntry }
+  /** It holds an edit, but its path has moved on: never sent. */
+  | { readonly kind: "moved-on"; readonly entry: RecordEntry }
+  /** Still being written: the gate left it for a later check. */
+  | { readonly kind: "unsettled"; readonly entry: RecordEntry }
+  /** No longer in the aside folder. */
+  | { readonly kind: "gone"; readonly entry: RecordEntry }
+  /** It went to the port, which answered; `result` is the whole answer, its entry the one here. */
+  | { readonly kind: "sent"; readonly answer: TakeInHeld | "taken-in"; readonly entry: RecordEntry; readonly result: TakeInResult };
+
+/**
+ * Check one aside copy, taking in an edit it holds where its path has not moved on. The copy is read by `lstat` first,
+ * so one that is not a file is never followed.
+ * @param input - The copy, the file it was made of, and how to take an edit in.
+ * @returns What the check found.
+ */
+export async function checkAsideCopy(input: AsideCopySettling): Promise<CopyCheck> {
+  const { checkout, path, copy, entry } = input;
+  const markdown = path.endsWith(".md");
+  const gated = await gateRead({ path: join(checkout, copy.name), markdown }, input.gate ?? SYSTEM_READ_GATE);
+  if (gated.kind === "absent") return { kind: "gone", entry };
+  if (gated.kind === "pending") return { kind: "unsettled", entry };
+  if (gated.kind === "no-edit") return { kind: "no-edit", entry };
+  const bytes = await readFile(join(checkout, copy.name));
+  const blob = gitBlobId(bytes, input.format);
+  // What the swap moved, or what the copy held when its own take-in landed, is no edit wherever it is read.
+  if (blob === copy.moving || blob === copy.landed) return { kind: "no-edit", entry };
+  // An older save from the same buffer and another editor's newer one cannot be told apart, so it is never sent.
+  if (hasPathMovedOn(copy, await readPathHolding(join(checkout, path), input.format))) return { kind: "moved-on", entry };
+  const base = copyBase(copy, bytes, markdown);
+  const result = await input.takeIn({ checkout, path, copy: copy.name, entry, base });
+  if (result.answer === "no-edit") return { kind: "no-edit", entry: result.entry };
+  return { kind: "sent", answer: result.answer, entry: result.entry, result };
+}
+
 /** What settling a copy did, with the entry as it now stands. */
 export type CopySettlement =
   /** It held no edit, or its edit landed whole: deleted, its record cleared. */
@@ -79,29 +117,21 @@ export type CopySettlement =
   | { readonly kind: "dropped"; readonly entry: RecordEntry };
 
 /**
- * Check one aside copy and settle it. The copy is read by `lstat` first, so one that is not a file is never followed.
+ * Check one aside copy and settle it: delete it once it holds no edit or its edit landed whole, else keep it.
  * @param input - The copy, the file it was made of, and how to take an edit in.
  * @returns What became of it.
  */
 export async function settleAsideCopy(input: AsideCopySettling): Promise<CopySettlement> {
-  const { checkout, path, copy } = input;
-  const markdown = path.endsWith(".md");
-  const gated = await gateRead({ path: join(checkout, copy.name), markdown }, input.gate ?? SYSTEM_READ_GATE);
-  if (gated.kind === "absent") return { kind: "dropped", entry: withoutRecord(input.entry, copy) };
-  if (gated.kind === "pending") return { kind: "kept", entry: input.entry, answer: "unsettled" };
-  if (gated.kind === "no-edit") return deleted(input, input.entry);
-  const bytes = await readFile(join(checkout, copy.name));
-  const blob = gitBlobId(bytes, input.format);
-  // What the swap moved, or what the copy held when its own take-in landed, is no edit wherever it is read.
-  if (blob === copy.moving || blob === copy.landed) return deleted(input, input.entry);
-  // An older save from the same buffer and another editor's newer one cannot be told apart, so it is never sent.
-  if (hasPathMovedOn(copy, await readPathHolding(join(checkout, path), input.format))) {
-    return { kind: "moved-on", entry: input.entry, path, copy: copy.name };
+  const checked = await checkAsideCopy(input);
+  switch (checked.kind) {
+    case "no-edit": return deleted(input, checked.entry);
+    case "gone": return { kind: "dropped", entry: withoutRecord(checked.entry, input.copy) };
+    case "unsettled": return { kind: "kept", entry: checked.entry, answer: "unsettled" };
+    case "moved-on": return { kind: "moved-on", entry: checked.entry, path: input.path, copy: input.copy.name };
+    case "sent": return checked.answer === "taken-in"
+      ? deleted(input, checked.entry)
+      : { kind: "kept", entry: checked.entry, answer: checked.answer };
   }
-  const base = copyBase(copy, bytes, markdown);
-  const result = await input.takeIn({ checkout, path, copy: copy.name, entry: input.entry, base });
-  if (result.answer === "no-edit" || result.answer === "taken-in") return deleted(input, result.entry);
-  return { kind: "kept", entry: result.entry, answer: result.answer };
 }
 
 /** A copy is taken in against the stamp it carries, or, stampless, the base blob id its name carries. */

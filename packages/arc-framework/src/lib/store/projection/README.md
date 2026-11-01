@@ -113,7 +113,7 @@ records, and a staged file is created exclusively.
 
 `staging.ts` stages a record's file in the aside folder, created exclusively under the name `aside.ts` gives it: a
 Markdown file stamped with its stored content's blob id, any other as stored, with the blob id of its bytes and the
-version it lays.
+version it lays. A protected file is staged read-only, and a link shares that mode.
 
 `take-in-port.ts` is the port reading and replacing hand every edit they meet to, and write-back answers once bound: the
 worktree whose file holds the edit, the path or the aside copy, its entry, and its base — the stamp it carries, or, for
@@ -136,6 +136,18 @@ anything but what the swap linked, or once a write-back of it has been sent sinc
 held when its own take-in landed, without reaching the port. One holding an edit goes to the take-in only while its path
 has not moved on, and is deleted once its edit lands whole; otherwise it is kept, and one whose path has moved on is
 reported with its path and never sent. A record whose copy is gone is dropped.
+
+`swap.ts` replaces a batch of files between two index writes. The first, with the reference after it, records each
+file's new base, the staged file's stat — which the path shares once it is linked — pending, the record of the aside copy
+its move makes, and, for a file other than Markdown, an in-progress record naming the version it replaces and that
+copy. Then each file is renamed aside and its staged file hard-linked onto the path, both inside the bounded retry, and
+its copy checked once, an edit taken in, nothing deleted; an absent file is rebuilt by the link alone, which makes no
+copy. A link refused because a save recreated the path yields to it, the replaced version still recorded; a move still
+refused past the bound leaves the file in place, its entry restored; and a link failing otherwise links the copy back,
+unless it is a symbolic link, which leaves the path absent. The second write clears the pending mark of each file whose
+path still holds the staged file's identity, and a rebuild's in-progress record, but keeps a mark a file carried into a
+read-back's batch. A stop between the writes leaves a file pending that write-back reads no edit in. Hooks after the
+re-check, the move, and the first check, and before a rebuild's link, place a save in each interval for tests.
 
 `index-file.ts` writes the index whole by temp-and-rename into that folder, never creating it, so a write that stops
 partway leaves the previous index and no write recreates a removed worktree's Git directory. A commit smudges the index,
