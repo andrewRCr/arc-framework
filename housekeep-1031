@@ -3,14 +3,20 @@
   "slug": "housekeep-1031",
   "claimId": "dfef6dbc7e4965ce8d0db7dc73a97ff7",
   "createdAt": "2026-11-01T01:18:40.122Z",
-  "updatedAt": "2026-11-01T01:18:40.122Z",
+  "updatedAt": "2026-11-01T01:33:12.846Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Route the 2026-10-31 housekeep drain's Work Unit captures to their backlog drafts",
   "branch": "chore/housekeep-1031",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/housekeep-1031",
+    "headSha": "25176d43ffc076f0365d72f98c1bafbf66767563"
+  }
 }
