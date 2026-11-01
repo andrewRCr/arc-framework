@@ -114,21 +114,15 @@ listing schemas and output unchanged.
           personal refs free of history routes. Graph refusals are lazy builders; current history and archive reads
           reuse their captured tips, while successful reads acquire no additional ref listing.
 
-### `[ ]` **2.4 Capture diagnostics carry their fault — § 1.9**
+### `[x]` **2.4 Capture diagnostics carry their fault — § 1.9**
 
 - _Goal:_ A capture diagnostic carries its § 1.1 fault beside its condition and remedy, internally, so every site that
   turns a diagnostic into a refusal or notice takes that fault's row while a listing still shows **Missing** and
   **Unparseable** as `unreadable`.
 
-    - The fault rides an internal diagnostic type that extends `ListingDiagnostic`, and the listing drops it where it
-      assembles its output, so `ListingDiagnosticSchema`'s strict shape and a listing's output are unchanged.
-    - A diagnostic with no § 1.1 fault — ambiguous owner metadata, a `key-mismatch`, an entry outside an owner folder, a
-      malformed owner UID — carries none and keeps its own condition and remedy.
-    - Build `test-first` (one behavior at a time):
-        - a missing record blob's capture diagnostic carries **Missing**
-        - a malformed metadata blob's carries **Unparseable**
-        - a `key-mismatch` diagnostic carries no fault
-        - a listing's output carries no fault field and parses under `ListingOutcomeSchema`
+- _Outcome:_ `CapturedRefDiagnostic` retains the mapper's fault internally and public listings strip it. Archive
+  metadata decoding and the first archive lookup/record converters preserve Missing and Unparseable rows; unrelated
+  diagnostics retain their own text and policy. Strict public listing schemas remain unchanged.
 
 ## **Phase 3:** Every fault site classifies
 
@@ -210,6 +204,10 @@ classification calls the sweep settled.
 
 - _Note:_ See `notes-storage-ref-hardening.md` § Fault-site inventory › 3.2 and § Classification calls the sweep settled
   for its sites, their rows and sides.
+
+- _Note:_ Task 2.4 brought forward the archive metadata decoder and the archive lookup/record converters needed to
+  exercise capture faults through public Store calls. Full-path keys and the remaining converters below still close
+  this task.
 
     - `[ ]` **3.2.a The decoder and its keys**
         - `decodeArchiveFolderControls` reports § 1.5's three `folderPlacement` conditions as `malformed` diagnostics

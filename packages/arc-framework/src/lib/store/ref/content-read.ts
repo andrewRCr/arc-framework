@@ -8,6 +8,7 @@ import type { KindDefinition } from "../registry.js";
 import { PROJECTED_RECORD_MAX_BYTES } from "../limits.js";
 import type { ListingDiagnostic } from "../read.js";
 import { refObjectFault } from "./object-fault.js";
+import type { CapturedRefDiagnostic } from "./capture-diagnostic.js";
 
 /** A content defect whose diagnostic receives its stored path at the caller. */
 export interface ContentProblem { kind: ListingDiagnostic["kind"]; condition: string }
@@ -27,7 +28,7 @@ export function readRefContent(kind: KindDefinition, bytes: Uint8Array, pointRea
 }
 
 /** Describe a record defect without losing its exact stored entry path. */
-export function recordDiagnostic(path: string, problem: ContentProblem, saved = false): ListingDiagnostic {
+export function recordDiagnostic(path: string, problem: ContentProblem, saved = false): CapturedRefDiagnostic {
   if (problem.kind === "unreadable") return refObjectFault(path, "missing", { condition: problem.condition, saved,
     ...saved ? { remedy: { text: `Restore or fetch the original missing objects for saved entry ${path}, then retry this saved state.` } } : {},
   }).diagnostic;

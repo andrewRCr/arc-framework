@@ -1,13 +1,13 @@
 /** One policy for object-loss, decoding, metadata-absence, and archive-placement faults. */
 
 import type { RecordReference } from "../identity.js";
-import type { ListingDiagnostic } from "../read.js";
+import type { CapturedRefDiagnostic, RefCaptureFault } from "./capture-diagnostic.js";
 import type { HistoryRef, Remedy, StoreRefusal } from "../refusal.js";
 import { missingRefObjects } from "./missing-objects.js";
 import { unparsedMetadata } from "./metadata.js";
 
 /** Object facts remain independent of the operation reporting them. */
-export type RefObjectFault = "missing" | "unparseable" | "no-metadata" | "misplaced" | "local-transport";
+export type RefObjectFault = RefCaptureFault | "local-transport";
 
 /** Captured coordinates and any more specific text already established by the reader. */
 export interface RefFaultOptions {
@@ -18,7 +18,7 @@ export interface RefFaultOptions {
 /** Equivalent point, listing, and transport reports for the same observed fault. */
 export interface RefFaultReport {
   refusal: Extract<StoreRefusal, { code: "state-unresolvable" | "namespace-corrupt" }>;
-  diagnostic: ListingDiagnostic; failure: Extract<StoreRefusal, { code: "refused" }>;
+  diagnostic: CapturedRefDiagnostic & { fault: RefCaptureFault }; failure: Extract<StoreRefusal, { code: "refused" }>;
   condition: string; remedy: Remedy;
 }
 
@@ -34,7 +34,7 @@ export function refObjectFault(namespace: string, fault: RefObjectFault, options
   const refusal: RefFaultReport["refusal"] = fault === "missing"
     ? missingRefObjects(namespace, { reference: options.reference, historyRefs: options.historyRefs ?? [], condition, remedy })
     : { code: "namespace-corrupt", class: "terminal", namespace, condition, remedy };
-  const diagnostic: ListingDiagnostic = { kind: fault === "misplaced" ? "malformed" : "unreadable", key,
+  const diagnostic: RefFaultReport["diagnostic"] = { fault, kind: fault === "misplaced" ? "malformed" : "unreadable", key,
     condition, remedy, ...fault === "misplaced" ? { rule: "placement" as const } : {} };
   return { refusal, diagnostic, condition, remedy, failure };
 }

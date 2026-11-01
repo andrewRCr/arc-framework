@@ -31,6 +31,7 @@ import { absentRefRecord as missing, refRecordAbsence } from "./record-absence.j
 import type { RefViewState } from "./view-state.js";
 import { resolveRefPointObject } from "./point-object.js";
 import { refObjectFault } from "./object-fault.js";
+import { publicRefDiagnostic, type CapturedRefDiagnostic } from "./capture-diagnostic.js";
 
 /** Read a record, resolving name-only owners through one captured namespace. */
 export async function readRefRecord(context: RefBackendContext, input: ReadInput): Promise<StoreResult<StoreRecord>> {
@@ -213,7 +214,7 @@ function decodeArchivedListing(context: RefBackendContext, input: ListInput, sta
 export function readableRefListing(input: ListInput, records: StoreRecord[], diagnostics: ListingDiagnostic[], asOf?: StateVersion): ListingOutcome {
   const anchor = asOf === undefined ? {} : { asOf };
   if (input.kind !== undefined && records.length === 0 && diagnostics.length === 0) return { status: "absent", ...anchor };
-  return { status: "complete", records: filterListingLocations(records, input), diagnostics, missed: diagnostics.length > 0, ...anchor };
+  return { status: "complete", records: filterListingLocations(records, input), diagnostics: diagnostics.map(publicRefDiagnostic), missed: diagnostics.length > 0, ...anchor };
 }
 
 /** Filter lifecycle locations after determining whether the requested kind and owner exist. */
@@ -224,7 +225,7 @@ function filterListingLocations(records: StoreRecord[], input: ListInput): Store
     && locations.includes(placement.kind === "backlog" ? placement.commitment : placement.kind));
 }
 
-interface DecodedRecords { records: StoreRecord[]; diagnostics: ListingDiagnostic[]; unreadable?: true; conflictRefusals?: ReadonlyMap<string, StoreRefusal> }
+interface DecodedRecords { records: StoreRecord[]; diagnostics: CapturedRefDiagnostic[]; unreadable?: true; conflictRefusals?: ReadonlyMap<string, StoreRefusal> }
 
 /** Decode one ref without observing live tips, with optional prepared metadata. */
 export function decodeCapturedRef(context: RefBackendContext, input: ListInput, ref: string,
@@ -232,7 +233,7 @@ export function decodeCapturedRef(context: RefBackendContext, input: ListInput, 
   placement?: ReadPlacement, options: RefRecordDecodeOptions = {}): DecodedRecords {
   if (!entries) return unreadableRef(ref);
   const records: StoreRecord[] = [];
-  const diagnostics: ListingDiagnostic[] = [];
+  const diagnostics: CapturedRefDiagnostic[] = [];
   const prototype = refPrototype(context, ref, input.family);
   const home = expandStoredPath(prototype, { registry: context.registry });
   if (holdsNoRecord(home, entries.map(({ path }) => path))) return { records, diagnostics };
@@ -250,7 +251,7 @@ export function decodeCapturedRef(context: RefBackendContext, input: ListInput, 
 }
 
 function decodeCapturedEntry(context: RefBackendContext, family: FamilyId, owner: OwnerIdentity, entry: RefTreeEntry,
-  object: BatchObject | null | undefined, metadata: RefMetadata, placement: ReadPlacement | undefined, options: RefRecordDecodeOptions): StoreRecord | ListingDiagnostic | null {
+  object: BatchObject | null | undefined, metadata: RefMetadata, placement: ReadPlacement | undefined, options: RefRecordDecodeOptions): StoreRecord | CapturedRefDiagnostic | null {
   if (entry.invalidName) return recordDiagnostic(entry.path, { kind: "malformed", condition: "The stored path is not valid UTF-8" }, options.saved);
   const reference = decodeReference(context, owner, family, entry.path, metadata, object);
   if (!reference) return recordDiagnostic(entry.path, object?.type === "blob"
@@ -355,10 +356,11 @@ export function readArchivedFolder(context: RefBackendContext, folder: ArchivedF
   if (record) return { status: "ok", result: record };
   const path = expandStoredPath(reference, { registry: context.registry }).path;
   const diagnostic = decoded.diagnostics.find(entry => entry.key === path);
-  if (diagnostic?.kind === "unreadable") return { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable",
-    reference, historyRefs: [], condition: diagnostic.condition, remedy: { text: saved
+  if (diagnostic?.fault) return { status: "refused", refusal: refObjectFault(folder.ref, diagnostic.fault, {
+    reference, condition: diagnostic.condition, remedy: diagnostic.fault === "missing" ? { text: saved
       ? "Restore or fetch the missing record objects, then retry this saved-state read."
-      : "Restore or fetch the missing record objects, then retry the read." } } };
+      : "Restore or fetch the missing record objects, then retry the read." } : diagnostic.remedy,
+  }).refusal };
   if (diagnostic) return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference,
     rule: diagnostic.condition, condition: diagnostic.condition, remedy: diagnostic.remedy } };
   return saved ? missing(reference, "The record is absent from this saved state.",

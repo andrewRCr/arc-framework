@@ -15,6 +15,7 @@ import { readBatchObjects, readRefTips, readRefTrees } from "./batch-read.js";
 import type { BatchObject, RefTreeEntry } from "./batch-read.js";
 import { parseRefMetadata } from "./metadata.js";
 import { revalidateLookupAcquisition, type RefLookupAcquisition } from "./lookup-acquisition.js";
+import { refObjectFault } from "./object-fault.js";
 
 /** Readable scan evidence plus the namespaces omitted from it. */
 export interface RefLookupCapture { trees: ReadonlyMap<string, RefLookupTree>; unreadable: ReadonlyMap<string, StoreRefusal>; acquisition?: RefLookupAcquisition }
@@ -89,7 +90,9 @@ export function appendArchivedLookupTrees(trees: Map<string, RefLookupTree>, sta
     const { folders, diagnostics } = selectEndedOwners(state, captureArchivedFolders(state, family));
     for (const diagnostic of diagnostics) {
       const ref = diagnostic.key.split(":")[0] ?? diagnostic.key;
-      unreadable?.set(ref, { code: "namespace-corrupt", class: "terminal", namespace: ref,
+      unreadable?.set(ref, diagnostic.fault ? refObjectFault(ref, diagnostic.fault, {
+        condition: diagnostic.condition, remedy: diagnostic.remedy,
+      }).refusal : { code: "namespace-corrupt", class: "terminal", namespace: ref,
         condition: diagnostic.condition, remedy: diagnostic.remedy });
     }
     for (const folder of folders) trees.set(`${folder.ref}:${folder.root}`, {

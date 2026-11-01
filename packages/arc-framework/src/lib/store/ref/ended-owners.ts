@@ -1,7 +1,7 @@
 /** One captured-folder and ended-owner selection rule for current, saved, and prepared reads. */
 import type { FamilyId } from "../catalog.js";
 import { OwnerIdentitySchema, type OwnerIdentity } from "../identity.js";
-import type { ListingDiagnostic } from "../read.js";
+import type { CapturedRefDiagnostic } from "./capture-diagnostic.js";
 import { archiveOwnerTrees, archivedFolders, isArchiveRef, latestArchivedFolders, type ArchivedFolder } from "./archive-read.js";
 import type { BatchObject, RefTreeEntry } from "./batch-read.js";
 import { corruptRef } from "./namespace-health.js";
@@ -9,7 +9,7 @@ import { rootFamily } from "./path-decode.js";
 import type { RefViewState } from "./view-state.js";
 
 /** Folder decoding retains every end until a caller explicitly selects currently readable owners. */
-export interface CapturedArchiveFolders { folders: ArchivedFolder[]; diagnostics: ListingDiagnostic[] }
+export interface CapturedArchiveFolders { folders: ArchivedFolder[]; diagnostics: CapturedRefDiagnostic[] }
 
 /** Keep all captured ref names, including unavailable and empty live refs whose presence supersedes folders. */
 export function archiveStateFromCapture(tips: ReadonlyMap<string, string>, trees: ReadonlyMap<string, readonly RefTreeEntry[]>,
@@ -20,7 +20,7 @@ export function archiveStateFromCapture(tips: ReadonlyMap<string, string>, trees
 /** Decode relevant quarter folders without discarding repeated ends or their original diagnostics. */
 export function captureArchivedFolders(state: RefViewState, family: FamilyId,
   owners?: readonly OwnerIdentity[]): CapturedArchiveFolders {
-  const folders: ArchivedFolder[] = [], diagnostics: ListingDiagnostic[] = [];
+  const folders: ArchivedFolder[] = [], diagnostics: CapturedRefDiagnostic[] = [];
   if (!["work-item", "cohort"].includes(rootFamily(family))) return { folders, diagnostics };
   const quarters = new Map([...state.refs].flatMap(([ref, group]) => isArchiveRef(ref) && group.entries
     ? [[ref, group.entries] as const] : []));
@@ -58,7 +58,7 @@ export function selectEndedOwners(state: RefViewState, captured: CapturedArchive
   return { folders, diagnostics };
 }
 
-function archiveDiagnostic(ref: string, missing: boolean, saved = false): ListingDiagnostic {
+function archiveDiagnostic(ref: string, missing: boolean, saved = false): CapturedRefDiagnostic {
   const { condition, remedy } = corruptRef(ref, missing, saved);
   return { kind: "unreadable", key: ref, condition, remedy };
 }
