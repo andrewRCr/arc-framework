@@ -114,7 +114,7 @@ with a typed refusal, and leaves the repository as found.
   seed writing. The native adapter now reports its derived entering row. Existing status and seed cases pass unchanged;
   the file and recorded suppression counts remain within their existing bounds.
 
-### `[ ]` **1.5 Compile the precedence order and the stop rows — § 2.2, § 2.3, § 2.4, § 4.4**
+### `[x]` **1.5 Compile the precedence order and the stop rows — § 2.2, § 2.3, § 2.4, § 4.4**
 
 - _Goal:_ The compiler resolves exactly one row in § 2.2's order, every stop compiles to its `locus` render and a
   `gate stop` with orientation `none`, and the verb prints the asserted agenda without writing anything.
@@ -124,42 +124,23 @@ with a typed refusal, and leaves the repository as found.
           builders into `session-init-fixtures.ts`; its composed fixture runs `runSessionInitStatus` and the public
           envelope assertion. Existing status cases use those shared builders without changing their outcomes.
 
-    - `[ ]` **1.5.b Resolve the row**
-        - Stops, then branch-gone, then a signal, then `--start`, then the entry row: transient resume, work-unit
-          resume, contextless current husk, cold-start (an `unmanaged-checkout` row on a linked checkout with a
-          branch), or Orient (every other `free-primary`, `unmanaged-checkout`, or `retired` row)
-        - A row this phase does not yet compile refuses with code `row-not-compiled`, naming the row, the condition,
-          and the remedy: follow `session-init.md` from the base branch for this session, or start the arm from
-          another checkout
+    - `[x]` **1.5.b Resolve the row**
+        - Added the pure precedence resolver: stops, branch recovery, explicit signal, focused recon, then the entering
+          row. Contextless work units require non-null husk evidence. Uncompiled arms return a typed refusal naming
+          their selected row and the base-workflow or alternate-checkout restart route.
         - _Retired in:_ Phase 4
-        - Build `test-first` (one behavior at a time):
-            - each stop condition outranks branch-gone, every signal, and `--start`
-            - branch-gone outranks a signal; a signal outranks `--start`; `--start` outranks the entry row
-            - a `work-unit` row with no `context` stops unless a non-null `currentHusk` makes it a current husk
-            - an absent or failed `currentHusk` slot on a contextless row stops
 
-    - `[ ]` **1.5.c Compile the stops and the degraded-slot render**
-        - Build `test-first` (one behavior at a time):
-            - a failed `derivedLocusState`, `SessionIdentityMissingError` included, renders the unavailable guidance's
-              `message` and stops
-            - an unresolved entry and an `unresolved-checkout` row each render the unavailable guidance's `message` and
-              stop
-            - the contextless work-unit stop renders the ready guidance's present lines, `entering`, and the compiler's
-              line that no work-unit context resolves for the checkout, with `currentHusk` absent and with it failed
-            - on a stop, only a failed `currentHusk` adds a degraded-slot render
-            - the degraded-slot renderer gives slot name, `error.kind`, and `error.message` and supplies no action
-            - a stop emits no prefix, no reads, and no `unconsumed-signal` note
+    - `[x]` **1.5.c Compile the stops and the degraded-slot render**
+        - Stops now produce an asserted agenda with orientation `none`, verbatim unavailable guidance or the ready
+          locus lines plus the missing-context explanation, and a final stop gate. Only failed `currentHusk` adds a
+          diagnostic; no prefix, reads, unrelated failed-slot surfaces, or unused-signal notes run on this path.
 
-    - `[ ]` **1.5.d Print the agenda and prove it writes nothing**
-        - `--json` prints the asserted agenda; without it, a readable rendering in the manner of `arc status`
-        - An integration test over a real repository set up so the probe creates both temporary refs: no active work
-          unit and a remote `refs/arc/user/<id>/errands` ref for `refs/arc/tmp/transient-discovery/*`, and remote sync
-          on with differing local and remote notes refs for `refs/arc-sync-temp/*`
-        - That state is an Orient row, which refuses `row-not-compiled` until Phase 4, so the assertions hold whatever
-          the exit code: each temporary ref was created and then deleted, and the worktree, the identity directories,
-          refs, and notes are as found apart from `FETCH_HEAD`
-        - If the test reuses `createGitTraceHarness`, allowlist `update-ref -d refs/arc-sync-temp/*`, which it rejects
-          today while the code swallows the failure
+    - `[x]` **1.5.d Print the agenda and prove it writes nothing**
+        - Wired the shared compiler into the CLI: compact JSON or a readable complete agenda, with typed refusals for
+          unfinished arms. Native coverage carries repeated decisions and literal elicited values through the real
+          parser. A clean Orient fixture with divergent notes and a remote Errand ref proves both temporary-ref
+          families are successfully fetched and deleted; HEAD, refs, worktree status, and personal contents stay equal.
+          Git's native trace events provide the proof without changing the existing shell trace harness.
 
 ## **Phase 2:** The work-unit resume compile
 

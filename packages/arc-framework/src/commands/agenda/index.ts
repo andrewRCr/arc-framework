@@ -1,5 +1,8 @@
 /** Adapter for compiling a session initialization agenda from invocation intent. */
 
+import * as p from "../../lib/terminal.js";
+import { compileSessionInitAgenda } from "./compile.js";
+import { createAgendaReadPort } from "./compile-input.js";
 import { composeSessionInitStatus } from "../../handlers/status.js";
 import { createSessionStatusContext } from "../../handlers/status/session-context.js";
 import { requireArcProjectRoot } from "../../handlers/shared.js";
@@ -32,11 +35,13 @@ export async function handleAgenda(
   });
   const context = await createSessionStatusContext(cwd, exec, transitionExec, localOnlyTransitionExec, interaction);
   const { result } = await composeSessionInitStatus(context);
-  const row = result.derivedLocusState.ok && result.derivedLocusState.value.entering.kind === "selected"
-    ? result.derivedLocusState.value.entering.row.kind : "unavailable";
-  const refusal: AgendaRefusal = { code: "row-not-compiled", flags: [], row,
-    remedy: "Follow session-init.md from the base branch for this session, or start the arm from another checkout." };
-  renderRefusal(refusal, options.json === true);
+  const compiled = compileSessionInitAgenda({ envelope: result, signals: parsed.signals, answers: parsed.answers,
+    read: createAgendaReadPort(cwd, exec) });
+  if (!compiled.ok) { renderRefusal(compiled.refusal, options.json === true); return; }
+  if (options.json) { process.stdout.write(`${JSON.stringify(compiled.agenda)}\n`); return; }
+  p.intro("arc agenda");
+  p.note(JSON.stringify(compiled.agenda, null, 2), "Session Init");
+  p.outro("Done.");
 }
 
 function renderRefusal(refusal: AgendaRefusal, json: boolean): void {
