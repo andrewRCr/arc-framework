@@ -48,8 +48,8 @@ anchor. Rename a heading only with every citing site updated in the same change.
 - **Arm** — which kind of change the evidence selects: `task`, `spec-depth`, or `design`. The gate returns one.
 - **Footprint** — the settled elements one amendment changes, plus what cites or depends on them. It bounds the
   sweep and the adversarial pass; nothing outside it is re-attacked.
-- **Detour** — the span from entry to closure. It is open while its corrective parent is open and carries no
-  lifecycle state of its own.
+- **Detour** — the span from entry to closure. It is open while its corrective parent is open, or, for `_Work:_ none`,
+  while `_Revalidated:_` is pending, and carries no lifecycle state of its own.
 
 **Effective report** and **delta** are defined in [`validate-criteria`][validate-criteria] and used here unchanged.
 
@@ -343,8 +343,9 @@ The hit list is greppable wherever parent titles cite the design element they re
 
 ## Closure
 
-The detour is done when the check that opened it passes again. Two facts the row carries are distinct: the detour
-is **open** while its corrective parent is open, and `_Revalidated:_` names the check that closes the loop. They
+The detour is done when the check that opened it passes again; for `_Work:_ none`, it closes when the next covering
+verifier passes. Two facts the row carries are distinct: the detour is **open** while its corrective parent is open, or,
+for `_Work:_ none`, while `_Revalidated:_` is pending; `_Revalidated:_` names the check that closes the loop. They
 coincide at the member site and diverge elsewhere.
 
 | Site                   | `_Revalidated:_`                            | What the re-record contains                                 |

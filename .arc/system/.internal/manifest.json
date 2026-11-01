@@ -590,7 +590,7 @@
     "system/workflows/arc/supplemental/amend-design.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "ceb316a62f3d19fe241a079944ea5224e670c3429ff4108e9d46f18c7547dd5a"
+      "pristine_hash": "7b9ed0eba0117c08b316dee3a18b9afa99fa13db08ccc4fc77d4bd7466fd9f66"
     },
     "system/workflows/arc/supplemental/verify-arc-integrity.md": {
       "classification": "Framework",
