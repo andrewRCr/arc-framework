@@ -1,11 +1,12 @@
 /** Removing a projected file: the swap without the link, an edit taken in first, its entry kept until the file is gone. */
+import { readProjectionConfiguration } from "../../../../src/lib/store/projection/configuration.js";
 import { lstat, open, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { deferring, landingCopies, prepareRemoval, SWAP_WRITER, type PrepareRemovalOptions } from "../../../helpers/store/projection/swap-fixture.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import type { GitDirectoryFileAccess } from "../../../../src/lib/git/directories.js";
-import { createExecaGitExecInput } from "../../../../src/lib/git/process-executor.js";
+import { createExecaGitExec, createExecaGitExecInput } from "../../../../src/lib/git/process-executor.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { guardReplacement } from "../../../../src/lib/store/projection/replace-guard.js";
 import { readReference } from "../../../../src/lib/store/projection/change-detection.js";
@@ -63,6 +64,8 @@ async function ignoreProjectedRoots(checkout: string): Promise<void> {
 async function sweepAfter(removal: Awaited<ReturnType<typeof prepared>>, takeIn: TakeInPort) {
   const { checkout, location } = removal.seeded;
   return sweepAsideFolder({
+    excludesFile: (await readProjectionConfiguration(createExecaGitExec(), checkout)).excludesFile,
+    readExcludesFile: async () => (await readProjectionConfiguration(createExecaGitExec(), checkout)).excludesFile,
     location, checkout, index: await indexOnDisk(location), format: "sha1", takeIn,
     writer: { ...SWAP_WRITER, processInstance: "a-later-run" },
     guard: { root: checkout, identity: SlugSchema.parse("andrew"), exec: createExecaGitExecInput(), fs: gitFs },

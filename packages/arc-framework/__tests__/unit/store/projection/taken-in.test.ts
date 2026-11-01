@@ -59,6 +59,44 @@ function recording(overrides: Partial<WriteBackRecording> & Pick<WriteBackRecord
 }
 
 describe("what a persisted write-back took in", () => {
+  it("compares a stampless save with the landed version even after a later refresh changes the entry base", async () => {
+    const fixture = createReferenceFixture();
+    const reference = fixture.reference("cohort/document");
+    const put = async (content: string, expected: RecordVersion | null): Promise<RecordVersion> => {
+      const result = await fixture.store.write({
+        action: "put", reference, content, expected, provenance: { verb: "save", lifecycleAction: "save" },
+      });
+      if (result.status !== "ok" || result.result.version === undefined) throw new Error("fixture write refused");
+      return result.result.version;
+    };
+    const takenIn = "one\ntwo\n";
+    const landedContent = "one\ntwo\nthree\nfour\n";
+    const laterContent = "a\nb\nc\nd\ne\n";
+    const original = await put(takenIn, null);
+    const landed = await put(landedContent, original);
+    const later = await put(laterContent, landed);
+    const memo = createHistoryMemo(fixture.store);
+    const { entry } = await recordWriteBack(recording({
+      entry: { ...entryAt(takenIn, original), reference }, takenIn, grammar: undefined, memo,
+      outcome: { kind: "landed", version: landed }, readBack: { version: later, content: laterContent },
+    }));
+    const refreshed = { ...entry, base: { blob: gitBlobId(laterContent, "sha1"), version: later } };
+    expect(await selectPersistedBase({ location, entry: refreshed, stamp: null, content: `${landedContent}five\n`, memo }))
+      .toEqual({ status: "ok", result: { kind: "stored", version: landed } });
+    expect(entry.persisted?.takenIn).toMatchObject({ kind: "copy", version: landed });
+  });
+  it("matches a complete multiline field header rather than its shared first line", () => {
+    const grammar = ENTRY_CONFIGS["personal/working-memory"];
+    const memory = (tail: string, body: string, id = "") =>
+      `**Read the shared\n${tail}:**\n_Remove when: repaired._\n${id === "" ? "" : `${id}\n`}\n${body}\n`;
+    const document = (...entries: string[]) => `# Working Memory\n\n## Memories\n\n${entries.join("\n")}`;
+    const alpha = memory("alpha source", "edited alpha");
+    const beta = memory("beta source", "original beta", "_Id:_ `12345678`");
+    expect(restoreEntryIds(document(alpha), document(beta), grammar)).toBe(document(alpha));
+    const landedAlpha = memory("alpha source", "original alpha", "_Id:_ `abcdef12`");
+    expect(restoreEntryIds(document(alpha), document(landedAlpha, beta), grammar))
+      .toBe(document(memory("alpha source", "edited alpha", "_Id:_ `abcdef12`")));
+  });
   it("records the version written as the content taken in where the read-back differs only by stamped IDs", async () => {
     const takenIn = inbound("### [ ] **First**\n- _Id:_ `11111111`\n\nfirst, edited\n", "### [ ] **Second**\n\nsecond\n");
     const readBack = stamped(takenIn, 0.5);

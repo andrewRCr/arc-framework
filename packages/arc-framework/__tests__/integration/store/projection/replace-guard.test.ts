@@ -1,5 +1,5 @@
 /** The replace guard over a seeded projection: an edit found at the re-check is taken in before the file is replaced. */
-import { readFile, stat as fsStat, utimes, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, stat as fsStat, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
@@ -68,6 +68,20 @@ function landing(store: ReturnType<typeof createReferenceFixture>["store"], expe
 const deferring: TakeInPort = async (request) => ({ answer: "deferred", entry: request.entry });
 
 describe("the replace guard", () => {
+  it("leaves a directory and its contents in place with a repair route, then permits replacement", async () => {
+    const h = await projected();
+    await rm(h.file);
+    await mkdir(h.file);
+    await writeFile(join(h.file, "saved.txt"), "preserved contents");
+    expect(await h.guard(deferring)).toMatchObject({
+      kind: "unreplaced", cause: "not-a-file", entry: { pending: true },
+      remedy: { text: expect.stringContaining(h.file) },
+    });
+    expect(await readFile(join(h.file, "saved.txt"), "utf8")).toBe("preserved contents");
+    await rename(h.file, `${h.file}.saved-directory`);
+    expect(await h.guard(deferring)).toMatchObject({ kind: "replace" });
+    expect(await readFile(join(`${h.file}.saved-directory`, "saved.txt"), "utf8")).toBe("preserved contents");
+  });
   it("takes in a file edited since its entry, then replaces it with the record's current version", async () => {
     const { fixture, reference, entry, guard, save, seeded, staged } = await projected();
     await save("# Cohort: one\n\nBody, edited.\n");

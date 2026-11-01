@@ -426,7 +426,8 @@ reference.
 Beside the entries it records its format version; the state version last projected; the in-flight view setting,
 identity, checkout claim — the work item the work-unit marker names — and `layout.active` it was projected under
 (`spec-projection-write-back.md` § 10.3, § 10.4); the recent tripwire measurements (`spec-projection-worktrees.md`
-§ 15.4); and each ignore file's existence, stat, and blob id when the guard last passed (§ 11.2).
+§ 15.4); the effective excludes source and every raw setting value, and each ignore file's existence, stat, and blob id
+when the guard last passed (§ 11.2) (A3, A5).
 
 The index is machine-local, in the worktree's own Git directory under `arc-projection/`, which also holds the projection
 lock and the kept copies (§ 3.2, § 3.6). It is registered in `MACHINE_LOCAL_PATHS` under the per-worktree Git-directory
@@ -484,12 +485,12 @@ content is hashed and compared.
 - **The reference** is a stamp file in the aside folder (§ 5.4), rewritten after each index write, so it shares the
   projected files' volume and clock even where a linked worktree's Git directory sits on another volume. A missing stamp
   makes every entry racy.
-- **Smudging.** Every index write smudges each entry it carries over unchanged that is racy against the reference it
-  replaces — its cached size zeroed, so the next check hashes it — after Git's index write
-  (`ce_smudge_racily_clean_entry`), which hashes first and smudges only a changed entry; the entries a write records are
-  racy against the new reference instead. Without the smudge a later write, a sibling's fan-out among them, would make
-  the entry read clean and hide a same-tick save. A command that hashes a smudged entry clean re-records its stats,
-  writing the index.
+- **Smudging (A2).** `commitProjectionIndex` runs `smudgeRacyEntries` on each observed stat racy against the reference
+  it replaces — its cached size zeroed, so the next check hashes it. This includes freshly hashed clean stats, stats
+  read after a swap linked its replacement, and fresh ignore-file snapshots. Only a staged file's stat awaiting
+  installation after that index write is exempt: a save to that file necessarily follows the new reference. Without the
+  smudge publication would make a same-tick save after the observation read clean. A command that hashes a smudged entry
+  clean re-records its stats, and publication applies the same rule again.
 - **Why on every platform.** Modification times advanced every 0.33–0.55 ms on NTFS and every 10 ms on this Linux
   kernel, and a stat comparison alone missed 987 of 1,000 immediate same-size rewrites on Linux and 582 on Windows,
   where the racy rule missed none (`notes-projection-worktrees.md` § Spike 2).
@@ -882,14 +883,24 @@ projection writes nothing into that root until it is repaired. A call that fails
 timeout, or a spawn failure — fails closed: a refusal of every root for the command, typed apart from a missing line,
 naming the failure and the remedy of running the command again.
 
-Before a write into a root the guard runs only when an ignore file may have changed. When it passes, the index records,
-for `.git/info/exclude`, each `.gitignore` on the path from the repository root to every projected root and the aside
-folder, and any other file the call names as a match's source, a `core.excludesFile` among them, whether it exists, its
-stat, and its blob id, and a command skips the call only when each still matches and none is racy against the index's
-reference (§ 3.3), so a refresh or fan-out pays nothing for it. These records take the smudge rule as entries do, each
-against the blob id recorded beside it: an index write that carries one over unchanged while it is racy against the
-reference it replaces smudges it, so the next write into a root runs the call, an ignore file truncated to empty in the
-guard's tick included.
+Before a write into a root `checkIgnores` compares the effective excludes source and the complete ordered raw
+`core.excludesFile` values with the last passing guard's basis before considering file snapshots (A5).
+`readProjectionConfiguration` resolves an unset `core.excludesFile` to Git's default excludes path from the invocation
+environment; an explicit string, including an empty string, stays explicit. Any valueless excludes occurrence is
+invalid, including one before a later valid value, and refuses every root with a configuration-repair remedy, never
+reusing a passing cache. Path expansion and source snapshots preserve traversal components so the filesystem follows a
+symlink before a following `..`. A newly run guard receives the captured source as a command-local Git setting, so its
+verdict and snapshots describe the same selection. Before accepting that pass, `checkIgnores` confirms the source and
+all raw values through another configuration read; any change or invalid selection refuses every root recoverably, for a
+retry with fresh settings. The passed result carries its source and raw values, and `sweepAsideFolder` records both with
+its snapshots. This confirmation runs only with a fresh guard; an unchanged cached pass adds no call to the two-call
+start budget. As with an ignore-file edit after the guard's final snapshot, a configuration edit after its last
+observation is seen on the next command.
+
+The index records each source file's existence, stat, and blob id: `.git/info/exclude`, each ancestor `.gitignore`, and
+each match source, including the effective excludes file where it supplies a match. File snapshots before and after
+Git's guard must agree. Every snapshot takes § 3.3's smudge rule, including one just recorded, so publication cannot
+hide a same-tick change after the snapshot (A2).
 
 A command's first writes come before any refresh: the sweep links aside copies back before write-back reads a file
 (§ 5.4), and write-back's read-back swaps in the edits that landed (`spec-projection-write-back.md` § 7.1). So the sweep
@@ -1098,16 +1109,21 @@ A command's cost grows with what changed, never with how much state exists. Read
 #### 15.3 The no-change budget
 
 - **Two Git calls, started together.** The projection makes two Git calls — the store's `version()` read, and one
-  `git config --get-regexp` reading the `arc.*` keys, `user.name`, and `extensions.objectformat`: identity, the
-  in-flight view setting, and the object format — started together with the stat walk. Run at once they cost what the
-  store read costs alone, 41.7 ms against 41.6 ms on Windows, where one after the other took 64.8 ms (§ Spike 2). The
-  projection's cost on Windows is one Git call's time, and on Linux it is noise beside the CLI's own start (about 280 ms
-  for `--version`). The guard adds no call while no ignore file may have changed (§ 11.2).
-- **The one configuration read.** It is `git config --null --get-regexp '^(arc\.|user\.name$|extensions\.objectformat$)'`,
-  which prints each match as its lowercased key, a newline, and its value, NUL-terminated, in Git's scope order, and
-  exits 1 where no key is set, read as none set. A single-valued key takes its last occurrence, as `git config --get`
-  returns it, and `arc.inflightPin` takes every occurrence. It returns the settings, or the no-identity verdict § 2.5
-  states, naming the remedy that sets `arc.identity`.
+  `git config --get-regexp` reading the `arc.*` keys, `user.name`, `extensions.objectformat`, and `core.excludesFile`:
+  identity, the in-flight view setting, the object format, and the effective excludes source (A3) — started together
+  with the stat walk. Run at once they cost what the store read costs alone, 41.7 ms against 41.6 ms on Windows, where
+  one after the other took 64.8 ms (§ Spike 2). The projection's cost on Windows is one Git call's time, and on Linux it
+  is noise beside the CLI's own start (about 280 ms for `--version`). The guard adds no call while no ignore file may
+  have changed (§ 11.2).
+- **The one configuration read (A5).** `readProjectionConfiguration` runs `git config --null --get-regexp` with the
+  expression `^(arc\.|user\.name$|extensions\.objectformat$|core\.excludesfile$)`. It prints each match as its
+  lowercased key, a newline, and its value, NUL-terminated, in Git's scope order, and exits 1 where no key is set, read
+  as none set. A single-valued key takes its last occurrence, as `git config --get` returns it, and `arc.inflightPin`
+  takes every occurrence. It retains every excludes value in order for cache comparison, and returns the settings, the
+  effective excludes path or an invalid-setting verdict, and the identity or no-identity verdict § 2.5 states, naming
+  the remedy that sets `arc.identity`. An unchanged start makes this call once. A fresh ignore guard makes a confirming
+  read before its pass is accepted, with the same invocation environment; this does not add a call to an unchanged
+  cached check.
 
 ### 16. Forward amendments to shipped specifications
 
@@ -1408,6 +1424,17 @@ _These considerations cover the design the three members build together; § 1.1 
     lane, the save-loss harness loses no save, one that left the file empty past the settle window included (§ 5.2,
     § 17) (A1).
 
+11. A same-size save after a clean hash, after a swap link, or after an ignore snapshot remains detectable when later
+    index/reference writes land.
+12. After a passing ignore guard, changing or unsetting core.excludesFile forces a new effective-rules verdict before
+    any write into affected projected roots.
+
+13. A cached ignore pass records the effective excludes source used by its Git guard; an unset and a valueless
+    core.excludesFile cannot share a passing cache entry.
+
+14. Changing any core.excludesFile occurrence invalidates a cached ignore pass; Git-invalid earlier values
+    refuse writes and a repaired configuration permits retry.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 18 each state what holds until their change lands, and none leaves
@@ -1417,5 +1444,16 @@ this design open.
 
 - **A1** — 2026-11-01 — design: an aside copy empty at its writer's second check waits for the next command's sweep.
   _Supersedes:_ § 5.2 ¶6, § 17 item 1. _Trigger:_ 3.5 must-stop. _Work:_ 3.R. _Revalidated:_ pending → 5.1.
+
+- **A2** — 2026-11-01 — design: protect observed stats when publishing a new index reference.
+  _Supersedes:_ § 3.3 “Smudging”. _Trigger:_ F2 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A3** — 2026-11-01 — design: invalidate ignore caches when their effective excludes source changes.
+  _Supersedes:_ § 11.2 ¶2; § 15.3 ¶2. _Trigger:_ F4 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A4** — 2026-11-01 — design: bind an ignore guard pass to its effective excludes source. _Supersedes:_ § 11.2 ¶2;
+  § 15.3 configuration read. _Trigger:_ R2 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A5** — 2026-11-01 — design: bind ignore passes to all excludes values. _Supersedes:_ § 11.2 ¶2; § 15.3 read.
+  _Trigger:_ U1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

@@ -28,29 +28,21 @@ export async function writeReference(checkout: string): Promise<void> {
   await writeFile(reference, "");
 }
 
-/** What an index write records afresh: these are racy against the reference it writes, never smudged against the old. */
-export interface RecordedAfresh {
-  /** The entry paths whose stats this write records. */
-  readonly entries: ReadonlySet<string>;
-  /** Whether it records a new snapshot of the ignore files. */
-  readonly ignoreFiles: boolean;
-}
-
 /**
- * Smudge each entry and ignore-file record an index write carries over while it is racy against the reference the write
- * replaces: its cached size zeroed, so the next check hashes it and a save in its tick is still found.
+ * Smudge observed entry and ignore-file stats racy against the old reference, including observations just made. Only
+ * stats for staged files installed after this write are exempt: their saves necessarily follow the new reference.
  * @param index - The index about to be written.
  * @param reference - The reference it replaces, null where missing, which makes every one racy.
- * @param recorded - What the write records afresh.
+ * @param installing - Paths whose staged files will be installed after this index write.
  * @returns The index to write.
  */
 export function smudgeRacyEntries(
-  index: ProjectionIndex, reference: bigint | null, recorded: RecordedAfresh,
+  index: ProjectionIndex, reference: bigint | null, installing: ReadonlySet<string> = new Set(),
 ): ProjectionIndex {
   const entries = Object.fromEntries(Object.entries(index.entries).map(([path, entry]) => (
-    [path, recorded.entries.has(path) ? entry : { ...entry, stat: smudged(entry.stat, reference) }]
+    [path, installing.has(path) ? entry : { ...entry, stat: smudged(entry.stat, reference) }]
   )));
-  const ignoreFiles = recorded.ignoreFiles ? index.ignoreFiles : index.ignoreFiles?.map((record) => (
+  const ignoreFiles = index.ignoreFiles?.map((record) => (
     record.stat === null ? record : { ...record, stat: smudged(record.stat, reference) }
   )) ?? null;
   return { ...index, entries, ignoreFiles };
@@ -66,7 +58,7 @@ function smudged<T extends FileStat | null>(stat: T, reference: bigint | null): 
  * @param index - The index.
  * @param path - The entry's repository-relative path.
  * @param stat - The stat the check read.
- * @returns The index with the entry's stat replaced; the write recording it lists the path among those it records.
+ * @returns The index with the observed stat; publication smudges it again while its tick remains racy.
  */
 export function recordCleanStat(index: ProjectionIndex, path: string, stat: FileStat): ProjectionIndex {
   const entry = index.entries[path];

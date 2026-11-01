@@ -4,12 +4,13 @@
  */
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import type { Remedy } from "../refusal.js";
 import { nameAsideFile, parseAsideFile, type AsideWriterInput } from "./aside.js";
 import { retriedMoves, type SwapMoves } from "./aside-moves.js";
 import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import { readStat } from "./change-detection.js";
 import type { AsideCopyRecord, RecordEntry } from "./index-schema.js";
-import { gateRead, SYSTEM_READ_GATE, type ReadGateDependencies } from "./read-gate.js";
+import { gateRead, SYSTEM_READ_GATE, type ReadGateDependencies, type ReadGateVerdict } from "./read-gate.js";
 import { parseStampedFile } from "./stamp.js";
 import { deleteAsideCopy } from "./stampless.js";
 import type { TakeInBase, TakeInHeld, TakeInPort, TakeInResult } from "./take-in-port.js";
@@ -68,6 +69,8 @@ export interface AsideCopySettling extends SwapMoves {
   readonly writer: AsideWriterInput;
   /** The read gate's clock, stat, and sleep, the system's unless a caller injects its own. */
   readonly gate?: ReadGateDependencies;
+  /** The writer's second check leaves any copy observed empty for the next command's sweep. */
+  readonly keepEmpty?: boolean;
 }
 
 /** What checking a copy found, with the entry as the check left it; checking deletes nothing. */
@@ -78,6 +81,10 @@ export type CopyCheck =
   | { readonly kind: "moved-on"; readonly entry: RecordEntry }
   /** Still being written: the gate left it for a later check. */
   | { readonly kind: "unsettled"; readonly entry: RecordEntry }
+  /** Empty at the writer's second check: retained until the next command's sweep. */
+  | { readonly kind: "empty"; readonly entry: RecordEntry }
+  /** A directory or other nonregular object stays aside, never deleted or linked back. */
+  | { readonly kind: "not-a-file"; readonly entry: RecordEntry; readonly remedy: Remedy }
   /** No longer in the aside folder. */
   | { readonly kind: "gone"; readonly entry: RecordEntry }
   /** It went to the port, which answered; `result` is the whole answer, its entry the one here, `blob` what it sent. */
@@ -96,10 +103,17 @@ export async function checkAsideCopy(input: AsideCopySettling): Promise<CopyChec
   const { checkout, path, copy, entry } = input;
   const markdown = path.endsWith(".md");
   const gated = await gateRead({ path: join(checkout, copy.name), markdown }, input.gate ?? SYSTEM_READ_GATE);
+  if (input.keepEmpty && observedEmpty(gated)) return { kind: "empty", entry };
   if (gated.kind === "absent") return { kind: "gone", entry };
   if (gated.kind === "pending") return { kind: "unsettled", entry };
-  if (gated.kind === "no-edit") return { kind: "no-edit", entry };
+  if (gated.kind === "no-edit") {
+    if (gated.deleted === "not-a-file" && (await readStat(join(checkout, copy.name)))?.type === "other") {
+      return { kind: "not-a-file", entry: { ...entry, pending: true }, remedy: gated.remedy };
+    }
+    return { kind: "no-edit", entry };
+  }
   const bytes = await readFile(join(checkout, copy.name));
+  if (input.keepEmpty && bytes.byteLength === 0) return { kind: "empty", entry };
   const blob = gitBlobId(bytes, input.format);
   // What the swap moved, or what the copy held when its own take-in landed, is no edit wherever it is read.
   if (blob === copy.moving || blob === copy.landed) return { kind: "no-edit", entry };
@@ -111,8 +125,16 @@ export async function checkAsideCopy(input: AsideCopySettling): Promise<CopyChec
   return { kind: "sent", answer: result.answer, entry: result.entry, result, blob };
 }
 
+function observedEmpty(verdict: ReadGateVerdict): boolean {
+  if (verdict.kind === "read") return verdict.stat.size === 0n;
+  return (verdict.kind === "pending" && verdict.reason === "empty")
+    || (verdict.kind === "no-edit" && verdict.deleted === "emptied");
+}
+
 /** What settling a copy did, with the entry as it now stands. */
 export type CopySettlement =
+  /** A directory or other nonregular object is retained, reported with its path and a repair route. */
+  | { readonly kind: "not-a-file"; readonly entry: RecordEntry; readonly path: string; readonly copy: string; readonly remedy: Remedy }
   /** It held no edit, or its edit landed whole: deleted, its record cleared. */
   | { readonly kind: "deleted"; readonly entry: RecordEntry }
   /** It holds an edit, but its path has moved on: kept and reported with its path, never sent. */
@@ -143,6 +165,8 @@ export type HeldEdit = "refused" | "unparseable" | "clashed";
 export async function settleAsideCopy(input: AsideCopySettling): Promise<CopySettlement> {
   const checked = await checkAsideCopy(input);
   switch (checked.kind) {
+    case "not-a-file": return { ...checked, path: input.path, copy: input.copy.name };
+    case "empty": return { kind: "kept", entry: checked.entry, answer: "empty" };
     case "no-edit": return deleted(input, checked.entry);
     case "gone": return { kind: "dropped", entry: withoutRecord(checked.entry, input.copy) };
     case "unsettled": return { kind: "kept", entry: checked.entry, answer: "unsettled" };
@@ -204,6 +228,10 @@ function copyBase(copy: AsideCopyRecord, bytes: Uint8Array, markdown: boolean): 
 
 async function deleted(input: AsideCopySettling, entry: RecordEntry): Promise<CopySettlement> {
   const { checkout, path } = input;
+  if (input.keepEmpty) {
+    const stat = await readStat(join(checkout, input.copy.name));
+    if (stat?.type === "file" && stat.size === 0n) return { kind: "kept", entry, answer: "empty" };
+  }
   return { kind: "deleted", entry: await deleteAsideCopy({ checkout, path, entry, copy: input.copy.name }) };
 }
 

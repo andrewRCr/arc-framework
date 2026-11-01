@@ -98,6 +98,7 @@ function settledVerdict(file: GatedFile, stat: FileStat | null): ReadGateVerdict
   return { kind: "read", stat };
 }
 
-function notAFileRemedy(path: string): Remedy {
+/** The repair route for a projected or aside path that cannot be read as a regular file. */
+export function notAFileRemedy(path: string): Remedy {
   return { text: `Replace ${path} with a regular file; a projected path that is not one is never followed or read.` };
 }

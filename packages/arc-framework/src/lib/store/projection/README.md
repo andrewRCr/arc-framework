@@ -36,10 +36,10 @@ a missing one as a worktree that is gone.
 its type, size, modification time, and file identity, read by `lstat` as bigints, match its entry and the modification
 time is older than the reference stamp at the aside folder's top. Anything else is hashed against the blob id last
 written there, and a missing reference makes every entry racy. A symbolic link, or anything else not a file, reads as
-absent and is never followed or read. Each index write smudges what it carries over while racy against the reference it
-replaces, after Git's: the entry's cached size is zeroed, so the next check hashes it, and a recorded size of zero for
-content that is not empty always hashes, so a save that empties the file is still found. What the write records afresh
-is racy against the new reference instead, and a file that hashes clean has its stat recorded again.
+absent and is never followed or read. Each index write smudges every observed stat racy against the reference it
+replaces: the cached size is zeroed, so the next check hashes it. This includes a freshly hashed clean stat, a linked
+replacement's stat, and fresh ignore snapshots. Only a staged file awaiting installation after that write is exempt.
+A recorded size of zero for nonempty content always hashes, so a save that empties the file is still found.
 
 `ignore-snapshot.ts` records the ignore files a guard pass rests on — each one's stat and blob id, or that it is absent
 — and compares that record against each file as it is by the same rule, smudging included, so a command runs the guard
@@ -47,7 +47,9 @@ again only when one may have changed. An ignore file is read through a symbolic 
 loops reads as absent.
 
 `ignore-check.ts` runs the guard before a command's first write into a root only where an ignore file may have changed
-since its last pass, by `ignore-snapshot.ts`'s comparison. A pass reads every file it rests on before the call — the
+since its last pass, by `ignore-snapshot.ts`'s comparison, or any `core.excludesFile` value or its effective path
+changed. The command's existing configuration read supplies that basis; a passing guard carries the confirmed path and
+values for the sweep to record beside the file snapshots. A pass reads every file it rests on before the call — the
 predictable ones and each file the last pass recorded, a `core.excludesFile` among them — and again after it, and
 returns its records only where every read agrees, so an edit landing while Git reads never becomes the baseline a later
 command skips the call against. Otherwise it reads again, knowing every file the call named, at most three times, and
@@ -63,11 +65,16 @@ holder it last saw. It is not reentrant.
 format, never by running Git per file. A file's stored blob id is taken over LF line endings with, for Markdown alone,
 the base stamp and notice lines stripped, since the stored record carries neither.
 
-`configuration.ts` is the one configuration read a command's start makes:
-`git config --null --get-regexp '^(arc\.|user\.name$|extensions\.objectformat$)'`, exit status 1 read as no key set.
-A single-valued key takes its last occurrence, as `git config --get` does, and each `arc.inflightPin` is kept. It returns
-the object format, SHA-1 where unset; the in-flight view keys as set; and identity, resolved by the rule
-`lib/git/identity.ts` owns, or the no-identity verdict naming the remedy that sets `arc.identity`.
+`configuration.ts` supplies the configuration read at command start:
+`git config --null --get-regexp '^(arc\.|user\.name$|extensions\.objectformat$|core\.excludesfile$)'`. Exit status 1
+means no key is set. A single-valued key takes its last occurrence, and every `arc.inflightPin` is kept. It returns the
+object format (SHA-1 where unset), the raw view keys, identity or its repair verdict, and an effective excludes path
+with every raw value in order, or an invalid-setting result. An unset excludes key resolves to Git's default from the
+invocation environment; a valueless occurrence is refused before cache reuse, even if a later occurrence has a value.
+Home/default expansion and matched source paths retain their traversal components, so a symlink followed by `..` is
+evaluated by the filesystem. The ignore check pins a fresh Git guard to its captured path, then confirms the path and
+all raw values through the same configuration reader before accepting the pass. A changed selection refuses recoverably.
+Only fresh guards pay for confirmation; an unchanged cached check adds no configuration read.
 
 `base-recovery.ts` recovers the base of a file whose stamp was lost. Content equal to a stored version takes it — the
 index's version first, by blob id, so a file still holding it reads no `history`, then each version newest first.
@@ -84,11 +91,12 @@ being the older base, and otherwise the index's version.
 conflicts or an entry was refused beside it — with the stamp it read, and leaves the record as it was after any other
 outcome. Each entry of the content taken in first takes the ID the landed record gave it, through the one entry-ID
 matcher: an entry carrying no ID takes the ID of the one reference entry whose text, apart from its ID line, equals its
-own, else of the one sharing its heading, and a reference entry two entries match the same way goes to neither. Where
-the record read back is at the write's version and holds that content apart from the IDs the store stamped, the version
-is the content taken in; otherwise the content is kept as a copy under `arc-projection/taken-in/` until a later landing
-releases it. A save carrying the recorded stamp takes that content as its base, and a file other than Markdown takes the
-closer of a kept copy and the version the read-back laid.
+own, else of the one sharing its heading or complete field-header paragraph, and a reference entry two entries match the
+same way goes to neither. Where the record read back is at the write's version and holds that content apart from the IDs
+the store stamped, the version is the content taken in; otherwise the content is kept as a copy under
+`arc-projection/taken-in/` until a later landing releases it. A save carrying the recorded stamp takes that content as
+its base, and a file other than Markdown takes the closer of a kept copy and the version that write landed, recorded
+alongside the copy so a later refresh cannot change the comparison's basis.
 
 `stampless.ts` reads a file other than Markdown, which carries no stamp, against its entry: the entry's version is its
 base, so a file restored to an older version is an edit, and an empty file is read only once its modification time is
@@ -188,12 +196,14 @@ nothing, and a refusal of a root leaves every copy under it untouched for the co
 records a pass, and no pass after a refusal. It takes over only the copies and staged files whose writer has exited,
 judged as the projection lock judges a holder, and never one from another process scope, since a copy holds no lease:
 those it reports with their paths. Each recorded copy is taken in its entry's record order. A record whose copy is gone
-is dropped, and a copy that is not a file is deleted as no edit, never followed, its absent path left pending. One whose
-path is absent and has not moved on is linked back, the file pending, and every other copy is settled as
-`aside-copies.ts` states. A copy the index lists as withheld is left. One the index does not record, as a stop between a
-swap back's move and its index write leaves, is deleted where it equals its base, its stamp set aside, and otherwise
-kept and reported. Staged files are deleted and the reference stamp is left. With no usable index it takes nothing in: a
-copy whose path is absent is linked back, one that is not a file or equals its base is deleted, and every other stays,
+is dropped, and a symbolic-link copy is deleted as itself, never followed, its absent path left pending. A directory
+copy stays with its contents, reported with a repair route, whether recorded, unrecorded, or found without an index. The
+replace guard also leaves a directory at the projected path in place, pending with a repair route. One whose path is
+absent and has not moved on is linked back, the file pending, and every other copy is settled as `aside-copies.ts`
+states. A copy the index lists as withheld is left. One the index does not record, as a stop between a swap back's move
+and its index write leaves, is deleted where it equals its base, its stamp set aside, and otherwise kept and reported.
+Staged files are deleted and the reference stamp is left. With no usable index it takes nothing in: a regular-file copy
+whose path is absent is linked back, a symbolic link or a file equal to its base is deleted, and every other stays,
 returned for the rebuilt index to record as withheld. The sweep returns the replacements a swap back made, for the
 command's second check.
 

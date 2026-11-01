@@ -1,5 +1,5 @@
 /** One `git check-ignore` call proving every projected root and the aside folder ignored before the projection writes. */
-import { join, posix, resolve } from "node:path";
+import { isAbsolute, join, parse, posix, resolve, sep } from "node:path";
 import type { GitExecInput } from "../../git/exec.js";
 import { isGitProcessError } from "../../git/process-error.js";
 import { readGitDirectories, type GitDirectoryFileAccess } from "../../git/directories.js";
@@ -21,6 +21,8 @@ export type ProjectionIgnoreVerdict =
 
 /** What the guard reads. */
 export interface ProjectionIgnoreGuardInput {
+  /** Pin a captured excludes selection; absent for a standalone guard over live configuration. */
+  excludesFile?: string;
   root: string;
   identity: Slug;
   exec: GitExecInput;
@@ -80,8 +82,17 @@ export async function predictableIgnoreFiles(input: ProjectionIgnoreGuardInput):
 
 /** The ignore files a pass rests on: the predictable ones and each match's source. */
 async function ignoreFiles(input: ProjectionIgnoreGuardInput, matches: readonly CheckIgnoreMatch[]): Promise<string[]> {
-  const sources = matches.map((match) => resolve(input.root, match.source));
+  const sources = matches.map((match) => sourcePath(input.root, match.source));
   return [...new Set([...await predictableIgnoreFiles(input), ...sources])];
+}
+
+/** Anchor only a source's root prefix; preserve its traversal components for the filesystem to follow in order. */
+function sourcePath(root: string, source: string): string {
+  const prefix = parse(source).root;
+  const base = prefix === "" ? (isAbsolute(root) ? root : `${process.cwd()}${sep}${root}`) : resolve(root, `${prefix}.`);
+  const rest = source.slice(prefix.length);
+  const tail = sep === "\\" ? rest.replaceAll("/", sep) : rest;
+  return `${base}${base.endsWith(sep) ? "" : sep}${tail}`;
 }
 
 /**
@@ -134,8 +145,10 @@ function guardFailed(guarded: readonly GuardedRoot[], error: unknown): GuardFail
 
 /** Run the one call; exit status 1, which Git returns when it counts no path ignored, still carries every verdict. */
 async function checkIgnore(input: ProjectionIgnoreGuardInput, guarded: readonly GuardedRoot[]): Promise<string> {
+  const args = input.excludesFile === undefined ? CHECK_IGNORE_ARGS
+    : ["-c", `core.excludesFile=${input.excludesFile}`, ...CHECK_IGNORE_ARGS];
   try {
-    return await input.exec(CHECK_IGNORE_ARGS, guarded.map((root) => `${root.path}\0`).join(""), { cwd: input.root });
+    return await input.exec(args, guarded.map((root) => `${root.path}\0`).join(""), { cwd: input.root });
   } catch (error) {
     if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1) return error.stdout;
     throw error;

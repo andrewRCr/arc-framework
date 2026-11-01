@@ -1,13 +1,15 @@
-/** The projection's one configuration read: identity, the in-flight view keys, and the object format. */
+/** The projection's one configuration read: identity, the in-flight view keys, the object format, and the effective excludes source. */
 import type { GitExec } from "../../git/exec.js";
+import { homedir } from "node:os";
 import { resolveIdentityFromValues } from "../../git/identity.js";
 import { normalizeGitRejection } from "../../git/process-error.js";
 import type { Slug } from "../../kernel/index.js";
 import type { Remedy } from "../refusal.js";
 import type { ObjectFormat } from "./blob-id.js";
+import type { ExcludesSelection } from "./index-schema.js";
 
-/** Every key the read takes: ARC's own, `user.name`, and the object format. */
-const CONFIGURATION_KEYS = "^(arc\\.|user\\.name$|extensions\\.objectformat$)";
+/** Every key the read takes: ARC's own, `user.name`, the object format, and the effective excludes source. */
+const CONFIGURATION_KEYS = "^(arc\\.|user\\.name$|extensions\\.objectformat$|core\\.excludesfile$)";
 
 /** What a configuration with no usable identity is told to do. */
 const IDENTITY_REMEDY: Remedy = {
@@ -19,32 +21,60 @@ export type ConfiguredIdentity =
   | { readonly status: "identified"; readonly identity: Slug }
   | { readonly status: "no-identity"; readonly cause: "unset" | "invalid"; readonly remedy: Remedy };
 
+/** The excludes source and raw values Git parses, or a valueless setting that cannot authorize a cached guard pass. */
+export type ConfiguredExcludesFile =
+  | ({ readonly kind: "path" } & ExcludesSelection)
+  | { readonly kind: "invalid"; readonly remedy: Remedy };
+
 /** What the one read returns. */
 export interface ProjectionConfiguration {
   readonly objectFormat: ObjectFormat;
+  readonly excludesFile: ConfiguredExcludesFile;
   readonly identity: ConfiguredIdentity;
   /** The in-flight view keys as set, for the view setting to interpret: `arc.inflightView`, and each `arc.inflightPin`. */
   readonly view: { readonly setting: string | null; readonly pins: readonly string[] };
 }
 
 /**
- * Read identity, the in-flight view keys, and the object format in one Git call.
+ * Read identity, view keys, object format, and the effective excludes source in one Git call.
  * @param exec - The Git executor.
  * @param cwd - The checkout root.
+ * @param environment - The same invocation environment bound to the Git executor, for default and home paths.
  * @returns What the configuration yields.
  */
-export async function readProjectionConfiguration(exec: GitExec, cwd: string): Promise<ProjectionConfiguration> {
+export async function readProjectionConfiguration(
+  exec: GitExec, cwd: string, environment: NodeJS.ProcessEnv = process.env,
+): Promise<ProjectionConfiguration> {
   const records = parseConfigurationRecords(await readMatchingKeys(exec, cwd));
   // Git prints every scope's value in its own order, so the last occurrence is the one `git config --get` returns.
   const last = (key: string): string | null | undefined => records.get(key)?.at(-1);
   return {
     objectFormat: objectFormatOf(last("extensions.objectformat")),
+    excludesFile: excludesFileOf(records.get("core.excludesfile"), environment),
     identity: identityOf(last("arc.identity"), last("user.name")),
     view: {
       setting: last("arc.inflightview") ?? null,
       pins: (records.get("arc.inflightpin") ?? []).filter((pin): pin is string => pin !== null),
     },
   };
+}
+
+/** Resolve the default and current-home spelling before the guard pins its path in Git's command scope. */
+function excludesFileOf(values: readonly (string | null)[] | undefined, environment: NodeJS.ProcessEnv): ConfiguredExcludesFile {
+  if (values?.includes(null)) return { kind: "invalid", remedy: {
+    text: "A core.excludesFile occurrence has no value. Run git config --show-origin --get-all core.excludesFile "
+      + "to locate its configuration file, then give every occurrence a path or remove the valueless entries and run the command again.",
+  } };
+  const value = values?.at(-1);
+  const home = environment.HOME ?? (process.platform === "win32"
+    ? environment.HOMEDRIVE !== undefined && environment.HOMEPATH !== undefined
+      ? `${environment.HOMEDRIVE}${environment.HOMEPATH}` : environment.USERPROFILE ?? homedir()
+    : undefined);
+  const path = value ?? (environment.XDG_CONFIG_HOME ? `${environment.XDG_CONFIG_HOME}/git/ignore`
+    : home === undefined ? "" : `${home}/.config/git/ignore`);
+  // Concatenation preserves a symlink followed by ..; lexical normalization can select another file.
+  return { kind: "path", path: /^~[\\/]/u.test(path) && home !== undefined ? `${home}${path.slice(1)}` : path,
+    values: (values ?? []).filter((value): value is string => value !== null) };
 }
 
 /**

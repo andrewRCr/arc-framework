@@ -65,7 +65,7 @@ describe("a history refusal", () => {
       memo, readCopy: (name) => Promise.resolve(copies[name] ?? ""),
     });
     const stamp = gitBlobId("a\nc\n", "sha1");
-    const copy = (name: string): RecordEntry["persisted"] => ({ stamp, takenIn: { kind: "copy", name, blob: gitBlobId(copies[name] ?? "", "sha1") } });
+    const copy = (name: string): RecordEntry["persisted"] => ({ stamp, takenIn: { kind: "copy", version: older, name, blob: gitBlobId(copies[name] ?? "", "sha1") } });
     expect(await recover(null)).toEqual({ status: "ok", result: { kind: "stored", version: indexed } });
     expect(await recover(copy("near"))).toEqual({ status: "ok", result: { kind: "copy", content: copies.near } });
     expect(await recover(copy("far"))).toEqual({ status: "ok", result: { kind: "stored", version: indexed } });

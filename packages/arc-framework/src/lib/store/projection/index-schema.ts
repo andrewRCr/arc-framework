@@ -47,7 +47,7 @@ const PersistedSchema = z.strictObject({
   stamp: BlobIdSchema,
   takenIn: z.discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("landed"), version: RecordVersionSchema }),
-    z.strictObject({ kind: z.literal("copy"), name: z.string().min(1), blob: BlobIdSchema }),
+    z.strictObject({ kind: z.literal("copy"), name: z.string().min(1), blob: BlobIdSchema, version: RecordVersionSchema }),
   ]),
 });
 
@@ -110,6 +110,9 @@ const ProjectedUnderSchema = z.strictObject({
   layoutActive: z.enum(["nested", "flat"]),
 });
 
+/** The excludes source and every ordered setting Git parsed before a passing guard. */
+const ExcludesSelectionSchema = z.strictObject({ path: z.string(), values: z.array(z.string()) });
+
 /** The index as JSON stores it, decoded into bigints and validated references. Unknown fields fail. */
 export const ProjectionIndexSchema = z.strictObject({
   format: z.literal(PROJECTION_INDEX_FORMAT),
@@ -118,11 +121,14 @@ export const ProjectionIndexSchema = z.strictObject({
   withheldCopies: z.array(z.string().min(1)),
   tripwires: z.record(z.string().min(1), z.array(z.number().nonnegative()).max(9)),
   ignoreFiles: z.array(IgnoreFileRecordSchema).nullable(),
+  ignoreExcludesFile: ExcludesSelectionSchema.nullable(),
   entries: z.record(EntryPathSchema, IndexEntrySchema),
 });
 
 /** A decoded projection index. */
 export type ProjectionIndex = z.output<typeof ProjectionIndexSchema>;
+/** The complete excludes configuration basis of a passing guard. */
+export type ExcludesSelection = z.output<typeof ExcludesSelectionSchema>;
 /** A decoded `lstat`, its fields bigints. */
 export type FileStat = z.output<typeof FileStatSchema>;
 /** A decoded ignore-file record. */

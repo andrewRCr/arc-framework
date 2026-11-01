@@ -25,6 +25,7 @@ function fullIndex(): ProjectionIndex {
     },
     withheldCopies: ["active/current/meta-alpha.md/0000.1-1-ab.n.aside"],
     tripwires: { refresh: [1.5, 2, 3, 4, 5, 6, 7, 8, 9] },
+    ignoreExcludesFile: { path: "/repo/ignore", values: ["~/prior-ignore", "/repo/ignore"] },
     ignoreFiles: [
       { path: "/repo/.git/info/exclude", stat, blob: blob("a") },
       { path: "/repo/.arc/.gitignore", stat: null, blob: null },
@@ -36,7 +37,7 @@ function fullIndex(): ProjectionIndex {
         markers: { length: 7, sets: [{ shows: "stored", conflict }, { shows: "checkout" }] },
         notices: [conflict], unshown: [conflict], protected: true, changed: true, pending: true, withheld: false,
         refused: { reason: "write-check", remedy },
-        persisted: { stamp: blob("d"), takenIn: { kind: "copy", name: "taken-in-1", blob: blob("e") } },
+        persisted: { stamp: blob("d"), takenIn: { kind: "copy", version: RecordVersionSchema.parse("v3"), name: "taken-in-1", blob: blob("e") } },
         inProgress: { replaces: { blob: blob("f"), version: RecordVersionSchema.parse("v2") }, copy: "copy-1" },
         copies: [
           { name: "copy-1", moving: blob("1"), linked: blob("2"), writeBackSent: true, landed: blob("3") },

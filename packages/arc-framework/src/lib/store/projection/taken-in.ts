@@ -6,7 +6,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
-  maskComments, rejoinEntryList, splitEntryList, type EntryListConfig, type ListEntry, type SplitEntryList,
+  fieldHeaderSpans, maskComments, rejoinEntryList, splitEntryList, type EntryListConfig, type ListEntry, type SplitEntryList,
 } from "../concurrency/entries.js";
 import { insertEntryId } from "../concurrency/stamp.js";
 import { atomicWriteFile } from "../../fs.js";
@@ -35,7 +35,7 @@ export function restoreEntryIds(content: string, reference: string, config: Entr
   const missing = entriesOf(split).filter((entry) => entry.id === undefined);
   const given = new Map<ListEntry, string>();
   // Text first; the heading pass reads only what the text pass left on both sides.
-  for (const matches of [sameText, sameHeading]) {
+  for (const matches of [sameText, (entry: ListEntry, candidate: ListEntry) => sameHeading(entry, candidate, config)]) {
     const open = candidates.filter((candidate) => ![...given.values()].includes(candidate.id ?? ""));
     const waiting = missing.filter((entry) => !given.has(entry));
     for (const entry of waiting) {
@@ -57,12 +57,15 @@ function sameText(entry: ListEntry, candidate: ListEntry): boolean {
 }
 
 /** Whether two entries share a heading, or in a field-header list, a field header. */
-function sameHeading(entry: ListEntry, candidate: ListEntry): boolean {
-  return headingOf(entry) === headingOf(candidate);
+function sameHeading(entry: ListEntry, candidate: ListEntry, config: EntryListConfig): boolean {
+  return headingOf(entry, config) === headingOf(candidate, config);
 }
 
-function headingOf(entry: ListEntry): string {
-  return (entry.bytes.split("\n")[0] ?? "").trimEnd();
+function headingOf(entry: ListEntry, config: EntryListConfig): string {
+  const lines = maskComments(entry.bytes).split("\n");
+  if (config.shape === "heading") return (lines[0] ?? "").trimEnd();
+  const header = fieldHeaderSpans(lines).find((span) => span.problem === null);
+  return header === undefined ? "" : lines.slice(header.start, header.end + 1).map((line) => line.trim()).join(" ");
 }
 
 function entriesOf(split: SplitEntryList): ListEntry[] {
@@ -129,7 +132,7 @@ export async function selectPersistedBase(input: PersistedBaseInput): Promise<St
   const persisted = input.entry.persisted;
   if (persisted === null) return { status: "ok", result: null };
   const { takenIn } = persisted;
-  if (input.stamp === null) return takenIn.kind === "copy" ? closerOfCopyAndLaid(input, takenIn.name) : { status: "ok", result: null };
+  if (input.stamp === null) return takenIn.kind === "copy" ? closerOfCopyAndLanded(input, takenIn.name, takenIn.version) : { status: "ok", result: null };
   if (input.stamp !== persisted.stamp) return { status: "ok", result: null };
   if (takenIn.kind === "landed") return { status: "ok", result: { kind: "stored", version: takenIn.version } };
   return { status: "ok", result: { kind: "copy", content: await readTakenInCopy(input.location, takenIn.name) } };
@@ -137,17 +140,17 @@ export async function selectPersistedBase(input: PersistedBaseInput): Promise<St
 
 /**
  * A file with no stamp cannot tell a stale buffer's save from an edit of what the read-back laid, so it takes whichever
- * is closer: the kept copy, which wins a tie, or the entry's version, which the read-back laid in the file.
+ * is closer: the kept copy, which wins a tie, or the version that write landed, regardless of later read-backs or refreshes.
  */
-async function closerOfCopyAndLaid(input: PersistedBaseInput, name: string): Promise<StoreResult<PersistedBase>> {
+async function closerOfCopyAndLanded(input: PersistedBaseInput, name: string, version: RecordVersion): Promise<StoreResult<PersistedBase>> {
   const copy = await readTakenInCopy(input.location, name);
   const history = await input.memo.read(input.entry.reference);
   if (history.status === "refused") return history;
-  const laid = history.result.find((entry) => entry.version === input.entry.base.version)?.content ?? null;
+  const landed = history.result.find((entry) => entry.version === version)?.content ?? null;
   const lines = input.content.split("\n");
-  const closerToLaid = laid !== null
-    && lineDistance(lines, laid.split("\n")).changed < lineDistance(lines, copy.split("\n")).changed;
-  return { status: "ok", result: closerToLaid ? { kind: "stored", version: input.entry.base.version } : { kind: "copy", content: copy } };
+  const closerToLanded = landed !== null
+    && lineDistance(lines, landed.split("\n")).changed < lineDistance(lines, copy.split("\n")).changed;
+  return { status: "ok", result: closerToLanded ? { kind: "stored", version } : { kind: "copy", content: copy } };
 }
 
 /** How a write-back ended: a landing, which persists, or an outcome that lands nothing. */
@@ -188,7 +191,7 @@ export async function recordWriteBack(input: WriteBackRecording): Promise<{ entr
   const released = kept?.kind === "copy" ? [kept.name] : [];
   const record = readBack.version === outcome.version && sameApartFromStampedIds(readBack.content, takenIn, grammar)
     ? { kind: "landed" as const, version: outcome.version }
-    : { kind: "copy" as const, ...await keepCopy(input.location, takenIn, input.format) };
+    : { kind: "copy" as const, version: outcome.version, ...await keepCopy(input.location, takenIn, input.format) };
   return { entry: { ...input.entry, persisted: { stamp: input.stamp, takenIn: record } }, released };
 }
 

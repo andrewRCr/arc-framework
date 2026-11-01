@@ -435,3 +435,124 @@ command's sweep sends it again while its path has not moved on." § 17 item 1: "
 replacement and landing after the command's second check, or after a persist or release step took the aside copy over,
 goes to a deleted aside copy and is lost (§ 5.2). Reasoned, not measured: no tested editor or agent holds a file open
 across saves."
+
+## A2 — observations remain racy through index publication
+
+`commitProjectionIndex` must protect observations of files already visible to editors: a clean hash, a linked
+replacement's stat, and an ignore snapshot. Their pre-publication observation does not constrain a later same-tick
+save. Only `swapBatch`'s first write exempts staged files that are linked afterward. Its second write has no exemption.
+The regression cases preserve inode, size, and modification time across the intervening save.
+
+**Superseded § 3.3 text:**
+
+> - **Smudging.** Every index write smudges each entry it carries over unchanged that is racy against the reference it
+>   replaces — its cached size zeroed, so the next check hashes it — after Git's index write
+>   (`ce_smudge_racily_clean_entry`), which hashes first and smudges only a changed entry; the entries a write records
+> are
+>   racy against the new reference instead. Without the smudge a later write, a sibling's fan-out among them, would make
+>   the entry read clean and hide a same-tick save. A command that hashes a smudged entry clean re-records its stats,
+>   writing the index.
+
+## A3 — the ignore cache records its effective excludes source
+
+`readProjectionConfiguration` reads `core.excludesFile` in its existing Git query; `checkIgnores` compares that value
+with the last passing guard's value before considering file snapshots. `sweepAsideFolder` publishes both together.
+A changed or unset setting invalidates the cache even while the old source still exists unchanged. No extra Git call
+is added to the no-change path. Tests use real Git configuration and cover refusal plus continuation after repair.
+
+**Superseded § 11.2 paragraph:**
+
+> Before a write into a root the guard runs only when an ignore file may have changed. When it passes, the index
+> records,
+> for `.git/info/exclude`, each `.gitignore` on the path from the repository root to every projected root and the aside
+> folder, and any other file the call names as a match's source, a `core.excludesFile` among them, whether it exists,
+> its
+> stat, and its blob id, and a command skips the call only when each still matches and none is racy against the index's
+> reference (§ 3.3), so a refresh or fan-out pays nothing for it. These records take the smudge rule as entries do, each
+> against the blob id recorded beside it: an index write that carries one over unchanged while it is racy against the
+> reference it replaces smudges it, so the next write into a root runs the call, an ignore file truncated to empty in
+> the
+> guard's tick included.
+
+**Superseded § 15.3 configuration paragraph:**
+
+> - **The one configuration read.** It is `git config --null --get-regexp
+> '^(arc\.|user\.name$|extensions\.objectformat$)'`,
+>   which prints each match as its lowercased key, a newline, and its value, NUL-terminated, in Git's scope order, and
+>   exits 1 where no key is set, read as none set. A single-valued key takes its last occurrence, as `git config --get`
+>   returns it, and `arc.inflightPin` takes every occurrence. It returns the settings, or the no-identity verdict § 2.5
+>   states, naming the remedy that sets `arc.identity`.
+
+## A4 — bind a cached guard pass to the source it evaluated
+
+The first cache correction carried a setting read before Git's guard without binding it to that guard. A configuration
+change could make the guard evaluate another source and publish its pass under the earlier setting. An unset key and
+a valueless key also collapsed to one cache value, although Git refuses the latter. The correction binds the guard to
+the captured effective path and confirms selection before accepting its pass. A changed selection refuses recoverably;
+only a freshly run guard pays for confirmation. The default path follows the invocation environment, and invalid
+configuration names a repair. The original two-call budget continues to govern unchanged cached checks.
+
+**Superseded § 11.2 cache paragraph (A3):**
+
+> Before a write into a root `checkIgnores` runs the guard when an ignore file or its effective excludes source may have
+> changed (A3). When it passes, the index records the effective `core.excludesFile` value from
+> `readProjectionConfiguration`, including its absence, and, for `.git/info/exclude`, each `.gitignore` on the path from
+> the repository root to every projected root and the aside folder, and every match source, each file's existence, stat,
+> and blob id. A command skips Git's guard only when the effective setting still matches and every file still matches
+> without being racy against the index's reference (§ 3.3). Changing or unsetting the setting forces a fresh verdict
+> even
+> if the former source's bytes are unchanged. Every snapshot takes § 3.3's smudge rule, including one just recorded, so
+> publication cannot hide a same-tick change after the snapshot (A2).
+
+**Superseded § 15.3 configuration paragraph (A3):**
+
+> - **The one configuration read (A3).** `readProjectionConfiguration` runs `git config --null --get-regexp` with the
+>   expression `^(arc\.|user\.name$|extensions\.objectformat$|core\.excludesfile$)`. It prints each match as its
+>   lowercased key, a newline, and its value, NUL-terminated, in Git's scope order, and exits 1 where no key is set,
+> read
+>   as none set. A single-valued key takes its last occurrence, as `git config --get` returns it, and `arc.inflightPin`
+>   takes every occurrence. It returns the settings, the effective excludes source (null where unset), and the identity
+> or
+>   no-identity verdict § 2.5 states, naming the remedy that sets `arc.identity`.
+
+The cache correction validates every excludes occurrence before selecting the last value (`excludesFileOf`), since
+Git refuses an earlier valueless occurrence too. Home/default expansion concatenates path components without
+collapsing a symlink followed by `..`. `ignoreFiles` anchors each matched source's root prefix through `sourcePath`,
+leaving its traversal components for the filesystem. This keeps the cached snapshot on the file Git actually read.
+
+## A5 — cache the complete excludes selection
+
+The path-only basis in `checkIgnores` discarded earlier values that Git still parses. An earlier path naming a
+nonexistent home user could therefore reuse a pass while `guardProjectionIgnores` refused the same configuration.
+`readProjectionConfiguration` retains the ordered raw values beside the effective path; `checkIgnores` compares both
+on reuse and confirmation, and `sweepAsideFolder` persists both. A changed raw sequence forces native Git validation
+without adding a call to an unchanged cached start. Valueless occurrences still refuse before reuse.
+
+Superseded § 11.2 paragraph:
+
+> Before a write into a root `checkIgnores` compares the effective excludes source with the last passing guard's source
+> before considering file snapshots (A4). `readProjectionConfiguration` resolves an unset `core.excludesFile` to Git's
+> default excludes path from the invocation environment; an explicit string, including an empty string, stays explicit.
+> Any valueless excludes occurrence is invalid, including one before a later valid value, and refuses every root with a
+> configuration-repair remedy, never reusing a passing cache. Path expansion and source snapshots preserve traversal
+> components so the filesystem follows a symlink before a following `..`. A newly run guard receives the captured source
+> as a command-local Git setting, so its verdict and snapshots describe the same selection. Before accepting that pass,
+> `checkIgnores` confirms the current selection through another configuration read; a changed or invalid selection
+> refuses
+> every root recoverably, for a retry with fresh settings. The passed result carries its source, and `sweepAsideFolder`
+> records that source with its snapshots. This confirmation runs only with a fresh guard; an unchanged cached pass adds
+> no
+> call to the two-call start budget. As with an ignore-file edit after the guard's final snapshot, a configuration edit
+> after its last observation is seen on the next command.
+
+Superseded § 15.3 read:
+
+> - **The one configuration read (A4).** `readProjectionConfiguration` runs `git config --null --get-regexp` with the
+>   expression `^(arc\.|user\.name$|extensions\.objectformat$|core\.excludesfile$)`. It prints each match as its
+>   lowercased key, a newline, and its value, NUL-terminated, in Git's scope order, and exits 1 where no key is set,
+> read
+>   as none set. A single-valued key takes its last occurrence, as `git config --get` returns it, and `arc.inflightPin`
+>   takes every occurrence. It returns the settings, the effective excludes path or an invalid-setting verdict, and the
+>   identity or no-identity verdict § 2.5 states, naming the remedy that sets `arc.identity`. An unchanged start makes
+>   this call once. A fresh ignore guard makes a confirming read before its pass is accepted, with the same invocation
+>   environment; this does not add a call to an unchanged cached check.

@@ -7,7 +7,7 @@ import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { recordReferences, OwnerIdentitySchema, RecordVersionSchema } from "../../../../src/lib/store/identity.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import {
-  checkChange, PROJECTION_REFERENCE, readReference, recordCleanStat, type ChangeCheck, type RecordedAfresh,
+  checkChange, PROJECTION_REFERENCE, readReference, recordCleanStat, type ChangeCheck,
 } from "../../../../src/lib/store/projection/change-detection.js";
 import { commitProjectionIndex, readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import type { FileStat, ProjectionIndex } from "../../../../src/lib/store/projection/index-schema.js";
@@ -39,7 +39,7 @@ function indexWith(stat: FileStat, written: string): ProjectionIndex {
   return {
     format: 1, state: null,
     projectedUnder: { view: { mode: "mine", pins: [] }, identity: SlugSchema.parse("andrew"), claim: null, layoutActive: "nested" },
-    withheldCopies: [], tripwires: {}, ignoreFiles: null,
+    withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreExcludesFile: null,
     entries: {
       [KEY]: {
         kind: "record", reference: recordReferences["work-item/meta"](owner), stat, written,
@@ -56,19 +56,17 @@ async function pinReference(at: Date): Promise<void> {
   await utimes(join(checkout, PROJECTION_REFERENCE), at, at);
 }
 
-const afresh = (...entries: string[]): RecordedAfresh => ({ entries: new Set(entries), ignoreFiles: false });
-
 /** Record the file as written at `T`, its reference in the same tick, then carry it through a later index write. */
 async function racyThenCarried(content: string, save: string): Promise<ProjectionIndex> {
   await writeFile(path, content);
   await utimes(path, T, T);
   const first = await commitProjectionIndex({
-    location, checkout, index: indexWith(await statOf(path), gitBlobId(content, "sha1")), recorded: afresh(KEY),
+    location, checkout, index: indexWith(await statOf(path), gitBlobId(content, "sha1")),
   });
   await pinReference(T);
   await writeFile(path, save);
   await utimes(path, T, T);
-  return commitProjectionIndex({ location, checkout, index: first, recorded: afresh() });
+  return commitProjectionIndex({ location, checkout, index: first });
 }
 
 async function checkOf(index: ProjectionIndex): Promise<ChangeCheck> {
@@ -78,17 +76,32 @@ async function checkOf(index: ProjectionIndex): Promise<ChangeCheck> {
 }
 
 describe("smudging", () => {
+  it("finds a same-tick save between a clean hash and publishing its observed stat", async () => {
+    await writeFile(path, "version one\n");
+    await utimes(path, T, T);
+    const index = await commitProjectionIndex({ location, checkout,
+      index: indexWith(await statOf(path), gitBlobId("version one\n", "sha1")) });
+    await pinReference(T);
+    const verdict = await checkChange(await checkOf(index));
+    if (verdict.status !== "hashed-clean") throw new Error("expected a clean hash before the save");
+    await writeFile(path, "version two\n");
+    await utimes(path, T, T);
+    const published = await commitProjectionIndex({ location, checkout,
+      index: recordCleanStat(index, KEY, verdict.stat) });
+    expect(await checkChange(await checkOf(published))).toMatchObject({ status: "changed" });
+  });
+
   it("smudges an entry racy at an index write, so a save in its tick is still found after a later write", async () => {
     const later = await racyThenCarried("version one\n", "version two\n");
     expect(await checkChange(await checkOf(later))).toMatchObject({ status: "changed" });
   });
 
-  it("leaves the stat of an entry the write records unsmudged, though it is racy against the reference replaced", async () => {
+  it("keeps staged stats unsmudged only while their files await installation", async () => {
     await writeFile(path, "version one\n");
     expect(await readReference(checkout)).toBeNull();
     const stat = await statOf(path);
     const written = await commitProjectionIndex({
-      location, checkout, index: indexWith(stat, gitBlobId("version one\n", "sha1")), recorded: afresh(KEY),
+      location, checkout, index: indexWith(stat, gitBlobId("version one\n", "sha1")), installing: new Set([KEY]),
     });
     expect(written.entries[KEY]?.stat).toEqual(stat);
   });
@@ -102,7 +115,7 @@ describe("smudging", () => {
     const later = await racyThenCarried("version one\n", "version one\n");
     const verdict = await checkChange(await checkOf(later));
     if (verdict.status !== "hashed-clean") throw new Error(`expected hashed-clean, got ${verdict.status}`);
-    await commitProjectionIndex({ location, checkout, index: recordCleanStat(later, KEY, verdict.stat), recorded: afresh(KEY) });
+    await commitProjectionIndex({ location, checkout, index: recordCleanStat(later, KEY, verdict.stat) });
     const stored = await readProjectionIndex(location, true);
     if (stored.kind !== "index") throw new Error("expected the index");
     expect(stored.index.entries[KEY]?.stat).toEqual(await statOf(path));

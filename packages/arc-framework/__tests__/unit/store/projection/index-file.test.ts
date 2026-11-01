@@ -11,7 +11,7 @@ import type { ProjectionLocation } from "../../../../src/lib/store/projection/lo
 const index: ProjectionIndex = {
   format: 1, state: null,
   projectedUnder: { view: { mode: "mine", pins: [] }, identity: SlugSchema.parse("andrew"), claim: null, layoutActive: "nested" },
-  withheldCopies: [], tripwires: {}, ignoreFiles: null, entries: {},
+  withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreExcludesFile: null, entries: {},
 };
 
 let gitDir: string;

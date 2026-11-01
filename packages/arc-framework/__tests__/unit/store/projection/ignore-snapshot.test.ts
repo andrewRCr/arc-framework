@@ -31,7 +31,7 @@ afterEach(async () => { await rm(checkout, { recursive: true, force: true }); })
 const EMPTY_INDEX: ProjectionIndex = {
   format: 1, state: null,
   projectedUnder: { view: { mode: "mine", pins: [] }, identity: SlugSchema.parse("andrew"), claim: null, layoutActive: "nested" },
-  withheldCopies: [], tripwires: {}, ignoreFiles: null, entries: {},
+  withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreExcludesFile: null, entries: {},
 };
 
 async function statOf(target: string): Promise<FileStat> {
@@ -48,8 +48,11 @@ async function writeAt(target: string, content: string, at: Date): Promise<void>
 /** Record a guard pass's snapshot in the index, its reference pinned to `referenceAt`. */
 async function passed(referenceAt: Date): Promise<ProjectionIndex> {
   const ignoreFiles = await snapshotIgnoreFiles([gitignore, exclude], "sha1");
+  await mkdir(dirname(join(checkout, PROJECTION_REFERENCE)), { recursive: true });
+  await writeFile(join(checkout, PROJECTION_REFERENCE), "");
+  await utimes(join(checkout, PROJECTION_REFERENCE), referenceAt, referenceAt);
   const index = await commitProjectionIndex({
-    location, checkout, index: { ...EMPTY_INDEX, ignoreFiles }, recorded: { entries: new Set(), ignoreFiles: true },
+    location, checkout, index: { ...EMPTY_INDEX, ignoreFiles },
   });
   await utimes(join(checkout, PROJECTION_REFERENCE), referenceAt, referenceAt);
   return index;
@@ -59,6 +62,15 @@ const compared = async (index: ProjectionIndex): Promise<"changed" | "unchanged"
   compareIgnoreFiles(index.ignoreFiles, await readReference(checkout), "sha1");
 
 describe("the ignore-file snapshot", () => {
+  it("finds a same-tick rule edit between the guard snapshot and publishing that snapshot", async () => {
+    await writeAt(gitignore, ".arc/user/*/\n", T);
+    const index = await passed(T);
+    const ignoreFiles = await snapshotIgnoreFiles([gitignore, exclude], "sha1");
+    await writeAt(gitignore, "#arc/user/*/\n", T);
+    const published = await commitProjectionIndex({ location, checkout, index: { ...index, ignoreFiles } });
+    expect(await compared(published)).toBe("changed");
+  });
+
   it("records an absent ignore file as absent, and reads unchanged until one is created, edited, or deleted", async () => {
     await writeAt(gitignore, ".arc/user/*/\n", T);
     const index = await passed(LATER);
@@ -87,7 +99,7 @@ describe("the ignore-file snapshot", () => {
     const index = await passed(T);
     await writeAt(gitignore, save, T);
     const later = await commitProjectionIndex({
-      location, checkout, index, recorded: { entries: new Set(), ignoreFiles: false },
+      location, checkout, index,
     });
     expect(await readReference(checkout)).toBeGreaterThan(BigInt(T.getTime()) * 1_000_000n);
     expect(await compared(later)).toBe("changed");

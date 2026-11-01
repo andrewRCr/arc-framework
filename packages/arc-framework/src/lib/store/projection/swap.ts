@@ -82,9 +82,9 @@ interface PlannedSwap {
  */
 export async function swapBatch(input: SwapBatchInput): Promise<SwapBatchResult> {
   const plans = await Promise.all(input.files.map(async (file) => plan(input, file)));
-  const recorded = { entries: new Set(plans.map((each) => each.path)), ignoreFiles: false };
+  const installing = new Set(plans.filter((each) => each.staged !== null).map((each) => each.path));
   let index = await commitProjectionIndex({
-    location: input.location, checkout: input.checkout, recorded,
+    location: input.location, checkout: input.checkout, installing,
     index: plans.reduce((built, each) => withEntry(built, each.path, each.entry), input.index),
   });
   const copies: { path: string; copy: string }[] = [];
@@ -96,7 +96,7 @@ export async function swapBatch(input: SwapBatchInput): Promise<SwapBatchResult>
   for (const each of plans) index = withEntry(index, each.path, await settled(input, each, entryAt(index, each.path)));
   const removals = input.files.filter((file) => file.replace.staged === null && file.relaid !== true).map((file) => file.path);
   index = await dropRemovedEntries(index, input.checkout, removals);
-  index = await commitProjectionIndex({ location: input.location, checkout: input.checkout, index, recorded });
+  index = await commitProjectionIndex({ location: input.location, checkout: input.checkout, index });
   return { index, copies, removals };
 }
 

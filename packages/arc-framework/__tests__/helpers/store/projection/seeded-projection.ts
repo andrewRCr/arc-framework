@@ -1,5 +1,5 @@
 /** A real projection seeded from a store: stamped files at the paths a test gives, and the index that matches them. */
-import { lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { link, lstat, mkdir, readFile, realpath, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { createTempRepoCore } from "../../temp-repo.js";
 import type { GitDirectoryFileAccess } from "../../../../src/lib/git/directories.js";
@@ -14,7 +14,7 @@ import type { ProjectionIndex, RecordEntry } from "../../../../src/lib/store/pro
 import {
   ensureProjectionStateFolder, locateProjection, type ProjectionLocation,
 } from "../../../../src/lib/store/projection/location.js";
-import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
+import { stageRecordFile } from "../../../../src/lib/store/projection/staging.js";
 
 /** One record to project, at its repository-relative path. */
 export interface SeededFile { readonly reference: RecordReference; readonly path: string }
@@ -44,34 +44,43 @@ export async function seedProjection(input: {
   const location = await locateProjection(checkout, { fs, exec: noGit });
   if (await ensureProjectionStateFolder(location) !== "ready") throw new Error("The seeded repository has no Git directory");
   const entries: Record<string, RecordEntry> = {};
-  for (const file of input.files) entries[file.path] = await layFile(input.store, checkout, file, format);
+  const staged: { path: string; location: string }[] = [];
+  for (const file of input.files) {
+    const prepared = await stageFile(input.store, checkout, file, format);
+    entries[file.path] = prepared.entry;
+    staged.push({ path: file.path, location: prepared.location });
+  }
   const state = await input.store.version();
   if (state.status !== "ok") throw new Error(`The store refused version(): ${state.refusal.code}`);
   const index = await commitProjectionIndex({
-    location, checkout, recorded: { entries: new Set(Object.keys(entries)), ignoreFiles: false },
+    location, checkout, installing: new Set(Object.keys(entries)),
     index: {
-      format: 1, state: state.result, withheldCopies: [], tripwires: {}, ignoreFiles: null, entries,
+      format: 1, state: state.result, withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreExcludesFile: null, entries,
       projectedUnder: {
         view: { mode: "mine", pins: [] }, identity: input.identity ?? SlugSchema.parse("andrew"), claim: null,
         layoutActive: "nested",
       },
     },
   });
+  for (const file of staged) {
+    const target = join(checkout, file.path);
+    await mkdir(dirname(target), { recursive: true });
+    await link(join(checkout, file.location), target);
+    await rm(join(checkout, file.location));
+  }
   return { checkout, location, index };
 }
 
-async function layFile(store: Store, checkout: string, file: SeededFile, format: ObjectFormat): Promise<RecordEntry> {
+async function stageFile(store: Store, checkout: string, file: SeededFile, format: ObjectFormat): Promise<{ entry: RecordEntry; location: string }> {
   const read = await store.read({ reference: file.reference });
   if (read.status !== "ok") throw new Error(`The store refused to read ${file.path}: ${read.refusal.code}`);
   const record = read.result;
   const blob = gitBlobId(record.content, format);
-  const text = file.path.endsWith(".md") ? renderStampedFile({ content: record.content, stamp: blob }) : record.content;
-  const target = join(checkout, file.path);
-  await mkdir(dirname(target), { recursive: true });
-  await writeFile(target, text);
-  return {
-    kind: "record", reference: record.reference, stat: await readStat(target), written: gitBlobId(text, format),
+  const staged = await stageRecordFile({ checkout, path: file.path, record, replacing: blob, format,
+    writer: { pid: process.pid, processInstance: "seed-projection", processScope: "seed-projection" } });
+  return { location: staged.location, entry: {
+    kind: "record", reference: record.reference, stat: await readStat(join(checkout, staged.location)), written: staged.written,
     base: { blob, version: record.version }, markers: null, notices: [], unshown: [], protected: false, changed: false,
     pending: false, withheld: false, refused: null, persisted: null, inProgress: null, copies: [],
-  };
+  } };
 }

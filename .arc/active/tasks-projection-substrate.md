@@ -568,3 +568,15 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
 - `[ ]` An aside copy empty at its writer's second check is neither sent nor deleted there, and the next command's sweep
   settles it as any copy it takes over; and on Linux and in a dispatched run of the portability pair, the save-loss
   harness loses no save, one that left the file empty past the settle window included.
+
+- `[ ]` A same-size save after a clean hash, after a swap link, or after an ignore snapshot remains detectable when
+  later index/reference writes land.
+
+- `[ ]` After a passing ignore guard, changing or unsetting core.excludesFile forces a new effective-rules verdict
+  before any write into affected projected roots.
+
+- `[ ]` A cached ignore pass records the effective excludes source used by its Git guard; an unset and a valueless
+  core.excludesFile cannot share a passing cache entry.
+
+- `[ ]` Changing any core.excludesFile occurrence invalidates a cached ignore pass; Git-invalid earlier values
+  refuse writes and a repaired configuration permits retry.

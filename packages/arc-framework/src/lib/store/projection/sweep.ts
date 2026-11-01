@@ -3,7 +3,7 @@
  * staged files a writer that has exited left, so a stop mid-swap loses no save.
  */
 import { readdir, readFile, rm } from "node:fs/promises";
-import { join, relative, sep } from "node:path";
+import { join } from "node:path";
 import { isAdvisoryHolderAbandoned, type AdvisoryHolderObserver } from "../../advisory-lock.js";
 import { ASIDE_FILES_ROOT, parseAsideFile, processScopeDigest, type AsideFile, type AsideWriterInput } from "./aside.js";
 import { hasPathMovedOn, readPathHolding, settleAsideCopy, type CopySettlement } from "./aside-copies.js";
@@ -11,12 +11,14 @@ import { retriedMoves, type SwapMoves } from "./aside-moves.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
 import { checkIgnores, type IgnoreCheck } from "./ignore-check.js";
 import type { ProjectionIgnoreGuardInput } from "./ignore-guard.js";
+import type { ConfiguredExcludesFile } from "./configuration.js";
 import { readReference, readStat } from "./change-detection.js";
 import { commitProjectionIndex } from "./index-file.js";
 import type { AsideCopyRecord, ProjectionIndex, RecordEntry } from "./index-schema.js";
 import type { ProjectionLocation } from "./location.js";
 import { PROJECTION_ASIDE_ROOT } from "./paths.js";
-import type { ReadGateDependencies } from "./read-gate.js";
+import { notAFileRemedy, type ReadGateDependencies } from "./read-gate.js";
+import type { Remedy } from "../refusal.js";
 import { deleteAsideCopy } from "./stampless.js";
 import type { TakeInPort } from "./take-in-port.js";
 
@@ -32,6 +34,9 @@ export interface SweepInput extends SwapMoves {
   readonly writer: AsideWriterInput;
   /** The ignore guard's Git and file-system boundaries, over this checkout. */
   readonly guard: ProjectionIgnoreGuardInput;
+  /** The effective excludes source from this command's one configuration read. */
+  readonly excludesFile: ConfiguredExcludesFile;
+  readonly readExcludesFile: () => Promise<ConfiguredExcludesFile>;
   /** Whether a process ID is in use, the system's unless a test injects its own. */
   readonly isProcessAlive?: (pid: number) => boolean;
   /** The read gate every copy check runs on, the system's unless a test injects its own. */
@@ -49,7 +54,8 @@ export interface LeftCopy {
   readonly path: string;
   readonly copy: string;
   /** Written from another process scope; with no record of it; or, with no usable index, holding an edit. */
-  readonly reason: "other-scope" | "unrecorded" | "withheld";
+  readonly reason: "other-scope" | "unrecorded" | "withheld" | "not-a-file";
+  readonly remedy?: Remedy;
 }
 
 /** What the sweep did. */
@@ -73,7 +79,11 @@ export interface SweepResult {
  */
 export async function sweepAsideFolder(input: SweepInput): Promise<SweepResult> {
   const reference = await readReference(input.checkout);
-  const ignores = await checkIgnores({ guard: input.guard, records: input.index?.ignoreFiles ?? null, reference, format: input.format });
+  const ignores = await checkIgnores({
+    guard: input.guard, records: input.index?.ignoreFiles ?? null, reference, format: input.format,
+    excludesFile: input.excludesFile, readExcludesFile: input.readExcludesFile,
+    recordedExcludesFile: input.index?.ignoreExcludesFile ?? null,
+  });
   const writable = writableUnder(ignores);
   // A refusal of the aside folder, as a failed call refuses every root, leaves the sweep nothing it may write.
   if (!writable(`${PROJECTION_ASIDE_ROOT}/`)) return { ignores, index: input.index, swept: [], left: [], withheld: [], copies: [] };
@@ -84,8 +94,11 @@ export async function sweepAsideFolder(input: SweepInput): Promise<SweepResult> 
   const unrecorded = await takeOverUnrecorded(input, recorded.index, found, judges);
   await deleteStagedFiles(input.checkout, found, judges.writerOf);
   const index = await commitProjectionIndex({
-    location: input.location, checkout: input.checkout, index: { ...recorded.index, ignoreFiles: ignoreFilesAfter(ignores, recorded.index) },
-    recorded: { entries: new Set<string>(), ignoreFiles: ignores.kind === "passed" },
+    location: input.location, checkout: input.checkout, index: {
+      ...recorded.index, ignoreFiles: ignoreFilesAfter(ignores, recorded.index),
+      ignoreExcludesFile: ignores.kind === "passed" ? ignores.excludesFile
+        : ignores.kind === "refused" ? null : recorded.index.ignoreExcludesFile,
+    },
   });
   const copies = recorded.swept.flatMap(({ path, outcome }) => (
     outcome.kind === "returned" && outcome.replacement !== null ? [{ path, copy: outcome.replacement }] : []
@@ -166,15 +179,15 @@ async function takeOverUnrecorded(
     const writer = writerOf(location);
     if (writer === "other-scope") left.push({ path: named.path, copy: location, reason: "other-scope" });
     if (writer === "exited" && !await deleteIfUnedited(input, location, named)) {
-      left.push({ path: named.path, copy: location, reason: "unrecorded" });
+      left.push(await retainedCopy(input.checkout, named.path, location, "unrecorded"));
     }
   }
   return left;
 }
 
 /**
- * With no usable index the sweep takes nothing in: a copy whose path is absent is linked back, one that is not a file
- * or equals its base, its stamp set aside, is deleted, and every other stays, withheld and reported with its path.
+ * With no usable index the sweep takes nothing in: a regular copy whose path is absent is linked back, a symbolic
+ * link or file equal to its base is deleted, and every other stays, withheld and reported with its path.
  */
 async function sweepWithoutIndex(
   input: SweepInput, found: readonly string[], { writerOf, writable }: SweepJudges,
@@ -188,7 +201,7 @@ async function sweepWithoutIndex(
     if (writer === "other-scope") left.push({ path: named.path, copy: location, reason: "other-scope" });
     if (writer !== "exited" || await returnWithoutIndex(input, location, named)) continue;
     withheld.push(location);
-    left.push({ path: named.path, copy: location, reason: "withheld" });
+    left.push(await retainedCopy(input.checkout, named.path, location, "withheld"));
   }
   await deleteStagedFiles(input.checkout, found, writerOf);
   return { index: null, swept: [], left, withheld, copies: [] };
@@ -205,11 +218,12 @@ async function returnWithoutIndex(input: SweepInput, location: string, named: As
   return deleteIfUnedited(input, location, named);
 }
 
-/** Delete a copy that holds no edit — one not a file, or equal to its base, its stamp set aside; false where it holds one. */
+/** Delete a symbolic link or a file equal to its base; retain directories and edits with their contents. */
 async function deleteIfUnedited(input: SweepInput, location: string, named: AsideFile): Promise<boolean> {
   const copy = join(input.checkout, location);
   const stat = await readStat(copy);
   if (stat === null) return true;
+  if (stat.type === "other") return false;
   const unedited = stat.type !== "file"
     || storedBlobId(await readFile(copy, "utf8"), { format: input.format, markdown: named.path.endsWith(".md") }) === named.base;
   if (unedited) await rm(copy, { force: true });
@@ -226,8 +240,8 @@ async function deleteStagedFiles(
 }
 
 /**
- * Take one copy over. A record whose copy is gone is dropped; a copy that is not a file is deleted as no edit, never
- * followed or linked back; and one whose path is absent and has not moved on is linked back there.
+ * Take one copy over. A record whose copy is gone is dropped; a symbolic link is deleted as itself, a directory is
+ * retained, and a regular copy whose path is absent and has not moved on is linked back there.
  */
 async function sweepCopy(input: SweepInput, path: string, entry: RecordEntry, record: AsideCopyRecord): Promise<SweptCopy> {
   const { checkout } = input;
@@ -236,12 +250,13 @@ async function sweepCopy(input: SweepInput, path: string, entry: RecordEntry, re
   // Moved back to its path, or never made after a stop.
   if (stat === null) return { kind: "dropped", entry: { ...entry, copies: entry.copies.filter((each) => each.name !== record.name) } };
   const holding = await readPathHolding(at.path, input.format);
-  if (stat.type !== "file") {
+  if (stat.type === "symlink") {
     const deleted = await deleteAsideCopy({ checkout, path, entry, copy: record.name });
     // An absent path waits for the next refresh to rebuild it.
     return { kind: "deleted", entry: holding.kind === "absent" ? { ...deleted, pending: true } : deleted };
   }
-  if (holding.kind === "absent" && !hasPathMovedOn(record, holding) && await retriedMoves(input).linkOnto(at.copy, at.path)) {
+  if (stat.type === "file" && holding.kind === "absent" && !hasPathMovedOn(record, holding)
+    && await retriedMoves(input).linkOnto(at.copy, at.path)) {
     await rm(at.copy, { force: true });
     return { kind: "linked-back", entry: { ...entry, pending: true, copies: entry.copies.filter((each) => each.name !== record.name) } };
   }
@@ -275,12 +290,29 @@ function judgeWriters(input: SweepInput): (name: string) => WriterState {
 
 /** Every copy and staged file in the aside folder, a symbolic link read as itself, by repository-relative location. */
 async function listAsideFolder(checkout: string): Promise<string[]> {
+  const pending = [ASIDE_FILES_ROOT];
+  const found: string[] = [];
   try {
-    const found = await readdir(join(checkout, ASIDE_FILES_ROOT), { recursive: true, withFileTypes: true });
-    return found.filter((each) => !each.isDirectory())
-      .map((each) => relative(checkout, join(each.parentPath, each.name)).split(sep).join("/"));
+    for (let directory = pending.pop(); directory !== undefined; directory = pending.pop()) {
+      for (const entry of await readdir(join(checkout, directory), { withFileTypes: true })) {
+        const location = `${directory}/${entry.name}`;
+        const named = parseAsideFile(location);
+        // A directory at a copy's exact location is opaque: none of its contents are projection-owned copies.
+        if (named?.role === "aside" || (named !== undefined && !entry.isDirectory())) found.push(location);
+        if (named === undefined && entry.isDirectory()) pending.push(location);
+      }
+    }
+    return found;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw error;
   }
+}
+
+/** Report retained directories with their repair route, without deleting their contents. */
+async function retainedCopy(checkout: string, path: string, copy: string, reason: "unrecorded" | "withheld"): Promise<LeftCopy> {
+  const absolute = join(checkout, copy);
+  return (await readStat(absolute))?.type === "other"
+    ? { path, copy, reason: "not-a-file", remedy: notAFileRemedy(absolute) }
+    : { path, copy, reason };
 }

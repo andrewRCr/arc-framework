@@ -5,10 +5,11 @@
 import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { Store } from "../contract.js";
-import type { StoreRefusal, StoreResult } from "../refusal.js";
+import type { Remedy, StoreRefusal, StoreResult } from "../refusal.js";
 import type { AsideWriterInput } from "./aside.js";
 import type { ObjectFormat } from "./blob-id.js";
-import { checkChange } from "./change-detection.js";
+import { checkChange, readStat } from "./change-detection.js";
+import { notAFileRemedy } from "./read-gate.js";
 import type { FileStat, RecordEntry } from "./index-schema.js";
 import { parseStampedFile } from "./stamp.js";
 import { stageRecordFile, type StagedFile } from "./staging.js";
@@ -45,6 +46,8 @@ export type GuardResult =
   | { readonly kind: "unreplaced"; readonly entry: RecordEntry; readonly cause: TakeInHeld | "unsettled" }
   /** Leave a withheld file as it is, its entry unchanged: nothing writes over it or sends it until the person deletes it. */
   | { readonly kind: "unreplaced"; readonly entry: RecordEntry; readonly cause: "withheld" }
+  /** A directory or other nonregular object stays in place, with its contents and a repair route. */
+  | { readonly kind: "unreplaced"; readonly entry: RecordEntry; readonly cause: "not-a-file"; readonly remedy: Remedy }
   /** The store refused the refresh's read: retryable, the file left in place and pending. */
   | {
     readonly kind: "unreplaced"; readonly entry: RecordEntry; readonly cause: "refresh-refused"; readonly refusal: StoreRefusal;
@@ -58,6 +61,11 @@ export type GuardResult =
 export async function guardReplacement(input: ReplaceGuardInput): Promise<GuardResult> {
   // Nothing writes over a withheld file or sends it until the person deletes it.
   if (input.entry.withheld) return { kind: "unreplaced", entry: input.entry, cause: "withheld" };
+  if ((await readStat(join(input.checkout, input.path)))?.type === "other") {
+    const remedy = notAFileRemedy(join(input.checkout, input.path));
+    return { kind: "unreplaced", cause: "not-a-file", remedy,
+      entry: { ...input.entry, pending: true, refused: { reason: "not-a-file", remedy } } };
+  }
   return recheck(input);
 }
 

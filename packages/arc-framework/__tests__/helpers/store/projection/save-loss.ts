@@ -3,6 +3,7 @@
  * reads an edit only once its save has settled, a saver on its own thread that fires a save at a sampled moment, and a
  * run of commands over one projected file that finds where each save ended.
  */
+import { readProjectionConfiguration } from "../../../../src/lib/store/projection/configuration.js";
 import { randomBytes } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, open, readdir, readFile, realpath, rename, rm, writeFile, type FileHandle } from "node:fs/promises";
@@ -12,7 +13,7 @@ import type { createReferenceFixture } from "../reference-fixture.js";
 import type { SeededProjection } from "./seeded-projection.js";
 import { SWAP_WRITER } from "./swap-fixture.js";
 import type { GitDirectoryFileAccess } from "../../../../src/lib/git/directories.js";
-import { createExecaGitExecInput } from "../../../../src/lib/git/process-executor.js";
+import { createExecaGitExec, createExecaGitExecInput } from "../../../../src/lib/git/process-executor.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import type { RecordReference } from "../../../../src/lib/store/identity.js";
 import { ASIDE_FILES_ROOT } from "../../../../src/lib/store/projection/aside.js";
@@ -292,6 +293,8 @@ export async function runSaveLoss(run: SaveLossRun): Promise<SaveLossCounts> {
     if (entryAt(index, run.path).copies.length > 0) {
       stage = "sweep";
       const swept = await sweepAsideFolder({
+        excludesFile: (await readProjectionConfiguration(createExecaGitExec(), checkout)).excludesFile,
+        readExcludesFile: async () => (await readProjectionConfiguration(createExecaGitExec(), checkout)).excludesFile,
         location, checkout, index, format: "sha1", takeIn, writer: SWEEPER,
         guard: { root: checkout, identity, exec, fs: gitFs }, gate,
       });

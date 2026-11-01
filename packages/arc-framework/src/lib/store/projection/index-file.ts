@@ -5,7 +5,7 @@ import { atomicWriteFile } from "../../fs.js";
 import {
   decodeProjectionIndex, encodeProjectionIndex, PROJECTION_INDEX_FORMAT, type ProjectionIndex,
 } from "./index-schema.js";
-import { readReference, smudgeRacyEntries, writeReference, type RecordedAfresh } from "./change-detection.js";
+import { readReference, smudgeRacyEntries, writeReference } from "./change-detection.js";
 import type { ProjectionLocation } from "./location.js";
 
 /** The index's file name in the state folder. */
@@ -23,13 +23,13 @@ export async function writeProjectionIndex(location: ProjectionLocation, index: 
 
 /**
  * Write the index after smudging what is racy against the reference it replaces, then rewrite the reference.
- * @param input - The located checkout and its root, the index, and what this write records afresh.
+ * @param input - The located checkout, index, and paths whose staged files are installed after this write.
  * @returns The index as written.
  */
 export async function commitProjectionIndex(input: {
-  location: ProjectionLocation; checkout: string; index: ProjectionIndex; recorded: RecordedAfresh;
+  location: ProjectionLocation; checkout: string; index: ProjectionIndex; installing?: ReadonlySet<string>;
 }): Promise<ProjectionIndex> {
-  const written = smudgeRacyEntries(input.index, await readReference(input.checkout), input.recorded);
+  const written = smudgeRacyEntries(input.index, await readReference(input.checkout), input.installing);
   await writeProjectionIndex(input.location, written);
   await writeReference(input.checkout);
   return written;

@@ -10,7 +10,7 @@ import { settleAsideCopy } from "../../../../src/lib/store/projection/aside-copi
 import { readStat } from "../../../../src/lib/store/projection/change-detection.js";
 import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import type { AsideCopyRecord, RecordEntry } from "../../../../src/lib/store/projection/index-schema.js";
-import { SETTLE_WINDOW_NS, SYSTEM_READ_GATE, wallClockNs } from "../../../../src/lib/store/projection/read-gate.js";
+import { gateRead, SETTLE_WINDOW_NS, SYSTEM_READ_GATE, wallClockNs } from "../../../../src/lib/store/projection/read-gate.js";
 import { runSecondCheck, type SecondCheckInput } from "../../../../src/lib/store/projection/second-check.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import type { SwapHooks } from "../../../../src/lib/store/projection/swap.js";
@@ -249,6 +249,70 @@ async function truncatedBeforeMove(options: PrepareSwapOptions = {}) {
 }
 
 describe("a copy left empty by a save that truncates before writing", () => {
+  it.each(["after-stat", "during-take-in"])("keeps a copy truncated %s and lands its later held-handle write", async (when) => {
+    const prepared = await prepareSwap();
+    directories.push(prepared.seeded.checkout);
+    let saving: Awaited<ReturnType<typeof open>> | undefined;
+    try {
+      const batch = await prepared.swap({ hooks: { afterRecheck: async () => { saving = await open(prepared.file, "r+"); } } });
+      await saving?.write(renderStampedFile({ content: "# Cohort: one\n\nAn edit before the second check.\n", stamp: prepared.laid.base.blob }), 0);
+      const checked = await runSecondCheck({
+        location: prepared.seeded.location, checkout: prepared.seeded.checkout, index: batch.index, copies: batch.copies,
+        format: "sha1", writer: SWAP_WRITER,
+        gate: { ...aged, stat: async (path) => {
+          const observed = await readStat(path);
+          if (when === "after-stat") await saving?.truncate(0);
+          return observed;
+        } },
+        takeIn: async (request) => {
+          if (when === "during-take-in") await saving?.truncate(0);
+          const gated = await gateRead({ path: join(request.checkout, request.copy ?? request.path), markdown: true }, aged);
+          if (gated.kind !== "no-edit" || gated.deleted !== "emptied") throw new Error("expected an empty Markdown copy");
+          return { answer: "no-edit", entry: request.entry };
+        },
+      });
+      expect(checked.settled.map((each) => each.settlement)).toMatchObject([{ kind: "kept", answer: "empty" }]);
+      const content = "# Cohort: one\n\nSaved after the final check.\n";
+      await saving?.write(renderStampedFile({ content, stamp: prepared.laid.base.blob }), 0);
+      await saving?.close(); saving = undefined;
+      const entry = await onDisk(prepared.seeded.location, prepared.path);
+      const copy = entry.copies[0];
+      if (copy === undefined) throw new Error("expected the retained copy");
+      await settleAsideCopy({ checkout: prepared.seeded.checkout, path: prepared.path, entry, copy, format: "sha1",
+        writer: SWAP_WRITER, takeIn: landingCopies(prepared.fixture.store), gate: aged });
+      const stored = await prepared.fixture.store.read({ reference: prepared.reference });
+      expect(stored.status === "ok" && stored.result.content).toBe(content);
+    } finally { await saving?.close(); }
+  });
+  it.each([".md", ".txt"])("keeps a %s copy truncated when its settling read begins, then takes in the late write", async (extension) => {
+    const prepared = await prepareSwap({ path: `.arc/user/andrew/scratch/late${extension}` });
+    directories.push(prepared.seeded.checkout);
+    let saving: Awaited<ReturnType<typeof open>> | undefined;
+    try {
+      const batch = await prepared.swap({ hooks: { afterRecheck: async () => { saving = await open(prepared.file, "r+"); } } });
+      const checked = await runSecondCheck({
+        location: prepared.seeded.location, checkout: prepared.seeded.checkout, index: batch.index, copies: batch.copies,
+        format: "sha1", takeIn: landingCopies(prepared.fixture.store), writer: SWAP_WRITER,
+        gate: { ...aged, stat: async (path) => { await saving?.truncate(0); return readStat(path); } },
+      });
+      expect(checked.settled.map((each) => each.settlement)).toMatchObject([{ kind: "kept", answer: "empty" }]);
+      const content = "# Cohort: one\n\nWritten after the settling check.\n";
+      await saving?.write(extension === ".md" ? renderStampedFile({ content, stamp: prepared.laid.base.blob }) : content, 0);
+      await saving?.close();
+      saving = undefined;
+      const checkedEntry = checked.index.entries[prepared.path];
+      const [copy] = checkedEntry?.kind === "record" ? checkedEntry.copies : [];
+      if (copy === undefined) throw new Error("expected the empty copy to remain recorded");
+      const entry = await onDisk(prepared.seeded.location, prepared.path);
+      await settleAsideCopy({ checkout: prepared.seeded.checkout, path: prepared.path, entry, copy, format: "sha1",
+        takeIn: landingCopies(prepared.fixture.store), writer: SWAP_WRITER, gate: aged });
+      const stored = await prepared.fixture.store.read({ reference: prepared.reference });
+      expect(stored.status === "ok" && stored.result.content).toBe(content);
+    } finally {
+      await saving?.close();
+    }
+  });
+
   it("is kept by the second check past the settle window, and the next sweep takes in the save written since", async () => {
     const swapped = await truncatedBeforeMove();
     const checked = await swapped.secondCheck(landingCopies(swapped.fixture.store));

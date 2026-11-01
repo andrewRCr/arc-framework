@@ -1,5 +1,5 @@
 /** The swap over a seeded projection: the old file moved aside, the staged file linked in, between two index writes. */
-import { link, readFile, rename, rm, stat as fsStat, symlink, writeFile } from "node:fs/promises";
+import { link, readFile, rename, rm, stat as fsStat, symlink, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -9,7 +9,7 @@ import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import { gitBlobId, storedBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { checkAsideCopy } from "../../../../src/lib/store/projection/aside-copies.js";
 import { createHistoryMemo } from "../../../../src/lib/store/projection/base-recovery.js";
-import { readStat } from "../../../../src/lib/store/projection/change-detection.js";
+import { checkChange, PROJECTION_REFERENCE, readReference, readStat } from "../../../../src/lib/store/projection/change-detection.js";
 import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import type { RecordEntry } from "../../../../src/lib/store/projection/index-schema.js";
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
@@ -32,6 +32,23 @@ async function prepared(
 }
 
 describe("the swap", () => {
+  it("detects a same-size in-place save after linking when the second index write advances the tick", async () => {
+    const h = await prepared();
+    const tick = new Date("2026-10-31T12:00:00Z");
+    await utimes(join(h.seeded.checkout, h.staged.location), tick, tick);
+    const batch = await h.swap({ hooks: {
+      afterRecheck: async () => { await utimes(join(h.seeded.checkout, PROJECTION_REFERENCE), tick, tick); },
+      afterFirstCheck: async () => {
+        await writeFile(h.file, (await readFile(h.file, "utf8")).replace("refreshed", "rewritten"));
+        await utimes(h.file, tick, tick);
+      },
+    } });
+    const entry = batch.index.entries[h.path];
+    if (entry?.kind !== "record") throw new Error("expected the swapped file's entry");
+    expect(await checkChange({ path: h.file, recorded: entry.stat, written: entry.written,
+      reference: await readReference(h.seeded.checkout), format: "sha1" })).toMatchObject({ status: "changed" });
+  });
+
   it("lands a save made after the re-check, in place or by renaming over the path, in the aside copy, and takes it in", async () => {
     for (const style of ["in place", "renamed over"] as const) {
       const { fixture, reference, laid, file, swap, record } = await prepared();
@@ -85,7 +102,12 @@ describe("the swap", () => {
   it("clears the pending mark of a file put in place once the swaps are done, and keeps it for one whose move was refused", async () => {
     const placed = await prepared();
     const done = await placed.swap();
-    expect(done.index.entries[PATH]).toMatchObject({ pending: false, base: placed.staged.base, stat: await readStat(placed.file) });
+    expect(done.index.entries[PATH]).toMatchObject({ pending: false, base: placed.staged.base });
+    const entry = done.index.entries[PATH];
+    expect(await checkChange({
+      path: placed.file, recorded: entry?.stat ?? null, written: placed.staged.written,
+      reference: await readReference(placed.seeded.checkout), format: "sha1",
+    })).toMatchObject({ status: expect.stringMatching(/^(clean|hashed-clean)$/) });
     expect(await readStat(join(placed.seeded.checkout, placed.staged.location))).toBeNull();
 
     const refused = await prepared();

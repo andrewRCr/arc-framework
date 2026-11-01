@@ -1,11 +1,12 @@
 /** The sweep over a seeded projection: the copies and staged files a stopped or exited writer left, taken over. */
+import { readProjectionConfiguration } from "../../../../src/lib/store/projection/configuration.js";
 import { copyFile, lstat, mkdir, readFile, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { landingCopies, prepareSwap, SWAP_PATH, SWAP_WRITER, type PrepareSwapOptions } from "../../../helpers/store/projection/swap-fixture.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import type { GitDirectoryFileAccess } from "../../../../src/lib/git/directories.js";
-import { createExecaGitExecInput } from "../../../../src/lib/git/process-executor.js";
+import { createExecaGitExec, createExecaGitExecInput } from "../../../../src/lib/git/process-executor.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { PROJECTION_REFERENCE, readStat } from "../../../../src/lib/store/projection/change-detection.js";
 import { readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
@@ -57,6 +58,8 @@ async function leftBy(
   const { checkout, location } = prepared.seeded;
   /** Sweep with the index on disk, as the next command's start reads it. */
   const sweep = async (takeIn: TakeInPort, overrides: Partial<SweepInput> = {}) => sweepAsideFolder({
+    excludesFile: (await readProjectionConfiguration(createExecaGitExec(), checkout)).excludesFile,
+    readExcludesFile: async () => (await readProjectionConfiguration(createExecaGitExec(), checkout)).excludesFile,
     location, checkout, index: await indexOnDisk(location), format: "sha1", takeIn, writer: SWEEPER,
     guard: { root: checkout, identity, exec: execInput, fs: gitFs }, ...overrides,
   });
@@ -76,6 +79,33 @@ async function entryOnDisk(location: Parameters<typeof readProjectionIndex>[0], 
 }
 
 describe("the sweep", () => {
+  it.each(["recorded", "unrecorded", "no-index"])("preserves a %s directory copy and permits retry after repair", async (mode) => {
+    const h = await leftBy("afterMove");
+    const index = await indexOnDisk(h.location);
+    const entry = index.entries[h.path];
+    if (entry?.kind !== "record" || entry.copies[0] === undefined) throw new Error("expected a copy");
+    const copy = entry.copies[0].name;
+    const copyPath = join(h.checkout, copy);
+    await rm(copyPath);
+    await mkdir(copyPath);
+    await writeFile(join(copyPath, "saved.txt"), "preserved contents");
+    const overrides: Partial<SweepInput> = mode === "no-index" ? { index: null } : mode === "unrecorded" ? {
+      index: { ...index, entries: { ...index.entries, [h.path]: { ...entry, copies: [] } } },
+    } : {};
+    const swept = await h.sweep(unreached, overrides);
+    if (mode === "recorded") {
+      expect(swept.swept).toMatchObject([{ outcome: { kind: "not-a-file", path: h.path, copy,
+        remedy: { text: expect.stringContaining(copy) } } }]);
+    } else {
+      expect(swept.left).toMatchObject([{ path: h.path, copy, reason: "not-a-file", remedy: { text: expect.stringContaining(copy) } }]);
+    }
+    expect(await readFile(join(copyPath, "saved.txt"), "utf8")).toBe("preserved contents");
+    await rename(copyPath, join(h.checkout, "saved-directory"));
+    const retried = await h.sweep(unreached, { ...overrides, index: swept.index });
+    expect(retried.swept.every(({ outcome }) => outcome.kind === "dropped")).toBe(true);
+    expect(retried.left).toEqual([]);
+    expect(await readFile(join(h.checkout, "saved-directory/saved.txt"), "utf8")).toBe("preserved contents");
+  });
   it("links back a copy an exited writer left with its path absent, the file pending", async () => {
     const left = await leftBy("afterMove");
     const before = await entryOnDisk(left.location, left.path);

@@ -80,7 +80,7 @@ describe("base-stamp recovery", () => {
       .toEqual({ status: "ok", result: { kind: "stored", version: first } });
     const copy = "a\nb\nf\n";
     const readCopy = (name: string) => (name === "kept" ? Promise.resolve(copy) : noCopy(name));
-    expect(await recover({ stamp, takenIn: { kind: "copy", name: "kept", blob: gitBlobId(copy, "sha1") } }, readCopy))
+    expect(await recover({ stamp, takenIn: { kind: "copy", version: first, name: "kept", blob: gitBlobId(copy, "sha1") } }, readCopy))
       .toEqual({ status: "ok", result: { kind: "copy", content: copy } });
   });
 
