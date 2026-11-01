@@ -35,7 +35,7 @@ async function appendPerson(context: RefBackendContext, report: MigrateReport, r
     { ...options, cwd: source.ports.checkoutRoot, objectAccess: "local-only" });
   const tip = await readImportNotesTip(exec, person);
   const merged = mergeCrossWuFromNotes(await readImportRecentNotes(context, tip));
-  const workspaces = await readImportWorkspaces(context, live, tip);
+  const workspaces = await readImportWorkspaces(context, live, tip, informational);
   const snapshot = projectManifest({ version: 2, files: { ...merged.files, ...workspaces.files } }).files;
   const linked = await followImportPersonalLinks(source.ports.fs, disk.links.filter(link => link.person === person),
     snapshot, informational, disk.visited);

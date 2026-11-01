@@ -457,17 +457,14 @@ annotated commit.
   real directories are skipped with informational notices. The shared notice carrier joins the report after the
   blocking check, and only the import-source filesystem type gains `realpath`.
 
-### `[ ]` **5.3 Unreadable annotated commits sort last with a notice — § 11.2**
+### `[x]` **5.3 Unreadable annotated commits sort last with a notice — § 11.2**
 
 - _Goal:_ A person's compacted notes import even when a retained note's annotated commit is unreadable: such commits
   sort last, by object ID, with a notice that does not block.
 
-    - `committedAt` (`import/personal-notes.ts`) no longer throws inside the sort, for an unreadable commit or one with
-      no committer date; `personal.ts` no longer turns the failure into a blocking notice that drops the person's
-      records. The notice goes through 5.2's carrier.
-    - Build `test-first` (one behavior at a time): an identity with one unreadable annotated commit keeps its records
-      and reports the notice; a commit with no committer date does the same; two unreadable commits order by object
-      ID.
+- _Outcome:_ Compacted snapshots precompute annotation dates, retaining unreadable or dateless commits after readable
+  dates and ordering their ties by object ID. Each unavailable date emits an informational notice through the shared
+  carrier. Native imports preserve workspace records and verify both the tie-break and readable-date precedence.
 
 ### `[ ]` **5.4 A lost transient-source delete lease is its own recoverable condition — § 11.2**
 
