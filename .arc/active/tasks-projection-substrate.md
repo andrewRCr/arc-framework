@@ -375,32 +375,20 @@ command's sweep takes over the copies a stopped command left.
   replacement as for a removal, since nothing writes over or sends one. The rebuild landed with 3.2. Covered in
   `integration/store/projection/removal.test.ts` and `replace-guard.test.ts`.
 
-### `[ ]` **3.5 Hold saves timed into a replacement in a save-loss harness — § 5.2, § 13**
+### `[x]` **3.5 Hold saves timed into a replacement in a save-loss harness — § 5.2, § 13**
 
 - _Goal:_ Saves timed into the engine's own replacement, rebuild, and removal lose none on Linux and in a dispatched
   run of the portability pair, with evidence that every targeted interval was reached — what closes this layer.
 
 - **Additional Context:** `notes-projection-substrate.md` § Spike 1, § Spike 1b, § Spike 3
 
-    - A harness under `__tests__/integration/store/projection/` drives the engine's swap, link, and removal while a
-      writer saves in place, by renaming a new file over the path, and by truncate-then-write as VS Code and Zed do,
-      with a reader holding the file open with delete access shared.
-    - Each interval — re-check to move, move to link, first check to second — is reached two ways: placed exactly
-      through 3.2.b's step hooks, and by a randomized run of 1,000 saves per save mode within the integration tier's 30
-      s budget. The harness requires no lost save in either; a save left in a copy kept because its path moved on
-      (3.2.a), reported with its path, is kept rather than lost and counted as its own outcome. Each hook places the
-      save its interval can catch, which must produce that interval's outcome, counted per platform, so a hook an
-      operation passes through that never fires fails the run: after the re-check, an in-place or rename-over save,
-      rescued from the aside copy at the first check; after the move, a save that recreates the path, which the
-      replacement yields to; after the first check, a write through a handle opened before the move, rescued at the
-      second check. A rebuild, the link alone, has one interval: a save that recreates the absent path before the link
-      wins, and the link yields. A removal has no link: after the re-check, a save is rescued from the aside copy at the
-      first check; after the move, a save that recreates the path keeps the entry pending, and the next command's
-      removal takes its edit in first (3.4); after the first check, a write through a handle opened before the move is
-      rescued at the second check. The randomized run reports its own count of each outcome, which the second check's
-      rarity can leave at zero.
-    - It runs in the portability tier (2.1); the Windows and macOS evidence is a dispatched run of the pair, recorded
-      in this task's completion note.
+- _Outcome:_ `integration/store/projection/save-loss.test.ts` places a save at each interval through the swap's step
+  hooks (19 tests), and fires 1,000 saves per mode from a worker thread into back-to-back commands as ten tests of 100,
+  the per-copy `gate` seam threaded through the swap, second check, and sweep so the harness settles in 1 ms. A
+  truncating save's empty window is capped at the 19 ms editor window Spike 3 measured, and a loss whose window passed
+  § 4's 50 ms bound counts as "emptied past the settle window", reported apart from a loss, which fails the run with its
+  timeline. Run 41274229274 at `730e04d2a3`, the pair dispatched, passed on Windows and macOS: none lost or emptied past
+  the window, every placed outcome reached, and the second check's rescue reached by truncate-then-write on both.
 
 ## **Phase 4:** The worktree lock
 
