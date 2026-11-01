@@ -322,3 +322,26 @@ carries `override-active: false` and `[No override configured]`, which the packa
 - **Freshness compared with today.** Today's check compares the meta's last commit with HEAD; the compiler reports
   whether the meta changed since the handoff (§ 6.3). The handoff writes the hash abbreviated
   (`session-handoff.template.md`), so the compiler resolves it before comparing.
+
+## A1 — Literal elicitation
+
+The settled § 3.2 text said: “runs its `recompile` argv with `--<signal> <answer>` appended; that argv omits the
+signal.” Section 4.5 likewise allowed only “an `elicit` choice's appended answer.” These statements are superseded by
+insertion before any `--` delimiter, with `--flag=value` binding for a leading-dash answer.
+
+The pending `buildAgendaArgv` preserves a leading-dash seed after `--`; its private `appendValue` already binds
+leading-dash option values with `=`. The detecting `parseNonRepeatedOptions` regression reconstructs the registered
+non-repeatable option grammar from `cli.ts` and passes the carried argv plus the elicited concern to Commander.
+Appending that option after the delimiter fails with too many positional arguments. Focused run
+`34a236680f494c2d9a1579b87548f700` completed with 15 passing cases and this one failure. Commander's
+`Command.parseOptions` consumes every remaining argument as literal operands once it sees `--`, corroborating the
+observed failure. Inserting the signal before that delimiter preserves both operands and option interpretation.
+
+The bounded propagation covers § 3.2, § 4.5, § 9.1, appended criterion 15, corrective parent 1.R, open Task 1.3.c,
+future Task 3.2.a, and the completed schema's description via its additive amendment pointer. Shape, cardinalities,
+question keys, recorded decisions, and the baseline measurements are unaffected. No delivery plan is bound.
+
+Author review covers reader independence, binding completeness, coherence, and source grounding over this footprint;
+the revision tasks target the existing schema and pending shared builder and close on the detecting regression.
+Independent amendment review is omitted at the determinate correction depth. The approved scope changes no field or
+command shape and requires no new planning segment.

@@ -51,6 +51,8 @@ with a typed refusal, and leaves the repository as found.
   marker, and orientation shape — and a runtime assertion rejects any agenda that breaks the contract's
   cardinalities.
 
+    - _Amended in:_ 1.R (A1)
+
     - `[x]` **1.2.a Define the agenda schema**
         - Added strict, described agenda envelope, step, and choice schemas in `commands/agenda/schema.ts`, reusing
           shared paths, read modes, cursor, action, and residual-slot authorities. Read validation couples cursor
@@ -65,6 +67,20 @@ with a typed refusal, and leaves the repository as found.
         - Registered `session-init-agenda` at version 1 in the session-envelope and production catalogs and their
           pins. The CLI serves the described JSON Schema with closed references to all four residual contracts;
           runtime assertion retains the cross-field refinements omitted from the served shape.
+
+### `[ ]` **1.R Preserve literal elicited arguments — A1**
+
+- _Goal:_ Amendment A1's elicited signal reaches option parsing before any end-of-options delimiter, preserving both
+  a leading-dash answer and a leading-dash positional seed; the served description agrees with the execution rule.
+
+    - `[ ]` **1.R.a Correct the elicitation argument operation**
+        - Update the served `elicit.recompile` description without changing schema fields, and expose one option-value
+          insertion helper from the shared argv builder that inserts before `--` and binds leading-dash values with `=`
+
+    - `[ ]` **1.R.b Revalidate literal elicitation**
+        - Re-run the detecting Commander-grammar regression with a leading-dash positional seed; cover a leading-dash
+          elicited answer for both signals and confirm the served description's rule
+        - Record the closing evidence against A1, preserving existing completed outcomes
 
 ### `[ ]` **1.3 Add the verb with its flags, refusals, and answer carriage — § 2.1, § 2.2, § 4.6**
 
@@ -93,7 +109,8 @@ with a typed refusal, and leaves the repository as found.
             - a built argv reproduces the received signals and answers, one element per argument
             - setting or clearing a signal in a built argv; clearing `errand` clears `isolate`
             - the builder can drop `--next` and drop the positional seed
-            - an `elicit` argv omits its signal so the answer can be appended
+            - an `elicit` argv omits its signal; its literal answer is inserted before `--`, using `--flag=value`
+              for a leading-dash answer
             - an operand containing `=`, `+`, or a space round-trips through the key
 
 ### `[ ]` **1.4 Share the session-init probe composition with the verb — § 2.1, § 2.5**
@@ -460,7 +477,8 @@ orientation surfaces, questions, and proceed prompt as today's workflow on the s
     - `[ ]` **3.2.a Author the spine**
         - § 9.1 items 1–8 in package source: purpose and the four terms; output discipline; running the verb, its
           failure the one fallback; each step type, with `read` loading `read-load-set`, `fragment` as the declared
-          methods' fire-point, recompile, one argument per argv element, handoff, and marker writing; orientation by
+          methods' fire-point, recompile with § 3.2's elicitation insertion before `--` and leading-dash binding, one
+          argument per argv element, handoff, and marker writing; orientation by
           shape; the SESSION-NOTES authority boundary and WORKING-MEMORY binding; mismatch handling with the
           crash-recovery trigger
         - Frontmatter declares `read-load-set` and keeps `session-state`; the other two methods join it with their own
@@ -920,6 +938,10 @@ tier pass against the new text.
 - `[ ]` The plain resume, `--plan`, `--errand`, branch-gone, Orient discovery, and `--context` rehearsals each start
   from a kit install and reach today's orientation surfaces, questions, and actions except where the specification
   states a change
+
+- `[ ]` Elicited `errand` and `plan` options are inserted before any `--` delimiter, with `--flag=value` for a
+  leading-dash answer; both the literal answer and leading-dash positional seed survive parsing, and the served
+  description and spine state that rule (A1)
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 

@@ -310,8 +310,10 @@ type NudgeMarker = { path: string; value: string };
 - **`offer`.** `id` is one or more question keys joined by `+` (§ 4.6). `accepts` lists the question keys of `id` the
   choice accepts. A `signal` choice's `recompile` argv sets that signal to `value`, or clears it when `value` is `null`;
   clearing `errand` clears `isolate` with it, since `--isolate` alone is refused. An `elicit` choice asks the person for
-  the signal's value, offering `carried` as a default, and runs its `recompile` argv with `--<signal> <answer>`
-  appended; that argv omits the signal. A `bare` choice runs nothing and the agenda continues with the next step.
+  the signal's value, offering `carried` as a default. Its `recompile` argv omits the signal; insert
+  `--<signal> <answer>` before any `--` end-of-options delimiter, otherwise at the end. For an answer starting with
+  `-`, insert one `--<signal>=<answer>` element so the answer remains literal. (A1) A `bare` choice runs nothing and
+  the agenda continues with the next step.
     - **`ask: "now"`** — a question the agent asks when it reaches the step, before continuing: sync, branch-gone,
       cold-start, and a bare signal's pick. At least two choices, exactly one carrying `decline: true`, which is a
       `bare` choice or a `signal` choice whose `value` is `null`. The decline is the only choice that continues the
@@ -402,13 +404,14 @@ message names the missing identity.
 
 #### 4.5 Recompile
 
-A step or choice that recompiles runs the argv it carries, unchanged except for an `elicit` choice's appended answer, in
-the session's checkout, even after an action ran in another, and starts the fresh agenda from its top. The compiler
-carries the session's answers, completed `exec` steps, and followed method fragments in that argv (§ 4.6), so the agent
-carries over only reads and a followed method's report (§ 4.1): a `read` step counts as done when the session already
-read the same checkout and path and no sync since could have written it. A notes pull or load writes the user documents
-(SESSION-NOTES, WORKING-MEMORY, USER-INBOX); a worktree pull, the superseded reset, or a materialize into the session's
-own checkout writes the checkout's tracked files.
+A step or choice that recompiles runs the argv it carries in the session's checkout, even after an action ran in
+another, and starts the fresh agenda from its top. The only argv change is an `elicit` choice's signal and literal
+answer inserted by § 3.2's delimiter and leading-dash rules. (A1) The compiler carries the session's answers, completed
+`exec` steps, and followed method fragments in that argv (§ 4.6), so the agent carries over only reads and a followed
+method's report (§ 4.1): a `read` step counts as done when the session already read the same checkout and path and no
+sync since could have written it. A notes pull or load writes the user documents (SESSION-NOTES, WORKING-MEMORY,
+USER-INBOX); a worktree pull, the superseded reset, or a materialize into the session's own checkout writes the
+checkout's tracked files.
 
 Each recompile costs one compile.
 
@@ -1059,8 +1062,8 @@ about 0.4 KB per Orient.
 3. Run the agenda: the verb with the skill's arguments as flags and `--json`, each passed as one argument (§ 4.2). If
    the verb itself fails, surface the failure and stop — the fallback that cannot depend on an agenda.
 4. Executing each step type (§ 3–§ 4): the read rule that loads `read-load-set`, the `fragment` step as the fire-point
-   for the declared methods, the recompile rule (run the carried argv as given), each argv element passed as one
-   argument (§ 4.2), the handoff rule, and marker writing.
+   for the declared methods, the recompile rule (run the carried argv as given, with § 3.2's elicitation insertion),
+   each argv element passed as one argument (§ 4.2), the handoff rule, and marker writing. (A1)
 5. Orientation, emitted once at the agenda's last step (§ 4.1) and framed by `orientation.shape`. Its `render` steps
    are conditional sections and its `note` steps advisory lines, each emitted verbatim and once, in order. Under
    `work-state` the agent composes Last completed, Current task, Blockers, and Next action from the meta and
@@ -1371,6 +1374,10 @@ compiler compiles both arms from whichever the probe's readers return.
     `--context` — starts from a kit install, sets up the state its row needs, and reaches the same orientation surfaces,
     questions, and actions as today's workflow on the same fixture, except where this specification states a change.
 
+15. **Literal elicitation.** An elicited `errand` or `plan` answer is inserted before any `--` delimiter, using
+    `--flag=value` for a leading-dash answer, and the resulting invocation preserves both the literal answer and any
+    leading-dash positional seed. The served choice description and spine state the same rule. (A1)
+
 ## Open Questions
 
 None blocks starting. The per-group read budget's value, the surface ids' spelling, and the compiler's module split are
@@ -1378,4 +1385,5 @@ implementation detail.
 
 ## Amendments
 
-[none]
+- **A1** — 2026-11-01 — design: insert literal elicited options before `--`.
+  _Supersedes:_ § 3.2 offer ¶1; § 4.5 ¶1. _Trigger:_ 1.3.c must-stop. _Work:_ 1.R. _Revalidated:_ pending → 1.R.b.
