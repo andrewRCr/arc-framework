@@ -1,6 +1,5 @@
 /** Batched live record reads and family listings over captured local state refs. */
 
-import { corruptRef } from "./namespace-health.js";
 import { projectRefTreeEntry } from "./entry-path.js";
 import { restartOnVanishedStore } from "./repository.js";
 import type { ReadPlacement } from "../placement.js";
@@ -326,7 +325,9 @@ async function readArchivedRecord(context: RefBackendContext, reference: RecordR
   const quarters = located ? undefined : await readRefTrees(context, selected);
   // A quarter whose tree cannot be read may hold the owner's folder, or a later one, so no folder found settles the read.
   const unreadable = quarters && [...selected.keys()].find((ref) => !quarters.has(ref));
-  if (unreadable) return { status: "refused", refusal: corruptRef(unreadable, true) };
+  if (unreadable) return { status: "refused", refusal: refObjectFault(unreadable, "missing", {
+    condition: `The tip or a tree of ${unreadable} is unavailable locally.`,
+  }).refusal };
   const trees = located ? new Map([[located.ref, located.entries.map(entry => projectRefTreeEntry(entry, { fromPrefix: "", toPrefix: located.root }))]])
     : archiveOwnerTrees(quarters ?? new Map(), [reference.owner]);
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);

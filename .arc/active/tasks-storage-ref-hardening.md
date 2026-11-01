@@ -151,21 +151,11 @@ classification calls the sweep settled.
   containing-tree resolution, shared fault helper, and remaining sites below still complete this task.
   Caller-level slug checks also cover live cohort refs and retained work/cohort history during these migrations.
 
-    - `[ ]` **3.1.a The shared tip check and record point reads**
-        - `checkRefTip`, which history, changes, pull, and push all run first, classifies a missing tip or tree as
-          **Missing** and its metadata entry through 2.1, with the historical remedy when `saved` is set.
-        - `readBoundRecord` and `readUidRefRecord` resolve a `missing` metadata answer through 2.2's resolution;
-          `refRecordAbsence`'s missing tree and `readArchivedRecord`'s quarter trees take the helper, and the builders
-          that already give the **Missing** row call it.
-        - Build `test-first` (one behavior at a time):
-            - a tip check of a ref whose nested tree is missing refuses **Missing**; unparseable tip metadata keeps the
-              forward repair, and the historical remedy when `saved` is set
-            - a read whose metadata entry is present with its blob removed refuses **Missing**
-            - once that blob is restored, the same read succeeds
-            - a read of a tree holding records with no metadata entry refuses **No metadata** with the forward repair
-            - a record-free tree with no metadata still answers `not-found`
-            - a read whose record tree is missing refuses **Missing** through `refRecordAbsence`
-            - an archived read whose quarter tree is missing refuses **Missing**
+    - `[x]` **3.1.a The shared tip check and record point reads**
+        - Shared tip admission and unreadable archive quarters use `refObjectFault`; tip metadata retains its decoded
+          fault and current/saved repair side. History reuses its current capture when deriving history routes.
+          Existing point, claim, and conflict Missing builders share the mapper while retaining their own text;
+          native nested-tree restoration resumes both point reads and history.
 
     - `[ ]` **3.1.b Listings**
         - The listing decoders in `read.ts` and `archive-view.ts` take § 1.2's read; `recordDiagnostic` gives a current

@@ -7,6 +7,7 @@ import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { expandStoredPath } from "../stored-path.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, type BatchObject, type RefTreeEntry } from "./batch-read.js";
+import { refObjectFault } from "./object-fault.js";
 
 const strict = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
@@ -112,9 +113,9 @@ function unavailableConflictEvidence(reference: RecordReference, path: string, c
       : "Repair the source forward with valid conflict structure, then retry the read or write with complete evidence."
     : saved ? "Restore or fetch the original missing conflict objects, then retry this saved-state read."
       : "Restore or fetch the missing conflict objects, then retry the read or write with complete evidence.";
-  return { code: "state-unresolvable", class: "recoverable", reference, historyRefs: [],
-    condition: `The sibling conflict evidence at ${path} is unavailable; the record's conflict set cannot be established.`,
-    remedy: { text } };
+  const condition = `The sibling conflict evidence at ${path} is unavailable; the record's conflict set cannot be established.`;
+  if (cause === "missing") return refObjectFault(path, "missing", { reference, condition, remedy: { text } }).refusal;
+  return { code: "state-unresolvable", class: "recoverable", reference, historyRefs: [], condition, remedy: { text } };
 }
 
 /** Decode the target of a typed conflict independently of its containing path. */
