@@ -485,3 +485,7 @@ Filled as each fix lands, from whichever phase lands it: each commit that fixes 
 the finding and the task it landed in, a fold into any task and a corrective parent's fix included. 5.10's fix check,
 and the `6.R` and `7.R` checks 1.3 adds for a Phase 6 or Phase 7 fold, take these commits as their target; base merges
 are not on it.
+
+- **H1 — Publication journal errors:** fixed in `9e2344e35d909873e62d5a4ce26df05cb8b43ccf` (Task 3.8 —
+  `tasks-storage-ref-hardening.md`). Missing and malformed publication requirements stop source retirement with the
+  retained-journal restore route.
