@@ -78,7 +78,8 @@ export async function openOrdinaryErrandAtRuntime(
 export async function openOrdinaryErrandAtRuntimeWithDisposition(
   options: OpenOrdinaryErrandRuntimeOptions,
 ): Promise<OpenOrdinaryErrandExecution> {
-  return openOrdinaryErrandWithDisposition({
+  let spawnLock: OpenOrdinaryErrandExecution["spawnLock"];
+  const execution = await openOrdinaryErrandWithDisposition({
     slug: options.slug,
     type: options.type,
     intent: options.intent,
@@ -181,7 +182,7 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
           : { kind: "generation-mismatch" as const };
       },
       provision: async (request) => {
-        return provisionTransientLocus({
+        const provisioned = await provisionTransientLocus({
           ...request,
           dependencies: createNodeProvisioningDependencies({
             exec: options.exec,
@@ -194,9 +195,14 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
             registeredHarnessDirs: options.registeredHarnessDirs,
           }),
         });
+        if (provisioned.kind === "provisioned" && provisioned.receipt.lock !== undefined) {
+          spawnLock = { checkoutPath: provisioned.receipt.checkoutPath, lock: provisioned.receipt.lock };
+        }
+        return provisioned;
       },
     },
   });
+  return spawnLock === undefined ? execution : { ...execution, spawnLock };
 }
 
 function matchesExpectedResumeGeneration(

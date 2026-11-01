@@ -43,6 +43,7 @@ import { countAheadBehindRef } from "../lib/git/worktree-sync.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { renderWorktreeEntryRecipe } from "../lib/harness/worktree-entry.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
+import { warnSpawnLock } from "./spawn-lock.js";
 import {
   createUserIOContext,
   readGitBlobBytes,
@@ -73,7 +74,7 @@ import {
   type PrepareGitGraduationTransactionInput,
 } from "../lib/work-unit/git-graduation-transaction.js";
 import type { TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
-import { runResume } from "../lib/work-unit/verbs/park-resume.js";
+import { runResume, type ParkResumeFs } from "../lib/work-unit/verbs/park-resume.js";
 import {
   isHandledError,
   requireArcProjectRoot,
@@ -456,6 +457,7 @@ async function createNew(
   );
   p.log.info(renderStartBaseProvenance(provenance));
   if (r.postCreateNotice) p.log.info(r.postCreateNotice);
+  warnSpawnLock(r.worktreePath, r.spawnLock);
   const roadmap = await runWithInteractionProgress(ctx.interaction,
     "Refreshing ROADMAP...",
     "ROADMAP updated.",
@@ -764,6 +766,7 @@ async function graduate(
   );
   p.log.info(renderStartBaseProvenance(provenance));
   if (result.postCreateNotice) p.log.info(result.postCreateNotice);
+  warnSpawnLock(result.worktreePath, result.spawnLock);
   const reportedRoadmapWarnings = reportAdvisories(result.outcome);
   if (result.notice) p.log.info(result.notice);
   if (result.branch === null) throw new Error("Legacy graduation requires its planning branch");
@@ -840,13 +843,7 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
             baseBranch: settings["branch.base"],
             internalTemplateDir: getInternalTemplatePath(),
           }),
-          fs: {
-            writeFile: (path, content) => ctx.io.writeFile(path, content),
-            mkdir: (path, opts) => ctx.io.mkdir(path, opts),
-            rm: (path) => rm(path),
-            readdir: (path) => readdir(path),
-            rmdir: (path) => rmdir(path),
-          },
+          fs: resumeFs(ctx),
         },
         { name: wuName, inPlace: true },
       ),
@@ -892,13 +889,7 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
           baseBranch: config.baseBranch,
           internalTemplateDir: getInternalTemplatePath(),
         }),
-        fs: {
-          writeFile: (path, content) => ctx.io.writeFile(path, content),
-          mkdir: (path, opts) => ctx.io.mkdir(path, opts),
-          rm: (path) => rm(path),
-          readdir: (path) => readdir(path),
-          rmdir: (path) => rmdir(path),
-        },
+        fs: resumeFs(ctx),
       },
       {
         name: wuName,
@@ -921,7 +912,19 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
 
   p.note([`Work unit: ${wuName}`, `Meta:      ${result.metaPath}`].join("\n"), "Resumed");
   reportAdvisories(result.outcome);
+  warnSpawnLock(result.worktreePath, result.spawnLock);
   p.outro("Done.");
+}
+
+/** The pointer-record file boundary a resume writes through. */
+function resumeFs(ctx: ArmContext): ParkResumeFs {
+  return {
+    writeFile: (path, content) => ctx.io.writeFile(path, content),
+    mkdir: (path, opts) => ctx.io.mkdir(path, opts),
+    rm: (path) => rm(path),
+    readdir: (path) => readdir(path),
+    rmdir: (path) => rmdir(path),
+  };
 }
 
 /** Surface any side-effect advisories (e.g. the interim ROADMAP / STATUS.USER regen lines). */

@@ -22,6 +22,8 @@ import { handleStart } from "../../src/handlers/start.js";
 import { parseMetaProjectionRecord, renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import { resolveWorktreeLocation } from "../../src/lib/git/worktree-location.js";
 import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
+import { readWorktreeLock } from "../helpers/worktree-lock.js";
 import { createUserIOContext, readGitBlobBytes } from "../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../src/lib/paths.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
@@ -185,7 +187,7 @@ describe("arc start dispatch — against real worktrees", () => {
     await cleanupTempDir(h.repo);
   });
 
-  it("create-new: spawns a real worktree on a new plan/ branch with a scaffolded meta + marker", async () => {
+  it("create-new: spawns a real worktree on a new plan/ branch with a scaffolded meta + marker, locked with the projection's reason", async () => {
     const wt = resolveWorktreeLocation({
       template: h.locationTemplate,
       repo: basename(h.repo),
@@ -208,6 +210,29 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(record.State).toBe("Planning");
     expect(record.Branch).toBe("plan/alpha");
     expect((await readWorktreeMarker(wt)).kind).toBe("present");
+    expect(await readWorktreeLock(h.io.exec, wt)).toBe(PROJECTION_LOCK_REASON);
+  });
+
+  it("create-new: a scaffold failing after the spawn rolls the checkout and its branch back", async () => {
+    const wt = resolveWorktreeLocation({
+      template: h.locationTemplate,
+      repo: basename(h.repo),
+      name: "rolled-back",
+      branch: "plan/rolled-back",
+    });
+    h.spawned.push(wt);
+
+    const io = { ...h.io, writeFile: () => Promise.reject(new Error("No space left on device")) };
+    const outcome = await runCreateNew(
+      { io, internalTemplateDir: getInternalTemplatePath(),
+        writeEditorDocuments: async () => ({ ok: true, documents: [] }) },
+      { worktreePath: h.repo, identity: IDENTITY, name: "rolled-back" },
+    );
+
+    expect(outcome).toMatchObject({ ok: false, reason: expect.stringContaining("could not scaffold") });
+    expect(await pathExists(wt)).toBe(false);
+    expect((await execFileAsync("git", ["worktree", "list", "--porcelain"], { cwd: h.repo })).stdout).not.toContain(wt);
+    expect((await execFileAsync("git", ["branch", "--list", "plan/rolled-back"], { cwd: h.repo })).stdout).toBe("");
   });
 
   it("create-new handler: shell invocation commits and pushes the spawned plan branch", async () => {
@@ -253,6 +278,36 @@ describe("arc start dispatch — against real worktrees", () => {
     const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: wt });
     const { stdout: remoteHead } = await execFileAsync("git", ["ls-remote", "origin", "refs/heads/plan/shell-alpha"], { cwd: h.repo });
     expect(remoteHead).toContain(head.trim());
+  });
+
+  it("create-new handler: keeps a lock its provisioning hook set first and warns naming the checkout and reason", async () => {
+    const remote = `${h.repo}-origin.git`;
+    h.cleanupPaths.push(remote);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: h.repo });
+    await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
+    const config = join(h.repo, ".arc", "system", "arc-config.yml");
+    await writeFile(config, `${await readFile(config, "utf8")}worktree.post_create: git worktree lock --reason provisioning-tool .\n`);
+    await execFileAsync("git", ["commit", "-am", "provision with a lock"], { cwd: h.repo });
+    await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
+    const wt = resolveWorktreeLocation({
+      template: h.locationTemplate,
+      repo: basename(h.repo),
+      name: "hooked",
+      branch: "plan/hooked",
+    });
+    h.spawned.push(wt);
+
+    const result = await runHandlerAt(
+      h.repo,
+      () => handleStart("hooked", { new: true, yes: true }, makeInteractionContext({ noInput: true, yes: "compatibility" })),
+    );
+
+    expect(result.exitCode, result.stderr || result.stdout).toBe(0);
+    expect(await readWorktreeLock(h.io.exec, wt)).toBe("provisioning-tool");
+    const warning = result.stderr.split("\n").find((line) => line.startsWith("warning: ")) ?? "";
+    expect(warning, result.stderr).toContain(wt);
+    expect(warning).toContain("provisioning-tool");
   });
 
   it("create-new handler: refuses a seed without --here and leaves the repository unchanged", async () => {
@@ -456,6 +511,21 @@ describe("arc start dispatch — against real worktrees", () => {
     },
   );
 
+  it("cold-start in a checkout another tool placed leaves that checkout unlocked", async () => {
+    const placed = `${h.repo}-placed`;
+    h.spawned.push(placed);
+    await execFileAsync("git", ["worktree", "add", "-b", "feat/placed", placed, "main"], { cwd: h.repo });
+    const io = { ...createUserIOContext(), exec: makeGitExec(placed) };
+
+    const outcome = await runColdStart(
+      { io, internalTemplateDir: getInternalTemplatePath(), writeEditorDocuments: async () => ({ ok: true, documents: [] }) },
+      { worktreePath: placed, branch: "feat/placed", identity: IDENTITY, name: "placed" },
+    );
+
+    expect(outcome, JSON.stringify(outcome)).toMatchObject({ ok: true, value: { worktreePath: placed } });
+    expect(await readWorktreeLock(io.exec, placed)).toBeUndefined();
+  });
+
   it("cold-start accepts an aliased checkout path without minting a locus record", async () => {
     const alias = `${h.repo}-alias`;
     await symlink(h.repo, alias, process.platform === "win32" ? "junction" : "dir");
@@ -506,7 +576,7 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(await pathExists(join(wt, ".unregistered-harness", "secret.txt"))).toBe(false);
   });
 
-  it("graduate: an existing backlog stub graduates onto its branch (never mis-scaffolds)", async () => {
+  it("graduate: an existing backlog stub graduates onto its branch (never mis-scaffolds), its checkout locked", async () => {
     await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
     const wt = resolveWorktreeLocation({
       template: h.locationTemplate,
@@ -552,6 +622,7 @@ describe("arc start dispatch — against real worktrees", () => {
     const notes = await readFile(join(wt, ".arc", "user", IDENTITY, "widget", "SESSION-NOTES.md"), "utf8");
     expect(notes).toContain("Graduated the backlog stub");
     expect(notes).toContain("**Commit at Handoff:** `[start ceremony pending]`");
+    expect(await readWorktreeLock(h.io.exec, wt)).toBe(PROJECTION_LOCK_REASON);
   });
 
   it("graduate --here: cuts the branch in the current checkout, no worktree spawned", async () => {

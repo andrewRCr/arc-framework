@@ -17,6 +17,7 @@ import {
 } from "../lifecycle-executor.js";
 import type { LifecycleIndex } from "../lifecycle-index.js";
 import { isSlugSafe } from "../../kernel/schema/slug.js";
+import { lockSpawnedCheckout, type SpawnLock } from "../../git/worktree-removal.js";
 
 /** Default spawned materialize — create a local branch from `origin/<branch>` in a fresh worktree. */
 export interface MaterializeSpawnParams {
@@ -74,6 +75,8 @@ export type MaterializeResult =
       worktreePath: string;
       /** Provisioning notices surfaced by the placement primitive. */
       advisories: string[];
+      /** The lock a fresh worktree carries once its placement has returned; absent in place. */
+      spawnLock?: SpawnLock;
     };
 
 /** Remote-tracking branch ref used as the base for a fresh materialize spawn. */
@@ -100,7 +103,15 @@ export async function runMaterialize(
   ctx: MaterializeContext,
   params: MaterializeParams,
 ): Promise<MaterializeResult> {
-  if (usesOffBranchState(ctx.store)) return runStoreMaterialize(ctx, params);
+  const result = usesOffBranchState(ctx.store) ? await runStoreMaterialize(ctx, params) : await materializeInRepo(ctx, params);
+  if (result.status !== "materialized" || result.inPlace) return result;
+  const spawnLock = ctx.exec === undefined
+    ? { kind: "failed" as const, detail: "materialize ran without a Git executor" }
+    : await lockSpawnedCheckout(ctx.exec, result.worktreePath);
+  return { ...result, spawnLock };
+}
+
+async function materializeInRepo(ctx: MaterializeContext, params: MaterializeParams): Promise<MaterializeResult> {
   const { name, branch } = params;
   if (!isSlugSafe(name)) {
     return {

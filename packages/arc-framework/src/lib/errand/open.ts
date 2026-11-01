@@ -33,6 +33,7 @@ import type { ChangeRequestLifecycleEvidence } from "./change-request-lifecycle.
 import type { ErrandInboxOrigin } from "./inbox-origin.js";
 import type { ErrandErrorCode, ErrandRefusalReason } from "./result-common.js";
 import { DEFAULT_ERRAND_BRANCH_TYPE, type ErrandBranchType } from "./branch-type.js";
+import type { SpawnLock } from "../git/worktree-removal.js";
 
 /** Accepted slug format and retry guidance shared by core and CLI input refusals. */
 export const ERRAND_SLUG_INPUT_REMEDY = "Choose a valid, non-empty slug of lowercase alphanumeric segments joined by hyphens "
@@ -64,6 +65,8 @@ export type OpenRollbackDisposition = "not-required" | "complete" | "retained-or
 export interface OpenOrdinaryErrandExecution {
   readonly result: ErrandOperationResult;
   readonly rollbackDisposition: OpenRollbackDisposition;
+  /** The lock the checkout it spawned carries; absent when it opened in the primary or spawned none. */
+  readonly spawnLock?: { readonly checkoutPath: string; readonly lock: SpawnLock };
 }
 
 /** Injected authority and local-provisioning boundaries for ordinary Errand open. */

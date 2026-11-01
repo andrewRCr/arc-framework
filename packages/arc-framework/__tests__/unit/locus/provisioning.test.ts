@@ -150,6 +150,10 @@ function harness(overrides: Partial<ProvisionTransientLocusDependencies> = {}) {
       events.push("rollback-worktree");
       return { kind: "rolled-back" };
     },
+    lockSpawnedCheckout: async () => {
+      events.push("lock-checkout");
+      return { kind: "locked" };
+    },
     ...overrides,
   };
   return { dependencies, events, marker: () => marker };
@@ -179,6 +183,7 @@ describe("provisionTransientLocus", () => {
       "create-marker",
       "setup-worktree",
       "replace-marker",
+      "lock-checkout",
       "unlock",
     ]);
   });

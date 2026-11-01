@@ -21,6 +21,7 @@
 import { runTeardownForOperand } from "./teardown-operand.js";
 import type { UnboundMarkerClassification } from "../lib/locus/unbound-marker.js";
 import { handleStoreAbandon } from "./abandon-store.js";
+import { warnSpawnLock } from "./spawn-lock.js";
 
 
 import { collaborationCommandInputRegistrations, handleStoreResume } from "./lifecycle-collaboration.js";
@@ -1176,6 +1177,7 @@ export async function handleResume(
     return;
   }
   reportOutcome("Resumed", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
+  warnSpawnLock(result.worktreePath, result.spawnLock);
 }
 
 function formatMaterializeCandidates(candidates: readonly MaterializableWorkUnit[]): string {
@@ -1349,6 +1351,7 @@ export async function handleMaterialize(
       return;
     }
     spinner.stop("Worktree ready.");
+    warnSpawnLock(result.worktreePath, result.spawnLock);
     reportMaterializeOutcome(
       "Materialized",
       [

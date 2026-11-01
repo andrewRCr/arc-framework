@@ -20,6 +20,7 @@ import type { ExecuteTransitionContext } from "../lib/work-unit/lifecycle-execut
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { StartOptions } from "./start.js";
 import { quoteShellArgument } from "../lib/release/commit-message-retry.js";
+import { warnSpawnLock } from "./spawn-lock.js";
 
 type Input = StartOptions & { name?: string };
 /** Locus may supply cold-start admission independently of backlog graduation. */
@@ -113,6 +114,7 @@ async function create(input: Input, ctx: StoreStartContext): Promise<void> {
   if (!result.ok) { refuse(result.reason); return; }
   p.note(`Work unit: ${input.name}\nCheckout: detached\nWorktree: ${result.value.worktreePath}`, "Started");
   if (result.value.postCreateNotice !== undefined) p.log.info(result.value.postCreateNotice);
+  warnSpawnLock(result.value.worktreePath, result.value.spawnLock);
   p.outro("Done.");
 }
 async function graduate(input: Input, ctx: StoreStartContext): Promise<void> {
@@ -130,5 +132,6 @@ async function graduate(input: Input, ctx: StoreStartContext): Promise<void> {
   if (result.status !== "graduated") { refuse(result.reason, result.status === "rejected" ? result.refusal : undefined); return; }
   p.note(`Work unit: ${input.name}\nPrevious Owner: ${result.previousOwner ?? "[none]"}\nOwner: ${ctx.identity}\nWorktree: ${result.worktreePath ?? ctx.cwd}`, "Started in Planning");
   if (result.postCreateNotice !== undefined) p.log.info(result.postCreateNotice);
+  warnSpawnLock(result.worktreePath, result.spawnLock);
   p.outro("Done.");
 }

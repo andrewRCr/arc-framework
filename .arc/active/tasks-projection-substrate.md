@@ -429,68 +429,34 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
   locked, which keeps that lock, reported; an anchored checkout carries none; and every removal ARC runs of one goes
   through the removal function, which unlocks only its own reason and locks the checkout again when the removal fails.
 
-    - `[ ]` **4.1.a Confirm the landing order**
+    - `[x]` **4.1.a Confirm the landing order**
 
-        - Before the lock lands, confirm on the merged base that every removal of a work item's checkout runs the
-          removal function, every decision to remove one reads the removal check, and every move ARC runs or prints
-          takes `git worktree move -f -f`: `reconcileWorkUnitWorktree`'s move, the rename follow-up
-          (`handlers/lifecycle-rename-report.ts`), the occupied-move fallback, and the residue sweep's remedy
-          (`lib/session-init/lifecycle-residue-sweep.ts`). The spawn rollbacks — `rollbackSpawnedWorktree`
-          (`commands/start.ts`), graduation's in both forms (`lib/work-unit/atomic-graduation.ts`, and the store form's
-          `occupyStoreGraduation` rollback run from `commands/start-store.ts`), the fresh-spawn rollback in
-          `reconcile-work-unit-worktree.ts`, which a resume's spawn runs too, and the transient claim's
-          `rollbackSpawned` (`lib/locus/provisioning-runtime.ts`) — are exempt, since each removes a checkout before its
-          lock exists, and so is `removeDisposableSpawn` (`lib/work-unit/spawned-worktree-claim.ts`), the plain `git
-          worktree remove` the store forms of the start, graduation, and fresh-spawn rollbacks call. Teardown's
-          decomposition-candidate cleanup (`cleanupGitOwnedDecomposeCandidate`,
-          `lib/work-unit/git-owned-decompose-candidate-cleanup.ts`) removes through the removal function its one
-          production caller injects, its raw removal only a fallback when none is. Teardown's remaining
-          `isWorktreeClean` reads (`lib/work-unit/verbs/teardown.ts`, `lib/work-unit/store-retirement-husk.ts`) guard
-          husking a checkout in place, returning the primary to base, and a detached husk's cleanup decision
-          (`decideHuskCleanup`, `lib/git/worktree-cleanup.ts`), whose removal runs the removal function through
-          `reconcileWorkUnitWorktree`; the first two remove or move no checkout. A plain `git worktree remove` or `move`
-          of a locked checkout left on base stops this task and is routed to its owning seam member.
+        - Confirmed on the base merged at `ca8fd0b241`. Every removal of a work item's checkout runs
+          `removeWorktreeCheckout` — both teardown forms, `reconcileWorkUnitWorktree`'s teardown,
+          `lib/locus/release.ts`, an Errand's close (`lib/errand/terminal-occupancy.ts`), and the
+          decomposition-candidate cleanup through the function teardown injects — and every decision to remove one
+          reads `checkWorktreeRemoval`. Every move ARC runs or prints takes `-f -f`: reconcile's move and its
+          occupied-move remedy, the rename follow-up and `commands/rename-store.ts`'s notice, and the residue sweep's
+          remedy. Every other `git worktree remove` is an exempt spawn rollback or a checkout no spawning verb locks:
+          the base sync's temporary worktree and its printed remedy (`lib/git/base-sync.ts`, `handlers/base.ts`),
+          delivery's gate checkout (`lib/delivery/residue-reaping.ts`), and the test-cost and review-gate scratch
+          checkouts. The one printed plain removal of a registration whose folder is missing
+          (`lib/session-init/missing-worktree-folders.ts`) is 4.2's.
 
-    - `[ ]` **4.1.b The lock at each spawn**
+    - `[x]` **4.1.b The lock at each spawn**
 
-        - The lock is each spawning verb's last step, once every rollback that can remove the checkout has passed:
-          `arc start` after `rollbackSpawnedWorktree`'s window; `arc materialize`; `arc resume` and `arc start` on a
-          parked work unit, which re-attach its branch in a fresh worktree (`runResume`,
-          `lib/work-unit/verbs/park-resume.ts`); and graduation after its rollback — the in-repo form's in
-          `lib/work-unit/atomic-graduation.ts`, whose rollback runs `git worktree remove --force`, and the store form's
-          once `runStoreGraduate`'s transition returns (`commands/start-store.ts`), since its occupation step's rollback
-          runs `removeDisposableSpawn`'s plain `git worktree remove` — the in-repo form spawning through its own
-          `git worktree add` and every other through `reconcileWorkUnitWorktree`;
-          and an Errand's through `provisionTransientLocus` (`lib/locus/provisioning.ts`) after `rollbackSpawned`'s
-          window. The lock, run as `git worktree lock --reason <reason> <path>` with `PROJECTION_LOCK_REASON`, keys on
-          the spawn, never on the capability; a checkout claimed with `arc start --here` is never locked; promotion
-          rewrites the marker and leaves the lock.
-        - The step locks only a linked worktree the verb placed with `git worktree add` — never a placement in place,
-          which `arc start`, `arc materialize`, and `arc resume` under `--here` return as a spawn naming the current
-          checkout, and never the primary, which Git refuses to lock. It reads the checkout's roster row first
-          (`scanRegisteredWorktrees`'s `locked`, `lib/git/worktree-roster.ts`), since
-          `git worktree lock` refuses a worktree already locked: unlocked, it locks; locked with
-          `PROJECTION_LOCK_REASON`, as a replayed `arc errand open` finds the checkout it reuses (`provisionSpawned`'s
-          `path-collision` arm, `lib/locus/provisioning.ts`), it does nothing; locked with any other reason, it leaves
-          that lock and returns that reason, which the verb prints on stderr as a warning naming the checkout and the
-          reason, and the spawn completes.
-        - `PROJECTION_LOCK_REASON` (`lib/git/worktree-removal.ts`) takes the value
-          `arc: remove with 'arc teardown' (work unit) or 'arc errand close|abandon|leave' (Errand)`, which Git prints
-          after "lock reason:" in its refusal; callers and tests read the constant, never the text.
-        - Build `test-first` (one behavior at a time):
-            - Integration tier, over real repositories
-            - a work unit's spawn, `arc materialize`'s, graduation's in both forms, a resume's, and an Errand's each
-              leave the checkout locked with the reason
-            - a start whose scaffold fails after the spawn, and a graduation that fails after its spawn, roll back
-              without a lock in the way
-            - an `arc start --here` checkout carries no lock, and an Errand promoted to a work unit keeps its lock
-            - `arc materialize --here` and `arc resume --here` leave their checkout unlocked
-            - a replayed `arc errand open` finds its checkout locked with the reason, keeps the lock, and succeeds
-            - a spawned checkout another tool locked first keeps that lock, and the spawn's stderr warning names the
-              checkout and that tool's reason
-            - a plain `git worktree remove` refuses a locked checkout naming the exits, and the removal function removes
-              it
-            - `git worktree move -f -f` keeps the lock and its reason
+        - `lockSpawnedCheckout` (`lib/git/worktree-removal.ts`) is each spawning verb's last step: it reads the
+          checkout's registration, locks it with `PROJECTION_LOCK_REASON` when unlocked, does nothing under that reason
+          (a replayed `arc errand open`), and returns `kept` with another tool's reason, or `failed` with the checkout
+          unlocked, for the verb's handler to print on stderr through `warnSpawnLock` (`handlers/spawn-lock.ts`).
+        - The callers lock once every rollback that can remove the checkout has passed: `completeCreatedWorktree`,
+          `runGraduate` and `runMaterialize` after either arm returns, `runResume` at its end (its transition executor
+          keeps the fresh spawn's path), and `provisionSpawned` after its ready marker, through a new
+          `lockSpawnedCheckout` provisioning dependency whose outcome rides the receipt to the open runtime. Placements
+          in place and the primary are never locked; promotion leaves the lock.
+        - `PROJECTION_LOCK_REASON` takes the exits text, which Git's refusal of a plain removal prints.
+        - A lock the spawn cannot set (`failed`) completes the spawn and warns with the remedy of locking the checkout,
+          as a failed relock does (spec § 17, item 9).
 
     - `[ ]` **4.1.c Relock after a failed retirement**
 

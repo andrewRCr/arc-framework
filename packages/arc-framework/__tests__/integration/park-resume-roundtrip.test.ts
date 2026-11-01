@@ -39,6 +39,8 @@ import { buildLifecycleIndex } from "../../src/lib/work-unit/lifecycle-index.js"
 import { listParkedSlugs } from "../../src/lib/work-unit/lifecycle-resolver.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
 import { createTempRepo, cleanupTempDir, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
+import { readWorktreeLock } from "../helpers/worktree-lock.js";
+import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -257,7 +259,7 @@ describe("park@Active → resume round-trip — against real worktrees", () => {
       .resolves.toBe(await renderExpectedRoadmap(h));
   });
 
-  it("round-trip (spawn): resume re-attaches in a fresh worktree and removes the pointer", async () => {
+  it("round-trip (spawn): resume re-attaches in a fresh worktree, locked, and removes the pointer", async () => {
     await parkAndShip(h);
 
     const resumeWt = resolveWorktreeLocation({
@@ -284,6 +286,23 @@ describe("park@Active → resume round-trip — against real worktrees", () => {
     expect(await pathExists(join(h.repo, ".arc", "backlog", "planned", SLUG))).toBe(false);
     // The base checkout never left main.
     expect(await headBranch(h.repo)).toBe("main");
+    expect(await readWorktreeLock(makeGitExec(h.repo), resumeWt)).toBe(PROJECTION_LOCK_REASON);
+  });
+
+  it("resume --here in a checkout another tool placed leaves that checkout unlocked", async () => {
+    await parkAndShip(h);
+    const placed = join(dirname(h.repo), `${basename(h.repo)}.placed`);
+    h.spawned.push(placed);
+    await execFileAsync("git", ["worktree", "add", "--detach", placed, "main"], { cwd: h.repo });
+    const io = { ...createUserIOContext(), exec: makeGitExec(placed) };
+    const executor = buildExecutorContext({
+      cwd: placed, io, identity: IDENTITY, teamMode: false, internalTemplateDir: getInternalTemplatePath(),
+    });
+
+    const result = await runResume({ executor, fs: parkResumeFs(io) }, { name: SLUG, inPlace: true });
+
+    expect(result, JSON.stringify(result)).toMatchObject({ status: "resumed", inPlaceCheckoutPending: true });
+    expect(await readWorktreeLock(io.exec, placed)).toBeUndefined();
   });
 
   it("round-trip (--here): resume defers the checkout; commit then checkout re-attaches with no orphan", async () => {

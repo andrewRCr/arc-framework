@@ -43,6 +43,7 @@ import {
 } from "../lib/active/current-workflow-consistency.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
+import { lockSpawnedCheckout, type SpawnLock } from "../lib/git/worktree-removal.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { resolveArcPath } from "../lib/layout/index.js";
 import { isProtectedBranch } from "../lib/release/interlock-validation.js";
@@ -351,6 +352,8 @@ export type GraduateResult =
       worktreePath?: string;
       /** Notice surfaced when the spawned worktree has no post-create provisioning script configured. */
       postCreateNotice?: string;
+      /** The lock a spawned worktree carries once the transition has returned; absent in place. */
+      spawnLock?: SpawnLock;
     };
 
 /**
@@ -374,7 +377,16 @@ export async function runGraduate(
   ctx: ExecuteTransitionContext,
   params: GraduateParams,
 ): Promise<GraduateResult> {
-  if (usesOffBranchState(ctx.store)) return runStoreGraduate(ctx, params);
+  const result = usesOffBranchState(ctx.store) ? await runStoreGraduate(ctx, params) : await graduateInRepo(ctx, params);
+  // Both forms' rollbacks remove a spawned checkout without unlocking it, so the lock waits for the transition.
+  if (result.status !== "graduated" || params.inPlace === true || result.worktreePath === undefined) return result;
+  const spawnLock = ctx.exec === undefined
+    ? { kind: "failed" as const, detail: "graduation ran without a Git executor" }
+    : await lockSpawnedCheckout(ctx.exec, result.worktreePath);
+  return { ...result, spawnLock };
+}
+
+async function graduateInRepo(ctx: ExecuteTransitionContext, params: GraduateParams): Promise<GraduateResult> {
   const branch = `plan/${params.name}`;
   const preflight = await preflightGraduate(
     ctx,
@@ -707,6 +719,8 @@ export interface CreateNewResult {
   wuName: string;
   /** Notice surfaced when no post-create provisioning script is configured. */
   postCreateNotice?: string;
+  /** The lock the spawned worktree carries once every rollback that could remove it has passed. */
+  spawnLock: SpawnLock;
 }
 
 /** No-throw outcome — a refusal carries a reason instead of throwing. */
@@ -825,7 +839,8 @@ async function completeCreatedWorktree(ctx: SpawnWorktreeContext, spawn: {
     const refusal = await stampCreatedWorkUnitMarker({ cwd: worktreePath, name: wuName, expected: spawn.markerGeneration, owner });
     if (refusal !== null) return { ok: false, reason: refusal };
   }
-  return { ok: true, value: { worktreePath, branch, wuName,
+  const spawnLock = await lockSpawnedCheckout(ctx.io.exec, worktreePath);
+  return { ok: true, value: { worktreePath, branch, wuName, spawnLock,
     ...(postCreateNotice === undefined ? {} : { postCreateNotice }) } };
 }
 

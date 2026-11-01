@@ -172,6 +172,8 @@ it.each(["text", "inbox"] as const)("keeps a %s description unchanged through fa
   expect(await invoke(h, h.cwd, ["errand", "open", slug, "--isolate", "--json"])).toMatchObject({ result: { outcome: "applied" } });
   expect(lifecycleSuccess(await h.store.read({ reference }))).toEqual(description);
   expect((await saved(h, slug)).identity).toMatchObject({ claimId: initial.identity.claimId, state: "open", origin: initial.identity.origin, originEntry: initial.identity.originEntry });
+  // A person removing the checkout outside ARC unlocks the projection's lock first.
+  await h.exec("git", ["worktree", "unlock", holder]);
   await h.exec("git", ["worktree", "remove", holder]);
   expect(await invoke(h, h.cwd, ["errand", "open", slug, "--isolate", "--json"])).toMatchObject({ result: { outcome: "applied" } });
   expect(lifecycleSuccess(await h.store.read({ reference }))).toEqual(description);

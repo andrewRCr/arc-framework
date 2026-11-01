@@ -442,7 +442,7 @@ describe("arc rename", () => {
     expect(await hasUserWorkspace(oldWorktree, "old-name")).toBe(false);
     expect(await hasUserWorkspace(oldWorktree, "new-name")).toBe(true);
 
-    await execFileAsync("git", ["worktree", "move", oldWorktree, newWorktree], { cwd: fixture.repo });
+    await execFileAsync("git", ["worktree", "move", "-f", "-f", oldWorktree, newWorktree], { cwd: fixture.repo });
     const replay = await runArcNoTty(["rename", "old-name", "new-name"], newWorktree, { timeout: 20_000 });
     expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
     const movedMarker = JSON.parse(await readFile(

@@ -10,6 +10,7 @@ import { runMaterialize } from "../../src/lib/work-unit/verbs/materialize.js";
 import { MaterializeCommandInputSchema } from "../../src/handlers/lifecycle.js";
 import { createDefaultLocusPorts } from "../../src/lib/work-unit/locus-ports.js";
 import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
+import { readWorktreeLock } from "../helpers/worktree-lock.js";
 import type { WorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 let root: string | undefined;
 afterEach(async () => { if (root !== undefined) await cleanupTempDir(root); root = undefined; });
@@ -52,10 +53,19 @@ describe("store materialize real refs", () => {
     expect(h.marker()).toMatchObject({ spawnedByArc: false, createdFor: { kind: "work-unit", name: "demo" } });
     expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
   }, timeout);
-  it("materializes a released local branch with no origin", async () => {
+  it("materializes --here in a checkout another tool placed and leaves that checkout unlocked", async () => {
+    const h = await fixture(false); const placed = join(h.root, "placed");
+    await h.exec("git", ["worktree", "add", "--detach", placed, "main"]);
+    const input = MaterializeCommandInputSchema.parse({ slug: "demo", here: true });
+    const params = { name: input.slug!, inPlace: true as const, baseBranch: "main", identity: "starter", spawningIdentity: "starter" };
+    expect(await runMaterialize(h.contextAt(placed), params)).toMatchObject({ status: "materialized", inPlace: true, worktreePath: placed });
+    expect(await readWorktreeLock(h.exec, placed)).toBeUndefined();
+  }, timeout);
+  it("materializes a released local branch with no origin, its checkout locked", async () => {
     const h = await fixture(); await h.exec("git", ["branch", "feat/demo", "main"]);
     expect(await runMaterialize(h.ctx, h.params)).toMatchObject({ status: "materialized", branch: "feat/demo", worktreePath: h.path });
     expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"], { cwd: h.path })).stdout).toBe("feat/demo");
+    expect(await readWorktreeLock(h.exec, h.path)).toBe(PROJECTION_LOCK_REASON);
     expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).version).toEqual(h.meta.version);
   }, timeout);
   it("materializes a remote-only link --here at its fetched tip", async () => {

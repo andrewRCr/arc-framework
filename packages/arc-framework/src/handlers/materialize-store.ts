@@ -4,6 +4,7 @@ import * as p from "../lib/terminal.js";
 import { refuse } from "./lifecycle-shared.js";
 import type { UserIOContext } from "../commands/user/types.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
+import { warnSpawnLock } from "./spawn-lock.js";
 import { runMaterialize } from "../lib/work-unit/verbs/materialize.js";
 import { listStoreMaterializable, type MaterializeHeldCheckout } from "../lib/work-unit/verbs/materialize-store.js";
 import type { RecordReference } from "../lib/store/identity.js";
@@ -32,5 +33,6 @@ export async function handleStoreMaterialize(input: { name?: string; here?: bool
   if (result.status === "rejected") { refuse(result.reason, result.refusal, result.remedy); return; }
   p.note(`Work unit: ${input.name}\nCheckout: ${result.branch ?? (input.here ? "current HEAD preserved" : "detached")}\nWorktree: ${result.worktreePath}`, "Materialized");
   for (const advisory of result.advisories) p.log.info(advisory);
+  warnSpawnLock(result.worktreePath, result.spawnLock);
   p.outro("Done.");
 }

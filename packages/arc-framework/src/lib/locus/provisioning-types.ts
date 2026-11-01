@@ -6,6 +6,7 @@ import type {
   LinkedWorktreeCreationResult,
 } from "../git/linked-worktree.js";
 import type { WorktreeMarker } from "../git/worktree-marker.js";
+import type { SpawnLock } from "../git/worktree-removal.js";
 import type { RegisteredWorktreeScanResult } from "../git/worktree-roster.js";
 import type { LocusAllocationPlan } from "./allocator.js";
 import type { ProvisioningAuthority } from "./provisioning-authority.js";
@@ -72,6 +73,8 @@ export interface ProvisionTransientLocusDependencies {
     rosterHead: string,
     primaryWorktreePath: string,
   ): Promise<{ kind: "rolled-back" } | { kind: "generation-mismatch" }>;
+  /** Lock a spawned checkout once nothing can roll its spawn back, leaving a lock another tool set first. */
+  lockSpawnedCheckout(worktreePath: string): Promise<SpawnLock>;
 }
 
 export type ProvisioningRefusalReason =
@@ -101,6 +104,8 @@ export interface TransientProvisioningReceipt {
   };
   readonly worktree: { readonly path: string; readonly created: boolean; readonly head: string };
   readonly marker: { readonly state: "ready"; readonly bytes: Buffer };
+  /** The lock a spawned checkout carries; absent for the primary, which is never locked. */
+  readonly lock?: SpawnLock;
 }
 
 export type ProvisionTransientLocusResult =
