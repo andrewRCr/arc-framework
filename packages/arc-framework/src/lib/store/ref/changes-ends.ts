@@ -7,13 +7,13 @@ import { isArchiveRef, isArchiveMetadataPath, type ArchivedFolder } from "./arch
 import { captureArchivedFolders } from "./ended-owners.js";
 import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { missingChangeState, type RefChangeInterval, type ChangeWindowReader, type CapturedChangeWindow } from "./changes-graph.js";
-import { parseRefMetadata, historicalMetadataFailure } from "./metadata.js";
+import { readRefMetadata } from "./metadata.js";
 import { refPrototype } from "./read.js";
 import { readLineageOwners } from "./lineage-resolution.js";
 import { rootFamily } from "./codec.js";
 import { parseStoreCommitProvenance } from "../commit-provenance.js";
 import { changeCommitMessage } from "./changes-graph.js";
-import { refDiagnosticRefusal } from "./object-fault.js";
+import { refDiagnosticRefusal, refObjectFault } from "./object-fault.js";
 
 /** Endpoint folders, every owner whose end evidence changed inside the interval, and each origin whose lineage it wrote. */
 export interface ChangeEnds {
@@ -60,7 +60,7 @@ async function readEndSnapshots(context: RefBackendContext, interval: RefChangeI
   for (const key of endpointTips.keys()) {
     const boundary = key.indexOf("|"), side = key.slice(0, boundary), ref = key.slice(boundary + 1);
     const entries = trees.get(key);
-    if (!entries) return { status: "refused", refusal: missingChangeState({ ref, version: side === "before" ? input.from : input.to }) };
+    if (!entries) return { status: "refused", refusal: missingChangeState({ ref, version: side === "before" ? input.from : input.to }, []) };
     const folders = endFolders(ref, entries, objects, owners);
     if (folders.status === "refused") return folders;
     (side === "before" ? result.before : result.after).push(...folders.result);
@@ -155,8 +155,10 @@ function lineageEndOwners(context: RefBackendContext, entries: readonly RefTreeE
   const home = expandStoredPath(prototype, { registry: context.registry });
   if (entries.every(({ path }) => path === home.metadataPath || path === home.manifestPath.slice(0, -1) || path.startsWith(home.manifestPath))) return { status: "ok", result: new Set() };
   const entry = entries.find(({ path }) => path === home.metadataPath);
-  const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : null);
-  if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: home.ref, ...historicalMetadataFailure(home.ref) } };
+  const read = readRefMetadata(home.ref, entry, objects);
+  if (read.kind !== "parsed") return { status: "refused", refusal: refObjectFault(home.ref,
+    read.kind === "absent" ? "no-metadata" : read.kind, { saved: true }).refusal };
+  const metadata = read.metadata;
   return { status: "ok", result: new Set(Object.entries(metadata.lineage ?? {}).flatMap(([uid, name]) => {
     const reference = RecordReferenceSchema.parse({ kind: "lineage/transition", owner: { type: "work-item", uid, name } });
     const path = expandStoredPath(reference, { registry: context.registry }).path;

@@ -197,20 +197,11 @@ classification calls the sweep settled.
           remedies. Record-free views keep absence, while missing blobs and empty cohort metadata retain their
           distinct refusals and recover after repair. Saved object-loss refusals retain their snapshot version.
 
-### `[ ]` **3.4 History and changes — § 1.6, § 1.9**
+### `[x]` **3.4 History and changes — § 1.6, § 1.9**
 
 - _Goal:_ `history` and `changes` refuse a missing object recoverably, naming a history ref only for an item with no
   live ref, and never let one escape as a raw Git error; unparseable or absent metadata at a history commit or saved
   state keeps the historical remedy.
-
-- _Note:_ See `notes-storage-ref-hardening.md` § Fault-site inventory › 3.4 and § Classification calls the sweep settled
-  for its sites, their rows and sides.
-
-- _Note:_ Caller-level slug validation for retained work/cohort history closes with this migration, carried from
-  3.1. Live-cohort lookup coverage is in 3.1.c.
-
-- _Note:_ Task 3.4.a brought forward change-window capture and namespace fault classification, plus asynchronous
-  record-event wiring for historical states. The remaining end, restriction, and lifecycle reads close with 3.4.b.
 
     - `[x]` **3.4.a The builders and history**
         - Historical capture retains missing metadata independently of record-free evidence. History, change windows,
@@ -218,21 +209,11 @@ classification calls the sweep settled.
           gaps keep their routes. Retired-home fallback requires lost blobs restored and offers forward metadata repair;
           its scan still uses an older slug. Retained work/cohort histories reject invalid owner metadata before decoding.
 
-    - `[ ]` **3.4.b Changes**
-        - `captureChangeWindow`, `checkWindowTips`, `changeNamespaceFacts`, the end and record reads in
-          `changes-ends.ts` and `changeWindowReferences`, the restricted paths in `changes-scope.ts`, and the commit
-          reads, walks, and `retirementCommit`'s ancestry check in `changes-lifecycle.ts`. `originEndBefore`'s operands
-          come from the history it already walked, so its check stays as it is.
-        - Build `test-first` (one behavior at a time):
-            - a change window whose revision tree is missing refuses **Missing**
-            - a window revision whose metadata blob is missing refuses **Missing** where its tree holds records, and
-              reads as record-free where it holds none
-            - a window endpoint with unparseable metadata refuses with the historical remedy
-            - a missing `lineage/conflict-record` blob refuses **Missing**, not as a path that does not decode
-            - a name-restricted and a lineage-restricted comparison over a manifest tip this clone lacks each refuse
-              **Missing**, recoverably
-            - an object missing from the lower bound's ancestry, which the walk did not read, makes
-              `retirementCommit`'s ancestry check refuse **Missing** instead of throwing
+    - `[x]` **3.4.b Changes**
+        - Change enumeration retains metadata facts and detects lost lineage-conflict payloads before path decoding.
+          Lifecycle walks and retirement ancestry use current-tip repair routes and confirm object loss, preserving
+          unrelated Git failures and coordinate gaps. Saved-end metadata keeps historical remedies; named and lineage
+          restrictions preserve Missing through exact-object restoration and retry.
 
 ### `[ ]` **3.5 Pull merges, tip checks, fetch checks, and push exclusion — § 1.7, § 1.9**
 
