@@ -52,7 +52,7 @@ describe("base-stamp recovery", () => {
       content: "one\ntwo\nthree\n", entry: entryAt("one\nfive\nfour\n", third), format: "sha1",
       memo: createHistoryMemo(store), readCopy: noCopy,
     });
-    expect(recovered).toEqual({ status: "ok", result: { kind: "stored", version: first, content: "one\ntwo\nthree\n" } });
+    expect(recovered).toEqual({ status: "ok", result: { kind: "stored", version: first } });
   });
 
   it("takes the closest candidate by line diff, among the index's version and the five newest", async () => {
@@ -62,9 +62,9 @@ describe("base-stamp recovery", () => {
       content: "a\nb\nc\nE\n", entry: entryAt("a\nY\nX\nZ\n", third), format: "sha1",
       memo: createHistoryMemo(store), readCopy: noCopy,
     });
-    expect(await recover()).toEqual({ status: "ok", result: { kind: "stored", version: first, content: "a\nb\nc\nd\n" } });
+    expect(await recover()).toEqual({ status: "ok", result: { kind: "stored", version: first } });
     await versions(...[4, 5, 6, 7, 8].map((n) => `a\nY\nX\nZ\nn${n}\n`));
-    expect(await recover()).toEqual({ status: "ok", result: { kind: "stored", version: third, content: "a\nY\nX\nZ\n" } });
+    expect(await recover()).toEqual({ status: "ok", result: { kind: "stored", version: third } });
   });
 
   it("breaks a tie for the content taken in, then for the newer version", async () => {
@@ -75,9 +75,9 @@ describe("base-stamp recovery", () => {
       content: "a\nb\ne\n", entry: entryAt("q\nr\ns\n", third, persisted), format: "sha1",
       memo: createHistoryMemo(store), readCopy,
     });
-    expect(await recover(null)).toEqual({ status: "ok", result: { kind: "stored", version: second, content: "a\nb\nd\n" } });
+    expect(await recover(null)).toEqual({ status: "ok", result: { kind: "stored", version: second } });
     expect(await recover({ stamp, takenIn: { kind: "landed", version: first } }))
-      .toEqual({ status: "ok", result: { kind: "stored", version: first, content: "a\nb\nc\n" } });
+      .toEqual({ status: "ok", result: { kind: "stored", version: first } });
     const copy = "a\nb\nf\n";
     const readCopy = (name: string) => (name === "kept" ? Promise.resolve(copy) : noCopy(name));
     expect(await recover({ stamp, takenIn: { kind: "copy", name: "kept", blob: gitBlobId(copy, "sha1") } }, readCopy))

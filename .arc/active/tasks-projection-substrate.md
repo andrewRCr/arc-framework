@@ -273,35 +273,19 @@ stamp parsing strips (§ 3.3, § 3.4).
   replaced version on a tie, so a tie never merges from the newer one over it, and a `history` refusal is returned for
   2.9's arm. Covered in `unit/store/projection/stampless.test.ts`.
 
-### `[ ]` **2.9 A seeded projection, a wrapping store for tests, and the `history` refusal's arms — § 3.5, § 3.7**
+### `[x]` **2.9 A seeded projection, a wrapping store for tests, and the `history` refusal's arms — § 3.5, § 3.7**
 
 - _Goal:_ Tests of Phase 3 and of `projection-write-back` start from a real projection — stamped files and a matching
   index — before full materialization (`projection-worktrees`) exists, so no test hand-builds index entries, and one
   test store returns the `history` refusal the reference backend cannot, over which recovery's and a stopped
   replacement's arms for that refusal are built.
 
-    - A helper under `__tests__/helpers/store/projection/` writes the records a store lists at the paths its caller
-      gives, stamped and rendered through 2.5.c, and the index 2.2.a describes, in a real temporary repository;
-      `projection-worktrees`' full materialization replaces it in the tests that exercise materialization itself.
-    - A test store under `__tests__/helpers/store/projection/` wraps the reference backend and returns
-      `state-unresolvable` (`lib/store/refusal.ts`) naming a missing history ref on `history` for the records
-      a test names, which the reference backend, holding no history refs, cannot (spec § 1.5); `projection-write-back`
-      extends it with the write refusals. Its refs take the shipped shape, an owner's lowercase stored UID
-      (`HistoryRefSchema`, `lib/store/refusal.ts`), and the history entries it passes through may carry a
-      `creationReceipt` (`HistoryEntrySchema`, `lib/store/contract.ts`), since both schemas are strict.
-    - Over that store, this task builds 2.6's and 2.8's arms for a `history` refusing `state-unresolvable`: recovery
-      chooses between the index's version and the content taken in alone and pulls nothing (2.6), and a file with an
-      in-progress record that equals neither version stays pending and reported, written back nowhere, until a read
-      succeeds (2.8).
-    - Build `test-first` (one behavior at a time):
-        - a seeded worktree's files are clean against its index by the racy rule once the reference is newer than
-          them
-        - the wrapping store refuses `history` for a named record with a history ref that parses, and passes every
-          other call through
-        - under a `history` refusing `state-unresolvable`, recovery chooses between the index's version and the content
-          taken in, and records no pull
-        - under a `history` refusing `state-unresolvable`, a file with an in-progress record that equals neither version
-          stays pending and reported, sends nothing, and records no pull
+- _Outcome:_ `seedProjection` and `createHistoryRefusingStore` (`__tests__/helpers/store/projection/`), the latter
+  counting every operation so a test shows nothing was pulled or sent. Under the refusal, recovery takes a kept copy
+  sharing a non-blank line with the file, else a version the write landed, being the older base, else the index's
+  version; a `stored` result no longer carries content, since the store merges from its own. `readStamplessFile`
+  answers `pending` with the refusal. Covered in `unit/store/projection/history-refusal.test.ts` and
+  `integration/store/projection/seeded-projection.test.ts`.
 
 ## **Phase 3:** Reading and replacing
 

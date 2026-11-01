@@ -48,9 +48,12 @@ export interface BaseRecoveryInput {
   readonly readCopy: (name: string) => Promise<string>;
 }
 
-/** The recovered base: a stored version, which goes to the store as the expected version, a kept copy, or empty. */
+/**
+ * The recovered base: a stored version, which goes to the store as the expected version so the store merges from its
+ * own content, a kept copy, or empty, which merge in the checkout.
+ */
 export type RecoveredBase =
-  | { readonly kind: "stored"; readonly version: RecordVersion; readonly content: string }
+  | { readonly kind: "stored"; readonly version: RecordVersion }
   | { readonly kind: "copy"; readonly content: string }
   | { readonly kind: "empty" };
 
@@ -62,41 +65,57 @@ export type RecoveredBase =
 export async function recoverBase(input: BaseRecoveryInput): Promise<StoreResult<RecoveredBase>> {
   const { content, entry } = input;
   // The index's version first, by its blob id, so a file still holding it reads no history.
-  if (gitBlobId(content, input.format) === entry.base.blob) {
-    return found({ kind: "stored", version: entry.base.version, content });
-  }
+  if (gitBlobId(content, input.format) === entry.base.blob) return found({ kind: "stored", version: entry.base.version });
   const history = await input.memo.read(entry.reference);
-  if (history.status === "refused") return history;
+  if (history.status === "refused") {
+    return history.refusal.code === "state-unresolvable" ? found(await withoutHistory(input)) : history;
+  }
   const stored = storedVersions(history.result);
-  const exact = stored.find((version) => version.content === content);
-  if (exact !== undefined) return found(exact);
-  return found(closest(content, await candidates(input, stored)) ?? { kind: "empty" });
+  const exact = stored.find((candidate) => candidate.content === content);
+  if (exact !== undefined) return found(exact.base);
+  return found(closest(content, await candidates(input, stored))?.base ?? { kind: "empty" });
+}
+
+/**
+ * Where `history` refuses `state-unresolvable`, recovery pulls nothing and chooses between the index's version and the
+ * content taken in alone. Only a kept copy's content is local: it is taken where the diff matches a non-blank line of the
+ * file. A version the write landed, whose content is not local either, is taken over the index's version, being the
+ * older base, so a stale buffer's save never merges against a later refresh and undoes it.
+ */
+async function withoutHistory(input: BaseRecoveryInput): Promise<RecoveredBase> {
+  const indexed = { kind: "stored" as const, version: input.entry.base.version };
+  const takenIn = input.entry.persisted?.takenIn;
+  if (takenIn === undefined) return indexed;
+  if (takenIn.kind === "landed") return { kind: "stored", version: takenIn.version };
+  const copy = await input.readCopy(takenIn.name);
+  return lineDistance(input.content.split("\n"), copy.split("\n")).matched ? { kind: "copy", content: copy } : indexed;
 }
 
 /** How many newest versions recovery compares beside the index's version and the content taken in. */
 const VERSION_WINDOW = 5;
 
 /** The candidates in the order a tie goes: the content taken in, then each stored version newest first. */
-async function candidates(input: BaseRecoveryInput, stored: readonly StoredBase[]): Promise<CandidateBase[]> {
+async function candidates(input: BaseRecoveryInput, stored: readonly StoredCandidate[]): Promise<Candidate[]> {
   const takenIn = input.entry.persisted?.takenIn;
-  const landed = takenIn?.kind === "landed" ? stored.find((version) => version.version === takenIn.version) : undefined;
-  const first = takenIn?.kind === "copy" ? { kind: "copy" as const, content: await input.readCopy(takenIn.name) } : landed;
-  const versions = stored.filter((version, index) => version !== landed
-    && (index < VERSION_WINDOW || version.version === input.entry.base.version));
+  const landed = takenIn?.kind === "landed" ? stored.find((candidate) => candidate.base.version === takenIn.version) : undefined;
+  const copy = takenIn?.kind === "copy" ? await input.readCopy(takenIn.name) : undefined;
+  const first = copy === undefined ? landed : { base: { kind: "copy" as const, content: copy }, content: copy };
+  const versions = stored.filter((candidate, index) => candidate !== landed
+    && (index < VERSION_WINDOW || candidate.base.version === input.entry.base.version));
   return first === undefined ? versions : [first, ...versions];
 }
 
 /** The candidate with the fewest lines changed among those the diff matches a non-blank line with; the first wins a tie. */
-function closest(content: string, bases: readonly CandidateBase[]): CandidateBase | undefined {
+function closest(content: string, candidates: readonly Candidate[]): Candidate | undefined {
   const lines = content.split("\n");
-  let best: { base: CandidateBase; changed: number } | undefined;
-  for (const base of bases) {
-    const comparison = lineDistance(lines, base.content.split("\n"));
+  let best: { candidate: Candidate; changed: number } | undefined;
+  for (const candidate of candidates) {
+    const comparison = lineDistance(lines, candidate.content.split("\n"));
     if (comparison.matched && (best === undefined || comparison.changed < best.changed)) {
-      best = { base, changed: comparison.changed };
+      best = { candidate, changed: comparison.changed };
     }
   }
-  return best?.base;
+  return best?.candidate;
 }
 
 /**
@@ -115,14 +134,19 @@ export function lineDistance(left: readonly string[], right: readonly string[]):
   return { matched, changed };
 }
 
-type CandidateBase = Exclude<RecoveredBase, { kind: "empty" }>;
-type StoredBase = Extract<RecoveredBase, { kind: "stored" }>;
+/** A base recovery compares, with the content it is compared by. */
+interface Candidate {
+  readonly base: Extract<RecoveredBase, { kind: "stored" }> | Extract<RecoveredBase, { kind: "copy" }>;
+  readonly content: string;
+}
+
+/** A stored version as a candidate. */
+interface StoredCandidate extends Candidate { readonly base: Extract<RecoveredBase, { kind: "stored" }> }
 
 /** The record's versions newest first, its removals left out. */
-function storedVersions(history: readonly HistoryEntry[]): StoredBase[] {
-  return history.flatMap((entry): StoredBase[] => (
-    entry.version === null || entry.content === null ? [] : [{ kind: "stored", version: entry.version, content: entry.content }]
-  ));
+function storedVersions(history: readonly HistoryEntry[]): StoredCandidate[] {
+  return history.flatMap((entry) => (entry.version === null || entry.content === null ? []
+    : [{ base: { kind: "stored" as const, version: entry.version }, content: entry.content }]));
 }
 
 function found(base: RecoveredBase): StoreResult<RecoveredBase> {

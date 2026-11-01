@@ -5,7 +5,7 @@
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { RecordVersion } from "../identity.js";
-import type { StoreResult } from "../refusal.js";
+import type { StoreRefusal, StoreResult } from "../refusal.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
 import { lineDistance, type HistoryMemo } from "./base-recovery.js";
 import { readStat } from "./change-detection.js";
@@ -21,7 +21,12 @@ export type StamplessRead =
   /** It holds what the projection wrote, or a version a replacement in progress names. */
   | { readonly kind: "unedited" }
   /** An edit, merging from this base. */
-  | { readonly kind: "edit"; readonly base: RecordEntry["base"] };
+  | { readonly kind: "edit"; readonly base: RecordEntry["base"] }
+  /**
+   * Neither version of a replacement in progress could be read, so the file takes neither: it stays pending and is
+   * reported with the refusal, written back nowhere, until a read succeeds.
+   */
+  | { readonly kind: "pending"; readonly refusal: StoreRefusal };
 
 /** What the read compares. */
 export interface StamplessReadInput {
@@ -53,7 +58,10 @@ export async function readStamplessFile(input: StamplessReadInput): Promise<Stor
   // Old content a stopped replacement left reads as unedited, so it is refreshed and never written back over the newer.
   if (blob === inProgress.replaces.blob) return read({ kind: "unedited" });
   const history = await input.memo.read(entry.reference);
-  if (history.status === "refused") return history;
+  if (history.status === "refused") {
+    // Taking either version unread could write old content over the newer one.
+    return history.refusal.code === "state-unresolvable" ? read({ kind: "pending", refusal: history.refusal }) : history;
+  }
   const contentOf = (version: RecordVersion): string | null =>
     history.result.find((each) => each.version === version)?.content ?? null;
   const lines = input.text.replaceAll("\r\n", "\n").split("\n");

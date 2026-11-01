@@ -68,7 +68,9 @@ non-blank line with: the content the last persisted write-back took in, the inde
 versions, a tie going to that content and then the newer version. Content sharing no non-blank line with any candidate
 takes an empty base. A stored version goes to the store as the expected version; a kept copy and the empty base merge in
 the checkout. `history` is read through a memo the command holds, one whole answer per record until a landed write
-drops it.
+drops it. Where `history` refuses `state-unresolvable`, recovery pulls nothing and chooses between the index's version
+and the content taken in alone: a kept copy where it shares a non-blank line with the file, a version the write landed,
+being the older base, and otherwise the index's version.
 
 `taken-in.ts` records what a persisted write-back took in — a write that landed, whether or not the store's merge filed
 conflicts or an entry was refused beside it — with the stamp it read, and leaves the record as it was after any other
@@ -84,7 +86,8 @@ closer of a kept copy and the version the read-back laid.
 base, so a file restored to an older version is an edit, and an empty file is read only once its modification time is
 50 ms old. While a replacement is in progress, the entry also names the version it replaces and the aside copy its batch
 makes: content equal to that version reads as unedited, so it is refreshed and never written back over the newer
-version, and content matching neither version merges from the closer of the two, read through `history`. Every deleter
+version, and content matching neither version merges from the closer of the two, read through `history`; where that
+read refuses `state-unresolvable`, the file takes neither and stays pending, reported with the refusal. Every deleter
 of an aside copy deletes through `deleteAsideCopy`, which clears the copy's record, and the in-progress record where it
 names that copy and the file holds what the batch linked there, by the file identity the entry records.
 
