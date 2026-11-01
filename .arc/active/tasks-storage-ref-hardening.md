@@ -353,6 +353,8 @@ transport failure is a per-remote outcome.
   after location filtering, matching § 2's in-repo absence rule while saved and check views retain their own rule.
   Broader feedback also found metadata-only and repaired empty review-listing assertions still expecting live
   `complete`; those expectations now require `absent`, preserving the saved and diagnostic-bearing cases.
+  The 4.4 store run found the same old expectation after a location filter emptied a live listing; its fixture now
+  distinguishes that live `absent` result from the checked and saved views' retained `complete` results.
 
 - _Outcome:_ Shared captured-ref owner selection now scopes current, saved, and prepared listings before decoding;
   archived folders retain unknown ownership and root diagnostics. Live result assembly classifies empty filtered
@@ -408,14 +410,15 @@ transport failure is a per-remote outcome.
           migration refusal mapper. Resume and cleanup retain the exact move record and remote state, and all three
           paths continue after URL repair. Existing cleanup object and capacity refusals retain their own remedies.
 
-### `[ ]` **4.4 Exercise the caller-observable group through public calls** — validate exit criterion at segment scope
+### `[x]` **4.4 Exercise the caller-observable group through public calls** — validate exit criterion at segment scope
 
 - _Goal:_ Through public store calls and their consumers, the § 1–§ 4 group behaves as Phase 4's exit criterion
   states, and the store suites and the unit tests pass.
 
-    - Run the exit criterion's scenarios through public store calls, among them the restore-then-succeed cases 3.1.a,
-      3.3.a, and 3.5.a add for the read, the write, the pull, and the push.
-    - Then run `npx arc check run test:store` and `npx arc check segment`, and record what each found.
+- _Outcome:_ Public store and consumer scenarios exercise restoration, history retry routing, owner isolation,
+  designation questions, and transport failures. The store gate reached 363 suites and passed all six shards after
+  the live filtered-empty expectation correction recorded on 4.1. Scenario, store, and segment evidence is retained
+  as `task-4.4-*` in the implementation evidence directory.
 
 ## **Phase 5:** The import's fixes
 
