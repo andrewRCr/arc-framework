@@ -248,3 +248,30 @@ it("publishes and retires origin transients despite an unavailable read source",
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", transientSourceRef])).stdout).toBe("");
   expect((await h.git("git", ["for-each-ref", "--format=%(refname)", keptPrefix])).stdout).toBe("");
 });
+
+it("keeps an imported landing pending at one rendered designation question", async () => {
+  const h = await importFixture();
+  let questioned = false;
+  h.ports.migrateStep = async step => {
+    if (step !== "import.publish" || questioned) return;
+    questioned = true;
+    await h.git("git", ["config", "--unset", "remote.origin.arc-state"]);
+  };
+  const result = await h.migrate();
+  expect(questioned).toBe(true);
+  expect(result).toMatchObject({ status: "refused", refusal: { code: "move-unfinished",
+    condition: expect.stringContaining("Remote origin needs a store designation."),
+    remedy: { argv: ["arc", "store", "migrate", "--import"] } } });
+  if (result.status !== "refused" || result.refusal.code !== "move-unfinished") throw new Error("Expected pending publication");
+  const rendered = `${result.refusal.condition} ${result.refusal.remedy.text}`;
+  expect(rendered.split("arc store remote origin push")).toHaveLength(2);
+  const refs = async () => (await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)",
+    "refs/arc/work/", "refs/arc/cohort/", "refs/arc/project/"])).stdout;
+  const landed = await refs();
+  expect(landed.split("\n").filter(Boolean)).toHaveLength(4);
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
+  await h.git("git", ["config", "remote.origin.arc-state", "push"]);
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  expect(await refs()).toBe(landed);
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(landed);
+}, 30_000);

@@ -119,8 +119,13 @@ it.each(stoppingPublicationStates)("retains archive completion until publication
     if (key === "push") return () => blocked ? Promise.resolve({ status: "ok", result: { states: [state], pulls: [], publishes: [] } }) : target.push();
     const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
   } });
-  expect(await archive(store, "example")).toMatchObject({ status: "rejected", persisted: true,
-    remedy: { text: expect.stringContaining(publicationRepair.text), argv: ["arc", "archive", "example"] } });
+  const first = await archive(store, "example");
+  expect(first).toMatchObject({ status: "rejected", persisted: true, remedy: { argv: ["arc", "archive", "example"] } });
+  if (state.status === "designation-needed") {
+    expect(first).toMatchObject({ reason: expect.stringContaining(publicationRepair.text) });
+    if (first.status !== "rejected") throw new Error("Expected pending publication");
+    expect(`${first.reason} ${first.remedy?.text ?? ""}`.split(publicationRepair.text)).toHaveLength(2);
+  } else expect(first).toMatchObject({ remedy: { text: expect.stringContaining(publicationRepair.text) } });
   const completed = lifecycleSuccess(await h.store.read({ reference: meta.reference }));
   expect(completed.placement).toMatchObject({ kind: "completed" });
   blocked = false;

@@ -23,8 +23,8 @@ export async function maintainSelectedStore(store: Store): Promise<MaintainResul
   return result.result;
 }
 
-// An unfinished move stops nothing: it travels beside whatever the pull reports, never as an issue of its own.
-function projectPull(result: StorePullResult): PullResult {
+/** Project pull outcomes and states; an unfinished move remains advisory beside the pull. */
+export function projectPull(result: StorePullResult): PullResult {
   const notices = result.pulls.flatMap(pull => pull.notices);
   const advisories = result.states.flatMap(state => state.status === "move-unfinished"
     ? [{ condition: state.condition, remedy: state.remedy }] : []);

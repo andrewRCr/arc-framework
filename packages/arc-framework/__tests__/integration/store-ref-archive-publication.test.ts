@@ -107,3 +107,25 @@ it.each(["primary", "cohort-closeout"] as const)("completes local-only %s beside
   expect(await archive(h.a.store, h.a.root)).toMatchObject({ status: "archived" });
   expect(success(await h.a.store.read({ reference: made.reference })).version).toBe(completed.version);
 }, 30_000);
+
+it("keeps a persisted archive pending at one rendered designation question and finishes after the answer", async () => {
+  const h = await refSyncFixture();
+  success(await h.a.store.write({ action: "put", reference: identity, expected: null,
+    content: JSON.stringify({ projectId: project }), provenance }));
+  const made = success(await h.a.store.write({ action: "put", reference, expected: null, placement: { kind: "active" }, provenance,
+    content: renderMetaFile("example", { state: "Active", owner: "andrew", workClass: "Light", currentWorkflow: "process-task-loop" }) }));
+  await h.a.git(["config", "--unset", "remote.origin.arc-state"]);
+  const first = await archive(h.a.store, h.a.root);
+  expect(first).toMatchObject({ status: "rejected", persisted: true,
+    reason: expect.stringContaining("Remote origin needs a store designation."), remedy: { argv: ["arc", "archive", "example"] } });
+  if (first.status !== "rejected") throw new Error("Expected pending archive publication");
+  expect(`${first.reason} ${first.remedy?.text ?? ""}`.split("arc store remote origin push")).toHaveLength(2);
+  const completed = success(await h.a.store.read({ reference: made.reference }));
+  expect(completed.placement?.kind).toBe("completed");
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/archive/"])).stdout).toBe("");
+  await h.a.git(["config", "remote.origin.arc-state", "push"]);
+  expect(await archive(h.a.store, h.a.root)).toMatchObject({ status: "archived", destination: { sequence: "01" } });
+  expect(success(await h.a.store.read({ reference: made.reference })).version).toBe(completed.version);
+  expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", "refs/arc/archive/"])).stdout.trim())
+    .toBe("refs/arc/archive/2026-q4");
+}, 30_000);

@@ -1,6 +1,7 @@
 /** Atomic work-unit and cohort closeout over backend-assigned archive coordinates. */
 import { posix } from "node:path";
-import type { PushResult } from "../../store/sync.js";
+import type { PushResult, SyncState } from "../../store/sync.js";
+import { projectPull } from "../../store/operational-sync-bindings.js";
 import type { Store } from "../../store/contract.js";
 import { ArchiveQuarterSchema } from "../../kernel/index.js";
 import { ParsedMetaRecordSchema } from "../../active/meta-schema.js";
@@ -22,7 +23,7 @@ import { executeTransition } from "../lifecycle-executor.js";
 import { revalidateLifecycleRecords } from "../prepared-lifecycle-write.js";
 import { isArchivalTriggeredWithDescendants } from "../lifecycle-membership.js";
 import { observeOpenCohorts, type OpenCohort } from "../../store/kinds/cohort/check-support.js";
-import { pullOutcomeNotices, renderExplained } from "../../store/pull-consumption.js";
+import { consumePull, pullOutcomeNotices, renderExplained } from "../../store/pull-consumption.js";
 import type { ArchiveContext, ArchiveParams, ArchiveResult } from "./archive.js";
 
 /** Close session context and every newly completed cohort in the transition's single batch. */
@@ -149,10 +150,16 @@ function archivePublicationHold(name: string, result: PushResult): Extract<Archi
   for (const stopped of result.states) {
     if (stopped.status === "no-remote" || stopped.status === "no-identity") continue;
     if (stopped.status === "move-unfinished" && allowsArchiveCleanupAdvisory(result)) continue;
-    return persistedFailure(name, "condition" in stopped ? stopped.condition
-      : "Archive publication requires the reported remote setting to be repaired.", stopped.remedy);
+    return archiveStateFailure(name, stopped, result);
   }
   return undefined;
+}
+
+function archiveStateFailure(name: string, stopped: Exclude<SyncState, { status: "no-remote" }>,
+  result: PushResult): Extract<ArchiveResult, { status: "rejected" }> {
+  const question = stopped.status === "designation-needed" ? consumePull(projectPull(result)).designationNotice : undefined;
+  return question ? persistedFailure(name, question) : persistedFailure(name, "condition" in stopped ? stopped.condition
+    : "Archive publication requires the reported remote setting to be repaired.", stopped.remedy);
 }
 
 /** Cleanup is advisory when no remote is used or archive publication is reported separately. */

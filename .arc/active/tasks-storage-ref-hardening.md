@@ -359,14 +359,10 @@ transport failure is a per-remote outcome.
   results as `absent`; saved and check views retain kind-scoped absence. Native consumer cases exercise lifecycle
   writes and write checks beside damaged unrelated refs. Evidence: `task-4.1-*` in the implementation evidence directory.
 
-### `[ ]` **4.2 Every pull consumer renders a designation question — § 3**
+### `[x]` **4.2 Every pull consumer renders a designation question — § 3**
 
 - _Goal:_ A pull that raises a designation question shows it once, with its remedy and command, in every consumer, and
   the history-retry paths stop on it instead of failing with a bare `state-unresolvable`.
-
-- _Note:_ Its cases land beside the consumers' unit tests (`unit/lib/store/pull-consumption.test.ts`,
-  `unit/handlers/status/store-locus-pull.test.ts`, `unit/errand/store-runtime.test.ts`,
-  `unit/errand/promote-store-runtime.test.ts`) or in a `store-ref-*` suite.
 
     - `[x]` **4.2.a The helper and the retry paths**
         - _Note:_ Test type-check feedback required the designation fixture's choices to retain the native role union.
@@ -375,27 +371,21 @@ transport failure is a per-remote outcome.
           question; saved history puts it in the refusal and join keeps its own presentation, suppressing the notice.
           Evidence: `task-4.2.a-*` in the implementation evidence directory.
 
-    - `[ ]` **4.2.b The consumers move onto the helper**
+    - `[x]` **4.2.b The consumers move onto the helper**
         - _Note:_ Pulled `store-user-pull.ts`'s designation summary onto the helper during 4.2.a after join feedback
           exposed duplicate aggregate and partial-state remedies; § 3 already requires one rendered question.
           Related status feedback then exposed its duplicate command append, removed here as the helper supplies it.
-        - Through `pullSelectedStore` (`operational-sync-bindings.ts`) with `pullDesignation`: `runStoreRename`
-          (`rename-store.ts`) and `conflictHistory` (`conflict-command.ts`) through `pullHistoryForRetry`;
-          `store-user-pull.ts`; and `pullStoreStatus` (`handlers/status/store-locus.ts`).
-        - The push-result consumers, the import's publication (`import/finish.ts`) and `archivePublicationHold`
-          (`lib/work-unit/verbs/archive-store.ts`), find a designation question through `pullDesignation` over
-          `projectPull` (`operational-sync-bindings.ts`), exported, over the push result's `pulls` and `states`, and
-          stop on it with the helper's rendering, dropping their own designation text. Each keeps its own handling of
-          publish outcomes, failed pulls, and other states, whose typed refusals the helper's rendered stop would lose.
-        - The helper's callers that omit `pullDesignation` — `errand/store-runtime.ts`,
-          `errand/promote-store-runtime.ts`, `handlers/errand-entry-storage.ts` — receive the rendered notice.
-        - Build `test-first` (one behavior at a time):
-            - the retry consumers show the question and its remedy and return the refusal they hold
-            - `pullStoreStatus` gives a partial designation question its command, which only a top-level one gets
-              today; `store-user-pull.ts` renders the question once
-            - the import's publication and archive's publication hold each stop on a push's designation question with
-              the helper's rendering
-            - each errand runtime shows the rendered notice
+          An initial native import fixture with a declared read source selected the separate layout before the
+          question; the corrected native case isolates first designation on an empty origin. Lint feedback extracted
+          archive state rendering to keep its publication hold within the complexity limit. Unit feedback supplied
+          adoption's fixture clock; architecture lint moved conflict coverage to the public native command, whose
+          question notices are captured from standard error. Related archive feedback updated its designation
+          assertion to locate the repair once in the shared rendered reason, retaining the archive retry command
+          and the other states' remedy-field checks.
+        - Exported `projectPull`; import and archive publication stops now use the shared question rendering while
+          retaining their own typed failures, read-source exemptions, cleanup policies, and publication retries.
+          Consumer cases cover rename, conflict, status, session orientation, and each errand runtime, including
+          partial designation results. Evidence: `task-4.2.b-*` in the implementation evidence directory.
 
 ### `[ ]` **4.3 Transport failures become per-remote outcomes or typed refusals — § 4**
 

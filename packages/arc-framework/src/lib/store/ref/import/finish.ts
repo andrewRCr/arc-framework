@@ -5,6 +5,8 @@ import { migrateNoticeFromPull } from "../../commands.js";
 import type { RefBackendContext } from "../context.js";
 import type { StoreRefusal, Remedy } from "../../refusal.js";
 import type { PullOutcome } from "../../sync.js";
+import { consumePull } from "../../pull-consumption.js";
+import { projectPull } from "../../operational-sync-bindings.js";
 import { retireImportLocals, retireImportRemote } from "./transient-cleanup.js";
 
 /** A retry publishes the existing landing through the same store synchronization operation. */
@@ -23,6 +25,8 @@ export async function publishImport(context: RefBackendContext, store: Store, re
   const missingIdentity = pushed.result.states.find(({ status }) => status === "no-identity");
   if (missingIdentity?.status === "no-identity") report.notices.push({ condition: "Only project state was synchronized because no personal identity is configured.", remedy: missingIdentity.remedy });
   const state = pushed.result.states.find(({ status }) => status !== "no-remote" && status !== "no-identity");
+  const question = consumePull(projectPull(pushed.result)).designationNotice;
+  if (state?.status === "designation-needed" && question) return unfinished(question, { text: "Complete the requested designation." });
   if (state && "remedy" in state) return unfinished(`State publication reported ${state.status}.`, state.remedy);
   const retired = await retireImportRemote(context, report);
   if (retired) return retired;
