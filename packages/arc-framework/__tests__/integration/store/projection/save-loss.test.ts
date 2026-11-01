@@ -15,10 +15,12 @@ import {
   prepareRemoval, prepareSwap, SWAP_PATH, SWAP_WRITER, type PrepareSwapOptions,
 } from "../../../helpers/store/projection/swap-fixture.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
+import { settleAsideCopy } from "../../../../src/lib/store/projection/aside-copies.js";
 import { readReference } from "../../../../src/lib/store/projection/change-detection.js";
 import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import type { ProjectionIndex } from "../../../../src/lib/store/projection/index-schema.js";
 import type { ProjectionLocation } from "../../../../src/lib/store/projection/location.js";
+import { SETTLE_WINDOW_NS, SYSTEM_READ_GATE, wallClockNs } from "../../../../src/lib/store/projection/read-gate.js";
 import { guardReplacement } from "../../../../src/lib/store/projection/replace-guard.js";
 import { runSecondCheck } from "../../../../src/lib/store/projection/second-check.js";
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
@@ -129,6 +131,31 @@ describe("a save timed into a replacement", () => {
       reach("replacement: rescued at the second check");
     });
   }
+
+  it("is kept for the next sweep where a save that truncated before the move stalls past the settle window", async () => {
+    const swap = await swapping();
+    const content = "# Cohort: one\n\nSaved after a stall.\n";
+    let handle: FileHandle | undefined;
+    const batch = await whileHeld(swap.file, { afterRecheck: async () => { handle = await open(swap.file, "r+"); await handle.truncate(0); } },
+      (hooks) => swap.swap({ takeIn: swap.takeIn, hooks }));
+    // The host stalls the save past the settle window across the command's second check, as one did on Windows.
+    const stalled = { ...SYSTEM_READ_GATE, now: () => wallClockNs() + 2n * SETTLE_WINDOW_NS };
+    await runSecondCheck({
+      location: swap.seeded.location, checkout: swap.seeded.checkout, index: batch.index, copies: batch.copies,
+      removals: batch.removals, format: "sha1", takeIn: swap.takeIn, writer: SWAP_WRITER, gate: stalled,
+    });
+    await handle?.write(swap.saved(content), 0);
+    await handle?.close();
+    expect(await swap.stored()).toBe(REFRESHED);
+    const entry = (await indexOnDisk(swap.seeded.location)).entries[swap.path];
+    const [copy] = entry?.kind === "record" ? entry.copies : [];
+    if (entry?.kind !== "record" || copy === undefined) throw new Error("expected the copy kept for the next sweep");
+    await settleAsideCopy({
+      checkout: swap.seeded.checkout, path: swap.path, entry, copy, format: "sha1", takeIn: swap.takeIn, writer: SWAP_WRITER,
+    });
+    expect(await swap.stored()).toBe(content);
+    reach("replacement: kept past the settle window for the next sweep");
+  });
 });
 
 describe("a save timed into a rebuild", () => {

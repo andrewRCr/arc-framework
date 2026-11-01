@@ -20,7 +20,7 @@ import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { readReference, readStat } from "../../../../src/lib/store/projection/change-detection.js";
 import type { FileStat, ProjectionIndex, RecordEntry } from "../../../../src/lib/store/projection/index-schema.js";
 import {
-  gateRead, SETTLE_WINDOW_NS, SYSTEM_READ_GATE, type ReadGateDependencies,
+  gateRead, SYSTEM_READ_GATE, type ReadGateDependencies,
 } from "../../../../src/lib/store/projection/read-gate.js";
 import { guardReplacement } from "../../../../src/lib/store/projection/replace-guard.js";
 import { runSecondCheck } from "../../../../src/lib/store/projection/second-check.js";
@@ -216,12 +216,12 @@ export function startSaver(): Saver {
 }
 
 /**
- * Where one save ended; every outcome but the last two keeps it. A save that left the file empty for longer than the
- * read gate's settle window was, by then, a deleted file to the gate, which reads one emptied that long as deleted.
+ * Where one save ended; every outcome but the last keeps it. A save that leaves the file empty past the read gate's
+ * settle window ends kept aside, in a copy the second check leaves for the next command's sweep.
  */
 export const SAVE_OUTCOMES = [
   "taken in at the re-check", "rescued at the first check", "rescued at the second check", "kept at its path",
-  "kept aside", "failed visibly", "emptied past the settle window", "lost",
+  "kept aside", "failed visibly", "lost",
 ] as const;
 export type SaveOutcome = (typeof SAVE_OUTCOMES)[number];
 
@@ -356,8 +356,7 @@ export async function runSaveLoss(run: SaveLossRun): Promise<SaveLossCounts> {
       await reader?.close();
     }
     if (result === undefined) continue;
-    const found = await whereSaveEnded({ checkout, file, content, result, landed: landed.splice(0) });
-    const outcome = found === "lost" && emptiedFor(result) > SETTLE_WINDOW_NS ? "emptied past the settle window" : found;
+    const outcome = await whereSaveEnded({ checkout, file, content, result, landed: landed.splice(0) });
     outcomes[outcome] += 1;
     if (outcome !== "lost") continue;
     const saverSteps = Object.entries(result.times).map(([step, time]): [string, bigint] => [`saver ${step}`, BigInt(time)]);
@@ -430,12 +429,6 @@ async function holds(path: string, content: string): Promise<boolean> {
 async function filesUnder(root: string): Promise<string[]> {
   const entries = await readdir(root, { recursive: true, withFileTypes: true }).catch(() => []);
   return entries.filter((each) => each.isFile()).map((each) => join(each.parentPath, each.name));
-}
-
-/** How long a save left the file empty, from its open to its write, in nanoseconds; zero for one that never did. */
-function emptiedFor(result: SaverResult): bigint {
-  const { opened, wrote } = result.times;
-  return opened === undefined || wrote === undefined ? 0n : BigInt(wrote) - BigInt(opened);
 }
 
 function entryAt(index: ProjectionIndex, path: string): RecordEntry {
