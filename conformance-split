@@ -3,7 +3,7 @@
   "slug": "conformance-split",
   "claimId": "58bde7d08f4f4875448f600bb45f923a",
   "createdAt": "2026-11-01T01:36:16.790Z",
-  "updatedAt": "2026-11-01T01:36:16.790Z",
+  "updatedAt": "2026-11-01T03:23:50.410Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Split the separate-layout conformance files so no hosted Windows shard runs one file alone",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Split the separate-layout conformance files so no hosted Windows shard runs one file alone",
   "originEntrySourceDigest": "sha256:ddd81aa6fbc9e45e063144075f3b493a2dae706d3b3848da41a14b7ce18a2102",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/conformance-split",
+    "headSha": "518fba5965bcbd60336286df66ea2ac5ecb6bf2a"
+  }
 }
