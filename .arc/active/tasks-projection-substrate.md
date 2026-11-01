@@ -316,86 +316,16 @@ command's sweep takes over the copies a stopped command left.
 
 - **Additional Context:** `notes-projection-substrate.md` § Spike 1, § Spike 1b, § Spike 7
 
-    - `[ ]` **3.2.a The replace guard and the take-in port**
+    - `[x]` **3.2.a The replace guard and the take-in port**
 
-        - Before replacing, the re-check runs the racy rule against a baseline (2.4): the index entry, or, for the file
-          write-back just sent (`projection-write-back`) or just drew a clash into (`projection-write-back`), the stat
-          and blob id write-back read, which the caller passes so its own edit never reads as a new one. On a mismatch
-          the file goes to the take-in, then the guard re-reads the record's current version and restages it, at most
-          three passes. A refused refresh marks the file pending.
-        - The take-in is a port the guard, the second check (3.2.c), the sweep (3.3), and removal (3.4) call, bound to
-          write-back by `projection-write-back`, and a test double until then. It takes the worktree whose file holds
-          the edit, whose rights apply rather than the writer's; the path or the aside copy; its index entry; and its
-          base — the stamp, or, stampless, the base blob id the copy's name carries. It answers `no-edit`, `taken-in`,
-          `deferred`, `refused`, `unparseable`, `clashed` — an edit that merged in the checkout and clashed
-          (`projection-write-back`) — or `pending`.
-        - Every swap's first index write records beside each aside copy, in its file's entry in swap order (2.2.a), the
-          blob id it was moving — what the projection last wrote there or, for write-back's own copies, the blob id
-          write-back read — and the blob id it linked in its place, none for a removal (3.4). Write-back replaces a file
-          itself in two ways — reading back a landed edit (`projection-write-back`), adoption's included, whose
-          verb-owned fields take the minted record's values (`projection-write-back`), and drawing a clash found in the
-          checkout (`projection-write-back`) — and only where it refused nothing the file held
-          (`projection-write-back`), so the aside copy such a swap makes holds nothing write-back has not taken in or,
-          at adoption, deliberately set. A copy holding the blob id its swap was moving, or the one it held when its own
-          take-in landed, answers `no-edit` without reaching the port wherever it is read — at the first and second
-          checks, the sweep, a removal's or release's takeover, and the removal check (`projection-worktrees`); a copy
-          holding anything else goes to the port, checked against its own base stamp or, stampless, the base blob id its
-          name carries.
-        - A copy's path has moved on while it holds anything but the blob id its swap linked — a later save there, a
-          write-back's read-back, another replacement — and, present or absent, once a write-back of it has been sent
-          since the swap; an absent path with no write-back sent since has not moved on, whatever it held before. A copy
-          holding an edit is taken in only while its path has not moved on; once it has, the copy is kept in the aside
-          folder, reported with its path and never sent or merged, until the person deletes it, and the removal check
-          and the persist and release steps refuse over it (`projection-worktrees`). Before each write-back of a path
-          sends an edit (`projection-write-back`), an index write records, beside every aside copy of the path but the
-          one it takes in, that a write-back has been sent since that copy's swap, so a stop after the write lands
-          leaves the record; a send that lands nothing leaves it too, which only keeps a copy. Once a copy's take-in
-          lands, its entry records the blob id the copy held. 2.8's deletion clears a copy's record, and the sweep drops
-          a record whose copy is no longer in the aside folder (3.3).
-        - Every read and every link-back of an aside copy — the first and second checks, a link failing after the move
-          (3.2.b), the sweep and its comparison with no usable index (3.3), a removal's or release's takeover, and the
-          removal check (`projection-worktrees`) — takes an `lstat` first: a copy that is a symbolic link, as a swap
-          moves one aside from a projected path (3.1), answers `no-edit` without being followed or read and is never
-          linked back, its path left absent and pending for the next refresh to rebuild; 2.8's deleters delete it at
-          their usual points.
-        - What each answer does where:
-            - At the guard: `no-edit` re-records the file's stat as its baseline and replaces it; `taken-in` takes the
-              next pass; `deferred`, `pending`, `refused`, and `unparseable` leave the file unreplaced and pending, its
-              edit in place, a refused or unparseable one also marked refused; `clashed` leaves it unreplaced too,
-              holding its clash's markers (`projection-write-back`), pending.
-            - At the second check and the sweep: a copy is deleted only once it answers `no-edit` or its `taken-in` edit
-              has landed whole; a `deferred` or `pending` copy stays in the aside folder for the next command's sweep,
-              which sends it again while its path has not moved on; a `refused`, `unparseable`, or `clashed` one goes as
-              3.2.c states; and a copy holding an edit once its path has moved on is kept, reported with its path.
-            - At a removal's or release's takeover there is no next sweep: a `deferred` or `pending` copy, or one that
-              never settles, is kept and refuses the step with a retry (`projection-worktrees`); a `clashed` copy is
-              kept and refuses it as held by a conflict; and a copy holding an edit once its path has moved on is kept
-              and refuses it, naming the copy's path and the remedy of copying out what it holds and deleting it.
-            - At removal (3.4): a file whose take-in answers `deferred` or `pending` stays at its path, its entry marked
-              pending, and the refresh retries a pending file whose record has left this projection as a removal
-              (`projection-worktrees`); a `clashed` one stays at its path, or goes back to it, holding its clash's
-              markers (`projection-write-back`), pending, and the removal check refuses over it
-              (`projection-worktrees`). In a release step (`projection-worktrees`), which leaves no projection to retry
-              from, a `deferred` or `pending` file refuses the step with a retry instead, a `refused` or `unparseable`
-              file, linked back to its path, refuses it with its remedy, and a `clashed` one refuses it as held by a
-              conflict.
-        - Build `test-first` (one behavior at a time):
-            - a file edited since its entry is taken in, then replaced with the record's current version
-            - a file still changing after three passes is marked pending, its edit kept
-            - the file write-back just sent, re-checked against the baseline it passes, is replaced without a take-in
-            - a file whose stat moved but whose content did not is replaced, its stat re-recorded
-            - with the take-in double answering `deferred`, `pending`, and `refused` in turn, the file is left
-              unreplaced and pending each time
-            - a copy holding the blob id its swap was moving, or the one it held when its own take-in landed, answers
-              `no-edit` without reaching the port
-            - a copy holding an edit is taken in while its path holds the blob id its swap linked, and kept, reported
-              with its path and never sent, once a later save there has moved the path on
-            - an absent path with no write-back sent since the swap reads as not moved on, and one a write-back of was
-              sent since reads as moved on
-            - recording a write-back as sent marks every aside copy of the path but the one taken in, and deleting a
-              copy clears its record
-            - a symbolic link swapped aside from a projected path is deleted as no edit by the second check, and by a
-              sweep, its target never read
+        - `guardReplacement` (`lib/store/projection/replace-guard.ts`) over `take-in-port.ts`'s port and
+          `staging.ts`'s staged file; the copy rules, the sent mark, and the one per-copy step the second check and the
+          sweep call, `settleAsideCopy`, in `aside-copies.ts`. Each port answer returns the entry as the take-in left
+          it, the index staying in memory until the batch writes it; `taken-in` means landed whole and carries what it
+          read, the next pass's baseline, and `refused`/`unparseable` carry the mark the guard records. A pass that
+          takes an edit in on the third re-check stops there, pending. The batch's first index write records each copy
+          from the guard's `moving` (3.2.b), and each link-back reads its copy by `lstat` first where it is built (3.2.b,
+          3.2.c, 3.3). Covered in `integration/store/projection/replace-guard.test.ts` and `aside-copies.test.ts`.
 
     - `[ ]` **3.2.b The swap and its outcomes**
 

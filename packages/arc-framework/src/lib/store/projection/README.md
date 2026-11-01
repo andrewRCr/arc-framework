@@ -111,6 +111,32 @@ lock records a holder, with the process scope digested since a scope holds chara
 and `aside` or `staged`, so no name ends in `.md` and none grows with its path. A location parses back to what it
 records, and a staged file is created exclusively.
 
+`staging.ts` stages a record's file in the aside folder, created exclusively under the name `aside.ts` gives it: a
+Markdown file stamped with its stored content's blob id, any other as stored, with the blob id of its bytes and the
+version it lays.
+
+`take-in-port.ts` is the port reading and replacing hand every edit they meet to, and write-back answers once bound: the
+worktree whose file holds the edit, the path or the aside copy, its entry, and its base — the stamp it carries, or, for
+a stampless file, its entry's version or the base its copy's name carries. It answers `no-edit`, `taken-in`, `deferred`,
+`pending`, `refused`, `unparseable`, or `clashed`, each with the entry as the take-in left it, since the index stays in
+memory until the batch writes it. `taken-in` means the edit landed whole and carries what the take-in read, and
+`refused` and `unparseable` carry the mark the file takes.
+
+`replace-guard.ts` re-checks a file by the racy rule before it is replaced, against its entry or, for a file write-back
+just sent or drew a clash into, against what write-back read. A file that matches is replaced, its stat re-recorded
+where only the hash matched. A changed one goes to the take-in: one with no edit is replaced, its stat recorded as its
+baseline; one taken in is re-checked against what the take-in read once the record's current version is restaged, for
+at most three passes; and any other answer leaves it in place and pending, marked refused where its edit was. A refused
+read of the current version leaves it pending too, retryable. Each replacement names the blob id its swap moves aside.
+
+`aside-copies.ts` holds the rules every reader of an aside copy applies. A copy's path has moved on once it holds
+anything but what the swap linked, or once a write-back of it has been sent since the swap, there or not, and
+`recordWriteBackSent` marks every copy but the one being taken in before such a send. Settling a copy reads it by
+`lstat` first: one not a file is deleted as no edit, never followed, as is one holding what its swap moved or what it
+held when its own take-in landed, without reaching the port. One holding an edit goes to the take-in only while its path
+has not moved on, and is deleted once its edit lands whole; otherwise it is kept, and one whose path has moved on is
+reported with its path and never sent. A record whose copy is gone is dropped.
+
 `index-file.ts` writes the index whole by temp-and-rename into that folder, never creating it, so a write that stops
 partway leaves the previous index and no write recreates a removed worktree's Git directory. A commit smudges the index,
 writes it, and then rewrites the reference. Reading it returns the index, no projection where a checkout holding none

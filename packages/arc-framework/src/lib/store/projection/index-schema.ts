@@ -129,6 +129,10 @@ export type FileStat = z.output<typeof FileStatSchema>;
 export type IgnoreFileRecord = z.output<typeof IgnoreFileRecordSchema>;
 /** A decoded entry for a file the projection laid from a record. */
 export type RecordEntry = z.output<typeof RecordEntrySchema>;
+/** A decoded aside copy's record. */
+export type AsideCopyRecord = z.output<typeof AsideCopyRecordSchema>;
+/** A decoded refusal mark. */
+export type RefusedMark = z.output<typeof RefusedMarkSchema>;
 
 /**
  * Decode an index from its parsed JSON form.
