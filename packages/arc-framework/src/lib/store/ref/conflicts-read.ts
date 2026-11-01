@@ -2,12 +2,14 @@
 
 import { ConflictRecordSchema } from "../conflict.js";
 import { RecordReferenceSchema, sameReference, type RecordReference } from "../identity.js";
-import type { StoreRecord, ListingDiagnostic } from "../read.js";
+import type { StoreRecord } from "../read.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { expandStoredPath } from "../stored-path.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { refObjectFault } from "./object-fault.js";
+import type { CapturedRefDiagnostic } from "./capture-diagnostic.js";
+import { missingHistoryRefs } from "./missing-history.js";
 
 const strict = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
@@ -26,24 +28,30 @@ export async function readOpenConflicts(context: RefBackendContext, target: Reco
   if (tree?.type !== "tree") {
     // A missing path query also means an existing directory's tree object is missing. Its pinned parent proves absence.
     if (!tree && basis.parent?.type === "tree" && !treeEntries(basis.parent).some(({ name }) => name === "conflicts")) return { status: "ok", result: [] };
-    return { status: "refused", refusal: unavailableConflictEvidence(target, directory, tree ? "structural" : "missing") };
+    const refusal = unavailableConflictEvidence(target, directory, tree ? "structural" : "missing");
+    return { status: "refused", refusal: tree ? refusal : { ...refusal, historyRefs: await missingHistoryRefs(context, [basis.ref]) } };
   }
   const entries = treeEntries(tree).flatMap(({ name, oid }) => name?.endsWith(".json")
     ? [{ key: name.slice(0, -5), oid, path: `${directory}/${name}` }] : []);
   const objects = await readBatchObjects(context, entries.map((entry) => entry.oid));
-  return establishConflicts(target, entries, objects);
+  const result = establishConflicts(target, entries, objects);
+  if (result.status === "ok") return result;
+  const refusal = result.refusal;
+  return { status: "refused", refusal: result.fault === "missing" && refusal.code === "state-unresolvable"
+    ? { ...refusal, historyRefs: await missingHistoryRefs(context, [basis.ref]) } : refusal };
 }
 
 interface ConflictEntry { key: string; oid: string; path: string }
+type CapturedConflicts = StoreResult<RecordReference[]> & { fault?: "missing" };
 
 function establishConflicts(target: RecordReference, entries: readonly ConflictEntry[],
-  objects: ReadonlyMap<string, BatchObject | null>, saved = false): StoreResult<RecordReference[]> {
+  objects: ReadonlyMap<string, BatchObject | null>, saved = false): CapturedConflicts {
   const conflicts: RecordReference[] = [];
   for (const entry of entries) {
     const conflict = conflictReference(target, entry.key);
     if (!conflict.success) continue;
     const object = objects.get(entry.oid);
-    if (object?.type !== "blob") return { status: "refused", refusal: unavailableConflictEvidence(target, entry.path, object ? "structural" : "missing", saved) };
+    if (object?.type !== "blob") return capturedConflictUnavailable(target, entry.path, object, saved);
     const record = conflictTarget(object.bytes);
     if (!record) return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference: target,
       rule: "store.conflict-evidence", condition: `The sibling conflict at ${entry.path} cannot be decoded; its target and the record's conflict set cannot be established.`,
@@ -54,12 +62,18 @@ function establishConflicts(target: RecordReference, entries: readonly ConflictE
   return { status: "ok", result: conflicts };
 }
 
+function capturedConflictUnavailable(target: RecordReference, path: string, object: BatchObject | null | undefined,
+  saved: boolean): CapturedConflicts {
+  const refusal = unavailableConflictEvidence(target, path, object ? "structural" : "missing", saved);
+  return object ? { status: "refused", refusal } : { status: "refused", refusal, fault: "missing" };
+}
+
 /** Attach raw sibling evidence even when a conflict record's format is newer than this build supports. */
 export function attachOpenConflicts(context: Pick<RefBackendContext, "registry">, records: readonly StoreRecord[],
   entries: readonly RefTreeEntry[], objects: ReadonlyMap<string, BatchObject | null>, saved = false): {
-    records: StoreRecord[]; diagnostics: ListingDiagnostic[]; conflictRefusals: Map<string, StoreRefusal>;
+    records: StoreRecord[]; diagnostics: CapturedRefDiagnostic[]; conflictRefusals: Map<string, StoreRefusal>;
   } {
-  const attached: StoreRecord[] = [], diagnostics: ListingDiagnostic[] = [], conflictRefusals = new Map<string, StoreRefusal>();
+  const attached: StoreRecord[] = [], diagnostics: CapturedRefDiagnostic[] = [], conflictRefusals = new Map<string, StoreRefusal>();
   for (const record of records) {
     const home = expandStoredPath(record.reference, { registry: context.registry }), prefix = `${home.root}conflicts/`;
     const siblings = entries.flatMap(({ path, oid, invalidName }) => {
@@ -67,13 +81,14 @@ export function attachOpenConflicts(context: Pick<RefBackendContext, "registry">
       return !invalidName && name.endsWith(".json") && !name.includes("/") ? [{ path, oid, key: name.slice(0, -5) }] : [];
     });
     const malformed = malformedCapturedConflictPath(record.reference, home.root, entries);
-    const conflicts: StoreResult<RecordReference[]> = malformed
+    const conflicts: CapturedConflicts = malformed
       ? { status: "refused", refusal: unavailableConflictEvidence(record.reference, malformed, "structural", saved) }
       : establishConflicts(record.reference, siblings, objects, saved);
     if (conflicts.status === "ok") attached.push({ ...record, conflicts: conflicts.result });
     else {
       conflictRefusals.set(home.path, conflicts.refusal);
-      diagnostics.push({ kind: "unreadable", key: home.path, condition: conflicts.refusal.condition, remedy: conflicts.refusal.remedy });
+      diagnostics.push({ kind: "unreadable", key: home.path, condition: conflicts.refusal.condition, remedy: conflicts.refusal.remedy,
+        ...conflicts.fault ? { fault: conflicts.fault } : {} });
     }
   }
   return { records: attached, diagnostics, conflictRefusals };
@@ -107,7 +122,7 @@ function directConflictName(entry: RefTreeEntry, prefix: string): string | undef
   return slash < 0 ? undefined : nested.slice(0, slash);
 }
 
-function unavailableConflictEvidence(reference: RecordReference, path: string, cause: "missing" | "structural", saved = false): StoreRefusal {
+function unavailableConflictEvidence(reference: RecordReference, path: string, cause: "missing" | "structural", saved = false): Extract<StoreRefusal, { code: "state-unresolvable" }> {
   const text = cause === "structural"
     ? saved ? "Retain the immutable saved-state evidence, repair the source forward with valid conflict structure, then select a readable saved state."
       : "Repair the source forward with valid conflict structure, then retry the read or write with complete evidence."

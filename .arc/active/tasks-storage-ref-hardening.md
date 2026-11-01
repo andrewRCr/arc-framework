@@ -294,27 +294,14 @@ classification calls the sweep settled.
 - _Note:_ Task 3.3.b brought forward the saved point-read wrapper's `stateVersion` enrichment when direct Missing
   producers bypassed its legacy conversion. The conversion removal and producer-history preservation remain here.
 
-    - `[ ]` **3.9.a The readers that change**
-        - `unavailableSnapshot` (`snapshot-read.ts`) converts no code: its point-read wrapper adds the snapshot's
-          `stateVersion` to a `state-unresolvable` that has none and keeps the producer's `historyRefs`, and its
-          listing refusal names a history ref only for an item with no live ref (§ 1.6). `followCleanupFailure`
-          (`follow-delete.ts`) rethrows a wrapped `state-unresolvable`.
-        - Its cases land in a `store-ref-*` suite or a unit test, never the CI-only integration tier, where
-          `recovery-state-basis.test.ts` sits.
-        - Build `test-first` (one behavior at a time), one case per § 1.8 row:
-            - a saved read of an ended item whose archive tree is unavailable returns `state-unresolvable` with the
-              snapshot's version
-            - a saved listing over a live item's missing tree refuses with empty `historyRefs`
-            - `readStateHistory` retries a missing object once, pulling only for an item with no live ref
-            - `resolveRecoveryStateBasis` rebuilds the seed over a change window with a missing object
-            - `runStoreRename` and `conflictHistory` return a missing object's refusal unchanged when there is no
-              history to pull
-            - `historyRefs` (`operational-sync.ts`) returns the narrower set
-            - follow's cleanup keeps a missing local object's restore remedy and its move record
-            - `adoptionFailure` refuses the whole pull on a missing project identity blob
-            - a local transport fault moves `projectPull`'s status to `incomplete`
-            - `readMigrationRemote`, `destinationAnswers`, `judgeRefFollow`, and `settleHistoricalCopy` pass a
-              `refused` local object on
+    - `[x]` **3.9.a The readers that change**
+        - _Note:_ Producer-side Missing history routing is included here after snapshot-wrapper preservation exposed
+          empty routes from captured views. Section 1.6 requires the rule for every Missing refusal: producers use
+          the actual damaged ref and current tips; the snapshot wrapper preserves that route.
+        - Saved reads preserve producer history routes and add only an absent snapshot version; captured conflict
+          evidence retains its Missing cause without relabeling structural faults. Follow cleanup preserves Missing
+          refusals and the move record. Public-store and unit cases cover the reader table's retries, refusal
+          propagation, identity adoption, migration journals, and continuation after object repair.
 
     - `[ ]` **3.9.b `corruptRef` keeps only its unparseable arm**
         - `corruptRef` (`namespace-health.ts`) drops its missing-objects parameter and takes `saved` as an option, so a

@@ -1,7 +1,7 @@
 /** A rename refused for missing history retries once after pulling it, surfacing what the pull reported. */
 import { expect, it } from "vitest";
 import type { Store } from "../../../../src/lib/store/contract.js";
-import { HistoryRefSchema } from "../../../../src/lib/store/refusal.js";
+import { HistoryRefSchema, StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
 import { OwnerIdentitySchema } from "../../../../src/lib/store/identity.js";
 import { PullResultSchema, type PullOutcome } from "../../../../src/lib/store/sync.js";
 import { runStoreRename } from "../../../../src/lib/work-unit/verbs/rename-store.js";
@@ -46,4 +46,22 @@ it("keeps the history refusal when the state remote fails, still writing what th
   const { result, written } = await renameAfterHistoryPull([{ ...offline("state"), notices: pending.notices }]);
   expect(result).toMatchObject({ status: "rejected", refusal: { code: "state-unresolvable" } });
   expect(written).toEqual(["Gamma's end remains pending. Pull again to settle it."]);
+});
+
+it("returns Missing unchanged when there is no history to pull and renames after local repair", async () => {
+  const h = createDecomposeHarness();
+  await h.seedStub("alpha");
+  const refusal = StoreRefusalSchema.parse({ code: "state-unresolvable", class: "recoverable", historyRefs: [],
+    condition: "The live namespace has a missing object.", remedy: { text: "Restore or fetch the missing object, then retry." } });
+  let damaged = true;
+  const store: Store = new Proxy(h.store, { get(target, key) {
+    if (key === "lookup" && damaged) return async () => ({ status: "refused", refusal });
+    if (key === "pull") return async () => { throw new Error("No retained history was named"); };
+    const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  const context = { store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main" };
+  expect(await runStoreRename(context, { sourceSlug: "alpha", targetSlug: "beta" }))
+    .toEqual({ status: "rejected", reason: refusal.condition, refusal });
+  damaged = false;
+  expect(await runStoreRename(context, { sourceSlug: "alpha", targetSlug: "beta" })).toMatchObject({ status: "renamed" });
 });

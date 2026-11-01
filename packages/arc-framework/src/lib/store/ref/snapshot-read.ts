@@ -52,22 +52,14 @@ async function snapshotView(context: RefBackendContext, version: StateVersion, i
   const unavailable = [...state.refs].filter(([, group]) => group.entries === undefined).map(([ref]) => ref);
   if (unavailable.length && !reference) return unavailableSnapshot(context, version, unavailable);
   const view = capturedRefView(context, () => Promise.resolve({ ...state, saved: true }));
-  return { status: "ok", result: { ...view, read: request => readSavedView(context, view, version, unavailable, request) } };
+  return { status: "ok", result: { ...view, read: request => readSavedView(view, version, request) } };
 }
 
-async function readSavedView(context: RefBackendContext, view: StoreView, version: StateVersion, unavailable: readonly string[],
-  request: ReadInput): Promise<StoreResult<StoreRecord>> {
+async function readSavedView(view: StoreView, version: StateVersion, request: ReadInput): Promise<StoreResult<StoreRecord>> {
   const result = await view.read(request);
   if (result.status !== "refused") return result;
-  if (result.refusal.code === "namespace-corrupt" && unavailable.includes(result.refusal.namespace)) {
-    return unavailableSnapshot(context, version, [result.refusal.namespace]);
-  }
   if (result.refusal.code !== "state-unresolvable") return result;
-  const owner = result.refusal.reference?.owner ?? request.reference.owner;
-  const ref = (owner.type === "work-item" || owner.type === "cohort") && owner.uid
-    ? `refs/arc/${owner.type === "work-item" ? "work" : "cohort"}/${owner.uid}` : null;
-  return { status: "refused", refusal: { ...result.refusal, stateVersion: result.refusal.stateVersion ?? version,
-    historyRefs: await missingHistoryRefs(context, ref ? [ref] : []) } };
+  return { status: "refused", refusal: { ...result.refusal, stateVersion: result.refusal.stateVersion ?? version } };
 }
 
 async function unavailableSnapshot(context: RefBackendContext, version: StateVersion, unavailable: readonly string[]): Promise<StoreResult<never>> {

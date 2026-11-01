@@ -109,6 +109,38 @@ it("retries a saved read after pulling exactly its named history refs", async ()
   expect(await readStateHistory(read, bindStoreSyncPort(f.store))).toBe("saved state");
 });
 
+it.each([false, true])("retries Missing once after repair with ended=%s and only its provider-owned history route", async ended => {
+  const f = createReferenceFixture(), ref = HistoryRefSchema.parse("refs/arc/history/work/11111111-1111-4111-8111-111111111111");
+  const refusal = StoreRefusalSchema.parse({ code: "state-unresolvable", class: "recoverable", historyRefs: ended ? [ref] : [],
+    condition: "A saved object is unavailable locally.", remedy: { text: "Restore or fetch the missing object, then retry." } });
+  let available = false, reads = 0;
+  f.store.pull = async input => {
+    if (!ended || input?.history?.length !== 1 || input.history[0] !== ref) throw new Error("The provider named no such history pull");
+    available = true;
+    return { status: "ok", result: PullResultSchema.parse({ states: [], pulls: [pulled] }) };
+  };
+  const read = async () => {
+    reads++;
+    if (available) return { status: "ok" as const, result: "restored state" };
+    // Model a local repair between attempts where no history pull is useful.
+    if (!ended) available = true;
+    return { status: "refused" as const, refusal };
+  };
+  expect(await readStateHistory(read, bindStoreSyncPort(f.store))).toBe("restored state");
+  expect(reads).toBe(2);
+});
+
+it("retains Missing after the single retry without inventing a history pull", async () => {
+  const f = createReferenceFixture();
+  const refusal = StoreRefusalSchema.parse({ code: "state-unresolvable", class: "recoverable", historyRefs: [],
+    condition: "The original object remains unavailable.", remedy: { text: "Restore or fetch the original object, then retry." } });
+  f.store.pull = async () => { throw new Error("No retained history was named"); };
+  let reads = 0;
+  await expect(readStateHistory(async () => { reads++; return { status: "refused", refusal }; }, bindStoreSyncPort(f.store)))
+    .rejects.toMatchObject({ name: "StateHistoryRefusal", refusal });
+  expect(reads).toBe(2);
+});
+
 it.each([unreachable, refused])("keeps the original saved-state repair actionable after $code fetch failure", async failure => {
   const { port } = binding({ states: [], pulls: [{ ...pulled, status: "failed", failure }] });
   const read = () => Promise.resolve({ status: "refused" as const, refusal: { code: "state-unresolvable" as const,

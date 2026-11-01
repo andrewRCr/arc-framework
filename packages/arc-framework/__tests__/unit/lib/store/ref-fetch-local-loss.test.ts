@@ -3,11 +3,21 @@ import { describe, expect, it } from "vitest";
 import { PullResultSchema } from "../../../../src/lib/store/sync.js";
 import { failedFetchFixture, fetchStateRef } from "../../../helpers/store/ref-failed-fetch.js";
 import { success } from "../../../helpers/store/suite-tools.js";
+import { bindStoreSyncPort } from "../../../../src/lib/store/operational-sync.js";
 
 const missing = "2".repeat(40);
 const remoteOnly = "3".repeat(40);
 
 describe("failed fetch local object facts", () => {
+  it("projects a confirmed local transport loss as incomplete with its restore route", async () => {
+    const ref = "refs/heads/local-code";
+    const f = failedFetchFixture({ refs: [[ref, missing]], missing: [missing] });
+    expect(await bindStoreSyncPort(f.store).pull()).toMatchObject({ status: "incomplete",
+      condition: expect.stringContaining(ref), remedy: { text: expect.stringMatching(/restore/iu) },
+      partial: { pulls: [{ status: "failed", failure: { code: "refused", class: "terminal" } }] },
+    });
+  });
+
   it.each([fetchStateRef, "refs/heads/code", "refs/arc/tmp/retained"])("reports a missing tip at %s", async ref => {
     const f = failedFetchFixture({ refs: [[ref, missing]], missing: [missing] });
     const result = success(await f.store.pull());
