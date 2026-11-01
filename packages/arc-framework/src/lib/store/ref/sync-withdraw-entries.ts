@@ -126,7 +126,7 @@ function documentVersion(definition: EntryDefinition, document: EntryDocument) {
 }
 
 async function entryLabel(context: RefBackendContext, ref: string, tip: string, path: string): Promise<SideLabel> {
-  const walked = await readHistoricalGraph(context, ["log", "-1", "--format=%H", tip, "--", `:(literal)${path}`], corruptRef(ref, true));
+  const walked = await readHistoricalGraph(context, ["log", "-1", "--format=%H", tip, "--", `:(literal)${path}`], () => corruptRef(ref, true));
   if (walked.status === "refused") throw new RefSyncLabelError(ref, walked.refusal);
   return readStoredMergeLabel(context, walked.result.trim() || tip);
 }

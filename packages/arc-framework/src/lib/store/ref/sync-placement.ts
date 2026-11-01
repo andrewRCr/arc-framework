@@ -47,7 +47,7 @@ async function historicalPlacement(context: RefBackendContext, live: string, sid
   const quarter = `refs/arc/archive/${placement.quarter}`;
   const tips = [...new Set(captured.filter(({ ref }) => ref === quarter).map(({ tip }) => tip))];
   if (!tips.length) return undefined;
-  const walked = await readHistoricalGraph(context, ["rev-list", ...tips], corruptRef(quarter, true));
+  const walked = await readHistoricalGraph(context, ["rev-list", ...tips], () => corruptRef(quarter, true));
   if (walked.status === "refused") throw new RefSyncLabelError(live, walked.refusal);
   const commits = walked.result.split(/\r?\n/u).filter(Boolean);
   if (!commits.length) return undefined;

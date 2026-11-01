@@ -37,7 +37,7 @@ export async function resolveArchivedReferences(context: RefBackendContext, refe
     if (!history) throw new Error("An archived owner has no history coordinate");
     const tip = tips.get(history);
     if (!tip) return { status: "refused", refusal: missingArchivedHistory(reference, history) };
-    const found = await archivedHistoryBatches(context, reference, history, tip, evidence);
+    const found = await archivedHistoryBatches(context, reference, history, tip, tips, evidence);
     if (found.status === "refused") return found;
     const batches = found.result;
     if (own.some(({ metadata }) => !metadata.batch || !batches.has(metadata.batch))) {
@@ -48,8 +48,8 @@ export async function resolveArchivedReferences(context: RefBackendContext, refe
 }
 
 async function archivedHistoryBatches(context: RefBackendContext, reference: RecordReference, history: string,
-  tip: string, evidence?: StoreCreationReceiptReader): Promise<StoreResult<Set<string>>> {
-  const index = await readHistoryBatchIndex(context, history, tip, reference, evidence);
+  tip: string, current: ReadonlyMap<string, string>, evidence?: StoreCreationReceiptReader): Promise<StoreResult<Set<string>>> {
+  const index = await readHistoryBatchIndex(context, history, tip, reference, evidence, current);
   if (!index) return { status: "refused", refusal: corruptRef(history, true) };
   return index.status === "refused" ? index : { status: "ok", result: new Set(index.result.keys()) };
 }

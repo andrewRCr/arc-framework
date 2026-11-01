@@ -94,7 +94,7 @@ listing schemas and output unchanged.
   evidence for caller policy. Live point reads and `refRecordAbsence` use it; object loss is recoverable, real path
   absence keeps its own rule, and UID reads pin failed ref-name answers before classifying or retrying them.
 
-### `[ ]` **2.3 One fault helper maps a fault to its refusal, diagnostic, and remedy — § 1.1, § 1.4, § 1.6**
+### `[x]` **2.3 One fault helper maps a fault to its refusal, diagnostic, and remedy — § 1.1, § 1.4, § 1.6**
 
 - _Goal:_ Every site can turn a § 1.1 fault into its point refusal, listing diagnostic, pull notice condition, or push
   failure condition through one helper, whether it read by `tip:path` or by object ID, with the historical remedy for
@@ -106,17 +106,11 @@ listing schemas and output unchanged.
           state and history fetch failures use the transport row only after a completed rowless failure confirms
           local tip or ancestor loss. Existing Missing text is preserved, and the legacy missing arm remains.
 
-    - `[ ]` **2.3.b `historyRefs` names a history ref only for an item with no live ref**
-        - The **Missing** row takes whether the clone's current state holds the item's live ref. A caller reads it from
-          its operation's current tips (inside a pull, the local snapshot the pull captured), or with one ref read on
-          the refusal path when it holds only saved tips, so a successful read costs nothing more.
-        - A graph walk passes `readHistoricalGraph` a builder it calls only when the walk fails, rather than a refusal
-          built before the walk, so the live-ref read happens on the refusal path alone.
-        - A refusal for an item whose live ref the current state holds carries empty `historyRefs` and the restore
-          remedy; for an item with no live ref it names that item's history ref, so the automatic history pulls fetch
-          only where retained history can hold the object.
-        - Build `test-first` (one behavior at a time): a live item with a missing nested tree; an ended item with no
-          live ref; a saved read of an item that is live now; a project or personal ref, which has no history ref.
+    - `[x]` **2.3.b `historyRefs` names a history ref only for an item with no live ref**
+        - `missingHistoryRefs` derives retained-history routes from current live-ref presence. Saved root and blob
+          refusals read current tips only after failure, preserve the saved-state coordinate, and keep project and
+          personal refs free of history routes. Graph refusals are lazy builders; current history and archive reads
+          reuse their captured tips, while successful reads acquire no additional ref listing.
 
 ### `[ ]` **2.4 Capture diagnostics carry their fault — § 1.9**
 

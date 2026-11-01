@@ -43,7 +43,7 @@ export async function describeWithdrawJournal(context: RefBackendContext, held: 
   const descriptions: WithdrawJournalDescription[] = [];
   for (const [ref, tip] of held) {
     if (!isStateRef(ref)) continue;
-    const walked = await readHistoricalGraph(context, ["log", "--first-parent", "--format=%H %P%n%B%x00", tip], corruptRef(ref, true));
+    const walked = await readHistoricalGraph(context, ["log", "--first-parent", "--format=%H %P%n%B%x00", tip], () => corruptRef(ref, true));
     if (walked.status === "refused") throw new UnavailableWithdrawJournal(ref, walked.refusal.condition);
     const rows = walked.result.split("\0").flatMap((block) => {
       const [header = "", ...message] = block.trimStart().split("\n"), [commit, ...parents] = header.split(" ");

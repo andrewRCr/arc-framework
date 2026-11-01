@@ -53,13 +53,13 @@ export async function readCapturedRefHistory(context: RefBackendContext, request
   if (retired.status === "refused") return retired;
   const home = retired.result ?? expandStoredPath(reference, { registry: context.registry, history: archived.result.length > 0 });
   const tip = tips.get(home.ref);
-  return tip ? readRefHistory(context, reference, home, tip, evidence) : { status: "ok", result: [] };
+  return tip ? readRefHistory(context, reference, home, tip, evidence, tips) : { status: "ok", result: [] };
 }
 
 /** Read a record log using the immutable metadata landed in every historical commit. */
 async function readRefHistory(context: RefBackendContext, reference: RecordReference,
-  home: StoredRecordHome, tip: string, evidence = new StoreCreationReceiptReader()): Promise<StoreResult<HistoryEntry[]>> {
-  const history = await readRefHistoryDetails(context, reference, home, tip, evidence);
+  home: StoredRecordHome, tip: string, evidence = new StoreCreationReceiptReader(), current?: ReadonlyMap<string, string>): Promise<StoreResult<HistoryEntry[]>> {
+  const history = await readRefHistoryDetails(context, reference, home, tip, evidence, undefined, current);
   return history.status === "refused" ? history : { status: "ok", result: history.result.map(({ entry }) => entry) };
 }
 
@@ -68,12 +68,13 @@ async function readRefHistory(context: RefBackendContext, reference: RecordRefer
  * captured endpoint's folder placement for its tip; ordinary history reads use landed metadata throughout.
  */
 export async function readRefHistoryDetails(context: RefBackendContext, reference: RecordReference,
-  home: StoredRecordHome, tip: string, evidence = new StoreCreationReceiptReader(), ended?: ReadPlacement): Promise<StoreResult<RefHistoryDetail[]>> {
+  home: StoredRecordHome, tip: string, evidence = new StoreCreationReceiptReader(), ended?: ReadPlacement,
+  current?: ReadonlyMap<string, string>): Promise<StoreResult<RefHistoryDetail[]>> {
   const unhealthy = await checkRefTip(context, home.ref, tip, home);
   if (unhealthy) return { status: "refused", refusal: unhealthy };
   const paths = await readHistoryPaths(context, reference, home, tip);
   const graph = await readHistoricalGraph(context, ["rev-list", "--full-history", "--parents", "--topo-order", tip, "--",
-    ...paths.map((path) => `:(literal)${path}`)], unavailableRefHistory(reference, home.ref));
+    ...paths.map((path) => `:(literal)${path}`)], () => unavailableRefHistory(context, reference, home.ref, current));
   if (graph.status === "refused") return graph;
   const rows = parseHistoryRows(graph.result);
   const revisions = [...new Set(rows.flatMap((row) => [row.revision, ...row.parents]))];

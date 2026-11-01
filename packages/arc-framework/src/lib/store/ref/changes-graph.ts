@@ -57,7 +57,7 @@ async function captureChangeWindow(context: RefBackendContext, window: RefChange
   if (unhealthy) return { status: "refused", refusal: unhealthy };
   const graph = await readHistoricalGraph(context, ["rev-list", "--full-history", "--parents", "--topo-order", window.upper,
     ...window.lower ? [`^${window.lower}`] : [], ...window.paths ? ["--", ...window.paths.map((path) => `:(literal)${path}`)] : []],
-  missingChangeState(window));
+  () => missingChangeState(window));
   if (graph.status === "refused") return graph;
   const rows = orderHistoryCommits(parseHistoryRows(graph.result)).reverse();
   if (!rows.length) return { status: "ok", result: { window, rows, trees: new Map(), objects: heads, receipts: headReceipts.result, recordFree: new Set() } };

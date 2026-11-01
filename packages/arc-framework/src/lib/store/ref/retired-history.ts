@@ -29,7 +29,7 @@ export async function retiredHistoryHome(context: RefBackendContext, reference: 
   if (!tip) return { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", reference,
     historyRefs: [history.data], condition: "The lineage-ended origin's retained history is not available locally.",
     remedy: { text: `Pull ${home.ref} by name, then retry. If the remote no longer holds it, restore it from a clone holding the ref.` } } };
-  const graph = await readHistoricalGraph(context, ["rev-list", tip, "--", `:(literal)${home.metadataPath}`], unavailableRefHistory(reference, home.ref));
+  const graph = await readHistoricalGraph(context, ["rev-list", tip, "--", `:(literal)${home.metadataPath}`], () => unavailableRefHistory(context, reference, home.ref, tips));
   if (graph.status === "refused") return graph;
   const queries = graph.result.trim().split("\n").filter(Boolean).map((revision) => `${revision}:${home.metadataPath}`);
   const objects = await readBatchObjects(context, queries);
@@ -40,15 +40,15 @@ export async function retiredHistoryHome(context: RefBackendContext, reference: 
     return { status: "ok", result: expandStoredPath({ ...reference, owner }, { registry: context.registry, history: true }) };
   }
   // Auxiliary metadata history cannot prove that records existed. Inspect every reachable namespace before absence.
-  const complete = await readHistoricalGraph(context, ["rev-list", tip], unavailableRefHistory(reference, home.ref));
+  const complete = await readHistoricalGraph(context, ["rev-list", tip], () => unavailableRefHistory(context, reference, home.ref, tips));
   if (complete.status === "refused") return complete;
   const revisions = complete.result.trim().split("\n").filter(Boolean);
   const trees = await readRefTrees(context, new Map(revisions.map(revision => [revision, revision])));
-  if (revisions.some(revision => !trees.has(revision))) return { status: "refused", refusal: unavailableRefHistory(reference, home.ref) };
+  if (revisions.some(revision => !trees.has(revision))) return { status: "refused", refusal: await unavailableRefHistory(context, reference, home.ref, tips) };
   const metadataObjects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap(entries =>
     entries.filter(({ path }) => path === home.metadataPath).map(({ oid }) => oid)))]);
   const namespaces = await captureHistoricalNamespaces(context, home, trees, metadataObjects, true);
-  if (namespaces.unavailable.size) return { status: "refused", refusal: unavailableRefHistory(reference, home.ref) };
+  if (namespaces.unavailable.size) return { status: "refused", refusal: await unavailableRefHistory(context, reference, home.ref, tips) };
   if (!namespaces.corrupt.size && [...trees.values()].every(entries => holdsNoRecord(home, entries.map(({ path }) => path)))) return { status: "refused", refusal: {
     code: "not-found", class: "recoverable", reference, condition: "The ended origin's retained history contains no records.",
     remedy: { text: "Inspect its lineage for the terminal transition; pre-import records remain in code history." },

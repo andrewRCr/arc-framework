@@ -67,7 +67,7 @@ async function captureSyncRecordHistory(context: RefBackendContext, reference: R
   const home = expandStoredPath(reference, { registry: context.registry, history: ref.startsWith("refs/arc/history/") });
   const paths = await readHistoryPaths(context, reference, home, tip);
   const walked = await readHistoricalGraph(context, ["rev-list", "--full-history", "--parents", "--topo-order", tip,
-    ...base ? [`^${base}`] : [], "--", ...paths.map((path) => `:(literal)${path}`)], corruptRef(ref, true));
+    ...base ? [`^${base}`] : [], "--", ...paths.map((path) => `:(literal)${path}`)], () => corruptRef(ref, true));
   if (walked.status === "refused") throw new RefSyncLabelError(ref, walked.refusal);
   const rows = orderHistoryCommits(parseHistoryRows(walked.result)).reverse();
   const revisions = [...new Set(rows.flatMap((row) => [row.revision, ...row.parents]))];
