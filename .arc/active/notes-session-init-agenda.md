@@ -109,7 +109,24 @@ fields (`teardown.text` and `argv`, `remedy.text`, typed reasons) already exist.
 | Session-init probe envelope                    |            3,059 |
 | **Total**                                      |       **51,801** |
 
-The real-session context-report baseline remains pending.
+The real-session instrument uses `claude --ax-screen-reader` plus the identical `--append-system-prompt` value recorded
+in `real-context-summary.json` for all three controls. That instruction suppresses intermediate assistant prose.
+Each value is the first `/context` report after the first completed turn and **includes the first response**; the
+result-side measurement must use the same rule. The harness reports rounded token estimates, so the net values below
+are approximate rather than exact usage counters.
+
+| Real session                           | Context report | Less empty |
+| -------------------------------------- | -------------: | ---------: |
+| Empty: reply `OK`, no reads or tools   |          40.8k |          — |
+| Part 1: only read `session-init.md`    |          71.1k |     ≈30.3k |
+| Part 2: full bare init entering Orient |         101.8k |       ≈61k |
+
+`context-*-controlled.terminal` and `context-*-controlled.jsonl` retain the reports and complete tool transcripts.
+The controlled Orient transcript has one assistant text block, its final orientation. The earlier uncontrolled Orient
+attempt emitted progress prose before completing its reads and is retained but excluded; the empty and Part 1 controls
+were repeated with the same suppression instruction. The full baseline therefore precedes all shipped-text and
+implementation changes, while the source remains at base `279aa8ebf9` plus planning-only activation and measurement
+records.
 
 ## The always-loaded cut audit
 

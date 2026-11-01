@@ -16,13 +16,10 @@ _Exit criterion:_ The baseline is recorded from an unchanged base; `arc agenda s
 that validates against `arc schema get session-init-agenda` for the stop rows, refuses every invalid flag combination
 with a typed refusal, and leaves the repository as found.
 
-### `[ ]` **1.1 Record the done-signal baseline — Success Criteria 1–3**
+### `[x]` **1.1 Record the done-signal baseline — Success Criteria 1–3**
 
 - _Goal:_ Both parts of the done-signal have a baseline, measured by both instruments on a kit install of the unchanged
   base, before this branch changes any shipped text.
-
-- _Note:_ The baseline must land before the first shipped-text commit. Planning-only commits since the base change
-  nothing a kit install receives.
 
 - **Additional Context:** `notes-session-init-agenda.md` § Sizing and measurement
 
@@ -39,15 +36,14 @@ with a typed refusal, and leaves the repository as found.
           input 27,283, and net itemized total 51,801. `measure-items.py` accepts an item manifest for unchanged reuse;
           raw results, frozen inputs, and the summary live under `~/dev/arc-evidence/session-init-agenda/baseline/`.
 
-    - `[ ]` **1.1.c Read the real-session instrument and record the baseline**
-        - Two real sessions in the kit sandbox, each less an empty session on the same harness: one entering Orient,
-          for Part 2's whole load before the first user-facing line, and one whose only read is the baseline
-          `session-init.md`, for Part 1
-        - Each is read from the harness context report (`/context`), which is readable only after the first response;
-          record whether that response's tokens are included, and Task 5.4 applies the same rule
-        - Raw outputs and the scripts under `~/dev/arc-evidence/session-init-agenda/baseline/`; a summary table in
-          `notes-session-init-agenda.md` § Sizing and measurement, with the base commit, the harness version, and
-          whether the link fill ran
+    - `[x]` **1.1.c Read the real-session instrument and record the baseline**
+        - Captured matched real Claude Code `/context` reports after the first response, including that response:
+          empty 40.8k, workflow-only 71.1k (net ≈30.3k), and Orient 101.8k (net ≈61k). Controlled transcripts prove
+          Orient's first assistant prose is its final summary. Evidence retains raw terminals, full transcripts,
+          commands, and the excluded early-prose attempt; the notes record the comparison and its rounded precision.
+
+- _Outcome:_ Both instruments are recorded before any shipped text or implementation changes: itemized baseline
+  27,283 workflow tokens and 51,801 total, real-session baseline ≈30.3k workflow tokens and ≈61k Orient tokens.
 
 ### `[ ]` **1.2 Register the agenda contract — § 3, § 2.3**
 
