@@ -5,7 +5,9 @@ import { createRefStore, RecordReferenceSchema, type RecordReference } from "../
 import { LineageRecordSchema } from "../../src/lib/store/kinds/lineage/index.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
-import { removeLooseObject } from "../helpers/store/ref-plant.js";
+import { plantRef, removeLooseObject } from "../helpers/store/ref-plant.js";
+import { capturedEntries } from "../helpers/store/ref-fixture-plant.js";
+import { expandStoredPath } from "../../src/lib/store/stored-path.js";
 import { success } from "../helpers/store/suite-tools.js";
 
 const start = { verb: "start", lifecycleAction: "activate" };
@@ -186,6 +188,78 @@ it.each((["default", "separate"] as const).flatMap(layout => scenarios.map(scena
     if (beforeLineage.status === "ok") expect(success(peerLineage).content).toBe(beforeLineage.result.content);
     else expect(peerLineage).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   }, 60_000);
+
+it.each(["default", "separate"] as const)("holds an undecodable later lineage conflict and retries its repair in %s", async layout => {
+  const h = await siblingFixture(layout, "retirement", false);
+  const current = success(await h.a.store.read({ reference: h.sibling.reference }));
+  success(await h.a.store.write({ action: "remove", reference: current.reference, expected: current.version,
+    provenance: { verb: "abandon", lifecycleAction: "abandon" } }));
+  const remote = success(await h.b.store.read({ reference: h.sibling.reference }));
+  const competing = JSON.parse(h.content) as Record<string, unknown>;
+  delete competing.retiredBranches;
+  success(await h.b.store.batch({ writes: [
+    { action: "put", reference: h.lineage, expected: null, content: JSON.stringify(LineageRecordSchema.parse(competing)) },
+    { action: "put", reference: remote.reference, expected: remote.version, content: `${remote.content}\nLate edit.\n`, placement: { kind: "active" } },
+  ], provenance: { verb: "save", lifecycleAction: "save" } }));
+  success(await h.b.store.push()); success(await h.a.store.pull());
+  const lineage = success(await h.a.store.read({ reference: h.lineage })), conflict = lineage.conflicts[0];
+  if (!conflict) throw new Error("Expected a natively generated lineage conflict");
+  const healthy = success(await h.a.store.read({ reference: conflict })).content, home = expandStoredPath(conflict);
+  const healthyOid = (await h.a.git(["rev-parse", `${home.ref}:${home.path}`])).stdout.trim();
+  const subject = success(await h.b.store.read({ reference: h.subject.reference }));
+  success(await h.b.store.write({ action: "put", reference: subject.reference, expected: subject.version, content: subject.content,
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: archive }));
+  success(await h.b.store.push());
+  const parent = (await h.a.git(["rev-parse", home.ref])).stdout.trim();
+  await plantRef(h.a.root, home.ref, (await capturedEntries(h.a, home.ref)).map(entry => entry.path === home.path
+    ? { path: entry.path, content: new Uint8Array([0xc3, 0x28]) } : entry), { parents: [parent], gitDir: h.a.gitDir });
+  const before = (await h.a.git(["rev-parse", `${h.history}^{tree}`])).stdout.trim();
+  const held = success(await h.a.store.pull()).pulls.flatMap(outcome => outcome.notices);
+  expect(held).toContainEqual(expect.objectContaining({ kind: "namespace-corrupt", ref: home.ref,
+    condition: expect.stringContaining("lineage conflict"), remedy: { text: expect.stringMatching(/repair.*forward|new commit/iu) } }));
+  expect(held).not.toContainEqual(expect.objectContaining({ kind: "end-withdrawn", item: h.subject.reference.owner }));
+  expect((await h.a.git(["rev-parse", `${h.history}^{tree}`])).stdout.trim()).toBe(before);
+  const retained = (await h.a.git(["rev-parse", home.ref])).stdout.trim();
+  await plantRef(h.a.root, home.ref, (await capturedEntries(h.a, home.ref)).map(entry => entry.path === home.path
+    ? { path: entry.path, oid: healthyOid, mode: "100644" as const } : entry), { parents: [retained], gitDir: h.a.gitDir });
+  const repaired = success(await h.a.store.pull());
+  expect(repaired.pulls.flatMap(outcome => outcome.notices)).toContainEqual(expect.objectContaining({ kind: "end-withdrawn", item: h.subject.reference.owner }));
+  expect(success(await h.a.store.read({ reference: conflict })).content).toBe(healthy);
+  expect((await h.a.git(["rev-parse", `${h.history}^{tree}`])).stdout.trim()).toBe(before);
+}, 60_000);
+
+it.each(["default", "separate"] as const)("keeps a decoded origin disagreement's original restore remedy in %s", async layout => {
+  const h = await siblingFixture(layout, "archive", false);
+  const current = success(await h.a.store.read({ reference: h.sibling.reference }));
+  success(await h.a.store.batch({ writes: [
+    { action: "put", reference: h.lineage, expected: null, content: h.content },
+    { action: "remove", reference: current.reference, expected: current.version },
+  ], provenance: { verb: "abandon", lifecycleAction: "abandon" } }));
+  const home = expandStoredPath(h.lineage), original = success(await h.a.store.read({ reference: h.lineage })).content;
+  const healthyOid = (await h.a.git(["rev-parse", `${home.ref}:${home.path}`])).stdout.trim();
+  const foreign = "00000000-0000-4000-8000-000000000999";
+  expect(foreign).not.toBe(h.uid);
+  const wrong = JSON.stringify(LineageRecordSchema.parse({ ...JSON.parse(original) as object,
+    origin: { name: h.owner.name, uid: foreign } }));
+  const subject = success(await h.b.store.read({ reference: h.subject.reference }));
+  success(await h.b.store.write({ action: "put", reference: subject.reference, expected: subject.version, content: subject.content,
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: archive }));
+  success(await h.b.store.push());
+  const parent = (await h.a.git(["rev-parse", home.ref])).stdout.trim();
+  await plantRef(h.a.root, home.ref, (await capturedEntries(h.a, home.ref)).map(entry => entry.path === home.path
+    ? { path: entry.path, content: wrong } : entry), { parents: [parent], gitDir: h.a.gitDir });
+  const held = success(await h.a.store.pull()).pulls.flatMap(outcome => outcome.notices);
+  expect(held).toContainEqual(expect.objectContaining({ kind: "namespace-corrupt", ref: home.ref,
+    condition: "The terminal owner's retained lineage cannot be decoded.", remedy: { text: expect.stringMatching(/restore|fetch/iu) } }));
+  for (const notice of held) if (notice.kind === "namespace-corrupt") expect(notice.remedy.text).not.toMatch(/forward/iu);
+  expect(held).not.toContainEqual(expect.objectContaining({ kind: "end-withdrawn", item: h.subject.reference.owner }));
+  const retained = (await h.a.git(["rev-parse", home.ref])).stdout.trim();
+  await plantRef(h.a.root, home.ref, (await capturedEntries(h.a, home.ref)).map(entry => entry.path === home.path
+    ? { path: entry.path, oid: healthyOid, mode: "100644" as const } : entry), { parents: [retained], gitDir: h.a.gitDir });
+  expect(success(await h.a.store.pull()).pulls.flatMap(outcome => outcome.notices))
+    .toContainEqual(expect.objectContaining({ kind: "end-withdrawn", item: h.subject.reference.owner }));
+  expect(success(await h.a.store.read({ reference: h.lineage })).content).toBe(original);
+}, 60_000);
 
 function ownedFormats(formats: Record<string, number>, uid: string, conflicts: readonly RecordReference[]): Record<string, number> {
   return Object.fromEntries(Object.entries(formats).filter(([key]) => {

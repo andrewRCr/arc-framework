@@ -17,7 +17,7 @@ import { readObjectFormat } from "./manifest.js";
 import { writeRefTree } from "./tree-write.js";
 import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
 import type { PullNotice } from "../sync.js";
-import { corruptRef } from "./namespace-health.js";
+import { refObjectFault } from "./object-fault.js";
 import { isArchiveRef } from "./archive-read.js";
 import { RefSyncLabelError } from "./sync-label.js";
 
@@ -94,7 +94,7 @@ async function commitWithdrawal(context: RefBackendContext, basis: WithdrawalBas
 /** A ref whose tree no longer reads cannot be inverted: commit nothing, and withdraw once its objects are restored. */
 function heldWithdrawal(error: UnavailableWithdrawJournal, end: WithdrawEnd): RefMergeResult {
   const refs = new Set([error.ref, end.live, end.history]);
-  const { remedy } = corruptRef(error.ref, true);
-  const notices: PullNotice[] = [...refs].map((ref) => ({ kind: "namespace-corrupt", ref, condition: error.message, remedy }));
+  const { condition, remedy } = refObjectFault(error.ref, error.fault ?? "missing", { ...error.options, condition: error.message });
+  const notices: PullNotice[] = [...refs].map((ref) => ({ kind: "namespace-corrupt", ref, condition, remedy }));
   return { status: "complete", changed: false, notices };
 }

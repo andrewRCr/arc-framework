@@ -247,14 +247,13 @@ classification calls the sweep settled.
 - _Note:_ See `notes-storage-ref-hardening.md` § Fault-site inventory › 3.6 and § Classification calls the sweep settled
   for its sites, their rows and sides.
 
-    - `[ ]` **3.6.a The journal's fault and its hold**
-        - `UnavailableWithdrawJournal` carries its fault; `heldWithdrawal` and `commitWithdrawEnd` take it; the journal
-          reads and `readLineageMessage` classify.
-        - Build `test-first` (one behavior at a time):
-            - a missing journal tree holds **Missing**, naming the end's history ref
-            - an undecodable preserved-lineage record holds **Unparseable**
-            - a throw that names no fault keeps its condition with the restore remedy
-            - `readLineageMessage` holds **Missing** only for a confirmed missing object
+- _Note:_ Task 3.6.a brought forward `decodeConflict`'s fault and repair side from 3.6.c when the preserved-conflict
+  regression exposed its legacy restore remedy. The remaining preserved-lineage readers stay in Task 3.6.c.
+
+    - `[x]` **3.6.a The journal's fault and its hold**
+        - Journal and preparation reads carry Missing; holds preserve the fault's condition, repair side, and end
+          history ref. Faultless origin disagreements keep their condition and restore remedy. Lineage-log failures
+          hold only after confirmed object loss; unrelated, canceled, and present-object errors propagate.
 
     - `[ ]` **3.6.b The inverse's metadata**
         - `inverseMetadata` reads through § 1.2 (§ 9); `withdrawRecordMetadata` takes the side `entryDocument`,

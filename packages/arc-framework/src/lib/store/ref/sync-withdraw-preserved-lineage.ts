@@ -10,6 +10,8 @@ import { refFormatKey } from "./format-key.js";
 import { mergeLineageAliases } from "./lineage-aliases.js";
 import { writeRefBlob } from "./tree-write.js";
 import { UnavailableWithdrawJournal } from "./sync-withdraw-journal.js";
+import type { RefCaptureFault } from "./capture-diagnostic.js";
+import type { RefFaultOptions } from "./object-fault.js";
 
 const registry = "refs/arc/project/registry", metadataPath = "metadata-registry.json";
 
@@ -57,7 +59,9 @@ function preserveConflicts(current: ReadonlyMap<string, RefTreeEntry>, prepared:
   objects: ReadonlyMap<string, BatchObject | null>, before: RefMetadata, metadata: RefMetadata, uids: ReadonlySet<string>): void {
   const prefix = "lineage/conflicts/", paths = new Set([...current.keys(), ...prepared.keys()].filter(path => path.startsWith(prefix)));
   for (const path of paths) {
-    const values = [current.get(path), prepared.get(path)].flatMap(entry => entry ? [decodeConflict(objects.get(entry.oid))] : []);
+    const currentEntry = current.get(path);
+    const values = [currentEntry, prepared.get(path)].flatMap(entry => entry
+      ? [decodeConflict(objects.get(entry.oid), path, entry.oid !== currentEntry?.oid)] : []);
     const protectedConflict = values.find(value => value.record.kind === "lineage/transition"
       && value.record.owner.type === "work-item" && value.record.owner.uid && uids.has(value.record.owner.uid));
     if (!protectedConflict) continue;
@@ -69,13 +73,15 @@ function preserveConflicts(current: ReadonlyMap<string, RefTreeEntry>, prepared:
   }
 }
 
-function decodeConflict(object: BatchObject | null | undefined): WholeRecordConflict {
-  if (object?.type !== "blob") throw unavailable("A lineage conflict required to preserve sibling authority is unavailable.");
+function decodeConflict(object: BatchObject | null | undefined, path: string, saved: boolean): WholeRecordConflict {
+  const options: RefFaultOptions = { saved, key: `${registry}:${path}`,
+    ...!saved ? { remedy: { text: `Repair the malformed lineage conflict at ${registry}:${path} in a new commit, then retry the withdrawal.` } } : {} };
+  if (object?.type !== "blob") throw unavailable("A lineage conflict required to preserve sibling authority is unavailable.", "missing", { key: options.key });
   let value: unknown;
   try { value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(object.bytes)); }
-  catch { throw unavailable("A lineage conflict required to preserve sibling authority cannot be decoded."); }
+  catch { throw unavailable("A lineage conflict required to preserve sibling authority cannot be decoded.", "unparseable", options); }
   const result = WholeRecordConflictSchema.safeParse(value);
-  if (!result.success) throw unavailable("A lineage conflict required to preserve sibling authority cannot be decoded.");
+  if (!result.success) throw unavailable("A lineage conflict required to preserve sibling authority cannot be decoded.", "unparseable", options);
   return result.data;
 }
 
@@ -89,4 +95,6 @@ function copyFormat(current: RefMetadata, metadata: RefMetadata, key: string): v
   if (version === undefined) Reflect.deleteProperty(metadata.formats, key); else metadata.formats[key] = version;
 }
 
-function unavailable(condition: string): UnavailableWithdrawJournal { return new UnavailableWithdrawJournal(registry, condition); }
+function unavailable(condition: string, fault?: RefCaptureFault, options?: RefFaultOptions): UnavailableWithdrawJournal {
+  return new UnavailableWithdrawJournal(registry, condition, fault, options);
+}

@@ -68,11 +68,11 @@ async function readWithdrawalAncestors(context: RefBackendContext, journal: read
     try { ancestor = await syncRefMergeBase(context, step.beforeTip, step.publishedTip); }
     catch (error) {
       if (!await isUnavailableGraphFailure(context, error)) throw error;
-      throw new UnavailableWithdrawJournal(step.ref, "The original and published withdrawal ancestor cannot be read.");
+      throw new UnavailableWithdrawJournal(step.ref, "The original and published withdrawal ancestor cannot be read.", "missing");
     }
     if (!ancestor) continue;
     const trees = await readRefTrees(context, new Map([[step.ref, ancestor]])), entries = trees.get(step.ref);
-    if (!entries) throw new UnavailableWithdrawJournal(step.ref, "The original and published withdrawal ancestor tree is unavailable.");
+    if (!entries) throw new UnavailableWithdrawJournal(step.ref, "The original and published withdrawal ancestor tree is unavailable.", "missing");
     step.ancestor = new Map(entries.map(entry => [entry.path, entry]));
   }
 }
@@ -82,7 +82,7 @@ async function readWithdrawalTrees(context: RefBackendContext, source: ReadonlyM
   const selected = new Map([...source].filter(([ref]) => refs.has(ref)));
   const trees = await readRefTrees(context, selected);
   for (const ref of selected.keys()) if (!trees.has(ref)) {
-    throw new UnavailableWithdrawJournal(ref, `A tree required to withdraw the unpublished end is unavailable for ${ref}.`);
+    throw new UnavailableWithdrawJournal(ref, `A tree required to withdraw the unpublished end is unavailable for ${ref}.`, "missing");
   }
   return trees;
 }
@@ -94,6 +94,6 @@ async function requireWithdrawalBlobs(context: RefBackendContext, journal: reado
   const blobs = entries.filter(({ entry }) => entry.mode !== "040000" && entry.mode !== "160000");
   const objects = await readBatchObjects(context, [...new Set(blobs.map(({ entry }) => entry.oid))]);
   for (const { ref, entry } of blobs) if (objects.get(entry.oid)?.type !== "blob") {
-    throw new UnavailableWithdrawJournal(ref, `The blob at ${entry.path} required to withdraw the unpublished end is unavailable for ${ref}.`);
+    throw new UnavailableWithdrawJournal(ref, `The blob at ${entry.path} required to withdraw the unpublished end is unavailable for ${ref}.`, "missing");
   }
 }

@@ -8,7 +8,8 @@ import { isStateRef } from "./manifest.js";
 import { isArchiveRef } from "./archive-read.js";
 import { readLifecycleFolders } from "./sync-lifecycle.js";
 import { readHistoricalGraph } from "./history-graph.js";
-import { corruptRef } from "./namespace-health.js";
+import { refObjectFault, type RefFaultOptions } from "./object-fault.js";
+import type { RefCaptureFault } from "./capture-diagnostic.js";
 
 /** One ref's complete contribution to the original batch, including its conflict commit. */
 export interface WithdrawJournalStep {
@@ -26,9 +27,9 @@ export interface WithdrawJournalStep {
 /** Immutable commit coordinates can be discovered before holding the refs they will invert. */
 export interface WithdrawJournalDescription { ref: string; before?: string; after: string }
 
-/** Missing original evidence holds the entire end without swallowing unrelated read failures. */
+/** Original evidence retains its object fault and repair side while holding the complete end. */
 export class UnavailableWithdrawJournal extends Error {
-  constructor(readonly ref: string, message: string) { super(message); }
+  constructor(readonly ref: string, message: string, readonly fault?: RefCaptureFault, readonly options: RefFaultOptions = {}) { super(message); }
 }
 
 /** Read original writes from captured local tips, excluding unrelated item creations. */
@@ -43,8 +44,8 @@ export async function describeWithdrawJournal(context: RefBackendContext, held: 
   const descriptions: WithdrawJournalDescription[] = [];
   for (const [ref, tip] of held) {
     if (!isStateRef(ref)) continue;
-    const walked = await readHistoricalGraph(context, ["log", "--first-parent", "--format=%H %P%n%B%x00", tip], () => corruptRef(ref, true));
-    if (walked.status === "refused") throw new UnavailableWithdrawJournal(ref, walked.refusal.condition);
+    const walked = await readHistoricalGraph(context, ["log", "--first-parent", "--format=%H %P%n%B%x00", tip], () => refObjectFault(ref, "missing").refusal);
+    if (walked.status === "refused") throw new UnavailableWithdrawJournal(ref, walked.refusal.condition, "missing");
     const rows = walked.result.split("\0").flatMap((block) => {
       const [header = "", ...message] = block.trimStart().split("\n"), [commit, ...parents] = header.split(" ");
       const provenance = parseStoreCommitProvenance(message.join("\n"), reference);
@@ -78,7 +79,7 @@ export async function materializeWithdrawJournal(context: RefBackendContext,
   const trees = await readRefTrees(context, tips);
   return descriptions.map(({ ref, before, after }) => {
     const afterTree = trees.get(after), beforeTree = before ? trees.get(before) : [];
-    if (!afterTree || !beforeTree) throw new UnavailableWithdrawJournal(ref, "An unpublished lifecycle batch has an unavailable original tree.");
+    if (!afterTree || !beforeTree) throw new UnavailableWithdrawJournal(ref, "An unpublished lifecycle batch has an unavailable original tree.", "missing");
     return { ref, beforeTip: before, afterTip: after, ancestor: new Map(), before: new Map(beforeTree.map((entry) => [entry.path, entry])),
       after: new Map(afterTree.map((entry) => [entry.path, entry])) };
   });
