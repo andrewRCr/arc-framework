@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "housekeep-1031",
+  "claimId": "dfef6dbc7e4965ce8d0db7dc73a97ff7",
+  "createdAt": "2026-11-01T01:18:40.122Z",
+  "updatedAt": "2026-11-01T01:18:40.122Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route the 2026-10-31 housekeep drain's Work Unit captures to their backlog drafts",
+  "branch": "chore/housekeep-1031",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
