@@ -17,7 +17,7 @@ import { appendArchivedLookupTrees, type RefLookupCapture } from "./lookup-trees
 import { isArchiveRef } from "./archive-read.js";
 import { lookupCapturedRefTrees, type RefLookupTree } from "./lookup.js";
 import { expandStoredPath, holdsNoRecord, type StoredRecordHome } from "../stored-path.js";
-import { canonicalPrimaryKind, readRefMetadata, type RefMetadata } from "./metadata.js";
+import { canonicalPrimaryKind, type RefMetadata, type RefMetadataRead } from "./metadata.js";
 import { projectOwnerFromEntries, admitProjectReference, projectListInput, projectListingBinding, registryTreeUnavailable,
   type CapturedRegistry } from "./project-identity.js";
 import { archivedViewRecords } from "./archive-view.js";
@@ -82,15 +82,23 @@ function lookupViewTrees(context: RefBackendContext, state: RefViewState, identi
   for (const [ref, group] of state.refs) {
     if (!matchesFamilyRef(ref, "work-item") && !matchesFamilyRef(ref, "cohort") && ref !== "refs/arc/project/registry"
       && !(identity !== null && ref === `refs/arc/user/${identity}/claims`)) continue;
-    const family = viewRefFamily(ref);
-    const metadata = family ? viewRefMetadata(context, state, ref, family) : null;
-    if (family && group.entries && holdsNoRecord(expandStoredPath(refPrototype(context, ref, family),
-      { registry: context.registry }), group.entries.map(({ path }) => path))) continue;
-    if (!group.entries || !metadata) { unreadable.set(ref, corruptRef(ref, !group.entries, state.saved)); continue; }
-    trees.set(ref, { entries: group.entries, metadata, objects: state.objects });
+    const decoded = lookupViewTree(context, state, ref, group);
+    if (!decoded) continue;
+    if ("code" in decoded) unreadable.set(ref, decoded); else trees.set(ref, decoded);
   }
   appendArchivedLookupTrees(trees, state, unreadable);
   return { status: "ok", result: { trees, unreadable } };
+}
+
+function lookupViewTree(context: RefBackendContext, state: RefViewState, ref: string, group: RefViewGroup): RefLookupTree | StoreRefusal | undefined {
+  const family = viewRefFamily(ref);
+  if (family && group.entries && holdsNoRecord(expandStoredPath(refPrototype(context, ref, family),
+    { registry: context.registry }), group.entries.map(({ path }) => path))) return;
+  if (!group.entries) return refObjectFault(ref, "missing", { condition: `The tip or a tree of ${ref} is unavailable locally.` }).refusal;
+  if (!family) return corruptRef(ref, false, state.saved);
+  const read = viewRefMetadata(context, state, ref, family);
+  if (read.kind !== "parsed") return refObjectFault(ref, read.kind === "absent" ? "no-metadata" : read.kind, { saved: state.saved }).refusal;
+  return { entries: group.entries, metadata: read.metadata, objects: state.objects };
 }
 
 async function listView(context: RefBackendContext, state: RefViewState, input: ListInput): Promise<StoreResult<ListingOutcome>> {
@@ -149,8 +157,9 @@ async function readView(context: RefBackendContext, state: RefViewState, input: 
   const group = state.refs.get(home.ref);
   if (!group) return archivedViewRead(context, state, reference);
   const family = context.registry[reference.kind].family;
-  const metadata = viewRefMetadata(context, state, home.ref, family);
-  if (!metadata) return missingViewMetadata(state, reference, home);
+  const read = viewRefMetadata(context, state, home.ref, family);
+  if (read.kind !== "parsed") return missingViewMetadata(state, reference, home, read);
+  const metadata = read.metadata;
   if (family !== "lineage" && reference.owner.type !== "project") {
     reference = canonicalViewReference(context, reference, home.ref, metadata);
     home = expandStoredPath(reference, { registry: context.registry });
@@ -165,10 +174,11 @@ function readViewRecord(context: RefBackendContext, state: RefViewState, referen
   const entry = group.entries?.find(({ path }) => path === home.path);
   if (!entry) return missing(reference, state.saved);
   const object = state.objects.get(entry.oid);
-  if (object?.type !== "blob") return { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", reference, historyRefs: [],
+  if (object?.type !== "blob") return { status: "refused", refusal: refObjectFault(home.ref, "missing", { reference,
     condition: "The captured record blob is unavailable.", remedy: { text: state.saved
       ? "Restore or fetch the missing record objects, then retry this saved-state read."
-      : "Restore or fetch the missing record objects, then retry the write." } } };
+      : "Restore or fetch the missing record objects, then retry the write." },
+  }).refusal };
   const owner = resolveCapturedOwner(context, reference, home, metadata, object, state.saved);
   if (owner.status === "refused") return owner;
   reference = RecordReferenceSchema.parse({ ...reference, owner: owner.result });
@@ -183,13 +193,14 @@ function needsOwnerLookup(reference: RecordReference): boolean {
   return reference.owner.type !== "person" && reference.owner.type !== "project" && !reference.owner.uid && reference.kind !== "lineage/conflict-record";
 }
 
-function missingViewMetadata(state: RefViewState, reference: RecordReference, home: StoredRecordHome): StoreResult<never> {
+function missingViewMetadata(state: RefViewState, reference: RecordReference, home: StoredRecordHome,
+  read: Exclude<RefMetadataRead, { kind: "parsed" }>): StoreResult<never> {
   const entries = state.refs.get(home.ref)?.entries;
-  if (!entries) return { status: "refused", refusal: corruptRef(home.ref, true, state.saved) };
-  const entry = entries.find(({ path }) => path === home.metadataPath);
-  const read = readRefMetadata(home.ref, entry, state.objects);
+  if (!entries) return { status: "refused", refusal: refObjectFault(home.ref, "missing", {
+    reference, condition: `The tip or a tree of ${home.ref} is unavailable locally.`,
+  }).refusal };
   if (read.kind === "missing") return { status: "refused", refusal: refObjectFault(home.ref, "missing", { reference }).refusal };
-  if (read.kind === "absent" && holdsNoRecord(home, entries.map(({ path }) => path))) return missing(reference, state.saved);
+  if (holdsNoRecord(home, entries.map(({ path }) => path))) return missing(reference, state.saved);
   return { status: "refused", refusal: refObjectFault(home.ref, read.kind === "absent" ? "no-metadata" : "unparseable", { saved: state.saved }).refusal };
 }
 

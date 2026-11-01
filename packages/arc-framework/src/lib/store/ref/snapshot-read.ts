@@ -66,7 +66,8 @@ async function readSavedView(context: RefBackendContext, view: StoreView, versio
   const owner = result.refusal.reference?.owner ?? request.reference.owner;
   const ref = (owner.type === "work-item" || owner.type === "cohort") && owner.uid
     ? `refs/arc/${owner.type === "work-item" ? "work" : "cohort"}/${owner.uid}` : null;
-  return { status: "refused", refusal: { ...result.refusal, historyRefs: await missingHistoryRefs(context, ref ? [ref] : []) } };
+  return { status: "refused", refusal: { ...result.refusal, stateVersion: result.refusal.stateVersion ?? version,
+    historyRefs: await missingHistoryRefs(context, ref ? [ref] : []) } };
 }
 
 async function unavailableSnapshot(context: RefBackendContext, version: StateVersion, unavailable: readonly string[]): Promise<StoreResult<never>> {

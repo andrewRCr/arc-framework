@@ -4,7 +4,7 @@ import { ArchiveSequenceSchema, type ArchiveQuarter } from "../../kernel/index.j
 import { RecordReferenceSchema, type RecordReference } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
 import type { ReadPlacement } from "../placement.js";
-import { expandStoredPath } from "../stored-path.js";
+import { expandStoredPath, holdsNoRecord } from "../stored-path.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefWriteGroup } from "./write-commits.js";
 import type { PreparedRefMutation } from "./write-merge.js";
@@ -14,7 +14,9 @@ import { captureArchivedFolders, selectEndedOwners } from "./ended-owners.js";
 import type { RefTreeEntry } from "./batch-read.js";
 import { readRefContent, recordDiagnostic } from "./content-read.js";
 import { corruptRef } from "./namespace-health.js";
-import { refDiagnosticRefusal } from "./object-fault.js";
+import { refDiagnosticRefusal, refObjectFault } from "./object-fault.js";
+import { refPrototype } from "./read.js";
+import type { RefMetadataRead } from "./metadata.js";
 
 /** Gather parents through the registered parser, independently of unfinished closeout placement. */
 export async function preparedCohortParents(context: RefBackendContext, tips: ReadonlyMap<string, string>,
@@ -24,15 +26,25 @@ export async function preparedCohortParents(context: RefBackendContext, tips: Re
   const state = await overlayRefViewState(context, await captureRefViewState(context, tips), groups);
   for (const [ref, group] of state.refs) {
     if (!matchesFamilyRef(ref, "cohort")) continue;
-    const metadata = viewRefMetadata(context, state, ref, "cohort");
-    if (!metadata || !group.entries) return unavailableCohort(ref, !group.entries);
-    const reference = RecordReferenceSchema.parse({ owner: refOwner(ref, "cohort", metadata), kind: "cohort/document" });
+    if (!group.entries) return unavailableCohort(ref);
+    const read = viewRefMetadata(context, state, ref, "cohort");
+    if (read.kind !== "parsed") return cohortMetadataFailure(context, ref, group.entries, read, state.saved);
+    const reference = RecordReferenceSchema.parse({ owner: refOwner(ref, "cohort", read.metadata), kind: "cohort/document" });
     const result = collectParent(context, state, reference, group.entries, parents, ref);
     if (result.status === "refused") return result;
   }
   const archived = collectArchivedParents(context, state, parents);
   if (archived.status === "refused") return archived;
   return { status: "ok", result: parents };
+}
+
+function cohortMetadataFailure(context: RefBackendContext, ref: string, entries: readonly RefTreeEntry[],
+  read: Exclude<RefMetadataRead, { kind: "parsed" }>, saved = false): StoreResult<never> {
+  const home = expandStoredPath(refPrototype(context, ref, "cohort"), { registry: context.registry });
+  if (read.kind === "absent" && holdsNoRecord(home, entries.map(({ path }) => path))) {
+    return { status: "refused", refusal: corruptRef(ref, false, saved) };
+  }
+  return { status: "refused", refusal: refObjectFault(ref, read.kind === "absent" ? "no-metadata" : read.kind, { saved }).refusal };
 }
 
 /** Captured member assignments and parent facts used by one cohort close. */
@@ -92,6 +104,6 @@ function stringField(fields: unknown, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-function unavailableCohort(namespace: string, missingObjects = true): StoreResult<never> {
-  return { status: "refused", refusal: corruptRef(namespace, missingObjects) };
+function unavailableCohort(namespace: string): StoreResult<never> {
+  return { status: "refused", refusal: refObjectFault(namespace, "missing").refusal };
 }

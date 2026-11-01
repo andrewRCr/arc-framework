@@ -118,7 +118,7 @@ describe("ref cohort closeout", () => {
     }
     const before = (await git("git", ["for-each-ref", "--format=%(objectname) %(refname)", "refs/arc/"])).stdout;
     const write = { ...update(f, parent, parent.content), placement: { kind: "completed" as const, quarter } };
-    expect(await f.store.write(write)).toMatchObject({ status: "refused", refusal: { code: mode === "missing" ? "namespace-corrupt" : "record-malformed" } });
+    expect(await f.store.write(write)).toMatchObject({ status: "refused", refusal: { code: mode === "missing" ? "state-unresolvable" : "record-malformed" } });
     expect((await git("git", ["for-each-ref", "--format=%(objectname) %(refname)", "refs/arc/"])).stdout).toBe(before);
     if (mode === "missing") await f.ports.rawExec(["hash-object", "-w", "--stdin"], { input: bytes });
     else {

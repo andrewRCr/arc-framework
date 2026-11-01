@@ -179,18 +179,11 @@ classification calls the sweep settled.
           completion preserves owned current and ancestor faults only when no valid folder supplies placement, and
           its merge, retained-record, and withdrawal callers preserve those diagnostics through repair and retry.
 
-### `[ ]` **3.3 Writes and their views — § 1.4, § 1.9**
+### `[x]` **3.3 Writes and their views — § 1.4, § 1.9**
 
 - _Goal:_ A write or check view that meets a missing object refuses recoverably with the restore remedy, never as
   unparseable state, a version conflict, or an archive-control mismatch, while unparseable or absent metadata keeps its
   terminal refusal.
-
-- _Note:_ See `notes-storage-ref-hardening.md` § Fault-site inventory › 3.3 and § Classification calls the sweep settled
-  for its sites, their rows and sides.
-
-- _Note:_ Task 3.1.c brought forward `readWriteGroups`' missing-tree guard and `archivedViewRead`'s unavailable-quarter
-  guard to close archived read, history, write, and observation recovery together. Metadata and remaining tree sites
-  below still complete this task.
 
     - `[x]` **3.3.a The write path**
         - Write metadata keeps absence, loss, and decoding distinct, including record-free refs. Immutable prior reads
@@ -198,15 +191,11 @@ classification calls the sweep settled.
           metadata use the helper before control admission. History destinations confirm object loss and keep other
           completed Git failures terminal with their original message and remedy.
 
-    - `[ ]` **3.3.b The views**
-        - `viewRefMetadata` takes § 1.2's read for its callers in `write-views.ts` and `cohort-coordinates.ts`;
-          `readViewRecord` calls the helper.
-        - Build `test-first` (one behavior at a time):
-            - a check view's missing metadata blob refuses **Missing**, and an absent entry in a tree holding records
-              refuses **No metadata** with the forward repair
-            - a saved read's unparseable metadata takes the historical remedy
-            - a record-free tree still answers `not-found`
-            - a cohort parent whose metadata blob is missing refuses **Missing**
+    - `[x]` **3.3.b The views**
+        - Captured metadata retains absence, object loss, and decoding facts through named and UID-qualified reads
+          and cohort closeout. Missing objects take the helper; absent and malformed metadata keep current/saved
+          remedies. Record-free views keep absence, while missing blobs and empty cohort metadata retain their
+          distinct refusals and recover after repair. Saved object-loss refusals retain their snapshot version.
 
 ### `[ ]` **3.4 History and changes — § 1.6, § 1.9**
 
@@ -413,6 +402,9 @@ classification calls the sweep settled.
 
 - _Note:_ See `notes-storage-ref-hardening.md` § Fault-site inventory › 3.9 and § Classification calls the sweep settled
   for its sites, their rows and sides.
+
+- _Note:_ Task 3.3.b brought forward the saved point-read wrapper's `stateVersion` enrichment when direct Missing
+  producers bypassed its legacy conversion. The conversion removal and producer-history preservation remain here.
 
     - `[ ]` **3.9.a The readers that change**
         - `unavailableSnapshot` (`snapshot-read.ts`) converts no code: its point-read wrapper adds the snapshot's
