@@ -17,7 +17,8 @@ passes only on a rule from a `.gitignore` inside the repository, since `npm pack
 each path and the line that would ignore it; a call that fails otherwise refuses every root, typed apart, with the
 remedy of running the command again. A pass returns the ignore files its verdict rests on — `info/exclude` in the
 common Git directory, every `.gitignore` on the path to each guarded root, present or not, and every other file a match
-names as its source — so a caller can skip the call while none of them changes.
+names as its source — so a caller can skip the call while none of them changes. `predictableIgnoreFiles` names the
+first two kinds, which every pass rests on whatever the call answers.
 
 `index-schema.ts` is the strict schema of the index each projected worktree keeps about its copy. Per path it holds the
 record reference the file was read with, its stat, the blob id last written there, its base, its marks, and the aside
@@ -44,6 +45,13 @@ is racy against the new reference instead, and a file that hashes clean has its 
 — and compares that record against each file as it is by the same rule, smudging included, so a command runs the guard
 again only when one may have changed. An ignore file is read through a symbolic link, as Git reads it, and a link that
 loops reads as absent.
+
+`ignore-check.ts` runs the guard before a command's first write into a root only where an ignore file may have changed
+since its last pass, by `ignore-snapshot.ts`'s comparison. A pass reads every file it rests on before the call — the
+predictable ones and each file the last pass recorded, a `core.excludesFile` among them — and again after it, and
+returns its records only where every read agrees, so an edit landing while Git reads never becomes the baseline a later
+command skips the call against. Otherwise it reads again, knowing every file the call named, at most three times, and
+then refuses every root with the remedy of running the command again. A refusal stands as the call read it.
 
 `lock.ts` is the projection lock, one advisory lock per worktree at `arc-projection/lock`, its holder recording the
 process ID, instance, and process scope under a renewable lease. It creates, renews, and releases only inside a state
@@ -165,6 +173,21 @@ link, place a save in each interval for tests.
 lock again, since a save through a handle opened before the move can write after the first check. Each copy the index
 still records is settled as `aside-copies.ts` states, and the index is written. A copy kept there, and the replacement
 a swap back there moves aside, wait for the next command's sweep.
+
+`sweep.ts` sweeps the aside folder at every command's start, under the projection lock and before write-back reads a
+file, after the ignore check. A refusal of the aside folder, as a failed call refuses every root, leaves it writing
+nothing, and a refusal of a root leaves every copy under it untouched for the command; the index the sweep writes
+records a pass, and no pass after a refusal. It takes over only the copies and staged files whose writer has exited,
+judged as the projection lock judges a holder, and never one from another process scope, since a copy holds no lease:
+those it reports with their paths. Each recorded copy is taken in its entry's record order. A record whose copy is gone
+is dropped, and a copy that is not a file is deleted as no edit, never followed, its absent path left pending. One whose
+path is absent and has not moved on is linked back, the file pending, and every other copy is settled as
+`aside-copies.ts` states. A copy the index lists as withheld is left. One the index does not record, as a stop between a
+swap back's move and its index write leaves, is deleted where it equals its base, its stamp set aside, and otherwise
+kept and reported. Staged files are deleted and the reference stamp is left. With no usable index it takes nothing in: a
+copy whose path is absent is linked back, one that is not a file or equals its base is deleted, and every other stays,
+returned for the rebuilt index to record as withheld. The sweep returns the replacements a swap back made, for the
+command's second check.
 
 `index-file.ts` writes the index whole by temp-and-rename into that folder, never creating it, so a write that stops
 partway leaves the previous index and no write recreates a removed worktree's Git directory. A commit smudges the index,

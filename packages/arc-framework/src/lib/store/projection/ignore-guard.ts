@@ -66,13 +66,22 @@ function ancestorGitignores(path: string): string[] {
   return files;
 }
 
-/** The ignore files a pass rests on: info/exclude, every `.gitignore` above a guarded path, and each match's source. */
-async function ignoreFiles(
-  input: ProjectionIgnoreGuardInput, guarded: readonly GuardedRoot[], matches: readonly CheckIgnoreMatch[],
-): Promise<string[]> {
+/**
+ * The ignore files every pass rests on, whatever the call answers: info/exclude in the common Git directory and every
+ * `.gitignore` above a guarded path, present or not.
+ * @param input - Checkout, identity, and the Git and filesystem boundaries.
+ * @returns Their absolute paths.
+ */
+export async function predictableIgnoreFiles(input: ProjectionIgnoreGuardInput): Promise<string[]> {
   const { commonDir } = await readGitDirectories(input.root, input.fs);
-  const named = [...guarded.flatMap((root) => ancestorGitignores(root.path)), ...matches.map((match) => match.source)];
+  const named = guardedPaths(input.identity).flatMap((root) => ancestorGitignores(root.path));
   return [...new Set([join(commonDir, "info", "exclude"), ...named.map((path) => resolve(input.root, path))])];
+}
+
+/** The ignore files a pass rests on: the predictable ones and each match's source. */
+async function ignoreFiles(input: ProjectionIgnoreGuardInput, matches: readonly CheckIgnoreMatch[]): Promise<string[]> {
+  const sources = matches.map((match) => resolve(input.root, match.source));
+  return [...new Set([...await predictableIgnoreFiles(input), ...sources])];
 }
 
 /**
@@ -95,14 +104,27 @@ export async function guardProjectionIgnores(input: ProjectionIgnoreGuardInput):
     return { kind: "refused", reason: "not-ignored", roots: unignored, remedy: notIgnoredRemedy(unignored) };
   }
   try {
-    return { kind: "passed", ignoreFiles: await ignoreFiles(input, guarded, matches) };
+    return { kind: "passed", ignoreFiles: await ignoreFiles(input, matches) };
   } catch (error) {
     return guardFailed(guarded, error);
   }
 }
 
+/** A refusal of every root for the command, typed apart from a missing line. */
+export type GuardFailedVerdict = Extract<ProjectionIgnoreVerdict, { reason: "guard-failed" }>;
+
+/**
+ * Refuse every root for the command, as a call that did not answer does.
+ * @param identity - The identity whose roots are guarded.
+ * @param failure - What failed.
+ * @returns The refusal, with the remedy of running the command again.
+ */
+export function refuseEveryRoot(identity: Slug, failure: string): GuardFailedVerdict {
+  return guardFailed(guardedPaths(identity), new Error(failure));
+}
+
 /** Fail closed: a call that did not answer refuses every root for the command, typed apart from a missing line. */
-function guardFailed(guarded: readonly GuardedRoot[], error: unknown): ProjectionIgnoreVerdict {
+function guardFailed(guarded: readonly GuardedRoot[], error: unknown): GuardFailedVerdict {
   return {
     kind: "refused", reason: "guard-failed", paths: guarded.map((root) => root.path),
     failure: error instanceof Error ? error.message : String(error),

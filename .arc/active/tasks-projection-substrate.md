@@ -346,56 +346,21 @@ command's sweep takes over the copies a stopped command left.
           replacement made at the second check waits for the next sweep. Covered in
           `integration/store/projection/second-check.test.ts` and `swap.test.ts`.
 
-### `[ ]` **3.3 Sweep the aside folder — § 5.4**
+### `[x]` **3.3 Sweep the aside folder — § 5.4**
 
 - _Goal:_ Every command's sweep takes over the copies and staged files an exited writer left, without losing one and
   without touching a live writer's.
 
 - **Additional Context:** `notes-projection-substrate.md` § Spike 7
 
-    - Before its first write, the sweep runs the guard's skip check (2.4.b) and, where an ignore file may have changed,
-      the guard (1.2), recording a pass's snapshot in the index, so every write a command's start makes follows the
-      guard. A refusal leaves each root it names unwritten for the command, no copy linked back into it, and the sweep
-      returns the verdict with the guard's remedy, which write-back's read-back honors (`projection-write-back`).
-    - Under the projection lock, before write-back reads any file — the stat walk may start first, and write-back
-      re-reads the stats of each path the sweep linked back or replaced (`projection-write-back`) — every command
-      touches only the copies and staged files whose writer has exited, judged by the predicate the lock exports (2.3):
-      a copy whose path is absent and has not moved on (3.2.a), a symbolic link excepted, is linked back, yielding if
-      the path reappeared; every other copy is read as 3.2.a states — no edit while it holds the blob id its swap was
-      moving or the one it held when its own take-in landed, its edit taken in only while its path has not moved on, a
-      refused or clashed one handled as 3.2.c states, and otherwise kept and reported with its path; leftover staged
-      files are deleted; deleting the aside copy a file's in-progress record names clears the record, through 2.8's
-      deletion, once the file holds what the batch linked; and a copy's record whose copy is no longer in the aside
-      folder — moved back to its path, or never made after a stop — is dropped. The reference stamp is left alone, and a
-      copy the index lists as withheld is left by every sweep until the person deletes it. A copy written from another
-      process scope, which the predicate never reads as exited, since a copy holds no lease, is left and reported with
-      its path.
-    - With no usable index (2.2.d) it takes nothing in: an absent path's copy, a symbolic link excepted, is linked back,
-      a copy equal to its base, or a symbolic link, is deleted, and every other copy stays and is reported. The sweep
-      returns those copies' names, and the materialization that rebuilds the index records them as withheld
-      (`projection-worktrees`).
-    - Build `test-first` (one behavior at a time):
-        - with an ignore line removed since the guard last passed, the sweep runs the guard, links no copy back into the
-          refused root, and returns the refusal; once the line is restored, the next sweep links the copy back
-        - after a sweep whose guard ran and passed, the next sweep, no ignore file changed since, makes no Git call
-        - a copy left by an exited writer with its path absent is linked back
-        - a symbolic-link copy whose path is absent after a stop is never linked back: the sweep deletes it as no edit,
-          its target never read, and leaves the path pending
-        - a copy holding an edit is taken in, and a live writer's copy is left alone
-        - a copy whose writer's process ID now runs another instance of this process is taken over
-        - a reused process ID keeps its copies until that process exits
-        - leftover staged files are deleted, and the reference stamp stays
-        - with no usable index, a copy holding an edit is withheld and reported, and the next sweep leaves it
-        - an in-progress record a failed action left is cleared by the next command's sweep once it deletes the copy
-        - a copy a failed command left holding the blob id its swap was moving, its record seeded, is deleted by the
-          next sweep as no edit without reaching the take-in port, its record cleared; two such copies of one file, each
-          with its own record, both go
-        - a copy's record whose copy was moved back to its path, or never made, is dropped by the next sweep
-        - a copy written from another process scope is left and reported with its path
-        - a copy holding an edit whose path a later save moved on is kept and reported with its path, and later sweeps
-          leave it
-        - a copy whose path the person deleted after a write-back of it was sent is kept, never linked back
-        - of two copies of one absent path, the sweep links one back and keeps the other, its path then moved on
+- _Outcome:_ `sweepAsideFolder` (`lib/store/projection/sweep.ts`) runs `checkIgnores` (`ignore-check.ts`) first, then
+  takes over an exited writer's recorded copies — a gone copy's record dropped, a link deleted, an absent unmoved path's
+  copy linked back, every other settled through `settleAsideCopy` — deletes its staged files, and returns a swap back's
+  replacements for the second check. A copy the index does not record is deleted only where it equals its base, and
+  otherwise kept and reported. `checkIgnores` reads each ignore file a pass rests on, and each the last pass recorded,
+  before the call and again after, reading again where they disagree, so an edit landing while Git reads never becomes
+  the skip's baseline; the order was this task's to set, so it took no amendment. Covered in
+  `integration/store/projection/sweep.test.ts` and `ignore-check.test.ts`.
 
 ### `[ ]` **3.4 Rebuild an absent file and remove a file — § 5.5, § 5.6**
 
