@@ -15,6 +15,8 @@ import { refSyncTransportRemedy } from "./sync-remedy.js";
 import { waitForPushRetry } from "./push-backoff.js";
 import { withRefSyncDeadline, refSyncDeadlineExpired, RefSyncDeadlineError, refSyncDeadlineRemedy } from "./sync-deadline.js";
 import { pullRefStore } from "./pull.js";
+import { EffectiveTransportError } from "./effective-transport.js";
+import { refTransportTargetFailure } from "./object-fault.js";
 import { refPushTarget } from "./fetch-target.js";
 import { recordPushTracking, RefPushTrackingDeadlineError, RefPushTrackingLockError } from "./push-tracking.js";
 import { capturePushListing, readPushHistoryRefs, pushListingIncludesTracking, type RefPushListing } from "./push-listing.js";
@@ -71,19 +73,23 @@ async function publishRefStore(context: RefBackendContext, carry?: RefCarryPubli
     const bound = await readRefRepository(source);
     let result: StoreResult<PushResult> | "retry";
     try { result = await publishRefAttempt(source, loop); }
-    catch (error) {
-      if (await storeDirectoryVanished(bound, error)) result = "retry";
-      else if (error instanceof RefSyncDeadlineError) return timedOutStatePublication(context, loop, { code: "unreachable", class: "recoverable",
-        cause: "timeout", condition: `${error.message} Unpublished writes remain local.`, remedy: refSyncDeadlineRemedy("push") });
-      else if (!context.syncDeadline?.signal.aborted || !isGitProcessError(error) || error.kind !== "canceled") throw error;
-      else return timedOutStatePublication(context, loop, pushOutcomeFailure(bound, { status: "unreachable", cause: "timeout",
-        message: `The push deadline expired while running Git; retry to reconcile any writes the receiver accepted. ${error.message}` }));
-    }
+    catch (error) { result = await publicationAttemptFailure(context, bound, loop, error); }
     if (result !== "retry") return result;
     await context.operationScope?.refresh();
     loop.retryCount++;
     loop.waitedMs += await waitForPushRetry(context, loop.retryCount, loop.lastPushMs);
   }
+}
+
+async function publicationAttemptFailure(context: RefBackendContext, bound: RefBackendContext, loop: PushLoop,
+  error: unknown): Promise<StoreResult<PushResult> | "retry"> {
+  if (error instanceof EffectiveTransportError) return failedPublicationAttempt(bound, loop, refTransportTargetFailure(error.message));
+  if (await storeDirectoryVanished(bound, error)) return "retry";
+  if (error instanceof RefSyncDeadlineError) return failedPublicationAttempt(context, loop, { code: "unreachable", class: "recoverable",
+    cause: "timeout", condition: `${error.message} Unpublished writes remain local.`, remedy: refSyncDeadlineRemedy("push") });
+  if (!context.syncDeadline?.signal.aborted || !isGitProcessError(error) || error.kind !== "canceled") throw error;
+  return failedPublicationAttempt(context, loop, pushOutcomeFailure(bound, { status: "unreachable", cause: "timeout",
+    message: `The push deadline expired while running Git; retry to reconcile any writes the receiver accepted. ${error.message}` }));
 }
 
 async function publishRefAttempt(context: RefBackendContext, loop: PushLoop): Promise<StoreResult<PushResult> | "retry"> {
@@ -234,7 +240,7 @@ async function exhaustedStatePublication(context: RefBackendContext, loop: PushL
     remedy: { text: "Retry the push; it will fetch and reconcile the saved writes first." } }, loop);
 }
 
-async function timedOutStatePublication(context: RefBackendContext, loop: PushLoop, failure?: StatePushFailure): Promise<StoreResult<PushResult>> {
+async function failedPublicationAttempt(context: RefBackendContext, loop: PushLoop, failure?: StatePushFailure): Promise<StoreResult<PushResult>> {
   context = await readRefRepository(context);
   const result: PushResult = { states: statePushStates(loop.states, await context.identity()), pulls: loop.pulls, publishes: [] };
   return failedStatePublication(context, result, failure ?? pushOutcomeFailure(context, { status: "unreachable", cause: "timeout",

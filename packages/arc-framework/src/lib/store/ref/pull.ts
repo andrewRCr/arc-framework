@@ -17,6 +17,8 @@ import { refSyncTransportRemedy } from "./sync-remedy.js";
 import { RefSyncDeadlineError, refSyncDeadlineRemedy, refSyncCleanupContext, withRefSyncDeadline } from "./sync-deadline.js";
 import { adoptSourceProjectIdentity } from "./adopt-source-project.js";
 import { fetchRefRemote } from "./fetch.js";
+import { EffectiveTransportError } from "./effective-transport.js";
+import { refTransportTargetFailure } from "./object-fault.js";
 import { localFetchObjectFailure } from "./fetch-local-loss.js";
 import { releaseEndedRefKeepers } from "./fetch-seen-ended.js";
 import { RefFetchKeeperLockError } from "./fetch-keeper-lock.js";
@@ -120,11 +122,15 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
     } else await releaseEndedRefKeepers(context, remote.name, incoming, releasable, true);
     return { ...common, notices: uniqueNotices([...notices, ...merged?.notices ?? []]),
       status: observed.changed || merged?.changed ? "pulled" : "noop" };
-  } catch (error) {
-    if (error instanceof RefFetchIncompleteError) return { ...common, notices: uniqueNotices([...notices, ...error.notices]), status: "failed", failure: error.failure };
-    if (await storeDirectoryVanished(context, error)) return "restart";
-    return timedOutRemotePull(context, common, error, remote.name);
-  }
+  } catch (error) { return remotePullFailure(context, common, error); }
+}
+
+async function remotePullFailure(context: RefBackendContext, common: PullScope, error: unknown): Promise<PullOutcome | "restart"> {
+  if (error instanceof RefFetchIncompleteError) return { ...common,
+    notices: uniqueNotices([...common.notices, ...error.notices]), status: "failed", failure: error.failure };
+  if (error instanceof EffectiveTransportError) return { ...common, status: "failed", failure: refTransportTargetFailure(error.message) };
+  if (await storeDirectoryVanished(context, error)) return "restart";
+  return timedOutRemotePull(context, common, error, common.remote);
 }
 
 /** The per-remote failure arm is terminal; recoverable adoption stops retain their store-level route. */

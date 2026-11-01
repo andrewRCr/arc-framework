@@ -40,6 +40,13 @@ export function refObjectFault(namespace: string, fault: RefObjectFault, options
   return { refusal, diagnostic, condition, remedy, failure };
 }
 
+/** Map a resolver-established URL fault to the local transport row with the endpoint repair. */
+export function refTransportTargetFailure(condition: string): Extract<StoreRefusal, { code: "refused" }> {
+  return refObjectFault("remote URL", "local-transport", { condition,
+    remedy: { text: "Repair the remote's URL configuration to restore the intended endpoint, then retry." },
+  }).failure;
+}
+
 /** Convert a captured diagnostic by its object fact while retaining structural diagnostics verbatim. */
 export function refDiagnosticRefusal(namespace: string, diagnostic: CapturedRefDiagnostic): RefFaultReport["refusal"] {
   return diagnostic.fault ? refObjectFault(namespace, diagnostic.fault, {

@@ -4,7 +4,7 @@ import type { RefBackendContext } from "./context.js";
 import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
 import { retryTornRefListing } from "../../git/ref-listing.js";
 import { gitRefLockArgs } from "../../git/ref-transaction.js";
-import { readNamedTransport, selectLiteralTransport } from "./effective-transport.js";
+import { EffectiveTransportError, readNamedTransport, selectLiteralTransport } from "./effective-transport.js";
 
 /** Read the target Git uses without importing transport settings from the code repository. */
 export async function refFetchTarget(context: RefBackendContext, remote: RefRemoteDesignation,
@@ -12,7 +12,7 @@ export async function refFetchTarget(context: RefBackendContext, remote: RefRemo
   if (remote.repository === "backing" || remote.name === designation.codeRemote && !context.repository?.gitDir) return remote.name;
   const source = context.repository?.source ?? context;
   const effective = (await readNamedTransport(source, remote.name, "fetch"))[0];
-  if (!effective) throw new Error(`Remote ${remote.name} has no effective fetch URL. Repair its URL and retry.`);
+  if (!effective) throw new EffectiveTransportError(remote.name, "fetch", "has no effective URL");
   return selectLiteralTransport(context, effective, "fetch");
 }
 
@@ -43,7 +43,7 @@ export async function refPushTarget(context: RefBackendContext, remote: RefRemot
   if (remote.repository === "backing" || remote.name === designation.codeRemote) return remote.name;
   const source = context.repository?.source ?? context;
   const effective = (await readNamedTransport(source, remote.name, "push"))[0];
-  if (!effective) throw new Error(`Remote ${remote.name} has no effective push URL. Repair its URL and retry.`);
+  if (!effective) throw new EffectiveTransportError(remote.name, "push", "has no effective URL");
   return selectLiteralTransport(context, effective, "push");
 }
 

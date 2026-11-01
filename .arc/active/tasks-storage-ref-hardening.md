@@ -404,16 +404,15 @@ transport failure is a per-remote outcome.
       caching wrapper over them caches no failure value.
     - A per-remote failure takes 2.3.a's **Local transport fault** row.
 
-    - `[ ]` **4.3.a Pull and push**
-        - Pull: `refFetchTarget`'s failures through `fetch.ts` and `pull.ts`, and through `refFetchRewriteRemedy`
-          (`fetch-remedy.ts`), which builds a `history-diverged` notice's remedy from `rejectedFetchNotice` and
-          `fetch-seen.ts`, become the remote's failed outcome.
-        - Push: `checkedPushTarget`'s call of `refPushTarget` in `publishRefAttempt`, and `publishListing`'s `admit`
-          around `captureComparisonWitness`, become the remote's failed publish, rather than a retry to the deadline.
-        - Build `test-first` (one behavior at a time): one of two remotes with an unresolvable URL fails `refused`
-          while the other's pull outcome and notices survive; a push remote whose push URL cannot be resolved, while
-          its fetch URL can, fails `refused` at a `history-diverged` remedy without losing the pull; the same at push
-          admission and at the push target.
+    - `[x]` **4.3.a Pull and push**
+        - _Note:_ Lint feedback moved per-remote pull failure handling into its own helper to keep `pullRemote`
+          within its complexity limit, preserving the existing incomplete-fetch, restart, and deadline branches.
+          Publisher lint feedback required the same extraction; both callers share the URL-failure mapping.
+          Test type-check feedback required explicit initial-version guards before reusing the created leases.
+        - Typed URL faults now use the shared local-transport failure mapping. Pulls retain each remote's outcome
+          and notices; publication attempts retain their pulls and fail without deadline retries at target and
+          admission resolution. Missing-effective-URL guards throw `EffectiveTransportError`, leaving the underlying
+          lookups throwing. Evidence: `task-4.3.a-*` in the implementation evidence directory.
 
     - `[ ]` **4.3.b Follow**
         - Follow's resume (`follow.ts`), its cleanup (`follow-delete.ts`), and `judgeRefFollow`

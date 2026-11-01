@@ -66,7 +66,7 @@ async function readComparisonSource(physical: RefBackendContext, expected: Named
   const owner = remote.repository === "backing" ? physical : source;
   const transport = publication ? await readRemoteTransports(owner, remote.name)
     : { fetchUrl: (await readNamedTransport(owner, remote.name, "fetch"))[0] ?? "" };
-  if (!transport.fetchUrl) throw new Error(`Remote ${remote.name} has no effective fetch URL. Repair its URL and retry.`);
+  if (!transport.fetchUrl) throw new EffectiveTransportError(remote.name, "fetch", "has no effective URL");
   if (expected.fetchUrl !== undefined && transport.fetchUrl !== expected.fetchUrl) return null;
   return { name: remote.name, repository: remote.repository, url: remote.url, fetchUrl: transport.fetchUrl,
     ..."pushUrls" in transport ? { pushUrls: publicationReceivers(remote, designation.codeRemote, transport.pushUrls) } : {} };
