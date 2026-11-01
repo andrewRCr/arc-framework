@@ -6,6 +6,9 @@ import type { GitExec } from "../../lib/git/index.js";
 import type { SessionInitProbeResult } from "../status.js";
 import type { AgendaAnswers, AgendaSignals } from "./schema.js";
 
+/** Synchronization channels available to the selected entering row. */
+export type SyncChannels = "all" | "notes";
+
 /** Read-only operations bound to the session's checkout, replaceable by unit fixtures. */
 export interface AgendaReadPort {
   exists(path: string): Promise<boolean>;

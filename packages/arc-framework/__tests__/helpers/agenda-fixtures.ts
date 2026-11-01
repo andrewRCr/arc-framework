@@ -1,6 +1,7 @@
-/** Coherent entering rows passed through the shared session-init fixture. */
+/** Validated session probes and read-bound compiler inputs for agenda tests. */
 
 import { activeSessionInit, derivedFrameFromActive, sessionInitFixture, worktreeSync } from "./session-init-fixtures.js";
+import type { AgendaCompileInput } from "../../src/commands/agenda/compile-input.js";
 import type { DerivedLocusFrame } from "../../src/lib/locus/derived-reader.js";
 import type { DerivedCheckoutRow } from "../../src/lib/locus/derived-roster.js";
 import type { SessionInitProbeResult } from "../../src/commands/status.js";
@@ -48,4 +49,14 @@ Promise<SessionInitProbeResult> {
         branch: "feat/work", stamp: { kind: "legacy", authorization: "merged-preserved" } } : null;
     },
   });
+}
+
+/** Bind a validated probe result to compile inputs that refuse unexpected reads. */
+export function createAgendaFixtureInput(
+  envelope: SessionInitProbeResult,
+  overrides: Partial<Omit<AgendaCompileInput, "envelope">> = {},
+): AgendaCompileInput {
+  const unexpectedRead = async (): Promise<never> => { throw new Error("Unexpected agenda read"); };
+  return { envelope, signals: {}, answers: { answered: {}, done: [] },
+    read: { exists: unexpectedRead, size: unexpectedRead, read: unexpectedRead, git: unexpectedRead }, ...overrides };
 }

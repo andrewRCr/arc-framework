@@ -1,5 +1,5 @@
 /**
- * Pre-computed sync-pull recommendations for session-init Step 2.
+ * Pre-computed synchronization recommendations for session initialization.
  *
  * Pure helper: takes resolved worktree/user/dirty signals plus the relevant
  * `session.init_pull.*` policies and returns the action verb plus composed
@@ -241,8 +241,8 @@ export function composeMergeabilityGuidance(relation: BehindBaseRelation): strin
  * `diverged` stays `surface` in both cases — the workflow renders the generic
  * reconcile from state. When the local-ahead commits are patch-equal to a
  * rebased remote prefix (`supersession.superseded`), the channel additionally
- * carries the downgraded "superseded — reset is lossless" prompt text + reset
- * offer; the workflow swaps to it. Genuine divergence keeps the empty text.
+ * carries the superseded-commits explanation, a dirty-tree warning when needed,
+ * and the reset question. Genuine divergence keeps the empty text.
  */
 function inferWorktree(
   worktree: SessionWorktreeStatus,
@@ -263,7 +263,7 @@ function inferWorktree(
       return {
         recommendedAction: "surface",
         recommendedPromptText: supersession?.superseded
-          ? composeSupersessionPromptText(worktree.branch)
+          ? composeSupersessionPromptText(worktree.branch, dirty)
           : "",
       };
     case "local-ahead":
@@ -279,17 +279,21 @@ function inferWorktree(
   }
 }
 
-/**
- * Compose the diverged-handler supersession downgrade: local-ahead commits are
- * patch-equal to a rebased remote prefix, so a hard reset to the remote loses
- * nothing. Offers the reset; never auto-runs (the workflow presents it).
- */
-function composeSupersessionPromptText(branch: string | null): string {
+/** Explain the content preserved when superseded local commits are dropped. */
+export function composeSupersessionHead(branch: string | null): string {
   const remote = `origin/${branch ?? "<branch>"}`;
-  return (
-    `Local commits are superseded by rebased equivalents on \`${remote}\` — reset is lossless.\n` +
-    `Reset? \`git reset --hard ${remote}\``
-  );
+  return `Local commits are superseded by rebased equivalents on \`${remote}\`; dropping them loses nothing.`;
+}
+
+/** Compose the reset question with a warning about discarded working-tree edits. */
+function composeSupersessionPromptText(branch: string | null, dirty: DirtyStateResult): string {
+  const lines = [composeSupersessionHead(branch)];
+  if (dirty.state === "dirty") {
+    lines.push("Working tree dirty — the reset discards uncommitted changes; stash them first "
+      + "(a commit made now would be dropped too).");
+  }
+  lines.push(`Reset? \`git reset --hard origin/${branch ?? "<branch>"}\``);
+  return lines.join("\n");
 }
 
 /**

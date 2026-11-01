@@ -150,63 +150,31 @@ Orient's routes — so the spine that lands next has a complete resume to execut
 
 _Mode:_ `slice` through Phase 3 — closes on a plain resume driven end to end by the agenda and the spine.
 
-### `[ ]` **2.1 Compile the entry prefix's sync steps — § 5.1, § 5.2, § 7.1, § 4.8, § 4.11**
+### `[x]` **2.1 Compile the entry prefix's sync steps — § 5.1, § 5.2, § 7.1, § 4.8, § 4.11**
 
 - _Goal:_ A resume's prefix turns each channel's published recommendation into the step § 5.2 assigns — the first
   automatic sync as a recompiling `exec` that ends the agenda, otherwise the ordered `ask: "now"` offers with the
   combined pair, then the user-reference apply — and runs only argv the CLI published or composed from slot fields.
 
-    - `[ ]` **2.1.a Compile the worktree, base, and user-reference channels**
-        - Composed argv: `git pull --ff-only`, `git fetch origin <base>:<base>` from `baseBranchSync.value.base`, and
-          the slot's own `recommendedCommand` for the user-reference apply
-        - The prefix takes the row's channel set (§ 5.1), so the signal rows reuse it with the notes channel alone
-        - Build `test-first` (one behavior at a time):
-            - the worktree channel's `prompt` offers `worktree:pull` with `recommendedPromptText`; `skip` emits nothing
-            - the base-branch channel's `pull` is an `exec`; its `prompt` an offer never combined with another
-            - with an automatic sync, the agenda ends at the first `exec` in the order notes pull, notes load, base sync
-            - with none, offers follow in the order superseded reset, worktree and notes, notes load, base sync
-            - every sync `exec` and sync choice recompiles
-            - `userReferenceReconcile` `apply` compiles to an `exec` (id `user-references:apply`) after the sync steps,
-              ending the agenda
+    - `[x]` **2.1.a Compile the worktree, base, and user-reference channels**
+        - Added channel-set-aware prefix sequencing and shared recompile constructors. Worktree/base actions use
+          literal field-derived argv; reference apply retains its published command and checkout. Automatic notes
+          pull/load precedes base sync; available offers stay ordered before apply, and reset remains offer-only.
 
-    - `[ ]` **2.1.b Compile the notes channel and load in the cutover module**
-        - Create the cutover module here: it holds the notes channel's steps (`arc user pull`) and the § 7.1 load
-          dispatch, and Task 2.5.b adds the notes surfaces, so the cutover deletes the module rather than editing the
-          compiler
-        - Build `test-first` (one behavior at a time):
-            - the notes channel's `pull` is an `exec` (id `notes:pull`) and its `prompt` an offer
-            - one load fires on `loadNeeded` or a retired-subdir `pull` or `prompt`, and never while the channel
-              recommends a pull
-            - under `always` the load is an `exec` (id `notes:load`), except a retired-subdir `prompt`, which offers
-            - under `prompt` the offer's text is the retired-subdir slot's when it fired, else the compiler's "Notes:
-              local notes are current but disk lags the latest note. Load?"
-            - with the `config` slot failed, the load follows `prompt`
+    - `[x]` **2.1.b Compile the notes channel and load in the cutover module**
+        - Isolated notes pull/load steps in `notes.ts`. Pulls suppress co-triggered loads; disk lag and retired
+          subdirectories share one load. Policy, the retired dirty-tree prompt, producer text, the compiler's load
+          prompt, and failed-config fallback select the step without weakening the independent retired trigger.
 
-    - `[ ]` **2.1.c Combine offers**
-        - Only the worktree pull combines, and only with a notes pull or a notes load; the superseded reset and the
-          base-branch sync never combine
-        - Build `test-first` (one behavior at a time):
-            - worktree and notes both `prompt` give one `worktree:pull+notes:pull` offer with
-              `recommendedCombinedPrompt` and the choices pull both, worktree only, notes only, skip
-            - a worktree `prompt` with a notes load gives one `worktree:pull+notes:load` offer whose text joins the
-              channels' texts and whose choices are each alone, both together, and decline
-            - a superseded reset or base-sync offer stays separate beside any other offer
-            - a combined accept runs its syncs in order under one recompile
+    - `[x]` **2.1.c Combine offers**
+        - Combined worktree pull with notes pull/load into four-choice offers, preserving the published combined
+          prompt or joined channel texts. Each choice carries ordered literal actions and per-key answers under one
+          recompile; base and reset offers remain separate.
 
-    - `[ ]` **2.1.d Offer the superseded reset**
-        - A superseded `diverged` worktree stays `surface`, so the offer keys on `supersession.superseded`, not on a
-          `prompt`
-        - Split `composeSupersessionPromptText` (`lib/session-init/recommended-action.ts`) into an exported head
-          composer the envelope and the `superseded` render share, plus the dirty-tree warning and the question; it
-          takes `dirty`, which `inferWorktree` has in scope. This is the envelope's one text change
-        - The existing `toContain` assertions in `recommended-action.test.ts` and `status/run.test.ts` still hold; add
-          exact-text tests for the head, the dirty variant, and the question
-        - Build `test-first` (one behavior at a time):
-            - a superseded `diverged` worktree on a row whose prefix runs the worktree channel offers
-              `superseded:reset` carrying `git reset --hard origin/<branch>` from `worktree.value.branch`
-            - the dirty-tree warning appears only on a dirty tree, and `DIRTY_TREE_WARNING` is not reused
-            - declined, or on any other row, the `superseded` surface renders the head alone
-            - the reset is never an `exec`
+    - `[x]` **2.1.d Offer the superseded reset**
+        - Shared the supersession head between producer prompts and orientation. Pending resets remain offers with
+          literal branch-derived argv; dirty prompts add the reset-specific warning. Declined or notes-only rows
+          render only the shared head, without duplicating a pending offer.
 
 ### `[ ]` **2.2 Carry answers across recompiles — § 4.5, § 4.6**
 
