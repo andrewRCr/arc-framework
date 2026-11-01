@@ -16,7 +16,7 @@ import { isLandedInBase, isLandedInBaseStrict } from "../git/branch-containment.
 import { stat } from "node:fs/promises";
 import { checkWorktreeRemoval, type ProjectionRemovalSlots } from "../git/worktree-removal.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
-import { missingRegistrationActions } from "./missing-worktree-folders.js";
+import { missingRegistrationActions, missingRegistrationLock } from "./missing-worktree-folders.js";
 import type { SessionAction } from "./actions.js";
 import { readWorktreeMarker } from "../git/worktree-marker.js";
 import type { GitExec } from "../git/exec.js";
@@ -164,7 +164,7 @@ async function buildWorktreeCandidate(
       disposition: "remove", check: ctx.projectionRemovalSlots?.check, folderExists: ctx.folderExists });
     if (check.kind === "missing" || (check.kind === "refused" && check.reason === "locked" && !check.folderPresent)) {
       ctx.missingFolders.push({ worktreePath: entry.worktreePath, branch: entry.branch,
-        actions: missingRegistrationActions(entry.worktreePath, { locked: check.kind === "refused" }) });
+        actions: missingRegistrationActions(entry.worktreePath, { lock: missingRegistrationLock(check, ctx.row) }) });
     }
     return null;
   }

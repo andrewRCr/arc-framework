@@ -459,38 +459,14 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
 - _Goal:_ With the lock live, every removal the agent is told to run or a person is told to type names an exit verb or
   the unlock-then-remove sequence, never a plain `git worktree remove` that the lock refuses.
 
-    - `[ ]` **4.2.a A missing folder's remedy under the lock**
+    - `[x]` **4.2.a A missing folder's remedy under the lock**
 
-        - The removal check answers `missing`, not `locked`, for a registration whose folder is missing under the
-          projection's lock, since the removal function unlocks that lock itself, and the composers that build the
-          `missingFolders` remedies take a registration as locked only where the check answers `locked`: the stale
-          sweep's (`readMissingWorktreeFolders`, `lib/session-init/missing-worktree-folders.ts`), its store arm
-          (`readStoreMissingFolderActions`, `lib/session-init/missing-worktree-store.ts`), and branch-gone recovery's
-          (`buildWorktreeCandidate`, `lib/session-init/branch-gone-recovery.ts`), each through
-          `missingRegistrationActions`. Under the lock an adopted branch's remedy and branch-gone recovery's would
-          therefore name a plain `git worktree remove <path>`, which Git refuses.
-        - This task passes each registration's lock reason from its derived roster row (`row.checkout.locked`,
-          `lib/locus/derived-roster.ts`, carrying `RegisteredWorktree.locked`, `lib/git/worktree-roster.ts`) into those
-          composers; each reader already holds the row, and branch-gone recovery refuses without a derived roster. A
-          registration answering `missing` whose reason is `PROJECTION_LOCK_REASON` keeps the typed
-          `arc teardown <name>` where the stale sweep offers it — before the flip, where its branch names a shipped work
-          unit (`readMissingWorktreeFolders`'s `shipped` set), and from the flip, where its ended work unit created its
-          branch (`linkedAs: created`) — since teardown runs the removal function, which unlocks that lock; every other
-          — an unshipped one before the flip, an adopted branch from it, which teardown keeps with its registration
-          (`reportAdopted`, `lib/work-unit/verbs/teardown-store.ts`), and branch-gone recovery's — takes the locked
-          remedy as text, `git worktree unlock <path>` before `git worktree remove <path>`. A registration another tool
-          locked keeps today's remedy.
-        - Build `test-first` (one behavior at a time):
-            - Integration tier, over a real repository
-            - a registration under the projection's lock whose folder was deleted is reported by branch-gone recovery
-              naming `git worktree unlock <path>` before its removal
-            - before the flip, the stale sweep reports a shipped work unit's registration under the projection's lock
-              with its typed `arc teardown <name>`, and an unshipped one's with the unlock before
-              `git worktree remove <path>`
-            - from the flip, an ended work unit's registration under the projection's lock whose branch it created is
-              reported by the stale sweep with its typed `arc teardown <name>`, and one whose branch it adopted with the
-              unlock before `git worktree remove <path>`
-            - an unlocked registration, and one another tool locked, keep their remedies
+        - `missingRegistrationActions` (`lib/session-init/missing-worktree-folders.ts`) takes the registration's lock
+          reason — the check's for another tool's lock, else the derived roster row's (`missingRegistrationLock`) — in
+          the stale sweep, its store arm, branch-gone recovery, and teardown's adopted-branch notice. Under
+          `PROJECTION_LOCK_REASON` a shipped or created branch keeps its typed `arc teardown <name>`, and every other
+          registration takes `git worktree unlock <path>` before `git worktree remove <path>` as text; another tool's
+          lock keeps its remedy. Covered in `integration/missing-folder-lock-remedies.test.ts`.
 
     - `[ ]` **4.2.b The workflow and strategy text**
 

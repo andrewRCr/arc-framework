@@ -17,8 +17,9 @@ it("keeps a reused branch on registration-only cleanup while a live holder links
   expect(warnings).toEqual([]);
   expect(reports[0]?.actions).toEqual([{ text: "After confirming the folder is still missing, git worktree remove '/missing'." }]);
 });
-function row(branch: string | null, locked: string | null = null) {
-  return DerivedCheckoutRowSchema.parse({ kind: "unmanaged-checkout", subject: null, checkout: { path: "/missing", branch, head: "a".repeat(40), detached: branch === null, primary: false, folderPresent: false, locked },
+/** A missing registration's row; `locked` is absent when unlocked, as the roster records it. */
+function row(branch: string | null, locked?: string) {
+  return DerivedCheckoutRowSchema.parse({ kind: "unmanaged-checkout", subject: null, checkout: { path: "/missing", branch, head: "a".repeat(40), detached: branch === null, primary: false, folderPresent: false, ...(locked === undefined ? {} : { locked }) },
     markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, context: null, lifecycleLocation: null, diagnostics: [] });
 }
 const exec = async () => ({ stdout: worktreePorcelainZ(`worktree /missing
@@ -46,7 +47,7 @@ it.each([false, true])("keeps completed Errand registration cleanup as guarded p
     { branches: [{ repository: "project", ref: branch, linkedAs: "created", excluded: [] }] });
   const errandExec = async () => ({ stdout: worktreePorcelainZ(`worktree /missing\nHEAD ${"a".repeat(40)}\nbranch refs/heads/${branch}${locked ? "\nlocked owner lock" : ""}`), stderr: "" });
   const reports = await readMissingWorktreeFolders({ store: h.store, projectId: async () => "project",
-    rows: [row(branch, locked ? "owner lock" : null)], shipped: new Set(), exec: errandExec,
+    rows: [row(branch, locked ? "owner lock" : undefined)], shipped: new Set(), exec: errandExec,
     folderExists: async () => false });
   expect(reports[0]?.actions).toEqual([{ text: locked
     ? "After confirming the folder is still missing, its lock's owner may run git worktree unlock '/missing', then git worktree remove '/missing'."
