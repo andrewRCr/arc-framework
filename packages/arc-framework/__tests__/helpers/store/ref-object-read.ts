@@ -1,6 +1,7 @@
 /** Git object wire fixtures for public ref-store reads, without child processes. */
 
 import { createHash } from "node:crypto";
+import { join, resolve } from "node:path";
 import { createRefStore } from "../../../src/lib/store/create.js";
 import { RecordReferenceSchema, StateVersionSchema } from "../../../src/lib/store/identity.js";
 import type { RefStorePorts } from "../../../src/lib/store/ports.js";
@@ -14,6 +15,7 @@ export const metadataValue = { formatVersion: 1, slug: "alpha", formats: {},
 type ObjectType = "blob" | "tree" | "commit";
 interface GitObject { oid: string; type: ObjectType; bytes: Buffer }
 interface Entry { name: string; mode: string; oid: string }
+let fixtureSequence = 0;
 
 /** A single live owner with real Git object identities and a retained manifest. */
 export function refObjectReadFixture(options: {
@@ -25,7 +27,10 @@ export function refObjectReadFixture(options: {
   missingRecord?: boolean;
   record?: boolean;
   transientMetadataAbsence?: boolean;
+  archive?: { root: string; quarter: string };
 } = {}) {
+  const checkoutRoot = resolve("ref-object-fixtures", String(++fixtureSequence));
+  const gitDir = join(checkoutRoot, ".git");
   const objects = new Map<string, GitObject>();
   function object(type: ObjectType, content: string | Uint8Array): GitObject {
     const bytes = Buffer.from(content);
@@ -50,9 +55,13 @@ export function refObjectReadFixture(options: {
       mode: type === "tree" ? "40000" : type === "commit" ? "160000" : "100644", oid: metadata.oid }],
     ...options.record === false ? [] : [{ name: "extra-alpha.md", mode: "100644", oid: record.oid }],
   ];
-  const root = tree(entries), tip = commit(root.oid);
-  const work = tree([{ name: metadataUid, mode: "160000", oid: tip.oid }]);
-  const manifest = tree([{ name: "work", mode: "40000", oid: work.oid }]);
+  const content = tree(entries);
+  const directory = options.archive ? { name: options.archive.root.replace(/\/$/u, ""), mode: "40000", oid: content.oid } : undefined;
+  const root = directory ? tree([directory]) : content, tip = commit(root.oid);
+  const namespace = options.archive ? `refs/arc/archive/${options.archive.quarter}` : metadataRef;
+  const branch = tree([{ name: options.archive?.quarter ?? metadataUid, mode: "160000", oid: tip.oid }]);
+  const manifest = tree([{ name: options.archive ? "archive" : "work", mode: "40000", oid: branch.oid }]);
+  const paths = directory ? [directory, ...entries.map(entry => ({ ...entry, name: `${options.archive?.root}${entry.name}` }))] : entries;
   if (options.missingMetadata) objects.delete(metadata.oid);
   if (options.missingTree) objects.delete(root.oid);
   if (options.missingRecord) objects.delete(record.oid);
@@ -62,11 +71,11 @@ export function refObjectReadFixture(options: {
   const unexpected = async (): Promise<never> => { throw new Error("Unexpected fixture I/O"); };
   const missing = (path: string) => Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
   const ports: RefStorePorts = {
-    checkoutRoot: "/repository", exec: unexpected, execInput: unexpected,
+    checkoutRoot, exec: unexpected, execInput: unexpected,
     rawExec: async (args, controls) => {
       calls.push(args);
       let stdout: Buffer;
-      if (args[0] === "for-each-ref") stdout = Buffer.from(`${tip.oid} ${metadataRef}\n${manifest.oid} refs/arc/tmp/version\n`);
+      if (args[0] === "for-each-ref") stdout = Buffer.from(`${tip.oid} ${namespace}\n${manifest.oid} refs/arc/tmp/version\n`);
       else if (args[0] === "cat-file" && args[1] === "--batch") {
         const queries = Buffer.from(controls?.input ?? "").toString().trimEnd().split("\n");
         stdout = Buffer.concat(queries.map(query => {
@@ -74,25 +83,25 @@ export function refObjectReadFixture(options: {
             transientMetadataAbsence = false;
             return Buffer.from(`${query} missing\n`);
           }
-          let oid = query === metadataRef ? tip.oid : query;
+          let oid = query === namespace ? tip.oid : query;
           if (query === `${tip.oid}^{tree}`) oid = root.oid;
-          const prefix = [metadataRef, tip.oid].find(revision => query.startsWith(`${revision}:`));
-          if (prefix) oid = objects.has(root.oid) ? entries.find(entry => entry.name === query.slice(prefix.length + 1))?.oid ?? "" : "";
+          const prefix = [namespace, tip.oid].find(revision => query.startsWith(`${revision}:`));
+          if (prefix) oid = objects.has(root.oid) ? paths.find(entry => entry.name === query.slice(prefix.length + 1))?.oid ?? "" : "";
           const value = objects.get(oid);
           return value ? Buffer.concat([Buffer.from(`${value.oid} ${value.type} ${value.bytes.length}\n`), value.bytes, Buffer.from("\n")])
             : Buffer.from(`${query} missing\n`);
         }));
       } else if (args[0] === "diff-tree") {
-        stdout = Buffer.from(entries.length === 0 ? "" : `${empty.oid} ${root.oid}\n` + entries.map(entry =>
+        stdout = Buffer.from(paths.length === 0 ? "" : `${empty.oid} ${root.oid}\n` + paths.map(entry =>
           `:000000 ${entry.mode.padStart(6, "0")} ${"0".repeat(40)} ${entry.oid} A\0${entry.name}\0`).join(""));
       } else throw new Error(`Unexpected Git fixture command: ${args.join(" ")}`);
       return { stdout, stderr: new Uint8Array() };
     },
     fs: { readFile: async path => {
-      if (path.replaceAll("\\", "/") === "/repository/.git/config") return "";
+      if (path === join(gitDir, "config")) return "";
       throw missing(path);
     }, lstat: async path => {
-      if (path.replaceAll("\\", "/") === "/repository/.git") return { isDirectory: () => true } as Awaited<ReturnType<RefStorePorts["fs"]["lstat"]>>;
+      if (path === gitDir) return { isDirectory: () => true } as Awaited<ReturnType<RefStorePorts["fs"]["lstat"]>>;
       throw missing(path);
     }, readBytes: unexpected, writeBytes: unexpected, readdir: unexpected, mkdir: unexpected,
     writeFile: unexpected, exclusiveCreate: unexpected, unlink: unexpected, realpath: unexpected,
@@ -100,7 +109,7 @@ export function refObjectReadFixture(options: {
     identity: async () => null, backingRepository: unexpected, actor: unexpected, lock: unexpected,
     clock: () => new Date(0), sleep: { wait: unexpected, bound: unexpected }, random: () => 0.5,
   };
-  return { store: createRefStore(ports), calls, version: StateVersionSchema.parse(manifest.oid), reference: RecordReferenceSchema.parse({
+  return { store: createRefStore(ports), calls, namespace, version: StateVersionSchema.parse(manifest.oid), reference: RecordReferenceSchema.parse({
     owner: { type: "work-item", name: "alpha", uid: metadataUid }, kind: "work-item/companion", key: "extra",
   }) };
 }

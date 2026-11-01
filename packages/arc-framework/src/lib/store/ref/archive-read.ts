@@ -10,6 +10,7 @@ import { parseRefMetadata, historicalMetadataFailure, unparsedMetadata, type Ref
 import type { RefTreeEntry, BatchObject } from "./batch-read.js";
 import { isOwnerMetadataName } from "./metadata-filename.js";
 import { projectRefTreeEntry } from "./entry-path.js";
+import { refObjectFault } from "./object-fault.js";
 
 /** One archived owner with paths relative to its retained live tree layout. */
 export interface ArchivedFolder {
@@ -107,7 +108,7 @@ export function decodeArchiveFolderControls({ family, ref, quarter, saved }: Arc
   const mismatch = folderOwnerMismatch(ref, root, owner.data, metadata, cohort, saved);
   if (mismatch) return mismatch;
   const placement = folderPlacement(root, metadata, quarter, cohort);
-  if (!placement) return unreadable;
+  if (!placement) return misplacedFolder({ family, ref, quarter, saved }, root, metadata);
   return { owner: owner.data, metadata, placement, liveRef: `refs/arc/${cohort ? "cohort" : "work"}/${uid}` };
 }
 
@@ -181,4 +182,21 @@ function folderPlacement(root: string, metadata: RefMetadata | null, quarter: Re
   if (!sequence.success) return null;
   if (cohort) return match?.[2] === "a" || match?.[2] === "b" ? { ...stored, sequence: sequence.data, closeout: match[2] } : null;
   return { ...stored, sequence: sequence.data };
+}
+
+function misplacedFolder({ family, ref, quarter, saved }: ArchiveFolderScope, root: string, metadata: RefMetadata): ListingDiagnostic {
+  const stored = family === "cohort" ? metadata.placement : metadata.primary?.placement;
+  const key = `${ref}:${root}`;
+  let condition: string, remedy: string;
+  if (stored?.kind !== "completed") {
+    condition = `The archive folder ${key} holds metadata whose placement is ${stored?.kind ?? "absent"}, not completed.`;
+    remedy = `Record the folder's completed placement for quarter ${quarter} in its metadata in a new commit, or, if the item has not ended, remove the folder from the archive; then retry.`;
+  } else if (stored.quarter !== quarter) {
+    condition = `The archive folder ${key} is in quarter ${quarter}, but its metadata records quarter ${stored.quarter}.`;
+    remedy = `Move the folder to the archive for quarter ${stored.quarter}, or correct its metadata's quarter to ${quarter}, whichever matches when the item ended, in a new commit; then retry.`;
+  } else {
+    condition = `The archive folder ${key} has no valid sequence prefix.`;
+    remedy = "Rename the folder to <sequence>_<slug>/ (a cohort's <sequence><a or b>_cohort-<slug>/), restoring its assigned sequence and preserving its quarter, in a new commit; then retry.";
+  }
+  return refObjectFault(ref, "misplaced", { key, saved, condition, ...saved ? {} : { remedy: { text: remedy } } }).diagnostic;
 }

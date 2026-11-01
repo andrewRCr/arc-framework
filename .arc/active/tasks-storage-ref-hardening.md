@@ -102,7 +102,9 @@ listing schemas and output unchanged.
 
     - `[ ]` **2.3.a The fault rows and their remedies**
         - State-row checkpoint: `refObjectFault` maps Missing, Unparseable, and No metadata through current point
-          reads, saved metadata reads, and listing diagnostics. Archive and local-transport wiring remain open.
+          reads, saved metadata reads, and listing diagnostics. Archive placement conditions distinguish non-completed
+          placement, a wrong quarter, and an invalid sequence, with current or historical remedies; local-transport
+          wiring remains open.
         - **Missing** → recoverable `state-unresolvable` with the restore-or-fetch remedy; **Unparseable** and **No
           metadata** → terminal `namespace-corrupt` with the forward repair at a current tip and the historical remedy
           at a history commit or saved state; **Misplaced** → terminal `namespace-corrupt` carrying a placement
