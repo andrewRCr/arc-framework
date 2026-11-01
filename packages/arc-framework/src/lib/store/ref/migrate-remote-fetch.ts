@@ -13,6 +13,7 @@ import { refFetchNeedsCompleteness, missingRefFetchObjects, RefFetchIncompleteEr
 import { isStateRef } from "./manifest.js";
 import { FORWARDING_REF } from "./forwarding-record.js";
 import { migrationTransportTarget } from "./migrate-remote-target.js";
+import { localFetchObjectFailure } from "./fetch-local-loss.js";
 
 /** Clear exactly one temporary acquisition namespace, preserving the move and copied tips. */
 export async function clearMigrationRefs(context: RefBackendContext, prefix: string): Promise<void> {
@@ -65,6 +66,8 @@ async function runMigrationFetch(context: RefBackendContext, args: string[], inp
     if (failure.kind === "spawn-failure") throw failure;
     failed = true; fetched = parseFetchPorcelain(failure);
   }
+  const localFailure = await localFetchObjectFailure(context, fetched);
+  if (localFailure) throw new MigrationRefusal({ code: "store", refusal: localFailure });
   if (fetched.status === "unreachable") throw new MigrationRefusal({ code: "store", refusal: { code: "unreachable", class: "recoverable", cause: fetched.cause,
     condition: fetched.stderr || `Could not fetch migration remote ${remote.name}.`, remedy: { text: `Repair access to ${remote.name} and retry arc store migrate.` } } });
   // Rows printed before a failure do not show what the gathering kept, so the read failed whatever they say.

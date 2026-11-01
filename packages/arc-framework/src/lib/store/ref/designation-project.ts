@@ -18,6 +18,7 @@ import { readSyncRefs } from "./sync-graph.js";
 import { readForwardingRecord } from "./forwarding-record.js";
 import { refSyncCleanupContext, refSyncDeadlineExpired } from "./sync-deadline.js";
 import type { StoreCommandRefusal } from "../commands.js";
+import { localFetchObjectFailure } from "./fetch-local-loss.js";
 
 type ProjectFailure = Extract<PullOutcome, { status: "failed" }>["failure"];
 /** Candidate checks retain exact project identities and forwarding refusals for their callers. */
@@ -113,8 +114,9 @@ async function fetchProjectCheck(context: RefBackendContext, remote: RefRemoteDe
 }
 
 interface ProjectFetch { fetched: FetchOutcome; rejected: boolean }
+type ProjectFetchResult = ProjectFetch | { status: "failed"; failure: ProjectFailure };
 
-async function runProjectFetch(context: RefBackendContext, args: string[], input: string, observed: Map<string, string>): Promise<ProjectFetch> {
+async function runProjectFetch(context: RefBackendContext, args: string[], input: string, observed: Map<string, string>): Promise<ProjectFetchResult> {
   let result: ProjectFetch;
   try { result = { rejected: false, fetched: parseFetchPorcelain(await context.exec("git", args, { cwd: context.checkoutRoot, input,
     diagnosticLocale: "stable", interaction: PASSIVE_REMOTE_INTERACTION, preserveOutput: true })) }; }
@@ -124,20 +126,29 @@ async function runProjectFetch(context: RefBackendContext, args: string[], input
     if (failure.kind === "spawn-failure") throw failure;
     result = { rejected: true, fetched: parseFetchPorcelain(failure) };
   }
-  if (result.fetched.status === "refs") for (const row of result.fetched.refs) {
+  const localFailure = await localFetchObjectFailure(context, result.fetched);
+  if (localFailure) return { status: "failed", failure: localFailure };
+  rememberProjectFetch(result.fetched, observed);
+  return result;
+}
+
+function rememberProjectFetch(fetched: FetchOutcome, observed: Map<string, string>): void {
+  if (fetched.status !== "refs") return;
+  for (const row of fetched.refs) {
     if (row.flag === "!") continue;
     if (/^0+$/u.test(row.next)) observed.delete(row.ref);
     else observed.set(row.ref, row.next);
   }
-  return result;
 }
 
-async function completeProjectFetch(context: RefBackendContext, args: string[], input: string, first: ProjectFetch, observed: Map<string, string>):
-Promise<ProjectFetch | { status: "failed"; failure: ProjectFailure }> {
+async function completeProjectFetch(context: RefBackendContext, args: string[], input: string, first: ProjectFetchResult, observed: Map<string, string>):
+Promise<ProjectFetchResult> {
+  if ("failure" in first) return first;
   if (first.rejected || first.fetched.status !== "refs" || first.fetched.refs.some(({ flag }) => flag === "!")
     || !await refFetchNeedsCompleteness(context) || !(await missingRefFetchObjects(context, first.fetched)).length) return first;
   const at = args.indexOf("fetch");
   const retry = await runProjectFetch(context, [...args.slice(0, at + 1), "--refetch", ...args.slice(at + 1)], input, observed);
+  if ("failure" in retry) return retry;
   if (retry.rejected || retry.fetched.status !== "refs") return retry;
   const missing = await missingRefFetchObjects(context, retry.fetched);
   return missing.length ? { status: "failed", failure: new RefFetchIncompleteError(missing, []).failure } : retry;

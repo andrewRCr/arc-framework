@@ -262,49 +262,17 @@ classification calls the sweep settled.
           folder exemption. Other batches and retirement readers keep their policy. Current lineage and archive
           diagnostics retain their faults and repair routes; decoded origin mismatches keep their restore remedy.
 
-### `[ ]` **3.7 A missing local object after a failed fetch is a local transport fault — § 1.6**
+### `[x]` **3.7 A missing local object after a failed fetch is a local transport fault — § 1.6**
 
 - _Goal:_ A fetch that fails because a local ref or worktree `HEAD` has no tip object, or because a later step of the
   fetch reads a missing commit in local history, reports a per-remote `refused` failure naming that ref or commit with
   the restore remedy, not an unreachable remote; a remote that cannot send an object stays an unreachable remote unless
   the clone also lacks a commit the fetch read, which is reported first.
 
-- _Note:_ `pull.ts` is shared with another unit's change; see `notes-storage-ref-hardening.md` § Coordination with
-  `store-operation-git-access`. The helper's Git observations and settled calls are in `notes-storage-ref-hardening.md`
-  § Fault-site inventory › 3.7. The helper and state/history-pull wiring were brought forward in 2.3.a; migration and
-  project-check callers and the remaining native fetch scenarios stay open here.
-
-    - One helper, run after a completed Git failure with no porcelain rows, checks every ref (`for-each-ref` with no
-      pattern) and every worktree's `HEAD` (`worktree list --porcelain`) through one `cat-file --batch-check`. It skips
-      a `HEAD` listed as the null object ID, a worktree on an unborn branch. A missing tip names its ref.
-    - When every tip is present, the helper takes the object IDs the failure's stderr names, by
-      `isUnavailableGraphFailure`'s match (`history-graph.ts`), factored to take that stderr, and confirms them by one
-      local-only commit walk, `rev-list --missing=print --all` without `--objects`. A named commit the walk lists, such
-      as an ancestor the forced-update check read, names the commit, and the failure's condition keeps the fetch's
-      stderr. Message text never classifies alone.
-    - It runs where `pullRemote` meets the state fetch's and the history fetch's failures, and in `runMigrationFetch`
-      and `runProjectFetch`. `pullRemote` sees only the fetch's outcome, so `parseFetchPorcelain` (`lib/git/fetch.ts`)
-      marks whether its rowless `unreachable` outcome came from a completed failure, and the helper runs on that mark;
-      the other two sites hold the error. `failedRemotePull`, which also reports timeouts as `unreachable`, takes the
-      failure code from its caller.
-    - Build `test-first` (one behavior at a time):
-        - a pull whose state ref under a negotiation pattern has no tip object fails `refused`, naming the ref, with
-          the restore remedy
-        - the same for a code branch, a `refs/arc/tmp/*` ref, and a linked worktree's detached `HEAD`
-        - a migration fetch and a project check each report the same
-        - a pull whose state ref's tip parent is missing, while the remote has new commits for that ref, fails
-          `refused`, naming the commit, with the restore remedy; once the commit is restored, the same pull succeeds
-        - a pull from a remote that rewinds a state ref onto a commit the clone has lost and builds on it fails
-          `refused`, naming the commit, though no forced-update failure appears in its stderr
-        - a fetch from a remote that lacks an object it must send, every local tip present, keeps today's `unreachable`
-          classification and text
-        - the same failure beside a clone that lacks a commit the fetch read fails `refused`, naming that commit, and its
-          condition keeps the remote's failure; the same for a lost grandparent of a store ref and for a code branch's
-          lost commit the fetch names
-        - a completed failure with every local tip present and no confirmed missing object keeps today's `unreachable`
-          classification and text
-        - an unreachable remote beside a worktree on an unborn branch stays `unreachable`
-        - a fetch the deadline cancels never runs the check
+- _Outcome:_ Migration and project-check fetches retain confirmed local loss and the original remote failure through
+  the shared classifier. Migration probes the common code repository; designation leaves roles unchanged and clears
+  temporary refs. Native tip, ancestor, rewind, and combined-failure cases resume after exact object restoration;
+  remote-only and unnamed loss stay unreachable, and canceled fetches skip the check.
 
 ### `[ ]` **3.8 The import's publication journal reports its faults — § 1.4**
 
