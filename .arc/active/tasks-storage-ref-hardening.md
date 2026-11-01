@@ -317,18 +317,17 @@ classification calls the sweep settled.
         - `corruptRef` accepts only an optional `saved` option and reports unparseable metadata; all callers use the
           options shape. Sync placement retains its Missing condition directly through the object-fault helper.
 
-### `[ ]` **3.10 Re-run the fault search over the swept inventory** — validate exit criterion at segment scope
+### `[x]` **3.10 Re-run the fault search over the swept inventory** — validate exit criterion at segment scope
 
 - _Goal:_ Phase 3's exit criterion holds: the re-run search finds every fault site on the helper or among the
   inventory's tolerated, unchanged, and invariant sites, and Phase 3's cases pass in the store suites and the unit
   tests.
 
-- _Note:_ Task 3.4.a closed the earlier feedback carry in `store-ref-broken-operations.test.ts`; the full store-suite
-  run remains part of this segment's verification.
-
-    - Run the search, `npx arc check run test:store`, and `npx arc check segment`, and record what each found.
-    - A site outside the inventory fails the criterion; its classification and fix land in a revision parent of their
-      own, never in this task.
+- _Outcome:_ The fault search maps every object read and report to the helper or the inventory's tolerated,
+  structural, coordinate-gap, manifest, and invariant paths; `corruptRef` has no missing-object arm. The full regular
+  store and unit scenarios pass after the corrections recorded on Tasks 3.1.a, 3.1.c, 3.2.a, and 3.9.a. Search,
+  classification, and run evidence is retained as `task-3.10-*` under
+  `~/dev/arc-evidence/storage-ref-hardening/implementation/`.
 
 ## **Phase 4:** Listing scope, pull consumption, and transport failures
 
