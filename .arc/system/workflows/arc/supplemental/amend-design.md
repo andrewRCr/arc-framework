@@ -357,13 +357,16 @@ coincide at the member site and diverge elsewhere.
 | review finding         | the review-fix increment's verification     | none — the increment's own evidence at its scope            |
 | must-stop / skill door | `pending → X.Z`, the next covering verifier | the parent closes on its own evidence                       |
 
-**Member-site closure.** The corrective parent's closing subtask records the delta — run
-[`validate-criteria`][criteria-delta-check] over the changed criteria and the amendment's span; that method defines
-the delta's shape, a supplement to the preserved report rather than a second one. The member's closing task, left
-`[ ]` at the stop with its boundary report preserved, then closes on the **effective report**: a marker flip whose
-completion note cites the delta subtask. **A closing task that already carries a preserved boundary report does
-not re-walk** — it closes on the effective report. That rule reads a fact on the task being executed, never the
-log.
+**Member-site closure.** Run [`validate-criteria`][criteria-delta-check] over the changed criteria and the amendment's
+span; that method defines the delta's shape, a supplement to the preserved report rather than a second one. With
+corrective work, the corrective parent's closing subtask records the delta. For `_Work:_ none`, the next covering
+verifier records it in its own verification evidence, keyed by the amendment row's id; `_Revalidated:_` names that
+verifier, with its pending target used while the detour is open.
+
+The member's closing task, left `[ ]` at the stop with its boundary report preserved, closes only when the **effective
+report** has no unresolved criteria. Its completion note cites the delta subtask, or, for `_Work:_ none`, the verifier
+and amendment id identifying the delta. **A closing task that already carries a preserved boundary report does not
+re-walk** — it consumes that report plus its deltas. That branch reads a fact on the task being executed, never the log.
 
 **Review-site closure.** On the spec-changing arms at review there is no corrective parent: the correction is the
 review-fix increment, `_Work:_` is `review-fix`, and `_Revalidated:_` is that increment's verification at the
